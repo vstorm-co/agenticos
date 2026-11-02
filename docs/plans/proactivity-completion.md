@@ -47,7 +47,7 @@ Provider tests use deterministic fakes unless a dedicated test account is availa
 | Review defects | Claim scope/erasure guards, effective dates, atomic numbered replies, one-time verified private-thread backfill | Wider channel attachment/approval coverage and operator guidance |
 | Selected agent | Immutable routine version pins through the shared runner, API, MCP and UI | Selected-agent watches and enforced source ceilings |
 | Chat management | Trusted private-chat provenance, source delivery, management cards, MCP end/budget controls and end-time form control | Complete responsibility flow |
-| Standing authority | Existing creator consent is preserved for immutable pins | Per-action waivers, persistent device/folder/operation grants and per-effect revocation |
+| Standing authority | Immutable-pin consent and live routine/actor/run-grant checks before root, delegate and resumed tools | Per-action waivers, persistent device/folder/operation grants and bounded source authority |
 | Follow-through | Existing workflow engine retained as the durability owner | Event/deadline presets, matching replies, restart/cancellation/idempotency acceptance |
 | Outcomes | Existing outcome state retained | Notification inheritance/overrides, quiet findings versus requested reports and failure escalation |
 | Memory | Admitted audience retained in jobs, scoped channel/routine capture, erasure serialization, no false starter-version attribution | Decision episodes and Improve evidence integration with #2172 |

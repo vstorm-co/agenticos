@@ -2304,6 +2304,7 @@ class AgentTriggerService:
             return None
         return AuthContext(
             user_id=trigger.created_by_user_id,
+            routine_id=trigger.id,
             organization_id=trigger.organization_id,
             role=membership.role,
             # The creator is the authority a fire runs under, not a memory end-user:

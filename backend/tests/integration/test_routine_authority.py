@@ -1,0 +1,282 @@
+"""Revocation is read from Postgres before another routine or delegate tool runs."""
+
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+from dataclasses import dataclass, replace
+from datetime import UTC, datetime, timedelta
+from uuid import uuid4
+
+import pytest
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
+
+from app.core.exceptions import AuthorizationError
+from app.core.permissions import AuthContext, OrgRoleName
+from app.db.models.agent import Agent
+from app.db.models.agent_run import AgentRun
+from app.db.models.agent_trigger import AgentTrigger
+from app.db.models.organization import Organization, OrganizationMember
+from app.db.models.resource_grant import ResourceGrant
+from app.db.models.user import User
+from app.repositories import agent_run_repo
+from app.services.routine_authority import RoutineAuthority
+
+pytestmark = [pytest.mark.anyio, pytest.mark.security]
+
+
+@dataclass
+class World:
+    user: User
+    owner: User
+    organization: Organization
+    member: OrganizationMember
+    agent: Agent
+    delegate: Agent
+    trigger: AgentTrigger
+    grant: ResourceGrant
+    delegate_grant: ResourceGrant
+    ctx: AuthContext
+
+
+async def _world(db: AsyncSession) -> World:
+    owner = User(email=f"{uuid4()}@example.com", hashed_password="x")
+    user = User(email=f"{uuid4()}@example.com", hashed_password="x")
+    db.add_all([owner, user])
+    await db.flush()
+    organization = Organization(name="Acme", slug=f"acme-{uuid4()}", created_by_user_id=owner.id)
+    db.add(organization)
+    await db.flush()
+    member = OrganizationMember(organization_id=organization.id, user_id=user.id, role="viewer")
+    agent = Agent(
+        organization_id=organization.id,
+        name="Monitor",
+        slug=f"monitor-{uuid4()}",
+        owner_user_id=owner.id,
+    )
+    delegate = Agent(
+        organization_id=organization.id,
+        name="Helper",
+        slug=f"helper-{uuid4()}",
+        owner_user_id=owner.id,
+    )
+    db.add_all([member, agent, delegate])
+    await db.flush()
+    grant = ResourceGrant(
+        organization_id=organization.id,
+        resource_type="agent",
+        resource_id=agent.id,
+        subject_user_id=user.id,
+        level="use",
+    )
+    delegate_grant = ResourceGrant(
+        organization_id=organization.id,
+        resource_type="agent",
+        resource_id=delegate.id,
+        subject_user_id=user.id,
+        level="use",
+    )
+    trigger = AgentTrigger(
+        organization_id=organization.id,
+        agent_id=agent.id,
+        created_by_user_id=user.id,
+        prompt="Check",
+        interval_seconds=300,
+        next_fire_at=datetime.now(UTC),
+        runs_as_creator=True,
+    )
+    db.add_all([grant, delegate_grant, trigger])
+    await db.flush()
+    ctx = AuthContext(
+        user_id=user.id,
+        organization_id=organization.id,
+        role=OrgRoleName.VIEWER,
+        routine_id=trigger.id,
+        fired_as_creator="schedule",
+    )
+    return World(
+        user, owner, organization, member, agent, delegate, trigger, grant, delegate_grant, ctx
+    )
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        "paused",
+        "deleted",
+        "expired",
+        "consent",
+        "role",
+        "deactivated",
+        "left",
+        "root-grant",
+        "delegate-deleted",
+        "delegate-archived",
+        "archived",
+        "owner",
+        "agent",
+    ],
+)
+async def test_current_authority_can_revoke_a_previously_admitted_tool(
+    db: AsyncSession,
+    change: str,
+) -> None:
+    world = await _world(db)
+    authority = await RoutineAuthority.capture(db, world.ctx, agent_id=world.agent.id, run=None)
+    assert authority is not None
+    await authority.check_in(db, world.delegate.id)
+    if change == "paused":
+        world.trigger.is_active = False
+    elif change == "deleted":
+        await db.delete(world.trigger)
+    elif change == "expired":
+        world.trigger.ends_at = datetime.now(UTC) - timedelta(seconds=1)
+    elif change == "consent":
+        world.trigger.runs_as_creator = False
+    elif change == "role":
+        world.member.role = "owner"
+    elif change == "deactivated":
+        world.user.is_active = False
+    elif change == "left":
+        await db.delete(world.member)
+    elif change == "root-grant":
+        await db.delete(world.grant)
+    elif change == "delegate-deleted":
+        await db.delete(world.delegate)
+    elif change == "delegate-archived":
+        world.delegate.status = "archived"
+    elif change == "archived":
+        world.agent.status = "archived"
+    elif change == "owner":
+        world.trigger.created_by_user_id = world.owner.id
+    elif change == "agent":
+        world.trigger.agent_id = world.delegate.id
+    await db.flush()
+    with pytest.raises(AuthorizationError, match="authorization changed"):
+        await authority.check_in(db, world.delegate.id)
+
+
+async def test_another_tenant_or_root_agent_cannot_borrow_a_routine(db: AsyncSession) -> None:
+    world = await _world(db)
+    with pytest.raises(AuthorizationError):
+        await RoutineAuthority.capture(
+            db, replace(world.ctx, organization_id=uuid4()), agent_id=world.agent.id, run=None
+        )
+    with pytest.raises(AuthorizationError):
+        await RoutineAuthority.capture(db, world.ctx, agent_id=world.delegate.id, run=None)
+    with pytest.raises(AuthorizationError):
+        await RoutineAuthority.capture(
+            db, replace(world.ctx, role="owner"), agent_id=world.agent.id, run=None
+        )
+
+
+async def test_resumption_keeps_the_original_actor_and_origin_after_deletion(
+    db: AsyncSession,
+) -> None:
+    world = await _world(db)
+    run = await agent_run_repo.create_run(
+        db,
+        organization_id=world.organization.id,
+        agent_id=world.agent.id,
+        agent_version_id=None,
+        user_id=world.user.id,
+        conversation_id=None,
+        surface="schedule",
+        model_label=None,
+        started_at=datetime.now(UTC),
+        trigger_id=world.trigger.id,
+    )
+    approver = replace(world.ctx, user_id=world.owner.id, role="owner", routine_id=None)
+    authority = await RoutineAuthority.capture(db, approver, agent_id=world.agent.id, run=run)
+    assert (
+        authority is not None and authority.user_id == world.user.id and authority.role == "viewer"
+    )
+    origin = world.trigger.id
+    await db.delete(world.trigger)
+    await db.flush()
+    await db.refresh(run)
+    assert run.trigger_id is None and run.routine_origin_id == origin
+    with pytest.raises(AuthorizationError):
+        await RoutineAuthority.capture(db, approver, agent_id=world.agent.id, run=run)
+
+
+async def test_unattributed_routine_runs_cannot_borrow_the_resumer(db: AsyncSession) -> None:
+    world = await _world(db)
+    run = AgentRun(routine_origin_id=world.trigger.id, user_id=None)
+    with pytest.raises(AuthorizationError):
+        await RoutineAuthority.capture(db, world.ctx, agent_id=world.agent.id, run=run)
+    assert (
+        await RoutineAuthority.capture(
+            db, replace(world.ctx, routine_id=None), agent_id=world.agent.id, run=None
+        )
+        is None
+    )
+
+
+async def test_nonpersonal_routines_and_runs_with_no_routine_keep_their_contract(
+    db: AsyncSession,
+) -> None:
+    world = await _world(db)
+    world.trigger.runs_as_creator = False
+    world.trigger.ends_at = datetime.now(UTC) + timedelta(days=1)
+    await db.flush()
+    authority = await RoutineAuthority.capture(
+        db, replace(world.ctx, fired_as_creator=None), agent_id=world.agent.id, run=None
+    )
+    assert authority is not None and not authority.acts_as_creator
+    run = AgentRun(
+        routine_origin_id=world.trigger.id,
+        user_id=world.user.id,
+        initiated_by_publisher_fallback=True,
+    )
+    resumed = await RoutineAuthority.capture(db, world.ctx, agent_id=world.agent.id, run=run)
+    assert resumed is not None and not resumed.acts_as_creator
+    run.routine_origin_id = None
+    assert await RoutineAuthority.capture(db, world.ctx, agent_id=world.agent.id, run=run) is None
+
+
+async def test_each_tool_checks_current_committed_state_in_a_fresh_session(
+    db: AsyncSession,
+    engine: AsyncEngine,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.services import routine_authority
+
+    world = await _world(db)
+    authority = await RoutineAuthority.capture(db, world.ctx, agent_id=world.agent.id, run=None)
+    assert authority is not None
+    await db.commit()
+    sessions = async_sessionmaker(engine, expire_on_commit=False)
+    opened: list[AsyncSession] = []
+
+    @asynccontextmanager
+    async def fresh() -> AsyncIterator[AsyncSession]:
+        async with sessions() as session:
+            opened.append(session)
+            yield session
+
+    monkeypatch.setattr(routine_authority, "get_db_context", fresh)
+    await authority.check(world.agent.id)
+    await db.delete(world.grant)
+    await db.commit()
+    with pytest.raises(AuthorizationError):
+        await authority.check(world.agent.id)
+    assert len(opened) == 2 and opened[0] is not opened[1]
+
+
+async def test_a_legacy_parked_routine_with_no_remaining_origin_is_not_released(
+    db: AsyncSession,
+) -> None:
+    world = await _world(db)
+    run = AgentRun(surface="schedule", routine_origin_id=None, user_id=world.user.id)
+    with pytest.raises(AuthorizationError):
+        await RoutineAuthority.capture(db, world.ctx, agent_id=world.agent.id, run=run)
+
+
+async def test_a_published_parent_lends_its_pinned_delegate_without_a_direct_grant(
+    db: AsyncSession,
+) -> None:
+    world = await _world(db)
+    authority = await RoutineAuthority.capture(db, world.ctx, agent_id=world.agent.id, run=None)
+    assert authority is not None
+    await db.delete(world.delegate_grant)
+    await db.flush()
+    await authority.check_in(db, world.delegate.id)

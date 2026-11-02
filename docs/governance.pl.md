@@ -1,5 +1,5 @@
 ---
-source_sha: "ff651b008634"
+source_sha: "36361ca6f556"
 ---
 
 # Governance { #governance }
@@ -62,6 +62,8 @@ do korzystania z osobistych kont jego wystawcy.
 Wybór wersji pozwala śledzić domyślną opublikowaną wersję albo przypiąć jedną niezmienną wersję. Publikacja nie przesuwa pinu. Usuń go, aby ponownie śledzić wersję domyślną. Nazwane środowisko i pin wersji wzajemnie się wykluczają; nadal obowiązują bieżące uprawnienia, budżety i zatwierdzenia.
 
 Formularz rutyny pozwala ustawić lub usunąć datę zakończenia. Data używa pokazanej przy polu strefy urządzenia, niezależnie od strefy harmonogramu cron, i trafia do API jako timestamp z offsetem. Edycja innego pola zachowuje dotychczasowy koniec bez zmian.
+
+Rutyna przed każdym narzędziem ponownie sprawdza twórcę, aktywne członkostwo, rolę i granty uruchamiania, także w delegacjach i po zatwierdzeniu. Pauza, usunięcie, wygaśnięcie, cofnięcie zgody na osobiste konta lub zmiana tych uprawnień odmawia kolejnych wywołań. Kontrola nie cofa efektu już wysłanego do zewnętrznej usługi. Migracja `0260_routine_run_origin` zachowuje pochodzenie po usunięciu rutyny; starszy zaparkowany harmonogram, który utracił pochodzenie, jest odrzucany zamiast pożyczać uprawnienia zatwierdzającego.
 
 ## Budżety { #budgets }
 

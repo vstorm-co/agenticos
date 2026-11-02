@@ -183,6 +183,7 @@ from app.agents.mcp import PLATFORM_MCP_PREFIX, unreachable_briefing
 from app.agents.model_resolver import ModelRequestSpec
 from app.agents.observability import current_trace_id
 from app.agents.person_briefing import Person, with_person
+from app.agents.routine_authority import RoutineCheck, guard_for
 from app.agents.spec import (
     AgentSpec,
     CapabilityBindingSpec,
@@ -318,6 +319,7 @@ from app.services.notifications import NotificationService
 from app.services.organization import OrganizationService
 from app.services.organization_secret import OrganizationSecretService
 from app.services.project import ProjectService
+from app.services.routine_authority import RoutineAuthority
 from app.services.run_heartbeat import run_heartbeat
 from app.services.sandbox_workspace import (
     SANDBOX_CAPABILITY_ID,
@@ -2462,6 +2464,8 @@ class _Delegation:
     Parked instead, the delegate's approval would surface as one on the twin's
     `task` call, which no approval row answers."""
 
+    routine_check: RoutineCheck | None = None
+
     catalog: _ModelCatalog = field(default_factory=_ModelCatalog)
     """The organization's model catalog, read at most once and only if asked for.
 
@@ -2550,6 +2554,7 @@ def _delegate_builder(
             resources=resources,
             secrets=secrets,
             extra_toolsets=extra_toolsets,
+            extra_capabilities=guard_for(delegation.routine_check, agent_id=agent_id),
             # Its own reviewers, resolved with everything else: without their
             # models `_reviewers` leaves each one out, and an agent reviewed when
             # called directly would run unreviewed as a delegate.
@@ -3358,6 +3363,8 @@ class AgentRunnerService:
         that created it - at the run's own agent (agenticos#175) and inside a nested
         delegate (agenticos#254) alike.
         """
+        routine = await RoutineAuthority.capture(self.db, ctx, agent_id=agent.id, run=existing_run)
+        routine_check = None if routine is None else routine.check
         spec = _with_local_capabilities(
             await self.registry.with_assistant_guidance(agent, spec), local
         )
@@ -3599,6 +3606,7 @@ class AgentRunnerService:
                     None if test_spec is not None else version_id or agent.current_version_id
                 ),
                 user_id=ctx.user_id,
+                trigger_id=ctx.routine_id,
                 initiated_by_publisher_fallback=initiated_by_publisher_fallback,
                 key_scopes=(
                     None
@@ -3918,6 +3926,7 @@ class AgentRunnerService:
             delegate_recorders=delegate_recorders,
             stash=stash,
             answering_call=None if voice is None else voice.options,
+            routine_check=routine_check,
         )
         if runtime is not None:
             resources[SUBAGENT_RUNTIME_RESOURCE] = runtime
@@ -3991,6 +4000,7 @@ class AgentRunnerService:
                     conversation_id=run.conversation_id,
                     user_id=None if audience_user_id is None else str(audience_user_id),
                     user_name=user_name,
+                    extra_capabilities=guard_for(routine_check, agent_id=agent.id),
                     audience=audience,
                     run_person=run_person,
                     impersonated=impersonated,
@@ -4063,7 +4073,10 @@ class AgentRunnerService:
                 *spec_toolsets,
                 *(() if hand_off is None else (hand_off.toolset(),)),
             ],
-            extra_capabilities=() if on_use is None else (on_use,),
+            extra_capabilities=(
+                *(() if on_use is None else (on_use,)),
+                *guard_for(routine_check, agent_id=agent.id),
+            ),
             agent_period_spend=agent_period_spend,
             org_period_spend=org_period_spend,
             org_monthly_budget_usd=organization.monthly_budget_usd,
@@ -4187,6 +4200,7 @@ class AgentRunnerService:
         delegate_recorders: list[tuple[UUID, RunRecorder]],
         stash: DelegationStash,
         answering_call: VoiceOptions | None = None,
+        routine_check: RoutineCheck | None = None,
     ) -> SubagentRuntime | None:
         """The delegation tree this run may reach, or `None` if it delegates to none.
 
@@ -4254,6 +4268,7 @@ class AgentRunnerService:
             stash=stash,
             output_screen=_output_screen(spec),
             answering_call=answering_call,
+            routine_check=routine_check,
         )
         # `max_depth` counts levels of delegation *including this agent's own*, so
         # the budget left below this level is one less. The subtraction is the whole

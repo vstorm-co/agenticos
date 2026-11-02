@@ -1,5 +1,5 @@
 ---
-source_sha: "ff651b008634"
+source_sha: "36361ca6f556"
 ---
 
 # Governance { #governance }
@@ -64,6 +64,8 @@ zur Nutzung der persönlichen Konten seines Ausstellers ermächtigen.
 Die Versionsauswahl folgt entweder der standardmäßig veröffentlichten Version oder legt eine unveränderliche Version fest. Eine Veröffentlichung verschiebt diese Festlegung nicht. Entfernen Sie sie, um wieder der Standardversion zu folgen. Eine benannte Umgebung und eine festgelegte Version schließen sich aus; aktuelle Zugriffsrechte, Budgets und Freigaben gelten weiterhin.
 
 Im Routineformular können Sie das Ende festlegen oder entfernen. Das Datum verwendet die am Feld angezeigte Gerätezeitzone, unabhängig von der Cron-Zeitzone, und wird mit UTC-Offset an die API gesendet. Änderungen anderer Felder lassen das bestehende Ende unverändert.
+
+Eine Routine prüft vor jedem Werkzeug ihren Ersteller, aktive Mitgliedschaft, Rolle und Ausführungsrechte erneut, auch bei Delegationen und nach einer Freigabe. Pausieren, Löschen, Ablauf, Widerruf persönlicher Zustimmung oder Änderungen dieser Berechtigung verhindern weitere Werkzeugaufrufe. Bereits an externe Dienste gesendete Effekte werden dadurch nicht zurückgerufen. Migration `0260_routine_run_origin` bewahrt den Ursprung beim Löschen; ältere geparkte Zeitpläne mit verlorenem Ursprung werden abgelehnt, statt die Rechte der freigebenden Person zu übernehmen.
 
 ## Budgets { #budgets }
 

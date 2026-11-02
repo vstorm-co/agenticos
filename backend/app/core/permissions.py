@@ -541,6 +541,9 @@ class AuthContext:
     OAuth tokens never supply this hint.
     """
 
+    routine_id: UUID | None = None
+    """Trusted origin set by the trigger worker, never accepted from a public API request."""
+
     @classmethod
     def anonymous(cls, organization_id: UUID) -> AuthContext:
         """A context for a visitor nobody can name.

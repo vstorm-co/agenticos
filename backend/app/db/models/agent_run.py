@@ -225,6 +225,10 @@ class AgentRun(Base, TimestampMixin):
         nullable=True,
         index=True,
     )
+    routine_origin_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True), nullable=True
+    )
+    """Immutable routine provenance; survives deletion so a parked run cannot lose its guard."""
     conversation_id: Mapped[uuid.UUID | None] = mapped_column(
         PG_UUID(as_uuid=True),
         ForeignKey("conversations.id", ondelete="SET NULL"),

@@ -212,6 +212,7 @@ def _prepared(
 def _parked_run(**overrides):
     """A run row as it looks after the gate parked a tool call on it."""
     run = MagicMock(
+        routine_origin_id=None,
         id=uuid.uuid4(),
         agent_id=uuid.uuid4(),
         agent_version_id=uuid.uuid4(),
@@ -2249,7 +2250,10 @@ class TestAThreadsEarlierAttachmentsAreBroughtBack:
         on files it never put back."""
         ctx = _ctx()
         resumed = MagicMock(
-            user_id=ctx.user_id, key_scopes=None, initiated_by_publisher_fallback=False
+            routine_origin_id=None,
+            user_id=ctx.user_id,
+            key_scopes=None,
+            initiated_by_publisher_fallback=False,
         )
 
         _, instructions, _, restored, find = await self._prepare(
@@ -2264,8 +2268,17 @@ class TestAThreadsEarlierAttachmentsAreBroughtBack:
     @pytest.mark.parametrize(
         "resumed",
         [
-            MagicMock(user_id=uuid.uuid4(), key_scopes=None, initiated_by_publisher_fallback=False),
-            MagicMock(key_scopes=["agents:run"], initiated_by_publisher_fallback=False),
+            MagicMock(
+                routine_origin_id=None,
+                user_id=uuid.uuid4(),
+                key_scopes=None,
+                initiated_by_publisher_fallback=False,
+            ),
+            MagicMock(
+                routine_origin_id=None,
+                key_scopes=["agents:run"],
+                initiated_by_publisher_fallback=False,
+            ),
         ],
         ids=["released-by-another-approver", "started-by-a-key"],
     )
@@ -3760,6 +3773,11 @@ class TestResume:
         run.paused_state["tool_call_ids"] = {str(approval.id): "call-1"}
 
         with (
+            # These fixtures test replayed terms, not a live routine's authority.
+            patch(
+                "app.services.agent_runner.RoutineAuthority.capture",
+                new=AsyncMock(return_value=None),
+            ),
             patch(
                 "app.services.agent_runner.agent_run_repo.claim_parked_run",
                 new=AsyncMock(return_value=run),
@@ -7560,3 +7578,70 @@ async def test_channel_reference_knows_whether_dispatch_adds_a_user_prompt(promp
     await prepared.execute(prompt, message_history=None, deferred_tool_results=None)
     (reference,) = prepared.built.agent.run.await_args.kwargs["capabilities"]
     assert reference.has_current_prompt is (prompt is not None)
+
+
+@pytest.mark.anyio
+async def test_a_revoked_routine_is_refused_before_models_or_mcp_connections_are_opened() -> None:
+    from app.core.exceptions import AuthorizationError
+
+    ctx = replace(_ctx(), routine_id=uuid.uuid4())
+    service = AgentRunnerService(_db())
+    agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4())
+    spec = AgentSpec(name="Routine")
+    with (
+        patch.object(
+            service.registry,
+            "get_runnable_spec",
+            new=AsyncMock(return_value=(agent, spec, agent.current_version_id)),
+        ),
+        patch(
+            "app.services.agent_runner.RoutineAuthority.capture",
+            new=AsyncMock(side_effect=AuthorizationError(message="Routine paused")),
+        ),
+        patch.object(service.models, "resolve", new=AsyncMock()) as models,
+        patch("app.services.agent_runner.build_toolsets_for_agent", new=AsyncMock()) as connections,
+        pytest.raises(AuthorizationError, match="Routine paused"),
+    ):
+        await service.prepare(ctx, agent.id)
+    models.assert_not_awaited()
+    connections.assert_not_awaited()
+
+
+@pytest.mark.anyio
+async def test_routine_origin_and_live_tool_guard_are_attached_during_preparation() -> None:
+    from app.agents.routine_authority import RoutineGuard
+
+    ctx = replace(_ctx(), routine_id=uuid.uuid4())
+    service = AgentRunnerService(_db())
+    agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4())
+    spec = AgentSpec(name="Routine")
+    check = AsyncMock()
+    authority = SimpleNamespace(check=check)
+    with (
+        patch.object(
+            service.registry,
+            "get_runnable_spec",
+            new=AsyncMock(return_value=(agent, spec, agent.current_version_id)),
+        ),
+        patch(
+            "app.services.agent_runner.RoutineAuthority.capture",
+            new=AsyncMock(return_value=authority),
+        ),
+        patch.object(
+            service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
+        ),
+        patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
+        patch(
+            "app.services.agent_runner.agent_run_repo.create_run",
+            new=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
+        ) as create,
+        patch("app.services.agent_runner.build_agent", return_value=MagicMock()) as build,
+    ):
+        await service.prepare(ctx, agent.id)
+    assert create.await_args.kwargs["trigger_id"] == ctx.routine_id
+    guards = [
+        item
+        for item in build.call_args.kwargs["extra_capabilities"]
+        if isinstance(item, RoutineGuard)
+    ]
+    assert len(guards) == 1 and guards[0].check is check and guards[0].agent_id == agent.id

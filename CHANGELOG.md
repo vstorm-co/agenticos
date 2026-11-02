@@ -1001,6 +1001,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- **Routine authorization is checked before every tool.** Root runs, delegates and approval continuations refuse subsequent tools after pause, deletion, expiry, personal-consent withdrawal, role changes or revoked run grants. The actor remains the original creator. Immutable run provenance survives deletion so a parked routine cannot lose its guard when its reporting FK clears; unverifiable old parked schedules are refused. Migration `0260_routine_run_origin`.
+
 - **Platform model calls no longer claim to have executed the starter agent's version.** Their role remains recorded and the run manifest contains the actual platform instructions; the unrelated agent version is left empty.
 
 - **An erasure wins over extraction waiting to write.** Memory maintenance obtains the personal-data lock before its final erasure check, so a concurrent forget request cannot be followed by a recreated claim.

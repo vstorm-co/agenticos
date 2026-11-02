@@ -3940,6 +3940,7 @@ class TestRunningAsTheCreator:
         assert ctx.user_id == _CALLER
         assert ctx.subject_is_publisher_fallback is False
         assert ctx.fired_as_creator == "schedule"
+        assert ctx.routine_id == trigger.id
         # Their own connections speak for it, which nothing else turns on.
         assert call.kwargs["acts_for_sender"] is True
         # "Trigger X, acting as member Y" - on the run and in the trail.

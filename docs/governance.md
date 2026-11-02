@@ -56,6 +56,8 @@ Use the version policy to follow the default published version or pin one immuta
 
 The routine form can set or clear its end. The date uses the device time zone shown beside the field, independently of the cron schedule zone, and is sent to the API as an offset-aware instant. Editing another field leaves the existing end unchanged.
 
+A routine rechecks its creator, active membership, role and run grants before each tool, including delegates and calls released after approval. Pausing, deleting or expiring the routine, withdrawing personal consent, or changing that authority refuses subsequent tools. An effect already sent to an external service cannot be recalled by this check. Migration `0260_routine_run_origin` retains the origin when the routine is deleted; an old parked schedule whose origin was already lost is refused rather than borrowing the approver’s authority.
+
 ## Budgets
 
 !!! abstract "Three levels, and they are not variations on one number"

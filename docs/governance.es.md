@@ -1,5 +1,5 @@
 ---
-source_sha: "ff651b008634"
+source_sha: "36361ca6f556"
 ---
 
 # Governance { #governance }
@@ -62,6 +62,8 @@ autorizar a una rutina a usar las cuentas personales de quien la emitió.
 La política de versiones permite seguir la versión publicada predeterminada o fijar una versión inmutable. Una publicación no cambia la versión fijada. Elimina la fijación para volver a seguir la predeterminada. Un entorno con nombre y una versión fijada se excluyen mutuamente; siguen vigentes los permisos, presupuestos y aprobaciones actuales.
 
 El formulario de la rutina permite definir o quitar su fecha de fin. La fecha usa la zona horaria del dispositivo indicada junto al campo, independientemente de la zona del cron, y se envía a la API como un instante con desplazamiento UTC. Editar otro campo conserva el fin existente.
+
+Una rutina vuelve a comprobar su creador, membresía activa, rol y permisos de ejecución antes de cada herramienta, también en delegaciones y después de una aprobación. Pausar, borrar, caducar, retirar el consentimiento personal o cambiar esa autoridad impide las siguientes llamadas. La comprobación no revierte efectos ya enviados a servicios externos. La migración `0260_routine_run_origin` conserva el origen tras borrar la rutina; los horarios antiguos aparcados cuyo origen ya se perdió se rechazan en lugar de usar la autoridad de quien aprueba.
 
 ## Budgets { #budgets }
 
