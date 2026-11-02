@@ -129,6 +129,21 @@ class TestScopes:
             ClaimScope(organization_owner_key(ORG), None),
         ]
 
+    def test_a_private_run_without_a_project_does_not_gain_project_memory(self) -> None:
+        scopes = readable_claim_scopes(
+            RunAudience(user_id=PERSON),
+            organization_id=ORG,
+            agent_id=AGENT,
+            project_id=None,
+            allow_personal=True,
+        )
+        key = person_owner_key(PERSON)
+        assert scopes == [
+            ClaimScope(key, AGENT),
+            ClaimScope(key, None),
+            ClaimScope(organization_owner_key(ORG), None),
+        ]
+
     def test_a_room_reads_only_its_own_claims(self):
         scopes = readable_claim_scopes(
             RunAudience(user_id=PERSON, room_key=ROOM),

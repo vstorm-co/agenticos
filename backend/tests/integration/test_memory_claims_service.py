@@ -203,3 +203,31 @@ async def test_the_history_is_read_only(db: AsyncSession) -> None:
         await service.correct_claim(ctx, old.id, MemoryClaimCorrect(statement="Marta"))
     live = await service.my_claims(ctx, skip=0, limit=10, history=False)
     assert [item.statement for item in live.items] == ["Piotr handles invoices"]
+
+
+async def test_current_inventory_excludes_ended_and_not_yet_effective_claims(
+    db: AsyncSession,
+) -> None:
+    from datetime import timedelta
+
+    from app.core.exceptions import ConflictError
+
+    user, org, agent, ctx, _ = await _setup(db)
+    key = person_owner_key(user.id)
+    ended = await _say(db, org, key, agent, "Anna handles invoices", "owner")
+    ended.effective_to = datetime.now(UTC) - timedelta(days=1)
+    future = await _say(db, org, key, agent, "Piotr handles invoices", "next_owner")
+    future.effective_from = datetime.now(UTC) + timedelta(days=1)
+    current = await _say(db, org, key, agent, "Prefers short answers", "style")
+    await db.flush()
+    service = MemoryService(db)
+    active = await service.my_claims(ctx, skip=0, limit=50, history=False)
+    history = await service.my_claims(ctx, skip=0, limit=50, history=True)
+    assert active.total == 1 and active.items[0].id == current.id
+    assert history.total == 3
+    with pytest.raises(ConflictError):
+        await service.correct_claim(
+            ctx, ended.id, MemoryClaimCorrect(statement="An obsolete correction")
+        )
+    with pytest.raises(ConflictError):
+        await service.retract_claim(ctx, ended.id)

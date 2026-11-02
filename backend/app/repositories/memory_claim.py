@@ -120,12 +120,14 @@ async def list_for_owner(
     statuses: Sequence[str],
     skip: int,
     limit: int,
+    in_effect: bool = False,
 ) -> tuple[list[MemoryClaim], int]:
     """Every claim one owner holds in an organization, under any agent, and the total."""
     clause = (
         MemoryClaim.organization_id == organization_id,
         MemoryClaim.scope_key == scope_key,
         MemoryClaim.status.in_(list(statuses)),
+        _in_effect() if in_effect else true(),
     )
     total = await db.scalar(select(func.count()).select_from(MemoryClaim).where(*clause)) or 0
     result = await db.execute(

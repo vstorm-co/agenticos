@@ -104,6 +104,7 @@ class MemoryService:
             statuses=statuses,
             skip=skip,
             limit=limit,
+            in_effect=not history,
         )
         names = await self._agent_names({row.agent_id for row in rows if row.agent_id})
         return MemoryClaimList(items=[_claim_read(row, names) for row in rows], total=total)

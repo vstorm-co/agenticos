@@ -993,6 +993,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- The current memory inventory excludes expired claims and future-dated replacements until they take effect; history retains both.
+
 - SMS and e-mail prompts reserve reply numbers atomically before delivery and retain unused numbers after settlement, preventing concurrent sends and delayed replies from deciding another approval.
 
 - Memory corrections require organization-wide edit authority for organization claims; expired claims cannot be corrected or shared. Same-scope sharing is refused, and person-memory erasure waits for concurrent claim writes.
