@@ -29,9 +29,12 @@ is checked on a real model before a phase relies on it.
 Built through the HTTP API and the console's own chat socket, never by writing
 rows, for the reason `loadtest/seed.py` gives: a fixture assembled behind the
 product's validation could show a state the product cannot produce. It creates
-only what is missing and never changes a row it finds, so running it again
-after somebody clicked through keeps their changes. It never enters the
-Personal organization.
+only what is missing, and leaves alone every row somebody may have worked on,
+so running it again after a click-through keeps their changes. What it does
+finish is a step an interrupted run left half done: a dataset that was never
+measured gets its missing questions and its grading, and an agent that was
+never published is published. A conversation it could not confirm is asked
+again on the next run, at most twice. It never enters a Personal organization.
 
 The owner's login and the provider key come from the environment and are never
 printed: `SKILLS_LAB_EMAIL`, `SKILLS_LAB_PASSWORD`, and
@@ -39,7 +42,7 @@ printed: `SKILLS_LAB_EMAIL`, `SKILLS_LAB_PASSWORD`, and
 no key. A first run costs about twenty cents on GPT-4.1 mini.
 
 `make seed-skills-lab SKILLS_LAB_URL=<the stack's API>` seeds, `PROBE=<variant>`
-measures a wording instead, and `--drop-probes` deletes the probe organizations
+measures a wording instead, and `DROP_PROBES=1` deletes the probe organizations
 once their numbers are written down.
 """
 
@@ -82,6 +85,10 @@ CHAT_ATTEMPTS = 2
 CHAT_SECONDS = 240
 EVAL_PATIENCE_SECONDS = 900
 UNFINISHED = frozenset({"queued", "running"})
+MEASURING = UNFINISHED | {"completed"}
+
+JsonObject = dict[str, Any]
+"""One JSON object from the API, its fields read by the names the API documents."""
 
 RULE_TWO: dict[Variant, str] = {
     "v1": (
@@ -209,7 +216,13 @@ class AgentPlan:
     binds_skill: bool
     delegates_to: AgentKey | None = None
     dataset: str | None = None
-    cases: tuple[Case, ...] = ()
+    rule: tuple[Case, ...] = ()
+    """The questions on rule 2, the ones a wording of it decides."""
+
+    @property
+    def cases(self) -> tuple[Case, ...]:
+        """Every test question: the rule's, and the general ones each measured desk shares."""
+        return self.rule + GENERAL if self.dataset else ()
 
 
 AGENTS = (
@@ -224,7 +237,7 @@ AGENTS = (
         ),
         binds_skill=True,
         dataset="Online returns desk - test questions",
-        cases=ONLINE_RULE + GENERAL,
+        rule=ONLINE_RULE,
     ),
     AgentPlan(
         key="B",
@@ -237,7 +250,7 @@ AGENTS = (
         ),
         binds_skill=True,
         dataset="Gift shop counter - test questions",
-        cases=COUNTER_RULE + GENERAL,
+        rule=COUNTER_RULE,
     ),
     AgentPlan(
         key="C",
@@ -404,7 +417,8 @@ class Api:
         org: str | None = None,
         body: object = None,
         params: Mapping[str, str | int] | None = None,
-    ) -> Any:
+    ) -> JsonObject:
+        """The object a call answers with; an answer with no body reads as an empty one."""
         for attempt in (1, 2):
             headers = {"Authorization": f"Bearer {self.token}"}
             if org is not None:
@@ -420,8 +434,18 @@ class Api:
                 continue
             if response.status_code >= 300:
                 raise SeedError(f"{method} {path}: {response.status_code} {response.text[:300]}")
-            return response.json() if response.content else None
+            return response.json() if response.content else {}
         raise SeedError(f"{method} {path}: still unauthorized after signing in again")
+
+    def items(
+        self,
+        path: str,
+        *,
+        org: str | None = None,
+        params: Mapping[str, str | int] | None = None,
+    ) -> list[JsonObject]:
+        """The `items` of a list the API answers with."""
+        return list(self.call("GET", path, org=org, params=params)["items"])
 
 
 Ask = Callable[[str, str], str]
@@ -451,10 +475,6 @@ def socket_chat(api: Api, base_url: str, organization_id: str) -> Ask:
     return ask
 
 
-def _items(body: Any) -> list[dict[str, Any]]:
-    return list(body["items"]) if isinstance(body, dict) else list(body)
-
-
 @dataclass
 class Report:
     """What the run found and did, printed as one JSON line at the end."""
@@ -466,6 +486,7 @@ class Report:
     measured: dict[str, str] = field(default_factory=dict)
     created: list[str] = field(default_factory=list)
     kept: list[str] = field(default_factory=list)
+    finished: list[str] = field(default_factory=list)
     rated_down: int = 0
     rated_up: int = 0
     skill_opened: int = 0
@@ -475,11 +496,20 @@ class Report:
         (self.created if made else self.kept).append(what)
         print(f"{'created' if made else 'found'} {what}")
 
+    def finish(self, what: str) -> None:
+        self.finished.append(what)
+        print(f"finished {what}")
+
 
 def ensure_org(api: Api, *, name: str, slug: str, report: Report) -> tuple[str, bool]:
-    """The organization with `slug`, and whether it was created now."""
-    for org in _items(api.call("GET", "/orgs")):
-        if org.get("slug") == slug:
+    """The organization with `slug`, and whether it was created now.
+
+    A Personal organization's slug comes from its owner's email, so it can be `slug`
+    too; it is never the one meant, and creating ours then fails on the taken slug
+    rather than seeding into somebody's own space.
+    """
+    for org in api.items("/orgs"):
+        if org.get("slug") == slug and not org.get("is_personal"):
             report.note(f"organization {name}", made=False)
             return str(org["id"]), False
     org = api.call("POST", "/orgs", body={"name": name, "slug": slug})
@@ -488,11 +518,13 @@ def ensure_org(api: Api, *, name: str, slug: str, report: Report) -> tuple[str, 
 
 
 def ensure_model(api: Api, org: str, *, key: str | None, report: Report) -> str:
-    for profile in _items(api.call("GET", "/providers/model-profiles", org=org)):
+    """The model the agents run on. Creating the organization's first one also publishes the
+    system agents it was seeded with, the judge and the improver among them."""
+    for profile in api.items("/providers/model-profiles", org=org):
         if profile.get("label") == MODEL_LABEL:
             report.note(f"model {MODEL_LABEL}", made=False)
             return str(profile["id"])
-    secrets = _items(api.call("GET", "/secrets", org=org, params={"purpose": "openrouter"}))
+    secrets = api.items("/secrets", org=org, params={"purpose": "openrouter"})
     secret = next((row for row in secrets if row.get("name") == SECRET_NAME), None)
     if secret is None:
         if not key:
@@ -523,22 +555,8 @@ def ensure_model(api: Api, org: str, *, key: str | None, report: Report) -> str:
     return str(profile["id"])
 
 
-def ensure_system_agents(api: Api, org: str, *, model: str, report: Report) -> None:
-    for kind, name in (("improver", "Authoring assistant"), ("judge", "Eval judge")):
-        if _items(api.call("GET", "/agents", org=org, params={"kind": kind})):
-            report.note(f"{kind} {name}", made=False)
-            continue
-        api.call(
-            "POST",
-            "/agents/system",
-            org=org,
-            body={"kind": kind, "name": name, "model_profile_id": model},
-        )
-        report.note(f"{kind} {name}", made=True)
-
-
 def ensure_skill(api: Api, org: str, *, variant: Variant, report: Report) -> str:
-    for row in _items(api.call("GET", "/skills", org=org, params={"q": SKILL})):
+    for row in api.items("/skills", org=org, params={"q": SKILL}):
         if row.get("name") != SKILL:
             continue
         found = api.call("GET", f"/skills/{row['id']}", org=org)
@@ -565,10 +583,10 @@ def ensure_skill(api: Api, org: str, *, variant: Variant, report: Report) -> str
 
 def agent_spec(
     plan: AgentPlan, *, model: str, skill: str, delegate: tuple[str, str] | None = None
-) -> dict[str, Any]:
+) -> JsonObject:
     """The spec `plan` publishes. `delegate` is the (agent, version) it may hand work to."""
     capabilities: list[dict[str, str]] = []
-    spec: dict[str, Any] = {
+    spec: JsonObject = {
         "name": plan.name,
         "description": plan.description,
         "instructions": plan.instructions,
@@ -588,9 +606,10 @@ def agent_spec(
 def ensure_agents(
     api: Api, org: str, plans: Sequence[AgentPlan], *, model: str, skill: str, report: Report
 ) -> dict[AgentKey, str]:
+    """Each planned agent, published. One an interrupted run created and never published
+    is published now; a published one is left exactly as it is."""
     existing = {
-        row["name"]: str(row["id"])
-        for row in _items(api.call("GET", "/agents", org=org, params={"limit": 100}))
+        row["name"]: str(row["id"]) for row in api.items("/agents", org=org, params={"limit": 100})
     }
     ids: dict[AgentKey, str] = {}
     for plan in plans:
@@ -615,6 +634,8 @@ def ensure_agents(
                 org=org,
                 body={"note": "v1: seeded for Skills lab"},
             )
+            if existing.get(plan.name) is not None:
+                report.finish(f"agent {plan.key} {plan.name}: published")
         ids[plan.key] = agent_id
         report.agents[plan.key] = agent_id
     return ids
@@ -629,77 +650,81 @@ SCORING = {
 
 
 def ensure_dataset(api: Api, org: str, plan: AgentPlan, name: str, *, report: Report) -> str:
-    """`plan`'s test questions under `name`, added only to a dataset that holds none yet."""
-    rows = _items(api.call("GET", "/datasets", org=org, params={"q": name, "limit": 100}))
+    rows = api.items("/datasets", org=org, params={"q": name, "limit": 100})
     found = next((row for row in rows if row.get("name") == name), None)
-    if found is None:
-        found = api.call(
-            "POST",
-            "/datasets",
-            org=org,
-            body={
-                "name": name,
-                "description": f"Test questions for {plan.name}.",
-                "visibility": "org",
-            },
-        )
-        api.call("PUT", f"/datasets/{found['id']}/scoring", org=org, body=SCORING)
-        report.note(f"dataset {name}", made=True)
-    else:
+    if found is not None:
         report.note(f"dataset {name}", made=False)
-    dataset_id = str(found["id"])
-    if not found.get("case_count"):
-        for case in plan.cases:
-            api.call(
-                "POST",
-                f"/datasets/{dataset_id}/cases",
-                org=org,
-                body={"input": case.question, "checks": list(case.checks)},
-            )
-    report.datasets[plan.key] = dataset_id
-    return dataset_id
+        return str(found["id"])
+    created = api.call(
+        "POST",
+        "/datasets",
+        org=org,
+        body={"name": name, "description": f"Test questions for {plan.name}.", "visibility": "org"},
+    )
+    report.note(f"dataset {name}", made=True)
+    return str(created["id"])
+
+
+def complete_dataset(api: Api, org: str, plan: AgentPlan, dataset: str, *, report: Report) -> None:
+    """Give a dataset nothing has measured yet its grading and every question it lacks.
+
+    Only ever called before the first measurement, so a dataset a person has worked on
+    since - a question removed, the grading changed - is never touched: once measured,
+    it is theirs.
+    """
+    api.call("PUT", f"/datasets/{dataset}/scoring", org=org, body=SCORING)
+    held = {
+        row.get("input")
+        for row in api.items(f"/datasets/{dataset}/cases", org=org, params={"limit": 100})
+    }
+    missing = [case for case in plan.cases if case.question not in held]
+    for case in missing:
+        api.call(
+            "POST",
+            f"/datasets/{dataset}/cases",
+            org=org,
+            body={"input": case.question, "checks": list(case.checks)},
+        )
+    if held and missing:
+        report.finish(f"dataset of {plan.key}: {len(missing)} missing questions added")
 
 
 def measure(
     api: Api, org: str, agents: Mapping[AgentKey, str], *, report: Report
 ) -> dict[AgentKey, str]:
-    """Each agent with test questions: its dataset and the run measuring it."""
+    """Each agent with test questions: its dataset, and the run measuring the agent on it.
+
+    A run that failed or was cancelled measured nothing, so it does not count: the
+    dataset is completed and measured again. Running a dataset on an agent is also what
+    makes it that agent's test set, since a plain dataset names no agent.
+    """
     runs: dict[AgentKey, str] = {}
     for plan in AGENTS:
         if plan.dataset is None or plan.key not in agents:
             continue
+        agent = agents[plan.key]
         dataset = ensure_dataset(api, org, plan, plan.dataset, report=report)
-        runs[plan.key] = ensure_measured(
-            api, org, agent=agents[plan.key], dataset=dataset, key=plan.key, report=report
-        )
-    return runs
-
-
-def ensure_measured(
-    api: Api, org: str, *, agent: str, dataset: str, key: AgentKey, report: Report
-) -> str:
-    """The run measuring `agent` on `dataset`: the first one, started now when there is none.
-
-    Running a dataset on an agent is also what makes it that agent's test set, since a
-    plain dataset names no agent.
-    """
-    runs = _items(api.call("GET", f"/datasets/{dataset}/eval-runs", org=org, params={"limit": 100}))
-    mine = [run for run in runs if str(run.get("agent_id")) == agent]
-    if mine:
-        report.note(f"measurement of {key}", made=False)
-        run_id = str(mine[0]["id"])
-    else:
-        run_id = str(
-            api.call(
+        report.datasets[plan.key] = dataset
+        measuring = [
+            run
+            for run in api.items(f"/datasets/{dataset}/eval-runs", org=org, params={"limit": 100})
+            if str(run.get("agent_id")) == agent and run.get("status") in MEASURING
+        ]
+        if measuring:
+            report.note(f"measurement of {plan.key}", made=False)
+            runs[plan.key] = str(measuring[0]["id"])
+        else:
+            complete_dataset(api, org, plan, dataset, report=report)
+            started = api.call(
                 "POST",
                 f"/agents/{agent}/eval-runs",
                 org=org,
                 body={"dataset_id": dataset, "reruns": 0},
-            )["id"]
-        )
-        report.note(f"measurement of {key}", made=True)
-    report.measured[key] = run_id
-    return run_id
+            )
+            report.note(f"measurement of {plan.key}", made=True)
+            runs[plan.key] = str(started["id"])
+        report.measured[plan.key] = runs[plan.key]
+    return runs
 
 
 @dataclass(frozen=True)
@@ -713,10 +738,8 @@ class Transcript:
 
 
 def read_transcript(api: Api, org: str, conversation_id: str) -> Transcript:
-    messages = _items(
-        api.call(
-            "GET", f"/conversations/{conversation_id}/messages", org=org, params={"limit": 100}
-        )
+    messages = api.items(
+        f"/conversations/{conversation_id}/messages", org=org, params={"limit": 100}
     )
     question = next((m["content"] for m in messages if m.get("role") == "user"), "")
     answers = [m for m in messages if m.get("role") == "assistant" and m.get("content")]
@@ -746,9 +769,7 @@ def fits(plan: ChatPlan, transcript: Transcript) -> bool:
 
 
 def held_chats(api: Api, org: str, agent: str) -> list[Transcript]:
-    rows = _items(
-        api.call("GET", "/conversations", org=org, params={"agent_id": agent, "limit": 100})
-    )
+    rows = api.items("/conversations", org=org, params={"agent_id": agent, "limit": 100})
     return [read_transcript(api, org, str(row["id"])) for row in rows]
 
 
@@ -766,7 +787,8 @@ def hold_chat(
 
     An earlier run's conversation that fits is used, and rated if it was not yet. Otherwise
     the question is asked again, at most `CHAT_ATTEMPTS` times, since a model's answer
-    differs between runs; one that never fits is reported rather than rated untruthfully.
+    differs between runs; one that never fits is reported rather than rated untruthfully,
+    and the next run asks again.
     """
     candidates = [transcript for transcript in held if transcript.question == plan.question]
     for attempt in range(CHAT_ATTEMPTS + 1):
@@ -778,7 +800,7 @@ def hold_chat(
             break
         candidates = [read_transcript(api, org, ask(agent, plan.question))]
     report.unconfirmed.append(f"{plan.agent}: {plan.question}")
-    print(f"unconfirmed {plan.agent}: {plan.question}")
+    print(f"unconfirmed {plan.agent}: {plan.question} (the next run asks again)")
 
 
 def _rate(api: Api, org: str, plan: ChatPlan, transcript: Transcript, report: Report) -> None:
@@ -787,7 +809,7 @@ def _rate(api: Api, org: str, plan: ChatPlan, transcript: Transcript, report: Re
     if plan.rating is None:
         return
     if not transcript.rated:
-        body: dict[str, object] = {"rating": plan.rating}
+        body: JsonObject = {"rating": plan.rating}
         if plan.comment:
             body["comment"] = plan.comment
         api.call(
@@ -815,7 +837,6 @@ def seed(api: Api, *, key: str | None, ask_in: Callable[[str], Ask]) -> Report:
             body={"ai_assistance_enabled": True, "monthly_budget_usd": ORG_BUDGET_USD},
         )
     model = ensure_model(api, org, key=key, report=report)
-    ensure_system_agents(api, org, model=model, report=report)
     skill = ensure_skill(api, org, variant="v1", report=report)
     report.skill_id = skill
     agents = ensure_agents(api, org, AGENTS, model=model, skill=skill, report=report)
@@ -829,14 +850,34 @@ def seed(api: Api, *, key: str | None, ask_in: Callable[[str], Ask]) -> Report:
     return report
 
 
+def rule_passed(api: Api, org: str, run: JsonObject, plan: AgentPlan) -> int:
+    """How many of `plan`'s rule questions the measured answers passed."""
+    arm = (run.get("outcome") or {}).get("candidate_arm_id")
+    if arm is None:
+        raise SeedError(f"The measurement of {plan.key} has no result to read")
+    passed = api.items(
+        f"/eval-runs/{run['id']}/cases",
+        org=org,
+        params={"arm_id": str(arm), "outcome": "passed", "limit": 100},
+    )
+    rule = {case.question for case in plan.rule}
+    return sum(1 for case in passed if case.get("input") in rule)
+
+
 def probe(
-    api: Api, variant: Variant, *, key: str | None, wait: Callable[[float], None] = time.sleep
-) -> dict[str, object]:
+    api: Api,
+    variant: Variant,
+    *,
+    key: str | None,
+    wait: Callable[[float], None] = time.sleep,
+    patience: float = EVAL_PATIENCE_SECONDS,
+) -> JsonObject:
     """Measure A and B with rule 2 worded as `variant`, in an organization of its own.
 
     No conversations: only the skill, the two agents, their questions and one measurement
-    each. Compared with `v1`, `broad` should cost B at least five of its eight rule
-    questions and `narrow` at most one, while both win A its eight back.
+    each. Against `v1`, `broad` should cost B at least five of its eight rule questions and
+    `narrow` at most one, while both win A its eight back - which is why the answer counts
+    the rule questions passed rather than the pass rate over all sixteen.
     """
     report = Report()
     org, _ = ensure_org(
@@ -850,31 +891,38 @@ def probe(
     measured = [plan for plan in AGENTS if plan.dataset is not None]
     agents = ensure_agents(api, org, measured, model=model, skill=skill, report=report)
     runs = measure(api, org, agents, report=report)
-    rates: dict[str, object] = {"variant": variant}
-    deadline = time.monotonic() + EVAL_PATIENCE_SECONDS
-    for agent_key, run_id in runs.items():
-        run = api.call("GET", f"/eval-runs/{run_id}", org=org)
+    result: JsonObject = {"variant": variant}
+    deadline = time.monotonic() + patience
+    for plan in measured:
+        run = api.call("GET", f"/eval-runs/{runs[plan.key]}", org=org)
         while run["status"] in UNFINISHED:
             if time.monotonic() > deadline:
                 raise SeedError(
-                    f"The measurement of {agent_key} did not finish in {EVAL_PATIENCE_SECONDS} seconds"
+                    f"The measurement of {plan.key} did not finish in {patience:.0f} seconds"
                 )
             wait(5)
-            run = api.call("GET", f"/eval-runs/{run_id}", org=org)
-        outcome = run.get("outcome") or {}
-        rates[agent_key] = outcome.get("candidate_pass_rate")
-    return rates
+            run = api.call("GET", f"/eval-runs/{runs[plan.key]}", org=org)
+        result[plan.key] = {
+            "rule_passed": rule_passed(api, org, run, plan),
+            "rule_total": len(plan.rule),
+            "pass_rate": (run.get("outcome") or {}).get("candidate_pass_rate"),
+        }
+    return result
 
 
 def drop_probes(api: Api) -> list[str]:
-    """Delete the probe organizations, recognised by both their name and their slug."""
+    """Delete the probe organizations the caller owns, recognised by both name and slug."""
     marks = {(PROBE_NAME.format(variant=v), PROBE_SLUG.format(variant=v)) for v in VARIANTS}
     dropped: list[str] = []
-    for org in _items(api.call("GET", "/orgs")):
-        if (org.get("name"), org.get("slug")) in marks:
-            api.call("DELETE", f"/orgs/{org['id']}", org=str(org["id"]))
-            dropped.append(str(org["name"]))
-            print(f"deleted {org['name']}")
+    for org in api.items("/orgs"):
+        if (org.get("name"), org.get("slug")) not in marks:
+            continue
+        if org.get("role") != "owner":
+            print(f"skipped {org['name']}: only its owner may delete it")
+            continue
+        api.call("DELETE", f"/orgs/{org['id']}", org=str(org["id"]))
+        dropped.append(str(org["name"]))
+        print(f"deleted {org['name']}")
     return dropped
 
 

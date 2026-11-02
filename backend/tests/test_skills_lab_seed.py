@@ -1,9 +1,10 @@
-"""The Skills lab seed: its data says what the shared-skill journey needs, and running it twice changes nothing.
+"""The Skills lab seed: its data, and runs that finish what an earlier one left undone.
 
 The seed is a console tool outside the backend package, imported by path the way
 `test_loadtest_harness.py` reaches `loadtest/`. Nothing here talks to a deployment:
-the API is an in-memory fake behind `httpx.MockTransport`, and the claim that one
-wording of the skill breaks agent B is held by the scorer the evals themselves use.
+the API is an in-memory fake behind `httpx.MockTransport`. The checks are shown to
+tell the planned answers apart, with the scorer the evals themselves use; whether a
+real model gives those answers is for the seed's `--probe` to measure.
 """
 
 import importlib.util
@@ -102,11 +103,12 @@ class TestTheData:
 
 
 class TestTheWordingThatBreaksB:
-    """What each wording of rule 2 does to A and B, scored as an eval scores it.
+    """How the rule questions grade the answer each wording of rule 2 is written to produce.
 
-    A model following v1 answers both shops' receiptless customers with store
-    credit; `broad` refunds both; `narrow` refunds the customer with an order
-    number and still credits the one without.
+    Followed, v1 credits both shops' customers without a receipt, `broad` refunds
+    both, and `narrow` refunds the one with an order number and credits the one
+    without. These hold that the checks tell those answers apart, not that a model
+    gives them.
     """
 
     ANSWERS = {
@@ -140,12 +142,23 @@ class TestTheWordingThatBreaksB:
 
 
 class FakeApi:
-    """The parts of the HTTP API the seed calls, kept in memory, every request recorded."""
+    """The parts of the HTTP API the seed calls, kept in memory, every request recorded.
+
+    It answers as the real routes do where the seed depends on it: a new organization
+    arrives with its system agents and the skill library, `GET /agents` lists agents
+    of kind `agent` unless asked for another, and a taken slug is refused.
+    """
 
     def __init__(self) -> None:
         self._ids = count(1)
         self.orgs: list[dict[str, Any]] = [
-            {"id": "org-personal", "name": "Personal", "slug": "personal"}
+            {
+                "id": "org-personal",
+                "name": "Personal",
+                "slug": "personal",
+                "is_personal": True,
+                "role": "owner",
+            }
         ]
         self.rows: dict[str, list[dict[str, Any]]] = {
             name: []
@@ -163,7 +176,9 @@ class FakeApi:
             )
         }
         self.requests: list[tuple[str, str, str | None]] = []
-        self.pass_rate = 0.5
+        self.run_status = "completed"
+        self.cases_before_failing: int | None = None
+        self.passes: Callable[[str, str], bool] = lambda dataset, question: True
 
     def new_id(self, prefix: str) -> str:
         return f"{prefix}-{next(self._ids)}"
@@ -223,36 +238,30 @@ class FakeApi:
                 "total": len(rows),
             }
 
+        def where(table: str, **match: Any) -> dict[str, Any]:
+            return items(
+                [
+                    row
+                    for row in self.visible(table, org)
+                    if all(row.get(k) == v for k, v in match.items())
+                ]
+            )
+
         routes: list[tuple[str, str, Callable[..., Any]]] = [
             ("POST", r"/auth/login", lambda: {"access_token": "token"}),
             ("GET", r"/orgs", lambda: {"items": self.orgs, "total": len(self.orgs)}),
             ("POST", r"/orgs", lambda: self._create_org(body)),
             ("PATCH", r"/orgs/(?P<key>[^/]+)", lambda key: {"id": key}),
             ("DELETE", r"/orgs/(?P<key>[^/]+)", lambda key: self._delete_org(key)),
-            ("GET", r"/providers/model-profiles", lambda: items(self.visible("profiles", org))),
+            ("GET", r"/providers/model-profiles", lambda: where("profiles")),
             ("POST", r"/providers/model-profiles", lambda: self.add("profiles", org, **body)),
-            (
-                "GET",
-                r"/secrets",
-                lambda: items(
-                    [
-                        r
-                        for r in self.visible("secrets", org)
-                        if r["purpose"] == params.get("purpose")
-                    ]
-                ),
-            ),
+            ("GET", r"/secrets", lambda: where("secrets", purpose=params.get("purpose"))),
             (
                 "POST",
                 r"/secrets",
                 lambda: self.add("secrets", org, name=body["name"], purpose=body["purpose"]),
             ),
-            ("GET", r"/agents", lambda: items(self._agents(org, params.get("kind")))),
-            (
-                "POST",
-                r"/agents/system",
-                lambda: self.add("agents", org, kind=body["kind"], name=body["name"]),
-            ),
+            ("GET", r"/agents", lambda: where("agents", kind=params.get("kind", "agent"))),
             ("POST", r"/agents", lambda: self._create_agent(org, body)),
             ("GET", r"/agents/(?P<key>[^/]+)", lambda key: self.find("agents", key)),
             ("POST", r"/agents/(?P<key>[^/]+)/publish", lambda key: self._publish(key)),
@@ -262,41 +271,33 @@ class FakeApi:
                 lambda key: self._start_run(org, key, body),
             ),
             ("GET", r"/eval-runs/(?P<key>[^/]+)", lambda key: self.find("runs", key)),
-            ("GET", r"/skills", lambda: items(self.visible("skills", org))),
-            ("POST", r"/skills", lambda: self.add("skills", org, **body)),
-            ("GET", r"/skills/(?P<key>[^/]+)", lambda key: self.find("skills", key)),
             (
                 "GET",
-                r"/datasets",
-                lambda: items(
-                    [r for r in self.visible("datasets", org) if r["name"] == params.get("q")]
-                ),
+                r"/eval-runs/(?P<key>[^/]+)/cases",
+                lambda key: self._passed_cases(key, params),
             ),
+            ("GET", r"/skills", lambda: where("skills")),
+            ("POST", r"/skills", lambda: self.add("skills", org, **body)),
+            ("GET", r"/skills/(?P<key>[^/]+)", lambda key: self.find("skills", key)),
+            ("GET", r"/datasets", lambda: where("datasets", name=params.get("q"))),
             ("POST", r"/datasets", lambda: self.add("datasets", org, case_count=0, **body)),
-            ("PUT", r"/datasets/(?P<key>[^/]+)/scoring", lambda key: self.find("datasets", key)),
+            ("PUT", r"/datasets/(?P<key>[^/]+)/scoring", lambda key: self._score(key, body)),
+            ("GET", r"/datasets/(?P<key>[^/]+)/cases", lambda key: where("cases", dataset_id=key)),
             ("POST", r"/datasets/(?P<key>[^/]+)/cases", lambda key: self._add_case(org, key, body)),
             (
                 "GET",
                 r"/datasets/(?P<key>[^/]+)/eval-runs",
-                lambda key: items([r for r in self.visible("runs", org) if r["dataset_id"] == key]),
+                lambda key: where("runs", dataset_id=key),
             ),
             (
                 "GET",
                 r"/conversations",
-                lambda: items(
-                    [
-                        r
-                        for r in self.visible("conversations", org)
-                        if r["agent_id"] == params.get("agent_id")
-                    ]
-                ),
+                lambda: where("conversations", agent_id=params.get("agent_id")),
             ),
             (
                 "GET",
                 r"/conversations/(?P<key>[^/]+)/messages",
-                lambda key: items(
-                    [r for r in self.visible("messages", org) if r["conversation_id"] == key]
-                ),
+                lambda key: where("messages", conversation_id=key),
             ),
             (
                 "POST",
@@ -312,18 +313,24 @@ class FakeApi:
             404, json={"error": {"message": f"no fake route for {method} {path}"}}
         )
 
-    def _create_org(self, body: dict[str, Any]) -> dict[str, Any]:
-        org = {"id": self.new_id("org"), "name": body["name"], "slug": body["slug"]}
+    def _create_org(self, body: dict[str, Any]) -> Any:
+        if any(org["slug"] == body["slug"] for org in self.orgs):
+            return httpx.Response(409, json={"error": {"message": "That slug is taken"}})
+        org = {
+            "id": self.new_id("org"),
+            "name": body["name"],
+            "slug": body["slug"],
+            "is_personal": False,
+            "role": "owner",
+        }
         self.orgs.append(org)
+        for kind in ("improver", "judge", "generator"):
+            self.add("agents", org["id"], kind=kind, name=kind.title(), current_version_id=None)
+        self.add("skills", org["id"], name="refund-policy", content="A library skill.")
         return org
 
     def _delete_org(self, org_id: str) -> None:
         self.orgs = [org for org in self.orgs if org["id"] != org_id]
-
-    def _agents(self, org: str | None, kind: str | None) -> list[dict[str, Any]]:
-        return [
-            row for row in self.visible("agents", org) if kind is None or row.get("kind") == kind
-        ]
 
     def _create_agent(self, org: str | None, body: dict[str, Any]) -> dict[str, Any]:
         spec = body["spec"]
@@ -336,19 +343,43 @@ class FakeApi:
         agent["current_version_id"] = self.new_id("version")
         return agent
 
-    def _add_case(self, org: str | None, dataset_id: str, body: dict[str, Any]) -> dict[str, Any]:
-        self.find("datasets", dataset_id)["case_count"] += 1
+    def _score(self, dataset_id: str, body: dict[str, Any]) -> dict[str, Any]:
+        dataset = self.find("datasets", dataset_id)
+        dataset["scoring"] = body
+        return dataset
+
+    def _add_case(self, org: str | None, dataset_id: str, body: dict[str, Any]) -> Any:
+        dataset = self.find("datasets", dataset_id)
+        if (
+            self.cases_before_failing is not None
+            and dataset["case_count"] >= self.cases_before_failing
+        ):
+            return httpx.Response(503, json={"error": {"message": "Unavailable"}})
+        dataset["case_count"] += 1
         return self.add("cases", org, dataset_id=dataset_id, **body)
 
     def _start_run(self, org: str | None, agent_id: str, body: dict[str, Any]) -> dict[str, Any]:
+        run_id = self.new_id("run")
         return self.add(
             "runs",
             org,
             agent_id=agent_id,
             dataset_id=body["dataset_id"],
-            status="completed",
-            outcome={"candidate_pass_rate": self.pass_rate},
+            status=self.run_status,
+            outcome={"candidate_pass_rate": 0.5, "candidate_arm_id": f"arm-{run_id}"},
         )
+
+    def _passed_cases(self, run_id: str, params: httpx.QueryParams) -> dict[str, Any]:
+        run = self.find("runs", run_id)
+        assert params.get("arm_id") == run["outcome"]["candidate_arm_id"]
+        assert params.get("outcome") == "passed"
+        dataset = self.find("datasets", run["dataset_id"])
+        cases = [
+            {"input": case["input"]}
+            for case in self.rows["cases"]
+            if case["dataset_id"] == dataset["id"] and self.passes(dataset["name"], case["input"])
+        ]
+        return {"items": cases, "total": len(cases)}
 
     def _rate(self, org: str | None, message_id: str, body: dict[str, Any]) -> dict[str, Any]:
         self.find("messages", message_id)["user_rating"] = body["rating"]
@@ -360,6 +391,12 @@ class FakeApi:
             for request in self.requests
             if request[0] != "GET" and request[1] != "/auth/login"
         ]
+
+    def lab_agent(self, name: str) -> dict[str, Any]:
+        return next(row for row in self.rows["agents"] if row["name"] == name)
+
+    def lab_dataset(self, name: str) -> dict[str, Any]:
+        return next(row for row in self.rows["datasets"] if row["name"] == name)
 
 
 def _answer_as_planned(question: str) -> tuple[str, bool]:
@@ -397,6 +434,10 @@ def _chat(
     return ask_in
 
 
+def _seeded(fake: FakeApi) -> Any:
+    return seed.seed(_api(fake), key=PROVIDER_KEY, ask_in=_chat(fake, []))
+
+
 class TestSeeding:
     def test_a_first_run_builds_the_lab_and_rates_what_was_said(self, fake: FakeApi) -> None:
         asked: list[str] = []
@@ -411,10 +452,35 @@ class TestSeeding:
         assert report.rated_up == sum(1 for chat in seed.CHATS if chat.rating == 1)
         assert report.skill_opened == sum(1 for chat in seed.CHATS if chat.opens_skill)
 
+    def test_each_measured_desk_gets_its_sixteen_questions_graded_by_checks(
+        self, fake: FakeApi
+    ) -> None:
+        _seeded(fake)
+
+        for plan in seed.AGENTS:
+            if plan.dataset is None:
+                continue
+            dataset = fake.lab_dataset(plan.dataset)
+            held = [
+                case["input"] for case in fake.rows["cases"] if case["dataset_id"] == dataset["id"]
+            ]
+            assert held == [case.question for case in plan.cases]
+            assert dataset["scoring"] == seed.SCORING
+
+    def test_the_organization_brings_its_system_agents_so_none_are_created(
+        self, fake: FakeApi
+    ) -> None:
+        _seeded(fake)
+
+        assert not any(path == "/agents/system" for _, path, _ in fake.requests)
+        assert not any(
+            agent["kind"] == "improver" and "spec" in agent for agent in fake.rows["agents"]
+        )
+
     def test_the_skill_is_bound_where_planned_and_the_front_desk_pins_the_returns_desk(
         self, fake: FakeApi
     ) -> None:
-        report = seed.seed(_api(fake), key=PROVIDER_KEY, ask_in=_chat(fake, []))
+        report = _seeded(fake)
 
         specs = {agent["name"]: agent["spec"] for agent in fake.rows["agents"] if "spec" in agent}
         bound = {name for name, spec in specs.items() if spec.get("skill_ids") == [report.skill_id]}
@@ -426,7 +492,7 @@ class TestSeeding:
         assert all(agent["current_version_id"] for agent in fake.rows["agents"] if "spec" in agent)
 
     def test_running_it_again_writes_nothing_and_asks_nothing(self, fake: FakeApi) -> None:
-        seed.seed(_api(fake), key=PROVIDER_KEY, ask_in=_chat(fake, []))
+        _seeded(fake)
         fake.requests.clear()
         asked: list[str] = []
 
@@ -434,32 +500,100 @@ class TestSeeding:
 
         assert fake.writes() == []
         assert asked == []
-        assert report.created == []
+        assert report.created == report.finished == []
         assert report.rated_down == sum(1 for chat in seed.CHATS if chat.rating == -1)
 
+    def test_an_interrupted_first_run_is_finished_by_the_next(self, fake: FakeApi) -> None:
+        fake.cases_before_failing = 7
+        with pytest.raises(seed.SeedError):
+            _seeded(fake)
+        fake.cases_before_failing = None
+
+        report = _seeded(fake)
+
+        online = fake.lab_dataset(_plan("A").dataset)
+        assert online["case_count"] == 16
+        assert online["scoring"] == seed.SCORING
+        assert set(report.measured) == {"A", "B"}
+        assert report.finished == ["dataset of A: 9 missing questions added"]
+
+    def test_a_measured_dataset_somebody_trimmed_is_left_alone(self, fake: FakeApi) -> None:
+        _seeded(fake)
+        online = fake.lab_dataset(_plan("A").dataset)
+        fake.rows["cases"] = [
+            case
+            for case in fake.rows["cases"]
+            if not (
+                case["dataset_id"] == online["id"] and case["input"] == seed.GENERAL[0].question
+            )
+        ]
+        fake.requests.clear()
+
+        _seeded(fake)
+
+        assert fake.writes() == []
+
+    def test_a_measurement_that_failed_does_not_count(self, fake: FakeApi) -> None:
+        fake.run_status = "failed"
+        _seeded(fake)
+        fake.run_status = "completed"
+        fake.requests.clear()
+
+        report = _seeded(fake)
+
+        started = [path for verb, path, _ in fake.writes() if path.endswith("/eval-runs")]
+        assert len(started) == 2
+        assert {fake.find("runs", run)["status"] for run in report.measured.values()} == {
+            "completed"
+        }
+        assert not any(path.endswith("/cases") for _, path, _ in fake.writes())
+
+    def test_an_agent_an_earlier_run_never_published_is_published_and_said_so(
+        self, fake: FakeApi
+    ) -> None:
+        _seeded(fake)
+        fake.lab_agent("Onboarding helper")["current_version_id"] = None
+
+        report = _seeded(fake)
+
+        assert fake.lab_agent("Onboarding helper")["current_version_id"] is not None
+        assert report.finished == ["agent D Onboarding helper: published"]
+
     def test_a_skill_somebody_changed_is_kept_as_it_is(self, fake: FakeApi) -> None:
-        seed.seed(_api(fake), key=PROVIDER_KEY, ask_in=_chat(fake, []))
-        fake.rows["skills"][0]["content"] = seed.skill_body("narrow")
+        report = _seeded(fake)
+        skill = fake.find("skills", report.skill_id)
+        skill["content"] = seed.skill_body("narrow")
 
         report = seed.seed(_api(fake), key=None, ask_in=_chat(fake, []))
 
-        assert fake.rows["skills"][0]["content"] == seed.skill_body("narrow")
+        assert skill["content"] == seed.skill_body("narrow")
         assert any("changed since it was seeded" in note for note in report.kept)
 
     def test_it_never_acts_in_any_organization_but_the_lab(self, fake: FakeApi) -> None:
-        seed.seed(_api(fake), key=PROVIDER_KEY, ask_in=_chat(fake, []))
+        _seeded(fake)
         lab = next(org["id"] for org in fake.orgs if org["slug"] == seed.ORG_SLUG)
 
         assert {org for _, _, org in fake.requests if org is not None} == {lab}
 
-    def test_an_answer_that_never_opens_the_skill_is_reported_and_left_unrated(
+    def test_a_personal_organization_holding_the_labs_slug_is_never_seeded(
         self, fake: FakeApi
     ) -> None:
+        fake.orgs[0]["slug"] = seed.ORG_SLUG
+
+        with pytest.raises(seed.SeedError, match="409"):
+            _seeded(fake)
+
+        assert not any(org == "org-personal" for _, _, org in fake.requests)
+
+    def test_an_answer_that_never_opens_the_skill_is_reported_left_unrated_and_asked_again(
+        self, fake: FakeApi
+    ) -> None:
+        def never_opens(question: str) -> tuple[str, bool]:
+            return _answer_as_planned(question)[0], False
+
         asked: list[str] = []
         report = seed.seed(
-            _api(fake),
-            key=PROVIDER_KEY,
-            ask_in=_chat(fake, asked, answer=lambda q: (_answer_as_planned(q)[0], False)),
+            _api(fake), key=PROVIDER_KEY, ask_in=_chat(fake, asked, answer=never_opens)
         )
 
         must_open = [chat for chat in seed.CHATS if chat.opens_skill]
@@ -476,6 +610,11 @@ class TestSeeding:
                 )
                 assert question not in unconfirmed
 
+        asked.clear()
+        seed.seed(_api(fake), key=None, ask_in=_chat(fake, asked, answer=never_opens))
+
+        assert asked.count(must_open[0].question) == seed.CHAT_ATTEMPTS
+
     def test_a_lab_without_a_key_and_none_given_is_refused(self, fake: FakeApi) -> None:
         with pytest.raises(seed.SeedError, match="SKILLS_LAB_OPENROUTER_KEY"):
             seed.seed(_api(fake), key=None, ask_in=_chat(fake, []))
@@ -483,7 +622,7 @@ class TestSeeding:
     def test_the_key_and_the_password_never_reach_the_output(
         self, fake: FakeApi, capsys: pytest.CaptureFixture[str]
     ) -> None:
-        report = seed.seed(_api(fake), key=PROVIDER_KEY, ask_in=_chat(fake, []))
+        report = _seeded(fake)
         printed = capsys.readouterr().out + json.dumps(seed.asdict(report))
 
         assert PROVIDER_KEY not in printed
@@ -491,31 +630,68 @@ class TestSeeding:
 
 
 class TestProbing:
-    def test_a_probe_measures_its_wording_in_its_own_organization(self, fake: FakeApi) -> None:
-        rates = seed.probe(_api(fake), "broad", key=PROVIDER_KEY, wait=lambda _: None)
+    def test_a_probe_counts_the_rule_questions_each_desk_passed_in_its_own_organization(
+        self, fake: FakeApi
+    ) -> None:
+        kept = {case.question for case in seed.COUNTER_RULE[:2]}
+        counter_rule = {case.question for case in seed.COUNTER_RULE}
+        fake.passes = lambda dataset, question: question not in counter_rule or question in kept
+
+        result = seed.probe(_api(fake), "broad", key=PROVIDER_KEY, wait=lambda _: None)
 
         probe_org = next(org for org in fake.orgs if org["slug"] == "skills-lab-probe-broad")
         assert probe_org["name"] == "Skills lab probe · broad"
-        assert rates == {"variant": "broad", "A": 0.5, "B": 0.5}
-        assert fake.visible("skills", probe_org["id"])[0]["content"] == seed.skill_body("broad")
-        assert {agent["name"] for agent in fake.visible("agents", probe_org["id"])} == {
+        assert result == {
+            "variant": "broad",
+            "A": {"rule_passed": 8, "rule_total": 8, "pass_rate": 0.5},
+            "B": {"rule_passed": 2, "rule_total": 8, "pass_rate": 0.5},
+        }
+        assert fake.visible("skills", probe_org["id"])[-1]["content"] == seed.skill_body("broad")
+        assert {
+            agent["name"] for agent in fake.visible("agents", probe_org["id"]) if "spec" in agent
+        } == {
             "Online returns desk",
             "Gift shop counter",
         }
         assert fake.rows["conversations"] == []
 
-    def test_dropping_probes_deletes_only_what_carries_both_marks(self, fake: FakeApi) -> None:
+    def test_a_measurement_that_never_finishes_is_given_up_on(self, fake: FakeApi) -> None:
+        fake.run_status = "running"
+
+        with pytest.raises(seed.SeedError, match="did not finish"):
+            seed.probe(_api(fake), "narrow", key=PROVIDER_KEY, wait=lambda _: None, patience=0)
+
+    def test_dropping_probes_deletes_only_what_carries_both_marks_and_is_the_callers(
+        self, fake: FakeApi
+    ) -> None:
         fake.orgs += [
             {
                 "id": "org-probe",
                 "name": "Skills lab probe · broad",
                 "slug": "skills-lab-probe-broad",
+                "role": "owner",
             },
-            {"id": "org-lookalike", "name": "Skills lab probe · broad", "slug": "someone-elses"},
-            {"id": "org-lab", "name": "Skills lab", "slug": "skills-lab"},
+            {
+                "id": "org-theirs",
+                "name": "Skills lab probe · narrow",
+                "slug": "skills-lab-probe-narrow",
+                "role": "member",
+            },
+            {
+                "id": "org-lookalike",
+                "name": "Skills lab probe · broad",
+                "slug": "someone-elses",
+                "role": "owner",
+            },
+            {"id": "org-lab", "name": "Skills lab", "slug": "skills-lab", "role": "owner"},
         ]
 
         dropped = seed.drop_probes(_api(fake))
 
         assert dropped == ["Skills lab probe · broad"]
-        assert [org["id"] for org in fake.orgs] == ["org-personal", "org-lookalike", "org-lab"]
+        assert [org["id"] for org in fake.orgs] == [
+            "org-personal",
+            "org-theirs",
+            "org-lookalike",
+            "org-lab",
+        ]
