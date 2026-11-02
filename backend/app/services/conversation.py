@@ -8,7 +8,7 @@ member's request reaches.
 """
 
 import logging
-from collections.abc import Sequence
+from collections.abc import Collection, Sequence
 from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
@@ -57,7 +57,7 @@ from app.services.access import AGENT, PROJECT, resolve_access, visible_resource
 from app.services.channels import membership as channel_membership
 from app.services.file_storage import delete_files_best_effort, delete_prefix_best_effort
 from app.services.generated_media import GeneratedMediaService
-from app.services.message_history import HistoryMessage, build_message_history
+from app.services.message_history import REFUSED_TURN, HistoryMessage, build_message_history
 
 logger = logging.getLogger(__name__)
 
@@ -93,13 +93,16 @@ def _as_history(
     rows: Sequence[Message],
     exclude_message_id: UUID | None,
     spoken: dict[UUID, str] | None = None,
+    refused: Collection[UUID] = (),
 ) -> list[HistoryMessage]:
     """Transcript rows as the replayer wants them, minus the turn being answered.
 
     A prompt that carried files is replayed with what they added for the model,
     so a follow-up about the file reaches a model that knows it is there. A
     person's turn reads as `spoken` says where it says anything - who said it
-    and what it answers - see `ConversationService._spoken`.
+    and what it answers - see `ConversationService._spoken`. A prompt whose run
+    is in `refused` - the runs a guardrail refused - reads as `REFUSED_TURN`,
+    with nothing its files added (#2578).
     """
     spoken = spoken or {}
     history: list[HistoryMessage] = []
@@ -117,7 +120,11 @@ def _as_history(
         history.append(
             {
                 "role": row.role,
-                "content": spoken.get(row.id, row.content) + (row.attachment_context or ""),
+                "content": (
+                    REFUSED_TURN
+                    if row.role == "user" and row.run_id in refused
+                    else spoken.get(row.id, row.content) + (row.attachment_context or "")
+                ),
                 # The size of the request this answer came out of: the anchor the
                 # compaction estimator measures against, in place of counting
                 # characters - see `agent.build_message_history`.
@@ -193,8 +200,7 @@ class ConversationService:
         since = await conversation_repo.get_messages_after(
             self.db, conversation_id, ordinal=conversation.summary_ordinal, limit=limit
         )
-        spoken = await self._spoken(since, conversation)
-        return [*replayed, *build_message_history(_as_history(since, exclude_message_id, spoken))]
+        return [*replayed, *await self._history(since, exclude_message_id, conversation)]
 
     async def _from_transcript(
         self,
@@ -205,8 +211,24 @@ class ConversationService:
     ) -> list[ModelMessage]:
         """The recent window, which is what every surface read before #49."""
         rows = await conversation_repo.get_recent_messages(self.db, conversation_id, limit=limit)
-        spoken = await self._spoken(rows, conversation)
-        return build_message_history(_as_history(rows, exclude_message_id, spoken))
+        return await self._history(rows, exclude_message_id, conversation)
+
+    async def _history(
+        self,
+        rows: Sequence[Message],
+        exclude_message_id: UUID | None,
+        conversation: Conversation | None,
+    ) -> list[ModelMessage]:
+        """Transcript rows as the model reads them, a refused prompt withheld (#2578).
+
+        Read on every turn rather than settled when the run ends: the rows of a
+        conversation from before the rule are replayed under it too.
+        """
+        refused = await conversation_repo.refused_runs(
+            self.db, {row.run_id for row in rows if row.run_id is not None}
+        )
+        spoken = await self._spoken(rows, conversation, refused)
+        return build_message_history(_as_history(rows, exclude_message_id, spoken, refused))
 
     async def find_conversation(self, conversation_id: UUID) -> Conversation | None:
         """A conversation by id with no access check, for a caller that already holds it.
@@ -221,7 +243,10 @@ class ConversationService:
         return (await self._spoken([message], conversation)).get(message.id, message.content)
 
     async def _spoken(
-        self, rows: Sequence[Message], conversation: Conversation | None
+        self,
+        rows: Sequence[Message],
+        conversation: Conversation | None,
+        refused: Collection[UUID] = (),
     ) -> dict[UUID, str]:
         """How each person's turn reads to the model, where that is more than its text.
 
@@ -240,7 +265,7 @@ class ConversationService:
         if not turns:
             return {}
         quoted = {row.id: row for row in rows}
-        quoted |= await conversation_repo.messages_by_id(
+        outside = await conversation_repo.messages_by_id(
             self.db,
             {
                 row.reply_to_message_id
@@ -248,6 +273,15 @@ class ConversationService:
                 if row.reply_to_message_id is not None and row.reply_to_message_id not in quoted
             },
         )
+        quoted |= outside
+        # A quote is the other way a refused prompt's words would reach the model,
+        # and one from outside the window is a run `refused` has not looked at.
+        refused = {
+            *refused,
+            *await conversation_repo.refused_runs(
+                self.db, {row.run_id for row in outside.values() if row.run_id is not None}
+            ),
+        }
         people = await conversation_repo.users_by_id(
             self.db,
             {
@@ -270,7 +304,7 @@ class ConversationService:
             )
             if answered is not None:
                 text = (
-                    f'(In reply to {_whose(answered, people)}: "{_excerpt(answered.content)}")'
+                    f'(In reply to {_whose(answered, people)}: "{_excerpt(_said(answered, refused))}")'
                     f"\n\n{text}"
                 )
             author = people.get(row.author_user_id) if in_project and row.author_user_id else None
@@ -1624,6 +1658,13 @@ def _excerpt(text: str) -> str:
     """A message as one short line: its whitespace folded, its tail cut."""
     flat = " ".join(text.split())
     return flat if len(flat) <= _EXCERPT_CHARS else f"{flat[:_EXCERPT_CHARS]}…"
+
+
+def _said(message: Message, refused: Collection[UUID]) -> str:
+    """What a quoted message says, as the model may be told it (#2578)."""
+    if message.role == "user" and message.run_id in refused:
+        return REFUSED_TURN
+    return message.content
 
 
 def _whose(message: Message, people: dict[UUID, User]) -> str:

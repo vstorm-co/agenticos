@@ -1042,6 +1042,46 @@ class TestAttachmentsAreRoutedHereAndNotBySurfaces:
         assert (written["message_id"], written["conversation_id"]) == (message_id, conversation_id)
         assert "month,total" in written["context"]
 
+    @pytest.mark.security
+    async def test_a_blocked_turn_does_not_keep_what_its_file_added(self):
+        """#2578: the briefing is written before the input edge runs, and every
+        later turn replays it - so a file the edge refused reached the model one
+        follow-up later. The terminal write takes it back off the row."""
+        attachment = SimpleNamespace(
+            id=uuid.uuid4(),
+            filename="notes.txt",
+            mime_type="text/plain",
+            size=64,
+            storage_path="u/1/notes.txt",
+            file_type="text",
+            parsed_content="SECRETWORD payload",
+        )
+        prepared = _prepared()
+        prepared.workspace = None
+        conversation_id, message_id = uuid.uuid4(), uuid.uuid4()
+        blocked = GuardrailBlocked(edge="input", message="This request was blocked.")
+
+        with (
+            _runner(prepared),
+            patch("app.services.agent_chat.conversation_repo.link_message_to_run", new=AsyncMock()),
+            patch(
+                "app.services.agent_chat.conversation_repo.set_attachment_context",
+                new=AsyncMock(),
+            ) as kept,
+            pytest.raises(GuardrailBlocked),
+        ):
+            await _run(
+                _db(),
+                stream=AsyncMock(side_effect=blocked),
+                attachments=[attachment],
+                conversation_id=conversation_id,
+                prompt_message_id=message_id,
+            )
+
+        last = kept.await_args.kwargs
+        assert (last["message_id"], last["conversation_id"]) == (message_id, conversation_id)
+        assert last["context"] is None
+
     async def test_the_workspace_the_run_opened_is_the_one_the_file_lands_in(self):
         """Not a fresh one, and not none - the file has to be where the agent
         will look for it."""

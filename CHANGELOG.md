@@ -19,6 +19,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Security
+
+- A message the guardrail refused is no longer replayed to the model on later turns. The input check reads only the newest message, so a turn that ended `guardrail_blocked` was read back as history on the next one, with the text that was typed and the head of each attached file (or the whole file for an agent without a workspace). A harmless follow-up could then get the refused content past the check. Now the history every surface builds (web chat, the API, channels, the widget, workflows and a voice call's seed) shows the model a short note in place of that message, and a reply that quotes it quotes the note. A refused turn also stops storing what its files added to the prompt. The person's own transcript still shows what they typed. This applies to conversations from before the upgrade too.
+
 ## [1.34.2] - 2026-11-01
 
 ### Fixed

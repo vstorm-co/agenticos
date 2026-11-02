@@ -21,6 +21,15 @@ from pydantic_ai.usage import RequestUsage
 
 CHANNEL_AUTHOR_ID = "agenticos_channel_author_identity"
 
+REFUSED_TURN = "(A message here was refused by a guardrail; what it said is not repeated.)"
+"""What a later turn's history holds in place of a prompt a guardrail refused (#2578).
+
+The input edge screens only the newest prompt, so a refused turn read back as
+history - its words and what its files added - reached the model one harmless
+follow-up later. A note rather than nothing: the turns still alternate, and the
+model can say a message was refused instead of acting as if none was sent. The
+person's own transcript still shows what they typed."""
+
 
 class HistoryMessage(TypedDict):
     """One stored turn, as the replayer wants it.

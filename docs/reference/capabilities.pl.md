@@ -1,5 +1,5 @@
 ---
-source_sha: "30ec7731488d"
+source_sha: "4e0285a2c206"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -2701,6 +2701,12 @@ wykonała pracę. Blokada na słowie kluczowym zamiast tego kończy run ze statu
 platformą działającą poprawnie, a operator filtrujący problemy powinien móc ją
 znaleźć, a nie czytać ją jak każdą ukończoną odpowiedź. Zobacz
 [Nadzór](../governance.md).
+
+**Odrzucona wiadomość nie wraca do modelu.** Kontrola wejścia czyta tylko najnowszą
+wiadomość, więc historia kolejnej tury nie odtwarza wiadomości z runa
+`guardrail_blocked`. W jej miejscu model czyta krótką notkę, że wiadomość została
+odrzucona, bez jej treści i bez tego, co dodały wysłane z nią pliki. Rozmowa nadal
+pokazuje osobie to, co wpisała.
 
 **Sprawdzenie wyjścia działa, zanim ktokolwiek zobaczy odpowiedź.** Każda
 powierzchnia streamuje: czat w przeglądarce i osadzony widżet wysyłają odpowiedź

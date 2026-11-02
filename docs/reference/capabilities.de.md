@@ -1,5 +1,5 @@
 ---
-source_sha: "30ec7731488d"
+source_sha: "4e0285a2c206"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -2913,6 +2913,13 @@ neben `budget_exceeded`, denn eine Ablehnung ist die Plattform bei der Arbeit, u
 ein Betreiber, der nach Problemen filtert, sollte sie finden können, statt dass
 sie sich wie jede abgeschlossene Antwort liest. Siehe
 [Governance](../governance.md).
+
+**Eine abgelehnte Nachricht wird nicht erneut gelesen.** Die Eingabeprüfung liest
+nur die neueste Nachricht, daher spielt der Verlauf eines späteren Zugs die Nachricht
+eines `guardrail_blocked`-Runs nicht erneut ab. An ihrer Stelle liest das Modell
+einen kurzen Hinweis, dass eine Nachricht abgelehnt wurde, ohne ihren Text und ohne
+das, was die mit ihr gesendeten Dateien hinzugefügt haben. Die Unterhaltung zeigt
+der Person weiterhin, was sie eingegeben hat.
 
 **Eine Ausgabeprüfung greift, bevor jemand die Antwort sieht.** Jede Oberfläche
 streamt: Der Web-Chat und das eingebettete Widget senden die Antwort, während sie

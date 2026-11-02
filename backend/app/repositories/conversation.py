@@ -1272,6 +1272,19 @@ async def run_outcomes(db: AsyncSession, run_ids: Collection[UUID]) -> dict[UUID
     }
 
 
+async def refused_runs(db: AsyncSession, run_ids: Collection[UUID]) -> set[UUID]:
+    """Which of these runs a guardrail refused - the turns a history must not replay (#2578)."""
+    if not run_ids:
+        return set()
+    result = await db.execute(
+        select(AgentRun.id).where(
+            AgentRun.id.in_(list(run_ids)),
+            AgentRun.status == RunStatus.GUARDRAIL_BLOCKED.value,
+        )
+    )
+    return set(result.scalars().all())
+
+
 async def get_recent_messages(
     db: AsyncSession, conversation_id: UUID, *, limit: int
 ) -> list[Message]:
@@ -1572,13 +1585,14 @@ async def link_message_to_run(
 
 
 async def set_attachment_context(
-    db: AsyncSession, *, message_id: UUID, conversation_id: UUID, context: str
+    db: AsyncSession, *, message_id: UUID, conversation_id: UUID, context: str | None
 ) -> None:
     """Record what a prompt's attachments added for the model - see `Message.attachment_context`.
 
     Written after the prompt row, because where a file goes depends on whether
     the agent has a workspace and that is known only once the run is prepared.
     Narrowed by `conversation_id` for the reason `link_message_to_run` is.
+    `None` takes it back off a turn a guardrail refused (#2578).
     """
     await db.execute(
         sql_update(Message)

@@ -594,6 +594,9 @@ class ChatAgentRunner:
                 )
             )
 
+        # The prompt row a file's briefing was kept on, so a refused turn can take
+        # it back: written before the input edge has read the prompt.
+        briefed: tuple[UUID, UUID] | None = None
         if attachments:
             router = AttachmentRouter(
                 prepared.workspace.workspace if prepared.workspace is not None else None,
@@ -612,6 +615,7 @@ class ChatAgentRunner:
                     conversation_id=conversation_id,
                     context=router.context,
                 )
+                briefed = (prompt_message_id, conversation_id)
 
         status = RunStatus.FAILED
         error: str | None = None
@@ -710,6 +714,13 @@ class ChatAgentRunner:
                 if prepared.run.status == RunStatus.FAILED.value:
                     status = RunStatus.FAILED
                     paused = None
+                # Every later turn replays the briefing after the prompt, and the
+                # input edge screens only the newest one - left on the row, a file
+                # the edge refused reaches the model a follow-up later (#2578).
+                if briefed is not None and status is RunStatus.GUARDRAIL_BLOCKED:
+                    await conversation_repo.set_attachment_context(
+                        self.db, message_id=briefed[0], conversation_id=briefed[1], context=None
+                    )
                 await self.runner.keep_plan(prepared, status=status)
                 await self.db.commit()
                 await change_feed.publish_run(prepared.run, "updated")

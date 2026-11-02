@@ -24,7 +24,7 @@ from app.db.models.agent import Agent
 from app.db.models.agent_run import RunStatus, RunSurface
 from app.db.models.agent_workspace import AgentWorkspace
 from app.db.models.chat_file import ChatFile
-from app.db.models.conversation import Conversation
+from app.db.models.conversation import Conversation, Message
 from app.db.models.credential import ModelProfile
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.user import User
@@ -32,7 +32,9 @@ from app.services import attachments as attachments_module
 from app.services.agent_registry import AgentRegistryService
 from app.services.agent_runner import AgentRunnerService
 from app.services.attachments import workspace_path
+from app.services.conversation import ConversationService
 from app.services.file_storage import LocalFileStorage
+from app.services.message_history import REFUSED_TURN
 from tests.integration._keys import provider_key
 
 pytestmark = [pytest.mark.anyio, pytest.mark.security]
@@ -205,3 +207,80 @@ class TestARefusedAttachmentStaysOutOfTheConversationWorkspace:
         assert run.status == RunStatus.COMPLETED.value
         assert len(model_calls) == 1
         assert workspace_path(allowed) in await _stored_files(db, chat.id)
+
+
+async def _guarded_agent_without_a_workspace(db: AsyncSession, ctx: AuthContext) -> Agent:
+    """The case #2563 leaves open: no workspace, so the file is pasted whole."""
+    profile = ModelProfile(
+        id=uuid.uuid4(),
+        organization_id=ctx.organization_id,
+        label="Default",
+        provider="openai",
+        model="gpt-4.1",
+        secret_id=await provider_key(db, ctx.organization_id),
+    )
+    db.add(profile)
+    await db.flush()
+    spec = AgentSpec(
+        name="Clerk",
+        model_profile_id=profile.id,
+        capabilities=[
+            CapabilityBindingSpec(id="guardrails", config={"blocked_keywords_in": BLOCKED}),
+        ],
+    )
+    registry = AgentRegistryService(db)
+    agent = await registry.create(ctx, spec)
+    await registry.publish(ctx, agent.id)
+    return agent
+
+
+class TestARefusedTurnIsNotReplayedToTheModel:
+    async def test_the_next_turn_does_not_carry_the_refused_file_or_words(
+        self, db: AsyncSession, storage: LocalFileStorage, model_calls: list[list[ModelMessage]]
+    ) -> None:
+        """#2578's reproduction: a blocked turn, then a harmless follow-up whose
+        history is read back from the transcript. The input edge passes the new
+        prompt, and the model must still see none of what it refused."""
+        ctx = await _owner(db)
+        agent = await _guarded_agent_without_a_workspace(db, ctx)
+        chat = Conversation(organization_id=ctx.organization_id, user_id=ctx.user_id)
+        db.add(chat)
+        await db.flush()
+        refused = await _attached(db, storage, ctx, text=f"line one\n{BLOCKED} payload")
+        runner = AgentRunnerService(db)
+
+        _, first = await runner.execute(
+            ctx,
+            agent.id,
+            "summarise the attached notes",
+            surface=RunSurface.WEB,
+            conversation_id=chat.id,
+            attachments=[refused],
+        )
+        assert first.status == RunStatus.GUARDRAIL_BLOCKED.value
+
+        history = await ConversationService(db).model_history(chat.id, limit=50)
+        _, second = await runner.execute(
+            ctx,
+            agent.id,
+            "what did the file I attached say?",
+            surface=RunSurface.WEB,
+            conversation_id=chat.id,
+            message_history=history,
+        )
+
+        assert second.status == RunStatus.COMPLETED.value
+        [request] = model_calls
+        sent = repr(request)
+        assert BLOCKED not in sent
+        assert REFUSED_TURN in sent
+        # The person's own transcript still says what they asked; only the
+        # briefing the model would have been replayed is gone.
+        rows = await db.execute(
+            select(Message)
+            .where(Message.run_id == first.id, Message.role == "user")
+            .execution_options(populate_existing=True)
+        )
+        asked = rows.scalars().one()
+        assert asked.content == "summarise the attached notes"
+        assert asked.attachment_context is None

@@ -1,5 +1,5 @@
 ---
-source_sha: "30ec7731488d"
+source_sha: "4e0285a2c206"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -2770,6 +2770,12 @@ trabajo igualmente. Un bloqueo por palabra clave, en cambio, termina el run con 
 es la plataforma funcionando y un operador que filtre buscando problemas debería poder
 encontrarlo en lugar de que se lea como cualquier respuesta completada. Consulta
 [Gobernanza](../governance.md).
+
+**Un mensaje rechazado no se vuelve a leer.** La comprobación de entrada lee solo el
+mensaje más reciente, así que el historial de un turno posterior no reproduce el
+mensaje de un run `guardrail_blocked`. En su lugar, el modelo lee una nota breve de
+que un mensaje fue rechazado, sin su texto ni lo que añadieron los archivos enviados
+con él. La conversación sigue mostrando a la persona lo que escribió.
 
 **Una comprobación de salida filtra la respuesta antes de que nadie la vea.** Todas
 las superficies transmiten en streaming: el chat web y el widget incrustado envían la
