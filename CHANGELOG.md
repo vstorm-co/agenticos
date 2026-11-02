@@ -45,6 +45,49 @@ Two things are versioned separately from this file and worth knowing about:
 
 - **Memory records what an agent was told, with where it came from.** An agent can `remember` a fact, preference or decision, `recall` what is relevant without reading everything, `correct_memory` on a person's word and `share_memory` into a project or the organization when an authorized person asks and approves it - that tool always waits for a person, whatever the agent's approval settings say. A claim lives in a person profile (shared by every agent acting for them), a person-agent relationship, a group chat, a project or the organization; automatic writes stay in the conversation's own scope and only an explicit share widens one. A correction supersedes and keeps what it corrects, a person's word outranks an inference, and a scheduled pass folds agreement and flags disagreement without a model call, only where a scope changed. Settings → Memory shows what is on record about you with its source and lets you correct or retract it. Erasing a person removes their claims and the copies shared out of them (#2090).
 
+### Removed
+
+- **mem0 is gone; native memory is the only store.** The `memory_mem0` capability, its secret kind, the `MEM0_ALLOWED_HOSTS` setting and the `mem0ai` dependency are removed. Migration `0248_drop_memory_mem0` strips the binding from every stored draft and published version so no agent fails to load; nothing is imported from mem0, and what it held stays in that service. Erasing a person no longer reports an external store, and the erase response gains `claims_deleted` (#2090). **Action:** an agent that relied on mem0 recall now uses the Memory capability's `remember` and `recall`. **Action:** memories a deployment kept in mem0 stay in that service and are no longer reached when a person is forgotten or an agent is cleared here; erase them in mem0 (docs/security.md).
+
+### Fixed
+
+- **Routine authorization is checked before every tool.** Root runs, delegates and approval continuations refuse subsequent tools after pause, deletion, expiry, personal-consent withdrawal, role changes or revoked run grants. The actor remains the original creator. Immutable run provenance survives deletion so a parked routine cannot lose its guard when its reporting FK clears; unverifiable old parked schedules are refused. Migration `0260_routine_run_origin`.
+
+- **Platform model calls no longer claim to have executed the starter agent's version.** Their role remains recorded and the run manifest contains the actual platform instructions; the unrelated agent version is left empty.
+
+- **An erasure wins over extraction waiting to write.** Memory maintenance obtains the personal-data lock before its final erasure check, so a concurrent forget request cannot be followed by a recreated claim.
+
+- **Existing private channel history is adopted once.** Migration `0258_primary_channel_history` seeds missing primary conversations only when provider identifiers prove a direct chat and recorded runs prove the selected agent. Existing choices win; groups, project threads and uncertain history stay separate. Opening a conversation after clearing it still starts fresh. New channel sessions now retain their actual chat type.
+
+- The current memory inventory excludes expired claims and future-dated replacements until they take effect; history retains both.
+
+- SMS and e-mail prompts reserve reply numbers atomically before delivery and retain unused numbers after settlement, preventing concurrent sends and delayed replies from deciding another approval.
+
+- Memory corrections require organization-wide edit authority for organization claims; expired claims cannot be corrected or shared. Same-scope sharing is refused, and person-memory erasure waits for concurrent claim writes.
+
+## [1.34.3] - 2026-11-02
+
+### Fixed
+
+- CI, load tests and dependency freshness checks disable deployment diagnostics so ephemeral test installations and browser activity do not enter the live analytics collector.
+- Parallel integration tests synchronize quota audit pool exhaustion and scope listener probes and connection termination to their own database, avoiding load-dependent pool timeouts and interference between pytest workers.
+
+## [1.34.2] - 2026-11-01
+
+### Fixed
+
+- Documentation and `llms.txt` no longer say that nothing phones home or that a fresh install sends nothing anywhere. Deployment diagnostics are on by default, so the docs now state that prompts, conversations and documents stay in the deployment's own database, that diagnostics send the version, health, coarse usage counts and a pseudonymous activity signal, that the default collector is remote (`https://analytics-agenticos.testapp.ovh`), and how to turn them off with `DIAGNOSTICS_ENABLED=false`. The diagnostics collector is added to the lists of what leaves a deployment in the data protection and security pages, and the Polish, German and Spanish translations are updated to match.
+
+## [1.34.1] - 2026-11-01
+
+### Changed
+
+- Update the GitHub Actions the workflows use: `tauri-apps/tauri-action` to 1.0.0, `actions/download-artifact` to 8.0.2 and `actions/upload-artifact` to 7.0.2, among others. CI and release behaviour are unchanged.
+
+## [1.34.0] - 2026-11-01
+
+### Added
+
 - Workflow creation starts with a name, audience, trigger and optional description and tags, matching agent creation. A separate category gallery opens templates for review before creating their resources.
 
 - Workflow forms have configurable appearance, an authenticated draft preview and direct test and public links. Test draft opens the form or chat surface for those triggers.
@@ -991,29 +1034,11 @@ Two things are versioned separately from this file and worth knowing about:
   more than its own cap; a step whose siblings hold the rest waits and asks again
   with a growing delay. (#1800)
 
-### Removed
-
-- **mem0 is gone; native memory is the only store.** The `memory_mem0` capability, its secret kind, the `MEM0_ALLOWED_HOSTS` setting and the `mem0ai` dependency are removed. Migration `0248_drop_memory_mem0` strips the binding from every stored draft and published version so no agent fails to load; nothing is imported from mem0, and what it held stays in that service. Erasing a person no longer reports an external store, and the erase response gains `claims_deleted` (#2090). **Action:** an agent that relied on mem0 recall now uses the Memory capability's `remember` and `recall`. **Action:** memories a deployment kept in mem0 stay in that service and are no longer reached when a person is forgotten or an agent is cleared here; erase them in mem0 (docs/security.md).
-
 ### Changed
 
 - **Document properties use table columns.** Remove the Markdown YAML-property editor and stop generating frontmatter in the notebook template. Keep automatic record metadata and preserve existing imported headers during body edits.
 
 ### Fixed
-
-- **Routine authorization is checked before every tool.** Root runs, delegates and approval continuations refuse subsequent tools after pause, deletion, expiry, personal-consent withdrawal, role changes or revoked run grants. The actor remains the original creator. Immutable run provenance survives deletion so a parked routine cannot lose its guard when its reporting FK clears; unverifiable old parked schedules are refused. Migration `0260_routine_run_origin`.
-
-- **Platform model calls no longer claim to have executed the starter agent's version.** Their role remains recorded and the run manifest contains the actual platform instructions; the unrelated agent version is left empty.
-
-- **An erasure wins over extraction waiting to write.** Memory maintenance obtains the personal-data lock before its final erasure check, so a concurrent forget request cannot be followed by a recreated claim.
-
-- **Existing private channel history is adopted once.** Migration `0258_primary_channel_history` seeds missing primary conversations only when provider identifiers prove a direct chat and recorded runs prove the selected agent. Existing choices win; groups, project threads and uncertain history stay separate. Opening a conversation after clearing it still starts fresh. New channel sessions now retain their actual chat type.
-
-- The current memory inventory excludes expired claims and future-dated replacements until they take effect; history retains both.
-
-- SMS and e-mail prompts reserve reply numbers atomically before delivery and retain unused numbers after settlement, preventing concurrent sends and delayed replies from deciding another approval.
-
-- Memory corrections require organization-wide edit authority for organization claims; expired claims cannot be corrected or shared. Same-scope sharing is refused, and person-memory erasure waits for concurrent claim writes.
 
 - Workers keep the internal AgenticOS MCP server available until agent and workflow jobs finish, so platform-bound agents can run outside the web API process.
 
@@ -19673,7 +19698,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.27.0...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.34.3...HEAD
+[1.34.3]: https://github.com/vstorm-co/agenticos/compare/v1.34.2...v1.34.3
 [1.27.0]: https://github.com/vstorm-co/agenticos/compare/v1.26.0...v1.27.0
 [1.26.0]: https://github.com/vstorm-co/agenticos/compare/v1.25.0...v1.26.0
 [1.25.0]: https://github.com/vstorm-co/agenticos/compare/v1.24.0...v1.25.0

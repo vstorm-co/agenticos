@@ -2,7 +2,7 @@
 title: "AgenticOS vs OpenAI dots"
 seo_title: "AgenticOS vs OpenAI dots: eine selbst gehostete Alternative"
 description: "OpenAI dots sind dauerhaft laufende Agents in ChatGPT, jeder mit einem Cloud-Computer. Vergleichen Sie AgenticOS: Ihre Server, jedes Modell, Regeln im Code."
-source_sha: "2355df89a8dd"
+source_sha: "f49d22528b05"
 ---
 
 # AgenticOS vs OpenAI dots { #agenticos-vs-openai-dots }
@@ -35,7 +35,7 @@ OpenAI beschreibt eigene Regeln als Vorgaben, denen ein dot folgt, wobei ein Mod
 
 ### Ihre Server, Ihre Region { #your-servers-your-region }
 
-dots laufen in der Cloud von OpenAI, und zum Start gab es den Pro-Tarif nicht im EWR, in der Schweiz und im Vereinigten Königreich. AgenticOS läuft [dort, wo Sie es betreiben](../deploy.md), speichert Unterhaltungen und Dokumente in [Ihrem eigenen Postgres](../data-protection.md#where-personal-data-lives) und kann mit einem [lokalen Modell](../models.md#providers) laufen, sodass nichts Ihr Netzwerk verlässt.
+dots laufen in der Cloud von OpenAI, und zum Start gab es den Pro-Tarif nicht im EWR, in der Schweiz und im Vereinigten Königreich. AgenticOS läuft [dort, wo Sie es betreiben](../deploy.md), speichert Unterhaltungen und Dokumente in [Ihrem eigenen Postgres](../data-protection.md#where-personal-data-lives) und kann mit einem [lokalen Modell](../models.md#providers) laufen, sodass Ihre Prompts und Dokumente Ihr Netzwerk nicht verlassen.
 
 ### Jedes Modell, nicht das eines Anbieters { #any-model-not-one-vendors }
 

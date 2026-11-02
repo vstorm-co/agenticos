@@ -135,7 +135,7 @@ jobs:
             Remove-Item $file
           }
           $config | ConvertTo-Json -Depth 4 | Set-Content desktop/src-tauri/tauri.windows.release.conf.json
-      - uses: tauri-apps/tauri-action@84b9d35b5fc46c1e45415bdb6144030364f7ebc5 # v0
+      - uses: tauri-apps/tauri-action@1deb371b0cd8bd54025b384f1cd735e725c4060f # v1.0.0
         env:
           GITHUB_TOKEN: ${{ github.token }}
           TAURI_BUNDLER_DMG_IGNORE_CI: "true"
@@ -260,7 +260,7 @@ jobs:
           cp "$HOME/.appstoreconnect/private_keys/AuthKey_${APPLE_API_KEY}.p8" "$APPLE_API_KEY_PATH"
           bun install --frozen-lockfile
           bunx tauri ios build --target aarch64 --export-method app-store-connect --build-number "$BUILD_NUMBER" --ci -- --locked
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: ios-distribution
           path: mobile/src-tauri/gen/apple/build/**/*.ipa
