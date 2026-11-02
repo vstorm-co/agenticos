@@ -6,7 +6,7 @@ A manually downloaded AgenticOS DMG can show **Apple could not verify this app**
 
 Download only from [AgenticOS releases](https://github.com/vstorm-co/agenticos/releases/latest). Move the app to Applications, try opening it once, then use **System Settings → Privacy & Security → Open Anyway** if your organization permits this. Follow [Apple's instructions](https://support.apple.com/en-us/102445). Do not disable Gatekeeper globally.
 
-Alternatively, use `brew install --cask vstorm-co/agenticos/agenticos` or the [project installer](https://github.com/vstorm-co/agenticos/blob/main/scripts/install_macos.sh). These install the release and clear quarantine for this app only. The script checks the release checksum and the committed publisher fingerprint. It stops on a missing or malformed pin response, a signature mismatch or a failed checksum. Homebrew relies on the tap's checksum; it does not perform the script's additional publisher check.
+Alternatively, use `brew install --cask vstorm-co/agenticos/agenticos` or the [project installer](https://github.com/vstorm-co/agenticos/blob/main/scripts/install_macos.sh). These install the release and clear quarantine for this app only. The script checks the release checksum and the committed publisher fingerprint. It stops on a missing or malformed pin response, a signature mismatch or a failed checksum. Before publishing the Homebrew checksum, the release workflow mounts both Mac images and verifies each app against the committed publisher fingerprint. A missing pin, invalid signature or different signer stops publication.
 
 ## Keep permissions across updates
 

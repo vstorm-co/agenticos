@@ -385,7 +385,7 @@ jobs:
     timeout-minutes: 10
     needs: [resolve, desktop]
     environment: apps-release
-    runs-on: ubuntu-latest
+    runs-on: macos-latest
     permissions: {contents: write}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -397,6 +397,9 @@ jobs:
         run: |
           set -euo pipefail
           gh release download "$TAG" --pattern '*.dmg' --dir "$RUNNER_TEMP/dmgs"
+          for dmg in "$RUNNER_TEMP"/dmgs/*.dmg; do
+            bash scripts/verify_macos_dmg.sh "$dmg" scripts/macos_signing_identity.txt
+          done
           python3 scripts/homebrew_cask.py "$RUNNER_TEMP/dmgs" "$TAG" > "$RUNNER_TEMP/agenticos.rb"
           gh release upload "$TAG" "$RUNNER_TEMP/agenticos.rb" --clobber
       - name: Publish the cask to the Homebrew tap

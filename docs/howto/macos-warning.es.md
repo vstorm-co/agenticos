@@ -1,5 +1,5 @@
 ---
-source_sha: "136ead96ab7d"
+source_sha: "59b1d49e3e88"
 ---
 
 # Por qué macOS muestra una advertencia { #why-macos-shows-a-warning }
@@ -10,7 +10,7 @@ Un DMG de AgenticOS descargado manualmente puede mostrar **Apple no pudo verific
 
 Descarga solo desde [las versiones de AgenticOS](https://github.com/vstorm-co/agenticos/releases/latest). Mueve la aplicación a Applications, intenta abrirla una vez y después usa **Ajustes del Sistema → Privacidad y seguridad → Abrir igualmente**, si tu organización lo permite. Sigue [las instrucciones de Apple](https://support.apple.com/es-es/102445). No desactives Gatekeeper globalmente.
 
-También puedes usar `brew install --cask vstorm-co/agenticos/agenticos` o el [instalador del proyecto](https://github.com/vstorm-co/agenticos/blob/main/scripts/install_macos.sh). Instalan la versión y eliminan la cuarentena solo de esta aplicación. El script comprueba la suma de verificación y la huella fijada del editor. Una respuesta ausente o incorrecta del pin, una firma distinta o una suma incorrecta detienen la instalación. Homebrew confía en la suma del tap; no hace la comprobación adicional del editor del script.
+También puedes usar `brew install --cask vstorm-co/agenticos/agenticos` o el [instalador del proyecto](https://github.com/vstorm-co/agenticos/blob/main/scripts/install_macos.sh). Instalan la versión y eliminan la cuarentena solo de esta aplicación. El script comprueba la suma de verificación y la huella fijada del editor. Una respuesta ausente o incorrecta del pin, una firma distinta o una suma incorrecta detienen la instalación. Antes de publicar la suma de Homebrew, el flujo de publicación monta ambas imágenes de Mac y verifica cada aplicación con la huella fijada del editor. Un pin ausente, una firma inválida u otro firmante detiene la publicación.
 
 ## Conservar permisos entre actualizaciones { #keep-permissions-across-updates }
 

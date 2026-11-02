@@ -1,5 +1,5 @@
 ---
-source_sha: "136ead96ab7d"
+source_sha: "59b1d49e3e88"
 ---
 
 # Dlaczego macOS pokazuje ostrzeżenie { #why-macos-shows-a-warning }
@@ -10,7 +10,7 @@ AgenticOS pobrany ręcznie jako DMG może wyświetlić **Apple nie może zweryfi
 
 Pobieraj tylko z [wydań AgenticOS](https://github.com/vstorm-co/agenticos/releases/latest). Przenieś aplikację do Applications, spróbuj otworzyć ją raz, a potem użyj **Ustawienia systemowe → Prywatność i ochrona → Otwórz mimo to**, jeżeli zezwala na to organizacja. Zobacz [instrukcję Apple](https://support.apple.com/pl-pl/102445). Nie wyłączaj globalnie Gatekeepera.
 
-Możesz też użyć `brew install --cask vstorm-co/agenticos/agenticos` lub [instalatora projektu](https://github.com/vstorm-co/agenticos/blob/main/scripts/install_macos.sh). Instalują wydanie i usuwają quarantine tylko z tej aplikacji. Skrypt sprawdza checksumę i zapisany fingerprint wydawcy. Brak lub błędna odpowiedź pliku pin, niezgodny podpis albo checksuma zatrzymują instalację. Homebrew opiera się na checksumie tapu; nie wykonuje dodatkowej kontroli wydawcy ze skryptu.
+Możesz też użyć `brew install --cask vstorm-co/agenticos/agenticos` lub [instalatora projektu](https://github.com/vstorm-co/agenticos/blob/main/scripts/install_macos.sh). Instalują wydanie i usuwają quarantine tylko z tej aplikacji. Skrypt sprawdza checksumę i zapisany fingerprint wydawcy. Brak lub błędna odpowiedź pliku pin, niezgodny podpis albo checksuma zatrzymują instalację. Przed opublikowaniem checksumy Homebrew workflow wydania montuje oba obrazy Mac i weryfikuje podpis każdej aplikacji względem zapisanego fingerprintu wydawcy. Brak pinu, błędny podpis lub inny podpisujący zatrzymują publikację.
 
 ## Zachowaj uprawnienia po aktualizacji { #keep-permissions-across-updates }
 

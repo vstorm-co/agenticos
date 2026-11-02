@@ -1,5 +1,5 @@
 ---
-source_sha: "136ead96ab7d"
+source_sha: "59b1d49e3e88"
 ---
 
 # Warum macOS eine Warnung anzeigt { #why-macos-shows-a-warning }
@@ -10,7 +10,7 @@ Ein manuell heruntergeladenes AgenticOS-DMG kann **Apple konnte diese App nicht 
 
 Lade ausschließlich von [AgenticOS Releases](https://github.com/vstorm-co/agenticos/releases/latest) herunter. Verschiebe die App nach Applications, öffne sie einmal und wähle danach **Systemeinstellungen → Datenschutz & Sicherheit → Dennoch öffnen**, soweit deine Organisation dies erlaubt. Beachte [Apples Anleitung](https://support.apple.com/de-de/102445). Deaktiviere Gatekeeper nicht systemweit.
 
-Alternativ verwende `brew install --cask vstorm-co/agenticos/agenticos` oder den [Projektinstaller](https://github.com/vstorm-co/agenticos/blob/main/scripts/install_macos.sh). Beide installieren das Release und entfernen die Quarantänemarkierung nur für diese App. Das Skript prüft Release-Prüfsumme und gespeicherten Herausgeber-Fingerprint. Fehlende oder fehlerhafte Pin-Antworten, falsche Signaturen und Prüfsummen stoppen die Installation. Homebrew verwendet die Prüfsumme des Taps ohne die zusätzliche Herausgeberprüfung des Skripts.
+Alternativ verwende `brew install --cask vstorm-co/agenticos/agenticos` oder den [Projektinstaller](https://github.com/vstorm-co/agenticos/blob/main/scripts/install_macos.sh). Beide installieren das Release und entfernen die Quarantänemarkierung nur für diese App. Das Skript prüft Release-Prüfsumme und gespeicherten Herausgeber-Fingerprint. Fehlende oder fehlerhafte Pin-Antworten, falsche Signaturen und Prüfsummen stoppen die Installation. Vor der Veröffentlichung der Homebrew-Prüfsumme bindet der Release-Workflow beide Mac-Images ein und prüft jede App gegen den gespeicherten Herausgeber-Fingerprint. Ein fehlender Pin, eine ungültige Signatur oder ein anderer Signierer stoppt die Veröffentlichung.
 
 ## Berechtigungen über Updates erhalten { #keep-permissions-across-updates }
 

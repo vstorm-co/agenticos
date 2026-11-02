@@ -560,3 +560,71 @@ def test_pinned_releases_refuse_missing_signing_material(tmp_path: Path, pin: st
         assert env_file.read_text() == ""
     else:
         assert "APPLE_SIGNING_IDENTITY=-" in env_file.read_text()
+
+
+@pytest.mark.parametrize("failure", [None, "signer", "signature", "certificate", "pin", "attach"])
+def test_homebrew_authenticates_assets_before_publishing_checksums(
+    tmp_path: Path, failure: str | None
+) -> None:
+    import hashlib
+
+    trusted = b"trusted publisher certificate"
+    cert = tmp_path / "certificate"
+    cert.write_bytes(b"impostor" if failure == "signer" else trusted)
+    pin = tmp_path / "pin"
+    pin.write_text(
+        "malformed"
+        if failure == "pin"
+        else hashlib.sha1(trusted, usedforsecurity=False).hexdigest()
+    )
+    tools = tmp_path / "tools"
+    tools.mkdir()
+    (tools / "hdiutil").write_text("""#!/bin/bash
+if [ "$1" = attach ]; then
+  [ "$FAILURE" != attach ] || exit 1
+  mkdir -p "$4/AgenticOS.app"
+else
+  printf '%s' "$2" > "$DETACHED"
+fi
+""")
+    (tools / "codesign").write_text("""#!/bin/bash
+if [ "$1" = --verify ]; then
+  [ "$FAILURE" != signature ]
+else
+  [ "$FAILURE" != certificate ] || exit 1
+  cp "$CERTIFICATE" "${2#*=}0"
+fi
+""")
+    for tool in tools.iterdir():
+        tool.chmod(0o700)
+    detached = tmp_path / "detached"
+    bash = shutil.which("bash")
+    assert bash is not None
+    result = subprocess.run(
+        [bash, str(ROOT / "scripts/verify_macos_dmg.sh"), "asset.dmg", str(pin)],
+        env={
+            **os.environ,
+            "PATH": f"{tools}:{os.environ['PATH']}",
+            "FAILURE": failure or "",
+            "CERTIFICATE": str(cert),
+            "DETACHED": str(detached),
+        },
+        capture_output=True,
+        text=True,
+    )
+    assert (result.returncode == 0) is (failure is None), result.stderr
+    if failure == "pin":
+        assert not detached.exists()
+    else:
+        mount = Path(detached.read_text())
+        assert not mount.parent.exists()
+
+    workflow = yaml.safe_load((ROOT / ".github/workflows/app-release.yml").read_text())
+    job = workflow["jobs"]["homebrew"]
+    assert job["runs-on"] == "macos-latest"
+    attach = next(
+        s for s in job["steps"] if s.get("name") == "Attach the cask for both Mac architectures"
+    )
+    commands = attach["run"]
+    assert commands.index("verify_macos_dmg.sh") < commands.index("homebrew_cask.py")
+    assert 'for dmg in "$RUNNER_TEMP"/dmgs/*.dmg' in commands
