@@ -1,5 +1,5 @@
 ---
-source_sha: "4e0285a2c206"
+source_sha: "1303ae05877d"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -2702,11 +2702,13 @@ platformą działającą poprawnie, a operator filtrujący problemy powinien mó
 znaleźć, a nie czytać ją jak każdą ukończoną odpowiedź. Zobacz
 [Nadzór](../governance.md).
 
-**Odrzucona wiadomość nie wraca do modelu.** Kontrola wejścia czyta tylko najnowszą
-wiadomość, więc historia kolejnej tury nie odtwarza wiadomości z runa
-`guardrail_blocked`. W jej miejscu model czyta krótką notkę, że wiadomość została
-odrzucona, bez jej treści i bez tego, co dodały wysłane z nią pliki. Rozmowa nadal
-pokazuje osobie to, co wpisała.
+**Wiadomość z zablokowanej tury nie wraca do modelu.** Każde sprawdzenie czyta
+tylko to, co nowe w jego własnej turze, więc historia kolejnej tury nie odtwarza
+wiadomości z runa `guardrail_blocked`, niezależnie od tego, które sprawdzenie go
+zatrzymało. W jej miejscu model czyta krótką notkę, że guardrail zatrzymał tę turę,
+bez treści wiadomości i bez tego, co dodały wysłane z nią pliki. Rozmowa nadal
+pokazuje osobie to, co wpisała. Wyszukiwanie w dawnych rozmowach
+(`conversation_search`) jeszcze nie pomija tych wiadomości.
 
 **Sprawdzenie wyjścia działa, zanim ktokolwiek zobaczy odpowiedź.** Każda
 powierzchnia streamuje: czat w przeglądarce i osadzony widżet wysyłają odpowiedź

@@ -1,5 +1,5 @@
 ---
-source_sha: "4e0285a2c206"
+source_sha: "1303ae05877d"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -2771,11 +2771,13 @@ es la plataforma funcionando y un operador que filtre buscando problemas deberí
 encontrarlo en lugar de que se lea como cualquier respuesta completada. Consulta
 [Gobernanza](../governance.md).
 
-**Un mensaje rechazado no se vuelve a leer.** La comprobación de entrada lee solo el
-mensaje más reciente, así que el historial de un turno posterior no reproduce el
-mensaje de un run `guardrail_blocked`. En su lugar, el modelo lee una nota breve de
-que un mensaje fue rechazado, sin su texto ni lo que añadieron los archivos enviados
-con él. La conversación sigue mostrando a la persona lo que escribió.
+**El mensaje de un turno bloqueado no se vuelve a leer.** Cada comprobación lee solo
+lo nuevo de su propio turno, así que el historial de un turno posterior no reproduce
+el mensaje de un run `guardrail_blocked`, sea cual sea la comprobación que lo detuvo.
+En su lugar, el modelo lee una nota breve de que un guardrail detuvo ese turno, sin
+el texto del mensaje ni lo que añadieron los archivos enviados con él. La
+conversación sigue mostrando a la persona lo que escribió. La búsqueda en
+conversaciones anteriores (`conversation_search`) todavía no filtra estos mensajes.
 
 **Una comprobación de salida filtra la respuesta antes de que nadie la vea.** Todas
 las superficies transmiten en streaming: el chat web y el widget incrustado envían la

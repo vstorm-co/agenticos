@@ -2290,14 +2290,14 @@ class TestTheThreadAModelIsGivenBack:
         monkeypatch.setattr(
             conversation_repo, "get_recent_messages", AsyncMock(return_value=[refused, allowed])
         )
-        outcomes = AsyncMock(return_value={refused_run})
-        monkeypatch.setattr(conversation_repo, "refused_runs", outcomes)
+        refused_lookup = AsyncMock(return_value={refused_run})
+        monkeypatch.setattr(conversation_repo, "refused_runs", refused_lookup)
 
         history = await ConversationService(AsyncMock()).model_history(conversation.id, limit=50)
 
         replayed = [part.content for message in history for part in message.parts]
         assert replayed == [REFUSED_TURN, "what did it say?"]
-        assert set(outcomes.await_args.args[1]) == {refused_run, allowed_run}
+        assert set(refused_lookup.await_args.args[1]) == {refused_run, allowed_run}
 
     @pytest.mark.security
     async def test_nor_is_it_replayed_after_a_summary(self, monkeypatch):

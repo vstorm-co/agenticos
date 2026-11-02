@@ -1,5 +1,5 @@
 ---
-source_sha: "4e0285a2c206"
+source_sha: "1303ae05877d"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -2914,12 +2914,14 @@ ein Betreiber, der nach Problemen filtert, sollte sie finden können, statt dass
 sie sich wie jede abgeschlossene Antwort liest. Siehe
 [Governance](../governance.md).
 
-**Eine abgelehnte Nachricht wird nicht erneut gelesen.** Die Eingabeprüfung liest
-nur die neueste Nachricht, daher spielt der Verlauf eines späteren Zugs die Nachricht
-eines `guardrail_blocked`-Runs nicht erneut ab. An ihrer Stelle liest das Modell
-einen kurzen Hinweis, dass eine Nachricht abgelehnt wurde, ohne ihren Text und ohne
+**Die Nachricht eines blockierten Zugs wird nicht erneut gelesen.** Jede Prüfung
+liest nur, was in ihrem eigenen Zug neu ist, daher spielt der Verlauf eines späteren
+Zugs die Nachricht eines `guardrail_blocked`-Runs nicht erneut ab, gleich welche
+Prüfung ihn gestoppt hat. An ihrer Stelle liest das Modell einen kurzen Hinweis,
+dass ein Guardrail diesen Zug gestoppt hat, ohne den Text der Nachricht und ohne
 das, was die mit ihr gesendeten Dateien hinzugefügt haben. Die Unterhaltung zeigt
-der Person weiterhin, was sie eingegeben hat.
+der Person weiterhin, was sie eingegeben hat. Die Suche in früheren Unterhaltungen
+(`conversation_search`) filtert diese Nachrichten noch nicht.
 
 **Eine Ausgabeprüfung greift, bevor jemand die Antwort sieht.** Jede Oberfläche
 streamt: Der Web-Chat und das eingebettete Widget senden die Antwort, während sie

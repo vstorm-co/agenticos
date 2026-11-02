@@ -8,15 +8,22 @@ screened the prompt, so a turn that ended `guardrail_blocked` still left the fil
 for the next turn of the conversation to open.
 """
 
+import importlib.util
 import uuid
 from pathlib import Path
+from types import ModuleType
+from unittest.mock import AsyncMock
 
 import pytest
 from pydantic_ai.messages import ModelMessage, ModelResponse, TextPart
 from pydantic_ai.models.function import AgentInfo, FunctionModel
-from sqlalchemy import select
+from pydantic_ai.run import AgentRun
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.agents.capabilities.guardrails import GuardrailBlocked
+from app.agents.deps import AgentDeps
+from app.agents.factory import AgentOutput
 from app.agents.model_resolver import ModelRequestSpec
 from app.agents.spec import AgentSpec, CapabilityBindingSpec
 from app.core.permissions import AuthContext, OrgRoleName
@@ -28,7 +35,9 @@ from app.db.models.conversation import Conversation, Message
 from app.db.models.credential import ModelProfile
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.user import User
+from app.repositories import conversation_repo
 from app.services import attachments as attachments_module
+from app.services.agent_chat import ChatAgentRunner
 from app.services.agent_registry import AgentRegistryService
 from app.services.agent_runner import AgentRunnerService
 from app.services.attachments import workspace_path
@@ -252,7 +261,7 @@ class TestARefusedTurnIsNotReplayedToTheModel:
         _, first = await runner.execute(
             ctx,
             agent.id,
-            "summarise the attached notes",
+            f"summarise the attached notes, starting at {BLOCKED}",
             surface=RunSurface.WEB,
             conversation_id=chat.id,
             attachments=[refused],
@@ -282,5 +291,118 @@ class TestARefusedTurnIsNotReplayedToTheModel:
             .execution_options(populate_existing=True)
         )
         asked = rows.scalars().one()
-        assert asked.content == "summarise the attached notes"
+        assert asked.content == f"summarise the attached notes, starting at {BLOCKED}"
         assert asked.attachment_context is None
+
+
+def _migration() -> ModuleType:
+    path = Path(__file__).parents[2] / "alembic/versions/0248_drop_refused_turn_summaries.py"
+    spec = importlib.util.spec_from_file_location("drop_refused_turn_summaries", path)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+class TestASummaryTakenBeforeTheFixIsDropped:
+    async def test_only_a_summary_reaching_past_a_refused_prompt_is_cleared(
+        self, db: AsyncSession, storage: LocalFileStorage, model_calls: list[list[ModelMessage]]
+    ) -> None:
+        """0248: a summary written before #2578 may quote a refused prompt word
+        for word, and the stored summary is replayed as it is. One that ends
+        before the refusal, or in a thread with none, says nothing it refused."""
+        ctx = await _owner(db)
+        agent = await _guarded_agent_without_a_workspace(db, ctx)
+        runner = AgentRunnerService(db)
+        chats: dict[str, Conversation] = {}
+        for key in ("past_the_refusal", "before_the_refusal", "nothing_refused"):
+            chats[key] = Conversation(organization_id=ctx.organization_id, user_id=ctx.user_id)
+            db.add(chats[key])
+        await db.flush()
+        ordinals: dict[str, int] = {}
+        for key in ("past_the_refusal", "before_the_refusal"):
+            _, run = await runner.execute(
+                ctx,
+                agent.id,
+                f"say {BLOCKED}",
+                surface=RunSurface.WEB,
+                conversation_id=chats[key].id,
+            )
+            assert run.status == RunStatus.GUARDRAIL_BLOCKED.value
+            ordinals[key] = (
+                await db.execute(select(Message.ordinal).where(Message.run_id == run.id))
+            ).scalar_one()
+        summary = [{"kind": "request", "parts": []}]
+        for key, ordinal in (
+            ("past_the_refusal", ordinals["past_the_refusal"]),
+            ("before_the_refusal", ordinals["before_the_refusal"] - 1),
+            ("nothing_refused", 5),
+        ):
+            chats[key].summary_messages = summary
+            chats[key].summary_ordinal = ordinal
+        await db.flush()
+
+        await db.execute(text(_migration().DROP_SUMMARIES))
+
+        kept = {
+            key: (
+                await db.execute(
+                    select(Conversation.summary_ordinal).where(Conversation.id == chat.id)
+                )
+            ).scalar_one()
+            for key, chat in chats.items()
+        }
+        assert kept == {
+            "past_the_refusal": None,
+            "before_the_refusal": ordinals["before_the_refusal"] - 1,
+            "nothing_refused": 5,
+        }
+
+
+class TestAWebChatTurnTheEdgeRefusedKeepsNoBriefing:
+    async def test_the_briefing_written_before_the_edge_is_taken_back(
+        self, db: AsyncSession, storage: LocalFileStorage, model_calls: list[list[ModelMessage]]
+    ) -> None:
+        """Web chat writes what the file added onto the prompt's row before the
+        input edge has read it (#2578). A refused turn must not leave it there:
+        every later turn replays the row, and the edge reads only the new one."""
+        ctx = await _owner(db)
+        agent = await _guarded_agent_without_a_workspace(db, ctx)
+        chat = Conversation(organization_id=ctx.organization_id, user_id=ctx.user_id)
+        db.add(chat)
+        await db.flush()
+        refused = await _attached(db, storage, ctx, text=f"line one\n{BLOCKED} payload")
+        prompt = await conversation_repo.create_message(
+            db, conversation_id=chat.id, role="user", content="summarise the attached notes"
+        )
+        user = await db.get(User, ctx.user_id)
+        assert user is not None
+
+        async def stream(agent_run: AgentRun[AgentDeps, AgentOutput]) -> None:
+            async for _ in agent_run:
+                pass
+
+        with pytest.raises(GuardrailBlocked):
+            await ChatAgentRunner(db).run(
+                user=user,
+                organization_id=ctx.organization_id,
+                agent_id=agent.id,
+                user_input="summarise the attached notes",
+                message_history=[],
+                conversation_id=chat.id,
+                prompt_message_id=prompt.id,
+                attachments=[refused],
+                ask_user=AsyncMock(return_value=[]),
+                stream=stream,
+            )
+
+        assert model_calls == []
+        row = (
+            await db.execute(
+                select(Message)
+                .where(Message.id == prompt.id)
+                .execution_options(populate_existing=True)
+            )
+        ).scalar_one()
+        assert row.content == "summarise the attached notes"
+        assert row.attachment_context is None
