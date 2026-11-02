@@ -585,3 +585,21 @@ def test_one_line_writes_a_line_break_out_and_leaves_none_alone():
     assert one_line("https://a.example\r\nforged: entry") == "https://a.example\\r\\nforged: entry"
     assert one_line("plain") == "plain"
     assert one_line(None) is None
+
+
+def test_the_whatsapp_verify_token_is_redacted_from_access_logs(uvicorn_access):
+    """Meta's handshake puts the verify token in the query string: `hub.` has a dot in it."""
+    setup_logging()
+    verify_token = secrets.token_urlsafe(24)
+
+    _log_a_request(
+        f"/api/v1/whatsapp/0b3c8f4e-6a1d-4c2e-9f7a-5d8e1b2c3a4f/webhook"
+        f"?hub.mode=subscribe&hub.verify_token={verify_token}&hub.challenge=1158201444"
+    )
+
+    line = uvicorn_access.getvalue()
+    assert verify_token not in line
+    assert "hub.verify_token=[REDACTED]" in line
+    assert "hub.challenge=1158201444" in line
+    # The dot is escaped: another character in its place is not the parameter.
+    assert redact_secret_paths("?hubXverify_token=visible") == "?hubXverify_token=visible"

@@ -45,6 +45,7 @@ from app.services.channels.supervisor import close_inbound_stream, open_inbound_
 from app.services.channels.teams import ConversationRef
 from app.services.channels.teams_auth import TeamsCredentials
 from app.services.channels.teams_package import teams_app_package
+from app.services.channels.webhooks import SEND_HEALTH_PLATFORMS
 from app.services.channels.whatsapp_graph import WhatsAppCredentials
 from app.services.speech_to_text import is_offered as stt_is_offered
 from app.services.speech_to_text_settings import SpeechToTextSettingsService
@@ -631,9 +632,11 @@ class ChannelBotService:
         # holding the socket is usually in another process, so this cannot be
         # asked of the adapter here. A webhook bot is not asked at all: it holds
         # no connection, and a `down` beside one would be a fault reported about
-        # a design (#1351).
+        # a design (#1351) - except where `down` means a refused send.
         connections = {
-            bot.id: await connection_state.read(bot.id) for bot in bots if not bot.webhook_mode
+            bot.id: await connection_state.read(bot.id)
+            for bot in bots
+            if not bot.webhook_mode or bot.platform in SEND_HEALTH_PLATFORMS
         }
         return [
             ChannelBotRead.model_validate(bot).model_copy(

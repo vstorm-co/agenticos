@@ -460,6 +460,12 @@ class ChannelBotRead(BaseSchema):
         """A Teams bot's messaging endpoint, to paste into its Azure Bot resource (#1985)."""
         return inbound_webhook_url("teams", self.id) if self.platform == "teams" else None
 
+    @computed_field  # type: ignore[prop-decorator]  # pydantic's documented form
+    @property
+    def whatsapp_callback_url(self) -> str | None:
+        """A WhatsApp bot's webhook callback URL, to paste into Meta's app dashboard (#2076)."""
+        return inbound_webhook_url("whatsapp", self.id) if self.platform == "whatsapp" else None
+
     speech_to_text_provider: str | None = None
     speech_to_text_model: str | None = None
     """Which model transcribes voice notes here, or null to inherit one.
@@ -484,7 +490,8 @@ class ChannelBotRead(BaseSchema):
     connection: ChannelConnectionRead | None = None
     """The state of the socket this bot receives on, for a polling bot.
 
-    A webhook bot holds no connection and reports none. A polling bot whose
+    A webhook bot holds no connection and reports none - except a WhatsApp bot,
+    whose "down" means Meta refused its access token on a send (#2076). A polling bot whose
     stream never opened used to look identical to a working one: the row showed
     `Polling`, an agent bound and nothing else, while the reason sat in a
     container log (#1351).

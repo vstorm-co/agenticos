@@ -50,6 +50,7 @@ GREETING = {
     ),
 }
 
+# No WhatsApp: a member is found by email, and WhatsApp has no lookup by one (#2076).
 PLATFORMS = ("slack", "mattermost", "teams")
 
 

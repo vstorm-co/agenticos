@@ -298,6 +298,28 @@ def test_author_labels_are_quoted_as_data_and_missing_names_are_unknown() -> Non
     assert authored_prompt("hi", None) == "hi"
 
 
+@pytest.mark.security
+def test_author_context_never_carries_the_message_id() -> None:
+    """A WhatsApp message id embeds the customer's number; none of it may reach the model."""
+    from app.services.channels.base import IncomingMessage
+    from app.services.channels.formatting import authored_prompt
+
+    wamid = "wamid.HBgLMTY1MDUwNzY1MjAVAgARGBI5QTNDQTVCM0Q0Q0Q2RTY3RTcA"
+    incoming = IncomingMessage(
+        platform="whatsapp",
+        bot_id="bot",
+        platform_user_id="US.13491208655302741918",
+        platform_chat_id="US.13491208655302741918",
+        chat_type="private",
+        text="hi",
+        message_id=wamid,
+    )
+    result = authored_prompt("hi", incoming)
+    assert wamid not in result
+    assert "16505076520" not in result
+    assert "message_id" not in result
+
+
 @pytest.mark.parametrize("surface", ["mattermost", "slack", "teams", "telegram", "whatsapp"])
 @pytest.mark.security
 def test_unlinked_channel_senders_still_need_approval_for_mcp_reads(surface: str) -> None:

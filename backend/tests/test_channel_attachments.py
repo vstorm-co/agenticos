@@ -356,6 +356,16 @@ class TestReceivingWhatSomebodySent:
 
         assert stored == []
         assert "cannot fetch files" in refused[0]
+        assert "from Slack yet" in refused[0]
+
+    async def test_the_refusal_names_the_platform_the_way_people_do(self):
+        service = _service()
+        adapter = _adapter(downloads=NotImplementedError("no"))
+        adapter.platform = "whatsapp"
+
+        _, refused = await service.receive(adapter, "t", [_attachment()], user_id=uuid.uuid4())
+
+        assert "from WhatsApp yet" in refused[0]
 
     async def test_a_download_that_failed_is_reported_not_raised(self):
         service = _service()

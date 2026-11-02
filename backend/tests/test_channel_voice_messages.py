@@ -23,6 +23,7 @@ import pytest
 
 from app.core.exceptions import ExternalServiceError
 from app.services.channels.base import IncomingAttachment, IncomingMessage
+from app.services.channels.dedupe import delivery_ref
 from app.services.channels.mattermost import MattermostAdapter
 from app.services.channels.router import TRANSCRIPTION_MAX_BYTES, ChannelMessageRouter
 from app.services.channels.slack import SlackAdapter
@@ -170,7 +171,9 @@ class TestWhichAttachmentsGoWhere:
         with caplog.at_level("INFO", logger="app.services.channels.router"):
             ChannelMessageRouter._split_recordings(incoming)
 
-        assert "message=m-42 recording=0 type=audio/ogg" in caplog.text
+        reference = delivery_ref("m-42")
+        assert f"message={reference} recording=0 type=audio/ogg" in caplog.text
+        assert "m-42" not in caplog.text
         assert "Kowalska" not in caplog.text
         assert "report.pdf" not in caplog.text
 
@@ -311,6 +314,23 @@ class TestWhenItCannotListen:
 
         assert transcripts == ["the second one"]
         assert refusals == ["a.ogg: could not be downloaded."]
+
+    async def test_a_platform_that_cannot_fetch_files_yet_says_so_without_a_traceback(self, caplog):
+        adapter = MagicMock()
+        adapter.platform = "whatsapp"
+        adapter.download_attachment = AsyncMock(side_effect=NotImplementedError)
+
+        with (
+            patch("app.services.channels.router.get_adapter", return_value=adapter),
+            patch("app.services.channels.router.unseal_bot_token", return_value="tok"),
+        ):
+            transcripts, refusals = await ChannelMessageRouter()._transcribe(
+                MagicMock(), _bot(), [_voice("a.ogg")], requested_by=None
+            )
+
+        assert transcripts == []
+        assert refusals == ["a.ogg: this build cannot fetch files from WhatsApp yet."]
+        assert not [r for r in caplog.records if r.exc_info]
 
     async def test_a_recording_too_large_to_transcribe_is_refused_before_it_is_fetched(self):
         """`TranscriptionService` applies its cap to bytes already in memory, so

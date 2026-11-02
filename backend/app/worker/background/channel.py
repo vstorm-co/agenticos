@@ -1,6 +1,6 @@
-"""In-process handler for channel-bot webhook events (Telegram, Slack).
+"""In-process handler for channel-bot webhook events (Telegram, Slack, Teams, WhatsApp).
 
-Dispatched via FastAPI `BackgroundTasks` from the webhook routes so the platform
+Spawned with `app.core.background.spawn` from the webhook routes so the platform
 gets a fast 200 OK while routing/AI happens in the background.
 """
 
@@ -10,7 +10,7 @@ from uuid import UUID
 
 from app.db.session import get_db_context
 from app.repositories import channel_bot_repo
-from app.services.channels.base import FeedbackComment, read_feedback
+from app.services.channels.base import FeedbackComment, IncomingMessage, read_feedback
 from app.services.channels.feedback import ChannelFeedback
 from app.services.channels.next_steps import ChannelNextSteps, read_next
 from app.services.channels.prompts import ChannelPrompts
@@ -32,6 +32,18 @@ async def process_channel_event(incoming: Any) -> None:
             await ChannelMessageRouter().route(incoming, db)
     except Exception:
         logger.exception("channel_event_processing_failed")
+
+
+async def process_channel_events_in_order(events: list[IncomingMessage]) -> None:
+    """Route one customer's messages from one webhook batch, each after the last.
+
+    A platform that batches (WhatsApp) can deliver several messages from one person
+    at once; routed side by side they would race for the chat's session and answer
+    out of order. A failed event is logged by `process_channel_event` and does not
+    stop the ones after it.
+    """
+    for event in events:
+        await process_channel_event(event)
 
 
 async def process_channel_press(press: Any) -> None:

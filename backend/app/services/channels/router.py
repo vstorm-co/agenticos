@@ -15,6 +15,7 @@ from uuid import UUID
 import httpx
 from pydantic_ai.messages import ModelMessage, ModelRequest, UserPromptPart
 
+from app.agents.prompt_variables import channel_name
 from app.agents.steering import SteeringInbox
 from app.core.config import settings
 from app.core.exceptions import AppException, AuthorizationError, BadRequestError
@@ -49,7 +50,7 @@ from app.services.channels.base import (
     memory_room_key,
     split_thread,
 )
-from app.services.channels.dedupe import claim_delivery, release_delivery
+from app.services.channels.dedupe import claim_delivery, delivery_ref, release_delivery
 from app.services.channels.directory import BoundChannelDirectory
 from app.services.channels.exceptions import ChannelNotConfigured
 from app.services.channels.formatting import LINK_ACCOUNT_INSTRUCTION, PICTURE_DELIVERY_UNCONFIRMED
@@ -347,7 +348,7 @@ class ChannelMessageRouter:
                 "Duplicate channel delivery ignored: bot=%s platform=%s message=%s",
                 incoming.bot_id,
                 incoming.platform,
-                incoming.message_id,
+                delivery_ref(incoming.message_id),
             )
             return
         key = f"{incoming.bot_id}:{incoming.platform_chat_id}"
@@ -1070,9 +1071,9 @@ class ChannelMessageRouter:
 
         Each recording is logged with its type, because the type is the
         platform's and this is the line that says why a voice note was or was
-        not heard - and by the platform's message id and its place on the
-        message rather than its file name, which a sender chose and which can
-        be personal.
+        not heard - and by a reference to the platform's message id (not the id
+        itself) and its place on the message rather than its file name, which a
+        sender chose and which can be personal.
         """
         recordings = [a for a in incoming.attachments if a.mime_type.startswith("audio/")]
         rest = [a for a in incoming.attachments if not a.mime_type.startswith("audio/")]
@@ -1080,7 +1081,7 @@ class ChannelMessageRouter:
             logger.info(
                 "Voice message routed to transcription: bot=%s message=%s recording=%d type=%s",
                 incoming.bot_id,
-                incoming.message_id,
+                delivery_ref(incoming.message_id),
                 index,
                 recording.mime_type,
             )
@@ -1160,6 +1161,13 @@ class ChannelMessageRouter:
                 continue
             try:
                 content = await adapter.download_attachment(token, recording)
+            except NotImplementedError:
+                # The platform's adapter cannot fetch files yet: a known limit, not a failure.
+                refusals.append(
+                    f"{recording.filename}: this build cannot fetch files from "
+                    f"{channel_name(adapter.platform)} yet."
+                )
+                continue
             except Exception:
                 logger.warning("Could not fetch a voice message: bot=%s", bot.id, exc_info=True)
                 refusals.append(f"{recording.filename}: could not be downloaded.")
@@ -1578,7 +1586,7 @@ class ChannelMessageRouter:
                 # them a room that participant management can then never reach.
                 new_conv = await conversation_repo.create_conversation(
                     db,
-                    title=f"{incoming.platform.capitalize()} Chat",
+                    title=f"{channel_name(incoming.platform)} Chat",
                     user_id=issuer,
                     organization_id=bot.organization_id,
                 )
@@ -1693,7 +1701,7 @@ class ChannelMessageRouter:
             # move the conversation into their own org.
             conv = await conversation_repo.create_conversation(
                 db,
-                title=f"{incoming.platform.capitalize()} Chat",
+                title=f"{channel_name(incoming.platform)} Chat",
                 user_id=identity.user_id,
                 organization_id=bot.organization_id,
             )

@@ -203,7 +203,6 @@ def authored_prompt(text: str, incoming: IncomingMessage | None) -> str:
             "username": incoming.platform_username,
             "display_name": incoming.platform_display_name,
             "chat_type": incoming.chat_type,
-            "message_id": incoming.message_id,
         },
     )
 

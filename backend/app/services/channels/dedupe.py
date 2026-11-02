@@ -18,6 +18,7 @@ takes the claim at the top of `route`, the one point all six inbound paths
 cross, and gives it back if the run under it does not finish.
 """
 
+import hashlib
 import logging
 
 from app.clients.redis import RedisClient
@@ -63,6 +64,18 @@ def _key(incoming: IncomingMessage) -> str:
     )
 
 
+def delivery_ref(message_id: str | None) -> str | None:
+    """A short, stable, non-reversible stand-in for a platform message id, for log lines.
+
+    A message id is the platform's to define: WhatsApp's is base64 of ids that
+    include the customer's phone number. So no line formats one; it logs this, which
+    still lets an operator match a redelivery's lines to each other.
+    """
+    if message_id is None:
+        return None
+    return hashlib.sha256(message_id.encode()).hexdigest()[:12]
+
+
 async def claim_delivery(incoming: IncomingMessage) -> bool:
     """Claim this delivery. True means it is ours to process; False means an
     earlier delivery of the same message already was.
@@ -88,7 +101,7 @@ async def claim_delivery(incoming: IncomingMessage) -> bool:
             "bot=%s platform=%s message=%s",
             incoming.bot_id,
             incoming.platform,
-            incoming.message_id,
+            delivery_ref(incoming.message_id),
         )
         return True
     try:

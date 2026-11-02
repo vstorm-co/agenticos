@@ -31,6 +31,7 @@ INBOUND_PATHS: dict[str, str] = {
     "slack": "/api/v1/slack/{bot_id}/events",
     "mattermost": "/api/v1/mattermost/{bot_id}/webhook",
     "teams": "/api/v1/teams/{bot_id}/messages",
+    "whatsapp": "/api/v1/whatsapp/{bot_id}/webhook",
 }
 
 
@@ -46,6 +47,17 @@ Minting one for those was not a harmless default: it produced a bot that looked
 configured while comparing Mattermost's token against a locally generated random
 string the operator had no way to overwrite, so the webhook path could never
 authenticate and refused every call.
+"""
+
+
+SEND_HEALTH_PLATFORMS: frozenset[str] = frozenset({"whatsapp"})
+"""Webhook platforms whose console row still shows a connection state.
+
+A webhook bot holds no socket, so a "down" beside one would be a design reported
+as a fault (#1351). For these platforms "down" means something else - the platform
+refused a send, which is a real fault an operator can fix (WhatsApp: an expired or
+revoked access token). The adapter records it on a refusal and clears it on the
+next good send; the entry lapses after `connection_state.TTL_SECONDS` of silence.
 """
 
 

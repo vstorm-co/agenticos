@@ -292,6 +292,47 @@ class TestChannelConversationOrg:
 
         assert create_conv.call_args.kwargs["organization_id"] == bot.organization_id
 
+    @pytest.mark.anyio
+    @pytest.mark.parametrize(
+        ("platform", "title"),
+        [
+            ("slack", "Slack Chat"),
+            ("telegram", "Telegram Chat"),
+            ("teams", "Microsoft Teams Chat"),
+            ("whatsapp", "WhatsApp Chat"),
+        ],
+    )
+    async def test_a_new_conversation_is_titled_with_the_platforms_own_name(self, platform, title):
+        from app.services.channels.base import IncomingMessage
+        from app.services.channels.router import ChannelMessageRouter
+
+        bot = _bot()
+        identity = MagicMock(id=uuid.uuid4(), user_id=uuid.uuid4())
+        incoming = IncomingMessage(
+            platform=platform,
+            bot_id=str(bot.id),
+            platform_user_id="U123",
+            platform_chat_id="C123",
+            chat_type="private",
+            text="hi",
+        )
+
+        router = "app.services.channels.router"
+        with (
+            patch(
+                f"{router}.channel_session_repo.get_by_bot_and_chat", AsyncMock(return_value=None)
+            ),
+            patch(
+                f"{router}.conversation_repo.create_conversation",
+                new=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
+            ) as create_conv,
+            patch(f"{router}.channel_session_repo.create", AsyncMock(return_value=MagicMock())),
+            patch(f"{router}.channel_session_repo.touch", AsyncMock(return_value=MagicMock())),
+        ):
+            await ChannelMessageRouter()._resolve_session(incoming, bot, identity, MagicMock())
+
+        assert create_conv.call_args.kwargs["title"] == title
+
 
 class TestWhoAnswersOnEachBot:
     """The channels listing says which agents a bot serves, and when none does.

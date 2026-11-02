@@ -315,3 +315,66 @@ class TestUpdating:
         data = await _updated(_row("telegram"), webhook_mode=False)
 
         assert data == {"webhook_mode": False}
+
+
+class TestSendHealthInTheConsoleList:
+    async def _listed(self, bots: list[ChannelBot], **states: object) -> list[ChannelBotRead]:
+        async def read(bot_id: uuid.UUID) -> object:
+            return states.get(str(bot_id))
+
+        with (
+            patch(
+                "app.services.channel_bot.channel_bot_repo.list_for_org",
+                new=AsyncMock(return_value=bots),
+            ),
+            patch(
+                "app.services.channel_bot.channel_bot_repo.count",
+                new=AsyncMock(return_value=len(bots)),
+            ),
+            patch(
+                "app.services.channel_bot.agent_exposure_repo.active_agents_for_bots",
+                new=AsyncMock(return_value={}),
+            ),
+            patch(
+                "app.services.channel_bot.connection_state.read", new=AsyncMock(side_effect=read)
+            ),
+        ):
+            rows, _ = await ChannelBotService(MagicMock(), organization_id=uuid.uuid4()).list_all()
+        return rows
+
+    async def test_the_console_list_shows_a_whatsapp_bots_send_health(self):
+        from app.services.channels.connection_state import ChannelConnection
+        from app.services.channels.whatsapp_graph import TOKEN_REFUSED
+
+        whatsapp, telegram = _row(), _row("telegram")
+        down = ChannelConnection(state="down", reason=TOKEN_REFUSED)
+
+        rows = await self._listed(
+            [whatsapp, telegram], **{str(whatsapp.id): down, str(telegram.id): down}
+        )
+
+        by_id = {row.id: row for row in rows}
+        assert by_id[whatsapp.id].connection is not None
+        assert by_id[whatsapp.id].connection.state == "down"
+        assert by_id[whatsapp.id].connection.reason == TOKEN_REFUSED
+        # A Telegram webhook bot holds no socket: a "down" beside it would be a design, not a fault.
+        assert by_id[telegram.id].connection is None
+
+
+def test_a_whatsapp_bot_reads_back_its_callback_url_and_no_other_does():
+    def read(platform: str) -> ChannelBotRead:
+        return ChannelBotRead(
+            id=uuid.uuid4(),
+            platform=platform,
+            name="bot",
+            is_active=True,
+            webhook_mode=True,
+            webhook_url=None,
+            access_policy={"mode": "open"},
+            created_at="2026-11-02T00:00:00Z",
+        )
+
+    whatsapp = read("whatsapp")
+    assert whatsapp.whatsapp_callback_url is not None
+    assert whatsapp.whatsapp_callback_url.endswith(f"/api/v1/whatsapp/{whatsapp.id}/webhook")
+    assert read("slack").whatsapp_callback_url is None
