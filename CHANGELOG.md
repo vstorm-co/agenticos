@@ -23,6 +23,16 @@ Two things are versioned separately from this file and worth knowing about:
 
 - Align README and documentation homepages around the self-hosted AI agent platform; add workflows, tables, voice and practical entry points, link the website, remove obsolete no-workflow claims, add Muse/Duet comparisons, and refresh Grok Bot against official Enterprise and pricing documentation.
 
+## [1.35.1] - 2026-11-02
+
+### Fixed
+
+- PyMuPDF ingestion skips embedded images when image description is off. With
+  descriptions on, shared images are extracted and described once per document,
+  while every referencing page keeps its description. Chunks no longer copy
+  embedded images, avoiding memory growth from repeated logos and diagrams in
+  large PDFs ([#2584](https://github.com/vstorm-co/agenticos/issues/2584)).
+
 ## [1.35.0] - 2026-11-02
 
 ### Changed
@@ -19666,7 +19676,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.35.0...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.35.1...HEAD
+[1.35.1]: https://github.com/vstorm-co/agenticos/compare/v1.35.0...v1.35.1
 [1.35.0]: https://github.com/vstorm-co/agenticos/compare/v1.34.3...v1.35.0
 [1.34.3]: https://github.com/vstorm-co/agenticos/compare/v1.34.2...v1.34.3
 [1.27.0]: https://github.com/vstorm-co/agenticos/compare/v1.26.0...v1.27.0

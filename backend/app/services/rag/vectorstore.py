@@ -367,11 +367,12 @@ class BaseVectorStore(ABC):
         document: Document,
         scope: VectorScope,
     ) -> dict[str, Any]:
+        image_count = len(chunk.images) if chunk.image_count is None else chunk.image_count
         metadata: dict[str, Any] = {
             "page_num": chunk.page_num,
             "chunk_num": chunk.chunk_num,
-            "has_images": bool(getattr(chunk, "images", None)),
-            "image_count": len(getattr(chunk, "images", [])),
+            "has_images": image_count > 0,
+            "image_count": image_count,
             **document.metadata.model_dump(),
         }
         # The tenant tag. `document.metadata.organization_id` already carries it in
