@@ -19,6 +19,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Security
+
+- A link in an agent's answer that leads to another site now opens in a new tab, whatever its address looks like. A link written without `https://` - `//evil.example`, `https:evil.example`, `HTTPS:/evil.example` - was rendered as an in-page link, so a click took the console's own tab to that site. The chat decides a link is off-site by where the browser resolves it against the console, and opens it in a new tab with `rel="noopener noreferrer"`. Console links, including the Architect's links that point at a control, still open in place.
+
 ## [1.34.2] - 2026-11-01
 
 ### Fixed
