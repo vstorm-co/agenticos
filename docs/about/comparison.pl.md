@@ -1,5 +1,5 @@
 ---
-source_sha: "279d1054622d"
+source_sha: "f8d7b221b146"
 title: "Porównaj AgenticOS"
 seo_title: "Porównania AgenticOS: suwerenna warstwa agentów AI"
 description: "Porównaj AgenticOS, suwerenną warstwę agentów AI open source, z Claude, ChatGPT, Copilot Studio, Gemini Enterprise, Dify, n8n i agentami do kodowania."
@@ -144,3 +144,5 @@ Biblioteka taka jak [Pydantic AI](https://ai.pydantic.dev/) pasuje do agenta wbu
 Zacznij od [zadania na dokumencie](../howto/first-document-agent.md), a potem przejrzyj [utrzymanie i wdrożenie](../rollout.md). Właścicielami tych poradników są opiekunowie AgenticOS.
 
 [Muse](muse.md) · [Claude Duet](claude-duet.md) — Źródła sprawdzono 2 listopada 2026; AgenticOS v1.35.0.
+
+[AgenticOS vs OpenBot](openbot.md)

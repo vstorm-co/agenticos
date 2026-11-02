@@ -143,3 +143,5 @@ A library such as [Pydantic AI](https://ai.pydantic.dev/) fits an agent embedded
 Start with the [document task](../howto/first-document-agent.md), then review [operation and implementation](../rollout.md). The AgenticOS maintainers own these guides.
 
 [Muse](muse.md) · [Claude Duet](claude-duet.md) — Sources checked 2 November 2026; AgenticOS baseline v1.35.0.
+
+[AgenticOS vs OpenBot](openbot.md)

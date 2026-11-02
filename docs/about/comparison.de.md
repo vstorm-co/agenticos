@@ -1,5 +1,5 @@
 ---
-source_sha: "279d1054622d"
+source_sha: "f8d7b221b146"
 title: "AgenticOS vergleichen"
 seo_title: "AgenticOS im Vergleich: souveräne Schicht für KI-Agents"
 description: "Die souveräne, selbst gehostete Open-Source-Schicht AgenticOS im Vergleich mit Claude, ChatGPT, Copilot Studio, Gemini Enterprise, Dify, n8n und Coding-Agents."
@@ -144,3 +144,5 @@ Eine Bibliothek wie [Pydantic AI](https://ai.pydantic.dev/) passt zu einem Agent
 Beginnen Sie mit der [Dokumentenaufgabe](../howto/first-document-agent.md) und prüfen Sie dann [Betrieb und Implementierung](../rollout.md). Die AgenticOS-Maintainer betreuen diese Leitfäden.
 
 [Muse](muse.md) · [Claude Duet](claude-duet.md) — Quellen am 2. November 2026 geprüft; AgenticOS v1.35.0.
+
+[AgenticOS vs OpenBot](openbot.md)

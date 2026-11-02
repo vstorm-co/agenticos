@@ -1,5 +1,5 @@
 ---
-source_sha: "279d1054622d"
+source_sha: "f8d7b221b146"
 title: "Compara AgenticOS"
 seo_title: "Comparativas de AgenticOS: capa soberana de agents de IA"
 description: "Compara AgenticOS, capa soberana de agents de IA open source, con Claude, ChatGPT, Copilot Studio, Gemini Enterprise, Dify, n8n y agents de código."
@@ -144,3 +144,5 @@ Una biblioteca como [Pydantic AI](https://ai.pydantic.dev/) encaja con un agent 
 Empieza con la [tarea documental](../howto/first-document-agent.md) y después revisa [operación e implementación](../rollout.md). Los maintainers de AgenticOS son los responsables de estas guías.
 
 [Muse](muse.md) · [Claude Duet](claude-duet.md) — Fuentes revisadas el 2 de noviembre de 2026; AgenticOS v1.35.0.
+
+[AgenticOS vs OpenBot](openbot.md)
