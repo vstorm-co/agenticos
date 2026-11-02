@@ -10,6 +10,9 @@ import { apiClient } from "./api-client";
 /** Why a watch that is on is not being read. */
 export type WatchStopped = "watches_off" | "connection_disabled";
 
+export type WatchAttemptStatus =
+  "completed" | "source_unavailable" | "access_revoked" | "not_completed";
+
 export interface Watch {
   id: string;
   connection_id: string;
@@ -26,6 +29,8 @@ export interface Watch {
   stopped: WatchStopped | null;
   next_run_at: string;
   last_run_at: string | null;
+  last_attempt_at: string | null;
+  last_attempt_status: WatchAttemptStatus | null;
   /** Its findings still open in the person's inbox. */
   waiting: number;
   created_at: string;

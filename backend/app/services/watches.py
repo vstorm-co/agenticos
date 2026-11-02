@@ -52,6 +52,8 @@ def watch_read(
         stopped=stopped_by(organization, connection),
         next_run_at=watch.next_run_at,
         last_run_at=watch.last_run_at,
+        last_attempt_at=watch.last_attempt_at,
+        last_attempt_status=watch.last_attempt_status,
         waiting=waiting,
         created_at=watch.created_at,
     )

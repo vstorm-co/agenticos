@@ -7,7 +7,7 @@ from uuid import UUID
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models.watch import Watch
+from app.db.models.watch import Watch, WatchAttemptStatus
 
 
 async def create(
@@ -100,5 +100,15 @@ async def schedule(db: AsyncSession, *, watch_id: UUID, next_run_at: datetime) -
 
 
 async def mark_ran(db: AsyncSession, *, watch: Watch, at: datetime) -> None:
-    watch.last_run_at = at
+    await mark_attempt(db, watch=watch, at=at, status=WatchAttemptStatus.COMPLETED)
+
+
+async def mark_attempt(
+    db: AsyncSession, *, watch: Watch, at: datetime, status: WatchAttemptStatus
+) -> None:
+    """Keep unsuccessful checks distinct from the last successful source reading."""
+    watch.last_attempt_at = at
+    watch.last_attempt_status = status
+    if status == WatchAttemptStatus.COMPLETED:
+        watch.last_run_at = at
     await db.flush()

@@ -573,6 +573,37 @@ class TestWatches:
         assert due.next_run_at == _NOW + timedelta(hours=2)
         assert due.last_run_at == _NOW
 
+    async def test_attempts_persist_without_replacing_the_last_success(self, db) -> None:
+        from app.db.models.watch import WatchAttemptStatus
+        from app.repositories import watch_repo
+
+        person = await _person(db)
+        org = await _organization(db, person)
+        connection = await _own_connection(db, person)
+        watch = await _watch(db, org, person, connection)
+        assert watch.last_attempt_at is None and watch.last_attempt_status is None
+        await watch_repo.mark_ran(db, watch=watch, at=_NOW)
+        for offset, status in enumerate(
+            (
+                WatchAttemptStatus.SOURCE_UNAVAILABLE,
+                WatchAttemptStatus.NOT_COMPLETED,
+                WatchAttemptStatus.ACCESS_REVOKED,
+            ),
+            start=1,
+        ):
+            attempted_at = _NOW + timedelta(hours=offset)
+            await watch_repo.mark_attempt(db, watch=watch, at=attempted_at, status=status)
+            await db.refresh(watch)
+            assert watch.last_attempt_at == attempted_at
+            assert watch.last_attempt_status == status
+            assert watch.last_run_at == _NOW
+        completed_at = _NOW + timedelta(days=1)
+        await watch_repo.mark_ran(db, watch=watch, at=completed_at)
+        await db.refresh(watch)
+        assert watch.last_run_at == completed_at
+        assert watch.last_attempt_at == completed_at
+        assert watch.last_attempt_status == WatchAttemptStatus.COMPLETED
+
     async def test_a_cadence_under_fifteen_minutes_is_refused_by_the_database(self, db) -> None:
         from sqlalchemy.exc import IntegrityError
 

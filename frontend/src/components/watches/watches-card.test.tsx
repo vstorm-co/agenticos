@@ -78,6 +78,8 @@ const watch = (overrides: Partial<Watch> = {}): Watch => ({
   stopped: null,
   next_run_at: "2026-10-22T10:00:00Z",
   last_run_at: null,
+  last_attempt_at: null,
+  last_attempt_status: null,
   waiting: 0,
   created_at: "2026-10-22T09:00:00Z",
   ...overrides,
@@ -101,6 +103,47 @@ beforeEach(() => {
 const onNew = vi.fn();
 
 describe("WatchesCard", () => {
+  it.each([
+    ["source_unavailable", "Source unavailable — no successful check."],
+    ["access_revoked", "Access unavailable — check the account and organization permissions."],
+    ["not_completed", "Check did not complete — review Activity and budget settings."],
+  ] as const)("shows %s as an unsuccessful attempt, not an empty check", (status, message) => {
+    state.watches = [
+      watch({ last_attempt_status: status, last_attempt_at: new Date().toISOString() }),
+    ];
+    render(<WatchesCard onNew={onNew} />);
+    expect(screen.getByRole("status")).toHaveTextContent(message);
+    expect(screen.getByRole("status")).toHaveTextContent("Last attempt just now");
+    expect(screen.queryByText(/first look within a minute/)).toBeNull();
+    expect(screen.queryByText(/looked just now/)).toBeNull();
+  });
+
+  it("shows a later failure even after an earlier successful check", () => {
+    state.watches = [
+      watch({
+        last_run_at: "2026-10-22T09:00:00Z",
+        last_attempt_status: "source_unavailable",
+        last_attempt_at: new Date().toISOString(),
+      }),
+    ];
+    render(<WatchesCard onNew={onNew} />);
+    expect(screen.getByRole("status")).toHaveTextContent("Source unavailable");
+    expect(screen.queryByText(/looked/)).toBeNull();
+  });
+
+  it("a successful no-change check clears the failure message", () => {
+    state.watches = [
+      watch({
+        last_run_at: new Date().toISOString(),
+        last_attempt_at: new Date().toISOString(),
+        last_attempt_status: "completed",
+      }),
+    ];
+    render(<WatchesCard onNew={onNew} />);
+    expect(screen.getByText("Every hour · looked just now")).toBeInTheDocument();
+    expect(screen.queryByRole("status")).toBeNull();
+  });
+
   it("says the organization has watches off, and still lists what is stopped by it", () => {
     state.orgOn = undefined;
     render(<WatchesCard onNew={onNew} />);

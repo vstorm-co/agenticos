@@ -11713,7 +11713,13 @@
     "accountNamed": "{server} ({account})",
     "createdWhere": "Znajdziesz ją w Rutynach, a to, co znajdzie, trafi do twojego inboksu.",
     "seeIt": "Pokaż",
-    "manageInRoutines": "Zarządzaj obserwacjami w Rutynach"
+    "manageInRoutines": "Zarządzaj obserwacjami w Rutynach",
+    "attemptedAt": "Ostatnia próba: {when}",
+    "attempt": {
+      "source_unavailable": "Źródło niedostępne — sprawdzenie nie powiodło się.",
+      "access_revoked": "Brak dostępu — sprawdź konto i uprawnienia w organizacji.",
+      "not_completed": "Sprawdzenie nie zostało ukończone — sprawdź Aktywność i ustawienia budżetu."
+    }
   },
   "inbox": {
     "title": "Inbox",

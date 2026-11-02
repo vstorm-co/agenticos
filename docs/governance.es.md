@@ -1,5 +1,5 @@
 ---
-source_sha: "31c75d9d27ef"
+source_sha: "4b7db1b85fed"
 ---
 
 # Governance { #governance }
@@ -601,6 +601,20 @@ sujeto a `org:settings`: un mensaje directo de los bots de Slack, Teams y
 Mattermost de la organización a un miembro nuevo, con las palabras de la
 organización si las escribió (`{organization}`, `{bot}` y `{url}` se rellenan) o
 el saludo incorporado en su idioma.
+
+El último intento de una observación se registra por separado de la última
+lectura correcta. Una fuente no disponible, la pérdida de acceso o una llamada
+al modelo que no terminó aparecen en la tarjeta de Rutinas, sin afirmar que no
+hubo cambios ni avanzar la fecha de la lectura correcta. `not_completed` incluye
+la falta de presupuesto o de disponibilidad del modelo; consulta Actividad y
+los ajustes de presupuesto/modelo de la organización para conocer la causa. Una
+lectura vacía válida sigue siendo silenciosa.
+
+El registro de intentos comienza
+con `0261_watch_attempt_status.py`; las fechas anteriores se conservan sin
+inventar un historial de éxitos o errores. Los errores inesperados siguen
+haciendo fallar la tarea en segundo plano, en vez de simular una lectura vacía
+correcta.
 
 ### Agentes de sistema { #system-agents }
 

@@ -157,6 +157,7 @@ function WatchRow({
   const tTime = useTranslations("time");
   const locale = useLocale();
   const cadence = cadenceLabel(watch.interval_minutes, tCadence);
+  const unsuccessful = watch.last_attempt_status && watch.last_attempt_status !== "completed";
   return (
     <li className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3 sm:flex-nowrap sm:px-5">
       <div className="min-w-0 flex-1 space-y-1">
@@ -169,11 +170,24 @@ function WatchRow({
           />
           <span aria-hidden>·</span>
           <span className="truncate">
-            {watch.last_run_at
-              ? t("rowLooked", { cadence, when: timeAgo(watch.last_run_at, tTime, locale) })
-              : t("rowFirst", { cadence })}
+            {unsuccessful
+              ? cadence
+              : watch.last_run_at
+                ? t("rowLooked", { cadence, when: timeAgo(watch.last_run_at, tTime, locale) })
+                : t("rowFirst", { cadence })}
           </span>
         </div>
+        {unsuccessful && (
+          <p className="text-destructive text-xs" role="status">
+            {t(`attempt.${watch.last_attempt_status}`)}
+            {watch.last_attempt_at && (
+              <span className="text-muted-foreground">
+                {" · "}
+                {t("attemptedAt", { when: timeAgo(watch.last_attempt_at, tTime, locale) })}
+              </span>
+            )}
+          </p>
+        )}
       </div>
       {watch.waiting > 0 && (
         <Link

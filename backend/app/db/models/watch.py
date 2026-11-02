@@ -12,6 +12,7 @@ answer. Its cadence is an interval, never more often than its organization
 allows (`Organization.proactive_watch_min_minutes`).
 """
 
+import enum
 import uuid
 from datetime import datetime
 
@@ -25,6 +26,13 @@ MIN_WATCH_MINUTES = 15
 """The most often any watch is read: a model call per look, booked to the person's limit."""
 
 
+class WatchAttemptStatus(enum.StrEnum):
+    COMPLETED = "completed"
+    SOURCE_UNAVAILABLE = "source_unavailable"
+    ACCESS_REVOKED = "access_revoked"
+    NOT_COMPLETED = "not_completed"
+
+
 class Watch(Base, TimestampMixin):
     """One thing one person watches in one of their own connections."""
 
@@ -32,6 +40,12 @@ class Watch(Base, TimestampMixin):
     __table_args__ = (
         CheckConstraint(
             f"interval_minutes >= {MIN_WATCH_MINUTES}", name="ck_watch_interval_minutes"
+        ),
+        CheckConstraint(
+            "(last_attempt_at IS NULL AND last_attempt_status IS NULL) OR "
+            "(last_attempt_at IS NOT NULL AND last_attempt_status IS NOT NULL AND "
+            "last_attempt_status IN ('completed', 'source_unavailable', 'access_revoked', 'not_completed'))",
+            name="ck_watch_attempt_status",
         ),
     )
 
@@ -68,6 +82,10 @@ class Watch(Base, TimestampMixin):
         DateTime(timezone=True), nullable=False, index=True
     )
     last_run_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_attempt_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_attempt_status: Mapped[WatchAttemptStatus | None] = mapped_column(
+        String(32), nullable=True
+    )
 
     def __repr__(self) -> str:
         return f"<Watch(id={self.id}, user={self.user_id}, every={self.interval_minutes}m)>"

@@ -29,7 +29,7 @@ from app.agents.person_briefing import LANGUAGE_NAMES
 from app.core.permissions import AuthContext
 from app.db.models.organization import Organization
 from app.db.models.suggestion import SuggestionKind
-from app.db.models.watch import Watch
+from app.db.models.watch import Watch, WatchAttemptStatus
 from app.repositories import (
     mcp_connection_repo,
     member_repo,
@@ -141,6 +141,7 @@ class WatchLook:
         watch = await watch_repo.get_by_id(self.db, watch_id)
         if watch is None or not watch.is_active:
             return 0
+        now = datetime.now(UTC)
         organization = await organization_repo.get_by_id(self.db, watch.organization_id)
         connection = await mcp_connection_repo.get_by_id(self.db, watch.connection_id)
         member = await member_repo.get_active(
@@ -155,16 +156,33 @@ class WatchLook:
             or not user.is_active
             or stopped_by(organization, connection) is not None
         ):
+            await watch_repo.mark_attempt(
+                self.db, watch=watch, at=now, status=WatchAttemptStatus.ACCESS_REVOKED
+            )
+            return 0
+        if (
+            connection.scope != "user"
+            or connection.purpose != "mcp"
+            or connection.user_id != watch.user_id
+        ):
+            await watch_repo.mark_attempt(
+                self.db, watch=watch, at=now, status=WatchAttemptStatus.ACCESS_REVOKED
+            )
             return 0
         spec = await watched_connection_spec(connection)
         if spec is None:
             logger.info("watch_connection_unauthorized", extra={"watch_id": str(watch.id)})
+            await watch_repo.mark_attempt(
+                self.db, watch=watch, at=now, status=WatchAttemptStatus.SOURCE_UNAVAILABLE
+            )
             return 0
         toolsets = await build_mcp_toolsets([spec])
         if not toolsets:
+            await watch_repo.mark_attempt(
+                self.db, watch=watch, at=now, status=WatchAttemptStatus.SOURCE_UNAVAILABLE
+            )
             return 0
         reading_tools = [toolset.filtered(_reads_only) for toolset in toolsets]
-        now = datetime.now(UTC)
         material = {
             "person": {
                 "language": LANGUAGE_NAMES.get(user.locale or "", "English"),
@@ -186,12 +204,16 @@ class WatchLook:
             prompt=json.dumps(material, ensure_ascii=False),
             toolsets=reading_tools,
         )
-        await watch_repo.mark_ran(self.db, watch=watch, at=now)
         if reading is None:
+            await watch_repo.mark_attempt(
+                self.db, watch=watch, at=now, status=WatchAttemptStatus.NOT_COMPLETED
+            )
             return 0
-        return await self._record(
+        recorded = await self._record(
             watch, reading, server=connection.catalog_key, account=spec.account
         )
+        await watch_repo.mark_ran(self.db, watch=watch, at=now)
+        return recorded
 
     async def _record(
         self, watch: Watch, reading: WatchReading, *, server: str | None, account: str | None

@@ -11816,7 +11816,13 @@
     "accountNamed": "{server} ({account})",
     "createdWhere": "Sie steht unter Routinen, und was sie findet, landet in Ihrem Posteingang.",
     "seeIt": "Anzeigen",
-    "manageInRoutines": "Beobachtungen unter Routinen verwalten"
+    "manageInRoutines": "Beobachtungen unter Routinen verwalten",
+    "attemptedAt": "Letzter Versuch {when}",
+    "attempt": {
+      "source_unavailable": "Quelle nicht verfügbar — keine erfolgreiche Prüfung.",
+      "access_revoked": "Zugriff nicht verfügbar — Konto und Organisationsberechtigungen prüfen.",
+      "not_completed": "Prüfung nicht abgeschlossen — Aktivität und Budgeteinstellungen prüfen."
+    }
   },
   "inbox": {
     "title": "Posteingang",

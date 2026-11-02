@@ -550,6 +550,18 @@ Teams and Mattermost bots, in the organization's own words when it wrote some
 (`{organization}`, `{bot}` and `{url}` are filled in) or the built-in greeting in
 their language.
 
+A watch's latest attempt is separate from its last successful reading. An
+unavailable source, lost access, or a model call that did not complete is shown
+on its Routines card, without claiming that nothing changed or advancing the
+successful-reading timestamp. `not_completed` includes budget or model
+unavailability; review Activity and the organization's budget/model settings for
+the cause. A valid empty reading remains quiet.
+
+Attempt tracking starts with
+migration `0261_watch_attempt_status.py`; older timestamps are retained without
+inventing a success/failure history. Unexpected errors still fail the background
+job rather than becoming successful empty readings.
+
 ### System agents { #system-agents }
 
 Some work is the platform's own and still needs a model. A **system role** gives it

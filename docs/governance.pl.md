@@ -1,5 +1,5 @@
 ---
-source_sha: "31c75d9d27ef"
+source_sha: "4b7db1b85fed"
 ---
 
 # Governance { #governance }
@@ -590,6 +590,18 @@ wymagająca `org:settings`: wiadomość prywatna dla nowej osoby od botów
 organizacji w Slacku, Teams i Mattermost, słowami organizacji, jeśli je napisała
 (`{organization}`, `{bot}` i `{url}` zostają uzupełnione), albo wbudowanym
 powitaniem w jej języku.
+
+Ostatnia próba obserwacji jest zapisywana oddzielnie od ostatniego udanego
+odczytu. Niedostępne źródło, utrata dostępu lub nieukończone wywołanie modelu
+są widoczne na karcie w Rutynach, bez twierdzenia, że nic się nie zmieniło,
+i bez przesuwania czasu udanego odczytu. `not_completed` obejmuje brak budżetu
+lub niedostępny model; przyczyny należy szukać w Aktywności i ustawieniach
+budżetu/modelu organizacji. Poprawny pusty odczyt pozostaje cichy.
+
+Śledzenie prób
+zaczyna się od migracji `0261_watch_attempt_status.py`; starsze znaczniki czasu
+pozostają bez dopisywania nieznanej historii sukcesów i błędów. Nieoczekiwane
+błędy nadal kończą zadanie w tle błędem, zamiast udawać udany pusty odczyt.
 
 ### Agenci systemowi { #system-agents }
 

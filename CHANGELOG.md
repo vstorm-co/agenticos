@@ -51,6 +51,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Watches show unavailable sources, lost access and incomplete model checks separately from successful no-change readings. Failed attempts no longer advance the successful-reading timestamp. Workers recheck that the connection still belongs to the watch owner before resolving credentials. Migration `0261_watch_attempt_status.py`.
+
 - **Private-chat authority is not transferable to background work.** Routine/workflow runs, public or group audiences, API keys and impersonation cannot mint the private source hint that permits a routine to act as a person. Approval continuations retain the original audience, so resuming a group turn never turns it into private standing consent.
 
 - **Routine authorization is checked before every tool.** Root runs, delegates and approval continuations refuse subsequent tools after pause, deletion, expiry, personal-consent withdrawal, role changes or revoked run grants. The actor remains the original creator. Immutable run provenance survives deletion so a parked routine cannot lose its guard when its reporting FK clears; unverifiable old parked schedules are refused. Migration `0260_routine_run_origin`.

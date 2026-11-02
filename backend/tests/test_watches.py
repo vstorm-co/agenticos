@@ -20,7 +20,7 @@ from pydantic_ai.tools import ToolDefinition
 from app.api.deps import get_auth_context, get_watch_service
 from app.core.exceptions import AuthenticationError, BadRequestError, NotFoundError
 from app.core.permissions import AuthContext, OrgRoleName
-from app.db.models.watch import Watch
+from app.db.models.watch import Watch, WatchAttemptStatus
 from app.main import app
 from app.schemas.watch import WatchCreate, WatchRead, WatchUpdate
 from app.services import mcp_catalog, watch_presets
@@ -385,6 +385,7 @@ class TestOneLook:
         found_spec = MagicMock(account="kacper")
         return (
             patch(f"{LOOK}.watch_repo.get_by_id", new=AsyncMock(return_value=watch)),
+            patch(f"{LOOK}.watch_repo.mark_attempt", new=AsyncMock()),
             patch(
                 f"{LOOK}.organization_repo.get_by_id",
                 new=AsyncMock(return_value=organization or _organization()),
@@ -474,7 +475,7 @@ class TestOneLook:
         assert propose.await_args.kwargs["urgent"] is False
         finding.assert_not_awaited()
 
-    async def test_a_model_that_could_not_answer_records_the_look_and_nothing_else(self):
+    async def test_a_model_that_could_not_answer_is_not_a_successful_empty_reading(self):
         watch = _watch()
         propose = AsyncMock()
         with ExitStack() as stack:
@@ -489,10 +490,83 @@ class TestOneLook:
                 ),
             ):
                 stack.enter_context(each)
+            mark_attempt = stack.enter_context(
+                patch(f"{LOOK}.watch_repo.mark_attempt", new=AsyncMock())
+            )
             mark_ran = stack.enter_context(patch(f"{LOOK}.watch_repo.mark_ran", new=AsyncMock()))
             assert await WatchLook(MagicMock()).look(watch.id) == 0
-        mark_ran.assert_awaited_once()
+        mark_ran.assert_not_awaited()
+        assert mark_attempt.await_args.kwargs["status"] == WatchAttemptStatus.NOT_COMPLETED
         propose.assert_not_awaited()
+
+    async def test_no_change_is_a_successful_reading_without_a_notification(self):
+        watch = _watch()
+        with ExitStack() as stack:
+            for each in (
+                *self._patches(watch),
+                patch(f"{LOOK}.build_mcp_toolsets", new=AsyncMock(return_value=[MagicMock()])),
+                patch(f"{LOOK}.suggestion_repo.titles_for_watch", new=AsyncMock(return_value=[])),
+                patch(
+                    f"{LOOK}.ProactiveThinker",
+                    return_value=MagicMock(think=AsyncMock(return_value=WatchReading())),
+                ),
+            ):
+                stack.enter_context(each)
+            mark_ran = stack.enter_context(patch(f"{LOOK}.watch_repo.mark_ran", new=AsyncMock()))
+            notify = stack.enter_context(patch(f"{LOOK}.NotificationService"))
+            assert await WatchLook(MagicMock()).look(watch.id) == 0
+        mark_ran.assert_awaited_once()
+        notify.return_value.finding.assert_not_called()
+
+    async def test_a_failed_result_write_is_not_marked_as_a_successful_check(self):
+        watch = _watch()
+        with ExitStack() as stack:
+            for each in (
+                *self._patches(watch),
+                patch(f"{LOOK}.build_mcp_toolsets", new=AsyncMock(return_value=[MagicMock()])),
+                patch(f"{LOOK}.suggestion_repo.titles_for_watch", new=AsyncMock(return_value=[])),
+                patch(
+                    f"{LOOK}.ProactiveThinker",
+                    return_value=MagicMock(think=AsyncMock(return_value=WatchReading())),
+                ),
+                patch.object(
+                    WatchLook, "_record", new=AsyncMock(side_effect=RuntimeError("write failed"))
+                ),
+            ):
+                stack.enter_context(each)
+            mark_ran = stack.enter_context(patch(f"{LOOK}.watch_repo.mark_ran", new=AsyncMock()))
+            with pytest.raises(RuntimeError, match="write failed"):
+                await WatchLook(MagicMock()).look(watch.id)
+        mark_ran.assert_not_awaited()
+
+    @pytest.mark.parametrize("spec_available", [True, False], ids=["server-down", "sign-in-lapsed"])
+    async def test_an_unavailable_source_records_a_failed_attempt(self, spec_available):
+        watch = _watch()
+        with ExitStack() as stack:
+            for each in (
+                *self._patches(watch, spec=spec_available),
+                patch(f"{LOOK}.build_mcp_toolsets", new=AsyncMock(return_value=[])),
+            ):
+                stack.enter_context(each)
+            attempt = stack.enter_context(patch(f"{LOOK}.watch_repo.mark_attempt", new=AsyncMock()))
+            mark_ran = stack.enter_context(patch(f"{LOOK}.watch_repo.mark_ran", new=AsyncMock()))
+            assert await WatchLook(MagicMock()).look(watch.id) == 0
+        assert attempt.await_args.kwargs["status"] == WatchAttemptStatus.SOURCE_UNAVAILABLE
+        mark_ran.assert_not_awaited()
+
+    @pytest.mark.parametrize(
+        "changed", [{"owner": uuid.uuid4()}, {"scope": "organization"}, {"purpose": "portal"}]
+    )
+    async def test_a_connection_no_longer_owned_by_the_person_cannot_be_read(self, changed):
+        watch = _watch()
+        with ExitStack() as stack:
+            for each in self._patches(watch, connection=_connection(**changed)):
+                stack.enter_context(each)
+            attempt = stack.enter_context(patch(f"{LOOK}.watch_repo.mark_attempt", new=AsyncMock()))
+            resolve = stack.enter_context(patch(f"{LOOK}.watched_connection_spec", new=AsyncMock()))
+            assert await WatchLook(MagicMock()).look(watch.id) == 0
+        resolve.assert_not_awaited()
+        assert attempt.await_args.kwargs["status"] == WatchAttemptStatus.ACCESS_REVOKED
 
     @pytest.mark.parametrize(
         "case",

@@ -1,5 +1,5 @@
 ---
-source_sha: "31c75d9d27ef"
+source_sha: "4b7db1b85fed"
 ---
 
 # Governance { #governance }
@@ -635,6 +635,20 @@ an `org:settings` gebunden: eine Direktnachricht der Slack-, Teams- und
 Mattermost-Bots der Organisation an ein neues Mitglied, in den eigenen Worten der
 Organisation, wenn sie welche geschrieben hat (`{organization}`, `{bot}` und
 `{url}` werden ausgefüllt), sonst die eingebaute Begrüßung in seiner Sprache.
+
+Der letzte Prüfversuch einer Beobachtung wird getrennt von der letzten
+erfolgreichen Prüfung gespeichert. Eine nicht verfügbare Quelle, fehlender
+Zugriff oder ein nicht abgeschlossener Modellaufruf erscheint auf der Karte unter
+Routinen, ohne einen unveränderten Stand zu behaupten oder den Zeitpunkt der
+erfolgreichen Prüfung fortzuschreiben. `not_completed` umfasst fehlendes Budget
+oder ein nicht verfügbares Modell; die Ursache steht in der Aktivität und den
+Budget-/Modelleinstellungen der Organisation. Eine gültige leere Prüfung bleibt
+still.
+
+Die Versuchserfassung beginnt mit `0261_watch_attempt_status.py`; ältere
+Zeitstempel bleiben ohne erfundene Erfolgs- oder Fehlerhistorie erhalten.
+Unerwartete Fehler lassen weiterhin den Hintergrundjob fehlschlagen, statt als
+erfolgreiche leere Prüfung zu gelten.
 
 ### Systemagenten { #system-agents }
 

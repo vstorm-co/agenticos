@@ -11937,7 +11937,13 @@
     "accountNamed": "{server} ({account})",
     "createdWhere": "It is under Routines, and what it finds lands in your inbox.",
     "seeIt": "See it",
-    "manageInRoutines": "Manage your watches in Routines"
+    "manageInRoutines": "Manage your watches in Routines",
+    "attemptedAt": "Last attempt {when}",
+    "attempt": {
+      "source_unavailable": "Source unavailable — no successful check.",
+      "access_revoked": "Access unavailable — check the account and organization permissions.",
+      "not_completed": "Check did not complete — review Activity and budget settings."
+    }
   },
   "inbox": {
     "title": "Inbox",

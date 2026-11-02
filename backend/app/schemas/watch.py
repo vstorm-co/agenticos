@@ -6,7 +6,7 @@ from uuid import UUID
 
 from pydantic import Field, field_validator, model_validator
 
-from app.db.models.watch import MIN_WATCH_MINUTES
+from app.db.models.watch import MIN_WATCH_MINUTES, WatchAttemptStatus
 from app.schemas.base import BaseSchema
 
 MAX_WATCH_MINUTES = 10080
@@ -91,6 +91,15 @@ class WatchRead(BaseSchema):
     )
     next_run_at: datetime
     last_run_at: datetime | None
+    last_attempt_at: datetime | None = None
+    last_attempt_status: WatchAttemptStatus | None = Field(
+        default=None,
+        description=(
+            "The latest attempted check. Only completed advances last_run_at; "
+            "not_completed means no valid reading, including unavailable models or budget. "
+            "Null for watches not attempted since attempt tracking was introduced."
+        ),
+    )
     waiting: int = Field(default=0, description="Its findings still open in the person's inbox.")
     created_at: datetime
 

@@ -87,6 +87,8 @@ const watch = (overrides: Partial<Watch> = {}): Watch => ({
   stopped: null,
   next_run_at: "2026-10-22T10:00:00Z",
   last_run_at: null,
+  last_attempt_at: null,
+  last_attempt_status: null,
   waiting: 0,
   created_at: "2026-10-22T09:00:00Z",
   ...overrides,
