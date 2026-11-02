@@ -26,15 +26,9 @@ describe("the skill checks client", () => {
     expect(apiClient.get).toHaveBeenCalledWith("/skills/s-1/checks/c-1");
   });
 
-  it("lists a line's checks and stops one", async () => {
-    vi.mocked(apiClient.get).mockResolvedValue({ items: [{ id: "c-1" }], total: 1 });
-
-    await expect(api.listSkillChecks("s-1", null)).resolves.toEqual([{ id: "c-1" }]);
-    await api.listSkillChecks("s-1", "f-1");
+  it("stops a running check", async () => {
     await api.cancelSkillCheck("s-1", "c-1");
 
-    expect(apiClient.get).toHaveBeenCalledWith("/skills/s-1/checks");
-    expect(apiClient.get).toHaveBeenCalledWith("/skills/s-1/checks?fork_id=f-1");
     expect(apiClient.post).toHaveBeenCalledWith("/skills/s-1/checks/c-1/cancel", {});
   });
 

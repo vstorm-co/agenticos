@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { SkillCheckDialog } from "./skill-check-dialog";
+import { ApiError } from "@/lib/api-error";
 import { finishedCheck } from "@/test-utils/skill-checks";
 import type { SkillCheck } from "@/types/skill-checks";
 
@@ -22,7 +23,6 @@ const held = vi.hoisted(() => ({
   discard: {} as Mutation,
   cancel: {} as Mutation,
   checkId: null as string | null,
-  earlier: { isSuccess: true, data: null as { id: string } | null },
 }));
 
 vi.mock("@/hooks/use-skill-check", () => ({
@@ -30,7 +30,6 @@ vi.mock("@/hooks/use-skill-check", () => ({
     held.checkId = checkId;
     return held;
   },
-  useOpenSkillCheck: () => held.earlier,
 }));
 vi.mock("sonner", () => ({ toast: { error: vi.fn() } }));
 
@@ -45,7 +44,6 @@ beforeEach(() => {
   held.apply = mutation();
   held.discard = mutation();
   held.cancel = mutation();
-  held.earlier = { isSuccess: true, data: null };
 });
 
 function open(onOpenChange = vi.fn()) {
@@ -76,13 +74,19 @@ describe("SkillCheckDialog", () => {
     expect(held.checkId).toBeNull();
   });
 
-  it("goes back to an open check of the change instead of pricing a new one", () => {
-    held.earlier = { isSuccess: true, data: { id: "c-open" } };
-    held.check = finishedCheck({ status: "running", verdict: null, outcomes: [] });
+  it("goes back to the check the server says this change already has", async () => {
+    held.start.mutate.mockImplementation((_body, options) =>
+      options.onError(
+        new ApiError(409, "This change is checked already", {
+          error: { code: "ALREADY_EXISTS", message: "checked", details: { check_id: "c-open" } },
+        }),
+      ),
+    );
     open();
 
+    await userEvent.click(screen.getByRole("button", { name: "Start the check" }));
+
     expect(held.checkId).toBe("c-open");
-    expect(held.estimate.mutate).not.toHaveBeenCalled();
   });
 
   it("stops a running check on request", async () => {
