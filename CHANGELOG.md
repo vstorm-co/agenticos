@@ -19,6 +19,14 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- PyMuPDF ingestion skips embedded images when image description is off. With
+  descriptions on, shared images are extracted and described once per document,
+  while every referencing page keeps its description. Chunks no longer copy
+  embedded images, avoiding memory growth from repeated logos and diagrams in
+  large PDFs ([#2584](https://github.com/vstorm-co/agenticos/issues/2584)).
+
 ## [1.35.0] - 2026-11-02
 
 ### Changed
