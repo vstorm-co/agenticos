@@ -108,6 +108,13 @@ platform-bootstrap:
 
 bootstrap: dev seed
 
+# Needs a running stack, SKILLS_LAB_EMAIL, SKILLS_LAB_PASSWORD and SKILLS_LAB_OPENROUTER_KEY;
+# PROBE=v1|broad|narrow measures one wording of the skill, DROP_PROBES=1 deletes those orgs.
+SKILLS_LAB_URL ?= http://localhost:8000
+seed-skills-lab:
+	uv run --directory backend python ../scripts/seed_skills_lab.py \
+		--url $(SKILLS_LAB_URL) $(if $(PROBE),--probe $(PROBE)) $(if $(DROP_PROBES),--drop-probes)
+
 dev-down:
 	docker compose $(COMPOSE_LOCAL) $(COMPOSE_DEV_PROFILES) --profile console down
 
@@ -1029,6 +1036,7 @@ help:
 	@echo "Day-to-day dev:"
 	@echo "  make dev            Build + start dev stack; migrations run as a service (idempotent)"
 	@echo "  make seed           One-shot admin seed (admin@example.com / admin123)"
+	@echo "  make seed-skills-lab  Skills lab: one skill shared by several agents (PROBE=, DROP_PROBES=1)"
 	@echo "  make dev-down       Stop dev stack"
 	@echo "  make dev-logs       Tail dev container logs"
 	@echo "  make dev-rebuild    Force-rebuild backend image"
