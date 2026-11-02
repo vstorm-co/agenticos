@@ -562,6 +562,11 @@ migration `0261_watch_attempt_status.py`; older timestamps are retained without
 inventing a success/failure history. Unexpected errors still fail the background
 job rather than becoming successful empty readings.
 
+Creating or changing a watch grants future reads of a private account, so it
+requires the person's signed-in session or a trusted credential from their own
+private human conversation. An ordinary API key, publisher fallback, background
+routine or impersonated session cannot create, rearm or rewrite that consent.
+
 ### System agents { #system-agents }
 
 Some work is the platform's own and still needs a model. A **system role** gives it

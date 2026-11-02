@@ -53,6 +53,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Creating or changing a private-account watch requires the person's own signed-in session or trusted private-chat credential. Ordinary API keys, publisher/background contexts and impersonation cannot establish or expand standing account access.
+
 - Watches show unavailable sources, lost access and incomplete model checks separately from successful no-change readings. Failed attempts no longer advance the successful-reading timestamp. Workers recheck that the connection still belongs to the watch owner before resolving credentials. Migration `0261_watch_attempt_status.py`.
 
 - **Private-chat authority is not transferable to background work.** Routine/workflow runs, public or group audiences, API keys and impersonation cannot mint the private source hint that permits a routine to act as a person. Approval continuations retain the original audience, so resuming a group turn never turns it into private standing consent.

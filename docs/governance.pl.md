@@ -1,5 +1,5 @@
 ---
-source_sha: "4b7db1b85fed"
+source_sha: "ec0e0a602926"
 ---
 
 # Governance { #governance }
@@ -602,6 +602,12 @@ budżetu/modelu organizacji. Poprawny pusty odczyt pozostaje cichy.
 zaczyna się od migracji `0261_watch_attempt_status.py`; starsze znaczniki czasu
 pozostają bez dopisywania nieznanej historii sukcesów i błędów. Nieoczekiwane
 błędy nadal kończą zadanie w tle błędem, zamiast udawać udany pusty odczyt.
+
+Utworzenie lub zmiana obserwacji zezwala na przyszłe odczyty prywatnego konta,
+więc wymaga sesji zalogowanej osoby albo zaufanego poświadczenia z jej własnej
+prywatnej rozmowy z agentem. Zwykły klucz API, zastępczy kontekst publikującego,
+rutyna w tle ani sesja z impersonacją nie mogą utworzyć, wznowić ani zmienić
+tej zgody.
 
 ### Agenci systemowi { #system-agents }
 

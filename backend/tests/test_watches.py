@@ -9,6 +9,7 @@ the model call urgent; and a watch the organization stopped is not read.
 
 import uuid
 from contextlib import ExitStack
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -18,7 +19,12 @@ from pydantic import ValidationError as PydanticValidationError
 from pydantic_ai.tools import ToolDefinition
 
 from app.api.deps import get_auth_context, get_watch_service
-from app.core.exceptions import AuthenticationError, BadRequestError, NotFoundError
+from app.core.exceptions import (
+    AuthenticationError,
+    AuthorizationError,
+    BadRequestError,
+    NotFoundError,
+)
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.watch import Watch, WatchAttemptStatus
 from app.main import app
@@ -251,6 +257,78 @@ class TestSettingOneUp:
             pytest.raises(NotFoundError),
         ):
             await WatchService(MagicMock()).list_mine(_ctx())
+
+
+class TestPersonalConsent:
+    @pytest.mark.parametrize("operation", ["create", "update"])
+    @pytest.mark.parametrize(
+        "ctx",
+        [
+            replace(_ctx(), api_key_id=uuid.uuid4()),
+            replace(_ctx(), key_scopes=frozenset()),
+            replace(_ctx(), subject_is_publisher_fallback=True),
+            replace(_ctx(), fired_as_creator="schedule"),
+            replace(_ctx(), fired_as_creator="event"),
+            replace(_ctx(), routine_id=uuid.uuid4()),
+            replace(
+                _ctx(), source_conversation_id=uuid.uuid4(), subject_is_publisher_fallback=True
+            ),
+            replace(_ctx(), source_conversation_id=uuid.uuid4(), fired_as_creator="schedule"),
+            replace(_ctx(), source_conversation_id=uuid.uuid4(), routine_id=uuid.uuid4()),
+        ],
+        ids=[
+            "api-key",
+            "key-scopes",
+            "publisher",
+            "schedule",
+            "event",
+            "routine",
+            "publisher-hint",
+            "schedule-hint",
+            "routine-hint",
+        ],
+    )
+    async def test_a_script_or_background_turn_cannot_grant_private_account_reads(
+        self, operation: str, ctx: AuthContext
+    ) -> None:
+        with patch(f"{SERVICE}.organization_repo.get_by_id", new=AsyncMock()) as lookup:
+            service = WatchService(MagicMock())
+            with pytest.raises(AuthorizationError, match="own consent"):
+                if operation == "create":
+                    await service.create(ctx, _create())
+                else:
+                    await service.update(ctx, uuid.uuid4(), WatchUpdate(is_active=True))
+        lookup.assert_not_awaited()
+
+    @pytest.mark.parametrize("internal_key", [False, True])
+    def test_the_person_can_consent_in_a_session_or_through_their_private_chat(
+        self, internal_key: bool
+    ) -> None:
+        ctx = (
+            replace(
+                _ctx(),
+                api_key_id=uuid.uuid4(),
+                key_scopes=frozenset(),
+                source_conversation_id=uuid.uuid4(),
+            )
+            if internal_key
+            else _ctx()
+        )
+        WatchService._require_personal_consent(ctx)
+
+    async def test_impersonation_cannot_set_up_or_rearm_a_watch(self) -> None:
+        with (
+            patch(f"{SERVICE}.current_impersonator", return_value=uuid.uuid4()),
+            patch(f"{SERVICE}.organization_repo.get_by_id", new=AsyncMock()) as lookup,
+        ):
+            service = WatchService(MagicMock())
+            with pytest.raises(AuthorizationError, match="own consent"):
+                await service.create(_ctx(), _create())
+            with pytest.raises(AuthorizationError, match="own consent"):
+                await service.update(
+                    _ctx(), uuid.uuid4(), WatchUpdate(instructions="Read more mail")
+                )
+        lookup.assert_not_awaited()
 
 
 class TestChangingOne:

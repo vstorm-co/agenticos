@@ -10,7 +10,13 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.exceptions import AuthenticationError, BadRequestError, NotFoundError
+from app.core.audit import current_impersonator
+from app.core.exceptions import (
+    AuthenticationError,
+    AuthorizationError,
+    BadRequestError,
+    NotFoundError,
+)
 from app.core.field_errors import refused_field
 from app.core.permissions import AuthContext
 from app.db.models.mcp_connection import McpConnection
@@ -68,6 +74,23 @@ class WatchService:
         if ctx.user_id is None:
             raise AuthenticationError(message="A watch belongs to a signed-in person")
         return ctx.user_id
+
+    @staticmethod
+    def _require_personal_consent(ctx: AuthContext) -> None:
+        """A script or background turn cannot grant itself future reads of a private account."""
+        if (
+            ctx.subject_is_publisher_fallback
+            or ctx.fired_as_creator is not None
+            or ctx.routine_id is not None
+            or (
+                (ctx.api_key_id is not None or ctx.key_scopes is not None)
+                and ctx.source_conversation_id is None
+            )
+            or current_impersonator() is not None
+        ):
+            raise AuthorizationError(
+                message="Creating or changing a watch requires the person's own consent in a private conversation or signed-in session."
+            )
 
     async def _organization(self, ctx: AuthContext) -> Organization:
         organization = await organization_repo.get_by_id(self.db, ctx.organization_id)
@@ -131,6 +154,7 @@ class WatchService:
                 `MAX_WATCHES` - each naming the field it is about.
         """
         person = self._person(ctx)
+        self._require_personal_consent(ctx)
         organization = await self._organization(ctx)
         connection = await self._own_connection(person, data.connection_id)
         stopped = stopped_by(organization, connection)
@@ -165,6 +189,7 @@ class WatchService:
 
     async def update(self, ctx: AuthContext, watch_id: UUID, data: WatchUpdate) -> WatchRead:
         person = self._person(ctx)
+        self._require_personal_consent(ctx)
         organization = await self._organization(ctx)
         watch = await self._own(ctx, person, watch_id)
         changes = writable(data, over=Watch)

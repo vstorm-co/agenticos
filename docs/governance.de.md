@@ -1,5 +1,5 @@
 ---
-source_sha: "4b7db1b85fed"
+source_sha: "ec0e0a602926"
 ---
 
 # Governance { #governance }
@@ -649,6 +649,13 @@ Die Versuchserfassung beginnt mit `0261_watch_attempt_status.py`; ältere
 Zeitstempel bleiben ohne erfundene Erfolgs- oder Fehlerhistorie erhalten.
 Unerwartete Fehler lassen weiterhin den Hintergrundjob fehlschlagen, statt als
 erfolgreiche leere Prüfung zu gelten.
+
+Eine Beobachtung anzulegen oder zu ändern erlaubt zukünftige Lesezugriffe auf
+ein privates Konto. Dafür ist die eigene angemeldete Sitzung oder ein
+vertrauenswürdiger Berechtigungsnachweis aus dem eigenen privaten Chat mit dem Agenten erforderlich. Ein gewöhnlicher API-Schlüssel, ein Ersatzkontext
+des Veröffentlichenden, eine Hintergrundroutine oder eine Sitzung mit
+Identitätsübernahme darf diese Einwilligung weder anlegen, reaktivieren noch
+umschreiben.
 
 ### Systemagenten { #system-agents }
 

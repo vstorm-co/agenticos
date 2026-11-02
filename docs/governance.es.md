@@ -1,5 +1,5 @@
 ---
-source_sha: "4b7db1b85fed"
+source_sha: "ec0e0a602926"
 ---
 
 # Governance { #governance }
@@ -615,6 +615,12 @@ con `0261_watch_attempt_status.py`; las fechas anteriores se conservan sin
 inventar un historial de éxitos o errores. Los errores inesperados siguen
 haciendo fallar la tarea en segundo plano, en vez de simular una lectura vacía
 correcta.
+
+Crear o modificar una observación autoriza futuras lecturas de una cuenta
+privada y requiere la sesión de la propia persona o una credencial de confianza
+de su propia conversación privada con el agente. Una clave API ordinaria, un
+contexto sustituto de quien publica, una rutina en segundo plano o una sesión
+de suplantación no pueden crear, reactivar ni modificar ese consentimiento.
 
 ### Agentes de sistema { #system-agents }
 
