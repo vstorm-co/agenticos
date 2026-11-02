@@ -1,4 +1,4 @@
-.PHONY: docker-test-db docker-test-db-down docker-minio install format lint desktop-dev desktop-build desktop-check mobile-android mobile-ios mobile-check lint-backend lint-frontend check audit licenses licenses-check build-frontend test run clean help sandbox-token sandbox-runtimes deps-upgrade deps-upgrade-all db-init dev dev-down dev-logs dev-rebuild dev-frontend docker-clean dev-server dev-server-down dev-server-logs dev-server-frontend stage stage-down prod prod-down prod-frontend upgrade upgrade-dry-run upgrade-new-features upgrade-finalize docs docs-build docs-slug-check presentation audit-frontend sbom
+.PHONY: ci-test-db-configure test-frontend-jobs-check test-frontend-reports-check test-frontend-merge build-frontend-pack docker-test-db docker-test-db-down docker-minio install format lint desktop-dev desktop-build desktop-check mobile-android mobile-ios mobile-check lint-backend lint-frontend check audit licenses licenses-check build-frontend test run clean help sandbox-token sandbox-runtimes deps-upgrade deps-upgrade-all db-init dev dev-down dev-logs dev-rebuild dev-frontend docker-clean dev-server dev-server-down dev-server-logs dev-server-frontend stage stage-down prod prod-down prod-frontend upgrade upgrade-dry-run upgrade-new-features upgrade-finalize docs docs-build docs-slug-check presentation audit-frontend sbom
 
 # === Environments ===========================================================
 # Three. The images are published to GHCR by `.github/workflows/images.yml`
@@ -415,11 +415,19 @@ format:
 # === Testing ===
 # `test` is the gate: it fails if platform-layer coverage drops below 100%.
 #
-# CI overrides the report because Codecov wants XML. The terminal list of
-# uncovered lines is kept beside it, files at 100% skipped: a red gate that says
-# only "99.99%" sends whoever reads it hunting through every module by hand.
+# The suite runs once, measuring all of `app`; the gate is a report over that
+# data narrowed to the platform layer, `[tool.coverage.run] include` in
+# backend/pyproject.toml, read from there so the list keeps one home. Measured
+# that way an included file no test imports counts at 0% rather than going
+# unreported. `coverage-all` reports the same data whole, so CI does not run the
+# suite a second time for it.
+#
+# CI adds XML for Codecov. The terminal list of uncovered lines is printed either
+# way, files at 100% skipped: a red gate that says only "99.99%" sends whoever
+# reads it hunting through every module by hand. The reports are written even
+# when a test failed, and the recipe then fails with the suite's status.
 COV_REPORT ?= term-missing
-COV_TERM := $(if $(findstring term,$(COV_REPORT)),,--cov-report=term-missing:skip-covered)
+PLATFORM_COVERAGE = $(shell uv run --quiet --directory backend python -c 'import tomllib; print(",".join(tomllib.load(open("pyproject.toml", "rb"))["tool"]["coverage"]["run"]["include"]))')
 
 # The backend suite runs against a throwaway Postgres (docker-compose.test.yml)
 # rather than the development one. The integration reset TRUNCATEs the tables
@@ -447,6 +455,15 @@ TEST_DB_START :=
 TEST_DB_ENV :=
 endif
 
+# Only the workflow's ephemeral service container may use reduced durability.
+ci-test-db-configure:
+	@test "$(CI)" = true && test -n "$(POSTGRES_CONTAINER)"
+	@for setting in fsync synchronous_commit full_page_writes; do \
+	  docker exec "$(POSTGRES_CONTAINER)" psql -U postgres -c "ALTER SYSTEM SET $$setting = off" || exit 1; \
+	done
+	docker exec "$(POSTGRES_CONTAINER)" psql -U postgres -c 'SELECT pg_reload_conf()'
+	docker exec "$(POSTGRES_CONTAINER)" psql -U postgres -c 'SHOW fsync' -c 'SHOW synchronous_commit' -c 'SHOW full_page_writes'
+
 # `-n auto --maxprocesses 4`: run across worker processes. The integration
 # suite is I/O-bound on one Postgres and roughly halves; the unit suite is
 # import-bound (every worker imports the app once) and gains little past four
@@ -456,7 +473,11 @@ endif
 # stays serial: worker startup is not worth paying for one file.
 test:
 	$(TEST_DB_START)
-	$(TEST_DB_ENV) uv run --directory backend pytest tests/ -v --cov --cov-report=$(COV_REPORT) $(COV_TERM) -n auto --maxprocesses 4
+	@status=0; \
+	$(TEST_DB_ENV) uv run --directory backend pytest tests/ -v --cov=app --cov-report= --cov-fail-under=0 -n auto --maxprocesses 4 || status=$$?; \
+	$(if $(findstring xml,$(COV_REPORT)),uv run --directory backend coverage xml -q --fail-under=0 --include="$(PLATFORM_COVERAGE)" || status=1;) \
+	uv run --directory backend coverage report --include="$(PLATFORM_COVERAGE)" || [ $$status -ne 0 ] || status=2; \
+	exit $$status
 
 # Fast loop while writing code — no coverage, no gate.
 test-fast:
@@ -503,19 +524,31 @@ security-report:
 # not held to the platform bar, because mock-heavy tests over code we did not
 # design buy a number rather than confidence.
 #
-# It runs across workers like every other suite here. It was the one that did not,
-# which made it the longest step in the `test` job - 14m46s of the 25 that job is
-# allowed, against 8m39s for the gated suite beside it - so a runner about three
-# times slower than usual took the whole job past its bound (#879).
+# `REUSE_COVERAGE=1` reports the data `make test` just measured instead of running
+# the suite again, which is what CI does: two full runs no longer fit its job.
 coverage-all:
 	$(TEST_DB_START)
-	$(TEST_DB_ENV) uv run --directory backend pytest tests/ -q --cov=app --cov-report=term-missing --cov-fail-under=0 -n auto --maxprocesses 4
+	$(if $(REUSE_COVERAGE),,$(TEST_DB_ENV) uv run --directory backend pytest tests/ -q --cov=app --cov-report= --cov-fail-under=0 -n auto --maxprocesses 4)
+	uv run --directory backend coverage report --fail-under=0
 
 test-frontend:
 	cd frontend && bun run test:run
 
 test-frontend-cov:
-	cd frontend && bun run test:coverage
+	cd frontend && bun run test:coverage $(VITEST_ARGS)
+
+test-frontend-jobs-check:
+	@test "$(LINT)" = success && test "$(BUILD)" = success && test "$(TESTS)" = success
+
+build-frontend-pack:
+	tar --exclude='.next/cache' -czf "$(RUNNER_TEMP)/frontend-build.tar.gz" -C frontend .next
+
+test-frontend-reports-check:
+	@for shard in 1 2 3 4; do test -s "frontend/.vitest-reports/blob-$$shard-4.json" || exit 1; done
+	@test "$$(find frontend/.vitest-reports -maxdepth 1 -name "blob-*.json" -type f | wc -l | tr -d " ")" = 4
+
+test-frontend-merge:
+	cd frontend && bunx vitest --merge-reports=./.vitest-reports --coverage
 
 # `next build` type-checks the route tree and fails on a server component that
 # cannot render - neither of which tsc or vitest sees, which is why CI builds on
@@ -670,7 +703,7 @@ test-e2e:
 		exit 1; \
 	fi
 	@echo "▶ frontend :$(E2E_PORT)  ·  stub model :$(E2E_STUB_MODEL_PORT)  ·  backend $(E2E_BACKEND)"
-	cd frontend && E2E_PORT=$(E2E_PORT) E2E_STUB_MODEL_PORT=$(E2E_STUB_MODEL_PORT) bun run test:e2e
+	cd frontend && E2E_PORT=$(E2E_PORT) E2E_STUB_MODEL_PORT=$(E2E_STUB_MODEL_PORT) bun run test:e2e $(PLAYWRIGHT_ARGS)
 
 # The load and resilience suite (NFA-004). Not part of `make check` and never in
 # CI: a load result is a measurement of one machine, and a number produced on a
@@ -1098,3 +1131,7 @@ help:
 	@echo "  make routes        Show all API routes"
 	@echo "  make clean         Clean cache files"
 	@echo ""
+
+.PHONY: release-cut
+release-cut: ## Plan a release train cut (BUMP=patch|minor; CREATE_PR=1 opens it)
+	python3 scripts/release_cut.py $(BUMP) $(if $(filter 1,$(CREATE_PR)),--create-pr,)

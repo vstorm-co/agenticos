@@ -500,6 +500,12 @@ is a downloadable asset; publishing a Homebrew tap is a separate operator step.
 The desktop menu's **Check for Updates…** requires a build with the updater public
 key and verifies the downloaded signature before installation.
 
+Desktop release builds run in parallel. Each uploads its own signed packages;
+one final job validates all four native targets and publishes `latest.json`.
+Native CI caches build outputs by operating system, architecture, compiler,
+target and build profile. Releases only restore shared dependency downloads.
+A failed platform build prevents updater publication.
+
 Mobile publishing is currently disabled. Set the repository variable
 `AGENTICOS_MOBILE_RELEASES_ENABLED=true` to opt in to signed Android releases;
 iOS also requires the TestFlight flag below. This does not disable regular CI
