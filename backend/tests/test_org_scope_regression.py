@@ -208,6 +208,7 @@ TENANT_REQUIRED = [
     (promotion_gate_repo, "overrides_for_versions"),
     (skill_usage_repo, "record_uses"),
     (skill_usage_repo, "mark_recorded"),
+    (skill_usage_repo, "mark_unrecorded"),
     (skill_usage_repo, "usage_by_agent"),
     (skill_usage_repo, "usage_by_version"),
     (skill_usage_repo, "uses_in_runs"),

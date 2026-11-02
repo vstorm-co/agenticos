@@ -83,6 +83,8 @@ class TestPack:
             "rated_up": 1,
             "commented": 1,
             "conversation_ids": [str(shared)],
+            "unknown_runs": 0,
+            "hidden_agents": 0,
         }
 
     def test_evidence_that_fits_is_read_at_once_and_otherwise_in_groups(self, monkeypatch):
@@ -543,3 +545,26 @@ class TestProposalSourceIdentities:
         with pytest.raises(BadRequestError) as refused:
             await self._ids(monkeypatch, mock_db_session, request_id=uuid.uuid4(), request=request)
         assert refused.value.details == {"reason": "invalid_evidence"}
+
+
+class TestUnknownRuns:
+    def test_the_section_says_how_many_runs_could_not_be_told_apart(self):
+        pack = EvidencePack(runs=[_packed()], unknown_runs=2)
+
+        assert "2 more rated-down or failed runs" in _evidence_section(pack, None)
+        assert "2 more rated-down or failed runs" in _evidence_section(pack, [RunFindings()])
+        assert "before uses were recorded" not in _evidence_section(
+            EvidencePack(runs=[_packed()]), None
+        )
+
+    def test_a_pack_of_only_unknown_runs_is_not_called_nothing_to_learn_from(self):
+        from app.services.authoring_worker import AuthoringRun, Stopped
+
+        run = object.__new__(AuthoringRun)
+        run.request = SimpleNamespace(evidence=None)
+
+        with pytest.raises(Stopped, match="3 rated-down or failed runs are from before"):
+            run._record_evidence(EvidencePack(unknown_runs=3))
+        assert run.request.evidence["unknown_runs"] == 3
+        with pytest.raises(Stopped, match="Nothing to learn from yet"):
+            run._record_evidence(EvidencePack())

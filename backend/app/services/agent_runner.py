@@ -176,6 +176,7 @@ from app.agents.capabilities.skills import (
     SkillBody,
     SkillUseLog,
     served_skills,
+    tool_identities,
 )
 from app.agents.capabilities.subagents import SubagentsConfig, acting_delegate
 from app.agents.capabilities.tool_output_limits import SPILL_LOG_RESOURCE
@@ -3641,7 +3642,11 @@ class AgentRunnerService:
         skills = await self.skills.resolve_for_agent(
             ctx, spec.skill_ids, bindings=spec.skill_bindings, projected=skill_bodies
         )
-        skill_log = SkillUseLog(agent_id=agent.id, served=served_skills(skills, skill_bodies or {}))
+        skill_log = SkillUseLog(
+            agent_id=agent.id,
+            served=served_skills(skills, skill_bodies or {}),
+            tools=tool_identities(spec.capabilities),
+        )
         resources: dict[str, Any] = {
             **bound,
             KNOWLEDGE_SEARCH_LOG_RESOURCE: search_log,
@@ -5115,7 +5120,7 @@ class AgentRunnerService:
             # Recorded on the run that delegated, under the delegate's own agent:
             # the answer somebody rates is that run's, and the skill is the delegate's.
             resources[SKILL_USE_LOG_RESOURCE] = parent_skills.for_agent(
-                agent_id, served_skills(skills, {})
+                agent_id, served_skills(skills, {}), tool_identities(spec.capabilities)
             )
         parent_log = parent_resources.get(KNOWLEDGE_SEARCH_LOG_RESOURCE)
         if isinstance(parent_log, KnowledgeSearchLog):
@@ -5388,9 +5393,10 @@ class AgentRunnerService:
         """Write the skills the run and its delegates used, and mark the run recorded.
 
         Never raises, for the reason :meth:`_write_knowledge_searches` gives. Both
-        writes share one savepoint, so a write that fails leaves the run as it
-        was inserted - unrecorded, read as "unknown" rather than as a run that
-        used no skill.
+        writes share one savepoint. A run parked on an approval comes here once per
+        segment, so a write that fails marks the run unrecorded for good: what that
+        segment used is lost, and it reads "unknown" rather than as a run that used
+        no skill, whichever segment's write comes after it.
         """
         log = prepared.skill_uses
         records = [] if log is None else log.records()
@@ -5409,6 +5415,13 @@ class AgentRunnerService:
                 )
         except Exception:
             logger.exception("skill_uses_not_written", extra={"run_id": str(run.id)})
+            try:
+                async with self.db.begin_nested():
+                    await skill_usage_repo.mark_unrecorded(
+                        self.db, organization_id=run.organization_id, run_id=run.id
+                    )
+            except Exception:
+                logger.exception("skill_uses_not_marked", extra={"run_id": str(run.id)})
 
     async def _may_record_about(self, user_id: UUID) -> bool:
         """Whether a search made answering this person may still be written.
