@@ -30,7 +30,7 @@ from app.schemas.skill_version import (
 )
 from app.services.access import AGENT, SKILL, accessible_ids
 from app.services.agent_registry import delegation_binding
-from app.services.skill_agents import Line, line_of
+from app.services.skill_agents import Line, lines_of
 
 
 @dataclass(frozen=True)
@@ -130,16 +130,16 @@ class SkillCatchUpService:
                     can_act=agent.id in editable,
                 )
             )
-        return items, sum(1 for read in behind if read.agent_id not in visible)
+        return items, len({read.agent_id for read in behind if read.agent_id not in visible})
 
     async def _forks(
         self, ctx: AuthContext, skills: dict[UUID, Skill], reads: Sequence[_Read]
     ) -> list[BehindMain]:
         """The forks main has moved past, each with how many agents read it."""
-        readers: dict[UUID, int] = {}
+        readers: dict[UUID, set[UUID]] = {}
         for read in reads:
             assert read.line.fork_id is not None, "a fork line names its fork"
-            readers[read.line.fork_id] = readers.get(read.line.fork_id, 0) + 1
+            readers.setdefault(read.line.fork_id, set()).add(read.agent_id)
         forks = {
             fork.id: fork
             for fork in (
@@ -179,7 +179,7 @@ class SkillCatchUpService:
                         base_number=base.number,
                         changes=changes[fork.id],
                     ),
-                    agents=readers[fork.id],
+                    agents=len(readers[fork.id]),
                     version=VersionNumberRef(id=base.id, number=base.number),
                     main_latest=_main_latest(skill),
                     behind_main=skill.version - base.number,
@@ -209,7 +209,8 @@ def _bound_off_main(spec: AgentSpec) -> set[UUID]:
 
 
 def _served_reads(served: Sequence[tuple[AgentEnvironment, AgentVersion]]) -> list[_Read]:
-    """What each agent's default environment reads off main, one read per skill.
+    """What each agent's default environment reads off main: one read per skill for
+    the agent itself and one for each inline specialist that reads it its own way.
 
     Only a spec with a binding is parsed, and one that no longer parses reads main.
     """
@@ -226,9 +227,11 @@ def _served_reads(served: Sequence[tuple[AgentEnvironment, AgentVersion]]) -> li
         except ValidationError:
             continue
         for skill_id in sorted(_bound_off_main(spec)):
-            line = line_of(version.spec, skill_id)
-            if line is not None and line.state != "main":
-                reads.append(_Read(agent_id, skill_id, line))
+            reads += [
+                _Read(agent_id, skill_id, line)
+                for line in lines_of(version.spec, skill_id)
+                if line.state != "main"
+            ]
     return reads
 
 

@@ -63,6 +63,9 @@ class TestBehindMain:
         await _serving(db, ctx, "Current", _spec(skill, version=4))
         await _serving(db, ctx, "Returns A", _spec(skill, fork_id=str(fork.id)))
         await _serving(db, ctx, "Returns B", _spec(skill, fork_id=str(fork.id)))
+        on_fork = str(fork.id)
+        both = {**_delegating(skill, fork_id=on_fork), **_spec(skill, fork_id=on_fork)}
+        await _serving(db, ctx, "Returns twice", both)
 
         listed = await SkillCatchUpService(db).behind_main(ctx)
 
@@ -73,20 +76,22 @@ class TestBehindMain:
         assert (pinned.main_latest.number, pinned.agents, pinned.can_act) == (4, 1, True)
         assert forked.kind == "fork" and forked.fork is not None
         assert (forked.fork.id, forked.fork.base_number, forked.fork.changes) == (fork.id, 3, 0)
-        assert (forked.agents, forked.behind_main, forked.can_act) == (2, 1, True)
+        assert (forked.agents, forked.behind_main, forked.can_act) == (3, 1, True)
         assert forked.version.id == fork.base.id
 
     async def test_a_specialists_pin_is_listed_under_its_agent(self, db):
         ctx = await _owner(db)
         skill = await _skill(db, ctx)
         await _serving(db, ctx, "Desk", _delegating(skill, version=2))
-        # The agent's own binding wins over its specialist's, as when it runs.
+        # The agent reads main itself and its specialist stays on v2: only the pin is behind.
         await _serving(db, ctx, "Own", {**_delegating(skill, version=2), **_spec(skill)})
 
-        [item] = (await SkillCatchUpService(db).behind_main(ctx)).items
+        items = (await SkillCatchUpService(db).behind_main(ctx)).items
 
-        assert item.agent is not None
-        assert (item.agent.name, item.via_specialist, item.behind_main) == ("Desk", "billing", 1)
+        assert [
+            (item.agent.name if item.agent else None, item.via_specialist, item.behind_main)
+            for item in items
+        ] == [("Desk", "billing", 1), ("Own", "billing", 1)]
 
     async def test_forks_nobody_reads_archived_or_already_on_main_are_not_behind(self, db):
         ctx = await _owner(db)

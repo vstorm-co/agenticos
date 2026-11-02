@@ -1,5 +1,5 @@
 ---
-source_sha: "451c03b6ffbc"
+source_sha: "5696a2279c75"
 ---
 
 # Skills { #skills }
@@ -313,19 +313,24 @@ fork: se ejecutan sus suites de evals, el cambio indica los entornos en los que
 entra y se avisa a sus propietarios. Un agent fijado no recibe ninguna.
 
 **Los agents de un skill** son los que lo ejecutan: lo vincula una versión que sirve
-uno de sus entornos. La página del skill muestra cada uno con la versión que lee,
-cuántas versiones de main lleva de retraso y cualquier entorno que lo lea de otra
-forma. Un agent que vincula el skill solo en su borrador aparece marcado como tal.
-Los agents que no puedes ver se cuentan, no se nombran.
+uno de sus entornos, el propio agent o un especialista inline suyo. Un agent y cada
+uno de sus especialistas leen el skill a su manera, así que cada uno es una fila: la
+página del skill lo muestra con la versión que lee, cuántas versiones de main lleva
+de retraso y cualquier entorno que lo lea de otra forma. Un agent que vincula el
+skill solo en su borrador aparece marcado como tal. Los agents que no puedes ver se
+cuentan, no se nombran.
 
 **Change version** mueve un agent a main, a una versión de main o a un fork, y es un
-cambio del agent. Con permiso para publicarlo, la spec publicada con solo ese
-vínculo cambiado entra como la siguiente versión del agent, y los entornos se mueven
-según sus reglas habituales de seguimiento y promoción. El borrador recibe el mismo
-cambio y conserva sus demás ediciones sin terminar, que no entran. Con permiso solo
-para editar el agent, el cambio espera en el borrador. Un Builder ya abierto en el
-agent no ve el cambio hasta que se recarga, y guardar antes vuelve a poner el
-vínculo anterior.
+cambio del agent. Si el agent usa el skill por sí mismo se lee de su borrador, tal
+como lo muestra el Builder; un skill que solo vincula uno de sus especialistas se
+cambia en el Builder. Con permiso para publicarlo, la spec publicada más reciente
+del agent con solo ese vínculo cambiado entra como su siguiente versión, y los
+entornos se mueven según sus reglas habituales de seguimiento y promoción. El
+borrador recibe el mismo cambio y conserva sus demás ediciones sin terminar, que no
+entran. Con permiso solo para editar el agent, para un agent nunca publicado o para
+uno cuya versión publicada aún no vincula el skill, el cambio espera en el borrador
+y solo se comprueba el vínculo nuevo. Un Builder ya abierto en el agent no ve el
+cambio hasta que se recarga, y guardar antes vuelve a poner el vínculo anterior.
 
 **Por detrás de main.** Que main avance no mueve a un agent fijado ni a un fork:
 nada se pone al día solo, porque ponerse al día cuesta una comprobación en los

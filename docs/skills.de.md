@@ -1,5 +1,5 @@
 ---
-source_sha: "451c03b6ffbc"
+source_sha: "5696a2279c75"
 ---
 
 # Skills { #skills }
@@ -330,20 +330,26 @@ ihre Besitzer werden benachrichtigt. Ein festgesetzter Agent wird von keiner
 erreicht.
 
 **Die Agents eines Skills** sind die, die ihn ausführen: Eine Version, die eine
-ihrer Umgebungen ausliefert, bindet ihn. Die Skill-Seite listet jeden mit der
-Version, die er liest, wie viele Main-Versionen er zurückliegt und jeder Umgebung,
-die ihn anders liest. Ein Agent, der den Skill nur im Entwurf bindet, ist als
-solcher gekennzeichnet. Agents, die Sie nicht sehen, werden gezählt, nicht genannt.
+ihrer Umgebungen ausliefert, bindet ihn, selbst oder über einen Inline-Spezialisten.
+Ein Agent und jeder seiner Spezialisten lesen den Skill auf ihre eigene Art, daher
+ist jeder eine eigene Zeile: Die Skill-Seite listet ihn mit der Version, die er
+liest, wie viele Main-Versionen er zurückliegt und jeder Umgebung, die ihn anders
+liest. Ein Agent, der den Skill nur im Entwurf bindet, ist als solcher
+gekennzeichnet. Agents, die Sie nicht sehen, werden gezählt, nicht genannt.
 
 **Change version** verschiebt einen Agent auf main, eine Main-Version oder einen
-Fork, und das ist eine Änderung am Agent. Mit dem Recht, ihn zu veröffentlichen,
-geht der veröffentlichte Spec, in dem sich nur diese Bindung ändert, als nächste
-Version des Agents live, und die Umgebungen folgen ihren üblichen Follow- und
-Beförderungsregeln. Der Entwurf übernimmt dieselbe Änderung und behält seine
-übrigen unfertigen Bearbeitungen, die nicht live gehen. Mit dem Recht, den Agent
-nur zu bearbeiten, wartet die Änderung im Entwurf. Ein bereits auf dem Agent
-geöffneter Builder sieht die Änderung erst nach dem Neuladen, und ein Speichern
-davor stellt die alte Bindung wieder her.
+Fork, und das ist eine Änderung am Agent. Ob der Agent den Skill selbst nutzt,
+ergibt sich aus seinem Entwurf, wie der Builder ihn zeigt; einen Skill, den nur
+einer seiner Spezialisten bindet, ändert man im Builder. Mit dem Recht, ihn zu
+veröffentlichen, geht der neueste veröffentlichte Spec des Agents, in dem sich nur
+diese Bindung ändert, als seine nächste Version live, und die Umgebungen folgen
+ihren üblichen Follow- und Beförderungsregeln. Der Entwurf übernimmt dieselbe
+Änderung und behält seine übrigen unfertigen Bearbeitungen, die nicht live gehen.
+Mit dem Recht, den Agent nur zu bearbeiten, bei einem nie veröffentlichten Agent
+oder bei einem, dessen veröffentlichte Version den Skill noch nicht bindet, wartet
+die Änderung im Entwurf, und nur die neue Bindung wird geprüft. Ein bereits auf dem
+Agent geöffneter Builder sieht die Änderung erst nach dem Neuladen, und ein
+Speichern davor stellt die alte Bindung wieder her.
 
 **Hinter main.** Wenn main weitergeht, bewegt das weder einen festgesetzten Agent
 noch einen Fork: Nichts holt von selbst auf, denn Aufholen kostet eine Prüfung auf
