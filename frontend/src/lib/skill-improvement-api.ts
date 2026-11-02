@@ -1,13 +1,11 @@
 /**
- * API client for a skill's improvement sessions and the skill's own test questions.
+ * API client for a skill's improvement sessions.
  *
  * A session's steps share the agent session's routes under `/skills/{id}/improvements`
  * (`lib/improvement-subject.ts`); what is only a skill's is here.
  */
 
 import { apiClient } from "./api-client";
-import { ApiError } from "./api-error";
-import type { Dataset } from "@/types/datasets";
 import type {
   SkillImprovement,
   SkillImprovementAwaiting,
@@ -86,19 +84,4 @@ export function forkSkillImprovement(
 /** Skill sessions anywhere the reader may see that wait for a person. */
 export function listSkillImprovementsAwaiting(): Promise<SkillImprovementAwaiting[]> {
   return apiClient.get<SkillImprovementAwaiting[]>("/skill-improvements/awaiting");
-}
-
-/** The skill's own test questions, or null while it has none. */
-export async function getSkillTestSet(skillId: string): Promise<Dataset | null> {
-  try {
-    return await apiClient.get<Dataset>(`/skills/${skillId}/test-set`);
-  } catch (error) {
-    if (error instanceof ApiError && error.status === 404) return null;
-    throw error;
-  }
-}
-
-/** Write the skill's test questions from the answers where its agents loaded it. */
-export function createSkillTestSet(skillId: string): Promise<Dataset> {
-  return apiClient.post<Dataset>(`/skills/${skillId}/test-set`, { from_evidence: true });
 }

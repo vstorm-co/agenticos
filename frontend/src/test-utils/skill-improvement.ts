@@ -1,6 +1,7 @@
 import type { SkillCheck, SkillCheckAgent } from "@/types/skill-checks";
 import type { SkillImprovement } from "@/types/skill-improvement";
 import { SESSION } from "./improvement";
+import { checkAgent as baseAgent, finishedCheck } from "./skill-checks";
 
 /** A skill session on main, measured once and waiting at its result. */
 export function skillSession(overrides: Partial<SkillImprovement> = {}): SkillImprovement {
@@ -27,63 +28,34 @@ export function skillSession(overrides: Partial<SkillImprovement> = {}): SkillIm
   };
 }
 
+/** A check row named and stated for a test, its fixed and broken counts to match. */
 export function checkAgent(
   name: string,
   state: SkillCheckAgent["state"],
   overrides: Partial<SkillCheckAgent> = {},
 ): SkillCheckAgent {
+  const id = name.toLowerCase();
+  const row = baseAgent({ name, state });
   return {
-    agent: { id: name.toLowerCase(), name },
-    via_specialist: null,
-    agent_version: 3,
-    state,
-    unknown_reason: null,
-    sample: "own_questions",
-    stages: [
-      {
-        kind: "skill_set",
-        dataset_id: "ts",
-        dataset_name: "returns-policy questions",
-        cases: 10,
-        eval_run_id: `run-${name.toLowerCase()}`,
-      },
-    ],
+    ...row,
+    agent: { id, name },
+    stages: [{ ...row.stages[0]!, eval_run_id: `run-${id}` }],
     fixed: state === "better" ? 2 : 0,
     broken: state === "worse" ? 1 : 0,
-    held_out: 10,
     fixed_confirmed: state === "better" ? 2 : 0,
     regressions_confirmed: state === "worse" ? 1 : 0,
-    noisy: false,
-    expected_usd: "0.02",
-    at_most_usd: "0.05",
     ...overrides,
   };
 }
 
+/** A finished check on main's skill `k1`, with one agent better and one unchanged. */
 export function skillCheck(overrides: Partial<SkillCheck> = {}): SkillCheck {
-  return {
+  return finishedCheck({
     id: "c1",
     skill_id: "k1",
-    status: "done",
-    line: { fork_id: null, name: "main" },
-    base_version: { id: "m12", number: 12, fork_id: null },
-    mode: "quick",
-    description_changed: false,
-    agents: [checkAgent("Support", "better"), checkAgent("Sales", "no_change")],
-    hidden: 0,
-    expected_usd: "0.04",
-    at_most_usd: "0.10",
-    org_remaining_usd: "10.00",
-    affordable: true,
-    verdict: "passed",
-    warnings: [],
-    outcomes: ["improve_further", "apply", "discard"],
-    outcome: null,
-    hidden_unknown: 0,
     proposal_id: null,
-    applied_version_id: null,
-    created_at: "2026-11-02T10:00:00Z",
-    finished_at: "2026-11-02T10:05:00Z",
+    outcomes: ["improve_further", "apply", "discard"],
+    agents: [checkAgent("Support", "better"), checkAgent("Sales", "no_change")],
     ...overrides,
-  };
+  });
 }

@@ -5,11 +5,9 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { qk } from "@/lib/query-keys";
 import {
   applySkillImprovement,
-  createSkillTestSet,
   estimateSkillImprovement,
   forkSkillImprovement,
   getSkillProblems,
-  getSkillTestSet,
   listSkillImprovements,
   listSkillImprovementsAwaiting,
   startSkillImprovement,
@@ -64,21 +62,6 @@ export function useSkillImprovementsAwaiting({ enabled = true } = {}) {
     error: query.error,
     refetch: query.refetch,
   };
-}
-
-/** The skill's own test questions, and writing them when there are none. */
-export function useSkillTestSet(skillId: string) {
-  const queryClient = useQueryClient();
-  const query = useQuery({
-    queryKey: qk.skills.testSet(skillId),
-    queryFn: () => getSkillTestSet(skillId),
-  });
-  const create = useMutation({
-    mutationFn: () => createSkillTestSet(skillId),
-    // A 409 means somebody wrote them meanwhile; either way the read is refreshed.
-    onSettled: () => queryClient.invalidateQueries({ queryKey: qk.skills.testSet(skillId) }),
-  });
-  return { testSet: query.data, isLoading: query.isLoading, error: query.error, create };
 }
 
 /** Apply a measured attempt, or fork it for the agents it helped. */

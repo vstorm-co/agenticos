@@ -5,9 +5,11 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { qk } from "@/lib/query-keys";
 import {
   applySkillCheck,
+  createSkillTestSet,
   discardSkillCheck,
   estimateSkillCheck,
   getSkillCheck,
+  getSkillTestSet,
   startSkillCheck,
 } from "@/lib/skill-checks-api";
 import type { SkillCheckApply, SkillCheckStart } from "@/types/skill-checks";
@@ -52,4 +54,19 @@ export function useSkillCheck(skillId: string, checkId: string | null) {
       onSuccess: decided,
     }),
   };
+}
+
+/** The skill's own test questions, and writing them when there are none. */
+export function useSkillTestSet(skillId: string) {
+  const queryClient = useQueryClient();
+  const query = useQuery({
+    queryKey: qk.skills.testSet(skillId),
+    queryFn: () => getSkillTestSet(skillId),
+  });
+  const create = useMutation({
+    mutationFn: () => createSkillTestSet(skillId),
+    // A 409 means somebody wrote them meanwhile; either way the read is refreshed.
+    onSettled: () => queryClient.invalidateQueries({ queryKey: qk.skills.testSet(skillId) }),
+  });
+  return { testSet: query.data, isLoading: query.isLoading, error: query.error, create };
 }
