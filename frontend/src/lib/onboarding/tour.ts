@@ -652,7 +652,6 @@ export const TOUR_STEPS: readonly TourStep[] = [
     permission: Perm.skillsView,
     optional: true,
   },
-  // A skill's page: who uses it at which version, then its history and its tree.
   { id: "skill-agents", page: SKILL_DETAIL, target: "skill-agents", permission: Perm.skillsView },
   // The chips and the button render only once the skill has agents.
   {
