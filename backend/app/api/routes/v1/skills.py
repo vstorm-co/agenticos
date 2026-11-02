@@ -15,7 +15,14 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, Query, UploadFile, status
 
-from app.api.deps import Auth, SkillAgentSvc, SkillSvc, SkillVersionSvc, require
+from app.api.deps import (
+    Auth,
+    SkillAgentSvc,
+    SkillCatchUpSvc,
+    SkillSvc,
+    SkillVersionSvc,
+    require,
+)
 from app.api.public_api import PUBLIC
 from app.core.permissions import Perm
 from app.repositories.skill import SkillSort
@@ -34,6 +41,7 @@ from app.schemas.skill import (
 )
 from app.schemas.skill_usage import SkillUsageRead
 from app.schemas.skill_version import (
+    BehindMainList,
     SkillAgentList,
     SkillBindingChange,
     SkillBindingChanged,
@@ -100,6 +108,22 @@ async def create_skill(data: SkillCreate, service: SkillSvc, ctx: Auth) -> Any:
         user_ids=data.user_ids,
     )
     return await service.read(ctx, skill)
+
+
+@router.get(
+    "/behind-main",
+    response_model=BehindMainList,
+    dependencies=[Depends(require(Perm.SKILLS_VIEW))],
+)
+async def skills_behind_main(service: SkillCatchUpSvc, ctx: Auth) -> Any:
+    """The pinned agents and the forks main has moved past, across the organization.
+
+    Nothing catches up by itself: each item is one a person may bring along. Skills
+    the caller may not view are left out, and pinned agents it may not view are
+    counted in `hidden`. Declared before `/{skill_id}`, which would read the path as
+    a malformed id.
+    """
+    return await service.behind_main(ctx)
 
 
 @router.get(

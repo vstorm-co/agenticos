@@ -203,6 +203,43 @@ class SkillAgentList(BaseSchema):
     hidden: int = Field(description="Agents using the skill that the caller may not see")
 
 
+class SkillRef(BaseSchema):
+    id: UUID
+    name: str
+
+
+class BehindMain(BaseSchema):
+    """A pinned agent or a fork that main has moved past."""
+
+    kind: Literal["pinned", "fork"]
+    skill: SkillRef
+    agent: AgentUsage | None = Field(default=None, description="The pinned agent; null for a fork")
+    via_specialist: str | None = Field(
+        default=None, description="The inline specialist that pins it, when the agent does not"
+    )
+    fork: ForkRef | None = Field(default=None, description="The fork; null for a pinned agent")
+    agents: int = Field(
+        description="How many agents read it: 1 for a pinned agent, every reader of a fork"
+    )
+    version: VersionNumberRef = Field(
+        description="The main version it is on: the pinned one, or the one the fork started from"
+    )
+    main_latest: VersionNumberRef
+    behind_main: int = Field(description="How many main versions came after `version`")
+    can_act: bool = Field(
+        description=(
+            "The caller may start bringing it along: edit the agent for a pinned one, "
+            "edit the skill for a fork"
+        )
+    )
+
+
+class BehindMainList(BaseSchema):
+    items: list[BehindMain]
+    total: int
+    hidden: int = Field(description="Pinned agents behind main that the caller may not see")
+
+
 class SkillBindingChange(BaseSchema):
     """Which version an agent should read: main's newest, a main version, or a fork."""
 

@@ -21,6 +21,7 @@ from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.skill_version import SkillVersionSource
 from app.main import app
 from app.schemas.skill_version import (
+    BehindMainList,
     SkillAgentList,
     SkillBindingChanged,
     SkillForkList,
@@ -308,3 +309,16 @@ async def test_a_move_names_exactly_what_its_state_needs(client, body):
 
     assert response.status_code == 422
     agents.change_binding.assert_not_awaited()
+
+
+async def test_what_main_left_behind_is_listed_for_the_organization(client, ctx):
+    """Not read as a skill id: the path is declared before `/{skill_id}`."""
+    catch_up = MagicMock()
+    catch_up.behind_main = AsyncMock(return_value=BehindMainList(items=[], total=0, hidden=2))
+    app.dependency_overrides[deps.get_skill_catch_up_service] = lambda: catch_up
+
+    response = await client.get("/api/v1/skills/behind-main")
+
+    assert response.status_code == 200
+    assert response.json()["hidden"] == 2
+    catch_up.behind_main.assert_awaited_once_with(ctx)
