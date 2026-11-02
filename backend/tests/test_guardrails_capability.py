@@ -30,6 +30,7 @@ from pydantic_ai.messages import (
     PartDeltaEvent,
     PartEndEvent,
     PartStartEvent,
+    StructuredContent,
     TextContent,
     TextPart,
     TextPartDelta,
@@ -49,6 +50,7 @@ from pydantic_ai.models.function import (
     FunctionModel,
 )
 from pydantic_ai.tools import RunContext
+from pydantic_ai_harness._background_completion import make_background_completion
 from pydantic_ai_harness.guardrails import (
     GuardrailResult,
     InputGuardrail,
@@ -365,6 +367,57 @@ async def test_a_text_file_sent_inline_is_screened_as_text():
     ]
 
 
+async def test_a_redacted_structured_value_cannot_bypass_the_cleaned_text() -> None:
+    seen: list[PromptContent] = []
+    structured = StructuredContent(value={"key": SECRET}, metadata={"source": "app"})
+    agent = _agent(GuardrailsConfig(redact_secrets_in=True), _records_prompts(seen))
+
+    await agent.run([structured, PICTURE])
+
+    prompt = seen[0]
+    assert not isinstance(prompt, str)
+    cleaned = prompt[0]
+    assert isinstance(cleaned, TextContent)
+    assert not isinstance(cleaned, StructuredContent)
+    assert SECRET not in cleaned.content
+    assert "[redacted:anthropic_key]" in cleaned.content
+    assert cleaned.metadata == {"source": "app"}
+
+
+async def test_a_clean_structured_value_keeps_its_native_form() -> None:
+    seen: list[PromptContent] = []
+    structured = StructuredContent(value={"answer": 42})
+    agent = _agent(GuardrailsConfig(redact_secrets_in=True), _records_prompts(seen))
+
+    await agent.run([structured, PICTURE])
+
+    prompt = seen[0]
+    assert not isinstance(prompt, str)
+    assert prompt[0] is structured
+
+
+@pytest.mark.parametrize("identifier", [None, "uploaded-notes"])
+async def test_a_redacted_inline_file_keeps_the_identifier_used_to_refer_to_it(
+    identifier: str | None,
+) -> None:
+    seen: list[PromptContent] = []
+    notes = BinaryContent(
+        data=f"key {SECRET}".encode(), media_type="text/plain", identifier=identifier
+    )
+    reference = f"Read file {notes.identifier}"
+    agent = _agent(GuardrailsConfig(redact_secrets_in=True), _records_prompts(seen))
+
+    await agent.run([reference, notes])
+
+    prompt = seen[0]
+    assert not isinstance(prompt, str)
+    rewritten = prompt[1]
+    assert isinstance(rewritten, BinaryContent)
+    assert rewritten.data == b"key [redacted:anthropic_key]"
+    assert rewritten.identifier == notes.identifier
+    assert prompt[0] == reference
+
+
 @pytest.mark.parametrize(
     ("config", "url"),
     [
@@ -515,6 +568,26 @@ async def test_a_redaction_is_traced_by_its_text_never_the_pictures_bytes(monkey
 def _resumed(*parts: UserPromptPart) -> list[ModelMessage]:
     """A history ending in a request of several prompt parts, as a run resumes from."""
     return [ModelRequest(parts=list(parts))]
+
+
+async def test_resumed_background_content_matches_the_harness_input_policy() -> None:
+    """With an explicit resumed prompt, upstream screens every prompt part too."""
+    detector = _edge_detector(
+        redact_secrets_on=False,
+        redact_pii_on=False,
+        phone_regions=(),
+        keywords=["classified"],
+        edge="input",
+    )
+    assert detector is not None
+    for capability in (InputGuardrail(guard=detector), ScreenedPrompt(guard=detector)):
+        agent: Agent = Agent(model=_answers("ok"), capabilities=[capability])
+        history = _resumed(
+            UserPromptPart([make_background_completion("classified", "task-1")]),
+            UserPromptPart(["look", PICTURE]),
+        )
+        with pytest.raises(GuardrailBlocked):
+            await agent.run(message_history=history)
 
 
 async def test_a_resumed_request_screens_every_prompt_part_by_its_text():

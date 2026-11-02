@@ -654,10 +654,21 @@ class ScreenedPrompt(InputGuardrail[object]):
             return item if cleaned == item else cleaned
         if isinstance(item, TextContent):
             cleaned = await self._cleaned(ctx, item.content)
-            return item if cleaned == item.content else replace(item, content=cleaned)
+            # StructuredContent also carries a native value; retaining that value
+            # would let a structured-input model read past the redaction.
+            return item if cleaned == item.content else TextContent(cleaned, metadata=item.metadata)
         if isinstance(item, BinaryContent) and (text := _text(item)) is not None:
             cleaned = await self._cleaned(ctx, text)
-            return item if cleaned == text else replace(item, data=_encoded(cleaned, item))
+            return (
+                item
+                if cleaned == text
+                else BinaryContent(
+                    data=_encoded(cleaned, item),
+                    media_type=item.media_type,
+                    identifier=item.identifier,
+                    vendor_metadata=item.vendor_metadata,
+                )
+            )
         if isinstance(item, FileUrl) and await self._cleaned(ctx, item.url) != item.url:
             logger.info("Guardrail blocked a run at the input edge: a redaction in a URL")
             raise GuardrailBlocked(edge="input", message=_BLOCK_MESSAGE["input"])
