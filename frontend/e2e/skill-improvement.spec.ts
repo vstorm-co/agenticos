@@ -241,18 +241,13 @@ async function improveMain(
   headers: Record<string, string>,
   skillId: string,
 ) {
-  const start = { fork_id: null, budget_usd: "5" };
-  const quote = await write(
-    api,
-    "post",
-    `/skills/${skillId}/improvements/estimate`,
-    headers,
-    start,
-  );
+  const quote = await write(api, "post", `/skills/${skillId}/improvements/estimate`, headers, {
+    fork_id: null,
+  });
+  expect(quote.affordable ?? true).toBeTruthy();
   const session = await write(api, "post", `/skills/${skillId}/improvements`, headers, {
-    ...start,
-    confirmed: true,
-    estimate_usd: quote.total_usd,
+    fork_id: null,
+    budget_usd: "5",
   });
   const path = `/skills/${skillId}/improvements/${id(session)}`;
   await until(api, headers, path, "waiting", "propose");
