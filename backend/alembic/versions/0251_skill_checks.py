@@ -48,6 +48,15 @@ def upgrade() -> None:
         sa.Column("mode", sa.String(length=16), nullable=False),
         sa.Column("source", sa.String(length=16), nullable=False),
         sa.Column("proposal_id", postgresql.UUID(as_uuid=True), nullable=True),
+        sa.Column(
+            "excluded_conversation_ids",
+            postgresql.ARRAY(postgresql.UUID(as_uuid=True)),
+            server_default="{}",
+            nullable=False,
+        ),
+        sa.Column(
+            "skill_set_case_ids", postgresql.ARRAY(postgresql.UUID(as_uuid=True)), nullable=True
+        ),
         sa.Column("status", sa.String(length=16), nullable=False),
         sa.Column("verdict", sa.String(length=16), nullable=True),
         sa.Column("outcome", sa.String(length=24), nullable=True),

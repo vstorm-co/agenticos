@@ -28,7 +28,7 @@ version they read now - makes it a fork for the agents it helped, or discards it
 import hashlib
 import json
 import logging
-from collections.abc import Sequence
+from collections.abc import Collection, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from decimal import Decimal
@@ -177,6 +177,8 @@ class Plan:
     agents: list[Planned]
     org_remaining: Decimal | None
     proposal: SkillProposal | None
+    excluded: tuple[UUID, ...] = ()
+    skill_set_case_ids: list[UUID] | None = None
 
 
 def candidate_digest(description: str, content: str, resources: dict[str, str] | None) -> str:
@@ -265,11 +267,15 @@ class SkillCheckService:
         data: SkillCheckStart,
         *,
         only: Sequence[UUID] | None = None,
+        holdout: Mapping[UUID, Collection[UUID]] | None = None,
+        exclude_conversations: Sequence[UUID] = (),
     ) -> Plan:
         """What a check would run, refusing what could not; nothing is written.
 
         `only` narrows the agents to those named, for a caller checking one pinned
-        agent's update rather than a line.
+        agent's update rather than a line. `holdout` limits a dataset, by its id, to
+        the questions a session keeps aside for measuring; `exclude_conversations`
+        leaves out the questions taken from the conversations a change learned from.
         """
         if not ctx.has(Perm.RUNS_VIEW):
             raise AuthorizationError(
@@ -308,7 +314,9 @@ class SkillCheckService:
             if user.agent.id not in runnable:
                 row.unknown = UnknownReason.NO_ACCESS
                 continue
-            row.stages = await self._stages(ctx, skill, user, test_set, mode, changed_words, row)
+            row.stages = await self._stages(
+                ctx, skill, user, test_set, mode, changed_words, row, holdout or {}
+            )
             if not row.stages:
                 row.unknown = UnknownReason.NO_QUESTIONS
                 continue
@@ -321,6 +329,7 @@ class SkillCheckService:
                         _request(stage, user.agent_version),
                         purpose=EvalRunPurpose.GATE,
                         candidate_skills=body,
+                        exclude_conversations=exclude_conversations,
                     )
                 except AuthorizationError, NotFoundError:
                     row.unknown = UnknownReason.NO_ACCESS
@@ -341,6 +350,8 @@ class SkillCheckService:
             agents=planned,
             org_remaining=org_remaining,
             proposal=proposal,
+            excluded=tuple(exclude_conversations),
+            skill_set_case_ids=_kept(test_set, holdout or {}),
         )
 
     async def _stages(
@@ -352,11 +363,13 @@ class SkillCheckService:
         mode: CheckMode,
         changed_words: set[str],
         row: Planned,
+        holdout: Mapping[UUID, Collection[UUID]],
     ) -> list[Stage]:
         """The skill's questions, then the agent's own, as far as each exists."""
         stages: list[Stage] = []
-        if test_set is not None and test_set.case_count:
-            stages.append(Stage("skill_set", test_set))
+        kept = _kept(test_set, holdout)
+        if test_set is not None and test_set.case_count and kept != []:
+            stages.append(Stage("skill_set", test_set, kept))
         own = await dataset_repo.for_agent(
             self.db, user.agent.id, organization_id=ctx.organization_id
         )
@@ -366,9 +379,13 @@ class SkillCheckService:
                 row.sample = SampleKind.SKILL_SET_ONLY
             return stages
         if mode is CheckMode.THOROUGH:
-            stages.append(Stage("dataset", dataset))
+            own_kept = _kept(dataset, holdout)
+            if own_kept != []:
+                stages.append(Stage("dataset", dataset, own_kept))
             return stages
-        picked = await self._sample(ctx, skill, user.agent.id, dataset, changed_words)
+        picked = await self._sample(
+            ctx, skill, user.agent.id, dataset, changed_words, holdout.get(dataset.id)
+        )
         if picked:
             row.sample = SampleKind.OWN_QUESTIONS
             stages.append(Stage("dataset_sample", dataset, picked))
@@ -383,6 +400,7 @@ class SkillCheckService:
         agent_id: UUID,
         dataset: Dataset,
         changed_words: set[str],
+        allowed: Collection[UUID] | None = None,
     ) -> list[UUID]:
         loaded = await skill_check_repo.loaded_cases(
             self.db,
@@ -408,7 +426,7 @@ class SkillCheckService:
             [
                 rules.SampleCandidate(item.case_id, texts[item.case_id], item.answered_at)
                 for item in loaded
-                if item.case_id in texts
+                if item.case_id in texts and (allowed is None or item.case_id in allowed)
             ],
             changed_words,
         )
@@ -449,10 +467,25 @@ class SkillCheckService:
         )
 
     async def estimate(
-        self, ctx: AuthContext, skill_id: UUID, data: SkillCheckStart
+        self,
+        ctx: AuthContext,
+        skill_id: UUID,
+        data: SkillCheckStart,
+        *,
+        only: Sequence[UUID] | None = None,
+        holdout: Mapping[UUID, Collection[UUID]] | None = None,
+        exclude_conversations: Sequence[UUID] = (),
     ) -> SkillCheckEstimate:
-        """What a check would run on each agent, and what it would cost."""
-        return await self._estimate(ctx, await self._plan(ctx, skill_id, data))
+        """What a check would run on each agent, and what it would cost, as `start` takes it."""
+        plan = await self._plan(
+            ctx,
+            skill_id,
+            data,
+            only=only,
+            holdout=holdout,
+            exclude_conversations=exclude_conversations,
+        )
+        return await self._estimate(ctx, plan)
 
     async def start(
         self,
@@ -462,6 +495,8 @@ class SkillCheckService:
         *,
         source: CheckSource | None = None,
         only: Sequence[UUID] | None = None,
+        holdout: Mapping[UUID, Collection[UUID]] | None = None,
+        exclude_conversations: Sequence[UUID] = (),
     ) -> SkillCheckRead:
         """Write a check and start each agent's first stage.
 
@@ -471,7 +506,14 @@ class SkillCheckService:
             BadRequestError: The organization's remaining budget cannot cover the
                 check at its most, or no agent of the line can be checked.
         """
-        plan = await self._plan(ctx, skill_id, data, only=only)
+        plan = await self._plan(
+            ctx,
+            skill_id,
+            data,
+            only=only,
+            holdout=holdout,
+            exclude_conversations=exclude_conversations,
+        )
         expected, at_most = _priced(plan.agents)
         if plan.org_remaining is not None and at_most > plan.org_remaining:
             raise BadRequestError(
@@ -505,6 +547,8 @@ class SkillCheckService:
                     or (CheckSource.PROPOSAL if plan.proposal is not None else CheckSource.MANUAL)
                 ).value,
                 proposal_id=None if plan.proposal is None else plan.proposal.id,
+                excluded_conversation_ids=list(plan.excluded),
+                skill_set_case_ids=plan.skill_set_case_ids,
                 status=CheckStatus.RUNNING.value,
                 expected_usd=expected,
                 at_most_usd=at_most,
@@ -552,6 +596,7 @@ class SkillCheckService:
                 _request(stage, row.agent_version),
                 purpose=EvalRunPurpose.GATE,
                 candidate_skills={check.skill_id: _candidate_of(check).body()},
+                exclude_conversations=check.excluded_conversation_ids,
                 proposal_check=ProposalCheckRecord(
                     kind="skill",
                     base_version=row.agent_version,
@@ -624,7 +669,7 @@ class SkillCheckService:
             return
         if row.dataset_run_id is None:
             first = await self._stage_result(ctx, current)
-            stage = _next_stage(row)
+            stage = _next_stage(row, CheckMode(check.mode))
             if rules.stage_state(first) is not AgentState.WORSE and stage is not None:
                 dataset = await dataset_repo.get(
                     self.db, stage[0], organization_id=ctx.organization_id
@@ -851,7 +896,7 @@ class SkillCheckService:
         for row in rows:
             mine: list[Stage] = []
             if row.skill_set_run_id is not None and test_set is not None:
-                mine.append(Stage("skill_set", test_set))
+                mine.append(Stage("skill_set", test_set, check.skill_set_case_ids))
             own = datasets.get(row.dataset_id) if row.dataset_id else None
             if own is not None and (
                 row.dataset_run_id is not None or row.state in ("queued", "running")
@@ -1398,18 +1443,27 @@ def _request(stage: Stage, agent_version: int) -> EvalRunRequest:
 
 
 def _sampled(item: Planned) -> list[UUID] | None:
-    return next((stage.case_ids for stage in item.stages if stage.kind == "dataset_sample"), None)
+    return next((stage.case_ids for stage in item.stages if stage.kind != "skill_set"), None)
+
+
+def _kept(dataset: Dataset | None, holdout: Mapping[UUID, Collection[UUID]]) -> list[UUID] | None:
+    """The questions of `dataset` a session keeps aside, or `None` to ask them all."""
+    if dataset is None or dataset.id not in holdout:
+        return None
+    return sorted(holdout[dataset.id], key=str)
 
 
 def _own_dataset(item: Planned) -> UUID | None:
     return next((stage.dataset.id for stage in item.stages if stage.kind != "skill_set"), None)
 
 
-def _next_stage(row: SkillCheckAgent) -> tuple[UUID, StageKind, list[UUID] | None] | None:
+def _next_stage(
+    row: SkillCheckAgent, mode: CheckMode
+) -> tuple[UUID, StageKind, list[UUID] | None] | None:
     """The agent's own questions, once its skill-set stage is behind it."""
     if row.dataset_id is None or row.skill_set_run_id is None:
         return None
-    kind: StageKind = "dataset_sample" if row.sample_case_ids else "dataset"
+    kind: StageKind = "dataset_sample" if mode is CheckMode.QUICK else "dataset"
     return row.dataset_id, kind, row.sample_case_ids
 
 

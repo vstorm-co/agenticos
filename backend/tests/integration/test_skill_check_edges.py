@@ -578,6 +578,11 @@ class TestSampleAndTestSet:
 
         loaded = {case.case_id for case in cases if "eceipt" in case.input}
         assert set(picked) == loaded
+        one = sorted(loaded, key=str)[:1]
+        assert (
+            await SkillCheckService(db)._sample(ctx, lab.skill, lab.a.id, dataset, {"receipt"}, one)
+            == one
+        )
 
     async def test_the_skills_test_questions_can_start_from_recent_answers(self, db, monkeypatch):
         lab = await _lab(db)

@@ -614,6 +614,8 @@ TASKS: dict[str, TaskKind] = {
         RUN_AUTHORING,
         ADVANCE_IMPROVEMENT,
         SWEEP_IMPROVEMENTS,
+        ADVANCE_SKILL_CHECK,
+        SWEEP_SKILL_CHECKS,
         CLASSIFY_GAPS,
         DRAFT_TOPIC,
         GENERATE_CASES,

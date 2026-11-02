@@ -173,6 +173,14 @@ class SkillCheck(Base):
     proposal_id: Mapped[uuid.UUID | None] = mapped_column(
         PG_UUID(as_uuid=True), ForeignKey("skill_proposals.id", ondelete="SET NULL"), nullable=True
     )
+    excluded_conversation_ids: Mapped[list[uuid.UUID]] = mapped_column(
+        ARRAY(PG_UUID(as_uuid=True)), nullable=False, default=list, server_default="{}"
+    )
+    """Conversations a change learned from; questions taken from them are not asked."""
+    skill_set_case_ids: Mapped[list[uuid.UUID] | None] = mapped_column(
+        ARRAY(PG_UUID(as_uuid=True)), nullable=True
+    )
+    """The skill's test questions a session kept aside for this check; `None` asks them all."""
     status: Mapped[str] = mapped_column(String(16), nullable=False)
     verdict: Mapped[str | None] = mapped_column(String(16), nullable=True)
     outcome: Mapped[str | None] = mapped_column(String(24), nullable=True)
@@ -260,7 +268,8 @@ class SkillCheckAgent(Base):
     sample_case_ids: Mapped[list[uuid.UUID] | None] = mapped_column(
         ARRAY(PG_UUID(as_uuid=True)), nullable=True
     )
-    """The agent's own questions a quick check asked, in the order they were picked."""
+    """The agent's own questions the second stage asks: a quick check's sample, in the
+    order it was picked, or a session's held-out draw; `None` asks the whole dataset."""
     dataset_id: Mapped[uuid.UUID | None] = mapped_column(
         PG_UUID(as_uuid=True), ForeignKey("datasets.id", ondelete="SET NULL"), nullable=True
     )

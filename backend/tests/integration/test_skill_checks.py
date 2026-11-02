@@ -270,7 +270,7 @@ class TestWhoIsChecked:
         FakeEvals().install(monkeypatch)
         picked = [uuid.uuid4(), uuid.uuid4()]
 
-        async def sample(_self, _ctx, _skill, agent_id, _dataset, _words):
+        async def sample(_self, _ctx, _skill, agent_id, _dataset, _words, _allowed=None):
             return picked if agent_id == lab.a.id else []
 
         monkeypatch.setattr(SkillCheckService, "_sample", sample)
@@ -318,6 +318,58 @@ class TestWhoIsChecked:
         with pytest.raises(AuthorizationError):
             await SkillCheckService(db).start(member, lab.skill.id, _start())
         assert evals.started == []
+
+
+class TestASessionsDraw:
+    """A skill session measures on the questions it kept aside, and never on the
+    ones its change was learned from."""
+
+    async def test_the_held_out_questions_are_the_only_ones_asked(self, db, monkeypatch):
+        lab = await _lab(db)
+        evals = FakeEvals()
+        evals.install(monkeypatch)
+        test_set = await dataset_repo.for_skill(
+            db, lab.skill.id, organization_id=lab.ctx.organization_id
+        )
+        own = await dataset_repo.for_agent(db, lab.a.id, organization_id=lab.ctx.organization_id)
+        b_own = await dataset_repo.for_agent(db, lab.b.id, organization_id=lab.ctx.organization_id)
+        assert test_set is not None
+        kept = [uuid.uuid4(), uuid.uuid4()]
+        learned_from = [uuid.uuid4()]
+
+        check = await SkillCheckService(db).start(
+            lab.ctx,
+            lab.skill.id,
+            SkillCheckStart(candidate=NEW, mode="thorough"),
+            holdout={test_set.id: kept, own[0].id: kept[:1], b_own[0].id: []},
+            exclude_conversations=learned_from,
+        )
+
+        rows = {row.agent.name: row for row in check.agents}
+        assert [(stage.kind, stage.cases) for stage in rows["A"].stages] == [
+            ("skill_set", 2),
+            ("dataset", 1),
+        ]
+        assert [stage.kind for stage in rows["B"].stages] == ["skill_set"]
+        assert {tuple(request.case_ids) for _, request in evals.started} == {
+            tuple(sorted(kept, key=str))
+        }
+        stored = await skill_check_repo.get(db, check.id, organization_id=lab.ctx.organization_id)
+        assert stored is not None and stored.excluded_conversation_ids == learned_from
+
+    async def test_an_empty_draw_for_the_skills_questions_skips_them(self, db, monkeypatch):
+        lab = await _lab(db)
+        FakeEvals().install(monkeypatch)
+        test_set = await dataset_repo.for_skill(
+            db, lab.skill.id, organization_id=lab.ctx.organization_id
+        )
+        assert test_set is not None
+
+        estimate = await SkillCheckService(db).estimate(
+            lab.ctx, lab.skill.id, _start(), holdout={test_set.id: []}
+        )
+
+        assert {row.unknown_reason for row in estimate.agents} == {"no_questions"}
 
 
 class TestTheRule:
