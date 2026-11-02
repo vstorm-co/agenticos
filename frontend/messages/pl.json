@@ -8165,7 +8165,7 @@
         "actions": "Akcje",
         "viaSpecialist": "Przez specjalistę {name}",
         "empty": "Żaden agent tutaj nie używa tego skilla.",
-        "hidden": "{count, plural, one {Jeszcze # agent, którego nie widzisz, używa tego skilla.} few {Jeszcze # agentów, których nie widzisz, używa tego skilla.} many {Jeszcze # agentów, których nie widzisz, używa tego skilla.} other {Jeszcze # agenta, których nie widzisz, używa tego skilla.}}",
+        "hidden": "{count, plural, one {Jeszcze # agent, którego nie widzisz, używa tego skilla.} few {Jeszcze # agentów, których nie widzisz, używa tego skilla.} many {Jeszcze # agentów, których nie widzisz, używa tego skilla.} other {Jeszcze # agenta, którego nie widzisz, używa tego skilla.}}",
         "draftOnly": "Tylko w drafcie",
         "environment": "{name}: {binding}",
         "draftDiffers": "Jego draft używa innej wersji."

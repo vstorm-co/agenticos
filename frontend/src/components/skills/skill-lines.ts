@@ -40,3 +40,18 @@ export function isShown(usage: SkillAgentUsage, shown: ShownAgents): boolean {
   if (shown === "main" || shown === "pinned") return usage.binding.state === shown;
   return usage.binding.fork?.id === lineOf(shown);
 }
+
+/**
+ * One row of the agents list. An agent and each of its inline specialists read a
+ * skill their own way, so one agent can have several rows.
+ */
+export function readerKey(usage: SkillAgentUsage): string {
+  return `${usage.agent.id}:${usage.via_specialist ?? ""}`;
+}
+
+/** The rows' agents, each once: the first row of an agent stands for it. */
+export function eachAgentOnce(rows: SkillAgentUsage[]): SkillAgentUsage[] {
+  return rows.filter(
+    (usage, index) => rows.findIndex((other) => other.agent.id === usage.agent.id) === index,
+  );
+}

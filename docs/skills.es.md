@@ -1,5 +1,5 @@
 ---
-source_sha: "f9bcef73227c"
+source_sha: "423bbd5c7b5c"
 ---
 
 # Skills { #skills }
@@ -475,7 +475,10 @@ Abre un skill desde la lista para ver su página. Tiene tres pestañas.
 - `Fork "Returns" · desde v7 · 2 cambios` - el agent usa un fork: una línea de
   versiones con cambios propios, iniciada desde una versión de main.
 
-Un entorno que sirve una versión distinta aparece debajo del agent. Un agent que
+Un entorno que sirve una versión distinta aparece debajo del agent. Un
+[especialista inline](concepts.md#delegate-vs-inline-specialist) que vincula el
+skill por sí mismo lee su propia versión, así que tiene una fila propia bajo el
+nombre de su agent; su versión se cambia en el Builder del agent. Un agent que
 vincula el skill solo en su borrador lleva la marca **Solo en el borrador** y no
 cuenta en ninguna línea. Los agents que no puedes ver se cuentan, sin nombrarlos.
 Los chips sobre la tabla muestran a todos, los agents en main, los fijados o un

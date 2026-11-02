@@ -1,5 +1,5 @@
 ---
-source_sha: "f9bcef73227c"
+source_sha: "423bbd5c7b5c"
 ---
 
 # Skills { #skills }
@@ -498,7 +498,10 @@ hat es sich angesehen.
 - `Fork „Returns“ · ab v7 · 2 Änderungen` - der Agent nutzt einen Fork: eine Linie
   von Versionen mit eigenen Änderungen, gestartet von einer main-Version.
 
-Eine Umgebung, die eine andere Version ausliefert, steht unter dem Agent. Ein Agent,
+Eine Umgebung, die eine andere Version ausliefert, steht unter dem Agent. Ein
+[Inline-Spezialist](concepts.md#delegate-vs-inline-specialist), der den Skill selbst
+bindet, liest seine eigene Version und hat deshalb eine eigene Zeile unter dem Namen
+seines Agents; seine Version wird im Builder des Agents geändert. Ein Agent,
 der den Skill nur in seinem Entwurf bindet, ist mit **Nur im Entwurf** markiert und
 zählt zu keiner Linie. Agents, die Sie nicht sehen, werden gezählt, nicht genannt.
 Die Chips über der Tabelle zeigen alle, die Agents auf main, die festgesetzten oder

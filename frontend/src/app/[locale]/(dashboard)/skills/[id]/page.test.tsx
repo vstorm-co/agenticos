@@ -197,6 +197,29 @@ describe("SkillPage", () => {
     expect(screen.getByText("2 more agents you can't see use this skill.")).toBeInTheDocument();
   });
 
+  it("lists an agent's specialist as its own row and counts the agent once", async () => {
+    vi.mocked(apiClient.get).mockImplementation(async (path: string) =>
+      path === "/skills/s1/agents"
+        ? {
+            ...AGENTS,
+            items: [
+              ...AGENTS.items,
+              usage("Support", { state: "main" }, { via_specialist: "billing", can_change: false }),
+            ],
+          }
+        : serveOnce(path),
+    );
+    await mount();
+
+    expect(await screen.findByText("Through its specialist billing")).toBeInTheDocument();
+    expect(screen.getAllByRole("link", { name: "Support" })).toHaveLength(2);
+    expect(screen.getByRole("button", { name: "Main (1)" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "All (4)" })).toBeInTheDocument();
+    expect(
+      screen.getAllByRole("button", { name: "Change the version of the skill for Support" }),
+    ).toHaveLength(1);
+  });
+
   it("offers Change version only where the caller may publish the agent", async () => {
     await mount();
     await screen.findByText("v12 · main");
