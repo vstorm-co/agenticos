@@ -14,6 +14,7 @@ import { useInChatScope } from "@/stores/chat-scope-context";
 import type { DelegateRef } from "@/lib/delegations";
 import type { McpServerRef } from "@/lib/tool-steps";
 import type { MessagePart, ToolCall } from "@/types";
+import type { TurnFileSource } from "@/types/chat";
 import type { Mentionable } from "@/types/mention";
 import { AgentSteps } from "./agent-step";
 import { TurnBrowses } from "./browser-card";
@@ -53,7 +54,7 @@ export function TurnParts({
   mcpServers,
   agents = [],
   openLastStep = false,
-  conversationId,
+  fileSource,
   onCiteClick,
   startedAt,
   durationMs,
@@ -67,7 +68,7 @@ export function TurnParts({
   /** The agents the reader can see, for naming a delegate; empty on a public page. */
   agents?: readonly DelegateRef[];
   openLastStep?: boolean;
-  conversationId?: string;
+  fileSource?: TurnFileSource;
   onCiteClick?: (index: number) => void;
   /** When the turn began, which a live turn counts its working time from. */
   startedAt?: Date;
@@ -95,7 +96,7 @@ export function TurnParts({
             <ToolCallCard
               key={part.id}
               toolCall={part.toolCall!}
-              conversationId={conversationId}
+              fileSource={fileSource}
               mcpServers={mcpServers}
               agents={agents}
               // The last call of that turn, which is the one whose result the

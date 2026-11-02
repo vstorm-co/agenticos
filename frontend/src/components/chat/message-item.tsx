@@ -602,7 +602,7 @@ function MessageBody({
           mcpServers={mcpServers}
           agents={agents}
           openLastStep={openLastStep}
-          conversationId={message.conversationId}
+          fileSource={message.fileSource}
           onCiteClick={onCiteClick}
           startedAt={message.timestamp}
           durationMs={endsTurn ? message.runDurationMs : undefined}
@@ -634,7 +634,7 @@ function MessageBody({
                   <ToolCallCard
                     key={toolCall.id}
                     toolCall={toolCall}
-                    conversationId={message.conversationId}
+                    fileSource={message.fileSource}
                     mcpServers={mcpServers}
                     agents={agents}
                     startOpen={openLastStep && step === legacyCalls.length - 1}

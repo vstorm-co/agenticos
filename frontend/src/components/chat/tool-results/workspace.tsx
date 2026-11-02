@@ -1,6 +1,8 @@
 "use client";
 
-import { useConversationFileSource } from "@/hooks/use-conversation-file-source";
+import { useShell } from "@/hooks/use-shell";
+import { isDesktopShell } from "@/lib/desktop/shell";
+import type { TurnFileSource } from "@/types/chat";
 import { useState } from "react";
 import { Download } from "lucide-react";
 
@@ -55,14 +57,16 @@ function lines(name: string, result: string): string[] | null {
  * better answer than a control that was never offered.
  */
 function WorkspaceFileCard({
-  conversationId,
+  fileSource,
   path,
 }: {
-  conversationId: string | undefined;
+  fileSource: TurnFileSource | undefined;
   path: string;
 }) {
   const t = useTranslations("files");
-  const source = useConversationFileSource(conversationId ?? null);
+  const shell = useShell();
+  const source =
+    fileSource?.kind === "local" && !isDesktopShell(shell) ? null : (fileSource ?? null);
   const { workspace } = useConversationWorkspace(
     source?.kind === "conversation" ? source.id : null,
   );
@@ -156,11 +160,11 @@ function FileCardActions({
 export function WorkspaceToolResult({
   toolCall,
   resultText,
-  conversationId,
+  fileSource,
 }: {
   toolCall: ToolCall;
   resultText: string;
-  conversationId?: string;
+  fileSource?: TurnFileSource;
 }) {
   const t = useTranslations("chat.tools");
   const path = pathArg(toolCall.args);
@@ -178,9 +182,7 @@ export function WorkspaceToolResult({
       {/* The file itself, once there is one. Not while the call is in flight and not
           when it failed: a card offering to open a file that was never written is the
           one wrong thing this could do. */}
-      {showsCard && path !== null && (
-        <WorkspaceFileCard conversationId={conversationId} path={path} />
-      )}
+      {showsCard && path !== null && <WorkspaceFileCard fileSource={fileSource} path={path} />}
 
       {command !== null && (
         <pre className="bg-muted text-foreground/80 overflow-x-auto rounded-md px-3 py-2 font-mono text-xs">
