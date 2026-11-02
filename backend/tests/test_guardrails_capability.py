@@ -512,14 +512,70 @@ async def test_a_redaction_is_traced_by_its_text_never_the_pictures_bytes(monkey
     assert traced == ["key [redacted:anthropic_key]\nand more\nnotes"]
 
 
-async def test_a_resumed_request_of_several_prompt_parts_is_screened_by_the_harness():
-    """A resumed run reports them as one prompt; the harness screens them together."""
+def _resumed(*parts: UserPromptPart) -> list[ModelMessage]:
+    """A history ending in a request of several prompt parts, as a run resumes from."""
+    return [ModelRequest(parts=list(parts))]
+
+
+async def test_a_resumed_request_screens_every_prompt_part_by_its_text():
+    """Each part, not just the last, and a picture's bytes in none of them."""
+    seen: list[PromptContent] = []
+    agent = _agent(GuardrailsConfig(redact_pii_in=True), _records_prompts(seen))
+    await agent.run(
+        message_history=_resumed(
+            UserPromptPart("call 415-555-0132"), UserPromptPart(["or 415-555-0199", PICTURE])
+        )
+    )
+    assert seen == ["call [redacted:phone]", ["or [redacted:phone]", PICTURE]]
+
+
+async def test_a_resumed_request_blocks_on_a_keyword_in_any_part():
     agent = _agent(GuardrailsConfig(blocked_keywords_in="classified"), _answers("hi"))
-    history: list[ModelMessage] = [
-        ModelRequest(parts=[UserPromptPart("classified"), UserPromptPart(["look", PICTURE])])
-    ]
     with pytest.raises(GuardrailBlocked):
-        await agent.run(message_history=history)
+        await agent.run(
+            message_history=_resumed(
+                UserPromptPart("classified"), UserPromptPart(["look", PICTURE])
+            )
+        )
+
+
+async def test_a_resumed_request_sent_as_a_copy_is_left_to_the_harness():
+    """The parts sent cannot be told apart, so it screens the whole prompt."""
+    calls: list[str] = []
+    agent: Agent = Agent(
+        model=_answers("ok"),
+        capabilities=[_SendsACopy(), ScreenedPrompt(guard=_recording_guard(calls))],
+    )
+    await agent.run(
+        message_history=_resumed(UserPromptPart("look"), UserPromptPart(["again", PICTURE]))
+    )
+    assert len(calls) == 1
+    assert "BinaryContent" in calls[0]
+
+
+async def test_the_size_limit_counts_every_text_part_together():
+    """Two parts each under the limit are one prompt over it."""
+    half = "a" * 150_000
+    agent = _agent(GuardrailsConfig(redact_pii_in=True), _answers("hi"))
+    with pytest.raises(GuardrailBlocked):
+        await agent.run([half, TextContent(content=half), PICTURE])
+
+
+@pytest.mark.parametrize(
+    "media_type",
+    ["application/xml", "application/ld+json", "application/x-yaml", "text/csv; charset=utf-8"],
+)
+async def test_a_textual_file_of_any_text_type_is_screened(media_type: str):
+    agent = _agent(GuardrailsConfig(blocked_keywords_in="classified"), _answers("hi"))
+    with pytest.raises(GuardrailBlocked):
+        await agent.run(["read", BinaryContent(data=b"classified", media_type=media_type)])
+
+
+async def test_a_binary_document_is_not_read_as_text():
+    """A PDF's bytes are no more what anybody wrote than a picture's."""
+    agent = _agent(GuardrailsConfig(blocked_keywords_in="classified"), _answers("hi"))
+    pdf = BinaryContent(data=b"%PDF classified", media_type="application/pdf")
+    assert (await agent.run(["read", pdf])).output == "hi"
 
 
 async def test_a_tagged_text_part_with_nothing_to_redact_is_kept_as_it_was():

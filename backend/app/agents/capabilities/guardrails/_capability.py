@@ -50,6 +50,7 @@ from pydantic_ai.messages import (
     AgentStreamEvent,
     BinaryContent,
     FileUrl,
+    ModelMessage,
     ModelResponse,
     PartDeltaEvent,
     PartEndEvent,
@@ -62,6 +63,7 @@ from pydantic_ai.messages import (
     ToolCallPart,
     ToolCallPartDelta,
     UserContent,
+    UserPromptPart,
 )
 from pydantic_ai.models import ModelRequestContext
 from pydantic_ai.tools import RunContext
@@ -569,12 +571,15 @@ class ScreenedPrompt(InputGuardrail[object]):
             return await handler(request_context)
         parts, original = _find_prompt_part(ctx, request_context.messages)
         targets = [*parts, *([] if original is None else [original])]
-        if (
-            self.parallel
-            or not any(_is_multimodal(target.content) for target in targets)
-            # A resumed run reports several prompt parts as one `ctx.prompt`.
-            or (ctx.prompt is not None and _history_prompt_parts(ctx) > 1)
-        ):
+        if ctx.prompt is not None and _history_prompt_parts(ctx) > 1:
+            # A run resumed from a request: its prompt is every prompt part there.
+            targets = _resumed_prompt_parts(ctx.messages)
+            sent = {id(part) for message in request_context.messages for part in message.parts}
+            if any(id(target) not in sent for target in targets):
+                # Sent as a copy, which cannot be told apart from the parts here:
+                # the harness screens the whole of it and refuses a redaction.
+                targets = []
+        if self.parallel or not any(_is_multimodal(target.content) for target in targets):
             return await super().wrap_model_request(
                 ctx, request_context=request_context, handler=handler
             )
@@ -608,6 +613,11 @@ class ScreenedPrompt(InputGuardrail[object]):
         if isinstance(content, str):
             cleaned = await self._cleaned(ctx, content)
             return None if cleaned == content else cleaned
+        texts = [text for item in content if (text := _text(item)) is not None]
+        if len(texts) > 1:
+            # Together first, so a size limit counts the whole prompt's text,
+            # not each part afresh; each part is then screened for its rewrite.
+            await self._cleaned(ctx, "\n".join(texts))
         result: list[UserContent] = []
         changed = False
         for item in content:
@@ -624,8 +634,7 @@ class ScreenedPrompt(InputGuardrail[object]):
         if isinstance(item, TextContent):
             cleaned = await self._cleaned(ctx, item.content)
             return item if cleaned == item.content else replace(item, content=cleaned)
-        if isinstance(item, BinaryContent) and _is_text(item.media_type):
-            text = item.data.decode("utf-8", errors="replace")
+        if isinstance(item, BinaryContent) and (text := _text(item)) is not None:
             cleaned = await self._cleaned(ctx, text)
             return item if cleaned == text else replace(item, data=cleaned.encode())
         if isinstance(item, FileUrl) and await self._cleaned(ctx, item.url) != item.url:
@@ -644,24 +653,57 @@ def _is_multimodal(content: PromptContent) -> bool:
     return not isinstance(content, str) and get_background_completion(content) is None
 
 
+_TEXT_TYPES = frozenset(
+    {
+        "application/json",
+        "application/xml",
+        "application/yaml",
+        "application/x-yaml",
+        "application/toml",
+        "application/javascript",
+        "application/x-ndjson",
+        "application/sql",
+        "application/graphql",
+        "application/x-sh",
+    }
+)
+"""Media types outside `text/*` whose bytes are text a model reads as written."""
+
+
 def _is_text(media_type: str) -> bool:
     """Whether an inline file is text a person could have written a key into."""
-    return media_type.startswith("text/") or media_type == "application/json"
+    kind = media_type.split(";", 1)[0].strip().lower()
+    return (
+        kind.startswith("text/") or kind in _TEXT_TYPES or kind.endswith(("+json", "+xml", "+yaml"))
+    )
+
+
+def _text(item: UserContent) -> str | None:
+    """The text a prompt part carries, or `None` for a part that is not text."""
+    if isinstance(item, str):
+        return item
+    if isinstance(item, TextContent):
+        return item.content
+    if isinstance(item, BinaryContent) and _is_text(item.media_type):
+        return item.data.decode("utf-8", errors="replace")
+    return None
 
 
 def _text_of(content: PromptContent) -> str:
     """The text parts of a screened prompt, joined, for the redaction's trace span."""
     if isinstance(content, str):
         return content
-    texts: list[str] = []
-    for item in content:
-        if isinstance(item, str):
-            texts.append(item)
-        elif isinstance(item, TextContent):
-            texts.append(item.content)
-        elif isinstance(item, BinaryContent) and _is_text(item.media_type):
-            texts.append(item.data.decode("utf-8", errors="replace"))
-    return "\n".join(texts)
+    return "\n".join(text for item in content if (text := _text(item)) is not None)
+
+
+def _resumed_prompt_parts(messages: Sequence[ModelMessage]) -> list[UserPromptPart]:
+    """Every prompt part of the latest request in the run's history that has one."""
+    # The caller has counted more than one, so there is such a request.
+    return next(
+        found
+        for message in reversed(messages)
+        if (found := [part for part in message.parts if isinstance(part, UserPromptPart)])
+    )
 
 
 def input_screen(config: GuardrailsConfig) -> TextDetector | None:
