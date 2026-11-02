@@ -15,11 +15,14 @@ What only a database shows:
 
 import uuid
 from datetime import UTC, datetime, timedelta
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.agents.capabilities.skills import ServedSkill, SkillUseLog
+from app.agents.spec import AgentSpec
 from app.core.exceptions import AuthorizationError, NotFoundError
 from app.core.permissions import AuthContext, OrgRoleName, Perm
 from app.db.models.agent import Agent, AgentVersion
@@ -30,8 +33,9 @@ from app.db.models.organization import Organization
 from app.db.models.skill import Skill
 from app.db.models.skill_usage import RunSkillUse
 from app.db.models.user import User
-from app.repositories import skill_usage_repo
+from app.repositories import agent_run_repo, skill_usage_repo
 from app.schemas.skill_usage import SkillUseRecord
+from app.services.agent_runner import AgentRunnerService, PreparedRun
 from app.services.authoring_evidence import EvidenceService
 from app.services.skills import SkillService
 
@@ -174,20 +178,70 @@ class TestRecording:
 
         assert (await db.execute(select(RunSkillUse))).scalars().all() == []
 
-    async def test_a_lost_write_leaves_the_run_unknown(self, db: AsyncSession):
+    async def test_a_run_is_unknown_until_its_finish_records_what_it_used(self, db: AsyncSession):
+        org, user = await _org(db)
+        agent = await _agent(db, org, user, "Desk")
+        skill = await _skill(db, org)
+
+        async def started() -> AgentRun:
+            return await agent_run_repo.create_run(
+                db,
+                organization_id=org.id,
+                agent_id=agent.id,
+                agent_version_id=None,
+                user_id=user.id,
+                conversation_id=None,
+                surface=RunSurface.API.value,
+                model_label=None,
+                started_at=datetime.now(UTC),
+            )
+
+        kept, lost = await started(), await started()
+        assert (kept.skill_uses_recorded, lost.skill_uses_recorded) == (False, False)
+        service = AgentRunnerService(db)
+
+        for run in (kept, lost):
+            log = SkillUseLog(agent_id=agent.id, served={skill.name: ServedSkill(skill.id)})
+            log.observe("load_capability", {"id": skill.name})
+            prepared = PreparedRun(
+                run=run,
+                agent=agent,
+                spec=AgentSpec(name="Desk"),
+                built=MagicMock(),
+                approvals=MagicMock(),
+                skill_uses=log,
+            )
+            if run is kept:
+                await service._write_skill_uses(prepared)
+            else:
+                with patch(
+                    "app.services.agent_runner.skill_usage_repo.mark_recorded",
+                    new=AsyncMock(side_effect=RuntimeError("connection lost")),
+                ):
+                    await service._write_skill_uses(prepared)
+
+        await db.refresh(kept)
+        await db.refresh(lost)
+        assert (kept.skill_uses_recorded, lost.skill_uses_recorded) == (True, False)
+        rows = (await db.execute(select(RunSkillUse.run_id))).scalars().all()
+        # The failed savepoint took the use it had written with it.
+        assert rows == [kept.id]
+
+    async def test_marking_a_run_recorded_stays_inside_its_organization(self, db: AsyncSession):
         org, user = await _org(db)
         other, _ = await _org(db)
         agent = await _agent(db, org, user, "Desk")
         run = await _run(db, org, agent)
-        assert run.skill_uses_recorded is True
+        run.skill_uses_recorded = False
+        await db.flush()
 
-        await skill_usage_repo.mark_unrecorded(db, organization_id=other.id, run_id=run.id)
-        await db.refresh(run)
-        assert run.skill_uses_recorded is True
-
-        await skill_usage_repo.mark_unrecorded(db, organization_id=org.id, run_id=run.id)
+        await skill_usage_repo.mark_recorded(db, organization_id=other.id, run_id=run.id)
         await db.refresh(run)
         assert run.skill_uses_recorded is False
+
+        await skill_usage_repo.mark_recorded(db, organization_id=org.id, run_id=run.id)
+        await db.refresh(run)
+        assert run.skill_uses_recorded is True
 
 
 class TestStatistics:

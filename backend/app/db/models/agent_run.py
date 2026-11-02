@@ -303,8 +303,8 @@ class AgentRun(Base, TimestampMixin):
     earlier_attachments_checked: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, server_default=text("false")
     )
-    # False for runs from before `run_skill_uses` existed: their use of skills is
-    # unknown, which is not the same as none.
+    # False until a run's finish records the skills it used, and for every run from
+    # before `run_skill_uses`: their use of skills is unknown, which is not none.
     skill_uses_recorded: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=True, server_default=text("true")
     )

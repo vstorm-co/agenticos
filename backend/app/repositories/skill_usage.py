@@ -81,12 +81,12 @@ async def record_uses(
     )
 
 
-async def mark_unrecorded(db: AsyncSession, *, organization_id: UUID, run_id: UUID) -> None:
-    """Say a run's uses could not be written, so it reads as unknown rather than unused."""
+async def mark_recorded(db: AsyncSession, *, organization_id: UUID, run_id: UUID) -> None:
+    """Say a run's uses were written, so a run with none used no skill rather than unknown."""
     await db.execute(
         update(AgentRun)
         .where(AgentRun.id == run_id, AgentRun.organization_id == organization_id)
-        .values(skill_uses_recorded=False)
+        .values(skill_uses_recorded=True)
     )
 
 

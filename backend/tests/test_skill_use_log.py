@@ -246,13 +246,18 @@ def _savepoint_db() -> MagicMock:
 
 
 class TestTheRunnerWritesTheLog:
-    async def test_the_uses_are_written_once_under_the_run(self) -> None:
+    async def test_the_uses_are_written_once_under_the_run_and_it_is_marked_recorded(
+        self,
+    ) -> None:
         log = _log()
         log.observe("load_capability", {"id": "refunds"})
         prepared = _prepared(log)
         service = AgentRunnerService(_savepoint_db())
 
-        with patch(f"{RUNNER}.skill_usage_repo.record_uses", new=AsyncMock()) as write:
+        with (
+            patch(f"{RUNNER}.skill_usage_repo.record_uses", new=AsyncMock()) as write,
+            patch(f"{RUNNER}.skill_usage_repo.mark_recorded", new=AsyncMock()) as recorded,
+        ):
             await service._write_skill_uses(prepared)
 
         write.assert_awaited_once()
@@ -260,20 +265,29 @@ class TestTheRunnerWritesTheLog:
         assert write.await_args.kwargs["organization_id"] == prepared.run.organization_id
         assert write.await_args.kwargs["started_at"] == prepared.run.started_at
         assert [r.skill_id for r in write.await_args.args[1]] == [REFUNDS]
+        assert recorded.await_args.kwargs == {
+            "organization_id": prepared.run.organization_id,
+            "run_id": prepared.run.id,
+        }
         assert log.records() == []
 
-    async def test_a_run_without_skills_writes_nothing(self) -> None:
+    async def test_a_run_without_skills_is_recorded_as_using_none(self) -> None:
         service = AgentRunnerService(_savepoint_db())
 
-        with patch(f"{RUNNER}.skill_usage_repo.record_uses", new=AsyncMock()) as write:
+        with (
+            patch(f"{RUNNER}.skill_usage_repo.record_uses", new=AsyncMock()) as write,
+            patch(f"{RUNNER}.skill_usage_repo.mark_recorded", new=AsyncMock()) as recorded,
+        ):
             await service._write_skill_uses(_prepared(None))
 
-        write.assert_not_awaited()
+        assert write.await_args.args[1] == []
+        recorded.assert_awaited_once()
 
-    async def test_a_lost_write_marks_the_run_unknown_and_does_not_fail_it(self, caplog) -> None:
+    async def test_a_lost_write_leaves_the_run_unrecorded_and_does_not_fail_it(
+        self, caplog
+    ) -> None:
         log = _log()
         log.observe("load_capability", {"id": "refunds"})
-        prepared = _prepared(log)
         service = AgentRunnerService(_savepoint_db())
 
         with (
@@ -281,16 +295,12 @@ class TestTheRunnerWritesTheLog:
                 f"{RUNNER}.skill_usage_repo.record_uses",
                 new=AsyncMock(side_effect=RuntimeError("insert failed")),
             ),
-            patch(f"{RUNNER}.skill_usage_repo.mark_unrecorded", new=AsyncMock()) as unknown,
+            patch(f"{RUNNER}.skill_usage_repo.mark_recorded", new=AsyncMock()) as recorded,
         ):
-            await service._write_skill_uses(prepared)
+            await service._write_skill_uses(_prepared(log))
 
         assert "skill_uses_not_written" in caplog.text
-        unknown.assert_awaited_once()
-        assert unknown.await_args.kwargs == {
-            "organization_id": prepared.run.organization_id,
-            "run_id": prepared.run.id,
-        }
+        recorded.assert_not_awaited()
 
 
 class TestADelegateUsesSkillsUnderItsOwnName:

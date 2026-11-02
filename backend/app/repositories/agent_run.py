@@ -97,6 +97,9 @@ async def create_run(
         subagent_task_id=subagent_task_id,
         status=RunStatus.RUNNING.value,
         started_at=started_at,
+        # Until its terminal write records the skills it used: a run that dies
+        # before then is unknown, not one that used none.
+        skill_uses_recorded=False,
     )
     db.add(run)
     await db.flush()

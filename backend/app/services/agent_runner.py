@@ -5354,16 +5354,15 @@ class AgentRunnerService:
             logger.exception("knowledge_searches_not_written", extra={"run_id": str(run.id)})
 
     async def _write_skill_uses(self, prepared: PreparedRun) -> None:
-        """Write the skills the run and its delegates used.
+        """Write the skills the run and its delegates used, and mark the run recorded.
 
-        Never raises, for the reason :meth:`_write_knowledge_searches` gives. A
-        write that fails marks the run unrecorded instead, so it reads as
-        "unknown" rather than as a run that used no skill.
+        Never raises, for the reason :meth:`_write_knowledge_searches` gives. Both
+        writes share one savepoint, so a write that fails leaves the run as it
+        was inserted - unrecorded, read as "unknown" rather than as a run that
+        used no skill.
         """
         log = prepared.skill_uses
-        if log is None:
-            return
-        records = log.records()
+        records = [] if log is None else log.records()
         run = prepared.run
         try:
             async with self.db.begin_nested():
@@ -5374,11 +5373,11 @@ class AgentRunnerService:
                     run_id=run.id,
                     started_at=run.started_at or run.created_at,
                 )
+                await skill_usage_repo.mark_recorded(
+                    self.db, organization_id=run.organization_id, run_id=run.id
+                )
         except Exception:
             logger.exception("skill_uses_not_written", extra={"run_id": str(run.id)})
-            await skill_usage_repo.mark_unrecorded(
-                self.db, organization_id=run.organization_id, run_id=run.id
-            )
 
     async def _may_record_about(self, user_id: UUID) -> bool:
         """Whether a search made answering this person may still be written.
