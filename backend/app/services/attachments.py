@@ -508,11 +508,10 @@ class AttachmentRouter:
         always did. Screened only with a workspace: without one nothing is
         written, and the edge alone decides.
 
-        Text only. On a turn that inlines a picture the edge reads the prompt
-        list's repr, image bytes included, and can refuse because of those
-        bytes - a long digit run under PII redaction, a keyword the repr happens
-        to contain. That refusal is about no content anybody wrote, and it is
-        not predicted here, so such a picture is still written.
+        Text only, as the edge is: on a turn that inlines a picture the edge
+        reads the prompt's text part and never the picture's bytes
+        (`ScreenedPrompt`, #2566), so those bytes cannot make the edge refuse a
+        turn this let through.
 
         Every file's reference is screened, including one the turn's text budget
         would drop: a refusal there fails closed, and the edge refuses the same

@@ -108,3 +108,14 @@ describe("activateTab on a plain button", () => {
     expect(onClick).toHaveBeenCalledTimes(1);
   });
 });
+
+it("opens a disclosure once and leaves an open one alone", () => {
+  const trigger = document.createElement("button");
+  trigger.setAttribute("aria-controls", "secondary");
+  trigger.setAttribute("aria-expanded", "false");
+  const clicked = vi.fn(() => trigger.setAttribute("aria-expanded", "true"));
+  trigger.addEventListener("click", clicked);
+  activateTab(trigger);
+  activateTab(trigger);
+  expect(clicked).toHaveBeenCalledOnce();
+});

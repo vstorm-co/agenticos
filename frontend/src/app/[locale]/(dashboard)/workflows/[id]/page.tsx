@@ -167,7 +167,7 @@ export default function WorkflowEditorPage({ params }: PageProps) {
 
   if (!workflow) {
     return (
-      <div className="space-y-6">
+      <div className="space-y-4">
         <PageHeader
           title={t("notFound")}
           breadcrumbs={[{ label: t("title"), href: ROUTES.WORKFLOWS }, { label: t("notFound") }]}
@@ -189,7 +189,7 @@ export default function WorkflowEditorPage({ params }: PageProps) {
   return (
     // Fills what the shell's `main` leaves: the editor is a workspace, and a canvas
     // in a fixed-height box scrolls the page instead of the graph.
-    <div key={workflow.id} className="flex min-h-[40rem] flex-1 flex-col gap-3 pb-4">
+    <div key={workflow.id} className="flex min-h-0 flex-1 flex-col gap-3 pb-4 sm:min-h-[40rem]">
       <PageHeader
         // The canvas is the page: the header gives it the height a list page
         // would keep for breathing room.
@@ -205,12 +205,7 @@ export default function WorkflowEditorPage({ params }: PageProps) {
               pending={actions.setActive.isPending}
               onChange={(active) => actions.setActive.mutate({ id: workflow.id, active })}
             />
-            <Button variant="outline" asChild>
-              <Link href={ROUTES.WORKFLOW_RUNS(workflow.id)}>
-                <Activity className="h-4 w-4" />
-                {t("runsTitle")}
-              </Link>
-            </Button>
+
             {/* Looked at now and then, not on every visit: kept one click away. */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -219,6 +214,12 @@ export default function WorkflowEditorPage({ params }: PageProps) {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
+                <DropdownMenuItem asChild>
+                  <Link href={ROUTES.WORKFLOW_RUNS(workflow.id)}>
+                    <Activity className="h-4 w-4" />
+                    {t("runsTitle")}
+                  </Link>
+                </DropdownMenuItem>
                 {canEdit && (
                   <DropdownMenuItem onClick={() => setViewing(!viewing)}>
                     {viewing ? <Pencil className="h-4 w-4" /> : <Eye className="h-4 w-4" />}

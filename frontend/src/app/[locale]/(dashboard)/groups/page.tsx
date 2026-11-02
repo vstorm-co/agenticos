@@ -35,22 +35,24 @@ export default function GroupsPage() {
   const [templates, setTemplates] = useState(false);
 
   return (
-    <div className="flex flex-1 flex-col space-y-6">
+    <div className="flex flex-1 flex-col space-y-4">
       <PageHeader
         title={t("departmentsTitle")}
         description={t("departmentsDescription")}
+        secondaryActions={
+          canManage ? (
+            <Button variant="outline" onClick={() => setTemplates(true)}>
+              <Sparkles className="h-4 w-4" />
+              {t("addDepartments")}
+            </Button>
+          ) : null
+        }
         actions={
           canManage ? (
-            <>
-              <Button variant="outline" onClick={() => setTemplates(true)}>
-                <Sparkles className="h-4 w-4" />
-                {t("addDepartments")}
-              </Button>
-              <Button onClick={() => setEditing("new")} data-tour="groups-new">
-                <Plus className="h-4 w-4" />
-                {t("newGroup")}
-              </Button>
-            </>
+            <Button onClick={() => setEditing("new")} data-tour="groups-new">
+              <Plus className="h-4 w-4" />
+              {t("newGroup")}
+            </Button>
           ) : null
         }
       />

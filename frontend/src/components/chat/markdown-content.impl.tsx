@@ -9,7 +9,7 @@ import { ExternalLink, ImageOff, PanelsTopLeft } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { BrandIcon } from "@/components/icons/brand-icon";
-import { brandForUrl, consolePageIcon, isAppLink } from "@/lib/link-brands";
+import { brandForUrl, consolePageIcon, isAppLink, offsiteUrl } from "@/lib/link-brands";
 import { rehypeStreamWords } from "@/lib/stream-words";
 import { cn } from "@/lib/utils";
 
@@ -263,8 +263,17 @@ export const MarkdownContent = memo(function MarkdownContent({
         // name rather than the forty characters of its address; a page on a
         // service the reader knows leads with that service's logo.
         const app = !!href && isAppLink(href, window.location.origin);
-        const isExternal = !app && !!href && /^https?:\/\//i.test(href);
-        const brand = isExternal ? brandForUrl(href) : null;
+        // Off-site by where the browser resolves it (#2550): `//host`, and
+        // `https:host` on an `http:` console, leave it without starting
+        // `https://`, and with no target they leave in this tab. An absolute `http(s)://` address on this
+        // console still opens in a new tab, as before.
+        const external =
+          app || !href
+            ? null
+            : (offsiteUrl(href, window.location.origin) ??
+              (/^https?:\/\//i.test(href) ? href : null));
+        const isExternal = external !== null;
+        const brand = external ? brandForUrl(external) : null;
         // A console page the agent points at wears the sidebar's mark for it.
         const PageIcon = !app && href ? consolePageIcon(href, window.location.origin) : null;
         const label = app && textOf(children) === href ? t("openApp") : children;

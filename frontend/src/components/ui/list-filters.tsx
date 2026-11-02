@@ -36,7 +36,7 @@ export function ListFilters({
           setOwn(!open);
           onOpenChange?.(!open);
         }}
-        className="border-border bg-background inline-flex min-h-11 touch-manipulation items-center gap-1.5 rounded-xl border px-3.5 text-sm"
+        className="border-border bg-background touch:min-h-11 touch:min-w-11 inline-flex min-h-9 touch-manipulation items-center gap-1.5 rounded-lg border px-3 text-sm"
       >
         <SlidersHorizontal className="size-4" aria-hidden />
         <span className={cn(compact && "max-[359px]:sr-only")}>{t("filters")}</span>

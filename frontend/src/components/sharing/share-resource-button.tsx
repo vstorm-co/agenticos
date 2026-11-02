@@ -26,6 +26,7 @@ export function ShareResourceButton({
   name,
   canManage,
   className,
+  compact = false,
 }: {
   resourceType: SharingResourceType;
   resourceId: string;
@@ -33,14 +34,21 @@ export function ShareResourceButton({
   name: string;
   canManage: boolean;
   className?: string;
+  /** Keep only the icon on phones when this sits beside the editor actions. */
+  compact?: boolean;
 }) {
   const t = useTranslations("sharing");
   const [open, setOpen] = useState(false);
   return (
     <>
-      <Button variant="outline" onClick={() => setOpen(true)} className={className}>
+      <Button
+        variant="outline"
+        onClick={() => setOpen(true)}
+        aria-label={t("share")}
+        className={cn(compact && "max-md:size-11 max-md:p-0", className)}
+      >
         <UserPlus className="h-4 w-4" />
-        {t("share")}
+        <span className={cn(compact && "max-md:sr-only")}>{t("share")}</span>
       </Button>
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className={cn(DIALOG_SCROLL, DIALOG_FORM)}>

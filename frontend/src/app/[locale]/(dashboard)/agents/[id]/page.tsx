@@ -50,6 +50,7 @@ import { askedToTest, readTestPanel, writeTestPanel } from "@/lib/test-panel-sta
 import { toMapDelegates } from "@/components/agents/agent-map-tree";
 import { AgentStatusBadge } from "@/components/agents/status-badge";
 import { RemoteChangeBanner } from "@/components/live-updates/remote-change-banner";
+import { ContextHelp } from "@/components/ui/context-help";
 import { InstructionsEditor } from "@/components/agents/instructions-editor";
 import { PromptVariablesPanel } from "@/components/agents/prompt-variables-panel";
 import { StartersPanel } from "@/components/agents/starters-panel";
@@ -1090,7 +1091,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
     // Beside the Builder rather than over it: the test panel shares the width
     // (#2074), so the Builder stays usable while the agent is being tried.
     <div className="flex items-start gap-4">
-      <div className="min-w-0 flex-1 space-y-6">
+      <div className="min-w-0 flex-1 space-y-3 sm:space-y-4">
         <PageHeader
           title={
             <span className="flex min-w-0 items-center gap-3">
@@ -1163,7 +1164,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
           }
           description={agent.description ?? undefined}
           breadcrumbs={[{ label: t("agents"), href: ROUTES.AGENTS }, { label: agent.name }]}
-          actions={
+          secondaryActions={
             <>
               {canEdit && canViewRuns && !isSystem && (
                 <ImproveButton agentId={id} persist={persist} tour="agent-improve" />
@@ -1244,18 +1245,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
                 <UserPlus className="h-4 w-4" />
                 {tSharing("share")}
               </Button>
-              {canPublish && (
-                <Button
-                  onClick={handlePublish}
-                  disabled={publish.isPending || !spec?.name.trim()}
-                  data-tour="agent-publish"
-                  // First in the row a phone scrolls, rather than past its edge.
-                  className="max-md:order-first"
-                >
-                  <Upload className="h-4 w-4" />
-                  {t("publish")}
-                </Button>
-              )}
+
               {canEdit && (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
@@ -1356,6 +1346,18 @@ export default function AgentBuilderPage({ params }: PageProps) {
                 onChange={handleAvatar}
               />
             </>
+          }
+          actions={
+            canPublish && (
+              <Button
+                onClick={handlePublish}
+                disabled={publish.isPending || !spec?.name.trim()}
+                data-tour="agent-publish"
+              >
+                <Upload className="h-4 w-4" />
+                {t("publish")}
+              </Button>
+            )
           }
         />
 
@@ -1659,7 +1661,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="build" className="mt-6 space-y-6">
+          <TabsContent value="build" className="mt-4 space-y-4">
             {canEdit && !isSystem && (
               <AssistantStrip
                 agentId={id}
@@ -1671,22 +1673,26 @@ export default function AgentBuilderPage({ params }: PageProps) {
               />
             )}
             <Card data-tour="agent-instructions">
-              <CardHeader
-                data-tour="agent-instructions-header"
-                className="flex-row items-start gap-3 space-y-0"
-              >
-                <div className="min-w-0 flex-1 space-y-1.5">
-                  <CardTitle>{t("instructions")}</CardTitle>
-                  <CardDescription>{t("agentAposSBehaviour")}</CardDescription>
-                </div>
-                <MarkdownModeToggle mode={instructionsMode} onChange={setInstructionsMode} />
-              </CardHeader>
-              <CardContent>
+              <CardContent className="p-4 sm:p-5">
                 <InstructionsEditor
                   // Named, because a placeholder is not a label: it is the only
                   // accessible name this control had, and it is the one thing that
                   // disappears the moment somebody types into it.
                   label={t("instructions2")}
+                  toolbar={
+                    <>
+                      <div
+                        data-tour="agent-instructions-header"
+                        className="flex min-w-0 flex-1 items-center gap-1"
+                      >
+                        <CardTitle className="min-w-0 truncate text-sm">
+                          {t("instructions")}
+                        </CardTitle>
+                        <ContextHelp>{t("agentAposSBehaviour")}</ContextHelp>
+                      </div>
+                      <MarkdownModeToggle mode={instructionsMode} onChange={setInstructionsMode} />
+                    </>
+                  }
                   value={spec.instructions}
                   onChange={(instructions) => update({ instructions })}
                   disabled={!canEdit}
@@ -1864,7 +1870,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
             </Card>
           </TabsContent>
 
-          <TabsContent value="toolbox" className="mt-6 space-y-6">
+          <TabsContent value="toolbox" className="mt-4 space-y-4">
             <Card data-tour="agent-capabilities">
               <CardHeader data-tour="agent-capabilities-header">
                 <CardTitle>{t("capabilities")}</CardTitle>
@@ -1909,7 +1915,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
             outside the deployment for - and the picker embeds the whole server
             catalog, so it pushed the capability workbench off the top of the
             screen on any organization with more than a handful of servers. */}
-          <TabsContent value="mcp" className="mt-6 space-y-6" hidden={isSystem}>
+          <TabsContent value="mcp" className="mt-4 space-y-4" hidden={isSystem}>
             <Card data-tour="agent-mcp">
               {/* The passive tour points here rather than at the card: the picker
                 below embeds the whole server catalog, so the card runs well past
@@ -2005,7 +2011,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
             </Card>
           </TabsContent>
 
-          <TabsContent value="limits" className="mt-6 space-y-6">
+          <TabsContent value="limits" className="mt-4 space-y-4">
             <Card data-tour="agent-limits">
               <CardHeader>
                 <CardTitle>{t("runLimits")}</CardTitle>
@@ -2111,7 +2117,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
             />
           </TabsContent>
 
-          <TabsContent value="availability" className="mt-6 space-y-6" hidden={isSystem}>
+          <TabsContent value="availability" className="mt-4 space-y-4" hidden={isSystem}>
             {/* Where people reach it first - a website, a page, the API - then the
                 chat apps, then what runs it on its own. Two cards here were both
                 called "where", and the one most people came for was last. */}
@@ -2140,7 +2146,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
             />
           </TabsContent>
 
-          <TabsContent value="history" className="mt-6 space-y-6">
+          <TabsContent value="history" className="mt-4 space-y-4">
             {/* The first publish mints `production`; before it there is nothing
                 to point anywhere, and a card of explanation with nothing under
                 it read as a page that failed to load. */}

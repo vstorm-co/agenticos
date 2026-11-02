@@ -257,6 +257,18 @@ class BasePurge(Payload):
     for the deployment-wide one."""
 
 
+class DiscardVectorDocument(Payload):
+    """Chunks an ingest wrote for a document deleted while it indexed (#2565).
+
+    The tracking row is gone, so this is the only record of them. `tenant` and
+    `knowledge_base_id` are the scope the chunks were stamped with."""
+
+    collection: str
+    vector_document_id: str
+    tenant: UUID | None
+    knowledge_base_id: UUID | None
+
+
 class CleanupExternalState(Payload):
     storage_paths: list[str]
     collections: list[str]
@@ -529,6 +541,15 @@ CLEANUP_EXTERNAL_STATE = Task(
     timeout=timedelta(minutes=30),
     priority=Priority.SCHEDULED,
 )
+# Three: the delete is idempotent, and the chunks stay searchable until it runs.
+DISCARD_VECTOR_DOCUMENT = Task(
+    kind="discard-vector-document",
+    payload_type=DiscardVectorDocument,
+    pool=Pool.SYSTEM,
+    max_attempts=3,
+    timeout=timedelta(minutes=5),
+    priority=Priority.SCHEDULED,
+)
 
 ADVANCE_IMPROVEMENT = Task(
     kind="advance-improvement",
@@ -607,6 +628,7 @@ TASKS: dict[str, TaskKind] = {
         INSTALL_ROLE_PACK,
         WELCOME_MEMBER,
         CLEANUP_EXTERNAL_STATE,
+        DISCARD_VECTOR_DOCUMENT,
         CHECK_AGENT_TRIGGERS,
         POLL_PORTAL_GRANTS,
         DELIVER_NOTIFICATIONS,

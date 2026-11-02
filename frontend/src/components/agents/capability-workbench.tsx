@@ -18,6 +18,7 @@ import { SubagentsSection } from "@/components/agents/subagents-section";
 import type { SystemAgentSearch } from "@/components/agents/system-agent-knowledge";
 import { WorkspaceSection } from "@/components/agents/workspace-section";
 import { SearchInput } from "@/components/ui";
+import { ContextHelp } from "@/components/ui/context-help";
 import { CapabilityGallery } from "@/components/agents/capability-art/capability-gallery";
 import { ClearAgentMemory } from "@/components/memory/clear-agent-memory";
 import {
@@ -363,14 +364,14 @@ export function CapabilityWorkbench({
   // panel beside the page rather than below a list.
   return (
     <div className="space-y-4">
-      <p className="text-muted-foreground text-sm">{t("workflowTablesViaMcp")}</p>
       <div className="flex flex-wrap items-center gap-2">
         <SearchInput
           value={query}
           onChange={setQuery}
           placeholder={t("searchCapabilities")}
-          className="w-full sm:w-72"
+          className="min-w-0 flex-1 sm:w-72 sm:flex-none"
         />
+        <ContextHelp>{t("workflowTablesViaMcp")}</ContextHelp>
       </div>
       {categories.length === 0 ? (
         <p className="text-muted-foreground px-1 py-6 text-sm">

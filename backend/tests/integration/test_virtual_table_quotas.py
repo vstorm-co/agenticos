@@ -273,14 +273,14 @@ async def test_concurrent_table_creates_cannot_pass_the_table_limit_together(
 
 
 async def test_a_burst_of_refusals_never_waits_on_the_pool_the_requests_hold(
-    engine: AsyncEngine, monkeypatch
-):
+    engine: AsyncEngine, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """Each refused request holds a pooled connection while its audit entry is written.
 
-    With the audit on the same pool, a burst larger than the pool has every request waiting
-    for a second connection until the timeout, and they answer 500 instead of the refusal.
-    The pool here is deliberately tiny and the timeout short, and the loop is claimed the
-    way the API's is, which is what makes `get_db_context` reach for that pool.
+    Both requests check out a connection before either reaches the refusal, so the pool
+    is exhausted deterministically. An audit using that pool would time out. Extra queued
+    requests would also time out on a slow runner, without proving an audit pool regression.
+    The claimed loop makes `get_db_context` reach for the request pool, as it does in the API.
     """
     from sqlalchemy.ext.asyncio import create_async_engine
 
@@ -292,27 +292,28 @@ async def test_a_burst_of_refusals_never_waits_on_the_pool_the_requests_hold(
     table = await _table(ordinary, ctx)
     tiny_engine = create_async_engine(engine.url, pool_size=2, max_overflow=0, pool_timeout=1)
     tiny = async_sessionmaker(tiny_engine, expire_on_commit=False)
+    ready = asyncio.Barrier(2)
+
+    async def create_after_checkout(service: VirtualTableService) -> None:
+        await service.db.connection()
+        await ready.wait()
+        await service.create_record(
+            ctx, table.id, RecordCreate(values={str(table.columns[0].id): "too big"})
+        )
+
     monkeypatch.setattr(db_session, "async_session_maker", tiny)
     db_session.claim_pooled_engines()
     try:
-        results = await asyncio.gather(
-            *(
-                _call(
-                    tiny,
-                    lambda service: service.create_record(
-                        ctx, table.id, RecordCreate(values={str(table.columns[0].id): "too big"})
-                    ),
-                )
-                for _ in range(8)
-            ),
-            return_exceptions=True,
-        )
+        async with asyncio.timeout(30):
+            results = await asyncio.gather(
+                *(_call(tiny, create_after_checkout) for _ in range(2)), return_exceptions=True
+            )
     finally:
         db_session.release_pooled_engines()
         await tiny_engine.dispose()
 
-    assert [type(r).__name__ for r in results] == ["QuotaExceededError"] * 8
-    assert len(await _refusals(ordinary, ctx)) == 8
+    assert [type(r).__name__ for r in results] == ["QuotaExceededError"] * 2
+    assert len(await _refusals(ordinary, ctx)) == 2
 
 
 async def test_a_burst_of_refusals_never_opens_more_than_the_gate_allows(

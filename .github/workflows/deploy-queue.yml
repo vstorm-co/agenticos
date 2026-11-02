@@ -130,19 +130,21 @@ jobs:
               );
             }
 
-            // How far the server is behind, measured against the last Deploy
+            // Lag against the latest stable release, measured against the last Deploy
             // that actually finished rather than against the last one started.
             //
-            // Only a `push` run is compared. A `workflow_dispatch` deploys the
+            // Only a `release` run is compared. A `workflow_dispatch` deploys the
             // commit its `ref` input names, which is not the run's own
             // `head_sha`, so comparing against that would report a rollback as
             // no drift at all. Saying nothing is better than a number that is
             // wrong in the direction of reassurance.
-            const succeeded = (await runsOf('success')).find((run) => run.event === 'push');
+            const lastSuccess = (await runsOf('success'))[0];
+            const succeeded = lastSuccess?.event === 'release' ? lastSuccess : null;
             let behind = null;
+            const { data: latest } = await github.rest.repos.getLatestRelease({ owner, repo });
             if (succeeded) {
               const { data } = await github.rest.repos.compareCommitsWithBasehead({
-                owner, repo, basehead: `${succeeded.head_sha}...main`,
+                owner, repo, basehead: `${succeeded.head_sha}...${latest.tag_name}`,
               });
               behind = data.ahead_by;
             }
@@ -153,7 +155,7 @@ jobs:
                   ? `${waiting.length} Deploy run(s) waiting, none older than ${staleAfterHours}h.`
                   : 'No Deploy run is waiting for approval.',
               );
-              if (behind !== null) core.info(`main is ${behind} commit(s) ahead of the last successful deploy.`);
+              if (behind !== null) core.info(`${latest.tag_name} is ${behind} commit(s) ahead of the last successful deploy.`);
               return;
             }
 
@@ -161,28 +163,28 @@ jobs:
             const body = [
               `The Deploy queue was blocked. ${cancelled.length} run(s) had been waiting for`,
               `approval longer than ${staleAfterHours} hours, and a run at that gate holds the`,
-              '`deploy-production` concurrency group - so every merge to `main` since then',
-              'produced a run with no jobs that the next merge cancelled.',
+              '`deploy-production` concurrency group - so every release published since then',
+              'produced a run with no jobs that the next release cancelled.',
               '',
-              'Cancelled here, so the next merge reaches the gate:',
+              'Cancelled here, so the next release reaches the gate:',
               '',
               ...cancelled.map(
                 (r) => `- [\`${r.head_sha.slice(0, 7)}\`](${r.html_url}) - waiting since ${r.created_at}`,
               ),
               '',
               behind === null
-                ? 'No successful Deploy run from a merge to compare against - the last one ' +
+                ? 'No successful Deploy run from a release to compare against - the last one ' +
                   'was a manual dispatch, whose deployed commit is not the run\'s own.'
-                : `\`main\` is **${behind} commit(s)** ahead of the last successful deploy ` +
+                : `\`${latest.tag_name}\` is **${behind} commit(s)** ahead of the last successful deploy ` +
                   `(\`${succeeded.head_sha.slice(0, 7)}\`).`,
               '',
-              'Nothing was deployed and nothing was approved. To put the current head of',
-              '`main` on the server, run the Deploy workflow and approve *that* run - not',
+              'Nothing was deployed and nothing was approved. To put the latest stable',
+              'release on the server, run the Deploy workflow and approve *that* run - not',
               "an older one from the environment's queue, which is what approving from",
               'there gives you:',
               '',
               '```bash',
-              `gh workflow run deploy.yml --repo ${owner}/${repo} --ref main`,
+              `gh workflow run deploy.yml --repo ${owner}/${repo} --ref main -f ref=${latest.tag_name}`,
               '```',
               '',
               `Detected by: ${run}`,

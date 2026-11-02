@@ -189,7 +189,7 @@ export function EnvironmentsPanel({
                       aria-label={tc("renameNamed", { name: environment.name })}
                       maxLength={64}
                       ref={(node) => node?.focus()}
-                      className="h-8 font-mono text-sm"
+                      className="h-8 font-mono text-base md:text-sm"
                       onChange={(event) =>
                         setRenaming({ id: environment.id, name: event.target.value })
                       }

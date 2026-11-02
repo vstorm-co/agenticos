@@ -92,9 +92,6 @@ class _StubProvider:
     base_url = "https://example.invalid"
     client = SimpleNamespace(chat=SimpleNamespace(completions=None), responses=None, models=None)
 
-    def model_profile(self, _name: str) -> None:
-        return None
-
 
 def draws_images(prefix: str) -> bool:
     """Whether the model class behind this prefix honours `ImageGenerationTool`.

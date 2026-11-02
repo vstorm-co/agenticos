@@ -9,6 +9,7 @@ from collections.abc import AsyncGenerator, Awaitable, Callable, Sequence
 from contextlib import asynccontextmanager
 from dataclasses import replace
 from datetime import UTC, datetime
+from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
@@ -32,6 +33,7 @@ from app.repositories import (
     conversation_repo,
     member_repo,
 )
+from app.schemas.channel_bot import AccessPolicy
 from app.services import rate_limit, transcription_usage
 from app.services.channel_bot import unseal_bot_token
 from app.services.channel_link import ChannelLinkService
@@ -397,6 +399,36 @@ class ChannelMessageRouter:
         except BaseException:
             await release_delivery(incoming)
             raise
+
+    async def refusal_before_publishing(
+        self, incoming: IncomingMessage, db: AsyncSession
+    ) -> str | None:
+        """Why this sender's words may not be posted as the bot, or `None` to go on.
+
+        For a command whose first act is to publish what the sender typed as a
+        message of the bot's own - Discord's `/ask` - so a person the access
+        policy turns away, or an account nobody has linked, cannot have text of
+        their choosing posted into a channel before the turn that would refuse
+        them runs. Accepted turns keep their normal rate-limit check; a refused
+        unlinked sender is counted here before minting a bearer link invitation.
+        """
+        bot = await channel_bot_repo.get_for_inbound(db, UUID(incoming.bot_id))
+        if not bot or not bot.is_active:
+            return "This bot is not available."
+        try:
+            self._check_access(incoming, bot)
+            identity = await self._resolve_identity(incoming, bot, db)
+        except AuthorizationError as exc:
+            return exc.message
+        if not self._admits_unlinked(incoming, bot) and not await self._sender_is_active_member(
+            db, bot, identity
+        ):
+            try:
+                await self._check_rate_limit(bot, str(identity.id))
+            except BadRequestError as exc:
+                return exc.message
+            return await self._invite_to_link(incoming, db)
+        return None
 
     async def _route_inner(self, incoming: IncomingMessage, db: AsyncSession) -> None:
         """Process an incoming channel message end-to-end.
@@ -1357,6 +1389,13 @@ class ChannelMessageRouter:
         policy: dict[str, Any] = self._parse_policy(bot)
         mode: str = policy.get("mode", "open")
 
+        if incoming.platform == "discord" and incoming.chat_type == "group":
+            approved = AccessPolicy.model_validate(policy).discord_guild_ids
+            if str(incoming.raw.get("guild_id") or "") not in approved:
+                raise AuthorizationError(
+                    message="This Discord server is not approved for this bot."
+                )
+
         if mode == "whitelist":
             whitelist: list[str] = [str(x) for x in policy.get("whitelist", [])]
             if str(incoming.platform_user_id) not in whitelist:
@@ -1365,7 +1404,12 @@ class ChannelMessageRouter:
                 )
         elif mode == "group_only":
             allowed: list[str] = [str(x) for x in policy.get("allowed_groups", [])]
-            if str(incoming.platform_chat_id) not in allowed:
+            # The room as well as the conversation: a key that folds a thread in
+            # (`channel:thread`) is not the id a group is listed under.
+            if (
+                str(incoming.platform_chat_id) not in allowed
+                and channel_key(incoming.platform_chat_id) not in allowed
+            ):
                 raise AuthorizationError(
                     message=policy.get(
                         "denied_message", "This bot is only available in specific groups."
@@ -1994,6 +2038,17 @@ class ChannelMessageRouter:
         # replying inside an existing thread was downloaded once to transcribe
         # and again here, then stored and handed to the agent as exactly the
         # unreadable audio file the transcription path exists to avoid.
+        # Held to the bot's access policy by whoever posted each file, as the
+        # transcript is: a participant it excludes cannot put a file into the
+        # prompt that their words could not reach. A file whose adapter names no
+        # author is not filtered here.
+        attributed = [SimpleNamespace(author_id=h.author_id) for h in handles if h.author_id]
+        admits = await self._backfill_admits(db, bot, incoming, attributed)
+        handles = [
+            h
+            for h in handles
+            if h.author_id is None or admits(SimpleNamespace(author_id=h.author_id))
+        ]
         already = {(a.filename, a.size) for a in (*incoming.attachments, *handled)}
         wanted = [h for h in handles if (h.filename, h.size) not in already]
         if not wanted:

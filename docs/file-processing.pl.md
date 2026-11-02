@@ -1,5 +1,5 @@
 ---
-source_sha: "759491a1f3dc"
+source_sha: "4ccd1e16c6dc"
 ---
 
 # Przetwarzanie plików { #file-processing }
@@ -993,6 +993,15 @@ zapis, który przychodzi pierwszy, zatwierdza się przed usunięciem, którego
 porządkowanie usuwa potem jego chunki
 ([#2561](https://github.com/vstorm-co/agenticos/issues/2561)).
 
+Pojedynczy dokument usunięty w trakcie indeksowania również nie zostawia chunków.
+Jego wiersz nie ma identyfikatora dokumentu wektorowego, dopóki ingest go nie
+zapisze, więc usunięcie może nie mieć czego usunąć; worker, który przy zapisie
+wyniku nie znajduje wiersza, kolejkuje w tej samej transakcji zadanie, które usuwa
+chunki, które właśnie zapisał, i jest ponawiane, gdy usunięcie się nie powiedzie. Usunięcie, które
+odczyta nowo zapisany identyfikator, kolejkuje takie samo trwałe zadanie
+według identyfikatora z usuniętego wiersza
+([#2565](https://github.com/vstorm-co/agenticos/issues/2565)).
+
 Lokalna synchronizacja zakolejkowana dla bazy usuniętej przed jej uruchomieniem
 kończy się błędem i niczego nie zapisuje
 ([#2561](https://github.com/vstorm-co/agenticos/issues/2561)).
@@ -1610,8 +1619,12 @@ wdrożenie bez żadnego profilu modelu nie jest ślepą uliczką. Czego nie ofer
 to usunięcie profilu: to należy tam, gdzie zarządza się modelami organizacji, a
 profilu, którego używają agenci, w ogóle nie da się usunąć.
 
-Wygenerowane opisy są dołączane do
-tekstu dokumentu dla lepszego wyszukiwania semantycznego.
+PyMuPDF pomija ekstrakcję osadzonych obrazów, gdy ich opisywanie jest wyłączone.
+Po włączeniu każdy xref obrazu jest wyodrębniany raz na dokument, powtórzone
+odwołania na stronie są scalane, a identyczne bajty obrazu są opisywane raz.
+Każda strona odwołująca się do obrazu nadal otrzymuje jego opis w tekście do
+wyszukiwania semantycznego. Chunki przenoszą ten tekst bez kopiowania osadzonych
+obrazów strony.
 
 ## Z kanału { #from-a-channel }
 

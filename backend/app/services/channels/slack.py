@@ -135,7 +135,12 @@ class SlackAdapter(ChannelAdapter):
         self._app_tokens[bot_id] = app_token
 
     def prepare_connection(
-        self, bot_id: str, *, api_base_url: str | None, app_token: str | None
+        self,
+        bot_id: str,
+        *,
+        api_base_url: str | None,
+        app_token: str | None,
+        approved_guild_ids: tuple[str, ...] = (),
     ) -> None:
         if app_token:
             self.remember_app_token(bot_id, app_token)

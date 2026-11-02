@@ -19,7 +19,7 @@ export function MainViewport({ children }: { children: ReactNode }) {
           "relative flex min-h-0 flex-1 flex-col overflow-auto",
           chat
             ? "p-0"
-            : "px-3 pt-(--page-inset-top) [--page-inset-top:1rem] sm:px-6 sm:[--page-inset-top:2rem]",
+            : "px-3 pt-(--page-inset-top) [--page-inset-top:0.5rem] sm:px-6 sm:[--page-inset-top:1.25rem]",
         )}
       >
         {children}

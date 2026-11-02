@@ -124,16 +124,14 @@ describe("a capability card", () => {
     return { onFocus, onToggle };
   }
 
-  it("grants from its switch and opens settings from the art, the name and the button", async () => {
+  it("has one settings target and grants independently from its switch", async () => {
     const { onFocus, onToggle } = renderCard();
-
+    expect(screen.getAllByRole("button", { name: "Charts settings" })).toHaveLength(1);
     await userEvent.click(screen.getByRole("switch", { name: /Charts/ }));
-    expect(onToggle).toHaveBeenCalledTimes(1);
-
-    await userEvent.click(screen.getAllByRole("button", { name: "Charts" })[0]!);
+    expect(onToggle).toHaveBeenCalledOnce();
+    expect(onFocus).not.toHaveBeenCalled();
     await userEvent.click(screen.getByText("Charts"));
-    await userEvent.click(screen.getByRole("button", { name: "Charts settings" }));
-    expect(onFocus).toHaveBeenCalledTimes(3);
+    expect(onFocus).toHaveBeenCalledOnce();
     expect(screen.getByText("1 tool")).toBeInTheDocument();
   });
 
@@ -141,7 +139,7 @@ describe("a capability card", () => {
     renderCard({ entry: SANDBOX, enabled: true, focused: true });
 
     expect(screen.getByLabelText("acts on the world")).toBeInTheDocument();
-    expect(screen.getAllByRole("button", { name: "Sandbox" })[0]!).toHaveAttribute(
+    expect(screen.getByRole("button", { name: "Sandbox settings" })).toHaveAttribute(
       "aria-current",
       "true",
     );
@@ -160,9 +158,12 @@ describe("a capability card", () => {
     expect(screen.queryByText("Recommended")).not.toBeInTheDocument();
   });
 
-  it("frames the isometric diorama with a rule", () => {
-    renderCard();
-    expect(screen.getAllByRole("button", { name: "Charts" })[0]!).toHaveClass("border-b");
+  it("keeps settings available to keyboard users when granting is disabled", async () => {
+    const { onFocus } = renderCard({ disabled: true });
+    expect(screen.getByRole("switch")).toBeDisabled();
+    screen.getByRole("button", { name: "Charts settings" }).focus();
+    await userEvent.keyboard("{Enter}");
+    expect(onFocus).toHaveBeenCalledOnce();
   });
 });
 

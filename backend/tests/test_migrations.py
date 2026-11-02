@@ -221,6 +221,43 @@ class TestMigrations:
         )
 
 
+@pytest.mark.parametrize(
+    "starting_revision", ["0248_merge_self_improvement", "0250_discord_channel"]
+)
+def test_improvement_merge_upgrades_either_existing_history(starting_revision: str) -> None:
+    down = _alembic("downgrade", "base")
+    assert down.returncode == 0, down.stderr
+    prior = _alembic("upgrade", starting_revision)
+    assert prior.returncode == 0, prior.stderr
+    user_id = uuid4()
+    engine = create_engine(_url(MIGRATION_DATABASE))
+    try:
+        with engine.begin() as connection:
+            connection.execute(
+                text(
+                    "INSERT INTO users (id, email, is_active, is_app_admin) "
+                    "VALUES (:id, 'merge-upgrade@example.com', true, false)"
+                ),
+                {"id": user_id},
+            )
+        upgraded = _alembic("upgrade", "head")
+        assert upgraded.returncode == 0, upgraded.stderr
+        with engine.connect() as connection:
+            assert (
+                connection.execute(
+                    text("SELECT email FROM users WHERE id = :id"), {"id": user_id}
+                ).scalar_one()
+                == "merge-upgrade@example.com"
+            )
+            assert connection.execute(
+                text("SELECT version_num FROM alembic_version")
+            ).scalar_one() == ("0251_merge_improvement_discord")
+        check = _alembic("check")
+        assert check.returncode == 0, check.stderr
+    finally:
+        engine.dispose()
+
+
 class TestBotTranscriptionSwitch:
     """`0151_bot_transcription_switch.py`: no bot starts transcribing on upgrade.
 

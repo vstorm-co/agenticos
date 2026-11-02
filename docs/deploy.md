@@ -491,9 +491,9 @@ the site is unavailable for the few seconds that takes.
 
 ### From GitHub, with an approval
 
-`.github/workflows/deploy.yml` offers every merge to `main` for deployment and
+`.github/workflows/deploy.yml` offers each published stable release for deployment and
 waits for somebody to approve it. That gate is **a repository setting, not a step
-in the file** — without it, the workflow deploys every merge unattended.
+in the file** — without it, the workflow deploys each published stable release unattended.
 
 Set it up once:
 
@@ -508,7 +508,7 @@ Set it up once:
     Every run shares the `deploy-production` concurrency group, and a run sitting
     at the approval gate holds it. It does not expire on its own — GitHub cancels
     an unactioned one after 30 days — so until somebody approves or cancels it,
-    later merges queue behind a decision nobody is going to make, and the server
+    later releases queue behind a decision nobody is going to make, and the server
     keeps running whatever was deployed last.
 
     So a deploy you have decided against is cancelled, not left. One left waiting
@@ -517,9 +517,9 @@ Set it up once:
 
     `deploy-queue.yml` is what happens when it is left anyway: every six hours it
     cancels a Deploy run that has waited more than twelve for an approval, and
-    opens an issue naming the run and how far `main` has drifted from the last
+    opens an issue naming the run and how far the latest stable release has advanced from the last
     successful deploy. It approves nothing and deploys nothing — it drains the
-    queue so the next merge reaches the gate, and says that it did. Run it by
+    queue so the next published release reaches the gate, and says that it did. Run it by
     hand with `gh workflow run deploy-queue.yml`.
 
 !!! danger "Approving from the environment's queue approves the **oldest** run"
@@ -528,7 +528,7 @@ Set it up once:
     whenever the queue jammed, not the commit that was just pushed — that is how
     a fortnight-old commit reached this server. Approve from the run page of the
     commit you mean, or start a fresh one with
-    `gh workflow run deploy.yml --ref main` and approve that.
+    `gh workflow run deploy.yml --ref main -f ref=v1.34.3` and approve that.
 
 | Secret | What |
 |---|---|

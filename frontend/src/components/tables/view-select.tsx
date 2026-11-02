@@ -182,7 +182,7 @@ export function ViewSelect({
             onValueChange={(id) => onSelect(id === "__default__" ? null : id)}
           >
             <SelectTrigger
-              className="h-full w-40 rounded-r-none border-0 bg-transparent text-sm shadow-none"
+              className="h-full w-24 rounded-r-none border-0 bg-transparent text-sm shadow-none sm:w-40"
               aria-label={t("selectViewFor", { kind })}
             >
               <SelectValue placeholder={t("unsavedView")} />

@@ -260,7 +260,7 @@ export default function WorkflowRunPage({ params }: PageProps) {
         </p>
       )}
 
-      <dl className="bg-card grid shrink-0 divide-y overflow-hidden rounded-xl border sm:grid-cols-3 sm:divide-x sm:divide-y-0">
+      <dl className="bg-card grid shrink-0 grid-cols-3 divide-x overflow-hidden rounded-xl border">
         {[
           {
             icon: Clock,
@@ -280,11 +280,11 @@ export default function WorkflowRunPage({ params }: PageProps) {
             value: t("runStepsOf", { done: stepsRun, count: nodes.length }),
           },
         ].map(({ icon: Icon, label, value, caption }) => (
-          <div key={label} className="flex items-center gap-3 px-5 py-4">
-            <Icon className="text-muted-foreground size-5 shrink-0" />
+          <div key={label} className="flex min-w-0 items-center gap-3 px-3 py-3 sm:px-5 sm:py-4">
+            <Icon className="text-muted-foreground hidden size-5 shrink-0 sm:block" />
             <div>
               <dt className="text-muted-foreground text-xs">{label}</dt>
-              <dd className="mt-1 flex flex-wrap items-baseline gap-x-3 gap-y-1 text-lg leading-6 font-semibold tabular-nums">
+              <dd className="mt-1 flex flex-wrap items-baseline gap-x-3 gap-y-1 text-sm leading-6 font-semibold tabular-nums sm:text-lg">
                 {value}
                 {caption && (
                   <span className="text-muted-foreground text-xs font-normal">{caption}</span>

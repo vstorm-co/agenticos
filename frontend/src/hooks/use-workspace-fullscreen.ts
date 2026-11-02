@@ -8,6 +8,13 @@ export function useWorkspaceFullscreen() {
   const [expanded, setExpanded] = useState(false);
   useEffect(() => {
     if (!expanded || ref.current === null) return;
+    const focused = document.activeElement;
+    if (!(focused instanceof HTMLElement) || !ref.current.contains(focused)) {
+      const target = ref.current.querySelector<HTMLElement>(
+        'button:not([disabled]), input:not([disabled]), textarea:not([disabled]), [tabindex="0"]',
+      );
+      target?.focus();
+    }
     const previous: { element: HTMLElement; inert: boolean; visibility: string }[] = [];
     let current: HTMLElement = ref.current;
     while (current.parentElement !== null) {
@@ -44,6 +51,9 @@ export function useWorkspaceFullscreen() {
       for (const { element, inert, visibility } of previous) {
         element.inert = inert;
         element.style.visibility = visibility;
+      }
+      if (focused instanceof HTMLElement && focused.isConnected && !focused.closest("[inert]")) {
+        focused.focus();
       }
     };
   }, [expanded]);

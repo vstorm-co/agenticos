@@ -15,6 +15,15 @@ function renderCard() {
 }
 
 describe("McpConnect", () => {
+  it("chooses a client from the phone select and updates its instructions", async () => {
+    renderCard();
+    await userEvent.click(screen.getByRole("combobox", { name: "MCP client" }));
+    await userEvent.click(screen.getByRole("option", { name: "Codex" }));
+    expect(screen.getByText(/codex mcp login agenticos/)).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Codex" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.queryByText(/^claude mcp add/)).not.toBeInTheDocument();
+  });
+
   it("shows the server URL and Claude Code's command, signing in through the browser", () => {
     renderCard();
 

@@ -3041,6 +3041,34 @@ class TestWhatANonStreamingRunRecords:
 
         assert record.await_args.kwargs["prompt"] == "summarise this"
 
+    @pytest.mark.anyio
+    @pytest.mark.security
+    async def test_a_blocked_turn_keeps_no_briefing_of_its_files(self):
+        """#2578: the briefing is replayed after the prompt on every later turn,
+        and the input edge screens only the newest prompt - so a file the edge
+        refused would have reached the model one follow-up later. The prompt row
+        is still written: the person said it, and the transcript shows it."""
+        service = AgentRunnerService(_db())
+        prepared = _prepared(conversation_id=uuid.uuid4())
+        prepared.built.agent.run = AsyncMock(
+            side_effect=GuardrailBlocked(edge="input", message="This request was blocked.")
+        )
+
+        with (
+            patch.object(service, "prepare", new=AsyncMock(return_value=prepared)),
+            patch("app.services.agent_runner.agent_run_repo.finish_run", new=AsyncMock()),
+            patch.object(service, "_notify", new=AsyncMock()),
+            patch("app.services.agent_runner.AttachmentRouter") as router,
+            patch.object(service.transcript, "record", new=AsyncMock()) as record,
+        ):
+            router.return_value.build_prompt = AsyncMock(return_value="assembled")
+            router.return_value.context = "\n---\nFirst 20 lines:\nSECRETWORD"
+            await service.execute(_ctx(), uuid.uuid4(), "summarise this", attachments=[MagicMock()])
+
+        written = record.await_args.kwargs
+        assert written["prompt"] == "summarise this"
+        assert written["attachment_context"] is None
+
 
 class TestStoppingANonStreamingRun:
     """A cancelled run, through `execute`.

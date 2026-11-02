@@ -88,6 +88,10 @@ def test_no_unmerged_migrations_claim_the_same_parent() -> None:
             "0184_diagnostics_identity",
             "0243_merge_channel_workflows",
         ],
+        "0247_merge_deployment_workflows": [
+            "0248_drop_refused_turn_summaries",
+            "0248_merge_self_improvement",
+        ],
     }, f"unexpected revisions sharing a parent: {forked}"
     chain = _chain()
     improvement_merge = chain.get_revision("0188_self_improvement_merge")
@@ -106,6 +110,11 @@ def test_no_unmerged_migrations_claim_the_same_parent() -> None:
     assert final_merge is not None and final_merge.down_revision == (
         "0215_main_128_merge",
         "0247_merge_deployment_workflows",
+    )
+    discord_merge = chain.get_revision("0251_merge_improvement_discord")
+    assert discord_merge is not None and discord_merge.down_revision == (
+        "0248_merge_self_improvement",
+        "0250_discord_channel",
     )
     # Released histories must not be rewritten: an explicit merge may join them.
     chain = _chain()

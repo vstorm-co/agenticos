@@ -1,7 +1,7 @@
 import { Plug, Workflow, TimerReset } from "lucide-react";
 import { describe, expect, it } from "vitest";
 
-import { brandForUrl, consolePageIcon, hostOf, isAppLink } from "./link-brands";
+import { brandForUrl, consolePageIcon, hostOf, isAppLink, offsiteUrl } from "./link-brands";
 
 const ORIGIN = "https://agents.example.com";
 
@@ -54,5 +54,37 @@ describe("an app's link", () => {
     expect(isAppLink(`${origin}/apps`, origin)).toBe(false);
     expect(isAppLink(`https://elsewhere.example/apps/${id}`, origin)).toBe(false);
     expect(isAppLink("http://[bad", origin)).toBe(false);
+  });
+});
+
+/**
+ * Where a link really goes. The `href` is model-written, so a link is off-site
+ * by where the browser resolves it, not by how it starts (#2550).
+ */
+describe("an off-site link", () => {
+  const origin = "https://console.example";
+
+  it("is another site however the scheme is written, or left out", () => {
+    expect(offsiteUrl("https://evil.example/login", origin)).toBe("https://evil.example/login");
+    expect(offsiteUrl("//evil.example/login", origin)).toBe("https://evil.example/login");
+    expect(offsiteUrl("/\\evil.example", origin)).toBe("https://evil.example/");
+    expect(offsiteUrl("http:/evil.example", origin)).toBe("http://evil.example/");
+    expect(offsiteUrl("HTTPS://Evil.example", origin)).toBe("https://evil.example/");
+    // A scheme other than the console's own reads the rest as another host.
+    expect(offsiteUrl("https:evil.example", "http://localhost:3000")).toBe("https://evil.example/");
+  });
+
+  it("is not a page of this console, relative or absolute", () => {
+    expect(offsiteUrl("/routines?highlight=routines-create", origin)).toBeNull();
+    expect(offsiteUrl("settings/profile", origin)).toBeNull();
+    expect(offsiteUrl("#section", origin)).toBeNull();
+    expect(offsiteUrl(`${origin}/agents`, origin)).toBeNull();
+    // The console's own scheme makes the rest a path here.
+    expect(offsiteUrl("https:evil.example", origin)).toBeNull();
+  });
+
+  it("is not an address that opens no web page, or none at all", () => {
+    expect(offsiteUrl("mailto:team@example.com", origin)).toBeNull();
+    expect(offsiteUrl("/\\[", origin)).toBeNull();
   });
 });
