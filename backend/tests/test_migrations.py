@@ -25,6 +25,7 @@ read identically in pytest's output, and only one of them is acceptable on a
 runner; `_demand_a_server` below is where they are told apart.
 """
 
+import json
 import os
 import subprocess
 import sys
@@ -952,5 +953,138 @@ class TestSkillBindingAvailability:
                 ).scalars().all() == [True, True]
             upgraded_again = _alembic("upgrade", "0180_remove_skill_enabled")
             assert upgraded_again.returncode == 0, upgraded_again.stderr
+        finally:
+            engine.dispose()
+
+
+class TestRunSkillUsesBackfill:
+    def test_transcripts_become_uses_and_every_older_run_reads_unknown(self) -> None:
+        """Loads and file reads are copied by skill, never to a skill named so later.
+
+        The runs stay unrecorded - an old transcript proves a load, never the
+        absence of one - while a run written after the upgrade is recorded.
+        """
+        down = _alembic("upgrade", "0248_merge_self_improvement")
+        assert down.returncode == 0, down.stderr
+        engine = create_engine(_url(MIGRATION_DATABASE))
+        org, agent = uuid4(), uuid4()
+        refunds, shipping, renamed = uuid4(), uuid4(), uuid4()
+        loaded, quiet, later = uuid4(), uuid4(), uuid4()
+        now = datetime.now(UTC)
+        try:
+            with engine.begin() as connection:
+                connection.execute(text("SET LOCAL session_replication_role = replica"))
+                # The parents a use points at; nothing else about them matters here.
+                connection.execute(
+                    text(
+                        "INSERT INTO organizations (id, name, slug, is_personal, created_by_user_id) "
+                        "VALUES (:id, 'Skills', :slug, false, :user)"
+                    ),
+                    {"id": org, "slug": f"skills-{org.hex[:8]}", "user": uuid4()},
+                )
+                connection.execute(
+                    text(
+                        "INSERT INTO agents (id, organization_id, visibility, slug, name, status) "
+                        "VALUES (:id, :org, 'org', :slug, 'Refund desk', 'draft')"
+                    ),
+                    {"id": agent, "org": org, "slug": f"refunds-{agent.hex[:8]}"},
+                )
+                for skill_id, name, created in (
+                    (refunds, "refunds", now - timedelta(days=10)),
+                    (shipping, "shipping", now - timedelta(days=10)),
+                    # Named like a skill a run loaded, and created after that run.
+                    (renamed, "returns", now),
+                ):
+                    connection.execute(
+                        text(
+                            "INSERT INTO skills (id, organization_id, name, description, content, "
+                            "version, visibility, created_at) VALUES "
+                            "(:id, :org, :name, 'A procedure', 'Check', 1, 'org', :created)"
+                        ),
+                        {"id": skill_id, "org": org, "name": name, "created": created},
+                    )
+                calls = {
+                    loaded: [
+                        ("load_capability", {"id": "refunds"}),
+                        ("read_skill_resource", {"skill_name": "refunds"}),
+                        ("read_skill_resource", {"skill_name": "refunds"}),
+                        ("load_skill", {"skill_name": "shipping"}),
+                        ("load_capability", {"id": "returns"}),
+                        ("search_documents", {"query": "refunds"}),
+                    ],
+                    quiet: [],
+                }
+                for run_id, made in calls.items():
+                    connection.execute(
+                        text(
+                            "INSERT INTO agent_runs (id, organization_id, agent_id, surface, status, "
+                            "input_tokens, output_tokens, cost_usd, cost_is_partial, started_at) "
+                            "VALUES (:id, :org, :agent, 'chat', 'completed', 0, 0, 0, false, :at)"
+                        ),
+                        {"id": run_id, "org": org, "agent": agent, "at": now - timedelta(days=5)},
+                    )
+                    message = uuid4()
+                    connection.execute(
+                        text(
+                            "INSERT INTO messages (id, conversation_id, role, content, ordinal, run_id) "
+                            "VALUES (:id, :conversation, 'assistant', 'Done', 1, :run)"
+                        ),
+                        {"id": message, "conversation": uuid4(), "run": run_id},
+                    )
+                    for index, (tool, args) in enumerate(made):
+                        connection.execute(
+                            text(
+                                "INSERT INTO tool_calls (id, message_id, tool_call_id, tool_name, "
+                                "args, status, started_at) VALUES "
+                                "(:id, :message, :call, :tool, CAST(:args AS jsonb), 'completed', :at)"
+                            ),
+                            {
+                                "id": uuid4(),
+                                "message": message,
+                                "call": f"c{index}",
+                                "tool": tool,
+                                "args": json.dumps(args),
+                                "at": now,
+                            },
+                        )
+            up = _alembic("upgrade", "0249_run_skill_uses")
+            assert up.returncode == 0, up.stderr
+            with engine.begin() as connection:
+                uses = connection.execute(
+                    text(
+                        "SELECT run_id, agent_id, skill_id, loaded, resource_reads, workspace_reads, "
+                        "skill_version_id FROM run_skill_uses WHERE organization_id = :org"
+                    ),
+                    {"org": org},
+                ).all()
+                assert sorted(
+                    (use.skill_id, use.loaded, use.resource_reads) for use in uses
+                ) == sorted([(refunds, True, 2), (shipping, True, 0)])
+                assert {(use.run_id, use.agent_id) for use in uses} == {(loaded, agent)}
+                assert {(use.workspace_reads, use.skill_version_id) for use in uses} == {(0, None)}
+                assert connection.execute(
+                    text("SELECT skill_uses_recorded FROM agent_runs WHERE id IN (:a, :b)"),
+                    {"a": loaded, "b": quiet},
+                ).scalars().all() == [False, False]
+                connection.execute(text("SET LOCAL session_replication_role = replica"))
+                connection.execute(
+                    text(
+                        "INSERT INTO agent_runs (id, organization_id, agent_id, surface, status, "
+                        "input_tokens, output_tokens, cost_usd, cost_is_partial) "
+                        "VALUES (:id, :org, :agent, 'chat', 'completed', 0, 0, 0, false)"
+                    ),
+                    {"id": later, "org": org, "agent": agent},
+                )
+                assert (
+                    connection.execute(
+                        text("SELECT skill_uses_recorded FROM agent_runs WHERE id = :id"),
+                        {"id": later},
+                    ).scalar_one()
+                    is True
+                )
+            back = _alembic("downgrade", "0248_merge_self_improvement")
+            assert back.returncode == 0, back.stderr
+            again = _alembic("upgrade", "head")
+            assert again.returncode == 0, again.stderr
         finally:
             engine.dispose()

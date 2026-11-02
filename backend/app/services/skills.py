@@ -8,6 +8,7 @@ read is the skills *capability*.
 
 import logging
 from collections.abc import Mapping, Sequence
+from datetime import UTC, datetime, timedelta
 from enum import StrEnum
 from typing import Annotated
 from uuid import UUID
@@ -19,14 +20,26 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.agents.capabilities.skills import SkillBody
 from app.core import catalog
 from app.core.audit import record_audit
-from app.core.exceptions import AlreadyExistsError, BadRequestError, InUseError, NotFoundError
+from app.core.exceptions import (
+    AlreadyExistsError,
+    AuthorizationError,
+    BadRequestError,
+    InUseError,
+    NotFoundError,
+)
 from app.core.excerpt import excerpt
 from app.core.permissions import AuthContext, Perm
 from app.db.models.resource_grant import Visibility
 from app.db.models.skill import Skill, SkillResource
 from app.db.models.skill_version import SkillVersion, SkillVersionSource
 from app.db.updates import writable
-from app.repositories import resource_grant_repo, skill_repo, skill_version_repo
+from app.repositories import (
+    agent_repo,
+    resource_grant_repo,
+    skill_repo,
+    skill_usage_repo,
+    skill_version_repo,
+)
 from app.repositories.skill import SkillSort
 from app.schemas.skill import (
     GalleryIndustryRead,
@@ -40,6 +53,7 @@ from app.schemas.skill import (
     SkillUpdate,
     skill_name_refusal,
 )
+from app.schemas.skill_usage import SkillUsageAgent, SkillUsageRead, SkillUsageVersion
 from app.services import skill_library
 from app.services.access import AGENT, SKILL, accessible_ids, resolve_access, visible_resource_ids
 from app.services.resource_usage import (
@@ -198,6 +212,65 @@ class SkillService:
         if not await resolve_access(self.db, ctx, skill, perm, resource_type=SKILL):
             raise NotFoundError(message="Skill not found", details={"skill_id": str(skill_id)})
         return skill
+
+    async def usage(self, ctx: AuthContext, skill_id: UUID, *, days: int) -> SkillUsageRead:
+        """How often each agent used the skill over the last `days`, as the skill page shows it.
+
+        Read off runs, so it needs `runs:view` as every run reader does. An agent
+        the caller may not see is counted in `hidden_*` and never named.
+
+        Raises:
+            NotFoundError: No such skill, or one the caller may not see.
+            AuthorizationError: A caller without `runs:view`.
+        """
+        skill = await self.get(ctx, skill_id)
+        if not ctx.has(Perm.RUNS_VIEW):
+            raise AuthorizationError(
+                message="Skill usage is read off runs, which needs runs:view",
+                details={"permission": Perm.RUNS_VIEW.value},
+            )
+        since = datetime.now(UTC) - timedelta(days=days)
+        rows = await skill_usage_repo.usage_by_agent(
+            self.db, organization_id=ctx.organization_id, skill_id=skill.id, since=since
+        )
+        agents = await agent_repo.get_many(
+            self.db, [row.agent_id for row in rows], organization_id=ctx.organization_id
+        )
+        visible = await accessible_ids(
+            self.db, ctx, agents.values(), Perm.AGENTS_VIEW, resource_type=AGENT
+        )
+        shown = [row for row in rows if row.agent_id in visible]
+        hidden = [row for row in rows if row.agent_id not in visible]
+        versions: dict[UUID, list[SkillUsageVersion]] = {}
+        for version in await skill_usage_repo.usage_by_version(
+            self.db,
+            organization_id=ctx.organization_id,
+            skill_id=skill.id,
+            since=since,
+            agent_ids=[row.agent_id for row in shown],
+        ):
+            versions.setdefault(version.agent_id, []).append(
+                SkillUsageVersion(skill_version_id=version.skill_version_id, loads=version.loads)
+            )
+        return SkillUsageRead(
+            days=days,
+            since=since,
+            loads=sum(row.loads for row in shown),
+            agents=[
+                SkillUsageAgent(
+                    agent_id=row.agent_id,
+                    agent_name=agents[row.agent_id].name,
+                    loads=row.loads,
+                    resource_reads=row.resource_reads,
+                    workspace_reads=row.workspace_reads,
+                    last_loaded_at=row.last_loaded_at,
+                    versions=versions.get(row.agent_id, []),
+                )
+                for row in shown
+            ],
+            hidden_agents=len(hidden),
+            hidden_loads=sum(row.loads for row in hidden),
+        )
 
     async def list_skills(
         self,
