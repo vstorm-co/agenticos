@@ -1,5 +1,5 @@
 ---
-source_sha: "ca71d9f5b056"
+source_sha: "4ccd1e16c6dc"
 ---
 
 # Przetwarzanie plików { #file-processing }
@@ -992,6 +992,15 @@ znajduje bazy, niczego nie zapisuje i kończy się błędem na etapie indeksowan
 zapis, który przychodzi pierwszy, zatwierdza się przed usunięciem, którego
 porządkowanie usuwa potem jego chunki
 ([#2561](https://github.com/vstorm-co/agenticos/issues/2561)).
+
+Pojedynczy dokument usunięty w trakcie indeksowania również nie zostawia chunków.
+Jego wiersz nie ma identyfikatora dokumentu wektorowego, dopóki ingest go nie
+zapisze, więc usunięcie może nie mieć czego usunąć; worker, który przy zapisie
+wyniku nie znajduje wiersza, kolejkuje w tej samej transakcji zadanie, które usuwa
+chunki, które właśnie zapisał, i jest ponawiane, gdy usunięcie się nie powiedzie. Usunięcie, które
+odczyta nowo zapisany identyfikator, kolejkuje takie samo trwałe zadanie
+według identyfikatora z usuniętego wiersza
+([#2565](https://github.com/vstorm-co/agenticos/issues/2565)).
 
 Lokalna synchronizacja zakolejkowana dla bazy usuniętej przed jej uruchomieniem
 kończy się błędem i niczego nie zapisuje

@@ -731,7 +731,7 @@ async def delete_by_knowledge_base(db: AsyncSession, kb_id: UUID) -> list[str]:
 
 @dataclass(frozen=True)
 class DeletedDocuments:
-    """What a base's deleted document rows leave behind outside the database."""
+    """What deleted document rows leave behind outside the database."""
 
     storage_paths: list[str]
     vector_document_ids: list[str]
@@ -746,6 +746,21 @@ async def delete_by_knowledge_base_with_vectors(db: AsyncSession, kb_id: UUID) -
     the delete cannot be missed. A row whose ingest never completed has none.
     """
     return await _delete_returning(db, RAGDocument.knowledge_base_id == kb_id)
+
+
+async def delete_with_vectors(db: AsyncSession, doc_id: UUID) -> DeletedDocuments:
+    """Delete one document row, returning its stored file and vector document id.
+
+    Read from the delete itself rather than the loaded row: under READ COMMITTED a
+    `DELETE` that waited on a settlement's row lock re-reads the committed row, so
+    a vector id recorded after the caller loaded it is still returned (#2565).
+    """
+    return await _delete_returning(db, RAGDocument.id == doc_id)
+
+
+async def is_present(db: AsyncSession, doc_id: UUID) -> bool:
+    """Whether the row is there now, read past the session's identity map."""
+    return await db.scalar(select(RAGDocument.id).where(RAGDocument.id == doc_id)) is not None
 
 
 async def delete_unfiled_with_vectors(db: AsyncSession, scope: CollectionScope) -> DeletedDocuments:

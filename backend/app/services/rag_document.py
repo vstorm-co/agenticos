@@ -43,7 +43,12 @@ from app.services.ingestion_config import (
     IngestionConfigService,
     IngestionOverride,
 )
-from app.worker.jobs import INGEST_DOCUMENT, IngestDocument
+from app.worker.jobs import (
+    DISCARD_VECTOR_DOCUMENT,
+    INGEST_DOCUMENT,
+    DiscardVectorDocument,
+    IngestDocument,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -437,8 +442,15 @@ class RAGDocumentService:
         chunk_count: int,
         replaced_document_id: str | None,
         attempt: int,
-    ) -> None:
+    ) -> bool:
         """Mark a document as successfully ingested, retiring what it replaced.
+
+        Returns `False` when the tracking row is gone - the document was deleted
+        while it was being indexed - and `True` otherwise, a superseded attempt
+        included. On `False` the caller owns the chunks it has just written and
+        queues their removal with `discard_untracked`: the delete read the row
+        before it held a vector id, so it purged nothing, and nothing else tracks
+        them (#2565).
 
         Neither `chunk_count` nor `replaced_document_id` has a default on
         purpose. `chunk_count` had one, `0`, and all four call sites took it -
@@ -457,7 +469,9 @@ class RAGDocumentService:
         and is silently ignored, matching the delivery sweep's own "who still
         holds the claim" rule one layer up (Decision 3).
         """
-        doc = await self.get_document(doc_id)
+        doc = await rag_document_repo.get_by_id(self.db, UUID(doc_id))
+        if doc is None:
+            return False
         updated = await rag_document_repo.update_status(
             self.db,
             doc.id,
@@ -468,12 +482,16 @@ class RAGDocumentService:
             expected_attempt=attempt,
         )
         if updated is None:
+            # No row matched: deleted after the read above, or moved on to a newer
+            # attempt. Only the first leaves these chunks without an owner.
+            if not await rag_document_repo.is_present(self.db, doc.id):
+                return False
             logger.info(
                 "Ignoring a stale ingestion settlement for %s: attempt %d no longer current",
                 doc_id,
                 attempt,
             )
-            return
+            return True
         if replaced_document_id:
             await self._retire_superseded(
                 collection_name=doc.collection_name,
@@ -487,6 +505,29 @@ class RAGDocumentService:
         # thirty interruptions that buried the rows worth reading.
         # `ingestion_failed` still fires, and a connector run still reports its
         # whole-attempt figure through `sync_completed`.
+        return True
+
+    async def discard_untracked(
+        self, collection_name: str, vector_document_id: str, *, scope: VectorScope
+    ) -> None:
+        """Queue the removal of chunks whose document was deleted while it indexed.
+
+        For a `complete_ingestion` that returned `False`, in the same transaction:
+        the row is gone, so the job is the only record of the chunks, and a removal
+        that only logged its failure left them searchable for good (#2565). `scope`
+        is the one the chunks were stamped with - the ingester's.
+        """
+        await enqueue(
+            self.db,
+            DISCARD_VECTOR_DOCUMENT,
+            DiscardVectorDocument(
+                collection=collection_name,
+                vector_document_id=vector_document_id,
+                tenant=scope.tenant,
+                knowledge_base_id=scope.knowledge_base_id,
+            ),
+            organization_id=scope.tenant,
+        )
 
     async def _retire_superseded(
         self,
@@ -674,11 +715,13 @@ class RAGDocumentService:
         runner rather than raised. The store rides the process's vector engine, not
         this request's session, so the deferred coroutine may hold it safely.
 
-        A single document's cleanup stays in-process, where the bulk teardown paths
+        A settled document's cleanup stays in-process, where the bulk teardown paths
         (`_retire_superseded`, `KnowledgeBaseService.delete` and
         `delete_for_rag_collection`) queue theirs as a durable job (#1349): the leak
         a lost single-document task would strand is one file and one document's
         vectors, and a durable job per document delete is disproportionate to that.
+        A vector id discovered only by the delete belongs to an ingest that settled
+        concurrently; queue that removal durably, like the row-gone settlement path.
 
         **`ingestion_service` has no default, and that is the whole of it.** It
         was `Any = None`, and the vector cleanup ran only when a caller happened
@@ -691,28 +734,36 @@ class RAGDocumentService:
         """
         doc = await self.get_document(doc_id)
         collection_name = doc.collection_name
-        vector_document_id = doc.vector_document_id
-        storage_path = doc.storage_path
         # The scope the chunks were stamped with at ingest - the knowledge base's
         # own - so the vector delete is confined to them and cannot reach another
         # org's or base's document in a collection whose name they share (#1684,
         # #2537). Read now, before the row is deleted.
         scope = await self.vector_scope(doc)
-        await rag_document_repo.delete(self.db, doc.id)
+        loaded_vector_id = doc.vector_document_id
+        # The vector id comes from the delete, not `doc`: the caller may have loaded
+        # the row before an ingest settled it, and a delete that waited on that
+        # settlement deletes the settled row. A row still without one belongs to an
+        # ingest whose settlement removes its own chunks (#2565).
+        deleted = await rag_document_repo.delete_with_vectors(self.db, doc.id)
 
         from app.core.background import spawn_after_commit
 
-        if vector_document_id:
+        for vector_document_id in deleted.vector_document_ids:
+            if vector_document_id != loaded_vector_id:
+                await self.discard_untracked(collection_name, vector_document_id, scope=scope)
+                continue
             spawn_after_commit(
                 self.db,
                 ingestion_service.remove_document(collection_name, vector_document_id, scope=scope),
                 name="delete-document-vectors",
             )
-        if storage_path:
+        if deleted.storage_paths:
             from app.services.file_storage import delete_files_best_effort
 
             spawn_after_commit(
-                self.db, delete_files_best_effort([storage_path]), name="delete-document-file"
+                self.db,
+                delete_files_best_effort(deleted.storage_paths),
+                name="delete-document-file",
             )
 
     async def unlisted_by_source(

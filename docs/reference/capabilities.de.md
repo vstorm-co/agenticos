@@ -1,5 +1,5 @@
 ---
-source_sha: "9c0bc30e9da8"
+source_sha: "5bddf06f5881"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -2976,9 +2976,16 @@ nichts, und ein späterer Zug in einem Workspace mit Scope `conversation`, `user
 oder `agent` hat keine abgelehnte Datei zum Öffnen. Die Kante liest nur diese ersten
 Zeilen, ein blockierter Begriff weiter unten in der Datei wird hier also nicht
 erkannt; dafür gibt es die Prüfung der Tool-Ergebnisse. Ein direkt mitgesendetes
-Bild ist die Ausnahme: Die Kante liest auch seine Bytes, und eine Blockade, die
-diese Bytes auslösen, wird nicht vorhergesehen, also wird ein solches Bild trotzdem
-geschrieben.
+Bild ist kein Text, also liest die Kante es nicht: Bei einem Prompt mit Bild prüft
+die Kante nur die Wörter, nie die Bytes des Bildes, und eine Schwärzung ändert diese
+Wörter und behält das Bild. Ein im Code gebauter Prompt
+kann auch eine Textdatei mitführen, die als der UTF-8-Text geprüft wird, den
+ein Modell erhält; eine Datei, die einen anderen Zeichensatz angibt oder in dem
+angegebenen nicht gültig ist, blockiert den Zug. Ein solcher Prompt kann auch einen
+Link mitführen, der ebenfalls geprüft wird: Eine Schwärzung lässt sich nicht in einen Link
+schreiben, ohne ihn zu zerstören, also blockiert ein Treffer dort. Weil
+die Bytes nicht mehr entscheiden, sagt die Prüfung vor dem Schreiben einen Zug mit
+Bild so voraus wie jeden anderen.
 
 **Die Prüfung von Tool-Ergebnissen ist der Grund, warum diese Kante am meisten
 zählt.** Sie ist die einzige Absicherung gegen nicht vertrauenswürdige Inhalte, die

@@ -409,15 +409,21 @@ class TestASyncSettlesARowItsBaseTookWithIt:
         gone = NotFoundError(message="Document not found")
         documents = MagicMock(
             fail_ingestion=AsyncMock(side_effect=gone),
-            complete_ingestion=AsyncMock(side_effect=gone),
+            # A completion reports a row gone rather than raising (#2565).
+            complete_ingestion=AsyncMock(return_value=False),
+            discard_untracked=AsyncMock(),
         )
+        ingester = MagicMock()
 
         with (
             patch.object(rag_tasks, "get_worker_db_context", new=_session),
             patch("app.services.rag_document.RAGDocumentService", return_value=documents),
             caplog.at_level(logging.INFO, logger="app.worker.tasks.rag_tasks"),
         ):
-            await rag_tasks._settle_document_row(str(uuid4()), result)
+            settled = await rag_tasks._settle_document_row(
+                str(uuid4()), result, ingester=ingester, collection_name="docs"
+            )
 
+        assert settled is False
         assert max(r.levelno for r in caplog.records) == logging.INFO
         assert all(r.exc_info is None for r in caplog.records)

@@ -1076,6 +1076,11 @@ class PgVectorStore(BaseVectorStore):
     async def delete_document(
         self, collection_name: str, document_id: str, scope: VectorScope
     ) -> None:
+        # A missing table is a no-op, as in `delete_knowledge_base_chunks`: a
+        # collection dropped while its document indexed already took the chunks
+        # the ingest's settlement comes to remove (#2565).
+        if not await self._collection_exists(collection_name):
+            return
         table = self._table(collection_name)
         sanitized = self._sanitize_id(document_id)
         # The document is named by its own id, so its unfiled chunks - written
