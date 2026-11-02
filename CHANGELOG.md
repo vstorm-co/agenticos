@@ -31,6 +31,14 @@ Two things are versioned separately from this file and worth knowing about:
 - Simplify phone navigation and editing: Inbox filters and MCP clients use selects, long settings navigation uses a section menu, secondary page commands fold away, project files open full screen and workflow step panels switch without losing edits. Keep administrative row actions visible on narrow screens and reduce dialog footer and run-summary height.
 - Improve phone layouts across page actions, app controls, skill and context editors, and file readers. Mobile editors fold descriptions and file management away while writing; project and workspace files have a dedicated reader. Source/preview controls use one button. Apps use floating back and options buttons, keeping more space for their content. Expanded editors preserve drafts and variable completion. Reduce the chat composer's height, align painted source text with its input, and open navigation without focusing its close button.
 
+## [1.35.2] - 2026-11-02
+
+### Changed
+
+- Run backend coverage once, shard frontend and E2E tests, reuse the production frontend build, and cache native builds. Build desktop release platforms in parallel and publish updater metadata only after every signed target is available.
+
+- Reuse successful checks for proven release-only cuts, prepare release train PRs from the CLI, reuse unchanged browser images, and retain scans and SBOMs when images are retagged. Offer production deployment only after a stable release is published, while keeping manual deployments and rollback.
+
 ## [1.35.1] - 2026-11-02
 
 ### Fixed
@@ -19684,7 +19692,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.35.1...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.35.2...HEAD
+[1.35.2]: https://github.com/vstorm-co/agenticos/compare/v1.35.1...v1.35.2
 [1.35.1]: https://github.com/vstorm-co/agenticos/compare/v1.35.0...v1.35.1
 [1.35.0]: https://github.com/vstorm-co/agenticos/compare/v1.34.3...v1.35.0
 [1.34.3]: https://github.com/vstorm-co/agenticos/compare/v1.34.2...v1.34.3

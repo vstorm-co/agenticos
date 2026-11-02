@@ -1,5 +1,6 @@
 import type { Locator, Page } from "@playwright/test";
 import type { ArtifactDetail } from "../src/types/artifact";
+import type { CostSummary } from "../src/types/runs";
 
 import { expect, test } from "./fixtures";
 import { AUTH_STATE } from "./helpers";
@@ -404,6 +405,32 @@ for (const platform of ["ios", "android"] as const) {
     });
 
     test("contains CSV exports inside every Activity tab header", async ({ page }) => {
+      // This layout probe must not depend on a journey in another CI shard creating spend.
+      const spend: CostSummary = {
+        period_days: 30,
+        from_date: "2026-11-01T00:00:00Z",
+        to_date: null,
+        month_to_date_usd: "1.25",
+        partial_run_count: 0,
+        by_agent: [
+          {
+            agent_id: "00000000-0000-4000-8000-000000000001",
+            agent_slug: "e2e-layout",
+            agent_name: "E2E layout spend",
+            model_label: null,
+            cost_usd: "1.25",
+            run_count: 1,
+            partial_run_count: 0,
+            month_to_date_usd: "1.25",
+            monthly_cap_usd: null,
+          },
+        ],
+        by_provider: [],
+        by_key: [],
+        by_day: [],
+        cache_by_agent_model: [],
+      };
+      await page.route(/\/api\/spend(?:\?|$)/, (route) => route.fulfill({ json: spend }));
       for (const width of [320, 390]) {
         await page.setViewportSize({ width, height: 844 });
         await page.goto("/runs");

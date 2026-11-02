@@ -1,5 +1,5 @@
 ---
-source_sha: "8d5ef23b70de"
+source_sha: "98715dd7765c"
 ---
 
 # Die Desktop-App { #the-desktop-app }
@@ -538,6 +538,13 @@ einen Homebrew-Cask an ein bestehendes veröffentlichtes stabiles Release
 Der Cask ist eine herunterladbare Datei; ein Homebrew-Tap wird separat veröffentlicht.
 **Check for Updates…** benötigt einen Build mit öffentlichem Update-Schlüssel und
 prüft vor der Installation die Signatur.
+
+Desktop-Release-Builds laufen parallel. Jeder lädt seine eigenen signierten
+Pakete hoch; ein abschließender Job prüft alle vier nativen Targets und
+veröffentlicht `latest.json`. Native CI speichert Build-Ergebnisse getrennt nach
+Betriebssystem, Architektur, Compiler, Target und Build-Profil. Releases lesen nur
+die gemeinsam genutzten heruntergeladenen Abhängigkeiten aus dem Cache. Ein
+fehlgeschlagener Plattform-Build verhindert die Veröffentlichung des Updater-Manifests.
 
 Die Veröffentlichung der mobilen App ist derzeit deaktiviert. Die Repository-Variable
 `AGENTICOS_MOBILE_RELEASES_ENABLED=true` aktiviert signierte Android-Releases;
