@@ -312,11 +312,13 @@ def _acts_as_themselves(ctx: AuthContext, person: UUID | None) -> bool:
     Not an administrator acting as them through impersonation - the #1438 rule for
     every identity binding - and not a script holding one of their API keys, which
     could otherwise turn a leaked key into standing access to their mailbox.
+    A private chat's short-lived internal credential retains the signed-in
+    person's source conversation; it is the same person creating through MCP.
     """
     return (
         person is not None
         and ctx.user_id == person
-        and ctx.api_key_id is None
+        and (ctx.api_key_id is None or ctx.source_conversation_id is not None)
         and current_impersonator() is None
     )
 
@@ -703,6 +705,17 @@ class AgentTriggerService:
                 as missing, not forbidden, so agent ids stay unprobeable - the
                 rule every per-resource agent route follows.
         """
+        if (
+            ctx.source_conversation_id is not None
+            and "answer_to" not in data.model_fields_set
+            and "delivery_conversation_id" not in data.model_fields_set
+        ):
+            data = data.model_copy(
+                update={
+                    "answer_to": "conversation",
+                    "delivery_conversation_id": ctx.source_conversation_id,
+                }
+            )
         agent = await self.agents.get(ctx, agent_id, perm=Perm.AGENTS_RUN)
         # A trigger on a never-published agent is guaranteed to disable itself:
         # its first fire reaches for the runnable spec, finds no version, and

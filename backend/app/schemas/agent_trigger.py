@@ -8,7 +8,14 @@ from uuid import UUID
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from croniter import CroniterBadDateError, croniter
-from pydantic import ConfigDict, Field, computed_field, field_validator, model_validator
+from pydantic import (
+    AwareDatetime,
+    ConfigDict,
+    Field,
+    computed_field,
+    field_validator,
+    model_validator,
+)
 
 from app.core.config import settings
 from app.db.models.agent_trigger import MIN_INTERVAL_SECONDS, EventSource
@@ -470,7 +477,7 @@ class TriggerCreate(BaseSchema):
         default=None,
         description="With `answer_to` = `conversation`: one of the caller's own chats",
     )
-    ends_at: datetime | None = Field(
+    ends_at: AwareDatetime | None = Field(
         default=None,
         description="A schedule stops by itself at this instant; null runs until stopped (#2575)",
     )
@@ -697,7 +704,7 @@ class TriggerUpdate(BaseSchema):
         default=None,
         description="With `answer_to` = `conversation`: one of the caller's own chats; null clears it",
     )
-    ends_at: datetime | None = Field(
+    ends_at: AwareDatetime | None = Field(
         default=None, description="When a schedule stops by itself; null runs until stopped"
     )
     runs_as_creator: bool | None = Field(

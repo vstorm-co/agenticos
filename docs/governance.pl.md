@@ -1,5 +1,5 @@
 ---
-source_sha: "6f559aeba040"
+source_sha: "3a2e96da6c2b"
 ---
 
 # Governance { #governance }
@@ -46,6 +46,18 @@ nigdy się nie kończy.
 Trigger zdarzeniowy dokłada na swojej krawędzi jeszcze jedną odmowę: webhook,
 którego podpis nie weryfikuje się względem własnego sekretu triggera, to 403,
 które w ogóle nie dociera do runnera.
+
+## Dostarczanie wyników rutyny { #routine-delivery }
+
+Rutyna utworzona w prywatnym czacie przez MCP platformy odpowiada w tym czacie,
+chyba że wybierzesz inny cel. Jej karta w rozmowie pokazuje aktualny stan,
+następną aktywację oraz istniejące przyciski edycji, wstrzymania i usunięcia.
+Dziennik uruchomień pozostaje dostępny w Routines.
+
+Ustaw `ends_at` z przesunięciem UTC dla pracy ograniczonej w czasie oraz
+`monthly_budget_usd` dla niższego limitu miesięcznego. Narzędzie aktualizacji
+MCP pozwala usunąć oba ustawienia. Zwykły klucz API nie może upoważnić rutyny
+do korzystania z osobistych kont jego wystawcy.
 
 ## Budżety { #budgets }
 

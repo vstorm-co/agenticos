@@ -12,6 +12,7 @@ mocked, so these tests are about triggers, not about re-proving that.
 import asyncio
 import contextlib
 import uuid
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from types import SimpleNamespace
@@ -4675,3 +4676,65 @@ async def test_a_file_debounce_record_from_an_old_cursor_can_be_recovered(stamp:
             announced={f"{trigger.id}::doc": stamp},
         )
     assert len(decisions) == 1
+
+
+@pytest.mark.parametrize("explicit_primary", [False, True])
+async def test_a_private_chats_internal_credential_retains_the_requested_delivery(
+    explicit_primary: bool,
+) -> None:
+    source = uuid.uuid4()
+    ctx = replace(_ctx(), api_key_id=uuid.uuid4(), source_conversation_id=source)
+    agent = _agent()
+    service = _service(agent)
+    data = TriggerCreate(prompt="Check deployments", interval_seconds=600, runs_as_creator=True)
+    if explicit_primary:
+        data = data.model_copy(update={"answer_to": "primary"})
+    with (
+        patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+        patch("app.services.agent_trigger.conversation_repo") as conversations,
+        patch("app.services.agent_trigger.record_audit", new=AsyncMock()),
+    ):
+        repo.create = AsyncMock(return_value=_trigger(conversation_id=uuid.uuid4()))
+        conversations.get_conversation_by_id = AsyncMock(
+            return_value=SimpleNamespace(organization_id=ctx.organization_id, user_id=ctx.user_id)
+        )
+        await service.create(ctx, agent.id, data)
+    fields = repo.create.await_args.kwargs
+    assert fields["answer_to"] == ("primary" if explicit_primary else "conversation")
+    assert fields["delivery_conversation_id"] == (None if explicit_primary else source)
+    assert fields["runs_as_creator"] is True
+
+
+def test_a_routine_end_without_a_time_zone_is_refused() -> None:
+    with pytest.raises(PydanticValidationError, match="timezone"):
+        TriggerCreate(
+            prompt="Check deployments", interval_seconds=600, ends_at="2026-11-03T09:00:00"
+        )
+
+
+async def test_editing_a_routines_conversation_keeps_the_authorized_target() -> None:
+    destination = uuid.uuid4()
+    trigger = _trigger(answer_to="primary")
+    service = _service(_agent(agent_id=trigger.agent_id))
+    ctx = _ctx()
+    with (
+        patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+        patch("app.services.agent_trigger.record_audit", new=AsyncMock()),
+        patch(
+            "app.services.agent_trigger.conversation_repo.get_conversation_by_id",
+            new=AsyncMock(
+                return_value=SimpleNamespace(
+                    organization_id=ctx.organization_id, user_id=ctx.user_id
+                )
+            ),
+        ),
+    ):
+        repo.get = AsyncMock(return_value=trigger)
+        repo.update = AsyncMock(return_value=trigger)
+        await service.update(
+            ctx,
+            trigger.agent_id,
+            trigger.id,
+            TriggerUpdate(answer_to="conversation", delivery_conversation_id=destination),
+        )
+    assert repo.update.await_args.kwargs["update_data"]["delivery_conversation_id"] == destination

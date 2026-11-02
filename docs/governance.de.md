@@ -1,5 +1,5 @@
 ---
-source_sha: "6f559aeba040"
+source_sha: "3a2e96da6c2b"
 ---
 
 # Governance { #governance }
@@ -48,6 +48,18 @@ ein Alert, die niemals aufhören.
 Ein Event-Trigger fügt an seinem Rand eine weitere Ablehnung hinzu: ein Webhook,
 dessen Signatur sich nicht gegen das eigene Secret des Triggers verifizieren
 lässt, ist ein 403, der den Runner überhaupt nie erreicht.
+
+## Zustellung von Routinen { #routine-delivery }
+
+Eine im privaten Chat über das Plattform-MCP erstellte Routine antwortet in diesem
+Chat, sofern Sie kein anderes Ziel wählen. Ihre Karte zeigt den aktuellen Zustand,
+die nächste Aktivierung sowie die vorhandenen Aktionen zum Bearbeiten, Pausieren
+und Entfernen. Das Ausführungsprotokoll bleibt unter Routines verfügbar.
+
+Setzen Sie `ends_at` mit UTC-Offset für zeitlich begrenzte Aufgaben und
+`monthly_budget_usd` für ein engeres Monatslimit. Das MCP-Aktualisierungstool kann
+beide Einstellungen entfernen. Ein gewöhnlicher API-Schlüssel kann keine Routine
+zur Nutzung der persönlichen Konten seines Ausstellers ermächtigen.
 
 ## Budgets { #budgets }
 

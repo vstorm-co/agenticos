@@ -1713,6 +1713,7 @@ class ChannelMessageRouter:
                 bot_id=bot.id,
                 identity_id=identity.id,
                 platform_chat_id=incoming.platform_chat_id,
+                chat_type=incoming.chat_type,
                 conversation_id=(await self._first_conversation(incoming, bot, identity, db)),
             )
         elif await self._owner_changed(session, incoming, identity, db):

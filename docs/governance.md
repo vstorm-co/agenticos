@@ -41,6 +41,17 @@ An event trigger adds one more refusal at its edge: a webhook whose signature do
 not verify against the trigger's own secret is a 403 that never reaches the runner
 at all.
 
+## Routine delivery
+
+A routine created from a private chat through the platform MCP answers in that
+chat unless you choose another destination. Its card in the conversation shows
+current state, the next activation and the existing edit, pause and remove controls.
+The run log remains available under Routines.
+
+Set `ends_at` with a UTC offset for time-bounded work, and `monthly_budget_usd`
+for a tighter monthly limit. The MCP update tool can clear either setting.
+An ordinary API key cannot authorize a routine to use its issuer's personal accounts.
+
 ## Budgets
 
 !!! abstract "Three levels, and they are not variations on one number"

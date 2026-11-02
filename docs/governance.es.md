@@ -1,5 +1,5 @@
 ---
-source_sha: "6f559aeba040"
+source_sha: "3a2e96da6c2b"
 ---
 
 # Governance { #governance }
@@ -46,6 +46,18 @@ alerta, que no para nunca.
 
 Un trigger de evento añade un rechazo más en su borde: un webhook cuya firma no se
 verifica contra el secreto propio del trigger es un 403 que nunca llega al runner.
+
+## Entrega de rutinas { #routine-delivery }
+
+Una rutina creada en un chat privado mediante el MCP de la plataforma responde en
+ese chat, salvo que elijas otro destino. Su tarjeta muestra el estado actual, la
+próxima activación y los controles existentes para editar, pausar y eliminar.
+El registro de ejecuciones sigue disponible en Routines.
+
+Define `ends_at` con un desplazamiento UTC para el trabajo con duración limitada y
+`monthly_budget_usd` para un límite mensual más estricto. La herramienta MCP de
+actualización permite quitar ambos ajustes. Una clave API ordinaria no puede
+autorizar a una rutina a usar las cuentas personales de quien la emitió.
 
 ## Budgets { #budgets }
 

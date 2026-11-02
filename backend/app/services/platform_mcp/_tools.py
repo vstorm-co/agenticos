@@ -485,6 +485,10 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         time_zone: str | None = None,
         name: str | None = None,
         runs_as_me: bool = True,
+        ends_at: str | None = None,
+        delivery_conversation_id: UUID | None = None,
+        answer_to: Literal["run_log", "primary", "conversation"] | None = None,
+        monthly_budget_usd: str | None = None,
     ) -> dict[str, Any]:
         """Make an agent run itself on a schedule - a Routine. Needs `agents:run` on it.
 
@@ -498,7 +502,11 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         what to do, from which sources, in which language, and what to produce.
         `runs_as_me` fires as the person creating it, with their memory and their
         own connected accounts, as in their chat. Every run lands in the routine's
-        own log, which the person reads under Routines (`/routines`).
+        own log, which the person reads under Routines (`/routines`). A routine
+        created from a private chat answers there unless `answer_to` explicitly
+        selects another target. `ends_at` is an ISO timestamp with its UTC offset;
+        set it for time-bounded requests. `monthly_budget_usd` is a decimal USD cap.
+        The result names the routine, next activation and its management state.
         """
         body: dict[str, Any] = {"prompt": prompt, "runs_as_creator": runs_as_me}
         if name:
@@ -510,6 +518,15 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
             body["time_zone"] = time_zone
         if every_minutes is not None:
             body["interval_seconds"] = every_minutes * 60
+        if ends_at is not None:
+            body["ends_at"] = ends_at
+        if monthly_budget_usd is not None:
+            body["monthly_budget_usd"] = monthly_budget_usd
+        if answer_to is not None:
+            body["answer_to"] = answer_to
+        if delivery_conversation_id is not None:
+            body["delivery_conversation_id"] = str(delivery_conversation_id)
+            body.setdefault("answer_to", "conversation")
         return await api.request("POST", f"/agents/{agent_id}/triggers", json=body)
 
     async def update_routine(
@@ -521,6 +538,12 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         every_minutes: int | None = None,
         time_zone: str | None = None,
         name: str | None = None,
+        ends_at: str | None = None,
+        clear_end: bool = False,
+        delivery_conversation_id: UUID | None = None,
+        answer_to: Literal["run_log", "primary", "conversation"] | None = None,
+        monthly_budget_usd: str | None = None,
+        clear_budget: bool = False,
     ) -> dict[str, Any]:
         """Pause or resume a routine, or change its prompt, cadence, zone or name.
 
@@ -529,6 +552,10 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         to another zone.
         Needs to be the routine's creator, or `agents:edit` on its agent.
         """
+        if ends_at is not None and clear_end:
+            raise ValueError("Choose ends_at or clear_end, not both")
+        if monthly_budget_usd is not None and clear_budget:
+            raise ValueError("Choose monthly_budget_usd or clear_budget, not both")
         body: dict[str, Any] = {}
         if active is not None:
             body["is_active"] = active
@@ -544,6 +571,15 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
             body["interval_seconds"] = every_minutes * 60
         if time_zone is not None:
             body["time_zone"] = time_zone
+        if ends_at is not None or clear_end:
+            body["ends_at"] = None if clear_end else ends_at
+        if monthly_budget_usd is not None or clear_budget:
+            body["monthly_budget_usd"] = None if clear_budget else monthly_budget_usd
+        if answer_to is not None:
+            body["answer_to"] = answer_to
+        if delivery_conversation_id is not None:
+            body["delivery_conversation_id"] = str(delivery_conversation_id)
+            body.setdefault("answer_to", "conversation")
         return await api.request("PATCH", f"/agents/{agent_id}/triggers/{routine_id}", json=body)
 
     async def run_routine_now(agent_id: UUID, routine_id: UUID) -> dict[str, Any]:

@@ -482,6 +482,53 @@ CALLS.extend(
 )
 
 
+CALLS.extend(
+    [
+        (
+            "create_routine",
+            {
+                "agent_id": str(AGENT),
+                "prompt": "Watch deployments",
+                "every_minutes": 10,
+                "ends_at": "2026-11-03T09:00:00+01:00",
+                "monthly_budget_usd": "3.50",
+                "delivery_conversation_id": str(RUN),
+            },
+            (
+                "POST",
+                f"/agents/{AGENT}/triggers",
+                {
+                    "json": {
+                        "prompt": "Watch deployments",
+                        "runs_as_creator": True,
+                        "interval_seconds": 600,
+                        "ends_at": "2026-11-03T09:00:00+01:00",
+                        "monthly_budget_usd": "3.50",
+                        "delivery_conversation_id": str(RUN),
+                        "answer_to": "conversation",
+                    }
+                },
+            ),
+        ),
+        (
+            "update_routine",
+            {
+                "agent_id": str(AGENT),
+                "routine_id": str(RUN),
+                "clear_end": True,
+                "clear_budget": True,
+                "answer_to": "primary",
+            },
+            (
+                "PATCH",
+                f"/agents/{AGENT}/triggers/{RUN}",
+                {"json": {"ends_at": None, "monthly_budget_usd": None, "answer_to": "primary"}},
+            ),
+        ),
+    ]
+)
+
+
 @pytest.mark.parametrize(("tool", "arguments", "call"), CALLS)
 async def test_each_tool_is_one_public_api_call(
     server: FastMCP, api: MagicMock, tool: str, arguments: dict[str, Any], call: tuple[Any, ...]
@@ -493,6 +540,46 @@ async def test_each_tool_is_one_public_api_call(
     method, path, kwargs = call
     assert api.request.await_args.args == (method, path)
     assert api.request.await_args.kwargs == kwargs
+
+
+@pytest.mark.parametrize(
+    "arguments",
+    [
+        {"ends_at": "2027-01-01T12:00:00+00:00", "clear_end": True},
+        {"monthly_budget_usd": "5.00", "clear_budget": True},
+    ],
+)
+async def test_routine_update_refuses_conflicting_limits(
+    server: FastMCP, api: MagicMock, arguments: dict[str, object]
+) -> None:
+    with pytest.raises(ToolError, match="not both"):
+        await server.call_tool(
+            "update_routine", {"agent_id": str(AGENT), "routine_id": str(RUN), **arguments}
+        )
+    api.request.assert_not_awaited()
+
+
+async def test_routine_update_sets_delivery_and_limits(server: FastMCP, api: MagicMock) -> None:
+    await server.call_tool(
+        "update_routine",
+        {
+            "agent_id": str(AGENT),
+            "routine_id": str(RUN),
+            "ends_at": "2027-01-01T12:00:00+00:00",
+            "monthly_budget_usd": "5.00",
+            "delivery_conversation_id": str(KB),
+        },
+    )
+    api.request.assert_awaited_once_with(
+        "PATCH",
+        f"/agents/{AGENT}/triggers/{RUN}",
+        json={
+            "ends_at": "2027-01-01T12:00:00+00:00",
+            "monthly_budget_usd": "5.00",
+            "delivery_conversation_id": str(KB),
+            "answer_to": "conversation",
+        },
+    )
 
 
 @pytest.mark.parametrize(

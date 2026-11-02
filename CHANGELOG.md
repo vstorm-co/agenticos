@@ -21,6 +21,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- **Manage a routine from the chat that requested it.** Private chat runs retain their source conversation on internal platform credentials, so a newly created routine answers there by default. The chat shows a card with its current authorized state, next activation, edit, pause and removal controls. The platform MCP tools expose end times, delivery destinations and monthly budgets, including explicit removal of limits. Ordinary API keys cannot acquire personal standing authority through this provenance. Migration `0257_run_conversation_provenance`.
+
 - **SMS through Twilio is a channel platform.** Add an SMS bot under Channels with `ACCOUNT_SID:AUTH_TOKEN:+NUMBER` and paste its webhook URL into the number. A text reaches the agent through the same router, linked identity, access policy and budgets as any direct message; every request is verified with Twilio's signature, a number is only a claim until it is linked to an account, and a reply is plain text cut at about 1,500 characters. An approval or question is sent as numbered lines and answered by texting the number. A phone number's link to an account lapses after `SMS_LINK_MAX_AGE_DAYS` (90 by default) because a number can be reassigned or taken over, and the bot's page shows the webhook URL to paste into the number. Migration `0252` lets an agent be exposed on SMS.(#2082).
 
 - **A routine answers where its person reads.** `answer_to` on a trigger delivers each completed fire's answer to the creator's own conversation with the agent (`primary`, the new default) or to one of their chats (`conversation`), beside the run log that always records it. `ends_at` stops a routine by itself: the first fire due after it pauses the trigger instead. The trigger form has an "Also answer in" choice. Migration `0255_trigger_delivery`.
@@ -992,6 +994,8 @@ Two things are versioned separately from this file and worth knowing about:
 - **Document properties use table columns.** Remove the Markdown YAML-property editor and stop generating frontmatter in the notebook template. Keep automatic record metadata and preserve existing imported headers during body edits.
 
 ### Fixed
+
+- **Existing private channel history is adopted once.** Migration `0258_primary_channel_history` seeds missing primary conversations only when provider identifiers prove a direct chat and recorded runs prove the selected agent. Existing choices win; groups, project threads and uncertain history stay separate. Opening a conversation after clearing it still starts fresh. New channel sessions now retain their actual chat type.
 
 - The current memory inventory excludes expired claims and future-dated replacements until they take effect; history retains both.
 

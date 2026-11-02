@@ -1,14 +1,20 @@
 """The stable private conversation per person, organization and agent (#2575)."""
 
+import importlib.util
 import uuid
+from pathlib import Path
 
 import pytest
+from alembic.operations import Operations
+from alembic.runtime.migration import MigrationContext
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Session
 
 from app.core.exceptions import NotFoundError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.agent import Agent
+from app.db.models.agent_run import AgentRun
 from app.db.models.conversation import Conversation
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.primary_conversation import PrimaryConversation
@@ -135,3 +141,74 @@ async def test_a_conversation_first_reached_from_a_channel_is_named_for_the_agen
 
     conversation = await db.get(Conversation, opened)
     assert conversation is not None and conversation.title == "Support"
+
+
+def _backfill(session: Session) -> None:
+    path = Path(__file__).parents[2] / "alembic/versions/0258_primary_channel_history.py"
+    spec = importlib.util.spec_from_file_location("primary_channel_history", path)
+    assert spec is not None and spec.loader is not None
+    migration = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(migration)
+    with Operations.context(MigrationContext.configure(session.connection())):
+        migration.upgrade()
+
+
+@pytest.mark.parametrize(
+    ("chat_type", "recorded_agent", "adopt"),
+    [
+        ("private", True, True),
+        ("group", True, False),
+        ("private", False, False),
+    ],
+)
+async def test_only_a_verified_private_legacy_session_is_adopted(
+    db: AsyncSession, chat_type: str, recorded_agent: bool, adopt: bool
+) -> None:
+    from app.db.models.agent_exposure import AgentExposure
+    from app.db.models.channel_bot import ChannelBot
+    from app.db.models.channel_identity import ChannelIdentity
+    from app.db.models.channel_session import ChannelSession
+
+    org, users, agents, ctxs = await _world(db)
+    conversation = Conversation(organization_id=org.id, user_id=users[0].id, title="Existing")
+    bot = ChannelBot(organization_id=org.id, platform="sms", name="Finance", token_encrypted="x")
+    identity = ChannelIdentity(platform="sms", platform_user_id="+1555", user_id=users[0].id)
+    db.add_all([conversation, bot, identity])
+    await db.flush()
+    db.add(
+        AgentExposure(
+            organization_id=org.id, agent_id=agents[0].id, channel_bot_id=bot.id, surface="sms"
+        )
+    )
+    db.add(
+        ChannelSession(
+            bot_id=bot.id,
+            identity_id=identity.id,
+            platform_chat_id="+1555",
+            chat_type=chat_type,
+            conversation_id=conversation.id,
+        )
+    )
+    await db.flush()
+    db.add(
+        AgentRun(
+            organization_id=org.id,
+            agent_id=agents[0 if recorded_agent else 1].id,
+            conversation_id=conversation.id,
+        )
+    )
+    await db.flush()
+    await db.run_sync(_backfill)
+    primary = await PrimaryConversationService(db).open(ctxs[0], agents[0].id)
+    assert (primary == conversation.id) is adopt
+    assert await db.get(Conversation, conversation.id) is not None
+
+    # Reapplying cannot replace an existing choice with some other old thread.
+    await db.run_sync(_backfill)
+    assert await PrimaryConversationService(db).open(ctxs[0], agents[0].id) == primary
+    deleted = await db.get(Conversation, primary)
+    assert deleted is not None
+    await db.delete(deleted)
+    await db.flush()
+    fresh = await PrimaryConversationService(db).open(ctxs[0], agents[0].id)
+    assert fresh != primary and fresh != conversation.id

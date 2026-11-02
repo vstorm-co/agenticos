@@ -8430,7 +8430,12 @@
     "budgetLabel": "Monthly budget (USD, optional)",
     "budgetHint": "What this routine may spend a month. Once spent it pauses and starts again on the first. It narrows the agent's and the organization's limits, never lifts them.",
     "budgetPlaceholder": "No limit of its own",
-    "pausedBudget": "Paused - budget"
+    "pausedBudget": "Paused - budget",
+    "loadingRoutine": "Loading routine…",
+    "routineLoadError": "The routine could not be loaded.",
+    "retryRoutine": "Try again",
+    "routineUnavailable": "This routine is no longer available.",
+    "nextActivation": "Next activation: {at}"
   },
   "portals": {
     "mailboxInterval": {

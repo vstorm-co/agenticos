@@ -2907,6 +2907,7 @@ class AgentRunnerService:
         existing_run: AgentRun | None = None,
         *,
         agent_id: UUID | None = None,
+        conversation_id: UUID | None = None,
     ) -> str | None:
         """A credential for this platform's own MCP server, when the spec binds it.
 
@@ -2921,7 +2922,9 @@ class AgentRunnerService:
             None
             if owner is None
             else await mint_for_run(
-                owner, agent_id=existing_run.agent_id if existing_run is not None else agent_id
+                owner,
+                agent_id=existing_run.agent_id if existing_run is not None else agent_id,
+                conversation_id=conversation_id,
             )
         )
 
@@ -3556,7 +3559,11 @@ class AgentRunnerService:
             refs=spec.mcp_servers,
             sender_user_id=personal_mcp_user_id,
             platform_credential=await self._platform_credential(
-                spec, ctx, existing_run, agent_id=agent.id
+                spec,
+                ctx,
+                existing_run,
+                agent_id=agent.id,
+                conversation_id=conversation_id if memory_room_key is None else None,
             ),
         )
         spec_toolsets = resolved.toolsets

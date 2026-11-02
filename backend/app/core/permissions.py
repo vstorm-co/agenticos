@@ -534,6 +534,13 @@ class AuthContext:
     A grant on a single row widens a role, never a key - see :meth:`key_allows`.
     """
 
+    source_conversation_id: UUID | None = None
+    """A private chat carried by a platform-issued run credential.
+
+    Services still authorize the target before using it. External API keys and
+    OAuth tokens never supply this hint.
+    """
+
     @classmethod
     def anonymous(cls, organization_id: UUID) -> AuthContext:
         """A context for a visitor nobody can name.

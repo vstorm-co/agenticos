@@ -38,6 +38,15 @@ vi.mock("./markdown-content", () => ({
   ),
 }));
 // The card is tested on its own; here it only needs to be identifiable.
+vi.mock("./tool-results/routine", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./tool-results/routine")>();
+  return {
+    ...actual,
+    RoutineResult: ({ routine }: { routine: { id: string } }) => (
+      <div data-testid="routine-result">{routine.id}</div>
+    ),
+  };
+});
 vi.mock("./tool-call-card", () => ({
   ToolCallCard: ({ toolCall, startOpen }: { toolCall: ToolCall; startOpen?: boolean }) => (
     <div data-testid={`tool-${toolCall.id}`} data-open={String(startOpen === true)}>
@@ -1385,4 +1394,34 @@ it("keeps a settled message out of a sibling's streaming rerender", async () => 
   expect(content).not.toHaveBeenCalled();
   expect(await screen.findByText("The next delta")).toBeInTheDocument();
   reduced.mockRestore();
+});
+
+describe("a routine created in the conversation", () => {
+  const routineId = "00000000-0000-4000-8000-000000000001";
+  const agentId = "00000000-0000-4000-8000-000000000002";
+  const toolCall: ToolCall = {
+    id: "routine-call",
+    name: "agenticos_create_routine",
+    args: {},
+    status: "completed",
+    result: JSON.stringify({ id: routineId, agent_id: agentId, trigger_type: "schedule" }),
+  };
+
+  it("shows a management card to a signed-in person after the response finishes", () => {
+    useAuthStore.setState({
+      user: {
+        id: "u-1",
+        email: "ada@example.com",
+        is_active: true,
+        created_at: "2026-11-02T00:00:00Z",
+      },
+    });
+    render(<MessageItem message={message({ toolCalls: [toolCall] })} />);
+    expect(screen.getByTestId("routine-result")).toHaveTextContent(routineId);
+  });
+
+  it("does not fetch or expose routine controls on a public conversation", () => {
+    render(<MessageItem message={message({ toolCalls: [toolCall] })} />);
+    expect(screen.queryByTestId("routine-result")).not.toBeInTheDocument();
+  });
 });

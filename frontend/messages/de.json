@@ -8309,7 +8309,12 @@
     "budgetLabel": "Monatsbudget (USD, optional)",
     "budgetHint": "Was diese Routine pro Monat ausgeben darf. Ist es aufgebraucht, pausiert sie und startet am Ersten neu. Es verengt die Limits des Agenten und der Organisation, hebt sie nie an.",
     "budgetPlaceholder": "Kein eigenes Limit",
-    "pausedBudget": "Pausiert - Budget"
+    "pausedBudget": "Pausiert - Budget",
+    "loadingRoutine": "Routine wird geladen…",
+    "routineLoadError": "Die Routine konnte nicht geladen werden.",
+    "retryRoutine": "Erneut versuchen",
+    "routineUnavailable": "Diese Routine ist nicht mehr verfügbar.",
+    "nextActivation": "Nächste Aktivierung: {at}"
   },
   "portals": {
     "mailboxInterval": {

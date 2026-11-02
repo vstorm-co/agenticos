@@ -7278,7 +7278,12 @@
     "budgetLabel": "Miesięczny budżet (USD, opcjonalnie)",
     "budgetHint": "Ile ta rutyna może wydać w miesiącu. Po wykorzystaniu wstrzymuje się i rusza od pierwszego. Zawęża limity agenta i organizacji, nigdy ich nie podnosi.",
     "budgetPlaceholder": "Bez własnego limitu",
-    "pausedBudget": "Wstrzymana - budżet"
+    "pausedBudget": "Wstrzymana - budżet",
+    "loadingRoutine": "Wczytywanie rutyny…",
+    "routineLoadError": "Nie udało się wczytać rutyny.",
+    "retryRoutine": "Spróbuj ponownie",
+    "routineUnavailable": "Ta rutyna nie jest już dostępna.",
+    "nextActivation": "Następna aktywacja: {at}"
   },
   "portals": {
     "mailboxInterval": {

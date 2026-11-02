@@ -28,7 +28,7 @@ class TestTheCredential:
             assert await runner._platform_credential(bound, CTX) == "aos_minted"
             assert await runner._platform_credential(unbound, CTX) is None
 
-        mint.assert_awaited_once_with(CTX, agent_id=None)
+        mint.assert_awaited_once_with(CTX, agent_id=None, conversation_id=None)
 
     async def test_a_fresh_agent_is_named_before_its_run_row_exists(self) -> None:
         runner = AgentRunnerService(MagicMock())
@@ -38,7 +38,7 @@ class TestTheCredential:
             "app.services.agent_runner.mint_for_run", new=AsyncMock(return_value="aos_minted")
         ) as mint:
             assert await runner._platform_credential(bound, CTX, agent_id=agent_id) == "aos_minted"
-        mint.assert_awaited_once_with(CTX, agent_id=agent_id)
+        mint.assert_awaited_once_with(CTX, agent_id=agent_id, conversation_id=None)
 
     async def test_existing_agent_identity_travels_with_its_platform_credential(self) -> None:
         runner = AgentRunnerService(MagicMock())
@@ -51,7 +51,7 @@ class TestTheCredential:
             ) as mint,
         ):
             assert await runner._platform_credential(bound, CTX, run) == "aos_minted"
-        mint.assert_awaited_once_with(CTX, agent_id=run.agent_id)
+        mint.assert_awaited_once_with(CTX, agent_id=run.agent_id, conversation_id=None)
 
     async def test_a_run_resumed_by_somebody_else_keeps_its_owner_s_authority(self) -> None:
         """Codex on #2062: an administrator answering an approval lent the run their role."""

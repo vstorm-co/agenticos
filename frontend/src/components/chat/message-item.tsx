@@ -49,6 +49,7 @@ import { FileCard, FileIcon } from "@/components/files";
 import { extractSources, toolCallsOf } from "@/lib/chat-sources";
 import type { DelegateRef } from "@/lib/delegations";
 import { publishedApps, PublishedArtifactResult } from "./tool-results/artifact";
+import { writtenRoutines, RoutineResult } from "./tool-results/routine";
 import { TurnExtras } from "./turn-extras";
 
 interface MessageItemProps {
@@ -158,6 +159,7 @@ export const MessageItem = memo(function MessageItem({
   const sources = !isUser ? extractSources(message, t) : [];
   const hasSources = sources.length > 0 && !message.isStreaming;
   const apps = !isUser ? publishedApps(toolCallsOf(message)) : [];
+  const routines = !isUser && authUser ? writtenRoutines(toolCallsOf(message)) : [];
   const onCiteClick = hasSources ? (index: number) => openSources(sources, index) : undefined;
 
   const avatar = (
@@ -335,6 +337,14 @@ export const MessageItem = memo(function MessageItem({
           endsTurn={endsTurn}
           onCiteClick={onCiteClick}
         />
+
+        {!isUser && !message.isStreaming && routines.length > 0 && (
+          <div className="mt-1 max-w-xl space-y-2">
+            {routines.map((routine) => (
+              <RoutineResult key={routine.id} routine={routine} />
+            ))}
+          </div>
+        )}
 
         {!isUser && !message.isStreaming && apps.length > 0 && (
           // What the turn made, under what it said: the app is the answer to
