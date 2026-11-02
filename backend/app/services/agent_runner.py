@@ -3873,7 +3873,11 @@ class AgentRunnerService:
                 else await self._browser_session(workspace_ctx, local)
             )
             skills_context = await local_skills_context(
-                skills_session, local.skills, folder=local.folder
+                skills_session,
+                local.skills,
+                folder=local.folder,
+                computer_grant=local.computer_grant,
+                conversation_id=conversation_id,
             )
             spec_toolsets.append(skills_context.toolset)
             spec = spec.model_copy(

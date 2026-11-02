@@ -237,3 +237,48 @@ async def test_subfolder_instruction_absence_and_refusal_are_explicit(
     assert "No project instructions" in await tool("src")
     call.side_effect = DeviceCallFailed(message="Outside the approved folder")
     assert "Outside the approved folder" in await tool("../private")
+
+
+async def test_whole_computer_instructions_carry_conversation_consent_on_every_read(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    call = computer(instructions={"folder": "Use the home project rules."})
+    monkeypatch.setattr(local_context._hub, "call", call)
+    grant, conversation = uuid4(), uuid4()
+    result = await local_context.local_skills_context(
+        uuid4(),
+        ["claude"],
+        folder="/home/person",
+        computer_grant=grant,
+        conversation_id=conversation,
+    )
+    access = {
+        "computer_grant": str(grant),
+        "conversation_id": str(conversation),
+        "mode": "full_access",
+    }
+    assert operations(call)[1] == (
+        "local.instructions",
+        {"sources": ["claude"], "root": "/home/person", **access},
+    )
+    tool = result.toolset.tools["load_local_instructions"].function
+    assert await tool("project") == "Use the home project rules."
+    assert operations(call)[-1] == (
+        "local.instructions",
+        {"sources": ["claude"], "root": "/home/person", "path": "project", **access},
+    )
+
+
+@pytest.mark.parametrize("folder,conversation", [(None, uuid4()), ("/home/person", None)])
+async def test_whole_computer_instruction_access_requires_its_folder_and_conversation(
+    folder: str | None,
+    conversation: Any,
+) -> None:
+    with pytest.raises(ValueError, match="folder and conversation"):
+        await local_context.local_skills_context(
+            uuid4(),
+            ["claude"],
+            folder=folder,
+            computer_grant=uuid4(),
+            conversation_id=conversation,
+        )

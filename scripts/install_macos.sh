@@ -80,7 +80,10 @@ fi
 if [ -n "$pinned" ]; then
   codesign --verify --deep --strict "$mount/AgenticOS.app" \
     || { echo "The app's signature does not verify. Nothing was installed." >&2; exit 1; }
-  if ! codesign -d -r- "$mount/AgenticOS.app" 2>&1 | grep -q "certificate root = H\"$pinned\""; then
+  codesign -d --extract-certificates="$work/signer" "$mount/AgenticOS.app" \
+    || { echo "Could not read the signing certificate. Nothing was installed." >&2; exit 1; }
+  signer="$(shasum -a 1 "$work/signer0" | cut -d ' ' -f 1)"
+  if [ "$signer" != "$pinned" ]; then
     echo "The app was not signed by the certificate this project pins. Nothing was installed." >&2
     exit 1
   fi

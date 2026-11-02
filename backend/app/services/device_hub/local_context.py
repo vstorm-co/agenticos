@@ -84,7 +84,12 @@ def _refusal(exc: DeviceCallFailed | DeviceUnavailable | DeviceCallTimedOut) -> 
 
 
 async def local_skills_context(
-    session_id: UUID, sources: Sequence[Source], *, folder: str | None
+    session_id: UUID,
+    sources: Sequence[Source],
+    *,
+    folder: str | None,
+    computer_grant: UUID | None = None,
+    conversation_id: UUID | None = None,
 ) -> LocalContext:
     """Read what the chosen sources hold and build the tool and the briefing for it.
 
@@ -92,11 +97,20 @@ async def local_skills_context(
         DeviceUnavailable: The computer is not connected.
         DeviceCallFailed: The app refused or could not read the skills.
     """
+    access: dict[str, Any] = {}
+    if computer_grant is not None:
+        if folder is None or conversation_id is None:
+            raise ValueError("Whole-computer instructions require a folder and conversation")
+        access = {
+            "computer_grant": str(computer_grant),
+            "conversation_id": str(conversation_id),
+            "mode": "full_access",
+        }
     chosen = list(dict.fromkeys(sources))
     listing = await _hub.call(session_id, "local.skills", {"sources": chosen}, timeout=CALL_SECONDS)
     try:
         skills = _Skills.model_validate(listing).skills
-        instructions = await _instructions(session_id, folder, chosen)
+        instructions = await _instructions(session_id, folder, chosen, access)
     except ValidationError as exc:
         raise DeviceCallFailed(
             message="The computer described its skills in an unknown shape"
@@ -142,7 +156,7 @@ async def local_skills_context(
             answer = await _hub.call(
                 session_id,
                 "local.instructions",
-                {"sources": chosen, "root": folder, "path": path},
+                {"sources": chosen, "root": folder, "path": path, **access},
                 timeout=CALL_SECONDS,
             )
             result = _Instructions.model_validate(answer)
@@ -159,9 +173,9 @@ async def local_skills_context(
 
 
 async def _instructions(
-    session_id: UUID, folder: str | None, sources: Sequence[Source]
+    session_id: UUID, folder: str | None, sources: Sequence[Source], access: dict[str, Any]
 ) -> _Instructions:
-    args: dict[str, Any] = {"sources": list(sources)}
+    args: dict[str, Any] = {"sources": list(sources), **access}
     if folder is not None:
         args["root"] = folder
     try:

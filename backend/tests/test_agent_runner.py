@@ -7114,9 +7114,11 @@ class TestPerRunLocalServices:
             assert run.model_label == "Local model" and run.secret_id is None
 
     @pytest.mark.anyio
-    @pytest.mark.parametrize("with_folder", [True, False])
+    @pytest.mark.parametrize(
+        "with_folder,whole_computer", [(True, False), (False, False), (True, True)]
+    )
     async def test_local_skills_reach_the_run_through_the_persons_own_session(
-        self, with_folder: bool
+        self, with_folder: bool, whole_computer: bool
     ):
         """Skills and AGENTS.md come from the initiator's paired computer, in a folder or not."""
         from app.schemas.local_target import LocalTarget
@@ -7125,13 +7127,22 @@ class TestPerRunLocalServices:
 
         ctx = _ctx()
         session = uuid.uuid4()
+        conversation = uuid.uuid4()
+        grant = uuid.uuid4() if whole_computer else None
         target = LocalTarget(
-            folder="/approved" if with_folder else None, skills=["claude", "codex"]
+            folder="/approved" if with_folder else None,
+            skills=["claude", "codex"],
+            mode="full_access" if whole_computer else "workspace_write",
+            computer_grant=grant,
         )
         assert ctx.user_id is not None
         workspace = (
             OpenWorkspace(
-                workspace=Workspace(device_hub.DeviceWorkspace(session, ctx.user_id, target)),
+                workspace=Workspace(
+                    device_hub.DeviceWorkspace(
+                        session, ctx.user_id, target, conversation_id=conversation
+                    )
+                ),
                 kind="service",
                 scope="run",
                 scope_key="local",
@@ -7175,11 +7186,18 @@ class TestPerRunLocalServices:
             patch.object(device_hub, "local_skills_context", skills),
             patch("app.services.agent_runner.build_agent") as build,
             patch("app.services.agent_runner.workspace_snapshot", AsyncMock(return_value=set())),
+            patch(
+                "app.services.agent_runner.find_earlier_attachments", AsyncMock(return_value=None)
+            ),
         ):
             async with asyncio.timeout(5):
-                await service.prepare(ctx, agent.id, local=target)
+                await service.prepare(ctx, agent.id, local=target, conversation_id=conversation)
         skills.assert_awaited_once_with(
-            session, ["claude", "codex"], folder="/approved" if with_folder else None
+            session,
+            ["claude", "codex"],
+            folder="/approved" if with_folder else None,
+            computer_grant=grant,
+            conversation_id=conversation,
         )
         assert toolset in build.call_args.kwargs["extra_toolsets"]
         assert build.call_args.args[0].instructions.endswith("Use it.")

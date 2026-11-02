@@ -452,3 +452,50 @@ esac
     assert not (tmp_path / "tap_known_hosts").exists()
     assert "test-private-deploy-key" not in result.stdout + result.stderr
     assert (tmp_path / "tap/Casks/agenticos.rb").read_text() == "cask 'agenticos'\n"
+
+
+@pytest.mark.parametrize(
+    "certificate", [b"trusted signing certificate", b"impostor certificate", None]
+)
+def test_installer_authenticates_certificate_bytes_not_designated_requirement(
+    tmp_path: Path, certificate: bytes | None
+) -> None:
+    import hashlib
+
+    trusted = b"trusted signing certificate"
+    pinned = hashlib.sha1(trusted, usedforsecurity=False).hexdigest()
+    tools = tmp_path / "tools"
+    tools.mkdir()
+    codesign = tools / "codesign"
+    codesign.write_text(
+        "#!/bin/bash\n"
+        'if [ "$1" = "--verify" ]; then exit 0; fi\n'
+        'if [[ "$2" == --extract-certificates=* ]]; then\n'
+        '  [ -f "$CERTIFICATE" ] || exit 1\n'
+        '  prefix="${2#*=}"; cp "$CERTIFICATE" "${prefix}0"\n'
+        "  exit 0\n"
+        "fi\n"
+        # A malicious signer can include the trusted pin in a requirement it authors.
+        'echo "designated => identifier evil or certificate root = H\\"$pinned\\"" >&2\n'
+    )
+    codesign.chmod(0o755)
+    cert = tmp_path / "certificate"
+    if certificate is not None:
+        cert.write_bytes(certificate)
+    installer = (ROOT / "scripts/install_macos.sh").read_text()
+    check = installer.split('if [ -n "$pinned" ]; then\n', 1)[1].split("\nelse\n", 1)[0]
+    result = subprocess.run(
+        ["/bin/bash", "-euo", "pipefail", "-c", check],
+        env={
+            **os.environ,
+            "PATH": f"{tools}{os.pathsep}{os.environ['PATH']}",
+            "CERTIFICATE": str(cert),
+            "pinned": pinned,
+            "mount": str(tmp_path),
+            "work": str(tmp_path),
+        },
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert (result.returncode == 0) is (certificate == trusted), result.stderr

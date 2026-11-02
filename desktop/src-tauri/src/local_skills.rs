@@ -371,7 +371,12 @@ async fn instructions(app: &AppHandle, args: &Map<String, Value>) -> Result<Map<
     // Only a folder the person granted, read through the same confinement as any file.
     let folder = match args.get("root").and_then(Value::as_str) {
         Some(root) => {
-            let granted = local_work::granted_folder(app, root, Mode::ReadOnly)?;
+            let granted = if args.contains_key("computer_grant") {
+                crate::computer_access::check(app, args).map_err(|error| Refusal::new("denied", error))?;
+                PathBuf::from(root)
+            } else {
+                local_work::granted_folder(app, root, Mode::ReadOnly)?
+            };
             let requested = args.get("path").and_then(Value::as_str).unwrap_or(".");
             let relative = crate::local_fs::relative(&granted, requested)
                 .map_err(|_| Refusal::new("denied", "Instruction paths must stay in the approved folder."))?;

@@ -158,7 +158,7 @@ task could not run in, like the other two.
 RunsOn = Literal["sandbox", "this_computer"]
 """Where a task runs: the agent's sandbox, or the folder the person chose on their computer."""
 
-_LOCAL_FAILURES = (WorkspaceError, DeviceCallFailed, DeviceUnavailable, DeviceCallTimedOut)
+_LOCAL_FAILURES = (WorkspaceError, DeviceCallFailed, DeviceUnavailable, DeviceCallTimedOut, OSError)
 """What reaching the person's computer raises; each says why in words."""
 
 

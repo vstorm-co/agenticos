@@ -982,3 +982,20 @@ async def test_a_failed_local_task_still_marks_subscription_spend_as_unpriced(
         )
     assert "could not run" in answer
     assert [(entry.model_name, entry.priced) for entry in ledger.entries] == [(UNREPORTED, False)]
+
+
+@pytest.mark.parametrize("kind", ["denied", "io", "not_found"])
+async def test_translated_native_refusals_end_the_task_as_failed(
+    monkeypatch: pytest.MonkeyPatch, kind: str
+) -> None:
+    computer = Computer(ScriptedAgent())
+
+    async def refused(
+        session_id: Any, op: str, args: dict[str, Any], *, timeout: float
+    ) -> dict[str, Any]:
+        raise DeviceCallFailed(message="Native launch refused", details={"kind": kind})
+
+    computer.call = refused  # type: ignore[method-assign]
+    answer, frames = await _local_task(monkeypatch, computer, _local_workspace())
+    assert "could not run on this computer: Native launch refused" in answer
+    assert frames[-1].status == "failed"
