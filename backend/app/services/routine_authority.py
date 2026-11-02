@@ -207,6 +207,8 @@ class RoutineAuthority:
             or connection.scope != "user"
             or connection.purpose != "mcp"
             or hashlib.sha256(connection.url.encode()).hexdigest() != self.sources.endpoint_hash
+            or self.sources.authorization_generation is None
+            or connection.authorization_generation != self.sources.authorization_generation
             or connection.catalog_key != self.sources.catalog_key
             or (
                 connection.allowed_tools is not None

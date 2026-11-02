@@ -22,7 +22,7 @@ from app.agents.watch_sources import WatchReadReceipt, WatchSourceTools
 from app.core.exceptions import AuthorizationError, BadRequestError
 from app.db.models.mcp_connection import McpConnection
 from app.services.mcp_connection import _own_specs
-from app.services.watch_sources import approve_sources, constrain_sources
+from app.services.watch_sources import approve_sources, constrain_sources, source_identity
 
 pytestmark = [pytest.mark.anyio, pytest.mark.security]
 
@@ -30,6 +30,7 @@ pytestmark = [pytest.mark.anyio, pytest.mark.security]
 def _connection() -> McpConnection:
     return McpConnection(
         id=uuid4(),
+        authorization_generation=uuid4(),
         user_id=uuid4(),
         scope="user",
         purpose="mcp",
@@ -189,7 +190,7 @@ async def test_unapproved_accounts_and_changed_endpoints_are_filtered_before_cre
     chosen.is_default = False
     extra.is_default = True
     ref = PersonalMcpServerRef(account="personal", catalog_key="github")
-    approved = {chosen.id: hashlib.sha256(chosen.url.encode()).hexdigest()}
+    approved = {chosen.id: source_identity(approve_sources(_spec(), chosen))}
     with (
         patch(
             "app.services.mcp_connection.mcp_connection_repo.list_user_scoped_by_catalog_key",
@@ -275,3 +276,36 @@ async def test_an_unresolved_failed_read_cannot_be_hidden_by_a_different_success
     failing = False
     await bounded.call_tool("read", {"query": "needed"}, ctx, tool)
     assert not receipt.failed_requests and receipt.completed_calls == 2
+
+
+async def test_reconsent_cannot_read_a_different_account_behind_the_same_connection() -> None:
+    connection = _connection()
+    approved = approve_sources(_spec(), connection)
+    ref = PersonalMcpServerRef(account="personal", catalog_key="github")
+    with (
+        patch(
+            "app.services.mcp_connection.mcp_connection_repo.list_user_scoped_by_catalog_key",
+            new=AsyncMock(return_value=[connection]),
+        ),
+        patch(
+            "app.services.mcp_connection.resolve_auth_headers", new=AsyncMock(return_value={})
+        ) as auth,
+    ):
+        connection.authorization_generation = uuid4()
+        assert (
+            await _own_specs(
+                MagicMock(),
+                ref,
+                user_id=connection.user_id,
+                approved_sources={connection.id: source_identity(approved)},
+            )
+            == "not_connected"
+        )
+        auth.assert_not_awaited()
+
+
+def test_a_legacy_policy_requires_source_review_instead_of_guessing_account_identity() -> None:
+    approved = approve_sources(_spec(), _connection())
+    legacy = approved.model_copy(update={"authorization_generation": None})
+    with pytest.raises(AuthorizationError, match="Review this watch"):
+        source_identity(legacy)

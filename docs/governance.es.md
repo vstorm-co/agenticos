@@ -1,5 +1,5 @@
 ---
-source_sha: "a3a699858047"
+source_sha: "a9d5a01d22f4"
 ---
 
 # Governance { #governance }
@@ -67,6 +67,10 @@ autorizar a una rutina a usar las cuentas personales de quien la emitió. Tampoc
 Los barridos de cada minuto procesan los vencimientos independientemente de la siguiente activación, incluso para rutinas y seguimientos pausados. Desactivan el trabajo activo, resuelven sus bloqueos pendientes y cancelan las notificaciones aún no enviadas sin llamar a un modelo. Tras reiniciarse, el worker recupera los vencimientos; la limpieza puede esperar a un worker o a otro lote, mientras las comprobaciones previas a herramientas y entregas rechazan de inmediato el trabajo vencido.
 
 La migración `0269_routine_end_cleanup.py` añade una marca del vencimiento procesado e índices parciales de finales pendientes. No crea rutinas, permisos ni hallazgos de reemplazo. Cambiar el final reactiva la limpieza; repetir el barrido no repite los efectos ya resueltos. El downgrade elimina solo estos datos auxiliares, conservando el final configurado y la identidad de la rutina.
+
+Una conexión MCP observada también registra su generación de autorización. Completar un nuevo consentimiento OAuth o sustituir explícitamente el token o la dirección invalida el consentimiento de origen anterior aunque siga igual el ID de conexión. La renovación normal del token, las etiquetas y los cambios de cuenta predeterminada no reemplazan esta identidad. Un origen revisado sirve para ejecuciones posteriores; una ejecución antigua pausada no puede tomar prestado el nuevo consentimiento.
+
+Tras la migración `0270_mcp_authorization_generation.py`, revisa explícitamente los orígenes de los seguimientos existentes (`review_sources=true`). Las políticas antiguas siguen siendo legibles, pero no adivinan la cuenta de una autorización histórica. No se leen credenciales del proveedor para resolver cuentas fuera de la generación admitida. Drena los workers antiguos y actualiza API y workers juntos. Pausa los seguimientos antes del downgrade; reanúdalos solo con código que compruebe la generación y orígenes revisados. Sustituir credenciales borra la lista de herramientas anterior hasta la siguiente comprobación correcta.
 
 La política de versiones permite seguir la versión publicada predeterminada o fijar una versión inmutable. Una publicación no cambia la versión fijada. Elimina la fijación para volver a seguir la predeterminada. Un entorno con nombre y una versión fijada se excluyen mutuamente; siguen vigentes los permisos, presupuestos y aprobaciones actuales.
 

@@ -155,6 +155,7 @@ def _batch(value):
 def _connection(**overrides) -> McpConnection:
     defaults: dict = {
         "id": uuid4(),
+        "authorization_generation": uuid4(),
         "user_id": uuid4(),
         "organization_id": None,
         "created_by_user_id": None,
@@ -2214,6 +2215,7 @@ class TestOAuthTokens:
         # The refresh token is only ever spent while holding the row lock.
         lock_mock.assert_awaited_once()
         # The refreshed token was persisted back (re-encrypted).
+        assert "authorization_generation" not in update_mock.call_args.kwargs["update_data"]
         stored = update_mock.call_args.kwargs["update_data"]["oauth_payload"]
         assert McpOAuthPayload.model_validate_json(
             _open_from(conn, stored)
@@ -2862,6 +2864,7 @@ class TestMcpConnectionService:
         assert update_data["name"] == "linear"
         assert "last_status" not in update_data
         assert "last_checked_at" not in update_data
+        assert "authorization_generation" not in update_data
 
     @pytest.mark.anyio
     async def test_clearing_the_allowlist_exposes_every_tool_again(self, service, repo):
@@ -2973,6 +2976,8 @@ class TestMcpConnectionService:
 
         update_data = repo.update.call_args.kwargs["update_data"]
         assert update_data["auth_token"] is None
+        assert update_data["authorization_generation"] != conn.authorization_generation
+        assert update_data["last_tools"] is None
         # Credentials changed → stale check result is reset.
         assert update_data["last_status"] is None
 
@@ -4032,6 +4037,8 @@ class TestMcpConnectionService:
         # The flow's own address decides which listed hosts the exchange may reach.
         assert exchange.call_args.kwargs["server_url"] == "https://moved/mcp"
         update_data = repo.update.call_args_list[0].kwargs["update_data"]
+        assert update_data["authorization_generation"] != pending.authorization_generation
+        assert update_data["last_tools"] is None
         assert update_data["oauth_state"] is None  # no longer pending
         assert update_data["oauth_pending_payload"] is None
         assert update_data["last_status"] == "ok"
@@ -4200,6 +4207,7 @@ class TestMcpConnectionService:
         )
 
         update_data = repo.update.call_args.kwargs["update_data"]
+        assert update_data["authorization_generation"] != conn.authorization_generation
         assert update_data["oauth_payload"] is None
         assert update_data["oauth_pending_payload"] is None
         assert update_data["oauth_state"] is None

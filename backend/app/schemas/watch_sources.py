@@ -12,6 +12,7 @@ class WatchSources(BaseSchema):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     connection_id: UUID
+    authorization_generation: UUID | None = None
     catalog_key: str
     endpoint_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
     allowed_tools: tuple[str, ...] | None = None

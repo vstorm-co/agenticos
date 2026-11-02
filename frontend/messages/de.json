@@ -11852,7 +11852,7 @@
     "nextCheck": "Nächste Prüfung: {at}",
     "watchAndInform": "Beobachten und informieren",
     "reviewSources": "Angehängte Quellen erneut freigeben",
-    "reviewSourcesHint": "Aktuell angehängtes Wissen und Kontext dieses Agenten einbeziehen. Deaktiviert lassen, um die bestehende Quellenfreigabe zu behalten.",
+    "reviewSourcesHint": "Das verbundene Konto mit aktuellem Wissen und Kontext des Agenten erneut freigeben. Nach erneutem Verbinden des Kontos erforderlich. Deaktiviert lassen, um die bestehende Quellenfreigabe zu behalten.",
     "reportMode": "Wann berichten",
     "reportModeHint": "Ein fehlgeschlagener oder nicht verfügbarer Zugriff wird immer als Fehler angezeigt.",
     "changesOnly": "Nur bei relevanten Änderungen",

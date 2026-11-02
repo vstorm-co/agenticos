@@ -11973,7 +11973,7 @@
     "nextCheck": "Next check: {at}",
     "watchAndInform": "Watch and inform",
     "reviewSources": "Approve attached sources again",
-    "reviewSourcesHint": "Include this agent’s currently attached knowledge and context. Leave off to retain the existing source approval.",
+    "reviewSourcesHint": "Approve the connected account again, including this agent’s current knowledge and context. Required after reconnecting the account. Leave off to retain the existing source approval.",
     "reportMode": "When to report",
     "reportModeHint": "A failed or unavailable read is always shown as a failure.",
     "changesOnly": "Only when something relevant changes",

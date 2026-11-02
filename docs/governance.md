@@ -68,6 +68,10 @@ The minute sweeps settle elapsed ends independently of the next activation, incl
 
 Migration `0269_routine_end_cleanup.py` adds a deadline marker and partial pending-end indexes. It creates no replacement routines, grants or findings. Moving the end rearms cleanup; a repeated sweep does not repeat the settled effects. Downgrading drops only this cleanup bookkeeping, not the configured end or routine identity.
 
+A watched MCP connection also records its authorization generation. A completed OAuth re-consent or an explicit token/endpoint replacement invalidates the watch's old source consent even when its connection ID stays the same. Normal token refresh, labels and default-account changes do not replace this identity. A re-reviewed source is available to later runs; an old parked run cannot borrow the new consent.
+
+After migration `0270_mcp_authorization_generation.py`, review existing watches' sources explicitly (`review_sources=true` or **Approve attached sources again** in the watch editor). Older policies remain readable but cannot guess the account behind a historical authorization. No provider credential is read to resolve an account outside the admitted generation. Drain old workers and upgrade API and workers together. Pause watches before downgrading; resume only with generation-aware code and reviewed sources. Replacing credentials clears the old account’s cached tool list until another successful check.
+
 ## Budgets
 
 !!! abstract "Three levels, and they are not variations on one number"

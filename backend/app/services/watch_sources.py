@@ -8,6 +8,7 @@ continue to come from the selected published version.
 
 import hashlib
 
+from app.agents.mcp import McpSourceIdentity
 from app.agents.spec import AgentSpec, PersonalMcpServerRef
 from app.core.exceptions import AuthorizationError
 from app.db.models.mcp_connection import McpConnection
@@ -39,6 +40,7 @@ def approve_sources(spec: AgentSpec, connection: McpConnection) -> WatchSources:
         raise AuthorizationError(message="This agent has no allowed tools for the watched account.")
     return WatchSources(
         connection_id=connection.id,
+        authorization_generation=connection.authorization_generation,
         catalog_key=ref.catalog_key,
         endpoint_hash=hashlib.sha256(connection.url.encode()).hexdigest(),
         allowed_tools=tools,
@@ -92,3 +94,14 @@ def _unattended_reads(spec: AgentSpec, ref: PersonalMcpServerRef) -> None:
         raise AuthorizationError(
             message="This agent requires interactive approval for watch reads. Review its read approvals before starting an unattended watch."
         )
+
+
+def source_identity(approved: WatchSources) -> McpSourceIdentity:
+    if approved.authorization_generation is None:
+        raise AuthorizationError(
+            message="Review this watch's sources after the integration upgrade."
+        )
+    return McpSourceIdentity(
+        endpoint_hash=approved.endpoint_hash,
+        authorization_generation=approved.authorization_generation,
+    )

@@ -207,6 +207,14 @@ class McpServerSpec:
     ungated: frozenset[str] = frozenset()
 
 
+@dataclass(frozen=True)
+class McpSourceIdentity:
+    """A consented endpoint and credential generation, without credential contents."""
+
+    endpoint_hash: str
+    authorization_generation: UUID
+
+
 @asynccontextmanager
 async def _mcp_transport(
     url: str, headers: dict[str, str] | None, *, timeout: float

@@ -21,6 +21,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Changed
 
+- **Breaking:** watch source consent now binds the MCP authorization generation. Review existing watches after migration `0270_mcp_authorization_generation.py`; OAuth re-consent and explicit token/endpoint replacements require another review, while ordinary token refresh preserves consent. Drain old workers and upgrade API/workers together.
+
 - **Breaking:** unattended routines now require approval for actions, local file
   mutations and delegation. Owners can authorize individual capability actions
   for one published version and routine configuration in the console; required

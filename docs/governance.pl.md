@@ -1,5 +1,5 @@
 ---
-source_sha: "a3a699858047"
+source_sha: "a9d5a01d22f4"
 ---
 
 # Governance { #governance }
@@ -68,6 +68,10 @@ w tle, podszywanie się ani wznowione tury grupowe lub publiczne.
 Przebiegi wykonywane co minutę rozliczają minione terminy niezależnie od kolejnej aktywacji, także dla wstrzymanych rutyn i obserwacji. Wyłączają aktywną pracę, zamykają jej nieaktualne blokery i anulują oczekujące powiadomienia bez wywołania modelu. Worker nadrabia zaległości po restarcie; sprzątanie może poczekać na workera lub kolejną partię, a kontrole terminu przed narzędziami i dostarczeniem odpowiedzi od razu odmawiają pracy po terminie.
 
 Migracja `0269_routine_end_cleanup.py` dodaje znacznik rozliczonego terminu i częściowe indeksy oczekujących zakończeń. Nie tworzy zastępczych rutyn, zgód ani ustaleń. Przesunięcie końca ponownie uzbraja sprzątanie; ponowny przebieg nie powtarza rozliczonych efektów. Downgrade usuwa wyłącznie te dane pomocnicze, zachowując ustawiony koniec i tożsamość rutyny.
+
+Obserwowane połączenie MCP zapisuje także generację autoryzacji. Zakończona ponowna zgoda OAuth lub jawna wymiana tokenu albo adresu unieważnia starą zgodę obserwacji na źródło, nawet gdy identyfikator połączenia pozostaje ten sam. Zwykłe odświeżenie tokenu, etykiety i zmiana konta domyślnego nie podmieniają tej tożsamości. Ponownie sprawdzone źródło jest dostępne dla późniejszych uruchomień; stary wstrzymany run nie może pożyczyć nowej zgody.
+
+Po migracji `0270_mcp_authorization_generation.py` jawnie przejrzyj źródła istniejących obserwacji (`review_sources=true` lub **Ponownie zatwierdź dołączone źródła** w edytorze obserwacji). Starsze polityki pozostają czytelne, ale nie zgadują konta za historyczną autoryzacją. Poświadczenia dostawcy nie są odczytywane dla konta spoza dopuszczonej generacji. Opróżnij stare workery i zaktualizuj API oraz workery razem. Przed downgrade wstrzymaj obserwacje; wznawiaj je dopiero z kodem sprawdzającym generację i po przeglądzie źródeł. Wymiana poświadczeń czyści listę narzędzi poprzedniego konta do kolejnego udanego sprawdzenia.
 
 Wybór wersji pozwala śledzić domyślną opublikowaną wersję albo przypiąć jedną niezmienną wersję. Publikacja nie przesuwa pinu. Usuń go, aby ponownie śledzić wersję domyślną. Nazwane środowisko i pin wersji wzajemnie się wykluczają; nadal obowiązują bieżące uprawnienia, budżety i zatwierdzenia.
 

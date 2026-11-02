@@ -853,3 +853,51 @@ async def test_deadline_claim_survives_restart_and_skips_a_live_worker_lock(
         # A crashed transaction leaves no consumed deadline marker.
         reclaimed = await repository.claim_ended(second, now=NOW, limit=1)
         assert [row.id for row in reclaimed] == [routine.id]
+
+
+async def test_watch_authority_does_not_follow_reauthorized_account_or_new_review(
+    db: AsyncSession, world: World
+) -> None:
+    from dataclasses import replace
+
+    from app.agents.spec import AgentSpec, PersonalMcpServerRef
+    from app.core.exceptions import AuthorizationError
+    from app.db.models.mcp_connection import McpConnection
+    from app.services.routine_authority import RoutineAuthority
+    from app.services.watch_sources import approve_sources
+
+    world.org.proactive_watches_enabled = True
+    world.agent.status = "published"
+    world.agent.current_version_id = world.version.id
+    watch = await make_watch(db, world)
+    ctx = replace(world.ctx, routine_id=watch.id, routine_kind="watch", fired_as_creator="schedule")
+    await db.flush()
+    admitted = await RoutineAuthority.capture(db, ctx, agent_id=world.agent.id, run=None)
+    assert admitted is not None
+    connection = await db.get(McpConnection, watch.connection_id)
+    assert connection is not None
+    old_generation = connection.authorization_generation
+    connection.authorization_generation = uuid.uuid4()
+    await db.flush()
+    with pytest.raises(AuthorizationError):
+        await admitted.check_in(db, world.agent.id)
+    # Re-review belongs to later runs; an old parked run cannot borrow it.
+    spec = AgentSpec(
+        name="Monitor", mcp_servers=[PersonalMcpServerRef(account="personal", catalog_key="github")]
+    )
+    watch.approved_sources = approve_sources(spec, connection).model_dump(mode="json")
+    await db.flush()
+    with pytest.raises(AuthorizationError):
+        await admitted.check_in(db, world.agent.id)
+    renewed = await RoutineAuthority.capture(db, ctx, agent_id=world.agent.id, run=None)
+    assert renewed is not None and renewed.sources is not None
+    assert renewed.sources.authorization_generation != old_generation
+    # Old stored JSON remains renderable but cannot mint a guessed identity.
+    watch.approved_sources = {
+        key: value
+        for key, value in watch.approved_sources.items()
+        if key != "authorization_generation"
+    }
+    await db.flush()
+    with pytest.raises(AuthorizationError):
+        await RoutineAuthority.capture(db, ctx, agent_id=world.agent.id, run=None)

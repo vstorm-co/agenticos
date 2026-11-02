@@ -84,6 +84,7 @@ def _connection(
 ) -> MagicMock:
     return MagicMock(
         id=uuid.uuid4(),
+        authorization_generation=uuid.uuid4(),
         scope=scope,
         purpose=purpose,
         user_id=owner,

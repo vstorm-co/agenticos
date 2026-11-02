@@ -1,5 +1,5 @@
 ---
-source_sha: "a3a699858047"
+source_sha: "a9d5a01d22f4"
 ---
 
 # Governance { #governance }
@@ -71,6 +71,10 @@ ebenfalls keine solche Zustimmung.
 Die minütlichen Durchläufe erledigen abgelaufene Endtermine unabhängig von der nächsten Aktivierung, auch bei pausierten Routinen und Beobachtungen. Sie deaktivieren aktive Arbeit, schließen offene Blockaden der Routine und stornieren deren ausstehende Benachrichtigungen ohne Modellaufruf. Nach einem Neustart holt der Worker dies nach; die Bereinigung kann auf einen Worker oder einen weiteren Stapel warten, während Prüfungen vor Werkzeugen und Antwortzustellung abgelaufene Arbeit sofort ablehnen.
 
 Die Migration `0269_routine_end_cleanup.py` ergänzt eine Markierung des erledigten Endtermins und partielle Indizes für ausstehende Enden. Sie erstellt keine Ersatzroutinen, Freigaben oder Funde. Eine Änderung des Endes aktiviert die Bereinigung erneut; ein wiederholter Durchlauf wiederholt keine erledigten Effekte. Ein Downgrade entfernt nur diese Hilfsdaten, nicht das konfigurierte Ende oder die Identität der Routine.
+
+Eine beobachtete MCP-Verbindung speichert auch ihre Autorisierungsgeneration. Eine abgeschlossene erneute OAuth-Zustimmung oder ein ausdrücklich ersetztes Token beziehungsweise eine geänderte Adresse macht die bisherige Quellenzustimmung ungültig, selbst wenn die Verbindungs-ID gleich bleibt. Normale Token-Erneuerung, Bezeichnungen und Änderungen des Standardkontos ersetzen diese Identität nicht. Eine erneut geprüfte Quelle gilt für spätere Läufe; ein alter angehaltener Lauf kann die neue Zustimmung nicht übernehmen.
+
+Prüfe nach der Migration `0270_mcp_authorization_generation.py` die Quellen bestehender Beobachtungen ausdrücklich erneut (`review_sources=true` oder **Angehängte Quellen erneut freigeben** im Editor). Alte Richtlinien bleiben lesbar, erraten aber nicht das Konto hinter einer historischen Autorisierung. Für ein Konto außerhalb der zugelassenen Generation werden keine Anbieter-Zugangsdaten gelesen. Leere alte Worker und aktualisiere API und Worker gemeinsam. Pausiere Beobachtungen vor dem Downgrade; setze sie erst mit generationsprüfendem Code und geprüften Quellen fort. Ersetzte Zugangsdaten leeren die Werkzeugliste des alten Kontos bis zur nächsten erfolgreichen Prüfung.
 
 Die Versionsauswahl folgt entweder der standardmäßig veröffentlichten Version oder legt eine unveränderliche Version fest. Eine Veröffentlichung verschiebt diese Festlegung nicht. Entfernen Sie sie, um wieder der Standardversion zu folgen. Eine benannte Umgebung und eine festgelegte Version schließen sich aus; aktuelle Zugriffsrechte, Budgets und Freigaben gelten weiterhin.
 

@@ -40,7 +40,7 @@ from collections.abc import Awaitable, Callable, Collection, Mapping, Sequence
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from typing import Any, Literal
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from mcp.shared.auth import OAuthToken
 from pydantic import SecretStr, TypeAdapter
@@ -52,6 +52,7 @@ from app.agents import mcp_oauth
 from app.agents.connect_on_use import OwnAccountGap, ServiceOutcome
 from app.agents.mcp import (
     McpServerSpec,
+    McpSourceIdentity,
     McpToolInfo,
     ToolOrigins,
     platform_spec,
@@ -954,6 +955,9 @@ class McpConnectionService:
         # OAuth tokens are bound to the resource they were issued for - never
         # carry them over to a different host. The user re-authorizes instead.
         moved = "url" in update_data and update_data["url"] != db_connection.url
+        if moved or "auth_token" in update_data:
+            update_data["authorization_generation"] = uuid4()
+            update_data.setdefault("last_tools", None)
 
         # A different server offers different tools, and the Builder reads this
         # cache without probing - so leaving it presented the previous host's
@@ -1887,6 +1891,8 @@ class McpConnectionService:
             db_connection=connection,
             update_data={
                 "poll_cursor": poll_cursor,
+                "authorization_generation": uuid4(),
+                "last_tools": None,
                 # The URL moves together with the tokens issued for it.
                 "url": payload.server_url,
                 # A row staged as an upgrade (a pre-OAuth bearer connection to a
@@ -2146,6 +2152,9 @@ class McpConnectionService:
         # host another `mcp:manage` holder chose. The mirrored scopes go with
         # the token they described; the organization re-authorizes instead.
         moved = "url" in update_data and update_data["url"] != db_connection.url
+        if moved or "auth_token" in update_data:
+            update_data["authorization_generation"] = uuid4()
+            update_data.setdefault("last_tools", None)
         if moved and db_connection.auth_type == "oauth":
             update_data["oauth_payload"] = None
             update_data["oauth_pending_payload"] = None
@@ -2546,7 +2555,7 @@ async def build_toolsets_for_agent(
     refs: Sequence[McpServerRef],
     sender_user_id: UUID | None = None,
     platform_credential: str | None = None,
-    personal_sources: Mapping[UUID, str] | None = None,
+    personal_sources: Mapping[UUID, McpSourceIdentity] | None = None,
 ) -> ResolvedMcpToolsets:
     """Agent toolsets for a published agent: exactly the servers its spec names.
 
@@ -2758,7 +2767,7 @@ async def _personal_specs(
     ref: PersonalMcpServerRef,
     *,
     sender_user_id: UUID | None,
-    approved_sources: Mapping[UUID, str] | None = None,
+    approved_sources: Mapping[UUID, McpSourceIdentity] | None = None,
 ) -> tuple[list[_OwnAccount], PersonalServiceGapKind | None]:
     """The sender's own accounts on this service as servers, or why there are none."""
     if sender_user_id is None:
@@ -2772,7 +2781,7 @@ async def _own_specs(
     ref: PersonalMcpServerRef,
     *,
     user_id: UUID,
-    approved_sources: Mapping[UUID, str] | None = None,
+    approved_sources: Mapping[UUID, McpSourceIdentity] | None = None,
 ) -> list[_OwnAccount] | OwnAccountGap:
     """One person's own accounts on this service as servers, or why there are none.
 
@@ -2797,7 +2806,10 @@ async def _own_specs(
             account
             for account in owned
             if account.id in approved_sources
-            and approved_sources[account.id] == hashlib.sha256(account.url.encode()).hexdigest()
+            and approved_sources[account.id].endpoint_hash
+            == hashlib.sha256(account.url.encode()).hexdigest()
+            and approved_sources[account.id].authorization_generation
+            == account.authorization_generation
         ]
     if not owned:
         return "not_connected"

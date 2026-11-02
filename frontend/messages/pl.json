@@ -11749,7 +11749,7 @@
     "nextCheck": "Następne sprawdzenie: {at}",
     "watchAndInform": "Obserwuj i informuj",
     "reviewSources": "Ponownie zatwierdź dołączone źródła",
-    "reviewSourcesHint": "Uwzględnij aktualnie dołączoną wiedzę i kontekst tego agenta. Pozostaw wyłączone, aby zachować dotychczasową zgodę na źródła.",
+    "reviewSourcesHint": "Ponownie zatwierdź połączone konto wraz z aktualną wiedzą i kontekstem agenta. Wymagane po ponownym połączeniu konta. Pozostaw wyłączone, aby zachować dotychczasową zgodę na źródła.",
     "reportMode": "Kiedy raportować",
     "reportModeHint": "Nieudany lub niedostępny odczyt zawsze jest pokazywany jako błąd.",
     "changesOnly": "Tylko gdy coś istotnego się zmieni",

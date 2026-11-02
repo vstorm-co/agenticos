@@ -7698,7 +7698,7 @@ async def test_preparation_only_mints_source_provenance_for_private_human_chat(k
 @pytest.mark.anyio
 async def test_watch_preparation_uses_the_selected_agent_with_approved_sources_and_origin() -> None:
     from app.agents.watch_sources import WatchReadReceipt, WatchSourceTools
-    from app.services.watch_sources import approve_sources
+    from app.services.watch_sources import approve_sources, source_identity
 
     ctx = replace(
         _ctx(), routine_id=uuid.uuid4(), routine_kind="watch", fired_as_creator="schedule"
@@ -7714,7 +7714,11 @@ async def test_watch_preparation_uses_the_selected_agent_with_approved_sources_a
         capabilities=[CapabilityBindingSpec(id="web"), CapabilityBindingSpec(id="knowledge")],
     )
     source = MagicMock(
-        id=uuid.uuid4(), catalog_key="github", url="https://github.example/mcp", allowed_tools=None
+        id=uuid.uuid4(),
+        authorization_generation=uuid.uuid4(),
+        catalog_key="github",
+        url="https://github.example/mcp",
+        allowed_tools=None,
     )
     approved = approve_sources(spec, source)
     published = spec.model_copy(update={"collection_ids": [*spec.collection_ids, uuid.uuid4()]})
@@ -7758,7 +7762,7 @@ async def test_watch_preparation_uses_the_selected_agent_with_approved_sources_a
     assert create.await_args.kwargs["routine_origin_id"] == ctx.routine_id
     assert create.await_args.kwargs["routine_policy"] == approved.model_dump(mode="json")
     assert create.await_args.kwargs["routine_activation_at"] == receipt.activation_at
-    assert mcp.await_args.kwargs["personal_sources"] == {source.id: approved.endpoint_hash}
+    assert mcp.await_args.kwargs["personal_sources"] == {source.id: source_identity(approved)}
     assert receipt.check == authority.check
     assert any(
         isinstance(item, WatchSourceTools) for item in build.call_args.kwargs["extra_toolsets"]

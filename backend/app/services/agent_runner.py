@@ -343,7 +343,7 @@ from app.services.transcript import (
     settled_calls_in,
     tool_calls_in,
 )
-from app.services.watch_sources import constrain_sources
+from app.services.watch_sources import constrain_sources, source_identity
 
 if TYPE_CHECKING:
     from pydantic_ai_harness.planning import PlanStore
@@ -3632,7 +3632,7 @@ class AgentRunnerService:
             personal_sources=(
                 None
                 if watch_sources is None
-                else {watch_sources.connection_id: watch_sources.endpoint_hash}
+                else {watch_sources.connection_id: source_identity(watch_sources)}
             ),
             platform_credential=await self._platform_credential(
                 spec,
