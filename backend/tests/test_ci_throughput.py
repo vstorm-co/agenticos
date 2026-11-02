@@ -149,3 +149,16 @@ def test_shards_preserve_required_contexts_and_isolation() -> None:
         postgres = jobs[name]["services"]["postgres"]
         assert postgres["image"] == "pgvector/pgvector:pg16"
         assert "--tmpfs /var/lib/postgresql/data" in postgres["options"]
+
+
+def test_cancelled_runs_do_not_recollect_tests_for_informational_reports() -> None:
+    workflow = yaml.safe_load((ROOT / ".github/workflows/ci.yml").read_text())
+    reports = {
+        "Report coverage of template-inherited code",
+        "Report the security refusal tests",
+        "Upload the security refusal-test list",
+    }
+    steps = workflow["jobs"]["test"]["steps"]
+    selected = [step for step in steps if step.get("name") in reports]
+    assert len(selected) == len(reports)
+    assert all(step["if"] == "${{ !cancelled() }}" for step in selected)

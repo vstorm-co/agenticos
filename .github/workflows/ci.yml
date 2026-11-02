@@ -351,7 +351,7 @@ jobs:
       - name: Report coverage of template-inherited code
         # Informational. Holding code we did not design to the platform bar
         # would mean mock-heavy tests that buy a number rather than confidence.
-        if: always()
+        if: ${{ !cancelled() }}
         run: make coverage-all REUSE_COVERAGE=1
 
       - name: Upload coverage to Codecov
@@ -367,14 +367,14 @@ jobs:
         # review can read which refusals the suite holds rather than take the
         # claim on faith. A report, not a gate - it only lists, and `always()` so
         # it still runs when a test above failed. `test_ci_parity.py` exempts it.
-        if: always()
+        if: ${{ !cancelled() }}
         run: make security-report
 
       - name: Upload the security refusal-test list
         # Downloadable per build, and the file a release attaches as its evidence
         # that the refusals are held - the repository cuts releases by hand, so
         # the attachment is a release-time step rather than an automated one.
-        if: always()
+        if: ${{ !cancelled() }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: security-tests
