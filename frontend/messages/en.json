@@ -8450,11 +8450,14 @@
     "endsAtInvalid": "Choose a valid future time, or clear the field to remove the end.",
     "deliveryUnavailable": "Last answer unavailable in chat",
     "actionConsents": {
+      "checkConnections": "Check these connections to review their actions: {names}.",
+      "personalAccount": "{name} · your account",
+      "organizationAccount": "{name} · organization account",
       "title": "Action consent",
-      "description": "Routine actions ask for approval by default. Allow only the listed actions to run without asking. Consent applies to this published version and routine configuration; agent-required approvals still apply.",
+      "description": "Routine actions ask for approval by default. Allow only the listed actions to run without asking. Consent applies to this published version and routine configuration; agent-required approvals still apply. Each MCP action applies only to the named account.",
       "retry": "Try again",
-      "notAllowed": "Your approval permissions and the organization’s standing-consent setting must allow exceptions. You can still revoke existing consent.",
-      "empty": "This version has no capability actions to authorize here. External account actions still ask for approval.",
+      "notAllowed": "Your approval permissions and the organization’s standing-consent setting must allow exceptions. You can still revoke all consent.",
+      "empty": "This version has no eligible actions to authorize here.",
       "required": "Approval required by the agent",
       "revokeAll": "Revoke all",
       "save": "Save consent"

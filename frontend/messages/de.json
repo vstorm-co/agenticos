@@ -8329,11 +8329,14 @@
     "endsAtInvalid": "Wählen Sie einen gültigen Zeitpunkt in der Zukunft oder leeren Sie das Feld, um das Ende zu entfernen.",
     "deliveryUnavailable": "Letzte Antwort im Chat nicht verfügbar",
     "actionConsents": {
+      "checkConnections": "Prüfe diese Verbindungen, um ihre Aktionen zu prüfen: {names}.",
+      "personalAccount": "{name} · dein Konto",
+      "organizationAccount": "{name} · Organisationskonto",
       "title": "Aktionsfreigaben",
-      "description": "Routinenaktionen benötigen standardmäßig eine Bestätigung. Erlaube nur ausgewählte Aktionen ohne Rückfrage. Die Freigabe gilt für diese veröffentlichte Version und Routinenkonfiguration; vom Agenten verlangte Bestätigungen bleiben bestehen.",
+      "description": "Routinenaktionen benötigen standardmäßig eine Bestätigung. Erlaube nur ausgewählte Aktionen ohne Rückfrage. Die Freigabe gilt für diese veröffentlichte Version und Routinenkonfiguration; vom Agenten verlangte Bestätigungen bleiben bestehen. Jede MCP-Aktion gilt nur für das benannte Konto.",
       "retry": "Erneut versuchen",
-      "notAllowed": "Deine Bestätigungsrechte und die Organisationseinstellung müssen dauerhafte Freigaben erlauben. Bestehende Freigaben kannst du weiterhin widerrufen.",
-      "empty": "Diese Version hat hier keine freizugebenden Fähigkeitsaktionen. Aktionen auf externen Konten benötigen weiterhin eine Bestätigung.",
+      "notAllowed": "Deine Bestätigungsrechte und die Einstellung der Organisation müssen Ausnahmen erlauben. Du kannst weiterhin alle Freigaben widerrufen.",
+      "empty": "Diese Version hat hier keine freigebbaren Aktionen.",
       "required": "Bestätigung vom Agenten verlangt",
       "revokeAll": "Alle widerrufen",
       "save": "Freigaben speichern"

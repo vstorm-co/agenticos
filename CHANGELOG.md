@@ -33,6 +33,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- Routine owners can select individual MCP action exceptions on a concrete account together with capability actions. Version, intent, endpoint and authorization generation remain bound; explicit agent/binding approvals cannot be waived. The console shows account identity, unavailable tool inventories and refreshed reviews after rejected saves.
+
 - Unattended routines honor granted internal Virtual Table writes without a routine exception; explicit agent approval policies still apply.
 - Routine and watch end-time cleanup now runs independently of activation cadence, including paused work, closes obsolete blockers and cancels pending notifications after restart.
 

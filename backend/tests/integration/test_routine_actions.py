@@ -11,11 +11,13 @@ from pydantic_ai.tools import ToolDefinition
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.capabilities import load_builtins
+from app.agents.mcp import McpSourceIdentity
 from app.agents.spec import AgentSpec
 from app.core.exceptions import AuthorizationError, BadRequestError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.agent import Agent, AgentVersion
 from app.db.models.agent_trigger import AgentTrigger
+from app.db.models.mcp_connection import McpConnection
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.user import User
 from app.schemas.routine_actions import RoutineActionKey, RoutineActions
@@ -468,3 +470,352 @@ async def test_resumed_mcp_calls_remain_bound_to_the_admitted_account(
     else:
         with pytest.raises(AuthorizationError):
             await restored.action_policy(world.agent.id, world.spec, call)
+
+
+@pytest.fixture
+async def mcp_account(db: AsyncSession, world: World) -> McpConnection:
+    from app.agents.spec import OrgMcpServerRef
+
+    connection = McpConnection(
+        scope="org",
+        purpose="mcp",
+        organization_id=world.org.id,
+        name="Mail",
+        label="Work",
+        url="https://mail.example/mcp",
+        is_enabled=True,
+        last_tools=[
+            {"name": "send_mail", "description": "Send an email", "read_only": False},
+            {"name": "delete_mail", "description": "Delete an email", "read_only": False},
+            {"name": "read_mail", "description": "Read an email", "read_only": True},
+        ],
+    )
+    db.add(connection)
+    await db.flush()
+    world.spec = world.spec.model_copy(
+        update={
+            "mcp_servers": [OrgMcpServerRef(account="organization", connection_id=connection.id)]
+        }
+    )
+    world.version.spec = world.spec.model_dump(mode="json")
+    await db.flush()
+    return connection
+
+
+def mcp_source(connection: McpConnection) -> McpSourceIdentity:
+    import hashlib
+
+    from app.agents.mcp import tool_prefix
+
+    return McpSourceIdentity(
+        endpoint_hash=hashlib.sha256(connection.url.encode()).hexdigest(),
+        authorization_generation=connection.authorization_generation,
+        tool_prefix=tool_prefix(connection.name),
+    )
+
+
+def mcp_call(connection: McpConnection, name: str) -> ToolDefinition:
+    from app.agents.mcp import MCP_ORIGIN, McpToolOrigin, fitted_tool_name
+
+    identity = mcp_source(connection)
+    return ToolDefinition(
+        name=fitted_tool_name(f"{identity.tool_prefix}_{name}"),
+        metadata={MCP_ORIGIN: McpToolOrigin(connection.id, identity, name)},
+    )
+
+
+async def test_one_review_can_consent_to_native_and_one_account_action_together(
+    db: AsyncSession, world: World, mcp_account: McpConnection
+) -> None:
+    from app.schemas.routine_actions import RoutineMcpActionOption
+    from app.services.routine_actions import action_key
+
+    service = RoutineActionService(db)
+    offered = await service.options(world.ctx, world.trigger)
+    actions = [item for item in offered.items if isinstance(item, RoutineMcpActionOption)]
+    assert {item.tool_id for item in actions} == {"send_mail", "delete_mail"}
+    assert all(
+        item.account_name == "Work (Mail)" and item.account_scope == "organization"
+        for item in actions
+    )
+    send = next(item for item in actions if item.tool_id == "send_mail")
+    saved = await service.replace(
+        world.ctx,
+        world.trigger,
+        RoutineActions(
+            actions=[WRITE, action_key(send)],
+            review_token=offered.review_token,
+        ),
+    )
+    assert sum(item.consented for item in saved.items) == 2
+    admitted = replace(
+        await capture(db, world), mcp_sources={mcp_account.id: mcp_source(mcp_account)}
+    )
+    decision = await admitted.action_policy(
+        world.agent.id, world.spec, mcp_call(mcp_account, "send_mail")
+    )
+    assert decision.required and decision.consented_by == world.ctx.user_id
+    assert (
+        await admitted.action_policy(
+            world.agent.id, world.spec, mcp_call(mcp_account, "delete_mail")
+        )
+    ).consented_by is None
+    assert (
+        await admitted.action_policy(world.agent.id, world.spec, tool())
+    ).consented_by == world.ctx.user_id
+    # Revoking and regranting the same actions cannot release older parked work.
+    await service.replace(world.ctx, world.trigger, RoutineActions())
+    await service.replace(
+        world.ctx,
+        world.trigger,
+        RoutineActions(
+            actions=[action_key(send)],
+            review_token=(await service.options(world.ctx, world.trigger)).review_token,
+        ),
+    )
+    assert (
+        await admitted.action_policy(world.agent.id, world.spec, mcp_call(mcp_account, "send_mail"))
+    ).consented_by is None
+
+
+async def test_account_reconsent_invalidates_a_stale_review_without_widening_authority(
+    db: AsyncSession, world: World, mcp_account: McpConnection
+) -> None:
+    from app.core.exceptions import ConflictError
+    from app.schemas.routine_actions import RoutineMcpActionOption
+    from app.services.routine_actions import action_key
+
+    service = RoutineActionService(db)
+    offered = await service.options(world.ctx, world.trigger)
+    send = next(
+        item
+        for item in offered.items
+        if isinstance(item, RoutineMcpActionOption) and item.tool_id == "send_mail"
+    )
+    mcp_account.authorization_generation = uuid4()
+    await db.flush()
+    with pytest.raises(ConflictError):
+        await service.replace(
+            world.ctx,
+            world.trigger,
+            RoutineActions(actions=[action_key(send)], review_token=offered.review_token),
+        )
+    assert world.trigger.action_consents == []
+
+
+async def test_explicit_mcp_approval_and_intersected_tool_limits_cannot_be_waived(
+    db: AsyncSession, world: World, mcp_account: McpConnection
+) -> None:
+    from app.schemas.routine_actions import RoutineMcpActionOption
+    from app.services.routine_actions import action_key
+
+    ref = world.spec.mcp_servers[0].model_copy(
+        update={"approval": "writes", "allowed_tools": ["send_mail"]}
+    )
+    world.spec = world.spec.model_copy(update={"mcp_servers": [ref]})
+    world.version.spec = world.spec.model_dump(mode="json")
+    mcp_account.allowed_tools = ["send_mail"]
+    await db.flush()
+    service = RoutineActionService(db)
+    offered = await service.options(world.ctx, world.trigger)
+    actions = [item for item in offered.items if isinstance(item, RoutineMcpActionOption)]
+    assert len(actions) == 1 and actions[0].tool_id == "send_mail" and not actions[0].waivable
+    with pytest.raises(BadRequestError):
+        await service.replace(
+            world.ctx,
+            world.trigger,
+            RoutineActions(actions=[action_key(actions[0])], review_token=offered.review_token),
+        )
+    mcp_account.allowed_tools = ["delete_mail"]
+    await db.flush()
+    assert all(
+        not isinstance(item, RoutineMcpActionOption)
+        for item in (await service.options(world.ctx, world.trigger)).items
+    )
+
+
+@pytest.mark.parametrize("metadata", [None, [{"invalid": "provider metadata"}]])
+async def test_unavailable_account_inventory_is_visible_and_cannot_block_revocation(
+    db: AsyncSession,
+    world: World,
+    mcp_account: McpConnection,
+    metadata: list[dict[str, str]] | None,
+) -> None:
+    mcp_account.last_tools = metadata
+    await db.flush()
+    service = RoutineActionService(db)
+    offered = await service.options(world.ctx, world.trigger)
+    assert offered.unavailable_sources == ["Work (Mail)"]
+    assert all(isinstance(item, RoutineActionKey) for item in offered.items)
+    assert (
+        await service.replace(world.ctx, world.trigger, RoutineActions())
+    ).unavailable_sources == ["Work (Mail)"]
+    assert world.trigger.action_consents == []
+
+
+async def test_personal_account_exceptions_require_personal_authority_and_the_same_owner(
+    db: AsyncSession, world: World, mcp_account: McpConnection
+) -> None:
+    from app.agents.spec import PersonalMcpServerRef
+    from app.schemas.routine_actions import RoutineMcpActionKey, RoutineMcpActionOption
+    from app.services.routine_actions import action_key
+
+    other = User(email=f"{uuid4()}@example.com", hashed_password="x")
+    db.add(other)
+    await db.flush()
+    own = McpConnection(
+        scope="user",
+        purpose="mcp",
+        user_id=world.ctx.subject_id,
+        name="Personal",
+        catalog_key="github",
+        url="https://mail.example/mcp",
+        last_tools=mcp_account.last_tools,
+        is_enabled=True,
+    )
+    foreign = McpConnection(
+        scope="user",
+        purpose="mcp",
+        user_id=other.id,
+        name="Foreign",
+        catalog_key="github",
+        url="https://mail.example/mcp",
+        last_tools=mcp_account.last_tools,
+        is_enabled=True,
+    )
+    db.add_all([own, foreign])
+    world.spec = world.spec.model_copy(
+        update={"mcp_servers": [PersonalMcpServerRef(account="personal", catalog_key="github")]}
+    )
+    world.version.spec = world.spec.model_dump(mode="json")
+    await db.flush()
+    service = RoutineActionService(db)
+    assert all(
+        not isinstance(item, RoutineMcpActionOption)
+        for item in (await service.options(world.ctx, world.trigger)).items
+    )
+    world.trigger.runs_as_creator = True
+    await db.flush()
+    offered = await service.options(world.ctx, world.trigger)
+    actions = [item for item in offered.items if isinstance(item, RoutineMcpActionOption)]
+    assert actions and all(
+        item.connection_id == own.id and item.account_scope == "personal" for item in actions
+    )
+    forged = RoutineMcpActionKey(
+        connection_id=foreign.id,
+        endpoint_hash=mcp_source(foreign).endpoint_hash,
+        authorization_generation=foreign.authorization_generation,
+        tool_id="send_mail",
+    )
+    with pytest.raises(BadRequestError):
+        await service.replace(
+            world.ctx,
+            world.trigger,
+            RoutineActions(actions=[forged], review_token=offered.review_token),
+        )
+    send = next(item for item in actions if item.tool_id == "send_mail")
+    await service.replace(
+        world.ctx,
+        world.trigger,
+        RoutineActions(actions=[action_key(send)], review_token=offered.review_token),
+    )
+    ctx = replace(world.ctx, routine_id=world.trigger.id, fired_as_creator="schedule")
+    admitted = await RoutineAuthority.capture(
+        db, ctx, agent_id=world.agent.id, version_id=world.version.id, run=None
+    )
+    assert admitted is not None
+    admitted = replace(admitted, mcp_sources={own.id: mcp_source(own)})
+    assert (
+        await admitted.action_policy(world.agent.id, world.spec, mcp_call(own, "send_mail"))
+    ).consented_by == world.ctx.user_id
+
+
+async def test_an_account_exception_cannot_authorize_another_account_or_routine(
+    db: AsyncSession, world: World, mcp_account: McpConnection
+) -> None:
+    from app.agents.spec import OrgMcpServerRef
+    from app.schemas.routine_actions import RoutineMcpActionOption
+    from app.services.routine_actions import action_key
+
+    other_account = McpConnection(
+        scope="org",
+        purpose="mcp",
+        organization_id=world.org.id,
+        name="Other mail",
+        url=mcp_account.url,
+        last_tools=mcp_account.last_tools,
+        is_enabled=True,
+    )
+    db.add(other_account)
+    await db.flush()
+    world.spec = world.spec.model_copy(
+        update={
+            "mcp_servers": [
+                *world.spec.mcp_servers,
+                OrgMcpServerRef(account="organization", connection_id=other_account.id),
+            ]
+        }
+    )
+    world.version.spec = world.spec.model_dump(mode="json")
+    await db.flush()
+    service = RoutineActionService(db)
+    offered = await service.options(world.ctx, world.trigger)
+    send = next(
+        item
+        for item in offered.items
+        if isinstance(item, RoutineMcpActionOption)
+        and item.connection_id == mcp_account.id
+        and item.tool_id == "send_mail"
+    )
+    await service.replace(
+        world.ctx,
+        world.trigger,
+        RoutineActions(actions=[action_key(send)], review_token=offered.review_token),
+    )
+    sources = {connection.id: mcp_source(connection) for connection in (mcp_account, other_account)}
+    original = replace(await capture(db, world), mcp_sources=sources)
+    assert (
+        await original.action_policy(
+            world.agent.id, world.spec, mcp_call(other_account, "send_mail")
+        )
+    ).consented_by is None
+    other_routine = AgentTrigger(
+        organization_id=world.org.id,
+        agent_id=world.agent.id,
+        created_by_user_id=world.ctx.subject_id,
+        prompt=world.trigger.prompt,
+        interval_seconds=300,
+        next_fire_at=datetime.now(UTC),
+    )
+    db.add(other_routine)
+    await db.flush()
+    other_ctx = replace(world.ctx, routine_id=other_routine.id, subject_is_publisher_fallback=True)
+    other = await RoutineAuthority.capture(
+        db, other_ctx, agent_id=world.agent.id, version_id=world.version.id, run=None
+    )
+    assert other is not None
+    other = replace(other, mcp_sources=sources)
+    assert (
+        await other.action_policy(world.agent.id, world.spec, mcp_call(mcp_account, "send_mail"))
+    ).consented_by is None
+
+
+async def test_a_pause_observed_during_the_final_consent_read_refuses_the_call(
+    db: AsyncSession, world: World, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from app.repositories import agent_trigger_repo
+
+    await RoutineActionService(db).replace(world.ctx, world.trigger, _request(world, [WRITE]))
+    admitted = await capture(db, world)
+    original = agent_trigger_repo.get_by_id
+
+    async def pause_on_read(*args: object, **kwargs: object) -> AgentTrigger | None:
+        row = await original(db, world.trigger.id, fresh=True)
+        assert row is not None
+        row.is_active = False
+        await db.flush()
+        return row
+
+    monkeypatch.setattr(agent_trigger_repo, "get_by_id", pause_on_read)
+    with pytest.raises(AuthorizationError):
+        await admitted.action_policy(world.agent.id, world.spec, tool())

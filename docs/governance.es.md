@@ -1,5 +1,5 @@
 ---
-source_sha: "3be6e0e8497f"
+source_sha: "ad202c38945a"
 ---
 
 # Governance { #governance }
@@ -696,12 +696,9 @@ se desactiva en rutinas para que los scripts agrupados no eviten controles por a
 
 Las escrituras en Virtual Tables de AgenticOS se ejecutan dentro de sus permisos vigentes de tabla y operación sin una excepción de rutina. Una política explícita de aprobación del agente sigue aplicándose a estas escrituras internas.
 
-El creador abre **Consentimiento para acciones** en su rutina y elige acciones de
-capacidades que pueden ejecutarse sin preguntar. Requiere `approvals:decide` y el
-ajuste `chat_may_waive_approvals` de la organización. Una clave API, un agente, una
-sesión suplantada o un administrador actuando por otro propietario no pueden
-consentir. Las aprobaciones explícitamente exigidas por el agente se mantienen.
-Este selector aún no ofrece excepciones para cuentas externas.
+El creador abre **Consentimiento para acciones** en su rutina y elige acciones de capacidades y acciones MCP individuales de una cuenta identificada. Requiere `approvals:decide` y el ajuste `chat_may_waive_approvals` de la organización. Una clave API, un agente, una sesión suplantada o un administrador actuando por otro propietario no pueden consentir. No se pueden omitir aprobaciones explícitas del agente o de una vinculación MCP.
+
+Una excepción MCP identifica la cuenta concreta, el hash de la dirección, la generación de autorización y el nombre original de la acción. Enviar correo no autoriza borrar ni escribir en otra cuenta. Las cuentas personales solo aparecen si la rutina actúa como su creador. El selector usa la lista de herramientas guardada; comprueba la conexión o pide ayuda a su administrador cuando no esté disponible. Revocar todo el consentimiento no requiere una lista operativa.
 
 Al guardar, la versión y configuración deben seguir coincidiendo con lo revisado
 por la persona. El consentimiento identifica la versión publicada inmutable, los identificadores

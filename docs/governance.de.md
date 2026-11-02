@@ -1,5 +1,5 @@
 ---
-source_sha: "3be6e0e8497f"
+source_sha: "ad202c38945a"
 ---
 
 # Governance { #governance }
@@ -734,12 +734,9 @@ ausgeschaltet, damit Sammelskripte keine Einzelkontrollen umgehen.
 
 Schreibzugriffe auf AgenticOS Virtual Tables laufen innerhalb ihrer aktuellen Tabellen- und Operationsfreigaben ohne Ausnahme für die Routine. Eine ausdrücklich konfigurierte Freigaberichtlinie des Agenten gilt weiterhin für diese internen Schreibzugriffe.
 
-Die erstellende Person öffnet **Aktionsfreigaben** ihrer Routine und wählt
-Fähigkeitsaktionen ohne Rückfrage. Das erfordert `approvals:decide` und den
-Organisationsschalter `chat_may_waive_approvals`. API-Schlüssel, Agenten, übernommene
-Identitäten und Administratoren für andere Personen dürfen nicht zustimmen.
-Ausdrücklich vom Agenten geforderte Bestätigungen bleiben bestehen. Ausnahmen für
-externe Konten bietet diese Auswahl noch nicht.
+Die erstellende Person öffnet **Aktionsfreigaben** ihrer Routine und wählt Fähigkeitsaktionen sowie einzelne MCP-Aktionen eines benannten Kontos. Das erfordert `approvals:decide` und den Organisationsschalter `chat_may_waive_approvals`. API-Schlüssel, Agenten, übernommene Identitäten und Administratoren für andere Personen dürfen nicht zustimmen. Ausdrücklich vom Agenten oder einer MCP-Bindung geforderte Bestätigungen bleiben bestehen.
+
+Eine MCP-Ausnahme benennt das konkrete Konto, den Adresshash, die Autorisierungsgeneration und den ursprünglichen Aktionsnamen. E-Mail-Versand erlaubt weder Löschen noch Schreibzugriffe auf ein anderes Konto. Persönliche Konten stehen nur Routinen zur Verfügung, die als ihre erstellende Person handeln. Die Auswahl verwendet die gespeicherte Werkzeugliste; prüfe die Verbindung oder bitte deren Administration, wenn sie fehlt. Alle Freigaben lassen sich auch ohne funktionierende Werkzeugliste widerrufen.
 
 Beim Speichern müssen Version und Konfiguration noch der menschlichen Prüfung
 entsprechen. Eine Freigabe nennt die unveränderliche veröffentlichte Version, stabile

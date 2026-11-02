@@ -641,12 +641,9 @@ scripts cannot skip the individual action gates.
 
 Writes to AgenticOS Virtual Tables run within their live table and operation grants without a routine exception. An explicit agent approval policy still applies to these internal writes.
 
-The creator can open **Action consent** on their routine and select capability
-actions that may run without asking. This requires `approvals:decide` and the
-organization's `chat_may_waive_approvals` switch. An API key, agent, impersonated
-session or administrator acting for another owner cannot grant it. The agent's
-explicit required approvals cannot be waived here. External-account exceptions
-are not offered by this picker yet.
+The creator can open **Action consent** on their routine and select capability actions and individual MCP actions on a named account. This requires `approvals:decide` and the organization's `chat_may_waive_approvals` switch. An API key, agent, impersonated session or administrator acting for another owner cannot grant it. Explicit required approvals from the agent or an MCP binding cannot be waived here.
+
+An MCP exception names the concrete account, endpoint hash, authorization generation and original action name. Sending mail does not authorize deletion or another account's writes. Personal accounts are offered only when the routine acts as its creator. The picker uses the connection's recorded tool list; check the connection, or ask its administrator, when that list is unavailable. Revoking all consent remains available without a working tool list.
 
 Saving requires the version and configuration the person reviewed to remain
 current. Consent names the immutable published version, stable capability/tool IDs and

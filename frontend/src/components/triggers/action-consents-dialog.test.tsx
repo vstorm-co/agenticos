@@ -2,6 +2,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ActionConsentsDialog } from "./action-consents-dialog";
+import type { RoutineActionOptions } from "@/lib/routine-actions-api";
 import type { Trigger } from "@/types/triggers";
 
 const state = vi.hoisted(() => ({
@@ -24,7 +25,7 @@ const state = vi.hoisted(() => ({
         waivable: false,
       },
     ],
-  },
+  } as RoutineActionOptions,
   error: null as Error | null,
   save: vi.fn(),
   retry: vi.fn(),
@@ -39,6 +40,7 @@ vi.mock("@/hooks/use-routine-actions", () => ({
   }),
 }));
 const trigger = { id: "routine", agent_id: "agent" } as Trigger;
+const initialActions = state.data.items;
 
 describe("routine action consent", () => {
   beforeEach(() => {
@@ -46,6 +48,8 @@ describe("routine action consent", () => {
     state.error = null;
     state.data.can_waive = true;
     state.data.review_token = "review-1";
+    state.data.items = initialActions.map((item) => ({ ...item, consented: false }));
+    state.data.unavailable_sources = [];
   });
   it("submits only explicitly selected action identities and preserves required gates", async () => {
     render(<ActionConsentsDialog trigger={trigger} onClose={vi.fn()} />);
@@ -79,5 +83,81 @@ describe("routine action consent", () => {
     render(<ActionConsentsDialog trigger={trigger} onClose={vi.fn()} />);
     expect(screen.getByRole("alert")).toBeVisible();
     expect(screen.getByRole("button", { name: "Save consent" })).toBeDisabled();
+  });
+  it("selects one account's action without granting a same-named action on another account", async () => {
+    state.data.items.push(
+      {
+        connection_id: "work",
+        authorization_generation: "generation-work",
+        endpoint_hash: "hash-work",
+        tool_id: "send_mail",
+        name: "send_mail",
+        account_name: "Work",
+        account_scope: "organization",
+        consented: false,
+        waivable: true,
+      },
+      {
+        connection_id: "personal",
+        authorization_generation: "generation-personal",
+        endpoint_hash: "hash-personal",
+        tool_id: "send_mail",
+        name: "send_mail",
+        account_name: "Private",
+        account_scope: "personal",
+        consented: false,
+        waivable: true,
+      },
+    );
+    render(<ActionConsentsDialog trigger={trigger} onClose={vi.fn()} />);
+    await userEvent.click(
+      screen.getByRole("checkbox", {
+        name: "send_mail",
+        description: "Work · organization account",
+      }),
+    );
+    expect(
+      screen.getByRole("checkbox", { name: "send_mail", description: "Private · your account" }),
+    ).not.toBeChecked();
+    await userEvent.click(screen.getByRole("button", { name: "Save consent" }));
+    expect(state.save).toHaveBeenCalledWith(
+      [
+        {
+          connection_id: "work",
+          authorization_generation: "generation-work",
+          endpoint_hash: "hash-work",
+          tool_id: "send_mail",
+        },
+      ],
+      expect.any(Object),
+    );
+  });
+  it("explains unavailable connection inventory and still allows revocation", async () => {
+    state.data.unavailable_sources = ["Work mailbox"];
+    render(<ActionConsentsDialog trigger={trigger} onClose={vi.fn()} />);
+    expect(
+      screen.getByText("Check these connections to review their actions: Work mailbox."),
+    ).toBeVisible();
+    await userEvent.click(screen.getByRole("button", { name: "Revoke all" }));
+    expect(state.save).toHaveBeenCalledWith([], expect.any(Object));
+  });
+  it("distinguishes an empty review from a failed connection check", () => {
+    state.data.items = [];
+    render(<ActionConsentsDialog trigger={trigger} onClose={vi.fn()} />);
+    expect(
+      screen.getByText("This version has no eligible actions to authorize here."),
+    ).toBeVisible();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Revoke all" })).toBeEnabled();
+  });
+  it("keeps stored exceptions read-only when policy withdraws permission to replace them", async () => {
+    state.data.can_waive = false;
+    state.data.items[0]!.consented = true;
+    render(<ActionConsentsDialog trigger={trigger} onClose={vi.fn()} />);
+    expect(screen.getByRole("checkbox", { name: "execute" })).toBeChecked();
+    expect(screen.getByRole("checkbox", { name: "execute" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Save consent" })).toBeDisabled();
+    await userEvent.click(screen.getByRole("button", { name: "Revoke all" }));
+    expect(state.save).toHaveBeenCalledWith([], expect.any(Object));
   });
 });

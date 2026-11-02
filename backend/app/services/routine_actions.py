@@ -2,30 +2,39 @@
 
 import hashlib
 import json
+from collections.abc import Sequence
 from uuid import UUID, uuid4
 
-from pydantic import TypeAdapter
+from pydantic import TypeAdapter, ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.capabilities import CapabilityDef, CapabilityToolInfo
 from app.agents.capabilities import get as capability
 from app.agents.capabilities.approval import tool_needs_approval
-from app.agents.spec import AgentSpec
+from app.agents.spec import AgentSpec, OrgMcpServerRef, PersonalMcpServerRef
 from app.core.audit import current_impersonator, record_audit
 from app.core.exceptions import AuthorizationError, BadRequestError, ConflictError
 from app.core.permissions import AuthContext, Perm
 from app.db.models.agent_trigger import AgentTrigger
-from app.repositories import agent_trigger_repo, organization_repo
+from app.db.models.mcp_connection import McpConnection
+from app.repositories import agent_trigger_repo, mcp_connection_repo, organization_repo
+from app.schemas.mcp_connection import McpToolRead
 from app.schemas.routine_actions import (
+    RoutineAction,
     RoutineActionConsent,
     RoutineActionKey,
     RoutineActionOption,
     RoutineActionOptions,
     RoutineActions,
+    RoutineConsent,
+    RoutineMcpActionConsent,
+    RoutineMcpActionKey,
+    RoutineMcpActionOption,
 )
 from app.services.agent_registry import AgentRegistryService
 
-CONSENTS = TypeAdapter(list[RoutineActionConsent])
+CONSENTS = TypeAdapter(list[RoutineConsent])
+MCP_TOOLS = TypeAdapter(list[McpToolRead])
 
 
 def action_intent(trigger: AgentTrigger) -> str:
@@ -49,8 +58,30 @@ def action_intent(trigger: AgentTrigger) -> str:
     return hashlib.sha256(json.dumps(content, sort_keys=True, default=str).encode()).hexdigest()
 
 
-def action_review(trigger: AgentTrigger, version_id: UUID) -> str:
-    return hashlib.sha256(f"{version_id}:{action_intent(trigger)}".encode()).hexdigest()
+def action_key(action: RoutineAction) -> RoutineAction:
+    if isinstance(action, RoutineActionKey):
+        return RoutineActionKey(capability_id=action.capability_id, tool_id=action.tool_id)
+    return RoutineMcpActionKey(
+        connection_id=action.connection_id,
+        authorization_generation=action.authorization_generation,
+        endpoint_hash=action.endpoint_hash,
+        tool_id=action.tool_id,
+    )
+
+
+def action_review(
+    trigger: AgentTrigger, version_id: UUID, mcp: Sequence[RoutineMcpActionOption] = ()
+) -> str:
+    content = f"{version_id}:{action_intent(trigger)}"
+    if mcp:
+        content += json.dumps(
+            [
+                {"action": action_key(option).model_dump(mode="json"), "waivable": option.waivable}
+                for option in mcp
+            ],
+            sort_keys=True,
+        )
+    return hashlib.sha256(content.encode()).hexdigest()
 
 
 def routine_effect(definition: CapabilityDef, tool: CapabilityToolInfo, *, local: bool) -> bool:
@@ -123,8 +154,9 @@ class RoutineActionService:
     async def options(self, ctx: AuthContext, trigger: AgentTrigger) -> RoutineActionOptions:
         self._human(ctx, trigger)
         spec, version = await self._spec(ctx, trigger)
+        mcp, unavailable = await self._mcp_options(ctx, trigger, spec)
         consented = {
-            (consent.capability_id, consent.tool_id)
+            action_key(consent)
             for consent in CONSENTS.validate_python(trigger.action_consents)
             if consent.version_id == version
             and consent.intent_hash == action_intent(trigger)
@@ -132,15 +164,14 @@ class RoutineActionService:
         }
         organization = await organization_repo.get_by_id(self.db, ctx.organization_id)
         return RoutineActionOptions(
-            review_token=action_review(trigger, version),
+            review_token=action_review(trigger, version, mcp),
+            unavailable_sources=unavailable,
             can_waive=ctx.has(Perm.APPROVALS_DECIDE)
             and organization is not None
             and organization.chat_may_waive_approvals,
             items=[
-                option.model_copy(
-                    update={"consented": (option.capability_id, option.tool_id) in consented}
-                )
-                for option in action_options(spec, local=trigger.local_target is not None)
+                option.model_copy(update={"consented": action_key(option) in consented})
+                for option in [*action_options(spec, local=trigger.local_target is not None), *mcp]
             ],
         )
 
@@ -165,16 +196,17 @@ class RoutineActionService:
             raise AuthorizationError(message="This routine is no longer available")
         self._human(ctx, current)
         spec, version = await self._spec(ctx, current)
-        if data.actions and data.review_token != action_review(current, version):
+        mcp, _ = await self._mcp_options(ctx, current, spec)
+        if data.actions and data.review_token != action_review(current, version, mcp):
             raise ConflictError(
-                message="This routine or its published version changed. Review its actions again before consenting."
+                message="This routine, its published version or its connected actions changed. Review its actions again before consenting."
             )
         available = {
-            (option.capability_id, option.tool_id)
-            for option in action_options(spec, local=current.local_target is not None)
+            action_key(option)
+            for option in [*action_options(spec, local=current.local_target is not None), *mcp]
             if option.waivable
         }
-        chosen = {(action.capability_id, action.tool_id) for action in data.actions}
+        chosen = {action_key(action) for action in data.actions}
         if len(chosen) != len(data.actions) or not chosen.issubset(available):
             raise BadRequestError(
                 message="Choose distinct actions whose agent approval policy permits standing consent"
@@ -182,15 +214,22 @@ class RoutineActionService:
         intent = action_intent(current)
         # A replacement gets fresh identities: revoking and regranting cannot revive
         # the consent snapshot of a parked run.
+        ordered = sorted(
+            chosen, key=lambda key: json.dumps(key.model_dump(mode="json"), sort_keys=True)
+        )
         consents = [
-            RoutineActionConsent(
-                **RoutineActionKey(capability_id=cap, tool_id=tool).model_dump(),
+            (
+                RoutineActionConsent
+                if isinstance(key, RoutineActionKey)
+                else RoutineMcpActionConsent
+            )(
+                **key.model_dump(),
                 id=uuid4(),
                 consented_by=ctx.subject_id,
                 version_id=version,
                 intent_hash=intent,
             ).model_dump(mode="json")
-            for cap, tool in sorted(chosen)
+            for key in ordered
         ]
         await agent_trigger_repo.update(
             self.db, trigger=current, update_data={"action_consents": consents}
@@ -205,9 +244,78 @@ class RoutineActionService:
             details={
                 "trigger_id": str(current.id),
                 "version_id": str(version),
-                "actions": [
-                    {"capability_id": cap, "tool_id": tool} for cap, tool in sorted(chosen)
-                ],
+                "actions": [key.model_dump(mode="json") for key in ordered],
             },
         )
         return await self.options(ctx, current)
+
+    async def _mcp_options(
+        self, ctx: AuthContext, trigger: AgentTrigger, spec: AgentSpec
+    ) -> tuple[list[RoutineMcpActionOption], list[str]]:
+        offered: dict[RoutineMcpActionKey, RoutineMcpActionOption] = {}
+        unavailable: set[str] = set()
+        for ref in spec.mcp_servers:
+            connections: list[McpConnection]
+            if isinstance(ref, OrgMcpServerRef):
+                connection = await mcp_connection_repo.get_org_scoped_by_id(
+                    self.db,
+                    connection_id=ref.connection_id,
+                    organization_id=ctx.organization_id,
+                )
+                connections = [] if connection is None else [connection]
+            elif isinstance(ref, PersonalMcpServerRef) and trigger.runs_as_creator:
+                connections = await mcp_connection_repo.list_user_scoped_by_catalog_key(
+                    self.db,
+                    user_id=ctx.subject_id,
+                    catalog_key=ref.catalog_key,
+                )
+            else:
+                continue
+            for connection in connections:
+                if not connection.is_enabled or connection.purpose != "mcp":
+                    continue
+                name = connection.name
+                if connection.label and connection.label != name:
+                    name = f"{connection.label} ({name})"
+                if connection.last_tools is None:
+                    unavailable.add(name)
+                    continue
+                try:
+                    tools = MCP_TOOLS.validate_python(connection.last_tools)
+                except ValidationError:
+                    # Old or invalid provider metadata is explicitly unavailable to
+                    # review; revocation must still work without probing a provider.
+                    unavailable.add(name)
+                    continue
+                for tool in tools:
+                    if (
+                        tool.read_only
+                        or not 1 <= len(tool.name) <= 1000
+                        or (ref.allowed_tools is not None and tool.name not in ref.allowed_tools)
+                        or (
+                            connection.allowed_tools is not None
+                            and tool.name not in connection.allowed_tools
+                        )
+                    ):
+                        continue
+                    key = RoutineMcpActionKey(
+                        connection_id=connection.id,
+                        authorization_generation=connection.authorization_generation,
+                        endpoint_hash=hashlib.sha256(connection.url.encode()).hexdigest(),
+                        tool_id=tool.name,
+                    )
+                    waivable = ref.approval == "none"
+                    previous = offered.get(key)
+                    offered[key] = RoutineMcpActionOption(
+                        **key.model_dump(),
+                        name=tool.name,
+                        account_name=name,
+                        account_scope="personal"
+                        if isinstance(ref, PersonalMcpServerRef)
+                        else "organization",
+                        consented=False,
+                        waivable=waivable and (previous is None or previous.waivable),
+                    )
+        return sorted(
+            offered.values(), key=lambda option: (str(option.connection_id), option.tool_id)
+        ), sorted(unavailable)

@@ -26,6 +26,7 @@ from app.core.exceptions import AuthorizationError
 from app.core.permissions import AuthContext, Perm
 from app.db.models.agent import AgentStatus
 from app.db.models.agent_run import AgentRun, RunSurface
+from app.db.models.agent_trigger import AgentTrigger
 from app.db.models.watch import Watch
 from app.db.session import get_db_context
 from app.repositories import (
@@ -36,10 +37,15 @@ from app.repositories import (
     organization_repo,
     watch_repo,
 )
-from app.schemas.routine_actions import RoutineActionConsent
+from app.schemas.routine_actions import (
+    RoutineAction,
+    RoutineActionKey,
+    RoutineConsent,
+    RoutineMcpActionKey,
+)
 from app.schemas.watch_sources import WatchSources
 from app.services.access import AGENT, resolve_access
-from app.services.routine_actions import CONSENTS, action_intent, routine_effect
+from app.services.routine_actions import CONSENTS, action_intent, action_key, routine_effect
 
 MCP_SOURCES = TypeAdapter(dict[UUID, McpSourceIdentity])
 
@@ -72,7 +78,7 @@ class RoutineAuthority:
     acts_as_creator: bool
     routine_kind: Literal["trigger", "watch"] = "trigger"
     sources: WatchSources | None = None
-    action_consents: tuple[RoutineActionConsent, ...] = ()
+    action_consents: tuple[RoutineConsent, ...] = ()
     root_version_id: UUID | None = None
     mcp_sources: dict[UUID, McpSourceIdentity] | None = None
 
@@ -113,7 +119,7 @@ class RoutineAuthority:
                     )
             except PydanticValidationError:
                 raise _refused() from None
-        action_consents: tuple[RoutineActionConsent, ...] = ()
+        action_consents: tuple[RoutineConsent, ...] = ()
         mcp_sources: dict[UUID, McpSourceIdentity] | None = None
         if kind == "trigger":
             trigger = await agent_trigger_repo.get(db, origin, organization_id=ctx.organization_id)
@@ -174,8 +180,12 @@ class RoutineAuthority:
         trigger = await agent_trigger_repo.get(
             db, self.routine_id, organization_id=self.organization_id
         )
+        self._require_trigger(trigger)
+
+    def _require_trigger(self, trigger: AgentTrigger | None) -> AgentTrigger:
         if (
             trigger is None
+            or trigger.organization_id != self.organization_id
             or not trigger.is_active
             or trigger.created_by_user_id != self.user_id
             or trigger.agent_id != self.root_agent_id
@@ -183,6 +193,7 @@ class RoutineAuthority:
             or (self.acts_as_creator and not trigger.runs_as_creator)
         ):
             raise _refused()
+        return trigger
 
     async def _watch_in(self, db: AsyncSession) -> None:
         watch = await watch_repo.get_by_id(db, self.routine_id)
@@ -261,9 +272,18 @@ class RoutineAuthority:
                 origin = tool_origin(tool)
                 if origin is not None:
                     await self._mcp_in(db, origin)
-                # An unclassified external tool is a write unless the server declares
-                # read-only, matching the existing connection's writes policy.
-                return RoutineToolDecision(required=needs_approval(tool, "writes"))
+                required = needs_approval(tool, "writes")
+                if not required or origin is None or not 1 <= len(origin.tool_id) <= 1000:
+                    return RoutineToolDecision(required=required)
+                key = RoutineMcpActionKey(
+                    connection_id=origin.connection_id,
+                    authorization_generation=origin.identity.authorization_generation,
+                    endpoint_hash=origin.identity.endpoint_hash,
+                    tool_id=origin.tool_id,
+                )
+                return RoutineToolDecision(
+                    required=True, consented_by=await self._consent_in(db, agent_id, key)
+                )
             for binding in spec.capabilities:
                 if not binding.enabled or binding.id != tool.capability_id:
                     continue
@@ -283,35 +303,14 @@ class RoutineAuthority:
                     )
                     if not effect:
                         return RoutineToolDecision()
-                    if self.routine_kind != "trigger" or agent_id != self.root_agent_id:
-                        return RoutineToolDecision(required=True)
-                    trigger = await agent_trigger_repo.get_by_id(db, self.routine_id, fresh=True)
-                    organization = await organization_repo.get_by_id(db, self.organization_id)
-                    if (
-                        trigger is None
-                        or organization is None
-                        or not organization.chat_may_waive_approvals
-                    ):
-                        return RoutineToolDecision(required=True)
-                    member = await member_repo.get_active(
-                        db, organization_id=self.organization_id, user_id=self.user_id
+                    return RoutineToolDecision(
+                        required=True,
+                        consented_by=await self._consent_in(
+                            db,
+                            agent_id,
+                            RoutineActionKey(capability_id=binding.id, tool_id=declared.id),
+                        ),
                     )
-                    if member is None or not AuthContext(
-                        user_id=self.user_id, organization_id=self.organization_id, role=member.role
-                    ).has(Perm.APPROVALS_DECIDE):
-                        return RoutineToolDecision(required=True)
-                    current = CONSENTS.validate_python(trigger.action_consents)
-                    for consent in self.action_consents:
-                        if (
-                            consent in current
-                            and consent.consented_by == self.user_id
-                            and consent.version_id == self.root_version_id
-                            and consent.intent_hash == action_intent(trigger)
-                            and consent.capability_id == binding.id
-                            and consent.tool_id == declared.id
-                        ):
-                            return RoutineToolDecision(required=True, consented_by=self.user_id)
-                    return RoutineToolDecision(required=True)
             # Framework/third-party capability tools absent from the declared catalog
             # have no authority that the routine can grant by guessing a name.
             return RoutineToolDecision(required=True)
@@ -363,3 +362,39 @@ class RoutineAuthority:
             )
         ):
             raise _refused()
+
+    async def _consent_in(
+        self, db: AsyncSession, agent_id: UUID, key: RoutineAction
+    ) -> UUID | None:
+        if self.routine_kind != "trigger" or agent_id != self.root_agent_id:
+            return None
+        trigger = await agent_trigger_repo.get_by_id(db, self.routine_id, fresh=True)
+        organization = await organization_repo.get_by_id(db, self.organization_id)
+        trigger = self._require_trigger(trigger)
+        if organization is None:
+            raise _refused()
+        if not organization.chat_may_waive_approvals:
+            return None
+        member = await member_repo.get_active(
+            db, organization_id=self.organization_id, user_id=self.user_id
+        )
+        if member is None:
+            raise _refused()
+        if not AuthContext(
+            user_id=self.user_id, organization_id=self.organization_id, role=member.role
+        ).has(Perm.APPROVALS_DECIDE):
+            return None
+        try:
+            current = CONSENTS.validate_python(trigger.action_consents)
+        except PydanticValidationError:
+            raise _refused() from None
+        for consent in self.action_consents:
+            if (
+                consent in current
+                and consent.consented_by == self.user_id
+                and consent.version_id == self.root_version_id
+                and consent.intent_hash == action_intent(trigger)
+                and action_key(consent) == key
+            ):
+                return self.user_id
+        return None

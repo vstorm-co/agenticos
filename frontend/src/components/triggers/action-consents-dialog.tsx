@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useRoutineActions } from "@/hooks/use-routine-actions";
 import {
@@ -17,9 +17,7 @@ import {
 } from "@/components/ui";
 import { ErrorState } from "@/components/states/error-state";
 import type { Trigger } from "@/types/triggers";
-import type { RoutineActionOption } from "@/lib/routine-actions-api";
-
-const identity = (action: RoutineActionOption) => `${action.capability_id}:${action.tool_id}`;
+import { routineActionIdentity as identity, routineActionKey } from "@/lib/routine-actions-api";
 
 export function ActionConsentsDialog({
   trigger,
@@ -29,6 +27,7 @@ export function ActionConsentsDialog({
   onClose: () => void;
 }) {
   const t = useTranslations("triggers.actionConsents");
+  const controlsId = useId();
   const { data, isLoading, error, replace, refetch } = useRoutineActions(
     trigger.agent_id,
     trigger.id,
@@ -54,19 +53,21 @@ export function ActionConsentsDialog({
               {!data.can_waive && (
                 <p className="text-muted-foreground text-sm">{t("notAllowed")}</p>
               )}
+              {!!data.unavailable_sources?.length && (
+                <p className="text-muted-foreground text-sm">
+                  {t("checkConnections", { names: data.unavailable_sources.join(", ") })}
+                </p>
+              )}
               {data.items.length === 0 && (
                 <p className="text-muted-foreground text-sm">{t("empty")}</p>
               )}
-              {data.items.map((action) => (
+              {data.items.map((action, index) => (
                 <div key={identity(action)} className="flex items-start gap-3">
                   <Checkbox
-                    id={identity(action)}
+                    id={`${controlsId}-${index}`}
+                    aria-describedby={`${controlsId}-${index}-source`}
                     checked={selected.has(identity(action))}
-                    disabled={
-                      replace.isPending ||
-                      !action.waivable ||
-                      (!data.can_waive && !selected.has(identity(action)))
-                    }
+                    disabled={replace.isPending || !action.waivable || !data.can_waive}
                     onCheckedChange={(checked) => {
                       const next = new Set(selected);
                       if (checked) next.add(identity(action));
@@ -74,10 +75,24 @@ export function ActionConsentsDialog({
                       setChosen({ token: data.review_token, keys: next });
                     }}
                   />
-                  <div>
-                    <Label htmlFor={identity(action)}>{action.name}</Label>
-                    <p className="text-muted-foreground text-xs">
-                      {action.capability_id}
+                  <div className="min-w-0">
+                    <Label className="break-all" htmlFor={`${controlsId}-${index}`}>
+                      {action.name}
+                    </Label>
+                    <p
+                      id={`${controlsId}-${index}-source`}
+                      className="text-muted-foreground text-xs break-words"
+                    >
+                      {"capability_id" in action
+                        ? action.capability_id
+                        : t(
+                            action.account_scope === "personal"
+                              ? "personalAccount"
+                              : "organizationAccount",
+                            {
+                              name: action.account_name,
+                            },
+                          )}
                       {!action.waivable && ` · ${t("required")}`}
                     </p>
                   </div>
@@ -95,12 +110,11 @@ export function ActionConsentsDialog({
             {t("revokeAll")}
           </Button>
           <Button
-            disabled={!data || replace.isPending || !!error}
+            disabled={!data || !data.can_waive || replace.isPending || !!error}
             onClick={() =>
               replace.mutate(
-                data?.items
-                  .filter((item) => selected.has(identity(item)))
-                  .map(({ capability_id, tool_id }) => ({ capability_id, tool_id })) ?? [],
+                data?.items.filter((item) => selected.has(identity(item))).map(routineActionKey) ??
+                  [],
                 {
                   onSuccess: onClose,
                 },

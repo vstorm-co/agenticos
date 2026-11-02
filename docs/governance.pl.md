@@ -1,5 +1,5 @@
 ---
-source_sha: "3be6e0e8497f"
+source_sha: "ad202c38945a"
 ---
 
 # Governance { #governance }
@@ -683,12 +683,9 @@ wyłączony w rutynach, aby skrypt zbiorczy nie omijał kontroli pojedynczych dz
 
 Zapisy do Virtual Tables w AgenticOS działają w granicach aktualnych uprawnień do tabel i operacji, bez wyjątku dla rutyny. Jawna polityka zatwierdzania agenta nadal obowiązuje dla tych wewnętrznych zapisów.
 
-Twórca może otworzyć **Zgody na działania** swojej rutyny i wybrać działania funkcji
-wykonywane bez pytania. Wymaga to `approvals:decide` i ustawienia organizacji
-`chat_may_waive_approvals`. Klucz API, agent, sesja podszywania się ani administrator
-działający za innego właściciela nie mogą nadać zgody. Nie da się tu wyłączyć
-zatwierdzeń jawnie wymaganych przez agenta. Wybór nie oferuje jeszcze wyjątków dla
-zewnętrznych kont.
+Twórca może otworzyć **Zgody na działania** swojej rutyny i wybrać działania funkcji oraz pojedyncze działania MCP na wskazanym koncie. Wymaga to `approvals:decide` i ustawienia organizacji `chat_may_waive_approvals`. Klucz API, agent, sesja podszywania się ani administrator działający za innego właściciela nie mogą nadać zgody. Nie da się tu wyłączyć zatwierdzeń jawnie wymaganych przez agenta lub powiązanie MCP.
+
+Wyjątek MCP wskazuje konkretne konto, skrót adresu, generację autoryzacji i oryginalną nazwę działania. Wysyłanie poczty nie upoważnia do kasowania ani zapisów na innym koncie. Konta osobiste są dostępne tylko dla rutyny działającej jako jej twórca. Wybór korzysta z zapisanej listy narzędzi połączenia; gdy jest niedostępna, sprawdź połączenie lub poproś jego administratora. Cofnięcie wszystkich zgód nie wymaga działającej listy narzędzi.
 
 Zapis wymaga, aby wersja i konfiguracja nadal odpowiadały przeglądowi osoby.
 Zgoda wskazuje niezmienną opublikowaną wersję, stałe identyfikatory funkcji i

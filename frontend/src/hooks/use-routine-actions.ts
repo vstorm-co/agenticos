@@ -19,7 +19,10 @@ export function useRoutineActions(agentId: string, triggerId: string) {
     mutationFn: (actions: RoutineActionKey[]) =>
       routineActionsApi.replace(agentId, triggerId, actions, query.data?.review_token),
     onSuccess: (data) => client.setQueryData(key, data),
-    onError: (error) => toast.error(getErrorMessage(error, t)),
+    onError: (error) => {
+      toast.error(getErrorMessage(error, t));
+      void client.invalidateQueries({ queryKey: key });
+    },
   });
   return { ...query, replace };
 }
