@@ -488,7 +488,7 @@ class TestTheWidgetRemembersWhatWasSaid:
             attachment_context=None,
             author_user_id=None,
             reply_to_message_id=None,
-            run_id=None,
+            guardrail_refused=False,
         )
 
     @pytest.mark.anyio

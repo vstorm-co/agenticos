@@ -25,7 +25,7 @@ def _rows(n: int, size: int = 20):
             role="user" if i % 2 == 0 else "assistant",
             content=f"turn {i} " + "x" * size,
             context_used_tokens=None,
-            run_id=None,
+            guardrail_refused=False,
         )
         for i in range(n)
     ]
@@ -66,19 +66,18 @@ async def test_the_summary_is_written_by_the_chat_model_and_booked_on_the_run():
 async def test_a_turn_the_guardrail_refused_is_not_seeded():
     """#2578: a call continues the typed thread, and a refused prompt read back
     verbatim would reach the realtime model the input edge kept it from."""
-    run_id = uuid4()
     rows = [
-        SimpleNamespace(role="user", content="SECRETWORD", context_used_tokens=None, run_id=run_id),
-        SimpleNamespace(role="user", content="hello", context_used_tokens=None, run_id=None),
+        SimpleNamespace(
+            role="user", content="SECRETWORD", context_used_tokens=None, guardrail_refused=True
+        ),
+        SimpleNamespace(
+            role="user", content="hello", context_used_tokens=None, guardrail_refused=False
+        ),
     ]
     with (
         patch(
             "app.services.voice.seed.conversation_repo.get_recent_messages",
             AsyncMock(return_value=rows),
-        ),
-        patch(
-            "app.services.voice.seed.conversation_repo.refused_runs",
-            AsyncMock(return_value={run_id}),
         ),
     ):
         seeded = await seed_history(

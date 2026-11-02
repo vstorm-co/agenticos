@@ -55,14 +55,11 @@ async def seed_history(
     rows = await conversation_repo.get_recent_messages(db, conversation_id, limit=HISTORY_LIMIT)
     # A prompt a guardrail refused is not seeded, as a typed turn's history does
     # not replay it (#2578): the input edge screens only what is said next.
-    refused = await conversation_repo.refused_runs(
-        db, {row.run_id for row in rows if row.run_id is not None}
-    )
     history: list[HistoryMessage] = [
         {
             "role": row.role,
             "content": REFUSED_TURN
-            if row.role == "user" and row.run_id in refused
+            if row.role == "user" and row.guardrail_refused
             else row.content,
         }
         for row in rows

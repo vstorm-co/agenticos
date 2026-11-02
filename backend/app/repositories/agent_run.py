@@ -150,6 +150,13 @@ async def finish_run(
         run.logfire_trace_id = logfire_trace_id
     db.add(run)
     await db.flush()
+    # On the rows rather than read off the run, which retention deletes and
+    # `messages.run_id` forgets: a refusal must outlive both (#2578). Rows the
+    # run writes later are marked as they are written - `conversation_repo`.
+    if status == RunStatus.GUARDRAIL_BLOCKED.value:
+        await db.execute(
+            sql_update(Message).where(Message.run_id == run.id).values(guardrail_refused=True)
+        )
     await db.refresh(run)
     return run
 

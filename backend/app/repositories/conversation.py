@@ -12,6 +12,7 @@ from sqlalchemy import (
     Numeric,
     and_,
     distinct,
+    exists,
     func,
     or_,
     select,
@@ -1272,17 +1273,15 @@ async def run_outcomes(db: AsyncSession, run_ids: Collection[UUID]) -> dict[UUID
     }
 
 
-async def refused_runs(db: AsyncSession, run_ids: Collection[UUID]) -> set[UUID]:
-    """Which of these runs a guardrail stopped - the turns a history must not replay (#2578)."""
-    if not run_ids:
-        return set()
-    result = await db.execute(
-        select(AgentRun.id).where(
-            AgentRun.id.in_(list(run_ids)),
-            AgentRun.status == RunStatus.GUARDRAIL_BLOCKED.value,
-        )
+def _refused(run_id: UUID) -> ColumnElement[bool]:
+    """Whether `run_id` ended `guardrail_blocked`, read in the statement that writes the row.
+
+    So a row written for a run after it ended - web chat's answer, a channel's
+    transcript - is marked as the run's own rows were (#2578).
+    """
+    return exists().where(
+        AgentRun.id == run_id, AgentRun.status == RunStatus.GUARDRAIL_BLOCKED.value
     )
-    return set(result.scalars().all())
 
 
 async def get_recent_messages(
@@ -1494,6 +1493,7 @@ async def create_message(
         agent_id=agent_id,
         agent_version_id=agent_version_id,
         run_id=run_id,
+        guardrail_refused=False if run_id is None else _refused(run_id),
     )
     db.add(message)
     await db.flush()
@@ -1580,7 +1580,7 @@ async def link_message_to_run(
     await db.execute(
         sql_update(Message)
         .where(Message.id == message_id, Message.conversation_id == conversation_id)
-        .values(run_id=run_id)
+        .values(run_id=run_id, guardrail_refused=_refused(run_id))
     )
 
 

@@ -72,6 +72,8 @@ class MockMessage:
         # Which run produced the turn, and therefore how it ended - a listing
         # reads a status off it so a stopped turn can say it was stopped.
         self.run_id = run_id
+        # Whether a guardrail stopped its turn: a history withholds it (#2578).
+        self.guardrail_refused = False
         self.attachment_context = None
         self.parts: list[dict[str, object]] | None = None
         # Who typed it and what it answers: nobody named, nothing answered.
@@ -2278,11 +2280,12 @@ class TestTheThreadAModelIsGivenBack:
         read back as history reached the model one harmless follow-up later -
         the words typed and the head of the file attached with them."""
         conversation = MockConversation()
-        refused_run, allowed_run = uuid4(), uuid4()
-        refused = MockMessage(role="user", content="summarise SECRETWORD", run_id=refused_run)
+        # The run is gone - retention retired it - and the row still says so.
+        refused = MockMessage(role="user", content="summarise SECRETWORD", run_id=None)
+        refused.guardrail_refused = True
         refused.context_used_tokens = None
         refused.attachment_context = "\n---\nAttached file: notes.txt\nFirst 20 lines:\nSECRETWORD"
-        allowed = MockMessage(role="user", content="what did it say?", run_id=allowed_run)
+        allowed = MockMessage(role="user", content="what did it say?", run_id=uuid4())
         allowed.context_used_tokens = None
         monkeypatch.setattr(
             conversation_repo, "get_conversation_by_id", AsyncMock(return_value=conversation)
@@ -2290,14 +2293,11 @@ class TestTheThreadAModelIsGivenBack:
         monkeypatch.setattr(
             conversation_repo, "get_recent_messages", AsyncMock(return_value=[refused, allowed])
         )
-        refused_lookup = AsyncMock(return_value={refused_run})
-        monkeypatch.setattr(conversation_repo, "refused_runs", refused_lookup)
 
         history = await ConversationService(AsyncMock()).model_history(conversation.id, limit=50)
 
         replayed = [part.content for message in history for part in message.parts]
         assert replayed == [REFUSED_TURN, "what did it say?"]
-        assert set(refused_lookup.await_args.args[1]) == {refused_run, allowed_run}
 
     @pytest.mark.security
     async def test_what_the_person_added_to_a_stopped_turn_is_not_replayed(self, monkeypatch):
@@ -2306,8 +2306,10 @@ class TestTheThreadAModelIsGivenBack:
         conversation = MockConversation()
         run_id = uuid4()
         prompt = MockMessage(role="user", content="pay the invoice", run_id=run_id)
+        prompt.guardrail_refused = True
         prompt.context_used_tokens = None
         answer = MockMessage(role="assistant", content="Working", run_id=run_id)
+        answer.guardrail_refused = True
         answer.context_used_tokens = None
         answer.parts = [{"type": "steer", "text": "Use account EU-42"}]
         monkeypatch.setattr(
@@ -2316,7 +2318,6 @@ class TestTheThreadAModelIsGivenBack:
         monkeypatch.setattr(
             conversation_repo, "get_recent_messages", AsyncMock(return_value=[prompt, answer])
         )
-        monkeypatch.setattr(conversation_repo, "refused_runs", AsyncMock(return_value={run_id}))
 
         history = await ConversationService(AsyncMock()).model_history(conversation.id, limit=50)
 
@@ -2335,6 +2336,7 @@ class TestTheThreadAModelIsGivenBack:
         conversation.summary_ordinal = 4
         run_id = uuid4()
         refused = MockMessage(role="user", content="SECRETWORD", run_id=run_id)
+        refused.guardrail_refused = True
         refused.context_used_tokens = None
         monkeypatch.setattr(
             conversation_repo, "get_conversation_by_id", AsyncMock(return_value=conversation)
@@ -2342,7 +2344,6 @@ class TestTheThreadAModelIsGivenBack:
         monkeypatch.setattr(
             conversation_repo, "get_messages_after", AsyncMock(return_value=[refused])
         )
-        monkeypatch.setattr(conversation_repo, "refused_runs", AsyncMock(return_value={run_id}))
 
         history = await ConversationService(AsyncMock()).model_history(conversation.id, limit=50)
 
@@ -2359,6 +2360,7 @@ class TestTheThreadAModelIsGivenBack:
         conversation = MockConversation()
         run_id = uuid4()
         refused = MockMessage(role="user", content="SECRETWORD", run_id=run_id)
+        refused.guardrail_refused = True
         refused.context_used_tokens = None
         reply = MockMessage(role="user", content="and this?")
         reply.context_used_tokens = None
@@ -2373,12 +2375,6 @@ class TestTheThreadAModelIsGivenBack:
             conversation_repo, "messages_by_id", AsyncMock(return_value={refused.id: refused})
         )
         monkeypatch.setattr(conversation_repo, "users_by_id", AsyncMock(return_value={}))
-        # Only what it is asked about: the quoted row is outside the window.
-        monkeypatch.setattr(
-            conversation_repo,
-            "refused_runs",
-            AsyncMock(side_effect=lambda _db, ids: {r for r in ids if r == run_id}),
-        )
 
         history = await ConversationService(AsyncMock()).model_history(conversation.id, limit=50)
 
