@@ -1,5 +1,5 @@
 ---
-source_sha: "f3d41f62f0bd"
+source_sha: "ff651b008634"
 ---
 
 # Governance { #governance }
@@ -60,6 +60,8 @@ MCP pozwala usunąć oba ustawienia. Zwykły klucz API nie może upoważnić rut
 do korzystania z osobistych kont jego wystawcy.
 
 Wybór wersji pozwala śledzić domyślną opublikowaną wersję albo przypiąć jedną niezmienną wersję. Publikacja nie przesuwa pinu. Usuń go, aby ponownie śledzić wersję domyślną. Nazwane środowisko i pin wersji wzajemnie się wykluczają; nadal obowiązują bieżące uprawnienia, budżety i zatwierdzenia.
+
+Formularz rutyny pozwala ustawić lub usunąć datę zakończenia. Data używa pokazanej przy polu strefy urządzenia, niezależnie od strefy harmonogramu cron, i trafia do API jako timestamp z offsetem. Edycja innego pola zachowuje dotychczasowy koniec bez zmian.
 
 ## Budżety { #budgets }
 

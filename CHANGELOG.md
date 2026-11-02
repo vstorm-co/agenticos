@@ -21,6 +21,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- **Set and remove a routine's end in its form.** The end-time field names the device time zone it uses and sends an offset-aware timestamp. Invalid or past edits are refused; changing another field preserves the exact existing end rather than rounding it to the input's minute precision.
+
 - **Automatic memory capture keeps each turn's audience.** Completed linked channel turns and personally authorized scheduled/workflow work can be read by memory maintenance alongside private web chat. A group turn writes only to its source room, never a personal profile. Jobs retain the runner's admitted audience and recheck terminal state, membership and erasure; embeds, API keys, impersonation and outsider events remain excluded.
 
 - **Pin a routine to one published version.** The routine form and MCP tools can select an immutable agent version or follow the default environment again. Pins are checked against the same agent and organization, cannot coexist with a named environment, and prevent deletion of the selected version. They keep using the shared runner with current access, budgets and approvals. Migration `0259_trigger_version_pin`.

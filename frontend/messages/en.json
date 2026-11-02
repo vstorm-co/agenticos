@@ -8443,7 +8443,10 @@
     "versionPinHelp": "Each fire uses the same selected version until you change it.",
     "pinnedVersion": "Pinned version",
     "chooseVersion": "Choose a published version",
-    "selectedVersionUnavailable": "Selected version unavailable"
+    "selectedVersionUnavailable": "Selected version unavailable",
+    "endsAtLabel": "Ends at (device time)",
+    "endsAtHint": "Leave blank to run until stopped. This time uses {zone}, independently of the schedule zone.",
+    "endsAtInvalid": "Choose a valid future time, or clear the field to remove the end."
   },
   "portals": {
     "mailboxInterval": {

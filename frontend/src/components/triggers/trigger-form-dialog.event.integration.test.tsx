@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState, type ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -62,6 +62,32 @@ function serve() {
     path === "/me/permissions" ? { permissions: [] } : { items: [], total: 0 },
   );
 }
+
+it.each([false, true])(
+  "preserves an existing exact end or explicitly clears it (%s)",
+  async (clear) => {
+    serve();
+    const user = userEvent.setup();
+    vi.mocked(apiClient.patch).mockResolvedValue(trigger());
+    render(
+      <TriggerFormDialog
+        agentId={AGENT_ID}
+        open
+        onOpenChange={vi.fn()}
+        trigger={trigger({ ends_at: "2000-01-01T12:00:32.333Z" })}
+      />,
+      { wrapper },
+    );
+    const dialog = within(await screen.findByRole("dialog"));
+    if (clear)
+      fireEvent.change(dialog.getByLabelText("Ends at (device time)"), { target: { value: "" } });
+    await user.click(dialog.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(apiClient.patch).toHaveBeenCalled());
+    const body = vi.mocked(apiClient.patch).mock.calls.at(-1)?.[1];
+    if (clear) expect(body).toHaveProperty("ends_at", null);
+    else expect(body).not.toHaveProperty("ends_at");
+  },
+);
 
 /** The event form, as reached from the portal grid's "Advanced: API trigger". */
 async function openEvent() {

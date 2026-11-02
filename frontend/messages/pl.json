@@ -7291,7 +7291,10 @@
     "versionPinHelp": "Każde uruchomienie używa tej samej wybranej wersji, dopóki jej nie zmienisz.",
     "pinnedVersion": "Przypięta wersja",
     "chooseVersion": "Wybierz opublikowaną wersję",
-    "selectedVersionUnavailable": "Wybrana wersja jest niedostępna"
+    "selectedVersionUnavailable": "Wybrana wersja jest niedostępna",
+    "endsAtLabel": "Koniec (czas urządzenia)",
+    "endsAtHint": "Pozostaw puste, aby działać do zatrzymania. Ta data używa strefy {zone}, niezależnie od strefy harmonogramu.",
+    "endsAtInvalid": "Wybierz prawidłową przyszłą datę albo wyczyść pole, aby usunąć koniec."
   },
   "portals": {
     "mailboxInterval": {

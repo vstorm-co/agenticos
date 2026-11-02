@@ -41,6 +41,7 @@ import {
   WORKDAYS,
   type CadenceChoice,
 } from "@/components/triggers/cadence-choices";
+import { EndsAtField, endInput, endInstant } from "@/components/triggers/ends-at-field";
 import { VersionField } from "@/components/triggers/version-field";
 import { AnswerToField } from "@/components/triggers/answer-to-field";
 import { BudgetField, parseBudget } from "@/components/triggers/budget-field";
@@ -231,6 +232,16 @@ export function TriggerFormDialog({
   const [budget, setBudget] = useState(
     trigger?.monthly_budget_usd != null ? String(Number(trigger.monthly_budget_usd)) : "",
   );
+  const [endsAt, setEndsAt] = useState(() => endInput(trigger?.ends_at));
+  const [endTouched, setEndTouched] = useState(false);
+  const end = endInstant(endsAt);
+  const [invalidEnd, setInvalidEnd] = useState(false);
+  const changeEnd = (value: string) => {
+    setEndsAt(value);
+    setEndTouched(true);
+    const instant = endInstant(value);
+    setInvalidEnd(instant === undefined || (instant !== null && Date.parse(instant) <= Date.now()));
+  };
   const [answerTo, setAnswerTo] = useState<TriggerAnswerTo>(
     trigger ? (trigger.answer_to ?? "run_log") : "primary",
   );
@@ -452,6 +463,7 @@ export function TriggerFormDialog({
       trigger_type: type,
       environment_id: environmentId === DEFAULT_ENV ? null : environmentId,
       ...(pinnedVersion ? { pinned_version_id: pinnedVersion } : {}),
+      ...(end ? { ends_at: end } : {}),
       // Only when asked for: off is the server's default, and the request then
       // says nothing about acting as anybody.
       ...(runsAsCreator ? { runs_as_creator: true } : {}),
@@ -473,6 +485,10 @@ export function TriggerFormDialog({
   }
 
   async function submit() {
+    if (endTouched && (end === undefined || (end !== null && Date.parse(end) <= Date.now()))) {
+      setInvalidEnd(true);
+      return;
+    }
     try {
       if (editing) {
         // Only the fields that actually changed: the server applies exactly what
@@ -501,6 +517,7 @@ export function TriggerFormDialog({
         const post = teamsPost === NO_TEAMS_POST ? null : teamsPost;
         if (post !== (trigger.teams_conversation_id ?? null)) patch.teams_conversation_id = post;
         if (answerTo !== (trigger.answer_to ?? "run_log")) patch.answer_to = answerTo;
+        if (endTouched && end !== undefined) patch.ends_at = end;
         const limit = parseBudget(budget);
         const stored =
           trigger.monthly_budget_usd != null ? Number(trigger.monthly_budget_usd) : null;
@@ -558,7 +575,8 @@ export function TriggerFormDialog({
     (cronFreq !== "advanced" || cronAdvanced.trim().length > 0) &&
     (cronFreq === "everyNDays" || isTimeZone(timeZone));
   const scheduleValid = scheduleKind === "cron" ? cronValid : intervalCountValid(intervalCount);
-  const taskValid = prompt.trim().length > 0 && effectiveAgentId !== null && versionValid;
+  const taskValid =
+    prompt.trim().length > 0 && effectiveAgentId !== null && versionValid && !invalidEnd;
   // Editing a schedule can change its cadence, so the cadence is guarded then
   // too; an event edit has no cadence and only its prompt/name to check.
   const canSubmit =
@@ -767,6 +785,8 @@ export function TriggerFormDialog({
 
             <AnswerToField value={answerTo} onChange={setAnswerTo} />
 
+            <EndsAtField value={endsAt} onChange={changeEnd} invalid={invalidEnd} />
+
             <BudgetField value={budget} onChange={setBudget} />
 
             <RunAsCreatorField
@@ -901,6 +921,8 @@ export function TriggerFormDialog({
               <TeamsPostField value={teamsPost} onChange={setTeamsPost} />
 
               <AnswerToField value={answerTo} onChange={setAnswerTo} />
+
+              <EndsAtField value={endsAt} onChange={changeEnd} invalid={invalidEnd} />
 
               <BudgetField value={budget} onChange={setBudget} />
 

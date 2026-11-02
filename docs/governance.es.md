@@ -1,5 +1,5 @@
 ---
-source_sha: "f3d41f62f0bd"
+source_sha: "ff651b008634"
 ---
 
 # Governance { #governance }
@@ -60,6 +60,8 @@ actualización permite quitar ambos ajustes. Una clave API ordinaria no puede
 autorizar a una rutina a usar las cuentas personales de quien la emitió.
 
 La política de versiones permite seguir la versión publicada predeterminada o fijar una versión inmutable. Una publicación no cambia la versión fijada. Elimina la fijación para volver a seguir la predeterminada. Un entorno con nombre y una versión fijada se excluyen mutuamente; siguen vigentes los permisos, presupuestos y aprobaciones actuales.
+
+El formulario de la rutina permite definir o quitar su fecha de fin. La fecha usa la zona horaria del dispositivo indicada junto al campo, independientemente de la zona del cron, y se envía a la API como un instante con desplazamiento UTC. Editar otro campo conserva el fin existente.
 
 ## Budgets { #budgets }
 

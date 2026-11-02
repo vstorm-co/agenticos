@@ -1,5 +1,5 @@
 ---
-source_sha: "f3d41f62f0bd"
+source_sha: "ff651b008634"
 ---
 
 # Governance { #governance }
@@ -62,6 +62,8 @@ beide Einstellungen entfernen. Ein gewöhnlicher API-Schlüssel kann keine Routi
 zur Nutzung der persönlichen Konten seines Ausstellers ermächtigen.
 
 Die Versionsauswahl folgt entweder der standardmäßig veröffentlichten Version oder legt eine unveränderliche Version fest. Eine Veröffentlichung verschiebt diese Festlegung nicht. Entfernen Sie sie, um wieder der Standardversion zu folgen. Eine benannte Umgebung und eine festgelegte Version schließen sich aus; aktuelle Zugriffsrechte, Budgets und Freigaben gelten weiterhin.
+
+Im Routineformular können Sie das Ende festlegen oder entfernen. Das Datum verwendet die am Feld angezeigte Gerätezeitzone, unabhängig von der Cron-Zeitzone, und wird mit UTC-Offset an die API gesendet. Änderungen anderer Felder lassen das bestehende Ende unverändert.
 
 ## Budgets { #budgets }
 

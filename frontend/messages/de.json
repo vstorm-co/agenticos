@@ -8322,7 +8322,10 @@
     "versionPinHelp": "Jeder Lauf verwendet dieselbe ausgewählte Version, bis Sie sie ändern.",
     "pinnedVersion": "Festgelegte Version",
     "chooseVersion": "Veröffentlichte Version auswählen",
-    "selectedVersionUnavailable": "Ausgewählte Version nicht verfügbar"
+    "selectedVersionUnavailable": "Ausgewählte Version nicht verfügbar",
+    "endsAtLabel": "Endet am (Gerätezeit)",
+    "endsAtHint": "Leer lassen, um bis zum Stoppen fortzufahren. Diese Zeit verwendet {zone}, unabhängig von der Zeitzone des Zeitplans.",
+    "endsAtInvalid": "Wählen Sie einen gültigen Zeitpunkt in der Zukunft oder leeren Sie das Feld, um das Ende zu entfernen."
   },
   "portals": {
     "mailboxInterval": {

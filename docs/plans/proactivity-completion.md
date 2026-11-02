@@ -46,7 +46,7 @@ Provider tests use deterministic fakes unless a dedicated test account is availa
 |---|---|---|
 | Review defects | Claim scope/erasure guards, effective dates, atomic numbered replies, one-time verified private-thread backfill | Wider channel attachment/approval coverage and operator guidance |
 | Selected agent | Immutable routine version pins through the shared runner, API, MCP and UI | Selected-agent watches and enforced source ceilings |
-| Chat management | Trusted private-chat provenance, source delivery, management cards, MCP end/budget controls | Complete responsibility flow and end-time controls in the form |
+| Chat management | Trusted private-chat provenance, source delivery, management cards, MCP end/budget controls and end-time form control | Complete responsibility flow |
 | Standing authority | Existing creator consent is preserved for immutable pins | Per-action waivers, persistent device/folder/operation grants and per-effect revocation |
 | Follow-through | Existing workflow engine retained as the durability owner | Event/deadline presets, matching replies, restart/cancellation/idempotency acceptance |
 | Outcomes | Existing outcome state retained | Notification inheritance/overrides, quiet findings versus requested reports and failure escalation |
@@ -54,4 +54,4 @@ Provider tests use deterministic fakes unless a dedicated test account is availa
 | Voice | Existing realtime path retained | Twilio inbound/outbound PSTN, transfer/contact policies, limits and source-chat cards |
 
 Completed increments are not acceptance of the whole area. No parent issue is
-closed by this checklist or the continuation PR while these gaps remain.
+closed by this checklist or PR #2606 while these gaps remain.
