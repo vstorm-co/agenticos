@@ -268,7 +268,7 @@ Ein Skill, den der Agent neu geschrieben hat, hat noch keine Agents, also legt
 Ein Skill wird geteilt, also wird eine Änderung auf jedem Agent beurteilt, der sie
 lesen würde: auf main an den Agents, die der neuesten main-Version folgen; auf
 einem Fork an den Agents dieses Forks. Agents, die auf eine ältere Version
-angeheftet sind, und die Agents anderer Forks werden nicht ausgeführt - die
+festgesetzt sind, und die Agents anderer Forks werden nicht ausgeführt - die
 Änderung erreicht sie nicht. Die veröffentlichte Version jedes Agents beantwortet
 ihre Fragen zweimal, mit dem Skill, wie er ist, und mit der Änderung, und sonst
 unterscheidet sich nichts.
@@ -328,14 +328,14 @@ Ergebnis jedes Agents und wendet die Änderung dann an oder verwirft sie. Auf ma
 kann eine Person dennoch:
 
 - **die Änderung anwenden und die schlechteren Agents lassen, wo sie sind** -
-  jeder wird, als neue veröffentlichte Version, auf die Version angeheftet, die
+  jeder wird, als neue veröffentlichte Version, auf die Version festgesetzt, die
   er jetzt liest, bevor die Änderung live geht, sodass keiner sie auch nur einmal
-  ausliefert. Das Anheften erfordert, jeden von ihnen veröffentlichen zu dürfen;
+  ausliefert. Das Festsetzen erfordert, jeden von ihnen veröffentlichen zu dürfen;
 - **einen Fork für die Agents anlegen, denen sie geholfen hat**, und main lassen,
   wie es ist - über die API, `POST /api/v1/skills/{id}/checks/{check_id}/fork`;
 - sie **verwerfen**.
 
-Auf einem Fork bleiben nur Weiterverbessern und Verwerfen: Ein Anheften nennt
+Auf einem Fork bleiben nur Weiterverbessern und Verwerfen: Ein Festsetzen nennt
 eine main-Version, und ein Fork beginnt nie bei einem anderen Fork. Eine Prüfung
 verweigert das Anwenden, sobald die Linie eine neuere Version hat oder ein Agent
 ihr zu folgen begonnen hat, denn sie hat keines von beiden gemessen.
