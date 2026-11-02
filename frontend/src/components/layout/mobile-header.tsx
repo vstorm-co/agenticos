@@ -22,6 +22,7 @@ import { usePathname } from "next/navigation";
 import { BrandLink } from "@/components/layout/brand-link";
 import { NotificationBell } from "@/components/layout/notification-bell";
 import { Button } from "@/components/ui";
+import { useAssistant } from "@/hooks/use-assistant";
 import { pageOf } from "@/lib/assistant-bubbles";
 import { useSidebarStore } from "@/stores";
 
@@ -29,19 +30,25 @@ export function MobileHeader() {
   const { toggle } = useSidebarStore();
   const onChat = pageOf(usePathname()).startsWith("/chat");
   const t = useTranslations("nav");
+  const { assistant } = useAssistant();
+  const hasArchitect =
+    assistant?.can_use &&
+    assistant.agent_id !== null &&
+    (assistant.status === "ready" || assistant.status === "needs_model");
 
   // The chat draws its own top on a phone: buttons floating over the
   // transcript, which gets the whole height (`PhoneChatBar`).
   if (onChat) return null;
 
   return (
-    <header className="bg-background sticky top-0 z-40 flex h-14 w-full shrink-0 items-center gap-1 border-b px-3 md:hidden">
+    <header className="bg-background sticky top-0 z-40 flex h-12 w-full shrink-0 items-center gap-1 border-b px-3 md:hidden">
       <Button variant="ghost" size="sm" className="h-11 w-11 p-0" onClick={toggle}>
         <Menu className="h-5 w-5" />
         <span className="sr-only">{t("toggleMenu")}</span>
       </Button>
       <BrandLink />
       <div className="ml-auto flex items-center gap-1">
+        {hasArchitect && <span aria-hidden data-architect-slot className="size-11 shrink-0" />}
         <NotificationBell variant="icon" />
       </div>
     </header>

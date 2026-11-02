@@ -1,6 +1,7 @@
 {
   "common": {
     "archiveNamedConfirm": "Zarchiwizować {name}?",
+    "chooseSection": "Sekcja: {section}",
     "back": "Wstecz",
     "cancel": "Anuluj",
     "close": "Zamknij",
@@ -4902,6 +4903,7 @@
       "reset": "Wróć do filtra strony"
     },
     "pageStatus": "Status",
+    "morePageActions": "Więcej akcji strony",
     "startChecklist": {
       "title": "Pierwsze kroki",
       "progress": "{done} z {total} gotowe",
@@ -5044,6 +5046,7 @@
     "pushOnHint": "To urządzenie otrzymuje powiadomienia push"
   },
   "ui": {
+    "expandEditor": "Powiększ: {label}",
     "cancel": "Anuluj",
     "checkConnection": "Sprawdź połączenie i spróbuj ponownie.",
     "close": "Zamknij",
@@ -6089,6 +6092,30 @@
         "title": "Twoje dokumenty",
         "body": "Gdy agent zapisze plik, trafia tutaj - przeglądaj, podglądaj i pobieraj wszystko, co powstało w Twoich rozmowach."
       },
+      "project-file-fullscreen": {
+        "title": "Więcej miejsca na pliki",
+        "body": "Otwórz plik i powiększ czytnik, aby wykorzystać ekran. Strzałka wstecz wraca do listy folderów."
+      },
+      "workspace-file-fullscreen": {
+        "title": "Więcej miejsca na pliki",
+        "body": "Otwórz plik i powiększ czytnik, aby wykorzystać ekran. Strzałka wstecz wraca do listy folderów."
+      },
+      "agent-editor-fullscreen": {
+        "title": "Powiększ edytor",
+        "body": "Przycisk powiększania pozwala wygodnie czytać i edytować dokument. Zamknięcie powiększonego edytora zachowuje bieżący szkic."
+      },
+      "skill-editor-fullscreen": {
+        "title": "Powiększ edytor",
+        "body": "Przycisk powiększania pozwala wygodnie czytać i edytować dokument. Zamknięcie powiększonego edytora zachowuje bieżący szkic."
+      },
+      "context-editor-fullscreen": {
+        "title": "Powiększ edytor",
+        "body": "Przycisk powiększania pozwala wygodnie czytać i edytować dokument. Zamknięcie powiększonego edytora zachowuje bieżący szkic."
+      },
+      "workflow-canvas-fullscreen": {
+        "title": "Pracuj na pełnym ekranie",
+        "body": "Pływający przycisk powiększa diagram. Naciśnij go ponownie, aby wrócić do nagłówka workflow; szkic pozostaje zachowany."
+      },
       "workspaces-detail": {
         "title": "W folderze",
         "body": "Pliki jednego agenta, folder po folderze. Podejrzyj plik albo pobierz to, co agent dla Ciebie przygotował."
@@ -6336,6 +6363,10 @@
       "project-file-location": {
         "title": "Twój komputer czy wspólne pliki",
         "body": "Ten komputer pokazuje zatwierdzony lokalny folder. Wspólne pliki projektu to wgrane kopie dla osób z dostępem do projektu. Te miejsca nie synchronizują się automatycznie."
+      },
+      "workflow-step-view": {
+        "title": "Skup się na jednym panelu",
+        "body": "Na telefonie wybierz ustawienia kroku, wejście albo wynik, aby przeznaczyć dostępne miejsce na jeden panel. Przełączanie zachowuje szkic."
       }
     },
     "chooseLanguage": "Język",
@@ -7960,7 +7991,6 @@
     "startsWithRecommended": "{count, plural, =0 {Startuje bez narzędzi} one {Startuje z 1 polecanym narzędziem} few {Startuje z # polecanymi narzędziami} many {Startuje z # polecanymi narzędziami} other {Startuje z # polecanymi narzędziami}}",
     "capabilityRecommended": "Polecane",
     "capabilitySettingsTitle": "Ustawienia: {name}",
-    "capabilityOpenSettings": "Ustawienia",
     "capabilityShelfEnabled": "Włączone: {enabled} z {total}",
     "capabilityShelfPrevious": "Wcześniej w: {shelf}",
     "capabilityShelfNext": "Więcej w: {shelf}",
@@ -8796,6 +8826,7 @@
     "why": "Claude Code, Codex, Cursor i każdy inny klient MCP może pracować w tej organizacji przez własny serwer MCP AgenticOS: wyświetlać i uruchamiać agentów, czytać runy i ich koszty, przeszukiwać i uzupełniać bazy wiedzy, zapraszać członków.",
     "docs": "Co potrafi serwer MCP",
     "serverUrl": "Adres serwera",
+    "client": "Klient MCP",
     "signIn": "Logowanie",
     "viaBrowser": "Przez przeglądarkę",
     "viaKey": "Kluczem API",
@@ -9556,6 +9587,8 @@
     "dataEmpty": "Nic tu nie ma",
     "dataMoreRows": "{count, plural, one {Pokaż jeszcze # wiersz} few {Pokaż jeszcze # wiersze} many {Pokaż jeszcze # wierszy} other {Pokaż jeszcze # wiersza}}",
     "stepInput": "Wejście",
+    "stepEditorView": "Widok kroku",
+    "stepEditorSettings": "Ustawienia kroku",
     "stepInputSource": "Dane z kroku",
     "stepPinned": "Dane testowe",
     "stepNoDataYet": "Brak danych. Uruchom workflow albo przetestuj krok przed nim.",
@@ -9974,6 +10007,7 @@
     "currentTag": "Bieżąca",
     "publicUpdated": "Zaktualizowano {when}",
     "backToArtifacts": "Wróć do aplikacji",
+    "viewerControls": "Opcje aplikacji",
     "share": "Udostępnij",
     "moreActions": "Więcej akcji",
     "accessRestricted": "Tylko osoby z dostępem",
@@ -10241,7 +10275,6 @@
       "blockedSwitch": "Najpierw właściciel lub administrator musi włączyć dane na żywo na stronach publicznych w ustawieniach organizacji.",
       "blockedLink": "Strona nie ma publicznego linku. Najpierw go włącz."
     },
-    "appTheme": "Motyw aplikacji",
     "lightTheme": "Użyj jasnego motywu aplikacji",
     "darkTheme": "Użyj ciemnego motywu aplikacji"
   },

@@ -153,7 +153,7 @@ export default function WorkflowsPage() {
     );
 
   const statusControls = (
-    <div data-tour="workflows-list" className="flex min-w-0 flex-wrap items-center gap-2">
+    <div data-tour="workflows-list" className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
       <SearchInput
         className="min-w-0 flex-1 sm:flex-none"
         value={queryParam ?? ""}
@@ -220,11 +220,11 @@ export default function WorkflowsPage() {
   );
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-6">
+    <div className="flex min-h-0 flex-1 flex-col gap-4">
       <PageHeader
         title={t("title")}
         description={t("description")}
-        actions={
+        secondaryActions={
           <>
             <Button variant="outline" asChild>
               <Link href={ROUTES.WORKFLOW_ALL_RUNS}>
@@ -248,20 +248,22 @@ export default function WorkflowsPage() {
                 {t("templateLibrary")}
               </Button>
             )}
-            {canCreate && (
-              <Button
-                onClick={() => {
-                  setInitial(undefined);
-                  setCreateOpen(true);
-                }}
-                disabled={create.isPending}
-                data-tour="workflows-new"
-              >
-                <Plus className="h-4 w-4" />
-                {t("newWorkflow")}
-              </Button>
-            )}
           </>
+        }
+        actions={
+          canCreate && (
+            <Button
+              onClick={() => {
+                setInitial(undefined);
+                setCreateOpen(true);
+              }}
+              disabled={create.isPending}
+              data-tour="workflows-new"
+            >
+              <Plus className="h-4 w-4" />
+              {t("newWorkflow")}
+            </Button>
+          )
         }
       />
 
@@ -284,7 +286,7 @@ export default function WorkflowsPage() {
               : t("shownOfTotal", { visible: list.matched, total: list.total })
         }
         controls={
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
             {statusControls}
             <WorkspaceFullscreenButton
               expanded={galleryFullscreen}

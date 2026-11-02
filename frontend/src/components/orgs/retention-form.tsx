@@ -80,20 +80,33 @@ export function RetentionForm({ policy, isSaving, saved, onSave }: RetentionForm
       ) : null}
 
       <div className="-mx-1 overflow-x-auto px-1">
-        <table className="w-full min-w-[34rem] text-sm">
-          <thead>
+        <table className="w-full text-sm md:min-w-[34rem]">
+          <thead className="hidden md:table-header-group">
             <tr className="border-b">
               <th className="py-2 pr-4 text-left font-medium">{t("dataClass")}</th>
               <th className="px-3 py-2 text-left font-medium">{t("keepForDays")}</th>
               <th className="px-3 py-2 text-left font-medium">{t("whatSweeps")}</th>
             </tr>
           </thead>
-          <tbody>
+          <tbody className="block md:table-row-group">
             {RETENTION_CLASSES.map((name) => (
-              <tr key={name} className="border-b last:border-0">
-                <td className="py-2 pr-4">{t(`classes.${name}`)}</td>
-                <td className="px-3 py-2">
+              <tr
+                key={name}
+                className="block space-y-2 border-b py-4 last:border-0 md:table-row md:space-y-0 md:py-0"
+              >
+                <td className="block font-medium md:table-cell md:py-2 md:pr-4 md:font-normal">
+                  {t(`classes.${name}`)}
+                </td>
+                <td className="flex items-center justify-between gap-3 md:table-cell md:px-3 md:py-2">
+                  <label
+                    className="text-muted-foreground text-xs md:hidden"
+                    htmlFor={`retention-${name}`}
+                  >
+                    {t("keepForDays")}
+                  </label>
                   <Input
+                    id={`retention-${name}`}
+                    aria-describedby={`retention-${name}-effective`}
                     type="number"
                     min={1}
                     inputMode="numeric"
@@ -104,7 +117,11 @@ export function RetentionForm({ policy, isSaving, saved, onSave }: RetentionForm
                     onChange={(event) => edit(name, event.target.value)}
                   />
                 </td>
-                <td className="text-muted-foreground px-3 py-2 text-xs">
+                <td
+                  className="text-muted-foreground block text-xs md:table-cell md:px-3 md:py-2"
+                  id={`retention-${name}-effective`}
+                >
+                  <span className="mr-2 font-medium md:hidden">{t("whatSweeps")}</span>
                   {describe(policy, name, t)}
                 </td>
               </tr>

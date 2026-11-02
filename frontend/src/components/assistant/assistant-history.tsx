@@ -80,7 +80,7 @@ export function AssistantHistory({ agentId, onClose, onNew }: AssistantHistoryPr
               onChange={(event) => setQuery(event.target.value)}
               placeholder={t("historySearch")}
               aria-label={t("historySearch")}
-              className="placeholder:text-muted-foreground min-w-0 flex-1 bg-transparent text-sm outline-none"
+              className="placeholder:text-muted-foreground min-w-0 flex-1 bg-transparent text-base outline-none md:text-sm"
             />
           </label>
         </div>

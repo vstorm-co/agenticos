@@ -123,14 +123,15 @@ describe("the views a file offers", () => {
     open({ name: "report.md" });
 
     expect(await screen.findByTestId("markdown")).toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: "Preview" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("button", { name: "Source" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Preview" })).toBeNull();
   });
 
   it("shows the characters once the source is asked for", async () => {
     open({ name: "report.md" });
     await screen.findByTestId("markdown");
 
-    await userEvent.click(screen.getByRole("tab", { name: "Source" }));
+    await userEvent.click(screen.getByRole("button", { name: "Source" }));
 
     expect(await screen.findByText("# Report")).toBeInTheDocument();
   });
@@ -140,13 +141,13 @@ describe("the views a file offers", () => {
     // does not exist would leave the dialog on no tab at all.
     open({ name: "handbook.pdf" });
 
-    expect(screen.queryByRole("tab", { name: "Source" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Source" })).toBeNull();
   });
 
   it("offers it for an HTML page too", () => {
     open({ name: "report.html" });
 
-    expect(screen.getByRole("tab", { name: "Source" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Source" })).toBeInTheDocument();
   });
 
   it("offers no toggle where there would be nothing to toggle to", () => {
@@ -236,7 +237,7 @@ describe("how big the dialog is", () => {
     for (const name of ["handbook.pdf", "chart.png", "demo.mp4", "rows.csv", "report.md"]) {
       const { unmount } = open({ name });
       expect(dialog()).toContain("w-[calc(100%-1.5rem)]");
-      expect(dialog()).toContain("sm:w-[calc(100%-4rem)]");
+      expect(dialog()).toContain("md:w-[calc(100%-4rem)]");
       expect(dialog()).toContain("h-[var(--dialog-available-height)]");
       unmount();
     }
@@ -355,7 +356,10 @@ describe("paging between the files it was opened from", () => {
     // collide - `invoice.pdf` has one rendering and so no tab list at all.
     open(
       { name: "report.md" },
-      { navigation: { names: ["report.md", "notes.txt"], index: 0, onSelect } },
+      {
+        navigation: { names: ["report.md", "notes.txt"], index: 0, onSelect },
+        extraTabs: [{ value: "parsed", label: "Parsed", content: null }],
+      },
     );
 
     screen.getByRole("tab", { name: "Source" }).focus();

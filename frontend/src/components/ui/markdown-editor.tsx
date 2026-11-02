@@ -1,12 +1,16 @@
 "use client";
 
 import { useState } from "react";
-import type { KeyboardEvent, RefObject } from "react";
-import { Code2, Eye } from "lucide-react";
+import type { KeyboardEvent, ReactNode, RefObject } from "react";
+import { Maximize2 } from "lucide-react";
 
 import { MarkdownContent } from "@/components/chat/markdown-content";
 import { CodeArea } from "@/components/ui/code-area";
-import { cn } from "@/lib/utils";
+import { Button } from "./button";
+import { MarkdownModeToggle, type MarkdownMode } from "./markdown-mode-toggle";
+export { MarkdownModeToggle, type MarkdownMode } from "./markdown-mode-toggle";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "./dialog";
+import { DIALOG_WINDOW } from "@/lib/dialog-sizes";
 import { useTranslations } from "next-intl";
 
 interface MarkdownEditorProps {
@@ -55,6 +59,10 @@ interface MarkdownEditorProps {
    * keeps the mode and draws the toggle above the field.
    */
   mode?: MarkdownMode;
+  /** Completion choices travel with the active editor, including its expanded view. */
+  suggestions?: ReactNode;
+  /** Heading and caller-owned controls sharing the editor toolbar. */
+  toolbar?: ReactNode;
   /**
    * Draw an image in the preview as a link rather than loading it - for text the
    * person did not write, where an image URL is a request the author chose to
@@ -76,7 +84,6 @@ interface MarkdownEditorProps {
  * opened a form to edit should be editable when they get there; a file somebody
  * clicked in a tree is one they came to read.
  */
-export type MarkdownMode = "source" | "preview";
 
 export function MarkdownEditor({
   value,
@@ -93,22 +100,40 @@ export function MarkdownEditor({
   onKeyDown,
   mode: controlledMode,
   inertImages,
+  suggestions,
+  toolbar,
 }: MarkdownEditorProps) {
   const t = useTranslations("ui");
   const [ownMode, setOwnMode] = useState<MarkdownMode>("source");
+  const [expanded, setExpanded] = useState(false);
   const mode = controlledMode ?? ownMode;
+  const preview =
+    value.trim() === "" ? (
+      <p className="text-muted-foreground text-sm">{t("nothingWrittenYet")}</p>
+    ) : (
+      <MarkdownContent content={value} inertImages={inertImages} />
+    );
 
   return (
-    <div className="space-y-1.5">
+    <div className="min-w-0 space-y-1.5">
       {/* The toggle sits above the field rather than in a bar inside it: a
           strip reading "Markdown | Source Preview" boxed the text a second
           time, inside whatever card already held it. A caller with a header
           of its own takes the mode in hand and puts the toggle there. */}
-      {controlledMode === undefined && (
-        <div className="flex justify-end">
-          <MarkdownModeToggle mode={mode} onChange={setOwnMode} />
-        </div>
-      )}
+      <div className="flex min-w-0 items-center justify-end gap-2">
+        {toolbar && <div className="flex min-w-0 flex-1 items-center gap-2">{toolbar}</div>}
+        {controlledMode === undefined && <MarkdownModeToggle mode={mode} onChange={setOwnMode} />}
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          data-tour="text-editor-expand"
+          aria-label={t("expandEditor", { label })}
+          onClick={() => setExpanded(true)}
+        >
+          <Maximize2 className="size-4" aria-hidden />
+        </Button>
+      </div>
       {mode === "source" ? (
         // The source shows its own structure - headings bold, markers dimmed,
         // `{{variables}}` as tokens - and stays plain Markdown underneath. Sized
@@ -119,7 +144,7 @@ export function MarkdownEditor({
         >
           <CodeArea
             name="field.md"
-            textareaRef={textareaRef}
+            textareaRef={expanded ? undefined : textareaRef}
             id={id}
             maxLength={maxLength}
             aria-label={label}
@@ -143,67 +168,45 @@ export function MarkdownEditor({
           className="border-input resize-y overflow-auto rounded-xl border p-3"
           style={{ height: `calc(${rows} * 1.5rem + 1.5rem + 2px)` }}
         >
-          {value.trim() === "" ? (
-            <p className="text-muted-foreground text-sm">{t("nothingWrittenYet")}</p>
-          ) : (
-            <MarkdownContent content={value} inertImages={inertImages} />
-          )}
+          {preview}
         </div>
       )}
+      {!expanded && mode === "source" && suggestions}
+      <Dialog open={expanded} onOpenChange={setExpanded}>
+        <DialogContent className={DIALOG_WINDOW} aria-describedby={undefined}>
+          <DialogHeader>
+            <DialogTitle>{label}</DialogTitle>
+          </DialogHeader>
+          <div className="min-h-0 flex-1 overflow-hidden rounded-xl border">
+            {mode === "source" ? (
+              <CodeArea
+                name="field.md"
+                aria-label={label}
+                textareaRef={textareaRef}
+                onKeyDown={onKeyDown}
+                describedBy={describedBy}
+                value={value}
+                onChange={onChange}
+                invalid={invalid}
+                maxLength={maxLength}
+                disabled={disabled}
+                placeholder={placeholder}
+              />
+            ) : (
+              <div
+                role="region"
+                aria-label={t("labelPreview", { label })}
+                className="h-full overflow-auto p-4"
+              >
+                {preview}
+              </div>
+            )}
+          </div>
+          {mode === "source" && suggestions && (
+            <div className="max-h-[25dvh] shrink-0 overflow-y-auto">{suggestions}</div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
-  );
-}
-
-/** Source or preview, as a small segmented control - inside a field or a header. */
-export function MarkdownModeToggle({
-  mode,
-  onChange,
-}: {
-  mode: MarkdownMode;
-  onChange: (mode: MarkdownMode) => void;
-}) {
-  const t = useTranslations("ui");
-  return (
-    <div className="border-input flex w-fit items-center gap-0.5 rounded-lg border p-0.5">
-      <ModeButton
-        icon={Code2}
-        label={t("source")}
-        active={mode === "source"}
-        onClick={() => onChange("source")}
-      />
-      <ModeButton
-        icon={Eye}
-        label={t("preview")}
-        active={mode === "preview"}
-        onClick={() => onChange("preview")}
-      />
-    </div>
-  );
-}
-
-function ModeButton({
-  icon: Icon,
-  label,
-  active,
-  onClick,
-}: {
-  icon: typeof Eye;
-  label: string;
-  active: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-pressed={active}
-      className={cn(
-        "inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs transition-colors",
-        active ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground",
-      )}
-    >
-      <Icon className="h-3 w-3" />
-      {label}
-    </button>
   );
 }

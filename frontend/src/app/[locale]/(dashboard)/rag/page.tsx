@@ -100,7 +100,7 @@ export default function RAGPage() {
   const loading = isLoading && kbs.length === 0;
 
   return (
-    <div className="flex flex-1 flex-col space-y-6">
+    <div className="flex flex-1 flex-col space-y-4">
       <PageHeader
         title={t("knowledgeBases")}
         description={t("groupRelatedDocumentsInto")}

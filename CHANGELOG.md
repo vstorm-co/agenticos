@@ -19,6 +19,24 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- Hide message action rows on phones until the More button beside the user or agent is tapped, saving room in the transcript. Keep desktop hover actions. Release the full-screen file reader when its listing fails and move focus into an auto-opened reader, restoring it to the file on return.
+
+- Move the phone Architect launcher into the header and reclaim its bottom clearance for lists and tables. Align the compact chat editor and actions to equal touch heights.
+
+- Make phone chat more comfortable while writing: keep attach, message and send in a compact row, offer agent selection and voice under the plus menu, hide welcome suggestions while composing and bound completion menus to the visible height. Preserve draft text and stable send targets as focus moves. Do not automatically focus touch-keyboard input on arrival or when a reply finishes.
+
+- Give agent and project instructions one compact toolbar, fold unused prompt variables, preserve preview when expanding Markdown, and align expanded-editor phone gutters. Keep phone text fields legible across authentication, files, integrations, tables and workflow forms while preserving desktop sizing. Keep floating App controls clear of the native status bar.
+
+- Reduce oversized desktop and phone spacing across headers, cards, settings, navigation, template categories and empty states. Capability cards open settings through one target, with explanations available on demand. Enable profile saving only for changed values and reset the email field after staging verification.
+
+- Keep phone dialog gutters consistent on all four edges, compact shared navigation and page headers, and move Context descriptions into the editor toolbar to leave more room for text.
+
+- Allow development assets from the hostname configured by `PUBLIC_SITE_URL`, so a console opened over Wi-Fi can initialize its login form.
+- Simplify phone navigation and editing: Inbox filters and MCP clients use selects, long settings navigation uses a section menu, secondary page commands fold away, project files open full screen and workflow step panels switch without losing edits. Keep administrative row actions visible on narrow screens and reduce dialog footer and run-summary height.
+- Improve phone layouts across page actions, app controls, skill and context editors, and file readers. Mobile editors fold descriptions and file management away while writing; project and workspace files have a dedicated reader. Source/preview controls use one button. Apps use floating back and options buttons, keeping more space for their content. Expanded editors preserve drafts and variable completion. Reduce the chat composer's height, align painted source text with its input, and open navigation without focusing its close button.
+
 ## [1.36.0] - 2026-11-02
 
 ### Security
