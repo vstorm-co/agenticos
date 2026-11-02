@@ -1,5 +1,5 @@
 ---
-source_sha: "33926c1fbeae"
+source_sha: "9532fb7c3fdd"
 ---
 
 # Die Konsole { #the-console }
@@ -59,6 +59,8 @@ Dialoge für Vorlagenkategorien passen sich ihrem Inhalt an; die Auswahl einer B
 Anweisungen für Agenten und Projekte haben eine kompakte gemeinsame Leiste für Titel, Hilfe, Quelltext/Vorschau und Vergrößern. Vergrößerte Markdown-Ansichten behalten den gewählten Modus. Ungenutzte Prompt-Variablen sind zunächst eingeklappt; vorhandene eigene Variablen oder eine eigene Zeitzone halten den Bereich offen. Vergrößerte Text- und Dateieditoren behalten auf dem Telefon gleichmäßige Außenabstände. Texteingaben nutzen dort größere Schrift, ohne Desktop-Felder zu vergrößern.
 
 Auf dem Telefon wechselt das Nachrichtenfeld beim Fokussieren in eine kompakte Schreibzeile mit Anhängen und Senden. Agentenauswahl und Spracheingabe bleiben unter **+** erreichbar. Begrüßung und Verbindungsvorschläge treten beim Schreiben zurück; Ergänzungsmenüs passen sich der verfügbaren Höhe an. Beim Fokuswechsel zum Senden bleibt das Layout stabil.
+
+Auf dem Telefon fokussiert der Chat das Eingabefeld weder beim Öffnen noch nach einer fertigen Antwort automatisch.
 
 ## Das Dashboard { #the-dashboard }
 
@@ -265,7 +267,8 @@ Seite.
 
 ## Der Assistent { #the-assistant }
 
-Unten rechts auf jeder Seite sitzt der **Architekt**: ein Agent, den jede
+Auf dem Smartphone sitzt der **Architekt** oben neben den Benachrichtigungen,
+auf dem Desktop unten rechts: ein Agent, den jede
 Organisation bekommt, ohne etwas zu installieren, gemeinsam für alle, die Agents
 ausführen dürfen (`agents:run`). Er ist an
 [den MCP-Server dieser Plattform](mcp.md#agenticos-as-an-mcp-server) gebunden.

@@ -57,10 +57,7 @@ describe("the page transition wrapper", () => {
   });
 
   it("counts the safe-area inset rather than assuming it away", () => {
-    // The mobile tab bar is `min-h-[56px]` plus the safe area (`--safe-bottom`,
-    // the system's or the Android app's measured one), and `viewportFit:
-    // "cover"` makes that inset 34px on a modern iPhone - so a flat 80px leaves
-    // the last 10px of the page under the bar.
+    // Moving the launcher into the header does not remove the home indicator inset.
     expect(PAGE_CLEARANCE).toContain("var(--safe-bottom)");
   });
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "33926c1fbeae"
+source_sha: "9532fb7c3fdd"
 ---
 
 # La consola { #the-console }
@@ -59,6 +59,8 @@ Los diálogos de categorías de plantillas se ajustan al contenido; elegir un se
 Las instrucciones de agentes y proyectos tienen una barra compacta con título, ayuda, código/vista previa y ampliación. El Markdown ampliado conserva el modo seleccionado. Las variables de prompt sin usar empiezan plegadas; las variables propias existentes o una zona horaria personalizada mantienen abierto el panel. Los editores ampliados de texto y archivos conservan márgenes uniformes en el teléfono. Los campos de texto usan allí una letra mayor sin ampliar los campos de escritorio.
 
 En el teléfono, enfocar el mensaje activa una fila compacta de escritura con adjuntos y envío. La selección del agente y la entrada de voz siguen disponibles en **+**. La bienvenida y las sugerencias de conexiones se ocultan al escribir; los menús de autocompletado se ajustan a la altura disponible. El diseño permanece estable al pasar del texto a Enviar.
+
+En el teléfono, el chat no enfoca automáticamente el campo al abrirse ni cuando termina una respuesta.
 
 ## El dashboard { #the-dashboard }
 
@@ -254,7 +256,8 @@ un puñado de las más recientes, la próxima vez que abras la página.
 
 ## El asistente { #the-assistant }
 
-Cada página tiene al **Architect** en su esquina inferior derecha: un agent que
+El **Architect** aparece junto a las notificaciones en la cabecera del móvil
+y en la esquina inferior derecha del escritorio: un agent que
 toda organización recibe sin instalar nada, compartido con todos los que pueden
 ejecutar agents (`agents:run`). Está vinculado al
 [servidor MCP de la propia plataforma](mcp.md#agenticos-as-an-mcp-server).

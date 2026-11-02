@@ -2907,12 +2907,22 @@ body .tour-spotlight {
   .chat-input-form[data-editing] .chat-input-send {
     order: 3;
     align-self: flex-end;
-    padding-bottom: 2px;
+    padding-bottom: 0;
+  }
+  .chat-input-form[data-editing] .composer-editor {
+    min-height: 44px;
+    padding-block: 10px;
+  }
+  .chat-input-form[data-editing] .chat-input-actions > button,
+  .chat-input-form[data-editing] .chat-input-send > button {
+    min-height: 44px;
+    min-width: 44px;
   }
   .chat-input-form[data-editing] .chat-input-selection,
   .chat-input-form[data-editing] .chat-input-mic {
     display: none;
   }
+  .chat-input-form[data-editing] .chat-input-attachments,
   .chat-input-form[data-editing] .chat-input-reply {
     order: 0;
     width: 100%;

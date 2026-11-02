@@ -21,7 +21,9 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
-- Make phone chat more comfortable while writing: keep attach, message and send in a compact row, offer agent selection and voice under the plus menu, hide welcome suggestions while composing and bound completion menus to the visible height. Preserve draft text and stable send targets as focus moves.
+- Move the phone Architect launcher into the header and reclaim its bottom clearance for lists and tables. Align the compact chat editor and actions to equal touch heights.
+
+- Make phone chat more comfortable while writing: keep attach, message and send in a compact row, offer agent selection and voice under the plus menu, hide welcome suggestions while composing and bound completion menus to the visible height. Preserve draft text and stable send targets as focus moves. Do not automatically focus touch-keyboard input on arrival or when a reply finishes.
 
 - Give agent and project instructions one compact toolbar, fold unused prompt variables, preserve preview when expanding Markdown, and align expanded-editor phone gutters. Keep phone text fields legible across authentication, files, integrations, tables and workflow forms while preserving desktop sizing. Keep floating App controls clear of the native status bar.
 

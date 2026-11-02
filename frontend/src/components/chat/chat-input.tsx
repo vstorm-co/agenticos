@@ -439,7 +439,9 @@ export function ChatInput({
   if (useChanged(`${filteredCommands.length}|${message}`)) setPaletteIndex(0);
 
   useEffect(() => {
-    if (!isProcessing && !isUploading) editorRef.current?.focus();
+    // Phones enter writing deliberately, rather than reopening the keyboard
+    // on arrival or when a reply finishes while the person is reading.
+    if (!isProcessing && !isUploading && !touchKeyboard()) editorRef.current?.focus();
   }, [isProcessing, isUploading]);
 
   const runSlashCommand = useCallback(

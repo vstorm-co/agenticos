@@ -22,6 +22,7 @@ import { usePathname } from "next/navigation";
 import { BrandLink } from "@/components/layout/brand-link";
 import { NotificationBell } from "@/components/layout/notification-bell";
 import { Button } from "@/components/ui";
+import { useAssistant } from "@/hooks/use-assistant";
 import { pageOf } from "@/lib/assistant-bubbles";
 import { useSidebarStore } from "@/stores";
 
@@ -29,6 +30,11 @@ export function MobileHeader() {
   const { toggle } = useSidebarStore();
   const onChat = pageOf(usePathname()).startsWith("/chat");
   const t = useTranslations("nav");
+  const { assistant } = useAssistant();
+  const hasArchitect =
+    assistant?.can_use &&
+    assistant.agent_id !== null &&
+    (assistant.status === "ready" || assistant.status === "needs_model");
 
   // The chat draws its own top on a phone: buttons floating over the
   // transcript, which gets the whole height (`PhoneChatBar`).
@@ -42,6 +48,7 @@ export function MobileHeader() {
       </Button>
       <BrandLink />
       <div className="ml-auto flex items-center gap-1">
+        {hasArchitect && <span aria-hidden data-architect-slot className="size-11 shrink-0" />}
         <NotificationBell variant="icon" />
       </div>
     </header>

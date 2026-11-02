@@ -886,3 +886,33 @@ it("keeps composing while focus moves to Send, and exits without losing an unsen
   await userEvent.click(send);
   expect(onSend).toHaveBeenCalledWith("Phone draft", undefined, undefined, undefined);
 });
+
+it("does not take touch-keyboard focus on arrival or when a reply finishes", async () => {
+  const original = window.matchMedia("");
+  const media = vi.spyOn(window, "matchMedia").mockImplementation((query) => ({
+    ...original,
+    media: query,
+    matches: query === "(pointer: coarse)",
+  }));
+  try {
+    const onSend = vi.fn();
+    const view = (processing: boolean) => (
+      <>
+        <button>Read here</button>
+        <ChatInput onSend={onSend} isProcessing={processing} />
+      </>
+    );
+    const { rerender } = render(view(false));
+    const editor = screen.getByRole("textbox");
+    expect(editor).not.toHaveFocus();
+    const outside = screen.getByRole("button", { name: "Read here" });
+    await userEvent.click(outside);
+    rerender(view(true));
+    rerender(view(false));
+    expect(outside).toHaveFocus();
+    await userEvent.click(editor);
+    expect(editor).toHaveFocus();
+  } finally {
+    media.mockRestore();
+  }
+});

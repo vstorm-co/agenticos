@@ -7,15 +7,15 @@
  * overflows `DeploymentGate`'s `min-h-0` wrapper, so `main`'s padding edge stays
  * buried mid-content, measured at 0px below the last card at every width.
  *
- * The mobile figure leaves the last card clear of the Architect's button in the
- * corner, and counts the safe-area inset rather than assuming it away:
+ * The Architect lives in the phone header, so mobile needs only a small
+ * content margin and the safe-area inset:
  * `viewportFit: "cover"` makes it 34px on a modern iPhone.
  *
  * Two places use it: `PageTransition`, for every page that scrolls in `main`,
  * and the maintenance screen, which `DeploymentGate` returns *instead of*
  * rendering that wrapper.
  */
-export const PAGE_CLEARANCE = "pb-[calc(5rem+var(--safe-bottom))] lg:pb-16";
+export const PAGE_CLEARANCE = "pb-[calc(1rem+var(--safe-bottom))] md:pb-16";
 
 /**
  * The room a page drawing its own bottom edge owes a phone's home indicator.

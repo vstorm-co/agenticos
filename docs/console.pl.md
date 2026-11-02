@@ -1,5 +1,5 @@
 ---
-source_sha: "33926c1fbeae"
+source_sha: "9532fb7c3fdd"
 ---
 
 # Konsola { #the-console }
@@ -57,6 +57,8 @@ Okna kategorii szablonów dopasowują się do zawartości; wybranie branży agen
 Instrukcje agentów i projektów mają jeden zwarty pasek z tytułem, pomocą, przełączaniem źródła i podglądu oraz rozwijaniem. Rozwinięty Markdown zachowuje wybrany tryb źródła lub podglądu. Nieużywane zmienne promptu są początkowo zwinięte; istniejące własne zmienne lub niestandardowa strefa czasu pozostawiają panel otwarty. Rozwinięte edytory tekstu i plików zachowują równe marginesy na telefonie. Pola tekstowe na telefonie używają większej czcionki bez powiększania pól na komputerze.
 
 Na telefonie fokus w polu wiadomości przełącza czat w zwarty wiersz pisania z załącznikami i wysyłaniem. Wybór agenta oraz głos pozostają dostępne pod **+**. Powitanie i sugestie połączeń chowają się na czas pisania, a menu uzupełniania mieści się w dostępnej wysokości. Przejście z tekstu na Wyślij zachowuje stabilny układ.
+
+Czat na telefonie nie ustawia automatycznie fokusu w polu przy otwieraniu ani po zakończeniu odpowiedzi.
 
 ## Dashboard { #the-dashboard }
 
@@ -246,7 +248,8 @@ następnym otwarciu strony.
 
 ## Asystent { #the-assistant }
 
-Na każdej stronie, w prawym dolnym rogu, jest **Architekt**: agent, którego
+Na telefonie **Architekt** jest w górnym pasku obok powiadomień, a na komputerze
+w prawym dolnym rogu: agent, którego
 każda organizacja dostaje bez instalowania czegokolwiek, wspólny dla wszystkich,
 którzy mogą uruchamiać agentów (`agents:run`). Jest powiązany z
 [serwerem MCP tej platformy](mcp.md#agenticos-as-an-mcp-server). Zapytaj go,

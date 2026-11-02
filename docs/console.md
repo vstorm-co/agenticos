@@ -52,6 +52,8 @@ Agent and project instructions share one compact toolbar for their heading, help
 
 On phones, focusing the chat message switches to a compact writing row with attachment and send controls. Agent selection and voice input remain available under **+**. The welcome suggestions and connection suggestions step aside while composing, and completion menus stay within the available height. Moving focus from the draft to Send keeps the layout stable.
 
+Phone chat does not focus the input automatically on arrival or when a reply finishes.
+
 ## The dashboard
 
 The landing page is an **arrangeable grid of widgets**, and it is the answer to
@@ -230,7 +232,8 @@ time you open the page.
 
 ## The assistant
 
-Every page has the **Architect** in its bottom-right corner: an agent every
+The **Architect** sits in the phone header beside notifications and in the
+bottom-right corner on desktop: an agent every
 organization gets without installing anything, shared with everyone who may run
 agents (`agents:run`). It is bound to the
 [platform's own MCP server](mcp.md#agenticos-as-an-mcp-server). Ask it which
