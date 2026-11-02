@@ -653,11 +653,15 @@ def _text_of(content: PromptContent) -> str:
     """The text parts of a screened prompt, joined, for the redaction's trace span."""
     if isinstance(content, str):
         return content
-    return "\n".join(
-        item if isinstance(item, str) else item.content
-        for item in content
-        if isinstance(item, str | TextContent)
-    )
+    texts: list[str] = []
+    for item in content:
+        if isinstance(item, str):
+            texts.append(item)
+        elif isinstance(item, TextContent):
+            texts.append(item.content)
+        elif isinstance(item, BinaryContent) and _is_text(item.media_type):
+            texts.append(item.data.decode("utf-8", errors="replace"))
+    return "\n".join(texts)
 
 
 def input_screen(config: GuardrailsConfig) -> TextDetector | None:

@@ -507,8 +507,9 @@ async def test_a_redaction_is_traced_by_its_text_never_the_pictures_bytes(monkey
         lambda _ctx, *, direction, replacement: traced.append(replacement),
     )
     agent = _agent(GuardrailsConfig(redact_secrets_in=True), _answers("ok"))
-    await agent.run([f"key {SECRET}", TextContent(content="and more"), PICTURE])
-    assert traced == ["key [redacted:anthropic_key]\nand more"]
+    notes = BinaryContent(data=b"notes", media_type="text/plain")
+    await agent.run([f"key {SECRET}", TextContent(content="and more"), notes, PICTURE])
+    assert traced == ["key [redacted:anthropic_key]\nand more\nnotes"]
 
 
 async def test_a_resumed_request_of_several_prompt_parts_is_screened_by_the_harness():
