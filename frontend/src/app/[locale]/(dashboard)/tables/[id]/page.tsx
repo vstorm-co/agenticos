@@ -334,6 +334,7 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
   const content = (
     <div className="flex min-h-0 flex-1 flex-col">
       <PageHeader
+        className="mb-4"
         title={table.name}
         descriptionMode="summary"
         description={table.description ?? undefined}
@@ -355,7 +356,7 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
             )}
           </span>
         }
-        actions={
+        secondaryActions={
           <div className="flex flex-wrap items-center gap-2">
             {canEdit && (
               <Button
@@ -414,12 +415,14 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
                 )}
               </DropdownMenuContent>
             </DropdownMenu>
-            {canEdit && (
-              <Button size="sm" onClick={() => addRecord()}>
-                <Plus className="h-4 w-4" /> {t("addRecord")}
-              </Button>
-            )}
           </div>
+        }
+        actions={
+          canEdit && (
+            <Button size="sm" onClick={() => addRecord()}>
+              <Plus className="h-4 w-4" /> {t("addRecord")}
+            </Button>
+          )
         }
       />
 
@@ -442,16 +445,33 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
         <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b px-4 py-3 sm:px-5">
           {/* What the records are laid out as, and which saved view of them - one group. */}
           <div className="flex min-w-0 flex-wrap items-center gap-3">
-            <div className="flex flex-col gap-1">
+            <div className="flex flex-col gap-1" data-tour="table-view-tabs">
               <span id="table-format-label" className="sr-only">
                 {t("formatLabel")}
               </span>
-              <Tabs value={tab} onValueChange={(next) => setTab(next as ViewKind)}>
-                <TabsList
-                  data-tour="table-view-tabs"
-                  aria-labelledby="table-format-label"
-                  className="gap-2"
-                >
+              <div className="sm:hidden">
+                <Select value={tab} onValueChange={(next) => setTab(parseTab(next))}>
+                  <SelectTrigger aria-label={t("formatLabel")} className="w-24">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {VIEW_TABS.map(({ kind, icon: Icon }) => (
+                      <SelectItem key={kind} value={kind}>
+                        <span className="flex items-center gap-1.5">
+                          <Icon aria-hidden className="size-3.5" />
+                          {t(`tabs.${kind}`)}
+                        </span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <Tabs
+                value={tab}
+                onValueChange={(next) => setTab(parseTab(next))}
+                className="hidden sm:block"
+              >
+                <TabsList aria-labelledby="table-format-label" className="gap-2">
                   {VIEW_TABS.map(({ kind, icon: Icon }) => (
                     <TabsTrigger key={kind} value={kind} className="gap-1.5 text-xs">
                       <Icon aria-hidden="true" className="size-3.5" />
@@ -508,7 +528,7 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
               value={searchDraft}
               onChange={setSearchDraft}
               placeholder={t("search")}
-              className="min-w-0 flex-1 sm:w-56 sm:flex-none"
+              className="min-w-0 flex-1 max-sm:basis-full sm:w-56 sm:flex-none"
             />
             <RecordFiltersPopover
               columns={liveColumns.filter(filterable)}

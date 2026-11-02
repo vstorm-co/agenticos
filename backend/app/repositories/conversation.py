@@ -14,6 +14,7 @@ from sqlalchemy import (
     case,
     cast,
     distinct,
+    exists,
     func,
     or_,
     select,
@@ -1331,6 +1332,13 @@ async def run_outcomes(db: AsyncSession, run_ids: Collection[UUID]) -> dict[UUID
     }
 
 
+def _refused(run_id: UUID) -> ColumnElement[bool]:
+    """Whether `run_id` ended `guardrail_blocked`, for a row written after it did (#2578)."""
+    return exists().where(
+        AgentRun.id == run_id, AgentRun.status == RunStatus.GUARDRAIL_BLOCKED.value
+    )
+
+
 async def get_recent_messages(
     db: AsyncSession, conversation_id: UUID, *, limit: int
 ) -> list[Message]:
@@ -1540,6 +1548,7 @@ async def create_message(
         agent_id=agent_id,
         agent_version_id=agent_version_id,
         run_id=run_id,
+        guardrail_refused=False if run_id is None else _refused(run_id),
     )
     db.add(message)
     await db.flush()
@@ -1626,18 +1635,23 @@ async def link_message_to_run(
     await db.execute(
         sql_update(Message)
         .where(Message.id == message_id, Message.conversation_id == conversation_id)
-        .values(run_id=run_id)
+        .values(
+            run_id=run_id,
+            # Kept if already set: a refusal is never taken back by a relink.
+            guardrail_refused=Message.guardrail_refused | _refused(run_id),
+        )
     )
 
 
 async def set_attachment_context(
-    db: AsyncSession, *, message_id: UUID, conversation_id: UUID, context: str
+    db: AsyncSession, *, message_id: UUID, conversation_id: UUID, context: str | None
 ) -> None:
     """Record what a prompt's attachments added for the model - see `Message.attachment_context`.
 
     Written after the prompt row, because where a file goes depends on whether
     the agent has a workspace and that is known only once the run is prepared.
     Narrowed by `conversation_id` for the reason `link_message_to_run` is.
+    `None` takes it back off a turn a guardrail refused (#2578).
     """
     await db.execute(
         sql_update(Message)

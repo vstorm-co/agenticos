@@ -44,7 +44,7 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
   }
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-hidden pb-4">
+    <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden pb-4 sm:gap-4">
       <PageHeader
         className="mb-0 shrink-0 md:mb-0"
         breadcrumbs={[
@@ -72,15 +72,19 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
             <Skeleton className="h-5 w-20" />
           )
         }
+        secondaryActions={
+          project && (
+            <ShareResourceButton
+              resourceType="project"
+              resourceId={project.id}
+              name={project.name}
+              canManage={project.can_edit}
+            />
+          )
+        }
         actions={
           project ? (
             <>
-              <ShareResourceButton
-                resourceType="project"
-                resourceId={project.id}
-                name={project.name}
-                canManage={project.can_edit}
-              />
               {project.can_use &&
                 !["queued", "running"].includes(project.workspace_move?.status ?? "") && (
                   <Button asChild>

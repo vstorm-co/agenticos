@@ -102,7 +102,7 @@ export default function GroupPage({ params }: PageProps) {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <PageHeader
         breadcrumbs={[{ label: t("departmentsTitle"), href: ROUTES.GROUPS }, { label: group.name }]}
         title={

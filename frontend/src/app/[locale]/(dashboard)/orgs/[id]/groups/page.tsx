@@ -43,10 +43,15 @@ export default function GroupsPage({ params }: PageProps) {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <PageHeader
-        title={t("title")}
-        description={t("description")}
+        title={<span data-tour="org-groups">{t("title")}</span>}
+        description={
+          <div className="space-y-2">
+            <p>{t("description")}</p>
+            <p>{t("intro")}</p>
+          </div>
+        }
         breadcrumbs={[
           { label: t("organizations"), href: ROUTES.ORGS },
           { label: t("members"), href: ROUTES.ORG_MEMBERS(orgId) },
@@ -61,13 +66,6 @@ export default function GroupsPage({ params }: PageProps) {
           ) : null
         }
       />
-
-      <p
-        data-tour="org-groups"
-        className="border-border bg-card text-muted-foreground rounded-xl border p-5 text-sm"
-      >
-        {t("intro")}
-      </p>
 
       <GroupList
         groups={groups}

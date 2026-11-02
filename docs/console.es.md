@@ -1,5 +1,5 @@
 ---
-source_sha: "1ed94d5a70b8"
+source_sha: "59d45ccb08bb"
 ---
 
 # La consola { #the-console }
@@ -43,6 +43,26 @@ Los ajustes del chat tienen un encabezado fijo y un botón de cierre sobre el co
 Los agentes de una conversación se ordenan por su último mensaje o ejecución principal, del más reciente al más antiguo. La barra de chat contraída mantiene los avatares a tamaño completo, superpone hasta tres y oculta a los participantes más antiguos; la lista completa sigue disponible en la ayuda emergente.
 
 Cuando **Approve everything** no está disponible, los ajustes del chat distinguen entre la falta de permiso para decidir aprobaciones y una política de la organización que desactiva el consentimiento permanente. Quien puede decidir aprobaciones recibe un enlace a **Presupuesto y aprobaciones** para cambiar esa política expresamente. El chat nunca modifica la política de la organización automáticamente.
+
+Los diálogos mantienen un margen de 12 px en todos los bordes del teléfono. Los encabezados compactos muestran título y acciones en una línea cuando caben. La descripción de Context se abre desde la barra del editor.
+
+En el teléfono, las acciones principales siguen visibles y los comandos secundarios se despliegan con **Más acciones de la página**. Inbox y el formato de tabla usan selectores. Los ajustes con muchas secciones usan un menú; el cliente MCP se elige en una lista. Los archivos de proyecto o workspace se abren en un visor a pantalla completa; la flecha vuelve a las carpetas. El editor de pasos del workflow muestra un panel elegido: ajustes, entrada o salida. Cambiar de panel conserva las ediciones; en escritorio siguen uno al lado del otro.
+
+Los campos Markdown y los editores de archivos también ofrecen un botón para ampliar sin descartar el borrador actual. La descripción y la categoría de un skill pueden desplegarse encima del editor. El cuadro del chat ocupa menos espacio y limita los borradores largos según la altura disponible. Al abrir la navegación, el foco se sitúa en el panel; Tab sigue permitiendo acceder a sus controles. En el teléfono, el lienzo del workflow ofrece un control flotante de pantalla completa y un minimapa más pequeño.
+
+En teléfonos, los editores de skills y contexto mantienen plegadas la descripción, la categoría y la gestión de archivos mientras se escribe. Un botón alterna entre código y vista previa. Apps ofrece botones flotantes para volver y abrir opciones; estas muestran el título, la versión, el tema y los controles para compartir.
+
+Los encabezados utilizan el espaciado del diseño que los rodea sin duplicarlo. Las tarjetas, las filas de la barra lateral, las pestañas y los estados vacíos tienen un espaciado más compacto en escritorio; los controles conservan áreas táctiles mayores. Las listas largas de secciones de ajustes también usan un menú en escritorio. Los campos del perfil comparten fila cuando hay espacio; **Guardar cambios** solo está disponible tras editar. Cada tarjeta de capacidad tiene una zona para abrir los ajustes y un interruptor independiente para activarla. Los ejemplos aparecen detrás del icono de información en los ajustes, sin repetir la ilustración de la galería.
+
+Los diálogos de categorías de plantillas se ajustan al contenido; elegir un sector de agentes o habilidades abre la biblioteca más amplia. En el teléfono, los estilos se muestran en filas compactas con miniaturas.
+
+Las instrucciones de agentes y proyectos tienen una barra compacta con título, ayuda, código/vista previa y ampliación. El Markdown ampliado conserva el modo seleccionado. Las variables de prompt sin usar empiezan plegadas; las variables propias existentes o una zona horaria personalizada mantienen abierto el panel. Los editores ampliados de texto y archivos conservan márgenes uniformes en el teléfono. Los campos de texto usan allí una letra mayor sin ampliar los campos de escritorio.
+
+En el teléfono, enfocar el mensaje activa una fila compacta de escritura con adjuntos y envío. La selección del agente y la entrada de voz siguen disponibles en **+**. La bienvenida y las sugerencias de conexiones se ocultan al escribir; los menús de autocompletado se ajustan a la altura disponible. El diseño permanece estable al pasar del texto a Enviar.
+
+En el teléfono, el chat no enfoca automáticamente el campo al abrirse ni cuando termina una respuesta.
+
+En el teléfono, las acciones bajo los mensajes del usuario y del agente empiezan ocultas. El botón **Más** junto al remitente muestra u oculta copiar, responder, valorar y las demás acciones disponibles. En el escritorio, los controles siguen apareciendo al pasar el cursor.
 
 ## El dashboard { #the-dashboard }
 
@@ -238,7 +258,8 @@ un puñado de las más recientes, la próxima vez que abras la página.
 
 ## El asistente { #the-assistant }
 
-Cada página tiene al **Architect** en su esquina inferior derecha: un agent que
+El **Architect** aparece junto a las notificaciones en la cabecera del móvil
+y en la esquina inferior derecha del escritorio: un agent que
 toda organización recibe sin instalar nada, compartido con todos los que pueden
 ejecutar agents (`agents:run`). Está vinculado al
 [servidor MCP de la propia plataforma](mcp.md#agenticos-as-an-mcp-server).

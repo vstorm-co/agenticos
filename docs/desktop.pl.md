@@ -1,5 +1,5 @@
 ---
-source_sha: "5bf4baa63599"
+source_sha: "dbf0fc6726ea"
 ---
 
 # Aplikacja desktopowa { #the-desktop-app }
@@ -545,6 +545,12 @@ aktualizacji, APK i cask Homebrew do istniejącego, opublikowanego stabilnego wy
 Cask trafia też do tapu Homebrew, gdy skonfigurujesz deploy key lub token.
 Menu **Sprawdź aktualizacje…** wymaga buildu z publicznym kluczem aktualizatora i
 weryfikuje podpis przed instalacją.
+
+Buildy wydań desktopowych działają równolegle. Każdy wysyła własne podpisane
+paczki; jeden końcowy job sprawdza cztery natywne targety i publikuje `latest.json`.
+CI aplikacji natywnych zapisuje wyniki kompilacji według systemu, architektury,
+kompilatora, targetu i profilu buildu. Wydania tylko odczytują wspólny cache
+pobranych zależności. Nieudany build platformy blokuje publikację manifestu aktualizacji.
 
 Publikacja mobile jest obecnie wyłączona. Zmienna repozytorium
 `AGENTICOS_MOBILE_RELEASES_ENABLED=true` włącza podpisane wydania Androida;

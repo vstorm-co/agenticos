@@ -33,7 +33,10 @@ const description = () => screen.getByLabelText("Description");
 // the pane is flipped to Source, and named from the file being created, so it is
 // asked for by role rather than by a name that moves as somebody types.
 const content = () => screen.getByRole("textbox", { name: /source$/ });
-const openSource = () => userEvent.click(screen.getByRole("button", { name: "Source" }));
+const openSource = async () => {
+  const source = screen.queryByRole("button", { name: "Source" });
+  if (source) await userEvent.click(source);
+};
 const create = () => screen.getByRole("button", { name: "Create" });
 
 function mount(onOpenChange = vi.fn(), onCreated = vi.fn()) {

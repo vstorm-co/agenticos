@@ -54,7 +54,7 @@ export function ConversationSearchDialog({
             onChange={(event) => setTerm(event.target.value)}
             placeholder={t("searchLabel")}
             aria-label={t("searchLabel")}
-            className="placeholder:text-muted-foreground h-12 min-w-0 flex-1 bg-transparent text-sm outline-none"
+            className="placeholder:text-muted-foreground h-12 min-w-0 flex-1 bg-transparent text-base outline-none md:text-sm"
           />
         </div>
         <div className="max-h-[60vh] min-h-24 overflow-y-auto p-1.5">

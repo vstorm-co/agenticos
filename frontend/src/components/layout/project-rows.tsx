@@ -42,8 +42,8 @@ export function ProjectRows({
         title={collapsed ? project.name : undefined}
         aria-label={collapsed ? project.name : undefined}
         className={cn(
-          "touch:min-h-11 flex h-9 items-center rounded-xl text-sm font-medium transition-colors",
-          collapsed ? "w-9 justify-center" : "gap-2.5 px-2.5",
+          "touch:min-h-11 flex h-8 items-center rounded-xl text-sm font-medium transition-colors",
+          collapsed ? "touch:min-w-11 w-8 justify-center" : "gap-2.5 px-2.5",
           active
             ? "bg-accent text-foreground"
             : "text-muted-foreground hover:bg-accent/60 hover:text-foreground",

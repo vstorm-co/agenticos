@@ -480,13 +480,15 @@ class TestTheWidgetRemembersWhatWasSaid:
 
     @staticmethod
     def _message(role: str, content: str) -> MagicMock:
-        # The fields a stored turn always has: nobody named, nothing replied to.
+        # The fields a stored turn always has: nobody named, nothing replied to,
+        # no run a guardrail could have stopped.
         return MagicMock(
             role=role,
             content=content,
             attachment_context=None,
             author_user_id=None,
             reply_to_message_id=None,
+            guardrail_refused=False,
         )
 
     @pytest.mark.anyio

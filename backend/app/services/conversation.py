@@ -57,7 +57,7 @@ from app.services.access import AGENT, PROJECT, resolve_access, visible_resource
 from app.services.channels import membership as channel_membership
 from app.services.file_storage import delete_files_best_effort, delete_prefix_best_effort
 from app.services.generated_media import GeneratedMediaService
-from app.services.message_history import HistoryMessage, build_message_history
+from app.services.message_history import REFUSED_TURN, HistoryMessage, build_message_history
 
 logger = logging.getLogger(__name__)
 
@@ -99,7 +99,9 @@ def _as_history(
     A prompt that carried files is replayed with what they added for the model,
     so a follow-up about the file reaches a model that knows it is there. A
     person's turn reads as `spoken` says where it says anything - who said it
-    and what it answers - see `ConversationService._spoken`.
+    and what it answers - see `ConversationService._spoken`. A prompt of a turn
+    a guardrail stopped reads as `REFUSED_TURN`, with nothing its files added
+    (#2578).
     """
     spoken = spoken or {}
     history: list[HistoryMessage] = []
@@ -109,15 +111,22 @@ def _as_history(
         # What the person added while the answer was being written, as they added
         # it: before the answer it changed. Stored only as parts of the answer,
         # it was in the conversation on screen and missing from the next turn.
+        # Not for a turn a guardrail stopped, whose words are withheld whole.
         history.extend(
             {"role": "user", "content": f"{STEER_PREFIX}\n\n{part['text']}"}
             for part in row.parts or []
-            if part.get("type") == "steer" and isinstance(part.get("text"), str)
+            if part.get("type") == "steer"
+            and isinstance(part.get("text"), str)
+            and not row.guardrail_refused
         )
         history.append(
             {
                 "role": row.role,
-                "content": spoken.get(row.id, row.content) + (row.attachment_context or ""),
+                "content": (
+                    REFUSED_TURN
+                    if row.role == "user" and row.guardrail_refused
+                    else spoken.get(row.id, row.content) + (row.attachment_context or "")
+                ),
                 # The size of the request this answer came out of: the anchor the
                 # compaction estimator measures against, in place of counting
                 # characters - see `agent.build_message_history`.
@@ -270,7 +279,7 @@ class ConversationService:
             )
             if answered is not None:
                 text = (
-                    f'(In reply to {_whose(answered, people)}: "{_excerpt(answered.content)}")'
+                    f'(In reply to {_whose(answered, people)}: "{_excerpt(_said(answered))}")'
                     f"\n\n{text}"
                 )
             author = people.get(row.author_user_id) if in_project and row.author_user_id else None
@@ -1638,6 +1647,14 @@ def _excerpt(text: str) -> str:
     """A message as one short line: its whitespace folded, its tail cut."""
     flat = " ".join(text.split())
     return flat if len(flat) <= _EXCERPT_CHARS else f"{flat[:_EXCERPT_CHARS]}…"
+
+
+def _said(message: Message) -> str:
+    """What a quoted message says, as the model may be told it: a quote is the
+    other way a refused prompt's words would reach it (#2578)."""
+    if message.role == "user" and message.guardrail_refused:
+        return REFUSED_TURN
+    return message.content
 
 
 def _whose(message: Message, people: dict[UUID, User]) -> str:

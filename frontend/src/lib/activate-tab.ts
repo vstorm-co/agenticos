@@ -23,12 +23,12 @@ export function activateTab(
   trigger: HTMLElement,
   { moveFocus = true }: { moveFocus?: boolean } = {},
 ): void {
-  // Popovers and disclosure buttons open on a click, not a press. The chat's
-  // approval and connection stops must reveal both layers before highlighting.
-  if (
-    trigger.getAttribute("aria-haspopup") === "dialog" ||
-    (trigger.hasAttribute("aria-expanded") && trigger.getAttribute("role") !== "tab")
-  ) {
+  // Disclosures are idempotent: revealing an already open panel must not close it.
+  if (trigger.hasAttribute("aria-expanded") && trigger.getAttribute("role") !== "tab") {
+    if (trigger.getAttribute("aria-expanded") !== "true") trigger.click();
+    return;
+  }
+  if (trigger.getAttribute("aria-haspopup") === "dialog") {
     trigger.click();
     return;
   }

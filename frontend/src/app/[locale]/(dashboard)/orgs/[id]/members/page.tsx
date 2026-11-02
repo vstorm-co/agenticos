@@ -347,7 +347,7 @@ export default function OrgMembersPage({ params }: PageProps) {
   }, [canManage, user?.id, assignable, changeRole, removeMember, tDirectory]);
 
   return (
-    <div className="flex flex-1 flex-col space-y-6">
+    <div className="flex flex-1 flex-col space-y-4">
       <PageHeader
         title={org?.name ?? t("members")}
         description={t("membersDescription", { count: total })}
@@ -355,7 +355,7 @@ export default function OrgMembersPage({ params }: PageProps) {
           { label: t("organizations"), href: ROUTES.ORGS },
           { label: org?.name ?? t("members2") },
         ]}
-        actions={
+        secondaryActions={
           // Wrapping, because four links are wider than a phone (#2075).
           <div className="flex flex-wrap items-center gap-2">
             <Button variant="outline" asChild>
@@ -403,13 +403,17 @@ export default function OrgMembersPage({ params }: PageProps) {
                   <Link2 className="h-4 w-4" />
                   {t("inviteLink")}
                 </Button>
-                <Button onClick={() => setInviteOpen(true)}>
-                  <UserPlus className="h-4 w-4" />
-                  {t("inviteTeammate")}
-                </Button>
               </>
             ) : null}
           </div>
+        }
+        actions={
+          canManage && (
+            <Button onClick={() => setInviteOpen(true)}>
+              <UserPlus className="h-4 w-4" />
+              {t("inviteTeammate")}
+            </Button>
+          )
         }
       />
 

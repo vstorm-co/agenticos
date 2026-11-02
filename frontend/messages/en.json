@@ -771,7 +771,6 @@
     "startsWithRecommended": "{count, plural, =0 {Starts with no tools} =1 {Starts with 1 recommended tool} other {Starts with # recommended tools}}",
     "capabilityRecommended": "Recommended",
     "capabilitySettingsTitle": "{name} settings",
-    "capabilityOpenSettings": "Settings",
     "capabilityShelfEnabled": "{enabled} of {total} on",
     "capabilityShelfPrevious": "Earlier in {shelf}",
     "capabilityShelfNext": "More in {shelf}",
@@ -2250,6 +2249,7 @@
   },
   "common": {
     "archiveNamedConfirm": "Archive {name}?",
+    "chooseSection": "Section: {section}",
     "back": "Back",
     "cancel": "Cancel",
     "close": "Close",
@@ -3105,6 +3105,7 @@
       "reset": "Follow the page again"
     },
     "pageStatus": "Status",
+    "morePageActions": "More page actions",
     "startChecklist": {
       "title": "Get started",
       "progress": "{done} of {total} done",
@@ -4056,6 +4057,7 @@
     "serverDisconnected": "{name} disconnected.",
     "serverUpdated": "{name} updated.",
     "serverUrl": "Server URL",
+    "client": "MCP client",
     "servers": "Servers",
     "settings": "Settings",
     "stateDisabled": "Disabled",
@@ -4756,6 +4758,30 @@
         "title": "Your documents",
         "body": "When an agent saves a file, it lands here - browse, preview and download whatever your conversations produced."
       },
+      "project-file-fullscreen": {
+        "title": "More room for files",
+        "body": "Open a file, then expand its reader to use the screen. The back arrow returns to the folder list."
+      },
+      "workspace-file-fullscreen": {
+        "title": "More room for files",
+        "body": "Open a file, then expand its reader to use the screen. The back arrow returns to the folder list."
+      },
+      "agent-editor-fullscreen": {
+        "title": "Expand the editor",
+        "body": "Use the expand button to read or edit the whole document. Closing the expanded editor keeps your current draft."
+      },
+      "skill-editor-fullscreen": {
+        "title": "Expand the editor",
+        "body": "Use the expand button to read or edit the whole document. Closing the expanded editor keeps your current draft."
+      },
+      "context-editor-fullscreen": {
+        "title": "Expand the editor",
+        "body": "Use the expand button to read or edit the whole document. Closing the expanded editor keeps your current draft."
+      },
+      "workflow-canvas-fullscreen": {
+        "title": "Work on the full screen",
+        "body": "This floating button expands the diagram. Use it again to return to the workflow header; your draft stays in place."
+      },
       "workspaces-detail": {
         "title": "Inside a folder",
         "body": "One agent's files, folder by folder. Preview a file, or download whatever an agent produced for you."
@@ -5007,6 +5033,10 @@
       "chat-local-coding": {
         "title": "Coding agent",
         "body": "Choose Claude Code or Codex on this computer for this conversation, even when the agent has no Coding agent capability. Its existing approval and read-only rules still apply. Each task asks for native confirmation."
+      },
+      "workflow-step-view": {
+        "title": "Focus on one panel",
+        "body": "On a phone, choose step settings, input or output to give the active panel the available space. Switching panels keeps your draft."
       }
     },
     "chooseLanguage": "Language",
@@ -7951,6 +7981,7 @@
     "minutesAgo": "{count, plural, other {#m ago}}"
   },
   "ui": {
+    "expandEditor": "Expand {label}",
     "cancel": "Cancel",
     "checkConnection": "Check your connection and try again.",
     "close": "Close",
@@ -8927,6 +8958,8 @@
     "dataEmpty": "Nothing in it",
     "dataMoreRows": "{count, plural, one {Show # more row} other {Show # more rows}}",
     "stepInput": "Input",
+    "stepEditorView": "Step view",
+    "stepEditorSettings": "Step settings",
     "stepInputSource": "Step to read from",
     "stepPinned": "Test data",
     "stepNoDataYet": "No data yet. Run the workflow, or test the step before it.",
@@ -9345,6 +9378,7 @@
     "currentTag": "Current",
     "publicUpdated": "Updated {when}",
     "backToArtifacts": "Back to apps",
+    "viewerControls": "App controls",
     "share": "Share",
     "moreActions": "More actions",
     "accessRestricted": "Only people with access",
@@ -9612,7 +9646,6 @@
       "blockedSwitch": "An Owner or Admin has to turn on live data on public pages in the organization's settings first.",
       "blockedLink": "The page has no public link. Turn it on first."
     },
-    "appTheme": "App theme",
     "lightTheme": "Use light app theme",
     "darkTheme": "Use dark app theme"
   },
@@ -11070,8 +11103,8 @@
         "description": "Adds subtasks and dependencies: a step waits as blocked until the steps before it finish. Off by default, because a flat checklist is enough for most work."
       },
       "cache_ttl": {
-        "title": "Prompt cache lifetime",
-        "description": "How long the provider may cache the prompt prefix that sits before the plan reminder. The reminder changes every turn and is deliberately kept behind this breakpoint so the stable prefix stays cacheable; a longer TTL suits a conversation that stays open, the shorter one a burst of turns."
+        "title": "Legacy prompt cache lifetime",
+        "description": "Kept so existing agent specs still load. Planning no longer uses this value; configure prompt caching through cache in the model settings."
       }
     },
     "sandbox": {
@@ -11412,6 +11445,7 @@
     "why": "Claude Code, Codex, Cursor or any other MCP client can work in this organization through AgenticOS's own MCP server: list and run agents, read runs and what they cost, search and fill knowledge bases, invite members.",
     "docs": "What the MCP server can do",
     "serverUrl": "Server URL",
+    "client": "MCP client",
     "signIn": "Sign in",
     "viaBrowser": "Through the browser",
     "viaKey": "With an API key",

@@ -104,7 +104,7 @@ export function DirectoryMappingDialog({ orgId, onClose }: { orgId: string; onCl
               }}
               placeholder={EXAMPLE_DN}
               maxLength={MAX_EXTERNAL}
-              className="font-mono text-xs"
+              className="font-mono text-base md:text-xs"
             />
           </FormField>
           <FormField label={t("role")} htmlFor="mapping-role">

@@ -3,6 +3,9 @@
 import { ReactFlowProvider } from "@xyflow/react";
 
 import type { NodeDefinition, WorkflowDetail } from "@/lib/workflows/types";
+import { useWorkspaceFullscreen } from "@/hooks/use-workspace-fullscreen";
+import { WorkspaceFullscreenButton } from "@/components/ui/workspace-fullscreen-button";
+import { cn } from "@/lib/utils";
 
 import { WorkflowGraphView } from "./workflow-graph-view";
 
@@ -28,8 +31,19 @@ interface WorkflowCanvasProps {
  * and deleting switched off; the port handles still mount so edges keep drawing.
  */
 export function WorkflowCanvas({ workflow, catalog, readOnly = false }: WorkflowCanvasProps) {
+  const { ref, expanded, toggle } = useWorkspaceFullscreen();
   return (
-    <div data-workflow-id={workflow.id} className="relative h-full">
+    <div
+      ref={ref}
+      data-workflow-id={workflow.id}
+      className={cn("relative h-full", expanded && "bg-background fixed inset-0 z-40 h-auto")}
+    >
+      <div
+        data-tour="workflow-canvas-fullscreen"
+        className="bg-background absolute right-3 bottom-16 z-20 rounded-full border shadow-sm"
+      >
+        <WorkspaceFullscreenButton expanded={expanded} onToggle={toggle} />
+      </div>
       <ReactFlowProvider>
         <WorkflowGraphView catalog={catalog} readOnly={readOnly} />
       </ReactFlowProvider>

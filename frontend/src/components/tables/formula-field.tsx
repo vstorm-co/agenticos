@@ -60,7 +60,7 @@ export function FormulaField({
         value={value}
         rows={3}
         maxLength={1000}
-        className="font-mono text-xs"
+        className="font-mono text-base md:text-xs"
         placeholder={t("placeholder")}
         onChange={(event) => onChange(event.target.value)}
         aria-invalid={error === undefined ? undefined : true}

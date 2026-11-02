@@ -23,7 +23,7 @@ export default function WorkflowLogsPage({ params }: PageProps) {
   const { workflow } = useWorkflow(id);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <PageHeader
         title={t("logsTitle")}
         description={t("logsDescription")}

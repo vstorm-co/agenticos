@@ -237,9 +237,6 @@ async def ingest_path_async(
                     source_path=source_path,
                 )
                 if result.status.value == "done":
-                    success_count += 1
-                    if result.message and "replaced" in result.message:
-                        replaced_count += 1
                     # `ingest_file` only sets `document_id` on the branch that
                     # returns `DONE` - the two travel together in `IngestionResult`.
                     assert result.document_id is not None
@@ -247,13 +244,25 @@ async def ingest_path_async(
                         # A fresh row per file, every run, the same as the sync
                         # worker flows - this command has no retry concept, so
                         # `attempt` is always `1`, the column's own default.
-                        await RAGDocumentService(db).complete_ingestion(
+                        documents = RAGDocumentService(db)
+                        recorded = await documents.complete_ingestion(
                             doc_id,
                             vector_document_id=result.document_id,
                             chunk_count=result.chunk_count,
                             replaced_document_id=result.replaced_document_id,
                             attempt=1,
                         )
+                        if not recorded:
+                            # Its row was deleted while it indexed (#2565).
+                            await documents.discard_untracked(
+                                collection, result.document_id, scope=ingestion.scope
+                            )
+                    if recorded:
+                        success_count += 1
+                        if result.message and "replaced" in result.message:
+                            replaced_count += 1
+                    else:
+                        tqdm.write(f"  - {filepath.name}: deleted while indexing")
                 else:
                     error_count += 1
                     tqdm.write(f"  ✗ {filepath.name}: {result.error_message}")

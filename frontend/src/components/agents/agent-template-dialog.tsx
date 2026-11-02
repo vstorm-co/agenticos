@@ -28,7 +28,13 @@ import {
   DialogTitle,
 } from "@/components/ui";
 import { ErrorState, LoadingState } from "@/components/states";
-import { DIALOG_CANVAS, DIALOG_FILL, DIALOG_SCROLL_GUTTER } from "@/lib/dialog-sizes";
+import {
+  DIALOG_BROAD,
+  DIALOG_CANVAS,
+  DIALOG_COLUMN,
+  DIALOG_FILL,
+  DIALOG_SCROLL_GUTTER,
+} from "@/lib/dialog-sizes";
 import { ROUTES } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import { useAgentTemplates } from "@/hooks/use-agent-templates";
@@ -87,7 +93,9 @@ export function AgentTemplateDialog({
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogContent className={cn(DIALOG_FILL, DIALOG_CANVAS)}>
+      <DialogContent
+        className={cn(industry ? [DIALOG_FILL, DIALOG_CANVAS] : [DIALOG_COLUMN, DIALOG_BROAD])}
+      >
         <DialogHeader>
           <DialogTitle>{industry ? t(`industry.${industry.id}`) : t("title")}</DialogTitle>
           <DialogDescription>{industry ? t("industryHint") : t("description")}</DialogDescription>
@@ -135,9 +143,9 @@ function IndustryCards({
               key={industry.id}
               type="button"
               onClick={() => onPick(industry.id)}
-              className="group hover:border-primary hover:bg-accent flex flex-col items-center gap-3 rounded-lg border p-8 text-center transition-colors"
+              className="group hover:border-primary hover:bg-accent grid grid-cols-[2rem_minmax(0,1fr)] items-center gap-x-3 gap-y-1 rounded-lg border p-4 text-left transition-colors sm:flex sm:flex-col sm:gap-2 sm:p-5 sm:text-center"
             >
-              <Icon className="text-muted-foreground group-hover:text-primary size-10 transition-colors" />
+              <Icon className="text-muted-foreground group-hover:text-primary row-span-3 size-7 transition-colors sm:size-8" />
               <span className="font-medium">{t(`industry.${industry.id}`)}</span>
               <span className="text-muted-foreground text-sm">
                 {t("count", { count: industry.templates.length })}

@@ -182,7 +182,7 @@ function ConversationItem({
             if (e.key === "Enter") handleRename();
             if (e.key === "Escape") setIsEditing(false);
           }}
-          className="text-foreground min-w-0 flex-1 bg-transparent text-[13px] font-medium outline-none"
+          className="text-foreground min-w-0 flex-1 bg-transparent text-base font-medium outline-none md:text-[13px]"
           autoFocus
           onClick={(e) => e.stopPropagation()}
         />

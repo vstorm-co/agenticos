@@ -1,5 +1,5 @@
 ---
-source_sha: "60474df64ce2"
+source_sha: "3c56f1399cc1"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -2235,13 +2235,14 @@ paso, o un lote, sin sustituir el plan.*
 `add_subtask`, `set_dependency`, `get_available_tasks` — *planificación consciente de
 las dependencias, ofrecida solo bajo `enable_subtasks`.*
 
-Una lista de comprobación que el modelo mantiene para sí mientras trabaja: qué está
-hecho, qué está en marcha, qué queda. En trabajo de varios pasos un modelo lo hace
-mejor cuando primero anota los pasos y los mantiene delante, así que el plan actual
-se le devuelve cada turno como un **recordatorio de cola seguro para la caché**:
-añadido después de un punto de corte de caché, de modo que el prefijo estable del
-prompt sigue siendo idéntico byte a byte y solo el plan mutable se vuelve a leer cada
-turno. El plan no aterriza nunca en el system prompt.
+El modelo mantiene una lista de pasos completados, activos y pendientes. Las
+herramientas que cambian el plan lo devuelven en un marco `<plan_reminder>`.
+Cuando el plan visible difiere del almacén, por ejemplo tras la compactación o
+al iniciar un run, el harness lo registra como contenido del canal de usuario
+en el historial del run. Nunca se convierte en un system prompt. Los ajustes del
+modelo controlan la caché. Si un agente usaba `planning.cache_ttl`, traslade la
+retención al ajuste del modelo `cache`, por ejemplo `cache: "1h"`; el campo
+anterior de la capability se sigue aceptando, pero se ignora.
 
 Se solapa con la [Delegación](#delegation) como un plan se solapa con un equipo: la
 planificación decide *cuáles* son los pasos, la delegación decide *quién* los hace.
@@ -2252,7 +2253,7 @@ ninguna.
 | Configuración | Valor por defecto | Valores |
 |---|---|---|
 | `enable_subtasks` | `false` | añade las tres herramientas de subtarea/dependencia y el estado `blocked` |
-| `cache_ttl` | `5m` | `5m`, `1h`: cuánto puede cachearse el prefijo anterior al recordatorio |
+| `cache_ttl` | `5m` | Campo anterior: aceptado pero ignorado; configure `cache` en los ajustes del modelo |
 
 **Ninguna de las nueve herramientas actúa sobre el mundo.** Cada una muta una lista de
 comprobación que el modelo mantiene para sí, así que aquí no hay nada que una persona
@@ -2366,7 +2367,7 @@ Hay tres clases de recordatorio, cada una con su propia cadencia:
 | Clase | Coste | Texto que inyecta |
 |---|---|---|
 | `reminders[]` | ninguno | Una línea fija que escribes tú |
-| `goal_reanchor` | ninguno | La primera petición del usuario en el run, reformulada como ancla |
+| `goal_reanchor` | ninguno | Una referencia a la primera petición del usuario en el run, sin repetir su texto |
 | `llm_reminder` | una llamada al modelo por disparo | Un empujón corto que un modelo escribe a partir de la transcripción reciente |
 
 Cada clase recibe `interval` (dispara cada N peticiones al modelo), `first_after` (el
@@ -2793,6 +2794,14 @@ es la plataforma funcionando y un operador que filtre buscando problemas deberí
 encontrarlo en lugar de que se lea como cualquier respuesta completada. Consulta
 [Gobernanza](../governance.md).
 
+**El mensaje de un turno bloqueado no se vuelve a leer.** Cada comprobación lee solo
+lo nuevo de su propio turno, así que el historial de un turno posterior no reproduce
+el mensaje de un run `guardrail_blocked`, sea cual sea la comprobación que lo detuvo.
+En su lugar, el modelo lee una nota breve de que un guardrail detuvo ese turno, sin
+el texto del mensaje ni lo que añadieron los archivos enviados con él. La
+conversación sigue mostrando a la persona lo que escribió. La búsqueda en
+conversaciones anteriores (`conversation_search`) todavía no filtra estos mensajes.
+
 **Una comprobación de salida filtra la respuesta antes de que nadie la vea.** Todas
 las superficies transmiten en streaming: el chat web y el widget incrustado envían la
 respuesta mientras se escribe, y un bot de canal edita su respuesta según llega el
@@ -2844,9 +2853,16 @@ que un turno que el borde bloquea no escribe nada, y un turno posterior en un
 workspace con alcance `conversation`, `user` o `agent` no tiene ningún archivo
 rechazado que abrir. El borde solo lee esas primeras líneas, así que un término
 bloqueado más abajo en el archivo no se detecta aquí; para eso está la revisión de
-los resultados de las herramientas. Una imagen enviada en línea es la excepción: el
-borde también lee sus bytes, y un bloqueo que causan esos bytes no se prevé, así que
-esa imagen se sigue escribiendo.
+los resultados de las herramientas. Una imagen enviada en línea no es texto, así que
+el borde no la lee: en un prompt con una imagen el borde revisa solo las palabras,
+nunca los bytes de la imagen, y una censura reescribe esas palabras y conserva la
+imagen. Un prompt construido en código también puede
+llevar un archivo de texto, que se revisa como el texto UTF-8 que recibe el
+modelo; un archivo que declara otro juego de caracteres o que no es válido en el
+que declara bloquea el turno. Un prompt así también puede llevar un enlace, que también se
+revisa: una censura no se puede escribir en un enlace sin romperlo, así que una
+coincidencia en él bloquea. Como los bytes ya no deciden, la revisión previa a
+la escritura prevé un turno con imagen igual que cualquier otro.
 
 **El filtrado de los resultados de herramienta es la razón de que este borde sea el que
 más importa.** Es la única guarda sobre el contenido no confiable que entra en el

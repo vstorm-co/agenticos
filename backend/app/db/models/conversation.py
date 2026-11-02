@@ -409,6 +409,17 @@ class Message(Base, TimestampMixin):
 
     Null on every message that carried no attachment."""
 
+    guardrail_refused: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
+    """This row belongs to a turn a guardrail stopped, so no later history replays it (#2578).
+
+    Kept on the row rather than read off `run_id`: run retention deletes a
+    `guardrail_blocked` run like any other, `run_id` is `SET NULL`, and a refusal
+    read through the run would end with it - the prompt the input edge stopped
+    then reached the model on the next turn. Set on every row of the run when it
+    ends `guardrail_blocked`, and on a row written for such a run afterwards."""
+
     conversation: Mapped[Conversation] = relationship("Conversation", back_populates="messages")
     tool_calls: Mapped[list[ToolCall]] = relationship(
         "ToolCall",

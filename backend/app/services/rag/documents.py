@@ -5,7 +5,7 @@ import re
 import tempfile
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from app.core.office_convert import (
     OfficeConversionError,
@@ -36,6 +36,11 @@ from app.services.rag.models import (
     DocumentPage,
     DocumentPageChunk,
 )
+
+if TYPE_CHECKING:
+    from pymupdf import Document as PDFDocument
+    from pymupdf import Page as PDFPage
+
 
 logger = logging.getLogger(__name__)
 
@@ -258,28 +263,44 @@ class PyMuPDFParser(BaseDocumentParser):
             return ""
         return await image_describer.describe(image_bytes, "image/png")
 
-    def _extract_images(self, doc: Any, page: Any) -> list[DocumentImage]:
-        """Extract images from page for LLM description."""
-        images = []
+    def _extract_images(
+        self,
+        doc: PDFDocument,
+        page: PDFPage,
+        *,
+        image_cache: dict[int, tuple[bytes, str] | None],
+    ) -> list[DocumentImage]:
+        """Extract each xref once, sharing its bytes across page-local images."""
+        page_number = page.number
+        assert page_number is not None  # Pages are attached to the open PDF throughout extraction.
+        images: list[DocumentImage] = []
+        seen: set[int] = set()
         for img_info in page.get_images(full=True):
             xref = img_info[0]
-            try:
-                base = doc.extract_image(xref)
-                if base and base["image"] and len(base["image"]) > 1000:
-                    ext = base.get("ext", "png")
-                    mime_map = {"png": "image/png", "jpeg": "image/jpeg", "jpg": "image/jpeg"}
-                    images.append(
-                        DocumentImage(
-                            page_num=page.number + 1,
-                            image_bytes=base["image"],
-                            mime_type=mime_map.get(ext, f"image/{ext}"),
-                        )
+            if xref in seen:
+                continue
+            seen.add(xref)
+            if xref not in image_cache:
+                # Cache refusals too: a broken or tiny shared logo must not be
+                # decoded (or logged) again on every page that references it.
+                image_cache[xref] = None
+                try:
+                    base = doc.extract_image(xref)
+                    if base and base["image"] and len(base["image"]) > 1000:
+                        ext = base.get("ext", "png")
+                        mime_map = {"png": "image/png", "jpeg": "image/jpeg", "jpg": "image/jpeg"}
+                        image_cache[xref] = (base["image"], mime_map.get(ext, f"image/{ext}"))
+                except Exception:
+                    # One unreadable embedded image should not fail the text.
+                    logger.warning("Skipping an unreadable image on page %d", page_number + 1)
+            cached = image_cache[xref]
+            if cached is not None:
+                image_bytes, mime_type = cached
+                images.append(
+                    DocumentImage(
+                        page_num=page_number + 1, image_bytes=image_bytes, mime_type=mime_type
                     )
-            except Exception:
-                # One unreadable embedded image should not fail a whole
-                # document, but silently dropping it is how "the PDF ingested
-                # but the diagram is missing" becomes unexplainable.
-                logger.warning("Skipping an unreadable image on page %d", page.number + 1)
+                )
         return images
 
     async def _parse_pdf_file(self, filepath: Path) -> Document:
@@ -287,37 +308,39 @@ class PyMuPDFParser(BaseDocumentParser):
         # Imported where a PDF is parsed, for the reason `_parse_docx_file` gives.
         import pymupdf
 
-        doc: Any = pymupdf.open(filepath)  # type: ignore[no-untyped-call]
+        with pymupdf.open(filepath) as doc:
+            meta = doc.metadata or {}
+            toc = doc.get_toc()
 
-        meta = doc.metadata or {}
-        toc = doc.get_toc()
+            repeated = self._detect_repeated_content(doc)
 
-        repeated = self._detect_repeated_content(doc)
+            image_cache: dict[int, tuple[bytes, str] | None] = {}
+            pages: list[DocumentPage] = []
+            for page in doc:
+                text = self._extract_text(page, repeated)
 
-        pages = []
-        for page in doc:
-            text = self._extract_text(page, repeated)
+                tables_md = self._extract_tables(page)
+                if tables_md:
+                    text = text + "\n\n" + tables_md if text.strip() else tables_md
 
-            tables_md = self._extract_tables(page)
-            if tables_md:
-                text = text + "\n\n" + tables_md if text.strip() else tables_md
-
-            if self.enable_ocr and len(text.strip()) < self.MIN_TEXT_LENGTH:
-                ocr_text = await self._ocr_page(page, self._image_describer)
-                if len(ocr_text.strip()) > len(text.strip()):
-                    text = ocr_text
-                    logger.info("OCR fallback used for page %d", page.number + 1)
-            images = self._extract_images(doc, page)
-
-            pages.append(
-                DocumentPage(
-                    page_num=page.number + 1,
-                    content=text,
-                    images=images,
+                if self.enable_ocr and len(text.strip()) < self.MIN_TEXT_LENGTH:
+                    ocr_text = await self._ocr_page(page, self._image_describer)
+                    if len(ocr_text.strip()) > len(text.strip()):
+                        text = ocr_text
+                        logger.info("OCR fallback used for page %d", page.number + 1)
+                images = (
+                    self._extract_images(doc, page, image_cache=image_cache)
+                    if self._image_describer is not None
+                    else []
                 )
-            )
 
-        doc.close()
+                pages.append(
+                    DocumentPage(
+                        page_num=page.number + 1,
+                        content=text,
+                        images=images,
+                    )
+                )
 
         additional: dict[str, Any] = {}
         if meta.get("title"):
@@ -719,13 +742,16 @@ class DocumentProcessor:
         """Generate text descriptions for all images in document pages."""
         if self.image_describer is None:
             return
+        descriptions: dict[bytes, str] = {}
         for page in document.pages:
             if not page.images:
                 continue
             for image in page.images:
-                image.description = await self.image_describer.describe(
-                    image.image_bytes, image.mime_type
-                )
+                if image.image_bytes not in descriptions:
+                    descriptions[image.image_bytes] = await self.image_describer.describe(
+                        image.image_bytes, image.mime_type
+                    )
+                image.description = descriptions[image.image_bytes]
             img_descriptions = [
                 f"[Image: {img.description}]" for img in page.images if img.description
             ]
@@ -773,7 +799,12 @@ class DocumentProcessor:
                         chunk_content=chunk,
                         chunk_num=chunk_num,
                         parent_doc_id=document.id,
-                        **page.model_dump(exclude={"parent_doc_id"}),
+                        # Keep the page text by reference; serializing the page
+                        # also rebuilds every embedded image for every chunk.
+                        page_id=page.page_id,
+                        page_num=page.page_num,
+                        content=page.content,
+                        image_count=len(page.images),
                     )
                 )
 

@@ -325,6 +325,10 @@ judged by someone running a deployment, not by the size of the diff:
   `backend/pyproject.toml`, `backend/uv.lock` and `frontend/package.json`. Feature
   PRs write their changelog entries under `[Unreleased]`; the cut does not add new
   ones.
+- Prepare a release train with `make release-cut BUMP=patch` (or `minor`); add
+  `CREATE_PR=1` to create the cut PR from fresh `origin/main`. The default only
+  prints a plan. CI and CodeQL may reuse successful full runs for a proven
+  version-only cut; missing evidence runs full checks. See `docs/branching.md`.
 - After the cut merges, publish the release and its tag in one step:
   `gh release create vX.Y.Z --target <cut merge commit> --notes-file <its changelog
   section>`. Never push the tag first: it starts `images.yml` at once, and that

@@ -29,7 +29,7 @@ export function SectionCard({
     >
       <header
         data-tour={tour}
-        className="border-border flex flex-wrap items-start justify-between gap-3 border-b px-5 py-4"
+        className="border-border flex flex-wrap items-center justify-between gap-3 border-b px-4 py-3"
       >
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1">
@@ -39,7 +39,7 @@ export function SectionCard({
         </div>
         {action && <div className="shrink-0">{action}</div>}
       </header>
-      {children && <div className="px-4 py-5 sm:px-5">{children}</div>}
+      {children && <div className="p-4">{children}</div>}
     </section>
   );
 }
@@ -66,13 +66,13 @@ export function SettingsSection({
   return (
     <section
       className={cn(
-        "bg-card rounded-2xl border p-4 sm:p-6",
+        "bg-card rounded-2xl border p-4 sm:p-5",
         danger ? "border-destructive/30 bg-destructive/[0.03]" : "border-foreground/10",
         className,
       )}
     >
       <header
-        className={cn("flex flex-wrap items-start justify-between gap-3", children ? "mb-5" : "")}
+        className={cn("flex flex-wrap items-start justify-between gap-3", children ? "mb-4" : "")}
       >
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1">

@@ -1,5 +1,5 @@
 ---
-source_sha: "5bf4baa63599"
+source_sha: "dbf0fc6726ea"
 ---
 
 # La app de escritorio { #the-desktop-app }
@@ -565,6 +565,13 @@ instaladores, archivos de actualización firmados, un APK y un cask Homebrew a u
 versión estable ya publicada `v1.MINOR.PATCH` cuyo commit pertenece a `main`.
 No crea una versión de la plataforma. El cask también se publica en el tap Homebrew si se configura una clave de despliegue o un token. **Check for Updates…** requiere un
 build con la clave pública y verifica la firma antes de instalar.
+
+Los builds de versiones de escritorio se ejecutan en paralelo. Cada uno sube
+sus paquetes firmados; un job final valida los cuatro targets nativos y publica
+`latest.json`. CI nativo guarda los resultados de compilación por sistema operativo,
+arquitectura, compilador, target y perfil de build. Las versiones solo restauran
+las dependencias descargadas del caché compartido. Un build fallido impide publicar
+el manifiesto de actualización.
 
 La publicación móvil está desactivada actualmente. La variable del repositorio
 `AGENTICOS_MOBILE_RELEASES_ENABLED=true` habilita las versiones firmadas de Android;

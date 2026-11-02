@@ -854,7 +854,7 @@ function ConfigMap({
             placeholder={t("nodeFormMapNamePlaceholder")}
             value={name}
             disabled={disabled}
-            className="font-mono text-xs"
+            className="font-mono text-base md:text-xs"
             onChange={(event) => save(replaceAt(rows, index, [event.target.value, text]))}
           />
           <Input
@@ -862,7 +862,7 @@ function ConfigMap({
             placeholder={t("nodeFormMapValuePlaceholder")}
             value={text}
             disabled={disabled}
-            className="font-mono text-xs"
+            className="font-mono text-base md:text-xs"
             onChange={(event) => save(replaceAt(rows, index, [name, event.target.value]))}
           />
           <Button

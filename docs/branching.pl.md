@@ -1,5 +1,5 @@
 ---
-source_sha: "f82996cb48c3"
+source_sha: "9fe09e5e598b"
 ---
 
 # Gałęzie i to, co je chroni { #branches-and-what-protects-them }
@@ -371,3 +371,43 @@ kosztuje kliknięcie, a nie esej.
 - `main` jest wyjęty spod anulowania, a sposobem, w jaki jest wyjęty, jest grupa
   concurrency niosąca `github.run_id` — unikalny dla przebiegu, więc żaden
   przebieg na `main` nie anuluje innego.
+
+## Cut i wspólne wydanie kilku zmian { #release-cuts-and-release-trains }
+
+Najpierw scal PR-y funkcjonalne, potem przygotuj jeden cut dla całej grupy.
+Wybierz największą dostarczaną zmianę: `make release-cut BUMP=patch` lub
+`BUMP=minor` pokazuje plan ze świeżego `origin/main`. Dodaj `CREATE_PR=1`, aby
+utworzyć osobny worktree, zmienić changelog i trzy wersje aplikacji, zrobić commit,
+push i otworzyć PR przez Twoje konto `gh`. Narzędzie odrzuca pustą sekcję
+Unreleased i równoległe otwarte PR-y cut. Nie scala ani nie publikuje. Po scaleniu
+cut utwórz release razem z tagiem, wskazując commit tego merge'a, zgodnie z `AGENTS.md`.
+
+CI i CodeQL rozpoznają cut przez rzeczywiste drzewa git. Różnić mogą się tylko
+CHANGELOG i wersje aplikacji; zależności, konfiguracja, tryby plików i pozostały
+kod muszą odpowiadać wcześniejszemu pełnemu udanemu przebiegowi. CI wymaga sukcesu
+wszystkich trzech ciężkich zestawów testów, a CodeQL wszystkich czterech analiz.
+Pominięte zadania nie są dowodem. Dla PR-a zapisywany jest SHA faktycznie
+sprawdzonego próbnego merge’a, zamiast SHA gałęzi raportowanego przez API przebiegu.
+
+Sprawdzanych jest 30 ostatnich udanych przebiegów;
+brak dowodu lub błąd API oznacza pełne kontrole. Dotyczy to PR-a cut i jego merge'a
+na `main`. Zwykłe zmiany zachowują dotychczasowe kontrole, a zaplanowany CodeQL
+pozostaje pełny. Ruleset i ochrona merge przez code scanning pozostają aktywne.
+
+Ponowne użycie CodeQL wymaga też czterech zachowanych raportów SARIF z pełnej
+analizy. Raporty trafiają do nowego commita, a workflow czeka na ich przetworzenie,
+więc ochrona merge przez code scanning otrzymuje wyniki dla tego commita. Przebiegi
+korzystające z raportów nie stanowią źródła kolejnego użycia; analizy zaplanowane są pełne.
+
+Backend i frontend nadal powstają dla SHA cut, ponieważ zawierają wersję aplikacji.
+Tag korzysta z manifestów tego samego SHA; skany i sześć SBOM nadal się wykonują,
+a SBOM trafiają do istniejącego release'u. Każdy brakujący obraz budowany jest osobno.
+Browser może korzystać z manifestu oznaczonego kluczem całego kontekstu Dockera,
+digestu przypiętej bazy Debian i tygodnia ISO: pierwszy build w nowym tygodniu
+odświeża pakiety. Aliasy SHA i wersji pozostają dostępne dla wdrożeń i rollbacku.
+
+Wdrożenie produkcyjne proponowane jest po publikacji stabilnego release'u.
+Draft i prerelease go nie proponują. Zostają zatwierdzenie produkcji, kontrola
+przynależności do main i ręczny `workflow_dispatch`; przy rollbacku wskaż commit
+lub tag. Monitor kolejki porównuje stan z najnowszym stabilnym wydaniem, zamiast
+z niewydanymi commitami main, a po ręcznym wdrożeniu zgłasza nieznane opóźnienie.

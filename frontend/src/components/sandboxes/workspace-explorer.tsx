@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type DragEvent, type ReactNode } from "react";
-import { AlertTriangle, Download, Folder, Info, Search, Trash2 } from "lucide-react";
+import { AlertTriangle, ArrowLeft, Download, Folder, Info, Search, Trash2 } from "lucide-react";
 
 import {
   ProjectEntryActions,
@@ -12,6 +12,8 @@ import { Badge, BlankPeek, Button, DocPeek, Input, Skeleton } from "@/components
 import { treeOf, type WorkspaceTreeNode } from "@/lib/workspace-tree";
 import { hasSourceView, readsAsText, resolveFileKind } from "@/lib/file-kinds";
 import { useWorkspaceFiles } from "@/hooks";
+import { useWorkspaceFullscreen } from "@/hooks/use-workspace-fullscreen";
+import { WorkspaceFullscreenButton } from "@/components/ui/workspace-fullscreen-button";
 import { cn, formatBytes } from "@/lib/utils";
 import { workspaceFileAccess, type FileSource } from "@/lib/workspace-files";
 import type { WorkspaceFile, WorkspaceFiles } from "@/lib/sandbox-workspaces-api";
@@ -133,6 +135,11 @@ export function FileExplorer({
   const t = useTranslations("sandboxes.workspaces");
   const tc = useTranslations("common");
   const ts = useTranslations("states");
+  const {
+    ref: readerRef,
+    expanded: readerExpanded,
+    toggle: toggleReader,
+  } = useWorkspaceFullscreen();
   // Which folders are open, by path. A set rather than a prefix: the tree shows
   // every level at once, so "where am I" is not a single place any more.
   const [query, setQuery] = useState("");
@@ -145,6 +152,7 @@ export function FileExplorer({
   const choose = (path: string) => {
     setSelected(path);
     setAsSource(false);
+    if (!readerExpanded && window.matchMedia("(max-width: 767px)").matches) toggleReader();
   };
   // Above the search, not inside the tree: searching replaces the tree with a
   // flat list, so folds kept in the tree would be discarded and reset every time
@@ -279,6 +287,13 @@ export function FileExplorer({
       />
     ) : null;
 
+  const chosen =
+    selected === null
+      ? null
+      : (all.find((file) => segments(file.path).join("/") === segments(selected).join("/")) ??
+        null);
+  if (readerExpanded && (chosen === null || (!isLoading && error !== null))) toggleReader();
+
   if (!isLoading && error !== null)
     return (
       <div className="text-destructive flex items-start gap-2 text-sm">
@@ -287,11 +302,6 @@ export function FileExplorer({
       </div>
     );
 
-  const chosen =
-    selected === null
-      ? null
-      : (all.find((file) => segments(file.path).join("/") === segments(selected).join("/")) ??
-        null);
   const kind = chosen === null ? null : resolveFileKind(chosen.path);
 
   return (
@@ -361,7 +371,12 @@ export function FileExplorer({
         onDrop={(event) => dropIn(event, "")}
         className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[20rem_1fr]"
       >
-        <div className="border-border bg-card flex min-h-0 min-w-0 flex-col gap-3 overflow-y-auto rounded-xl border p-3">
+        <div
+          className={cn(
+            "border-border bg-card flex min-h-0 min-w-0 flex-col gap-3 overflow-y-auto rounded-xl border p-3",
+            chosen !== null && "hidden lg:flex",
+          )}
+        >
           <div className="relative">
             <Search
               className="text-muted-foreground absolute top-1/2 left-2 h-3.5 w-3.5 -translate-y-1/2"
@@ -373,7 +388,7 @@ export function FileExplorer({
               aria-label={t("searchLabel")}
               placeholder={t("searchPlaceholder")}
               onChange={(event) => setQuery(event.target.value)}
-              className="h-8 pl-7 text-xs"
+              className="h-8 pl-7 text-base md:text-xs"
             />
           </div>
 
@@ -526,7 +541,17 @@ export function FileExplorer({
           )}
         </div>
 
-        <div className="border-border bg-card flex min-h-0 min-w-0 flex-col overflow-hidden rounded-xl border">
+        <div
+          ref={readerRef}
+          role={readerExpanded ? "dialog" : undefined}
+          aria-modal={readerExpanded || undefined}
+          aria-label={readerExpanded ? chosen?.path : undefined}
+          className={cn(
+            "border-border bg-card flex min-h-0 min-w-0 flex-col overflow-hidden rounded-xl border",
+            chosen === null && "hidden lg:flex",
+            readerExpanded && "fixed inset-0 z-40 rounded-none",
+          )}
+        >
           {isLoading ? (
             <div className="m-auto space-y-4 p-6" aria-hidden>
               <Skeleton className="h-24 w-32 rounded-xl" />
@@ -544,10 +569,27 @@ export function FileExplorer({
           ) : (
             <>
               <div className="border-border flex flex-wrap items-center gap-2 border-b px-3 py-2">
-                <FileIcon name={chosen.path} className="text-muted-foreground h-4 w-4 shrink-0" />
-                <span className="min-w-0 flex-1 truncate text-sm font-medium" title={chosen.path}>
-                  {chosen.path}
-                </span>
+                <div className="flex min-w-0 flex-1 basis-full items-center gap-2 sm:basis-0">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="lg:hidden"
+                    aria-label={t("folders")}
+                    onClick={() => {
+                      if (readerExpanded) toggleReader();
+                      setSelected(null);
+                    }}
+                  >
+                    <ArrowLeft className="size-4" aria-hidden />
+                  </Button>
+                  <FileIcon name={chosen.path} className="text-muted-foreground h-4 w-4 shrink-0" />
+                  <span className="min-w-0 flex-1 truncate text-sm font-medium" title={chosen.path}>
+                    {chosen.path}
+                  </span>
+                  <span data-tour="workspace-fullscreen" className="shrink-0">
+                    <WorkspaceFullscreenButton expanded={readerExpanded} onToggle={toggleReader} />
+                  </span>
+                </div>
                 <span className="text-muted-foreground shrink-0 text-xs">
                   {source.kind !== "project" &&
                     (chosen.size == null ? "—" : formatBytes(chosen.size))}

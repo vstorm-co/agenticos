@@ -118,9 +118,21 @@ def test_mobile_publication_is_opt_in_without_disabling_ci_builds() -> None:
 def test_desktop_updater_manifest_has_only_one_writer() -> None:
     release = yaml.safe_load((ROOT / ".github/workflows/app-release.yml").read_text())
     desktop = release["jobs"]["desktop"]
-    assert desktop["strategy"]["max-parallel"] == 1
-    action = next(step for step in desktop["steps"] if "includeUpdaterJson" in step.get("with", {}))
-    assert action["with"]["includeUpdaterJson"] is True
+    assert "max-parallel" not in desktop["strategy"]
+    action = next(step for step in desktop["steps"] if "uploadUpdaterJson" in step.get("with", {}))
+    updater = release["jobs"]["updater"]
+    assert set(updater["needs"]) == {"resolve", "desktop"}
+    assert "if" not in updater
+    assert action["with"]["uploadUpdaterSignatures"] is True
+    publishers = [
+        name
+        for name, job in release["jobs"].items()
+        if any(
+            'gh release upload "$TAG" "$RUNNER_TEMP/latest.json"' in step.get("run", "")
+            for step in job["steps"]
+        )
+    ]
+    assert publishers == ["updater"]
 
 
 def test_release_jobs_build_the_verified_commit_even_if_the_tag_moves(tmp_path: Path) -> None:
@@ -257,11 +269,11 @@ def test_macos_release_defaults_to_ad_hoc_without_disabling_updater_signatures()
         step for step in steps if step.get("name") == "Require macOS signing and notarization"
     )
     assert signing["if"] == "runner.os == 'macOS' && " + gate
-    action = next(step for step in steps if "includeUpdaterJson" in step.get("with", {}))
+    action = next(step for step in steps if "uploadUpdaterJson" in step.get("with", {}))
     assert not any(name.startswith("APPLE_") for name in action["env"])
     assert signing["env"]["APPLE_CERTIFICATE"] == "${{ secrets.APPLE_CERTIFICATE }}"
     assert action["env"]["TAURI_SIGNING_PRIVATE_KEY"] == "${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}"
-    assert action["with"]["includeUpdaterJson"] is True
+    assert action["with"]["uploadUpdaterJson"] is False
     notice = next(
         step
         for step in steps
@@ -377,7 +389,7 @@ def test_release_bundler_receives_the_same_public_key_as_the_running_app(tmp_pat
     workflow = yaml.safe_load((ROOT / ".github/workflows/app-release.yml").read_text())
     steps = workflow["jobs"]["desktop"]["steps"]
     step = next(s for s in steps if s.get("name") == "Configure updater public key")
-    action = next(s for s in steps if "includeUpdaterJson" in s.get("with", {}))
+    action = next(s for s in steps if "uploadUpdaterJson" in s.get("with", {}))
     assert step["env"]["UPDATE_PUBLIC_KEY"] == action["env"]["AGENTICOS_UPDATER_PUBLIC_KEY"]
     path = tmp_path / "desktop/src-tauri/tauri.release.conf.json"
     path.parent.mkdir(parents=True)
@@ -499,3 +511,22 @@ def test_installer_authenticates_certificate_bytes_not_designated_requirement(
         check=False,
     )
     assert (result.returncode == 0) is (certificate == trusted), result.stderr
+
+
+def test_releases_only_read_dependency_caches_seeded_by_native_ci() -> None:
+    release = yaml.safe_load((ROOT / ".github/workflows/app-release.yml").read_text())
+    apps = yaml.safe_load((ROOT / ".github/workflows/apps.yml").read_text())
+    for name in ("desktop", "android", "ios"):
+        steps = release["jobs"][name]["steps"]
+        cache_steps = [step for step in steps if step.get("uses", "").startswith("actions/cache")]
+        assert len(cache_steps) == 1
+        restore = cache_steps[0]
+        assert restore["uses"].startswith("actions/cache/restore@")
+        seed = next(
+            step
+            for step in apps["jobs"][name]["steps"]
+            if step.get("name") == "Cache Cargo downloads for CI and releases"
+        )
+        assert seed["uses"].startswith("actions/cache@")
+        assert restore["with"] == seed["with"]
+        assert "target" not in restore["with"]["path"]

@@ -37,6 +37,29 @@ jobs:
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
       - name: Rust toolchain
         run: rustup update stable --no-self-update && rustup default stable && rustup component add rustfmt clippy
+      - name: Identify the Rust compiler for the cache
+        id: rust-cache-key
+        shell: bash
+        run: echo "version=$(rustc --version)" >> "$GITHUB_OUTPUT"
+      - name: Cache Cargo downloads for CI and releases
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+          key: cargo-registry-${{ runner.os }}-${{ runner.arch }}-${{ steps.rust-cache-key.outputs.version }}-${{ hashFiles('desktop/**/Cargo.lock', 'mobile/**/Cargo.lock') }}
+          restore-keys: cargo-registry-${{ runner.os }}-${{ runner.arch }}-${{ steps.rust-cache-key.outputs.version }}-
+      - name: Cache native build artifacts
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            desktop/core/target
+            desktop/src-tauri/target
+            mobile/src-tauri/target
+            !**/target/**/bundle
+          key: cargo-desktop-debug-${{ runner.os }}-${{ runner.arch }}-desktop-${{ steps.rust-cache-key.outputs.version }}-${{ hashFiles('desktop/**/Cargo.lock', 'mobile/**/Cargo.lock', 'desktop/**/Cargo.toml', 'mobile/**/Cargo.toml') }}
+          restore-keys: cargo-desktop-debug-${{ runner.os }}-${{ runner.arch }}-desktop-${{ steps.rust-cache-key.outputs.version }}-
       - name: Native contracts and tests
         shell: bash
         run: |
@@ -111,6 +134,29 @@ jobs:
           "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-36" "build-tools;36.0.0" "ndk;27.2.12479018"
           echo "NDK_HOME=$ANDROID_HOME/ndk/27.2.12479018" >> "$GITHUB_ENV"
           echo "JAVA_HOME=$JAVA_HOME_17_X64" >> "$GITHUB_ENV"
+      - name: Identify the Rust compiler for the cache
+        id: rust-cache-key
+        shell: bash
+        run: echo "version=$(rustc --version)" >> "$GITHUB_OUTPUT"
+      - name: Cache Cargo downloads for CI and releases
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+          key: cargo-registry-${{ runner.os }}-${{ runner.arch }}-${{ steps.rust-cache-key.outputs.version }}-${{ hashFiles('desktop/**/Cargo.lock', 'mobile/**/Cargo.lock') }}
+          restore-keys: cargo-registry-${{ runner.os }}-${{ runner.arch }}-${{ steps.rust-cache-key.outputs.version }}-
+      - name: Cache native build artifacts
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            desktop/core/target
+            desktop/src-tauri/target
+            mobile/src-tauri/target
+            !**/target/**/bundle
+          key: cargo-android-debug-${{ runner.os }}-${{ runner.arch }}-android-${{ steps.rust-cache-key.outputs.version }}-${{ hashFiles('desktop/**/Cargo.lock', 'mobile/**/Cargo.lock', 'desktop/**/Cargo.toml', 'mobile/**/Cargo.toml') }}
+          restore-keys: cargo-android-debug-${{ runner.os }}-${{ runner.arch }}-android-${{ steps.rust-cache-key.outputs.version }}-
       - name: Build debug APK
         working-directory: mobile
         run: bun install --frozen-lockfile && bunx tauri android build --debug --target aarch64 --apk --ci -- --locked
@@ -128,6 +174,29 @@ jobs:
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
       - name: Simulator toolchain
         run: rustup target add aarch64-apple-ios-sim
+      - name: Identify the Rust compiler for the cache
+        id: rust-cache-key
+        shell: bash
+        run: echo "version=$(rustc --version)" >> "$GITHUB_OUTPUT"
+      - name: Cache Cargo downloads for CI and releases
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+          key: cargo-registry-${{ runner.os }}-${{ runner.arch }}-${{ steps.rust-cache-key.outputs.version }}-${{ hashFiles('desktop/**/Cargo.lock', 'mobile/**/Cargo.lock') }}
+          restore-keys: cargo-registry-${{ runner.os }}-${{ runner.arch }}-${{ steps.rust-cache-key.outputs.version }}-
+      - name: Cache native build artifacts
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            desktop/core/target
+            desktop/src-tauri/target
+            mobile/src-tauri/target
+            !**/target/**/bundle
+          key: cargo-ios-debug-${{ runner.os }}-${{ runner.arch }}-ios-${{ steps.rust-cache-key.outputs.version }}-${{ hashFiles('desktop/**/Cargo.lock', 'mobile/**/Cargo.lock', 'desktop/**/Cargo.toml', 'mobile/**/Cargo.toml') }}
+          restore-keys: cargo-ios-debug-${{ runner.os }}-${{ runner.arch }}-ios-${{ steps.rust-cache-key.outputs.version }}-
       - name: Build iOS simulator with extensions
         working-directory: mobile
         run: bun install --frozen-lockfile && bunx tauri ios build --target aarch64-sim --no-sign --archive-only --ci -- --locked

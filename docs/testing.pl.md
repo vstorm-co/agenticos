@@ -1,5 +1,5 @@
 ---
-source_sha: "5d173b003b4d"
+source_sha: "76c60cd662bd"
 ---
 
 # Testowanie { #testing }
@@ -77,12 +77,9 @@ make docs-build         # mkdocs --strict — a dead link is a failure
 make audit              # the locked dependency set against the advisory database
 ```
 
-Jakieś pięć minut szeregowo, wobec dwunastu w CI równolegle — gdzie zadanie backendu
-`test` jest najdłuższym odcinkiem, tym, który skraca #520. Ta równoważność jest
-utrzymywana, a nie deklarowana: workflow woła te cele, zamiast powtarzać ich
-polecenia, a `tests/test_ci_parity.py` wywala się, jeśli bramkujące zadanie
-dorobi krok, którego `make check` nie uruchamia. Rozjechało się już cztery razy —
-zobacz [Polecenia](commands.md#before-a-pull-request), co `check` pomija i dlaczego.
+CI uruchamia niezależne kontrole równolegle. Workflow korzysta z tych samych
+celów Makefile co lokalne kontrole; `tests/test_ci_parity.py` pilnuje ich zgodności.
+Celowe wyjątki opisują [Polecenia](commands.md#before-a-pull-request).
 
 !!! info "CI może uruchomić mniej zadań niż `check` i to nie jest rozjazd"
 
@@ -655,3 +652,20 @@ zaimportował, i sprawdza payload, tak jak fixture `queued_fires` w
   list w `backend/pyproject.toml`.
 - Kolejność jest tasowana przy każdym przebiegu; odtwórz awarię z jej wypisanym
   seedem, zanim wyciągniesz jakikolwiek wniosek o zmianie.
+
+## Podział CI { #ci-distribution }
+
+Zestaw backendowy mierzy cały kod aplikacji raz. Raport platformy nadal wymaga
+100% pokrycia; `make coverage-all REUSE_COVERAGE=1` raportuje kod odziedziczony
+z tych samych danych, bez ponownego uruchamiania testów.
+
+Lint frontendu, build produkcyjny i cztery shardy testów działają niezależnie.
+Shardy zachowują izolację plików, a niezmienione progi pokrycia sprawdza jeden
+scalony raport. Wymagany status `test-frontend` odrzuca brakujące, nieoczekiwanie
+pominięte lub nieudane zadanie i shard. E2E wykorzystuje build produkcyjny w
+czterech shardach; każdy ma własną bazę, Redis, backend, seed i serwer stub.
+Pliki w shardzie nadal wykonują się szeregowo, bez ponowień.
+
+PostgreSQL w CI korzysta z jednorazowego katalogu danych w RAM i wyłącza fsync,
+synchroniczne commity oraz pełne zapisy stron tylko w swoim kontenerze usługowym.
+Bazy produkcyjne i deweloperskie zachowują normalne ustawienia trwałości.
