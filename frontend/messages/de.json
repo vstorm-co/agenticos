@@ -15097,13 +15097,15 @@
       "title": "Verbessern starten",
       "openSession": "Diese Linie hat bereits eine offene Sitzung.",
       "continue": "Fortsetzen",
-      "agents": "{count, plural, =0 {Kein Agent dieser Linie kann geprüft werden.} =1 {Es wird auf 1 Agent geprüft: {names}.} other {Es wird auf # Agents geprüft: {names}.}}",
-      "unchecked": "{name} kann nicht geprüft werden: {reason, select, no_questions {keine Testfragen, bei denen er den Skill geladen hat} no_access {Sie dürfen ihn nicht ausführen} no_budget {sein Budget ist aufgebraucht} no_published_version {keine veröffentlichte Version} inconclusive {sein Run konnte nicht jede Antwort bewerten} other {die Prüfung ist fehlgeschlagen}}.",
       "hidden": "{count, plural, =1 {1 weiterer Agent, den Sie nicht sehen, nutzt diese Linie.} other {# weitere Agents, die Sie nicht sehen, nutzen diese Linie.}}",
       "price": "Bis zum ersten Vorschlag kostet es etwa {cost}; jeder Versuch etwa {perRound}, höchstens {rounds, plural, =1 {1 Versuch} other {# Versuche}}.",
       "limit": "Ausgabenlimit für die ganze Sitzung (USD)",
       "unaffordable": "Das Budget der Organisation deckt das nicht.",
-      "start": "Starten"
+      "start": "Starten",
+      "reads": "{runs, plural, =1 {Es liest 1 Antwort} other {Es liest # Antworten}}, in denen Versionen dieser Linie geladen wurden, {agents, plural, =1 {von 1 Agent} other {von # Agents}}.",
+      "usageUnknown": "{count, plural, =1 {1 Antwort stammt aus der Zeit vor der Aufzeichnung von Skill-Ladevorgängen und wird nicht gelesen.} other {# Antworten stammen aus der Zeit vor der Aufzeichnung von Skill-Ladevorgängen und werden nicht gelesen.}}",
+      "checkNamedLater": "Bevor die Änderungen geprüft werden, wird jeder Agent genannt, auf dem sie laufen, und die, auf denen sie nicht laufen können, mit Grund.",
+      "noEvidence": "Es gibt keine schlecht bewerteten oder fehlgeschlagenen Antworten, in denen diese Linie geladen wurde, also gibt es noch nichts zu lernen."
     },
     "understand": {
       "title": "Verstehen",
@@ -15112,6 +15114,12 @@
       "usageUnknown": "{count, plural, =1 {1 Antwort stammt aus der Zeit vor der Aufzeichnung von Skill-Ladevorgängen und wird nicht gezählt.} other {# Antworten stammen aus der Zeit vor der Aufzeichnung von Skill-Ladevorgängen und werden nicht gezählt.}}",
       "agent": "{name} ({runs})",
       "occursIn": "In {runs, plural, =1 {1 Antwort} other {# Antworten}}, bei {agents}{hidden, plural, =0 {} =1 { und 1 Agent, den Sie nicht sehen} other { und # Agents, die Sie nicht sehen}}."
+    },
+    "checkEstimate": {
+      "agents": "{count, plural, =0 {Kein Agent dieser Linie kann geprüft werden.} =1 {Es wird auf 1 Agent geprüft: {names}.} other {Es wird auf # Agents geprüft: {names}.}}",
+      "unchecked": "{name} kann nicht geprüft werden: {reason, select, no_questions {keine Testfragen, bei denen er den Skill geladen hat} no_access {Sie dürfen ihn nicht ausführen} no_budget {sein Budget ist aufgebraucht} no_published_version {keine veröffentlichte Version} inconclusive {sein Run konnte nicht jede Antwort bewerten} other {die Prüfung ist fehlgeschlagen}}.",
+      "hidden": "{count, plural, =1 {1 weiterer Agent, den Sie nicht sehen, nutzt diese Linie.} other {# weitere Agents, die Sie nicht sehen, nutzen diese Linie.}}",
+      "thorough": "Die Beschreibung hat sich geändert, und sie entscheidet, wann Agents den Skill öffnen, deshalb werden auch die eigenen Fragen jedes Agents gestellt."
     }
   }
 }

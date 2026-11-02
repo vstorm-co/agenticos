@@ -223,3 +223,15 @@ it("prices a check as the most it may cost, and says what it most likely costs",
   await screen.findByRole("button", { name: /up to \$0\.04/ });
   expect(screen.queryByText(/Most likely/)).not.toBeInTheDocument();
 });
+
+it("says what the priced step will do under its price", async () => {
+  render(
+    <NextStep
+      session={AT_UNDERSTAND}
+      detail={(quote) => <p>runs on Support for {quote.total_usd}</p>}
+      onStarted={vi.fn()}
+    />,
+  );
+
+  expect(await screen.findByText(/runs on Support for/)).toBeInTheDocument();
+});

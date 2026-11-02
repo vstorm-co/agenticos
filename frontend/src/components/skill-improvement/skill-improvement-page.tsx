@@ -21,6 +21,7 @@ import { isActive, isClosed, stopOf } from "@/lib/improvement-steps";
 import { Perm } from "@/types/permissions";
 import type { SkillImprovement } from "@/types/skill-improvement";
 import { CheckAgents } from "./check-agents";
+import { CheckEstimate } from "./check-estimate";
 import { SkillAccept } from "./skill-accept";
 import { SkillStart } from "./skill-start";
 import { SkillUnderstand } from "./skill-understand";
@@ -121,6 +122,7 @@ function SkillSession({
       readOnly={readOnly}
       closeHref={ROUTES.SKILL_DETAIL(skillId)}
       wordingOpen={wordingOpen}
+      nextStepDetail={(quote) => <CheckEstimate quote={quote} />}
       panel={({ step, views, goTo, followCurrent }) => (
         <>
           <p className="text-muted-foreground text-sm">{t("line", { line: session.line_name })}</p>

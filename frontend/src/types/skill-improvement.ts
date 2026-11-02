@@ -4,15 +4,20 @@
  */
 
 import type {
+  ContinuationEstimate,
   Improvement,
-  ImprovementEstimate,
   ImprovementEvidenceItem,
   ImprovementIteration,
   ImprovementStatus,
   ImprovementStage,
   NextStepBlocked,
 } from "@/types/improvement";
-import type { CheckOutcome, CheckVerdict, SkillCheck, SkillCheckAgent } from "@/types/skill-checks";
+import type {
+  CheckOutcome,
+  CheckVerdict,
+  SkillCheck,
+  SkillCheckEstimate,
+} from "@/types/skill-checks";
 import type { SkillVersionRef } from "@/types/skill-versions";
 
 export interface SkillImprovementIteration extends ImprovementIteration {
@@ -41,11 +46,29 @@ export interface SkillImprovement extends Omit<Improvement, "iterations"> {
   expires_at: string | null;
 }
 
-export interface SkillImprovementEstimate extends Omit<ImprovementEstimate, "knowledge_usd"> {
+export interface SkillImprovementEstimate {
   line: { fork_id: string | null; name: string };
-  /** The line's agents as the check would see them, the ones without budget among them. */
-  agents: SkillCheckAgent[];
+  base_version: SkillVersionRef;
+  /** Grouping the problems, then one proposal. */
+  proposal_usd: string;
+  per_round_usd: string;
+  /** What the session spends before it first waits for a person. */
+  total_usd: string;
+  max_iterations: number;
+  evidence_runs: number;
+  /** Answers from before skill loads were recorded, which are not read. */
+  usage_unknown: number;
+  /** Agents of the line the caller may see; each is named when its check is priced. */
+  agents: number;
   hidden_agents: number;
+  estimated_minutes: number;
+  affordable: boolean;
+  reason: "no_evidence" | null;
+}
+
+/** A next step's price; for a check, the agents it runs on and the ones it cannot. */
+export interface SkillContinuationEstimate extends ContinuationEstimate {
+  check_estimate?: SkillCheckEstimate | null;
 }
 
 /** A problem found in answers where the line's versions were loaded, and where it occurs. */

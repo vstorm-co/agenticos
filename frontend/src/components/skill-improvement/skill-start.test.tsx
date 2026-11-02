@@ -6,7 +6,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { apiClient } from "@/lib/api-client";
 import { ApiError } from "@/lib/api-error";
-import { checkAgent, skillSession } from "@/test-utils/skill-improvement";
+import { skillSession } from "@/test-utils/skill-improvement";
 import { SkillStart } from "./skill-start";
 
 const push = vi.fn();
@@ -20,22 +20,19 @@ vi.mock("@/lib/api-client", async (original) => ({
 }));
 
 const ESTIMATE = {
+  line: { fork_id: null, name: "main" },
+  base_version: { id: "m12", number: 12 },
   proposal_usd: "0.02",
-  eval_usd: "0.03",
   per_round_usd: "0.05",
   total_usd: "0.20",
   max_iterations: 3,
-  cases: 10,
   evidence_runs: 12,
+  usage_unknown: 4,
+  agents: 2,
+  hidden_agents: 1,
   estimated_minutes: 9,
   affordable: true,
   reason: null,
-  agents: [
-    checkAgent("Support", "queued"),
-    checkAgent("Billing", "unknown", { unknown_reason: "no_budget" }),
-  ],
-  hidden_agents: 1,
-  line: { fork_id: null, name: "main" },
 };
 
 function mount(forkId: string | null = null, fromRun: string | null = null) {
@@ -56,12 +53,16 @@ beforeEach(() => {
 });
 
 describe("SkillStart", () => {
-  it("names the agents it checks on and the ones it cannot, before anything is spent", async () => {
+  it("says what it reads and from how many agents, before anything is spent", async () => {
     mount();
 
-    expect(await screen.findByText("It will be checked on 1 agent: Support.")).toBeVisible();
-    expect(screen.getByText("Billing cannot be checked: its budget is spent.")).toBeVisible();
+    expect(
+      await screen.findByText(
+        "It reads 12 answers where the line's versions were loaded, from 2 agents.",
+      ),
+    ).toBeVisible();
     expect(screen.getByText("1 more agent you can't see uses this line.")).toBeVisible();
+    expect(screen.getByText(/4 answers are from before skill loads were recorded/)).toBeVisible();
     expect(apiClient.post).toHaveBeenCalledWith("/skills/k1/improvements/estimate", {
       fork_id: null,
     });
@@ -70,7 +71,7 @@ describe("SkillStart", () => {
   it("starts on the line with the limit set, and opens the session", async () => {
     mount("f1");
 
-    await screen.findByText("It will be checked on 1 agent: Support.");
+    await screen.findByText(/It reads 12 answers/);
     await userEvent.clear(screen.getByLabelText(/Spending limit/));
     await userEvent.type(screen.getByLabelText(/Spending limit/), "0.5");
     await userEvent.click(screen.getByRole("button", { name: "Start" }));
@@ -88,7 +89,7 @@ describe("SkillStart", () => {
   it("starts from the problems an agent's session handed over", async () => {
     mount(null, "run-7");
 
-    await screen.findByText("It will be checked on 1 agent: Support.");
+    await screen.findByText(/It reads 12 answers/);
     await userEvent.click(screen.getByRole("button", { name: "Start" }));
 
     expect(apiClient.post).toHaveBeenCalledWith("/skills/k1/improvements/estimate", {
@@ -110,6 +111,18 @@ describe("SkillStart", () => {
       "/skills/k1/improve/s3",
     );
     expect(apiClient.post).not.toHaveBeenCalled();
+  });
+
+  it("says when there is nothing to learn from yet", async () => {
+    vi.mocked(apiClient.post).mockResolvedValue({
+      ...ESTIMATE,
+      affordable: false,
+      reason: "no_evidence",
+    });
+    mount();
+
+    expect(await screen.findByText(/nothing to learn from yet/)).toBeVisible();
+    expect(screen.getByRole("button", { name: "Start" })).toBeDisabled();
   });
 
   it("holds the start when the organization cannot pay for it", async () => {

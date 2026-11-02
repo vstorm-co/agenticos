@@ -24,7 +24,7 @@ import {
   type ImprovementStepView,
 } from "@/lib/improvement-steps";
 import { subjectOf } from "@/lib/improvement-subject";
-import type { Improvement } from "@/types/improvement";
+import type { ContinuationEstimate, Improvement } from "@/types/improvement";
 import { ContinueSession } from "./continue-session";
 import { EndSession } from "./end-session";
 import { NextStep } from "./next-step";
@@ -58,6 +58,7 @@ export function ImprovementShell({
   closeHref,
   panel,
   wordingOpen = false,
+  nextStepDetail,
   footer,
   onRestart,
 }: {
@@ -68,6 +69,8 @@ export function ImprovementShell({
   panel: (nav: ShellNav) => ReactNode;
   /** A reworded change not saved yet holds Next step at the Changes stop. */
   wordingOpen?: boolean;
+  /** What a priced next step will do, under its price. */
+  nextStepDetail?: (quote: ContinuationEstimate) => ReactNode;
   /** Said under the step's panel, above Try again. */
   footer?: ReactNode;
   /** After a new attempt starts from Try again or a result. */
@@ -176,6 +179,7 @@ export function ImprovementShell({
           {step === stopOf(session) && (
             <NextStep
               session={session}
+              detail={nextStepDetail}
               hint={
                 step === "changes" &&
                 proposed.changes.filter((hunk) => !attempt?.dropped_hunk_ids.includes(hunk.id))

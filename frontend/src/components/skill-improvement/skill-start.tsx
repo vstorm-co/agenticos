@@ -71,8 +71,6 @@ export function SkillStart({
   if (refusal !== null && quote === null) return <ErrorState description={refusal} />;
   if (quote === null) return <LoadingState variant="skeleton-cards" rows={2} />;
 
-  const checked = quote.agents.filter((row) => row.state !== "unknown");
-  const unchecked = quote.agents.filter((row) => row.state === "unknown");
   async function begin() {
     setRefusal(null);
     try {
@@ -85,28 +83,18 @@ export function SkillStart({
   return (
     <section className="space-y-5 rounded-xl border p-6" data-tour="skill-improvement-start">
       <h2 className="font-medium">{t("title")}</h2>
-      <p className="text-sm">
-        {t("agents", {
-          count: checked.length,
-          names: new Intl.ListFormat(locale, { type: "conjunction" }).format(
-            checked.map((row) => row.agent.name),
-          ),
-        })}
-      </p>
-      {unchecked.length > 0 && (
-        <ul className="text-warning space-y-1 text-sm">
-          {unchecked.map((row) => (
-            <li key={row.agent.id}>
-              {t("unchecked", { name: row.agent.name, reason: row.unknown_reason ?? "failed" })}
-            </li>
-          ))}
-        </ul>
-      )}
+      <p className="text-sm">{t("reads", { runs: quote.evidence_runs, agents: quote.agents })}</p>
       {quote.hidden_agents > 0 && (
         <p className="text-muted-foreground text-xs">
           {t("hidden", { count: quote.hidden_agents })}
         </p>
       )}
+      {quote.usage_unknown > 0 && (
+        <p className="text-muted-foreground text-xs">
+          {t("usageUnknown", { count: quote.usage_unknown })}
+        </p>
+      )}
+      <p className="text-muted-foreground text-xs">{t("checkNamedLater")}</p>
       <p className="text-sm">
         {t("price", {
           cost: usd(quote.total_usd, locale),
@@ -125,7 +113,7 @@ export function SkillStart({
       </div>
       {!quote.affordable && (
         <p role="alert" className="text-sm">
-          {quote.reason ?? t("unaffordable")}
+          {quote.reason === "no_evidence" ? t("noEvidence") : t("unaffordable")}
         </p>
       )}
       {refusal !== null && (
@@ -134,7 +122,7 @@ export function SkillStart({
         </p>
       )}
       <Button
-        disabled={!quote.affordable || !(Number(limitValue(limit)) > 0) || checked.length === 0}
+        disabled={!quote.affordable || !(Number(limitValue(limit)) > 0)}
         loading={start.isPending}
         onClick={() => void begin()}
       >

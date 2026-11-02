@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useState } from "react";
 import { ArrowRight } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { Button, Input, Label } from "@/components/ui";
@@ -22,12 +22,15 @@ import { useReadOnly } from "./read-only";
 export function NextStep({
   session,
   hint,
+  detail,
   blocked,
   onStarted,
 }: {
   session: Improvement;
   /** What to do before pressing, when the stop's own hint does not fit. */
   hint?: string;
+  /** What the priced step will do, said under its price - a skill's check names its agents. */
+  detail?: (quote: ContinuationEstimate) => ReactNode;
   /** Why the step cannot start yet, said beside the button. */
   blocked?: string;
   onStarted: () => void;
@@ -136,6 +139,7 @@ export function NextStep({
           </div>
         </div>
       )}
+      {priced && detail?.(priced)}
       {blocked && <p className="text-muted-foreground text-sm">{blocked}</p>}
       <Button
         className="h-auto min-h-9 whitespace-normal"

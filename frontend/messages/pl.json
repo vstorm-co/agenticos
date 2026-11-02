@@ -15199,13 +15199,15 @@
       "title": "Zacznij poprawianie",
       "openSession": "Ta linia ma już otwartą sesję.",
       "continue": "Kontynuuj ją",
-      "agents": "{count, plural, =0 {Żadnego agenta tej linii nie da się sprawdzić.} one {Sprawdzimy ją na # agencie: {names}.} few {Sprawdzimy ją na # agentach: {names}.} many {Sprawdzimy ją na # agentach: {names}.} other {Sprawdzimy ją na # agenta: {names}.}}",
-      "unchecked": "{name} nie da się sprawdzić: {reason, select, no_questions {nie ma pytań testowych tam, gdzie wczytał skill} no_access {nie możesz go uruchamiać} no_budget {jego budget jest wyczerpany} no_published_version {nie ma opublikowanej wersji} inconclusive {run nie ocenił wszystkich odpowiedzi} other {sprawdzenie się nie powiodło}}.",
       "hidden": "{count, plural, one {Tej linii używa jeszcze # agent, którego nie widzisz.} few {Tej linii używa jeszcze # agentów, których nie widzisz.} many {Tej linii używa jeszcze # agentów, których nie widzisz.} other {Tej linii używa jeszcze # agenta, których nie widzisz.}}",
       "price": "Do pierwszej propozycji kosztuje około {cost}; każda próba około {perRound}, najwyżej {rounds, plural, one {# próba} few {# próby} many {# prób} other {# próby}}.",
       "limit": "Limit wydatków na całą sesję (USD)",
       "unaffordable": "Budget organizacji tego nie pokrywa.",
-      "start": "Zacznij"
+      "start": "Zacznij",
+      "reads": "{runs, plural, one {Czyta # odpowiedź} few {Czyta # odpowiedzi} many {Czyta # odpowiedzi} other {Czyta # odpowiedzi}}, w których wczytano wersje tej linii, {agents, plural, one {od # agenta} few {od # agentów} many {od # agentów} other {od # agenta}}.",
+      "usageUnknown": "{count, plural, one {# odpowiedź jest sprzed zapisywania wczytań skilli i nie jest czytana.} few {# odpowiedzi są sprzed zapisywania wczytań skilli i nie są czytane.} many {# odpowiedzi jest sprzed zapisywania wczytań skilli i nie są czytane.} other {# odpowiedzi jest sprzed zapisywania wczytań skilli i nie są czytane.}}",
+      "checkNamedLater": "Zanim zmiany zostaną sprawdzone, każdy agent, na którym ruszą, jest wymieniony, a ci, na których nie mogą, z powodem.",
+      "noEvidence": "Nie ma źle ocenionych ani nieudanych odpowiedzi, w których wczytano tę linię, więc na razie nie ma się z czego uczyć."
     },
     "understand": {
       "title": "Zrozumienie",
@@ -15214,6 +15216,12 @@
       "usageUnknown": "{count, plural, one {# odpowiedź jest sprzed zapisywania wczytań skilli i nie jest liczona.} few {# odpowiedzi są sprzed zapisywania wczytań skilli i nie są liczone.} many {# odpowiedzi jest sprzed zapisywania wczytań skilli i nie są liczone.} other {# odpowiedzi jest sprzed zapisywania wczytań skilli i nie są liczone.}}",
       "agent": "{name} ({runs})",
       "occursIn": "W {runs, plural, one {# odpowiedzi} few {# odpowiedziach} many {# odpowiedziach} other {# odpowiedzi}}, u: {agents}{hidden, plural, =0 {} one { i # agenta, którego nie widzisz} few { i # agentów, których nie widzisz} many { i # agentów, których nie widzisz} other { i # agenta, których nie widzisz}}."
+    },
+    "checkEstimate": {
+      "agents": "{count, plural, =0 {Żadnego agenta tej linii nie da się sprawdzić.} one {Sprawdzimy ją na # agencie: {names}.} few {Sprawdzimy ją na # agentach: {names}.} many {Sprawdzimy ją na # agentach: {names}.} other {Sprawdzimy ją na # agenta: {names}.}}",
+      "unchecked": "{name} nie da się sprawdzić: {reason, select, no_questions {nie ma pytań testowych tam, gdzie wczytał skill} no_access {nie możesz go uruchamiać} no_budget {jego budget jest wyczerpany} no_published_version {nie ma opublikowanej wersji} inconclusive {run nie ocenił wszystkich odpowiedzi} other {sprawdzenie się nie powiodło}}.",
+      "hidden": "{count, plural, one {Tej linii używa jeszcze # agent, którego nie widzisz.} few {Tej linii używa jeszcze # agentów, których nie widzisz.} many {Tej linii używa jeszcze # agentów, których nie widzisz.} other {Tej linii używa jeszcze # agenta, których nie widzisz.}}",
+      "thorough": "Opis się zmienił, a on decyduje, kiedy agenci otwierają skill, więc zadawane są też własne pytania każdego agenta."
     }
   }
 }
