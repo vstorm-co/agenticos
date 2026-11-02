@@ -316,14 +316,14 @@ it("keeps the composer controls free of a duplicate folder badge", () => {
   expect(trigger()).toBeVisible();
 });
 
-it("opens desktop tools first and keeps model and approval settings in Preferences", async () => {
+it("keeps model and tools together and expands preferences without replacing them", async () => {
   state.desktop = true;
   open();
   await userEvent.click(trigger());
   expect(screen.getByRole("region", { name: "Work environment" })).toBeVisible();
   expect(screen.queryByRole("radiogroup")).toBeNull();
-  await userEvent.click(screen.getByRole("tab", { name: "Preferences" }));
-  expect(screen.queryByRole("region", { name: "Work environment" })).toBeNull();
+  await userEvent.click(screen.getByRole("button", { name: "Preferences" }));
+  expect(screen.getByRole("region", { name: "Work environment" })).toBeVisible();
   expect(screen.getByRole("radiogroup")).toBeVisible();
   expect(screen.getByText("Conversation notifications")).toBeVisible();
 });
@@ -373,4 +373,12 @@ it("does not call a missing organization policy disabled or offer its settings l
   expect(screen.getByRole("radio", { name: "Approve everything" })).toBeDisabled();
   expect(screen.getByText(/Organization approval settings are not available yet/)).toBeVisible();
   expect(screen.queryByRole("link", { name: "Open approval settings" })).toBeNull();
+});
+
+it("uses an anchored panel without blocking the rest of the chat", async () => {
+  open();
+  await userEvent.click(trigger());
+  expect(trigger()).toHaveAttribute("aria-expanded", "true");
+  expect(document.querySelector("[data-radix-popper-content-wrapper]")).toBeInTheDocument();
+  expect(document.body.style.pointerEvents).not.toBe("none");
 });

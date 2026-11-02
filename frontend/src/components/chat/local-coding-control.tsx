@@ -1,5 +1,9 @@
 "use client";
 
+import { Check, SlidersHorizontal } from "lucide-react";
+import { BrandIcon } from "@/components/icons/brand-icon";
+import { cn } from "@/lib/utils";
+import Link from "next/link";
 import { useMutation } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 
@@ -21,6 +25,7 @@ import type { CodingHarness } from "@/types/chat";
 /** A personal coding harness for this conversation, without changing the agent. */
 export function LocalCodingControl() {
   const t = useTranslations("chat.controls.workOn.coding");
+  const tWork = useTranslations("chat.controls.workOn");
   const tHarness = useTranslations("chat.localAgent");
   const tErrors = useTranslations("errors");
   const conversationId = useConversationStore((state) => state.currentConversationId);
@@ -77,47 +82,78 @@ export function LocalCodingControl() {
     effective !== null &&
     (target === null || target.mode !== "full_access" || target.computer_grant !== undefined);
   return (
-    <div className="pt-5" data-tour="chat-local-coding">
+    <div
+      className="border-foreground/10 bg-foreground/[0.02] rounded-xl border p-3"
+      data-tour="chat-local-coding"
+    >
       <div className="mb-2 flex items-center gap-1">
         <p className="text-foreground/85 text-[13px] font-medium">{t("title")}</p>
         <ContextHelp>{t("help")}</ContextHelp>
       </div>
-      <select
-        aria-label={t("title")}
-        value={chosen ?? "agent"}
-        disabled={device === undefined || selection.isPending}
-        className="border-foreground/10 bg-background h-9 w-full rounded-lg border px-3 text-xs"
-        onChange={(event) => {
-          const value = event.target.value;
-          if (value === "agent" || value === "claude_code" || value === "codex")
-            selection.mutate({ conversationId, harness: value === "agent" ? null : value, target });
-        }}
-      >
-        <option value="agent">
-          {published
-            ? t("agentWithHarness", {
-                agent: tHarness(published.harness === "codex" ? "codex" : "claudeCode"),
-              })
-            : t("agent")}
-        </option>
-        <option value="claude_code">{t("claudeCode")}</option>
-        <option value="codex">{t("codex")}</option>
-      </select>
-      <p className="text-muted-foreground mt-2 text-xs">{t("description")}</p>
+      <div role="radiogroup" aria-label={t("title")} className="grid grid-cols-3 gap-1.5">
+        {(["agent", "claude_code", "codex"] as const).map((value) => {
+          const active = (chosen ?? "agent") === value;
+          const label =
+            value === "agent"
+              ? published
+                ? t("agentWithHarness", {
+                    agent: tHarness(published.harness === "codex" ? "codex" : "claudeCode"),
+                  })
+                : t("agent")
+              : tHarness(value === "codex" ? "codex" : "claudeCode");
+          return (
+            <button
+              key={value}
+              type="button"
+              role="radio"
+              aria-label={label}
+              title={value === "agent" ? undefined : t(value === "codex" ? "codex" : "claudeCode")}
+              aria-checked={active}
+              disabled={device === undefined || selection.isPending}
+              onClick={() =>
+                selection.mutate({
+                  conversationId,
+                  harness: value === "agent" ? null : value,
+                  target,
+                })
+              }
+              className={cn(
+                "relative flex min-h-14 flex-col items-center justify-center gap-2 rounded-lg border px-1 py-2 text-[11px] font-medium transition-colors disabled:opacity-50",
+                active
+                  ? "border-foreground/30 bg-background shadow-sm"
+                  : "text-muted-foreground hover:bg-foreground/[0.04] border-transparent",
+              )}
+            >
+              {value === "agent" ? (
+                <SlidersHorizontal className="size-4" aria-hidden />
+              ) : (
+                <BrandIcon name={value === "codex" ? "codex" : "claude_code"} className="size-4" />
+              )}
+              <span>{value === "agent" ? tWork("agentBrowser") : label}</span>
+              {active && <Check className="absolute top-1.5 right-1.5 size-2.5" aria-hidden />}
+            </button>
+          );
+        })}
+      </div>
+      {effective === null && (
+        <p className="text-muted-foreground mt-2 text-xs leading-relaxed">{t("description")}</p>
+      )}
       {effective && (
         <Button
           type="button"
           variant="outline"
           size="sm"
-          className="mt-2 w-full"
+          className="mt-3 w-full justify-start overflow-hidden text-ellipsis"
           disabled={selection.isPending}
           onClick={() =>
             selection.mutate({ conversationId, harness: effective, target, chooseFolder: true })
           }
         >
-          {target && !target.computer_grant
-            ? t("changeFolder", { folder: target.folder })
-            : t("pickFolder")}
+          <span className="truncate">
+            {target && !target.computer_grant
+              ? t("changeFolder", { folder: target.folder })
+              : t("pickFolder")}
+          </span>
         </Button>
       )}
       {missingFolder && (
@@ -127,7 +163,9 @@ export function LocalCodingControl() {
       )}
       {effective && agents.data?.find((agent) => agent.id === effective)?.signed_in !== true && (
         <p role="status" className="text-muted-foreground mt-2 text-xs">
-          {t("setup")}
+          <Link href="/settings/desktop" className="underline underline-offset-2">
+            {t("setup")}
+          </Link>
         </p>
       )}
       {selection.error && (

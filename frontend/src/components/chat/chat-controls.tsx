@@ -5,23 +5,14 @@ import type { ApprovalMode } from "@/stores/chat-controls-store";
 import { useSavedChatControls } from "@/hooks/use-saved-chat-controls";
 import { useId, useMemo, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
-import { Check, HelpCircle, SlidersHorizontal } from "lucide-react";
+import { Check, ChevronDown, HelpCircle, SlidersHorizontal, X } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { ChatModelPicker } from "./chat-model-picker";
 import { WorkOn, ConversationNotifications } from "./work-on";
 import { YourConnections } from "./your-connections";
 import { ContextHelp } from "@/components/ui/context-help";
-import {
-  Dialog,
-  DialogContent,
-  DialogTitle,
-  DialogTrigger,
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@/components/ui";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useModelProviders, useOrganizationList, usePermissions } from "@/hooks";
 import { useOrgStore } from "@/stores";
 import { useOnboardingStore } from "@/stores/onboarding-store";
@@ -90,14 +81,15 @@ export function ChatControls({
 }: ChatControlsProps) {
   const t = useTranslations("chat.controls");
   const panel = useRef<HTMLDivElement>(null);
+  const tCommon = useTranslations("common");
   const waiverHintId = useId();
   const tOnboarding = useTranslations("onboarding");
   const pathname = usePathname();
   const openPage = useOnboardingStore((state) => state.openPage);
   const [open, setOpen] = useState(false);
   const desktop = isDesktopShell(useShell());
-  const [section, setSection] = useState<"tools" | "preferences" | null>(null);
-  const activeSection = section ?? (desktop ? "tools" : "preferences");
+  const [preferences, setPreferences] = useState<boolean | null>(null);
+  const expanded = preferences ?? !desktop;
   const { profiles } = useModelProviders();
   const { can } = usePermissions();
   const activeOrgId = useOrgStore((state) => state.activeOrgId);
@@ -126,8 +118,8 @@ export function ChatControls({
   const hasOverride = profileId !== null || approvalMode !== "follow_agent";
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
         <button
           type="button"
           aria-label={t("label")}
@@ -153,17 +145,20 @@ export function ChatControls({
             />
           )}
         </button>
-      </DialogTrigger>
+      </PopoverTrigger>
 
-      <DialogContent
+      <PopoverContent
         ref={panel}
         aria-label={t("label")}
         onOpenAutoFocus={(event) => {
           event.preventDefault();
           panel.current?.focus();
         }}
-        aria-describedby={undefined}
-        className="flex h-[min(760px,85dvh)] max-w-xl flex-col gap-0 overflow-hidden p-0 sm:p-0"
+        side="top"
+        align="end"
+        sideOffset={12}
+        tabIndex={-1}
+        className="bg-popover flex max-h-[min(720px,var(--radix-popover-content-available-height))] w-[440px] flex-col overflow-hidden rounded-2xl p-0 shadow-2xl"
         // The page tour walks through these settings sections. Its caption takes
         // focus and its overlay takes the pointer - both outside - and closing on
         // either left the next stop pinned to a section that had gone.
@@ -171,61 +166,69 @@ export function ChatControls({
           if (document.querySelector(".driver-popover")) event.preventDefault();
         }}
       >
-        <div className="shrink-0 border-b px-6 py-5">
-          <DialogTitle className="text-base font-semibold">{t("label")}</DialogTitle>
+        <div className="flex shrink-0 items-center justify-between border-b px-5 py-3">
+          <h2 className="text-sm font-semibold">{t("label")}</h2>
+          <button
+            type="button"
+            aria-label={tCommon("close")}
+            onClick={() => setOpen(false)}
+            className="text-muted-foreground hover:bg-accent hover:text-foreground flex size-7 items-center justify-center rounded-md"
+          >
+            <X className="size-4" aria-hidden />
+          </button>
         </div>
-        <Tabs
-          value={activeSection}
-          onValueChange={(value) => {
-            if (value === "tools" || value === "preferences") setSection(value);
-          }}
-          className="flex min-h-0 flex-1 flex-col"
-        >
-          <TabsList className="shrink-0 px-6" aria-label={t("label")}>
-            {desktop && (
-              <TabsTrigger value="tools" data-tour="chat-settings-tools">
-                {t("toolsTab")}
-              </TabsTrigger>
-            )}
-            <TabsTrigger value="preferences" data-tour="chat-settings-preferences">
-              {t("preferencesTab")}
-            </TabsTrigger>
-          </TabsList>
-          <div className="min-h-0 flex-1 scrollbar-thin overflow-y-auto overscroll-contain px-6 pb-6">
-            {desktop && (
-              <TabsContent value="tools" className="mt-0">
-                <WorkOn agentCapabilities={agentCapabilities} />
-              </TabsContent>
-            )}
-            <TabsContent value="preferences" className="mt-4">
-              <div className="mb-2 flex items-center gap-1">
-                <h3 className="text-foreground/85 text-[13px] font-medium">{t("modelSection")}</h3>
-                <ContextHelp>{t("whichModelRunsHere")}</ContextHelp>
-              </div>
-              <ChatModelPicker
-                value={profileId}
-                agentModel={agentModel}
-                onChange={(next) => {
-                  setProfileId(next);
-                  onModelProfileChange?.(next);
-                }}
-                // "No override" is not "the organization default": an agent names its
-                // own model, and leaving that alone is the default here - so there is
-                // no row for one.
-              />
-              {profileId !== null && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setProfileId(null);
-                    onModelProfileChange?.(null);
-                  }}
-                  className="text-muted-foreground hover:text-foreground mt-3 text-xs underline-offset-2 hover:underline"
-                >
-                  {t("backAgentAposS")}
-                </button>
-              )}
+        <div className="min-h-0 flex-1 scrollbar-thin overflow-y-auto overscroll-contain px-5 py-4">
+          <div className="mb-2 flex items-center gap-1">
+            <h3 className="text-foreground/85 text-[13px] font-medium">{t("modelSection")}</h3>
+            <ContextHelp>{t("whichModelRunsHere")}</ContextHelp>
+          </div>
+          <ChatModelPicker
+            value={profileId}
+            agentModel={agentModel}
+            onChange={(next) => {
+              setProfileId(next);
+              onModelProfileChange?.(next);
+            }}
+            // "No override" is not "the organization default": an agent names its
+            // own model, and leaving that alone is the default here - so there is
+            // no row for one.
+          />
+          {profileId !== null && (
+            <button
+              type="button"
+              onClick={() => {
+                setProfileId(null);
+                onModelProfileChange?.(null);
+              }}
+              className="text-muted-foreground hover:text-foreground mt-3 text-xs underline-offset-2 hover:underline"
+            >
+              {t("backAgentAposS")}
+            </button>
+          )}
 
+          {desktop && (
+            <div className="mt-5 border-t pt-4">
+              <p className="text-muted-foreground mb-3 text-[11px] font-medium tracking-wider uppercase">
+                {t("toolsTab")}
+              </p>
+              <WorkOn agentCapabilities={agentCapabilities} />
+            </div>
+          )}
+          <button
+            type="button"
+            data-tour="chat-settings-preferences"
+            aria-expanded={expanded}
+            onClick={() => setPreferences(!expanded)}
+            className="text-muted-foreground hover:text-foreground mt-4 flex w-full items-center justify-between border-t pt-4 text-xs font-medium"
+          >
+            {t("preferencesTab")}
+            <ChevronDown
+              aria-hidden
+              className={cn("size-4 transition-transform", expanded && "rotate-180")}
+            />
+          </button>
+          {expanded && (
+            <div>
               <div
                 className="border-foreground/10 mt-4 border-t pt-4"
                 data-tour="chat-approval-mode"
@@ -343,18 +346,18 @@ export function ChatControls({
                   </button>
                 </div>
               )}
-            </TabsContent>
-          </div>
-        </Tabs>
+            </div>
+          )}
+        </div>
 
-        <div className="border-foreground/10 text-muted-foreground flex shrink-0 items-center justify-between border-t px-6 py-3 text-[11px]">
+        <div className="border-foreground/10 text-muted-foreground flex shrink-0 items-center justify-between border-t px-5 py-2.5 text-[11px]">
           <span className="inline-flex items-center gap-1.5">
             <span aria-hidden className="bg-foreground inline-block h-1 w-1 rounded-full" />
             {t("savedAutomatically")}
           </span>
           <span>{t("escToClose")}</span>
         </div>
-      </DialogContent>
-    </Dialog>
+      </PopoverContent>
+    </Popover>
   );
 }

@@ -1,5 +1,5 @@
 ---
-source_sha: "ce532dc16715"
+source_sha: "75207a04abf7"
 ---
 
 # Die Desktop-App { #the-desktop-app }
@@ -478,9 +478,9 @@ seiner eigenen öffentlichen Adresse.
 
 **Settings → Desktop app → Coding agents on this computer** zeigt installierte Versionen von Claude Code und Codex sowie den Anmeldestatus. **Sign in** öffnet den eigenen Anmeldebefehl des Agents im Terminal unter macOS, in PowerShell unter Windows oder in einem verfügbaren Linux-Terminal. Nach der Rückkehr aktualisiert sich der Status. AgenticOS liest oder kopiert keine Zugangsdaten. Die fest versionierten ACP-Adapter benötigen Node.js 22 oder neuer.
 
-Wählen Sie in der Desktop-App unter **Chat-Steuerung → Werkzeuge und Dateien → Programmieragent** entweder **Claude Code auf diesem Computer** oder **Codex auf diesem Computer**, auch wenn die veröffentlichte Fähigkeit deaktiviert ist oder fehlt. Die App richtet lokale Dateiwerkzeuge ein und öffnet die native Ordnerauswahl, sofern der aktuelle Ordner noch keinen Vollzugriff hat. Abbrechen behält die bisherigen Einstellungen bei. **Agenteneinstellung verwenden** stellt die veröffentlichte Konfiguration wieder her.
+Wählen Sie in der Desktop-App unter **Chat-Steuerung → Werkzeuge und Dateien → Programmieragent** entweder **Claude Code** oder **Codex**, auch wenn die veröffentlichte Fähigkeit deaktiviert ist oder fehlt. Die App richtet lokale Dateiwerkzeuge ein und öffnet die native Ordnerauswahl, sofern der aktuelle Ordner noch keinen Vollzugriff hat. Abbrechen behält die bisherigen Einstellungen bei. **Agenteneinstellung verwenden** stellt die veröffentlichte Konfiguration wieder her.
 
-Die Auswahl gilt für diesen Chat. Bestehende Nur-Lesen- und Freigaberegeln gelten weiterhin; jede Aufgabe erfordert eine native Bestätigung. Der Wechsel zur Cloud entfernt die lokale Programmieragenten-Auswahl dieser Unterhaltung. Modell und Freigaben finden Sie unter **Einstellungen**.
+Die Auswahl gilt für diesen Chat. Bestehende Nur-Lesen- und Freigaberegeln gelten weiterhin; jede Aufgabe erfordert eine native Bestätigung. Der Wechsel zur Cloud entfernt die lokale Programmieragenten-Auswahl dieser Unterhaltung. Die Chat-Steuerung öffnet sich über dem Nachrichtenfeld. Oben steht das Modell, darunter Tools und Dateien. Klappen Sie **Work on** für den Ordnerzugriff und **Einstellungen** für Freigaben und Benachrichtigungen auf.
 
 Wähle für die Capability **Coding agent** die Option **On this computer**, einen Ordner unter **Work on** und vollständigen Zugriff. Jede Aufgabe erfordert eine native Bestätigung mit bis zu fünf Minuten Antwortzeit. Der Adapter läuft unter deinem Betriebssystemkonto: Der Ordner bestimmt das Arbeitsverzeichnis, keine Betriebssystem-Sandbox. Zugriff auf den gesamten Computer startet keinen Coding agent. Der Composer zeigt Agent, Ordner und Zugriffsrichtlinie.
 

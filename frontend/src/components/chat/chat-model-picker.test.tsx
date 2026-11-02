@@ -607,6 +607,8 @@ it("shows the current model and keeps changes collapsed until requested", async 
   expect(screen.getByText("OpenRouter · demo/model")).toBeInTheDocument();
   const toggle = screen.getByRole("button", { name: "Change model" });
   expect(toggle).toHaveAttribute("aria-expanded", "false");
+  expect(toggle).toHaveTextContent("OpenRouter · demo/model");
+  expect(toggle).toHaveAttribute("data-tour", "chat-model-picker");
   expect(screen.queryByRole("combobox", { name: "Provider" })).not.toBeInTheDocument();
   await userEvent.click(toggle);
   expect(screen.getByRole("combobox", { name: "Provider" })).toHaveTextContent("OpenRouter");

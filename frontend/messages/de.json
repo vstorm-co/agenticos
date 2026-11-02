@@ -1250,9 +1250,9 @@
           "agent": "Agenteneinstellung verwenden",
           "claudeCode": "Claude Code auf diesem Computer",
           "codex": "Codex auf diesem Computer",
-          "description": "Die Auswahl eines lokalen Programmieragenten richtet auch den lokalen Dateizugriff ein. Wählen Sie bei Aufforderung einen Ordner; jede Aufgabe erfordert weiterhin eine Bestätigung.",
-          "folder": "Wählen Sie unter Arbeitsumgebung einen Ordner mit Vollzugriff. Zugriff auf den gesamten Computer kann keinen Programmieragenten starten.",
-          "setup": "Installieren Sie diesen Agenten und melden Sie sich unter Einstellungen → Desktop-App an.",
+          "description": "Der Dateizugriff wird automatisch eingerichtet. Jede Aufgabe erfordert eine Bestätigung.",
+          "folder": "Wähle einen Projektordner, um fortzufahren.",
+          "setup": "Installieren oder anmelden → Desktop-Einstellungen",
           "pickFolder": "Ordner auswählen",
           "changeFolder": "Ordner ändern · {folder}",
           "agentWithHarness": "Agenteneinstellung · {agent}"

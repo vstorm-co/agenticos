@@ -1711,7 +1711,7 @@ function ChatUI({
                                   total={conversationCost}
                                   contextWindow={contextWindow}
                                 />
-                                <div data-tour="chat-model-picker">
+                                <div>
                                   <ChatControls
                                     onModelProfileChange={onModelProfileChange}
                                     onApprovalModeChange={onApprovalModeChange}

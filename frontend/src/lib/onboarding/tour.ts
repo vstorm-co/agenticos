@@ -188,14 +188,14 @@ export const TOUR_STEPS: readonly TourStep[] = [
     id: "chat-local-skills",
     page: ROUTES.CHAT,
     target: "chat-local-skills",
-    activate: ["chat-settings", "chat-settings-tools"],
+    activate: "chat-settings",
     optional: true,
   },
   {
     id: "chat-local-coding",
     page: ROUTES.CHAT,
     target: "chat-local-coding",
-    activate: ["chat-settings", "chat-settings-tools"],
+    activate: "chat-settings",
     optional: true,
   },
   // Only there once an agent has planned something, so `optional` - an
@@ -208,7 +208,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
     id: "chat-model-picker",
     page: ROUTES.CHAT,
     target: "chat-model-picker",
-    activate: ["chat-settings", "chat-settings-preferences"],
+    activate: "chat-settings",
   },
   // The call button sits in the composer whenever an agent is selected - offered
   // or crossed out - but readiness loads after the page, so the stop is optional:

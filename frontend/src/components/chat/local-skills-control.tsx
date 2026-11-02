@@ -1,5 +1,6 @@
 "use client";
 
+import { BookOpen, ChevronDown } from "lucide-react";
 import { useMutation } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 
@@ -26,6 +27,7 @@ const FOLDERS: Record<SkillSource, string> = {
  */
 export function LocalSkillsControl() {
   const t = useTranslations("chat.controls.workOn.skills");
+  const tWork = useTranslations("chat.controls.workOn");
   const conversationId = useConversationStore((state) => state.currentConversationId);
   const chosen = useWorkOnStore((state) => state.skillsFor(conversationId));
   const setSkills = useWorkOnStore((state) => state.setSkills);
@@ -49,48 +51,63 @@ export function LocalSkillsControl() {
     }
   }
   return (
-    <div className="border-foreground/10 mt-4 border-t pt-4">
-      <div className="mb-2 flex items-center gap-1" data-tour="chat-local-skills">
-        <p className="text-foreground/85 text-[13px] font-medium">{t("title")}</p>
-        <ContextHelp>{t("help")}</ContextHelp>
+    <details className="group py-3">
+      <summary
+        data-tour="chat-local-skills"
+        className="flex cursor-pointer list-none items-center gap-2 text-[13px] font-medium [&::-webkit-details-marker]:hidden"
+      >
+        <BookOpen className="text-muted-foreground size-4" aria-hidden />
+        <span>{t("title")}</span>
+        <span className="text-muted-foreground ml-auto text-xs font-normal">
+          {chosen.length > 0 ? t("count", { count: visible.size }) : tWork("off")}
+        </span>
+        <ChevronDown
+          className="text-muted-foreground size-3.5 transition-transform group-open:rotate-180"
+          aria-hidden
+        />
+      </summary>
+      <div className="mt-3">
+        <div className="mb-2 flex justify-end">
+          <ContextHelp>{t("help")}</ContextHelp>
+        </div>
+        <ul className="grid gap-1">
+          {SKILL_SOURCES.map((source) => {
+            const count = skills.filter(
+              (skill) =>
+                skill.source === source &&
+                (chosen.includes(source)
+                  ? visible.get(skill.name) === skill
+                  : skill.shadowed_by !== source),
+            ).length;
+            const checked = chosen.includes(source);
+            const id = `local-skills-${source}`;
+            return (
+              <li key={source} className="flex items-center gap-2 text-sm">
+                <Checkbox
+                  id={id}
+                  checked={checked}
+                  disabled={toggle.isPending}
+                  onCheckedChange={(on) =>
+                    toggle.mutate(
+                      on === true
+                        ? SKILL_SOURCES.filter((s) => s === source || chosen.includes(s))
+                        : chosen.filter((s) => s !== source),
+                    )
+                  }
+                />
+                <label htmlFor={id} className="flex min-w-0 flex-1 items-baseline justify-between">
+                  <span className="font-mono text-xs">{FOLDERS[source]}</span>
+                  <span className="text-muted-foreground text-xs">{t("count", { count })}</span>
+                </label>
+              </li>
+            );
+          })}
+        </ul>
+        {hidden > 0 && (
+          <p className="text-muted-foreground mt-2 text-xs">{t("hidden", { count: hidden })}</p>
+        )}
+        <p className="text-muted-foreground mt-2 text-xs">{t(chosen.length > 0 ? "on" : "off")}</p>
       </div>
-      <ul className="grid gap-1">
-        {SKILL_SOURCES.map((source) => {
-          const count = skills.filter(
-            (skill) =>
-              skill.source === source &&
-              (chosen.includes(source)
-                ? visible.get(skill.name) === skill
-                : skill.shadowed_by !== source),
-          ).length;
-          const checked = chosen.includes(source);
-          const id = `local-skills-${source}`;
-          return (
-            <li key={source} className="flex items-center gap-2 text-sm">
-              <Checkbox
-                id={id}
-                checked={checked}
-                disabled={toggle.isPending}
-                onCheckedChange={(on) =>
-                  toggle.mutate(
-                    on === true
-                      ? SKILL_SOURCES.filter((s) => s === source || chosen.includes(s))
-                      : chosen.filter((s) => s !== source),
-                  )
-                }
-              />
-              <label htmlFor={id} className="flex min-w-0 flex-1 items-baseline justify-between">
-                <span className="font-mono text-xs">{FOLDERS[source]}</span>
-                <span className="text-muted-foreground text-xs">{t("count", { count })}</span>
-              </label>
-            </li>
-          );
-        })}
-      </ul>
-      {hidden > 0 && (
-        <p className="text-muted-foreground mt-2 text-xs">{t("hidden", { count: hidden })}</p>
-      )}
-      <p className="text-muted-foreground mt-2 text-xs">{t(chosen.length > 0 ? "on" : "off")}</p>
-    </div>
+    </details>
   );
 }

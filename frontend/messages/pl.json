@@ -948,9 +948,9 @@
           "agent": "Użyj ustawienia agenta",
           "claudeCode": "Claude Code na tym komputerze",
           "codex": "Codex na tym komputerze",
-          "description": "Wybór lokalnego agenta programistycznego przygotowuje też dostęp do lokalnych plików. Wskaż folder w oknie wyboru; każde zadanie nadal wymaga potwierdzenia.",
-          "folder": "Wybierz folder w sekcji Pracuj na i przyznaj Pełny dostęp. Dostęp do całego komputera nie pozwala uruchomić agenta programistycznego.",
-          "setup": "Zainstaluj tego agenta i zaloguj się w Ustawienia → Aplikacja desktopowa.",
+          "description": "Dostęp do plików ustawi się automatycznie. Każde zadanie wymaga potwierdzenia.",
+          "folder": "Wybierz folder projektu, aby kontynuować.",
+          "setup": "Instalacja i logowanie → Ustawienia desktopu",
           "pickFolder": "Wybierz folder",
           "changeFolder": "Zmień folder · {folder}",
           "agentWithHarness": "Ustawienie agenta · {agent}"

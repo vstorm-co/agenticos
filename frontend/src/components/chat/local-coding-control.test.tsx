@@ -57,8 +57,7 @@ beforeEach(() => {
 it("sets up a full-access folder automatically before enabling the coding harness", async () => {
   const user = userEvent.setup();
   view();
-  const select = screen.getByRole("combobox", { name: "Coding agent" });
-  await user.selectOptions(select, "codex");
+  await user.click(screen.getByRole("radio", { name: "Codex" }));
   await waitFor(() => expect(useWorkOnStore.getState().codingFor("coding-chat")).toBe("codex"));
   expect(env.pick).toHaveBeenCalledWith("full_access");
   expect(useWorkOnStore.getState().targetFor("coding-chat")).toMatchObject({
@@ -66,14 +65,14 @@ it("sets up a full-access folder automatically before enabling the coding harnes
     mode: folder.mode,
   });
   expect(useWorkOnStore.getState().codingFor("another-chat")).toBeNull();
-  await user.selectOptions(select, "agent");
+  await user.click(screen.getByRole("radio", { name: "Use agent setting" }));
   await waitFor(() => expect(useWorkOnStore.getState().codingFor("coding-chat")).toBeNull());
 });
 it("requires successful pairing before choosing a folder", async () => {
   env.linked = false;
   env.link.mockResolvedValue({ linked: false });
   view();
-  await userEvent.selectOptions(screen.getByRole("combobox"), "claude_code");
+  await userEvent.click(screen.getByRole("radio", { name: "Claude Code" }));
   await waitFor(() => expect(env.link).toHaveBeenCalledOnce());
   expect(env.pick).not.toHaveBeenCalled();
   expect(useWorkOnStore.getState().codingFor("coding-chat")).toBeNull();
@@ -82,7 +81,7 @@ it("reuses a real native full-access grant and enables local files in that mode"
   env.grants = [folder];
   useWorkOnStore.getState().set("coding-chat", { folder: folder.path, mode: "workspace_write" });
   view();
-  await userEvent.selectOptions(screen.getByRole("combobox"), "claude_code");
+  await userEvent.click(screen.getByRole("radio", { name: "Claude Code" }));
   await waitFor(() =>
     expect(useWorkOnStore.getState().codingFor("coding-chat")).toBe("claude_code"),
   );
@@ -92,7 +91,7 @@ it("reuses a real native full-access grant and enables local files in that mode"
 it("does not trust a stale full-access selection without its native grant", async () => {
   useWorkOnStore.getState().set("coding-chat", { folder: "/old", mode: "full_access" });
   view();
-  await userEvent.selectOptions(screen.getByRole("combobox"), "codex");
+  await userEvent.click(screen.getByRole("radio", { name: "Codex" }));
   await waitFor(() =>
     expect(useWorkOnStore.getState().targetFor("coding-chat")?.folder).toBe(folder.path),
   );
@@ -101,7 +100,7 @@ it("does not trust a stale full-access selection without its native grant", asyn
 it("keeps the previous setting when the person cancels the folder picker", async () => {
   env.pick.mockResolvedValue(null);
   view();
-  await userEvent.selectOptions(screen.getByRole("combobox"), "codex");
+  await userEvent.click(screen.getByRole("radio", { name: "Codex" }));
   await waitFor(() => expect(env.pick).toHaveBeenCalledOnce());
   expect(useWorkOnStore.getState().codingFor("coding-chat")).toBeNull();
   expect(useWorkOnStore.getState().targetFor("coding-chat")).toBeNull();
@@ -111,7 +110,7 @@ it("replaces whole-computer consent with a folder grant after explicit folder se
     .getState()
     .set("coding-chat", { folder: "/home", mode: "full_access", computer_grant: "whole" });
   view();
-  await userEvent.selectOptions(screen.getByRole("combobox"), "claude_code");
+  await userEvent.click(screen.getByRole("radio", { name: "Claude Code" }));
   await waitFor(() =>
     expect(useWorkOnStore.getState().codingFor("coding-chat")).toBe("claude_code"),
   );
@@ -123,7 +122,7 @@ it("asks for full access when the native folder grant only permits workspace wri
   env.grants = [{ path: "/approved", mode: "workspace_write" }];
   useWorkOnStore.getState().set("coding-chat", { folder: "/approved", mode: "workspace_write" });
   view();
-  await userEvent.selectOptions(screen.getByRole("combobox"), "claude_code");
+  await userEvent.click(screen.getByRole("radio", { name: "Claude Code" }));
   await waitFor(() => expect(env.pick).toHaveBeenCalledWith("full_access"));
   await waitFor(() =>
     expect(useWorkOnStore.getState().codingFor("coding-chat")).toBe("claude_code"),
@@ -135,7 +134,7 @@ it("preserves whole-computer consent when the person cancels the folder picker",
   useWorkOnStore.getState().set("coding-chat", original);
   env.pick.mockResolvedValue(null);
   view();
-  await userEvent.selectOptions(screen.getByRole("combobox"), "codex");
+  await userEvent.click(screen.getByRole("radio", { name: "Codex" }));
   await waitFor(() => expect(env.pick).toHaveBeenCalledOnce());
   expect(env.revoke).not.toHaveBeenCalled();
   expect(useWorkOnStore.getState().targetFor("coding-chat")).toEqual(original);
@@ -147,7 +146,7 @@ it("offers folder setup for the published local harness even without a chat over
   ];
   useAgentSelectionStore.setState({ selectedAgentId: "local" });
   view();
-  expect(screen.getByRole("option", { name: "Agent setting · Claude Code" })).toBeInTheDocument();
+  expect(screen.getByRole("radio", { name: "Agent setting · Claude Code" })).toBeInTheDocument();
   await userEvent.click(screen.getByRole("button", { name: "Choose a folder" }));
   await waitFor(() =>
     expect(useWorkOnStore.getState().codingFor("coding-chat")).toBe("claude_code"),

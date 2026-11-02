@@ -1250,9 +1250,9 @@
           "agent": "Use agent setting",
           "claudeCode": "Claude Code on this computer",
           "codex": "Codex on this computer",
-          "description": "Choosing a local coding agent also sets up local file access. Select a folder when prompted; each task still asks for confirmation.",
-          "folder": "Choose a folder under Work on and grant Full access. Whole-computer access cannot start a coding agent.",
-          "setup": "Install and sign in to this coding agent under Settings → Desktop app.",
+          "description": "Folder access is set up automatically. Each task asks for confirmation.",
+          "folder": "A project folder is required to continue.",
+          "setup": "Install or sign in → Desktop settings",
           "pickFolder": "Choose a folder",
           "changeFolder": "Change folder · {folder}",
           "agentWithHarness": "Agent setting · {agent}"

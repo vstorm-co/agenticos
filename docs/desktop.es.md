@@ -1,5 +1,5 @@
 ---
-source_sha: "ce532dc16715"
+source_sha: "75207a04abf7"
 ---
 
 # La app de escritorio { #the-desktop-app }
@@ -467,9 +467,9 @@ despliegue tiene que coincidir en el esquema - `DESKTOP_DEEP_LINK_SCHEME`,
 
 **Settings → Desktop app → Coding agents on this computer** muestra las versiones instaladas de Claude Code y Codex y su estado de sesión. **Sign in** abre el comando propio del agente en Terminal de macOS, PowerShell de Windows o un terminal disponible en Linux. Al volver, se actualiza el estado. AgenticOS no lee ni copia credenciales. Los adaptadores ACP con versión fijada requieren Node.js 22 o posterior.
 
-En la aplicación de escritorio, elige **Controles del chat → Herramientas y archivos → Agente de programación** y selecciona **Claude Code en este ordenador** o **Codex en este ordenador**, aunque la capacidad publicada esté desactivada o ausente. La aplicación prepara las herramientas de archivos locales y abre el selector nativo de carpetas, salvo que la carpeta actual ya tenga acceso completo. Cancelar conserva los ajustes anteriores. **Usar configuración del agente** restaura la configuración publicada.
+En la aplicación de escritorio, elige **Controles del chat → Herramientas y archivos → Agente de programación** y selecciona **Claude Code** o **Codex**, aunque la capacidad publicada esté desactivada o ausente. La aplicación prepara las herramientas de archivos locales y abre el selector nativo de carpetas, salvo que la carpeta actual ya tenga acceso completo. Cancelar conserva los ajustes anteriores. **Usar configuración del agente** restaura la configuración publicada.
 
-La selección pertenece a este chat. Se mantienen las reglas de solo lectura y aprobación; cada tarea requiere confirmación nativa. Cambiar a la nube elimina la selección local de esta conversación. El modelo y las aprobaciones están en **Preferencias**.
+La selección pertenece a este chat. Se mantienen las reglas de solo lectura y aprobación; cada tarea requiere confirmación nativa. Cambiar a la nube elimina la selección local de esta conversación. Los controles del chat se despliegan sobre el campo de mensajes. El modelo aparece arriba, seguido de Herramientas y archivos. Despliega **Work on** para gestionar el acceso a carpetas y **Preferencias** para las aprobaciones y notificaciones.
 
 Configura la capability **Coding agent** como **On this computer**, elige una carpeta en **Work on** y concédele acceso completo. Cada tarea requiere confirmación nativa, con hasta cinco minutos para responder. El adaptador se ejecuta con tu cuenta del sistema: la carpeta indica el directorio de trabajo, no una sandbox del sistema. El acceso a todo el equipo no puede iniciar un coding agent. El compositor muestra agente, carpeta y política de acceso.
 

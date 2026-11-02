@@ -1,5 +1,5 @@
 import { useChatControlsStore } from "@/stores/chat-controls-store";
-import { act, render as renderView, screen, within } from "@testing-library/react";
+import { act, fireEvent, render as renderView, screen, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactElement, ReactNode } from "react";
 import userEvent from "@testing-library/user-event";
@@ -9,13 +9,16 @@ import { useWorkOnStore } from "@/stores/work-on-store";
 import type { DeviceStatus, LocalGrant, LocalMode } from "@/lib/desktop/commands";
 import { WorkOn } from "./work-on";
 
-function render(ui: ReactElement) {
+function render(ui: ReactElement, expandFolders = true) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  return renderView(ui, {
+  const view = renderView(ui, {
     wrapper: ({ children }: { children: ReactNode }) => (
       <QueryClientProvider client={client}>{children}</QueryClientProvider>
     ),
   });
+  const summary = view.container.querySelector("summary");
+  if (expandFolders && summary) fireEvent.click(summary);
+  return view;
 }
 
 const pick = vi.hoisted(() =>
@@ -420,4 +423,14 @@ it("keeps coding agents on full-access folders and clears the override when swit
   await userEvent.click(screen.getByRole("radio", { name: "Cloud" }));
   expect(useWorkOnStore.getState().codingFor("chat")).toBeNull();
   expect(useWorkOnStore.getState().targetFor("chat")).toBeNull();
+});
+
+it("keeps folder details collapsed while showing the selected workspace", async () => {
+  render(<WorkOn agentCapabilities={["sandbox"]} />, false);
+  const summary = screen.getByText("Work on").closest("summary");
+  expect(summary).toHaveTextContent("first");
+  expect(summary?.parentElement).not.toHaveAttribute("open");
+  await userEvent.click(summary!);
+  expect(summary?.parentElement).toHaveAttribute("open");
+  expect(screen.getByRole("combobox", { name: "Folder access" })).toBeVisible();
 });
