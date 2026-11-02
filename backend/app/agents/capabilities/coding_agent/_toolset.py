@@ -290,22 +290,24 @@ def build_coding_toolset(
             else None
         )
         pipe = DevicePipe(workspace, harness, resume_key=resume_key, fresh_session=fresh_session)
-        agent_started = False
         try:
             await pipe.open()
-            agent_started = True
-            report = await run_task(
-                pipe,
-                harness=harness,
-                access=access,
-                root=await workspace.working_dir(),
-                task=task,
-                timeout_seconds=timeout_seconds,
-                shown=narration.shown,
-                previous_session=pipe.session_id,
-                remember=pipe.remember,
-                steering=ctx.deps.steering,
-            )
+            try:
+                report = await run_task(
+                    pipe,
+                    harness=harness,
+                    access=access,
+                    root=await workspace.working_dir(),
+                    task=task,
+                    timeout_seconds=timeout_seconds,
+                    shown=narration.shown,
+                    previous_session=pipe.session_id,
+                    remember=pipe.remember,
+                    steering=ctx.deps.steering,
+                )
+            finally:
+                # Failed and cancelled tasks may have spent subscription tokens too.
+                _book(Usage())
         except AcpError as failed:
             await narration.finished("failed", error=failed.message[:500])
             return f"{label} could not run on this computer: {failed.message}"
@@ -316,10 +318,6 @@ def build_coding_toolset(
             with anyio.CancelScope(shield=True):
                 await narration.finished("cancelled")
             raise
-        finally:
-            if agent_started:
-                # Failed and cancelled tasks may have spent subscription tokens too.
-                _book(Usage())
         await narration.finished(
             "completed" if report.outcome == "completed" else "failed",
             error=None if report.outcome == "completed" else report.answer[:500],

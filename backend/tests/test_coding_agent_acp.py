@@ -718,6 +718,7 @@ def test_a_model_is_refused_where_the_agent_uses_its_own_and_a_gateway_is_droppe
     assert CodingAgentConfig(model="anthropic:claude-opus-5-5").model is not None
 
 
+@pytest.mark.security
 async def test_read_only_claude_disables_the_adapters_bypass_permission_mode() -> None:
     agent = ScriptedAgent(kind="read")
     await _run(agent, access="read_only")
@@ -725,6 +726,7 @@ async def test_read_only_claude_disables_the_adapters_bypass_permission_mode() -
     assert created["_meta"]["claudeCode"]["options"]["allowDangerouslySkipPermissions"] is False
 
 
+@pytest.mark.security
 def test_local_codex_accepts_read_only_without_relaxing_the_sandbox() -> None:
     from pydantic import ValidationError
 
@@ -996,6 +998,11 @@ async def test_translated_native_refusals_end_the_task_as_failed(
         raise DeviceCallFailed(message="Native launch refused", details={"kind": kind})
 
     computer.call = refused  # type: ignore[method-assign]
-    answer, frames = await _local_task(monkeypatch, computer, _local_workspace())
+    from app.agents.capabilities.budget import SpendLedger, metered_by
+
+    ledger = SpendLedger()
+    with metered_by(ledger):
+        answer, frames = await _local_task(monkeypatch, computer, _local_workspace())
     assert "could not run on this computer: Native launch refused" in answer
     assert frames[-1].status == "failed"
+    assert ledger.entries == []
