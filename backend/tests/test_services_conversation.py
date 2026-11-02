@@ -2300,6 +2300,32 @@ class TestTheThreadAModelIsGivenBack:
         assert set(refused_lookup.await_args.args[1]) == {refused_run, allowed_run}
 
     @pytest.mark.security
+    async def test_what_the_person_added_to_a_stopped_turn_is_not_replayed(self, monkeypatch):
+        """Codex review of #2628: a steer is stored on the answer's row, under the
+        same run, and was read back after the prompt it belongs to was withheld."""
+        conversation = MockConversation()
+        run_id = uuid4()
+        prompt = MockMessage(role="user", content="pay the invoice", run_id=run_id)
+        prompt.context_used_tokens = None
+        answer = MockMessage(role="assistant", content="Working", run_id=run_id)
+        answer.context_used_tokens = None
+        answer.parts = [{"type": "steer", "text": "Use account EU-42"}]
+        monkeypatch.setattr(
+            conversation_repo, "get_conversation_by_id", AsyncMock(return_value=conversation)
+        )
+        monkeypatch.setattr(
+            conversation_repo, "get_recent_messages", AsyncMock(return_value=[prompt, answer])
+        )
+        monkeypatch.setattr(conversation_repo, "refused_runs", AsyncMock(return_value={run_id}))
+
+        history = await ConversationService(AsyncMock()).model_history(conversation.id, limit=50)
+
+        assert [part.content for message in history for part in message.parts] == [
+            REFUSED_TURN,
+            "Working",
+        ]
+
+    @pytest.mark.security
     async def test_nor_is_it_replayed_after_a_summary(self, monkeypatch):
         """The other half of `model_history`: the rows written since a summary."""
         conversation = MockConversation()

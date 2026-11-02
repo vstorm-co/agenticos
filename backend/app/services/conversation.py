@@ -112,10 +112,13 @@ def _as_history(
         # What the person added while the answer was being written, as they added
         # it: before the answer it changed. Stored only as parts of the answer,
         # it was in the conversation on screen and missing from the next turn.
+        # Not for a turn a guardrail stopped, whose words are withheld whole.
         history.extend(
             {"role": "user", "content": f"{STEER_PREFIX}\n\n{part['text']}"}
             for part in row.parts or []
-            if part.get("type") == "steer" and isinstance(part.get("text"), str)
+            if part.get("type") == "steer"
+            and isinstance(part.get("text"), str)
+            and row.run_id not in refused
         )
         history.append(
             {
