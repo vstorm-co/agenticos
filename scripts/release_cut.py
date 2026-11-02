@@ -96,9 +96,9 @@ def main() -> None:
         (worktree / path).write_text(content)
     run("git", "add", "--", *FILES, cwd=worktree)
     run("git", "diff", "--cached", "--check", cwd=worktree)
-    # Run the repository's hooks with its locked environments available.
-    run("uv", "sync", "--dev", cwd=worktree / "backend")
-    run("bun", "install", "--frozen-lockfile", cwd=worktree / "frontend")
+    # Release metadata triggers Python guard scripts, but no frontend hooks.
+    # Install only locked development tools rather than application dependencies.
+    run("uv", "sync", "--locked", "--only-group", "dev", cwd=worktree / "backend")
     run("git", "commit", "-m", f"chore: cut {version}", cwd=worktree)
     run("git", "push", "-u", "origin", branch, cwd=worktree)
     body = worktree.parent / "body.md"

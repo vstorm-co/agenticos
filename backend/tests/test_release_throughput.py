@@ -270,3 +270,44 @@ def test_codeql_reuse_needs_all_languages(
 
     monkeypatch.setattr(scope, "api", api)
     assert not scope.checked_source("owner/repo", "codeql.yml", head)
+
+
+def test_cut_cli_uses_fresh_main_and_leaves_the_checkout_untouched(
+    repository: tuple[str, str],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    import os
+
+    base, original = repository
+    git("branch", "main", base)
+    remote = tmp_path.parent / "remote.git"
+    git("clone", "--bare", ".", str(remote))
+    git("remote", "add", "origin", str(remote))
+    binary = tmp_path / "bin"
+    binary.mkdir()
+    gh = binary / "gh"
+    gh.write_text("""#!/bin/sh
+case "$*" in
+  'pr list '*) echo '[]' ;;
+  'pr create '*) echo 'https://example.com/cut-pr' ;;
+  *) exit 9 ;;
+esac
+""")
+    uv = binary / "uv"
+    uv.write_text("""#!/bin/sh
+[ "$*" = 'sync --locked --only-group dev' ] || exit 9
+""")
+    gh.chmod(0o755)
+    uv.chmod(0o755)
+    monkeypatch.setenv("PATH", f"{binary}:{os.environ['PATH']}")
+    monkeypatch.setattr("sys.argv", ["release-cut", "minor", "--create-pr"])
+    cut.main()
+    assert "https://example.com/cut-pr" in capsys.readouterr().out
+    assert git("rev-parse", "HEAD") == original
+    new = git("rev-parse", "origin/codex/cut-1.1.0")
+    assert git("rev-parse", f"{new}^") == base
+    assert set(git("diff", "--name-only", base, new).splitlines()) == set(cut.FILES)
+    assert scope.is_cut(base, new)
+    assert git("tag", "--list") == ""
