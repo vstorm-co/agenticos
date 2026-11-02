@@ -1,6 +1,6 @@
 [project]
 name = "agenticos"
-version = "1.36.1"
+version = "1.37.0"
 description = "OS for your agents."
 requires-python = ">=3.15"
 license = { text = "Apache-2.0" }
@@ -761,6 +761,8 @@ include = [
     "app/services/channels/slack_manifest.py",
     "app/services/channels/telegram_format.py",
     "app/services/channels/telegram_press.py",
+    # What the Discord adapter says and reads, without the I/O (#2079).
+    "app/services/channels/discord_protocol.py",
     "app/repositories/channel_prompt.py",
     "app/services/collection_access.py",
     "app/repositories/collection_teardown.py",
@@ -1411,6 +1413,8 @@ include = [
     "app/services/channels/slack_manifest.py",
     "app/services/channels/telegram_format.py",
     "app/services/channels/telegram_press.py",
+    # What the Discord adapter says and reads, without the I/O (#2079).
+    "app/services/channels/discord_protocol.py",
     "app/repositories/channel_prompt.py",
     "app/services/collection_access.py",
     "app/repositories/collection_teardown.py",

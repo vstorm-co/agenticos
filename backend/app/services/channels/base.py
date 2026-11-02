@@ -51,7 +51,7 @@ def broadcast_mentioned(platform: str, text: str) -> bool:
 
 # Surface a conversation is happening on. "web" is the chat UI / API; the
 # others are messaging platforms. Extend this when adding new channels.
-ChannelType = Literal["web", "slack", "telegram", "mattermost", "teams"]
+ChannelType = Literal["web", "slack", "telegram", "mattermost", "teams", "discord"]
 
 # Default access policy applied to new channel bots.  Imported by models and
 # repositories so the literal is defined in exactly one place.
@@ -213,6 +213,14 @@ class IncomingAttachment:
     Metadata, not a measurement, and absent on most files. Read so that a
     voice note's length can be recorded with its transcription without
     decoding the audio, which nothing in the image can do."""
+
+    author_id: str | None = None
+    """Who posted it, as the access policy names them, for a file read out of a
+    thread the bot was brought into.
+
+    What lets the router hold a file to the same admission as a message: a
+    participant the bot's policy excludes must not get a file into the prompt
+    that their words could not reach. `None` where the adapter does not say."""
 
 
 @dataclass(frozen=True)
@@ -485,12 +493,18 @@ class ChannelAdapter(ABC):
     platform: str  # class-level constant e.g. "telegram"
 
     def prepare_connection(  # noqa: B027
-        self, bot_id: str, *, api_base_url: str | None, app_token: str | None
+        self,
+        bot_id: str,
+        *,
+        api_base_url: str | None,
+        app_token: str | None,
+        approved_guild_ids: tuple[str, ...] = (),
     ) -> None:
         """Register what this bot's connection needs before the stream opens.
 
         The adapter is one object serving every bot, so a per-bot fact - a
-        self-hosted server's address, a Slack app's `xapp-` token - is keyed on
+        self-hosted server's address, a Slack app's `xapp-` token or Discord's
+        approved server IDs - is keyed on
         the bot id here, and a stream opened before this ran would have nowhere
         to connect. A platform that needs neither leaves it alone; the supervisor
         calls it on every adapter the same way, which is what replaced reaching

@@ -1,9 +1,9 @@
 ---
 name: channel-bot
-description: Work with messaging-channel bots — Telegram, Slack, Mattermost or Microsoft Teams. Register a bot, route inbound messages through an agent, choose webhook vs polling, handle an @slug mention, or add a new channel adapter. Use when wiring chat into a messaging platform or debugging bot delivery, identity linking or "the bot answered as itself".
+description: Work with messaging-channel bots — Telegram, Slack, Mattermost, Microsoft Teams or Discord. Register a bot, route inbound messages through an agent, choose webhook vs polling, handle an @slug mention, or add a new channel adapter. Use when wiring chat into a messaging platform or debugging bot delivery, identity linking or "the bot answered as itself".
 ---
 
-# Channels — Telegram, Slack, Mattermost, Teams
+# Channels — Telegram, Slack, Mattermost, Teams, Discord
 
 **Read `docs/channels.md`.** Code: `app/services/channels/` — a thick service with
 per-platform adapters plus a router that funnels inbound messages into the **same**
@@ -16,6 +16,7 @@ agent pipeline as the web chat.
 | `slack.py` | Slack (Events API + Socket Mode) |
 | `mattermost.py` | Mattermost |
 | `teams.py`, `teams_auth.py` | Microsoft Teams over the Bot Connector's HTTP protocol (#1985): JWT-verified activities, Adaptive Cards, conversation references in `teams_conversations` |
+| `discord.py`, `discord_protocol.py` | Discord over its Gateway and REST API, no library (#2079); the protocol module holds the pure payloads, chunking and the channel-visibility arithmetic |
 | `router.py` | Inbound platform message → conversation/session → agent run → reply |
 | `mentions.py` | `@slug` resolution, and the identity rules below |
 
@@ -91,6 +92,11 @@ makes the *other* modes refuse in a channel too (#639).
   which needs the network and so is not `verify_webhook_signature`).
 - **Teams is push only** - there is nothing to poll, and a reply needs the
   conversation's `serviceUrl`, which the route records on every activity.
+- **Discord is stream only** - everything, interactions included, arrives over
+  the bot's Gateway connection. `STREAM_ONLY` in `webhooks.py` makes the schema,
+  the service and `channel-webhook-register` refuse a webhook for it. An
+  interaction must be acknowledged within three seconds, so the adapter defers
+  first and does the work after.
 
 ## Adding an adapter
 
@@ -126,3 +132,20 @@ there. There is no `chart_render.py`; the file is `chart_png.py`.
 
 `app/services/channels/mentions.py` is in the gated platform layer at 100%. The
 adapters are template-inherited and are not. See the `backend-tests` skill.
+
+
+## Discord server admission
+
+`AccessPolicy.discord_guild_ids` is the operator's persisted server allowlist.
+Empty means DM-only, including for a private bot already installed elsewhere.
+The service and the startup/catch-up pass forward these IDs through
+`open_inbound_stream` and `prepare_connection`; each edit reopens the stream.
+READY and GUILD_CREATE do not approve a server. Non-outage GUILD_DELETE forgets
+it, and join-specific check markers prevent a stale public-status result from
+releasing a re-added server. The router checks the persisted policy again.
+
+`/ask` defers privately before I/O, resolves its parent/thread key, and preflights
+access before posting a separate public question. A link invitation consumes the
+identity's rate limit before minting its bearer token. Console transcripts need
+both VIEW_CHANNEL and READ_MESSAGE_HISTORY. Keep signed CDN queries out of logs
+as well as request tracing.

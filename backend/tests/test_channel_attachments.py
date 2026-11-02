@@ -1212,6 +1212,32 @@ async def test_unlinked_thread_files_are_detected_without_download_and_remain_re
     adapter.download_attachment.assert_not_awaited()
 
 
+async def test_a_thread_file_from_somebody_the_policy_excludes_is_not_fetched():
+    incoming = _incoming("what do you see")
+    incoming.platform_chat_id = "C1:T1"
+    incoming.message_id = "P2"
+    bot = MagicMock(access_policy={"mode": "whitelist", "whitelist": ["allowed"]})
+    identity = MagicMock(user_id=uuid.uuid4())
+    adapter = _adapter()
+    adapter.thread_attachments = AsyncMock(
+        return_value=[
+            _attachment(filename="theirs.pdf", author_id="denied"),
+            _attachment(filename="ours.pdf", author_id="allowed"),
+            _attachment(filename="platform.pdf"),
+        ]
+    )
+    with (
+        patch("app.services.channels.router.get_adapter", return_value=adapter),
+        patch("app.services.channels.router.unseal_bot_token", return_value="tok"),
+        patch("app.services.channels.router.ChannelAttachmentService") as service,
+    ):
+        service.return_value.receive = AsyncMock(return_value=([], []))
+        await ChannelMessageRouter()._thread_files(MagicMock(), bot, incoming, identity)
+
+    fetched = service.return_value.receive.await_args.args[2]
+    assert [item.filename for item in fetched] == ["ours.pdf", "platform.pdf"]
+
+
 @pytest.mark.parametrize(
     "path", [".env", "sub/.env", "credentials.txt", "deploy/id_rsa.pem", "x/.ssh/config"]
 )
