@@ -17,6 +17,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.capabilities.skills import SkillBody
+from app.agents.spec import SkillBindingSpec
 from app.core import catalog
 from app.core.audit import record_audit
 from app.core.exceptions import AlreadyExistsError, BadRequestError, InUseError, NotFoundError
@@ -335,9 +336,15 @@ class SkillService:
         ctx: AuthContext,
         skill_ids: list[UUID],
         *,
+        bindings: Sequence[SkillBindingSpec] = (),
         projected: Mapping[UUID, SkillBody] | None = None,
     ) -> list[Skill]:
-        """The skills an agent is bound to.
+        """The skills an agent is bound to, each as the version its binding names.
+
+        A skill with no binding is its row, which is its main line's newest version;
+        one pinned to a main version or following a fork is a detached copy of that
+        version, text and files, so every reader below treats both alike. Each one's
+        `latest_version_id` is the version it serves.
 
         Scoped to the run's organization and **not** to the runner's own access,
         which is deliberate and is the same rule delegates and collections follow:
@@ -372,6 +379,7 @@ class SkillService:
             [key for key in skill_ids if key not in virtual],
             organization_id=ctx.organization_id,
         )
+        pinned = {binding.skill_id: binding for binding in bindings}
         resolved = []
         for skill_id in skill_ids:
             body = virtual.get(skill_id)
@@ -397,8 +405,64 @@ class SkillService:
                     ctx.organization_id,
                 )
                 continue
-            resolved.append(skill)
+            binding = pinned.get(skill_id) if body is None else None
+            served = skill if binding is None else await self._as_bound(skill, binding)
+            if served is None:
+                logger.warning(
+                    "Agent binds skill %s to a version or fork it no longer has", skill_id
+                )
+                continue
+            resolved.append(served)
         return resolved
+
+    async def _as_bound(self, skill: Skill, binding: SkillBindingSpec) -> Skill | None:
+        """The skill as a pinned main version or a fork's newest says it, detached."""
+        if binding.version is not None:
+            version = (
+                await skill_version_repo.get_by_numbers(
+                    self.db,
+                    organization_id=skill.organization_id,
+                    skill_id=skill.id,
+                    fork_id=None,
+                    numbers=[binding.version],
+                )
+            ).get(binding.version)
+        else:
+            assert binding.fork_id is not None, "a binding names a version or a fork"
+            fork = await skill_version_repo.get_fork(
+                self.db,
+                binding.fork_id,
+                organization_id=skill.organization_id,
+                skill_id=skill.id,
+            )
+            latest = None if fork is None else fork.latest_version_id or fork.base_version_id
+            version = (
+                None
+                if latest is None
+                else (
+                    await skill_version_repo.get_versions(
+                        self.db, [latest], organization_id=skill.organization_id
+                    )
+                ).get(latest)
+            )
+        if version is None:
+            return None
+        files = await self.versions.files_of(version)
+        return Skill(
+            id=skill.id,
+            organization_id=skill.organization_id,
+            owner_user_id=skill.owner_user_id,
+            visibility=skill.visibility,
+            name=skill.name,
+            description=version.description,
+            content=version.content,
+            version=version.number,
+            latest_version_id=version.id,
+            resources=[
+                SkillResource(name=name, description=entry["description"], content=files[name])
+                for name, entry in sorted(version.resources.items())
+            ],
+        )
 
     async def create(
         self,

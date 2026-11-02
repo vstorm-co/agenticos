@@ -64,8 +64,15 @@ class SkillProposalService:
         by a second: three turns of one conversation refining a checklist should
         leave a reviewer one decision, not three versions of the same one.
         """
+        bases = await skill_version_repo.get_versions(
+            self.db,
+            {change.base_version_id for change in changes if change.base_version_id},
+            organization_id=ctx.organization_id,
+        )
         recorded: list[SkillProposal] = []
         for change in changes:
+            base = bases.get(change.base_version_id) if change.base_version_id else None
+            fork_id = None if base is None else base.fork_id
             rewritten = await skill_proposal_repo.replace_pending(
                 self.db,
                 organization_id=ctx.organization_id,
@@ -78,7 +85,7 @@ class SkillProposalService:
                 conversation_id=conversation_id,
                 base_version=change.base_version,
                 base_version_id=change.base_version_id,
-                fork_id=change.fork_id,
+                fork_id=fork_id,
             )
             if rewritten is not None:
                 recorded.append(rewritten)
@@ -96,7 +103,7 @@ class SkillProposalService:
                     resources=change.resources,
                     base_version=change.base_version,
                     base_version_id=change.base_version_id,
-                    fork_id=change.fork_id,
+                    fork_id=fork_id,
                 )
             )
         if recorded:

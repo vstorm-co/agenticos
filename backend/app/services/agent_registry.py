@@ -64,6 +64,7 @@ from app.agents.spec import (
     OrgMcpServerRef,
     PersonalMcpServerRef,
     PlatformMcpServerRef,
+    SkillBindingSpec,
     SpecialistSpec,
     SpeechToTextSpec,
     SubagentRef,
@@ -111,6 +112,7 @@ from app.repositories import (
     resource_grant_repo,
     sandbox_connection_repo,
     skill_repo,
+    skill_version_repo,
     user_repo,
 )
 from app.repositories import workflow as workflow_repo
@@ -2023,7 +2025,7 @@ class AgentRegistryService:
                 problems.add([f"Reviewer '{reviewer.name}': say what it looks for"])
 
         problems.add(await self._collection_problems(ctx, spec.collection_ids))
-        problems.add(await self._skill_problems(ctx, spec.skill_ids))
+        problems.add(await self._skill_problems(ctx, spec.skill_ids, spec.skill_bindings))
         problems.add(await self._context_problems(ctx, spec.context_ids))
 
         problems.add(await self._mcp_problems(ctx, spec.mcp_servers))
@@ -2430,8 +2432,17 @@ class AgentRegistryService:
                 problems.append(f"Collection not found: {collection_id}")
         return problems
 
-    async def _skill_problems(self, ctx: AuthContext, skill_ids: Sequence[UUID]) -> list[str]:
-        """Skills the publisher cannot lend out.
+    async def _skill_problems(
+        self,
+        ctx: AuthContext,
+        skill_ids: Sequence[UUID],
+        bindings: Sequence[SkillBindingSpec] = (),
+    ) -> list[str]:
+        """Skills the publisher cannot lend out, and versions or forks that do not exist.
+
+        A binding names a version of that skill's main line by its number, or a fork
+        of that skill that is not archived; anything else - another skill's fork,
+        another organization's, one archived since - is "not found" the same way.
 
         The same rule as a collection, for the same reason: a bound skill is read
         by every run of the agent, so binding one shares it - its body, and the
@@ -2456,6 +2467,7 @@ class AgentRegistryService:
             self.db, list(skill_ids), organization_id=ctx.organization_id
         )
         problems: list[str] = []
+        lent: set[UUID] = set()
         registered = {definition.id for definition in all_capabilities()}
         for skill_id in skill_ids:
             skill = found.get(skill_id)
@@ -2465,6 +2477,7 @@ class AgentRegistryService:
             if not reachable:
                 problems.append(f"Skill not found: {skill_id}")
                 continue
+            lent.add(skill_id)
             # Each skill is a deferred capability now, filed under its own name,
             # and the platform's capabilities are filed under theirs - in one
             # namespace. A skill called `planning` on an agent that also has the
@@ -2475,6 +2488,29 @@ class AgentRegistryService:
                     f"Skill '{skill.name}' has the name of a capability this platform "
                     "offers, and each skill is a capability now - rename the skill"
                 )
+        for binding in bindings:
+            skill = found.get(binding.skill_id)
+            if skill is None or skill.id not in lent:
+                continue
+            if binding.version is not None:
+                versions = await skill_version_repo.get_by_numbers(
+                    self.db,
+                    organization_id=ctx.organization_id,
+                    skill_id=skill.id,
+                    fork_id=None,
+                    numbers=[binding.version],
+                )
+                if binding.version not in versions:
+                    problems.append(f"Skill '{skill.name}' has no version {binding.version}")
+            elif binding.fork_id is not None:
+                fork = await skill_version_repo.get_fork(
+                    self.db,
+                    binding.fork_id,
+                    organization_id=ctx.organization_id,
+                    skill_id=skill.id,
+                )
+                if fork is None or fork.archived_at is not None:
+                    problems.append(f"Skill fork not found: {binding.fork_id}")
         return problems
 
     async def _mcp_problems(self, ctx: AuthContext, refs: Sequence[McpServerRef]) -> list[str]:
@@ -2944,7 +2980,9 @@ class AgentRegistryService:
         for binding in specialist.capabilities:
             problems.merge(await self._binding_problems(ctx, binding))
         problems.add(await self._collection_problems(ctx, specialist.collection_ids))
-        problems.add(await self._skill_problems(ctx, specialist.skill_ids))
+        problems.add(
+            await self._skill_problems(ctx, specialist.skill_ids, specialist.skill_bindings)
+        )
         problems.add(await self._context_problems(ctx, specialist.context_ids))
         # A specialist naming no profile runs on the parent's, which publish has
         # already checked - so only a profile it *did* name is a reference that

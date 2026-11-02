@@ -1386,6 +1386,7 @@ class SpecialistSpec(BaseModel):
             capabilities=self.capabilities,
             collection_ids=self.collection_ids,
             skill_ids=self.skill_ids,
+            skill_bindings=self.skill_bindings,
             context_ids=self.context_ids,
             max_steps=self.max_steps,
             observability=trace_content_block(trace_content),

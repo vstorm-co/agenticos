@@ -37,7 +37,6 @@ def _change(skill: Skill, content: str) -> SkillChange:
         skill_id=skill.id,
         base_version=skill.version,
         base_version_id=skill.latest_version_id,
-        fork_id=None,
         description=skill.description,
         content=content,
         resources={},

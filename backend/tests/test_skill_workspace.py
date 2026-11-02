@@ -168,7 +168,6 @@ class TestCollectingWhatTheAgentChanged:
         assert change.is_new is False
         assert change.base_version == 4
         assert change.base_version_id == skill.latest_version_id
-        assert change.fork_id is None
         assert change.description == "How refunds work now."
         assert change.content == "Ask for the receipt."
 

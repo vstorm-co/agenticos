@@ -96,10 +96,7 @@ class SkillChange:
     """The version of the skill the agent was given, or `None` for one it created."""
 
     base_version_id: UUID | None
-    """That version exactly - which line it is on as well as its number."""
-
-    fork_id: UUID | None
-    """The fork the agent read the skill from, or `None` for main."""
+    """That version exactly, and through it the line - main or a fork - it is on."""
 
     description: str
     content: str
@@ -317,7 +314,6 @@ def _to_change(
         skill_id=skill_id,
         base_version=base_version,
         base_version_id=base_version_id,
-        fork_id=None,
         description=description,
         content=instructions.strip(),
         resources={
