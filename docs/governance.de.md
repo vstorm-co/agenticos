@@ -1,5 +1,5 @@
 ---
-source_sha: "d66651ec6f11"
+source_sha: "b6402dee267c"
 ---
 
 # Governance { #governance }
@@ -696,6 +696,22 @@ angenommene Sendung lässt sich nicht zurückrufen.
 
 `0263_routine_notification_policy.py` ergänzt diese Einstellungen. Bestehende
 Routinen erben weiter ihre Einstellungen; Beobachtungen bleiben standardmäßig still.
+
+### Budgetpausen { #routine-budget-pauses }
+
+Erreicht eine Routine ihr eigenes Monatslimit, erhält ihre besitzende Person
+eine Budgetmeldung je Zeitraum und konfiguriertem Limit. Eine Beobachtung nennt
+das gemeinsame Budget für proaktive Arbeit dieser Person und verweist zur
+Prüfung an die Administration. Die Prüfung stoppt vor dem Öffnen eines Laufs
+oder einem Modellaufruf; die Meldung nennt die Monatsausgaben. Die bestehenden
+Budgetpräferenzen und die Kanalgrenzen der Routine gelten weiterhin.
+
+Die Meldung öffnet einen bearbeitbaren Fall für diese Aufgabe und diesen Monat.
+Weitere Prüfungen verwenden denselben Fall. Bestätigen oder Stummschalten
+storniert ausstehende Zustellungen. Hat die nächste Aktivierung wieder Budget
+oder wird die Aufgabe entfernt, werden ihre offenen Budgetfälle erledigt und
+ausstehende Zustellungen storniert. Ein geändertes Limit erlaubt eine neue
+Meldung bei dessen Erreichen; ein stummgeschalteter Fall bleibt im Monat stumm.
 
 ### Systemagenten { #system-agents }
 

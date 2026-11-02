@@ -1,5 +1,5 @@
 ---
-source_sha: "d66651ec6f11"
+source_sha: "b6402dee267c"
 ---
 
 # Governance { #governance }
@@ -658,6 +658,22 @@ puede retirarse.
 
 `0263_routine_notification_policy.py` añade estos ajustes. Las rutinas existentes
 conservan sus preferencias y las vigilancias siguen siendo silenciosas por defecto.
+
+### Pausas por presupuesto { #routine-budget-pauses }
+
+Cuando una rutina alcanza su propio límite mensual, su propietario recibe un
+aviso por periodo y límite configurado. Una vigilancia indica el presupuesto
+compartido de trabajo proactivo de esa persona y remite a la administración
+para revisarlo. La comprobación se detiene antes de abrir una ejecución o
+llamar al modelo; el aviso muestra el gasto mensual. Se respetan las
+preferencias de avisos presupuestarios y los canales elegidos para la rutina.
+
+El aviso abre un caso para esa responsabilidad y ese mes. Las comprobaciones
+repetidas usan el mismo caso. Confirmar o silenciar cancela las entregas
+pendientes. Cuando la siguiente activación vuelve a tener presupuesto o se
+elimina la responsabilidad, sus casos presupuestarios abiertos se resuelven y
+se cancelan las entregas pendientes. Cambiar el límite permite otro aviso al
+alcanzarlo; un caso silenciado sigue silenciado durante ese mes.
 
 ### Agentes de sistema { #system-agents }
 

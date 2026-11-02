@@ -465,6 +465,61 @@ class NotificationService:
             use_savepoint=True,
         )
 
+    async def routine_budget_paused(
+        self,
+        *,
+        organization_id: UUID,
+        owner_user_id: UUID | None,
+        routine_id: UUID,
+        routine_kind: Literal["trigger", "watch"],
+        name: str | None,
+        limit: Decimal,
+        spent: Decimal,
+        period_start: datetime,
+    ) -> None:
+        """Tell the owner once per monthly limit, without inventing a failed run."""
+        if owner_user_id is None:
+            return
+        recipients = await member_repo.list_member_ids_for(
+            self.db, organization_id=organization_id, user_ids=[owner_user_id]
+        )
+        if not recipients:
+            return
+        budget_name = (
+            "your monthly proactive-work budget"
+            if routine_kind == "watch"
+            else "its monthly routine budget"
+        )
+        remedy = (
+            "Ask an administrator to review the limit"
+            if routine_kind == "watch"
+            else "Increase the limit"
+        )
+        cause = f"routine:{routine_kind}:{routine_id}:budget:{period_start.date().isoformat()}"
+        path = self._link("/routines", organization_id)
+        await self._center.write(
+            recipients=list(recipients),
+            event_type=NotificationEventType.BUDGET_EXCEEDED,
+            occurrence_id=f"{cause}:{limit.normalize()}",
+            summary=(
+                f"{name or 'Your routine'} is waiting: {budget_name} of "
+                f"${limit:.2f} is used up (${spent:.2f} spent). {remedy} "
+                "or wait for the next month to resume."
+            ),
+            context_url=path,
+            render_context={
+                "routine_budget_paused": True,
+                "routine_origin_id": str(routine_id),
+                "routine_kind": routine_kind,
+                "cause": cause,
+                "limit": str(limit),
+                "spent": str(spent),
+                "period_start": period_start.isoformat(),
+            },
+            organization_id=organization_id,
+            use_savepoint=True,
+        )
+
     async def capability_requested(
         self,
         *,

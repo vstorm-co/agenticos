@@ -1,5 +1,5 @@
 ---
-source_sha: "d66651ec6f11"
+source_sha: "b6402dee267c"
 ---
 
 # Governance { #governance }
@@ -645,6 +645,22 @@ się. Wysyłki już przyjętej przez dostawcę nie można wycofać.
 
 `0263_routine_notification_policy.py` dodaje te ustawienia. Istniejące rutyny
 zachowują preferencje dostarczania, a obserwacje domyślnie nadal milczą bez zmian.
+
+### Wstrzymanie przez budżet { #routine-budget-pauses }
+
+Gdy rutyna wykorzysta własny limit miesięczny, właściciel dostaje jedno
+powiadomienie budżetowe na okres i ustawiony limit. Obserwacja wskazuje wspólny
+budżet pracy proaktywnej tej osoby i kieruje do administratora, który może go
+zmienić. Sprawdzenie zatrzymuje się przed utworzeniem przebiegu i wywołaniem
+modelu; komunikat podaje wydatki miesięczne. Nadal obowiązują preferencje
+powiadomień budżetowych i kanały wybrane dla rutyny.
+
+Komunikat otwiera jedną sprawę dla tego zadania i miesiąca. Kolejne sprawdzenia
+używają tej samej sprawy. Potwierdzenie lub wyciszenie anuluje oczekujące
+wysyłki. Gdy następna aktywacja znów ma budżet albo zadanie zostaje usunięte,
+otwarte sprawy budżetowe zamykają się i anulują oczekujące wysyłki. Zmiana limitu
+pozwala wysłać nowy komunikat po jego wykorzystaniu; sprawa wyciszona pozostaje
+wyciszona przez dany miesiąc.
 
 ### Agenci systemowi { #system-agents }
 

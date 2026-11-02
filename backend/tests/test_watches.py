@@ -422,6 +422,7 @@ class TestChangingOne:
             patch(f"{SERVICE}.watch_repo.get_own", new=AsyncMock(side_effect=[None, watch])),
             patch(f"{SERVICE}.watch_repo.delete", new=delete),
             patch(f"{SERVICE}.OutcomeService.resolve_watch_findings", new=AsyncMock()) as resolve,
+            patch(f"{SERVICE}.OutcomeService.resolve_routine_budget", new=AsyncMock()),
         ):
             with pytest.raises(NotFoundError):
                 await WatchService(MagicMock()).delete(_ctx(), uuid.uuid4())
@@ -537,6 +538,8 @@ class TestOneLook:
             patch(f"{LOOK}.suggestion_repo.titles_for_watch", new=AsyncMock(return_value=["Old"])),
             patch(f"{LOOK}.suggestion_repo.propose", new=AsyncMock(return_value=None)),
             patch(f"{LOOK}.OutcomeService.track_finding", new=AsyncMock()),
+            patch(f"{LOOK}.OutcomeService.resolve_routine_budget", new=AsyncMock()),
+            patch(f"{LOOK}.NotificationService.routine_budget_paused", new=AsyncMock()),
             patch(
                 f"{LOOK}.conversation_repo.get_conversation_by_id",
                 new=AsyncMock(return_value=MagicMock()),
@@ -700,10 +703,16 @@ class TestOneLook:
                     new=AsyncMock(return_value=Decimal("1")),
                 )
             )
+            notice = stack.enter_context(
+                patch(f"{LOOK}.NotificationService.routine_budget_paused", new=AsyncMock())
+            )
             attempt = stack.enter_context(patch(f"{LOOK}.watch_repo.mark_attempt", new=AsyncMock()))
             assert await WatchLook(MagicMock()).look(uuid.uuid4()) == 0
         assert attempt.await_args.kwargs["status"] == WatchAttemptStatus.BUDGET_PAUSED
         execute.assert_not_awaited()
+        notice.assert_awaited_once()
+        assert notice.await_args.kwargs["routine_kind"] == "watch"
+        assert notice.await_args.kwargs["spent"] == Decimal("1")
 
     async def test_revocation_after_reading_prevents_recording_findings(self):
         patches, _ = self._patches(

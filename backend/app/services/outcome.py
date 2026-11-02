@@ -11,6 +11,7 @@ restore of a dismissed finding reopens its case without replaying old deliveries
 """
 
 from datetime import UTC, datetime
+from typing import Literal
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -71,9 +72,15 @@ class OutcomeService:
         A muted cause is cleared at once. Other settled causes may reopen; a finding
         retains its decision across all deliveries.
         """
-        if notification.event_type not in OUTCOME_EVENTS or notification.organization_id is None:
-            return None
         context = notification.render_context
+        budget_pause = (
+            notification.event_type == "budget_exceeded"
+            and (context or {}).get("routine_budget_paused") is True
+        )
+        if (
+            notification.event_type not in OUTCOME_EVENTS and not budget_pause
+        ) or notification.organization_id is None:
+            return None
         finding: Suggestion | None = None
         if notification.event_type == "finding":
             try:
@@ -245,6 +252,23 @@ class OutcomeService:
         await outcome_repo.set_status(
             self.db, outcome, status=OutcomeStatus.OPEN.value, settled_at=None, via=None
         )
+
+    async def resolve_routine_budget(
+        self,
+        *,
+        organization_id: UUID,
+        user_id: UUID | None,
+        routine_id: UUID,
+        routine_kind: Literal["trigger", "watch"],
+    ) -> None:
+        """A changed limit, new period or removed routine no longer needs this decision."""
+        if user_id is None:
+            return
+        prefix = f"budget_exceeded:routine:{routine_kind}:{routine_id}:budget:"
+        for outcome in await outcome_repo.open_for_cause_prefix(
+            self.db, organization_id=organization_id, user_id=user_id, prefix=prefix
+        ):
+            await self._move(outcome, OutcomeStatus.RESOLVED, via="routine")
 
     async def resolve_watch_findings(
         self, *, organization_id: UUID, user_id: UUID, watch_id: UUID

@@ -203,3 +203,26 @@ async def for_watch_findings(
         .execution_options(populate_existing=True)
     )
     return list(result.all())
+
+
+async def open_for_cause_prefix(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    user_id: UUID,
+    prefix: str,
+) -> list[Outcome]:
+    """The person's still actionable cases for this platform-owned cause prefix."""
+    result = await db.scalars(
+        select(Outcome)
+        .where(
+            Outcome.organization_id == organization_id,
+            Outcome.user_id == user_id,
+            Outcome.dedupe_key.startswith(prefix, autoescape=True),
+            Outcome.status.in_(["open", "acknowledged"]),
+        )
+        .order_by(Outcome.id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
+    return list(result.all())

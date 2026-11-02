@@ -238,3 +238,224 @@ async def test_a_policy_query_failure_does_not_poison_result_writes_in_best_effo
         )
     assert rows == []
     assert await db.scalar(text("SELECT 1")) == 1
+
+
+@pytest.mark.parametrize(
+    "selection,preference,email",
+    [(None, True, True), ([], True, False), (None, False, False), (["email"], False, False)],
+)
+async def test_monthly_routine_budget_notices_share_one_case_and_honor_delivery_policy(
+    db: AsyncSession,
+    selection: list[str] | None,
+    preference: bool,
+    email: bool,
+) -> None:
+    from decimal import Decimal
+
+    from app.db.models.outcome import Outcome
+    from app.services.agent_trigger import AgentTriggerService
+    from app.services.email.service import EmailKey
+    from app.services.notifications import NotificationService
+
+    user, org, trigger = await _routine(db, selection)
+    user.notify_budget_alerts = preference
+    trigger.monthly_budget_usd = Decimal("5")
+    await db.flush()
+    period = datetime(2026, 11, 1, tzinfo=UTC)
+    arguments = {
+        "organization_id": org.id,
+        "owner_user_id": user.id,
+        "routine_id": trigger.id,
+        "routine_kind": "trigger",
+        "name": "Daily digest",
+        "limit": Decimal("5"),
+        "period_start": period,
+    }
+    service = NotificationService(db)
+    await service.routine_budget_paused(**arguments, spent=Decimal("5.10"))
+    await service.routine_budget_paused(**arguments, spent=Decimal("6.00"))
+    notes = list(await db.scalars(select(Notification)))
+    assert len(notes) == 1
+    note = notes[0]
+    assert note.event_type == "budget_exceeded" and note.outcome_id is not None
+    assert note.recipient_user_id == user.id and note.organization_id == org.id
+    assert "Daily digest is waiting" in note.summary
+    assert "$5.10 spent" in note.summary
+    case = await db.get(Outcome, note.outcome_id)
+    assert case is not None and case.source_run_id is None
+    deliveries = list(await db.scalars(select(NotificationDelivery)))
+    assert (len(deliveries) == 1) is email
+    key, context = NotificationDeliveryService(db)._render(note, recipient=user, role="owner")
+    assert key is EmailKey.NOTIFICATION
+    assert context["summary"] == note.summary
+    # There is no spend in this database: a raised/removed cap or fresh month can run again.
+    assert not await AgentTriggerService(db)._stop_for_monthly_budget(trigger)
+    await db.refresh(case)
+    assert case.status == "resolved"
+    for delivery in deliveries:
+        await db.refresh(delivery)
+        assert delivery.status == "skipped"
+
+
+async def test_budget_alerts_without_routine_pause_metadata_keep_the_existing_rendering(
+    db: AsyncSession,
+) -> None:
+    from app.services.email.service import EmailKey
+
+    user, org, _ = await _routine(db, None)
+    (note,) = await NotificationCenterService(db).write(
+        recipients=[user.id],
+        organization_id=org.id,
+        event_type=NotificationEventType.BUDGET_EXCEEDED,
+        occurrence_id=str(uuid4()),
+        summary="A run hit its cap",
+    )
+    assert note.outcome_id is None
+    key, _ = NotificationDeliveryService(db)._render(note, recipient=user, role="owner")
+    assert key is EmailKey.BUDGET_EXCEEDED
+
+
+async def test_a_new_month_opens_a_new_budget_case_but_never_notifies_an_inactive_owner(
+    db: AsyncSession,
+) -> None:
+    from decimal import Decimal
+
+    from app.services.notifications import NotificationService
+    from app.services.outcome import OutcomeService
+
+    user, org, trigger = await _routine(db, None)
+    arguments = {
+        "organization_id": org.id,
+        "owner_user_id": user.id,
+        "routine_id": trigger.id,
+        "routine_kind": "trigger",
+        "name": None,
+        "limit": Decimal("5"),
+        "spent": Decimal("5.10"),
+    }
+    service = NotificationService(db)
+    await service.routine_budget_paused(**arguments, period_start=datetime(2026, 10, 1, tzinfo=UTC))
+    await service.routine_budget_paused(**arguments, period_start=datetime(2026, 11, 1, tzinfo=UTC))
+    notes = list(await db.scalars(select(Notification)))
+    assert len(notes) == 2 and notes[0].outcome_id != notes[1].outcome_id
+    await OutcomeService(db).resolve_routine_budget(
+        organization_id=org.id, user_id=None, routine_id=trigger.id, routine_kind="trigger"
+    )
+    user.is_active = False
+    await db.flush()
+    await service.routine_budget_paused(**arguments, period_start=datetime(2026, 12, 1, tzinfo=UTC))
+    await service.routine_budget_paused(
+        **(arguments | {"owner_user_id": None}), period_start=datetime(2026, 12, 1, tzinfo=UTC)
+    )
+    assert len(list(await db.scalars(select(Notification)))) == 2
+
+
+async def test_watch_budget_notices_stay_in_the_owners_scope_and_close_on_removal(
+    db: AsyncSession,
+) -> None:
+    from decimal import Decimal
+
+    from app.agents.spec import AgentSpec, PersonalMcpServerRef
+    from app.core.permissions import AuthContext, OrgRoleName
+    from app.db.models.mcp_connection import McpConnection
+    from app.db.models.outcome import Outcome
+    from app.db.models.watch import Watch
+    from app.services.notifications import NotificationService
+    from app.services.outcome import OutcomeService
+    from app.services.watch_sources import approve_sources
+    from app.services.watches import WatchService
+
+    user, org, trigger = await _routine(db, None)
+    connection = McpConnection(
+        user_id=user.id,
+        scope="user",
+        purpose="mcp",
+        name="GitHub",
+        catalog_key="github",
+        url="https://github.example/mcp",
+    )
+    db.add(connection)
+    await db.flush()
+    sources = approve_sources(
+        AgentSpec(
+            name="Monitor",
+            mcp_servers=[PersonalMcpServerRef(account="personal", catalog_key="github")],
+        ),
+        connection,
+    )
+    watch = Watch(
+        organization_id=org.id,
+        user_id=user.id,
+        connection_id=connection.id,
+        agent_id=trigger.agent_id,
+        approved_sources=sources.model_dump(mode="json"),
+        title="Reviews",
+        instructions="Look for reviews",
+        interval_minutes=60,
+        next_run_at=datetime.now(UTC),
+        notification_channels=[],
+    )
+    db.add(watch)
+    await db.flush()
+    await NotificationService(db).routine_budget_paused(
+        organization_id=org.id,
+        owner_user_id=user.id,
+        routine_id=watch.id,
+        routine_kind="watch",
+        name=watch.title,
+        limit=Decimal("1"),
+        spent=Decimal("1.10"),
+        period_start=datetime(2026, 11, 1, tzinfo=UTC),
+    )
+    note = await db.scalar(select(Notification))
+    assert note is not None and note.outcome_id is not None
+    case = await db.get(Outcome, note.outcome_id)
+    assert case is not None and case.status == "open"
+    assert "Ask an administrator" in note.summary
+    assert list(await db.scalars(select(NotificationDelivery))) == []
+    await OutcomeService(db).resolve_routine_budget(
+        organization_id=org.id, user_id=user.id, routine_id=watch.id, routine_kind="trigger"
+    )
+    await db.refresh(case)
+    assert case.status == "open", "a trigger cannot close a watch's budget case"
+    ctx = AuthContext(organization_id=org.id, user_id=user.id, role=OrgRoleName.OWNER)
+    await WatchService(db).delete(ctx, watch.id)
+    await db.refresh(case)
+    assert case.status == "resolved"
+
+
+async def test_changing_a_limit_reuses_the_monthly_case_and_respects_its_mute(
+    db: AsyncSession,
+) -> None:
+    from decimal import Decimal
+
+    from app.core.permissions import AuthContext, OrgRoleName
+    from app.services.notifications import NotificationService
+    from app.services.outcome import OutcomeService
+
+    user, org, trigger = await _routine(db, None)
+    arguments = {
+        "organization_id": org.id,
+        "owner_user_id": user.id,
+        "routine_id": trigger.id,
+        "routine_kind": "trigger",
+        "name": "Digest",
+        "period_start": datetime(2026, 11, 1, tzinfo=UTC),
+    }
+    service = NotificationService(db)
+    for amount in ("5", "10"):
+        await service.routine_budget_paused(
+            **arguments, limit=Decimal(amount), spent=Decimal(amount)
+        )
+    notes = list(await db.scalars(select(Notification)))
+    assert len(notes) == 2 and notes[0].outcome_id == notes[1].outcome_id
+    assert notes[0].outcome_id is not None
+    ctx = AuthContext(organization_id=org.id, user_id=user.id, role=OrgRoleName.OWNER)
+    await OutcomeService(db).settle(ctx, notes[0].outcome_id, "mute", via="inbox")
+    await service.routine_budget_paused(**arguments, limit=Decimal("15"), spent=Decimal("15"))
+    latest = list(await db.scalars(select(Notification)))
+    assert len(latest) == 3 and {note.outcome_id for note in latest} == {notes[0].outcome_id}
+    assert all(note.dismissed_at is not None for note in latest)
+    assert all(
+        delivery.status == "skipped" for delivery in await db.scalars(select(NotificationDelivery))
+    )

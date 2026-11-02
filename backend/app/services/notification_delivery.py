@@ -376,7 +376,12 @@ class NotificationDeliveryService:
             # used to build directly; the sweep is what still means it.
             context.pop("approvals_url", None)
             return EmailKey.APPROVAL_PENDING, context
-        fixed = _FIXED_EMAIL_KEY.get(event_type)
+        # A skipped monthly activation has no failed run or per-run spend to render.
+        routine_budget_pause = (
+            event_type is NotificationEventType.BUDGET_EXCEEDED
+            and context.get("routine_budget_paused") is True
+        )
+        fixed = None if routine_budget_pause else _FIXED_EMAIL_KEY.get(event_type)
         if fixed is not None:
             return fixed, context
         return EmailKey.NOTIFICATION, {

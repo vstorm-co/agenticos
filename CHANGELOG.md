@@ -21,6 +21,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- Routine and watch budget pauses notify their owner once per monthly limit
+  and open a shared case. Available budget or removal resolves the case and
+  cancels pending sends; existing budget preferences and routine channels apply.
+
 - Routine rows show when the last answer could not reach its console conversation.
   Delivery rechecks current access and isolates message-write failures from the
   completed run; completion notices link to a chat only after delivery.

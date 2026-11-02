@@ -923,9 +923,16 @@ def routine_notices(monkeypatch: pytest.MonkeyPatch) -> AsyncMock:
     here mock - so what would have been sent is what is asserted.
     """
     notices = AsyncMock()
+    notices.budget_paused = AsyncMock()
+    monkeypatch.setattr(
+        "app.services.agent_trigger.OutcomeService",
+        lambda _db: MagicMock(resolve_routine_budget=AsyncMock()),
+    )
     monkeypatch.setattr(
         "app.services.agent_trigger.NotificationService",
-        lambda _db: MagicMock(routine_finished=notices),
+        lambda _db: MagicMock(
+            routine_finished=notices, routine_budget_paused=notices.budget_paused
+        ),
     )
     return notices
 
@@ -4502,7 +4509,7 @@ class TestARoutinesOwnBudget:
             await service.fire(trigger.id)
         return runs.spend_by_trigger_since, members.get_active, runner_cls
 
-    async def test_a_spent_routine_skips_its_fire_and_stays_on(self):
+    async def test_a_spent_routine_skips_its_fire_and_stays_on(self, routine_notices):
         trigger = _trigger(monthly_budget_usd=Decimal("5"))
 
         spend, members, runner = await self._fire(trigger, {trigger.id: Decimal("5.0")})
@@ -4511,6 +4518,10 @@ class TestARoutinesOwnBudget:
         members.assert_not_awaited()
         runner.assert_not_called()
         assert trigger.is_active is True, "it starts again on the first, with nothing to resume"
+        notice = routine_notices.budget_paused.await_args.kwargs
+        assert notice["routine_id"] == trigger.id
+        assert notice["owner_user_id"] == trigger.created_by_user_id
+        assert notice["spent"] == Decimal("5.0")
 
     @pytest.mark.security
     async def test_a_routine_with_budget_left_goes_on_to_fire(self):

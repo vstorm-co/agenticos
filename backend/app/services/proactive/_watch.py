@@ -193,18 +193,35 @@ class WatchLook:
                 self.db, watch=watch, at=now, status=WatchAttemptStatus.ACCESS_REVOKED
             )
             return 0
+        period_start = month_start()
         spent = await agent_run_repo.proactive_spend_since(
             self.db,
             organization_id=watch.organization_id,
             user_id=watch.user_id,
-            since=month_start(),
+            since=period_start,
         )
         remaining = organization.proactive_limit_usd - spent
         if remaining <= 0:
             await watch_repo.mark_attempt(
                 self.db, watch=watch, at=now, status=WatchAttemptStatus.BUDGET_PAUSED
             )
+            await NotificationService(self.db).routine_budget_paused(
+                organization_id=watch.organization_id,
+                owner_user_id=watch.user_id,
+                routine_id=watch.id,
+                routine_kind="watch",
+                name=watch.title,
+                limit=organization.proactive_limit_usd,
+                spent=spent,
+                period_start=period_start,
+            )
             return 0
+        await OutcomeService(self.db).resolve_routine_budget(
+            organization_id=watch.organization_id,
+            user_id=watch.user_id,
+            routine_id=watch.id,
+            routine_kind="watch",
+        )
         material = {
             "person": {
                 "language": LANGUAGE_NAMES.get(user.locale or "", "English"),

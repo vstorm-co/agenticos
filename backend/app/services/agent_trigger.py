@@ -106,6 +106,7 @@ from app.services.channels.teams_post import post_to_teams
 from app.services.conversation import ConversationService
 from app.services.mcp_connection import McpConnectionService
 from app.services.notifications import NotificationService
+from app.services.outcome import OutcomeService
 from app.services.portal_catalog import DeliveryMode
 from app.services.portals.github_app import GitHubAppPortalAdapter
 from app.services.primary_conversation import PrimaryConversationService
@@ -1268,6 +1269,12 @@ class AgentTriggerService:
         # Take the provider hook down first, so a deleted trigger stops receiving
         # deliveries; best-effort, never blocking the delete.
         await self._deregister_webhook(ctx, trigger)
+        await OutcomeService(self.db).resolve_routine_budget(
+            organization_id=trigger.organization_id,
+            user_id=trigger.created_by_user_id,
+            routine_id=trigger.id,
+            routine_kind="trigger",
+        )
         await agent_trigger_repo.delete(self.db, trigger)
         await record_audit(
             self.db,
@@ -2126,7 +2133,7 @@ class AgentTriggerService:
             # the routine, the way a creator who left does, with the reason on record.
             await self._disable(trigger, reason="ended")
             return
-        if await self._spent_its_month(trigger):
+        if await self._stop_for_monthly_budget(trigger):
             logger.info("trigger_fire_skipped_budget", extra={"trigger_id": str(trigger.id)})
             return
         ctx = await self._creator_context(trigger)
@@ -2469,7 +2476,7 @@ class AgentTriggerService:
                 details={"delivery_conversation_id": str(conversation_id)},
             )
 
-    async def _spent_its_month(self, trigger: AgentTrigger) -> bool:
+    async def _stop_for_monthly_budget(self, trigger: AgentTrigger) -> bool:
         """Whether this routine's own monthly budget is used up (#2575).
 
         Checked before a run is opened, so a spent routine costs nothing and is not
@@ -2477,12 +2484,31 @@ class AgentTriggerService:
         in flight when the limit is crossed finishes - the limit is on what has
         already been spent, not on a forecast.
         """
-        if trigger.monthly_budget_usd is None:
-            return False
-        spent = await agent_run_repo.spend_by_trigger_since(
-            self.db, trigger_ids=[trigger.id], since=month_start()
+        period_start = month_start()
+        if trigger.monthly_budget_usd is not None:
+            spent = await agent_run_repo.spend_by_trigger_since(
+                self.db, trigger_ids=[trigger.id], since=period_start
+            )
+            used = spent.get(trigger.id, Decimal(0))
+            if used >= trigger.monthly_budget_usd:
+                await NotificationService(self.db).routine_budget_paused(
+                    organization_id=trigger.organization_id,
+                    owner_user_id=trigger.created_by_user_id,
+                    routine_id=trigger.id,
+                    routine_kind="trigger",
+                    name=trigger.name,
+                    limit=trigger.monthly_budget_usd,
+                    spent=used,
+                    period_start=period_start,
+                )
+                return True
+        await OutcomeService(self.db).resolve_routine_budget(
+            organization_id=trigger.organization_id,
+            user_id=trigger.created_by_user_id,
+            routine_id=trigger.id,
+            routine_kind="trigger",
         )
-        return spent.get(trigger.id, Decimal(0)) >= trigger.monthly_budget_usd
+        return False
 
     async def _mark_spend(self, reads: list[tuple[TriggerRead, AgentTrigger]]) -> None:
         """Say, on each read that has a budget, what it has spent and whether that is all of it."""

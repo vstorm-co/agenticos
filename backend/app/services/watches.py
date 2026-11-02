@@ -321,6 +321,12 @@ class WatchService:
         await OutcomeService(self.db).resolve_watch_findings(
             organization_id=ctx.organization_id, user_id=self._person(ctx), watch_id=watch.id
         )
+        await OutcomeService(self.db).resolve_routine_budget(
+            organization_id=watch.organization_id,
+            user_id=watch.user_id,
+            routine_id=watch.id,
+            routine_kind="watch",
+        )
         await watch_repo.delete(self.db, watch)
 
     async def _own(

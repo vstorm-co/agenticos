@@ -605,6 +605,20 @@ already accepted cannot be recalled.
 `0263_routine_notification_policy.py` adds these settings. Existing routines keep
 their delivery preferences, and existing watches retain quiet monitoring by default.
 
+### Budget pauses { #routine-budget-pauses }
+
+When a routine reaches its own monthly limit, its owner receives one budget
+notice per period and configured limit. A watch reports the person's shared
+proactive-work cap and points them to an administrator to review it. The check
+stops before opening a run or calling a model; the notice reports monthly spend.
+Existing budget-alert preferences and the routine's channel limits still apply.
+
+The notice opens one actionable case for that responsibility and month. Repeated
+checks reuse it. Acknowledging or muting cancels pending deliveries. When the
+next activation has budget again, or the responsibility is removed, its open
+budget cases resolve and pending sends are cancelled. Changing the configured
+limit allows a new breach notice; a muted case stays muted for that month.
+
 ### System agents { #system-agents }
 
 Some work is the platform's own and still needs a model. A **system role** gives it
