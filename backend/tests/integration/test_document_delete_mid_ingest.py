@@ -10,16 +10,24 @@ orders a delete that arrives mid-write after the chunk commit.
 """
 
 import asyncio
+import logging
 import uuid
+from collections.abc import AsyncIterator, Awaitable, Callable
+from contextlib import asynccontextmanager
 from datetime import timedelta
+from decimal import Decimal
 from pathlib import Path
+from types import SimpleNamespace
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from sqlalchemy import text
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 
+from app.agents.capabilities.budget import record_ambient_cost
 from app.core.background import drain, start_deferred
+from app.db.models.ingestion_spend import IngestionSpend
 from app.db.models.knowledge_base import KnowledgeBase
 from app.db.models.rag_document import DocumentStatus, RAGDocument
 from app.db.session import get_worker_db_context
@@ -28,7 +36,7 @@ from app.services.rag.ingestion import IngestionService
 from app.services.rag.models import IngestionResult, IngestionStatus
 from app.services.rag.vectorstore import PgVectorStore
 from app.services.rag_document import RAGDocumentService
-from app.worker.jobs import DISCARD_VECTOR_DOCUMENT
+from app.worker.jobs import DISCARD_VECTOR_DOCUMENT, IngestDocument
 from app.worker.tasks import rag_tasks, teardown_tasks
 from tests.integration.test_deletion_reconciliation import (
     _kb_document,
@@ -225,8 +233,6 @@ async def test_a_settlement_after_its_table_was_dropped_removes_nothing_quietly(
     """A last base deleted mid-ingest drops the table with every chunk in it, so the
     settlement that finds the row gone has nothing left to remove - and says so at
     INFO rather than as a failed delete."""
-    import logging
-
     result = await upload.ingest()
     async with upload.factory() as s:
         await s.execute(text(f"DELETE FROM rag_documents WHERE id = '{upload.row_id}'"))  # noqa: S608
@@ -237,3 +243,175 @@ async def test_a_settlement_after_its_table_was_dropped_removes_nothing_quietly(
         await upload.settle(result)
 
     assert not [r for r in caplog.records if r.levelno >= logging.ERROR]
+
+
+class _Worker:
+    """`ingest_document` run whole against the upload, its spend booked for real.
+
+    Nothing on the job's own path is mocked but the parse and the pipeline's
+    construction: the spend is recorded by `_record_embedding_spend` into
+    `ingestion_spend`, whose foreign key to the row is what a document deleted
+    mid-ingest broke - after the write, so the settlement that would have
+    removed the chunks never ran (#2565).
+    """
+
+    def __init__(self, upload: _Upload, monkeypatch: pytest.MonkeyPatch) -> None:
+        self.upload = upload
+        self.before_write: Callable[[], Awaitable[None]] | None = None
+        self.after_write: Callable[[], Awaitable[None]] | None = None
+        ingester = upload.ingester
+
+        async def ingest_file(*args: object, **kwargs: Any) -> IngestionResult:
+            # What the embedder books inside the job's metering window.
+            record_ambient_cost("text-embedding-3-small", Decimal("0.0002"))
+            if self.before_write is not None:
+                await self.before_write()
+            result = await IngestionService.ingest_file(ingester, *args, **kwargs)
+            if self.after_write is not None:
+                await self.after_write()
+            return result
+
+        @asynccontextmanager
+        async def ingestion_service(**_: object) -> AsyncIterator[object]:
+            yield SimpleNamespace(ingest_file=ingest_file, scope=ingester.scope)
+
+        monkeypatch.setattr(rag_tasks, "_ingestion_service", ingestion_service)
+        monkeypatch.setattr(
+            rag_tasks.IngestionConfigService,
+            "build_processor",
+            AsyncMock(return_value=MagicMock()),
+        )
+
+    async def delete(self) -> None:
+        async with self.upload.factory() as s:
+            await self.upload.delete(s)
+        await drain()
+
+    async def run(self) -> dict[str, Any]:
+        """The job, then whatever it queued, as the worker would run them."""
+        outcome = await rag_tasks.ingest_document(
+            IngestDocument(
+                rag_document_id=self.upload.row_id,
+                collection_name=self.upload.collection,
+                filepath="queued/doomed.md",
+                source_path="doomed.md",
+                replace=False,
+                attempt=1,
+            )
+        )
+        async with get_worker_db_context() as db:
+            self.queued = []
+            while job := await job_repo.claim(
+                db, pool="system", worker_id="test", lease=timedelta(minutes=5)
+            ):
+                self.queued.append(job.kind)
+                assert job.kind == DISCARD_VECTOR_DOCUMENT.kind
+                await teardown_tasks.discard_vector_document(
+                    DISCARD_VECTOR_DOCUMENT.load(job.payload)
+                )
+                await job_repo.complete(db, job.id, fence=job.attempts)
+        return outcome
+
+    async def chunks(self) -> int:
+        async with self.upload.factory() as s:
+            return (
+                await s.execute(
+                    text(
+                        f"SELECT count(*) FROM {self.upload.table} "  # noqa: S608
+                        "WHERE parent_doc_id <> :neighbour"
+                    ),
+                    {"neighbour": self.upload.neighbour.id},
+                )
+            ).scalar_one()
+
+    async def spend(self) -> list[tuple[uuid.UUID | None, str]]:
+        async with self.upload.factory() as s:
+            rows = await s.execute(
+                select(IngestionSpend.rag_document_id, IngestionSpend.model).where(
+                    IngestionSpend.organization_id == self.upload.base.organization_id
+                )
+            )
+            return [(row_id, model) for row_id, model in rows.all()]
+
+
+@pytest.fixture
+def worker(upload: _Upload, monkeypatch: pytest.MonkeyPatch) -> _Worker:
+    return _Worker(upload, monkeypatch)
+
+
+def _errors(caplog: pytest.LogCaptureFixture) -> list[str]:
+    return [r.getMessage() for r in caplog.records if r.levelno >= logging.ERROR]
+
+
+async def test_an_upload_deleted_after_its_chunk_commit_ends_with_its_spend_kept(
+    worker: _Worker, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Deleted between the chunk commit and the settlement, with spend booked:
+    the spend is kept against no document, the chunks are removed by the job the
+    settlement queues, and the job ends without a retry or a traceback."""
+    worker.after_write = worker.delete
+
+    with caplog.at_level(logging.INFO):
+        outcome = await worker.run()
+
+    assert outcome == {"status": "deleted", "filename": "doomed.md"}
+    assert worker.queued == [DISCARD_VECTOR_DOCUMENT.kind]
+    assert await worker.chunks() == 0
+    assert await worker.spend() == [(None, "text-embedding-3-small")]
+    assert _errors(caplog) == []
+
+
+async def test_an_upload_deleted_during_its_chunk_write_ends_with_its_spend_kept(
+    worker: _Worker, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """The delete arrives while the write holds the row, and waits for its commit:
+    the order the manual run forced by holding the vector table locked."""
+    deleting: list[asyncio.Task[None]] = []
+    store = worker.upload.store
+    ensure = store._ensure_collection
+
+    async def ensure_with_a_delete_queued(name: str) -> None:
+        await ensure(name)
+        deleting.append(asyncio.create_task(worker.delete()))
+        await _until_a_statement_waits_on_a_lock(worker.upload.factory)
+
+    monkeypatch.setattr(store, "_ensure_collection", ensure_with_a_delete_queued)
+
+    async def delete_finished() -> None:
+        await asyncio.wait_for(deleting[0], timeout=10)
+
+    worker.after_write = delete_finished
+
+    with caplog.at_level(logging.INFO):
+        outcome = await worker.run()
+
+    assert outcome == {"status": "deleted", "filename": "doomed.md"}
+    assert await worker.chunks() == 0
+    assert await worker.spend() == [(None, "text-embedding-3-small")]
+    assert _errors(caplog) == []
+
+
+async def test_an_upload_deleted_before_its_chunk_write_ends_with_its_spend_kept(
+    worker: _Worker, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Deleted while it embedded: the write is refused, nothing is written, and the
+    spend the embedding booked is still kept."""
+    worker.before_write = worker.delete
+
+    with caplog.at_level(logging.INFO):
+        outcome = await worker.run()
+
+    assert outcome["status"] == "refused"
+    assert worker.queued == []
+    assert await worker.chunks() == 0
+    assert await worker.spend() == [(None, "text-embedding-3-small")]
+    assert _errors(caplog) == []
+
+
+async def test_spend_on_a_document_still_there_is_kept_against_it(
+    worker: _Worker,
+) -> None:
+    outcome = await worker.run()
+
+    assert outcome["status"] == "done"
+    assert await worker.spend() == [(worker.upload.row_id, "text-embedding-3-small")]
