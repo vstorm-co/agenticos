@@ -1,0 +1,918 @@
+"""Seed the Skills lab organization: one skill that several agents share.
+
+Improving a shared skill can only be clicked through where a skill is bound by
+more than one agent, those agents have test questions and rated answers, and
+the answers show the model opening the skill. No deployment has that by
+accident, so this builds it:
+
+- `returns-policy`, Acme's return rules, as a skill.
+- **A**, an online returns desk, and **B**, a gift-shop counter, both bind it.
+  Each has sixteen test questions graded by checks, measured once.
+- **C**, a wholesale desk, binds it with no test questions: the agent a check
+  can only report as unknown.
+- **D**, an onboarding helper, does not bind it, so nothing it answers is the
+  skill's evidence.
+- **E**, a front desk, binds nothing and hands return questions to A, so the
+  skill is opened by the agent it delegated to.
+
+No agent's instructions mention the skill. The model opens it from its
+description, as it would in any organization.
+
+Rule 2 is the one the journey changes. A's customers have an order number and
+no receipt, so v1's "store credit only" is what A's people rate down, and A
+fails half its questions. The obvious fix, `broad`, drops the receipt rule: it
+fixes A and breaks B, whose shop has no order numbers. `narrow` counts an order
+number as a receipt and fixes A without touching B. `--probe` measures one
+wording on A's and B's questions in an organization of its own, so that claim
+is checked on a real model before a phase relies on it.
+
+Built through the HTTP API and the console's own chat socket, never by writing
+rows, for the reason `loadtest/seed.py` gives: a fixture assembled behind the
+product's validation could show a state the product cannot produce. It creates
+only what is missing and never changes a row it finds, so running it again
+after somebody clicked through keeps their changes. It never enters the
+Personal organization.
+
+The owner's login and the provider key come from the environment and are never
+printed: `SKILLS_LAB_EMAIL`, `SKILLS_LAB_PASSWORD`, and
+`SKILLS_LAB_OPENROUTER_KEY`, which is needed only while the organization has
+no key. A first run costs about twenty cents on GPT-4.1 mini.
+
+`make seed-skills-lab SKILLS_LAB_URL=<the stack's API>` seeds, `PROBE=<variant>`
+measures a wording instead, and `--drop-probes` deletes the probe organizations
+once their numbers are written down.
+"""
+
+import argparse
+import json
+import os
+import re
+import sys
+import time
+from collections.abc import Callable, Mapping, Sequence
+from dataclasses import asdict, dataclass, field
+from typing import Any, Literal, TypedDict
+
+import httpx
+from websockets.exceptions import WebSocketException
+from websockets.sync.client import connect
+from websockets.typing import Subprotocol
+
+Variant = Literal["v1", "broad", "narrow"]
+VARIANTS: tuple[Variant, ...] = ("v1", "broad", "narrow")
+AgentKey = Literal["A", "B", "C", "D", "E"]
+
+ORG_NAME = "Skills lab"
+ORG_SLUG = "skills-lab"
+PROBE_NAME = "Skills lab probe · {variant}"
+PROBE_SLUG = "skills-lab-probe-{variant}"
+
+SKILL = "returns-policy"
+SKILL_DESCRIPTION = (
+    "Acme's rules for returns and refunds: time limits, receipts, store credit, digital goods "
+    "and refunds over $500. Open it before answering any return, refund or exchange question."
+)
+SECRET_NAME = "OpenRouter"
+MODEL_LABEL = "GPT-4.1 mini"
+MODEL = "openai/gpt-4.1-mini"
+ORG_BUDGET_USD = 10
+AGENT_BUDGET_USD = 2
+
+CHAT_ATTEMPTS = 2
+CHAT_SECONDS = 240
+EVAL_PATIENCE_SECONDS = 900
+UNFINISHED = frozenset({"queued", "running"})
+
+RULE_TWO: dict[Variant, str] = {
+    "v1": (
+        "2. **Proof of purchase.** With a receipt, refund to the original payment method. "
+        "Without a receipt, offer store credit only - never a cash or card refund."
+    ),
+    "broad": (
+        "2. **Proof of purchase.** A receipt is not required: refund every eligible item to "
+        "the original payment method."
+    ),
+    "narrow": (
+        "2. **Proof of purchase.** An order number counts as a receipt. With a receipt or an "
+        "order number, refund to the original payment method. Without either, offer store "
+        "credit only - never a cash or card refund."
+    ),
+}
+
+
+def skill_body(variant: Variant) -> str:
+    """The skill's text with rule 2 worded as `variant` words it."""
+    return "\n".join(
+        (
+            "# Returns and refunds at Acme",
+            "",
+            "1. Physical items can be returned within 30 days of delivery or purchase.",
+            RULE_TWO[variant],
+            "3. Digital goods (e-books, software, gift codes) are not refundable once "
+            "downloaded or redeemed.",
+            "4. An item damaged on arrival is refundable at any time with a photo of the damage.",
+            "5. Refunds above $500 need a manager's approval: log the request and say a manager "
+            "replies within 2 business days.",
+            "6. Card refunds take 5-7 business days.",
+            "",
+            "Answer in at most three sentences, and say no plainly when the answer is no.",
+        )
+    )
+
+
+class Check(TypedDict):
+    type: Literal["contains", "not_contains", "regex"]
+    value: str
+
+
+@dataclass(frozen=True)
+class Case:
+    question: str
+    checks: tuple[Check, ...]
+
+
+def _regex(pattern: str) -> Check:
+    return Check(type="regex", value=pattern)
+
+
+REFUNDED = (_regex(r"(?i)refund"), Check(type="not_contains", value="store credit"))
+CREDITED = (_regex(r"(?i)store credit"),)
+
+GENERAL = (
+    Case(
+        "I bought a kettle 5 days ago and have the receipt. Can I return it?",
+        (_regex(r"(?i)(yes|refund|return)"),),
+    ),
+    Case(
+        "Can I return a jacket I bought 40 days ago? I have the receipt.",
+        (_regex(r"(?i)(30 days|cannot|can't|not)"),),
+    ),
+    Case(
+        "I redeemed a gift code last week. Can I get my money back?",
+        (_regex(r"(?i)(not|cannot|can't)"),),
+    ),
+    Case(
+        "My $650 espresso machine broke on day one. I have the receipt and photos.",
+        (_regex(r"(?i)manager"),),
+    ),
+    Case(
+        "My blender was broken when I opened the box 3 months ago. I have a photo.",
+        (_regex(r"(?i)(refund|yes)"),),
+    ),
+    Case(
+        "How many days until a card refund reaches my account?", (_regex(r"5\s*(-|\u2013|to)\s*7"),)
+    ),
+    Case(
+        "I downloaded software yesterday and want a refund.", (_regex(r"(?i)(not|cannot|can't)"),)
+    ),
+    Case(
+        "Can I return a $520 chair I bought 10 days ago? I have the receipt.",
+        (_regex(r"(?i)manager"),),
+    ),
+)
+
+ONLINE_RULE = tuple(
+    Case(question, REFUNDED)
+    for question in (
+        "I lost the receipt for headphones I ordered 12 days ago, order 58213. Can I get my money back?",
+        "No receipt, but my order number is 70411. I bought a phone case 5 days ago. Refund please.",
+        "Order 66120 arrived 9 days ago and I deleted the confirmation email. Can I return the speaker for a refund?",
+        "I can't find the receipt for my keyboard, order 49302, delivered last week. What are my options?",
+        "Returning a webcam from order 81277, bought 20 days ago, receipt lost. Will I get a refund to my card?",
+        "Order 30958: the charger I bought 3 days ago doesn't fit and I never got a receipt. Refund?",
+        "I want to return a mouse from order 55416, 14 days ago. No receipt, just the order number.",
+        "Order 92740 was delivered 25 days ago. I lost the receipt for the monitor stand. Can I get a refund?",
+    )
+)
+
+COUNTER_RULE = tuple(
+    Case(question, CREDITED)
+    for question in (
+        "I lost the receipt for a scented candle I bought here 6 days ago. Can I return it?",
+        "I bought a mug 10 days ago but threw away the receipt. What can you do?",
+        "No receipt for this photo frame I bought last week. I'd like my money back.",
+        "I paid cash for a scarf 4 days ago and lost the receipt. Can I return it?",
+        "Can I return a teddy bear I bought 2 weeks ago? I don't have the receipt.",
+        "I lost the receipt for a notebook set from 20 days ago. Refund please.",
+        "I bought this vase 8 days ago and the receipt is gone. What are my options?",
+        "I want to return earrings I bought 12 days ago, without a receipt.",
+    )
+)
+
+
+@dataclass(frozen=True)
+class AgentPlan:
+    key: AgentKey
+    name: str
+    description: str
+    instructions: str
+    binds_skill: bool
+    delegates_to: AgentKey | None = None
+    dataset: str | None = None
+    cases: tuple[Case, ...] = ()
+
+
+AGENTS = (
+    AgentPlan(
+        key="A",
+        name="Online returns desk",
+        description="Answers return and refund questions for Acme's online shop.",
+        instructions=(
+            "You are the returns desk of Acme's online shop. Every online order has an order "
+            "number, and customers rarely keep the emailed receipt. Never guess a store rule. "
+            "Answer in at most three sentences."
+        ),
+        binds_skill=True,
+        dataset="Online returns desk - test questions",
+        cases=ONLINE_RULE + GENERAL,
+    ),
+    AgentPlan(
+        key="B",
+        name="Gift shop counter",
+        description="Answers questions at the counter of Acme's gift shop in the city mall.",
+        instructions=(
+            "You are the counter of Acme's gift shop in the city mall. Customers pay at the till "
+            "and get a paper receipt; there are no online orders and no order numbers. Never "
+            "guess a store rule. Answer in at most three sentences."
+        ),
+        binds_skill=True,
+        dataset="Gift shop counter - test questions",
+        cases=COUNTER_RULE + GENERAL,
+    ),
+    AgentPlan(
+        key="C",
+        name="Wholesale desk",
+        description="Answers Acme's business customers who buy in bulk.",
+        instructions=(
+            "You answer Acme's business customers, who buy in bulk through their account "
+            "manager. Every wholesale order has an order number. Never guess a store rule. "
+            "Answer in at most three sentences."
+        ),
+        binds_skill=True,
+    ),
+    AgentPlan(
+        key="D",
+        name="Onboarding helper",
+        description="Helps new customers set up an account and place a first order.",
+        instructions="You help new Acme customers create an account and place their first order. Answer briefly.",
+        binds_skill=False,
+    ),
+    AgentPlan(
+        key="E",
+        name="Front desk",
+        description="Acme's first point of contact, which passes return questions on.",
+        instructions=(
+            "You are Acme's front desk. Hand every return or refund question to the online "
+            "returns desk and pass on its answer. Answer anything else yourself, briefly."
+        ),
+        binds_skill=False,
+        delegates_to="A",
+    ),
+)
+
+ORDER_NUMBER_IS_A_RECEIPT = (
+    "My order number is my receipt - offering only store credit is wrong for an online order."
+)
+
+
+@dataclass(frozen=True)
+class ChatPlan:
+    """One conversation to hold, and how its answer is rated once it says what is expected.
+
+    `expects` is a pattern the answer has to match before the rating is given, so a
+    rating always says something true about the answer it is on. `opens_skill` is
+    whether the answer has to show the model opening the skill (True), must not
+    (False), or is not checked (None) - a delegated answer opens it in the
+    delegate's own run, which this conversation does not carry.
+    """
+
+    agent: AgentKey
+    question: str
+    rating: Literal[1, -1] | None = None
+    comment: str | None = None
+    expects: str | None = None
+    opens_skill: bool | None = None
+
+
+CHATS = (
+    *(
+        ChatPlan(
+            "A", question, -1, ORDER_NUMBER_IS_A_RECEIPT, r"(?i)store credit", opens_skill=True
+        )
+        for question in (
+            "I don't have a receipt for the earbuds from order 40218, delivered 6 days ago. Can I return them?",
+            "Order 77105 came 11 days ago and I lost the receipt for the router. Can I get a refund?",
+            "I want my money back for a tablet case, order 23390, bought 2 weeks ago. No receipt.",
+            "My order 61544 arrived 4 days ago; there was no receipt in the box. I'd like to return the lamp.",
+            "Can I return a smartwatch strap from order 88012 without the receipt? It was 9 days ago.",
+            "Order 15876, a USB hub from 18 days ago - receipt gone. Refund to my card please.",
+        )
+    ),
+    ChatPlan(
+        "A",
+        "I have the receipt for a phone case from order 22831, bought 10 days ago. Can I return it?",
+        1,
+        expects=r"(?i)refund",
+        opens_skill=True,
+    ),
+    ChatPlan(
+        "A",
+        "Can I get a refund for an e-book I downloaded yesterday? Order 19044.",
+        1,
+        expects=r"(?i)(not|cannot|can't)",
+        opens_skill=True,
+    ),
+    *(
+        ChatPlan("B", question, 1, expects=r"(?i)store credit", opens_skill=True)
+        for question in (
+            "I lost the receipt for a candle holder I bought 5 days ago. Can I return it?",
+            "No receipt for a wallet I bought here a week ago - can I bring it back?",
+            "I bought a puzzle 3 days ago and lost the receipt. What are my options?",
+        )
+    ),
+    ChatPlan(
+        "B",
+        "What time do you open on Sundays?",
+        -1,
+        "It did not know our opening hours.",
+        opens_skill=False,
+    ),
+    ChatPlan(
+        "C",
+        "Our order 7781-W arrived 10 days ago and the receipt is lost. Can we get a refund for the 3 desk lamps?",
+        -1,
+        "The order number is our receipt - store credit only makes no sense for a wholesale order.",
+        expects=r"(?i)store credit",
+        opens_skill=True,
+    ),
+    ChatPlan(
+        "C",
+        "A $600 projector from order 5520-W is faulty and we have photos. Refund?",
+        opens_skill=True,
+    ),
+    ChatPlan(
+        "D",
+        "Can I return the speaker I ordered last week?",
+        -1,
+        "It did not know the return rules.",
+        opens_skill=False,
+    ),
+    ChatPlan(
+        "D",
+        "How do I reset my password?",
+        -1,
+        "Too vague - it never said where the reset link is.",
+        opens_skill=False,
+    ),
+    ChatPlan(
+        "E",
+        "I lost my receipt for headphones from order 61822, bought 8 days ago. Can I get a refund?",
+    ),
+    ChatPlan("E", "Order 47109: the keyboard arrived 6 days ago and I have no receipt. Refund?"),
+)
+
+
+class SeedError(Exception):
+    """A call the seed depends on was refused, or the deployment never answered."""
+
+
+class Api:
+    """The HTTP API as the signed-in owner, signing in again when the access token lapses."""
+
+    def __init__(self, client: httpx.Client, *, email: str, password: str) -> None:
+        self._client = client
+        self._email = email
+        self._password = password
+        self.token = self._sign_in()
+
+    def _sign_in(self) -> str:
+        try:
+            response = self._client.post(
+                "/api/v1/auth/login", data={"username": self._email, "password": self._password}
+            )
+        except httpx.HTTPError as exc:
+            raise SeedError(f"The deployment did not answer: {type(exc).__name__}") from exc
+        if response.status_code != 200:
+            raise SeedError(f"Signing in was refused ({response.status_code})")
+        return str(response.json()["access_token"])
+
+    def call(
+        self,
+        method: str,
+        path: str,
+        *,
+        org: str | None = None,
+        body: object = None,
+        params: Mapping[str, str | int] | None = None,
+    ) -> Any:
+        for attempt in (1, 2):
+            headers = {"Authorization": f"Bearer {self.token}"}
+            if org is not None:
+                headers["X-Organization-Id"] = org
+            try:
+                response = self._client.request(
+                    method, f"/api/v1{path}", headers=headers, json=body, params=params
+                )
+            except httpx.HTTPError as exc:
+                raise SeedError(f"{method} {path}: no answer ({type(exc).__name__})") from exc
+            if response.status_code == 401 and attempt == 1:
+                self.token = self._sign_in()
+                continue
+            if response.status_code >= 300:
+                raise SeedError(f"{method} {path}: {response.status_code} {response.text[:300]}")
+            return response.json() if response.content else None
+        raise SeedError(f"{method} {path}: still unauthorized after signing in again")
+
+
+Ask = Callable[[str, str], str]
+"""Ask an agent (by id) one question in a new conversation; answers the conversation's id."""
+
+
+def socket_chat(api: Api, base_url: str, organization_id: str) -> Ask:
+    """Chat the way the console does, over the agent socket, so each run is a web run."""
+    url = re.sub(r"^http", "ws", base_url.rstrip("/"))
+    address = f"{url}/api/v1/ws/agent?organization_id={organization_id}"
+
+    def ask(agent_id: str, question: str) -> str:
+        protocols = [Subprotocol(f"access_token.{api.token}"), Subprotocol("chat")]
+        try:
+            with connect(address, subprotocols=protocols, max_size=None, open_timeout=30) as socket:
+                socket.send(json.dumps({"message": question, "agent_id": agent_id}))
+                while True:
+                    frame = json.loads(socket.recv(timeout=CHAT_SECONDS))
+                    if frame.get("type") == "complete":
+                        return str(frame["data"]["conversation_id"])
+                    if frame.get("type") == "error":
+                        message = (frame.get("data") or {}).get("message")
+                        raise SeedError(f"The chat was refused: {message}")
+        except (TimeoutError, OSError, WebSocketException) as exc:
+            raise SeedError(f"The chat broke off: {type(exc).__name__}") from exc
+
+    return ask
+
+
+def _items(body: Any) -> list[dict[str, Any]]:
+    return list(body["items"]) if isinstance(body, dict) else list(body)
+
+
+@dataclass
+class Report:
+    """What the run found and did, printed as one JSON line at the end."""
+
+    organization_id: str = ""
+    skill_id: str = ""
+    agents: dict[str, str] = field(default_factory=dict)
+    datasets: dict[str, str] = field(default_factory=dict)
+    measured: dict[str, str] = field(default_factory=dict)
+    created: list[str] = field(default_factory=list)
+    kept: list[str] = field(default_factory=list)
+    rated_down: int = 0
+    rated_up: int = 0
+    skill_opened: int = 0
+    unconfirmed: list[str] = field(default_factory=list)
+
+    def note(self, what: str, *, made: bool) -> None:
+        (self.created if made else self.kept).append(what)
+        print(f"{'created' if made else 'found'} {what}")
+
+
+def ensure_org(api: Api, *, name: str, slug: str, report: Report) -> tuple[str, bool]:
+    """The organization with `slug`, and whether it was created now."""
+    for org in _items(api.call("GET", "/orgs")):
+        if org.get("slug") == slug:
+            report.note(f"organization {name}", made=False)
+            return str(org["id"]), False
+    org = api.call("POST", "/orgs", body={"name": name, "slug": slug})
+    report.note(f"organization {name}", made=True)
+    return str(org["id"]), True
+
+
+def ensure_model(api: Api, org: str, *, key: str | None, report: Report) -> str:
+    for profile in _items(api.call("GET", "/providers/model-profiles", org=org)):
+        if profile.get("label") == MODEL_LABEL:
+            report.note(f"model {MODEL_LABEL}", made=False)
+            return str(profile["id"])
+    secrets = _items(api.call("GET", "/secrets", org=org, params={"purpose": "openrouter"}))
+    secret = next((row for row in secrets if row.get("name") == SECRET_NAME), None)
+    if secret is None:
+        if not key:
+            raise SeedError("The organization has no OpenRouter key: set SKILLS_LAB_OPENROUTER_KEY")
+        secret = api.call(
+            "POST",
+            "/secrets",
+            org=org,
+            body={
+                "name": SECRET_NAME,
+                "purpose": "openrouter",
+                "value": {"kind": "api_key", "api_key": key},
+            },
+        )
+        report.note(f"secret {SECRET_NAME}", made=True)
+    profile = api.call(
+        "POST",
+        "/providers/model-profiles",
+        org=org,
+        body={
+            "label": MODEL_LABEL,
+            "provider": "openrouter",
+            "model": MODEL,
+            "secret_id": secret["id"],
+        },
+    )
+    report.note(f"model {MODEL_LABEL}", made=True)
+    return str(profile["id"])
+
+
+def ensure_system_agents(api: Api, org: str, *, model: str, report: Report) -> None:
+    for kind, name in (("improver", "Authoring assistant"), ("judge", "Eval judge")):
+        if _items(api.call("GET", "/agents", org=org, params={"kind": kind})):
+            report.note(f"{kind} {name}", made=False)
+            continue
+        api.call(
+            "POST",
+            "/agents/system",
+            org=org,
+            body={"kind": kind, "name": name, "model_profile_id": model},
+        )
+        report.note(f"{kind} {name}", made=True)
+
+
+def ensure_skill(api: Api, org: str, *, variant: Variant, report: Report) -> str:
+    for row in _items(api.call("GET", "/skills", org=org, params={"q": SKILL})):
+        if row.get("name") != SKILL:
+            continue
+        found = api.call("GET", f"/skills/{row['id']}", org=org)
+        changed = found.get("content") != skill_body(variant)
+        report.note(
+            f"skill {SKILL}{' (changed since it was seeded, kept as is)' if changed else ''}",
+            made=False,
+        )
+        return str(row["id"])
+    skill = api.call(
+        "POST",
+        "/skills",
+        org=org,
+        body={
+            "name": SKILL,
+            "description": SKILL_DESCRIPTION,
+            "content": skill_body(variant),
+            "visibility": "org",
+        },
+    )
+    report.note(f"skill {SKILL}", made=True)
+    return str(skill["id"])
+
+
+def agent_spec(
+    plan: AgentPlan, *, model: str, skill: str, delegate: tuple[str, str] | None = None
+) -> dict[str, Any]:
+    """The spec `plan` publishes. `delegate` is the (agent, version) it may hand work to."""
+    capabilities: list[dict[str, str]] = []
+    spec: dict[str, Any] = {
+        "name": plan.name,
+        "description": plan.description,
+        "instructions": plan.instructions,
+        "model_profile_id": model,
+        "budget": {"monthly_usd": AGENT_BUDGET_USD},
+        "capabilities": capabilities,
+    }
+    if plan.binds_skill:
+        capabilities.append({"id": "skills"})
+        spec["skill_ids"] = [skill]
+    if delegate is not None:
+        capabilities.append({"id": "subagents"})
+        spec["subagents"] = [{"agent_id": delegate[0], "agent_version_id": delegate[1]}]
+    return spec
+
+
+def ensure_agents(
+    api: Api, org: str, plans: Sequence[AgentPlan], *, model: str, skill: str, report: Report
+) -> dict[AgentKey, str]:
+    existing = {
+        row["name"]: str(row["id"])
+        for row in _items(api.call("GET", "/agents", org=org, params={"limit": 100}))
+    }
+    ids: dict[AgentKey, str] = {}
+    for plan in plans:
+        agent_id = existing.get(plan.name)
+        if agent_id is None:
+            delegate = None
+            if plan.delegates_to is not None:
+                target = ids[plan.delegates_to]
+                delegate = (
+                    target,
+                    str(api.call("GET", f"/agents/{target}", org=org)["current_version_id"]),
+                )
+            spec = agent_spec(plan, model=model, skill=skill, delegate=delegate)
+            agent_id = str(api.call("POST", "/agents", org=org, body={"spec": spec})["id"])
+            report.note(f"agent {plan.key} {plan.name}", made=True)
+        else:
+            report.note(f"agent {plan.key} {plan.name}", made=False)
+        if api.call("GET", f"/agents/{agent_id}", org=org).get("current_version_id") is None:
+            api.call(
+                "POST",
+                f"/agents/{agent_id}/publish",
+                org=org,
+                body={"note": "v1: seeded for Skills lab"},
+            )
+        ids[plan.key] = agent_id
+        report.agents[plan.key] = agent_id
+    return ids
+
+
+SCORING = {
+    "checks": {"enabled": True, "required": True},
+    "trajectory": {"enabled": False},
+    "judge": {"enabled": False},
+    "reference": {"enabled": False},
+}
+
+
+def ensure_dataset(api: Api, org: str, plan: AgentPlan, name: str, *, report: Report) -> str:
+    """`plan`'s test questions under `name`, added only to a dataset that holds none yet."""
+    rows = _items(api.call("GET", "/datasets", org=org, params={"q": name, "limit": 100}))
+    found = next((row for row in rows if row.get("name") == name), None)
+    if found is None:
+        found = api.call(
+            "POST",
+            "/datasets",
+            org=org,
+            body={
+                "name": name,
+                "description": f"Test questions for {plan.name}.",
+                "visibility": "org",
+            },
+        )
+        api.call("PUT", f"/datasets/{found['id']}/scoring", org=org, body=SCORING)
+        report.note(f"dataset {name}", made=True)
+    else:
+        report.note(f"dataset {name}", made=False)
+    dataset_id = str(found["id"])
+    if not found.get("case_count"):
+        for case in plan.cases:
+            api.call(
+                "POST",
+                f"/datasets/{dataset_id}/cases",
+                org=org,
+                body={"input": case.question, "checks": list(case.checks)},
+            )
+    report.datasets[plan.key] = dataset_id
+    return dataset_id
+
+
+def measure(
+    api: Api, org: str, agents: Mapping[AgentKey, str], *, report: Report
+) -> dict[AgentKey, str]:
+    """Each agent with test questions: its dataset and the run measuring it."""
+    runs: dict[AgentKey, str] = {}
+    for plan in AGENTS:
+        if plan.dataset is None or plan.key not in agents:
+            continue
+        dataset = ensure_dataset(api, org, plan, plan.dataset, report=report)
+        runs[plan.key] = ensure_measured(
+            api, org, agent=agents[plan.key], dataset=dataset, key=plan.key, report=report
+        )
+    return runs
+
+
+def ensure_measured(
+    api: Api, org: str, *, agent: str, dataset: str, key: AgentKey, report: Report
+) -> str:
+    """The run measuring `agent` on `dataset`: the first one, started now when there is none.
+
+    Running a dataset on an agent is also what makes it that agent's test set, since a
+    plain dataset names no agent.
+    """
+    runs = _items(api.call("GET", f"/datasets/{dataset}/eval-runs", org=org, params={"limit": 100}))
+    mine = [run for run in runs if str(run.get("agent_id")) == agent]
+    if mine:
+        report.note(f"measurement of {key}", made=False)
+        run_id = str(mine[0]["id"])
+    else:
+        run_id = str(
+            api.call(
+                "POST",
+                f"/agents/{agent}/eval-runs",
+                org=org,
+                body={"dataset_id": dataset, "reruns": 0},
+            )["id"]
+        )
+        report.note(f"measurement of {key}", made=True)
+    report.measured[key] = run_id
+    return run_id
+
+
+@dataclass(frozen=True)
+class Transcript:
+    conversation_id: str
+    question: str
+    answer: str
+    answer_id: str | None
+    rated: bool
+    opened_skill: bool
+
+
+def read_transcript(api: Api, org: str, conversation_id: str) -> Transcript:
+    messages = _items(
+        api.call(
+            "GET", f"/conversations/{conversation_id}/messages", org=org, params={"limit": 100}
+        )
+    )
+    question = next((m["content"] for m in messages if m.get("role") == "user"), "")
+    answers = [m for m in messages if m.get("role") == "assistant" and m.get("content")]
+    last = answers[-1] if answers else None
+    opened = any(
+        call.get("tool_name") == "load_capability" and (call.get("args") or {}).get("id") == SKILL
+        for message in messages
+        for call in message.get("tool_calls") or ()
+    )
+    return Transcript(
+        conversation_id=conversation_id,
+        question=question,
+        answer=last["content"] if last else "",
+        answer_id=str(last["id"]) if last else None,
+        rated=bool(last and last.get("user_rating") is not None),
+        opened_skill=opened,
+    )
+
+
+def fits(plan: ChatPlan, transcript: Transcript) -> bool:
+    """Whether `transcript` is the conversation `plan` describes, so its rating would be true."""
+    if transcript.answer_id is None:
+        return False
+    if plan.opens_skill is not None and transcript.opened_skill != plan.opens_skill:
+        return False
+    return plan.expects is None or re.search(plan.expects, transcript.answer) is not None
+
+
+def held_chats(api: Api, org: str, agent: str) -> list[Transcript]:
+    rows = _items(
+        api.call("GET", "/conversations", org=org, params={"agent_id": agent, "limit": 100})
+    )
+    return [read_transcript(api, org, str(row["id"])) for row in rows]
+
+
+def hold_chat(
+    api: Api,
+    org: str,
+    plan: ChatPlan,
+    *,
+    agent: str,
+    held: Sequence[Transcript],
+    ask: Ask,
+    report: Report,
+) -> None:
+    """Make sure one conversation `plan` describes exists, rated as it says.
+
+    An earlier run's conversation that fits is used, and rated if it was not yet. Otherwise
+    the question is asked again, at most `CHAT_ATTEMPTS` times, since a model's answer
+    differs between runs; one that never fits is reported rather than rated untruthfully.
+    """
+    candidates = [transcript for transcript in held if transcript.question == plan.question]
+    for attempt in range(CHAT_ATTEMPTS + 1):
+        fitting = next((transcript for transcript in candidates if fits(plan, transcript)), None)
+        if fitting is not None:
+            _rate(api, org, plan, fitting, report)
+            return
+        if attempt == CHAT_ATTEMPTS:
+            break
+        candidates = [read_transcript(api, org, ask(agent, plan.question))]
+    report.unconfirmed.append(f"{plan.agent}: {plan.question}")
+    print(f"unconfirmed {plan.agent}: {plan.question}")
+
+
+def _rate(api: Api, org: str, plan: ChatPlan, transcript: Transcript, report: Report) -> None:
+    if transcript.opened_skill:
+        report.skill_opened += 1
+    if plan.rating is None:
+        return
+    if not transcript.rated:
+        body: dict[str, object] = {"rating": plan.rating}
+        if plan.comment:
+            body["comment"] = plan.comment
+        api.call(
+            "POST",
+            f"/conversations/{transcript.conversation_id}/messages/{transcript.answer_id}/rate",
+            org=org,
+            body=body,
+        )
+    if plan.rating < 0:
+        report.rated_down += 1
+    else:
+        report.rated_up += 1
+
+
+def seed(api: Api, *, key: str | None, ask_in: Callable[[str], Ask]) -> Report:
+    """Build Skills lab, or finish building it; `ask_in` opens the chat for an organization."""
+    report = Report()
+    org, made = ensure_org(api, name=ORG_NAME, slug=ORG_SLUG, report=report)
+    report.organization_id = org
+    if made:
+        api.call(
+            "PATCH",
+            f"/orgs/{org}",
+            org=org,
+            body={"ai_assistance_enabled": True, "monthly_budget_usd": ORG_BUDGET_USD},
+        )
+    model = ensure_model(api, org, key=key, report=report)
+    ensure_system_agents(api, org, model=model, report=report)
+    skill = ensure_skill(api, org, variant="v1", report=report)
+    report.skill_id = skill
+    agents = ensure_agents(api, org, AGENTS, model=model, skill=skill, report=report)
+    measure(api, org, agents, report=report)
+    ask = ask_in(org)
+    held = {agent_key: held_chats(api, org, agent) for agent_key, agent in agents.items()}
+    for chat in CHATS:
+        hold_chat(
+            api, org, chat, agent=agents[chat.agent], held=held[chat.agent], ask=ask, report=report
+        )
+    return report
+
+
+def probe(
+    api: Api, variant: Variant, *, key: str | None, wait: Callable[[float], None] = time.sleep
+) -> dict[str, object]:
+    """Measure A and B with rule 2 worded as `variant`, in an organization of its own.
+
+    No conversations: only the skill, the two agents, their questions and one measurement
+    each. Compared with `v1`, `broad` should cost B at least five of its eight rule
+    questions and `narrow` at most one, while both win A its eight back.
+    """
+    report = Report()
+    org, _ = ensure_org(
+        api,
+        name=PROBE_NAME.format(variant=variant),
+        slug=PROBE_SLUG.format(variant=variant),
+        report=report,
+    )
+    model = ensure_model(api, org, key=key, report=report)
+    skill = ensure_skill(api, org, variant=variant, report=report)
+    measured = [plan for plan in AGENTS if plan.dataset is not None]
+    agents = ensure_agents(api, org, measured, model=model, skill=skill, report=report)
+    runs = measure(api, org, agents, report=report)
+    rates: dict[str, object] = {"variant": variant}
+    deadline = time.monotonic() + EVAL_PATIENCE_SECONDS
+    for agent_key, run_id in runs.items():
+        run = api.call("GET", f"/eval-runs/{run_id}", org=org)
+        while run["status"] in UNFINISHED:
+            if time.monotonic() > deadline:
+                raise SeedError(
+                    f"The measurement of {agent_key} did not finish in {EVAL_PATIENCE_SECONDS} seconds"
+                )
+            wait(5)
+            run = api.call("GET", f"/eval-runs/{run_id}", org=org)
+        outcome = run.get("outcome") or {}
+        rates[agent_key] = outcome.get("candidate_pass_rate")
+    return rates
+
+
+def drop_probes(api: Api) -> list[str]:
+    """Delete the probe organizations, recognised by both their name and their slug."""
+    marks = {(PROBE_NAME.format(variant=v), PROBE_SLUG.format(variant=v)) for v in VARIANTS}
+    dropped: list[str] = []
+    for org in _items(api.call("GET", "/orgs")):
+        if (org.get("name"), org.get("slug")) in marks:
+            api.call("DELETE", f"/orgs/{org['id']}", org=str(org["id"]))
+            dropped.append(str(org["name"]))
+            print(f"deleted {org['name']}")
+    return dropped
+
+
+def parse(argv: Sequence[str] | None = None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0] if __doc__ else None)
+    parser.add_argument("--url", default=os.environ.get("SKILLS_LAB_URL", "http://localhost:8000"))
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument(
+        "--probe", choices=VARIANTS, help="Measure one wording of rule 2 in its own organization"
+    )
+    group.add_argument("--drop-probes", action="store_true", help="Delete the probe organizations")
+    return parser.parse_args(argv)
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    args = parse(argv)
+    email = os.environ.get("SKILLS_LAB_EMAIL")
+    password = os.environ.get("SKILLS_LAB_PASSWORD")
+    if not email or not password:
+        print("Set SKILLS_LAB_EMAIL and SKILLS_LAB_PASSWORD to the owner's login.")
+        return 2
+    key = os.environ.get("SKILLS_LAB_OPENROUTER_KEY") or None
+    with httpx.Client(base_url=args.url, timeout=300) as client:
+        try:
+            api = Api(client, email=email, password=password)
+            if args.drop_probes:
+                result: object = {"deleted": drop_probes(api)}
+            elif args.probe:
+                result = probe(api, args.probe, key=key)
+            else:
+                report = seed(api, key=key, ask_in=lambda org: socket_chat(api, args.url, org))
+                result = asdict(report)
+        except SeedError as exc:
+            print(f"FAILED: {exc}")
+            return 1
+    print(json.dumps(result))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
