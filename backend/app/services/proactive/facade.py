@@ -135,7 +135,9 @@ class ProactiveService:
         """Queue a look for every watch whose time has come. Returns how many were queued."""
         from app.services.proactive._watch import WatchLook
 
-        due = await WatchLook(self.db).due(now=now)
+        look = WatchLook(self.db)
+        await look.expire_due(now=now)
+        due = await look.due(now=now)
         for watch in due:
             await enqueue(
                 self.db,

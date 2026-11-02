@@ -2375,8 +2375,17 @@ class AgentTriggerService:
             extra={"trigger_id": str(trigger.id), "run_id": str(run.id), "status": run.status},
         )
 
-    async def _expire_if_ended(self, trigger: AgentTrigger) -> bool:
-        if trigger.ends_at is None or trigger.ends_at > datetime.now(UTC):
+    async def expire_due(self, *, now: datetime, limit: int = 100) -> int:
+        """Close elapsed responsibilities even while paused or between long cadences."""
+        ended = await agent_trigger_repo.claim_ended(self.db, now=now, limit=limit)
+        for trigger in ended:
+            await self._expire_if_ended(trigger, now=now)
+            trigger.end_settled_at = trigger.ends_at
+        await self.db.flush()
+        return len(ended)
+
+    async def _expire_if_ended(self, trigger: AgentTrigger, *, now: datetime | None = None) -> bool:
+        if trigger.ends_at is None or trigger.ends_at > (now or datetime.now(UTC)):
             return False
         if trigger.is_active:
             await self._disable(trigger, reason="ended")

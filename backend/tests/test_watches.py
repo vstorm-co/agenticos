@@ -790,6 +790,7 @@ class TestTheSweep:
         watch = _watch()
         enqueue = AsyncMock()
         with (
+            patch.object(WatchLook, "expire_due", new=AsyncMock(return_value=0)) as expire,
             patch.object(WatchLook, "due", new=AsyncMock(return_value=[watch])),
             patch.object(WatchLook, "look", new=AsyncMock(return_value=3)),
             patch(f"{FACADE}.enqueue", new=enqueue),
@@ -798,6 +799,7 @@ class TestTheSweep:
             assert await service.sweep_watches(now=NOW) == 1
             assert await service.look_through(watch.id) == 3
 
+        expire.assert_awaited_once_with(now=NOW)
         (_, task, payload) = enqueue.await_args.args
         assert task is LOOK_THROUGH_WATCH and payload.watch_id == watch.id
         assert enqueue.await_args.kwargs["organization_id"] == ORG

@@ -112,6 +112,21 @@ class WatchLook:
         self.db = db
         self.runner = AgentRunnerService(db)
 
+    async def expire_due(self, *, now: datetime, limit: int = SWEEP_BATCH) -> int:
+        """Settle deadlines without requiring another paid reading or an active watch."""
+        ended = await watch_repo.claim_ended(self.db, now=now, limit=limit)
+        for watch in ended:
+            watch.is_active = False
+            await OutcomeService(self.db).resolve_routine_attention(
+                organization_id=watch.organization_id,
+                user_id=watch.user_id,
+                routine_id=watch.id,
+                routine_kind="watch",
+            )
+            watch.end_settled_at = watch.ends_at
+        await self.db.flush()
+        return len(ended)
+
     async def due(self, *, now: datetime) -> list[Watch]:
         """Claim the watches whose time has come, move each to its next look, and return them.
 

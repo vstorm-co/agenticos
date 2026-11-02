@@ -459,3 +459,22 @@ async def withdraw_creator_consent(
     )
     await db.flush()
     return int(getattr(result, "rowcount", 0) or 0)
+
+
+async def claim_ended(db: AsyncSession, *, now: datetime, limit: int) -> list[AgentTrigger]:
+    """Claim unfinished deadline cleanup independently of activation cadence and pause."""
+    result = await db.scalars(
+        select(AgentTrigger)
+        .where(
+            AgentTrigger.ends_at <= now,
+            or_(
+                AgentTrigger.is_active.is_(True),
+                AgentTrigger.end_settled_at.is_distinct_from(AgentTrigger.ends_at),
+            ),
+        )
+        .order_by(AgentTrigger.ends_at, AgentTrigger.id)
+        .limit(limit)
+        .with_for_update(skip_locked=True)
+        .execution_options(populate_existing=True)
+    )
+    return list(result.all())

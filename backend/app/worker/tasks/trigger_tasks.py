@@ -40,7 +40,10 @@ async def check_agent_triggers() -> None:
     from app.services.agent_trigger import AgentTriggerService
 
     async with get_worker_db_context() as db:
-        triggers = await AgentTriggerService(db).claim_and_advance(now=datetime.now(UTC))
+        service = AgentTriggerService(db)
+        now = datetime.now(UTC)
+        await service.expire_due(now=now)
+        triggers = await service.claim_and_advance(now=now)
     logger.info("agent_triggers_check", extra={"queued": len(triggers)})
 
 

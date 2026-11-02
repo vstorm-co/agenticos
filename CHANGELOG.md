@@ -29,6 +29,9 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- Unattended routines honor granted internal Virtual Table writes without a routine exception; explicit agent approval policies still apply.
+- Routine and watch end-time cleanup now runs independently of activation cadence, including paused work, closes obsolete blockers and cancels pending notifications after restart.
+
 - Resumed routine answers use durable, retryable console delivery with one
   receipt per run. Restarts and concurrent retries cannot duplicate messages
   or repeat model calls. Archived chats and lost current access block delivery.

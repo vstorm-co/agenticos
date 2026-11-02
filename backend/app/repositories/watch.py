@@ -184,3 +184,19 @@ async def claim_report_activation(
         .returning(Watch.id)
     )
     return result.scalar_one_or_none() is not None
+
+
+async def claim_ended(db: AsyncSession, *, now: datetime, limit: int) -> list[Watch]:
+    """Claim unfinished deadline cleanup independently of activation cadence and pause."""
+    result = await db.scalars(
+        select(Watch)
+        .where(
+            Watch.ends_at <= now,
+            or_(Watch.is_active.is_(True), Watch.end_settled_at.is_distinct_from(Watch.ends_at)),
+        )
+        .order_by(Watch.ends_at, Watch.id)
+        .limit(limit)
+        .with_for_update(skip_locked=True)
+        .execution_options(populate_existing=True)
+    )
+    return list(result.all())

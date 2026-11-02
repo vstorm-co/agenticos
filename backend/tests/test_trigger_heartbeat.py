@@ -30,6 +30,7 @@ async def test_the_heartbeat_claims_on_one_session_at_the_ticks_own_time() -> No
         yield db
 
     service = MagicMock()
+    service.expire_due = AsyncMock(return_value=0)
     service.claim_and_advance = AsyncMock(return_value=[MagicMock(id=uuid.uuid4())])
     before = datetime.now(UTC)
     with (
@@ -38,6 +39,9 @@ async def test_the_heartbeat_claims_on_one_session_at_the_ticks_own_time() -> No
     ):
         await trigger_tasks.check_agent_triggers()
 
+    service.expire_due.assert_awaited_once_with(
+        now=service.claim_and_advance.call_args.kwargs["now"]
+    )
     assert len(opened) == 1, "the claim and its fires share one transaction"
     built.assert_called_once_with(opened[0])
     assert before <= service.claim_and_advance.call_args.kwargs["now"] <= datetime.now(UTC)

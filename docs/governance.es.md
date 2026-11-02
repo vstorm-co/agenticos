@@ -1,5 +1,5 @@
 ---
-source_sha: "9bc25ea1bf8a"
+source_sha: "a3a699858047"
 ---
 
 # Governance { #governance }
@@ -63,6 +63,10 @@ Define `ends_at` con un desplazamiento UTC para el trabajo con duración limitad
 `monthly_budget_usd` para un límite mensual más estricto. La herramienta MCP de
 actualización permite quitar ambos ajustes. Una clave API ordinaria no puede
 autorizar a una rutina a usar las cuentas personales de quien la emitió. Tampoco conceden esa autoridad los runs en segundo plano, las suplantaciones ni los turnos grupales o públicos reanudados.
+
+Los barridos de cada minuto procesan los vencimientos independientemente de la siguiente activación, incluso para rutinas y seguimientos pausados. Desactivan el trabajo activo, resuelven sus bloqueos pendientes y cancelan las notificaciones aún no enviadas sin llamar a un modelo. Tras reiniciarse, el worker recupera los vencimientos; la limpieza puede esperar a un worker o a otro lote, mientras las comprobaciones previas a herramientas y entregas rechazan de inmediato el trabajo vencido.
+
+La migración `0269_routine_end_cleanup.py` añade una marca del vencimiento procesado e índices parciales de finales pendientes. No crea rutinas, permisos ni hallazgos de reemplazo. Cambiar el final reactiva la limpieza; repetir el barrido no repite los efectos ya resueltos. El downgrade elimina solo estos datos auxiliares, conservando el final configurado y la identidad de la rutina.
 
 La política de versiones permite seguir la versión publicada predeterminada o fijar una versión inmutable. Una publicación no cambia la versión fijada. Elimina la fijación para volver a seguir la predeterminada. Un entorno con nombre y una versión fijada se excluyen mutuamente; siguen vigentes los permisos, presupuestos y aprobaciones actuales.
 
@@ -681,6 +685,8 @@ en archivos locales y delegaciones. Las llamadas MCP externas preguntan salvo qu
 su servidor las marque como solo lectura; sigue vigente una política más estricta
 de la conexión. No cambian los valores del agente interactivo. El modo de código
 se desactiva en rutinas para que los scripts agrupados no eviten controles por acción.
+
+Las escrituras en Virtual Tables de AgenticOS se ejecutan dentro de sus permisos vigentes de tabla y operación sin una excepción de rutina. Una política explícita de aprobación del agente sigue aplicándose a estas escrituras internas.
 
 El creador abre **Consentimiento para acciones** en su rutina y elige acciones de
 capacidades que pueden ejecutarse sin preguntar. Requiere `approvals:decide` y el

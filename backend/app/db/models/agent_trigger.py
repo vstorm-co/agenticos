@@ -368,6 +368,8 @@ class AgentTrigger(Base, TimestampMixin):
     # When a schedule stops by itself - "keep an eye on this until Friday". Null runs
     # until somebody stops it. The first fire due after this instant pauses it instead.
     ends_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # The deadline already settled, so moving the end rearms cleanup.
+    end_settled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     # How an event trigger was set up, when it came from a portal preset rather
     # than the raw source picker. All nullable: every schedule, and every
@@ -399,6 +401,14 @@ class AgentTrigger(Base, TimestampMixin):
     # schema from the models, so a constraint stated only in the migration would
     # be absent from exactly the tests written to prove it rejects a row.
     __table_args__ = (
+        Index(
+            "ix_agent_triggers_pending_end",
+            "ends_at",
+            "id",
+            postgresql_where=text(
+                "ends_at IS NOT NULL AND (is_active OR end_settled_at IS DISTINCT FROM ends_at)"
+            ),
+        ),
         CheckConstraint(
             "last_delivery_status IN ('delivered', 'unavailable', 'run_log', 'no_answer', 'not_completed')",
             name="ck_trigger_delivery_status",

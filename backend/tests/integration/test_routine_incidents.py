@@ -7,7 +7,7 @@ from unittest.mock import patch
 
 import pytest
 from sqlalchemy import select, text
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.agent import Agent, AgentVersion
@@ -759,3 +759,97 @@ async def test_a_reaped_native_run_reports_its_owner_incident(
         assert note.outcome_id is not None and note.recipient_user_id == world.user.id
     await db.refresh(run)
     assert run.status == "failed"
+
+
+@pytest.mark.parametrize("kind", ["trigger", "watch"])
+@pytest.mark.parametrize("active", [True, False])
+async def test_end_cleanup_ignores_cadence_and_pause(
+    db: AsyncSession, world: World, kind: str, active: bool
+) -> None:
+    from app.services.agent_trigger import AgentTriggerService
+    from app.services.proactive._watch import WatchLook
+
+    routine = world.trigger if kind == "trigger" else await make_watch(db, world)
+    routine.ends_at = NOW
+    routine.is_active = active
+    if isinstance(routine, Watch):
+        routine.next_run_at = NOW + timedelta(days=30)
+    else:
+        routine.next_fire_at = NOW + timedelta(days=30)
+    await NotificationService(db).routine_blocked(
+        organization_id=world.org.id,
+        owner_user_id=world.user.id,
+        routine_id=routine.id,
+        routine_kind="trigger" if kind == "trigger" else "watch",
+        reason="delivery",
+        name="Report",
+        detail="The chat is unavailable.",
+        observed_at=NOW - timedelta(minutes=1),
+    )
+    routine_id = routine.id
+    await db.commit()
+    # The minute worker resumes from persisted deadlines, not its previous process.
+    db.expunge_all()
+    if kind == "trigger":
+        assert await AgentTriggerService(db).expire_due(now=NOW) == 1
+    else:
+        assert await WatchLook(db).expire_due(now=NOW) == 1
+    await db.commit()
+    routine = await db.get(AgentTrigger if kind == "trigger" else Watch, routine_id)
+    assert routine is not None
+    assert routine.is_active is False
+    assert routine.end_settled_at == NOW
+    outcomes = list(await db.scalars(select(Outcome)))
+    assert outcomes and all(case.status == "resolved" for case in outcomes)
+    assert all(note.dismissed_at is not None for note in await notes(db))
+    if kind == "trigger":
+        assert await AgentTriggerService(db).expire_due(now=NOW) == 0
+    else:
+        assert await WatchLook(db).expire_due(now=NOW) == 0
+
+
+@pytest.mark.parametrize("kind", ["trigger", "watch"])
+async def test_end_change_rearms_cleanup_without_ending_a_future_routine(
+    db: AsyncSession, world: World, kind: str
+) -> None:
+    from app.services.agent_trigger import AgentTriggerService
+    from app.services.proactive._watch import WatchLook
+
+    routine = world.trigger if kind == "trigger" else await make_watch(db, world)
+    service = AgentTriggerService(db) if kind == "trigger" else WatchLook(db)
+    routine.ends_at = NOW
+    await db.flush()
+    assert await service.expire_due(now=NOW - timedelta(seconds=1)) == 0
+    assert routine.is_active is True
+    assert await service.expire_due(now=NOW) == 1
+    routine.ends_at = NOW + timedelta(days=1)
+    routine.is_active = True
+    await db.flush()
+    assert await service.expire_due(now=NOW) == 0
+    assert routine.is_active is True
+    assert await service.expire_due(now=NOW + timedelta(days=1)) == 1
+    assert routine.end_settled_at == routine.ends_at
+
+
+@pytest.mark.parametrize("kind", ["trigger", "watch"])
+async def test_deadline_claim_survives_restart_and_skips_a_live_worker_lock(
+    db: AsyncSession, engine: AsyncEngine, world: World, kind: str
+) -> None:
+    from sqlalchemy.ext.asyncio import async_sessionmaker
+
+    from app.repositories import agent_trigger_repo, watch_repo
+
+    routine = world.trigger if kind == "trigger" else await make_watch(db, world)
+    routine.ends_at = NOW
+    await db.commit()
+    repository = agent_trigger_repo if kind == "trigger" else watch_repo
+    sessions = async_sessionmaker(engine, expire_on_commit=False)
+    async with sessions() as first, sessions() as second:
+        claimed = await repository.claim_ended(first, now=NOW, limit=1)
+        assert [row.id for row in claimed] == [routine.id]
+        assert await repository.claim_ended(second, now=NOW, limit=1) == []
+        await second.rollback()
+        await first.rollback()
+        # A crashed transaction leaves no consumed deadline marker.
+        reclaimed = await repository.claim_ended(second, now=NOW, limit=1)
+        assert [row.id for row in reclaimed] == [routine.id]

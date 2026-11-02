@@ -64,6 +64,10 @@ The routine form can set or clear its end. The date uses the device time zone sh
 
 A routine rechecks its creator, active membership, role and run grants before each tool, including delegates and calls released after approval. Pausing, deleting or expiring the routine, withdrawing personal consent, or changing that authority refuses subsequent tools. An effect already sent to an external service cannot be recalled by this check. Migration `0260_routine_run_origin` retains the origin when the routine is deleted; an old parked schedule whose origin was already lost is refused rather than borrowing the approver’s authority.
 
+The minute sweeps settle elapsed ends independently of the next activation, including paused routines and watches. They disable active work, resolve outstanding routine blockers and cancel their pending notifications without running a model. A stopped worker catches up after restart; cleanup can wait for a worker or a batch, while tool and answer-delivery deadline checks still refuse expired work immediately.
+
+Migration `0269_routine_end_cleanup.py` adds a deadline marker and partial pending-end indexes. It creates no replacement routines, grants or findings. Moving the end rearms cleanup; a repeated sweep does not repeat the settled effects. Downgrading drops only this cleanup bookkeeping, not the configured end or routine identity.
+
 ## Budgets
 
 !!! abstract "Three levels, and they are not variations on one number"
@@ -626,6 +630,8 @@ delegation. External MCP calls ask unless their server marks them read-only;
 a connection's stronger approval policy still applies. Ordinary interactive
 agent defaults are unchanged. Code mode is disabled for routine runs so bundled
 scripts cannot skip the individual action gates.
+
+Writes to AgenticOS Virtual Tables run within their live table and operation grants without a routine exception. An explicit agent approval policy still applies to these internal writes.
 
 The creator can open **Action consent** on their routine and select capability
 actions that may run without asking. This requires `approvals:decide` and the

@@ -1,5 +1,5 @@
 ---
-source_sha: "9bc25ea1bf8a"
+source_sha: "a3a699858047"
 ---
 
 # Governance { #governance }
@@ -67,6 +67,10 @@ beide Einstellungen entfernen. Ein gewöhnlicher API-Schlüssel kann keine Routi
 zur Nutzung der persönlichen Konten seines Ausstellers ermächtigen. Hintergrundläufe,
 Identitätsübernahmen und fortgesetzte Gruppen- oder öffentliche Runden erteilen
 ebenfalls keine solche Zustimmung.
+
+Die minütlichen Durchläufe erledigen abgelaufene Endtermine unabhängig von der nächsten Aktivierung, auch bei pausierten Routinen und Beobachtungen. Sie deaktivieren aktive Arbeit, schließen offene Blockaden der Routine und stornieren deren ausstehende Benachrichtigungen ohne Modellaufruf. Nach einem Neustart holt der Worker dies nach; die Bereinigung kann auf einen Worker oder einen weiteren Stapel warten, während Prüfungen vor Werkzeugen und Antwortzustellung abgelaufene Arbeit sofort ablehnen.
+
+Die Migration `0269_routine_end_cleanup.py` ergänzt eine Markierung des erledigten Endtermins und partielle Indizes für ausstehende Enden. Sie erstellt keine Ersatzroutinen, Freigaben oder Funde. Eine Änderung des Endes aktiviert die Bereinigung erneut; ein wiederholter Durchlauf wiederholt keine erledigten Effekte. Ein Downgrade entfernt nur diese Hilfsdaten, nicht das konfigurierte Ende oder die Identität der Routine.
 
 Die Versionsauswahl folgt entweder der standardmäßig veröffentlichten Version oder legt eine unveränderliche Version fest. Eine Veröffentlichung verschiebt diese Festlegung nicht. Entfernen Sie sie, um wieder der Standardversion zu folgen. Eine benannte Umgebung und eine festgelegte Version schließen sich aus; aktuelle Zugriffsrechte, Budgets und Freigaben gelten weiterhin.
 
@@ -719,6 +723,8 @@ und Delegation. Externe MCP-Aufrufe fragen, sofern ihr Server sie nicht als nur
 lesend kennzeichnet; eine strengere Bestätigungspolitik der Verbindung gilt weiter.
 Die Vorgaben interaktiver Agenten bleiben gleich. Der Codemodus ist für Routinen
 ausgeschaltet, damit Sammelskripte keine Einzelkontrollen umgehen.
+
+Schreibzugriffe auf AgenticOS Virtual Tables laufen innerhalb ihrer aktuellen Tabellen- und Operationsfreigaben ohne Ausnahme für die Routine. Eine ausdrücklich konfigurierte Freigaberichtlinie des Agenten gilt weiterhin für diese internen Schreibzugriffe.
 
 Die erstellende Person öffnet **Aktionsfreigaben** ihrer Routine und wählt
 Fähigkeitsaktionen ohne Rückfrage. Das erfordert `approvals:decide` und den

@@ -16,7 +16,17 @@ import enum
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Boolean, CheckConstraint, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import (
+    Boolean,
+    CheckConstraint,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+    text,
+)
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -41,6 +51,14 @@ class Watch(Base, TimestampMixin):
 
     __tablename__ = "watches"
     __table_args__ = (
+        Index(
+            "ix_watches_pending_end",
+            "ends_at",
+            "id",
+            postgresql_where=text(
+                "ends_at IS NOT NULL AND (is_active OR end_settled_at IS DISTINCT FROM ends_at)"
+            ),
+        ),
         CheckConstraint("report_mode IN ('changes', 'every_check')", name="ck_watch_report_mode"),
         CheckConstraint(
             "pinned_version_id IS NULL OR environment_id IS NULL", name="ck_watch_version_selection"
@@ -90,6 +108,8 @@ class Watch(Base, TimestampMixin):
         UUID(as_uuid=True), ForeignKey("conversations.id", ondelete="SET NULL"), nullable=True
     )
     ends_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # The deadline already settled, so moving the end rearms cleanup.
+    end_settled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     notification_channels: Mapped[list[str] | None] = mapped_column(JSONB, nullable=True)
     last_reported_activation: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True

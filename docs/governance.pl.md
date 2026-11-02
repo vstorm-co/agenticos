@@ -1,5 +1,5 @@
 ---
-source_sha: "9bc25ea1bf8a"
+source_sha: "a3a699858047"
 ---
 
 # Governance { #governance }
@@ -64,6 +64,10 @@ Ustaw `ends_at` z przesunięciem UTC dla pracy ograniczonej w czasie oraz
 MCP pozwala usunąć oba ustawienia. Zwykły klucz API nie może upoważnić rutyny
 do korzystania z osobistych kont jego wystawcy. Takiej zgody nie nadają też uruchomienia
 w tle, podszywanie się ani wznowione tury grupowe lub publiczne.
+
+Przebiegi wykonywane co minutę rozliczają minione terminy niezależnie od kolejnej aktywacji, także dla wstrzymanych rutyn i obserwacji. Wyłączają aktywną pracę, zamykają jej nieaktualne blokery i anulują oczekujące powiadomienia bez wywołania modelu. Worker nadrabia zaległości po restarcie; sprzątanie może poczekać na workera lub kolejną partię, a kontrole terminu przed narzędziami i dostarczeniem odpowiedzi od razu odmawiają pracy po terminie.
+
+Migracja `0269_routine_end_cleanup.py` dodaje znacznik rozliczonego terminu i częściowe indeksy oczekujących zakończeń. Nie tworzy zastępczych rutyn, zgód ani ustaleń. Przesunięcie końca ponownie uzbraja sprzątanie; ponowny przebieg nie powtarza rozliczonych efektów. Downgrade usuwa wyłącznie te dane pomocnicze, zachowując ustawiony koniec i tożsamość rutyny.
 
 Wybór wersji pozwala śledzić domyślną opublikowaną wersję albo przypiąć jedną niezmienną wersję. Publikacja nie przesuwa pinu. Usuń go, aby ponownie śledzić wersję domyślną. Nazwane środowisko i pin wersji wzajemnie się wykluczają; nadal obowiązują bieżące uprawnienia, budżety i zatwierdzenia.
 
@@ -668,6 +672,8 @@ plików i delegowaniem. Wywołania zewnętrznego MCP pytają, chyba że serwer o
 jako tylko do odczytu; silniejsza polityka zatwierdzania połączenia nadal obowiązuje.
 Domyślne zachowanie zwykłego interaktywnego agenta nie zmienia się. Tryb kodu jest
 wyłączony w rutynach, aby skrypt zbiorczy nie omijał kontroli pojedynczych działań.
+
+Zapisy do Virtual Tables w AgenticOS działają w granicach aktualnych uprawnień do tabel i operacji, bez wyjątku dla rutyny. Jawna polityka zatwierdzania agenta nadal obowiązuje dla tych wewnętrznych zapisów.
 
 Twórca może otworzyć **Zgody na działania** swojej rutyny i wybrać działania funkcji
 wykonywane bez pytania. Wymaga to `approvals:decide` i ustawienia organizacji
