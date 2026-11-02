@@ -23,6 +23,26 @@ Two things are versioned separately from this file and worth knowing about:
 
 - A link in an agent's answer that leads to another site now opens in a new tab, whatever its address looks like. A link written without `https://` - `//evil.example`, `https:evil.example`, `HTTPS:/evil.example` - was rendered as an in-page link, so a click took the console's own tab to that site. The chat decides a link is off-site by where the browser resolves it against the console, and opens it in a new tab with `rel="noopener noreferrer"`. Console links, including the Architect's links that point at a control, still open in place.
 
+## [1.35.1] - 2026-11-02
+
+### Fixed
+
+- PyMuPDF ingestion skips embedded images when image description is off. With
+  descriptions on, shared images are extracted and described once per document,
+  while every referencing page keeps its description. Chunks no longer copy
+  embedded images, avoiding memory growth from repeated logos and diagrams in
+  large PDFs ([#2584](https://github.com/vstorm-co/agenticos/issues/2584)).
+
+## [1.35.0] - 2026-11-02
+
+### Changed
+
+- **Planning cache and history migration:** Harness 0.64 returns framed plans with tool metadata and records a missing or changed visible plan as user-channel run history. It no longer inserts a planning cache breakpoint. Existing `planning.cache_ttl` values still load but are ignored: move custom retention to `cache` in the agent or model profile's model settings, for example `cache: "1h"`. Platform prompt caching remains enabled by default.
+
+### Fixed
+
+- Declare the Harness tool argument repair extra so dependency upgrades retain `json-repair` and agent startup does not fail when importing `RepairToolArguments`. Update Harness and its matching Pydantic AI and graph packages to the compatible releases, preserve plan metadata and step IDs in structured tool returns, and keep goal reminders from repeating user text. Dependency freshness runs the whole suite with the same bounded parallel runner as CI so validation finishes within its job limit.
+
 ## [1.34.3] - 2026-11-02
 
 ### Fixed
@@ -19654,7 +19674,9 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.34.3...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.35.1...HEAD
+[1.35.1]: https://github.com/vstorm-co/agenticos/compare/v1.35.0...v1.35.1
+[1.35.0]: https://github.com/vstorm-co/agenticos/compare/v1.34.3...v1.35.0
 [1.34.3]: https://github.com/vstorm-co/agenticos/compare/v1.34.2...v1.34.3
 [1.27.0]: https://github.com/vstorm-co/agenticos/compare/v1.26.0...v1.27.0
 [1.26.0]: https://github.com/vstorm-co/agenticos/compare/v1.25.0...v1.26.0

@@ -10888,8 +10888,8 @@
         "description": "Fügt Teilaufgaben und Abhängigkeiten hinzu: Ein Schritt wartet als blockiert, bis die Schritte davor fertig sind. Standardmäßig aus, weil für die meiste Arbeit eine flache Checkliste genügt."
       },
       "cache_ttl": {
-        "title": "Lebensdauer des Prompt-Caches",
-        "description": "Wie lange der Provider das Prompt-Präfix vor der Planerinnerung cachen darf. Die Erinnerung ändert sich in jeder Runde und steht bewusst hinter diesem Punkt, damit das stabile Präfix cachebar bleibt; eine längere TTL passt zu einem Gespräch, das offen bleibt, die kürzere zu einer schnellen Folge von Runden."
+        "title": "Bisherige Prompt-Cache-Dauer",
+        "description": "Bleibt erhalten, damit bestehende Agent-Spezifikationen weiterhin geladen werden. Die Planung nutzt diesen Wert nicht mehr; konfigurieren Sie den Prompt-Cache über cache in den Modelleinstellungen."
       }
     },
     "sandbox": {
