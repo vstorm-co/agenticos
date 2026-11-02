@@ -16,6 +16,8 @@ const PLATFORM_LABEL: Record<ChannelPlatform, string> = {
   mattermost: "Mattermost",
   // i18n-exempt: a product\'s own name, written the same in every language
   teams: "Microsoft Teams",
+  // i18n-exempt: a product\'s own name, written the same in every language
+  whatsapp: "WhatsApp",
 };
 
 interface ChannelBotsTableProps {

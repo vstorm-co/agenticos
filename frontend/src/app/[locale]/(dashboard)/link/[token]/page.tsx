@@ -18,6 +18,7 @@ const PLATFORM_LABEL: Record<string, string> = {
   telegram: "Telegram",
   slack: "Slack",
   mattermost: "Mattermost",
+  // i18n-exempt: a product\'s own name, written the same in every language
   teams: "Microsoft Teams",
   whatsapp: "WhatsApp",
 };

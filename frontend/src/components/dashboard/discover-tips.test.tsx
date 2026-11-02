@@ -46,6 +46,15 @@ describe("the dashboard's discover tips", () => {
     expect(screen.getAllByRole("article")[0]).toHaveAccessibleName(/computer/i);
   });
 
+  it("draws a mark for every chat platform the channels tip names", () => {
+    render(<DiscoverTips />);
+
+    // Slack, Telegram, Mattermost, Teams and WhatsApp.
+    const marks = tile("Meet your team where it chats").querySelectorAll("span[style] svg");
+    expect(marks).toHaveLength(5);
+    expect(screen.getByText(/Slack, Teams, Telegram, Mattermost or WhatsApp/)).toBeInTheDocument();
+  });
+
   it("leaves out what the reader cannot use", () => {
     data.perms = new Set();
     render(<DiscoverTips />);

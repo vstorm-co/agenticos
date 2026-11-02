@@ -34,6 +34,7 @@ export const SURFACES = [
   "mattermost",
   "a2a",
   "teams",
+  "whatsapp",
   "schedule",
   "workflow",
   "follow_ups",
