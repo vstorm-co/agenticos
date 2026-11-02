@@ -2150,7 +2150,7 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
     async def accept_skill_improvement(
         skill_id: UUID,
         session_id: UUID,
-        outcome: Literal["apply", "apply_and_pin", "fork_for_helped", "catch_up"],
+        outcome: Literal["apply", "apply_and_pin", "fork_for_helped", "catch_up", "return_to_main"],
         acknowledge_unknown: bool = False,
         fork_name: str | None = None,
     ) -> dict[str, Any]:
@@ -2160,10 +2160,12 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         main and keeps every agent it made worse on its current version, which
         also needs `agents:publish` on each of them. `fork_for_helped` leaves
         main as it is and makes a fork named `fork_name` with this change for
-        the agents it helped. `catch_up` gives a fork the merged text as its
-        new version and moves its start to main's newest version. Offer only
-        the session's `next_actions`, and say
-        which agents each choice moves. `acknowledge_unknown` only after the
+        the agents it helped. On a catch-up, `catch_up` gives the fork the
+        merged text as its new version and moves its start to main's newest
+        version; `return_to_main`, offered only when main alone was not worse
+        for the fork's agents, moves them to main and archives the fork. Offer
+        only the session's `next_actions`, and say which agents each choice
+        moves. `acknowledge_unknown` only after the
         person accepted the agents that could not be checked.
         """
         path = f"/skills/{skill_id}/improvements/{session_id}"
@@ -2186,19 +2188,16 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
                 "only_in_drafts": [agent["name"] for agent in forked["draft_only"]],
                 "link": skill_link(skill_id),
             }
-        applied = await api.request(
-            "POST",
-            f"{path}/apply",
-            json={
-                "confirmed": True,
-                "acknowledge_unknown": acknowledge_unknown,
-                "pin_worse": outcome == "apply_and_pin",
-            },
-        )
+        body: dict[str, Any] = {"confirmed": True, "acknowledge_unknown": acknowledge_unknown}
+        if outcome in ("catch_up", "return_to_main"):
+            body["outcome"] = outcome
+        else:
+            body["pin_worse"] = outcome == "apply_and_pin"
+        applied = await api.request("POST", f"{path}/apply", json=body)
         return {
             "status": applied["session"]["status"],
-            "version": applied["version"]["number"],
-            "pinned": [agent["name"] for agent in applied["pinned"]],
+            "version": (applied.get("version") or {}).get("number"),
+            "pinned": [agent["name"] for agent in applied.get("pinned", [])],
             "link": skill_link(skill_id),
         }
 
@@ -2360,9 +2359,10 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         """Move a fork's agents back to main, only when the person asked for it. Needs
         `agents:edit` on each agent; going live also needs `agents:publish`.
 
-        Offer it when a catch-up says main alone is not worse than the fork.
-        `agent_ids` moves only those agents; without it, all of them. The fork
-        is archived once no agent reads it.
+        Use it after a fork's changes moved to main, or for a fork with no
+        changes of its own; a catch-up's own result drops the fork through
+        accept_skill_improvement. `agent_ids` moves only those agents; without
+        it, all of them. The fork is archived once no agent reads it.
         """
         body = {"agent_ids": [str(agent) for agent in agent_ids]} if agent_ids else {}
         returned = await api.request(

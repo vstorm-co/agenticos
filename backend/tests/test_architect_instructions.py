@@ -259,4 +259,5 @@ def test_catching_up_waits_for_the_person_and_shows_each_conflict(instructions: 
     assert "`start_skill_update_check`" in rule
     assert "with its `check_id`" in rule
     assert "fork / main / result" in rule
-    assert "`return_fork_to_main` on their yes" in rule
+    assert "use `return_to_main` on their yes" in rule
+    assert "`return_fork_to_main` moves its agents back" in rule

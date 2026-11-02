@@ -1073,29 +1073,37 @@ class TestCatchingUp:
 
         assert session["next_actions"][0] == "Apply to main"
 
-    async def test_accepting_a_catch_up_applies_it_to_the_fork(
-        self, server: FastMCP, api: MagicMock
+    @pytest.mark.parametrize(
+        ("outcome", "answer", "version"),
+        [
+            ("catch_up", {"session": _session("accepted"), "version": {"number": 3}}, 3),
+            ("return_to_main", {"session": _session("accepted")}, None),
+        ],
+    )
+    async def test_a_catch_up_is_accepted_or_dropped_through_the_session(
+        self,
+        server: FastMCP,
+        api: MagicMock,
+        outcome: str,
+        answer: dict[str, Any],
+        version: int | None,
     ) -> None:
-        api.request = _responder(
-            {
-                ("POST", f"{SESSION_PATH}/apply"): {
-                    "session": _session("accepted"),
-                    "version": {"number": 3},
-                    "pinned": [],
-                }
-            }
-        )
+        api.request = _responder({("POST", f"{SESSION_PATH}/apply"): answer})
 
         applied = await _call(
             server,
             "accept_skill_improvement",
             skill_id=SKILL,
             session_id=SESSION,
-            outcome="catch_up",
+            outcome=outcome,
         )
 
-        assert _sent(api, "POST", f"{SESSION_PATH}/apply")["pin_worse"] is False
-        assert applied["version"] == 3
+        assert _sent(api, "POST", f"{SESSION_PATH}/apply") == {
+            "confirmed": True,
+            "acknowledge_unknown": False,
+            "outcome": outcome,
+        }
+        assert (applied["version"], applied["pinned"]) == (version, [])
 
     async def test_a_merge_shows_only_its_conflicts_and_counts_the_rest(
         self, server: FastMCP, api: MagicMock
