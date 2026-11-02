@@ -49,9 +49,8 @@ __all__ = [
 class PlanningConfig(BaseModel):
     """How this agent plans.
 
-    Both fields have defaults that make the smallest useful surface: a flat checklist
-    with a short-lived cache breakpoint. An agent that binds the capability and sets
-    nothing gets exactly that.
+    The default is a flat checklist. The legacy cache lifetime stays in the schema
+    so existing specs load; prompt caching is controlled by the model settings.
     """
 
     # Adds `add_subtask`, `set_dependency` and `get_available_tasks` and a `blocked`
@@ -66,13 +65,11 @@ class PlanningConfig(BaseModel):
         ),
     )
     cache_ttl: Literal["5m", "1h"] = Field(
-        title="Prompt cache lifetime",
+        title="Legacy prompt cache lifetime",
         default="5m",
         description=(
-            "How long the provider may cache the prompt prefix that sits before the "
-            "plan reminder. The reminder changes every turn and is deliberately kept "
-            "behind this breakpoint so the stable prefix stays cacheable; a longer TTL "
-            "suits a conversation that stays open, the shorter one a burst of turns."
+            "Kept so existing agent specs still load. Planning no longer uses this "
+            "value; configure prompt caching through cache in the model settings."
         ),
         json_schema_extra={"x-advanced": True},
     )

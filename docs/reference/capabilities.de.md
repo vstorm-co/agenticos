@@ -1,5 +1,5 @@
 ---
-source_sha: "30ec7731488d"
+source_sha: "32f262ea9dc8"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -2327,13 +2327,14 @@ einen Schritt oder eine Gruppe, ohne den Plan zu ersetzen.*
 `add_subtask`, `set_dependency`, `get_available_tasks` — *abhängigkeitsbewusste
 Planung, nur unter `enable_subtasks` angeboten.*
 
-Eine Checkliste, die das Modell während der Arbeit für sich selbst führt: was
-erledigt ist, was in Arbeit ist, was übrig ist. Bei mehrstufiger Arbeit ist ein
-Modell besser, wenn es die Schritte zuerst aufschreibt und sie sich vor Augen hält,
-deshalb wird der aktuelle Plan in jedem Zug als **cache-sichere Erinnerung am Ende**
-zurückgespielt — nach einem Cache-Breakpoint angehängt, sodass das stabile
-Prompt-Präfix bytegleich bleibt und nur der veränderliche Plan in jedem Zug neu
-gelesen wird. Der Plan landet nie im System-Prompt.
+Das Modell führt eine Checkliste erledigter, aktiver und verbleibender Schritte.
+Planändernde Tools geben sie in einem `<plan_reminder>`-Rahmen zurück. Weicht der
+sichtbare Plan vom Store ab, etwa nach einer Kompaktierung oder zu Run-Beginn,
+speichert der Harness ihn als Nutzerkanal-Inhalt im Run-Verlauf. Er wird nie zum
+System-Prompt. Die Modelleinstellungen steuern den Cache. Nutzte ein Agent
+`planning.cache_ttl`, verschieben Sie die Cache-Dauer in die Modelleinstellung
+`cache`, etwa `cache: "1h"`; das bisherige Capability-Feld wird weiterhin
+akzeptiert, aber ignoriert.
 
 Sie überschneidet sich mit der [Delegation](#delegation) so, wie sich ein Plan mit
 einem Team überschneidet: Die Planung entscheidet, *was* die Schritte sind, die
@@ -2344,7 +2345,7 @@ deshalb darf ein Agent beides binden, eines oder keines.
 | Konfiguration | Standard | Werte |
 |---|---|---|
 | `enable_subtasks` | `false` | fügt die drei Subtask-/Abhängigkeits-Tools und den Status `blocked` hinzu |
-| `cache_ttl` | `5m` | `5m`, `1h` — wie lange das Präfix vor der Erinnerung cachen darf |
+| `cache_ttl` | `5m` | Bisheriges Feld: akzeptiert, aber ignoriert; `cache` in den Modelleinstellungen konfigurieren |
 
 **Keines der neun Tools wirkt auf die Welt.** Jedes verändert eine Checkliste, die
 das Modell für sich selbst führt, deshalb gibt es hier nichts, was eine Person
@@ -2461,7 +2462,7 @@ Es gibt drei Arten von Erinnerungen, jede mit ihrem eigenen Takt:
 | Art | Kosten | Text, den sie einfügt |
 |---|---|---|
 | `reminders[]` | keine | Eine feste Zeile, die Sie schreiben |
-| `goal_reanchor` | keine | Die erste Nutzeranfrage des Runs, als Anker wiederholt |
+| `goal_reanchor` | keine | Ein Verweis auf die erste Nutzeranfrage des Runs, ohne ihren Text zu wiederholen |
 | `llm_reminder` | ein Modellaufruf pro Auslösung | Ein kurzer Hinweis, den ein Modell aus dem jüngsten Transkript schreibt |
 
 Jede Art nimmt `interval` (bei jeder N-ten Modellanfrage auslösen), `first_after`
