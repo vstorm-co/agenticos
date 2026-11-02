@@ -189,6 +189,7 @@ async def get_conversation_by_id(
     *,
     include_messages: bool = False,
     include_summary: bool = False,
+    fresh: bool = False,
 ) -> Conversation | None:
     """Get a conversation by ID without a tenant filter.
 
@@ -215,8 +216,12 @@ async def get_conversation_by_id(
                 .selectinload(Message.files)
                 .load_only(*_MESSAGE_FILE_COLUMNS, raiseload=True),
             )
-        result = await db.execute(query)
+        result = await db.execute(query.execution_options(populate_existing=fresh))
         return result.scalar_one_or_none()
+    if fresh:
+        return await db.get(
+            Conversation, conversation_id, options=summary_options, populate_existing=True
+        )
     return await db.get(Conversation, conversation_id, options=summary_options)
 
 

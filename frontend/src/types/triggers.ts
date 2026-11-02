@@ -98,6 +98,9 @@ export interface Trigger {
   /** Null on an event trigger, which has no scheduled next fire. */
   next_fire_at: string | null;
   last_fired_at: string | null;
+  /** Last console delivery; null until a fire records it. */
+  last_delivery_status?:
+    "delivered" | "unavailable" | "run_log" | "no_answer" | "not_completed" | null;
   last_run_id: string | null;
   /** The one run-log conversation every fire appends to, opened eagerly on create. */
   conversation_id: string | null;

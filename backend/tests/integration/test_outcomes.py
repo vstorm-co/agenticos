@@ -527,3 +527,105 @@ async def test_tracking_an_old_decided_finding_closes_its_preexisting_open_case(
     assert case.status == "resolved"
     await db.refresh(finding)
     assert finding.status == "dismissed"
+
+
+@pytest.mark.parametrize(
+    "access", ["allowed", "other-owner", "other-organization", "inactive", "database-error"]
+)
+async def test_routine_console_delivery_uses_current_access_and_isolates_database_failures(
+    db: AsyncSession,
+    access: str,
+) -> None:
+    from unittest.mock import patch
+
+    from sqlalchemy import text, update
+
+    from app.db.models.agent import Agent
+    from app.db.models.agent_trigger import AgentTrigger
+    from app.db.models.conversation import Message
+    from app.services.agent_trigger import AgentTriggerService
+
+    org, users, _ = await _world(db)
+    run, chat = await _run(db, org, users[0])
+    agent = await db.get(Agent, run.agent_id)
+    assert agent is not None
+    trigger = AgentTrigger(
+        organization_id=org.id,
+        agent_id=agent.id,
+        created_by_user_id=users[0].id,
+        prompt="Report",
+        trigger_type="schedule",
+        schedule_kind="interval",
+        interval_seconds=600,
+        next_fire_at=datetime.now(UTC),
+        answer_to="conversation",
+        delivery_conversation_id=chat.id,
+    )
+    db.add(trigger)
+    if access == "other-owner":
+        await db.execute(
+            update(type(chat))
+            .where(type(chat).id == chat.id)
+            .values(user_id=users[1].id)
+            .execution_options(synchronize_session=False)
+        )
+    elif access == "other-organization":
+        other_org, _, _ = await _world(db)
+        await db.execute(
+            update(type(chat))
+            .where(type(chat).id == chat.id)
+            .values(organization_id=other_org.id)
+            .execution_options(synchronize_session=False)
+        )
+    elif access == "inactive":
+        users[0].is_active = False
+    await db.flush()
+
+    async def database_error(*args: object, **kwargs: object) -> None:
+        await db.execute(text("SELECT 1 / 0"))
+
+    if access == "database-error":
+        with patch(
+            "app.services.agent_trigger.conversation_repo.create_message", new=database_error
+        ):
+            delivery = await AgentTriggerService(db)._deliver(
+                trigger, agent=agent, run=run, answer="Report ready"
+            )
+    else:
+        delivery = await AgentTriggerService(db)._deliver(
+            trigger, agent=agent, run=run, answer="Report ready"
+        )
+    assert delivery.status == ("delivered" if access == "allowed" else "unavailable")
+    assert delivery.conversation_id == (chat.id if access == "allowed" else None)
+    from app.schemas.agent_trigger import TriggerRead
+
+    trigger.last_delivery_status = delivery.status.value
+    await db.flush()
+    await db.refresh(trigger)
+    assert TriggerRead.model_validate(trigger).last_delivery_status == delivery.status
+    assert await db.scalar(text("SELECT 1")) == 1
+    messages = list(await db.scalars(select(Message).where(Message.conversation_id == chat.id)))
+    assert len(messages) == (1 if access == "allowed" else 0)
+
+
+async def test_delivery_membership_reads_do_not_reuse_a_role_cached_before_the_run(
+    db: AsyncSession,
+) -> None:
+    from sqlalchemy import update
+
+    from app.repositories import member_repo
+
+    org, users, _ = await _world(db)
+    cached = await member_repo.get_active(db, organization_id=org.id, user_id=users[0].id)
+    assert cached is not None and cached.role == "owner"
+    await db.execute(
+        update(OrganizationMember)
+        .where(
+            OrganizationMember.organization_id == org.id,
+            OrganizationMember.user_id == users[0].id,
+        )
+        .values(role="viewer")
+        .execution_options(synchronize_session=False)
+    )
+    current = await member_repo.get_active(db, organization_id=org.id, user_id=users[0].id)
+    assert current is cached and current.role == "viewer"

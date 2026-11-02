@@ -18,7 +18,7 @@ from pydantic import (
 )
 
 from app.core.config import settings
-from app.db.models.agent_trigger import MIN_INTERVAL_SECONDS, EventSource
+from app.db.models.agent_trigger import MIN_INTERVAL_SECONDS, EventSource, TriggerDeliveryStatus
 from app.schemas.base import BaseSchema, TimestampSchema
 from app.schemas.local_target import LocalTarget
 from app.schemas.routine_notifications import ExternalNotificationChannel
@@ -821,6 +821,7 @@ class TriggerRead(BaseSchema, TimestampSchema):
     # Null on an event trigger, which has no scheduled next fire.
     next_fire_at: datetime | None = None
     last_fired_at: datetime | None = None
+    last_delivery_status: TriggerDeliveryStatus | None = None
     last_run_id: UUID | None = None
     conversation_id: UUID | None = None
     # The portal lineage, when this trigger came from a preset. `delivery_mode` is

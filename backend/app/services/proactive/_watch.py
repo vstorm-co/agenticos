@@ -324,20 +324,24 @@ class WatchLook:
         target: UUID | None = None
         if watch.source_conversation_id is not None:
             try:
-                conversation = await ConversationService(self.db).get_conversation(
-                    watch.source_conversation_id,
-                    organization_id=watch.organization_id,
-                    user_id=watch.user_id,
-                    for_write=True,
-                    turn=True,
-                    include_favourite=False,
-                    ctx=ctx,
+                fresh = await conversation_repo.get_conversation_by_id(
+                    self.db, watch.source_conversation_id, fresh=True
                 )
-                if (
-                    conversation.organization_id == watch.organization_id
-                    and conversation.user_id == watch.user_id
-                ):
-                    target = conversation.id
+                if fresh is not None:
+                    conversation = await ConversationService(self.db).get_conversation(
+                        watch.source_conversation_id,
+                        organization_id=watch.organization_id,
+                        user_id=watch.user_id,
+                        for_write=True,
+                        turn=True,
+                        include_favourite=False,
+                        ctx=ctx,
+                    )
+                    if (
+                        conversation.organization_id == watch.organization_id
+                        and conversation.user_id == watch.user_id
+                    ):
+                        target = conversation.id
             except NotFoundError, AuthorizationError:
                 logger.info("watch_delivery_source_unavailable", extra={"watch_id": str(watch.id)})
         for found in reading.findings:

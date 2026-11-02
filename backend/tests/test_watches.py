@@ -537,6 +537,10 @@ class TestOneLook:
             patch(f"{LOOK}.suggestion_repo.titles_for_watch", new=AsyncMock(return_value=["Old"])),
             patch(f"{LOOK}.suggestion_repo.propose", new=AsyncMock(return_value=None)),
             patch(f"{LOOK}.OutcomeService.track_finding", new=AsyncMock()),
+            patch(
+                f"{LOOK}.conversation_repo.get_conversation_by_id",
+                new=AsyncMock(return_value=MagicMock()),
+            ),
             patch(f"{LOOK}.AgentRunnerService", return_value=MagicMock(execute=run)),
         ), run
 
@@ -850,7 +854,7 @@ class TestTheRoutes:
         assert response.status_code == 422
 
 
-@pytest.mark.parametrize("allowed", ["allowed", "refused", "wrong-owner"])
+@pytest.mark.parametrize("allowed", ["allowed", "refused", "wrong-owner", "deleted"])
 async def test_new_findings_return_to_the_current_authorized_source_conversation(allowed: str):
     conversation_id = uuid.uuid4()
     watch = _watch(source_conversation_id=conversation_id)
@@ -877,6 +881,13 @@ async def test_new_findings_return_to_the_current_authorized_source_conversation
         stack.enter_context(
             patch(f"{LOOK}.ConversationService", return_value=MagicMock(get_conversation=lookup))
         )
+        if allowed == "deleted":
+            stack.enter_context(
+                patch(
+                    f"{LOOK}.conversation_repo.get_conversation_by_id",
+                    new=AsyncMock(return_value=None),
+                )
+            )
         stack.enter_context(patch(f"{LOOK}.conversation_repo.create_message", new=delivery))
         stack.enter_context(patch(f"{LOOK}.watch_repo.mark_attempt", new=attempt))
         assert await WatchLook(MagicMock()).look(watch.id) == 1

@@ -48,6 +48,12 @@ chat unless you choose another destination. Its card in the conversation shows
 current state, the next activation and the existing edit, pause and remove controls.
 The run log remains available under Routines.
 
+Before posting a completed answer, the platform rechecks the creator’s active membership and current write access to the chosen conversation. A removed or inaccessible destination leaves the answer in the run log and shows **Last answer unavailable in chat** on the routine. A database failure during message delivery is isolated so it does not undo the completed fire or run the agent again.
+
+Completion notifications link to the conversation only after successful delivery.
+
+`last_delivery_status` distinguishes delivery, log-only, no answer and an incomplete run; historical rows stay unknown until another fire. Migration `0265_trigger_delivery_status.py` adds this status without inferring past success.
+
 Set `ends_at` with a UTC offset for time-bounded work, and `monthly_budget_usd`
 for a tighter monthly limit. The MCP update tool can clear either setting.
 An ordinary API key cannot authorize a routine to use its issuer's personal accounts. Background runs, impersonation and resumed group or public turns cannot grant that personal authority either.

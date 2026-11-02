@@ -21,6 +21,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- Routine rows show when the last answer could not reach its console conversation.
+  Delivery rechecks current access and isolates message-write failures from the
+  completed run; completion notices link to a chat only after delivery.
+
 - Watch findings share one case across the Inbox, source chat and notifications.
   Resolving or dismissing stops pending deliveries; acknowledging keeps the
   finding actionable without repeating it in the daily briefing. Explicit restore

@@ -124,6 +124,7 @@ def _trigger(**overrides: object) -> MagicMock:
         "prompt": "summarise the day",
         "next_fire_at": datetime(2026, 1, 1, tzinfo=UTC),
         "last_fired_at": None,
+        "last_delivery_status": None,
         "last_run_id": None,
         "conversation_id": None,
         "connection_id": None,
@@ -1336,6 +1337,7 @@ class TestFiring:
             "routine_name": trigger.name,
             "creator_id": trigger.created_by_user_id,
             "answer": "Three new tickets",
+            "source_conversation_id": None,
         }
 
     async def test_a_routine_that_did_not_finish_sends_no_answer(self, routine_notices: AsyncMock):
@@ -4193,7 +4195,12 @@ class TestDeliveringTheAnswerToItsPerson:
     """A fire's answer also lands where its person reads it, beside the run log (#2575)."""
 
     @staticmethod
-    async def _fire(trigger: MagicMock, *, status: str = RunStatus.COMPLETED.value):
+    async def _fire(
+        trigger: MagicMock,
+        *,
+        status: str = RunStatus.COMPLETED.value,
+        answer: str = "Three PRs merged.",
+    ):
         agent = _agent(name="Nightly")
         service = _service(agent)
         run = MagicMock(id=uuid.uuid4(), status=status)
@@ -4203,21 +4210,44 @@ class TestDeliveringTheAnswerToItsPerson:
             patch("app.services.agent_trigger.member_repo") as members,
             patch("app.services.agent_trigger.conversation_repo") as conversations,
             patch("app.services.agent_trigger.record_audit", new=AsyncMock()),
+            patch("app.services.agent_trigger.ConversationService") as access,
             patch(
                 "app.services.agent_trigger.PrimaryConversationService.ensure",
                 new=AsyncMock(return_value=primary),
             ) as ensure,
             patch("app.services.agent_runner.AgentRunnerService") as runner_cls,
         ):
+            access.return_value.get_conversation = AsyncMock(
+                side_effect=lambda target, **kw: MagicMock(
+                    id=target,
+                    organization_id=trigger.organization_id,
+                    user_id=trigger.created_by_user_id,
+                )
+            )
             repo.get_by_id = AsyncMock(return_value=trigger)
             members.get_active = AsyncMock(return_value=MagicMock(role=OrgRoleName.OWNER))
             conversations.create_conversation = AsyncMock(return_value=MagicMock(id=uuid.uuid4()))
+            conversations.get_conversation_by_id = AsyncMock(
+                side_effect=lambda _db, target, **kw: MagicMock(
+                    id=target,
+                    organization_id=trigger.organization_id,
+                    user_id=trigger.created_by_user_id,
+                )
+            )
             conversations.create_message = AsyncMock()
-            runner_cls.return_value.execute = AsyncMock(return_value=("Three PRs merged.", run))
+            runner_cls.return_value.execute = AsyncMock(return_value=(answer, run))
             await service.fire(trigger.id)
         return conversations.create_message, ensure, primary, run, agent
 
-    async def test_a_chosen_conversation_gets_the_answer_under_the_triggers_name(self):
+    async def test_an_empty_answer_is_recorded_without_claiming_delivery(self):
+        trigger = _trigger(answer_to="primary")
+        post, *_ = await self._fire(trigger, answer="")
+        assert trigger.last_delivery_status == "no_answer"
+        post.assert_not_awaited()
+
+    async def test_a_chosen_conversation_gets_the_answer_under_the_triggers_name(
+        self, routine_notices
+    ):
         target = uuid.uuid4()
         trigger = _trigger(answer_to="conversation", delivery_conversation_id=target)
         trigger.name = "Daily digest"
@@ -4225,6 +4255,8 @@ class TestDeliveringTheAnswerToItsPerson:
         post, ensure, _, run, agent = await self._fire(trigger)
 
         ensure.assert_not_awaited()
+        assert trigger.last_delivery_status == "delivered"
+        assert routine_notices.call_args.kwargs["source_conversation_id"] == target
         assert post.await_args.kwargs == {
             "conversation_id": target,
             "role": "assistant",
@@ -4280,14 +4312,29 @@ class TestDeliveringTheAnswerToItsPerson:
             patch("app.services.agent_trigger.member_repo") as members,
             patch("app.services.agent_trigger.conversation_repo") as conversations,
             patch("app.services.agent_trigger.record_audit", new=AsyncMock()),
+            patch("app.services.agent_trigger.ConversationService") as access,
             patch(
                 "app.services.agent_trigger.PrimaryConversationService.ensure",
                 new=AsyncMock(return_value=trigger.conversation_id),
             ),
             patch("app.services.agent_runner.AgentRunnerService") as runner_cls,
         ):
+            access.return_value.get_conversation = AsyncMock(
+                side_effect=lambda target, **kw: MagicMock(
+                    id=target,
+                    organization_id=trigger.organization_id,
+                    user_id=trigger.created_by_user_id,
+                )
+            )
             repo.get_by_id = AsyncMock(return_value=trigger)
             members.get_active = AsyncMock(return_value=MagicMock(role=OrgRoleName.OWNER))
+            conversations.get_conversation_by_id = AsyncMock(
+                side_effect=lambda _db, target, **kw: MagicMock(
+                    id=target,
+                    organization_id=trigger.organization_id,
+                    user_id=trigger.created_by_user_id,
+                )
+            )
             conversations.create_message = AsyncMock()
             run = MagicMock(id=uuid.uuid4(), status=RunStatus.COMPLETED.value)
             runner_cls.return_value.execute = AsyncMock(return_value=("Done.", run))
@@ -4822,3 +4869,58 @@ def test_a_background_actor_is_not_the_person_granting_standing_authority(kind: 
     if kind == "routine":
         ctx = replace(ctx, routine_id=uuid.uuid4())
     assert not _acts_as_themselves(ctx, _CALLER)
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("refusal", [AuthorizationError, NotFoundError])
+async def test_a_completed_routine_does_not_post_after_source_chat_access_is_revoked(refusal):
+    trigger = _trigger(answer_to="conversation", delivery_conversation_id=uuid.uuid4())
+    service = _service()
+    with (
+        patch(
+            "app.services.agent_trigger.member_repo.get_active",
+            new=AsyncMock(return_value=MagicMock(role="member")),
+        ),
+        patch("app.services.agent_trigger.ConversationService") as access,
+        patch(
+            "app.services.agent_trigger.conversation_repo.get_conversation_by_id",
+            new=AsyncMock(
+                return_value=MagicMock(
+                    organization_id=trigger.organization_id, user_id=trigger.created_by_user_id
+                )
+            ),
+        ),
+        patch(
+            "app.services.agent_trigger.conversation_repo.create_message", new=AsyncMock()
+        ) as post,
+    ):
+        access.return_value.get_conversation = AsyncMock(side_effect=refusal(message="Access lost"))
+        delivery = await service._deliver(trigger, agent=_agent(), run=MagicMock(), answer="Done")
+    assert delivery.status == "unavailable"
+    post.assert_not_awaited()
+    options = access.return_value.get_conversation.call_args.kwargs
+    assert options["ctx"].role == "member"
+    assert options["ctx"].subject_is_publisher_fallback is False
+    assert options["for_write"] and options["turn"]
+
+
+async def test_console_delivery_without_a_creator_is_unavailable():
+    delivery = await _service()._deliver(
+        _trigger(answer_to="primary", created_by_user_id=None),
+        agent=_agent(),
+        run=MagicMock(),
+        answer="Done",
+    )
+    assert delivery.status == "unavailable"
+
+
+async def test_delivery_does_not_hide_a_failure_before_its_savepoint_opens():
+    from sqlalchemy.exc import SQLAlchemyError
+
+    service = _service()
+    service.db.is_active = False
+    service.db.begin_nested.side_effect = SQLAlchemyError("outer transaction failed")
+    with pytest.raises(SQLAlchemyError):
+        await service._deliver(
+            _trigger(answer_to="primary"), agent=_agent(), run=MagicMock(), answer="Done"
+        )

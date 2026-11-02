@@ -130,6 +130,9 @@ export function TriggerRow({ trigger, showAgent = false }: TriggerRowProps) {
           <p className="text-muted-foreground/80 truncate text-xs">{trigger.prompt}</p>
         </div>
       </button>
+      {trigger.last_delivery_status === "unavailable" && (
+        <Badge variant="secondary">{t("deliveryUnavailable")}</Badge>
+      )}
       {trigger.runs_as_creator && <Badge variant="outline">{t("actsAsCreator")}</Badge>}
       {!trigger.is_active && <Badge variant="secondary">{t("paused")}</Badge>}
       {trigger.is_active && trigger.paused_for_budget && (

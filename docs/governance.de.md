@@ -1,5 +1,5 @@
 ---
-source_sha: "121ae2c08ab3"
+source_sha: "d66651ec6f11"
 ---
 
 # Governance { #governance }
@@ -55,6 +55,12 @@ Eine im privaten Chat über das Plattform-MCP erstellte Routine antwortet in die
 Chat, sofern Sie kein anderes Ziel wählen. Ihre Karte zeigt den aktuellen Zustand,
 die nächste Aktivierung sowie die vorhandenen Aktionen zum Bearbeiten, Pausieren
 und Entfernen. Das Ausführungsprotokoll bleibt unter Routines verfügbar.
+
+Vor dem Speichern einer fertigen Antwort prüft die Plattform erneut die aktive Mitgliedschaft der erstellenden Person und ihr aktuelles Schreibrecht im gewählten Chat. Ein gelöschtes oder unzugängliches Ziel lässt die Antwort im Ausführungsprotokoll und zeigt **Letzte Antwort im Chat nicht verfügbar** an der Routine. Ein Datenbankfehler während der Nachrichtenzustellung wird isoliert, sodass der abgeschlossene Lauf weder rückgängig gemacht noch der Agent erneut ausgeführt wird.
+
+Abschlussmeldungen verlinken den Chat erst nach erfolgreicher Zustellung.
+
+`last_delivery_status` unterscheidet Zustellung, nur Protokoll, keine Antwort und einen unvollständigen Lauf; historische Einträge bleiben bis zum nächsten Lauf unbekannt. Die Migration `0265_trigger_delivery_status.py` ergänzt diesen Status, ohne frühere Erfolge zu erraten.
 
 Setzen Sie `ends_at` mit UTC-Offset für zeitlich begrenzte Aufgaben und
 `monthly_budget_usd` für ein engeres Monatslimit. Das MCP-Aktualisierungstool kann

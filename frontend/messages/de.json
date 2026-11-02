@@ -8326,7 +8326,8 @@
     "selectedVersionUnavailable": "Ausgewählte Version nicht verfügbar",
     "endsAtLabel": "Endet am (Gerätezeit)",
     "endsAtHint": "Leer lassen, um bis zum Stoppen fortzufahren. Diese Zeit verwendet {zone}, unabhängig von der Zeitzone des Zeitplans.",
-    "endsAtInvalid": "Wählen Sie einen gültigen Zeitpunkt in der Zukunft oder leeren Sie das Feld, um das Ende zu entfernen."
+    "endsAtInvalid": "Wählen Sie einen gültigen Zeitpunkt in der Zukunft oder leeren Sie das Feld, um das Ende zu entfernen.",
+    "deliveryUnavailable": "Letzte Antwort im Chat nicht verfügbar"
   },
   "portals": {
     "mailboxInterval": {

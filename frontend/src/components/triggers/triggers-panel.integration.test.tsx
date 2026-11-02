@@ -109,6 +109,11 @@ beforeEach(() => {
 });
 
 describe("TriggersPanel", () => {
+  it("shows a failed chat delivery beside the routine without calling it a failed run", async () => {
+    serve([trigger({ last_delivery_status: "unavailable" })]);
+    await mount();
+    expect(await screen.findByText("Last answer unavailable in chat")).toBeInTheDocument();
+  });
   it("starts a watch with this agent only where the person may create it", async () => {
     watchState.allowed = true;
     serve([]);

@@ -45,6 +45,7 @@ from zoneinfo import ZoneInfo
 from croniter import croniter
 from fastapi.encoders import jsonable_encoder
 from pydantic import ValidationError as PydanticValidationError
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import current_impersonator, record_audit, set_acting_trigger
@@ -67,6 +68,7 @@ from app.db.models.agent_trigger import (
     AgentTrigger,
     EventSource,
     ScheduleKind,
+    TriggerDeliveryStatus,
     TriggerOverlap,
     TriggerType,
 )
@@ -101,6 +103,7 @@ from app.services.access import AGENT, resolve_access, visible_resource_ids
 from app.services.agent_registry import AgentRegistryService
 from app.services.background_jobs import enqueue
 from app.services.channels.teams_post import post_to_teams
+from app.services.conversation import ConversationService
 from app.services.mcp_connection import McpConnectionService
 from app.services.notifications import NotificationService
 from app.services.portal_catalog import DeliveryMode
@@ -444,6 +447,12 @@ def _parse_json(body: bytes, *, source: str) -> dict[str, Any]:
     if not isinstance(payload, dict):
         raise BadRequestError(message="Webhook body must be a JSON object")
     return payload
+
+
+@dataclass(frozen=True, slots=True)
+class AnswerDelivery:
+    status: TriggerDeliveryStatus
+    conversation_id: UUID | None = None
 
 
 class AgentTriggerService:
@@ -2257,9 +2266,14 @@ class AgentTriggerService:
                 f"**{trigger.name or agent.name}**\n\n{answer}",
             )
 
-        if run.status == RunStatus.COMPLETED.value and answer:
-            await self._deliver(trigger, agent=agent, run=run, answer=answer)
-
+        delivery = AnswerDelivery(TriggerDeliveryStatus.NOT_COMPLETED)
+        if run.status == RunStatus.COMPLETED.value:
+            delivery = (
+                await self._deliver(trigger, agent=agent, run=run, answer=answer)
+                if answer
+                else AnswerDelivery(TriggerDeliveryStatus.NO_ANSWER)
+            )
+        trigger.last_delivery_status = delivery.status.value
         trigger.last_run_id = run.id
         # And the run says which trigger made it: with `user_id`, "trigger X,
         # acting as member Y" rather than a run that reads as the member's own.
@@ -2276,6 +2290,7 @@ class AgentTriggerService:
                 routine_name=trigger.name,
                 creator_id=trigger.created_by_user_id,
                 answer=answer,
+                source_conversation_id=delivery.conversation_id,
             )
         logger.info(
             "trigger_fired",
@@ -2484,33 +2499,81 @@ class AgentTriggerService:
 
     async def _deliver(
         self, trigger: AgentTrigger, *, agent: Agent, run: AgentRun, answer: str
-    ) -> None:
-        """Put a fire's answer where its person reads it, beside the run log (#2575).
+    ) -> AnswerDelivery:
+        """Deliver using the creator's current access, without repeating a completed run.
 
-        Best effort by design: the run is done and recorded, so a delivery that cannot
-        land - the chat was deleted, the person left - says so in the log and never
-        undoes or retries the fire.
+        An unavailable console destination leaves the result in the run log. Expected
+        access loss and database delivery failures are isolated in a savepoint so
+        recording the completed fire remains possible.
         """
-        target: UUID | None = None
-        if trigger.answer_to == "conversation":
-            target = trigger.delivery_conversation_id
-        elif trigger.answer_to == "primary" and trigger.created_by_user_id is not None:
-            target = await PrimaryConversationService(self.db).ensure(
-                organization_id=trigger.organization_id,
-                user_id=trigger.created_by_user_id,
-                agent_id=agent.id,
-                title=agent.name,
+        if trigger.answer_to == "run_log":
+            return AnswerDelivery(TriggerDeliveryStatus.RUN_LOG)
+        if trigger.created_by_user_id is None:
+            return AnswerDelivery(TriggerDeliveryStatus.UNAVAILABLE)
+        try:
+            async with self.db.begin_nested():
+                membership = await member_repo.get_active(
+                    self.db,
+                    organization_id=trigger.organization_id,
+                    user_id=trigger.created_by_user_id,
+                )
+                if membership is None:
+                    return AnswerDelivery(TriggerDeliveryStatus.UNAVAILABLE)
+                ctx = AuthContext(
+                    user_id=trigger.created_by_user_id,
+                    organization_id=trigger.organization_id,
+                    role=membership.role,
+                )
+                target = trigger.delivery_conversation_id
+                if trigger.answer_to == "primary":
+                    target = await PrimaryConversationService(self.db).ensure(
+                        organization_id=trigger.organization_id,
+                        user_id=trigger.created_by_user_id,
+                        agent_id=agent.id,
+                        title=agent.name,
+                    )
+                if target is None:
+                    return AnswerDelivery(TriggerDeliveryStatus.UNAVAILABLE)
+                if target == trigger.conversation_id:
+                    return AnswerDelivery(TriggerDeliveryStatus.RUN_LOG)
+                conversation = await conversation_repo.get_conversation_by_id(
+                    self.db, target, fresh=True
+                )
+                if (
+                    conversation is None
+                    or conversation.organization_id != trigger.organization_id
+                    or conversation.user_id != trigger.created_by_user_id
+                ):
+                    return AnswerDelivery(TriggerDeliveryStatus.UNAVAILABLE)
+                await ConversationService(self.db).get_conversation(
+                    target,
+                    organization_id=trigger.organization_id,
+                    user_id=trigger.created_by_user_id,
+                    for_write=True,
+                    turn=True,
+                    include_favourite=False,
+                    ctx=ctx,
+                )
+                await conversation_repo.create_message(
+                    self.db,
+                    conversation_id=target,
+                    role="assistant",
+                    content=f"**{trigger.name or agent.name}**\n\n{answer}",
+                    agent_id=agent.id,
+                    run_id=run.id,
+                )
+                return AnswerDelivery(TriggerDeliveryStatus.DELIVERED, target)
+        except NotFoundError, AuthorizationError:
+            logger.info("trigger_delivery_access_lost", extra={"trigger_id": str(trigger.id)})
+        except SQLAlchemyError as error:
+            if not self.db.is_active:
+                # begin_nested flushes pending outer writes before opening its savepoint.
+                raise
+            logger.warning(
+                "trigger_delivery_database_failed",
+                extra={"trigger_id": str(trigger.id), "error_type": type(error).__name__},
             )
-        if target is None or target == trigger.conversation_id:
-            return
-        await conversation_repo.create_message(
-            self.db,
-            conversation_id=target,
-            role="assistant",
-            content=f"**{trigger.name or agent.name}**\n\n{answer}",
-            agent_id=agent.id,
-            run_id=run.id,
-        )
+        return AnswerDelivery(TriggerDeliveryStatus.UNAVAILABLE)
 
     async def _teams_target(self, ctx: AuthContext, conversation_id: UUID) -> None:
         """Refuse a Teams conversation that is not one of this organization's to post into.

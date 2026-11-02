@@ -80,6 +80,7 @@ async def get_active(
     """
     result = await db.execute(
         select(OrganizationMember)
+        .execution_options(populate_existing=True)
         .join(User, User.id == OrganizationMember.user_id)
         .where(
             OrganizationMember.organization_id == organization_id,

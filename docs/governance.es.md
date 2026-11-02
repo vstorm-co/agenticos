@@ -1,5 +1,5 @@
 ---
-source_sha: "121ae2c08ab3"
+source_sha: "d66651ec6f11"
 ---
 
 # Governance { #governance }
@@ -53,6 +53,12 @@ Una rutina creada en un chat privado mediante el MCP de la plataforma responde e
 ese chat, salvo que elijas otro destino. Su tarjeta muestra el estado actual, la
 próxima activación y los controles existentes para editar, pausar y eliminar.
 El registro de ejecuciones sigue disponible en Routines.
+
+Antes de guardar una respuesta terminada, la plataforma vuelve a comprobar la membresía activa de la persona creadora y su permiso actual para escribir en el chat elegido. Un destino eliminado o inaccesible deja la respuesta en el registro de ejecución y muestra **Última respuesta no disponible en el chat** en la rutina. Un fallo de base de datos durante la entrega del mensaje queda aislado para no deshacer la ejecución terminada ni volver a ejecutar el agente.
+
+El aviso de finalización enlaza el chat solo tras una entrega correcta.
+
+`last_delivery_status` distingue entrega, solo registro, ausencia de respuesta y ejecución incompleta; los registros históricos siguen sin estado conocido hasta otra ejecución. La migración `0265_trigger_delivery_status.py` añade este estado sin inferir éxitos anteriores.
 
 Define `ends_at` con un desplazamiento UTC para el trabajo con duración limitada y
 `monthly_budget_usd` para un límite mensual más estricto. La herramienta MCP de

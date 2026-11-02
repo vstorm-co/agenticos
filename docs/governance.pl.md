@@ -1,5 +1,5 @@
 ---
-source_sha: "121ae2c08ab3"
+source_sha: "d66651ec6f11"
 ---
 
 # Governance { #governance }
@@ -53,6 +53,12 @@ Rutyna utworzona w prywatnym czacie przez MCP platformy odpowiada w tym czacie,
 chyba że wybierzesz inny cel. Jej karta w rozmowie pokazuje aktualny stan,
 następną aktywację oraz istniejące przyciski edycji, wstrzymania i usunięcia.
 Dziennik uruchomień pozostaje dostępny w Routines.
+
+Przed zapisaniem gotowej odpowiedzi platforma ponownie sprawdza aktywne członkostwo twórcy i jego bieżące prawo zapisu w wybranej rozmowie. Usunięty lub niedostępny cel pozostawia odpowiedź w logu wykonania, a rutyna pokazuje **Ostatni wynik niedostępny w czacie**. Błąd bazy podczas dostarczania wiadomości jest izolowany, aby nie cofał zakończonego wykonania ani nie uruchamiał ponownie agenta.
+
+Powiadomienie o zakończeniu wskazuje rozmowę dopiero po udanym dostarczeniu.
+
+`last_delivery_status` rozróżnia dostarczenie, sam log, brak odpowiedzi i niezakończony przebieg; stare wpisy pozostają nieznane do kolejnego wykonania. Migracja `0265_trigger_delivery_status.py` dodaje ten stan bez zgadywania wcześniejszych sukcesów.
 
 Ustaw `ends_at` z przesunięciem UTC dla pracy ograniczonej w czasie oraz
 `monthly_budget_usd` dla niższego limitu miesięcznego. Narzędzie aktualizacji

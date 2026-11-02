@@ -8447,7 +8447,8 @@
     "selectedVersionUnavailable": "Selected version unavailable",
     "endsAtLabel": "Ends at (device time)",
     "endsAtHint": "Leave blank to run until stopped. This time uses {zone}, independently of the schedule zone.",
-    "endsAtInvalid": "Choose a valid future time, or clear the field to remove the end."
+    "endsAtInvalid": "Choose a valid future time, or clear the field to remove the end.",
+    "deliveryUnavailable": "Last answer unavailable in chat"
   },
   "portals": {
     "mailboxInterval": {

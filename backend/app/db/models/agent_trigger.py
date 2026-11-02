@@ -71,6 +71,14 @@ _POLLED = (
 )
 
 
+class TriggerDeliveryStatus(enum.StrEnum):
+    DELIVERED = "delivered"
+    UNAVAILABLE = "unavailable"
+    RUN_LOG = "run_log"
+    NO_ANSWER = "no_answer"
+    NOT_COMPLETED = "not_completed"
+
+
 class TriggerType(enum.StrEnum):
     """The two ways a trigger becomes due.
 
@@ -288,6 +296,7 @@ class AgentTrigger(Base, TimestampMixin):
     # nothing is due until an event arrives.
     next_fire_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     last_fired_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_delivery_status: Mapped[str | None] = mapped_column(String(16), nullable=True)
 
     # The run the last fire opened. The no-overlap guard reads its status: a fire
     # is skipped while this names a run that has not reached a terminal state. SET
@@ -387,6 +396,10 @@ class AgentTrigger(Base, TimestampMixin):
     # schema from the models, so a constraint stated only in the migration would
     # be absent from exactly the tests written to prove it rejects a row.
     __table_args__ = (
+        CheckConstraint(
+            "last_delivery_status IN ('delivered', 'unavailable', 'run_log', 'no_answer', 'not_completed')",
+            name="ck_trigger_delivery_status",
+        ),
         CheckConstraint(
             "pinned_version_id IS NULL OR environment_id IS NULL", name="ck_trigger_version_target"
         ),
