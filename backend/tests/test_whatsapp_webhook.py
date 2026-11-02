@@ -384,6 +384,9 @@ class TestMessages:
                 f"{router}.channel_session_repo.get_by_bot_and_chat",
                 AsyncMock(return_value=MagicMock(conversation_id=uuid.uuid4(), turn_count=1)),
             ),
+            patch(
+                f"{router}.ChannelLinkService.complete_with_code", AsyncMock(return_value="none")
+            ),
             patch(f"{router}.channel_session_repo.touch", AsyncMock()),
             patch(
                 f"{router}.conversation_repo.get_messages_by_conversation",

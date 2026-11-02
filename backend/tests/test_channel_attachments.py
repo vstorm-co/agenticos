@@ -173,6 +173,8 @@ def _channel(agent_router: Any, rows: list[Any]) -> Iterator[None]:
         patch(
             f"{router}.channel_session_repo.get_by_bot_and_chat", AsyncMock(return_value=session)
         ),
+        # Nothing is waiting on a link code: the router asks before anything else.
+        patch(f"{router}.ChannelLinkService.complete_with_code", AsyncMock(return_value="none")),
         patch(f"{router}.channel_session_repo.touch", AsyncMock(return_value=session)),
         patch(
             f"{router}.conversation_repo.get_messages_by_conversation", AsyncMock(return_value=[])
@@ -765,6 +767,8 @@ async def _route_one_file(text: str) -> tuple[MagicMock, MagicMock, AsyncMock]:
         patch(
             f"{router}.channel_session_repo.get_by_bot_and_chat", AsyncMock(return_value=session)
         ),
+        # Nothing is waiting on a link code: the router asks before anything else.
+        patch(f"{router}.ChannelLinkService.complete_with_code", AsyncMock(return_value="none")),
         patch(f"{router}.channel_session_repo.touch", AsyncMock(return_value=session)),
         patch(
             f"{router}.conversation_repo.get_messages_by_conversation", AsyncMock(return_value=[])

@@ -35,7 +35,7 @@ from app.repositories import (
 )
 from app.services import rate_limit, transcription_usage
 from app.services.channel_bot import unseal_bot_token
-from app.services.channel_link import ChannelLinkService
+from app.services.channel_link import AWAITING_CODE, LINK_CONFIRMED, ChannelLinkService
 from app.services.channels import get_adapter, membership
 from app.services.channels.attachments import ChannelAttachmentService
 from app.services.channels.base import (
@@ -406,6 +406,10 @@ class ChannelMessageRouter:
             1. Load bot config from DB.
             2. Check access policy.
             3. Resolve or create ChannelIdentity.
+            3a. If this chat confirmed a link in the browser, take the message
+               as its code: a match links and answers, other text answers
+               what to do and stops, while the sender is unlinked
+               (`ChannelLinkService.complete_with_code`).
             4. Handle commands (/start, /new, /help, /link, /unlink), the
                state-changing ones gated on the same link admission as a turn.
             5. Resolve or create ChannelSession (+ Conversation).
@@ -452,6 +456,23 @@ class ChannelMessageRouter:
             identity = await self._resolve_identity(incoming, bot, db)
         except AuthorizationError as exc:
             await self._refuse_if_named(bot, incoming, exc.message)
+            return
+
+        # A chat that confirmed its link in the browser is waiting to send the
+        # code back. Decided on the request's state, before anything else reads
+        # the text: the code is not a question for an agent, and an invitation
+        # here would delete the request it is waiting on.
+        code_outcome = await ChannelLinkService(db).complete_with_code(incoming)
+        if code_outcome == "linked":
+            await self._send_reply(bot, incoming, LINK_CONFIRMED)
+            return
+        if code_outcome == "awaiting" and identity.user_id is None:
+            try:
+                await self._check_rate_limit(bot, str(identity.id))
+            except BadRequestError as exc:
+                await self._send_reply(bot, incoming, exc.message)
+                return
+            await self._send_reply(bot, incoming, AWAITING_CODE)
             return
 
         admit_unlinked = self._admits_unlinked(incoming, bot)

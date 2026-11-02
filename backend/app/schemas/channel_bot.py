@@ -1,15 +1,22 @@
 """Channel bot, identity, and session schemas."""
 
 from datetime import datetime
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 from uuid import UUID
 
 from pydantic import Field, computed_field, model_validator
 
 from app.schemas.base import BaseSchema
 from app.schemas.urls import ServiceAddress
-from app.services.channels.webhooks import inbound_command_url, inbound_webhook_url
+from app.services.channels.webhooks import (
+    CODE_CONFIRMED_PLATFORMS,
+    inbound_command_url,
+    inbound_webhook_url,
+)
 from app.services.speech_to_text import is_offered
+
+if TYPE_CHECKING:
+    from app.db.models.channel_link_request import ChannelLinkRequest
 
 
 class AccessPolicy(BaseSchema):
@@ -530,6 +537,38 @@ class ChannelLinkRequestRead(BaseSchema):
     platform_username: str | None = None
     platform_display_name: str | None = None
     expires_at: datetime
+    # Two-way confirmation (`CODE_CONFIRMED_PLATFORMS`): the browser step is
+    # done and the chat must now send `confirm_code`. The code is set only for
+    # the person who confirmed; nobody else can read the request at all.
+    awaiting_code: bool = False
+    confirm_code: str | None = None
+    # False where the platform's display name is the sender's own claim (a
+    # WhatsApp profile name) rather than something the platform vouches for.
+    display_name_verified: bool = True
+
+    @classmethod
+    def for_user(
+        cls, request: ChannelLinkRequest, user_id: UUID, *, reveal_code: bool
+    ) -> ChannelLinkRequestRead:
+        """The page's view of a request; the code goes only to the person who confirmed.
+
+        `reveal_code=False` withholds it even from them, for a session that is
+        an administrator acting as that person: the code is what binds a chat to
+        the account, and an impersonator must not read it.
+        """
+        return cls(
+            platform=request.platform,
+            platform_username=request.platform_username,
+            platform_display_name=request.platform_display_name,
+            expires_at=request.expires_at,
+            awaiting_code=request.confirmed_user_id is not None,
+            confirm_code=(
+                request.confirm_code
+                if reveal_code and request.confirmed_user_id == user_id
+                else None
+            ),
+            display_name_verified=request.platform not in CODE_CONFIRMED_PLATFORMS,
+        )
 
 
 class LinkedAgent(BaseSchema):

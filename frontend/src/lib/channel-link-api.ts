@@ -14,6 +14,12 @@ export interface ChannelLinkRequest {
   platform_username: string | null;
   platform_display_name: string | null;
   expires_at: string;
+  /** Confirmed in the browser; the chat must now send `confirm_code` (WhatsApp). */
+  awaiting_code: boolean;
+  /** Set only for the person who confirmed. */
+  confirm_code: string | null;
+  /** False where the display name is the sender's own claim, not the platform's. */
+  display_name_verified: boolean;
 }
 
 /** An agent a connected chat account can reach. */

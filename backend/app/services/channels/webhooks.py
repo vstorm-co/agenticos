@@ -61,6 +61,18 @@ next good send; the entry lapses after `connection_state.TTL_SECONDS` of silence
 """
 
 
+CODE_CONFIRMED_PLATFORMS: frozenset[str] = frozenset({"whatsapp"})
+"""Platforms whose chat-account link is confirmed twice: in the browser, then in the chat.
+
+A phone number is shared, forwarded and recycled, so a signed-in click alone must
+not bind a chat to a member. Confirming in the browser issues a short code that
+only the chat itself can send back (`ChannelLinkService.confirm` and
+`complete_with_code`). It lives here, not in `channel_link.py`, because
+`schemas/channel_bot.py` already imports this module and `channel_link.py`
+imports the schemas.
+"""
+
+
 def inbound_webhook_url(platform: str, bot_id: UUID) -> str:
     """The public address this deployment receives `platform` traffic on.
 
