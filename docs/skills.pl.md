@@ -1,5 +1,5 @@
 ---
-source_sha: "8a38c3142fe5"
+source_sha: "04f2dc5ba1d6"
 ---
 
 # Skille { #skills }
@@ -258,15 +258,14 @@ jest, i ze zmianą, a poza tym nic się nie różni.
 Zmiana zapisana przez workspace agenta, zmiana zaproponowana przez asystenta i
 [aktualizacja z biblioteki](#getting-skills-into-an-organization) skilla, którego
 używają agenci, trafiają na żywo tylko przez to sprawdzenie. Osoba edytująca
-skill ręcznie od razu zapisuje nową wersję; strona skilla wymienia agentów na
-main i oferuje obok **Check on agents**.
+skill ręcznie od razu zapisuje nową wersję, a ta edycja nie jest sprawdzana.
 
 ### O co pyta { #what-a-check-asks }
 
 Najpierw o własne **pytania testowe** skilla, ten sam zestaw na każdym agencie.
-Każdy skill ma jeden zestaw, tworzony pusty albo z ostatnich odpowiedzi, które
-otworzyły skill, i edytowany jak każdy inny [dataset](datasets.md). Potem o
-pytania samego agenta:
+Każdy skill ma jeden zestaw, tworzony przez API - `POST /api/v1/skills/{id}/test-set`,
+pusty albo z ostatnich odpowiedzi, które otworzyły skill - i edytowany jak każdy
+inny [dataset](datasets.md). Potem o pytania samego agenta:
 
 - **Quick**, domyślnie: najwyżej cztery pytania z datasetu agenta, których
   najnowsza odpowiedź otworzyła skill - te, które mają najwięcej wspólnych słów
@@ -302,13 +301,16 @@ nie widzisz, jest liczbą, nigdy nazwą.
 
 ### Gdy agent wypadł gorzej { #when-an-agent-got-worse }
 
-Na main osoba może nadal:
+**Check on agents** w zakładce Skille wycenia sprawdzenie, uruchamia je, pokazuje
+wynik każdego agenta, a potem stosuje albo odrzuca zmianę. Na main osoba może
+nadal:
 
 - **zastosować zmianę i zostawić gorszych agentów tam, gdzie są** - każdy jest
   przypinany, jako nowa opublikowana wersja, do wersji, którą czyta teraz, zanim
   zmiana trafi na żywo, więc żaden z nich nie obsłuży jej ani razu. Przypięcie
   wymaga prawa publikacji każdego z nich;
-- **zrobić fork dla agentów, którym pomogła**, zostawiając main bez zmian;
+- **zrobić fork dla agentów, którym pomogła**, zostawiając main bez zmian - przez
+  API, `POST /api/v1/skills/{id}/checks/{check_id}/fork`;
 - **odrzucić** ją.
 
 Na forku zostają tylko dalsze ulepszanie i odrzucenie: przypięcie wskazuje

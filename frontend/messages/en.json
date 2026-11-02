@@ -8363,7 +8363,9 @@
         "needs_ack": "No agent that was checked got worse, but some could not be checked.",
         "blocked": "An agent got worse. You can still apply the change and keep that agent on the version it uses now.",
         "no_better": "No agent got better, so there is nothing to apply."
-      }
+      },
+      "unaffordable": "The organization's budget left this month cannot cover this check.",
+      "cancel": "Stop the check"
     }
   },
   "states": {

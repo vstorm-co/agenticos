@@ -1,5 +1,5 @@
 ---
-source_sha: "8a38c3142fe5"
+source_sha: "04f2dc5ba1d6"
 ---
 
 # Skills { #skills }
@@ -277,15 +277,15 @@ Eine Änderung, die der Workspace eines Agents geschrieben hat, eine, die der
 Assistent vorgeschlagen hat, und ein
 [Bibliotheks-Update](#getting-skills-into-an-organization) eines Skills, dem
 Agents folgen, gehen nur über diese Prüfung live. Wer den Skill von Hand
-bearbeitet, speichert sofort eine neue Version; die Skill-Seite nennt die Agents
-auf main und bietet daneben **Check on agents** an.
+bearbeitet, speichert sofort eine neue Version, und diese Bearbeitung wird nicht
+geprüft.
 
 ### Was sie fragt { #what-a-check-asks }
 
 Zuerst die eigenen **Testfragen** des Skills, auf jedem Agent dieselben. Jeder
-Skill hat einen Satz, leer angelegt oder aus jüngsten Antworten, die den Skill
-geladen haben, und bearbeitet wie jedes andere [Dataset](datasets.md). Dann die
-eigenen Fragen des Agents:
+Skill hat einen Satz, angelegt über die API - `POST /api/v1/skills/{id}/test-set`,
+leer oder aus jüngsten Antworten, die den Skill geladen haben - und bearbeitet wie
+jedes andere [Dataset](datasets.md). Dann die eigenen Fragen des Agents:
 
 - **Quick**, der Standard: höchstens vier Fragen aus dem Dataset des Agents,
   deren neueste Antwort den Skill geladen hat - die, die die meisten Wörter mit
@@ -323,14 +323,16 @@ ein Name.
 
 ### Wenn ein Agent schlechter wurde { #when-an-agent-got-worse }
 
-Auf main kann eine Person dennoch:
+**Check on agents** unter Skills schätzt die Prüfung, führt sie aus, zeigt das
+Ergebnis jedes Agents und wendet die Änderung dann an oder verwirft sie. Auf main
+kann eine Person dennoch:
 
 - **die Änderung anwenden und die schlechteren Agents lassen, wo sie sind** -
   jeder wird, als neue veröffentlichte Version, auf die Version angeheftet, die
   er jetzt liest, bevor die Änderung live geht, sodass keiner sie auch nur einmal
   ausliefert. Das Anheften erfordert, jeden von ihnen veröffentlichen zu dürfen;
 - **einen Fork für die Agents anlegen, denen sie geholfen hat**, und main lassen,
-  wie es ist;
+  wie es ist - über die API, `POST /api/v1/skills/{id}/checks/{check_id}/fork`;
 - sie **verwerfen**.
 
 Auf einem Fork bleiben nur Weiterverbessern und Verwerfen: Ein Anheften nennt

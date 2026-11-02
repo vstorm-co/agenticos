@@ -8241,7 +8241,9 @@
         "needs_ack": "Kein geprüfter Agent wurde schlechter, aber einige konnten nicht geprüft werden.",
         "blocked": "Ein Agent wurde schlechter. Du kannst die Änderung trotzdem übernehmen und ihn auf seiner jetzigen Version lassen.",
         "no_better": "Kein Agent wurde besser, also gibt es nichts zu übernehmen."
-      }
+      },
+      "unaffordable": "Das restliche Monatsbudget der Organisation deckt diese Prüfung nicht.",
+      "cancel": "Prüfung anhalten"
     }
   },
   "states": {

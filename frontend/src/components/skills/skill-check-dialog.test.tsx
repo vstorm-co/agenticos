@@ -20,7 +20,9 @@ const held = vi.hoisted(() => ({
   start: {} as Mutation,
   apply: {} as Mutation,
   discard: {} as Mutation,
+  cancel: {} as Mutation,
   checkId: null as string | null,
+  earlier: { isSuccess: true, data: null as { id: string } | null },
 }));
 
 vi.mock("@/hooks/use-skill-check", () => ({
@@ -28,6 +30,7 @@ vi.mock("@/hooks/use-skill-check", () => ({
     held.checkId = checkId;
     return held;
   },
+  useOpenSkillCheck: () => held.earlier,
 }));
 vi.mock("sonner", () => ({ toast: { error: vi.fn() } }));
 
@@ -41,6 +44,8 @@ beforeEach(() => {
   held.start = mutation();
   held.apply = mutation();
   held.discard = mutation();
+  held.cancel = mutation();
+  held.earlier = { isSuccess: true, data: null };
 });
 
 function open(onOpenChange = vi.fn()) {
@@ -69,6 +74,33 @@ describe("SkillCheckDialog", () => {
     await userEvent.click(screen.getByRole("button", { name: "Start the check" }));
 
     expect(held.checkId).toBeNull();
+  });
+
+  it("goes back to an open check of the change instead of pricing a new one", () => {
+    held.earlier = { isSuccess: true, data: { id: "c-open" } };
+    held.check = finishedCheck({ status: "running", verdict: null, outcomes: [] });
+    open();
+
+    expect(held.checkId).toBe("c-open");
+    expect(held.estimate.mutate).not.toHaveBeenCalled();
+  });
+
+  it("stops a running check on request", async () => {
+    held.check = finishedCheck({ status: "running", verdict: null, outcomes: [] });
+    held.cancel.mutate.mockImplementation((_body, options) => options.onSuccess());
+    const onOpenChange = open();
+
+    await userEvent.click(screen.getByRole("button", { name: "Stop the check" }));
+
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it("says why a check the organization cannot afford cannot start", () => {
+    held.estimate = mutation({ data: finishedCheck({ affordable: false }) });
+    open();
+
+    expect(screen.getByText(/budget left this month cannot cover/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Start the check" })).toBeDisabled();
   });
 
   it("says why the check cannot be priced", () => {

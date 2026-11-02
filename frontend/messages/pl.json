@@ -8123,7 +8123,9 @@
         "needs_ack": "Żaden sprawdzony agent nie jest gorszy, ale części nie dało się sprawdzić.",
         "blocked": "Któryś agent jest gorszy. Nadal możesz zastosować zmianę i zostawić go na wersji, której używa teraz.",
         "no_better": "Żaden agent nie jest lepszy, więc nie ma czego zastosować."
-      }
+      },
+      "unaffordable": "Budżet organizacji na ten miesiąc nie pokryje tego sprawdzenia.",
+      "cancel": "Zatrzymaj sprawdzenie"
     }
   },
   "states": {
