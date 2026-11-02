@@ -5377,6 +5377,30 @@
       "flow-improvement-steps": {
         "title": "Schritte",
         "body": "Fünf Schritte. Die Sitzung hält nach Verstehen und nach Änderungen an, damit Sie sie ansehen und Nächster Schritt drücken; ein Schritt öffnet sich, sobald er etwas zu zeigen hat."
+      },
+      "skill-agents": {
+        "title": "Wer diesen Skill nutzt",
+        "body": "Jeder Agent, der den Skill nutzt, mit der Version, die er bekommt: main folgt jeder neuen Version, fixiert bleibt auf einer älteren, und ein Fork hat eigene Änderungen."
+      },
+      "skill-lines": {
+        "title": "Eine Linie nach der anderen",
+        "body": "Zeigen Sie die Agents auf main, die fixierten oder einen Fork. Ein gewählter Fork gilt auch für Verlauf und Bearbeiten."
+      },
+      "skill-change-version": {
+        "title": "Einen Agent auf eine andere Version setzen",
+        "body": "Veröffentlicht eine neue Version des Agents nur mit dieser Änderung. Eine nie auf dem Agent geprüfte Version fragt zuerst nach."
+      },
+      "skill-edit": {
+        "title": "Bearbeiten erzeugt eine neue Version",
+        "body": "Speichern überschreibt nichts. Es fügt der angezeigten Linie eine Version hinzu, und nur die Agents, die dieser Linie folgen, bekommen sie."
+      },
+      "skill-history": {
+        "title": "Jede Version und der Weg zurück",
+        "body": "Sehen Sie, was jede Version geändert hat, wer sie gemacht hat und woher sie kam. Wiederherstellen holt eine frühere als neueste zurück."
+      },
+      "skill-tree": {
+        "title": "Main und seine Forks",
+        "body": "Main läuft von der neuesten Version nach unten, jeder Fork zweigt von seiner Startversion ab, und Agents stehen bei der Version, die sie nutzen."
       }
     },
     "chooseLanguage": "Sprache",

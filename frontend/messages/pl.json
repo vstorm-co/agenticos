@@ -5267,6 +5267,30 @@
       "flow-improvement-steps": {
         "title": "Kroki",
         "body": "Pięć kroków. Sesja zatrzymuje się po Zrozumieniu i po Zmianach, żebyś je obejrzał i nacisnął Następny krok; krok otwiera się, gdy ma coś do pokazania."
+      },
+      "skill-agents": {
+        "title": "Kto używa tego skilla",
+        "body": "Każdy agent, który używa skilla, z wersją, którą dostaje: main podąża za każdą nową wersją, przypięty zostaje na starszej, a fork ma własne zmiany."
+      },
+      "skill-lines": {
+        "title": "Jedna linia naraz",
+        "body": "Pokaż agentów na main, przypiętych albo jeden fork. Wybór forka kieruje na niego też Historię i Edycję."
+      },
+      "skill-change-version": {
+        "title": "Przenieś agenta na inną wersję",
+        "body": "Publikuje nową wersję agenta tylko z tą zmianą. Wersja, która nie była sprawdzona na agencie, najpierw prosi o potwierdzenie."
+      },
+      "skill-edit": {
+        "title": "Edycja tworzy nową wersję",
+        "body": "Zapis niczego nie nadpisuje. Dodaje wersję do widocznej linii i dostają ją tylko agenci podążający za tą linią."
+      },
+      "skill-history": {
+        "title": "Każda wersja i droga powrotu",
+        "body": "Zobacz, co zmieniła każda wersja, kto ją zrobił i skąd się wzięła. Przywróć sprowadza wcześniejszą jako najnowszą."
+      },
+      "skill-tree": {
+        "title": "Main i jego forki",
+        "body": "Main biegnie w dół od najnowszej wersji, każdy fork odchodzi od wersji, od której wystartował, a agenci stoją przy wersji, której używają."
       }
     },
     "chooseLanguage": "Język",

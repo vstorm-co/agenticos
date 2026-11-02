@@ -2,6 +2,7 @@ import { ROUTES } from "@/lib/constants";
 import {
   AGENT_BUILDER,
   DATASET_DETAIL,
+  SKILL_DETAIL,
   EVAL_RUN,
   IMPROVEMENT,
   IMPROVEMENT_START,
@@ -1239,6 +1240,7 @@ export function flowForPage(pageId: string, systemAgent = false): FlowId | null 
     case AGENT_BUILDER:
       return systemAgent ? null : "test-change";
     case ROUTES.SKILLS:
+    case SKILL_DETAIL:
       return "create-skill";
     case ROUTES.RAG:
     case KB_DETAIL:

@@ -77,7 +77,7 @@ export function SkillHistory({
           </div>
         )
       }
-      data-tour="skill-history"
+      headerTour="skill-history"
     >
       {error ? (
         <ErrorState description={getErrorMessage(error, tErrors)} />

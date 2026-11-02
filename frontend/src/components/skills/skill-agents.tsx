@@ -101,7 +101,7 @@ export function SkillAgents({
           <LineChips agents={items} forks={forks} value={shown} onChange={onShow} />
         )
       }
-      data-tour="skill-agents"
+      headerTour="skill-agents"
     >
       <DataTable
         columns={columns}

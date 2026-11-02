@@ -5499,6 +5499,30 @@
       "flow-improvement-steps": {
         "title": "Steps",
         "body": "Five steps. The session stops after Understand and after Changes for you to look and press Next step; a step opens once it has something to show."
+      },
+      "skill-agents": {
+        "title": "Who uses this skill",
+        "body": "Every agent that uses the skill, with the version it is served: main follows each new version, pinned stays on an older one, and a fork has changes of its own."
+      },
+      "skill-lines": {
+        "title": "One line at a time",
+        "body": "Show the agents on main, the pinned ones, or one fork. Picking a fork also points History and Edit at it."
+      },
+      "skill-change-version": {
+        "title": "Move an agent to another version",
+        "body": "Publishes a new version of the agent with only this change. A version never checked on the agent asks you to confirm first."
+      },
+      "skill-edit": {
+        "title": "Edit makes a new version",
+        "body": "Saving never overwrites. It adds a version to the line on screen, and only the agents following that line get it."
+      },
+      "skill-history": {
+        "title": "Every version, and the way back",
+        "body": "See what each version changed, who made it and where it came from. Restore brings an earlier one back as the newest."
+      },
+      "skill-tree": {
+        "title": "Main and its forks",
+        "body": "Main runs down from its newest version, each fork branches off the version it started from, and agents sit at the version they use."
       }
     },
     "chooseLanguage": "Language",

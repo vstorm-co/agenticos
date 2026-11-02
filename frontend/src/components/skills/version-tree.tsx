@@ -40,7 +40,7 @@ export function VersionTree({
     <ListCard
       title={t("title")}
       counted={t("summary", { versions: mainLatest, forks: forks.length })}
-      data-tour="skill-tree"
+      headerTour="skill-tree"
     >
       <div className="p-4">
         <Line rows={rows} line="main" onUnfold={unfold} />
