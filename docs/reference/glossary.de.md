@@ -1,5 +1,5 @@
 ---
-source_sha: "525439bc4593"
+source_sha: "b37ba36230db"
 ---
 
 # Glossar { #glossary }
@@ -26,9 +26,10 @@ nicht bricht.
 | Skill | Einmal aufgeschriebenes Know-how, das jeder Agent liest, der es braucht | `skill` |
 | Skill-Version | Ein gespeicherter Stand eines Skills, danach nie mehr geändert; **Wiederherstellen** bringt eine frühere als neue Version zurück | `skill_version` |
 | Main | Die Hauptlinie eines Skills; ein Agent auf main liest ihre neueste Version | `state: main` |
-| Fixiert | Ein Agent, der auf einer Main-Version eines Skills bleibt, bis jemand ihn verschiebt | `state: pinned` |
+| Festgesetzt | Ein Agent, der auf einer Main-Version eines Skills bleibt, bis jemand ihn verschiebt | `state: pinned` |
 | Fork | Eine benannte Linie eines Skills, ab einer Main-Version, mit eigenen Versionen für manche Agents | `skill_fork`, `state: fork` |
-| Hinter main | Wie viele Main-Versionen ein fixierter Agent oder ein Fork nicht übernommen hat | `behind_main` |
+| Hinter main | Wie viele Main-Versionen ein festgesetzter Agent oder ein Fork nicht übernommen hat | `behind_main` |
+| Aufholen | Einen festgesetzten Agent oder einen Fork auf die neueste Main-Version bringen; nur auf Wunsch und nach einer Prüfung | `/skills/behind-main` |
 | Kontext | Dauerhaftes Wissen, das ein Agent immer hat, etwa ein Glossar oder eine Richtlinie | `context` |
 | Wissensdatenbank | Dokumente, die ein Agent durchsucht und zitiert | `collection` |
 | Wissenslücke | Ein Thema aus Fragen, die eine Wissensdatenbank nicht beantworten konnte, nach Bedeutung gruppiert; Verbessern zählt sie als **Fehlendes Wissen in der Wissensdatenbank** | `knowledge_gap_topic` |

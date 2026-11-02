@@ -342,6 +342,27 @@ When an agent comes out worse, the person chooses one of four:
 On a fork, only **Improve further** and **Discard** are offered when an agent comes
 out worse: forks start only from main, and pinning is a state on the main line.
 
+### Catching up with main
+
+Nothing catches up with main by itself, because every catch-up costs a check. When
+main moves on, pinned agents and forks show how many versions they are behind, and
+they are listed in **Improvements waiting for you**.
+
+- **A pinned agent:** **Update to vN** checks main's newest version on that agent
+  alone, by the same rule. When it passes, accepting moves the agent to main, and
+  the agent reads as checked rather than unknown.
+- **A fork:** **Catch up** merges three versions: the main version the fork started
+  from, the fork's newest and main's newest. Parts changed on one side only merge
+  by themselves. Where both sides changed the same part, the session proposes the
+  combined text, shown as fork, main and result, and the person can edit the
+  result. The fork's agents are then checked. Accepting makes the merged text the
+  fork's new version and moves the fork's start to main's newest version. When
+  main alone is not worse than the fork for its agents, the result also offers
+  **Drop the fork and return to main**.
+- **A fork's changes to main:** **Move to main** merges the fork's changes onto
+  main's newest version and checks them on every main agent by the full rule. Its
+  agents can then return to main.
+
 ### Deleting a skill
 
 A skill that an agent uses cannot be deleted. That is a skill bound by a live
@@ -363,6 +384,11 @@ others. A skill that nobody uses is deleted with its versions and forks.
 | `POST /api/v1/skills/{id}/improvements/estimate`, `POST /api/v1/skills/{id}/improvements` | Prices and starts an Improve session on main or on a fork |
 | `POST /api/v1/skills/{id}/improvements/{session_id}/apply`, `…/fork`, `…/discard` | Applies a session's result, with or without pinning the worse agents, forks it for the agents it helped, or discards it |
 | `GET /api/v1/skill-improvements/awaiting` | The skill sessions waiting for a person |
+| `GET /api/v1/skills/behind-main` | Pinned agents and forks that main has moved past, across the organization |
+| `POST /api/v1/skills/{id}/agents/{agent_id}/update-check` | Checks main's newest version on one pinned agent |
+| `POST /api/v1/skills/{id}/forks/{fork_id}/catch-up`, `…/to-main` | Catches a fork up with main, or moves its changes to main, as a session |
+| `GET /api/v1/skills/{id}/merges/{merge_id}`, `PATCH …/parts/{index}` | A merge's parts, and the person's text for one |
+| `POST /api/v1/skills/{id}/forks/{fork_id}/return-to-main` | Moves a fork's agents back to main |
 
 ## Getting skills into an organization
 

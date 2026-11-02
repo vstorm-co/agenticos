@@ -264,7 +264,7 @@ einen vollständigen neuen Inhalt vor, der mit den anderen
 [Skill](skills.md)-Änderungen unter Skills wartet, mit Begründung und Belegen.
 
 Das Anwenden einer Skill-Änderung erzeugt eine neue Main-Version, die nur die
-Agents auf main lesen; fixierte Agents und Forks behalten ihre (siehe
+Agents auf main lesen; festgesetzte Agents und Forks behalten ihre (siehe
 [Versionen und Forks](skills.md#versions-and-forks)). Eine Skill-Änderung lässt
 sich zuerst mit Evals prüfen: Beide Seiten führen die veröffentlichte Version eines
 Agents aus, und nur der Inhalt des Skills unterscheidet sich. Eine Änderung, die für
@@ -553,11 +553,11 @@ dieselbe Ablauffrist von sieben Tagen.
   Schritt genannt.
 - **Ergebnis** zeigt jeden Agent als besser, unverändert, im Rauschen, schlechter
   oder unbekannt.
-- **Annehmen** wendet die Änderung an, wendet sie mit fixierten schlechteren Agents
+- **Annehmen** wendet die Änderung an, wendet sie mit festgesetzten schlechteren Agents
   an oder macht einen Fork für die Agents, denen sie half, je nachdem, was das
   Ergebnis erlaubt. Vorher liest kein Agent etwas Neues.
 
-Annehmen braucht Bearbeitungszugriff auf den Skill, und das Fixieren eines
+Annehmen braucht Bearbeitungszugriff auf den Skill, und das Festsetzen eines
 schlechteren Agents die Berechtigung, ihn zu veröffentlichen. Agents, die Sie nicht
 sehen, werden gezählt, nie genannt.
 

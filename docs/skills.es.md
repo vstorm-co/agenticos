@@ -1,5 +1,5 @@
 ---
-source_sha: "6e334ae9eef2"
+source_sha: "377be0837e65"
 ---
 
 # Skills { #skills }
@@ -361,6 +361,28 @@ En un fork, cuando un agent sale peor, solo se ofrecen **Seguir mejorando** y
 **Descartar**: los forks parten solo de main, y fijar es un estado de la línea
 main.
 
+### Ponerse al día con main { #catching-up-with-main }
+
+Nada se pone al día con main por sí solo, porque cada puesta al día cuesta una
+comprobación. Cuando main avanza, los agents fijados y los forks muestran cuántas
+versiones van por detrás, y aparecen en **Improvements waiting for you**.
+
+- **Un agent fijado:** **Update to vN** comprueba la versión más nueva de main solo
+  en ese agent, con la misma regla. Si la supera, aceptar mueve el agent a main, y
+  el agent figura como comprobado en lugar de desconocido.
+- **Un fork:** **Catch up** combina tres versiones: la versión de main de la que
+  partió el fork, la más nueva del fork y la más nueva de main. Las partes
+  cambiadas en un solo lado se combinan solas. Donde los dos lados cambiaron la
+  misma parte, la sesión propone el texto combinado, mostrado como fork, main y
+  resultado, y la persona puede editar el resultado. Después se comprueban los
+  agents del fork. Aceptar convierte el texto combinado en la versión nueva del
+  fork y mueve su punto de partida a la versión más nueva de main. Cuando main
+  solo no es peor que el fork para sus agents, el resultado ofrece también
+  **Drop the fork and return to main**.
+- **Los cambios de un fork a main:** **Move to main** combina los cambios del fork
+  sobre la versión más nueva de main y los comprueba en cada agent de main con la
+  regla completa. Después sus agents pueden volver a main.
+
 ### Borrar un skill { #deleting-a-skill }
 
 Un skill que usa un agent no se puede borrar. Es un skill vinculado por el borrador
@@ -382,6 +404,11 @@ cuenta los demás. Un skill que nadie usa se borra con sus versiones y sus forks
 | `POST /api/v1/skills/{id}/improvements/estimate`, `POST /api/v1/skills/{id}/improvements` | Calcula el precio de una sesión Improve en main o en un fork y la inicia |
 | `POST /api/v1/skills/{id}/improvements/{session_id}/apply`, `…/fork`, `…/discard` | Aplica el resultado de una sesión, fijando o no los agents que empeoraron, lo convierte en un fork para los agents a los que ayudó, o lo descarta |
 | `GET /api/v1/skill-improvements/awaiting` | Las sesiones de skills que esperan a una persona |
+| `GET /api/v1/skills/behind-main` | Los agents fijados y los forks que main ha dejado atrás, en toda la organización |
+| `POST /api/v1/skills/{id}/agents/{agent_id}/update-check` | Comprueba la versión más nueva de main en un agent fijado |
+| `POST /api/v1/skills/{id}/forks/{fork_id}/catch-up`, `…/to-main` | Pone un fork al día con main, o lleva sus cambios a main, como una sesión |
+| `GET /api/v1/skills/{id}/merges/{merge_id}`, `PATCH …/parts/{index}` | Las partes de una combinación y el texto de la persona para una de ellas |
+| `POST /api/v1/skills/{id}/forks/{fork_id}/return-to-main` | Devuelve los agents de un fork a main |
 
 ## Cómo llegan los skills a una organización { #getting-skills-into-an-organization }
 

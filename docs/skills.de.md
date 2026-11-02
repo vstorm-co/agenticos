@@ -1,5 +1,5 @@
 ---
-source_sha: "6e334ae9eef2"
+source_sha: "377be0837e65"
 ---
 
 # Skills { #skills }
@@ -311,7 +311,7 @@ Jeder Agent liest einen gebundenen Skill auf eine von drei Arten:
 | Zustand | Was er liest |
 |---|---|
 | Main | Die neueste Main-Version. So liest jeder Agent, der keine andere nennt |
-| Fixiert | Eine Main-Version, bis jemand ihn verschiebt |
+| Festgesetzt | Eine Main-Version, bis jemand ihn verschiebt |
 | Fork | Die neueste Version eines Forks |
 
 Die Wahl gehört zum Spec des Agents, in `skill_bindings`, und wird daher
@@ -326,7 +326,7 @@ eingeschlossen.
 Eine neue Version erreicht nur die Agents ihrer Linie. Eine neue Main-Version
 erreicht die Agents auf main, eine neue Fork-Version die Agents dieses Forks: Ihre
 Eval-Suites laufen, die Änderung nennt die Umgebungen, in denen sie live geht, und
-ihre Besitzer werden benachrichtigt. Ein fixierter Agent wird von keiner erreicht.
+ihre Besitzer werden benachrichtigt. Ein festgesetzter Agent wird von keiner erreicht.
 
 **Die Agents eines Skills** sind die, die ihn ausführen: Eine Version, die eine
 ihrer Umgebungen ausliefert, bindet ihn. Die Skill-Seite listet jeden mit der
@@ -353,7 +353,7 @@ Schritten, Halten, Preisen und derselben Ablauffrist.
 
 Die Prüfung führt die Änderung auf jedem Agent dieser Linie aus und auf keinem
 anderen: auf den Agents von main für main, auf den Agents eines Forks für diesen
-Fork. Fixierte Agents und Agents auf einem anderen Fork werden nicht geprüft, weil
+Fork. Festgesetzte Agents und Agents auf einem anderen Fork werden nicht geprüft, weil
 die Änderung sie nicht erreicht. Jeder Agent beantwortet die eigenen Testfragen
 des Skills, dann einige seiner eigenen, und sein Anteil an der Prüfung geht auf
 sein eigenes Budget.
@@ -372,13 +372,38 @@ Wird ein Agent schlechter, wählt die Person eine von vier Möglichkeiten:
 | Wahl | Was geschieht |
 |---|---|
 | Weiter verbessern | Ein weiterer Versuch, mit einer Notiz in den Worten der Person |
-| Anwenden und fixieren | Main bekommt die neue Version; die schlechteren Agents bleiben auf der Version fixiert, die sie lesen |
+| Anwenden und festsetzen | Main bekommt die neue Version; die schlechteren Agents bleiben auf der Version festgesetzt, die sie lesen |
 | Fork für die Agents, denen es half | Main bleibt, wie es ist; ein neuer Fork mit der Änderung übernimmt die Agents, die besser wurden |
 | Verwerfen | Nichts ändert sich |
 
 Auf einem Fork gibt es, wenn ein Agent schlechter wird, nur **Weiter verbessern**
-und **Verwerfen**: Forks gehen nur von main aus, und Fixieren ist ein Zustand auf
+und **Verwerfen**: Forks gehen nur von main aus, und Festsetzen ist ein Zustand auf
 der Main-Linie.
+
+### Zu main aufholen { #catching-up-with-main }
+
+Nichts holt von selbst zu main auf, denn jedes Aufholen kostet eine Prüfung.
+Wenn main weitergeht, zeigen festgesetzte Agents und Forks, wie viele Versionen
+sie zurückliegen, und erscheinen auf der Karte
+**Verbesserungen, die auf Sie warten**.
+
+- **Ein festgesetzter Agent:** **Auf vN aktualisieren** prüft die neueste
+  Main-Version nur an diesem Agent, nach derselben Regel. Besteht sie, verschiebt
+  das Annehmen den Agent auf main, und er gilt als geprüft statt unbekannt.
+- **Ein Fork:** **Aufholen** führt drei Versionen zusammen: die Main-Version, von
+  der der Fork ausging, die neueste des Forks und die neueste von main. Teile, die
+  nur auf einer Seite geändert wurden, werden von selbst zusammengeführt. Wo beide
+  Seiten denselben Teil geändert haben, schlägt die Sitzung den kombinierten Text
+  vor, gezeigt als Fork, main und Ergebnis, und die Person kann das Ergebnis
+  bearbeiten. Danach werden die Agents des Forks geprüft. Das Annehmen macht den
+  zusammengeführten Text zur neuen Version des Forks und verschiebt seinen
+  Ausgangspunkt auf die neueste Main-Version. Ist main allein für seine Agents
+  nicht schlechter als der Fork, bietet das Ergebnis auch
+  **Fork aufgeben und zu main zurückkehren** an.
+- **Die Änderungen eines Forks nach main:** **Nach main übernehmen** führt die
+  Änderungen des Forks auf der neuesten Main-Version zusammen und prüft sie an
+  jedem Main-Agent nach der vollen Regel. Danach können seine Agents zu main
+  zurückkehren.
 
 ### Einen Skill löschen { #deleting-a-skill }
 
@@ -400,8 +425,13 @@ den niemand verwendet, wird mit seinen Versionen und Forks gelöscht.
 | `GET /api/v1/skills/{id}/agents` | Die Agents des Skills, die Version, die jeder liest, und wie viele verborgen sind |
 | `PUT /api/v1/skills/{id}/agents/{agent_id}/binding` | Verschiebt einen Agent auf main, eine Main-Version oder einen Fork |
 | `POST /api/v1/skills/{id}/improvements/estimate`, `POST /api/v1/skills/{id}/improvements` | Berechnet den Preis einer Verbessern-Sitzung auf main oder einem Fork und startet sie |
-| `POST /api/v1/skills/{id}/improvements/{session_id}/apply`, `…/fork`, `…/discard` | Übernimmt das Ergebnis einer Sitzung, mit oder ohne Fixieren der schlechteren Agents, macht daraus einen Fork für die Agents, denen es half, oder verwirft es |
+| `POST /api/v1/skills/{id}/improvements/{session_id}/apply`, `…/fork`, `…/discard` | Übernimmt das Ergebnis einer Sitzung, mit oder ohne Festsetzen der schlechteren Agents, macht daraus einen Fork für die Agents, denen es half, oder verwirft es |
 | `GET /api/v1/skill-improvements/awaiting` | Die Skill-Sitzungen, die auf einen Menschen warten |
+| `GET /api/v1/skills/behind-main` | Festgesetzte Agents und Forks, an denen main vorbeigezogen ist, in der ganzen Organisation |
+| `POST /api/v1/skills/{id}/agents/{agent_id}/update-check` | Prüft die neueste Main-Version an einem festgesetzten Agent |
+| `POST /api/v1/skills/{id}/forks/{fork_id}/catch-up`, `…/to-main` | Holt einen Fork zu main auf oder übernimmt seine Änderungen nach main, als Sitzung |
+| `GET /api/v1/skills/{id}/merges/{merge_id}`, `PATCH …/parts/{index}` | Die Teile einer Zusammenführung und der Text der Person für einen davon |
+| `POST /api/v1/skills/{id}/forks/{fork_id}/return-to-main` | Verschiebt die Agents eines Forks zurück auf main |
 
 ## Skills in eine Organisation bekommen { #getting-skills-into-an-organization }
 

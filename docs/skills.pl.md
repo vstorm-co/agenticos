@@ -1,5 +1,5 @@
 ---
-source_sha: "6e334ae9eef2"
+source_sha: "377be0837e65"
 ---
 
 # Skille { #skills }
@@ -352,6 +352,27 @@ Na forku, gdy agent wychodzi gorzej, dostępne są tylko **Popraw dalej** i
 **Odrzuć**: forki zaczynają się wyłącznie od main, a przypięcie to stan na linii
 main.
 
+### Nadganianie main { #catching-up-with-main }
+
+Nic nie nadgania main samo, bo każde nadgonienie kosztuje sprawdzenie. Gdy main
+idzie dalej, agenci przypięci i forki pokazują, o ile wersji są w tyle, i trafiają
+na kartę **Poprawki czekające na Ciebie**.
+
+- **Agent przypięty:** **Aktualizuj do vN** sprawdza najnowszą wersję main tylko
+  na tym agencie, według tej samej reguły. Gdy przejdzie, akceptacja przesuwa
+  agenta na main, a agent jest pokazany jako sprawdzony, nie nieznany.
+- **Fork:** **Nadgoń** scala trzy wersje: wersję main, od której fork wystartował,
+  najnowszą wersję forka i najnowszą wersję main. Fragmenty zmienione tylko po
+  jednej stronie scalają się same. Gdzie obie strony zmieniły ten sam fragment,
+  sesja proponuje połączony tekst, pokazany jako fork, main i wynik, a osoba może
+  wynik poprawić. Potem sprawdzani są agenci forka. Akceptacja robi z połączonego
+  tekstu nową wersję forka i przesuwa jego start na najnowszą wersję main. Gdy
+  samo main nie jest dla agentów forka gorsze od forka, wynik proponuje też
+  **Porzuć fork i wróć na main**.
+- **Zmiany forka na main:** **Przenieś na main** scala zmiany forka z najnowszą
+  wersją main i sprawdza je na każdym agencie main według pełnej reguły. Potem
+  agenci forka mogą wrócić na main.
+
 ### Usuwanie skilla { #deleting-a-skill }
 
 Skilla, którego używa agent, nie można usunąć. Chodzi o skill związany przez
@@ -374,6 +395,11 @@ jego wersjami i forkami.
 | `POST /api/v1/skills/{id}/improvements/estimate`, `POST /api/v1/skills/{id}/improvements` | Wycenia i zaczyna sesję Popraw na main albo na forku |
 | `POST /api/v1/skills/{id}/improvements/{session_id}/apply`, `…/fork`, `…/discard` | Stosuje wynik sesji, z przypięciem gorszych agentów albo bez, robi z niego fork dla agentów, którym pomógł, albo go odrzuca |
 | `GET /api/v1/skill-improvements/awaiting` | Sesje skilli czekające na człowieka |
+| `GET /api/v1/skills/behind-main` | Agenci przypięci i forki, które main wyprzedził, w całej organizacji |
+| `POST /api/v1/skills/{id}/agents/{agent_id}/update-check` | Sprawdza najnowszą wersję main na jednym przypiętym agencie |
+| `POST /api/v1/skills/{id}/forks/{fork_id}/catch-up`, `…/to-main` | Nadgania fork do main albo przenosi jego zmiany na main, jako sesja |
+| `GET /api/v1/skills/{id}/merges/{merge_id}`, `PATCH …/parts/{index}` | Fragmenty scalenia i tekst osoby dla jednego z nich |
+| `POST /api/v1/skills/{id}/forks/{fork_id}/return-to-main` | Przesuwa agentów forka z powrotem na main |
 
 ## Jak skille trafiają do organizacji { #getting-skills-into-an-organization }
 
