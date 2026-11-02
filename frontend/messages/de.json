@@ -8384,7 +8384,7 @@
       "skillSetOnly": "Nur mit den Fragen des Skills geprüft: keine Frage dieses Agents hat den Skill geöffnet.",
       "hidden": "{count, plural, =1 {1 weiterer Agent nutzt diesen Skill, den du nicht sehen kannst.} other {# weitere Agents nutzen diesen Skill, die du nicht sehen kannst.}}",
       "noisy": "Einige Ergebnisse lagen im Rauschen: die Prüfung sah einen Unterschied, den sie nicht bestätigen konnte.",
-      "forkLine": "Diese Änderung betrifft einen Fork, der weder angeheftet noch erneut geforkt werden kann. Verbessere sie weiter oder verwirf sie.",
+      "forkLine": "Diese Änderung betrifft einen Fork, der weder festgesetzt noch erneut geforkt werden kann. Verbessere sie weiter oder verwirf sie.",
       "acknowledge": "Mir ist klar, dass einige Agents nicht geprüft werden konnten.",
       "discard": "Verwerfen",
       "apply": "Übernehmen",

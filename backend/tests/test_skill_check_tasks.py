@@ -38,7 +38,6 @@ async def test_a_job_advances_its_check(session, monkeypatch) -> None:
 
 async def test_the_sweep_says_how_many_checks_it_looked_at(session, monkeypatch) -> None:
     monkeypatch.setattr(skill_check_repo, "running", AsyncMock(return_value=[]))
-    monkeypatch.setattr(skill_check_repo, "running_since", AsyncMock(return_value=[]))
 
     assert await skill_check_tasks.sweep_skill_checks() == 0
 

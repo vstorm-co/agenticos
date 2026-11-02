@@ -679,6 +679,9 @@ class SkillCheckService:
         )
         if check is None or check.status != CheckStatus.RUNNING.value:
             return
+        if check.created_at < datetime.now(UTC) - STALE_AFTER:
+            await self._expire(check)
+            return
         ctx = await job_context(
             self.db,
             organization_id=organization_id,
@@ -805,10 +808,6 @@ class SkillCheckService:
         """Queue one advance per running check, so one that fails rolls back alone."""
         from app.worker import jobs
 
-        for organization_id, check_id in await skill_check_repo.running_since(
-            self.db, before=datetime.now(UTC) - STALE_AFTER, limit=limit
-        ):
-            await self._expire(check_id, organization_id)
         found = await skill_check_repo.running(self.db, limit=limit)
         for organization_id, check_id in found:
             await enqueue(
@@ -821,15 +820,10 @@ class SkillCheckService:
             )
         return len(found)
 
-    async def _expire(self, check_id: UUID, organization_id: UUID) -> None:
+    async def _expire(self, check: SkillCheck) -> None:
         """End a check whose agents never settled: they are unknown, and it is decided on."""
-        check = await skill_check_repo.get(
-            self.db, check_id, organization_id=organization_id, lock=True
-        )
-        if check is None or check.status != CheckStatus.RUNNING.value:
-            return
         for row in await skill_check_repo.list_agents(
-            self.db, [check.id], organization_id=organization_id
+            self.db, [check.id], organization_id=check.organization_id
         ):
             if not AgentState(row.state).settled:
                 await self._unknown(row, UnknownReason.FAILED)

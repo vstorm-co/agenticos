@@ -337,6 +337,43 @@ class TestRunning:
         read = await service.read(lab.ctx, lab.skill.id, check.id)
         assert read.status is CheckStatus.RUNNING
 
+    async def test_one_check_that_cannot_be_carried_on_does_not_hold_back_the_others(
+        self, db, monkeypatch
+    ):
+        """The sweep queues one advance per check and does none of their work itself, so
+        a check whose advance keeps failing fails only its own job."""
+        lab = await _lab(db)
+        evals = FakeEvals()
+        evals.install(monkeypatch)
+        service = SkillCheckService(db)
+        broken = await service.start(lab.ctx, lab.skill.id, _start())
+        healthy = await service.start(lab.ctx, lab.skill.id, _start(fork_id=lab.fork_id))
+        stale = await skill_check_repo.get(db, broken.id, organization_id=lab.ctx.organization_id)
+        assert stale is not None
+        stale.created_at = stale.created_at - timedelta(days=2)
+        await db.flush()
+
+        async def fail(_self, _check):
+            raise RuntimeError("cannot settle")
+
+        monkeypatch.setattr(SkillCheckService, "_expire", fail)
+
+        assert await service.sweep() >= 2
+        queued = {
+            job.payload["check_id"]
+            for job in (
+                await db.execute(
+                    select(BackgroundJob).where(BackgroundJob.kind == "advance-skill-check")
+                )
+            ).scalars()
+        }
+        assert {str(broken.id), str(healthy.id)} <= queued
+        with pytest.raises(RuntimeError):
+            await service.advance(broken.id, lab.ctx.organization_id)
+        evals.finish_all()
+        await service.advance(healthy.id, lab.ctx.organization_id)
+        assert (await service.read(lab.ctx, lab.skill.id, healthy.id)).status is CheckStatus.DONE
+
     async def test_a_starter_who_lost_sight_of_the_runs_leaves_the_agent_unknown(
         self, db, monkeypatch
     ):
@@ -636,7 +673,9 @@ class TestWhatTheCheckMeasuredIsWhatShips:
         with pytest.raises(ConcurrentChangeError, match="decided elsewhere"):
             await service.fork(lab.ctx, lab.skill.id, check.id, SkillCheckFork(name="x"))
 
-    async def test_a_check_running_for_a_day_is_ended_by_the_sweep(self, db, monkeypatch):
+    async def test_a_check_running_for_a_day_is_ended_when_it_is_next_advanced(
+        self, db, monkeypatch
+    ):
         lab = await _lab(db)
         FakeEvals(refuse_start={lab.c.id}).install(monkeypatch)
         service = SkillCheckService(db)
@@ -646,14 +685,12 @@ class TestWhatTheCheckMeasuredIsWhatShips:
         row.created_at = row.created_at - timedelta(days=2)
         await db.flush()
 
-        await service.sweep()
+        await service.advance(check.id, lab.ctx.organization_id)
 
         read = await service.read(lab.ctx, lab.skill.id, check.id)
         assert read.status is CheckStatus.DONE
         reasons = {item.agent.name: item.unknown_reason for item in read.agents}
         assert reasons == {"A": "failed", "B": "failed", "C": "failed"}
-        await service._expire(check.id, lab.ctx.organization_id)
-        assert (await service.read(lab.ctx, lab.skill.id, check.id)).status is CheckStatus.DONE
 
     async def test_a_file_replaced_on_main_keeps_its_description_as_it_would_ship(
         self, db, monkeypatch
