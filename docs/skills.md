@@ -489,9 +489,11 @@ fork picked in the chips - in the same five steps as [improving an agent](author
 Understand, Changes, Check, Result and Accept. It stops for you after Understand,
 after Changes and at the result, and changes nothing until you accept.
 
-Before it starts, it names every agent of the line it will check the change on,
-and the ones it cannot, with the reason - no test questions, no permission to run
-it, no budget left or no published version. Agents you cannot see are counted.
+Its start says how many answers it reads, from how many agents. Before the changes
+are checked, Next step names every agent of the line the check runs on, and the
+ones it cannot, with the reason - no test questions, no permission to run it, no
+budget left, no published version, or a run that could not grade every answer.
+Agents you cannot see are counted.
 
 The result has a row for each agent: better, no change, within noise, worse or
 unknown, the agents to look at first on top, with the questions it fixed and broke

@@ -1,5 +1,5 @@
 ---
-source_sha: "2e87e74bd259"
+source_sha: "f9bcef73227c"
 ---
 
 # Skills { #skills }
@@ -518,10 +518,12 @@ agent](authoring.md#the-improve-wizard): Entender, Cambios, Comprobación, Resul
 detiene para ti después de Entender, después de Cambios y en el resultado, y no
 cambia nada hasta que aceptas.
 
-Antes de empezar nombra cada agent de la línea en el que comprobará el cambio, y
-los que no puede comprobar, con el motivo - sin preguntas de prueba, sin permiso
-para ejecutarlo, sin budget o sin versión publicada. Los agents que no puedes ver
-se cuentan.
+Al empezar dice cuántas respuestas lee y de cuántos agents. Antes de comprobar los
+cambios, el siguiente paso nombra cada agent de la línea en el que se ejecuta la
+comprobación, y los que no puede comprobar, con el motivo - sin preguntas de
+prueba, sin permiso para ejecutarlo, sin budget, sin versión publicada o un run
+que no pudo calificar todas las respuestas. Los agents que no puedes ver se
+cuentan.
 
 El resultado tiene una fila por agent: mejor, sin cambios, dentro del ruido, peor
 o desconocido, con los que hay que mirar primero arriba, las preguntas que arregló

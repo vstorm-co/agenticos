@@ -1,5 +1,5 @@
 ---
-source_sha: "2e87e74bd259"
+source_sha: "f9bcef73227c"
 ---
 
 # Skills { #skills }
@@ -543,10 +543,12 @@ das [Verbessern eines Agents](authoring.md#the-improve-wizard): Verstehen, Ände
 Ergebnis und Annehmen. Sie hält nach Verstehen, nach Änderungen und beim Ergebnis
 für Sie an und ändert nichts, bevor Sie annehmen.
 
-Vor dem Start nennt sie jeden Agent der Linie, auf dem die Änderung geprüft wird,
-und die, bei denen das nicht geht, mit Grund - keine Testfragen, kein Recht zum
-Ausführen, kein Budget mehr oder keine veröffentlichte Version. Agents, die Sie
-nicht sehen, werden gezählt.
+Der Start sagt, wie viele Antworten sie liest und von wie vielen Agents. Bevor die
+Änderungen geprüft werden, nennt der nächste Schritt jeden Agent der Linie, auf dem
+die Prüfung läuft, und die, bei denen das nicht geht, mit Grund - keine Testfragen,
+kein Recht zum Ausführen, kein Budget mehr, keine veröffentlichte Version oder ein
+Run, der nicht jede Antwort bewerten konnte. Agents, die Sie nicht sehen, werden
+gezählt.
 
 Das Ergebnis hat eine Zeile pro Agent: besser, unverändert, im Rauschen, schlechter
 oder unbekannt, die wichtigsten zuerst, mit den behobenen und verschlechterten

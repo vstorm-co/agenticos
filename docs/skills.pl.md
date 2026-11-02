@@ -1,5 +1,5 @@
 ---
-source_sha: "2e87e74bd259"
+source_sha: "f9bcef73227c"
 ---
 
 # Skille { #skills }
@@ -500,10 +500,12 @@ agenta](authoring.md#the-improve-wizard): Zrozumienie, Zmiany, Sprawdzenie, Wyni
 się dla Ciebie po Zrozumieniu, po Zmianach i przy wyniku, a niczego nie zmienia, dopóki
 nie zaakceptujesz.
 
-Przed startem wymienia każdego agenta linii, na którym sprawdzi zmianę, i tych,
-których nie da się sprawdzić, z powodem - brak pytań testowych, brak prawa do
-uruchomienia, wyczerpany budget albo brak opublikowanej wersji. Agentów, których
-nie widzisz, liczy.
+Start mówi, ile odpowiedzi przeczyta i od ilu agentów. Zanim zmiany zostaną
+sprawdzone, następny krok wymienia każdego agenta linii, na którym ruszy
+sprawdzenie, i tych, których nie da się sprawdzić, z powodem - brak pytań
+testowych, brak prawa do uruchomienia, wyczerpany budget, brak opublikowanej wersji
+albo run, który nie ocenił wszystkich odpowiedzi. Agentów, których nie widzisz,
+liczy.
 
 Wynik ma wiersz dla każdego agenta: lepiej, bez zmian, w granicach szumu, gorzej
 albo nie wiadomo, z agentami do obejrzenia na górze, z pytaniami, które naprawił i
