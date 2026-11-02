@@ -222,9 +222,6 @@ def upgrade() -> None:
         ),
         sa.Column("candidate_hash", sa.String(length=64), nullable=True),
         sa.Column("description_changed", sa.Boolean(), server_default="false", nullable=False),
-        sa.Column(
-            "holdout", postgresql.JSONB(none_as_null=True, astext_type=sa.Text()), nullable=True
-        ),
         sa.Column("skill_check_id", sa.UUID(), nullable=True),
         sa.Column("check_verdict", sa.String(length=16), nullable=True),
         sa.Column("verdict", sa.String(length=16), nullable=True),

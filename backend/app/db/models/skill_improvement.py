@@ -287,10 +287,6 @@ class SkillImprovementIteration(Base):
     description_changed: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, server_default="false"
     )
-    # The held-out questions drawn per agent for this attempt's check, `{agent_id: [case_id]}`.
-    holdout: Mapped[dict[str, JsonValue] | None] = mapped_column(
-        JSONB(none_as_null=True), nullable=True
-    )
     skill_check_id: Mapped[uuid.UUID | None] = mapped_column(
         PG_UUID(as_uuid=True),
         ForeignKey("skill_checks.id", ondelete="SET NULL"),

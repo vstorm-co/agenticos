@@ -265,7 +265,6 @@ class SpecProposalBatch(Base):
     fork_id: Mapped[uuid.UUID | None] = mapped_column(
         PG_UUID(as_uuid=True), ForeignKey("skill_forks.id", ondelete="CASCADE"), nullable=True
     )
-    # The skill version the edits were anchored on; no foreign key, as a session's base.
     base_skill_version_id: Mapped[uuid.UUID | None] = mapped_column(
         PG_UUID(as_uuid=True), nullable=True
     )
