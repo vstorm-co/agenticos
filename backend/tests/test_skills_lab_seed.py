@@ -177,6 +177,7 @@ class FakeApi:
         }
         self.requests: list[tuple[str, str, str | None]] = []
         self.run_status = "completed"
+        self.run_attempts = 16
         self.cases_before_failing: int | None = None
         self.passes: Callable[[str, str], bool] = lambda dataset, question: True
 
@@ -366,6 +367,7 @@ class FakeApi:
             agent_id=agent_id,
             dataset_id=body["dataset_id"],
             status=self.run_status,
+            attempts_done=self.run_attempts,
             outcome={"candidate_pass_rate": 0.5, "candidate_arm_id": f"arm-{run_id}"},
         )
 
@@ -533,8 +535,11 @@ class TestSeeding:
 
         assert fake.writes() == []
 
-    def test_a_measurement_that_failed_does_not_count(self, fake: FakeApi) -> None:
+    def test_a_measurement_that_ended_before_answering_anything_does_not_count(
+        self, fake: FakeApi
+    ) -> None:
         fake.run_status = "failed"
+        fake.run_attempts = 0
         _seeded(fake)
         fake.run_status = "completed"
         fake.requests.clear()
@@ -547,6 +552,21 @@ class TestSeeding:
             "completed"
         }
         assert not any(path.endswith("/cases") for _, path, _ in fake.writes())
+
+    def test_a_measurement_cancelled_after_some_answers_leaves_the_dataset_as_it_is(
+        self, fake: FakeApi
+    ) -> None:
+        fake.run_status = "cancelled"
+        fake.run_attempts = 3
+        _seeded(fake)
+        online = fake.lab_dataset(_plan("A").dataset)
+        online["scoring"] = {**seed.SCORING, "judge": {"enabled": True}}
+        fake.requests.clear()
+
+        _seeded(fake)
+
+        assert fake.writes() == []
+        assert online["scoring"]["judge"] == {"enabled": True}
 
     def test_an_agent_an_earlier_run_never_published_is_published_and_said_so(
         self, fake: FakeApi
@@ -654,6 +674,15 @@ class TestProbing:
             "Gift shop counter",
         }
         assert fake.rows["conversations"] == []
+
+    def test_a_measurement_that_ended_without_completing_gives_no_numbers(
+        self, fake: FakeApi
+    ) -> None:
+        fake.run_status = "failed"
+        fake.run_attempts = 2
+
+        with pytest.raises(seed.SeedError, match="ended failed"):
+            seed.probe(_api(fake), "broad", key=PROVIDER_KEY, wait=lambda _: None)
 
     def test_a_measurement_that_never_finishes_is_given_up_on(self, fake: FakeApi) -> None:
         fake.run_status = "running"

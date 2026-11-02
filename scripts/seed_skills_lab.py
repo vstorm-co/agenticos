@@ -85,7 +85,6 @@ CHAT_ATTEMPTS = 2
 CHAT_SECONDS = 240
 EVAL_PATIENCE_SECONDS = 900
 UNFINISHED = frozenset({"queued", "running"})
-MEASURING = UNFINISHED | {"completed"}
 
 JsonObject = dict[str, Any]
 """One JSON object from the API, its fields read by the names the API documents."""
@@ -694,9 +693,11 @@ def measure(
 ) -> dict[AgentKey, str]:
     """Each agent with test questions: its dataset, and the run measuring the agent on it.
 
-    A run that failed or was cancelled measured nothing, so it does not count: the
-    dataset is completed and measured again. Running a dataset on an agent is also what
-    makes it that agent's test set, since a plain dataset names no agent.
+    A run counts once it is under way or has answered a question, whatever it ended in,
+    because from then on the dataset is somebody's measurement and never completed again.
+    One that ended before answering anything measured nothing: the dataset is completed
+    and measured again. Running a dataset on an agent is also what makes it that agent's
+    test set, since a plain dataset names no agent.
     """
     runs: dict[AgentKey, str] = {}
     for plan in AGENTS:
@@ -708,7 +709,8 @@ def measure(
         measuring = [
             run
             for run in api.items(f"/datasets/{dataset}/eval-runs", org=org, params={"limit": 100})
-            if str(run.get("agent_id")) == agent and run.get("status") in MEASURING
+            if str(run.get("agent_id")) == agent
+            and (run.get("status") in UNFINISHED or run.get("attempts_done", 0) > 0)
         ]
         if measuring:
             report.note(f"measurement of {plan.key}", made=False)
@@ -902,6 +904,11 @@ def probe(
                 )
             wait(5)
             run = api.call("GET", f"/eval-runs/{runs[plan.key]}", org=org)
+        if run["status"] != "completed":
+            raise SeedError(
+                f"The measurement of {plan.key} ended {run['status']}, so it says nothing "
+                "about the wording: drop the probes and measure again"
+            )
         result[plan.key] = {
             "rule_passed": rule_passed(api, org, run, plan),
             "rule_total": len(plan.rule),
