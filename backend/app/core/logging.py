@@ -112,18 +112,25 @@ _SECRET_QUERY = re.compile(
     rf"((?:^|[?&])(?:{'|'.join(sorted(SECRET_QUERY_PARAMS))})=)"
     r"(?!%(?:[sr(]|d(?![0-9a-fA-F])))[^&#\s\"']+"
 )
+_DISCORD_CDN_QUERY = re.compile(
+    r"(https?://(?:cdn\.discordapp\.com|media\.discordapp\.net)(?::[0-9]+)?/[^?\s\"'<>]*)"
+    r"\?[^\s\"'<>]+",
+    re.IGNORECASE,
+)
 
 
 def redact_secret_paths(value: str) -> str:
     """Replace every credential in an address in `value` with the marker.
 
     That is the credential segment of a secret-bearing path (`_SECRET_PATH`) and
-    the value of a credential query parameter (`_SECRET_QUERY`). One helper for
+    the value of a credential query parameter (`_SECRET_QUERY`), and the entire
+    query of a signed Discord attachment address (`_DISCORD_CDN_QUERY`). One helper for
     every place an address is recorded - the log filter below and the Logfire
     request spans (`app/core/logfire_setup.py`) - so the two cannot disagree about
     which part is the secret.
     """
     value = _SECRET_PATH.sub(rf"\1{SECRET_PATH_MARKER}", value)
+    value = _DISCORD_CDN_QUERY.sub(rf"\1?{SECRET_PATH_MARKER}", value)
     return _SECRET_QUERY.sub(rf"\1{SECRET_PATH_MARKER}", value)
 
 
@@ -154,6 +161,7 @@ class PiiRedactionFilter(logging.Filter):
     PATTERNS: ClassVar[list[tuple[re.Pattern[str], str]]] = [
         # First, so a secret-bearing address reads the same whatever its token looks like.
         (_SECRET_PATH, rf"\1{SECRET_PATH_MARKER}"),
+        (_DISCORD_CDN_QUERY, rf"\1?{SECRET_PATH_MARKER}"),
         (_SECRET_QUERY, rf"\1{SECRET_PATH_MARKER}"),
         (re.compile(r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}"), "[EMAIL_REDACTED]"),
         # JWT tokens (header.payload.signature)

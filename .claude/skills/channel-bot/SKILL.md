@@ -132,3 +132,20 @@ there. There is no `chart_render.py`; the file is `chart_png.py`.
 
 `app/services/channels/mentions.py` is in the gated platform layer at 100%. The
 adapters are template-inherited and are not. See the `backend-tests` skill.
+
+
+## Discord server admission
+
+`AccessPolicy.discord_guild_ids` is the operator's persisted server allowlist.
+Empty means DM-only, including for a private bot already installed elsewhere.
+The service and the startup/catch-up pass forward these IDs through
+`open_inbound_stream` and `prepare_connection`; each edit reopens the stream.
+READY and GUILD_CREATE do not approve a server. Non-outage GUILD_DELETE forgets
+it, and join-specific check markers prevent a stale public-status result from
+releasing a re-added server. The router checks the persisted policy again.
+
+`/ask` defers privately before I/O, resolves its parent/thread key, and preflights
+access before posting a separate public question. A link invitation consumes the
+identity's rate limit before minting its bearer token. Console transcripts need
+both VIEW_CHANNEL and READ_MESSAGE_HISTORY. Keep signed CDN queries out of logs
+as well as request tracing.

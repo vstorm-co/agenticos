@@ -71,3 +71,44 @@ describe("registering a Discord bot (#2079)", () => {
     expect(onSubmit.mock.calls[0]?.[0]).toMatchObject({ platform: "discord", ack_reaction: null });
   });
 });
+
+it("registers only explicitly named servers and refuses names instead of IDs", async () => {
+  const onSubmit = vi.fn().mockResolvedValue(undefined);
+  render(
+    <AddChannelDialog
+      open
+      onOpenChange={vi.fn()}
+      onSubmit={onSubmit}
+      isPending={false}
+      initialPlatform="discord"
+    />,
+  );
+  type("Name", "Support");
+  type("Bot token", "discord-bot-token");
+  type("Approved Discord server IDs", "my-server");
+  expect(screen.getByRole("button", { name: "Register" })).toBeDisabled();
+  type("Approved Discord server IDs", "200, 100 200");
+  await userEvent.click(screen.getByRole("button", { name: "Register" }));
+  expect(onSubmit).toHaveBeenCalledWith(
+    expect.objectContaining({ access_policy: { discord_guild_ids: ["100", "200"] } }),
+  );
+});
+
+it("does not send Discord approvals when another platform is chosen", async () => {
+  const onSubmit = vi.fn().mockResolvedValue(undefined);
+  render(
+    <AddChannelDialog
+      open
+      onOpenChange={vi.fn()}
+      onSubmit={onSubmit}
+      isPending={false}
+      initialPlatform="discord"
+    />,
+  );
+  type("Approved Discord server IDs", "100");
+  await userEvent.click(screen.getByRole("button", { name: "Telegram" }));
+  type("Name", "Support");
+  type("Bot token", "telegram-bot-token");
+  await userEvent.click(screen.getByRole("button", { name: "Register" }));
+  expect(onSubmit.mock.calls[0]?.[0]).not.toHaveProperty("access_policy.discord_guild_ids");
+});

@@ -9,6 +9,7 @@ from app.services.channels.discord_protocol import (
     ASK_ABOUT,
     INTENTS,
     MESSAGE_LIMIT,
+    READ_MESSAGE_HISTORY,
     VIEW_CHANNEL,
     Recent,
     attachment_type,
@@ -219,6 +220,7 @@ def test_the_actor_is_the_member_in_a_server_and_the_user_in_a_direct_message():
     assert interaction_user({}) == {}
 
 
+@pytest.mark.security
 class TestCanView:
     def _view(
         self,
@@ -232,13 +234,24 @@ class TestCanView:
             user_id=user_id,
             guild_id=GUILD,
             owner_id=OWNER,
-            roles={GUILD: VIEW_CHANNEL, ROLE: 0} if roles is None else roles,
+            roles={GUILD: VIEW_CHANNEL | READ_MESSAGE_HISTORY, ROLE: 0} if roles is None else roles,
             member_roles=[ROLE] if member_roles is None else member_roles,
             overwrites=overwrites or [],
         )
 
     def test_everyone_sees_a_channel_with_no_overwrites(self):
         assert self._view()
+
+    def test_viewing_the_channel_does_not_grant_access_to_its_stored_history(self) -> None:
+        assert not self._view(roles={GUILD: VIEW_CHANNEL})
+
+    def test_a_member_overwrite_revokes_history_even_when_the_channel_stays_visible(self) -> None:
+        assert not self._view(
+            overwrites=[{"id": USER, "type": 1, "deny": str(READ_MESSAGE_HISTORY)}]
+        )
+
+    def test_history_and_view_permissions_may_come_from_different_roles(self) -> None:
+        assert self._view(roles={GUILD: VIEW_CHANNEL, ROLE: READ_MESSAGE_HISTORY})
 
     def test_the_owner_sees_everything(self):
         assert self._view(user_id=OWNER, roles={GUILD: 0})

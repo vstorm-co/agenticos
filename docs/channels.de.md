@@ -1,5 +1,5 @@
 ---
-source_sha: "3fa7145d9337"
+source_sha: "4fa7041a8c9a"
 ---
 
 # Einen Agent dorthin bringen, wo die Menschen schon sind { #putting-an-agent-where-people-already-are }
@@ -1629,7 +1629,7 @@ Adresse braucht** und ein Discord-Bot keinen Webhook-Modus hat.
    Verbindung ab, und die Zeile des Bots sagt, welcher Schalter fehlt. Setzen Sie
    unter **Installation** den **Install Link** auf *None* und schalten Sie dann
    unter **Bot** **Public Bot** aus. Einen öffentlichen Bot kann jeder zu seinem
-   eigenen Server hinzufügen und dort mit dem Agenten sprechen, deshalb verweigert
+   eigenen Server hinzufügen, deshalb verweigert
    der Bot die Verbindung, solange er öffentlich ist. Ein Bot, der während der
    Verbindung öffentlich wird, hält an, sobald er das nächste Mal einem Server
    hinzugefügt wird.
@@ -1642,6 +1642,10 @@ Adresse braucht** und ein Discord-Bot keinen Webhook-Modus hat.
    ebenfalls verloren.
 3. Registrieren Sie ihn: **Channels → Channel hinzufügen**, Plattform `discord`,
    mit dem Token.
+
+**Server ausdrücklich genehmigen.** Tragen Sie im Formular zum Hinzufügen oder Bearbeiten des Bots die **Genehmigten Discord-Server-IDs** ein. Aktivieren Sie Discords Entwicklermodus, kopieren Sie jede Server-ID und trennen Sie IDs durch Kommas oder Leerzeichen. Übergeben Sie in der CLI `--discord-guild 123456789012345678` an `channel-add-bot`; wiederholen Sie die Option für weitere Server. Eine leere Liste erlaubt nur Direktnachrichten. Von READY gemeldete Installationen sind keine Genehmigungen; Entfernen und erneutes Hinzufügen umgeht die Liste nicht.
+
+`/ask` bestätigt die Interaktion privat, bevor Kanalabfragen oder Datenbankprüfungen beginnen. Nur eine zugelassene Frage wird öffentlich gepostet; Ablehnungen und Einladungen zur Kontoverknüpfung bleiben privat. Einladungen verbrauchen das Limit des Absenders. Die Servergenehmigung bestimmt die Orte; `jwt_linked` oder `require_link` verlangt weiterhin ein Organisationskonto. Der Konsolenzugriff auf gespeicherte Unterhaltungen erfordert **View Channel** und **Read Message History**, bei privaten Threads zusätzlich die Mitgliedschaft.
 
 Der Bot registriert seine Befehle beim Verbinden: `/ask`, `/agents`, `/new`,
 `/link`, `/unlink` und `/help`, dazu **Ask the agent** unter *Apps* auf jeder

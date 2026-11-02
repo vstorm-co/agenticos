@@ -1,5 +1,5 @@
 ---
-source_sha: "3fa7145d9337"
+source_sha: "4fa7041a8c9a"
 ---
 
 # Poner un agent donde la gente ya está { #putting-an-agent-where-people-already-are }
@@ -1547,7 +1547,7 @@ dirección pública para Discord**, y un bot de Discord no tiene modo webhook.
    Content Intent**. Sin él Discord rechaza la conexión, y la fila del bot dice qué
    interruptor activar. En **Installation**, pon **Install Link** en *None* y
    luego desactiva **Public Bot** en **Bot**. Cualquiera puede añadir un bot
-   público a su propio servidor y hablar allí con el agente, así que el bot se
+   público a su propio servidor, así que el bot se
    niega a conectarse mientras sea público. Uno que se vuelve público mientras
    está conectado se detiene la próxima vez que se añade a un servidor.
 2. En **OAuth2 → URL Generator**, marca los scopes `bot` y `applications.commands`
@@ -1557,6 +1557,10 @@ dirección pública para Discord**, y un bot de Discord no tiene modo webhook.
    un archivo o un gráfico que envía el agente se rechaza, y el texto enviado con
    él también se pierde.
 3. Regístralo: **Canales → Añadir canal**, plataforma `discord`, con el token.
+
+**Autoriza los servidores expresamente.** En el formulario para añadir o editar el bot, indica los **ID de servidores de Discord autorizados**. Activa el modo de desarrollador de Discord, copia el ID de cada servidor y separa los ID con comas o espacios. En la CLI, pasa `--discord-guild 123456789012345678` a `channel-add-bot`; repite la opción para varios servidores. Una lista vacía permite solo mensajes directos. Las instalaciones anunciadas por READY no son autorizaciones; quitar y volver a añadir el bot no evita la lista.
+
+`/ask` confirma la interacción en privado antes de consultar el canal o comprobar el acceso en la base de datos. La pregunta solo se publica tras la admisión; los rechazos y las invitaciones para vincular la cuenta permanecen privados. Las invitaciones consumen el límite del remitente. La autorización del servidor elige ubicaciones; `jwt_linked` o `require_link` sigue exigiendo una cuenta de la organización. Acceder a conversaciones guardadas desde la consola requiere **View Channel** y **Read Message History**, además de pertenecer al hilo si es privado.
 
 El bot registra sus comandos al conectarse: `/ask`, `/agents`, `/new`, `/link`,
 `/unlink` y `/help`, y **Ask the agent** en *Apps* sobre cualquier mensaje. Discord

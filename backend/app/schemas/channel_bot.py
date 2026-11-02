@@ -1,7 +1,7 @@
 """Channel bot, identity, and session schemas."""
 
 from datetime import datetime
-from typing import Literal
+from typing import Annotated, Literal
 from uuid import UUID
 
 from pydantic import Field, computed_field, model_validator
@@ -18,6 +18,11 @@ class AccessPolicy(BaseSchema):
     mode: Literal["open", "whitelist", "jwt_linked", "group_only"] = "open"
     whitelist: list[str] = []
     allowed_groups: list[str] = []
+    discord_guild_ids: list[Annotated[str, Field(pattern=r"^[1-9][0-9]{0,19}$")]] = Field(
+        default_factory=list,
+        max_length=2500,
+        description="Discord server IDs explicitly approved by the operator. Empty permits DMs only.",
+    )
     require_link: bool = False
     respond_to_broadcasts: bool = Field(
         default=False,

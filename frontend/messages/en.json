@@ -6092,7 +6092,10 @@
       "transcriptionEngine": "Provider",
       "transcriptionMistralFormat": "{platform, select, slack {Slack's desktop app records audio clips as WebM} discord {Discord sends voice messages as Ogg/Opus} other {Telegram sends voice messages as Ogg/Opus}}, which Mistral does not list as a format it accepts. They may fail to transcribe; choose another provider for this bot if they do.",
       "transcriptionProviderNoKey": "{name} (no usable key)",
-      "transcriptionInheritedNoKey": "No key is chosen where this pair comes from, so voice messages are not transcribed until one is."
+      "transcriptionInheritedNoKey": "No key is chosen where this pair comes from, so voice messages are not transcribed until one is.",
+      "discordGuilds": "Approved Discord server IDs",
+      "discordGuildsHint": "Enable Developer Mode in Discord and copy each approved server ID. Separate IDs with commas or spaces. An empty list permits DMs only; server messages stay blocked.",
+      "discordGuildsInvalid": "Enter decimal server IDs, separated by commas or spaces (up to 2,500 servers)."
     },
     "invitations": {
       "acceptInvitation": "Accept invitation",

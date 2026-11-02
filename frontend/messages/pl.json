@@ -2267,7 +2267,10 @@
       "transcriptionEngine": "Provider",
       "transcriptionMistralFormat": "{platform, select, slack {Aplikacja desktopowa Slacka nagrywa klipy audio jako WebM} discord {Discord wysyła wiadomości głosowe jako Ogg/Opus} other {Telegram wysyła wiadomości głosowe jako Ogg/Opus}}, a Mistral nie wymienia tego formatu wśród akceptowanych. Transkrypcja może się nie udać; jeśli tak się stanie, wybierz dla tego bota innego providera.",
       "transcriptionProviderNoKey": "{name} (brak pasującego klucza)",
-      "transcriptionInheritedNoKey": "Na poziomie, z którego pochodzi ta para, nie wybrano klucza, więc wiadomości głosowe nie są transkrybowane, dopóki ktoś go nie wybierze."
+      "transcriptionInheritedNoKey": "Na poziomie, z którego pochodzi ta para, nie wybrano klucza, więc wiadomości głosowe nie są transkrybowane, dopóki ktoś go nie wybierze.",
+      "discordGuilds": "Zatwierdzone ID serwerów Discorda",
+      "discordGuildsHint": "Włącz tryb deweloperski Discorda i skopiuj ID każdego zatwierdzonego serwera. Oddziel ID przecinkami lub spacjami. Pusta lista pozwala tylko na wiadomości prywatne; wiadomości z serwerów pozostają zablokowane.",
+      "discordGuildsInvalid": "Wpisz liczbowe ID serwerów, oddzielone przecinkami lub spacjami (maksymalnie 2500 serwerów)."
     },
     "invitations": {
       "acceptInvitation": "Przyjmij zaproszenie",

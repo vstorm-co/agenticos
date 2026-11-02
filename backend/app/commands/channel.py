@@ -137,6 +137,12 @@ def channel_list_bots(platform: str | None, org_id: str | None) -> None:
 @click.option("--name", "-n", required=True, help="Bot display name")
 @click.option("--token", "-t", required=True, help="Bot token (e.g. from BotFather)")
 @click.option(
+    "--discord-guild",
+    "discord_guild_ids",
+    multiple=True,
+    help="An explicitly approved Discord server ID. Repeat for several; empty permits DMs only.",
+)
+@click.option(
     "--mode",
     default="open",
     type=click.Choice(["open", "whitelist", "jwt_linked", "group_only"]),
@@ -170,6 +176,7 @@ def channel_add_bot(
     platform: str,
     name: str,
     token: str,
+    discord_guild_ids: tuple[str, ...],
     mode: Literal["open", "whitelist", "jwt_linked", "group_only"],
     org_id: str | None,
     api_base_url: str | None,
@@ -188,7 +195,7 @@ def channel_add_bot(
             platform=platform,
             name=name,
             token=token,
-            access_policy=AccessPolicy(mode=mode),
+            access_policy=AccessPolicy(mode=mode, discord_guild_ids=list(discord_guild_ids)),
             api_base_url=api_base_url,
             webhook_secret=webhook_secret,
             # A pasted secret is only ever for an inbound webhook, so saying so

@@ -183,3 +183,40 @@ describe("editing a bot", () => {
     expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ ack_reaction: null }));
   });
 });
+
+it("loads saved server approvals and can revoke them through the edit form", async () => {
+  const current = bot({ platform: "discord", command_url: null });
+  current.access_policy = { ...current.access_policy, discord_guild_ids: ["100"] };
+  const onSubmit = vi.fn().mockResolvedValue(undefined);
+  render(
+    <EditChannelDialog
+      bot={current}
+      onOpenChange={vi.fn()}
+      onSubmit={onSubmit}
+      isPending={false}
+    />,
+  );
+  const input = screen.getByRole("textbox", { name: "Approved Discord server IDs" });
+  expect(input).toHaveValue("100");
+  await userEvent.clear(input);
+  await userEvent.type(input, "invalid");
+  expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
+  await userEvent.clear(input);
+  await userEvent.click(screen.getByRole("button", { name: "Save" }));
+  expect(onSubmit).toHaveBeenCalledWith(current.id, {
+    access_policy: { ...current.access_policy, discord_guild_ids: [] },
+  });
+});
+
+it("shows an existing Discord policy without approvals as an unchanged DM-only form", () => {
+  render(
+    <EditChannelDialog
+      bot={bot({ platform: "discord" })}
+      onOpenChange={vi.fn()}
+      onSubmit={vi.fn()}
+      isPending={false}
+    />,
+  );
+  expect(screen.getByRole("textbox", { name: "Approved Discord server IDs" })).toHaveValue("");
+  expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
+});

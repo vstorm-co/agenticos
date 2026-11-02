@@ -15,6 +15,7 @@ from starlette.middleware.gzip import DEFAULT_EXCLUDED_CONTENT_TYPES, GZipMiddle
 from starlette.middleware.sessions import SessionMiddleware
 
 from app import __version__
+from app.schemas.channel_bot import AccessPolicy
 from starlette.routing import Route
 
 from app.services import (
@@ -162,6 +163,11 @@ async def _start_channel_polling(*platforms: str, bot_ids: Sequence[str] | None 
             token=token,
             api_base_url=_bot.api_base_url,
             app_token=app_token,
+            approved_guild_ids=(
+                tuple(AccessPolicy.model_validate(_bot.access_policy).discord_guild_ids)
+                if _bot.platform == "discord"
+                else ()
+            ),
             take_over=False,
         )
         started += 1

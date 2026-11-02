@@ -48,6 +48,7 @@ PRIVATE_THREAD = 12
 THREAD_TYPES = frozenset({10, 11, PRIVATE_THREAD})
 
 VIEW_CHANNEL = 1 << 10
+READ_MESSAGE_HISTORY = 1 << 16
 ADMINISTRATOR = 1 << 3
 
 _UNRECOVERABLE: dict[int, str] = {
@@ -65,14 +66,14 @@ _UNRECOVERABLE: dict[int, str] = {
 _SESSION_LOST = frozenset({4007, 4009})
 
 PUBLIC_BOT = (
-    "This bot is public, so anyone can add it to their own server and use the agent. "
+    "This bot is public, so anyone can add it to their own server. "
     "Switch off 'Public Bot' under Bot in the Developer Portal."
 )
 """Why a public bot is refused before it connects.
 
-Every message from a server the bot is in is routed, and an open access policy
-then admits whoever sent it. A private bot can be added to a server only by its
-owner, so the servers it is in are the ones its owner chose.
+The switch prevents new third-party installations, but does not establish who
+installed the bot before it became private. Persisted operator-approved server
+IDs are checked independently of this flag and of READY's installation list.
 """
 
 _GUILD_INSTALL = [0]
@@ -361,7 +362,8 @@ def can_view(
     own = by_id.get(user_id)
     if own is not None and own.get("type") == 1:
         permissions = (permissions & ~int(own.get("deny", 0))) | int(own.get("allow", 0))
-    return bool(permissions & VIEW_CHANNEL)
+    required = VIEW_CHANNEL | READ_MESSAGE_HISTORY
+    return permissions & required == required
 
 
 class Recent[V]:

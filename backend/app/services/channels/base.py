@@ -493,12 +493,18 @@ class ChannelAdapter(ABC):
     platform: str  # class-level constant e.g. "telegram"
 
     def prepare_connection(  # noqa: B027
-        self, bot_id: str, *, api_base_url: str | None, app_token: str | None
+        self,
+        bot_id: str,
+        *,
+        api_base_url: str | None,
+        app_token: str | None,
+        approved_guild_ids: tuple[str, ...] = (),
     ) -> None:
         """Register what this bot's connection needs before the stream opens.
 
         The adapter is one object serving every bot, so a per-bot fact - a
-        self-hosted server's address, a Slack app's `xapp-` token - is keyed on
+        self-hosted server's address, a Slack app's `xapp-` token or Discord's
+        approved server IDs - is keyed on
         the bot id here, and a stream opened before this ran would have nowhere
         to connect. A platform that needs neither leaves it alone; the supervisor
         calls it on every adapter the same way, which is what replaced reaching

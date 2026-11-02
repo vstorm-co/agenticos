@@ -138,7 +138,11 @@ class _Session:
     seq: int | None = None
     acked: bool = True
     guilds: set[str] = field(default_factory=set)
-    """The servers the bot was in when it identified, and those checked since."""
+    """The servers currently known to this Gateway session, including quarantined ones."""
+    approved_guilds: frozenset[str] = frozenset()
+    """Persisted operator approvals, independent of Discord's installation history."""
+    public_checks: dict[str, object] = field(default_factory=dict)
+    """Join-specific checks: a result from before removal cannot clear a re-add."""
     refusal: str | None = None
     """Why the connection was closed from this side and must not be reopened."""
     unchecked: set[str] = field(default_factory=set)
@@ -178,6 +182,7 @@ class DiscordAdapter(ChannelAdapter):
         self._socket_tasks: dict[str, asyncio.Task[None]] = {}
         self._sessions: dict[str, _Session] = {}
         self._tokens: dict[str, str] = {}
+        self._approved_guilds: dict[str, frozenset[str]] = {}
         # Which account and which application each bot is, from its READY.
         self._own_ids: dict[str, str] = {}
         self._app_ids: dict[str, str] = {}
@@ -194,6 +199,16 @@ class DiscordAdapter(ChannelAdapter):
         # A command's reply is written into the interaction's own deferred
         # response, keyed on the interaction id the message carries.
         self._interactions: Recent[tuple[str, str]] = Recent(_CACHE_SIZE)
+
+    def prepare_connection(
+        self,
+        bot_id: str,
+        *,
+        api_base_url: str | None,
+        app_token: str | None,
+        approved_guild_ids: tuple[str, ...] = (),
+    ) -> None:
+        self._approved_guilds[bot_id] = frozenset(approved_guild_ids)
 
     async def aclose(self) -> None:
         await self._http.aclose()
@@ -724,25 +739,37 @@ class DiscordAdapter(ChannelAdapter):
             raise ChannelNotConfigured(message=PUBLIC_BOT, details={"bot_id": bot_id})
         return str(response.json()["url"])
 
-    async def _check_public(self, guild: str, bot_token: str, session: _Session) -> None:
+    async def _check_public(
+        self, guild: str, bot_token: str, session: _Session, check: object
+    ) -> None:
         """Clear a newly added server for reading, or stop the connection when the bot is public."""
         for delay in _PUBLIC_CHECK_RETRIES:
+            if session.public_checks.get(guild) is not check:
+                return
             try:
                 public = await self._is_public(bot_token)
             except Exception:
+                if session.public_checks.get(guild) is not check:
+                    return
                 logger.warning("discord_public_check_failed", exc_info=True)
                 await asyncio.sleep(delay)
                 continue
-            session.unchecked.discard(guild)
+            if session.public_checks.get(guild) is not check:
+                return
+            session.public_checks.pop(guild)
             if public:
                 session.refusal = PUBLIC_BOT
+            elif guild in session.approved_guilds:
+                session.unchecked.discard(guild)
             return
         # Unknown is not private: the server stays unread, and the connection is
         # closed and identified afresh, where the check before connecting asks
         # again before anything is read.
-        session.session_id = None
-        session.seq = None
-        session.dropped = True
+        if session.public_checks.get(guild) is check:
+            session.public_checks.pop(guild)
+            session.session_id = None
+            session.seq = None
+            session.dropped = True
 
     async def _is_public(self, bot_token: str) -> bool:
         """Whether anyone may add this bot to their server - see :data:`PUBLIC_BOT`."""
@@ -859,10 +886,12 @@ class DiscordAdapter(ChannelAdapter):
             self._own_ids[bot_id] = str((data.get("user") or {}).get("id") or "")
             self._app_ids[bot_id] = str((data.get("application") or {}).get("id") or "")
             session.guilds = {str(guild.get("id")) for guild in data.get("guilds") or []}
+            session.approved_guilds = self._approved_guilds.get(bot_id, frozenset())
             # Every server announces itself again after READY, and the roles are
             # read from those: a replaced token must not keep the old bot's.
             self._own_roles[bot_id] = set()
-            session.unchecked.clear()
+            session.unchecked = session.guilds - session.approved_guilds
+            session.public_checks.clear()
             session.dropped = False
             await connection_state.record_up(bot_id)
             spawn(self._register_commands(bot_id, bot_token), name=f"discord-commands:{bot_id}")
@@ -886,10 +915,17 @@ class DiscordAdapter(ChannelAdapter):
             if guild not in session.guilds:
                 session.guilds.add(guild)
                 session.unchecked.add(guild)
+                check = object()
+                session.public_checks[guild] = check
                 spawn(
-                    self._check_public(guild, bot_token, session),
+                    self._check_public(guild, bot_token, session, check),
                     name=f"discord-public-check:{bot_id}",
                 )
+        elif event == "GUILD_DELETE" and not data.get("unavailable"):
+            guild = str(data.get("id") or "")
+            session.guilds.discard(guild)
+            session.unchecked.discard(guild)
+            session.public_checks.pop(guild, None)
         elif event in ("CHANNEL_CREATE", "CHANNEL_UPDATE", "THREAD_CREATE", "THREAD_UPDATE"):
             self._channels.put(str(data["id"]), _channel_of(data))
         elif event == "THREAD_LIST_SYNC":
@@ -900,7 +936,11 @@ class DiscordAdapter(ChannelAdapter):
         # so one slow call cannot hold a later interaction past the three
         # seconds Discord gives to answer it.
         elif event in ("MESSAGE_CREATE", "INTERACTION_CREATE") and (
-            str(data.get("guild_id") or "") in session.unchecked
+            data.get("guild_id")
+            and (
+                str(data["guild_id"]) not in session.approved_guilds
+                or str(data["guild_id"]) in session.unchecked
+            )
         ):
             return
         elif event == "MESSAGE_CREATE":
@@ -909,19 +949,24 @@ class DiscordAdapter(ChannelAdapter):
             spawn(self._on_interaction(data, bot_id), name=f"discord-interaction:{bot_id}")
 
     async def _on_message(self, data: dict[str, Any], bot_id: str, bot_token: str) -> None:
-        if data.get("guild_id"):
-            await self._learn_channel(bot_token, str(data.get("channel_id")))
+        if data.get("guild_id") and not await self._learn_channel(
+            bot_token, str(data.get("channel_id"))
+        ):
+            return
         incoming = self.parse_incoming(data, bot_id)
         if incoming is not None:
             spawn(process_channel_event(incoming), name=f"discord-routed:{bot_id}")
 
-    async def _learn_channel(self, bot_token: str, channel_id: str) -> None:
+    async def _learn_channel(self, bot_token: str, channel_id: str) -> bool:
         """Look a channel up the first time a message names it, to know whether it is a thread."""
         if channel_id in self._channels:
-            return
+            return True
         response = await self._call("GET", f"/channels/{channel_id}", bot_token)
         if response.is_success:
             self._channels.put(channel_id, _channel_of(response.json()))
+            return True
+        logger.warning("discord_channel_lookup_failed", extra={"status": response.status_code})
+        return False
 
     async def _register_commands(self, bot_id: str, bot_token: str) -> None:
         """Put `/ask`, the channel commands and *Ask the agent* on the bot, once per process.
@@ -1105,10 +1150,19 @@ class DiscordAdapter(ChannelAdapter):
         """The conversation an interaction belongs to, and whether it is in a server."""
         channel = data.get("channel") or {}
         channel_id = str(data.get("channel_id") or channel.get("id") or "")
-        if channel:
+        if channel and "type" in channel:
             self._channels.put(channel_id, _channel_of(channel))
         guild = bool(data.get("guild_id"))
         return self._chat_key(channel_id, guild=guild, message_id=message_id), guild
+
+    async def _complete_ask_response(self, app_id: str, token: str, content: str) -> None:
+        response = await self._call(
+            "PATCH",
+            f"/webhooks/{app_id}/{token}/messages/@original",
+            None,
+            body={"content": content, "allowed_mentions": NO_MENTIONS},
+        )
+        response.raise_for_status()
 
     async def _on_command(
         self, data: dict[str, Any], bot_id: str, interaction_id: str, token: str
@@ -1138,15 +1192,31 @@ class DiscordAdapter(ChannelAdapter):
             text = f"Help me with this message:\n{quoted}"
             attachments = _attachments(target)
         elif name == ASK:
+            await self._answer_interaction(
+                interaction_id, token, {"type": 5, "data": {"flags": 64}}
+            )
+            app_id = self._app_id(data, bot_id)
+            bot_token = self._tokens.get(bot_id)
+            if bot_token is None:
+                await self._complete_ask_response(app_id, token, "This bot is not available.")
+                return
             options = command.get("options") or []
             question = str(options[0].get("value") or "") if options else ""
+            _, guild = self._interaction_key(data, message_id=None)
+            channel_id = str(data.get("channel_id") or (data.get("channel") or {}).get("id") or "")
+            if guild and not await self._learn_channel(bot_token, channel_id):
+                await self._complete_ask_response(
+                    app_id, token, "Could not read this channel. Try again."
+                )
+                return
+            key, guild = self._interaction_key(data, message_id=None)
             refusal = await refusal_before_publishing(
                 IncomingMessage(
                     platform=self.platform,
                     bot_id=bot_id,
                     platform_user_id=str(user.get("id") or ""),
-                    platform_chat_id=str(data.get("channel_id") or ""),
-                    chat_type="group" if data.get("guild_id") else "private",
+                    platform_chat_id=key,
+                    chat_type="group" if guild else "private",
                     text=question,
                     raw=data,
                     platform_username=user.get("username"),
@@ -1156,25 +1226,21 @@ class DiscordAdapter(ChannelAdapter):
                 )
             )
             if refusal is not None:
-                # Before anything is posted: the question appears in the channel
-                # only for somebody the bot would answer.
-                await self._answer_interaction(
-                    interaction_id, token, {"type": 4, "data": {"content": refusal, "flags": 64}}
+                await self._complete_ask_response(app_id, token, refusal)
+                return
+            await self._complete_ask_response(app_id, token, "On it.")
+            # The deferred response is private and cannot become public. Publish
+            # a separate bot message only after admission, then thread its reply.
+            try:
+                posted = await self._post(bot_token, channel_id, question)
+            except httpx.HTTPError:
+                logger.warning("discord_ask_publish_failed", exc_info=True)
+                await self._complete_ask_response(
+                    app_id, token, "Could not post your question. Try again."
                 )
                 return
-            response = await self._call(
-                "POST",
-                f"/interactions/{interaction_id}/{token}/callback?with_response=true",
-                None,
-                body={
-                    "type": 4,
-                    "data": {"content": question, "allowed_mentions": NO_MENTIONS},
-                },
-            )
-            response.raise_for_status()
-            posted = ((response.json().get("resource") or {}).get("message") or {}).get("id")
             key, guild = self._interaction_key(data, message_id=posted)
-            if guild and posted and key.endswith(f":{posted}"):
+            if guild and key.endswith(f":{posted}"):
                 self._thread_names.put(key, thread_name(question))
             text = question
         elif name in _ROUTED_COMMANDS:

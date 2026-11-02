@@ -1,5 +1,5 @@
 ---
-source_sha: "3fa7145d9337"
+source_sha: "4fa7041a8c9a"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -1518,7 +1518,7 @@ bot Discorda nie ma trybu webhooka.
    Content Intent**. Bez niego Discord odrzuca połączenie, a wiersz bota mówi,
    który przełącznik włączyć. W sekcji **Installation** ustaw **Install Link** na
    *None*, a potem w sekcji **Bot** wyłącz **Public Bot**. Bota publicznego każdy
-   może dodać do własnego serwera i rozmawiać tam z agentem, więc bot odmawia
+   może dodać do własnego serwera, więc bot odmawia
    połączenia, dopóki jest publiczny. Bot, który stał się publiczny w trakcie
    połączenia, zatrzymuje się, gdy następnym razem zostanie dodany do serwera.
 2. W **OAuth2 → URL Generator** zaznacz scope'y `bot` i `applications.commands`
@@ -1528,6 +1528,10 @@ bot Discorda nie ma trybu webhooka.
    Files** plik albo wykres wysłany przez agenta zostaje odrzucony, a wraz z nim
    przepada tekst wysłany razem z nim.
 3. Zarejestruj go: **Kanały → Dodaj kanał**, platforma `discord`, z tokenem.
+
+**Jawnie zatwierdź serwery.** W formularzu dodawania lub edycji bota uzupełnij **Zatwierdzone ID serwerów Discorda**. Włącz tryb deweloperski Discorda, skopiuj ID każdego serwera i oddziel ID przecinkami lub spacjami. W CLI przekaż `--discord-guild 123456789012345678` do `channel-add-bot`; powtórz opcję dla kolejnych serwerów. Pusta lista pozwala tylko na wiadomości prywatne. Instalacje zgłoszone przez READY nie są zatwierdzeniami; usunięcie i ponowne dodanie bota nie omija listy.
+
+`/ask` potwierdza interakcję prywatnie przed odczytem kanału lub sprawdzaniem dostępu w bazie. Pytanie trafia do kanału dopiero po zgodzie; odmowy i zaproszenia do połączenia konta pozostają prywatne. Zaproszenia zużywają limit nadawcy. Zatwierdzenie serwera wybiera miejsca; `jwt_linked` lub `require_link` nadal decyduje, czy wymagane jest konto organizacji. Dostęp do zapisanej rozmowy w konsoli wymaga **View Channel** i **Read Message History**, a w wątku prywatnym także członkostwa.
 
 Bot rejestruje swoje komendy, gdy się łączy: `/ask`, `/agents`, `/new`, `/link`,
 `/unlink` i `/help`, a do tego **Ask the agent** w menu *Apps* każdej wiadomości.

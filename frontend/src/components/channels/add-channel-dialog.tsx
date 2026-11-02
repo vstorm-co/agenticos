@@ -39,6 +39,7 @@ import type {
   InheritedSpeechToText,
 } from "@/types/channels";
 import { MentionPolicyFields } from "./mention-policy-fields";
+import { DiscordGuildsField, parseDiscordGuilds, validDiscordGuilds } from "./discord-guilds-field";
 import { useTranslations } from "next-intl";
 import { DIALOG_BODY, DIALOG_COLUMN, DIALOG_FORM } from "@/lib/dialog-sizes";
 
@@ -121,6 +122,7 @@ export function AddChannelDialog({
   const [teamsAppId, setTeamsAppId] = useState("");
   const [teamsTenantId, setTeamsTenantId] = useState("");
   const [respondToBroadcasts, setRespondToBroadcasts] = useState(false);
+  const [discordGuilds, setDiscordGuilds] = useState("");
   const [answerStyle, setAnswerStyle] = useState<AnswerStyle>(DEFAULT_ANSWER_STYLE);
   const [transcription, setTranscription] = useState<TranscriptionChoice>(INHERIT);
   // A bot not yet registered serves no agent, so what it would inherit today is
@@ -158,7 +160,8 @@ export function AddChannelDialog({
     token.trim().length >= MIN_TOKEN &&
     !missingServerUrl &&
     !missingTeamsIds &&
-    !badReaction;
+    !badReaction &&
+    (platform !== "discord" || validDiscordGuilds(discordGuilds));
 
   function reset() {
     setPlatform(initialPlatform);
@@ -173,6 +176,7 @@ export function AddChannelDialog({
     setTeamsTenantId("");
     setAnswerStyle(DEFAULT_ANSWER_STYLE);
     setRespondToBroadcasts(false);
+    setDiscordGuilds("");
     setTranscription(INHERIT);
     setErrors({});
   }
@@ -180,6 +184,7 @@ export function AddChannelDialog({
   /** Another platform asks other questions, so the answers to the old ones go. */
   function choosePlatform(next: ChannelPlatform) {
     setPlatform(next);
+    setDiscordGuilds("");
     setServerUrl("");
     setWebhookSecret("");
     setSigningSecret("");
@@ -218,7 +223,16 @@ export function AddChannelDialog({
           ? { teams_app_id: teamsAppId.trim(), teams_tenant_id: teamsTenantId.trim() }
           : {}),
         ...answerStyle,
-        ...(respondToBroadcasts ? { access_policy: { respond_to_broadcasts: true } } : {}),
+        ...(platform === "discord" || respondToBroadcasts
+          ? {
+              access_policy: {
+                ...(respondToBroadcasts ? { respond_to_broadcasts: true } : {}),
+                ...(platform === "discord"
+                  ? { discord_guild_ids: parseDiscordGuilds(discordGuilds) }
+                  : {}),
+              },
+            }
+          : {}),
         // Inherit is the server's default, so it sends nothing; off is the
         // switch; choose is both halves and the key - the schema refuses one
         // half alone as a setting that cannot run, and a pair with no key.
@@ -337,6 +351,13 @@ export function AddChannelDialog({
             </FormField>
           </div>
 
+          {platform === "discord" && (
+            <DiscordGuildsField
+              idPrefix="channel"
+              value={discordGuilds}
+              onChange={setDiscordGuilds}
+            />
+          )}
           {platform === "mattermost" && (
             <div className="space-y-5">
               <FormField

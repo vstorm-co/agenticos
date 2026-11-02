@@ -33,6 +33,7 @@ from app.repositories import (
     conversation_repo,
     member_repo,
 )
+from app.schemas.channel_bot import AccessPolicy
 from app.services import rate_limit, transcription_usage
 from app.services.channel_bot import unseal_bot_token
 from app.services.channel_link import ChannelLinkService
@@ -408,8 +409,8 @@ class ChannelMessageRouter:
         message of the bot's own - Discord's `/ask` - so a person the access
         policy turns away, or an account nobody has linked, cannot have text of
         their choosing posted into a channel before the turn that would refuse
-        them runs. The same two gates the turn takes, asked first; the rate limit
-        is still the turn's, where it counts what is answered.
+        them runs. Accepted turns keep their normal rate-limit check; a refused
+        unlinked sender is counted here before minting a bearer link invitation.
         """
         bot = await channel_bot_repo.get_for_inbound(db, UUID(incoming.bot_id))
         if not bot or not bot.is_active:
@@ -422,6 +423,10 @@ class ChannelMessageRouter:
         if not self._admits_unlinked(incoming, bot) and not await self._sender_is_active_member(
             db, bot, identity
         ):
+            try:
+                await self._check_rate_limit(bot, str(identity.id))
+            except BadRequestError as exc:
+                return exc.message
             return await self._invite_to_link(incoming, db)
         return None
 
@@ -1383,6 +1388,13 @@ class ChannelMessageRouter:
         """Enforce access policy. Raises AuthorizationError if denied."""
         policy: dict[str, Any] = self._parse_policy(bot)
         mode: str = policy.get("mode", "open")
+
+        if incoming.platform == "discord" and incoming.chat_type == "group":
+            approved = AccessPolicy.model_validate(policy).discord_guild_ids
+            if str(incoming.raw.get("guild_id") or "") not in approved:
+                raise AuthorizationError(
+                    message="This Discord server is not approved for this bot."
+                )
 
         if mode == "whitelist":
             whitelist: list[str] = [str(x) for x in policy.get("whitelist", [])]

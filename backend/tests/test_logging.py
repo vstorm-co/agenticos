@@ -19,6 +19,7 @@ from datetime import timedelta
 from unittest.mock import patch
 from uuid import uuid4
 
+import httpx
 import pytest
 from fastapi import FastAPI
 from starlette.datastructures import URL
@@ -603,3 +604,24 @@ def test_one_line_writes_a_line_break_out_and_leaves_none_alone():
     assert one_line("https://a.example\r\nforged: entry") == "https://a.example\\r\\nforged: entry"
     assert one_line("plain") == "plain"
     assert one_line(None) is None
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("host", ["cdn.discordapp.com", "media.discordapp.net"])
+def test_signed_discord_download_queries_do_not_escape_through_exception_logs(
+    root_stream: io.StringIO, host: str
+) -> None:
+    setup_logging()
+    path = f"https://{host}/attachments/1/2/report.txt"
+    url = path + "?ex=query-expiry&is=query-issued&hm=query-signature"
+    try:
+        httpx.Response(403, request=httpx.Request("GET", url)).raise_for_status()
+    except httpx.HTTPStatusError:
+        logging.getLogger("app.services.channels.attachments").exception("Attachment failed")
+    emitted = root_stream.getvalue()
+    assert path + "?[REDACTED]" in emitted
+    assert "query-expiry" not in emitted
+    assert "query-issued" not in emitted
+    assert "query-signature" not in emitted
+    assert redact_secret_paths(url) == path + "?[REDACTED]"
+    assert redact_secret_paths(path + "?[REDACTED]") == path + "?[REDACTED]"

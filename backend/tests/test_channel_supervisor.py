@@ -50,7 +50,10 @@ class TestOpening:
 
         assert order == ["prepare", "start"]
         adapter.prepare_connection.assert_called_once_with(
-            "b-1", api_base_url="https://mattermost.acme.com", app_token="xapp"
+            "b-1",
+            api_base_url="https://mattermost.acme.com",
+            app_token="xapp",
+            approved_guild_ids=(),
         )
 
     async def test_an_existing_stream_is_closed_first(self):

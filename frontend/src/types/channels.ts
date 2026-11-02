@@ -40,6 +40,8 @@ export interface ChannelAccessPolicy {
   mode: "open" | "whitelist" | "jwt_linked" | "group_only";
   whitelist: string[];
   allowed_groups: string[];
+  /** Explicit server approvals for Discord; absent or empty permits DMs only. */
+  discord_guild_ids?: string[];
   require_link: boolean;
   rate_limit_rpm: number;
   denied_message: string;

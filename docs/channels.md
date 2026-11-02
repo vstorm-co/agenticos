@@ -1473,7 +1473,7 @@ Discord bot has no webhook mode.
    **Message Content Intent**. Without it Discord refuses the connection, and the
    bot's row says which switch to turn on. Under **Installation**, set **Install
    Link** to *None*, then switch off **Public Bot** under **Bot**. Anyone can add
-   a public bot to their own server and talk to the agent there, so the bot
+   a public bot to their own server, so the bot
    refuses to connect while it is public. One made public while connected stops
    the next time it is added to a server.
 2. Under **OAuth2 → URL Generator**, tick the `bot` and `applications.commands`
@@ -1483,6 +1483,10 @@ Discord bot has no webhook mode.
    **Attach Files** a file or chart the agent sends is refused, and the text
    posted with it is lost too.
 3. Register it: **Channels → Add channel**, platform `discord`, with the token.
+
+**Approve servers explicitly.** In the add/edit bot form, enter **Approved Discord server IDs**. Enable Discord's Developer Mode, copy each server's ID and separate IDs with commas or spaces. For the CLI, pass `--discord-guild 123456789012345678` to `channel-add-bot`; repeat the option for several servers. An empty list permits DMs only. Installations announced by READY are not approvals, and removal/re-add cannot bypass the list.
+
+`/ask` acknowledges privately before channel lookups or database admission. Only an admitted sender's question is posted publicly; refusals and account-link invitations stay private. Link invitations consume the sender's rate limit. Server approval chooses locations; `jwt_linked` or `require_link` still controls whether an organization account is required. Console access to a stored transcript requires both **View Channel** and **Read Message History**, plus membership for a private thread.
 
 The bot registers its commands when it connects: `/ask`, `/agents`, `/new`,
 `/link`, `/unlink` and `/help`, and **Ask the agent** under *Apps* on any message.

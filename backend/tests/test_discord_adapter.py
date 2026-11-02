@@ -7,7 +7,7 @@ to, whether it can ping anybody, and what a button or a thread looks like.
 
 import asyncio
 import json
-from collections.abc import AsyncIterator, Iterator
+from collections.abc import AsyncIterator, Coroutine, Iterator
 from contextlib import asynccontextmanager
 from typing import Any
 from unittest.mock import AsyncMock, patch
@@ -34,7 +34,7 @@ from app.services.channels.base import (
     memory_room_key,
 )
 from app.services.channels.discord import DiscordAdapter, _Channel, _Reply, _Session
-from app.services.channels.discord_protocol import VIEW_CHANNEL
+from app.services.channels.discord_protocol import READ_MESSAGE_HISTORY, VIEW_CHANNEL
 from app.services.channels.exceptions import ChannelNotConfigured
 from app.services.channels.live_reply import LiveReply, channel_stream
 from app.services.file_upload import FileUploadService
@@ -96,6 +96,9 @@ def adapter(api: _Discord) -> DiscordAdapter:
     built._own_ids[BOT] = OWN
     built._app_ids[BOT] = APP
     built._tokens[BOT] = "tok"
+    built.prepare_connection(
+        BOT, api_base_url=None, app_token=None, approved_guild_ids=(GUILD, "g2")
+    )
     return built
 
 
@@ -148,7 +151,7 @@ class TestReading:
             {"id": GUILD, "roles": [{"id": "r1", "tags": {"bot_id": OWN}}, {"id": "r2"}]},
             BOT,
             "tok",
-            _Session(guilds={GUILD}),
+            _Session(guilds={GUILD}, approved_guilds=frozenset({GUILD})),
         )
         incoming = adapter.parse_incoming(
             _message(content=f"<@&{role}> refund window?", mentions=[], mention_roles=[role]),
@@ -634,8 +637,8 @@ class TestInteractions:
     ):
         api.answer(
             "POST",
-            "/interactions/i1/itok/callback",
-            httpx.Response(200, json={"resource": {"message": {"id": "q1"}}}),
+            f"/channels/{CHANNEL}/messages",
+            httpx.Response(200, json={"id": "q1"}),
         )
         await adapter._on_interaction(
             {
@@ -656,7 +659,9 @@ class TestInteractions:
         assert incoming.addressed is True
         assert adapter._thread_names.get(f"{CHANNEL}:q1") == "refund window?"
         [body] = api.posted("/interactions/i1/itok/callback")
-        assert body["data"]["allowed_mentions"] == {"parse": []}
+        assert body == {"type": 5, "data": {"flags": 64}}
+        [question] = api.posted(f"/channels/{CHANNEL}/messages")
+        assert question["allowed_mentions"] == {"parse": []}
 
     async def test_a_channel_command_is_answered_privately_in_its_own_response(
         self, adapter: DiscordAdapter, api: _Discord, spawned: list[Any]
@@ -1180,7 +1185,7 @@ class TestGateway:
     async def test_channels_are_learned_from_the_gateway_and_looked_up_once(
         self, adapter: DiscordAdapter, api: _Discord, spawned: list[Any], state: AsyncMock
     ):
-        session = _Session(guilds={GUILD})
+        session = _Session(guilds={GUILD}, approved_guilds=frozenset({GUILD}))
         await adapter._on_dispatch(
             "GUILD_CREATE",
             {
@@ -1229,7 +1234,7 @@ class TestGateway:
     async def test_the_receive_loop_never_waits_on_discord(
         self, adapter: DiscordAdapter, api: _Discord, spawned: list[Any]
     ):
-        session = _Session()
+        session = _Session(approved_guilds=frozenset({GUILD}))
         await adapter._on_dispatch(
             "MESSAGE_CREATE", _message(channel_id="unknown"), BOT, "tok", session
         )
@@ -1322,7 +1327,12 @@ class TestMembership:
             f"/guilds/{GUILD}",
             httpx.Response(
                 200,
-                json={"owner_id": "1", "roles": [{"id": GUILD, "permissions": str(VIEW_CHANNEL)}]},
+                json={
+                    "owner_id": "1",
+                    "roles": [
+                        {"id": GUILD, "permissions": str(VIEW_CHANNEL | READ_MESSAGE_HISTORY)}
+                    ],
+                },
             ),
         )
         api.answer("GET", f"/guilds/{GUILD}/members/{USER}", member)
@@ -1620,10 +1630,11 @@ class TestWhatCodexAskedFor:
         self, adapter: DiscordAdapter, api: _Discord
     ):
         api.answer("GET", "/applications/@me", httpx.Response(500, json={}))
-        session = _Session(unchecked={"g2"}, session_id="s1", seq=7)
+        check = object()
+        session = _Session(unchecked={"g2"}, session_id="s1", seq=7, public_checks={"g2": check})
 
         with patch.object(discord.asyncio, "sleep", AsyncMock()):
-            await adapter._check_public("g2", "tok", session)
+            await adapter._check_public("g2", "tok", session, check)
 
         # Unknown is not private: nothing from it is read, and the next connection
         # identifies afresh, where the check before connecting asks again.
@@ -1641,10 +1652,13 @@ class TestWhatCodexAskedFor:
             httpx.Response(500, json={}),
             httpx.Response(200, json={"bot_public": False}),
         )
-        session = _Session(unchecked={"g2"})
+        check = object()
+        session = _Session(
+            unchecked={"g2"}, approved_guilds=frozenset({"g2"}), public_checks={"g2": check}
+        )
 
         with patch.object(discord.asyncio, "sleep", AsyncMock()):
-            await adapter._check_public("g2", "tok", session)
+            await adapter._check_public("g2", "tok", session, check)
 
         assert session.unchecked == set() and not session.dropped
 
@@ -1688,7 +1702,10 @@ class TestWhatCodexAskedFor:
             )
 
         [body] = api.posted("/interactions/i1/itok/callback")
-        assert body["data"] == {"content": "Not on this bot.", "flags": 64}
+        assert body == {"type": 5, "data": {"flags": 64}}
+        [(_, _, refusal)] = [call for call in api.calls if call[0] == "PATCH"]
+        assert refusal["content"] == "Not on this bot."
+        assert not api.posted(f"/channels/{CHANNEL}/messages")
         assert spawned == []
 
     async def test_a_refusal_found_off_the_receive_loop_closes_a_quiet_connection(
@@ -1700,3 +1717,154 @@ class TestWhatCodexAskedFor:
             await adapter._heartbeat(socket, 45, _Session(refusal="Public Bot"))
 
         assert socket.closed == [1000]
+
+
+@pytest.mark.security
+class TestServerApprovals:
+    async def test_ready_does_not_approve_an_existing_untrusted_installation(
+        self, adapter: DiscordAdapter, state: AsyncMock
+    ) -> None:
+        scheduled: list[Coroutine[object, object, None]] = []
+
+        def capture(task: Coroutine[object, object, None], *, name: str) -> None:
+            assert name.startswith("discord-")
+            scheduled.append(task)
+
+        session = _Session()
+        with patch.object(discord, "spawn", capture):
+            try:
+                await adapter._on_dispatch(
+                    "READY", {"guilds": [{"id": "999"}], "session_id": "s"}, BOT, "tok", session
+                )
+                for task in scheduled:
+                    task.close()
+                scheduled.clear()
+                await adapter._on_dispatch(
+                    "MESSAGE_CREATE", _message(guild_id="999"), BOT, "tok", session
+                )
+                await adapter._on_dispatch(
+                    "INTERACTION_CREATE", {"guild_id": "999", "type": 2}, BOT, "tok", session
+                )
+                assert scheduled == []
+                assert session.unchecked == {"999"}
+            finally:
+                for task in scheduled:
+                    task.close()
+
+    @pytest.mark.parametrize("unavailable", [False, True])
+    async def test_a_removal_is_forgotten_but_an_outage_preserves_the_guild(
+        self, adapter: DiscordAdapter, api: _Discord, unavailable: bool
+    ) -> None:
+        session = _Session(guilds={GUILD}, approved_guilds=frozenset({GUILD}))
+        pending: list[Coroutine[object, object, None]] = []
+
+        def capture(task: Coroutine[object, object, None], *, name: str) -> None:
+            assert name == f"discord-public-check:{BOT}"
+            pending.append(task)
+
+        api.answer("GET", "/applications/@me", httpx.Response(200, json={"bot_public": True}))
+        with patch.object(discord, "spawn", capture):
+            await adapter._on_dispatch(
+                "GUILD_DELETE", {"id": GUILD, "unavailable": unavailable}, BOT, "tok", session
+            )
+            assert (GUILD in session.guilds) is unavailable
+            await adapter._on_dispatch("GUILD_CREATE", {"id": GUILD}, BOT, "tok", session)
+        if unavailable:
+            assert not pending
+            assert session.refusal is None
+        else:
+            assert GUILD in session.unchecked
+            for task in pending:
+                await task
+            assert session.refusal == discord.PUBLIC_BOT
+
+    @pytest.mark.parametrize("failed", [False, True])
+    async def test_a_result_from_before_a_readd_cannot_release_its_quarantine(
+        self, adapter: DiscordAdapter, failed: bool
+    ) -> None:
+        previous, current = object(), object()
+        session = _Session(
+            approved_guilds=frozenset({GUILD}), unchecked={GUILD}, public_checks={GUILD: previous}
+        )
+
+        async def superseded(bot_token: str) -> bool:
+            assert bot_token == "tok"
+            session.public_checks[GUILD] = current
+            if failed:
+                raise httpx.ConnectError("Transient failure")
+            return False
+
+        with patch.object(adapter, "_is_public", side_effect=superseded):
+            await adapter._check_public(GUILD, "tok", session, previous)
+        assert session.unchecked == {GUILD}
+        assert session.public_checks[GUILD] is current
+        assert session.refusal is None and not session.dropped
+
+
+@pytest.mark.security
+class TestAdmissionBeforePublication:
+    @pytest.mark.parametrize("status", [429, 503])
+    async def test_an_unknown_thread_lookup_failure_does_not_create_a_different_conversation(
+        self, adapter: DiscordAdapter, api: _Discord, spawned: list[object], status: int
+    ) -> None:
+        api.answer("GET", f"/channels/{THREAD}", httpx.Response(status, json={"retry_after": 0}))
+        with patch.object(discord.asyncio, "sleep", AsyncMock()):
+            await adapter._on_message(_message(channel_id=THREAD), BOT, "tok")
+        assert not spawned
+        api.answer(
+            "GET",
+            f"/channels/{THREAD}",
+            httpx.Response(200, json={"type": 11, "parent_id": CHANNEL, "owner_id": OWN}),
+        )
+        await adapter._on_message(_message(channel_id=THREAD), BOT, "tok")
+        [incoming] = spawned
+        assert isinstance(incoming, IncomingMessage)
+        assert incoming.platform_chat_id == f"{CHANNEL}:{THREAD}"
+
+    async def test_ask_acknowledges_privately_before_admission_and_passes_the_parent_thread_key(
+        self, adapter: DiscordAdapter, api: _Discord, spawned: list[object]
+    ) -> None:
+        async def admission(incoming: IncomingMessage) -> str:
+            assert api.posted("/interactions/i1/itok/callback") == [
+                {"type": 5, "data": {"flags": 64}}
+            ]
+            assert not api.posted(f"/channels/{THREAD}/messages")
+            assert incoming.platform_chat_id == f"{CHANNEL}:{THREAD}"
+            return "Link privately: bearer-link"
+
+        with patch.object(discord, "refusal_before_publishing", side_effect=admission):
+            await adapter._on_interaction(
+                {
+                    "type": 2,
+                    "id": "i1",
+                    "token": "itok",
+                    "guild_id": GUILD,
+                    "channel": {"id": THREAD, "type": 11, "parent_id": CHANNEL},
+                    "member": {"user": {"id": USER}},
+                    "data": {"name": "ask", "type": 1, "options": [{"value": "question"}]},
+                },
+                BOT,
+            )
+        assert not spawned
+        assert not api.posted(f"/channels/{THREAD}/messages")
+        [(_, _, refusal)] = [call for call in api.calls if call[0] == "PATCH"]
+        assert refusal["content"] == "Link privately: bearer-link"
+
+    async def test_failed_publication_does_not_dispatch_an_agent_turn(
+        self, adapter: DiscordAdapter, api: _Discord, spawned: list[object]
+    ) -> None:
+        api.answer("POST", f"/channels/{CHANNEL}/messages", httpx.Response(403))
+        await adapter._on_interaction(
+            {
+                "type": 2,
+                "id": "i1",
+                "token": "itok",
+                "guild_id": GUILD,
+                "channel": {"id": CHANNEL, "type": 0},
+                "member": {"user": {"id": USER}},
+                "data": {"name": "ask", "type": 1, "options": [{"value": "question"}]},
+            },
+            BOT,
+        )
+        assert not spawned
+        assert api.calls[-1][2]["content"] == "Could not post your question. Try again."

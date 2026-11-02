@@ -30,7 +30,13 @@ Two things are versioned separately from this file and worth knowing about:
   `/link`, `/unlink`, `/agents`, `/new` and `/help` work as on the other
   platforms. A thread the bot is brought into partway is read for its earlier
   messages and files before it answers, and `read_channel_history` works there. Register one under **Channels → Add channel** with the bot token
-  and the Message Content Intent switched on. A public bot, one anyone can add
+  and the Message Content Intent switched on. Explicitly approve server IDs in
+  the add/edit form, or pass `--discord-guild` to the CLI; an empty list permits
+  DMs only. Existing installations and removal/re-adds do not approve a server.
+  Console transcript access also requires Read Message History. `/ask` first
+  acknowledges privately, admits against the parent/thread key, rate-limits
+  link invitations and only then publishes the question. Signed attachment URL
+  queries are redacted from failure logs. A public bot, one anyone can add
   to their own server, is refused until **Public Bot** is switched off; its
   commands are offered only in servers it was added to. A Discord bot takes no
   webhook, and setting one is refused. A bot in more than 2,500 servers stops and says
