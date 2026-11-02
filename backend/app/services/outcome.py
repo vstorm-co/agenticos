@@ -5,9 +5,9 @@ outcome. Settling it - acknowledge, resolve or mute - clears them all and cancel
 ones that have not gone out yet; deciding the approval it asked about resolves it without
 the person touching the Inbox.
 
-States only move forward: open → acknowledged → resolved or muted. A resolved or muted
-outcome is final; the same cause arriving again opens a fresh one, except a muted cause,
-which stays muted so it does not ask again.
+Decisions move open → acknowledged → resolved or muted. Other causes may reopen
+when reported again; repeated findings retain their decision. Only an explicit
+restore of a dismissed finding reopens its case without replaying old deliveries.
 """
 
 from datetime import UTC, datetime
@@ -19,7 +19,8 @@ from app.core.exceptions import AuthorizationError, ConflictError, NotFoundError
 from app.core.permissions import AuthContext
 from app.db.models.notification import Notification
 from app.db.models.outcome import Outcome, OutcomeStatus
-from app.repositories import outcome_repo
+from app.db.models.suggestion import Suggestion, SuggestionKind, SuggestionStatus
+from app.repositories import outcome_repo, suggestion_repo
 from app.schemas.outcome import OutcomeAction
 
 _FINAL = (OutcomeStatus.RESOLVED.value, OutcomeStatus.MUTED.value)
@@ -67,31 +68,49 @@ class OutcomeService:
     async def attach(self, notification: Notification) -> Outcome | None:
         """Tie a freshly written notification to its outcome, opening one when it is the first.
 
-        A muted cause is cleared at once so it does not ask again; a settled outcome that
-        the cause brings back reopens.
+        A muted cause is cleared at once. Other settled causes may reopen; a finding
+        retains its decision across all deliveries.
         """
         if notification.event_type not in OUTCOME_EVENTS or notification.organization_id is None:
             return None
         context = notification.render_context
-        outcome = await outcome_repo.open_or_find(
-            self.db,
-            organization_id=notification.organization_id,
-            user_id=notification.recipient_user_id,
-            kind=notification.event_type,
-            dedupe_key=cause_of(notification.event_type, notification.occurrence_id, context),
-            summary=notification.summary,
-            context_url=notification.context_url,
-            source_run_id=_uuid_of(context, "run_id"),
-            source_conversation_id=_uuid_of(context, "conversation_id"),
-        )
-        if outcome.status in (OutcomeStatus.RESOLVED.value, OutcomeStatus.ACKNOWLEDGED.value):
-            await outcome_repo.set_status(
-                self.db, outcome, status=OutcomeStatus.OPEN.value, settled_at=None, via=None
+        finding: Suggestion | None = None
+        if notification.event_type == "finding":
+            try:
+                identifier = UUID(notification.occurrence_id)
+            except ValueError:
+                identifier = None
+            if identifier is not None:
+                finding = await suggestion_repo.get_own(
+                    self.db,
+                    identifier,
+                    organization_id=notification.organization_id,
+                    user_id=notification.recipient_user_id,
+                )
+        if finding is not None:
+            outcome = await self.track_finding(
+                finding,
+                run_id=_uuid_of(context, "run_id"),
+                conversation_id=_uuid_of(context, "conversation_id"),
             )
-        # An UPDATE, not the ORM: the notification was inserted with `ON CONFLICT DO NOTHING`
-        # and is not tracked by the session, so adding it would insert it a second time.
-        muted = outcome.status == OutcomeStatus.MUTED.value
-        cleared_at = datetime.now(UTC) if muted else None
+        else:
+            outcome = await outcome_repo.open_or_find(
+                self.db,
+                organization_id=notification.organization_id,
+                user_id=notification.recipient_user_id,
+                kind=notification.event_type,
+                dedupe_key=cause_of(notification.event_type, notification.occurrence_id, context),
+                summary=notification.summary,
+                context_url=notification.context_url,
+                source_run_id=_uuid_of(context, "run_id"),
+                source_conversation_id=_uuid_of(context, "conversation_id"),
+            )
+            if outcome.status in (OutcomeStatus.RESOLVED.value, OutcomeStatus.ACKNOWLEDGED.value):
+                await outcome_repo.set_status(
+                    self.db, outcome, status=OutcomeStatus.OPEN.value, settled_at=None, via=None
+                )
+        cleared = outcome.status != OutcomeStatus.OPEN.value
+        cleared_at = datetime.now(UTC) if cleared else None
         await outcome_repo.link_notification(
             self.db,
             notification_id=notification.id,
@@ -129,7 +148,7 @@ class OutcomeService:
             NotFoundError: It is not theirs, or does not exist - the two look alike.
             ConflictError: It is already closed, and `action` would change how.
         """
-        outcome = await outcome_repo.get_own(
+        outcome = await outcome_repo.get_own_for_update(
             self.db,
             organization_id=ctx.organization_id,
             user_id=_caller(ctx),
@@ -162,8 +181,76 @@ class OutcomeService:
         await outcome_repo.set_status(
             self.db, outcome, status=target.value, settled_at=now, via=via
         )
+        if outcome.kind == SuggestionKind.FINDING.value and target in (
+            OutcomeStatus.RESOLVED,
+            OutcomeStatus.MUTED,
+        ):
+            await suggestion_repo.project_outcome_status(
+                self.db,
+                outcome_id=outcome.id,
+                organization_id=outcome.organization_id,
+                user_id=outcome.user_id,
+                status=SuggestionStatus.DISMISSED
+                if target is OutcomeStatus.MUTED
+                else SuggestionStatus.ACCEPTED,
+                at=now,
+            )
         await outcome_repo.settle_notifications(
             self.db, outcome_id=outcome.id, at=now, dismiss=closing
         )
         await outcome_repo.skip_unsent_deliveries(self.db, outcome_id=outcome.id)
         return outcome
+
+    async def track_finding(
+        self,
+        finding: Suggestion,
+        *,
+        run_id: UUID | None = None,
+        conversation_id: UUID | None = None,
+    ) -> Outcome:
+        """The finding and every delivery share one case, including nonurgent findings."""
+        if finding.kind != SuggestionKind.FINDING.value:
+            raise ConflictError(message="Only a finding can have a finding outcome")
+        outcome = await outcome_repo.open_or_find(
+            self.db,
+            organization_id=finding.organization_id,
+            user_id=finding.user_id,
+            kind=SuggestionKind.FINDING.value,
+            dedupe_key=f"finding:{finding.id}",
+            summary=finding.title,
+            context_url="/inbox?view=watches",
+            source_run_id=run_id,
+            source_conversation_id=conversation_id,
+        )
+        # The case lock serializes all decisions; discard a pre-lock Inbox snapshot.
+        await self.db.refresh(finding)
+        if finding.outcome_id is None:
+            await suggestion_repo.link_outcome(self.db, suggestion=finding, outcome_id=outcome.id)
+        elif finding.outcome_id != outcome.id:
+            raise ConflictError(message="The finding is linked to a different outcome")
+        if finding.status != SuggestionStatus.OPEN.value and outcome.status in (
+            OutcomeStatus.OPEN.value,
+            OutcomeStatus.ACKNOWLEDGED.value,
+        ):
+            await self._move(outcome, OutcomeStatus.RESOLVED, via="inbox")
+        return outcome
+
+    async def restore_finding(self, ctx: AuthContext, finding: Suggestion) -> None:
+        """Explicit undo reopens the same case; it never replays its old deliveries."""
+        if finding.organization_id != ctx.organization_id or finding.user_id != _caller(ctx):
+            raise NotFoundError(message="Finding not found")
+        outcome = await self.track_finding(finding)
+        if finding.status != SuggestionStatus.DISMISSED.value:
+            raise NotFoundError(message="No such dismissed finding")
+        await outcome_repo.set_status(
+            self.db, outcome, status=OutcomeStatus.OPEN.value, settled_at=None, via=None
+        )
+
+    async def resolve_watch_findings(
+        self, *, organization_id: UUID, user_id: UUID, watch_id: UUID
+    ) -> None:
+        for outcome in await outcome_repo.for_watch_findings(
+            self.db, organization_id=organization_id, user_id=user_id, watch_id=watch_id
+        ):
+            if outcome.status not in _FINAL:
+                await self._move(outcome, OutcomeStatus.RESOLVED, via="watch")

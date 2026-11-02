@@ -21,6 +21,11 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- Watch findings share one case across the Inbox, source chat and notifications.
+  Resolving or dismissing stops pending deliveries; acknowledging keeps the
+  finding actionable without repeating it in the daily briefing. Explicit restore
+  reopens the same case without resending old messages.
+
 - Routines can narrow inherited notification channels, including app-only
   delivery, and pending sends recheck those limits. Watches can send requested
   no-change reports with durable activation deduplication.
@@ -32,7 +37,7 @@ Two things are versioned separately from this file and worth knowing about:
   retain approved account and knowledge/context boundaries, and return new
   findings to the source chat. The same controls work in chat and Routines.
 
-- Incoming Twilio MMS files use the existing channel attachment pipeline, including media-only messages. Downloads are restricted to the bot’s own account and incoming message, reject redirects and enforce upload size and transfer-time limits. A number with media is retained as a message rather than settling a numbered prompt. Outbound MMS files remain unsupported.
+- Incoming Twilio MMS files use the existing channel attachment pipeline, including media-only messages. Downloads are restricted to the bot’s own account and incoming message, reject redirects and enforce upload size and transfer-time limits. A number with media is retained as a message rather than settling a numbered prompt.
 
 - **Set and remove a routine's end in its form.** The end-time field names the device time zone it uses and sends an offset-aware timestamp. Invalid or past edits are refused; changing another field preserves the exact existing end rather than rounding it to the input's minute precision.
 

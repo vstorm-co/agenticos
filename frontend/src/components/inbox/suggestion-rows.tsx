@@ -77,6 +77,11 @@ export function SuggestionRows({
                       suggestion.title
                     )}
                   </p>
+                  {suggestion.outcome_status === "acknowledged" && (
+                    <Badge variant="secondary" className="shrink-0 px-2 text-[11px]">
+                      {t("acknowledged")}
+                    </Badge>
+                  )}
                   {suggestion.urgent && (
                     <Badge variant="destructive" className="shrink-0 px-2 text-[11px]">
                       {t("urgent")}

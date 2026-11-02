@@ -1,5 +1,5 @@
 ---
-source_sha: "c7bacb814666"
+source_sha: "121ae2c08ab3"
 ---
 
 # Governance { #governance }
@@ -1716,11 +1716,11 @@ sprawdzane ponownie tuż przed wysłaniem, więc to zamknięte w międzyczasie n
 `POST /outcomes/{id}/settle` przyjmuje akcję, a `GET /outcomes` zwraca własne wyniki wywołującego,
 opcjonalnie dla jednego czatu.
 
-Rozstrzygnięcie ostatniego oczekującego zatwierdzenia przebiegu - w kolejce, w czacie lub w rozmowie -
-rozwiązuje wynik, który o nie pytał, bez dotykania dzwonka. Wyciszona przyczyna zostaje wyciszona:
-ta sama przyczyna, która wraca, jest czyszczona przy przyjściu i nic nie wysyła, a rozwiązana lub
-potwierdzona, która wraca, otwiera się na nowo. Stany idą tylko do przodu, więc rozwiązanego lub
-wyciszonego wyniku nie da się odwrócić.
+Rozstrzygnięcie ostatniego oczekującego zatwierdzenia przebiegu zamyka jego wynik. Wyciszona przyczyna pozostaje wyciszona. Dla innych powiadomień rozwiązana lub potwierdzona przyczyna może otworzyć się ponownie, gdy wróci; powtórzone znalezisko obserwacji zachowuje swój stan.
+
+Każde znalezisko obserwacji, także niepilne i bez powiadomienia w dzwonku, ma wspólną sprawę z wierszem w skrzynce i kartą w rozmowie źródłowej. **Załatwione** rozwiązuje tę sprawę; odrzucenie znaleziska ją wycisza. Obie akcje anulują oczekujące dostarczenia zewnętrzne. Potwierdzenie zatrzymuje powiadomienia i kolejne ogłoszenia w briefingu, ale pozostawia znalezisko do załatwienia w skrzynce z oznaczeniem **Przyjęte do wiadomości**. Usunięcie obserwacji rozwiązuje pozostałe sprawy przed usunięciem znalezisk. Decyzje dotyczą wyłącznie właściciela w tej samej organizacji.
+
+Tylko jawne **Przywróć** odrzuconego znaleziska ponownie otwiera tę samą sprawę. Nie wysyła ponownie starych powiadomień. Migracja `0264_finding_outcome_state.py` łączy istniejące znaleziska ze sprawami, tworzy sprawy dla niepilnych znalezisk, zachowuje identyfikatory i wcześniejsze decyzje w skrzynce oraz anuluje nieaktualne oczekujące dostarczenia. Downgrade usuwa powiązanie, ale nie cofa decyzji ani wiadomości przyjętych już przez dostawcę; zachowaj kopię sprzed aktualizacji.
 
 ### Konfigurowane na agencie { #configured-on-the-agent }
 

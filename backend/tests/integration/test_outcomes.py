@@ -14,6 +14,7 @@ from app.db.models.notification import Notification, NotificationEventType
 from app.db.models.notification_delivery import NotificationDelivery
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.outcome import Outcome
+from app.db.models.suggestion import Suggestion
 from app.db.models.user import User
 from app.repositories import outcome_repo
 from app.services.approvals import ApprovalService
@@ -310,3 +311,219 @@ async def test_a_caller_who_is_nobody_has_no_outcomes(db: AsyncSession) -> None:
         await OutcomeService(db).list_mine(anonymous, open_only=True, conversation_id=None)
     with pytest.raises(AuthorizationError):
         await OutcomeService(db).settle(anonymous, uuid.uuid4(), "resolve", via="inbox")
+
+
+async def _watch_finding(db: AsyncSession, org: Organization, user: User) -> Suggestion:
+    from app.repositories import suggestion_repo
+
+    finding = await suggestion_repo.propose(
+        db,
+        organization_id=org.id,
+        user_id=user.id,
+        kind="finding",
+        title="Review contract",
+        detail="A watch found a change",
+        payload={},
+        dedupe_key=uuid.uuid4().hex,
+    )
+    assert finding is not None
+    return finding
+
+
+@pytest.mark.parametrize("action,expected", [("resolve", "accepted"), ("mute", "dismissed")])
+async def test_settling_a_chat_finding_projects_into_the_inbox_and_stops_delivery(
+    db: AsyncSession,
+    action: str,
+    expected: str,
+) -> None:
+    org, users, ctxs = await _world(db)
+    run, chat = await _run(db, org, users[0])
+    finding = await _watch_finding(db, org, users[0])
+    service = OutcomeService(db)
+    case = await service.track_finding(finding, run_id=run.id, conversation_id=chat.id)
+    assert finding.outcome_id == case.id
+    assert case.source_conversation_id == chat.id
+    note = await _finding(db, org, users[0], str(finding.id))
+    assert note.outcome_id == case.id
+    assert [d.status for d in await _deliveries(db, note)] == ["pending"]
+    await service.settle(ctxs[0], case.id, action, via="chat")
+    await db.refresh(finding)
+    assert finding.status == expected
+    assert finding.outcome_status == case.status
+    for delivery in await _deliveries(db, note):
+        await db.refresh(delivery)
+        assert delivery.status == "skipped"
+    repeated = await service.track_finding(finding)
+    assert repeated.id == case.id and repeated.status != "open"
+
+
+async def test_acknowledging_a_finding_keeps_it_to_do_then_inbox_resolution_closes_same_case(
+    db: AsyncSession,
+) -> None:
+    from app.services.suggestions import SuggestionService
+
+    org, users, ctxs = await _world(db)
+    finding = await _watch_finding(db, org, users[0])
+    case = await OutcomeService(db).track_finding(finding)
+    await OutcomeService(db).settle(ctxs[0], case.id, "acknowledge", via="chat")
+    await db.refresh(finding)
+    assert (finding.status, finding.outcome_status) == ("open", "acknowledged")
+    result = await SuggestionService(db).accept(ctxs[0], finding.id)
+    assert (result.status, result.outcome_status) == ("accepted", "resolved")
+    assert result.outcome_id == case.id
+
+
+async def test_dismiss_and_explicit_undo_reuse_the_finding_case_without_replaying_sends(
+    db: AsyncSession,
+) -> None:
+    from app.services.suggestions import SuggestionService
+
+    org, users, ctxs = await _world(db)
+    finding = await _watch_finding(db, org, users[0])
+    note = await _finding(db, org, users[0], str(finding.id))
+    service = SuggestionService(db)
+    dismissed = await service.dismiss(ctxs[0], finding.id)
+    assert (dismissed.status, dismissed.outcome_status) == ("dismissed", "muted")
+    restored = await service.restore(ctxs[0], finding.id)
+    assert (restored.status, restored.outcome_status) == ("open", "open")
+    assert restored.outcome_id == note.outcome_id
+    for delivery in await _deliveries(db, note):
+        await db.refresh(delivery)
+        assert delivery.status == "skipped"
+    with pytest.raises(NotFoundError):
+        await service.accept(ctxs[1], finding.id)
+    await db.refresh(finding)
+    assert finding.status == "open"
+
+
+async def test_acknowledged_findings_are_not_announced_again_by_the_daily_briefing(
+    db: AsyncSession,
+) -> None:
+    from app.repositories import suggestion_repo
+
+    org, users, ctxs = await _world(db)
+    finding = await _watch_finding(db, org, users[0])
+    case = await OutcomeService(db).track_finding(finding)
+    assert await suggestion_repo.unbriefed_findings(db, organization_id=org.id, user_id=users[0].id)
+    await OutcomeService(db).settle(ctxs[0], case.id, "acknowledge", via="chat")
+    assert not await suggestion_repo.unbriefed_findings(
+        db, organization_id=org.id, user_id=users[0].id
+    )
+    assert await suggestion_repo.list_open(db, organization_id=org.id, user_id=users[0].id)
+
+
+async def test_a_rolled_back_finding_decision_rolls_back_its_inbox_and_delivery_state(
+    db: AsyncSession,
+) -> None:
+    from app.services.suggestions import SuggestionService
+
+    org, users, ctxs = await _world(db)
+    finding = await _watch_finding(db, org, users[0])
+    note = await _finding(db, org, users[0], str(finding.id))
+    async with db.begin_nested() as savepoint:
+        await SuggestionService(db).dismiss(ctxs[0], finding.id)
+        await savepoint.rollback()
+    await db.refresh(finding)
+    assert (finding.status, finding.outcome_status) == ("open", "open")
+    for delivery in await _deliveries(db, note):
+        await db.refresh(delivery)
+        assert delivery.status == "pending"
+
+
+async def test_deleting_a_watch_settles_only_its_owners_cases_before_removing_findings(
+    db: AsyncSession,
+) -> None:
+    from app.db.models.mcp_connection import McpConnection
+    from app.db.models.watch import Watch
+    from app.services.watches import WatchService
+
+    org, users, ctxs = await _world(db)
+    connection = McpConnection(
+        user_id=users[0].id,
+        scope="user",
+        purpose="mcp",
+        name="GitHub",
+        catalog_key="github",
+        url="https://github.example/mcp",
+        is_enabled=True,
+    )
+    db.add(connection)
+    await db.flush()
+    watch = Watch(
+        organization_id=org.id,
+        user_id=users[0].id,
+        connection_id=connection.id,
+        title="Reviews",
+        instructions="Reviews waiting on me",
+        interval_minutes=60,
+        next_run_at=datetime.now(UTC),
+    )
+    db.add(watch)
+    await db.flush()
+    finding = await _watch_finding(db, org, users[0])
+    finding.watch_id = watch.id
+    await db.flush()
+    case = await OutcomeService(db).track_finding(finding)
+    other = await _watch_finding(db, org, users[1])
+    other_case = await OutcomeService(db).track_finding(other)
+    note = await _finding(db, org, users[0], str(finding.id))
+    decided = await _watch_finding(db, org, users[0])
+    decided.watch_id = watch.id
+    await db.flush()
+    decided_case = await OutcomeService(db).track_finding(decided)
+    await OutcomeService(db).settle(ctxs[0], decided_case.id, "mute", via="chat")
+    finding_id = finding.id
+    await WatchService(db).delete(ctxs[0], watch.id)
+    await db.refresh(case)
+    assert (case.status, case.settled_via) == ("resolved", "watch")
+    assert await db.scalar(select(Suggestion.id).where(Suggestion.id == finding_id)) is None
+    await db.refresh(other_case)
+    assert other_case.status == "open"
+    await db.refresh(decided_case)
+    assert decided_case.status == "muted"
+    for delivery in await _deliveries(db, note):
+        await db.refresh(delivery)
+        assert delivery.status == "skipped"
+
+
+async def test_finding_cases_reject_wrong_kind_scope_identity_and_unasked_restore(
+    db: AsyncSession,
+) -> None:
+    from dataclasses import replace
+
+    org, users, ctxs = await _world(db)
+    finding = await _watch_finding(db, org, users[0])
+    service = OutcomeService(db)
+    finding.kind = "routine"
+    with pytest.raises(ConflictError, match="Only a finding"):
+        await service.track_finding(finding)
+    finding.kind = "finding"
+    for ctx in (ctxs[1], replace(ctxs[0], organization_id=uuid.uuid4())):
+        with pytest.raises(NotFoundError):
+            await service.restore_finding(ctx, finding)
+    case = await service.track_finding(finding)
+    with pytest.raises(NotFoundError, match="dismissed"):
+        await service.restore_finding(ctxs[0], finding)
+    different = await _watch_finding(db, org, users[0])
+    other_case = await service.track_finding(different)
+    different.outcome_id = None
+    await db.flush()
+    finding.outcome_id = other_case.id
+    await db.flush()
+    with pytest.raises(ConflictError, match="different outcome"):
+        await service.track_finding(finding)
+    finding.outcome_id = case.id
+    await db.flush()
+
+
+async def test_tracking_an_old_decided_finding_closes_its_preexisting_open_case(
+    db: AsyncSession,
+) -> None:
+    org, users, _ = await _world(db)
+    finding = await _watch_finding(db, org, users[0])
+    finding.status = "dismissed"
+    await db.flush()
+    case = await OutcomeService(db).track_finding(finding)
+    assert case.status == "resolved"
+    await db.refresh(finding)
+    assert finding.status == "dismissed"

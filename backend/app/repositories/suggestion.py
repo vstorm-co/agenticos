@@ -5,7 +5,7 @@ from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import func, select, update
+from sqlalchemy import func, or_, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -164,6 +164,7 @@ async def unbriefed_findings(
             Suggestion.status == SuggestionStatus.OPEN.value,
             Suggestion.urgent.is_(False),
             Suggestion.briefed_at.is_(None),
+            or_(Suggestion.outcome_id.is_(None), Suggestion.outcome_status == "open"),
         )
         .order_by(Suggestion.created_at.desc())
     )
@@ -174,4 +175,33 @@ async def mark_briefed(db: AsyncSession, *, suggestion_ids: list[UUID], at: date
     """Record the briefing these findings went out in, so the next one does not repeat them."""
     await db.execute(
         update(Suggestion).where(Suggestion.id.in_(suggestion_ids)).values(briefed_at=at)
+    )
+
+
+async def link_outcome(db: AsyncSession, *, suggestion: Suggestion, outcome_id: UUID) -> None:
+    suggestion.outcome_id = outcome_id
+    await db.flush()
+    await db.refresh(suggestion)
+
+
+async def project_outcome_status(
+    db: AsyncSession,
+    *,
+    outcome_id: UUID,
+    organization_id: UUID,
+    user_id: UUID,
+    status: SuggestionStatus,
+    at: datetime,
+) -> None:
+    """Keep the Inbox/dedupe projection in the outcome's own transaction."""
+    await db.execute(
+        update(Suggestion)
+        .where(
+            Suggestion.outcome_id == outcome_id,
+            Suggestion.organization_id == organization_id,
+            Suggestion.user_id == user_id,
+            Suggestion.kind == SuggestionKind.FINDING.value,
+            Suggestion.status == SuggestionStatus.OPEN.value,
+        )
+        .values(status=status.value, decided_at=at)
     )

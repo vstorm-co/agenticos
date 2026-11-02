@@ -1,5 +1,5 @@
 ---
-source_sha: "c7bacb814666"
+source_sha: "121ae2c08ab3"
 ---
 
 # Governance { #governance }
@@ -1838,11 +1838,11 @@ schon hält, wird kurz vor dem Senden erneut geprüft, sodass ein dazwischen erl
 `POST /outcomes/{id}/settle` nimmt die Aktion entgegen, und `GET /outcomes` listet die eigenen
 Ergebnisse des Aufrufers, optional für einen Chat.
 
-Die Entscheidung über die letzte offene Freigabe eines Laufs - in der Warteschlange, im Chat oder in
-einem Anruf - löst das Ergebnis, das danach gefragt hat, ohne dass jemand die Glocke berührt. Eine
-stummgeschaltete Ursache bleibt stumm: Dieselbe Ursache, die wiederkommt, wird bei Ankunft geräumt und
-sendet nichts, während eine gelöste oder bestätigte, die wiederkommt, neu geöffnet wird. Zustände gehen
-nur vorwärts, ein gelöstes oder stummgeschaltetes Ergebnis lässt sich also nicht umkehren.
+Die Entscheidung über die letzte offene Freigabe eines Laufs erledigt sein Ergebnis. Eine stummgeschaltete Ursache bleibt stumm. Bei anderen Benachrichtigungen kann eine gelöste oder bestätigte Ursache bei ihrer Rückkehr wieder geöffnet werden; ein wiederholter Fund behält seinen bisherigen Zustand.
+
+Jeder Fund einer Beobachtung, auch ohne dringende Glockenmeldung, teilt einen Fall mit seinem Inbox-Eintrag und seiner Karte im ursprünglichen Chat. **Erledigt** löst diesen Fall; Ablehnen schaltet ihn stumm. Beide Aktionen stornieren ausstehende externe Zustellungen. Bestätigen stoppt Benachrichtigungen und weitere Meldungen im Briefing, lässt den Fund aber mit **Zur Kenntnis genommen** in der Inbox bearbeitbar. Das Löschen einer Beobachtung erledigt ihre offenen Fälle, bevor ihre Funde gelöscht werden. Entscheidungen gelten nur für die besitzende Person innerhalb derselben Organisation.
+
+Nur ausdrückliches **Wiederherstellen** eines abgelehnten Fundes öffnet denselben Fall erneut. Alte Benachrichtigungen und Zustellungen werden nicht wiederholt. Die Migration `0264_finding_outcome_state.py` verknüpft vorhandene Funde mit ihren Fällen, erstellt Fälle für nicht dringende Funde, bewahrt IDs und frühere Inbox-Entscheidungen und storniert überholte Zustellungen. Ein Downgrade entfernt die Verknüpfung, kann aber weder Entscheidungen rückgängig machen noch vom Anbieter angenommene Nachrichten zurückrufen; bewahren Sie ein Backup vor dem Upgrade auf.
 
 ### Auf dem Agent konfiguriert { #configured-on-the-agent }
 

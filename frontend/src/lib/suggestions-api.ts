@@ -6,6 +6,7 @@
  */
 
 import { apiClient } from "./api-client";
+import type { OutcomeStatus } from "./outcomes-api";
 
 export type SuggestionKind = "routine" | "agent" | "profile" | "role_pack" | "finding";
 export type SuggestionStatus = "open" | "accepted" | "dismissed";
@@ -24,6 +25,9 @@ export interface Suggestion {
   payload: Record<string, unknown>;
   /** The watch a finding came from. */
   watch_id?: string | null;
+  /** The shared case shown in the source chat and notifications. */
+  outcome_id?: string | null;
+  outcome_status?: OutcomeStatus | null;
   /** A finding sent at once rather than kept for the briefing. */
   urgent?: boolean;
   created_at: string;

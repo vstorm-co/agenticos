@@ -26,7 +26,15 @@ export function useSuggestions() {
     queryKey: qk.suggestions.mine(),
     queryFn: listSuggestions,
   });
-  const settle = { onSettled: () => client.invalidateQueries({ queryKey: qk.suggestions.mine() }) };
+  const settle = {
+    onSettled: () =>
+      Promise.all([
+        client.invalidateQueries({ queryKey: qk.suggestions.mine() }),
+        client.invalidateQueries({ queryKey: qk.outcomes.all() }),
+        client.invalidateQueries({ queryKey: qk.notifications.all() }),
+        client.invalidateQueries({ queryKey: qk.watches.mine() }),
+      ]),
+  };
   const accept = useMutation({ mutationFn: (id: string) => acceptSuggestion(id), ...settle });
   const dismiss = useMutation({ mutationFn: (id: string) => dismissSuggestion(id), ...settle });
 
@@ -62,7 +70,13 @@ export function useSuggestionHistory() {
   });
   const restore = useMutation({
     mutationFn: (id: string) => restoreSuggestion(id),
-    onSettled: () => client.invalidateQueries({ queryKey: qk.suggestions.mine() }),
+    onSettled: () =>
+      Promise.all([
+        client.invalidateQueries({ queryKey: qk.suggestions.mine() }),
+        client.invalidateQueries({ queryKey: qk.outcomes.all() }),
+        client.invalidateQueries({ queryKey: qk.notifications.all() }),
+        client.invalidateQueries({ queryKey: qk.watches.mine() }),
+      ]),
   });
   return {
     history: data ?? ([] as Suggestion[]),

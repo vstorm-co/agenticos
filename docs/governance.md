@@ -1601,10 +1601,11 @@ and muting also clear it. A delivery a worker already holds is re-checked just b
 settled in between does not go out. `POST /outcomes/{id}/settle` takes the action, and
 `GET /outcomes` lists the caller's own, optionally for one chat.
 
-Deciding the last pending approval of a run - in the queue, the chat or a call - resolves the outcome
-that asked about it, without anybody touching the bell. A muted cause stays muted: the same cause
-arriving again is cleared on arrival and sends nothing, while a resolved or acknowledged one
-that comes back reopens. States only move forward, so a resolved or muted outcome cannot be flipped.
+Deciding the last pending approval of a run resolves its outcome. A muted cause stays muted. For other notifications, a resolved or acknowledged cause can reopen when it returns; a repeated watch finding keeps its existing state.
+
+Every watch finding, including a nonurgent one without a bell notification, shares a case with its Inbox row and source-chat card. **Done** resolves that case; dismissing the finding mutes it. Either action cancels pending external deliveries. Acknowledging stops notifications and future briefing announcements, but keeps the finding actionable in the Inbox with an **Acknowledged** label. Removing the watch resolves its remaining cases before deleting its findings. These decisions affect only the owning person in the same organization.
+
+Only an explicit **Restore** of a dismissed finding reopens that same case. It does not replay old notifications or deliveries. Migration `0264_finding_outcome_state.py` links existing findings to their cases, creates cases for nonurgent findings, preserves IDs and past Inbox decisions, and cancels obsolete pending deliveries. A downgrade removes the link, but cannot reverse decisions or recall a message already accepted by its provider; keep a pre-upgrade backup.
 
 ### Configured on the agent
 

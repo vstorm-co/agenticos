@@ -72,15 +72,22 @@ async def list_own(db: AsyncSession, *, organization_id: UUID, user_id: UUID) ->
 
 
 async def get_own(
-    db: AsyncSession, watch_id: UUID, *, organization_id: UUID, user_id: UUID
+    db: AsyncSession,
+    watch_id: UUID,
+    *,
+    organization_id: UUID,
+    user_id: UUID,
+    for_update: bool = False,
 ) -> Watch | None:
-    result = await db.execute(
-        select(Watch).where(
-            Watch.id == watch_id,
-            Watch.organization_id == organization_id,
-            Watch.user_id == user_id,
-        )
+    query = select(Watch).where(
+        Watch.id == watch_id,
+        Watch.organization_id == organization_id,
+        Watch.user_id == user_id,
     )
+    if for_update:
+        # Serialize deletion with the foreign-key lock taken by new findings.
+        query = query.with_for_update().execution_options(populate_existing=True)
+    result = await db.execute(query)
     return result.scalar_one_or_none()
 
 

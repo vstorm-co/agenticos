@@ -36,6 +36,7 @@ from app.schemas.watch_sources import WatchSources
 from app.services import watch_presets
 from app.services.agent_registry import AgentRegistryService
 from app.services.conversation import ConversationService
+from app.services.outcome import OutcomeService
 from app.services.primary_conversation import PrimaryConversationService
 from app.services.watch_sources import approve_sources, constrain_sources
 
@@ -316,12 +317,21 @@ class WatchService:
 
     async def delete(self, ctx: AuthContext, watch_id: UUID) -> None:
         """Remove it, and what it found with it."""
-        watch = await self._own(ctx, self._person(ctx), watch_id)
+        watch = await self._own(ctx, self._person(ctx), watch_id, for_update=True)
+        await OutcomeService(self.db).resolve_watch_findings(
+            organization_id=ctx.organization_id, user_id=self._person(ctx), watch_id=watch.id
+        )
         await watch_repo.delete(self.db, watch)
 
-    async def _own(self, ctx: AuthContext, person: UUID, watch_id: UUID) -> Watch:
+    async def _own(
+        self, ctx: AuthContext, person: UUID, watch_id: UUID, *, for_update: bool = False
+    ) -> Watch:
         watch = await watch_repo.get_own(
-            self.db, watch_id, organization_id=ctx.organization_id, user_id=person
+            self.db,
+            watch_id,
+            organization_id=ctx.organization_id,
+            user_id=person,
+            for_update=for_update,
         )
         if watch is None:
             raise NotFoundError(message="No such watch", details={"watch_id": watch_id})

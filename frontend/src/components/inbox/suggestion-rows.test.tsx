@@ -54,6 +54,13 @@ beforeEach(() => {
 });
 
 describe("SuggestionRows", () => {
+  it("keeps an acknowledged finding actionable and labels its shared state", () => {
+    render(
+      <SuggestionRows items={[item("ack", { kind: "finding", outcome_status: "acknowledged" })]} />,
+    );
+    expect(screen.getByText("Acknowledged")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Done" })).toBeEnabled();
+  });
   it("leads with what cannot wait and says where each came from", () => {
     render(
       <SuggestionRows

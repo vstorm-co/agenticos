@@ -806,7 +806,7 @@ class NotificationCenterService:
         # The shared state (#2575): a muted cause arrives already cleared, with nothing
         # queued to e-mail or push.
         outcome = await OutcomeService(self.db).attach(notification)
-        if outcome is not None and outcome.status == "muted":
+        if outcome is not None and outcome.status != "open":
             return notification
 
         if email_enabled:

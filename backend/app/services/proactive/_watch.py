@@ -46,6 +46,7 @@ from app.repositories import (
 from app.services.agent_runner import AgentRunnerService
 from app.services.conversation import ConversationService
 from app.services.notifications import NotificationService
+from app.services.outcome import OutcomeService
 from app.services.spend import month_start
 from app.services.watches import stopped_by
 
@@ -356,6 +357,9 @@ class WatchLook:
             )
             if finding is None:
                 continue
+            await OutcomeService(self.db).track_finding(
+                finding, run_id=run.id, conversation_id=target
+            )
             recorded += 1
             updates.append(
                 f"- **{found.title}**"

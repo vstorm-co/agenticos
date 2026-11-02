@@ -421,12 +421,14 @@ class TestChangingOne:
         with (
             patch(f"{SERVICE}.watch_repo.get_own", new=AsyncMock(side_effect=[None, watch])),
             patch(f"{SERVICE}.watch_repo.delete", new=delete),
+            patch(f"{SERVICE}.OutcomeService.resolve_watch_findings", new=AsyncMock()) as resolve,
         ):
             with pytest.raises(NotFoundError):
                 await WatchService(MagicMock()).delete(_ctx(), uuid.uuid4())
             await WatchService(MagicMock()).delete(_ctx(), watch.id)
 
         delete.assert_awaited_once()
+        resolve.assert_awaited_once_with(organization_id=ORG, user_id=USER, watch_id=watch.id)
         assert delete.await_args.args[1] is watch
 
     def test_null_and_overlong_lines_are_refused_at_the_schema(self):
@@ -534,6 +536,7 @@ class TestOneLook:
             ),
             patch(f"{LOOK}.suggestion_repo.titles_for_watch", new=AsyncMock(return_value=["Old"])),
             patch(f"{LOOK}.suggestion_repo.propose", new=AsyncMock(return_value=None)),
+            patch(f"{LOOK}.OutcomeService.track_finding", new=AsyncMock()),
             patch(f"{LOOK}.AgentRunnerService", return_value=MagicMock(execute=run)),
         ), run
 

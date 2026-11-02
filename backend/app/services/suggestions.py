@@ -18,6 +18,7 @@ from app.db.models.user import User
 from app.db.updates import writable
 from app.repositories import member_repo, suggestion_repo, user_repo
 from app.schemas.user import UserUpdate
+from app.services.outcome import OutcomeService
 from app.services.proactive import ProactiveService
 
 # How far back Settings shows the proposals a person already answered.
@@ -70,6 +71,8 @@ class SuggestionService:
             raise NotFoundError(
                 message="No such dismissed suggestion", details={"suggestion_id": suggestion_id}
             )
+        if suggestion.kind == SuggestionKind.FINDING.value:
+            await OutcomeService(self.db).restore_finding(ctx, suggestion)
         return await suggestion_repo.reopen(self.db, suggestion=suggestion)
 
     async def _own_open(self, ctx: AuthContext, suggestion_id: UUID) -> Suggestion:
@@ -88,6 +91,9 @@ class SuggestionService:
     async def dismiss(self, ctx: AuthContext, suggestion_id: UUID) -> Suggestion:
         """Decline it - and, kept as dismissed, it is not proposed again."""
         suggestion = await self._own_open(ctx, suggestion_id)
+        if suggestion.kind == SuggestionKind.FINDING.value:
+            await self._settle_finding(ctx, suggestion, mute=True)
+            return suggestion
         return await suggestion_repo.decide(
             self.db, suggestion=suggestion, status=SuggestionStatus.DISMISSED
         )
@@ -102,6 +108,9 @@ class SuggestionService:
         """
         suggestion = await self._own_open(ctx, suggestion_id)
         person = self._person(ctx)
+        if suggestion.kind == SuggestionKind.FINDING.value:
+            await self._settle_finding(ctx, suggestion, mute=False)
+            return suggestion
         if suggestion.kind == SuggestionKind.PROFILE.value:
             await self._apply_profile(person, UserUpdate.model_validate(suggestion.payload))
         elif suggestion.kind == SuggestionKind.ROLE_PACK.value:
@@ -121,3 +130,9 @@ class SuggestionService:
             name: value for name, value in writable(update, over=User).items() if name in fields
         }
         await user_repo.update(self.db, db_user=user, update_data=changes)
+
+    async def _settle_finding(self, ctx: AuthContext, finding: Suggestion, *, mute: bool) -> None:
+        outcomes = OutcomeService(self.db)
+        outcome = await outcomes.track_finding(finding)
+        await outcomes.settle(ctx, outcome.id, "mute" if mute else "resolve", via="inbox")
+        await self.db.refresh(finding)

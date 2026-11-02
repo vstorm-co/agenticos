@@ -1,5 +1,5 @@
 ---
-source_sha: "c7bacb814666"
+source_sha: "121ae2c08ab3"
 ---
 
 # Governance { #governance }
@@ -1722,11 +1722,11 @@ salir; resolver y silenciar además lo despejan. Una entrega que un worker ya ti
 justo antes de enviarse, así que la cerrada entre tanto no sale. `POST /outcomes/{id}/settle` recibe
 la acción y `GET /outcomes` lista los resultados propios de quien llama, opcionalmente de un chat.
 
-Decidir la última aprobación pendiente de una ejecución - en la cola, en el chat o en una llamada -
-resuelve el resultado que preguntaba por ella, sin que nadie toque la campana. Una causa silenciada
-sigue silenciada: la misma causa que vuelve se despeja al llegar y no envía nada, mientras que una
-resuelta o confirmada que vuelve se reabre. Los estados solo avanzan, así que un resultado resuelto o
-silenciado no se puede revertir.
+Decidir la última aprobación pendiente de una ejecución resuelve su resultado. Una causa silenciada sigue silenciada. En otras notificaciones, una causa resuelta o confirmada puede reabrirse cuando vuelve; un hallazgo repetido conserva su estado anterior.
+
+Cada hallazgo de una vigilancia, incluso sin aviso urgente en la campana, comparte un caso con su fila de Inbox y su tarjeta en el chat de origen. **Hecho** resuelve ese caso; descartar el hallazgo lo silencia. Ambas acciones cancelan las entregas externas pendientes. Confirmar detiene los avisos y los futuros anuncios del informe diario, pero mantiene el hallazgo pendiente en Inbox con el estado **Confirmado**. Eliminar la vigilancia resuelve sus casos pendientes antes de borrar los hallazgos. Las decisiones afectan solo a la persona propietaria dentro de la misma organización.
+
+Solo **Restaurar** explícitamente un hallazgo descartado reabre el mismo caso. No repite los avisos ni las entregas anteriores. La migración `0264_finding_outcome_state.py` vincula los hallazgos existentes con sus casos, crea casos para los no urgentes, conserva identificadores y decisiones anteriores de Inbox y cancela entregas obsoletas pendientes. Un downgrade elimina el vínculo, pero no revierte decisiones ni recupera mensajes aceptados por el proveedor; conserve una copia anterior a la actualización.
 
 ### Configurado en el agent { #configured-on-the-agent }
 

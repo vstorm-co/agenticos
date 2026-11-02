@@ -2195,7 +2195,8 @@
       },
       "open": "Open",
       "urgent": "Urgent",
-      "more": "{count, plural, =1 {1 more in your inbox} other {# more in your inbox}}"
+      "more": "{count, plural, =1 {1 more in your inbox} other {# more in your inbox}}",
+      "acknowledged": "Acknowledged"
     },
     "turnLost": "The agent stopped before it answered - the server running it went away.",
     "turnLostAskAgain": "Ask again",

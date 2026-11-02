@@ -38,6 +38,8 @@ export function useSettleOutcome(via: "inbox" | "chat") {
       Promise.all([
         client.invalidateQueries({ queryKey: qk.outcomes.all() }),
         client.invalidateQueries({ queryKey: qk.notifications.all() }),
+        client.invalidateQueries({ queryKey: qk.suggestions.mine() }),
+        client.invalidateQueries({ queryKey: qk.watches.mine() }),
       ]),
   });
   return { settle: settle.mutateAsync, isPending: settle.isPending };

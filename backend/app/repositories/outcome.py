@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.models.notification import Notification
 from app.db.models.notification_delivery import DeliveryStatus, NotificationDelivery
 from app.db.models.outcome import Outcome
+from app.db.models.suggestion import Suggestion
 
 SETTLED_REASON = "outcome settled"
 
@@ -54,21 +55,25 @@ async def open_or_find(
             Outcome.user_id == user_id,
             Outcome.dedupe_key == dedupe_key,
         )
+        .with_for_update()
         .execution_options(populate_existing=True)
     )
     assert outcome is not None
     return outcome
 
 
-async def get_own(
+async def get_own_for_update(
     db: AsyncSession, *, organization_id: UUID, user_id: UUID, outcome_id: UUID
 ) -> Outcome | None:
     return await db.scalar(
-        select(Outcome).where(
+        select(Outcome)
+        .where(
             Outcome.id == outcome_id,
             Outcome.organization_id == organization_id,
             Outcome.user_id == user_id,
         )
+        .with_for_update()
+        .execution_options(populate_existing=True)
     )
 
 
@@ -118,11 +123,15 @@ async def is_settled(db: AsyncSession, *, outcome_id: UUID) -> bool:
 async def open_for_run(db: AsyncSession, *, run_id: UUID, kind: str) -> list[Outcome]:
     """Outcomes of this kind still asking about this run."""
     result = await db.execute(
-        select(Outcome).where(
+        select(Outcome)
+        .where(
             Outcome.source_run_id == run_id,
             Outcome.kind == kind,
             Outcome.status.in_(["open", "acknowledged"]),
         )
+        .order_by(Outcome.id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
     )
     return list(result.scalars().all())
 
@@ -173,3 +182,24 @@ async def skip_unsent_deliveries(db: AsyncSession, *, outcome_id: UUID) -> int:
         .values(status=DeliveryStatus.SKIPPED.value, last_error=SETTLED_REASON)
     )
     return int(result.rowcount)  # ty: ignore[unresolved-attribute]
+
+
+async def for_watch_findings(
+    db: AsyncSession, *, organization_id: UUID, user_id: UUID, watch_id: UUID
+) -> list[Outcome]:
+    """Lock the person's cases before their watch and Inbox projections disappear."""
+    result = await db.scalars(
+        select(Outcome)
+        .join(Suggestion, Suggestion.outcome_id == Outcome.id)
+        .where(
+            Outcome.organization_id == organization_id,
+            Outcome.user_id == user_id,
+            Suggestion.organization_id == organization_id,
+            Suggestion.user_id == user_id,
+            Suggestion.watch_id == watch_id,
+        )
+        .order_by(Outcome.id)
+        .with_for_update(of=Outcome)
+        .execution_options(populate_existing=True)
+    )
+    return list(result.all())
