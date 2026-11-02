@@ -19,6 +19,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [1.35.5] - 2026-11-02
+
 ### Fixed
 
 - A document deleted while it was still being indexed no longer leaves its chunks searchable. The delete removed nothing because the document had no vector id yet: its chunks were written, or still being written, and the ingest had not recorded them. The ingest now queues a retried job that removes the chunks it wrote when it finds the document deleted, and a delete that discovers the newly recorded vector id queues the same durable removal. Recording the embedding spend of such a document no longer fails the ingest on the deleted row, which had left the chunks in place and retried the job until it died: the spend is kept against no document. A sync no longer counts such a document as ingested. Clearing a default knowledge base mid-ingest was already covered ([#2565](https://github.com/vstorm-co/agenticos/issues/2565)).
@@ -19694,7 +19696,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.35.4...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.35.5...HEAD
+[1.35.5]: https://github.com/vstorm-co/agenticos/compare/v1.35.4...v1.35.5
 [1.35.4]: https://github.com/vstorm-co/agenticos/compare/v1.35.3...v1.35.4
 [1.35.3]: https://github.com/vstorm-co/agenticos/compare/v1.35.2...v1.35.3
 [1.35.2]: https://github.com/vstorm-co/agenticos/compare/v1.35.1...v1.35.2
