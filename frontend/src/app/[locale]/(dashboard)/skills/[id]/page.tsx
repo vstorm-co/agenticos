@@ -8,7 +8,12 @@ import { useTranslations } from "next-intl";
 import { EditSkillDialog } from "@/components/skills/edit-skill-dialog";
 import { SkillAgents } from "@/components/skills/skill-agents";
 import { SkillHistory } from "@/components/skills/skill-history";
-import { lineOf, shownAgents, type ShownAgents } from "@/components/skills/skill-lines";
+import {
+  eachAgentOnce,
+  lineOf,
+  shownAgents,
+  type ShownAgents,
+} from "@/components/skills/skill-lines";
 import { SkillPageHeader } from "@/components/skills/skill-page-header";
 import { VersionTree } from "@/components/skills/version-tree";
 import { ErrorState, LoadingState } from "@/components/states";
@@ -62,10 +67,12 @@ export default function SkillPage({ params }: { params: Promise<{ id: string }> 
   const fork = forks.find((one) => one.id === forkId) ?? null;
   // A link to a fork that has since been archived shows everyone.
   const shown: ShownAgents = forkId !== null && fork === null ? "all" : asked;
-  const followers = (agents.agents?.items ?? []).filter(
-    (usage) =>
-      !usage.draft_only &&
-      (fork === null ? usage.binding.state === "main" : usage.binding.fork?.id === fork.id),
+  const followers = eachAgentOnce(
+    (agents.agents?.items ?? []).filter(
+      (usage) =>
+        !usage.draft_only &&
+        (fork === null ? usage.binding.state === "main" : usage.binding.fork?.id === fork.id),
+    ),
   ).length;
 
   return (

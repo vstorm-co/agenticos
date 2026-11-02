@@ -10,6 +10,7 @@ import { getErrorMessage } from "@/lib/api-error";
 import { versionTree, type TreeFork, type TreeRow } from "@/lib/skill-version-tree";
 import { cn } from "@/lib/utils";
 import type { SkillAgentUsage, SkillFork } from "@/types/skill-versions";
+import { eachAgentOnce } from "./skill-lines";
 
 const CHIPS = 3;
 
@@ -146,11 +147,12 @@ function Branch({
 
 function Chips({ agents }: { agents: SkillAgentUsage[] }) {
   const t = useTranslations("skills.page.tree");
-  if (agents.length === 0) return null;
-  const rest = agents.slice(CHIPS);
+  const shown = eachAgentOnce(agents);
+  if (shown.length === 0) return null;
+  const rest = shown.slice(CHIPS);
   return (
     <span className="flex flex-wrap items-center gap-1">
-      {agents.slice(0, CHIPS).map((usage) => (
+      {shown.slice(0, CHIPS).map((usage) => (
         <span
           key={usage.agent.id}
           className="bg-muted inline-flex max-w-40 items-center gap-1 rounded-full py-0.5 pr-2 pl-0.5 text-xs"

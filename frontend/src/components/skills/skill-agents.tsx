@@ -12,7 +12,7 @@ import { ROUTES } from "@/lib/constants";
 import type { SkillAgentList, SkillAgentUsage, SkillFork } from "@/types/skill-versions";
 import { ChangeVersionDialog } from "./change-version-dialog";
 import { LineChips } from "./line-chips";
-import { bindingLabel, isShown, type ShownAgents } from "./skill-lines";
+import { bindingLabel, eachAgentOnce, isShown, readerKey, type ShownAgents } from "./skill-lines";
 
 /** Each agent that uses the skill, the version it is served, and the way to move it. */
 export function SkillAgents({
@@ -95,7 +95,7 @@ export function SkillAgents({
   return (
     <ListCard
       title={t("tabs.agents")}
-      counted={agents === undefined ? null : t("agentCount", { count: rows.length })}
+      counted={agents === undefined ? null : t("agentCount", { count: eachAgentOnce(rows).length })}
       controls={
         agents !== undefined && (
           <LineChips agents={items} forks={forks} value={shown} onChange={onShow} />
@@ -106,7 +106,7 @@ export function SkillAgents({
       <DataTable
         columns={columns}
         rows={agents === undefined && !error ? undefined : rows}
-        getRowKey={(usage) => usage.agent.id}
+        getRowKey={readerKey}
         loading={agents === undefined && !error}
         error={error ? getErrorMessage(error, tErrors) : undefined}
         empty={<p className="text-muted-foreground p-4 text-sm">{t("agentsTable.empty")}</p>}

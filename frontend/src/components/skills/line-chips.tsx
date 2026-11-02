@@ -4,7 +4,7 @@ import { useTranslations } from "next-intl";
 
 import { cn } from "@/lib/utils";
 import type { SkillAgentUsage, SkillFork } from "@/types/skill-versions";
-import { isShown, type ShownAgents } from "./skill-lines";
+import { eachAgentOnce, isShown, type ShownAgents } from "./skill-lines";
 
 /**
  * Which agents the page is about: everyone, main, the pinned ones, or one fork.
@@ -24,9 +24,10 @@ export function LineChips({
   onChange: (next: ShownAgents) => void;
 }) {
   const t = useTranslations("skills.page");
-  const count = (shown: ShownAgents) => agents.filter((usage) => isShown(usage, shown)).length;
+  const count = (shown: ShownAgents) =>
+    eachAgentOnce(agents.filter((usage) => isShown(usage, shown))).length;
   const choices: { value: ShownAgents; label: string }[] = [
-    { value: "all", label: t("show.all", { count: agents.length }) },
+    { value: "all", label: t("show.all", { count: eachAgentOnce(agents).length }) },
     { value: "main", label: t("show.main", { count: count("main") }) },
     { value: "pinned", label: t("show.pinned", { count: count("pinned") }) },
     ...forks.map((fork) => ({
