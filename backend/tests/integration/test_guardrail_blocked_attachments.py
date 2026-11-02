@@ -10,6 +10,7 @@ for the next turn of the conversation to open.
 
 import importlib.util
 import uuid
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from types import ModuleType
 from unittest.mock import AsyncMock
@@ -18,7 +19,7 @@ import pytest
 from pydantic_ai.messages import ModelMessage, ModelResponse, TextPart
 from pydantic_ai.models.function import AgentInfo, FunctionModel
 from pydantic_ai.run import AgentRun
-from sqlalchemy import select, text
+from sqlalchemy import select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.capabilities.guardrails import GuardrailBlocked
@@ -36,6 +37,7 @@ from app.db.models.credential import ModelProfile
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.user import User
 from app.repositories import conversation_repo
+from app.repositories import retention as retention_repo
 from app.services import attachments as attachments_module
 from app.services.agent_chat import ChatAgentRunner
 from app.services.agent_registry import AgentRegistryService
@@ -294,6 +296,150 @@ class TestARefusedTurnIsNotReplayedToTheModel:
         assert asked.content == f"summarise the attached notes, starting at {BLOCKED}"
         assert asked.attachment_context is None
 
+    async def test_the_refusal_outlives_the_run_that_recorded_it(
+        self, db: AsyncSession, storage: LocalFileStorage, model_calls: list[list[ModelMessage]]
+    ) -> None:
+        """Codex review of #2628: retention deletes a `guardrail_blocked` run, and
+        `messages.run_id` is `SET NULL`. A refusal read off the run went with it,
+        and the next turn replayed the prompt the edge had stopped."""
+        ctx = await _owner(db)
+        agent = await _guarded_agent_without_a_workspace(db, ctx)
+        chat = Conversation(organization_id=ctx.organization_id, user_id=ctx.user_id)
+        db.add(chat)
+        await db.flush()
+        _, first = await AgentRunnerService(db).execute(
+            ctx,
+            agent.id,
+            f"say {BLOCKED}",
+            surface=RunSurface.WEB,
+            conversation_id=chat.id,
+        )
+        assert first.status == RunStatus.GUARDRAIL_BLOCKED.value
+        asked_id = (
+            await db.execute(
+                select(Message.id).where(Message.run_id == first.id, Message.role == "user")
+            )
+        ).scalar_one()
+
+        deleted, _ = await retention_repo.delete_runs_keeping_their_spend(
+            db,
+            organization_id=ctx.organization_id,
+            cutoff=datetime.now(UTC) + timedelta(days=1),
+            limit=100,
+        )
+
+        assert deleted >= 1
+        asked = (
+            await db.execute(
+                select(Message)
+                .where(Message.id == asked_id)
+                .execution_options(populate_existing=True)
+            )
+        ).scalar_one()
+        assert asked.run_id is None, "the run is gone and the row no longer names it"
+        sent = repr(await ConversationService(db).model_history(chat.id, limit=50))
+        assert BLOCKED not in sent
+        assert REFUSED_TURN in sent
+
+
+class TestTheRefusalIsWrittenOnTheMessage:
+    async def test_a_row_written_for_a_refused_run_is_marked_and_one_for_another_is_not(
+        self, db: AsyncSession, storage: LocalFileStorage, model_calls: list[list[ModelMessage]]
+    ) -> None:
+        """Web chat writes the answer's row after the run has ended, in a session
+        of its own: the mark is read off the run as the row is written."""
+        ctx = await _owner(db)
+        agent = await _guarded_agent_without_a_workspace(db, ctx)
+        chat = Conversation(organization_id=ctx.organization_id, user_id=ctx.user_id)
+        db.add(chat)
+        await db.flush()
+        runner = AgentRunnerService(db)
+        _, blocked = await runner.execute(
+            ctx, agent.id, f"say {BLOCKED}", surface=RunSurface.WEB, conversation_id=chat.id
+        )
+        _, allowed = await runner.execute(
+            ctx, agent.id, "say hello", surface=RunSurface.WEB, conversation_id=chat.id
+        )
+        assert blocked.status == RunStatus.GUARDRAIL_BLOCKED.value
+        assert allowed.status == RunStatus.COMPLETED.value
+
+        late = await conversation_repo.create_message(
+            db, conversation_id=chat.id, role="assistant", content="", run_id=blocked.id
+        )
+        fine = await conversation_repo.create_message(
+            db, conversation_id=chat.id, role="assistant", content="hi", run_id=allowed.id
+        )
+        loose = await conversation_repo.create_message(
+            db, conversation_id=chat.id, role="user", content="no run"
+        )
+
+        assert (late.guardrail_refused, fine.guardrail_refused, loose.guardrail_refused) == (
+            True,
+            False,
+            False,
+        )
+        marked = dict(
+            (
+                await db.execute(
+                    select(Message.run_id, Message.guardrail_refused)
+                    .where(Message.role == "user", Message.run_id.is_not(None))
+                    .where(Message.conversation_id == chat.id)
+                )
+            ).all()
+        )
+        assert marked == {blocked.id: True, allowed.id: False}
+
+
+def _backfill() -> ModuleType:
+    path = Path(__file__).parents[2] / "alembic/versions/0249_message_guardrail_refused.py"
+    spec = importlib.util.spec_from_file_location("message_guardrail_refused", path)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+class TestTheMarkIsBackfilledFromTheRuns:
+    async def test_only_the_rows_of_a_refused_run_are_marked(
+        self, db: AsyncSession, storage: LocalFileStorage, model_calls: list[list[ModelMessage]]
+    ) -> None:
+        """0249: rows written before the column read their refusal off the run
+        once, while the run is still there to say so."""
+        ctx = await _owner(db)
+        agent = await _guarded_agent_without_a_workspace(db, ctx)
+        chat = Conversation(organization_id=ctx.organization_id, user_id=ctx.user_id)
+        db.add(chat)
+        await db.flush()
+        runner = AgentRunnerService(db)
+        _, blocked = await runner.execute(
+            ctx, agent.id, f"say {BLOCKED}", surface=RunSurface.WEB, conversation_id=chat.id
+        )
+        _, allowed = await runner.execute(
+            ctx, agent.id, "say hello", surface=RunSurface.WEB, conversation_id=chat.id
+        )
+        # As a row from before the column reads: unmarked whatever its run did.
+        await db.execute(
+            update(Message)
+            .where(Message.conversation_id == chat.id)
+            .values(guardrail_refused=False)
+        )
+
+        await db.execute(text(_backfill().MARK_REFUSED))
+
+        marked = {
+            (run_id, role): refused
+            for run_id, role, refused in (
+                await db.execute(
+                    select(Message.run_id, Message.role, Message.guardrail_refused).where(
+                        Message.conversation_id == chat.id
+                    )
+                )
+            ).all()
+        }
+        assert marked[(blocked.id, "user")] is True
+        assert marked[(allowed.id, "user")] is False
+        assert marked[(allowed.id, "assistant")] is False
+
 
 def _migration() -> ModuleType:
     path = Path(__file__).parents[2] / "alembic/versions/0248_drop_refused_turn_summaries.py"
@@ -406,3 +552,5 @@ class TestAWebChatTurnTheEdgeRefusedKeepsNoBriefing:
         ).scalar_one()
         assert row.content == "summarise the attached notes"
         assert row.attachment_context is None
+        # Marked in the transaction that ends the run: the row outlives it.
+        assert row.guardrail_refused is True
