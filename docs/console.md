@@ -38,7 +38,7 @@ Conversation agents are ordered by their latest message or top-level run, newest
 
 When **Approve everything** is unavailable, chat settings distinguish missing approval-decision permission from an organization policy that disables standing consent. A person allowed to decide approvals gets a link to **Budget and approvals**, where that policy can be changed explicitly. The chat never changes organization policy automatically.
 
-On phones, page actions use an aligned two-column layout. Opening a project or workspace file replaces the folder tree with its reader; the back arrow returns to the folders, and **Full screen** expands the reader.
+On phones, primary page actions stay visible and secondary commands fold behind **More page actions**. Inbox filters and the table format use selects. Settings with many sections use a section menu, while the MCP client is selected from a dropdown. Opening a project or workspace file opens its full-screen reader; the back arrow returns to the folders. Workflow step dialogs show one chosen panel at a time: settings, input or output. Switching panels preserves edits; desktop keeps the panels side by side.
 
 Markdown fields and file editors also offer an expand button without discarding the current draft. Skill descriptions and categories can be expanded above the editor. The chat composer uses less space and caps long drafts against the available screen height. Opening navigation focuses the panel, while Tab still reaches its controls. The workflow canvas has a floating full-screen control and a smaller minimap on phones.
 

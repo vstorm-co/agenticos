@@ -53,10 +53,17 @@ export function JobsTable({
     () => [
       {
         key: "kind",
+        className: "w-full max-w-0 sm:w-auto sm:max-w-none",
         header: t("kind"),
         cell: (job) => (
           <div className="min-w-0">
-            <p className="font-mono text-xs font-medium">{job.kind}</p>
+            <p className="font-mono text-xs font-medium break-all">{job.kind}</p>
+            <div className="mt-1 flex flex-wrap items-center gap-2 text-xs sm:hidden">
+              <Badge variant={BADGE[job.status]}>{t(`status.${job.status}`)}</Badge>
+              <span className="text-muted-foreground">
+                {t("attemptsOf", { attempts: job.attempts, max: job.max_attempts })}
+              </span>
+            </div>
             {job.last_error && (
               <p className="text-muted-foreground mt-1 line-clamp-2 text-xs" title={job.last_error}>
                 {job.last_error}
@@ -67,11 +74,13 @@ export function JobsTable({
       },
       {
         key: "status",
+        hideBelow: "sm",
         header: t("statusColumn"),
         cell: (job) => <Badge variant={BADGE[job.status]}>{t(`status.${job.status}`)}</Badge>,
       },
       {
         key: "attempts",
+        hideBelow: "sm",
         header: t("attempts"),
         align: "right",
         cell: (job) => (
@@ -96,7 +105,7 @@ export function JobsTable({
         key: "actions",
         header: <span className="sr-only">{t("actions")}</span>,
         align: "right",
-        className: "pr-5",
+        className: "w-0 pr-3 sm:pr-5",
         cell: (job) =>
           job.status === "dead" ? (
             <Button size="sm" variant="outline" onClick={() => retry.mutate(job)}>
@@ -146,7 +155,7 @@ export function JobsTable({
           jobs.error ? <ErrorState description={t("jobsCouldNotBeRead")} className="m-5" /> : null
         }
         empty={t("noJobs")}
-        className="rounded-none border-0 bg-transparent [&_table]:min-w-[40rem]"
+        className="rounded-none border-0 bg-transparent [&_table]:min-w-0 sm:[&_table]:min-w-[40rem]"
       />
       {jobs.hasNextPage && (
         <ListCardFootRow>

@@ -105,7 +105,7 @@ function DialogFooter({ className, ...props }: React.HTMLAttributes<HTMLDivEleme
       // A rule above the actions, so where the form ends and the decision starts
       // is drawn rather than implied by a gap.
       className={cn(
-        "border-border mt-1 flex flex-col-reverse gap-2 border-t pt-4 sm:flex-row sm:justify-end",
+        "border-border mt-1 flex flex-row flex-wrap items-center justify-end gap-2 border-t pt-3 sm:pt-4 max-sm:[&>button]:min-h-11 max-sm:[&>button]:max-w-full max-sm:[&>button]:whitespace-normal",
         className,
       )}
       {...props}

@@ -3,7 +3,14 @@
 import { useEffect, useRef } from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
-import type { LucideIcon } from "lucide-react";
+import { ChevronDown, type LucideIcon } from "lucide-react";
+import {
+  Button,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui";
 
 import { SCROLL_FADE, useScrollFade } from "@/components/ui/scroll-fade";
 import { useShell } from "@/hooks/use-shell";
@@ -45,11 +52,16 @@ export function PageTabs({
   className?: string;
 }) {
   const shell = useShell();
-  const tabs = isDesktopShell(shell) ? allTabs : allTabs.filter((tab) => !tab.shellOnly);
   const isActive = useActiveRoute();
+  const tabs = isDesktopShell(shell)
+    ? allTabs
+    : allTabs.filter((tab) => !tab.shellOnly || isActive(tab.href, tab.exact));
   const t = useTranslations("nav");
+  const tc = useTranslations("common");
   const strip = useRef<HTMLElement>(null);
-  const activeHref = tabs.find((tab) => isActive(tab.href, tab.exact))?.href;
+  const activeTab = tabs.find((tab) => isActive(tab.href, tab.exact)) ?? tabs[0];
+  const activeHref = activeTab?.href;
+  const many = tabs.length > 4;
   useScrollFade(strip);
 
   // On a phone the strip is wider than the screen, and a tab past its edge -
@@ -63,12 +75,46 @@ export function PageTabs({
   }, [activeHref]);
 
   return (
-    <div className={cn("border-border border-b", className)}>
+    <div className={cn("border-border border-b", many && "max-md:border-0", className)}>
+      {many && activeTab && (
+        <div className="md:hidden">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="outline"
+                className="w-full justify-start"
+                aria-label={tc("chooseSection", { section: t(activeTab.labelKey) })}
+              >
+                {activeTab.icon && <activeTab.icon aria-hidden />}
+                {t(activeTab.labelKey)}
+                <ChevronDown className="ml-auto" aria-hidden />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
+              align="start"
+              className="w-[var(--radix-dropdown-menu-trigger-width)]"
+            >
+              {tabs.map((tab) => (
+                <DropdownMenuItem key={tab.href} asChild>
+                  <Link
+                    href={tab.href}
+                    aria-current={isActive(tab.href, tab.exact) ? "page" : undefined}
+                  >
+                    {tab.icon && <tab.icon aria-hidden />}
+                    {t(tab.labelKey)}
+                  </Link>
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      )}
       <nav
         ref={strip}
         className={cn(
           "relative -mb-px flex min-w-0 [scrollbar-width:none] gap-0.5 overflow-x-auto overscroll-x-contain [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden",
           SCROLL_FADE,
+          many && "hidden md:flex",
         )}
       >
         {tabs.map((tab) => {

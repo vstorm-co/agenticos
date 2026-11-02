@@ -1,5 +1,5 @@
 ---
-source_sha: "666f72857496"
+source_sha: "b4551d1f7eaa"
 ---
 
 # Die Konsole { #the-console }
@@ -44,7 +44,7 @@ Die Agenten einer Unterhaltung sind nach ihrer letzten Nachricht oder ihrem letz
 
 Ist **Approve everything** nicht verfügbar, unterscheiden die Chat-Einstellungen zwischen fehlender Entscheidungsberechtigung und einer Organisationsrichtlinie, die pauschale Zustimmung deaktiviert. Wer Genehmigungen entscheiden darf, erhält einen Link zu **Budget und Genehmigungen**, um die Richtlinie ausdrücklich zu ändern. Der Chat ändert die Organisationsrichtlinie niemals automatisch.
 
-Auf Telefonen stehen Seitenaktionen in zwei ausgerichteten Spalten. Beim Öffnen einer Projekt- oder Workspace-Datei ersetzt die Dateiansicht den Ordnerbaum; der Zurück-Pfeil führt zu den Ordnern zurück, und **Vollbild** vergrößert die Ansicht.
+Auf dem Smartphone bleiben die Hauptaktionen sichtbar; weitere Befehle öffnet **Weitere Seitenaktionen**. Inbox-Filter und Tabellenformat werden über Auswahllisten gewählt. Einstellungen mit vielen Bereichen haben ein Bereichsmenü; der MCP-Client wird aus einer Liste gewählt. Projekt- und Workspace-Dateien öffnen sich im Vollbildleser; der Zurück-Pfeil führt zu den Ordnern. Im Workflow-Schritteditor wählst du Einstellungen, Eingabe oder Ausgabe. Beim Wechsel bleiben Änderungen erhalten; auf dem Desktop stehen die Bereiche weiterhin nebeneinander.
 
 Markdown-Felder und Dateieditoren bieten ebenfalls eine Schaltfläche zum Vergrößern, ohne den aktuellen Entwurf zu verwerfen. Beschreibung und Kategorie eines Skills lassen sich über dem Editor aufklappen. Das Chat-Eingabefeld benötigt weniger Platz und begrenzt lange Entwürfe anhand der verfügbaren Bildschirmhöhe. Beim Öffnen der Navigation erhält das Panel den Fokus; mit Tab sind dessen Bedienelemente weiterhin erreichbar. Der Workflow-Canvas bietet auf Telefonen eine schwebende Vollbild-Schaltfläche und eine kleinere Minimap.
 

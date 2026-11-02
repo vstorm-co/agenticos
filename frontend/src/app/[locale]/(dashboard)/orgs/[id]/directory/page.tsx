@@ -38,8 +38,15 @@ export default function DirectoryPage({ params }: PageProps) {
 
   const header = (
     <PageHeader
-      title={t("title")}
-      description={t("description")}
+      title={<span data-tour="org-directory">{t("title")}</span>}
+      description={
+        <div className="space-y-2">
+          <p>{t("description")}</p>
+          <p>{t("howItWorks")}</p>
+          <p>{t("precedence")}</p>
+          <p>{t("removal")}</p>
+        </div>
+      }
       breadcrumbs={[
         { label: t("organizations"), href: ROUTES.ORGS },
         { label: t("members"), href: ROUTES.ORG_MEMBERS(orgId) },
@@ -74,15 +81,6 @@ export default function DirectoryPage({ params }: PageProps) {
   return (
     <div className="space-y-6">
       {header}
-
-      <section
-        data-tour="org-directory"
-        className="border-border bg-card text-muted-foreground space-y-2 rounded-xl border p-5 text-sm"
-      >
-        <p>{t("howItWorks")}</p>
-        <p>{t("precedence")}</p>
-        <p>{t("removal")}</p>
-      </section>
 
       <DirectoryMappingList
         mappings={mappings}

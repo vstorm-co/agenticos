@@ -7,6 +7,7 @@ import { useTranslations } from "next-intl";
 import { usePublicConfig } from "@/components/public-config/public-config-provider";
 import { CopyCode } from "@/components/settings/copy-code";
 import { Button } from "@/components/ui";
+import { ContextHelp } from "@/components/ui/context-help";
 import { DOCS, ROUTES } from "@/lib/constants";
 
 /** Where the API is, how a key authenticates, and the two places that say what it can do. */
@@ -16,8 +17,10 @@ export function ApiUsage() {
   return (
     <section className="border-border bg-card rounded-xl border" data-tour="api-usage">
       <header className="border-border border-b px-5 py-4">
-        <h2 className="text-foreground text-sm font-semibold">{t("title")}</h2>
-        <p className="text-muted-foreground mt-1 text-xs">{t("why")}</p>
+        <div className="flex items-center gap-1">
+          <h2 className="text-foreground text-sm font-semibold">{t("title")}</h2>
+          <ContextHelp>{t("why")}</ContextHelp>
+        </div>
       </header>
       <div className="grid gap-4 px-5 py-5 md:grid-cols-2">
         <div className="space-y-1.5">

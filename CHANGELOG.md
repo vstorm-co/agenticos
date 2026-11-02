@@ -21,6 +21,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Simplify phone navigation and editing: Inbox filters and MCP clients use selects, long settings navigation uses a section menu, secondary page commands fold away, project files open full screen and workflow step panels switch without losing edits. Keep administrative row actions visible on narrow screens and reduce dialog footer and run-summary height.
+
 - CI, load tests and dependency freshness checks disable deployment diagnostics so ephemeral test installations and browser activity do not enter the live analytics collector.
 - Improve phone layouts across page actions, app controls, skill and context editors, and file readers. Mobile editors fold descriptions and file management away while writing; project and workspace files have a dedicated reader. Source/preview controls use one button. Apps use floating back and options buttons, keeping more space for their content. Expanded editors preserve drafts and variable completion. Reduce the chat composer's height, align painted source text with its input, and open navigation without focusing its close button.
 

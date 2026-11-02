@@ -954,7 +954,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
           }
           description={agent.description ?? undefined}
           breadcrumbs={[{ label: t("agents"), href: ROUTES.AGENTS }, { label: agent.name }]}
-          actions={
+          secondaryActions={
             <>
               {/* Trying the agent happens in the chat, which streams, keeps the
                 conversation and can hand a tool call to the approval queue.
@@ -1020,18 +1020,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
                 <UserPlus className="h-4 w-4" />
                 {tSharing("share")}
               </Button>
-              {canPublish && (
-                <Button
-                  onClick={handlePublish}
-                  disabled={publish.isPending || !spec?.name.trim()}
-                  data-tour="agent-publish"
-                  // First in the row a phone scrolls, rather than past its edge.
-                  className="max-md:order-first"
-                >
-                  <Upload className="h-4 w-4" />
-                  {t("publish")}
-                </Button>
-              )}
+
               {canEdit && (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
@@ -1131,6 +1120,18 @@ export default function AgentBuilderPage({ params }: PageProps) {
                 onChange={handleAvatar}
               />
             </>
+          }
+          actions={
+            canPublish && (
+              <Button
+                onClick={handlePublish}
+                disabled={publish.isPending || !spec?.name.trim()}
+                data-tour="agent-publish"
+              >
+                <Upload className="h-4 w-4" />
+                {t("publish")}
+              </Button>
+            )
           }
         />
 

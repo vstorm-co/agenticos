@@ -142,4 +142,4 @@ export const DIALOG_FRAMED =
  * width and must not be combined with one of the tokens above.
  */
 export const DIALOG_WINDOW =
-  "flex h-[var(--dialog-available-height)] max-h-none w-[calc(100%-1.5rem)] max-w-none sm:w-[calc(100%-4rem)] flex-col gap-3 overflow-hidden p-4 sm:max-w-none sm:p-6";
+  "flex h-[var(--dialog-available-height)] max-h-none w-full rounded-none max-w-none sm:w-[calc(100%-4rem)] flex-col gap-3 overflow-hidden p-4 sm:max-w-none sm:p-6";

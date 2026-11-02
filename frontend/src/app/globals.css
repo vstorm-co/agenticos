@@ -2764,24 +2764,19 @@ body .tour-spotlight {
   }
 
   .page-actions,
-  .page-actions > div {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+  .page-actions > div:not([data-secondary-actions]) {
+    display: flex;
+    flex-wrap: wrap;
     align-items: stretch;
     gap: 0.5rem;
-  }
-
-  /* Keep walkthrough groups measurable while their buttons share the phone grid. */
-  .page-actions > div {
-    grid-column: 1 / -1;
   }
 
   .page-actions :where(button, a) {
     min-block-size: 2.75rem;
     min-inline-size: 0;
-    white-space: normal;
+    white-space: nowrap;
     text-align: center;
-    padding-inline: 0.625rem;
+    padding-inline: 0.75rem;
     font-size: 0.8125rem;
   }
 }
@@ -2868,6 +2863,14 @@ body .tour-spotlight {
   --dialog-center: calc(
     (var(--app-height, 100dvh) + var(--shell-inset-top, 0px) - var(--safe-bottom, 0px)) / 2
   );
+}
+
+@media (max-width: 767px) {
+  :root {
+    --dialog-available-height: calc(
+      var(--app-height, 100dvh) - var(--shell-inset-top, 0px) - var(--safe-bottom, 0px)
+    );
+  }
 }
 
 /* Sonner's default palette follows its own theme; these roles also follow a

@@ -1,7 +1,10 @@
+"use client";
+
 import { ContextHelp } from "@/components/ui/context-help";
 import Link from "next/link";
-import { ChevronRight } from "lucide-react";
-import type { ReactNode } from "react";
+import { ChevronRight, MoreHorizontal, X } from "lucide-react";
+import { useEffect, useId, useRef, useState, type ReactNode } from "react";
+import { Button } from "@/components/ui/button";
 
 import { RestartTourButton } from "@/components/onboarding/restart-tour-button";
 import { cn } from "@/lib/utils";
@@ -21,6 +24,8 @@ interface PageHeaderProps {
   breadcrumbs?: Crumb[];
   /** Right-aligned actions (buttons, etc.). */
   actions?: ReactNode;
+  /** Secondary commands stay inline on desktop and fold behind one control on phones. */
+  secondaryActions?: ReactNode;
   /** State of the thing on the page (status pills), set above the actions. */
   badges?: ReactNode;
   className?: string;
@@ -36,12 +41,36 @@ export function PageHeader({
   descriptionMode = "help",
   breadcrumbs,
   actions,
+  secondaryActions,
   badges,
   className,
 }: PageHeaderProps) {
   const t = useTranslations("dashboard");
+  const [secondaryOpen, setSecondaryOpen] = useState(false);
+  const secondaryId = useId();
+  const header = useRef<HTMLDivElement>(null);
+  const secondaryButton = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (!secondaryOpen) return;
+    const outside = (event: PointerEvent) => {
+      if (event.target instanceof Node && !header.current?.contains(event.target))
+        setSecondaryOpen(false);
+    };
+    const escape = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !event.defaultPrevented) {
+        setSecondaryOpen(false);
+        secondaryButton.current?.focus();
+      }
+    };
+    window.addEventListener("pointerdown", outside);
+    window.addEventListener("keydown", escape);
+    return () => {
+      window.removeEventListener("pointerdown", outside);
+      window.removeEventListener("keydown", escape);
+    };
+  }, [secondaryOpen]);
   return (
-    <div className={cn("mb-4 shrink-0 sm:mb-6", className)}>
+    <div ref={header} className={cn("mb-4 shrink-0 sm:mb-6", className)}>
       {breadcrumbs && breadcrumbs.length > 0 && (
         <nav aria-label={t("breadcrumb")} className="mb-3">
           <ol className="text-muted-foreground flex flex-wrap items-center gap-1.5 text-xs">
@@ -107,6 +136,35 @@ export function PageHeader({
         {/* Wrapped on a phone: scrolled sideways, the Builder's last actions
             sat past the screen's edge with nothing saying they were there. */}
         <div className="page-actions order-2 flex w-full max-w-full min-w-0 flex-wrap items-center gap-2 md:order-1 md:w-auto md:justify-end">
+          {secondaryActions && (
+            <>
+              <Button
+                ref={secondaryButton}
+                type="button"
+                variant="outline"
+                size="icon"
+                className="md:hidden"
+                aria-label={t("morePageActions")}
+                aria-expanded={secondaryOpen}
+                data-state={secondaryOpen ? "active" : "inactive"}
+                aria-controls={secondaryId}
+                data-tour="page-secondary-actions"
+                onClick={() => setSecondaryOpen(!secondaryOpen)}
+              >
+                {secondaryOpen ? <X aria-hidden /> : <MoreHorizontal aria-hidden />}
+              </Button>
+              <div
+                id={secondaryId}
+                data-secondary-actions
+                className={cn(
+                  "order-2 grid basis-full grid-cols-2 gap-2 md:contents max-md:[&>div]:col-span-2",
+                  !secondaryOpen && "max-md:hidden",
+                )}
+              >
+                {secondaryActions}
+              </div>
+            </>
+          )}
           {actions}
           <span className="hidden md:inline-flex">
             <RestartTourButton />

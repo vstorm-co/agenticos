@@ -1,5 +1,5 @@
 ---
-source_sha: "666f72857496"
+source_sha: "b4551d1f7eaa"
 ---
 
 # Konsola { #the-console }
@@ -42,7 +42,7 @@ Agenci rozmowy są uporządkowani według ostatniej wiadomości lub uruchomienia
 
 Gdy **Approve everything** jest niedostępne, ustawienia chatu rozróżniają brak uprawnienia do zatwierdzania i politykę organizacji wyłączającą stałą zgodę. Osoba z uprawnieniem do zatwierdzania otrzymuje odnośnik do **Budżetu i zatwierdzeń**, gdzie może jawnie zmienić tę politykę. Chat nie zmienia polityki organizacji automatycznie.
 
-Na telefonie akcje strony układają się w dwóch wyrównanych kolumnach. Otwarcie pliku projektu lub workspace zastępuje drzewo folderów czytnikiem; strzałka wstecz wraca do folderów, a **Pełny ekran** powiększa czytnik.
+Na telefonie główne akcje strony pozostają widoczne, a drugorzędne polecenia rozwija przycisk **Więcej akcji strony**. Filtry Inbox i format tabeli wybiera się selectem. Ustawienia z wieloma sekcjami mają menu wyboru sekcji; klienta MCP wybiera się z listy. Plik projektu lub workspace otwiera czytnik na pełnym ekranie, a strzałka wstecz wraca do folderów. Edytor kroku workflow pokazuje jeden wybrany panel: ustawienia, wejście albo wynik. Przełączanie zachowuje edycję; desktop nadal pokazuje panele obok siebie.
 
 Pola Markdown i edytory plików również mają przycisk powiększania, który zachowuje bieżący szkic. Opis i kategorię skilla można rozwinąć nad edytorem. Pole wiadomości na czacie zajmuje mniej miejsca i ogranicza wysokość długiego szkicu do dostępnej wysokości ekranu. Otwarcie nawigacji ustawia focus na panelu, a Tab nadal przechodzi do jego kontrolek. Canvas workflow ma na telefonie pływający przycisk pełnego ekranu i mniejszą minimapę.
 

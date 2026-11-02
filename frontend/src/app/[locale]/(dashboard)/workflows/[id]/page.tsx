@@ -205,12 +205,7 @@ export default function WorkflowEditorPage({ params }: PageProps) {
               pending={actions.setActive.isPending}
               onChange={(active) => actions.setActive.mutate({ id: workflow.id, active })}
             />
-            <Button variant="outline" asChild>
-              <Link href={ROUTES.WORKFLOW_RUNS(workflow.id)}>
-                <Activity className="h-4 w-4" />
-                {t("runsTitle")}
-              </Link>
-            </Button>
+
             {/* Looked at now and then, not on every visit: kept one click away. */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -219,6 +214,12 @@ export default function WorkflowEditorPage({ params }: PageProps) {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
+                <DropdownMenuItem asChild>
+                  <Link href={ROUTES.WORKFLOW_RUNS(workflow.id)}>
+                    <Activity className="h-4 w-4" />
+                    {t("runsTitle")}
+                  </Link>
+                </DropdownMenuItem>
                 {canEdit && (
                   <DropdownMenuItem onClick={() => setViewing(!viewing)}>
                     {viewing ? <Pencil className="h-4 w-4" /> : <Eye className="h-4 w-4" />}

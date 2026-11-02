@@ -83,6 +83,7 @@ describe("pageKey", () => {
     expect(pageKey("/workflows/runs")).toBe("/workflows/runs");
     expect(stepsForPage("/workflows/wf-1", () => true).map((step) => step.id)).toEqual([
       "workflow-canvas-fullscreen",
+      "workflow-step-view",
     ]);
   });
   it("collapses every concrete builder route onto the one builder identity", () => {

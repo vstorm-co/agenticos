@@ -17,6 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui";
+import { ListFilters } from "@/components/ui/list-filters";
 import { CardStatus, McpServerCard } from "@/components/mcp/mcp-server-card";
 import { McpConnectionDialog } from "@/components/mcp/mcp-connection-dialog";
 import { ServerConnectionsDialog } from "@/components/mcp/server-connections-dialog";
@@ -616,49 +617,55 @@ export function McpServerList({
         contentClassName="space-y-4 p-4"
       >
         <div data-tour="mcp-filter" className="flex flex-wrap items-center gap-2">
-          <Select value={category} onValueChange={narrow}>
-            <SelectTrigger className="w-auto min-w-40" aria-label={t("category")}>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">{t("allCategories")}</SelectItem>
-              {categories.map((entry) => (
-                <SelectItem key={entry} value={entry}>
-                  {categoryLabel(entry)}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select
-            value={auth}
-            onValueChange={(value) => {
-              setAuth(value as McpAuthKind | "all");
-              setPage(0);
-            }}
+          <ListFilters
+            compact
+            active={Number(category !== "all") + Number(auth !== "all") + Number(state !== "all")}
           >
-            <SelectTrigger className="w-auto min-w-36" aria-label={t("authFilter")}>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">{t("anyAuth")}</SelectItem>
-              {(["oauth", "token", "none"] as const).map((kind) => (
-                <SelectItem key={kind} value={kind}>
-                  {t(MCP_AUTH_LABEL[kind])}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select value={state} onValueChange={(value) => setState(value as StateFilter)}>
-            <SelectTrigger className="w-auto min-w-36" aria-label={t("connectionState")}>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">{t("anyState")}</SelectItem>
-              <SelectItem value="connected">{t("connected")}</SelectItem>
-              <SelectItem value="not-connected">{t("notConnected")}</SelectItem>
-            </SelectContent>
-          </Select>
-          <div className="flex-1" />
+            <div className="order-2 grid w-full gap-2 sm:grid-cols-3">
+              <Select value={category} onValueChange={narrow}>
+                <SelectTrigger className="w-full min-w-0" aria-label={t("category")}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">{t("allCategories")}</SelectItem>
+                  {categories.map((entry) => (
+                    <SelectItem key={entry} value={entry}>
+                      {categoryLabel(entry)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select
+                value={auth}
+                onValueChange={(value) => {
+                  setAuth(value as McpAuthKind | "all");
+                  setPage(0);
+                }}
+              >
+                <SelectTrigger className="w-full min-w-0" aria-label={t("authFilter")}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">{t("anyAuth")}</SelectItem>
+                  {(["oauth", "token", "none"] as const).map((kind) => (
+                    <SelectItem key={kind} value={kind}>
+                      {t(MCP_AUTH_LABEL[kind])}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select value={state} onValueChange={(value) => setState(value as StateFilter)}>
+                <SelectTrigger className="w-full min-w-0" aria-label={t("connectionState")}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">{t("anyState")}</SelectItem>
+                  <SelectItem value="connected">{t("connected")}</SelectItem>
+                  <SelectItem value="not-connected">{t("notConnected")}</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </ListFilters>
           {canManageOrganization && (
             <Button
               size="sm"

@@ -2210,6 +2210,7 @@
   },
   "common": {
     "archiveNamedConfirm": "Archive {name}?",
+    "chooseSection": "Section: {section}",
     "back": "Back",
     "cancel": "Cancel",
     "close": "Close",
@@ -3065,6 +3066,7 @@
       "reset": "Follow the page again"
     },
     "pageStatus": "Status",
+    "morePageActions": "More page actions",
     "startChecklist": {
       "title": "Get started",
       "progress": "{done} of {total} done",
@@ -4015,6 +4017,7 @@
     "serverDisconnected": "{name} disconnected.",
     "serverUpdated": "{name} updated.",
     "serverUrl": "Server URL",
+    "client": "MCP client",
     "servers": "Servers",
     "settings": "Settings",
     "stateDisabled": "Disabled",
@@ -4978,6 +4981,10 @@
       "project-file-location": {
         "title": "Your computer or shared files",
         "body": "Computer shows your approved local folder. Shared project files contains uploaded copies for people with project access. The two locations do not synchronize automatically."
+      },
+      "workflow-step-view": {
+        "title": "Focus on one panel",
+        "body": "On a phone, choose step settings, input or output to give the active panel the available space. Switching panels keeps your draft."
       }
     },
     "chooseLanguage": "Language",
@@ -8899,6 +8906,8 @@
     "dataEmpty": "Nothing in it",
     "dataMoreRows": "{count, plural, one {Show # more row} other {Show # more rows}}",
     "stepInput": "Input",
+    "stepEditorView": "Step view",
+    "stepEditorSettings": "Step settings",
     "stepInputSource": "Step to read from",
     "stepPinned": "Test data",
     "stepNoDataYet": "No data yet. Run the workflow, or test the step before it.",
@@ -11372,6 +11381,7 @@
     "why": "Claude Code, Codex, Cursor or any other MCP client can work in this organization through AgenticOS's own MCP server: list and run agents, read runs and what they cost, search and fill knowledge bases, invite members.",
     "docs": "What the MCP server can do",
     "serverUrl": "Server URL",
+    "client": "MCP client",
     "signIn": "Sign in",
     "viaBrowser": "Through the browser",
     "viaKey": "With an API key",

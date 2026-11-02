@@ -224,7 +224,7 @@ export default function WorkflowsPage() {
       <PageHeader
         title={t("title")}
         description={t("description")}
-        actions={
+        secondaryActions={
           <>
             <Button variant="outline" asChild>
               <Link href={ROUTES.WORKFLOW_ALL_RUNS}>
@@ -248,20 +248,22 @@ export default function WorkflowsPage() {
                 {t("templateLibrary")}
               </Button>
             )}
-            {canCreate && (
-              <Button
-                onClick={() => {
-                  setInitial(undefined);
-                  setCreateOpen(true);
-                }}
-                disabled={create.isPending}
-                data-tour="workflows-new"
-              >
-                <Plus className="h-4 w-4" />
-                {t("newWorkflow")}
-              </Button>
-            )}
           </>
+        }
+        actions={
+          canCreate && (
+            <Button
+              onClick={() => {
+                setInitial(undefined);
+                setCreateOpen(true);
+              }}
+              disabled={create.isPending}
+              data-tour="workflows-new"
+            >
+              <Plus className="h-4 w-4" />
+              {t("newWorkflow")}
+            </Button>
+          )
         }
       />
 

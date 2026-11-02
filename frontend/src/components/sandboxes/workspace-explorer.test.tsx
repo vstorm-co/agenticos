@@ -834,3 +834,34 @@ it("releases fullscreen when a refreshed listing no longer contains the selected
   expect(document.body.style.overflow).not.toBe("hidden");
   expect(treePane?.inert).toBe(false);
 });
+
+it("opens a selected project file in the full-screen reader on a phone", async () => {
+  const media = vi.spyOn(window, "matchMedia").mockReturnValue({
+    matches: true,
+    media: "(max-width: 767px)",
+    onchange: null,
+    addListener: vi.fn(),
+    removeListener: vi.fn(),
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    dispatchEvent: vi.fn(() => true),
+  });
+  try {
+    render(
+      <FileExplorer
+        source={{ kind: "project", id: "p-1" }}
+        files={listing([file("brief.md")])}
+        isLoading={false}
+        error={null}
+      />,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "brief.md" }));
+    expect(screen.getByRole("dialog", { name: "brief.md" })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Folders" }));
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(screen.getByRole("button", { name: "brief.md" })).toBeInTheDocument();
+    expect(document.body.style.overflow).not.toBe("hidden");
+  } finally {
+    media.mockRestore();
+  }
+});

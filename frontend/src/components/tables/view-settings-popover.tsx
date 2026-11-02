@@ -73,9 +73,14 @@ export function ViewSettingsPopover({
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <Button variant="outline" size="sm" className="gap-2" data-tour="table-view-settings">
+        <Button
+          variant="outline"
+          size="sm"
+          className="gap-2 max-sm:px-3"
+          data-tour="table-view-settings"
+        >
           <Settings2 className="size-4" />
-          {t("title")}
+          <span className="max-sm:sr-only">{t("title")}</span>
         </Button>
       </PopoverTrigger>
       <PopoverContent

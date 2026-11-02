@@ -373,6 +373,18 @@ beforeEach(() => {
 });
 
 describe("the table detail page", () => {
+  it("switches format through the phone select and keeps it in the URL", async () => {
+    serve();
+    await act(async () => {
+      renderPage();
+    });
+    await screen.findByTestId("grid-view");
+    await userEvent.click(screen.getByRole("combobox", { name: "Format" }));
+    await userEvent.click(screen.getByRole("option", { name: "List" }));
+    expect(await screen.findByTestId("list-view")).toBeInTheDocument();
+    expect(new URLSearchParams(window.location.search).get("view")).toBe("list");
+  });
+
   it("shows a loading state before the table arrives", async () => {
     vi.mocked(apiClient.get).mockReturnValue(new Promise(() => {}));
 

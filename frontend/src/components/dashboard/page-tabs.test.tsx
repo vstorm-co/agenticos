@@ -1,4 +1,5 @@
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { NextIntlClientProvider } from "next-intl";
 import { describe, expect, it, vi } from "vitest";
 
@@ -15,6 +16,27 @@ const TABS = [
 ];
 
 describe("PageTabs", () => {
+  it("offers long section lists through a menu with the current section named", async () => {
+    render(
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <PageTabs
+          tabs={[
+            ...TABS,
+            { labelKey: "notifications", href: "/settings/notifications" },
+            { labelKey: "memory", href: "/settings/memory" },
+            { labelKey: "account", href: "/settings/account" },
+          ]}
+        />
+      </NextIntlClientProvider>,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Section: API" }));
+    expect(screen.getByRole("menuitem", { name: "Profile" })).toHaveAttribute(
+      "href",
+      "/settings/profile",
+    );
+    expect(screen.getByRole("menuitem", { name: "API" })).toHaveAttribute("aria-current", "page");
+  });
+
   it("marks the active tab and scrolls the strip, not the page, to centre it", () => {
     const offsetLeft = vi.spyOn(HTMLElement.prototype, "offsetLeft", "get").mockReturnValue(600);
     const offsetWidth = vi.spyOn(HTMLElement.prototype, "offsetWidth", "get").mockReturnValue(80);

@@ -2210,6 +2210,7 @@
   },
   "common": {
     "archiveNamedConfirm": "{name} archivieren?",
+    "chooseSection": "Bereich: {section}",
     "back": "Zurück",
     "cancel": "Abbrechen",
     "close": "Schließen",
@@ -3065,6 +3066,7 @@
       "reset": "Wieder der Seite folgen"
     },
     "pageStatus": "Status",
+    "morePageActions": "Weitere Seitenaktionen",
     "startChecklist": {
       "title": "Erste Schritte",
       "progress": "{done} von {total} erledigt",
@@ -3897,6 +3899,7 @@
     "serverDisconnected": "{name} getrennt.",
     "serverUpdated": "{name} aktualisiert.",
     "serverUrl": "Server-URL",
+    "client": "MCP-Client",
     "servers": "Server",
     "settings": "Einstellungen",
     "stateDisabled": "Deaktiviert",
@@ -4856,6 +4859,10 @@
       "project-file-location": {
         "title": "Dein Computer oder gemeinsame Dateien",
         "body": "Computer zeigt deinen freigegebenen lokalen Ordner. Gemeinsame Projektdateien enthält hochgeladene Kopien für Personen mit Projektzugriff. Die beiden Orte werden nicht automatisch synchronisiert."
+      },
+      "workflow-step-view": {
+        "title": "Ein Bereich im Fokus",
+        "body": "Wähle auf dem Smartphone die Schritteinstellungen, Eingabe oder Ausgabe. Der aktive Bereich erhält den verfügbaren Platz; dein Entwurf bleibt beim Wechsel erhalten."
       }
     },
     "chooseLanguage": "Sprache",
@@ -8778,6 +8785,8 @@
     "dataEmpty": "Nichts darin",
     "dataMoreRows": "{count, plural, one {# weitere Zeile zeigen} other {# weitere Zeilen zeigen}}",
     "stepInput": "Eingabe",
+    "stepEditorView": "Schrittansicht",
+    "stepEditorSettings": "Schritteinstellungen",
     "stepInputSource": "Daten aus Schritt",
     "stepPinned": "Testdaten",
     "stepNoDataYet": "Noch keine Daten. Führen Sie den Workflow aus oder testen Sie den Schritt davor.",
@@ -11251,6 +11260,7 @@
     "why": "Claude Code, Codex, Cursor oder jeder andere MCP-Client kann über den eigenen MCP-Server von AgenticOS in dieser Organisation arbeiten: Agents auflisten und ausführen, Runs und ihre Kosten lesen, Wissensdatenbanken durchsuchen und füllen, Mitglieder einladen.",
     "docs": "Was der MCP-Server kann",
     "serverUrl": "Server-URL",
+    "client": "MCP-Client",
     "signIn": "Anmeldung",
     "viaBrowser": "Über den Browser",
     "viaKey": "Mit einem API-Schlüssel",

@@ -26,6 +26,14 @@ import { ROUTES } from "@/lib/constants";
 import { NodeForm } from "@/components/workflows/property-panel/node-form";
 import { PolicySection } from "@/components/workflows/property-panel/policy-section";
 import { carriesField, scrollNearEdge } from "@/lib/workflows/field-drag";
+import { ContextHelp } from "@/components/ui/context-help";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { EmailAccountSetup } from "./email-account-setup";
 import { StepName, StepNote, StepSwitch } from "./step-details";
 import { InputPane, OutputPane } from "./step-panes";
@@ -94,11 +102,15 @@ export function NodeEditorDialog({
   );
 
   const [tab, setTab] = useState("parameters");
+  const [phonePane, setPhonePane] = useState<"settings" | "input" | "output">(
+    runData ? "output" : "settings",
+  );
   // The fields left since the dialog opened: a value still missing from one of
   // them is said at once, not only once a run or a publish was tried.
   const [left, setLeft] = useState<ReadonlySet<string>>(new Set());
   const close = () => {
     setTab("parameters");
+    setPhonePane(runData ? "output" : "settings");
     setLeft(new Set());
     store.editNode(null);
   };
@@ -125,6 +137,7 @@ export function NodeEditorDialog({
   // Brings a problem's field into view, its message said at once.
   const showField = (field: string) => {
     setTab("parameters");
+    setPhonePane("settings");
     setLeft(new Set([...left, field]));
     requestAnimationFrame(() => {
       const target = document.querySelector(`[data-field="${CSS.escape(field)}"]`);
@@ -140,6 +153,13 @@ export function NodeEditorDialog({
   const names = nodeNames(graph, catalogIndex);
   const withData = workflowId !== undefined && (runData || !readOnly) && definition !== null;
   const withInput = withData && graph.edges.some((edge) => edge.target_node_id === node.id);
+  const activePhonePane = phonePane === "input" && !withInput ? "settings" : phonePane;
+  const stepDescription =
+    definition === null
+      ? t("panelUnknownDefinition")
+      : node.label
+        ? `${definition.name} · ${definition.description}`
+        : definition.description;
 
   const form = definition !== null && (
     // Listens for focus leaving a field inside it; the fields are the controls,
@@ -221,7 +241,7 @@ export function NodeEditorDialog({
         onDragOver={(event) => carriesField(event) && scrollNearEdge(event)}
         className={cn("gap-0 p-0 sm:p-0", withData ? DIALOG_WINDOW : [DIALOG_FORM, DIALOG_COLUMN])}
       >
-        <header className="border-border flex items-start gap-3 border-b px-5 pt-5 pr-14 pb-4 sm:px-6 sm:pr-14">
+        <header className="border-border flex items-start gap-3 border-b px-3 pt-3 pr-14 pb-2 sm:px-6 sm:pt-5 sm:pr-14 sm:pb-4">
           {node.definition_id === "mcp.call" ? (
             <McpStepIcon config={node.config} fallback={tile} />
           ) : pin?.kind === "agent" ? (
@@ -246,14 +266,12 @@ export function NodeEditorDialog({
                   />
                 )}
               </DialogTitle>
+              <span className="lg:hidden">
+                <ContextHelp>{stepDescription}</ContextHelp>
+              </span>
             </div>
-            <DialogDescription className="max-w-3xl text-sm leading-6 wrap-anywhere">
-              {definition === null
-                ? t("panelUnknownDefinition")
-                : // A step with a name of its own still says what kind of step it is.
-                  node.label
-                  ? `${definition.name} · ${definition.description}`
-                  : definition.description}
+            <DialogDescription className="max-w-3xl text-sm leading-6 wrap-anywhere max-lg:sr-only">
+              {stepDescription}
             </DialogDescription>
             {definition?.id === "mcp.call" && <McpCallNote config={node.config} />}
             {nodeProblems.length > 0 && (
@@ -301,6 +319,26 @@ export function NodeEditorDialog({
             )}
           </div>
         </header>
+        {withData && (
+          <div className="shrink-0 border-b px-3 py-2 lg:hidden" data-tour="workflow-step-view">
+            <Select
+              value={activePhonePane}
+              onValueChange={(value) => {
+                if (value === "settings" || value === "input" || value === "output")
+                  setPhonePane(value);
+              }}
+            >
+              <SelectTrigger aria-label={t("stepEditorView")}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="settings">{t("stepEditorSettings")}</SelectItem>
+                {withInput && <SelectItem value="input">{t("stepInput")}</SelectItem>}
+                <SelectItem value="output">{t("stepOutput")}</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        )}
         <div
           className={cn(
             "min-h-0 flex-1 overscroll-contain",
@@ -313,7 +351,12 @@ export function NodeEditorDialog({
           )}
         >
           {withInput && (
-            <div className="bg-muted/20 min-h-0 min-w-0 overflow-auto border-b p-5 lg:border-r lg:border-b-0 lg:p-6">
+            <div
+              className={cn(
+                "bg-muted/20 min-h-0 min-w-0 overflow-auto border-b p-3 sm:p-5 lg:border-r lg:border-b-0 lg:p-6",
+                activePhonePane !== "input" && "max-lg:hidden",
+              )}
+            >
               <InputPane
                 graph={graph}
                 catalog={catalog}
@@ -325,7 +368,8 @@ export function NodeEditorDialog({
           )}
           <div
             className={cn(
-              "bg-card min-h-0 min-w-0 space-y-5 p-5 sm:p-6",
+              "bg-card min-h-0 min-w-0 space-y-5 p-3 sm:p-6",
+              withData && activePhonePane !== "settings" && "max-lg:hidden",
               withData && "overflow-auto border-b lg:border-r lg:border-b-0",
             )}
           >
@@ -367,7 +411,12 @@ export function NodeEditorDialog({
             )}
           </div>
           {withData && (
-            <div className="bg-muted/20 min-h-0 min-w-0 overflow-auto p-5 lg:p-6">
+            <div
+              className={cn(
+                "bg-muted/20 min-h-0 min-w-0 overflow-auto p-3 sm:p-5 lg:p-6",
+                activePhonePane !== "output" && "max-lg:hidden",
+              )}
+            >
               <OutputPane
                 readOnly={runData}
                 workflowId={workflowId}
@@ -379,7 +428,7 @@ export function NodeEditorDialog({
             </div>
           )}
         </div>
-        <footer className="border-border flex items-center justify-between gap-2 border-t px-6 py-4">
+        <footer className="border-border flex items-center justify-between gap-2 border-t px-3 py-3 sm:px-6 sm:py-4">
           {readOnly ? (
             <span />
           ) : (

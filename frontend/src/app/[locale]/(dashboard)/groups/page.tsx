@@ -39,18 +39,20 @@ export default function GroupsPage() {
       <PageHeader
         title={t("departmentsTitle")}
         description={t("departmentsDescription")}
+        secondaryActions={
+          canManage ? (
+            <Button variant="outline" onClick={() => setTemplates(true)}>
+              <Sparkles className="h-4 w-4" />
+              {t("addDepartments")}
+            </Button>
+          ) : null
+        }
         actions={
           canManage ? (
-            <>
-              <Button variant="outline" onClick={() => setTemplates(true)}>
-                <Sparkles className="h-4 w-4" />
-                {t("addDepartments")}
-              </Button>
-              <Button onClick={() => setEditing("new")} data-tour="groups-new">
-                <Plus className="h-4 w-4" />
-                {t("newGroup")}
-              </Button>
-            </>
+            <Button onClick={() => setEditing("new")} data-tour="groups-new">
+              <Plus className="h-4 w-4" />
+              {t("newGroup")}
+            </Button>
           ) : null
         }
       />

@@ -26,7 +26,7 @@ export function JobCounts({
 }) {
   const t = useTranslations("pages.backgroundJobs");
   return (
-    <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+    <div className="grid grid-cols-3 gap-2 sm:grid-cols-5 sm:gap-3">
       {JOB_STATUSES.map((status) => (
         <button
           key={status}
@@ -35,15 +35,15 @@ export function JobCounts({
           aria-pressed={selected === status}
           onClick={() => onSelect(selected === status ? undefined : status)}
           className={cn(
-            "border-border bg-card hover:bg-muted/60 rounded-xl border p-4 text-left transition-colors",
+            "border-border bg-card hover:bg-muted/60 rounded-xl border p-3 text-left transition-colors sm:p-4",
             selected === status && "ring-ring ring-2",
           )}
         >
-          <span className="text-muted-foreground flex items-center gap-2 text-xs">
+          <span className="text-muted-foreground flex items-center gap-1.5 text-[11px] sm:gap-2 sm:text-xs">
             <span aria-hidden className={cn("h-2 w-2 rounded-full", TONE[status])} />
             {t(`status.${status}`)}
           </span>
-          <span className="text-foreground mt-1 block text-2xl font-semibold tabular-nums">
+          <span className="text-foreground mt-1 block text-xl font-semibold tabular-nums sm:text-2xl">
             {counts === undefined ? <Skeleton className="h-8 w-12" /> : counts[status]}
           </span>
         </button>

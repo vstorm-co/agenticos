@@ -135,22 +135,20 @@ export default function SkillsPage() {
     <PageHeader
       title={t("skills2")}
       description={t("skillKnowHowWritten")}
+      secondaryActions={
+        canCreate ? (
+          <Button variant="outline" data-tour="skills-gallery" onClick={() => setGalleryOpen(true)}>
+            <Library className="h-4 w-4" />
+            {tGallery("browse")}
+          </Button>
+        ) : undefined
+      }
       actions={
         canCreate ? (
-          <div className="flex flex-wrap items-center gap-2">
-            <Button
-              variant="outline"
-              data-tour="skills-gallery"
-              onClick={() => setGalleryOpen(true)}
-            >
-              <Library className="h-4 w-4" />
-              {tGallery("browse")}
-            </Button>
-            <Button data-tour="skills-new" onClick={() => setCreateOpen(true)}>
-              <Plus className="h-4 w-4" />
-              {t("newSkill")}
-            </Button>
-          </div>
+          <Button data-tour="skills-new" onClick={() => setCreateOpen(true)}>
+            <Plus className="h-4 w-4" />
+            {t("newSkill")}
+          </Button>
         ) : undefined
       }
     />

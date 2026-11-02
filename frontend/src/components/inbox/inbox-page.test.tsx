@@ -94,13 +94,13 @@ describe("InboxPage", () => {
     expect(screen.getByRole("heading", { name: "Inbox" })).toBeInTheDocument();
     expect(screen.getByText("3 waiting")).toBeInTheDocument();
     expect(state.shown).toEqual([finding, urgent, routine]);
-    await userEvent.click(screen.getByRole("radio", { name: "Urgent" }));
+    await chooseFilter("Urgent");
     expect(state.shown).toEqual([urgent]);
-    await userEvent.click(screen.getByRole("radio", { name: "From watches" }));
+    await chooseFilter("From watches");
     expect(state.shown).toEqual([finding, urgent]);
-    await userEvent.click(screen.getByRole("radio", { name: "Suggestions" }));
+    await chooseFilter("Suggestions");
     expect(state.shown).toEqual([routine]);
-    await userEvent.click(screen.getByRole("radio", { name: "All" }));
+    await chooseFilter("All");
     expect(state.shown).toEqual([finding, urgent, routine]);
   });
 
@@ -111,7 +111,7 @@ describe("InboxPage", () => {
     expect(state.push).toHaveBeenCalledWith("/routines?tab=watches");
 
     // Nothing urgent is not a reason to set up a watch.
-    await userEvent.click(screen.getByRole("radio", { name: "Urgent" }));
+    await chooseFilter("Urgent");
     expect(screen.queryByRole("button", { name: "Set up a watch" })).toBeNull();
   });
 
@@ -119,13 +119,13 @@ describe("InboxPage", () => {
     state.open = [item("f", { kind: "finding" }), item("r")];
     state.filter = "watches";
     const { unmount } = render(<InboxPage />);
-    expect(screen.getByRole("radio", { name: "From watches" })).toBeChecked();
+    expect(screen.getByRole("combobox", { name: "Show" })).toHaveTextContent("From watches");
     expect(state.shown.map((each) => each.id)).toEqual(["f"]);
     unmount();
 
     state.filter = "spam";
     render(<InboxPage />);
-    expect(screen.getByRole("radio", { name: "All" })).toBeChecked();
+    expect(screen.getByRole("combobox", { name: "Show" })).toHaveTextContent("All");
   });
 
   it("lists what was answered and brings a declined one back", async () => {
@@ -135,7 +135,7 @@ describe("InboxPage", () => {
       item("no", { status: "dismissed" }),
     ];
     render(<InboxPage />);
-    await userEvent.click(screen.getByRole("radio", { name: "Done" }));
+    await chooseFilter("Done");
 
     expect(screen.queryByText("Title open")).toBeNull();
     expect(screen.getByText("Saved")).toBeInTheDocument();
@@ -148,14 +148,14 @@ describe("InboxPage", () => {
     state.history = [item("no", { status: "dismissed" })];
     state.restore.mockRejectedValue(new Error("Server down"));
     const { unmount } = render(<InboxPage />);
-    await userEvent.click(screen.getByRole("radio", { name: "Done" }));
+    await chooseFilter("Done");
     await userEvent.click(screen.getByRole("button", { name: "Bring back" }));
     await waitFor(() => expect(toastError).toHaveBeenCalled());
     unmount();
 
     state.history = [];
     render(<InboxPage />);
-    await userEvent.click(screen.getByRole("radio", { name: "Done" }));
+    await chooseFilter("Done");
     expect(screen.getByText("Nothing answered yet")).toBeInTheDocument();
   });
 });
@@ -187,7 +187,7 @@ it("applies a watch-filter link while the inbox is already open", () => {
 it("lets the person retry a failed Done history read", async () => {
   state.error = new Error("offline");
   render(<InboxPage />);
-  await userEvent.click(screen.getByRole("radio", { name: "Done" }));
+  await chooseFilter("Done");
   await userEvent.click(screen.getByRole("button", { name: "Retry" }));
   expect(state.refetch).toHaveBeenCalledOnce();
 });
@@ -202,3 +202,8 @@ it("keeps Done history in a loading state until its read finishes", () => {
   rerender(<InboxPage />);
   expect(screen.getByText("Title done")).toBeInTheDocument();
 });
+
+async function chooseFilter(name: string) {
+  await userEvent.click(screen.getByRole("combobox", { name: "Show" }));
+  await userEvent.click(screen.getByRole("option", { name }));
+}

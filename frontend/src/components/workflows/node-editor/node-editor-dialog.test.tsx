@@ -296,6 +296,22 @@ describe("a step looked at in a run", () => {
 });
 
 describe("a step's data", () => {
+  it("switches the phone panel without losing edited settings", async () => {
+    seed(node("a", "debug.echo", { message: "before" }));
+    store.getState().editNode("a");
+    render(<NodeEditorDialog workflowId="wf" catalog={[DEBUG_ECHO]} />);
+    const message = screen.getByDisplayValue("before");
+    await userEvent.clear(message);
+    await userEvent.type(message, "draft survives");
+    await userEvent.click(screen.getByRole("combobox", { name: "Step view" }));
+    await userEvent.click(screen.getByRole("option", { name: "Output" }));
+    expect(screen.getByRole("region", { name: "Output" })).not.toHaveClass("max-lg:hidden");
+    await userEvent.click(screen.getByRole("combobox", { name: "Step view" }));
+    await userEvent.click(screen.getByRole("option", { name: "Step settings" }));
+    expect(screen.getByDisplayValue("draft survives")).toBeInTheDocument();
+    expect(store.getState().graph?.nodes[0]?.config.message).toBe("draft survives");
+  });
+
   it("sits between what the step reads and what it hands on, while editing a workflow", () => {
     seed(node("a", "debug.echo", { message: "hi" }), node("b", "debug.echo", { message: "yo" }));
     store.setState({

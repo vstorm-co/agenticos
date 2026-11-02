@@ -218,6 +218,7 @@ export function FileExplorer({
   const choose = (path: string) => {
     setSelected(path);
     setAsSource(false);
+    if (!readerExpanded && window.matchMedia("(max-width: 767px)").matches) toggleReader();
   };
   // Above the search, not inside the tree: searching replaces the tree with a
   // flat list, so folds kept in the tree would be discarded and reset every time
