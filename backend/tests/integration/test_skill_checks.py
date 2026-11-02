@@ -452,6 +452,10 @@ class TestTheRule:
             lab.ctx, lab.skill.id, check.id, SkillCheckApply(acknowledge_unknown=True)
         )
         assert applied.version.content == NEW.content
+        listing = await SkillAgentService(db).agents(lab.ctx, lab.skill.id)
+        rows = {row.agent.name: row for row in listing.items}
+        assert rows["C"].checked is None and rows["C"].checked_versions == []
+        assert rows["A"].checked is not None and rows["A"].checked.sample == "skill_set_only"
 
     async def test_a_failed_run_is_unknown(self, db, monkeypatch):
         lab = await _lab(db)

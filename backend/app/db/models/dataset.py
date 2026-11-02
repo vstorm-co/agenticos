@@ -159,6 +159,7 @@ class Dataset(Base, TimestampMixin):
         UniqueConstraint("organization_id", "name", name="uq_dataset_org_name"),
         Index(
             "uq_datasets_skill",
+            "organization_id",
             "skill_id",
             unique=True,
             postgresql_where=text("skill_id IS NOT NULL"),

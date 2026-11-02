@@ -14,6 +14,7 @@ from app.services.skill_check_rules import (
     StageResult,
     changed_words,
     combined,
+    noisy,
     outcomes,
     sample,
     stage_state,
@@ -58,10 +59,18 @@ class TestStage:
     def test_nothing_moved_is_no_change(self) -> None:
         assert stage_state(_stage()) is AgentState.NO_CHANGE
 
-    def test_an_unconfirmed_regression_is_within_noise_even_beside_fixes(self) -> None:
-        assert stage_state(_stage(fixed=2, broken_unconfirmed=1, candidate=0.7)) is (
-            AgentState.WITHIN_NOISE
-        )
+    def test_a_better_stage_stays_better_beside_unconfirmed_flips_and_is_noisy(self) -> None:
+        """Noise warns and never turns a measured improvement into nothing."""
+        stage = _stage(fixed=2, broken_unconfirmed=1, candidate=0.7)
+
+        assert stage_state(stage) is AgentState.BETTER
+        assert noisy(stage)
+
+    def test_an_unconfirmed_regression_without_fixes_is_within_noise(self) -> None:
+        assert stage_state(_stage(broken_unconfirmed=1)) is AgentState.WITHIN_NOISE
+
+    def test_a_stage_with_nothing_unconfirmed_is_not_noisy(self) -> None:
+        assert not noisy(_stage(fixed=2, candidate=0.7))
 
     def test_unconfirmed_fixes_alone_are_within_noise(self) -> None:
         assert stage_state(_stage(fixed_unconfirmed=2)) is AgentState.WITHIN_NOISE

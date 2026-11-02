@@ -102,14 +102,14 @@ from app.schemas.skill_version import (
     VersionRef,
 )
 from app.services import skill_check_rules as rules
-from app.services.access import AGENT, accessible_ids
+from app.services.access import AGENT, DATASET, accessible_ids
 from app.services.api_key import job_context
 from app.services.background_jobs import enqueue
 from app.services.dataset import DatasetService
 from app.services.eval_run import EvalRunService
 from app.services.improvement_states import CheckResult
 from app.services.skill_agents import LineAgent, SkillAgentService
-from app.services.skill_versions import SkillVersionService
+from app.services.skill_versions import SkillVersionService, manifest_of
 
 logger = logging.getLogger(__name__)
 
@@ -179,19 +179,20 @@ class Plan:
     proposal: SkillProposal | None
     excluded: tuple[UUID, ...] = ()
     skill_set_case_ids: list[UUID] | None = None
+    served: tuple[SkillBodyFile, ...] | None = None
 
 
-def candidate_digest(description: str, content: str, resources: dict[str, str] | None) -> str:
-    """The digest a check records for this text; a proposal is matched by it."""
+def _proposal_digest(proposal: SkillProposal) -> str:
+    """The digest a check of this proposal records, so a later decision can tell it apart."""
     files = (
-        None
-        if resources is None
-        else tuple(
+        tuple(
             SkillBodyFile(name=name, description=None, content=text)
-            for name, text in sorted(resources.items())
+            for name, text in sorted(proposal.resources.items())
         )
+        if proposal.resources
+        else None
     )
-    return Candidate(description, content, files).digest()
+    return Candidate(proposal.description, proposal.content, files).digest()
 
 
 class SkillCheckService:
@@ -251,11 +252,28 @@ class SkillCheckService:
             if proposal.resources
             else None
         )
-        return (
-            Candidate(proposal.description, proposal.content, files),
-            proposal,
-            proposal.fork_id,
-        )
+        return Candidate(proposal.description, proposal.content, files), proposal, proposal.fork_id
+
+    async def _served(
+        self, candidate: Candidate, base: SkillVersion
+    ) -> tuple[SkillBodyFile, ...] | None:
+        """The files a candidate is served with: the line's, with its own replacing or added.
+
+        The same files applying it writes, so the check measures what would ship.
+        """
+        if candidate.resources is None:
+            return None
+        files = {
+            name: SkillBodyFile(name=name, description=entry["description"], content="")
+            for name, entry in base.resources.items()
+        }
+        for name, content in (await self.versions.files_of(base)).items():
+            files[name] = SkillBodyFile(
+                name=name, description=files[name].description, content=content
+            )
+        for item in candidate.resources:
+            files[item.name] = item
+        return tuple(files[name] for name in sorted(files))
 
     async def _test_set(self, ctx: AuthContext, skill: Skill) -> Dataset | None:
         return await dataset_repo.for_skill(self.db, skill.id, organization_id=ctx.organization_id)
@@ -302,7 +320,12 @@ class SkillCheckService:
             self.db, ctx, [user.agent for user in users], Perm.AGENTS_RUN, resource_type=AGENT
         )
         test_set = await self._test_set(ctx, skill)
-        body = {skill.id: candidate.body()}
+        served = await self._served(candidate, base)
+        body = {
+            skill.id: SkillBody(
+                description=candidate.description, content=candidate.content, resources=served
+            )
+        }
         planned: list[Planned] = []
         org_remaining: Decimal | None = None
         changed_words = rules.changed_words(
@@ -352,6 +375,7 @@ class SkillCheckService:
             proposal=proposal,
             excluded=tuple(exclude_conversations),
             skill_set_case_ids=_kept(test_set, holdout or {}),
+            served=served,
         )
 
     async def _stages(
@@ -524,6 +548,15 @@ class SkillCheckService:
                     "remaining_usd": str(plan.org_remaining),
                 },
             )
+        if plan.proposal is not None:
+            for open_check in await skill_check_repo.open_for_proposal(
+                self.db, plan.proposal.id, organization_id=ctx.organization_id
+            ):
+                if open_check.candidate_hash == plan.candidate.digest():
+                    raise AlreadyExistsError(
+                        message="This change is being checked already",
+                        details={"check_id": open_check.id},
+                    )
         if not any(item.unknown is None for item in plan.agents):
             raise BadRequestError(
                 message="No agent of this line can be checked",
@@ -538,7 +571,7 @@ class SkillCheckService:
                 base_version_id=plan.base.id,
                 candidate_description=plan.candidate.description,
                 candidate_content=plan.candidate.content,
-                candidate_resources=_resources_json(plan.candidate),
+                candidate_resources=_resources_json(plan.served),
                 candidate_hash=plan.candidate.digest(),
                 description_changed=plan.description_changed,
                 mode=plan.mode.value,
@@ -667,6 +700,16 @@ class SkillCheckService:
         if run.status != EvalRunStatus.COMPLETED.value:
             await self._unknown(row, UnknownReason.FAILED)
             return
+        try:
+            await self._carry_on(ctx, check, row, current)
+        except AuthorizationError, NotFoundError:
+            # The starter may no longer read these runs or this agent: what they show
+            # stays unread, and the agent is one nobody could check.
+            await self._unknown(row, UnknownReason.NO_ACCESS)
+
+    async def _carry_on(
+        self, ctx: AuthContext, check: SkillCheck, row: SkillCheckAgent, current: UUID
+    ) -> None:
         if row.dataset_run_id is None:
             first = await self._stage_result(ctx, current)
             stage = _next_stage(row, CheckMode(check.mode))
@@ -721,7 +764,7 @@ class SkillCheckService:
                 "held_out": sum(r.compared for r in results),
                 "fixed_confirmed": sum(r.check.fixed_confirmed for r in results),
                 "regressions_confirmed": sum(r.check.regressions_confirmed for r in results),
-                "noisy": any(rules.stage_state(r) is AgentState.WITHIN_NOISE for r in results),
+                "noisy": any(rules.noisy(result) for result in results),
             },
         )
 
@@ -751,10 +794,19 @@ class SkillCheckService:
         )
 
     async def sweep(self, *, limit: int = 50) -> int:
-        """Advance running checks whose runs settled while no job carried them on."""
+        """Queue one advance per running check, so one that fails rolls back alone."""
+        from app.worker import jobs
+
         found = await skill_check_repo.running(self.db, limit=limit)
         for organization_id, check_id in found:
-            await self.advance(check_id, organization_id)
+            await enqueue(
+                self.db,
+                jobs.ADVANCE_SKILL_CHECK,
+                jobs.AdvanceSkillCheck(organization_id=organization_id, check_id=check_id),
+                organization_id=organization_id,
+                dedupe_key=f"{check_id}:sweep",
+                dedupe_active=True,
+            )
         return len(found)
 
     async def after_run(self, organization_id: UUID, eval_run_id: UUID) -> None:
@@ -920,6 +972,10 @@ class SkillCheckService:
         visible = await accessible_ids(
             self.db, ctx, list(agents.values()), Perm.AGENTS_VIEW, resource_type=AGENT
         )
+        datasets = {stage.dataset.id: stage.dataset for found in stages.values() for stage in found}
+        readable = await accessible_ids(
+            self.db, ctx, list(datasets.values()), Perm.DATASETS_VIEW, resource_type=DATASET
+        )
         reads: list[SkillCheckAgentRead] = []
         hidden = hidden_unknown = 0
         for row in rows:
@@ -942,7 +998,9 @@ class SkillCheckService:
                         CheckStage(
                             kind=stage.kind,
                             dataset_id=stage.dataset.id,
-                            dataset_name=stage.dataset.name,
+                            dataset_name=stage.dataset.name
+                            if stage.dataset.id in readable
+                            else None,
                             cases=len(stage.case_ids)
                             if stage.case_ids is not None
                             else stage.dataset.case_count,
@@ -990,16 +1048,32 @@ class SkillCheckService:
         return await self.read(ctx, skill_id, check.id)
 
     async def _decidable(
-        self, ctx: AuthContext, skill_id: UUID, check_id: UUID, outcome: CheckOutcome
+        self, ctx: AuthContext, skill_id: UUID, check_id: UUID, outcome: CheckOutcome | None
     ) -> tuple[Skill, SkillCheck, list[SkillCheckAgent]]:
-        """A finished, undecided check that offers `outcome`, on a line that has not moved.
+        """A finished, undecided check that offers `outcome`, measured on the line as it is.
+
+        Locks the skill, then the fork, then the check - the order every write to a
+        skill's versions takes - so two decisions on one skill queue instead of
+        deadlocking. `outcome` `None` asks only for a decidable check.
 
         Raises:
+            NotFoundError: The skill or the check is not the caller's to change.
             AlreadyExistsError: It was decided already.
-            ConflictError-like 409s: still running, the line moved, or it gained an agent.
+            ConcurrentChangeError: It is still running; the line, an agent of it or
+                the proposal it checked changed since.
             BadRequestError: The outcome is not one this result offers.
         """
         skill = await self.versions.skill_for(ctx, skill_id, Perm.SKILLS_EDIT)
+        await skill_repo.lock(self.db, skill.id)
+        found = await self._check(ctx, skill_id, check_id)
+        if found.fork_id is not None:
+            await skill_version_repo.get_fork(
+                self.db,
+                found.fork_id,
+                organization_id=ctx.organization_id,
+                skill_id=skill.id,
+                lock=True,
+            )
         check = await self._check(ctx, skill_id, check_id, lock=True)
         status = CheckStatus(check.status)
         if status.decided:
@@ -1010,7 +1084,7 @@ class SkillCheckService:
             raise ConcurrentChangeError(
                 message="The check has not finished", details={"check_id": check.id}
             )
-        if outcome not in rules.outcomes(
+        if outcome is not None and outcome not in rules.outcomes(
             CheckVerdict(check.verdict), fork=check.fork_id is not None
         ):
             raise BadRequestError(
@@ -1026,27 +1100,53 @@ class SkillCheckService:
                 ),
                 details={"check_id": check.id, "version": base.number},
             )
+        await self._refuse_rewritten(ctx, check)
         rows = await skill_check_repo.list_agents(
             self.db, [check.id], organization_id=ctx.organization_id
         )
-        checked = {row.agent_id for row in rows}
-        joined = [
-            user.agent
+        measured = {row.agent_id: row.agent_version for row in rows}
+        now = {
+            user.agent.id: (user.agent, user.agent_version)
             for user in await self.agents.line_agents(skill, None if fork is None else fork.id)
-            if user.agent.id not in checked
+        }
+        moved = [
+            agent
+            for agent_id, (agent, version) in now.items()
+            if measured.get(agent_id, -1) != version
         ]
-        if joined:
+        left = [agent_id for agent_id in measured if agent_id not in now]
+        if moved or left:
             visible = await accessible_ids(
-                self.db, ctx, joined, Perm.AGENTS_VIEW, resource_type=AGENT
+                self.db, ctx, moved, Perm.AGENTS_VIEW, resource_type=AGENT
             )
             raise ConcurrentChangeError(
-                message="Agents started using this line after the check. Check the change again.",
+                message=(
+                    "The agents of this line changed since the check: some started or stopped "
+                    "following it, or were published again. Check the change again."
+                ),
                 details={
-                    "agents": [agent.name for agent in joined if agent.id in visible],
-                    "hidden": sum(agent.id not in visible for agent in joined),
+                    "agents": [agent.name for agent in moved if agent.id in visible],
+                    "hidden": sum(agent.id not in visible for agent in moved) + len(left),
                 },
             )
         return skill, check, rows
+
+    async def _refuse_rewritten(self, ctx: AuthContext, check: SkillCheck) -> None:
+        """Refuse a check whose proposal says something else now than what it measured."""
+        if check.proposal_id is None:
+            return
+        proposal = await skill_proposal_repo.get(
+            self.db, check.proposal_id, organization_id=ctx.organization_id
+        )
+        if (
+            proposal is not None
+            and proposal.status == ProposalStatus.PENDING.value
+            and _proposal_digest(proposal) != check.candidate_hash
+        ):
+            raise ConcurrentChangeError(
+                message="The change was rewritten since it was checked. Check it again.",
+                details={"check_id": check.id, "proposal_id": proposal.id},
+            )
 
     @staticmethod
     def _refuse_unacknowledged(
@@ -1072,13 +1172,20 @@ class SkillCheckService:
             BadRequestError: The result offers no apply, an agent was not acknowledged,
                 or a worse agent reads the skill through a specialist.
         """
-        blocked = await self._verdict(ctx, skill_id, check_id) is CheckVerdict.BLOCKED
+        skill, check, rows = await self._decidable(ctx, skill_id, check_id, None)
+        blocked = check.verdict == CheckVerdict.BLOCKED.value
         if blocked and not data.pin_worse:
             raise refused_field(
                 "pin_worse", "The change made agents worse. Pin them, or pick another way"
             )
         outcome = CheckOutcome.APPLY_AND_PIN if blocked else CheckOutcome.APPLY
-        skill, check, rows = await self._decidable(ctx, skill_id, check_id, outcome)
+        if outcome not in rules.outcomes(
+            CheckVerdict(check.verdict), fork=check.fork_id is not None
+        ):
+            raise BadRequestError(
+                message="This check's result does not offer that",
+                details={"outcome": outcome.value, "verdict": check.verdict},
+            )
         self._refuse_unacknowledged(check, rows, data.acknowledge_unknown)
         pinned: list[AgentRef] = []
         if blocked:
@@ -1114,12 +1221,6 @@ class SkillCheckService:
         return SkillCheckApplied(
             version=await self.versions.read_version(ctx, skill.id, version.id), pinned=pinned
         )
-
-    async def _verdict(
-        self, ctx: AuthContext, skill_id: UUID, check_id: UUID
-    ) -> CheckVerdict | None:
-        check = await self._check(ctx, skill_id, check_id)
-        return None if check.verdict is None else CheckVerdict(check.verdict)
 
     async def _pin_worse(
         self,
@@ -1203,13 +1304,31 @@ class SkillCheckService:
             skill_id=check.skill_id,
         )
         assert base is not None
+        proposal = (
+            None
+            if check.proposal_id is None
+            else await skill_proposal_repo.get(
+                self.db, check.proposal_id, organization_id=ctx.organization_id
+            )
+        )
+        from app.services.skill_proposal import version_source
+
+        resources = base.resources
+        if proposal is not None and proposal.resources:
+            manifest, bodies = manifest_of(
+                (name, None, content) for name, content in sorted(proposal.resources.items())
+            )
+            await skill_version_repo.put_files(
+                self.db, organization_id=ctx.organization_id, skill_id=skill.id, bodies=bodies
+            )
+            resources = {**base.resources, **manifest}
         version = await self.versions.record_fork(
             ctx,
             fork,
             description=check.candidate_description,
             content=check.candidate_content,
-            resources=base.resources,
-            source=_source_of(check),
+            resources=resources,
+            source=version_source(proposal) if proposal is not None else _source_of(check),
             proposal_id=check.proposal_id,
         )
         helped = [
@@ -1318,14 +1437,10 @@ class SkillCheckService:
                 older version, or its result does not allow applying.
         """
         check = await skill_check_repo.get(self.db, check_id, organization_id=ctx.organization_id)
-        digest = candidate_digest(
-            proposal.description, proposal.content, proposal.resources or None
-        )
         if (
             check is None
-            or check.skill_id != proposal.skill_id
-            or check.fork_id != proposal.fork_id
-            or check.candidate_hash != digest
+            or check.proposal_id != proposal.id
+            or check.candidate_hash != _proposal_digest(proposal)
         ):
             raise refused_field("check_id", "Check this change on its agents before applying it")
         if check.status != CheckStatus.DONE.value or check.verdict in (
@@ -1397,16 +1512,7 @@ class SkillCheckService:
 
 
 def _from_text(text: CandidateText) -> Candidate:
-    return Candidate(
-        text.description,
-        text.content,
-        None
-        if text.resources is None
-        else tuple(
-            SkillBodyFile(name=item.name, description=item.description, content=item.content)
-            for item in sorted(text.resources, key=lambda item: item.name)
-        ),
-    )
+    return Candidate(text.description, text.content)
 
 
 def _candidate_of(check: SkillCheck) -> Candidate:
@@ -1423,12 +1529,13 @@ def _candidate_of(check: SkillCheck) -> Candidate:
     )
 
 
-def _resources_json(candidate: Candidate) -> dict[str, dict[str, str | None]] | None:
-    if candidate.resources is None:
+def _resources_json(
+    served: tuple[SkillBodyFile, ...] | None,
+) -> dict[str, dict[str, str | None]] | None:
+    if served is None:
         return None
     return {
-        item.name: {"description": item.description, "content": item.content}
-        for item in candidate.resources
+        item.name: {"description": item.description, "content": item.content} for item in served
     }
 
 

@@ -338,15 +338,20 @@ class TestApplying:
         service.skills.update.assert_not_called()
 
     @pytest.mark.parametrize(
-        ("request_id", "source"),
-        [(None, SkillVersionSource.WORKSPACE), (uuid.uuid4(), SkillVersionSource.IMPROVE)],
+        ("request_id", "recorded", "source"),
+        [
+            (None, None, SkillVersionSource.WORKSPACE),
+            (uuid.uuid4(), None, SkillVersionSource.IMPROVE),
+            (None, "library", SkillVersionSource.LIBRARY),
+        ],
     )
     async def test_the_version_it_makes_says_where_the_change_came_from(
-        self, monkeypatch, request_id, source
+        self, monkeypatch, request_id, recorded, source
     ):
-        """An agent's own edit, or the assistant's proposal - History tells them apart."""
+        """An agent's own edit, the assistant's proposal or a library update - History
+        tells them apart."""
         service = _service(monkeypatch)
-        proposal = _proposal(authoring_request_id=request_id)
+        proposal = _proposal(authoring_request_id=request_id, source=recorded)
         monkeypatch.setattr(skill_proposal_repo, "get", AsyncMock(return_value=proposal))
 
         await service.apply(_ctx(), proposal.id, _DECISION, checked=True)

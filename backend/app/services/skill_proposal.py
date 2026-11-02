@@ -281,13 +281,7 @@ class SkillProposalService:
             await checks.apply(ctx, check.skill_id, check.id, SkillCheckApply())
             return await self.get(ctx, proposal_id)
 
-        source = (
-            SkillVersionSource(proposal.source)
-            if proposal.source is not None
-            else SkillVersionSource.WORKSPACE
-            if proposal.authoring_request_id is None
-            else SkillVersionSource.IMPROVE
-        )
+        source = version_source(proposal)
         fork = None
         if proposal.skill_id is not None:
             current = await self.skills.get(ctx, proposal.skill_id, perm=Perm.SKILLS_EDIT)
@@ -489,6 +483,15 @@ class SkillProposalService:
             )
         if proposal.revision != revision:
             raise _changed(proposal)
+
+
+def version_source(proposal: SkillProposal) -> SkillVersionSource:
+    """What a version made from this proposal says it came from."""
+    if proposal.source is not None:
+        return SkillVersionSource(proposal.source)
+    if proposal.authoring_request_id is None:
+        return SkillVersionSource.WORKSPACE
+    return SkillVersionSource.IMPROVE
 
 
 def _moved_since(proposal: SkillProposal, skill: Skill, latest: UUID | None) -> bool:

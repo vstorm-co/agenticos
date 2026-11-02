@@ -9,6 +9,7 @@ from types import SimpleNamespace
 from typing import Any
 
 import pytest
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import (
@@ -20,6 +21,7 @@ from app.core.exceptions import (
 )
 from app.core.permissions import Perm
 from app.db.models.agent_run import AgentRun
+from app.db.models.background_job import BackgroundJob
 from app.db.models.eval_run import (
     ArmRole,
     ArmSource,
@@ -40,12 +42,11 @@ from app.repositories import (
     skill_check_repo,
     skill_proposal_repo,
     skill_usage_repo,
+    skill_version_repo,
 )
 from app.schemas.dataset import DatasetCaseCreate, DatasetCreate
 from app.schemas.resource_usage import ProposalDecision
 from app.schemas.skill_check import (
-    CandidateFile,
-    CandidateText,
     SkillCheckApply,
     SkillCheckFork,
     SkillCheckStart,
@@ -58,6 +59,7 @@ from app.services.dataset import DatasetService
 from app.services.skill_check import SkillCheckService
 from app.services.skill_proposal import SkillProposalService
 from app.services.skill_versions import SkillVersionService
+from tests.integration.test_authoring import _owner
 from tests.integration.test_skill_bindings import _serving
 from tests.integration.test_skill_checks import (
     NEW,
@@ -83,7 +85,9 @@ def _deny(monkeypatch: pytest.MonkeyPatch, perm: Perm, *agents: uuid.UUID) -> No
     monkeypatch.setattr(skill_check_module, "accessible_ids", accessible)
 
 
-async def _proposal(db: AsyncSession, lab: Lab, **values: Any):
+async def _proposal(
+    db: AsyncSession, lab: Lab, *, resources: dict[str, str] | None = None, **values: Any
+):
     return await skill_proposal_repo.create(
         db,
         organization_id=lab.ctx.organization_id,
@@ -93,16 +97,19 @@ async def _proposal(db: AsyncSession, lab: Lab, **values: Any):
         name=lab.skill.name,
         description=lab.skill.description,
         content="An order number counts as a receipt.",
-        resources={},
+        resources=resources or {},
         base_version=lab.skill.version,
         base_version_id=values.pop("base_version_id", lab.skill.latest_version_id),
         fork_id=values.pop("fork_id", None),
     )
 
 
-async def _finished(db, lab: Lab, evals: FakeEvals, outcomes: dict, **start: Any):
+async def _finished(
+    db, lab: Lab, evals: FakeEvals, outcomes: dict, *, proposal: Any = None, **start: Any
+):
     service = SkillCheckService(db)
-    check = await service.start(lab.ctx, lab.skill.id, _start(**start))
+    begin = SkillCheckStart(proposal_id=proposal.id) if proposal is not None else _start(**start)
+    check = await service.start(lab.ctx, lab.skill.id, begin)
     evals.outcomes = outcomes
     await _run_to_end(service, evals, lab, check.id)
     return service, check
@@ -225,25 +232,41 @@ class TestWhatCannotBeChecked:
 
 
 class TestRunning:
-    async def test_a_candidate_with_its_own_files_is_kept_with_the_check(self, db, monkeypatch):
+    async def test_a_proposals_files_are_measured_and_forked_as_they_would_ship(
+        self, db, monkeypatch
+    ):
+        """A change's files replace or join the line's; the check serves that set, and a
+        fork made from it holds the same set - nothing ships that was not measured."""
         lab = await _lab(db)
         evals = FakeEvals()
         evals.install(monkeypatch)
-        candidate = CandidateText(
-            description=NEW.description,
-            content=NEW.content,
-            resources=[CandidateFile(name="limits.md", content="Up to $500.")],
-        )
-
-        check = await SkillCheckService(db).start(
-            lab.ctx, lab.skill.id, SkillCheckStart(candidate=candidate)
-        )
-
-        row = await skill_check_repo.get(db, check.id, organization_id=lab.ctx.organization_id)
-        assert row is not None
-        assert row.candidate_resources == {
-            "limits.md": {"description": None, "content": "Up to $500."}
+        proposal = await _proposal(db, lab, resources={"limits.md": "Up to $500."})
+        service = SkillCheckService(db)
+        check = await service.start(lab.ctx, lab.skill.id, SkillCheckStart(proposal_id=proposal.id))
+        stored = await skill_check_repo.get(db, check.id, organization_id=lab.ctx.organization_id)
+        assert stored is not None and stored.candidate_resources is not None
+        assert {name: item["content"] for name, item in stored.candidate_resources.items()} == {
+            "a.md": "first",
+            "limits.md": "Up to $500.",
         }
+        evals.outcomes = {lab.a.id: Outcome(fixed=1), lab.b.id: Outcome(broken=1)}
+        await _run_to_end(service, evals, lab, check.id)
+
+        forked = await service.fork(lab.ctx, lab.skill.id, check.id, SkillCheckFork(name="online"))
+
+        assert forked.fork.latest is not None
+        version = await skill_version_repo.get_version(
+            db,
+            forked.fork.latest.id,
+            organization_id=lab.ctx.organization_id,
+            skill_id=lab.skill.id,
+        )
+        assert version is not None
+        assert await SkillVersionService(db).files_of(version) == {
+            "a.md": "first",
+            "limits.md": "Up to $500.",
+        }
+        assert version.source == "workspace"
 
     async def test_a_run_still_going_leaves_its_agent_running(self, db, monkeypatch):
         lab = await _lab(db)
@@ -305,8 +328,33 @@ class TestRunning:
         await service.after_run(lab.ctx.organization_id, run_id)
         await service.after_run(lab.ctx.organization_id, uuid.uuid4())
 
+        queued = await db.scalar(
+            select(func.count())
+            .select_from(BackgroundJob)
+            .where(BackgroundJob.kind == "advance-skill-check")
+        )
+        assert queued >= 1
         read = await service.read(lab.ctx, lab.skill.id, check.id)
-        assert read.status is CheckStatus.DONE
+        assert read.status is CheckStatus.RUNNING
+
+    async def test_a_starter_who_lost_sight_of_the_runs_leaves_the_agent_unknown(
+        self, db, monkeypatch
+    ):
+        lab = await _lab(db)
+        evals = FakeEvals()
+        evals.install(monkeypatch)
+        service = SkillCheckService(db)
+        check = await service.start(lab.ctx, lab.skill.id, _start())
+
+        async def refuse(_self, _ctx, _run_id, **_):
+            raise AuthorizationError(message="Reading runs needs runs:view")
+
+        monkeypatch.setattr(skill_check_module.EvalRunService, "compare", refuse)
+        evals.finish_all()
+        await service.advance(check.id, lab.ctx.organization_id)
+
+        read = await service.read(lab.ctx, lab.skill.id, check.id)
+        assert {row.unknown_reason for row in read.agents} == {"no_access"}
 
     async def test_a_check_that_is_not_there(self, db, monkeypatch):
         lab = await _lab(db)
@@ -388,7 +436,7 @@ class TestDecidingRefusals:
         service, check = await _finished(db, lab, evals, {lab.a.id: Outcome(fixed=1)})
         await _serving(db, lab.ctx, "Newcomer", dict(lab.a.draft_spec))
 
-        with pytest.raises(ConcurrentChangeError, match="started using this line"):
+        with pytest.raises(ConcurrentChangeError, match="changed since the check"):
             await service.apply(lab.ctx, lab.skill.id, check.id, SkillCheckApply())
 
     async def test_pinning_needs_publishing_the_worse_agents(self, db, monkeypatch):
@@ -484,6 +532,143 @@ class TestDecidingRefusals:
 
         with pytest.raises(BadRequestError, match="does not allow"):
             await service.passed_for(lab.ctx, proposal, check.id)
+
+
+class TestWhatTheCheckMeasuredIsWhatShips:
+    async def test_a_proposal_rewritten_after_its_check_is_not_applied(self, db, monkeypatch):
+        """An agent's next turn rewrites its waiting change in place; the check
+        measured the earlier text, so applying from it would ship an unchecked one."""
+        lab = await _lab(db)
+        evals = FakeEvals()
+        evals.install(monkeypatch)
+        proposal = await _proposal(db, lab)
+        service, check = await _finished(
+            db,
+            lab,
+            evals,
+            {lab.a.id: Outcome(fixed=1), lab.b.id: Outcome(broken=1)},
+            proposal=proposal,
+        )
+        proposal.content = "Refund everything, receipt or not."
+        await db.flush()
+
+        with pytest.raises(ConcurrentChangeError, match="rewritten"):
+            await service.apply(lab.ctx, lab.skill.id, check.id, SkillCheckApply())
+        with pytest.raises(ConcurrentChangeError, match="rewritten"):
+            await service.fork(lab.ctx, lab.skill.id, check.id, SkillCheckFork(name="x"))
+
+    async def test_a_check_of_the_same_text_is_not_a_check_of_the_proposal(self, db, monkeypatch):
+        lab = await _lab(db)
+        evals = FakeEvals()
+        evals.install(monkeypatch)
+        proposal = await _proposal(db, lab)
+        service, check = await _finished(db, lab, evals, {lab.a.id: Outcome(fixed=1)})
+
+        with pytest.raises(BadRequestError, match="Check this change"):
+            await SkillProposalService(db).apply(
+                lab.ctx,
+                proposal.id,
+                ProposalDecision(revision=proposal.revision, check_id=check.id),
+            )
+        await db.refresh(proposal)
+        assert proposal.status == "pending"
+
+    async def test_one_change_is_checked_once_at_a_time(self, db, monkeypatch):
+        lab = await _lab(db)
+        FakeEvals().install(monkeypatch)
+        proposal = await _proposal(db, lab)
+        service = SkillCheckService(db)
+        first = await service.start(lab.ctx, lab.skill.id, SkillCheckStart(proposal_id=proposal.id))
+
+        with pytest.raises(AlreadyExistsError) as again:
+            await service.start(lab.ctx, lab.skill.id, SkillCheckStart(proposal_id=proposal.id))
+        assert again.value.details == {"check_id": first.id}
+        proposal.content = "A rewritten change is a new one to check."
+        await db.flush()
+        second = await service.start(
+            lab.ctx, lab.skill.id, SkillCheckStart(proposal_id=proposal.id)
+        )
+        assert second.id != first.id
+
+    async def test_a_change_that_hurt_nobody_is_not_forked(self, db, monkeypatch):
+        lab = await _lab(db)
+        evals = FakeEvals()
+        evals.install(monkeypatch)
+        service, check = await _finished(db, lab, evals, {lab.a.id: Outcome(fixed=1)})
+
+        with pytest.raises(BadRequestError, match="does not offer"):
+            await service.fork(lab.ctx, lab.skill.id, check.id, SkillCheckFork(name="x"))
+
+    async def test_an_agent_published_again_since_the_check_must_be_checked_again(
+        self, db, monkeypatch
+    ):
+        lab = await _lab(db)
+        evals = FakeEvals()
+        evals.install(monkeypatch)
+        service, check = await _finished(db, lab, evals, {lab.a.id: Outcome(fixed=1)})
+        rows = await skill_check_repo.list_agents(
+            db, [check.id], organization_id=lab.ctx.organization_id
+        )
+        row = next(item for item in rows if item.agent_id == lab.b.id)
+        row.agent_version = (row.agent_version or 0) + 7
+        await db.flush()
+
+        with pytest.raises(ConcurrentChangeError, match="published again") as refused:
+            await service.apply(lab.ctx, lab.skill.id, check.id, SkillCheckApply())
+        assert refused.value.details == {"agents": ["B"], "hidden": 0}
+
+    async def test_a_failed_write_takes_the_pins_back_with_it(self, db, monkeypatch):
+        lab = await _lab(db)
+        evals = FakeEvals()
+        evals.install(monkeypatch)
+        service, check = await _finished(
+            db, lab, evals, {lab.a.id: Outcome(fixed=1), lab.b.id: Outcome(broken=1)}
+        )
+
+        async def refuse(*_args, **_kwargs):
+            raise ConcurrentChangeError(message="moved")
+
+        monkeypatch.setattr(service.versions, "edit", refuse)
+        with pytest.raises(ConcurrentChangeError):
+            async with db.begin_nested():
+                await service.apply(
+                    lab.ctx, lab.skill.id, check.id, SkillCheckApply(pin_worse=True)
+                )
+
+        await db.refresh(lab.b)
+        assert lab.b.draft_spec.get("skill_bindings", []) == []
+
+    async def test_a_stranger_to_the_skill_learns_nothing_about_its_checks(self, db, monkeypatch):
+        lab = await _lab(db)
+        evals = FakeEvals()
+        evals.install(monkeypatch)
+        service, check = await _finished(
+            db, lab, evals, {lab.a.id: Outcome(fixed=1), lab.b.id: Outcome(broken=1)}
+        )
+        stranger = await _owner(db)
+
+        with pytest.raises(NotFoundError):
+            await service.apply(stranger, lab.skill.id, check.id, SkillCheckApply())
+
+    async def test_a_dataset_the_reader_may_not_see_is_not_named(self, db, monkeypatch):
+        lab = await _lab(db)
+        FakeEvals().install(monkeypatch)
+        _deny_datasets(monkeypatch)
+
+        check = await SkillCheckService(db).start(lab.ctx, lab.skill.id, _start())
+
+        assert {stage.dataset_name for row in check.agents for stage in row.stages} == {None}
+
+
+def _deny_datasets(monkeypatch: pytest.MonkeyPatch) -> None:
+    real = skill_check_module.accessible_ids
+
+    async def accessible(db, ctx, rows, wanted, **kwargs):
+        return (
+            set() if wanted is Perm.DATASETS_VIEW else await real(db, ctx, rows, wanted, **kwargs)
+        )
+
+    monkeypatch.setattr(skill_check_module, "accessible_ids", accessible)
 
 
 class TestSampleAndTestSet:
