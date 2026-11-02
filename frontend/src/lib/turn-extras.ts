@@ -9,6 +9,7 @@
 
 import type { ToolCall } from "@/types/chat";
 
+import { pathArg } from "./tool-steps";
 import { toolEntry } from "./tool-catalog";
 
 export const SUGGEST_NEXT_STEPS = "suggest_next_steps";
@@ -131,4 +132,21 @@ export function memoryChangesOf(calls: readonly ToolCall[] | undefined): MemoryC
     const label = typeof description === "string" && description ? description : name;
     return typeof label === "string" && label ? [{ callId: call.id, forgot, label }] : [];
   });
+}
+
+/** Files the turn's successful writes or coding harness reported changing. */
+export function filesChangedOf(calls: readonly ToolCall[] | undefined): string[] {
+  const paths = new Set<string>();
+  for (const call of calls ?? []) {
+    if (call.status !== "completed") continue;
+    if (call.name === "write_file" || call.name === "edit_file") {
+      const path = pathArg(call.args);
+      if (path) paths.add(path);
+    } else if (call.name === "run_coding_agent") {
+      const files = jsonObject(call.result)?.files_changed;
+      if (Array.isArray(files))
+        for (const path of files) if (typeof path === "string" && path.trim()) paths.add(path);
+    }
+  }
+  return [...paths];
 }

@@ -1,5 +1,5 @@
 ---
-source_sha: "38736a8e5001"
+source_sha: "4f24faa08f17"
 ---
 
 # Die Konsole { #the-console }
@@ -402,6 +402,8 @@ hineinklicken. Darüber sind die Karten die eigenen **ersten Nachrichten** des
 Agents, im Builder unter seinen Instruktionen gesetzt; ein Agent ohne sie bietet
 die vier des Chats an, darunter eine, die fragt, was er kann, und eine, die eine
 Routine einrichtet.
+
+Das Files-Panel gruppiert Dateien nach Ordnern und unterscheidet gleiche Namen in verschiedenen Verzeichnissen. HTML-Vorschauen laden direkt verknüpfte lokale Stylesheets über denselben Dateizugriff wie die Seite. Vorschau und Quelltext bleiben getrennt; Skripte sind deaktiviert. Ist ein Stylesheet nicht lesbar, nennt die Vorschau die betroffene Datei. Unter einer Antwort stehen Links zu den in diesem Turn geänderten Dateien, anhand der von erfolgreichen Schreib-/Bearbeitungswerkzeugen oder dem Coding-Harness gemeldeten Pfade. Die Links öffnen aktuelle Workspace-Dateien, keine versionierte Kopie.
 
 Auf Bildschirmen unter 768 px bleiben laufende Überlegungen und gewöhnliche Werkzeugschritte zunächst hinter der Zeile mit der Arbeitszeit eingeklappt. Tippe darauf, um Details ein- oder auszuklappen. Antworten, Fragen, Freigabeanfragen, Fehler und visuelle Ergebnisse bleiben sichtbar. Auf breiteren Bildschirmen sind laufende Schritte weiterhin zu sehen.
 

@@ -5356,6 +5356,7 @@
   "files": {
     "couldNotBeFetched": "Nie udało się pobrać tego pliku",
     "couldNotBeRead": "Nie udało się odczytać tego pliku",
+    "linkedAssetFailed": "Nie udało się wczytać arkusza stylów {path}. Otwórz Źródło, aby sprawdzić plik.",
     "download": "Pobierz",
     "emptyFile": "Ten plik jest pusty.",
     "fileOfTotal": "{index} z {total}",

@@ -43,6 +43,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- File viewers keep clear of macOS window controls, load directly linked workspace stylesheets and preserve original HTML in Source. Chat files retain their folder hierarchy, and files changed by a turn can be opened below its answer.
+
 - Live chat progress folds into an expandable line on small screens while answers and requests for attention stay visible.
 
 - Chat controls opens above the composer with direct coding-agent choices, compact tool switches and expandable folder and approval settings.

@@ -7,8 +7,9 @@ import {
   ProjectEntryActions,
   PROJECT_PATH_DRAG,
 } from "@/components/projects/project-entry-actions";
-import { FileContent, FileIcon, PathTree, type PathTreeNode } from "@/components/files";
+import { FileContent, FileIcon, PathTree } from "@/components/files";
 import { Badge, BlankPeek, Button, DocPeek, Input, Skeleton } from "@/components/ui";
+import { treeOf, type WorkspaceTreeNode } from "@/lib/workspace-tree";
 import { hasSourceView, readsAsText, resolveFileKind } from "@/lib/file-kinds";
 import { useWorkspaceFiles } from "@/hooks";
 import { cn, formatBytes } from "@/lib/utils";
@@ -56,75 +57,8 @@ function moveDestination(origin: string, folder: string): string | null {
  * shared tree reads, `file` is what this surface's rows render - a size and a
  * download, which a skill's file has neither of.
  */
-export interface TreeNode extends PathTreeNode {
-  label: string;
-  path: string;
-  isDir: boolean;
-  children: TreeNode[];
-  /** The listing's own row, for a file. Absent for a folder. */
-  file?: WorkspaceFile;
-}
-
-/**
- * The listing as a tree, built once from the flat paths.
- *
- * Derived rather than fetched per directory: the listing carries every path, so
- * opening a folder is a state change and not a request - which is also why search
- * can be immediate.
- *
- * A folder exists here because something is inside it, whether or not the host
- * returned a directory entry of its own: a listing that names `uploads/x.pdf` and
- * nothing else still has an `uploads`, and a tree built only from `is_dir` rows
- * would hide the file under a folder it never drew.
- */
-export function treeOf(files: WorkspaceFile[]): TreeNode[] {
-  const roots: TreeNode[] = [];
-  const byPath = new Map<string, TreeNode>();
-
-  const folder = (parts: string[]): TreeNode[] => {
-    let siblings = roots;
-    let walked = "";
-    for (const part of parts) {
-      walked = walked === "" ? part : `${walked}/${part}`;
-      let node = byPath.get(walked);
-      if (node === undefined || !node.isDir) {
-        node = { label: part, path: walked, isDir: true, children: [] };
-        byPath.set(walked, node);
-        siblings.push(node);
-      }
-      siblings = node.children;
-    }
-    return siblings;
-  };
-
-  // Directories first, so a folder that *is* in the listing keeps its own row
-  // rather than being invented by the file underneath it.
-  for (const file of [...files].sort((left, right) => Number(right.is_dir) - Number(left.is_dir))) {
-    const parts = segments(file.path);
-    if (parts.length === 0) continue;
-    if (file.is_dir) {
-      folder(parts);
-      continue;
-    }
-    const label = parts[parts.length - 1] as string;
-    const siblings = folder(parts.slice(0, -1));
-    const node: TreeNode = { label, path: file.path, isDir: false, children: [], file };
-    byPath.set(segments(file.path).join("/"), node);
-    siblings.push(node);
-  }
-
-  const order = (nodes: TreeNode[]): TreeNode[] => {
-    // Folders above files, each alphabetical - the order every file manager uses,
-    // and the one that puts what can be opened where a reader looks first.
-    nodes.sort(
-      (left, right) =>
-        Number(right.isDir) - Number(left.isDir) || left.label.localeCompare(right.label),
-    );
-    for (const node of nodes) order(node.children);
-    return nodes;
-  };
-  return order(roots);
-}
+type TreeNode = WorkspaceTreeNode<WorkspaceFile>;
+export { treeOf } from "@/lib/workspace-tree";
 
 /** How many files a tree holds, for deciding whether to open all of it. */
 function countFiles(nodes: TreeNode[]): number {

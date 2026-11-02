@@ -3271,6 +3271,7 @@
   "files": {
     "couldNotBeFetched": "That file could not be fetched",
     "couldNotBeRead": "That file could not be read",
+    "linkedAssetFailed": "Could not load the linked stylesheet {path}. Open Source to inspect the file.",
     "download": "Download",
     "emptyFile": "This file is empty.",
     "fileOfTotal": "{index} of {total}",

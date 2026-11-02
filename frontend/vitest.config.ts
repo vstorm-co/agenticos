@@ -182,6 +182,7 @@ export default defineConfig({
         "src/components/inbox/inbox-page.tsx",
         "src/components/inbox/suggestion-rows.tsx",
         "src/components/chat/turn-extras.tsx",
+        "src/components/chat/turn-files.tsx",
         "src/components/chat/turn-shortcuts.tsx",
         "src/components/chat/setup-proposals.tsx",
         "src/components/chat/skill-shortcut.tsx",

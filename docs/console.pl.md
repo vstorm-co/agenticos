@@ -1,5 +1,5 @@
 ---
-source_sha: "38736a8e5001"
+source_sha: "4f24faa08f17"
 ---
 
 # Konsola { #the-console }
@@ -368,6 +368,8 @@ delegata, skilla - oraz `/`; znikają, gdy tylko w nie klikniesz. Nad nim karty
 to własne **pierwsze wiadomości** agenta, ustawiane w Builderze pod jego
 instrukcjami; agent bez nich proponuje cztery własne wiadomości czatu, w tym jedną
 z pytaniem, co potrafi, i jedną z ustawieniem rutyny.
+
+Panel Files grupuje pliki według folderów, rozróżniając identyczne nazwy w różnych katalogach. Podgląd HTML wczytuje bezpośrednio podłączone lokalne arkusze stylów przez ten sam mechanizm dostępu co stronę. Podgląd i Źródło pozostają oddzielne, a skrypty są wyłączone. Jeśli arkusza nie można odczytać, podgląd wskazuje, który plik zawiódł. Pliki zmienione w turze mają skróty pod odpowiedzią, na podstawie ścieżek zgłoszonych przez pomyślne narzędzia zapisu/edycji lub coding harness. Skróty otwierają bieżące pliki workspace, a nie wersjonowaną kopię.
 
 Na ekranach węższych niż 768 px rozumowanie i zwykłe kroki narzędzi podczas pracy są domyślnie zwinięte pod wierszem z czasem pracy. Dotknij go, aby rozwinąć lub zwinąć szczegóły. Odpowiedzi, pytania, prośby o zatwierdzenie, błędy i wyniki wizualne pozostają widoczne. Szersze ekrany nadal pokazują kroki na bieżąco.
 

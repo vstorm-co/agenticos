@@ -2841,10 +2841,15 @@ body .tour-spotlight {
    open. The same budget sizes the modal and every dialog shape token. */
 :root {
   --dialog-available-height: calc(
-    var(--app-height, 100dvh) - var(--shell-inset-top, 0px) - var(--safe-bottom, 0px) - 2rem
+    var(--app-height, 100dvh) - var(--dialog-inset-top, var(--shell-inset-top, 0px)) -
+      var(--safe-bottom, 0px) - 2rem
   );
   --dialog-center: calc(
-    (var(--app-height, 100dvh) + var(--shell-inset-top, 0px) - var(--safe-bottom, 0px)) / 2
+    (
+        var(--app-height, 100dvh) + var(--dialog-inset-top, var(--shell-inset-top, 0px)) -
+          var(--safe-bottom, 0px)
+      ) /
+      2
   );
 }
 

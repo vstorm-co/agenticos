@@ -40,7 +40,7 @@ export function FileContent({
 
 function TextBody({ access, kind, name, asSource, bare }: Required<FileContentProps>) {
   const t = useTranslations("files");
-  const { file, isLoading, error } = useFileText(access);
+  const { file, isLoading, error } = useFileText(access, kind === "html" && !asSource);
   const { download, error: actionError } = useFileActions(access);
 
   if (isLoading) return <Skeleton className="h-24 w-full" />;
