@@ -1,5 +1,5 @@
 ---
-source_sha: "b7d9f311ac60"
+source_sha: "51edc3214db2"
 ---
 
 # Skille { #skills }
@@ -228,9 +228,10 @@ pliku, odświeżenie z biblioteki oraz zastosowana zmiana z workspace agenta alb
 żaden agent jej nie czyta.
 
 **History** na stronie skilla pokazuje wersje od najnowszej. Przy każdej widać, co
-ją utworzyło (`created`, `edit`, `resources`, `library`, `workspace`, `improve` albo
-`restore`), kto ją zapisał i kiedy. Wersja zachowuje swoje pliki takie, jakie były,
-więc późniejsza zmiana pliku nie zmienia wcześniejszej wersji.
+ją utworzyło (`backfill`, `created`, `edit`, `resources`, `library`, `workspace`,
+`improve` albo `restore`) i kiedy, a temu, kto może widzieć członków organizacji,
+także kto ją zapisał. Wersja zachowuje swoje pliki takie, jakie były, więc
+późniejsza zmiana pliku nie zmienia wcześniejszej wersji.
 
 Skill, który istniał przed wersjami, ma jedną wersję, v1: treść i pliki z chwili,
 gdy wersjonowanie się zaczęło. Nic wcześniejszego nie zostało zapisane.
@@ -267,7 +268,8 @@ jego wersjami i forkami.
 | Ścieżka | Co robi |
 |---|---|
 | `GET /api/v1/skills/{id}/versions` | Wersje main albo forka z `?fork_id=`, od najnowszej |
-| `GET /api/v1/skills/{id}/versions/{version_id}` | Jedna wersja, z treścią i listą plików |
+| `GET /api/v1/skills/{id}/versions/{version_id}` | Jedna wersja, z treścią i listą plików, każdy z SHA-256 |
+| `GET /api/v1/skills/{id}/versions/{version_id}/resources/{name}` | Jeden plik w postaci z tej wersji |
 | `POST /api/v1/skills/{id}/versions` | Zapisuje edycję na main albo na forku, względem `base_version_id` |
 | `POST /api/v1/skills/{id}/versions/{version_id}/restore` | Przywraca wersję na jej własną linię |
 | `GET`, `POST /api/v1/skills/{id}/forks` | Wymienia forki albo zakłada fork z wersji main |

@@ -1,5 +1,5 @@
 ---
-source_sha: "b7d9f311ac60"
+source_sha: "51edc3214db2"
 ---
 
 # Skills { #skills }
@@ -233,10 +233,10 @@ aplicado desde el workspace de un agent o desde el
 la crea, porque ningún agent la lee.
 
 **History**, en la página del skill, lista las versiones de la más nueva a la más
-antigua. Cada una dice qué la creó (`created`, `edit`, `resources`, `library`,
-`workspace`, `improve` o `restore`), quién la guardó y cuándo. Una versión conserva
-sus archivos tal como estaban, así que cambiar un archivo después no cambia una
-versión anterior.
+antigua. Cada una dice qué la creó (`backfill`, `created`, `edit`, `resources`,
+`library`, `workspace`, `improve` o `restore`) y cuándo, y quién la guardó a quien
+puede ver a los miembros de la organización. Una versión conserva sus archivos tal
+como estaban, así que cambiar un archivo después no cambia una versión anterior.
 
 Un skill que existía antes de las versiones tiene una versión, la v1: el texto y los
 archivos que tenía cuando empezó el versionado. No se registró nada anterior.
@@ -273,7 +273,8 @@ cuenta los demás. Un skill que nadie usa se borra con sus versiones y sus forks
 | Ruta | Qué hace |
 |---|---|
 | `GET /api/v1/skills/{id}/versions` | Las versiones de main, o de un fork con `?fork_id=`, de la más nueva a la más antigua |
-| `GET /api/v1/skills/{id}/versions/{version_id}` | Una versión, con su texto y la lista de sus archivos |
+| `GET /api/v1/skills/{id}/versions/{version_id}` | Una versión, con su texto y la lista de sus archivos, cada uno con su SHA-256 |
+| `GET /api/v1/skills/{id}/versions/{version_id}/resources/{name}` | Un archivo tal como lo tenía esa versión |
 | `POST /api/v1/skills/{id}/versions` | Guarda una edición en main o en un fork, frente a `base_version_id` |
 | `POST /api/v1/skills/{id}/versions/{version_id}/restore` | Restaura una versión en su propia línea |
 | `GET`, `POST /api/v1/skills/{id}/forks` | Lista los forks o crea uno desde una versión de main |

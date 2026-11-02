@@ -219,9 +219,10 @@ agent's workspace or from the [authoring assistant](authoring.md#skills). A new
 category alone does not, because no agent reads it.
 
 **History** on the skill page lists the versions, newest first. Each one says what
-made it (`created`, `edit`, `resources`, `library`, `workspace`, `improve` or
-`restore`), who saved it and when. A version keeps its files as they were, so
-changing a file later does not change an earlier version.
+made it (`backfill`, `created`, `edit`, `resources`, `library`, `workspace`,
+`improve` or `restore`) and when, and who saved it to a reader who may see the
+organization's members. A version keeps its files as they were, so changing a file
+later does not change an earlier version.
 
 A skill that existed before versions has one version, v1: the text and files it
 had when versioning began. Nothing before that was recorded.
@@ -258,7 +259,8 @@ others. A skill that nobody uses is deleted with its versions and forks.
 | Route | What it does |
 |---|---|
 | `GET /api/v1/skills/{id}/versions` | The versions of main, or of a fork with `?fork_id=`, newest first |
-| `GET /api/v1/skills/{id}/versions/{version_id}` | One version, with its text and its list of files |
+| `GET /api/v1/skills/{id}/versions/{version_id}` | One version, with its text and its list of files, each with its SHA-256 |
+| `GET /api/v1/skills/{id}/versions/{version_id}/resources/{name}` | One file as that version had it |
 | `POST /api/v1/skills/{id}/versions` | Saves an edit on main or on a fork, against `base_version_id` |
 | `POST /api/v1/skills/{id}/versions/{version_id}/restore` | Restores a version onto its own line |
 | `GET`, `POST /api/v1/skills/{id}/forks` | Lists forks, or starts one from a main version |

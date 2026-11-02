@@ -1,5 +1,5 @@
 ---
-source_sha: "b7d9f311ac60"
+source_sha: "51edc3214db2"
 ---
 
 # Skills { #skills }
@@ -241,10 +241,11 @@ dem Workspace eines Agents oder vom [Authoring-Assistenten](authoring.md#skills)
 Eine neue Kategorie allein erzeugt keine, weil kein Agent sie liest.
 
 **History** auf der Skill-Seite listet die Versionen, die neueste zuerst. Jede sagt,
-was sie erzeugt hat (`created`, `edit`, `resources`, `library`, `workspace`,
-`improve` oder `restore`), wer sie gespeichert hat und wann. Eine Version behält
-ihre Dateien, wie sie waren; eine spätere Änderung an einer Datei ändert keine
-frühere Version.
+was sie erzeugt hat (`backfill`, `created`, `edit`, `resources`, `library`,
+`workspace`, `improve` oder `restore`) und wann, und wer sie gespeichert hat, für
+alle, die die Mitglieder der Organisation sehen dürfen. Eine Version behält ihre
+Dateien, wie sie waren; eine spätere Änderung an einer Datei ändert keine frühere
+Version.
 
 Ein Skill, der schon vor den Versionen existierte, hat eine Version, v1: Text und
 Dateien zu dem Zeitpunkt, als die Versionierung begann. Davor wurde nichts
@@ -286,7 +287,8 @@ den niemand verwendet, wird mit seinen Versionen und Forks gelöscht.
 | Pfad | Was er tut |
 |---|---|
 | `GET /api/v1/skills/{id}/versions` | Die Versionen von main oder mit `?fork_id=` eines Forks, die neueste zuerst |
-| `GET /api/v1/skills/{id}/versions/{version_id}` | Eine Version mit Text und Liste ihrer Dateien |
+| `GET /api/v1/skills/{id}/versions/{version_id}` | Eine Version mit Text und Liste ihrer Dateien, jede mit SHA-256 |
+| `GET /api/v1/skills/{id}/versions/{version_id}/resources/{name}` | Eine Datei, wie diese Version sie hatte |
 | `POST /api/v1/skills/{id}/versions` | Speichert eine Bearbeitung auf main oder einem Fork, gegen `base_version_id` |
 | `POST /api/v1/skills/{id}/versions/{version_id}/restore` | Stellt eine Version auf ihrer eigenen Linie wieder her |
 | `GET`, `POST /api/v1/skills/{id}/forks` | Listet Forks oder legt einen von einer Main-Version an |
