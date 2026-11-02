@@ -286,7 +286,7 @@ async function bindingOf(
 test("a shared skill improves on main, pins the agent it breaks and catches a fork up", async ({
   page,
 }) => {
-  test.fixme(true, "Waits for the skill session and wizard (#2528, #2530) and catching up (#2617)");
+  test.fixme(true, "Waits for the skill session, its wizard and catching up");
   test.setTimeout(900_000);
   const { api, headers, skill, fork, online, counter, wholesale } = await seedSkillsLab(page);
   const skillId = id(skill);
@@ -353,14 +353,45 @@ test("a shared skill improves on main, pins the agent it breaks and catches a fo
   });
 
   await test.step("the fork catches up with main", async () => {
-    // "Wholesale" is 2 behind main. Catching up (#2617) merges main's lines and
-    // the fork's own line by themselves, checks C, and Accept moves the fork onto
-    // v3. Main alone breaks C on receipts, so dropping the fork is not offered.
+    const behind = await read(api, "/skills/behind-main", headers);
+    const lagging = (Array.isArray(behind.items) ? behind.items.map(record) : []).filter(
+      (item) => record(item.skill).id === skillId,
+    );
+    expect(lagging.map((item) => [item.kind, item.behind_main])).toEqual(
+      expect.arrayContaining([
+        ["pinned", 2],
+        ["fork", 2],
+      ]),
+    );
+    const session = await write(
+      api,
+      "post",
+      `/skills/${skillId}/forks/${id(fork)}/catch-up`,
+      headers,
+      {},
+    );
+    const path = `/skills/${skillId}/improvements/${id(session)}`;
+    // Main changed its receipt lines and the online line, the fork only its
+    // wholesale line, so every part merges by itself and nothing is proposed.
+    await until(api, headers, path, "waiting", "check");
+    const merge = await read(api, `/skills/${skillId}/merges/${String(session.merge_id)}`, headers);
+    expect(merge.unresolved).toBe(0);
+    await nextStep(api, headers, path);
+    await until(api, headers, path, "ready");
+    const result = await read(api, path, headers);
+    // Main alone gives the wholesale desk store credit on receipts, so the fork stays.
+    expect(result.outcomes).toContain("catch_up");
+    expect(result.outcomes).not.toContain("return_to_main");
+    await write(api, "post", `${path}/apply`, headers, {
+      confirmed: true,
+      acknowledge_unknown: false,
+      pin_worse: false,
+    });
     const forks = await read(api, `/skills/${skillId}/forks`, headers);
     const caughtUp = (Array.isArray(forks.items) ? forks.items.map(record) : []).find(
       (item) => item.id === id(fork),
     );
-    expect(caughtUp).toMatchObject({ behind_main: 0 });
+    expect(caughtUp).toMatchObject({ behind_main: 0, base: { number: 3 } });
     expect(await bindingOf(api, headers, skillId, id(wholesale.agent))).toMatchObject({
       state: "fork",
     });
