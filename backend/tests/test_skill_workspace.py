@@ -56,6 +56,7 @@ class _Skill:
     ) -> None:
         self.id = uuid4()
         self.version = version
+        self.latest_version_id = uuid4()
         self.name = name
         self.description = description
         self.content = content
@@ -166,6 +167,7 @@ class TestCollectingWhatTheAgentChanged:
         assert change.skill_id == skill.id
         assert change.is_new is False
         assert change.base_version == 4
+        assert change.base_version_id == skill.latest_version_id
         assert change.description == "How refunds work now."
         assert change.content == "Ask for the receipt."
 
