@@ -311,7 +311,7 @@ Jeder Agent liest einen gebundenen Skill auf eine von drei Arten:
 | Zustand | Was er liest |
 |---|---|
 | Main | Die neueste Main-Version. So liest jeder Agent, der keine andere nennt |
-| Fixiert | Eine Main-Version, bis jemand ihn verschiebt |
+| Festgesetzt | Eine Main-Version, bis jemand ihn verschiebt |
 | Fork | Die neueste Version eines Forks |
 
 Die Wahl gehört zum Spec des Agents, in `skill_bindings`, und wird daher
@@ -326,7 +326,8 @@ eingeschlossen.
 Eine neue Version erreicht nur die Agents ihrer Linie. Eine neue Main-Version
 erreicht die Agents auf main, eine neue Fork-Version die Agents dieses Forks: Ihre
 Eval-Suites laufen, die Änderung nennt die Umgebungen, in denen sie live geht, und
-ihre Besitzer werden benachrichtigt. Ein fixierter Agent wird von keiner erreicht.
+ihre Besitzer werden benachrichtigt. Ein festgesetzter Agent wird von keiner
+erreicht.
 
 **Die Agents eines Skills** sind die, die ihn ausführen: Eine Version, die eine
 ihrer Umgebungen ausliefert, bindet ihn. Die Skill-Seite listet jeden mit der
