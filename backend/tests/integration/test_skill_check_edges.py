@@ -590,6 +590,121 @@ class TestWhatTheCheckMeasuredIsWhatShips:
         )
         assert second.id != first.id
 
+    async def test_a_finished_check_the_line_moved_past_does_not_block_a_new_one(
+        self, db, monkeypatch
+    ):
+        """A finished check that can still be decided is the change's check; one the line
+        moved past can never be decided, so the change may be checked again."""
+        lab = await _lab(db)
+        evals = FakeEvals()
+        evals.install(monkeypatch)
+        proposal = await _proposal(db, lab)
+        service, check = await _finished(
+            db, lab, evals, {lab.a.id: Outcome(fixed=1)}, proposal=proposal
+        )
+
+        with pytest.raises(AlreadyExistsError):
+            await service.start(lab.ctx, lab.skill.id, SkillCheckStart(proposal_id=proposal.id))
+        rows = await skill_check_repo.list_agents(
+            db, [check.id], organization_id=lab.ctx.organization_id
+        )
+        moved = next(item for item in rows if item.agent_id == lab.c.id)
+        moved.agent_version = (moved.agent_version or 0) + 3
+        await db.flush()
+
+        again = await service.start(lab.ctx, lab.skill.id, SkillCheckStart(proposal_id=proposal.id))
+        assert again.id != check.id
+
+    async def test_a_change_decided_elsewhere_since_its_check_is_not_decided_again(
+        self, db, monkeypatch
+    ):
+        lab = await _lab(db)
+        evals = FakeEvals()
+        evals.install(monkeypatch)
+        proposal = await _proposal(db, lab)
+        service, check = await _finished(
+            db,
+            lab,
+            evals,
+            {lab.a.id: Outcome(fixed=1), lab.b.id: Outcome(broken=1)},
+            proposal=proposal,
+        )
+        await SkillProposalService(db).discard(
+            lab.ctx, proposal.id, ProposalDecision(revision=proposal.revision)
+        )
+
+        with pytest.raises(ConcurrentChangeError, match="decided elsewhere"):
+            await service.fork(lab.ctx, lab.skill.id, check.id, SkillCheckFork(name="x"))
+
+    async def test_a_check_running_for_a_day_is_ended_by_the_sweep(self, db, monkeypatch):
+        lab = await _lab(db)
+        FakeEvals(refuse_start={lab.c.id}).install(monkeypatch)
+        service = SkillCheckService(db)
+        check = await service.start(lab.ctx, lab.skill.id, _start())
+        row = await skill_check_repo.get(db, check.id, organization_id=lab.ctx.organization_id)
+        assert row is not None
+        row.created_at = row.created_at - timedelta(days=2)
+        await db.flush()
+
+        await service.sweep()
+
+        read = await service.read(lab.ctx, lab.skill.id, check.id)
+        assert read.status is CheckStatus.DONE
+        reasons = {item.agent.name: item.unknown_reason for item in read.agents}
+        assert reasons == {"A": "failed", "B": "failed", "C": "failed"}
+        await service._expire(check.id, lab.ctx.organization_id)
+        assert (await service.read(lab.ctx, lab.skill.id, check.id)).status is CheckStatus.DONE
+
+    async def test_a_file_replaced_on_main_keeps_its_description_as_it_would_ship(
+        self, db, monkeypatch
+    ):
+        lab = await _lab(db)
+        FakeEvals().install(monkeypatch)
+        base = await skill_version_repo.get_version(
+            db,
+            lab.skill.latest_version_id,
+            organization_id=lab.ctx.organization_id,
+            skill_id=lab.skill.id,
+        )
+        assert base is not None
+        base.resources = {
+            name: {**entry, "description": "How it is"} for name, entry in base.resources.items()
+        }
+        await db.flush()
+        proposal = await _proposal(db, lab, resources={"a.md": "second"})
+
+        check = await SkillCheckService(db).start(
+            lab.ctx, lab.skill.id, SkillCheckStart(proposal_id=proposal.id)
+        )
+
+        stored = await skill_check_repo.get(db, check.id, organization_id=lab.ctx.organization_id)
+        assert stored is not None and stored.candidate_resources == {
+            "a.md": {"description": "How it is", "content": "second"}
+        }
+
+    async def test_a_withdrawn_proposals_running_check_is_stopped_and_a_finished_one_kept(
+        self, db, monkeypatch
+    ):
+        lab = await _lab(db)
+        evals = FakeEvals()
+        evals.install(monkeypatch)
+        proposal = await _proposal(db, lab)
+        service = SkillCheckService(db)
+        running = await service.start(
+            lab.ctx, lab.skill.id, SkillCheckStart(proposal_id=proposal.id)
+        )
+
+        await service.stop_for_proposal(lab.ctx, lab.skill.id, proposal.id)
+
+        assert (await service.read(lab.ctx, lab.skill.id, running.id)).status is (
+            CheckStatus.CANCELLED
+        )
+        other = await _proposal(db, lab)
+        done = await service.start(lab.ctx, lab.skill.id, SkillCheckStart(proposal_id=other.id))
+        await _run_to_end(service, evals, lab, done.id)
+        await service.stop_for_proposal(lab.ctx, lab.skill.id, other.id)
+        assert (await service.read(lab.ctx, lab.skill.id, done.id)).status is CheckStatus.DONE
+
     async def test_a_change_that_hurt_nobody_is_not_forked(self, db, monkeypatch):
         lab = await _lab(db)
         evals = FakeEvals()

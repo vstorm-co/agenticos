@@ -30,7 +30,7 @@ import json
 import logging
 from collections.abc import Collection, Mapping, Sequence
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from uuid import UUID
 
@@ -113,6 +113,9 @@ from app.services.skill_versions import SkillVersionService, manifest_of
 
 logger = logging.getLogger(__name__)
 
+STALE_AFTER = timedelta(hours=24)
+"""How long a check may run before the sweep ends it: an eval run is minutes, a day is lost."""
+
 TEST_SET_FROM_EVIDENCE = 12
 """How many recent answers a skill's first test questions are made from."""
 
@@ -182,8 +185,7 @@ class Plan:
     served: tuple[SkillBodyFile, ...] | None = None
 
 
-def _proposal_digest(proposal: SkillProposal) -> str:
-    """The digest a check of this proposal records, so a later decision can tell it apart."""
+def _proposal_candidate(proposal: SkillProposal) -> Candidate:
     files = (
         tuple(
             SkillBodyFile(name=name, description=None, content=text)
@@ -192,7 +194,12 @@ def _proposal_digest(proposal: SkillProposal) -> str:
         if proposal.resources
         else None
     )
-    return Candidate(proposal.description, proposal.content, files).digest()
+    return Candidate(proposal.description, proposal.content, files)
+
+
+def _proposal_digest(proposal: SkillProposal) -> str:
+    """The digest a check of this proposal records, so a later decision can tell it apart."""
+    return _proposal_candidate(proposal).digest()
 
 
 class SkillCheckService:
@@ -244,15 +251,7 @@ class SkillCheckService:
             )
         if proposal.fork_id != data.fork_id:
             raise refused_field("fork_id", "The proposal is for another line of this skill")
-        files = (
-            tuple(
-                SkillBodyFile(name=name, description=None, content=text)
-                for name, text in sorted(proposal.resources.items())
-            )
-            if proposal.resources
-            else None
-        )
-        return Candidate(proposal.description, proposal.content, files), proposal, proposal.fork_id
+        return _proposal_candidate(proposal), proposal, proposal.fork_id
 
     async def _served(
         self, candidate: Candidate, base: SkillVersion
@@ -271,8 +270,12 @@ class SkillCheckService:
             files[name] = SkillBodyFile(
                 name=name, description=files[name].description, content=content
             )
+        # Main keeps a replaced file's description (`put_resources`); a fork's version
+        # takes the change's files as written (`_apply_to_fork`).
+        keep = base.fork_id is None
         for item in candidate.resources:
-            files[item.name] = item
+            kept = files[item.name].description if keep and item.name in files else None
+            files[item.name] = SkillBodyFile(name=item.name, description=kept, content=item.content)
         return tuple(files[name] for name in sorted(files))
 
     async def _test_set(self, ctx: AuthContext, skill: Skill) -> Dataset | None:
@@ -552,9 +555,14 @@ class SkillCheckService:
             for open_check in await skill_check_repo.open_for_proposal(
                 self.db, plan.proposal.id, organization_id=ctx.organization_id
             ):
-                if open_check.candidate_hash == plan.candidate.digest():
+                # A finished check the line has moved past can no longer be decided, so
+                # it does not stand in the way of checking the change again.
+                if open_check.candidate_hash == plan.candidate.digest() and (
+                    open_check.status == CheckStatus.RUNNING.value
+                    or await self._drift(ctx, plan.skill, open_check) is None
+                ):
                     raise AlreadyExistsError(
-                        message="This change is being checked already",
+                        message="This change is checked already",
                         details={"check_id": open_check.id},
                     )
         if not any(item.unknown is None for item in plan.agents):
@@ -797,6 +805,10 @@ class SkillCheckService:
         """Queue one advance per running check, so one that fails rolls back alone."""
         from app.worker import jobs
 
+        for organization_id, check_id in await skill_check_repo.running_since(
+            self.db, before=datetime.now(UTC) - STALE_AFTER, limit=limit
+        ):
+            await self._expire(check_id, organization_id)
         found = await skill_check_repo.running(self.db, limit=limit)
         for organization_id, check_id in found:
             await enqueue(
@@ -808,6 +820,20 @@ class SkillCheckService:
                 dedupe_active=True,
             )
         return len(found)
+
+    async def _expire(self, check_id: UUID, organization_id: UUID) -> None:
+        """End a check whose agents never settled: they are unknown, and it is decided on."""
+        check = await skill_check_repo.get(
+            self.db, check_id, organization_id=organization_id, lock=True
+        )
+        if check is None or check.status != CheckStatus.RUNNING.value:
+            return
+        for row in await skill_check_repo.list_agents(
+            self.db, [check.id], organization_id=organization_id
+        ):
+            if not AgentState(row.state).settled:
+                await self._unknown(row, UnknownReason.FAILED)
+        await self._settle(check)
 
     async def after_run(self, organization_id: UUID, eval_run_id: UUID) -> None:
         """Queue the check an eval run belonged to, once the run has settled."""
@@ -1047,6 +1073,14 @@ class SkillCheckService:
         )
         return await self.read(ctx, skill_id, check.id)
 
+    async def stop_for_proposal(self, ctx: AuthContext, skill_id: UUID, proposal_id: UUID) -> None:
+        """Stop the running checks of a proposal withdrawn before anybody decided it."""
+        for found in await skill_check_repo.open_for_proposal(
+            self.db, proposal_id, organization_id=ctx.organization_id
+        ):
+            if found.status == CheckStatus.RUNNING.value:
+                await self.cancel(ctx, skill_id, found.id)
+
     async def _decidable(
         self, ctx: AuthContext, skill_id: UUID, check_id: UUID, outcome: CheckOutcome | None
     ) -> tuple[Skill, SkillCheck, list[SkillCheckAgent]]:
@@ -1091,16 +1125,30 @@ class SkillCheckService:
                 message="This check's result does not offer that",
                 details={"outcome": outcome.value, "verdict": check.verdict},
             )
+        drift = await self._drift(ctx, skill, check)
+        if drift is not None:
+            raise drift
+        await self._refuse_rewritten(ctx, check)
+        rows = await skill_check_repo.list_agents(
+            self.db, [check.id], organization_id=ctx.organization_id
+        )
+        return skill, check, rows
+
+    async def _drift(
+        self, ctx: AuthContext, skill: Skill, check: SkillCheck
+    ) -> ConcurrentChangeError | None:
+        """Why the line is no longer the one a check measured, or `None` when it still is:
+        a newer version, or agents that started or stopped following it or were published
+        again since."""
         fork, base = await self._line(ctx, skill, check.fork_id)
         if base.id != check.base_version_id:
-            raise ConcurrentChangeError(
+            return ConcurrentChangeError(
                 message=(
                     f"'{skill.name}' changed since this was checked. Check the change again "
                     "against the newest version."
                 ),
                 details={"check_id": check.id, "version": base.number},
             )
-        await self._refuse_rewritten(ctx, check)
         rows = await skill_check_repo.list_agents(
             self.db, [check.id], organization_id=ctx.organization_id
         )
@@ -1109,27 +1157,28 @@ class SkillCheckService:
             user.agent.id: (user.agent, user.agent_version)
             for user in await self.agents.line_agents(skill, None if fork is None else fork.id)
         }
-        moved = [
-            agent
-            for agent_id, (agent, version) in now.items()
-            if measured.get(agent_id, -1) != version
+        changed = [
+            agent for agent_id, (agent, version) in now.items() if measured.get(agent_id) != version
         ]
-        left = [agent_id for agent_id in measured if agent_id not in now]
-        if moved or left:
-            visible = await accessible_ids(
-                self.db, ctx, moved, Perm.AGENTS_VIEW, resource_type=AGENT
-            )
-            raise ConcurrentChangeError(
-                message=(
-                    "The agents of this line changed since the check: some started or stopped "
-                    "following it, or were published again. Check the change again."
-                ),
-                details={
-                    "agents": [agent.name for agent in moved if agent.id in visible],
-                    "hidden": sum(agent.id not in visible for agent in moved) + len(left),
-                },
-            )
-        return skill, check, rows
+        gone = await agent_repo.get_many(
+            self.db,
+            [agent_id for agent_id in measured if agent_id not in now],
+            organization_id=ctx.organization_id,
+        )
+        changed += list(gone.values())
+        if not changed:
+            return None
+        visible = await accessible_ids(self.db, ctx, changed, Perm.AGENTS_VIEW, resource_type=AGENT)
+        return ConcurrentChangeError(
+            message=(
+                "The agents of this line changed since the check: some started or stopped "
+                "following it, or were published again. Check the change again."
+            ),
+            details={
+                "agents": [agent.name for agent in changed if agent.id in visible],
+                "hidden": sum(agent.id not in visible for agent in changed),
+            },
+        )
 
     async def _refuse_rewritten(self, ctx: AuthContext, check: SkillCheck) -> None:
         """Refuse a check whose proposal says something else now than what it measured."""
@@ -1138,11 +1187,12 @@ class SkillCheckService:
         proposal = await skill_proposal_repo.get(
             self.db, check.proposal_id, organization_id=ctx.organization_id
         )
-        if (
-            proposal is not None
-            and proposal.status == ProposalStatus.PENDING.value
-            and _proposal_digest(proposal) != check.candidate_hash
-        ):
+        if proposal is None or proposal.status != ProposalStatus.PENDING.value:
+            raise ConcurrentChangeError(
+                message="The change was decided elsewhere since it was checked.",
+                details={"check_id": check.id, "proposal_id": check.proposal_id},
+            )
+        if _proposal_digest(proposal) != check.candidate_hash:
             raise ConcurrentChangeError(
                 message="The change was rewritten since it was checked. Check it again.",
                 details={"check_id": check.id, "proposal_id": proposal.id},
@@ -1316,7 +1366,8 @@ class SkillCheckService:
         resources = base.resources
         if proposal is not None and proposal.resources:
             manifest, bodies = manifest_of(
-                (name, None, content) for name, content in sorted(proposal.resources.items())
+                (name, base.resources.get(name, {}).get("description"), content)
+                for name, content in sorted(proposal.resources.items())
             )
             await skill_version_repo.put_files(
                 self.db, organization_id=ctx.organization_id, skill_id=skill.id, bodies=bodies

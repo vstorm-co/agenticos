@@ -355,7 +355,13 @@ async def test_a_newer_release_withdraws_the_older_waiting_one_and_a_decided_one
         decided_by=ctx.user_id,
     )
 
+    await skill_repo.update(db, skill=await _copy(db, ctx), update_data={"category": "moved"})
+    stamped = await _copy(db, ctx)
+    await skill_repo.update(
+        db, skill=stamped, update_data={"library_fingerprint": _fingerprint_of(stamped)}
+    )
     assert await service.refresh_from_library(ctx, KEY) is LibraryRefresh.WAITING
+    assert (await _copy(db, ctx)).category == bundled.category
     again = await skill_proposal_repo.from_source(
         db, organization_id=ctx.organization_id, skill_id=copy.id, source="library"
     )
@@ -388,3 +394,47 @@ async def test_a_copy_edited_here_and_replaced_on_request_keeps_its_own_stamp(
 
     assert plan is LibraryRefresh.WAITING
     assert (await _copy(db, ctx)).library_fingerprint == stamp
+
+
+async def test_withdrawing_a_waiting_update_stops_its_check(db, monkeypatch) -> None:
+    """A newer release withdraws the older waiting update; checking it further would
+    spend the agents' budget on a change nobody can apply any more."""
+    from typing import cast
+
+    from app.db.models.agent import Agent
+    from app.repositories import skill_proposal_repo
+    from app.services.skill_agents import LineAgent, SkillAgentService
+    from app.services.skill_check import SkillCheckService
+
+    ctx = await _owner_ctx(db)
+    copy = await _as_an_earlier_release(db, ctx)
+
+    async def followers(_self, skill, fork_id):
+        return [LineAgent(agent=cast(Agent, object()), agent_version=1, via_specialist=None)]
+
+    monkeypatch.setattr(SkillAgentService, "line_agents", followers)
+    older = await skill_proposal_repo.create(
+        db,
+        organization_id=ctx.organization_id,
+        skill_id=copy.id,
+        agent_id=None,
+        conversation_id=None,
+        name=copy.name,
+        description=copy.description,
+        content="What an earlier release said.",
+        resources={},
+        base_version=copy.version,
+        base_version_id=copy.latest_version_id,
+        fork_id=None,
+    )
+    await skill_proposal_repo.annotate(db, proposal=older, values={"source": "library"})
+    stopped: list[object] = []
+
+    async def stop(_self, _ctx, skill_id, proposal_id):
+        stopped.append(proposal_id)
+
+    monkeypatch.setattr(SkillCheckService, "stop_for_proposal", stop)
+
+    await SkillService(db).refresh_from_library(ctx, KEY)
+
+    assert stopped == [older.id]

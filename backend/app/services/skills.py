@@ -805,23 +805,6 @@ class SkillService:
             skill_id=skill.id,
             source=SkillVersionSource.LIBRARY.value,
         )
-        resources = {resource.name: resource.content for resource in bundled.resources}
-        if any(
-            (item.description, item.content, item.resources)
-            == (bundled.description, bundled.content, resources)
-            for item in earlier
-        ):
-            return
-        for item in earlier:
-            if item.status == ProposalStatus.PENDING.value:
-                await skill_proposal_repo.decide_if(
-                    self.db,
-                    proposal_id=item.id,
-                    organization_id=ctx.organization_id,
-                    revision=item.revision,
-                    status=ProposalStatus.DISCARDED,
-                    decided_by=None,
-                )
         if skill.category != bundled.category:
             unedited = _fingerprint_of(skill) == skill.library_fingerprint
             skill = await skill_repo.update(
@@ -833,6 +816,27 @@ class SkillService:
                     skill=skill,
                     update_data={"library_fingerprint": _fingerprint_of(skill)},
                 )
+        resources = {resource.name: resource.content for resource in bundled.resources}
+        if any(
+            (item.description, item.content, item.resources)
+            == (bundled.description, bundled.content, resources)
+            for item in earlier
+        ):
+            return
+        from app.services.skill_check import SkillCheckService
+
+        checks = SkillCheckService(self.db)
+        for item in earlier:
+            if item.status == ProposalStatus.PENDING.value:
+                await skill_proposal_repo.decide_if(
+                    self.db,
+                    proposal_id=item.id,
+                    organization_id=ctx.organization_id,
+                    revision=item.revision,
+                    status=ProposalStatus.DISCARDED,
+                    decided_by=None,
+                )
+                await checks.stop_for_proposal(ctx, skill.id, item.id)
         proposal = await skill_proposal_repo.create(
             self.db,
             organization_id=ctx.organization_id,
