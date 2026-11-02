@@ -1,5 +1,5 @@
 ---
-source_sha: "b050f5afe59f"
+source_sha: "6e402ad88455"
 ---
 
 # Skille { #skills }
@@ -264,8 +264,9 @@ skill ręcznie od razu zapisuje nową wersję, a ta edycja nie jest sprawdzana.
 
 Najpierw o własne **pytania testowe** skilla, ten sam zestaw na każdym agencie.
 Każdy skill ma jeden zestaw, tworzony przez API - `POST /api/v1/skills/{id}/test-set`,
-pusty albo z ostatnich odpowiedzi, które otworzyły skill - i edytowany jak każdy
-inny [dataset](datasets.md). Potem o pytania samego agenta:
+pusty albo z ostatnich odpowiedzi, które otworzyły skill - albo przyciskiem
+**Dodaj pytania testowe** przy agencie, którego [Popraw](#improving-a-skill) nie
+mogło sprawdzić, i edytowany jak każdy inny [dataset](datasets.md). Potem o pytania samego agenta:
 
 - **Quick**, domyślnie: najwyżej cztery pytania z datasetu agenta, których
   najnowsza odpowiedź otworzyła skill - te, które mają najwięcej wspólnych słów
@@ -309,8 +310,9 @@ nadal:
   przypinany, jako nowa opublikowana wersja, do wersji, którą czyta teraz, zanim
   zmiana trafi na żywo, więc żaden z nich nie obsłuży jej ani razu. Przypięcie
   wymaga prawa publikacji każdego z nich;
-- **zrobić fork dla agentów, którym pomogła**, zostawiając main bez zmian - przez
-  API, `POST /api/v1/skills/{id}/checks/{check_id}/fork`;
+- **zrobić fork dla agentów, którym pomogła**, zostawiając main bez zmian - w
+  kroku Akceptacja w [Popraw](#improving-a-skill) albo przez API,
+  `POST /api/v1/skills/{id}/checks/{check_id}/fork`;
 - **odrzucić** ją.
 
 Na forku zostają tylko dalsze ulepszanie i odrzucenie: przypięcie wskazuje

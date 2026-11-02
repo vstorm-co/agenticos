@@ -1,5 +1,5 @@
 ---
-source_sha: "b050f5afe59f"
+source_sha: "6e402ad88455"
 ---
 
 # Skills { #skills }
@@ -272,7 +272,9 @@ se comprueba.
 Primero las **preguntas de prueba** propias del skill, el mismo conjunto en cada
 agent. Cada skill tiene un conjunto, creado a través de la API -
 `POST /api/v1/skills/{id}/test-set`, vacío o a partir de respuestas recientes que
-cargaron el skill - y editado como cualquier otro [dataset](datasets.md).
+cargaron el skill - o con **Añadir preguntas de prueba** junto a un agent que
+[Improve](#improving-a-skill) no pudo comprobar, y editado como cualquier otro
+[dataset](datasets.md).
 Después, las preguntas del propio agent:
 
 - **Quick**, por defecto: como mucho cuatro preguntas del dataset del agent cuya
@@ -318,8 +320,9 @@ una persona aún puede:
   versión publicada nueva, a la versión que lee ahora, antes de que el cambio
   pase a producción, así que ninguno lo sirve ni una vez. Fijarlos requiere poder
   publicar cada uno;
-- **crear un fork para los agents a los que ayudó**, dejando main como está - a
-  través de la API, `POST /api/v1/skills/{id}/checks/{check_id}/fork`;
+- **crear un fork para los agents a los que ayudó**, dejando main como está - en
+  el paso Aceptar de [Improve](#improving-a-skill) o a través de la API,
+  `POST /api/v1/skills/{id}/checks/{check_id}/fork`;
 - **descartarlo**.
 
 En un fork solo quedan seguir mejorando y descartar: fijar nombra una versión de

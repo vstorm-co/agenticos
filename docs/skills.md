@@ -252,7 +252,8 @@ that edit is not checked.
 
 First the skill's own **test questions**, the same set on every agent. Each skill
 has one set, created through the API - `POST /api/v1/skills/{id}/test-set`, empty
-or from recent answers that loaded the skill - and edited like any other
+or from recent answers that loaded the skill - or with **Add test questions** beside
+an agent [Improve](#improving-a-skill) could not check, and edited like any other
 [dataset](datasets.md). Then the agent's own questions:
 
 - **Quick**, the default: at most four questions of the agent's dataset whose
@@ -295,8 +296,9 @@ result and then applies or discards the change. On main a person may still:
 - **apply it and keep the worse agents where they are** - each is pinned, as a new
   published version, to the version it reads now, before the change goes live, so
   none of them serves it even once. Pinning needs publishing each of them;
-- **make a fork for the agents it helped**, leaving main as it is - through the
-  API, `POST /api/v1/skills/{id}/checks/{check_id}/fork`;
+- **make a fork for the agents it helped**, leaving main as it is - at
+  [Improve's](#improving-a-skill) Accept step, or through the API,
+  `POST /api/v1/skills/{id}/checks/{check_id}/fork`;
 - **discard** it.
 
 On a fork only improving further and discarding remain: a pin names a main

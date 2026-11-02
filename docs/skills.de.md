@@ -1,5 +1,5 @@
 ---
-source_sha: "b050f5afe59f"
+source_sha: "6e402ad88455"
 ---
 
 # Skills { #skills }
@@ -284,8 +284,9 @@ geprüft.
 
 Zuerst die eigenen **Testfragen** des Skills, auf jedem Agent dieselben. Jeder
 Skill hat einen Satz, angelegt über die API - `POST /api/v1/skills/{id}/test-set`,
-leer oder aus jüngsten Antworten, die den Skill geladen haben - und bearbeitet wie
-jedes andere [Dataset](datasets.md). Dann die eigenen Fragen des Agents:
+leer oder aus jüngsten Antworten, die den Skill geladen haben - oder mit
+**Testfragen hinzufügen** neben einem Agent, den [Verbessern](#improving-a-skill)
+nicht prüfen konnte, und bearbeitet wie jedes andere [Dataset](datasets.md). Dann die eigenen Fragen des Agents:
 
 - **Quick**, der Standard: höchstens vier Fragen aus dem Dataset des Agents,
   deren neueste Antwort den Skill geladen hat - die, die die meisten Wörter mit
@@ -332,7 +333,8 @@ kann eine Person dennoch:
   er jetzt liest, bevor die Änderung live geht, sodass keiner sie auch nur einmal
   ausliefert. Das Anheften erfordert, jeden von ihnen veröffentlichen zu dürfen;
 - **einen Fork für die Agents anlegen, denen sie geholfen hat**, und main lassen,
-  wie es ist - über die API, `POST /api/v1/skills/{id}/checks/{check_id}/fork`;
+  wie es ist - im Schritt Annehmen von [Verbessern](#improving-a-skill) oder über
+  die API, `POST /api/v1/skills/{id}/checks/{check_id}/fork`;
 - sie **verwerfen**.
 
 Auf einem Fork bleiben nur Weiterverbessern und Verwerfen: Ein Anheften nennt
