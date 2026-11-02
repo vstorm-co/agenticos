@@ -1,6 +1,6 @@
 ---
 title: "AgenticOS vs Muse"
-source_sha: "dfe95c83c257"
+source_sha: "e5863eba2568"
 ---
 
 # AgenticOS vs Muse { #agenticos-vs-muse }

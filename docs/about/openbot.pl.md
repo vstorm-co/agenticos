@@ -1,6 +1,6 @@
 ---
 title: "AgenticOS vs OpenBot"
-source_sha: "63c7e05fde44"
+source_sha: "0c33b6189dc2"
 ---
 
 # AgenticOS vs OpenBot { #agenticos-vs-openbot }

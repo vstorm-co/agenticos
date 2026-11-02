@@ -1,7 +1,3 @@
----
-title: "AgenticOS vs OpenBot"
----
-
 # AgenticOS vs OpenBot
 
 Sources checked 2 November 2026. AgenticOS feature baseline: v1.35.0. No OpenBot account or migration was tested.

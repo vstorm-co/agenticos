@@ -1,6 +1,6 @@
 ---
 title: "AgenticOS vs Claude Duet"
-source_sha: "368b842f3ef0"
+source_sha: "65aadd4d06af"
 ---
 
 # AgenticOS vs Claude Duet { #agenticos-vs-claude-duet }

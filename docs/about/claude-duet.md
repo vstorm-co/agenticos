@@ -1,7 +1,3 @@
----
-title: "AgenticOS vs Claude Duet"
----
-
 # AgenticOS vs Claude Duet
 
 Sources checked 2 November 2026; AgenticOS baseline v1.35.0.
