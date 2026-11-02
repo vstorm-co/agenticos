@@ -87,6 +87,8 @@ class TestObserve:
             "cat /workspace/skills/refunds/SKILL.md",
             "python skills/refunds/reconcile.py",
             "grep -n fee '/skills/refunds/faq.md'",
+            "python ./skills/refunds/reconcile.py",
+            "ls /workspace && cat /workspace/skills/refunds/SKILL.md",
         ],
     )
     def test_a_path_in_the_skill_folder_counts_apart(self, command: str) -> None:
@@ -111,6 +113,10 @@ class TestObserve:
             ("execute", {"command": "ls -la /workspace/skills/refunds"}),
             ("execute", {"command": "cat /workspace/notes/skills/refunds.md"}),
             ("execute", {"command": "cat /workspace/skills/refunds-old/SKILL.md"}),
+            ("execute", {"command": "cat /tmp/skills/refunds/x"}),
+            ("read_file", {"path": "/home/u/.claude/skills/refunds/SKILL.md"}),
+            ("read_file", {"path": "/workspace/other/skills/refunds/a"}),
+            ("execute", {"command": "cat notes.md; ls /workspace/skills/refunds"}),
         ],
     )
     def test_a_listing_or_another_path_does_not_count(self, tool, args) -> None:

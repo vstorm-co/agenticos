@@ -64,11 +64,11 @@ class SkillUseLog:
     _paths: dict[str, re.Pattern[str]] = field(init=False, repr=False)
 
     def __post_init__(self) -> None:
-        # Absolute or relative to the workspace, and the folder skills lived in before
-        # they moved into it; never a longer path that merely ends in `skills/<name>`.
+        # The workspace's skills folder, absolute or relative, or the older `/skills`;
+        # never a deeper path that merely contains `skills/<name>`.
         self._paths = {
             name: re.compile(
-                rf"(?<![\w.-])(?:/workspace)?/?skills/{re.escape(name)}(?=/|$|[\s'\";|&)])"
+                rf"(?<![\w./~-])(?:/workspace/|/|\./)?skills/{re.escape(name)}(?=/|$|[\s'\";|&)])"
             )
             for name in self.served
         }
@@ -91,9 +91,7 @@ class SkillUseLog:
             return
         if tool_name == LISTING_TOOL or not self._paths:
             return
-        texts = list(_strings(args.values()))
-        if any(_is_listing(text) for text in texts):
-            return
+        texts = [part for text in _strings(args.values()) for part in _unlisted(text)]
         for name, path in self._paths.items():
             if any(path.search(text) for text in texts):
                 self._tally(name).workspace_reads += 1
@@ -135,9 +133,16 @@ def served_skills(
     }
 
 
-def _is_listing(text: str) -> bool:
-    words = text.split(maxsplit=1)
-    return bool(words) and words[0] == LISTING_TOOL
+_COMMANDS = re.compile(r"&&|\|\||[;|\n]")
+
+
+def _unlisted(text: str) -> list[str]:
+    """The text without its shell commands that only list a folder."""
+    return [
+        command
+        for command in _COMMANDS.split(text)
+        if (words := command.split()) == [] or words[0] != LISTING_TOOL
+    ]
 
 
 def _strings(values: Iterable[Any]) -> Iterable[str]:
