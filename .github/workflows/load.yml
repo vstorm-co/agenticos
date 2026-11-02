@@ -25,6 +25,9 @@ on:
 permissions:
   contents: read
 
+env:
+  DIAGNOSTICS_ENABLED: "false"
+
 concurrency:
   group: load-${{ github.ref }}
   cancel-in-progress: true
