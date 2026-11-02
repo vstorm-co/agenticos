@@ -22,6 +22,10 @@ absence of one.
 `skill_version_id` has no foreign key yet: skill versions do not exist at this
 revision. The revision that adds them adds the key.
 
+Plan a window for it on a large deployment: the new column takes an exclusive
+lock on `agent_runs`, held until the backfill has read every row of
+`tool_calls`, which has no index on the tool's name.
+
 Revision ID: 0249_run_skill_uses
 Revises: 0248_merge_self_improvement
 Create Date: 2026-11-02
@@ -92,16 +96,11 @@ def upgrade() -> None:
         ),
     )
     op.create_index(
-        "ix_run_skill_uses_skill",
-        "run_skill_uses",
-        ["organization_id", "skill_id", "created_at"],
-        unique=False,
+        "ix_run_skill_uses_skill", "run_skill_uses", ["skill_id", "created_at"], unique=False
     )
+    op.create_index("ix_run_skill_uses_agent", "run_skill_uses", ["agent_id"], unique=False)
     op.create_index(
-        "ix_run_skill_uses_agent",
-        "run_skill_uses",
-        ["organization_id", "agent_id", "created_at"],
-        unique=False,
+        "ix_run_skill_uses_organization", "run_skill_uses", ["organization_id"], unique=False
     )
 
     op.execute(
@@ -133,6 +132,7 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    op.drop_index("ix_run_skill_uses_organization", table_name="run_skill_uses")
     op.drop_index("ix_run_skill_uses_agent", table_name="run_skill_uses")
     op.drop_index("ix_run_skill_uses_skill", table_name="run_skill_uses")
     op.drop_table("run_skill_uses")

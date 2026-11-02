@@ -12,7 +12,7 @@ agent: the answer a person rated is that run's, and the skill was the
 delegate's.
 
 A row names ids only, never what was asked or said, and lives exactly as long as
-its run: retention and erasure remove it with the run.
+its run: retention removes it with the run.
 
 `agent_runs.skill_uses_recorded` says whether a run was recorded at all. A run
 from before this table, or one whose usage could not be written, has no rows and
@@ -83,8 +83,10 @@ class RunSkillUse(Base):
         UniqueConstraint(
             "run_id", "agent_id", "skill_id", name="uq_run_skill_uses_run_agent_skill"
         ),
-        Index("ix_run_skill_uses_skill", "organization_id", "skill_id", "created_at"),
-        Index("ix_run_skill_uses_agent", "organization_id", "agent_id", "created_at"),
+        # Led by the referenced id, so deleting a skill or an agent finds its rows.
+        Index("ix_run_skill_uses_skill", "skill_id", "created_at"),
+        Index("ix_run_skill_uses_agent", "agent_id"),
+        Index("ix_run_skill_uses_organization", "organization_id"),
     )
 
     def __repr__(self) -> str:
