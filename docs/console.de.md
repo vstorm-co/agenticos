@@ -1,5 +1,5 @@
 ---
-source_sha: "9532fb7c3fdd"
+source_sha: "0104cd08b898"
 ---
 
 # Die Konsole { #the-console }
@@ -61,6 +61,8 @@ Anweisungen für Agenten und Projekte haben eine kompakte gemeinsame Leiste für
 Auf dem Telefon wechselt das Nachrichtenfeld beim Fokussieren in eine kompakte Schreibzeile mit Anhängen und Senden. Agentenauswahl und Spracheingabe bleiben unter **+** erreichbar. Begrüßung und Verbindungsvorschläge treten beim Schreiben zurück; Ergänzungsmenüs passen sich der verfügbaren Höhe an. Beim Fokuswechsel zum Senden bleibt das Layout stabil.
 
 Auf dem Telefon fokussiert der Chat das Eingabefeld weder beim Öffnen noch nach einer fertigen Antwort automatisch.
+
+Auf dem Smartphone sind die Aktionen unter Nachrichten von Nutzern und Agenten zunächst ausgeblendet. Die Schaltfläche **Mehr** neben dem Absender blendet Kopieren, Antworten, Bewertungen und weitere verfügbare Aktionen ein oder aus. Am Desktop erscheinen die Bedienelemente weiterhin beim Darüberfahren.
 
 ## Das Dashboard { #the-dashboard }
 

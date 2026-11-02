@@ -353,6 +353,13 @@ export function FileExplorer({
       />
     ) : null;
 
+  const chosen =
+    selected === null
+      ? null
+      : (all.find((file) => segments(file.path).join("/") === segments(selected).join("/")) ??
+        null);
+  if (readerExpanded && (chosen === null || (!isLoading && error !== null))) toggleReader();
+
   if (!isLoading && error !== null)
     return (
       <div className="text-destructive flex items-start gap-2 text-sm">
@@ -361,12 +368,6 @@ export function FileExplorer({
       </div>
     );
 
-  const chosen =
-    selected === null
-      ? null
-      : (all.find((file) => segments(file.path).join("/") === segments(selected).join("/")) ??
-        null);
-  if (readerExpanded && chosen === null) toggleReader();
   const kind = chosen === null ? null : resolveFileKind(chosen.path);
 
   return (

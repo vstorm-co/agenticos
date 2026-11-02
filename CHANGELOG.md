@@ -21,6 +21,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Hide message action rows on phones until the More button beside the user or agent is tapped, saving room in the transcript. Keep desktop hover actions. Release the full-screen file reader when its listing fails and move focus into an auto-opened reader, restoring it to the file on return.
+
 - Move the phone Architect launcher into the header and reclaim its bottom clearance for lists and tables. Align the compact chat editor and actions to equal touch heights.
 
 - Make phone chat more comfortable while writing: keep attach, message and send in a compact row, offer agent selection and voice under the plus menu, hide welcome suggestions while composing and bound completion menus to the visible height. Preserve draft text and stable send targets as focus moves. Do not automatically focus touch-keyboard input on arrival or when a reply finishes.

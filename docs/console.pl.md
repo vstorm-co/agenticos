@@ -1,5 +1,5 @@
 ---
-source_sha: "9532fb7c3fdd"
+source_sha: "0104cd08b898"
 ---
 
 # Konsola { #the-console }
@@ -59,6 +59,8 @@ Instrukcje agentów i projektów mają jeden zwarty pasek z tytułem, pomocą, p
 Na telefonie fokus w polu wiadomości przełącza czat w zwarty wiersz pisania z załącznikami i wysyłaniem. Wybór agenta oraz głos pozostają dostępne pod **+**. Powitanie i sugestie połączeń chowają się na czas pisania, a menu uzupełniania mieści się w dostępnej wysokości. Przejście z tekstu na Wyślij zachowuje stabilny układ.
 
 Czat na telefonie nie ustawia automatycznie fokusu w polu przy otwieraniu ani po zakończeniu odpowiedzi.
+
+Na telefonach akcje pod wiadomościami użytkownika i agenta są początkowo ukryte. Przycisk **Więcej** obok nadawcy pokazuje lub ukrywa kopiowanie, odpowiedzi, oceny i pozostałe dostępne akcje. Na komputerze przyciski nadal pojawiają się po najechaniu kursorem.
 
 ## Dashboard { #the-dashboard }
 

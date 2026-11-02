@@ -54,6 +54,8 @@ On phones, focusing the chat message switches to a compact writing row with atta
 
 Phone chat does not focus the input automatically on arrival or when a reply finishes.
 
+On phones, the actions beneath user and agent messages start hidden. Tap the **More** button beside the sender to show or hide copying, replies, ratings and other available actions. Desktop keeps its hover controls.
+
 ## The dashboard
 
 The landing page is an **arrangeable grid of widgets**, and it is the answer to

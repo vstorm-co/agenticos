@@ -1,5 +1,5 @@
 ---
-source_sha: "9532fb7c3fdd"
+source_sha: "0104cd08b898"
 ---
 
 # La consola { #the-console }
@@ -61,6 +61,8 @@ Las instrucciones de agentes y proyectos tienen una barra compacta con título, 
 En el teléfono, enfocar el mensaje activa una fila compacta de escritura con adjuntos y envío. La selección del agente y la entrada de voz siguen disponibles en **+**. La bienvenida y las sugerencias de conexiones se ocultan al escribir; los menús de autocompletado se ajustan a la altura disponible. El diseño permanece estable al pasar del texto a Enviar.
 
 En el teléfono, el chat no enfoca automáticamente el campo al abrirse ni cuando termina una respuesta.
+
+En el teléfono, las acciones bajo los mensajes del usuario y del agente empiezan ocultas. El botón **Más** junto al remitente muestra u oculta copiar, responder, valorar y las demás acciones disponibles. En el escritorio, los controles siguen apareciendo al pasar el cursor.
 
 ## El dashboard { #the-dashboard }
 
