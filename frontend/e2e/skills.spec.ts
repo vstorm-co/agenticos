@@ -59,11 +59,7 @@ test.describe("Skills", () => {
       SEEDED_SKILL_DESCRIPTION,
     );
 
-    // The body is `SKILL.md` in a file tree now rather than a "Content" box, and
-    // the dialog opens on Source - the model's own copy, which is what this
-    // asserts. The click is kept so the spec still passes whichever half a
-    // future default opens on.
-    await dialog.getByRole("button", { name: "Source" }).click();
+    // The editor opens on the source: assert the stored text, not the toggle.
     await expect(dialog.getByLabel(/SKILL\.md source/)).toHaveValue(SEEDED_SKILL_CONTENT);
   });
 
