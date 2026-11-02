@@ -71,9 +71,8 @@ class RunSkillUse(Base):
     resource_reads: Mapped[int] = mapped_column(
         Integer, nullable=False, default=0, server_default=text("0")
     )
-    # Tool calls naming a path in the skill's workspace folder. A weaker sign than
-    # the two above: a path a shell assembled is missed, a path merely mentioned
-    # is not.
+    # A weaker sign than the two above: a path a shell assembled is missed, and one
+    # merely mentioned is counted.
     workspace_reads: Mapped[int] = mapped_column(
         Integer, nullable=False, default=0, server_default=text("0")
     )

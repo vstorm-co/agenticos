@@ -303,9 +303,8 @@ class AgentRun(Base, TimestampMixin):
     earlier_attachments_checked: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, server_default=text("false")
     )
-    # Whether the skills this run used were written down as it ran (`run_skill_uses`).
-    # Every run from before that existed reads false: what it used is unknown, which
-    # is not the same as using nothing.
+    # False for runs from before `run_skill_uses` existed: their use of skills is
+    # unknown, which is not the same as none.
     skill_uses_recorded: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=True, server_default=text("true")
     )
