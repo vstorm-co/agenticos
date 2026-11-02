@@ -168,8 +168,10 @@ async def test_a_listing_by_creation_time_is_read_off_its_index_without_sorting(
     record to return a page. The plan for the listing's own statement must be the
     index read in order - backwards for `desc` - with no Sort above it.
 
-    Sequential scans are switched off for the plan: on a table this small the planner
-    would rightly prefer one, and what is asked is whether the index *can* serve it.
+    Sequential and bitmap heap scans are switched off for the plan: on a table this
+    small the planner can prefer either over an ordered index scan. A bitmap scan
+    discards index order, and this test asks whether the index *can* serve the order,
+    not which access path costs least for three records.
     """
     service, ctx, table = await _table_with_records_created_at_once(db, 3)
     captured: list[tuple[str, Any]] = []
@@ -190,6 +192,7 @@ async def test_a_listing_by_creation_time_is_read_off_its_index_without_sorting(
     [(statement, parameters)] = captured
     connection = await db.connection()
     await connection.exec_driver_sql("SET LOCAL enable_seqscan = off")
+    await connection.exec_driver_sql("SET LOCAL enable_bitmapscan = off")
     plan = "\n".join(
         row[0] for row in await connection.exec_driver_sql(f"EXPLAIN {statement}", parameters)
     )
