@@ -804,6 +804,7 @@ class DocumentProcessor:
                         page_id=page.page_id,
                         page_num=page.page_num,
                         content=page.content,
+                        image_count=len(page.images),
                     )
                 )
 
