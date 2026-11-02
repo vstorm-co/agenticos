@@ -1,6 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, render, screen } from "@testing-library/react";
-import { Suspense } from "react";
+import { Suspense, type ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import AgentBuilderPage from "./page";
@@ -164,7 +164,7 @@ vi.mock("@/components/agents/model-settings-form", () => ({ ModelSettingsForm: (
 vi.mock("@/components/agents/voice-card", () => ({ VoiceCard: () => null }));
 vi.mock("@/components/agents/thinking-setting", () => ({ ThinkingSetting: () => null }));
 vi.mock("@/components/ui/markdown-editor", () => ({
-  MarkdownEditor: () => null,
+  MarkdownEditor: ({ toolbar }: { toolbar?: ReactNode }) => <>{toolbar}</>,
   MarkdownModeToggle: () => null,
 }));
 // What the Availability tab holds is covered where each panel lives; here the

@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { Suspense } from "react";
+import { Suspense, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import AgentBuilderPage from "./page";
@@ -246,7 +246,7 @@ vi.mock("@/components/agents/model-settings-form", () => ({
 }));
 vi.mock("@/components/agents/thinking-setting", () => ({ ThinkingSetting: () => null }));
 vi.mock("@/components/ui/markdown-editor", () => ({
-  MarkdownEditor: () => null,
+  MarkdownEditor: ({ toolbar }: { toolbar?: ReactNode }) => <>{toolbar}</>,
   MarkdownModeToggle: () => null,
 }));
 // Each is covered where it lives; here the question is whether the page mounts it,

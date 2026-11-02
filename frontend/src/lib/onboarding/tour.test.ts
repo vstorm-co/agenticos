@@ -304,6 +304,7 @@ describe("stepsForPage", () => {
       "agent-history",
       "agent-share",
       "agent-publish",
+      "agent-editor-fullscreen",
     ]);
   });
 
