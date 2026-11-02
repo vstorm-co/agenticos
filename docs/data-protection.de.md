@@ -1,5 +1,5 @@
 ---
-source_sha: "4c1509774714"
+source_sha: "5ce8f83008f5"
 ---
 
 # Datenschutz { #data-protection }
@@ -21,14 +21,23 @@ und dem, was ein Deployment tatsächlich entschieden hat.
     der sie führt. Jede dieser Bedingungen ist unten als etwas benannt, das zu
     beschaffen und zu prüfen ist, nie als etwas Angenommenes.
 
-## Standardmäßig verlässt nichts das System { #nothing-leaves-by-default }
+## Was standardmäßig das System verlässt { #nothing-leaves-by-default }
 
 Ein frisches Deployment hält alles in seinem eigenen PostgreSQL und auf seiner
-eigenen Platte und sendet nirgendwohin etwas. Jeder Sprung nach außen ist eine
-Zeile oder eine Einstellung, die jemand danach hinzufügt: ein Model-Profil, das
-einen Provider benennt, eine Collection, die einen Parser wählt, eine
-Suchmethode auf einem Spec, ein Logfire-Token, ein mem0-Host, ein MCP-Server,
+eigenen Platte oder dem Objektspeicher, mit dem es konfiguriert ist. Es sendet
+keine Prompts, Konversationen oder Dokumente irgendwohin. Jeder Sprung nach außen
+ist eine Zeile oder eine Einstellung, die jemand danach hinzufügt: ein
+Model-Profil, das einen Provider benennt, eine Collection, die einen Parser oder
+einen entfernten Embedding-Provider wählt (der dann die Dokument-Chunks erhält),
+eine Suchmethode auf einem Spec, ein Logfire-Token, ein mem0-Host, ein MCP-Server,
 ein Kanal-Bot. Entfernen Sie die Zeile, und der Sprung ist weg.
+
+Ein Bericht ist standardmäßig aktiv und enthält keine Inhalte: Die
+[Deployment-Diagnose](#deployment-diagnostics) sendet Installationszustand, grobe
+Nutzungszähler, Zähler fehlgeschlagener Runs, Jobs und Ingestionen nach
+geschlossenen Kategorien und ein pseudonymes Aktivitätssignal an einen Kollektor.
+Ein Deployment, das **gar keinen Kontakt nach außen** will, setzt
+`DIAGNOSTICS_ENABLED=false`.
 
 Ein Deployment, das **keine dritte Partei in der Kette** will, konfiguriert sich
 entsprechend, und die Software macht mit:
@@ -56,7 +65,7 @@ Collection an.
 | Partei | Rolle | Was das hier bedeutet |
 |---|---|---|
 | Die Organisation, die es betreibt (eine Stadt, ein Unternehmen) | **Verantwortlicher** | Entscheidet über Zwecke, Aufbewahrung, welche Provider ein Agent erreichen darf, und unterzeichnet die Verträge mit ihnen |
-| Vstorm als Autor der Software | **Keines von beiden**, bei einem selbst gehosteten Deployment | Der Code läuft auf Ihrer Infrastruktur, und nichts telefoniert nach Hause. Vstorm sieht Ihre Daten nie |
+| Vstorm als Autor der Software | **Keines von beiden**, bei einem selbst gehosteten Deployment | Der Code läuft auf Ihrer Infrastruktur. Vstorm sieht Ihre Prompts, Konversationen und Dokumente nie. Solange der Standard-Kollektor verwendet wird, den Vstorm betreibt, erhält er die [Deployment-Diagnose](#deployment-diagnostics); mit `DIAGNOSTICS_ENABLED=false` oder einem eigenen Kollektor erhält er keine |
 | Vstorm, wenn es das Deployment für Sie betreibt | **Auftragsverarbeiter** | Ein Auftragsverarbeitungsvertrag ist ein Vertrag zwischen uns, keine Einstellung. Er muss vor dem ersten veröffentlichten Agent existieren |
 | Ein Model-, Embedding-, Parsing-, Such- oder Observability-Provider | **Unterauftragsverarbeiter**, per Konfiguration gewählt | Die Plattform hält fest, *welchen* Provider und *welchen* Endpunkt jeder Agent nutzt. Deren Standort, Aufbewahrung und Trainingsbedingungen sind ihre und werden je Deployment geprüft |
 
@@ -173,11 +182,13 @@ Datenschutzbericht zählt sie zu den Dateien ohne Zeile.
 ## Was das Deployment verlässt { #what-leaves-the-deployment }
 
 Nichts geht hinaus, solange nicht eine Zeile oder eine Einstellung ein Ziel
-benennt. Dies ist die vollständige Liste der Ziele, mit der Konfiguration, die
+benennt, mit einer Ausnahme: Die [Deployment-Diagnose](#deployment-diagnostics) ist
+standardmäßig aktiv. Dies ist die vollständige Liste der Ziele, mit der Konfiguration, die
 über jedes entscheidet.
 
 | Ziel | Was gesendet wird | Entschieden durch | Standort und Bedingungen |
 |---|---|---|---|
+| Der Diagnose-Kollektor | Installationszustand, grobe Nutzungszähler, Zähler fehlgeschlagener Runs, Jobs und Ingestionen nach geschlossenen Kategorien und ein pseudonymes Aktivitätssignal, das jeder Browser oder jede App sendet; keine Prompts, Konversationen, Dateinamen, Kontonamen, E-Mail-Adressen oder Provider-Schlüssel | `DIAGNOSTICS_ENABLED` (Standard `true`) und `DIAGNOSTICS_COLLECTOR_URL` | Standardmäßig `https://analytics-agenticos.testapp.ovh`; [was gesendet wird](configuration.md#diagnostics) |
 | Das Chat-Model | Die bisherige Conversation, eingefügte oder beschriebene Anhänge, abgerufene Chunks, Tool-Ergebnisse; einmal pro Nacht, für die [Arbeit aus eigener Initiative](governance.md#proactive-work), die letzten Anfragen einer Person, ihr Profil und was ihr Agent über sie notiert hat | Ein [Model-Profil](models.md#a-model-profile): `provider`, `model`, `base_url` und ein versiegelter Schlüssel. Siebenundzwanzig Provider; `ollama` und `litellm` sind schlüssellos und werden an einem Endpunkt erreicht, den Sie betreiben, und `openai`, `anthropic`, `google`, `huggingface` und andere akzeptieren eine `base_url`, ein EU-Endpunkt oder ein Gateway ist also ein Feld und keine Abzweigung. Ein `openai`- oder `azure`-Profil auf der Responses-API sendet `store: false`, der Provider behält also keine gespeicherte, abrufbare Antwort, sofern das Profil nicht `openai_store` setzt; die Aufbewahrung von OpenAI zur Missbrauchsüberwachung gilt weiterhin, sofern das Konto keine Zero Data Retention hat | Die des Providers. Je Profil prüfen |
 | Das Embedding-Model | Jeder Chunk jedes Dokuments einer Collection und jede Retrieval-Anfrage | Je Collection, und nur dort: `embedding_provider` (`openrouter`, `openai` oder `ollama`, aus dem Katalog) und, für die ersten beiden, der Vault-Schlüssel `embedding_secret_id`, der zahlt. Einen deploymentweiten Embedding-Schlüssel gibt es nicht; eine schlüsselpflichtige Collection ohne einen verweigert Indexierung und Suche. `ollama` ist schlüssellos und wird an dem lokalen Dienst erreicht, den die Collection benennt (`embedding_endpoint_id`), einem Host, den Sie betreiben | Die des Providers oder Ihr eigener Host. [Eine dauerhafte Wahl](choosing-models.md#embeddings-are-a-separate-permanent-choice) |
 | LlamaCloud | Das ganze Dokument | Eine Collection, deren `pdf_parser` `llamaparse` ist; sie muss einen Vault-Schlüssel benennen (`llamaparse_secret_id`), einen Deployment-Schlüssel gibt es nicht. Der Standard `pymupdf` parst im Worker | Die von LlamaCloud, falls genutzt |
@@ -509,7 +520,12 @@ Deployment.
 
 ## Bereitstellungsdiagnose { #deployment-diagnostics }
 
-Der optionale Kollektor erhält Installationszustand, Nutzungsbereiche und pseudonyme
-Vordergrundaktivität. Berichte sind standardmäßig aktiviert, auch nach Upgrades mit
-alter `.env`. Die [Diagnosekonfiguration](configuration.md#diagnostics) beschreibt
-Felder, Aufbewahrung, die vorläufig lokale Adresse und die Deaktivierung.
+Der Kollektor erhält Installationszustand, Nutzungsbereiche, gruppierte
+Fehlerzähler (eine Komponente, ein geschlossener Fehlercode und eine Anzahl, nie
+Ausnahmetext) und pseudonyme Vordergrundaktivität, die jeder angemeldete Browser
+oder jede App direkt an ihn sendet. Berichte sind standardmäßig aktiviert, auch
+nach Upgrades mit alter `.env`, und der Standard-Kollektor ist eine entfernte
+Adresse, `https://analytics-agenticos.testapp.ovh`. Die
+[Diagnosekonfiguration](configuration.md#diagnostics) beschreibt Felder,
+Aufbewahrung, wie Sie ihn auf einen eigenen Kollektor richten und wie Sie ihn mit
+`DIAGNOSTICS_ENABLED=false` abschalten.

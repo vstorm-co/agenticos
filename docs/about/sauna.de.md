@@ -2,7 +2,7 @@
 title: "AgenticOS vs Sauna"
 seo_title: "AgenticOS vs Sauna: eine selbst gehostete Alternative"
 description: "Sauna ist ein proaktiver KI-Assistent pro Person, in ihrer Cloud. AgenticOS: viele kontrollierte Agents, jedes Modell und Budgets pro Agent auf Ihren Servern."
-source_sha: "e589e2dd5acb"
+source_sha: "0b50f057f109"
 ---
 
 # AgenticOS vs Sauna { #agenticos-vs-sauna }
@@ -40,7 +40,7 @@ Die Spezifikation eines Agents wird [beim Veröffentlichen versioniert](../conce
 
 Sauna ist ein US-Dienst: Seine Datenschutzerklärung sagt, dass personenbezogene Daten in den USA und in den Ländern verarbeitet werden können, in denen seine Unterauftragsverarbeiter tätig sind, auf Grundlage der EU-Standardvertragsklauseln. Bei der Anmeldung recherchiert Sauna im öffentlichen Web über Sie und legt das Ergebnis in Ihrem Workspace ab. Website und App laden Werbepixel von Meta, LinkedIn, Google und Reddit, in einigen Regionen standardmäßig ausgeschaltet. Produktanalysedaten werden bis zu sieben Jahre aufbewahrt.
 
-AgenticOS speichert Konversationen, Dokumente und Vektoren in [Ihrem eigenen Postgres](../data-protection.md#where-personal-data-lives), und eine frische Installation [sendet nichts nach außen](../data-protection.md#nothing-leaves-by-default). Sie legen die [Aufbewahrung pro Datenklasse](../governance.md#retention) fest. Mit einem lokalen Modell muss nichts Ihr Netzwerk verlassen.
+AgenticOS speichert Konversationen, Dokumente und Vektoren in [Ihrem eigenen Postgres](../data-protection.md#where-personal-data-lives), und eine frische Installation [sendet keine Prompts oder Dokumente nach außen](../data-protection.md#nothing-leaves-by-default); die [Deployment-Diagnose](../configuration.md#diagnostics) ist standardmäßig aktiv und lässt sich abschalten. Sie legen die [Aufbewahrung pro Datenklasse](../governance.md#retention) fest. Mit einem lokalen Modell muss Ihr Inhalt Ihr Netzwerk nicht verlassen.
 
 ### Ein Modell Ihrer Wahl und ein Budget pro Agent { #a-model-you-choose-and-a-budget-per-agent }
 

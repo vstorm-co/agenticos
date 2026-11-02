@@ -42,6 +42,18 @@ Two things are versioned separately from this file and worth knowing about:
 - The desktop app can be allowed to use the microphone: the bundle now declares the audio-input and Apple Events entitlements it needs under the hardened runtime, and the setup wizard offers the microphone next to Screen Recording and Accessibility.
 - The cask attached to a release clears the download quarantine flag from the installed app, so Gatekeeper does not refuse an unnotarized build installed through Homebrew.
 
+## [1.34.2] - 2026-11-01
+
+### Fixed
+
+- Documentation and `llms.txt` no longer say that nothing phones home or that a fresh install sends nothing anywhere. Deployment diagnostics are on by default, so the docs now state that prompts, conversations and documents stay in the deployment's own database, that diagnostics send the version, health, coarse usage counts and a pseudonymous activity signal, that the default collector is remote (`https://analytics-agenticos.testapp.ovh`), and how to turn them off with `DIAGNOSTICS_ENABLED=false`. The diagnostics collector is added to the lists of what leaves a deployment in the data protection and security pages, and the Polish, German and Spanish translations are updated to match.
+
+## [1.34.1] - 2026-11-01
+
+### Changed
+
+- Update the GitHub Actions the workflows use: `tauri-apps/tauri-action` to 1.0.0, `actions/download-artifact` to 8.0.2 and `actions/upload-artifact` to 7.0.2, among others. CI and release behaviour are unchanged.
+
 ## [1.34.0] - 2026-11-01
 
 ### Added

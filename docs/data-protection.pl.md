@@ -1,5 +1,5 @@
 ---
-source_sha: "4c1509774714"
+source_sha: "5ce8f83008f5"
 ---
 
 # Ochrona danych { #data-protection }
@@ -19,13 +19,21 @@ oprogramowanie potrafi, a tym, co wdrożenie faktycznie postanowiło.
     i operatora, który je prowadzi. Każdy taki warunek jest poniżej nazwany jako
     coś do zdobycia i zweryfikowania, nigdy jako coś założonego.
 
-## Domyślnie nic nie wychodzi { #nothing-leaves-by-default }
+## Co wychodzi domyślnie { #nothing-leaves-by-default }
 
-Świeże wdrożenie trzyma wszystko we własnym PostgreSQL-u i na własnym dysku,
-i nigdzie nic nie wysyła. Każdy skok na zewnątrz to wiersz albo ustawienie,
-które ktoś dodał później: profil modelu wskazujący providera, kolekcja
-wybierająca parser, metoda wyszukiwania w specu, token Logfire, host mem0,
-serwer MCP, bot kanału. Usuń wiersz i skok znika.
+Świeże wdrożenie trzyma wszystko we własnym PostgreSQL-u i na własnym dysku albo
+w magazynie obiektów, który skonfigurowano. Nie wysyła nigdzie promptów, rozmów
+ani dokumentów. Każdy skok na zewnątrz to wiersz albo ustawienie, które ktoś dodał
+później: profil modelu wskazujący providera, kolekcja wybierająca parser albo
+zdalnego dostawcę embeddingów (który wtedy otrzymuje chunki dokumentów), metoda
+wyszukiwania w specu, token Logfire, host mem0, serwer MCP, bot kanału. Usuń
+wiersz i skok znika.
+
+Jeden raport jest domyślnie włączony i nie niesie treści: [diagnostyka
+wdrożenia](#deployment-diagnostics) wysyła do kolektora stan instalacji, zgrubne
+liczniki użycia, liczby nieudanych runów, zadań i ingestii według zamkniętej
+kategorii oraz pseudonimowy sygnał aktywności. Wdrożenie, które nie chce
+**żadnego kontaktu z zewnątrz**, ustawia `DIAGNOSTICS_ENABLED=false`.
 
 Wdrożenie, które nie chce **żadnej trzeciej strony w łańcuchu**, konfiguruje się
 tak i oprogramowanie współpracuje:
@@ -52,7 +60,7 @@ sprzęcie, tam tworzy każdą kolekcję.
 | Strona | Rola | Co to tutaj znaczy |
 |---|---|---|
 | Organizacja, która to wdraża (miasto, firma) | **Administrator danych** | Decyduje o celach, retencji, o tym, do których providerów agent może sięgać, i podpisuje z nimi umowy |
-| Vstorm jako autor oprogramowania | **Żadna z tych ról**, dla wdrożenia self-hosted | Kod działa na Twojej infrastrukturze i nic nie dzwoni do domu. Vstorm nigdy nie widzi Twoich danych |
+| Vstorm jako autor oprogramowania | **Żadna z tych ról**, dla wdrożenia self-hosted | Kod działa na Twojej infrastrukturze. Vstorm nigdy nie widzi Twoich promptów, rozmów ani dokumentów. Dopóki używany jest domyślny kolektor, który prowadzi Vstorm, otrzymuje on [diagnostykę wdrożenia](#deployment-diagnostics); z `DIAGNOSTICS_ENABLED=false` albo z Twoim kolektorem nie otrzymuje jej wcale |
 | Vstorm, jeśli prowadzi wdrożenie za Ciebie | **Podmiot przetwarzający** | Umowa powierzenia przetwarzania to kontrakt między nami, a nie ustawienie. Musi istnieć przed opublikowaniem pierwszego agenta |
 | Provider modelu, embeddingów, parsowania, wyszukiwania albo obserwowalności | **Podprzetwarzający**, wybrany konfiguracją | Platforma zapisuje, *którego* providera i *który* endpoint używa każdy agent. Ich lokalizacja, retencja i warunki treningu są ich, i weryfikuje się je per wdrożenie |
 
@@ -164,11 +172,13 @@ wiersza.
 
 ## Co opuszcza wdrożenie { #what-leaves-the-deployment }
 
-Nic nie wychodzi, dopóki wiersz albo ustawienie nie wskaże celu. To jest pełna
-lista celów, wraz z konfiguracją, która o każdym decyduje.
+Nic nie wychodzi, dopóki wiersz albo ustawienie nie wskaże celu, z jednym
+wyjątkiem: [diagnostyka wdrożenia](#deployment-diagnostics) jest domyślnie
+włączona. To jest pełna lista celów, wraz z konfiguracją, która o każdym decyduje.
 
 | Cel | Co jest wysyłane | Decyduje o tym | Lokalizacja i warunki |
 |---|---|---|---|
+| Kolektor diagnostyki | Stan instalacji, zgrubne liczniki użycia, liczby nieudanych runów, zadań i ingestii według zamkniętej kategorii oraz pseudonimowy sygnał aktywności wysyłany przez każdą przeglądarkę lub aplikację; bez promptów, rozmów, nazw plików, nazw kont, adresów e-mail i kluczy providerów | `DIAGNOSTICS_ENABLED` (domyślnie `true`) i `DIAGNOSTICS_COLLECTOR_URL` | Domyślnie `https://analytics-agenticos.testapp.ovh`; [co jest wysyłane](configuration.md#diagnostics) |
 | Model czatowy | Rozmowa jak dotąd, załączniki wklejone albo opisane, pobrane chunki, wyniki narzędzi; raz na noc, dla [pracy z własnej inicjatywy](governance.md#proactive-work), ostatnie prośby osoby, jej profil i to, co zanotował o niej jej agent | [Profil modelu](models.md#a-model-profile): `provider`, `model`, `base_url` i zapieczętowany klucz. Dwudziestu siedmiu providerów; `ollama` i `litellm` są bezkluczowe i sięgane pod endpointem, który hostujesz, a `openai`, `anthropic`, `google`, `huggingface` i inne przyjmują `base_url`, więc endpoint w UE albo gateway to pole, a nie rozwidlenie. Profil `openai` lub `azure` na Responses API wysyła `store: false`, więc provider nie trzyma zapisanej, możliwej do pobrania odpowiedzi, chyba że profil ustawi `openai_store`; retencja OpenAI na potrzeby monitorowania nadużyć nadal obowiązuje, chyba że konto ma zero data retention | Providera. Weryfikuj per profil |
 | Model embeddingowy | Każdy chunk każdego dokumentu w kolekcji i każde zapytanie wyszukujące | Per kolekcja i tylko tam: `embedding_provider` (`openrouter`, `openai` albo `ollama`, z katalogu), a dla dwóch pierwszych klucz z vaultu `embedding_secret_id`, który płaci. Nie ma klucza embeddingowego na poziomie wdrożenia; kolekcja z kluczem, ale bez wskazanego, odmawia indeksowania i wyszukiwania. `ollama` jest bezkluczowa i sięgana pod usługą lokalną, którą kolekcja wskazuje (`embedding_endpoint_id`), na hoście, który prowadzisz | Providera albo Twój własny host. [Wybór na stałe](choosing-models.md#embeddings-are-a-separate-permanent-choice) |
 | LlamaCloud | Cały dokument | Kolekcja, której `pdf_parser` to `llamaparse`; musi wskazać klucz z vaultu (`llamaparse_secret_id`), nie ma klucza wdrożenia. Domyślny `pymupdf` parsuje w workerze | LlamaCloud, jeśli użyty |
@@ -475,7 +485,11 @@ na piśmie, ma to, co ta strona może mu dać. Reszta należy do wdrożenia.
 
 ## Diagnostyka wdrożenia { #deployment-diagnostics }
 
-Opcjonalny kolektor otrzymuje stan instalacji, przedziały użycia i pseudonimową
-aktywność okien. Raportowanie jest domyślnie włączone, również po aktualizacji ze
-starszym `.env`. [Konfiguracja diagnostyki](configuration.md#diagnostics) opisuje
-pola, retencję, domyślny lokalny adres i sposób wyłączenia.
+Kolektor otrzymuje stan instalacji, przedziały użycia, zgrupowane liczby awarii
+(komponent, zamknięty kod błędu i liczba, nigdy tekst wyjątku) oraz pseudonimową
+aktywność okien, którą każda zalogowana przeglądarka lub aplikacja wysyła do niego
+bezpośrednio. Raportowanie jest domyślnie włączone, również po aktualizacji ze
+starszym `.env`, a domyślny kolektor to zdalny adres,
+`https://analytics-agenticos.testapp.ovh`. [Konfiguracja diagnostyki](configuration.md#diagnostics)
+opisuje pola, retencję, wskazanie własnego kolektora i wyłączenie przez
+`DIAGNOSTICS_ENABLED=false`.
