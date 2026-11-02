@@ -65,7 +65,8 @@ jobs:
         shell: bash
         run: echo "version=$(rustc --version)" >> "$GITHUB_OUTPUT"
       - name: Restore Cargo dependencies and build artifacts
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        id: cargo-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
             ~/.cargo/registry/index
@@ -165,6 +166,21 @@ jobs:
           args: --target ${{ matrix.target }} --config src-tauri/tauri.release.conf.json ${{ runner.os == 'Windows' && '--config src-tauri/tauri.windows.release.conf.json' || '' }} -- --locked
           uploadUpdaterJson: false
           uploadUpdaterSignatures: true
+      # Dispatch may select an older tag; it can read caches but cannot seed them.
+      - name: Save trusted release build artifacts
+        if: github.event_name == 'release' && steps.cargo-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            desktop/core/target
+            desktop/src-tauri/target
+            mobile/src-tauri/target
+            !**/target/**/bundle
+          key: ${{ steps.cargo-cache.outputs.cache-primary-key }}
+
   updater:
     needs: [resolve, desktop]
     runs-on: ubuntu-latest
@@ -201,7 +217,8 @@ jobs:
         shell: bash
         run: echo "version=$(rustc --version)" >> "$GITHUB_OUTPUT"
       - name: Restore Cargo dependencies and build artifacts
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        id: cargo-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
             ~/.cargo/registry/index
@@ -248,6 +265,21 @@ jobs:
       - name: Remove signing material
         if: always()
         run: rm -f "$RUNNER_TEMP/android.keystore"
+      # Dispatch may select an older tag; it can read caches but cannot seed them.
+      - name: Save trusted release build artifacts
+        if: github.event_name == 'release' && steps.cargo-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            desktop/core/target
+            desktop/src-tauri/target
+            mobile/src-tauri/target
+            !**/target/**/bundle
+          key: ${{ steps.cargo-cache.outputs.cache-primary-key }}
+
   ios:
     needs: resolve
     if: vars.AGENTICOS_MOBILE_RELEASES_ENABLED == 'true' && vars.AGENTICOS_TESTFLIGHT_ENABLED == 'true'
@@ -263,7 +295,8 @@ jobs:
         shell: bash
         run: echo "version=$(rustc --version)" >> "$GITHUB_OUTPUT"
       - name: Restore Cargo dependencies and build artifacts
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        id: cargo-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
             ~/.cargo/registry/index
@@ -351,6 +384,20 @@ jobs:
           security delete-keychain "$RUNNER_TEMP/apps.keychain-db" || true
           rm -f "$RUNNER_TEMP/ios.p12" "$RUNNER_TEMP/appstore-key.p8"
           rm -rf "$HOME/.appstoreconnect/private_keys" "$HOME/Library/MobileDevice/Provisioning Profiles"
+      # Dispatch may select an older tag; it can read caches but cannot seed them.
+      - name: Save trusted release build artifacts
+        if: github.event_name == 'release' && steps.cargo-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            desktop/core/target
+            desktop/src-tauri/target
+            mobile/src-tauri/target
+            !**/target/**/bundle
+          key: ${{ steps.cargo-cache.outputs.cache-primary-key }}
 
   homebrew:
     timeout-minutes: 10

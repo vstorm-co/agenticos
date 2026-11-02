@@ -366,3 +366,21 @@ def test_release_bundler_receives_the_same_public_key_as_the_running_app(tmp_pat
     }
     assert json.loads(path.read_text()) == expected
     assert config["bundle"]["createUpdaterArtifacts"] is True
+
+
+def test_release_dispatch_cannot_write_build_caches() -> None:
+    workflow = yaml.safe_load((ROOT / ".github/workflows/app-release.yml").read_text())
+    for name in ("desktop", "android", "ios"):
+        steps = workflow["jobs"][name]["steps"]
+        cache_steps = [step for step in steps if step.get("uses", "").startswith("actions/cache/")]
+        assert len(cache_steps) == 2
+        restore, save = cache_steps
+        assert restore["uses"].startswith("actions/cache/restore@")
+        assert save["uses"].startswith("actions/cache/save@")
+        assert (
+            save["if"]
+            == "github.event_name == 'release' && steps.cargo-cache.outputs.cache-hit != 'true'"
+        )
+        assert save["with"]["key"] == "${{ steps.cargo-cache.outputs.cache-primary-key }}"
+        assert save["with"]["path"] == restore["with"]["path"]
+        assert "${{ runner.os }}-${{ runner.arch }}" in restore["with"]["key"]
