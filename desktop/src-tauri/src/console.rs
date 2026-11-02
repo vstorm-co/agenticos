@@ -65,6 +65,10 @@ pub const GRANTS: &[(&str, &[&str])] = &[
             "allow-local-revoke",
             "allow-local-files",
             "allow-local-file",
+            "allow-local-agents",
+            "allow-local-agent-sign-in",
+            "allow-local-agent-sign-out",
+            "allow-local-skills",
             "allow-local-services",
             "allow-local-save-service",
             "allow-local-remove-service",
@@ -367,6 +371,44 @@ mod tests {
                 assert!(
                     manifest.contains(&format!("\"{command}\"")),
                     "{window} is granted {permission}, which build.rs does not declare"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn every_registered_handler_is_declared_for_permission_checks() {
+        let source = include_str!("lib.rs");
+        let handlers = source
+            .split_once("tauri::generate_handler![")
+            .unwrap()
+            .1
+            .split_once("])")
+            .unwrap()
+            .0;
+        let manifest = include_str!("../build.rs");
+        for handler in handlers.split(',').map(str::trim).filter(|handler| !handler.is_empty()) {
+            let command = handler.rsplit("::").next().unwrap();
+            assert!(
+                manifest.contains(&format!("\"{command}\"")),
+                "{command} has an invoke handler but build.rs does not declare it"
+            );
+        }
+    }
+
+    #[test]
+    fn local_agent_and_skill_commands_are_available_only_to_the_main_console() {
+        for permission in [
+            "allow-local-agents",
+            "allow-local-agent-sign-in",
+            "allow-local-agent-sign-out",
+            "allow-local-skills",
+        ] {
+            for (window, permissions) in GRANTS {
+                assert_eq!(
+                    permissions.contains(&permission),
+                    *window == WINDOW,
+                    "{window}: {permission}"
                 );
             }
         }
