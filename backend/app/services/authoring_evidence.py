@@ -560,8 +560,9 @@ class EvidenceService:
         - of `versions` only, when given. Only the agents the caller may see are
         read; the others are counted in `hidden_agents`. A run whose conversation
         the caller may not open - or with none, to a caller without `runs:view` -
-        keeps its rating and outcome and loses its text, the rule datasets follow. Runs from before uses were recorded, of agents
-        whose version bound the skill, are counted in `unknown_runs`.
+        keeps its rating and outcome and loses its text, the rule datasets follow.
+        Runs from before uses were recorded, of agents whose version bound the
+        skill, are counted in `unknown_runs`.
         """
         since = self._since(window_days)
         involved = await skill_usage_repo.agents_involved(
