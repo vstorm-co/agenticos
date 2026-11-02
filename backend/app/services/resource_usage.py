@@ -7,14 +7,18 @@ to an agent (#2075). Which department it belongs to is the other half of that
 card (#2072). The listings ask both once per page.
 """
 
+import json
 from collections.abc import Collection
+from typing import Any
 from uuid import UUID
 
+from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.agents.spec import AgentSpec
 from app.core.permissions import AuthContext, Perm
-from app.db.models.agent import Agent
-from app.repositories import agent_repo, group_repo, resource_grant_repo
+from app.db.models.agent import Agent, AgentStatus
+from app.repositories import agent_environment_repo, agent_repo, group_repo, resource_grant_repo
 from app.repositories.agent import BoundResourceField
 from app.schemas.resource_usage import AgentUsage
 from app.services.access import AGENT, ResourceType, accessible_ids
@@ -116,4 +120,48 @@ async def shared_with_group(
         return None
     return await resource_grant_repo.ids_shared_with_group(
         db, organization_id=ctx.organization_id, resource_type=resource_type.key, group_id=group_id
+    )
+
+
+def _binds_skill(spec: dict[str, Any], skill_id: UUID) -> bool:
+    """Whether a stored spec binds the skill, itself or through an inline specialist.
+
+    Only a spec that names the skill's id is parsed. One that names it and no longer
+    parses is taken to bind it: the skill is not deleted from under a draft its owner
+    has yet to fix.
+    """
+    from app.services.eval_suite import binds
+
+    if str(skill_id) not in json.dumps(spec):
+        return False
+    try:
+        return binds(AgentSpec.model_validate(spec), "skill", skill_id)
+    except ValidationError:
+        return True
+
+
+async def agents_using_skill(
+    db: AsyncSession, *, organization_id: UUID, skill_id: UUID
+) -> list[Agent]:
+    """The live agents a skill cannot be deleted from under, in name order.
+
+    Those whose draft binds it, or a version one of their environments serves -
+    the agent itself or an inline specialist it defines. Archived agents use
+    nothing; nobody runs them.
+    """
+    using: set[UUID] = set()
+    for environment, version in await agent_environment_repo.served(
+        db, organization_id=organization_id
+    ):
+        if environment.agent_id not in using and _binds_skill(version.spec, skill_id):
+            using.add(environment.agent_id)
+    for agent in await agent_repo.drafts_mentioning(
+        db, str(skill_id), organization_id=organization_id
+    ):
+        if agent.id not in using and _binds_skill(agent.draft_spec, skill_id):
+            using.add(agent.id)
+    agents = await agent_repo.get_many(db, sorted(using), organization_id=organization_id)
+    return sorted(
+        (agent for agent in agents.values() if agent.status != AgentStatus.ARCHIVED.value),
+        key=lambda agent: agent.name,
     )

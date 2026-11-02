@@ -345,6 +345,20 @@ class TestForks:
         assert after.latest is not None and after.latest.id == edited.id
         assert skill.content == "Main moved."
 
+    async def test_saving_a_fork_unchanged_makes_no_version(self, db):
+        ctx = await _owner(db)
+        skill = await _skill(db, ctx)
+        versions = SkillVersionService(db)
+        read = await self._fork(db, ctx, skill)
+        fork = await db.get(SkillFork, read.id)
+
+        same = await versions.edit(
+            ctx, skill.id, _edit(skill, read.base.id, "Ask for the order id.", fork)
+        )
+
+        assert same.id == read.base.id
+        assert await _versions(db, skill, fork) == []
+
     async def test_a_fork_of_a_fork_is_refused(self, db):
         ctx = await _owner(db)
         skill = await _skill(db, ctx)
@@ -636,6 +650,28 @@ class TestDeleting:
 
         with pytest.raises(InUseError):
             await SkillService(db).delete(ctx, skill.id)
+
+    async def test_a_served_version_that_no_longer_reads_blocks_only_its_own_skills(self, db):
+        """Only a spec that names the skill is parsed, so one stored before a format
+        change does not block deleting every other skill of the organization."""
+        ctx = await _owner(db)
+        skill = await _skill(db, ctx)
+        agent = await _published(db, ctx, name="Clerk", spec={"no_such_field": True})
+        assert agent.current_version_id is not None
+        db.add(
+            AgentEnvironment(
+                organization_id=ctx.organization_id,
+                agent_id=agent.id,
+                name="production",
+                version_id=agent.current_version_id,
+                is_default=True,
+            )
+        )
+        await db.flush()
+
+        await SkillService(db).delete(ctx, skill.id)
+
+        assert await db.get(Skill, skill.id) is None
 
     async def test_an_archived_agent_uses_nothing(self, db):
         ctx = await _owner(db)

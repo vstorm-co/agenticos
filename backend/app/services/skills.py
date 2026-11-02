@@ -42,9 +42,13 @@ from app.schemas.skill import (
 )
 from app.services import skill_library
 from app.services.access import AGENT, SKILL, accessible_ids, resolve_access, visible_resource_ids
-from app.services.resource_usage import agents_using, groups_sharing, shared_with_group
+from app.services.resource_usage import (
+    agents_using,
+    agents_using_skill,
+    groups_sharing,
+    shared_with_group,
+)
 from app.services.sharing import SharingService
-from app.services.skill_usage import agents_using_skill
 from app.services.skill_versions import SkillVersionService
 
 logger = logging.getLogger(__name__)
@@ -555,7 +559,7 @@ class SkillService:
 
         Missing, it is installed. An unedited copy of an earlier version - one
         that still matches the fingerprint it was written with - is replaced,
-        files and all, with its version bumped, because nobody chose what it
+        files and all, as a new main version, because nobody chose what it
         says: the platform did, and the platform now says something better. A
         copy edited here is the organization's and is left alone unless
         `replace_edited` says to take the bundled version over the edits, and so
@@ -598,7 +602,7 @@ class SkillService:
             # Locked and re-read before deciding: an edit a member commits between
             # the lookup and the overwrite would otherwise be judged on the copy as
             # it was, found unedited, and replaced. Every edit writes the skill row
-            # (a file edit bumps its version), so the lock serializes with each.
+            # (a file edit records a version on it), so the lock serializes with each.
             existing = await skill_repo.lock(self.db, existing.id)
         plan = _refresh_plan(existing, bundled, replace_edited=replace_edited)
         if existing is None:

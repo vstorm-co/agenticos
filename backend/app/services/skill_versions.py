@@ -384,11 +384,13 @@ class SkillVersionService:
                 ctx, skill, await self._version(ctx, skill, updated.latest_version_id)
             )
         fork = await self._fork(ctx, skill, data.fork_id, lock=True)
-        self._refuse_archived(fork)
+        self.refuse_archived(fork)
         latest = self.line_latest(skill, fork)
         self._refuse_moved(data.base_version_id, latest)
         assert latest is not None, "a fork serves at least its base"
         current = await self._version(ctx, skill, latest)
+        if (data.description, data.content) == (current.description, current.content):
+            return await self._read(ctx, skill, current)
         version = await self.record_fork(
             ctx,
             fork,
@@ -422,7 +424,7 @@ class SkillVersionService:
             )
             return await self._read(ctx, skill, version)
         fork = await self._fork(ctx, skill, earlier.fork_id, lock=True)
-        self._refuse_archived(fork)
+        self.refuse_archived(fork)
         self._refuse_moved(data.base_version_id, self.line_latest(skill, fork))
         version = await self.record_fork(
             ctx,
@@ -448,7 +450,7 @@ class SkillVersionService:
             )
 
     @staticmethod
-    def _refuse_archived(fork: SkillFork) -> None:
+    def refuse_archived(fork: SkillFork) -> None:
         if fork.archived_at is not None:
             raise ConflictError(
                 message=f"The fork '{fork.name}' is archived, so it takes no new versions",
@@ -528,6 +530,7 @@ class SkillVersionService:
                 "from_version_id",
                 "A fork starts from a version of the main line, not from another fork",
             )
+        await skill_repo.lock(self.db, skill.id)
         await self._refuse_taken(ctx, skill, data.name)
         fork = await skill_version_repo.create_fork(
             self.db,
@@ -548,6 +551,7 @@ class SkillVersionService:
         skill = await self._skill(ctx, skill_id, Perm.SKILLS_EDIT)
         fork = await self._fork(ctx, skill, fork_id, lock=True)
         if data.name != fork.name:
+            await skill_repo.lock(self.db, skill.id)
             await self._refuse_taken(ctx, skill, data.name)
             fork = await skill_version_repo.update_fork(
                 self.db, fork=fork, update_data={"name": data.name}
@@ -570,6 +574,8 @@ class SkillVersionService:
         return read
 
     async def _refuse_taken(self, ctx: AuthContext, skill: Skill, name: str) -> None:
+        """Refuse a fork name the skill has. The caller holds the skill locked, so two
+        requests for one name serialize here instead of the second hitting the index."""
         if await skill_version_repo.get_fork_by_name(
             self.db, name, organization_id=ctx.organization_id, skill_id=skill.id
         ):

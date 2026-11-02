@@ -281,6 +281,35 @@ def upgrade() -> None:
     op.add_column(
         "agent_runs", sa.Column("skill_version_ids", postgresql.ARRAY(sa.UUID()), nullable=True)
     )
+    # Deleting a skill cascades through these keys, and deleting a version or a fork
+    # sets them; unindexed, each would scan the whole table it sits in.
+    op.create_index(
+        op.f("skill_forks_base_version_id_idx"), "skill_forks", ["base_version_id"], unique=False
+    )
+    op.create_index(
+        op.f("skill_forks_latest_version_id_idx"),
+        "skill_forks",
+        ["latest_version_id"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("skill_versions_restored_from_id_idx"),
+        "skill_versions",
+        ["restored_from_id"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("skill_versions_proposal_id_idx"), "skill_versions", ["proposal_id"], unique=False
+    )
+    op.create_index(
+        op.f("skill_proposals_base_version_id_idx"),
+        "skill_proposals",
+        ["base_version_id"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("skill_proposals_fork_id_idx"), "skill_proposals", ["fork_id"], unique=False
+    )
 
     _backfill()
 
@@ -366,6 +395,12 @@ def downgrade() -> None:
     _strip_bindings("agent_versions", "spec")
 
     op.drop_column("agent_runs", "skill_version_ids")
+    op.drop_index(op.f("skill_forks_base_version_id_idx"), table_name="skill_forks")
+    op.drop_index(op.f("skill_forks_latest_version_id_idx"), table_name="skill_forks")
+    op.drop_index(op.f("skill_versions_restored_from_id_idx"), table_name="skill_versions")
+    op.drop_index(op.f("skill_versions_proposal_id_idx"), table_name="skill_versions")
+    op.drop_index(op.f("skill_proposals_base_version_id_idx"), table_name="skill_proposals")
+    op.drop_index(op.f("skill_proposals_fork_id_idx"), table_name="skill_proposals")
     op.drop_constraint(op.f("skill_proposals_fork_id_fkey"), "skill_proposals", type_="foreignkey")
     op.drop_constraint(
         op.f("skill_proposals_base_version_id_fkey"), "skill_proposals", type_="foreignkey"

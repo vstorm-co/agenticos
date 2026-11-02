@@ -139,6 +139,7 @@ class SkillProposal(Base, TimestampMixin):
         PG_UUID(as_uuid=True),
         ForeignKey("skill_versions.id", ondelete="SET NULL"),
         nullable=True,
+        index=True,
     )
     """The exact version the body was written against. Apply compares it with the
     newest version of the same line; a proposal recorded before versions has only
@@ -148,6 +149,7 @@ class SkillProposal(Base, TimestampMixin):
         PG_UUID(as_uuid=True),
         ForeignKey("skill_forks.id", ondelete="CASCADE"),
         nullable=True,
+        index=True,
     )
     """The fork the change is for, or `None` for main: the line its agent read from."""
 

@@ -96,6 +96,7 @@ class SkillFork(Base, TimestampMixin):
         PG_UUID(as_uuid=True),
         ForeignKey("skill_versions.id", ondelete="CASCADE", use_alter=True),
         nullable=False,
+        index=True,
     )
     """The main version the fork started from. Never a fork's own version: the service
     refuses a fork of a fork, so the tree stays one level deep."""
@@ -104,6 +105,7 @@ class SkillFork(Base, TimestampMixin):
         PG_UUID(as_uuid=True),
         ForeignKey("skill_versions.id", ondelete="SET NULL", use_alter=True),
         nullable=True,
+        index=True,
     )
     """The fork's newest own version, or null while it has none and serves its base."""
 
@@ -157,10 +159,16 @@ class SkillVersion(Base):
     )
     source: Mapped[str] = mapped_column(String(16), nullable=False)
     restored_from_id: Mapped[uuid.UUID | None] = mapped_column(
-        PG_UUID(as_uuid=True), ForeignKey("skill_versions.id", ondelete="SET NULL"), nullable=True
+        PG_UUID(as_uuid=True),
+        ForeignKey("skill_versions.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
     )
     proposal_id: Mapped[uuid.UUID | None] = mapped_column(
-        PG_UUID(as_uuid=True), ForeignKey("skill_proposals.id", ondelete="SET NULL"), nullable=True
+        PG_UUID(as_uuid=True),
+        ForeignKey("skill_proposals.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
     )
     library_fingerprint: Mapped[str | None] = mapped_column(String(64), nullable=True)
     created_by_user_id: Mapped[uuid.UUID | None] = mapped_column(

@@ -22,7 +22,12 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from app.core.exceptions import AlreadyExistsError, ConcurrentChangeError, NotFoundError
+from app.core.exceptions import (
+    AlreadyExistsError,
+    ConcurrentChangeError,
+    ConflictError,
+    NotFoundError,
+)
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.skill_proposal import ProposalStatus, SkillProposal
 from app.db.models.skill_version import SkillVersionSource
@@ -347,7 +352,9 @@ class TestApplying:
     async def test_a_change_to_a_fork_is_the_forks_next_version(self, monkeypatch):
         """Main is left alone; the fork's version keeps its files and takes the new one."""
         service = _service(monkeypatch)
-        fork = MagicMock(id=uuid.uuid4(), latest_version_id=_V3, base_version_id=uuid.uuid4())
+        fork = MagicMock(
+            id=uuid.uuid4(), latest_version_id=_V3, base_version_id=uuid.uuid4(), archived_at=None
+        )
         proposal = _proposal(fork_id=fork.id, resources={"new.md": "two"})
         monkeypatch.setattr(skill_proposal_repo, "get", AsyncMock(return_value=proposal))
         monkeypatch.setattr(skill_version_repo, "get_fork", AsyncMock(return_value=fork))
@@ -369,6 +376,19 @@ class TestApplying:
         assert set(written["resources"]) == {"old.md", "new.md"}
         assert written["source"] is SkillVersionSource.WORKSPACE
         assert written["proposal_id"] == proposal.id
+
+    async def test_a_change_to_an_archived_fork_is_refused(self, monkeypatch):
+        """An archived fork takes no new version, from a person's edit or an agent's."""
+        service = _service(monkeypatch)
+        fork = MagicMock(id=uuid.uuid4(), latest_version_id=_V3, archived_at=datetime.now(UTC))
+        proposal = _proposal(fork_id=fork.id)
+        monkeypatch.setattr(skill_proposal_repo, "get", AsyncMock(return_value=proposal))
+        monkeypatch.setattr(skill_version_repo, "get_fork", AsyncMock(return_value=fork))
+
+        with pytest.raises(ConflictError, match="archived"):
+            await service.apply(_ctx(), proposal.id, _DECISION)
+
+        assert proposal.status == ProposalStatus.PENDING.value
 
     async def test_the_resources_are_written_too(self, monkeypatch):
         """A skill whose script did not come with it is a skill that no longer

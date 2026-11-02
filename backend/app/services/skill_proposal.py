@@ -7,8 +7,8 @@ reaches the skill every other agent reads.
 
 Two properties hold the design together.
 
-*A decision is final.* Applying a proposal twice would bump a skill's version
-against a body already stored; discarding one that was applied would tell a
+*A decision is final.* Applying a proposal twice would save a second version of
+a body already stored; discarding one that was applied would tell a
 reader it never landed. `AlreadyExistsError` on a decided proposal, the same rule
 approvals follow.
 
@@ -255,6 +255,7 @@ class SkillProposalService:
                     lock=True,
                 )
                 assert fork is not None, "a proposal goes with its fork"
+                SkillVersionService.refuse_archived(fork)
             if _moved_since(proposal, current, SkillVersionService.line_latest(current, fork)):
                 raise ConcurrentChangeError(
                     message=(
