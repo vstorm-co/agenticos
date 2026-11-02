@@ -109,8 +109,11 @@ export function workspaceFileAccess(source: FileSource, path: string): FileAcces
     bytesKey: bytesKey(source, path),
     readText: () => readFileText(source, path),
     readPreview: async () =>
-      prepareHtmlFilePreview(path, await readFileText(source, path), (asset) =>
-        readFileText(source, asset),
+      prepareHtmlFilePreview(
+        path,
+        await readFileText(source, path),
+        (asset) => readFileText(source, asset),
+        (asset) => readFileBytes(source, asset),
       ),
     readBytes: () => readFileBytes(source, path),
     download: async () => {

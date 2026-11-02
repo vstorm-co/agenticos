@@ -6,9 +6,7 @@ import type { ChatMessage } from "@/types/chat";
 import { TurnFiles } from "./turn-files";
 
 const env = vi.hoisted(() => ({ source: null as FileSource | null, access: vi.fn() }));
-vi.mock("@/hooks/use-conversation-file-source", () => ({
-  useConversationFileSource: () => env.source,
-}));
+vi.mock("@/hooks/use-shell", () => ({ useShell: () => ({ platform: "macos" }) }));
 vi.mock("@/lib/workspace-files", () => ({
   workspaceFileAccess: (...args: unknown[]) => env.access(...args),
 }));
@@ -38,6 +36,8 @@ function message(paths: unknown = ["site/index.html", "site/style.css"]): ChatMe
     content: "Done",
     timestamp: new Date(),
     conversationId: "c1",
+    fileSource:
+      env.source?.kind === "local" || env.source?.kind === "conversation" ? env.source : undefined,
     toolCalls: [
       {
         id: "tc",
@@ -74,7 +74,7 @@ it("does not offer files for user messages, a streaming turn, missing reports or
   expect(screen.queryByRole("button")).toBeNull();
   env.source = null;
   const missing = message();
-  delete missing.conversationId;
+  delete missing.fileSource;
   view.rerender(<TurnFiles message={missing} />);
   expect(screen.queryByRole("button")).toBeNull();
 });
@@ -102,4 +102,26 @@ it("draws nothing when every reported local path is outside the selected folder"
   env.source = { kind: "local", root: "/approved" };
   render(<TurnFiles message={message(["/other/a"])} />);
   expect(screen.queryByRole("button")).toBeNull();
+});
+
+it("keeps a turn linked to its original folder when Work on changes", async () => {
+  env.source = { kind: "local", root: "/original" };
+  const original = message(["index.html"]);
+  const view = render(<TurnFiles message={original} />);
+  env.source = { kind: "local", root: "/different" };
+  view.rerender(<TurnFiles message={original} />);
+  await userEvent.click(screen.getByRole("button", { name: "index.html" }));
+  expect(env.access).toHaveBeenLastCalledWith({ kind: "local", root: "/original" }, "index.html");
+});
+
+it("keeps cloud links on their historical origin after switching to local work", async () => {
+  env.source = { kind: "conversation", id: "original-chat" };
+  const original = message(["index.html"]);
+  env.source = { kind: "local", root: "/local" };
+  render(<TurnFiles message={original} />);
+  await userEvent.click(screen.getByRole("button", { name: "index.html" }));
+  expect(env.access).toHaveBeenLastCalledWith(
+    { kind: "conversation", id: "original-chat" },
+    "index.html",
+  );
 });

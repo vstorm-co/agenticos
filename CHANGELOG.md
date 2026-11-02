@@ -43,6 +43,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Bound the entire local ACP stream and close adapters on output overflow. Refuse monitors on desktop shells that cannot retain background processes. Require signing material when the publisher certificate is pinned. File links retain their original turn workspace, and HTML previews resolve nested CSS assets through that same authorized source.
+
 - The egress inventory includes per-chat local coding overrides; local launches recheck revoked grants after confirmation. Coding folder choices exclude incompatible grants, and file trees normalize current-directory path components.
 
 - Monitor starts reserve their limit before waiting, unfinished output stays bounded while matching full lines, and shutdown escalates unresponsive processes. Cancelled local coding-agent starts also reap sessions whose open replies were not observed; switching to local execution clears a sandbox-only model.

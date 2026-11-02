@@ -334,11 +334,14 @@ def test_ad_hoc_macos_exports_only_the_ad_hoc_identity(tmp_path: Path) -> None:
         for s in workflow["jobs"]["desktop"]["steps"]
         if s.get("name") == "Sign macOS with the stable self-signed certificate"
     )
+    (tmp_path / "scripts").mkdir()
+    (tmp_path / "scripts/macos_signing_identity.txt").write_text("# unpinned test distribution\n")
     output = tmp_path / "github-env"
     bash = shutil.which("bash")
     assert bash is not None
     subprocess.run(
         [bash, "-c", step["run"]],
+        cwd=tmp_path,
         env={
             "GITHUB_ENV": str(output),
             "SIGNING_P12": "",
@@ -530,3 +533,30 @@ def test_releases_only_read_dependency_caches_seeded_by_native_ci() -> None:
         assert seed["uses"].startswith("actions/cache@")
         assert restore["with"] == seed["with"]
         assert "target" not in restore["with"]["path"]
+
+
+@pytest.mark.parametrize("pin", ["351ec21dde69acfb29f5d2661b27c0f6a517035a", "", "malformed"])
+def test_pinned_releases_refuse_missing_signing_material(tmp_path: Path, pin: str) -> None:
+    workflow = yaml.safe_load((ROOT / ".github/workflows/app-release.yml").read_text())
+    step = next(
+        s
+        for s in workflow["jobs"]["desktop"]["steps"]
+        if s.get("name") == "Sign macOS with the stable self-signed certificate"
+    )
+    (tmp_path / "scripts").mkdir()
+    (tmp_path / "scripts/macos_signing_identity.txt").write_text("# Publisher pin\n" + pin + "\n")
+    env_file = tmp_path / "github-env"
+    env_file.touch()
+    result = subprocess.run(
+        ["/bin/bash", "-c", step["run"]],
+        cwd=tmp_path,
+        env={**os.environ, "SIGNING_P12": "", "GITHUB_ENV": str(env_file)},
+        capture_output=True,
+        text=True,
+    )
+    assert (result.returncode != 0) is bool(pin)
+    if pin:
+        assert "MACOS_SELF_SIGNED_P12 is missing" in result.stdout
+        assert env_file.read_text() == ""
+    else:
+        assert "APPLE_SIGNING_IDENTITY=-" in env_file.read_text()

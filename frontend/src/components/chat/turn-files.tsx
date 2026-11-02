@@ -3,7 +3,8 @@
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { FileIcon, FileViewer } from "@/components/files";
-import { useConversationFileSource } from "@/hooks/use-conversation-file-source";
+import { useShell } from "@/hooks/use-shell";
+import { isDesktopShell } from "@/lib/desktop/shell";
 import { toolCallsOf } from "@/lib/chat-sources";
 import { basename } from "@/lib/tool-steps";
 import { filesChangedOf } from "@/lib/turn-extras";
@@ -13,8 +14,14 @@ import type { ChatMessage } from "@/types/chat";
 /** Exact tool-reported paths, rather than file names guessed from the answer. */
 export function TurnFiles({ message }: { message: ChatMessage }) {
   const paths = filesChangedOf(toolCallsOf(message));
-  if (message.role !== "assistant" || message.isStreaming || paths.length === 0) return null;
-  return <FileLinks paths={paths} conversationId={message.conversationId ?? null} />;
+  if (
+    message.role !== "assistant" ||
+    message.isStreaming ||
+    paths.length === 0 ||
+    !message.fileSource
+  )
+    return null;
+  return <FileLinks paths={paths} source={message.fileSource} />;
 }
 
 function workspacePath(source: FileSource, path: string): string | null {
@@ -28,11 +35,11 @@ function workspacePath(source: FileSource, path: string): string | null {
   return relative;
 }
 
-function FileLinks({ paths, conversationId }: { paths: string[]; conversationId: string | null }) {
+function FileLinks({ paths, source }: { paths: string[]; source: FileSource }) {
   const t = useTranslations("chat.tools.codingAgent");
-  const source = useConversationFileSource(conversationId);
+  const shell = useShell();
   const [reading, setReading] = useState<string | null>(null);
-  if (source === null) return null;
+  if (source.kind === "local" && !isDesktopShell(shell)) return null;
   const files = [
     ...new Set(
       paths.flatMap((path) => {

@@ -1,5 +1,5 @@
 ---
-source_sha: "dbf0fc6726ea"
+source_sha: "ede22781bf78"
 ---
 
 # Die Desktop-App { #the-desktop-app }
@@ -37,6 +37,10 @@ Unter **Chat controls → Computer use** bietet **Lokaler Computer** dieser Unte
 
 Bei der Rückkehr aus den Systemeinstellungen wird die Bereitschaft auch dann aktualisiert, wenn die Webview sichtbar bleibt. Ist die Bildschirmaufnahme aktiviert, der Zugriff aber weiterhin verweigert, beende und öffne die laufende Kopie erneut und aktualisiere den Status. Berechtigungen können zwischen einer installierten Version und einer Ad-hoc-Testkopie abweichen.
 
+Lokale ACP-Aufgaben enden nach 16.384 eingehenden Ereignissen oder insgesamt 8 MiB serialisierten Updates, einschließlich der Sitzungswiedergabe. Der Fehler wird angezeigt und der Adapter geschlossen.
+
+Ein eingecheckter Publisher-Zertifikat-Pin erfordert passendes Signaturmaterial: Fehlt MACOS_SELF_SIGNED_P12, stoppt das Release. Ad-hoc-Signaturen sind nur bei einer Distribution ohne Pin möglich.
+
 ## Die App installieren { #installing-the-app }
 
 Lade das Paket für deinen Computer aus dem [GitHub-Release](https://github.com/vstorm-co/agenticos/releases/latest) herunter. Für die Installation eines Releases brauchst du weder Rust noch Entwicklungswerkzeuge.
@@ -54,7 +58,7 @@ Beim ersten Start führt dich der Assistent zur Serververbindung oder einer loka
 
 Starte unter macOS 14 oder neuer die installierte App einmal. Klicke dann mit der rechten Maustaste auf den Schreibtisch, wähle **Widgets bearbeiten** und suche nach **AgenticOS**. Das kleine Widget öffnet Quick Ask; das mittlere zusätzlich Chat, Inbox und Activity. Widgets folgen dem Systemdesign und enthalten nur Verknüpfungen ohne Kontodaten. Ein Klick startet niemals eine Aufnahme oder einen Anruf.
 
-Die Release-CI baut native Pakete für Mac (Apple silicon und Intel), Windows und Linux. Standardmäßig verwenden macOS-Pakete Ad-hoc-Signaturen ohne Beglaubigung durch Apple. Kopiere die App nach Applications und versuche, sie zu öffnen. Blockiert macOS sie wegen eines nicht verifizierten Entwicklers, wähle **Systemeinstellungen → Datenschutz & Sicherheit → Dennoch öffnen** und bestätige. Verwaltete Computer können diese Ausnahme verbieten. Siehe [Apples Anleitung](https://support.apple.com/de-de/102445). Heruntergeladene Updates benötigen weiterhin eine gültige Signatur mit dem Update-Schlüssel des Releases.
+Die Release-CI baut native Pakete für Mac (Apple silicon und Intel), Windows und Linux. macOS-Pakete verwenden das stabile selbstsignierte Zertifikat. Ad-hoc-Signaturen sind nur ohne Publisher-Pin möglich; die Pakete sind nicht von Apple beglaubigt. Kopiere die App nach Applications und versuche, sie zu öffnen. Blockiert macOS sie wegen eines nicht verifizierten Entwicklers, wähle **Systemeinstellungen → Datenschutz & Sicherheit → Dennoch öffnen** und bestätige. Verwaltete Computer können diese Ausnahme verbieten. Siehe [Apples Anleitung](https://support.apple.com/de-de/102445). Heruntergeladene Updates benötigen weiterhin eine gültige Signatur mit dem Update-Schlüssel des Releases.
 
 Nach einem Ad-hoc-Update kann macOS erneut Zugriff auf Mikrofon, Bildschirmaufnahme, Bedienungshilfen oder Schlüsselbund verlangen. Geht die Gerätekopplung verloren, verbinde das Gerät erneut. Update-Signaturen prüfen das Paket, bieten aber keine stabile Apple-Signierungsidentität.
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "3c56f1399cc1"
+source_sha: "95cc474e7e4b"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -1707,7 +1707,7 @@ Lässt einen Agenten einen lange laufenden Befehl starten - einen Test-Watcher, 
 | `list_monitors` | Listet die Beobachtungen mit Zustand, Exit-Code, Anzahl passender Zeilen und den letzten zehn |
 | `stop_monitor` | Beendet eine Beobachtung und die Prozesse, die sie gestartet hat |
 
-**Eine Beobachtung lebt so lange wie der Lauf.** Jede Beobachtung wird am Ende der Runde beendet, sodass ein Befehl nie die Runde überlebt, die ihn verlangt hat. Nötig ist ein Arbeitsbereich mit Shell, die Sandbox oder ein Ordner auf dem Computer der Person; ohne ihn sagen die Tools das. Was ein beobachteter Befehl ausgibt, sind Daten, keine Anweisungen, und der Agent wird darauf hingewiesen. Füge **Human approval** hinzu, um vor dem Start eines Befehls zu fragen.
+**Eine Beobachtung lebt so lange wie der Lauf.** Jede Beobachtung wird am Ende der Runde beendet, sodass ein Befehl nie die Runde überlebt, die ihn verlangt hat. Nötig ist eine dauerhafte Sandbox-Shell. Die Desktop-Shell beendet ihre Prozesse nach jedem Befehl; das Tool lehnt Beobachtungen dort vor dem Prozessstart ab. Was ein beobachteter Befehl ausgibt, sind Daten, keine Anweisungen, und der Agent wird darauf hingewiesen. Füge **Human approval** hinzu, um vor dem Start eines Befehls zu fragen.
 
 ## Visuals { #visuals }
 

@@ -1006,3 +1006,60 @@ async def test_translated_native_refusals_end_the_task_as_failed(
     assert "could not run on this computer: Native launch refused" in answer
     assert frames[-1].status == "failed"
     assert ledger.entries == []
+
+
+@pytest.mark.parametrize("budget", ["events", "bytes"])
+async def test_cumulative_stream_limits_abort_the_task_and_close_its_pipe(
+    monkeypatch: pytest.MonkeyPatch, budget: str
+) -> None:
+    class NoisyAgent(ScriptedAgent):
+        def on_message(self, message: dict[str, Any]) -> None:
+            if message.get("method") == "session/prompt":
+                for _ in range(10):
+                    self.out.append(
+                        self._update(
+                            {"sessionUpdate": "agent_message_chunk", "content": {"text": "x" * 800}}
+                        )
+                    )
+                return
+            super().on_message(message)
+
+    if budget == "events":
+        monkeypatch.setattr(acp, "MAX_SESSION_EVENTS", 2)
+    else:
+        monkeypatch.setattr(acp, "MAX_SESSION_BYTES", 1500)
+    pipe = ScriptedPipe(NoisyAgent())
+    with pytest.raises(acp.AcpError, match="session output limit"):
+        await acp.run_task(
+            pipe,
+            harness="claude_code",
+            access="edit",
+            root="/w",
+            task="Work",
+            timeout_seconds=60,
+            shown=_nothing,
+        )
+    assert pipe.closed
+    assert pipe.agent.out  # The remaining unbounded stream was not drained.
+
+
+def test_stream_budget_counts_structural_updates_and_exact_boundaries(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pipe = ScriptedPipe(ScriptedAgent())
+    conversation = acp.Conversation(pipe, access="edit", collector=acp._Collector(), shown=_nothing)
+    message = {
+        "method": "session/update",
+        "params": {
+            "update": {
+                "sessionUpdate": "tool_call",
+                "toolCallId": "unique",
+                "locations": [{"path": "/w/a.py"}],
+            }
+        },
+    }
+    size = len(json.dumps(message, separators=(",", ":")))
+    monkeypatch.setattr(acp, "MAX_SESSION_BYTES", size)
+    conversation._consume(message)
+    with pytest.raises(acp.AcpError, match="session output limit"):
+        conversation._consume(message)

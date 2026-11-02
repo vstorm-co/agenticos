@@ -23,7 +23,7 @@ names no author is in the evidence column below.
 
 | Licence | Backend | Frontend |
 |---|---:|---:|
-| MIT | 102 | 252 |
+| MIT | 102 | 253 |
 | Apache-2.0 | 71 | 24 |
 | BSD-3-Clause | 23 | 4 |
 | ISC | 3 | 21 |
@@ -39,6 +39,7 @@ names no author is in the evidence column below.
 | Apache-2.0 OR BSD-3-Clause | 1 | 0 |
 | BSD-3-Clause AND 0BSD AND MIT AND Zlib AND CC0-1.0 | 1 | 0 |
 | CC-BY-4.0 | 0 | 1 |
+| CC0-1.0 | 0 | 1 |
 | LGPL-2.1-or-later | 1 | 0 |
 | LGPL-3.0-only | 1 | 0 |
 | MIT AND ISC | 0 | 1 |
@@ -284,7 +285,7 @@ names no author is in the evidence column below.
 
 ## Frontend image (npm)
 
-308 distributions.
+310 distributions.
 
 | Component | Version | Licence | Source | Evidence |
 |---|---|---|---|---|
@@ -421,6 +422,7 @@ names no author is in the evidence column below.
 | clsx | 2.1.1 | MIT | https://github.com/lukeed/clsx | package.json license |
 | cmdk | 1.1.1 | MIT | https://github.com/pacocoursey/cmdk | package.json license |
 | comma-separated-tokens | 2.0.3 | MIT | https://github.com/wooorm/comma-separated-tokens | package.json license |
+| css-tree | 3.2.1 | MIT | https://github.com/csstree/csstree | package.json license |
 | csstype | 3.2.3 | MIT | https://github.com/frenic/csstype | package.json license |
 | d3-array | 3.2.4 | ISC | https://github.com/d3/d3-array | package.json license |
 | d3-color | 3.1.0 | ISC | https://github.com/d3/d3-color | package.json license |
@@ -493,6 +495,7 @@ names no author is in the evidence column below.
 | mdast-util-to-hast | 13.2.1 | MIT | https://github.com/syntax-tree/mdast-util-to-hast | package.json license |
 | mdast-util-to-markdown | 2.1.2 | MIT | https://github.com/syntax-tree/mdast-util-to-markdown | package.json license |
 | mdast-util-to-string | 4.0.0 | MIT | https://github.com/syntax-tree/mdast-util-to-string | package.json license |
+| mdn-data | 2.27.1 | CC0-1.0 | https://github.com/mdn/data | package.json license |
 | micromark | 4.0.2 | MIT | https://github.com/micromark/micromark/tree/main/packages/micromark | package.json license |
 | micromark-core-commonmark | 2.0.3 | MIT | https://github.com/micromark/micromark/tree/main/packages/micromark-core-commonmark | package.json license |
 | micromark-extension-gfm | 3.0.0 | MIT | https://github.com/micromark/micromark-extension-gfm | package.json license |

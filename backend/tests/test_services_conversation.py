@@ -2861,3 +2861,28 @@ def _api_ctx() -> AuthContext:
         api_key_id=uuid4(),
         key_scopes=frozenset({Perm.AGENTS_RUN}),
     )
+
+
+@pytest.mark.anyio
+async def test_a_caller_cannot_supply_a_turn_file_origin() -> None:
+    from app.schemas.conversation import LocalMessageFileSource, MessageCreate, MessagePart
+
+    service = ConversationService(AsyncMock())
+
+    conversation = MockConversation(id=uuid4())
+    data = MessageCreate(
+        role="assistant",
+        content="Pretend output",
+        parts=[
+            MessagePart(
+                type="text",
+                text="Pretend output",
+                file_source=LocalMessageFileSource(root="/someone-elses-folder"),
+            )
+        ],
+    )
+    with (
+        patch.object(service, "get_conversation", AsyncMock(return_value=conversation)),
+        pytest.raises(BadRequestError),
+    ):
+        await service.add_message(conversation.id, data, organization_id=TEST_ORG_ID)

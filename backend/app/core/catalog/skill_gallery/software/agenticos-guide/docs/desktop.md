@@ -30,6 +30,12 @@ look. An explicit saved theme or look takes precedence.
 
 In **Chat controls → Computer use**, select **Local computer** to give this conversation screenshot, mouse and keyboard tools even when the agent has no Computer use binding. The choice is independent of Browser and Work on: it does not grant a folder or command access, and the published agent stays unchanged. The initiating person must have their own paired device connected; native screen consent and operating-system permissions still apply.
 
+Returning from System Settings refreshes readiness even when the webview stays visible. If Screen Recording is enabled but access is still denied, quit and reopen the running copy, then refresh. Permissions can differ between an installed build and an ad-hoc test copy.
+
+Local ACP tasks stop after 16,384 inbound events or 8 MiB of cumulative serialized updates, including session replay. The error is explicit and the adapter is closed.
+
+A committed publisher certificate pin requires the matching signing material: a missing MACOS_SELF_SIGNED_P12 stops the release. Ad-hoc release signing is available only with an unpinned distribution.
+
 ## Installing the app
 
 Download the package for your computer from the [GitHub release](https://github.com/vstorm-co/agenticos/releases/latest). You do not need Rust or development tools to install a release.
@@ -47,7 +53,7 @@ The first launch guides you through connecting to a server or creating a local i
 
 On macOS 14 or later, launch the installed app once, then right-click the desktop, choose **Edit Widgets** and search for **AgenticOS**. The small widget opens Quick Ask; the medium widget also opens Chat, Inbox and Activity. Widgets follow the system appearance and contain shortcuts only, with no account data. A widget click never starts recording or a call.
 
-Release CI builds native packages for Mac (Apple silicon and Intel), Windows and Linux. macOS packages use the configured stable self-signed certificate, with ad-hoc signing only when no certificate is configured. These builds are not notarized by Apple. After copying the app to Applications, try opening it once. If macOS blocks it because the developer cannot be verified, choose **System Settings → Privacy & Security → Open Anyway** and confirm. Managed computers may prohibit this exception. See [Apple’s instructions](https://support.apple.com/en-us/102445). Updater downloads still require a valid signature from the release updater key.
+Release CI builds native packages for Mac (Apple silicon and Intel), Windows and Linux. macOS packages use the configured stable self-signed certificate, with ad-hoc signing only for an unpinned distribution. These builds are not notarized by Apple. After copying the app to Applications, try opening it once. If macOS blocks it because the developer cannot be verified, choose **System Settings → Privacy & Security → Open Anyway** and confirm. Managed computers may prohibit this exception. See [Apple’s instructions](https://support.apple.com/en-us/102445). Updater downloads still require a valid signature from the release updater key.
 
 After an ad-hoc update, macOS may request microphone, Screen Recording, Accessibility or Keychain access again. If device pairing is lost, reconnect the device. Updater signatures verify the package but do not provide a stable Apple signing identity.
 
@@ -439,9 +445,9 @@ and about its own public address.
 
 **Settings → Desktop app → Coding agents on this computer** shows installed Claude Code and Codex versions and sign-in status. **Sign in** opens the agent's own command in Terminal on macOS, PowerShell on Windows or an available terminal on Linux. Return to refresh the status. AgenticOS does not read or copy credentials. Node.js 22 or later is required for the pinned ACP adapters.
 
-In desktop **Chat controls → Tools & files → Coding agent**, choose **Claude Code on this computer** or **Codex on this computer**, even when the published capability is disabled or absent. The app prepares local file tools and opens the native folder picker unless the current folder already has a full-access grant. Cancelling leaves the previous settings unchanged. **Use agent setting** restores the published configuration.
+In desktop **Chat controls → Tools & files → Coding agent**, choose **Claude Code** or **Codex**, even when the published capability is disabled or absent. The app prepares local file tools and opens the native folder picker unless the current folder already has a full-access grant. Cancelling leaves the previous settings unchanged. **Use agent setting** restores the published configuration.
 
-The choice belongs to this chat. Existing read-only and approval rules still apply, and each task needs native confirmation. Switching to Cloud clears the conversation's local coding choice. Model and approval settings are under **Preferences**.
+The choice belongs to this chat. Existing read-only and approval rules still apply, and each task needs native confirmation. Switching to Cloud clears the conversation's local coding choice. Chat controls opens above the composer. The model is at the top, followed by Tools & files; expand **Work on** to manage folder access and **Preferences** for approvals and notifications.
 
 Set the **Coding agent** capability to **On this computer**, choose a folder under **Work on**, and grant it full access. Every task starts with a native confirmation, with up to five minutes to answer. The adapter runs as your operating-system account: the folder selects its working directory, not an OS sandbox. Whole-computer access cannot start a coding agent. The composer names the agent, folder and access policy.
 

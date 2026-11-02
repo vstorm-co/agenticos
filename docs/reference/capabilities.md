@@ -1537,7 +1537,7 @@ Lets an agent start a command that runs for a long time - a test watcher, a log 
 | `list_monitors` | Lists the watches with their state, exit code, how many lines matched and the last ten |
 | `stop_monitor` | Stops one watch and the processes it started |
 
-**A watch lives as long as the run.** Every watch is stopped when the turn ends, so a command never outlives the turn that asked for it. It needs a workspace with a shell, the sandbox or a folder on the person's computer; without one the tools say so. What a watched command prints is data, not instructions, and the agent is told so. Add **Human approval** to ask before a command starts.
+**A watch lives as long as the run.** Every watch is stopped when the turn ends, so a command never outlives the turn that asked for it. It needs a persistent sandbox shell. The desktop's per-command shell cannot keep a watch alive, so the tool refuses it before starting a process. What a watched command prints is data, not instructions, and the agent is told so. Add **Human approval** to ask before a command starts.
 
 ## Visuals
 

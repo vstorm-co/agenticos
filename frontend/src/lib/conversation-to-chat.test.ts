@@ -425,3 +425,12 @@ it("keeps the persisted submission correlation for reconnect reconciliation", ()
       .clientMessageId,
   ).toBe("nonce");
 });
+
+it("restores the recorded turn workspace independently of current Work on", () => {
+  const message = conversationMessageToChatMessage(
+    raw({
+      parts: [{ type: "text", text: "Done", file_source: { kind: "local", root: "/original" } }],
+    }),
+  );
+  expect(message.fileSource).toEqual({ kind: "local", root: "/original" });
+});

@@ -15,6 +15,7 @@ import { usePermissions } from "./use-permissions";
 import { adoptAccountContext, contextSavedBy } from "@/lib/account-context";
 import { adoptAccountLocale, localeChosenBy } from "@/lib/account-locale";
 import { ApiError, getErrorMessage } from "@/lib/api-error";
+import { turnFileSourceFromEvent } from "@/lib/turn-file-source";
 import { clientId } from "@/lib/ids";
 import { keepOutbox, keptOutbox } from "@/lib/offline/device-cache";
 import { nextStepEvent, withNextSteps, type NextStepEvent } from "@/lib/next-step-events";
@@ -44,6 +45,7 @@ import type {
   SubagentFrame,
   ToolCall,
   TurnUsage,
+  TurnFileSource,
   WSEvent,
 } from "@/types";
 import type { ParkedCall, ParkedQuestion, ResumedRun, WireQuestion } from "@/types/runs";
@@ -266,6 +268,7 @@ export function useChat(options: UseChatOptions = {}) {
   // read from the store at that moment, because switching agents while an answer
   // is streaming must not re-credit that answer to the newly picked agent.
   const turnAgentIdRef = useRef<string | null>(null);
+  const turnFileSourceRef = useRef<TurnFileSource | undefined>(undefined);
   // Which conversation this hook is about: the store's, or the one passed in before
   // the store has caught up. Computed once because three places need the same answer
   // - stamping a new message, recording what a turn cost, and deciding whether that
@@ -540,6 +543,7 @@ export function useChat(options: UseChatOptions = {}) {
           conversationId: effectiveConversationId,
           isTemporaryId: true,
           agentId: turnAgentIdRef.current ?? undefined,
+          fileSource: turnFileSourceRef.current,
         });
         setCurrentMessageId(newMsgId);
         return newMsgId;
@@ -547,6 +551,7 @@ export function useChat(options: UseChatOptions = {}) {
 
       switch (wsEvent.type) {
         case "user_prompt": {
+          turnFileSourceRef.current = turnFileSourceFromEvent(wsEvent.data);
           unconfirmedRef.current = null;
           const { message_id } = wsEvent.data as { message_id?: string | null };
           const id = currentUserMessageIdRef.current;
@@ -597,6 +602,7 @@ export function useChat(options: UseChatOptions = {}) {
           if (followingRef.current !== data.conversation_id) break;
           // The answer that follows is this agent's: its face and name from the start.
           turnAgentIdRef.current = data.agent_id ?? null;
+          turnFileSourceRef.current = turnFileSourceFromEvent(wsEvent.data);
           const id = data.message_id ?? clientId();
           if (chatApi.getState().messages.some((message) => message.id === id)) break;
           const local = data.client_message_id

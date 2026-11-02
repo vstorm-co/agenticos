@@ -48,6 +48,9 @@ POLL_WAIT_MS = 20_000
 POLL_TIMEOUT_SECONDS = 40.0
 CALL_TIMEOUT_SECONDS = 30.0
 LAUNCH_TIMEOUT_SECONDS = 300.0
+MAX_SESSION_EVENTS = 16_384
+MAX_SESSION_BYTES = 8 << 20
+"""Cumulative inbound ASCII JSON budget, including replay and permission requests."""
 
 _METHOD_NOT_FOUND = -32601
 
@@ -321,6 +324,8 @@ class Conversation:
         self._collector = collector
         self._shown = shown
         self._ids = itertools.count(1)
+        self._received_events = 0
+        self._received_bytes = 0
 
     async def request(
         self, method: str, params: dict[str, Any], *, sent: anyio.Event | None = None
@@ -334,6 +339,7 @@ class Conversation:
             sent.set()
         while True:
             message = await self._pipe.receive()
+            self._consume(message)
             if "method" in message:
                 await self._handle(message)
             elif message.get("id") == identifier:
@@ -346,6 +352,19 @@ class Conversation:
                     shown = f" (code {code})" if isinstance(code, int) else ""
                     raise AcpError(f"The agent refused the request{shown}.")
                 return message.get("result")
+
+    def _consume(self, message: dict[str, object]) -> None:
+        # ASCII JSON counts escaped Unicode too, without allocating a second byte copy.
+        size = len(json.dumps(message, ensure_ascii=True, separators=(",", ":")))
+        if (
+            self._received_events >= MAX_SESSION_EVENTS
+            or self._received_bytes + size > MAX_SESSION_BYTES
+        ):
+            raise AcpError(
+                "The local coding agent exceeded the session output limit. Give it a narrower task."
+            )
+        self._received_events += 1
+        self._received_bytes += size
 
     async def prompt(
         self,

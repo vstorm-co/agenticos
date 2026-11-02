@@ -1,5 +1,5 @@
 ---
-source_sha: "3c56f1399cc1"
+source_sha: "95cc474e7e4b"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -1604,7 +1604,7 @@ Pozwala agentowi uruchomić polecenie, które działa długo - watcher testów, 
 | `list_monitors` | Wypisuje obserwacje ze stanem, kodem wyjścia, liczbą dopasowanych linii i ostatnimi dziesięcioma |
 | `stop_monitor` | Zatrzymuje jedną obserwację i uruchomione przez nią procesy |
 
-**Obserwacja żyje tyle, co przebieg.** Każda obserwacja jest zatrzymywana na końcu tury, więc polecenie nigdy nie przeżywa tury, która o nie poprosiła. Wymaga przestrzeni roboczej z powłoką, czyli sandboxa albo folderu na komputerze osoby; bez niej narzędzia o tym mówią. To, co drukuje obserwowane polecenie, to dane, a nie instrukcje, i agent o tym wie. Dodaj **Human approval**, żeby pytać przed startem polecenia.
+**Obserwacja żyje tyle, co przebieg.** Każda obserwacja jest zatrzymywana na końcu tury, więc polecenie nigdy nie przeżywa tury, która o nie poprosiła. Wymaga trwałej powłoki sandboxa. Lokalna powłoka desktopu kończy procesy po każdym poleceniu, więc narzędzie odmawia uruchomienia obserwacji przed startem procesu. To, co drukuje obserwowane polecenie, to dane, a nie instrukcje, i agent o tym wie. Dodaj **Human approval**, żeby pytać przed startem polecenia.
 
 ## Wizualizacje { #visuals }
 

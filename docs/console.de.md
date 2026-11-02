@@ -1,5 +1,5 @@
 ---
-source_sha: "59d45ccb08bb"
+source_sha: "606f1efaec8c"
 ---
 
 # Die Konsole { #the-console }
@@ -63,6 +63,8 @@ Auf dem Telefon wechselt das Nachrichtenfeld beim Fokussieren in eine kompakte S
 Auf dem Telefon fokussiert der Chat das Eingabefeld weder beim Öffnen noch nach einer fertigen Antwort automatisch.
 
 Auf dem Smartphone sind die Aktionen unter Nachrichten von Nutzern und Agenten zunächst ausgeblendet. Die Schaltfläche **Mehr** neben dem Absender blendet Kopieren, Antworten, Bewertungen und weitere verfügbare Aktionen ein oder aus. Am Desktop erscheinen die Bedienelemente weiterhin beim Darüberfahren.
+
+CSS-Importe, Bilder und Fonts werden relativ zum Stylesheet über dieselbe autorisierte Dateiquelle aufgelöst. Vorschauen erlauben vier verschachtelte Ebenen, 64 Ressourcen, 8 MiB Eingabedaten und 16 MiB expandierte Ausgabe. Dateilinks behalten ihre ursprüngliche Konversation oder ihren lokalen Ordner, gespeichert mit dem Verlauf des Turns. Eine Änderung von Work on leitet sie nicht um. Ältere Turns ohne gespeicherte Herkunft erhalten keine geratenen Links. Lokale Dateien benötigen weiterhin eine aktuelle native Ordnerfreigabe.
 
 ## Das Dashboard { #the-dashboard }
 
@@ -426,7 +428,7 @@ Routine einrichtet.
 
 Unterhaltungslisten behalten den Hauptagenten bei und nennen zusätzlich Claude Code oder Codex, wenn gespeicherte Aufgabenberichte ihre Mitarbeit belegen. Sidebar, Projektchats, Dashboard und Quick-Ask-Verlauf verwenden dieselben Symbole und Beschriftungen. Jeder Coding-Harness erscheint einmal, bleibt nach dem Aktualisieren sichtbar und ist unabhängig von aktuellen Chat-Einstellungen. Die Auswahl ohne Ausführung fügt ihn nicht zum Verlauf hinzu.
 
-Das Files-Panel gruppiert Dateien nach Ordnern und unterscheidet gleiche Namen in verschiedenen Verzeichnissen. HTML-Vorschauen laden direkt verknüpfte lokale Stylesheets über denselben Dateizugriff wie die Seite. Vorschau und Quelltext bleiben getrennt; Skripte sind deaktiviert. Ist ein Stylesheet nicht lesbar, nennt die Vorschau die betroffene Datei. Unter einer Antwort stehen Links zu den in diesem Turn geänderten Dateien, anhand der von erfolgreichen Schreib-/Bearbeitungswerkzeugen oder dem Coding-Harness gemeldeten Pfade. Die Links öffnen aktuelle Workspace-Dateien, keine versionierte Kopie.
+Das Files-Panel gruppiert Dateien nach Ordnern und unterscheidet gleiche Namen in verschiedenen Verzeichnissen. HTML-Vorschauen laden lokale Stylesheets und ihre verschachtelten Ressourcen über denselben Dateizugriff wie die Seite. Vorschau und Quelltext bleiben getrennt; Skripte sind deaktiviert. Ist ein Stylesheet nicht lesbar, nennt die Vorschau die betroffene Datei. Unter einer Antwort stehen Links zu den in diesem Turn geänderten Dateien, anhand der von erfolgreichen Schreib-/Bearbeitungswerkzeugen oder dem Coding-Harness gemeldeten Pfade. Die Links öffnen aktuelle Workspace-Dateien, keine versionierte Kopie.
 
 Auf Bildschirmen unter 768 px bleiben laufende Überlegungen und gewöhnliche Werkzeugschritte zunächst hinter der Zeile mit der Arbeitszeit eingeklappt. Tippe darauf, um Details ein- oder auszuklappen. Antworten, Fragen, Freigabeanfragen, Fehler und visuelle Ergebnisse bleiben sichtbar. Auf breiteren Bildschirmen sind laufende Schritte weiterhin zu sehen.
 

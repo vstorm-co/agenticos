@@ -135,6 +135,11 @@ jobs:
         run: |
           set -euo pipefail
           if [ -z "$SIGNING_P12" ]; then
+            pin_lines="$(sed '/^[[:space:]]*#/d; /^[[:space:]]*$/d' scripts/macos_signing_identity.txt)"
+            if [ -n "$pin_lines" ]; then
+              echo "::error::The publisher certificate is pinned, but MACOS_SELF_SIGNED_P12 is missing in apps-release. Refusing an uninstallable ad-hoc release."
+              exit 1
+            fi
             echo "APPLE_SIGNING_IDENTITY=-" >> "$GITHUB_ENV"
             echo "::warning::macOS packages use ad-hoc signing: macOS asks again for Screen Recording and Microphone after every update. Create the stable certificate with scripts/create_macos_signing_cert.sh. Neither mode is notarized, so first launch needs Privacy & Security > Open Anyway."
             exit 0

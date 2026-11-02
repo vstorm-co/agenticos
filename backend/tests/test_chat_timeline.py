@@ -195,3 +195,17 @@ class TestWhatThePersonAdded:
         timeline.add_steer("stop")
 
         assert timeline.stored() == timeline.parts
+
+
+def test_file_origin_is_kept_even_for_a_single_part_and_survives_serialization() -> None:
+    from app.schemas.conversation import LocalMessageFileSource, MessagePart
+
+    source = LocalMessageFileSource(root="/original folder ")
+    timeline = TurnTimeline(file_source=source)
+    timeline.add_tool("generated-file")
+    stored = timeline.stored()
+    assert stored is not None
+    reloaded = [MessagePart.model_validate(part.model_dump(mode="json")) for part in stored]
+    assert reloaded[0].file_source == source
+    assert source.root.endswith(" ")
+    assert timeline.text == ""

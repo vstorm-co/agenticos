@@ -40,9 +40,10 @@ def build_toolset(manager: MonitorManager) -> FunctionToolset[Any]:
             return NEEDS_SHELL
         try:
             backend = ctx.workspace.backend
-            if isinstance(backend, DeviceWorkspace) and await backend.platform() == "windows":
+            if isinstance(backend, DeviceWorkspace):
                 return (
-                    "Watching commands requires a POSIX shell. Choose a Linux or macOS workspace."
+                    "Watching commands needs a persistent sandbox shell. This computer's "
+                    "per-command shell cannot keep a watch alive. Choose a sandbox."
                 )
             watch = await manager.start(ctx.workspace, command, label, match)
         except ValueError as refused:

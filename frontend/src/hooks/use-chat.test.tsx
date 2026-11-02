@@ -5052,3 +5052,13 @@ it("sends a per-chat coding choice alongside its approved folder", () => {
     store.resetDraft();
   }
 });
+
+it("retains the server-recorded file origin after composer workspace changes", () => {
+  renderHook(() => useChat(), { wrapper });
+  receive("user_prompt", { file_source: { kind: "local", root: "/original" } });
+  receive("model_request_start", {});
+  act(() => useWorkOnStore.getState().set(null, { folder: "/different", mode: "full_access" }));
+  receive("text_delta", { index: 0, content: "Done" });
+  expect(streaming()?.fileSource).toEqual({ kind: "local", root: "/original" });
+  useWorkOnStore.setState({ byConversation: {}, draft: null });
+});

@@ -1,5 +1,5 @@
 ---
-source_sha: "dbf0fc6726ea"
+source_sha: "ede22781bf78"
 ---
 
 # Aplikacja desktopowa { #the-desktop-app }
@@ -37,6 +37,10 @@ W **Chat controls → Computer use** wybierz **Lokalny komputer**, aby udostępn
 
 Powrót z ustawień systemowych odświeża gotowość również wtedy, gdy webview pozostaje widoczny. Jeśli Screen Recording jest włączone, ale dostęp nadal jest odrzucany, zamknij i otwórz uruchomioną kopię aplikacji, a następnie odśwież status. Uprawnienia mogą różnić się między zainstalowaną wersją a testową kopią z podpisem ad-hoc.
 
+Lokalne zadania ACP kończą się po 16 384 zdarzeniach wejściowych lub 8 MiB łącznych zserializowanych aktualizacji, wliczając odtworzenie sesji. Błąd jest jawny, a adapter zostaje zamknięty.
+
+Zapisany pin certyfikatu wydawcy wymaga właściwego materiału podpisu: brak MACOS_SELF_SIGNED_P12 zatrzymuje wydanie. Podpis ad-hoc jest dostępny wyłącznie w dystrybucji bez pinu.
+
 ## Instalacja aplikacji { #installing-the-app }
 
 Pobierz paczkę dla swojego komputera z [wydania na GitHubie](https://github.com/vstorm-co/agenticos/releases/latest). Instalacja wydania nie wymaga Rusta ani narzędzi programistycznych.
@@ -54,7 +58,7 @@ Pierwsze uruchomienie prowadzi przez połączenie z serwerem lub stworzenie loka
 
 Na macOS 14 lub nowszym uruchom zainstalowaną aplikację raz, kliknij pulpit prawym przyciskiem, wybierz **Edytuj widżety** i wyszukaj **AgenticOS**. Mały widget otwiera Quick Ask, a średni również Chat, Inbox i Activity. Widgety korzystają z wyglądu systemowego i zawierają tylko skróty, bez danych konta. Kliknięcie widgetu nigdy nie rozpoczyna nagrywania ani połączenia.
 
-CI wydania buduje natywne paczki dla Maca (Apple silicon i Intel), Windowsa i Linuksa. Domyślnie paczki macOS mają podpis ad-hoc, bez notaryzacji Apple. Po skopiowaniu aplikacji do Applications spróbuj ją uruchomić. Jeśli macOS blokuje ją z powodu niezweryfikowanego dewelopera, wybierz **Ustawienia systemowe → Prywatność i ochrona → Otwórz mimo to** i potwierdź. Zarządzane komputery mogą zabraniać tego wyjątku. Zobacz [instrukcję Apple](https://support.apple.com/pl-pl/102445). Pobierane aktualizacje nadal wymagają poprawnego podpisu kluczem aktualizacji wydania.
+CI wydania buduje natywne paczki dla Maca (Apple silicon i Intel), Windowsa i Linuksa. Paczki macOS używają stałego, samopodpisanego certyfikatu. Podpis ad-hoc jest możliwy tylko w dystrybucji bez pinu wydawcy; paczki nie mają notaryzacji Apple. Po skopiowaniu aplikacji do Applications spróbuj ją uruchomić. Jeśli macOS blokuje ją z powodu niezweryfikowanego dewelopera, wybierz **Ustawienia systemowe → Prywatność i ochrona → Otwórz mimo to** i potwierdź. Zarządzane komputery mogą zabraniać tego wyjątku. Zobacz [instrukcję Apple](https://support.apple.com/pl-pl/102445). Pobierane aktualizacje nadal wymagają poprawnego podpisu kluczem aktualizacji wydania.
 
 Po aktualizacji z podpisem ad-hoc macOS może ponownie poprosić o dostęp do mikrofonu, nagrywania ekranu, dostępności lub Pęku kluczy. Jeśli urządzenie utraci sparowanie, połącz je ponownie. Podpis aktualizacji weryfikuje paczkę, ale nie zapewnia stałej tożsamości podpisu Apple.
 

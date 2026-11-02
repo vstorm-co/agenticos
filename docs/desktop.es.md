@@ -1,5 +1,5 @@
 ---
-source_sha: "dbf0fc6726ea"
+source_sha: "ede22781bf78"
 ---
 
 # La app de escritorio { #the-desktop-app }
@@ -37,6 +37,10 @@ En **Chat controls → Computer use**, selecciona **Local computer** para dar a 
 
 Al volver de Ajustes del Sistema se actualiza el estado aunque la vista web siga visible. Si la grabación de pantalla está activada pero el acceso sigue denegado, cierra y vuelve a abrir la copia en ejecución y actualiza el estado. Los permisos pueden diferir entre una versión instalada y una copia de prueba con firma ad hoc.
 
+Las tareas ACP locales terminan tras 16.384 eventos entrantes u 8 MiB acumulados de actualizaciones serializadas, incluida la reproducción de la sesión. El error es explícito y se cierra el adaptador.
+
+Un pin del certificado del editor registrado exige el material de firma correspondiente: si falta MACOS_SELF_SIGNED_P12, la versión falla. La firma ad hoc solo se permite en distribuciones sin pin.
+
 ## Instalar la aplicación { #installing-the-app }
 
 Descarga el paquete para tu ordenador desde la [versión en GitHub](https://github.com/vstorm-co/agenticos/releases/latest). Instalar una versión no requiere Rust ni herramientas de desarrollo.
@@ -54,7 +58,7 @@ El primer inicio te guía para conectarte a un servidor o crear una instancia lo
 
 En macOS 14 o posterior, inicia una vez la aplicación instalada, haz clic derecho en el escritorio, elige **Editar widgets** y busca **AgenticOS**. El pequeño abre Quick Ask; el mediano también Chat, Inbox y Activity. Siguen la apariencia del sistema y solo contienen accesos directos, sin datos de la cuenta. Un clic nunca inicia una grabación ni una llamada.
 
-La CI de versiones crea paquetes nativos para Mac (Apple silicon e Intel), Windows y Linux. Los paquetes macOS usan el certificado autofirmado estable configurado, o firma ad-hoc si falta. Estas compilaciones no están notarizadas por Apple. Copia la aplicación a Applications e intenta abrirla. Si macOS la bloquea porque no puede verificar al desarrollador, selecciona **Ajustes del Sistema → Privacidad y seguridad → Abrir igualmente** y confirma. Los ordenadores administrados pueden impedir esta excepción. Consulta las [instrucciones de Apple](https://support.apple.com/es-es/102445). Las actualizaciones descargadas siguen requiriendo una firma válida con la clave de actualización de la versión.
+La CI de versiones crea paquetes nativos para Mac (Apple silicon e Intel), Windows y Linux. Los paquetes macOS usan el certificado autofirmado estable configurado, o firma ad-hoc solo en una distribución sin pin. Estas compilaciones no están notarizadas por Apple. Copia la aplicación a Applications e intenta abrirla. Si macOS la bloquea porque no puede verificar al desarrollador, selecciona **Ajustes del Sistema → Privacidad y seguridad → Abrir igualmente** y confirma. Los ordenadores administrados pueden impedir esta excepción. Consulta las [instrucciones de Apple](https://support.apple.com/es-es/102445). Las actualizaciones descargadas siguen requiriendo una firma válida con la clave de actualización de la versión.
 
 Tras una actualización con firma ad-hoc, macOS puede volver a solicitar acceso al micrófono, grabación de pantalla, accesibilidad o llavero. Si se pierde el emparejamiento del dispositivo, vuelve a conectarlo. Las firmas de actualización verifican el paquete, pero no proporcionan una identidad de firma estable de Apple.
 
@@ -585,7 +589,7 @@ Configura el entorno GitHub `apps-release` antes de publicar:
 - Homebrew: secreto `HOMEBREW_TAP_DEPLOY_KEY`, una clave de despliegue con escritura limitada al repositorio del tap. `HOMEBREW_TAP_TOKEN` sigue siendo una alternativa. Los archivos temporales se borran también si falla la publicación.
 - Variable `AGENTICOS_UPDATER_PUBLIC_KEY`; secretos `TAURI_SIGNING_PRIVATE_KEY`
   y `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` (pareja de claves persistente).
-- Firma opcional macOS Developer ID: establece la variable del repositorio `AGENTICOS_MACOS_SIGNING_ENABLED=true` y configura las siguientes credenciales de Apple. Si faltan datos, la compilación falla sin recurrir a firma ad-hoc. Sin la variable o con false, se usa el certificado autofirmado estable configurado, o firma ad-hoc si falta. Ninguno tiene notarización; se ignoran las credenciales de Apple.
+- Firma opcional macOS Developer ID: establece la variable del repositorio `AGENTICOS_MACOS_SIGNING_ENABLED=true` y configura las siguientes credenciales de Apple. Si faltan datos, la compilación falla sin recurrir a firma ad-hoc. Sin la variable o con false, se usa el certificado autofirmado estable configurado, o firma ad-hoc solo en una distribución sin pin. Ninguno tiene notarización; se ignoran las credenciales de Apple.
 - macOS: `APPLE_CERTIFICATE` (P12 en base64), `APPLE_CERTIFICATE_PASSWORD`,
   `APPLE_SIGNING_IDENTITY`, `APPLE_ID`, `APPLE_PASSWORD` (contraseña de aplicación)
   y `APPLE_TEAM_ID` para firma Developer ID y notarización.

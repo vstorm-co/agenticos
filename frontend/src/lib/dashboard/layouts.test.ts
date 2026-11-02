@@ -47,7 +47,7 @@ describe("resolveAudience", () => {
 
 describe("the layouts", () => {
   it("aligns the tables and workflows cards at the same height", () => {
-    const entries = LAYOUTS.member.flatMap((section) => section.entries);
+    const entries = viewLayout("me", "member").flatMap((section) => section.entries);
     const tables = entries.find((entry) => entry.widget === "tables");
     const workflows = entries.find((entry) => entry.widget === "workflows");
     expect(tables).toBeDefined();

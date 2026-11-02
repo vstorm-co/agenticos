@@ -5,7 +5,7 @@ This module contains Pydantic schemas for Conversation, Message, and ToolCall en
 
 from datetime import datetime
 from decimal import Decimal
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Annotated, Any, Literal
 from uuid import UUID
 
 from pydantic import ConfigDict, Field
@@ -15,6 +15,26 @@ from app.schemas.mention import MentionKind
 
 if TYPE_CHECKING:
     from app.db.models.user import User
+
+
+class LocalMessageFileSource(BaseSchema):
+    """The approved folder used by this turn; opening still checks its current grant."""
+
+    model_config = ConfigDict(str_strip_whitespace=False)
+    kind: Literal["local"] = "local"
+    root: str = Field(min_length=1, max_length=1024)
+
+
+class ConversationMessageFileSource(BaseSchema):
+    """The conversation file endpoint, with its existing sharing authorization."""
+
+    kind: Literal["conversation"] = "conversation"
+    id: UUID
+
+
+MessageFileSource = Annotated[
+    LocalMessageFileSource | ConversationMessageFileSource, Field(discriminator="kind")
+]
 
 
 class MessagePart(BaseSchema):
@@ -76,6 +96,10 @@ class MessagePart(BaseSchema):
     text: str | None = Field(
         default=None,
         description="The words, for a `text` or `thinking` entry, or what the person added for a `steer`.",
+    )
+    file_source: MessageFileSource | None = Field(
+        default=None,
+        description="The turn's file origin, recorded with its timeline so later workspace changes cannot retarget its links.",
     )
     tool_call_id: str | None = Field(
         default=None, description="Which tool call this entry is, for a `tool` entry."

@@ -362,8 +362,10 @@ def test_listing_the_watches_never_waits_for_a_person_but_starting_and_stopping_
     assert get("monitor").side_effecting  # type: ignore[union-attr]
 
 
-async def test_a_windows_device_refuses_monitoring_before_starting_a_command(
+@pytest.mark.parametrize("platform_name", ["windows", "linux", "macos"])
+async def test_a_device_refuses_monitoring_before_starting_a_command(
     monkeypatch: pytest.MonkeyPatch,
+    platform_name: str,
 ) -> None:
     from unittest.mock import AsyncMock
     from uuid import uuid4
@@ -372,12 +374,12 @@ async def test_a_windows_device_refuses_monitoring_before_starting_a_command(
     from app.services.device_hub.workspace import DeviceWorkspace
 
     backend = DeviceWorkspace(uuid4(), uuid4(), LocalTarget(folder="C:/work", mode="full_access"))
-    platform = AsyncMock(return_value="windows")
+    platform = AsyncMock(return_value=platform_name)
     monkeypatch.setattr(backend, "platform", platform)
     workspace = SimpleNamespace(attached=True, backend=backend, run=AsyncMock())
     tool = build_toolset(MonitorManager()).tools["start_monitor"].function
     answer = await tool(SimpleNamespace(workspace=workspace), "npm run dev")
-    assert "POSIX shell" in answer
+    assert "persistent sandbox shell" in answer
     workspace.run.assert_not_awaited()
 
 

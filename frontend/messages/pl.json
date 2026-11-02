@@ -11268,11 +11268,11 @@
     },
     "coding_agent": {
       "name": "Coding agent",
-      "does": "Przekazuje pracę programistyczną do Claude Code albo Codex, które pracują nad nią w sandboxie agenta, a ty widzisz w czacie każdy krok.",
+      "does": "Przekazuje pracę nad kodem do Claude Code lub Codex, w sandboxie agenta albo na tym komputerze. Każdy krok widać na czacie.",
       "example1": "Napraw padający test w repozytorium sklonowanym przez agenta",
       "example2": "Wyjaśnij, jak działa moduł, bez zmieniania kodu",
-      "needs": "Capability Sandbox na połączeniu sandbox oraz w vault klucz Anthropic albo OpenAI, token subskrypcji Claude albo logowanie ChatGPT.",
-      "never": "Nigdy nie działa poza sandboxem agenta. Ustaw Zatwierdzenie przez człowieka na Zawsze pytaj, a każde zadanie poczeka na twoją zgodę."
+      "needs": "W sandboxie: capability Sandbox, połączenie oraz klucz providera lub logowanie w vault. Na tym komputerze: aplikacja desktopowa, zalogowany coding agent i zatwierdzony folder z pełnym dostępem.",
+      "never": "Zadania lokalne wymagają folderu z pełnym dostępem i natywnego potwierdzenia startu. Ustaw Human approval na Always ask, aby dodatkowo zatwierdzać każde zadanie na czacie."
     },
     "compaction": {
       "name": "Długie rozmowy",

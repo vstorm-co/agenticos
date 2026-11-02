@@ -1,5 +1,5 @@
 ---
-source_sha: "59d45ccb08bb"
+source_sha: "606f1efaec8c"
 ---
 
 # Konsola { #the-console }
@@ -61,6 +61,8 @@ Na telefonie fokus w polu wiadomości przełącza czat w zwarty wiersz pisania z
 Czat na telefonie nie ustawia automatycznie fokusu w polu przy otwieraniu ani po zakończeniu odpowiedzi.
 
 Na telefonach akcje pod wiadomościami użytkownika i agenta są początkowo ukryte. Przycisk **Więcej** obok nadawcy pokazuje lub ukrywa kopiowanie, odpowiedzi, oceny i pozostałe dostępne akcje. Na komputerze przyciski nadal pojawiają się po najechaniu kursorem.
+
+Importy CSS, obrazy i fonty w podglądzie są rozwiązywane względem arkusza przez ten sam autoryzowany dostęp do plików. Podgląd dopuszcza cztery zagnieżdżone poziomy, 64 zasoby, 8 MiB wejściowych zasobów i 16 MiB rozwiniętego wyniku. Skróty plików zachowują konwersację lub folder z chwili wykonania tury, zapisane z jej osią czasu. Zmiana Work on nie przekierowuje skrótów. Starsze tury bez zapisanego źródła nie otrzymują zgadywanych linków. Otwarcie lokalnego pliku nadal wymaga aktualnej zgody na folder.
 
 ## Dashboard { #the-dashboard }
 
@@ -392,7 +394,7 @@ z pytaniem, co potrafi, i jedną z ustawieniem rutyny.
 
 Listy rozmów zachowują głównego agenta i pokazują też Claude Code lub Codex, gdy zapisane raporty zadań potwierdzają ich pracę w danym wątku. Sidebar, czaty projektu, dashboard i historia Quick Ask korzystają z tych samych ikon i etykiet. Każdy coding harness pojawia się raz, pozostaje po odświeżeniu i nie zależy od bieżących ustawień czatu. Sam wybór harnessu bez jego uruchomienia nie dopisuje go do historii.
 
-Panel Files grupuje pliki według folderów, rozróżniając identyczne nazwy w różnych katalogach. Podgląd HTML wczytuje bezpośrednio podłączone lokalne arkusze stylów przez ten sam mechanizm dostępu co stronę. Podgląd i Źródło pozostają oddzielne, a skrypty są wyłączone. Jeśli arkusza nie można odczytać, podgląd wskazuje, który plik zawiódł. Pliki zmienione w turze mają skróty pod odpowiedzią, na podstawie ścieżek zgłoszonych przez pomyślne narzędzia zapisu/edycji lub coding harness. Skróty otwierają bieżące pliki workspace, a nie wersjonowaną kopię.
+Panel Files grupuje pliki według folderów, rozróżniając identyczne nazwy w różnych katalogach. Podgląd HTML wczytuje lokalne arkusze stylów i ich zagnieżdżone zasoby przez ten sam mechanizm dostępu co stronę. Podgląd i Źródło pozostają oddzielne, a skrypty są wyłączone. Jeśli arkusza nie można odczytać, podgląd wskazuje, który plik zawiódł. Pliki zmienione w turze mają skróty pod odpowiedzią, na podstawie ścieżek zgłoszonych przez pomyślne narzędzia zapisu/edycji lub coding harness. Skróty otwierają bieżące pliki workspace, a nie wersjonowaną kopię.
 
 Na ekranach węższych niż 768 px rozumowanie i zwykłe kroki narzędzi podczas pracy są domyślnie zwinięte pod wierszem z czasem pracy. Dotknij go, aby rozwinąć lub zwinąć szczegóły. Odpowiedzi, pytania, prośby o zatwierdzenie, błędy i wyniki wizualne pozostają widoczne. Szersze ekrany nadal pokazują kroki na bieżąco.
 

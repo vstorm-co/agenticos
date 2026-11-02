@@ -1,5 +1,5 @@
 ---
-source_sha: "3c56f1399cc1"
+source_sha: "95cc474e7e4b"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -1641,7 +1641,7 @@ Antes de cada petición al modelo se leen las líneas nuevas, se filtran con las
 | `list_monitors` | Lista las vigilancias con su estado, código de salida, cuántas líneas coincidieron y las últimas diez |
 | `stop_monitor` | Detiene una vigilancia y los procesos que inició |
 
-**Una vigilancia vive lo que la ejecución.** Cada vigilancia se detiene al terminar el turno, así que un comando nunca sobrevive al turno que lo pidió. Necesita un espacio de trabajo con shell, el sandbox o una carpeta en el ordenador de la persona; sin él, las herramientas lo dicen. Lo que imprime un comando vigilado son datos, no instrucciones, y se le dice al agente. Añade **Human approval** para preguntar antes de que arranque un comando.
+**Una vigilancia vive lo que la ejecución.** Cada vigilancia se detiene al terminar el turno, así que un comando nunca sobrevive al turno que lo pidió. Necesita un shell persistente del sandbox. El shell de escritorio termina sus procesos después de cada comando; la herramienta lo rechaza antes de iniciar la vigilancia. Lo que imprime un comando vigilado son datos, no instrucciones, y se le dice al agente. Añade **Human approval** para preguntar antes de que arranque un comando.
 
 ## Visuals { #visuals }
 

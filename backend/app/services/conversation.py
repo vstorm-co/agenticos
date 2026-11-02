@@ -1420,6 +1420,12 @@ class ConversationService:
             # be a fabricated answer everybody else trusts. The runs write those,
             # with no person behind the call.
             raise refused_field("role", "In a project's chat, write your own turns only")
+        if (
+            run_id is None
+            and data.parts
+            and any(part.file_source is not None for part in data.parts)
+        ):
+            raise refused_field("parts.file_source", "File origins are recorded by the runner")
         if data.reply_to_message_id is not None:
             answered = await conversation_repo.get_message_by_id(self.db, data.reply_to_message_id)
             if answered is None or answered.conversation_id != conversation.id:
