@@ -105,6 +105,8 @@ test.describe("desktop pointer controls", () => {
     const listing = page.waitForResponse(
       (response) =>
         new URL(response.url()).pathname === "/api/agents" &&
+        // The page also lists each kind of system agent, in a folded section.
+        !new URL(response.url()).searchParams.has("kind") &&
         response.request().method() === "GET" &&
         // Dashboard's agent query may still be in flight after sign-in. Its
         // response body belongs to the document that goto is about to discard.

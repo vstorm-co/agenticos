@@ -243,12 +243,24 @@ audit trail — just nobody typing.
 
 [Triggers →](triggers.md)
 
-## Self-hosted, and quiet
+## Self-hosted, and clear about what leaves { #self-hosted-and-quiet }
 
 Docker Compose, your Postgres, your Redis, your hardware.
 
-Nothing phones home. Model prices come from a snapshot bundled with the release,
-and the only outbound requests are the ones your agents make.
+Your prompts, conversations and documents stay in your own deployment, in its
+database and storage. They go nowhere unless you add something that names a
+destination: a model profile, an embedding or parsing provider for a collection,
+an MCP server or a channel. Model prices come from a snapshot bundled with the
+release.
+
+One report is on by default: [deployment diagnostics](configuration.md#diagnostics).
+Once an hour the worker sends the version, database and worker health, coarse
+usage counts and counts of failed runs, jobs and ingestions by closed category.
+Signed-in browsers and the desktop and mobile apps send a pseudonymous activity
+signal straight to the collector. No prompts, conversations, file names, account
+names, email addresses, provider keys or exception messages are sent. Set
+`DIAGNOSTICS_ENABLED=false` to turn it off, or point `DIAGNOSTICS_COLLECTOR_URL`
+at a collector you run.
 
 ## Open source
 
