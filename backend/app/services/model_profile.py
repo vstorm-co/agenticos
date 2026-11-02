@@ -16,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.agents.model_resolver import (
     PROVIDERS,
     ModelApi,
+    ModelRegion,
     ModelRequestSpec,
     ProviderSpec,
     ResolvedCredential,
@@ -66,6 +67,7 @@ _ALLOWED_ENDPOINT_SCHEMES = frozenset({"http", "https"})
 # The column is a plain string; this is what turns it back into the choice
 # `create_profile` validated, and fails loudly on a value it never wrote.
 _stored_api = TypeAdapter[ModelApi | None](ModelApi | None).validate_python
+_stored_region = TypeAdapter[ModelRegion | None](ModelRegion | None).validate_python
 
 
 def _validate_model_id(provider: str, model: str) -> None:
@@ -200,7 +202,12 @@ async def _checked_endpoint(spec: ProviderSpec, base_url: str) -> str:
 
 
 def _check_shape(
-    spec: ProviderSpec, *, secret_id: UUID | None, base_url: str | None, api: ModelApi | None
+    spec: ProviderSpec,
+    *,
+    secret_id: UUID | None,
+    base_url: str | None,
+    api: ModelApi | None,
+    region: ModelRegion | None = None,
 ) -> None:
     """The rules a profile's key, endpoint and API obey together, wherever it is written.
 
@@ -219,6 +226,12 @@ def _check_shape(
         raise refused_field(
             "api",
             f"{spec.name} serves one API, so there is nothing to choose",
+            provider=spec.id,
+        )
+    if region is not None and region not in spec.regions:
+        raise refused_field(
+            "region",
+            f"{spec.name} takes no region, so there is nothing to choose",
             provider=spec.id,
         )
     if secret_id is None and not spec.keyless:
@@ -258,6 +271,7 @@ class ModelProfileService:
         secret_id: UUID | None,
         base_url: str | None = None,
         api: ModelApi | None = None,
+        region: ModelRegion | None = None,
         params: dict | None = None,
         fallback_profile_ids: list[UUID] | None = None,
     ) -> ModelProfile:
@@ -298,7 +312,9 @@ class ModelProfileService:
             base_url = await _checked_endpoint(spec, base_url)
         if api is None:
             api = spec.default_api(base_url)
-        _check_shape(spec, secret_id=secret_id, base_url=base_url, api=api)
+        if region is None:
+            region = spec.default_region()
+        _check_shape(spec, secret_id=secret_id, base_url=base_url, api=api, region=region)
         await self._check_label_free(ctx, label)
         if secret_id is not None:
             await self._check_key(ctx, secret_id, provider=provider)
@@ -312,6 +328,7 @@ class ModelProfileService:
             secret_id=secret_id,
             base_url=base_url,
             api=api,
+            region=region,
             params=params,
             fallback_profile_ids=[str(pid) for pid in (fallback_profile_ids or [])],
             context_length=await self._context_length(ctx, provider, model),
@@ -452,12 +469,16 @@ class ModelProfileService:
             api = changes.api if changes.api is not None else spec.default_api(base_url)
         elif api == spec.default_api(profile.base_url):
             api = spec.default_api(base_url)
-        _check_shape(spec, secret_id=secret_id, base_url=base_url, api=api)
+        region: ModelRegion | None = _stored_region(profile.region)
+        if "region" in sent:
+            region = changes.region if changes.region is not None else spec.default_region()
+        _check_shape(spec, secret_id=secret_id, base_url=base_url, api=api, region=region)
 
         wanted: dict[str, object] = {
             "secret_id": secret_id,
             "base_url": base_url,
             "api": api,
+            "region": region,
             # Saved with no key means meant to run with none (`_check_shape` has
             # just allowed it); saved with one means it needs one, so a later
             # delete of that key reads as "no key" rather than as self-hosted.
@@ -613,6 +634,7 @@ class ModelProfileService:
                     secret=NoSecret(),
                     base_url=profile.base_url,
                     api=_stored_api(profile.api),
+                    region=_stored_region(profile.region),
                 )
             raise BadRequestError(
                 message=(
@@ -652,6 +674,7 @@ class ModelProfileService:
             # a gateway however carefully it stored the URL.
             base_url=profile.base_url,
             api=_stored_api(profile.api),
+            region=_stored_region(profile.region),
         )
 
     async def resolve(

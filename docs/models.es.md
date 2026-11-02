@@ -1,5 +1,5 @@
 ---
-source_sha: "8dff2cdc1c17"
+source_sha: "f3ed2a9e7617"
 ---
 
 # Modelos y providers { #models-and-providers }
@@ -265,8 +265,8 @@ portable al cambiar de modelo.
 
 ### Responses o Chat Completions { #responses-or-chat-completions }
 
-OpenAI publica dos APIs para los mismos modelos, y un perfil en `openai` o
-`azure` guarda a cuál de ellas van sus peticiones: `responses` o `chat`. Cualquier
+OpenAI publica dos APIs para los mismos modelos, y un perfil en `openai`,
+`azure` o `stav` guarda a cuál de ellas van sus peticiones: `responses` o `chat`. Cualquier
 otro provider sirve una sola API y aquí no guarda nada.
 
 Ninguna es la correcta en todas partes. Los modelos más nuevos de OpenAI solo se
@@ -281,6 +281,7 @@ por defecto:
 | `openai`, sin endpoint (la API propia de OpenAI) | `responses` |
 | `openai` con endpoint | `chat` |
 | `azure` | `chat`, porque la Responses API necesita una `api_version` reciente y el secreto puede fijar una anterior |
+| `stav` | `chat` |
 
 El valor por defecto es solo donde empieza el formulario. Un endpoint regional de
 OpenAI como `https://eu.api.openai.com/v1` es un endpoint que sirve Responses, así
@@ -294,10 +295,25 @@ Responses envía `store: false`. El razonamiento pasa entre turnos como contenid
 cifrado y no mediante un id de respuesta guardado, así que nada necesita la copia
 guardada. Un perfil que la quiera pone `openai_store` a `true` en sus ajustes.
 
+### Dónde se ejecutan las peticiones de un perfil de Stav { #where-a-stav-profiles-requests-run }
+
+Un perfil en `stav` guarda una región: `eu`, `eea` o `global`. Stav responde solo
+desde endpoints que calculan en esa región, solo conmuta por error dentro de ella
+y rechaza una petición que no puede servir allí. `global` no pone ningún límite
+propio. La región solo reduce lo que permite la política del workspace de Stav.
+
+Se configura en **Agents → add a model → Region**. El formulario empieza en `eu`, y
+una región omitida se guarda como `eu`, así que un perfil solo sale de la UE si se
+guardó con `eea` o `global`.
+
+La región se envía en cada petición como la cabecera `X-Stav-Runs-In`, no en el
+cuerpo, así que un `extra_body` en los ajustes del perfil no puede sustituirla.
+
 ## Providers { #providers }
 
-Veintiocho, que es todo lo que trae Pydantic AI a lo que un perfil de chat puede
-apuntar.
+Veintinueve: todo lo que trae Pydantic AI a lo que un perfil de chat puede
+apuntar, y Stav, que aquí se construye sobre el provider de OpenAI de Pydantic AI
+porque lleva una región.
 
 Aquí no hay un constructor por provider. Pydantic AI infiere la clase del
 provider y el envoltorio del modelo a partir del id, y lo que esta plataforma
@@ -338,6 +354,7 @@ credencial quiere un provider.**
 | Nebius AI Studio | `nebius` | clave de API | |
 | OVHcloud AI Endpoints | `ovhcloud` | clave de API | |
 | SambaNova | `sambanova` | clave de API | ✓ |
+| Stav.ai | `stav` | clave de API | ✓ |
 | Together AI | `together` | clave de API | |
 | Vercel AI Gateway | `vercel` | clave de API | |
 | Z.AI | `zai` | clave de API | |

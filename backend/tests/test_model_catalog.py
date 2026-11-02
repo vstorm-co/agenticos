@@ -588,6 +588,37 @@ async def test_openrouter_custom_catalog_is_isolated_and_never_falls_back_to_glo
 
 
 @pytest.mark.anyio
+async def test_a_stav_catalog_is_read_with_the_key():
+    requests: list[httpx.Request] = []
+
+    def respond(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        return httpx.Response(
+            200,
+            json={
+                "data": [
+                    {
+                        "id": "mistralai/mistral-small-4",
+                        "name": "Mistral Small 4",
+                        "context_length": 128000,
+                        "architecture": {"output_modalities": ["text"]},
+                    }
+                ]
+            },
+        )
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as client:
+        with patch(f"{MODULE}._client", return_value=client):
+            models, source = await models_for("stav", api_key="sk_stav_test")
+    assert source == "live"
+    assert str(requests[-1].url) == "https://api.stav.ai/v1/models"
+    assert requests[-1].headers["Authorization"] == "Bearer sk_stav_test"
+    assert [(m.id, m.name, m.context_length) for m in models] == [
+        ("mistralai/mistral-small-4", "Mistral Small 4", 128000)
+    ]
+
+
+@pytest.mark.anyio
 async def test_custom_catalog_rejects_an_unsupported_provider():
     with pytest.raises(ValueError, match="only for OpenRouter"):
         await models_for("openai", base_url="https://custom.example/v1")

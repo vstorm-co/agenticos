@@ -79,6 +79,7 @@ async def list_provider_catalog() -> Any:
             keyless=spec.keyless,
             apis=list(spec.apis),
             native_api=spec.native_api,
+            regions=list(spec.regions),
         )
         for spec in provider_catalog()
     ]
@@ -118,6 +119,7 @@ async def create_model_profile(
         secret_id=data.secret_id,
         base_url=data.base_url,
         api=data.api,
+        region=data.region,
         params=data.params,
         fallback_profile_ids=data.fallback_profile_ids,
     )

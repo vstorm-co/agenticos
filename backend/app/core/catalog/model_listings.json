@@ -157,5 +157,15 @@
     "id_field": "id",
     "auth_header": "Authorization",
     "auth_template": "Bearer {key}"
+  },
+  "stav": {
+    "url": "https://api.stav.ai/v1/models",
+    "array_path": "data",
+    "id_field": "id",
+    "name_field": "name",
+    "context_field": "context_length",
+    "modalities_path": "architecture.output_modalities",
+    "auth_header": "Authorization",
+    "auth_template": "Bearer {key}"
   }
 }

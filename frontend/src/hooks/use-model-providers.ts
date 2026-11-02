@@ -15,7 +15,13 @@ import { apiClient } from "@/lib/api-client";
 import { invalidateSpeechSettings } from "@/lib/dictation-api";
 import { modelInUse, runsAgents } from "@/lib/model-profiles";
 import { qk } from "@/lib/query-keys";
-import type { ModelApi, ModelProfile, ModelProfileList, ProviderCatalog } from "@/types/providers";
+import type {
+  ModelApi,
+  ModelProfile,
+  ModelProfileList,
+  ModelRegion,
+  ProviderCatalog,
+} from "@/types/providers";
 export interface NewModelProfile {
   label: string;
   provider: string;
@@ -37,6 +43,11 @@ export interface NewModelProfile {
    * lists `apis`; omitted, the service stores the default for the endpoint.
    */
   api?: ModelApi | null;
+  /**
+   * Where the requests may run. Accepted only for providers whose catalog entry
+   * lists `regions`; omitted, the service stores the first of them.
+   */
+  region?: ModelRegion | null;
 }
 
 /**
@@ -48,6 +59,7 @@ export interface ModelProfileChanges {
   secret_id?: string | null;
   base_url?: string | null;
   api?: ModelApi | null;
+  region?: ModelRegion | null;
 }
 
 /**

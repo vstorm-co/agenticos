@@ -35,6 +35,7 @@ interface ProviderCapabilities {
   keyless: boolean;
   apis: ("chat" | "responses")[];
   native_api: "chat" | "responses" | null;
+  regions?: ("eu" | "eea" | "global")[];
 }
 
 const state = {
@@ -1080,6 +1081,102 @@ describe("choosing which of OpenAI's APIs a model's requests go to", () => {
     expect(screen.getByLabelText("API")).toHaveTextContent("Chat Completions");
     // Azure's Responses API depends on the key's api_version, so its hint says so.
     expect(screen.getByText(/recent api_version on the Azure key/)).toBeInTheDocument();
+  });
+});
+
+describe("choosing where a Stav model's requests run", () => {
+  /**
+   * Stav takes a region on every request. The form shows it only for a
+   * provider whose catalog entry lists regions, starts on the first (EU), and
+   * sends the choice.
+   */
+  async function fillStav() {
+    state.purposes = [...state.purposes, purpose("stav", "Stav.ai")];
+    state.catalog = [
+      ...state.catalog,
+      capabilities("stav", "Stav.ai", {
+        supports_base_url: true,
+        apis: ["responses", "chat"],
+        native_api: "chat",
+        regions: ["eu", "eea", "global"],
+      }),
+    ];
+    state.secrets = [secret({ id: "s-stav", name: "Stav", purpose: "stav" })];
+    state.models = [{ id: "mistralai/mistral-small-4", name: "Mistral Small 4" }];
+    mount();
+    await pickProvider("Stav.ai");
+    await userEvent.click(screen.getByLabelText("Model"));
+    await userEvent.click(screen.getByRole("option", { name: /mistral-small-4/ }));
+  }
+
+  function sent() {
+    return state.createProfile.mutateAsync.mock.calls.at(-1)?.[0];
+  }
+
+  it("is not offered for a provider without regions", async () => {
+    mount();
+    await pickProvider("OpenAI");
+    expect(screen.queryByLabelText("Region")).toBeNull();
+  });
+
+  it("starts in the EU and sends it", async () => {
+    await fillStav();
+    expect(screen.getByLabelText("Region")).toHaveTextContent("EU only");
+
+    await userEvent.click(screen.getByRole("button", { name: "Add model" }));
+    expect(sent()).toEqual(expect.objectContaining({ provider: "stav", region: "eu" }));
+  });
+
+  it("sends the region somebody picked", async () => {
+    await fillStav();
+    await userEvent.click(screen.getByLabelText("Region"));
+    await userEvent.click(screen.getByRole("option", { name: "Global" }));
+
+    await userEvent.click(screen.getByRole("button", { name: "Add model" }));
+    expect(sent()).toEqual(expect.objectContaining({ region: "global" }));
+  });
+
+  it("opens a Stav model stored with no region as unchanged", async () => {
+    // A profile written with no region runs in the default one, which is where
+    // the form starts - so it is the model in use, not an edit of it.
+    state.purposes = [...state.purposes, purpose("stav", "Stav.ai")];
+    state.catalog = [
+      ...state.catalog,
+      capabilities("stav", "Stav.ai", {
+        supports_base_url: true,
+        apis: ["responses", "chat"],
+        native_api: "chat",
+        regions: ["eu", "eea", "global"],
+      }),
+    ];
+    state.secrets = [secret({ id: "s-stav", name: "Stav", purpose: "stav" })];
+    mount({
+      selected: {
+        id: "p-stav",
+        label: "Stav · mistralai/mistral-small-4",
+        provider: "stav",
+        model: "mistralai/mistral-small-4",
+        secret_id: "s-stav",
+        api: "chat",
+        region: null,
+        params: {},
+        fallback_profile_ids: [],
+      } as Parameters<typeof AddModel>[0]["selected"],
+    });
+
+    expect(screen.getByLabelText("Region")).toHaveTextContent("EU only");
+    expect(screen.getByText("In use")).toBeInTheDocument();
+  });
+
+  it("sends no region for a provider without one", async () => {
+    state.secrets = [secret()];
+    mount();
+    await pickProvider("OpenAI");
+    await userEvent.click(screen.getByLabelText("Model"));
+    await userEvent.click(screen.getByRole("option", { name: /gpt-5/ }));
+    await userEvent.click(screen.getByRole("button", { name: "Add model" }));
+
+    expect(sent()).not.toHaveProperty("region");
   });
 });
 

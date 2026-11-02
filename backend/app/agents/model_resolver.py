@@ -49,6 +49,7 @@ from uuid import UUID
 from pydantic_ai.models import Model, infer_model
 from pydantic_ai.models.fallback import FallbackModel
 from pydantic_ai.providers import Provider, infer_provider_class
+from pydantic_ai.providers.openai import OpenAIProvider
 from pydantic_ai.providers.openrouter import OpenRouterProvider
 
 from app.core.exceptions import BadRequestError
@@ -68,6 +69,20 @@ if TYPE_CHECKING:
 
 ModelApi = Literal["chat", "responses"]
 """Which of OpenAI's two APIs a profile's requests go to: Chat Completions or Responses."""
+
+
+ModelRegion = Literal["eu", "eea", "global"]
+"""Where a provider that takes a region may run a profile's requests.
+
+Only Stav takes one today. `eu` and `eea` are narrowed by the provider itself:
+it answers only from endpoints that compute there and fails over only inside
+it, or refuses. `global` places no limit beyond the account's own policy.
+"""
+
+STAV_BASE_URL = "https://api.stav.ai/v1"
+STAV_REGION_HEADER = "X-Stav-Runs-In"
+STAV_DEFAULT_REGION: ModelRegion = "eu"
+"""A Stav profile's region when it names none - at creation and at run time alike."""
 
 
 @dataclass(frozen=True)
@@ -95,6 +110,10 @@ class ProviderSpec:
     keyless: bool = False
     model_prefix: str = ""
     native_api: ModelApi | None = None
+    # Where a profile's requests may run, for a provider that lets the caller
+    # say. The first entry is what a profile gets when it names none. Empty for
+    # every provider without the choice.
+    regions: tuple[ModelRegion, ...] = ()
 
     @property
     def prefix(self) -> str:
@@ -120,6 +139,29 @@ class ProviderSpec:
         if self.native_api is None:
             return None
         return self.native_api if base_url is None else "chat"
+
+    def default_region(self) -> ModelRegion | None:
+        """The region a profile gets when it names none; null where there is no choice."""
+        return self.regions[0] if self.regions else None
+
+
+class _StavProvider(OpenAIProvider):
+    """Stav's OpenAI-compatible API, with the profile's region on every request.
+
+    The region travels as a header rather than in the body: a profile's own
+    `extra_body` in `params` would replace one set there, and a header cannot be
+    overwritten that way. Stav narrows a request to the region, never widens it,
+    so the workspace's own policy still applies on top.
+
+    The parent builds the client, so the provider owns its HTTP client and closes
+    it with the run like every other OpenAI-compatible provider; `with_options`
+    shares that client and only adds the header.
+    """
+
+    def __init__(self, *, api_key: str, base_url: str, region: ModelRegion) -> None:
+        super().__init__(api_key=api_key, base_url=base_url)
+        if region != "global":
+            self._client = self._client.with_options(default_headers={STAV_REGION_HEADER: region})
 
 
 class _EndpointOpenRouterProvider(OpenRouterProvider):
@@ -184,6 +226,19 @@ PROVIDERS: dict[str, ProviderSpec] = {
         _api_key("ovhcloud", "OVHcloud AI Endpoints"),
         _api_key("sambanova", "SambaNova", base_url_param="base_url"),
         _api_key("together", "Together AI"),
+        # An EU inference gateway with an OpenAI-compatible API. Its own entry
+        # rather than an OpenAI profile with an endpoint because of the region:
+        # a profile chooses EU, EEA or global once, and every request it sends
+        # carries that limit. EU first, so a profile that names none stays in it.
+        ProviderSpec(
+            id="stav",
+            name="Stav.ai",
+            secret_kind=SecretKind.API_KEY,
+            base_url_param="base_url",
+            model_prefix="openai-chat",
+            native_api="chat",
+            regions=(STAV_DEFAULT_REGION, "eea", "global"),
+        ),
         _api_key("vercel", "Vercel AI Gateway"),
         _api_key("zai", "Z.AI"),
         # `api_host`, not `base_url`: the xAI SDK names it differently, and a
@@ -294,6 +349,9 @@ class ResolvedCredential:
     # ones back to. `secret` is the pair as it was when the run resolved it,
     # which a refresh in any other run may already have spent.
     credential_source: OpenAICodexCredentialSource | None = None
+    # The profile's, like `api`: where the requests may run, for a provider that
+    # takes a region. `None` for every provider that does not.
+    region: ModelRegion | None = None
 
 
 def _build_provider(spec: ProviderSpec, credential: ResolvedCredential) -> Provider[Any]:
@@ -353,6 +411,12 @@ def _build_provider(spec: ProviderSpec, credential: ResolvedCredential) -> Provi
         raise BadRequestError(
             message="This secret cannot authenticate a model provider",
             details={"kind": secret.kind.value, "provider": spec.id},
+        )
+    if spec.id == "stav":
+        return _StavProvider(
+            api_key=secret.api_key.get_secret_value(),
+            base_url=credential.base_url or STAV_BASE_URL,
+            region=credential.region or STAV_DEFAULT_REGION,
         )
     if spec.id == "openrouter" and credential.base_url is not None:
         return _EndpointOpenRouterProvider(

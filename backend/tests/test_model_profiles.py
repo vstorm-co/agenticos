@@ -151,14 +151,21 @@ def _credential(ctx, provider="openai", secret=None, is_active=True, base_url=No
 
 
 def _profile(
-    ctx, secret=None, model="gpt-4.1", fallbacks=None, provider="openai", base_url=None, api=None
+    ctx,
+    secret=None,
+    model="gpt-4.1",
+    fallbacks=None,
+    provider="openai",
+    base_url=None,
+    api=None,
+    region=None,
 ):
     """A stored model profile, keyed from the vault like every real one.
 
     `base_url` defaults to None explicitly rather than being left to the mock: a
     `MagicMock` attribute is truthy, so it reaches `httpx.URL()` as a mock and
     raises there instead of meaning "the provider's own API", which is what an
-    unset endpoint means. `api` likewise, which a mock would fail to validate.
+    unset endpoint means. `api` and `region` likewise, which a mock would fail to validate.
     """
     profile = MagicMock()
     profile.id = uuid.uuid4()
@@ -169,6 +176,7 @@ def _profile(
     profile.secret_id = secret.id if secret else uuid.uuid4()
     profile.base_url = base_url
     profile.api = api
+    profile.region = region
     profile.params = {}
     profile.fallback_profile_ids = [str(pid) for pid in (fallbacks or [])]
     profile.runs_without_key = False
@@ -346,7 +354,15 @@ class TestProviderCatalog:
 
     def test_only_the_openai_apis_offer_a_choice(self):
         offering = {spec.id: spec.apis for spec in PROVIDERS.values() if spec.apis}
-        assert offering == {"openai": ("responses", "chat"), "azure": ("responses", "chat")}
+        assert offering == {
+            "openai": ("responses", "chat"),
+            "azure": ("responses", "chat"),
+            "stav": ("responses", "chat"),
+        }
+
+    def test_only_stav_offers_a_region(self):
+        offering = {spec.id: spec.regions for spec in PROVIDERS.values() if spec.regions}
+        assert offering == {"stav": ("eu", "eea", "global")}
 
     def test_the_catalog_is_ordered_for_a_stable_picker(self):
         names = [spec.name for spec in provider_catalog()]
@@ -714,6 +730,43 @@ class TestEditingAProfileInPlace:
                 ctx, profile.id, ModelProfileUpdate.model_validate(changes)
             )
         return result, update, audit, access
+
+    @pytest.mark.anyio
+    async def test_a_new_region_is_written_onto_the_same_profile(self):
+        ctx = _ctx()
+        profile = _profile(ctx, provider="stav", api="chat", region="eu")
+
+        result, update, audit, _ = await self._update(ctx, profile, {"region": "global"})
+
+        assert result is profile
+        assert update.await_args.kwargs["update_data"] == {"region": "global"}
+        assert audit.await_args.kwargs["details"] == {"fields": ["region"]}
+
+    @pytest.mark.anyio
+    async def test_a_cleared_region_is_stored_as_the_default(self):
+        ctx = _ctx()
+        profile = _profile(ctx, provider="stav", api="chat", region="global")
+
+        _, update, _, _ = await self._update(ctx, profile, {"region": None})
+
+        assert update.await_args.kwargs["update_data"] == {"region": "eu"}
+
+    @pytest.mark.anyio
+    async def test_an_edit_that_names_no_region_keeps_the_stored_one(self):
+        ctx = _ctx()
+        profile = _profile(ctx, provider="stav", api="chat", region="eea")
+
+        _, update, _, _ = await self._update(ctx, profile, {"label": "Stav EEA"})
+
+        assert update.await_args.kwargs["update_data"] == {"label": "Stav EEA"}
+
+    @pytest.mark.anyio
+    async def test_a_region_on_a_provider_without_one_is_refused_on_edit(self):
+        ctx = _ctx()
+        profile = _profile(ctx, api="responses")
+
+        with pytest.raises(BadRequestError):
+            await self._update(ctx, profile, {"region": "eu"})
 
     @pytest.mark.anyio
     async def test_a_new_key_is_written_onto_the_same_profile_and_audited_by_field(self):
@@ -2003,6 +2056,36 @@ class TestTheWindowAModelAccepts:
         return create.call_args.kwargs
 
     @pytest.mark.anyio
+    @pytest.mark.parametrize(("sent", "stored"), [(None, "eu"), ("global", "global")])
+    async def test_a_stav_profile_records_its_window_and_region(self, sent, stored):
+        """Read with the organization's Stav key; a profile naming no region is EU."""
+        catalog = self._catalog(("mistralai/mistral-small-4", 128_000))
+        with (
+            patch("app.services.model_profile.models_for", new=catalog),
+            patch(
+                "app.services.model_profile.OrganizationSecretService.listing_key",
+                new=AsyncMock(return_value="sk_stav_test"),
+            ),
+            patch("app.services.model_profile.ModelProfileService._check_key", new=AsyncMock()),
+            patch(
+                "app.services.model_profile.credential_repo.create_profile",
+                new=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
+            ) as create,
+            patch("app.services.model_profile.record_audit", new=AsyncMock()),
+        ):
+            await ModelProfileService(_db()).create_profile(
+                _ctx(),
+                label="Stav",
+                provider="stav",
+                model="mistralai/mistral-small-4",
+                secret_id=uuid.uuid4(),
+                region=sent,
+            )
+        catalog.assert_awaited_once_with("stav", api_key="sk_stav_test")
+        assert create.call_args.kwargs["context_length"] == 128_000
+        assert create.call_args.kwargs["region"] == stored
+
+    @pytest.mark.anyio
     async def test_the_providers_own_number_is_what_gets_stored(self):
         written = await self._created(
             self._catalog(("llama3.3", 128_000), ("other", 8_000)), model="llama3.3"
@@ -2038,6 +2121,7 @@ class TestTheWindowAModelAccepts:
             secret_id=None,
             base_url="http://localhost:11434/v1",
             api=None,
+            region=None,
             fallback_profile_ids=[],
             context_length=128_000,
         )
@@ -2050,3 +2134,50 @@ class TestTheWindowAModelAccepts:
             )
 
         assert spec.context_length == 128_000
+
+
+class TestStavRegion:
+    """A Stav profile carries its region on every request it sends."""
+
+    def _client(self, region, base_url=None):
+        credential = ResolvedCredential(
+            provider="stav",
+            secret=ApiKeySecret(api_key="sk_stav_test"),
+            base_url=base_url,
+            api="chat",
+            region=region,
+        )
+        model = build_model(credential, "mistralai/mistral-small-4")
+        return model._provider.client  # the AsyncOpenAI the requests go through
+
+    @pytest.mark.parametrize("region", ["eu", "eea"])
+    def test_a_limited_region_is_sent_as_a_header(self, region):
+        client = self._client(region)
+        assert client.default_headers["X-Stav-Runs-In"] == region
+
+    def test_global_sends_no_limit(self):
+        assert "X-Stav-Runs-In" not in self._client("global").default_headers
+
+    def test_no_stored_region_is_eu(self):
+        """A profile written by hand with no region does not leave the EU."""
+        assert self._client(None).default_headers["X-Stav-Runs-In"] == "eu"
+
+    def test_the_public_api_unless_the_profile_names_another(self):
+        assert str(self._client("eu").base_url) == "https://api.stav.ai/v1/"
+        local = self._client("eu", base_url="http://host.docker.internal:8100/v1")
+        assert str(local.base_url) == "http://host.docker.internal:8100/v1/"
+
+    def test_a_new_profile_defaults_to_eu(self):
+        assert PROVIDERS["stav"].default_region() == "eu"
+
+    def test_a_region_on_a_provider_without_one_is_refused(self):
+        from app.services.model_profile import _check_shape
+
+        with pytest.raises(BadRequestError):
+            _check_shape(
+                PROVIDERS["openai"],
+                secret_id=uuid.uuid4(),
+                base_url=None,
+                api="responses",
+                region="eu",
+            )
