@@ -1,5 +1,5 @@
 ---
-source_sha: "34fdc75cb318"
+source_sha: "d11455969d48"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -2226,13 +2226,14 @@ paso, o un lote, sin sustituir el plan.*
 `add_subtask`, `set_dependency`, `get_available_tasks` — *planificación consciente de
 las dependencias, ofrecida solo bajo `enable_subtasks`.*
 
-Una lista de comprobación que el modelo mantiene para sí mientras trabaja: qué está
-hecho, qué está en marcha, qué queda. En trabajo de varios pasos un modelo lo hace
-mejor cuando primero anota los pasos y los mantiene delante, así que el plan actual
-se le devuelve cada turno como un **recordatorio de cola seguro para la caché**:
-añadido después de un punto de corte de caché, de modo que el prefijo estable del
-prompt sigue siendo idéntico byte a byte y solo el plan mutable se vuelve a leer cada
-turno. El plan no aterriza nunca en el system prompt.
+El modelo mantiene una lista de pasos completados, activos y pendientes. Las
+herramientas que cambian el plan lo devuelven en un marco `<plan_reminder>`.
+Cuando el plan visible difiere del almacén, por ejemplo tras la compactación o
+al iniciar un run, el harness lo registra como contenido del canal de usuario
+en el historial del run. Nunca se convierte en un system prompt. Los ajustes del
+modelo controlan la caché. Si un agente usaba `planning.cache_ttl`, traslade la
+retención al ajuste del modelo `cache`, por ejemplo `cache: "1h"`; el campo
+anterior de la capability se sigue aceptando, pero se ignora.
 
 Se solapa con la [Delegación](#delegation) como un plan se solapa con un equipo: la
 planificación decide *cuáles* son los pasos, la delegación decide *quién* los hace.
@@ -2243,7 +2244,7 @@ ninguna.
 | Configuración | Valor por defecto | Valores |
 |---|---|---|
 | `enable_subtasks` | `false` | añade las tres herramientas de subtarea/dependencia y el estado `blocked` |
-| `cache_ttl` | `5m` | `5m`, `1h`: cuánto puede cachearse el prefijo anterior al recordatorio |
+| `cache_ttl` | `5m` | Campo anterior: aceptado pero ignorado; configure `cache` en los ajustes del modelo |
 
 **Ninguna de las nueve herramientas actúa sobre el mundo.** Cada una muta una lista de
 comprobación que el modelo mantiene para sí, así que aquí no hay nada que una persona
@@ -2357,7 +2358,7 @@ Hay tres clases de recordatorio, cada una con su propia cadencia:
 | Clase | Coste | Texto que inyecta |
 |---|---|---|
 | `reminders[]` | ninguno | Una línea fija que escribes tú |
-| `goal_reanchor` | ninguno | La primera petición del usuario en el run, reformulada como ancla |
+| `goal_reanchor` | ninguno | Una referencia a la primera petición del usuario en el run, sin repetir su texto |
 | `llm_reminder` | una llamada al modelo por disparo | Un empujón corto que un modelo escribe a partir de la transcripción reciente |
 
 Cada clase recibe `interval` (dispara cada N peticiones al modelo), `first_after` (el

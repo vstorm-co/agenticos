@@ -47,9 +47,9 @@ Two things are versioned separately from this file and worth knowing about:
 
 - **Memory records what an agent was told, with where it came from.** An agent can `remember` a fact, preference or decision, `recall` what is relevant without reading everything, `correct_memory` on a person's word and `share_memory` into a project or the organization when an authorized person asks and approves it - that tool always waits for a person, whatever the agent's approval settings say. A claim lives in a person profile (shared by every agent acting for them), a person-agent relationship, a group chat, a project or the organization; automatic writes stay in the conversation's own scope and only an explicit share widens one. A correction supersedes and keeps what it corrects, a person's word outranks an inference, and a scheduled pass folds agreement and flags disagreement without a model call, only where a scope changed. Settings → Memory shows what is on record about you with its source and lets you correct or retract it. Erasing a person removes their claims and the copies shared out of them (#2090).
 
-### Removed
+### Changed
 
-- **mem0 is gone; native memory is the only store.** The `memory_mem0` capability, its secret kind, the `MEM0_ALLOWED_HOSTS` setting and the `mem0ai` dependency are removed. Migration `0248_drop_memory_mem0` strips the binding from every stored draft and published version so no agent fails to load; nothing is imported from mem0, and what it held stays in that service. Erasing a person no longer reports an external store, and the erase response gains `claims_deleted` (#2090). **Action:** an agent that relied on mem0 recall now uses the Memory capability's `remember` and `recall`. **Action:** memories a deployment kept in mem0 stay in that service and are no longer reached when a person is forgotten or an agent is cleared here; erase them in mem0 (docs/security.md).
+- **Planning cache and history migration:** Harness 0.64 returns framed plans with tool metadata and records a missing or changed visible plan as user-channel run history. It no longer inserts a planning cache breakpoint. Existing `planning.cache_ttl` values still load but are ignored: move custom retention to `cache` in the agent or model profile's model settings, for example `cache: "1h"`. Platform prompt caching remains enabled by default.
 
 ### Fixed
 
@@ -74,6 +74,12 @@ Two things are versioned separately from this file and worth knowing about:
 - SMS and e-mail prompts reserve reply numbers atomically before delivery and retain unused numbers after settlement, preventing concurrent sends and delayed replies from deciding another approval.
 
 - Memory corrections require organization-wide edit authority for organization claims; expired claims cannot be corrected or shared. Same-scope sharing is refused, and person-memory erasure waits for concurrent claim writes.
+
+- Declare the Harness tool argument repair extra so dependency upgrades retain `json-repair` and agent startup does not fail when importing `RepairToolArguments`. Update Harness and its matching Pydantic AI and graph packages to the compatible releases, preserve plan metadata and step IDs in structured tool returns, and keep goal reminders from repeating user text. Dependency freshness runs the whole suite with the same bounded parallel runner as CI so validation finishes within its job limit.
+
+### Removed
+
+- **mem0 is gone; native memory is the only store.** The `memory_mem0` capability, its secret kind, the `MEM0_ALLOWED_HOSTS` setting and the `mem0ai` dependency are removed. Migration `0248_drop_memory_mem0` strips the binding from every stored draft and published version so no agent fails to load; nothing is imported from mem0, and what it held stays in that service. Erasing a person no longer reports an external store, and the erase response gains `claims_deleted` (#2090). **Action:** an agent that relied on mem0 recall now uses the Memory capability's `remember` and `recall`. **Action:** memories a deployment kept in mem0 stay in that service and are no longer reached when a person is forgotten or an agent is cleared here; erase them in mem0 (docs/security.md).
 
 ## [1.34.3] - 2026-11-02
 
