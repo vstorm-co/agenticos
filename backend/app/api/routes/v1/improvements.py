@@ -25,6 +25,7 @@ from app.schemas.improvement import (
     ImprovementFinished,
     ImprovementRead,
     ImprovementSelection,
+    ImprovementSkills,
     ImprovementStart,
     ImprovementTarget,
     KnowledgeCheckConsent,
@@ -128,6 +129,17 @@ async def read_improvement_evidence(
 ) -> Any:
     """Current-readable examples from the session's frozen inputs and recorded causes."""
     return await service.evidence(ctx, agent_id, run_id=run_id)
+
+
+@router.get("/{run_id}/skills", response_model=ImprovementSkills, dependencies=[ASSISTANT])
+async def read_improvement_skills(
+    agent_id: UUID, run_id: UUID, service: ImprovementSvc, ctx: Auth
+) -> Any:
+    """The agent's skills: what the session found in each, its version, and who shares it.
+
+    A problem found in a skill is fixed by that skill's own Improve, never by the agent's.
+    """
+    return await service.skills(ctx, agent_id, run_id)
 
 
 @router.put("/{run_id}/changes/{hunk_id}", response_model=HunkRead, dependencies=[ASSISTANT])

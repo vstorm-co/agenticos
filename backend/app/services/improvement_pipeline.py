@@ -114,6 +114,7 @@ from app.schemas.improvement import (
     ImprovementIterationRead,
     ImprovementRead,
     ImprovementSelection,
+    ImprovementSkills,
     ImprovementStart,
     ImprovementTarget,
     KnowledgeAdded,
@@ -147,6 +148,7 @@ from app.services.improvement_data import (
     input_hash,
     split_seed,
 )
+from app.services.improvement_skills import ImprovementSkillService, SkillSeed
 from app.services.knowledge_gaps import KnowledgeGapService, draft_fingerprint
 from app.services.notifications import NotificationService
 from app.worker.jobs import (
@@ -829,6 +831,40 @@ class ImprovementPipelineService:
     async def read(self, ctx: AuthContext, agent_id: UUID, run_id: UUID) -> ImprovementRead:
         await self.registry.get(ctx, agent_id)
         return await self._read(ctx, await self._row(ctx, agent_id, run_id))
+
+    async def skills(self, ctx: AuthContext, agent_id: UUID, run_id: UUID) -> ImprovementSkills:
+        """The agent's skills, with what this session found in each and its line's state.
+
+        Raises:
+            AuthorizationError: The caller may not read runs, which the problems quote.
+        """
+        agent = await self.registry.get(ctx, agent_id)
+        self._require_runs(ctx)
+        run = await self._row(ctx, agent_id, run_id)
+        return await ImprovementSkillService(self.db).read(ctx, agent, run.id)
+
+    async def skill_seed(self, ctx: AuthContext, run_id: UUID, skill_id: UUID) -> SkillSeed:
+        """What a skill's Improve starts from when this session hands the skill over.
+
+        Raises:
+            NotFoundError: No such session, or not on an agent the caller may see.
+            AuthorizationError: The caller may not read runs.
+            BadRequestError: The session found no problem in that skill.
+        """
+        self._require_runs(ctx)
+        row = await improvement_repo.get_run(self.db, run_id, organization_id=ctx.organization_id)
+        if row is None:
+            raise NotFoundError(message="Improvement session not found")
+        agent = await self.registry.get(ctx, row.agent_id)
+        return await ImprovementSkillService(self.db).seed(ctx, agent, row.id, skill_id)
+
+    @staticmethod
+    def _require_runs(ctx: AuthContext) -> None:
+        if not ctx.has(Perm.RUNS_VIEW):
+            raise AuthorizationError(
+                message="Reading what an improvement found needs runs:view",
+                details={"permission": Perm.RUNS_VIEW.value},
+            )
 
     async def awaiting(
         self, ctx: AuthContext, *, open_sessions: bool = False
