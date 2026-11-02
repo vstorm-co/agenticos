@@ -1,0 +1,75 @@
+import type { SkillCheck, SkillCheckAgent } from "@/types/skill-checks";
+import type { SkillImprovement } from "@/types/skill-improvement";
+import { SESSION } from "./improvement";
+
+/** A skill session on main, measured once and waiting at its result. */
+export function skillSession(overrides: Partial<SkillImprovement> = {}): SkillImprovement {
+  return {
+    ...SESSION,
+    agent_id: "",
+    skill_id: "k1",
+    fork_id: null,
+    line_name: "main",
+    iterations: SESSION.iterations.map((round) => ({ ...round, check_id: "c1" })),
+    ...overrides,
+  };
+}
+
+export function checkAgent(
+  name: string,
+  state: SkillCheckAgent["state"],
+  overrides: Partial<SkillCheckAgent> = {},
+): SkillCheckAgent {
+  return {
+    agent: { id: name.toLowerCase(), name },
+    via_specialist: null,
+    agent_version: 3,
+    state,
+    unknown_reason: null,
+    sample: "own_questions",
+    stages: [
+      {
+        kind: "skill_set",
+        dataset_id: "ts",
+        dataset_name: "returns-policy questions",
+        cases: 10,
+        eval_run_id: `run-${name.toLowerCase()}`,
+        fixed: state === "better" ? 2 : 0,
+        broken: state === "worse" ? 1 : 0,
+        held_out: 10,
+        regressions_confirmed: state === "worse" ? 1 : 0,
+        fixed_confirmed: state === "better" ? 2 : 0,
+        noisy: false,
+      },
+    ],
+    expected_usd: "0.02",
+    at_most_usd: "0.05",
+    cost_usd: "0.02",
+    ...overrides,
+  };
+}
+
+export function skillCheck(overrides: Partial<SkillCheck> = {}): SkillCheck {
+  return {
+    id: "c1",
+    status: "completed",
+    line: { fork_id: null, name: "main" },
+    base_version: { id: "m12", number: 12 },
+    mode: "quick",
+    description_changed: false,
+    agents: [checkAgent("Support", "better"), checkAgent("Sales", "no_change")],
+    hidden: 0,
+    expected_usd: "0.04",
+    at_most_usd: "0.10",
+    org_remaining_usd: "10.00",
+    affordable: true,
+    verdict: "passed",
+    warnings: [],
+    outcomes: ["improve_further", "apply", "discard"],
+    hidden_unknown: 0,
+    proposal_id: null,
+    created_at: "2026-11-02T10:00:00Z",
+    finished_at: "2026-11-02T10:05:00Z",
+    ...overrides,
+  };
+}

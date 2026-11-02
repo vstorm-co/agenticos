@@ -1,6 +1,6 @@
 import { Suspense, type ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, render, screen } from "@testing-library/react";
+import { act, cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -31,9 +31,6 @@ vi.mock("@/lib/api-client", async (original) => ({
 vi.mock("@/hooks/use-organizations", async (original) => ({
   ...(await original<typeof import("@/hooks/use-organizations")>()),
   useOrganizationList: () => ({ data: [] }),
-}));
-vi.mock("@/components/authoring/improve-skill-button", () => ({
-  ImproveSkillButton: () => <button>Improve skill</button>,
 }));
 
 const RETURNS: SkillFork = {
@@ -250,7 +247,7 @@ describe("SkillPage", () => {
     await screen.findByText("Restored from v4");
     expect(screen.queryByRole("button", { name: /^Restore/ })).toBeNull();
     expect(screen.getByRole("button", { name: "Open" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Improve skill" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Improve" })).toBeNull();
   });
 
   it("draws the version tree with the fork off its base", async () => {
@@ -348,5 +345,23 @@ describe("SkillPage's lines and writes", () => {
     await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
 
     expect(apiClient.delete).not.toHaveBeenCalled();
+  });
+});
+
+describe("SkillPage's Improve", () => {
+  it("opens the wizard for main, or for the fork on screen", async () => {
+    await mount();
+    expect(await screen.findByRole("link", { name: "Improve" })).toHaveAttribute(
+      "href",
+      "/skills/s1/improve/new",
+    );
+
+    cleanup();
+    state.show = "fork:f1";
+    await mount();
+    expect(await screen.findByRole("link", { name: "Improve fork “Returns”" })).toHaveAttribute(
+      "href",
+      "/skills/s1/improve/new?fork=f1",
+    );
   });
 });

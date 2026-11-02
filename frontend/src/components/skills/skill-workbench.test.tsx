@@ -15,7 +15,6 @@ const skillHooks = vi.hoisted(() => ({
   loaded: { resource: undefined as { content: string } | undefined, isLoading: false },
 }));
 
-vi.mock("@/components/authoring/improve-skill-button", () => ({ ImproveSkillButton: () => null }));
 vi.mock("@/hooks", () => ({
   useSkill: () => skillHooks,
   useSkillResource: () => skillHooks.loaded,

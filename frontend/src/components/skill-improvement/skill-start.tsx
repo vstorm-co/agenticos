@@ -1,0 +1,131 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useLocale, useTranslations } from "next-intl";
+
+import { limitText, limitValue, usd } from "@/components/evals/format";
+import { ErrorState, LoadingState } from "@/components/states";
+import { Button, Input, Label } from "@/components/ui";
+import { useSkillImprovements } from "@/hooks/use-skill-improvement";
+import { getErrorMessage } from "@/lib/api-error";
+import { ROUTES } from "@/lib/constants";
+import { openImprovement } from "@/lib/improvement-steps";
+import type { SkillImprovementEstimate } from "@/types/skill-improvement";
+
+/**
+ * Starting a session on one line of the skill: which agents it will be checked on,
+ * the ones that cannot be, named before anything is spent, and what it costs.
+ */
+export function SkillStart({ skillId, forkId }: { skillId: string; forkId: string | null }) {
+  const t = useTranslations("skillImprovement.start");
+  const tErrors = useTranslations("errors");
+  const locale = useLocale();
+  const router = useRouter();
+  const { sessions, isLoading, error, estimate, start } = useSkillImprovements(skillId, forkId);
+  const [quote, setQuote] = useState<SkillImprovementEstimate | null>(null);
+  const [limit, setLimit] = useState("");
+  const [refusal, setRefusal] = useState<string | null>(null);
+  const open = openImprovement(sessions);
+  const { mutateAsync: price } = estimate;
+
+  // Priced only once the line's sessions are read: an open one is continued, not priced.
+  useEffect(() => {
+    if (isLoading || error || open) return;
+    price()
+      .then((value) => {
+        setQuote(value);
+        setLimit(limitText(value.total_usd, locale));
+      })
+      .catch((failure: unknown) => setRefusal(getErrorMessage(failure, tErrors)));
+  }, [isLoading, error, open, price, locale, tErrors]);
+
+  if (isLoading) return <LoadingState variant="skeleton-cards" rows={2} />;
+  if (error) return <ErrorState description={getErrorMessage(error, tErrors)} />;
+  if (open) {
+    return (
+      <p className="text-sm">
+        {t("openSession")}{" "}
+        <Link
+          className="underline underline-offset-4"
+          href={`${ROUTES.SKILL_DETAIL(skillId)}/improve/${open.id}`}
+        >
+          {t("continue")}
+        </Link>
+      </p>
+    );
+  }
+  if (refusal !== null && quote === null) return <ErrorState description={refusal} />;
+  if (quote === null) return <LoadingState variant="skeleton-cards" rows={2} />;
+
+  const checked = quote.agents.filter((row) => row.state !== "unknown");
+  const unchecked = quote.agents.filter((row) => row.state === "unknown");
+  async function begin() {
+    setRefusal(null);
+    try {
+      const session = await start.mutateAsync(limitValue(limit));
+      router.push(`${ROUTES.SKILL_DETAIL(skillId)}/improve/${session.id}`);
+    } catch (failure) {
+      setRefusal(getErrorMessage(failure, tErrors));
+    }
+  }
+  return (
+    <section className="space-y-5 rounded-xl border p-6" data-tour="skill-improvement-start">
+      <h2 className="font-medium">{t("title")}</h2>
+      <p className="text-sm">
+        {t("agents", {
+          count: checked.length,
+          names: new Intl.ListFormat(locale, { type: "conjunction" }).format(
+            checked.map((row) => row.agent.name),
+          ),
+        })}
+      </p>
+      {unchecked.length > 0 && (
+        <ul className="text-warning space-y-1 text-sm">
+          {unchecked.map((row) => (
+            <li key={row.agent.id}>
+              {t("unchecked", { name: row.agent.name, reason: row.unknown_reason ?? "failed" })}
+            </li>
+          ))}
+        </ul>
+      )}
+      {quote.hidden > 0 && (
+        <p className="text-muted-foreground text-xs">{t("hidden", { count: quote.hidden })}</p>
+      )}
+      <p className="text-sm">
+        {t("price", {
+          cost: usd(quote.total_usd, locale),
+          perRound: usd(quote.per_round_usd, locale),
+          rounds: quote.max_iterations,
+        })}
+      </p>
+      <div className="max-w-xs space-y-1.5">
+        <Label htmlFor="skill-improvement-limit">{t("limit")}</Label>
+        <Input
+          id="skill-improvement-limit"
+          inputMode="decimal"
+          value={limit}
+          onChange={(event) => setLimit(event.target.value)}
+        />
+      </div>
+      {!quote.affordable && (
+        <p role="alert" className="text-sm">
+          {quote.reason ?? t("unaffordable")}
+        </p>
+      )}
+      {refusal !== null && (
+        <p role="alert" className="text-destructive text-sm">
+          {refusal}
+        </p>
+      )}
+      <Button
+        disabled={!quote.affordable || !(Number(limitValue(limit)) > 0) || checked.length === 0}
+        loading={start.isPending}
+        onClick={() => void begin()}
+      >
+        {t("start")}
+      </Button>
+    </section>
+  );
+}

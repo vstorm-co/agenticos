@@ -428,6 +428,10 @@ export const qk = {
       ["skills", skillId, "version", versionId] as const,
     forks: (skillId: string) => ["skills", skillId, "forks"] as const,
     agents: (skillId: string) => ["skills", skillId, "agents"] as const,
+    improvements: (skillId: string, forkId: string | null) =>
+      ["skills", skillId, "improvements", forkId ?? "main"] as const,
+    check: (skillId: string, checkId: string) => ["skills", skillId, "check", checkId] as const,
+    testSet: (skillId: string) => ["skills", skillId, "test-set"] as const,
   },
   mcpOauth: {
     request: (orgId: string, requestId: string) =>

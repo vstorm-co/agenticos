@@ -1,9 +1,9 @@
 "use client";
 
-import { Pencil } from "lucide-react";
+import Link from "next/link";
+import { Pencil, Sparkles } from "lucide-react";
 import { useTranslations } from "next-intl";
 
-import { ImproveSkillButton } from "@/components/authoring/improve-skill-button";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { Badge, Button } from "@/components/ui";
 import { ROUTES } from "@/lib/constants";
@@ -18,11 +18,14 @@ import type { Skill } from "@/types/providers";
 export function SkillPageHeader({
   skill,
   line,
+  improveHref,
   onEdit,
 }: {
   skill: Skill;
   /** The fork the page is showing, by name; null for main. */
   line: string | null;
+  /** Where Improve opens the wizard for that line. */
+  improveHref: string;
   onEdit: () => void;
 }) {
   const t = useTranslations("skills.page");
@@ -42,7 +45,14 @@ export function SkillPageHeader({
       }
       actions={
         <>
-          {skill.can_edit && <ImproveSkillButton skillId={skill.id} />}
+          {skill.can_edit && (
+            <Button variant="outline" asChild data-tour="skill-improve">
+              <Link href={improveHref}>
+                <Sparkles className="h-4 w-4" aria-hidden />
+                {line === null ? t("improve") : t("improveFork", { name: line })}
+              </Link>
+            </Button>
+          )}
           <Button data-tour="skill-edit" onClick={onEdit}>
             <Pencil className="h-4 w-4" aria-hidden />
             {skill.can_edit

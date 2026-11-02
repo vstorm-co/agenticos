@@ -16,7 +16,6 @@ vi.mock("@/lib/api-client", async (original) => ({
   apiClient: { get: vi.fn(), post: vi.fn(), patch: vi.fn(), put: vi.fn(), delete: vi.fn() },
 }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), info: vi.fn(), error: vi.fn() } }));
-vi.mock("@/components/authoring/improve-skill-button", () => ({ ImproveSkillButton: () => null }));
 vi.mock("@/components/sharing/share-resource-button", () => ({
   ShareResourceButton: () => null,
 }));

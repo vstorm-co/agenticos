@@ -70,7 +70,12 @@ export default function SkillPage({ params }: { params: Promise<{ id: string }> 
 
   return (
     <div className="space-y-6">
-      <SkillPageHeader skill={skill} line={fork?.name ?? null} onEdit={() => setEditing(true)} />
+      <SkillPageHeader
+        skill={skill}
+        line={fork?.name ?? null}
+        improveHref={`${ROUTES.SKILL_DETAIL(id)}/improve/new${fork === null ? "" : `?fork=${fork.id}`}`}
+        onEdit={() => setEditing(true)}
+      />
       <Tabs
         value={tab}
         onValueChange={(next) => setTabParam(next === "agents" ? null : next)}

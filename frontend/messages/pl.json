@@ -8224,7 +8224,9 @@
         "lineMoved": "Ktoś zapisał nowszą wersję, odkąd to otworzyłeś. Twój tekst nadal tu jest: skopiuj go, zamknij i otwórz najnowszą wersję, żeby go tam wprowadzić.",
         "forkFiles": "Do forka należą tylko opis i instrukcje. Jego pliki pochodzą z wersji main, od której wystartował, a pliki edytuje się na main.",
         "noBase": "Ten skill nie ma jeszcze zapisanej wersji, na której można zapisać zmianę. Odśwież stronę i spróbuj ponownie."
-      }
+      },
+      "improve": "Ulepsz",
+      "improveFork": "Ulepsz fork „{name}”"
     }
   },
   "states": {
@@ -15063,5 +15065,81 @@
     "movedOn": "Te zmiany powstały na wersji {base}; dataset ma już wersję {latest}.",
     "showChanges": "Pokaż zmiany",
     "caseGone": "Tego przypadku nie ma już w datasecie, więc jego niezapisane zmiany odrzucono."
+  },
+  "skillImprovement": {
+    "title": "Ulepsz {name}",
+    "skills": "Skille",
+    "heading": "Ulepszanie",
+    "permission": "Ulepszanie skilla wymaga prawa do jego edycji i do odczytu runów.",
+    "openSkill": "Otwórz skill",
+    "line": "Linia: {line}",
+    "checkWaiting": "Sprawdzenie na agentach linii jeszcze się nie zaczęło.",
+    "checkTitle": "Sprawdzanie każdego agenta",
+    "resultTitle": "Jak wypadł każdy agent",
+    "toAccept": "Zdecyduj, co dalej",
+    "acceptClosed": "Ta sesja jest zamknięta. Jej wynik zostaje tu do wglądu.",
+    "agents": {
+      "hidden": "{count, plural, =0 {} one {Sprawdzono jeszcze # agenta, którego nie widzisz.} few {Sprawdzono jeszcze # agentów, których nie widzisz.} many {Sprawdzono jeszcze # agentów, których nie widzisz.} other {Sprawdzono jeszcze # agenta, których nie widzisz.}}{unknown, plural, =0 {} one { # z nich nie dało się sprawdzić.} few { # z nich nie dało się sprawdzić.} many { # z nich nie dało się sprawdzić.} other { # z nich nie dało się sprawdzić.}}",
+      "viaSpecialist": "Przez specjalistę {name}",
+      "state": {
+        "queued": "Czeka",
+        "running": "Sprawdzanie",
+        "better": "Lepiej",
+        "no_change": "Bez zmian",
+        "within_noise": "W granicach szumu",
+        "worse": "Gorzej",
+        "unknown": "Nie wiadomo"
+      },
+      "fixedBroken": "{fixed, plural, one {Naprawia # pytanie} few {Naprawia # pytania} many {Naprawia # pytań} other {Naprawia # pytania}}, {broken, plural, one {psuje #} few {psuje #} many {psuje #} other {psuje #}}.",
+      "unknown": {
+        "no_questions": "Nie sprawdzono: nie ma pytań testowych tam, gdzie wczytał skill, a skill nie ma własnych.",
+        "no_access": "Nie sprawdzono: nie możesz uruchamiać tego agenta.",
+        "no_budget": "Nie sprawdzono: jego budget jest wyczerpany.",
+        "no_published_version": "Nie sprawdzono: nie ma opublikowanej wersji.",
+        "failed": "Nie sprawdzono: sprawdzenie się nie powiodło."
+      },
+      "skillSetOnly": "Sprawdzony tylko na pytaniach skilla: nie miał własnych tam, gdzie wczytał skill.",
+      "stage": {
+        "skill_set": "Run na pytaniach skilla",
+        "dataset_sample": "Run na próbce {name}",
+        "dataset": "Run na {name}"
+      }
+    },
+    "testSet": {
+      "has": "{count, plural, one {Skill ma # pytanie testowe} few {Skill ma # pytania testowe} many {Skill ma # pytań testowych} other {Skill ma # pytania testowego}}",
+      "add": "Dodaj pytania testowe",
+      "addHint": "Powstają z odpowiedzi, w których agenci wczytali skill, więc następnym razem da się sprawdzić agenta bez własnych pytań."
+    },
+    "accept": {
+      "title": "Akceptacja",
+      "verdict": {
+        "passed": "Żaden agent nie wypadł gorzej, a przynajmniej jeden lepiej.",
+        "blocked": "Przynajmniej jeden agent wypadł gorzej. Zmianę można zastosować tylko, zostawiając tych agentów na ich wersji, zrobić z nią fork dla agentów, którym pomogła, albo dalej ją poprawiać.",
+        "no_better": "Żaden agent nie wypadł lepiej, więc nie ma czego zastosować.",
+        "needs_ack": "Żaden agent nie wypadł gorzej, a przynajmniej jeden lepiej, ale części agentów nie dało się sprawdzić."
+      },
+      "warning": {
+        "within_noise": "U części agentów zmiana mieści się w szumie testu: różnica może być przypadkiem.",
+        "other_environments": "Część agentów serwuje ten skill także w innych środowiskach; tych nie sprawdzono."
+      },
+      "forkLineOnly": "Na forku agentów, którzy wypadli gorzej, nie da się przypiąć ani zrobić dla nich kolejnego forka: popraw zmianę dalej albo ją odrzuć.",
+      "acknowledge": "{count, plural, one {Wiem, że # agenta nie dało się sprawdzić} few {Wiem, że # agentów nie dało się sprawdzić} many {Wiem, że # agentów nie dało się sprawdzić} other {Wiem, że # agenta nie dało się sprawdzić}}{names, select, other { ({names})}}, a i tak dostanie zmianę.",
+      "apply": "Zastosuj jako następną wersję: {line}",
+      "applyAndPin": "Zastosuj i zostaw {names} na obecnej wersji",
+      "forkName": "Nazwa nowego forka",
+      "forkForHelped": "Zrób fork z tą zmianą dla {names}"
+    },
+    "start": {
+      "title": "Zacznij ulepszanie",
+      "openSession": "Ta linia ma już otwartą sesję.",
+      "continue": "Kontynuuj ją",
+      "agents": "{count, plural, =0 {Żadnego agenta tej linii nie da się sprawdzić.} one {Sprawdzimy ją na # agencie: {names}.} few {Sprawdzimy ją na # agentach: {names}.} many {Sprawdzimy ją na # agentach: {names}.} other {Sprawdzimy ją na # agenta: {names}.}}",
+      "unchecked": "{name} nie da się sprawdzić: {reason, select, no_questions {nie ma pytań testowych tam, gdzie wczytał skill} no_access {nie możesz go uruchamiać} no_budget {jego budget jest wyczerpany} no_published_version {nie ma opublikowanej wersji} other {sprawdzenie się nie powiodło}}.",
+      "hidden": "{count, plural, one {Tej linii używa jeszcze # agent, którego nie widzisz.} few {Tej linii używa jeszcze # agentów, których nie widzisz.} many {Tej linii używa jeszcze # agentów, których nie widzisz.} other {Tej linii używa jeszcze # agenta, których nie widzisz.}}",
+      "price": "Do pierwszej propozycji kosztuje około {cost}; każda próba około {perRound}, najwyżej {rounds, plural, one {# próba} few {# próby} many {# prób} other {# próby}}.",
+      "limit": "Limit wydatków na całą sesję (USD)",
+      "unaffordable": "Budget organizacji tego nie pokrywa.",
+      "start": "Zacznij"
+    }
   }
 }
