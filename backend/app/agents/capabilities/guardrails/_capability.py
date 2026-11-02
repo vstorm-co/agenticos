@@ -38,6 +38,7 @@ write a redaction back over it. :class:`ScreenedPrompt` screens such a prompt's
 text parts instead, one by one, and leaves the rest of it as it was (#2566).
 """
 
+import codecs
 import logging
 import re
 from collections.abc import AsyncIterable, Callable, Sequence
@@ -553,9 +554,9 @@ class ScreenedPrompt(InputGuardrail[object]):
     The harness hands its guard such a prompt as the list's `repr`, a picture's
     bytes included, and cannot write a redaction back over it. Here each text part
     (a string or a `TextContent`, and a `text/*` or JSON `BinaryContent` decoded
-    in the character set it declares, UTF-8 when none) is screened on its own and
-    a redaction written back over that part, in that character set; a file the
-    set cannot read, or a redaction it cannot hold, blocks. Size limits count the
+    as the UTF-8 a model is sent) is screened on its own and a redaction written
+    back over that part. A file that declares another character set, is not valid
+    in the one it declares, or cannot hold its redaction blocks. Size limits count the
     whole prompt's text - every prompt part of a resumed request together. A URL is
     screened too, but cannot be rewritten without breaking it, so a redaction
     there blocks. A picture, audio, video or cache marker is not read. A
@@ -696,8 +697,7 @@ def _text(item: UserContent) -> str | None:
     if isinstance(item, BinaryContent) and _is_text(item.media_type):
         try:
             return item.data.decode(_charset(item.media_type))
-        except (LookupError, UnicodeDecodeError) as error:
-            # Text the guard cannot read as the model will is text it cannot vouch for.
+        except UnicodeError as error:
             raise _unreadable() from error
     return None
 
@@ -706,26 +706,42 @@ def _encoded(text: str, item: BinaryContent) -> bytes:
     """A redacted inline file's text, in the character set the file declares."""
     try:
         return text.encode(_charset(item.media_type))
-    except UnicodeEncodeError as error:
+    except UnicodeError as error:
         raise _unreadable() from error
 
 
+_MODEL_CHARSETS = frozenset({"utf-8", "ascii"})
+"""The character sets an inline file is screened in: the ones a model reads it in.
+
+Model adapters send an inline text file's bytes decoded as UTF-8 whatever its
+media type declares, so a file in any other set would be screened as text the
+model is never sent - a key in UTF-16 reads as no key at all.
+"""
+
+
 def _charset(media_type: str) -> str:
-    """The character set a text file's media type declares; UTF-8 when it names none."""
+    """The character set a text file declares, UTF-8 when none; one a model does not read blocks."""
+    declared = "utf-8"
     for parameter in media_type.split(";")[1:]:
         name, _, value = parameter.partition("=")
-        if name.strip().lower() == "charset":
-            return value.strip().strip('"')
-    return "utf-8"
+        if name.strip().lower() == "charset" and (value := value.strip().strip('"')):
+            declared = value
+    try:
+        charset = codecs.lookup(declared).name
+    except LookupError as error:
+        raise _unreadable() from error
+    if charset not in _MODEL_CHARSETS:
+        raise _unreadable()
+    return charset
 
 
 def _unreadable() -> GuardrailBlocked:
-    """The refusal of an inline text file its declared character set cannot carry."""
+    """The refusal of an inline text file the guard cannot read as the model does."""
     logger.info("Guardrail blocked a run at the input edge: an unreadable inline text file")
     return GuardrailBlocked(
         edge="input",
-        message=f"{_BLOCK_MESSAGE['input']} An attached text file could not be read "
-        "in its declared character set.",
+        message=f"{_BLOCK_MESSAGE['input']} An attached text file is not valid UTF-8 "
+        "text in its declared character set.",
     )
 
 

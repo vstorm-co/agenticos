@@ -571,47 +571,46 @@ async def test_the_size_limit_counts_every_part_of_a_resumed_request_together():
         )
 
 
-WINDOWS_1252 = "text/plain; charset=windows-1252"
-
-
-async def test_an_inline_text_file_is_read_in_its_declared_charset():
-    """Read as UTF-8, the `é` is a replacement character and the keyword slips through."""
-    agent = _agent(GuardrailsConfig(blocked_keywords_in="café"), _answers("hi"))
-    notes = BinaryContent(data="the café".encode("cp1252"), media_type=WINDOWS_1252)
-    with pytest.raises(GuardrailBlocked):
+@pytest.mark.parametrize(
+    "media_type", ["text/plain; charset=utf-16", "text/plain; charset=cp037", "text/plain"]
+)
+async def test_a_file_read_in_a_set_no_model_reads_it_in_blocks(media_type: str):
+    """A model is sent the bytes as UTF-8: screened in UTF-16, a key reads as no key."""
+    agent = _agent(GuardrailsConfig(redact_secrets_in=True), _answers("hi"))
+    notes = BinaryContent(data=f"key {SECRET}".encode("utf-16"), media_type=media_type)
+    with pytest.raises(GuardrailBlocked, match="not valid UTF-8"):
         await agent.run(["read", notes])
 
 
-async def test_a_redacted_text_file_is_written_back_in_its_declared_charset():
-    seen: list[PromptContent] = []
-    agent = _agent(GuardrailsConfig(redact_secrets_in=True), _records_prompts(seen))
-    notes = BinaryContent(data=f"clé {SECRET}".encode("cp1252"), media_type=WINDOWS_1252)
-    await agent.run(["read", notes])
-    assert seen == [
-        [
-            "read",
-            BinaryContent(
-                data="clé [redacted:anthropic_key]".encode("cp1252"),
-                media_type=WINDOWS_1252,
-            ),
-        ]
-    ]
+@pytest.mark.parametrize(
+    "media_type",
+    [
+        "text/plain; format=flowed; charset=x-no-such-charset",
+        "text/plain; charset=windows-1252",
+        "text/plain; charset=unicode_escape",
+        "text/plain; charset=undefined",
+    ],
+)
+async def test_a_file_declaring_a_set_other_than_utf_8_blocks(media_type: str):
+    agent = _agent(GuardrailsConfig(redact_secrets_in=True), _answers("hi"))
+    with pytest.raises(GuardrailBlocked, match="not valid UTF-8"):
+        await agent.run(["read", BinaryContent(data=b"notes", media_type=media_type)])
 
 
 @pytest.mark.parametrize(
-    ("data", "media_type"),
-    [
-        (b"notes", "text/plain; format=flowed; charset=x-no-such-charset"),
-        (b"notes", "text/plain; charset=base64"),
-        (b"notes \xff\xfe", "text/plain"),
-        (b"notes \xff\xfe", 'text/plain; charset="utf-8"'),
-    ],
+    "media_type",
+    ['text/plain; charset="UTF8"', "text/plain; charset=", "text/plain; charset=US-ASCII"],
 )
-async def test_an_inline_text_file_its_charset_cannot_read_blocks(data: bytes, media_type: str):
-    """What the guard cannot read, it cannot vouch for: the turn is refused, saying why."""
-    agent = _agent(GuardrailsConfig(redact_secrets_in=True), _answers("hi"))
-    with pytest.raises(GuardrailBlocked, match="character set"):
-        await agent.run(["read", BinaryContent(data=data, media_type=media_type)])
+async def test_a_redaction_is_written_back_in_the_utf_8_the_file_declares(media_type: str):
+    seen: list[PromptContent] = []
+    agent = _agent(GuardrailsConfig(redact_secrets_in=True), _records_prompts(seen))
+    await agent.run(["read", BinaryContent(data=f"key {SECRET}".encode(), media_type=media_type)])
+    assert seen == [
+        [
+            "read",
+            BinaryContent(data=b"key [redacted:anthropic_key]", media_type=media_type),
+        ]
+    ]
 
 
 async def test_a_redaction_its_file_charset_cannot_hold_blocks():
@@ -620,7 +619,7 @@ async def test_a_redaction_its_file_charset_cannot_hold_blocks():
 
     agent: Agent = Agent(model=_answers("hi"), capabilities=[ScreenedPrompt(guard=guard)])
     notes = BinaryContent(data=b"notes", media_type="text/plain; charset=us-ascii")
-    with pytest.raises(GuardrailBlocked, match="character set"):
+    with pytest.raises(GuardrailBlocked, match="not valid UTF-8"):
         await agent.run(["read", notes, PICTURE])
 
 

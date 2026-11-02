@@ -1,5 +1,5 @@
 ---
-source_sha: "6f6309ffc35a"
+source_sha: "009e96509f93"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -2826,10 +2826,9 @@ los resultados de las herramientas. Una imagen enviada en línea no es texto, as
 el borde no la lee: en un prompt con una imagen el borde revisa solo las palabras,
 nunca los bytes de la imagen, y una censura reescribe esas palabras y conserva la
 imagen. Un prompt construido en código también puede
-llevar un archivo de texto, que se revisa como texto en el juego de caracteres
-que declara su tipo de medio (UTF-8 si no nombra ninguno); un archivo que ese juego
-no puede leer, o una censura que no puede contener, bloquea el turno. También puede
-llevar un enlace, que también se
+llevar un archivo de texto, que se revisa como el texto UTF-8 que recibe el
+modelo; un archivo que declara otro juego de caracteres o que no es válido en el
+que declara bloquea el turno. Un prompt así también puede llevar un enlace, que también se
 revisa: una censura no se puede escribir en un enlace sin romperlo, así que una
 coincidencia en él bloquea. Como los bytes ya no deciden, la revisión previa a
 la escritura prevé un turno con imagen igual que cualquier otro.

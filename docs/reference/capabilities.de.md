@@ -1,5 +1,5 @@
 ---
-source_sha: "6f6309ffc35a"
+source_sha: "009e96509f93"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -2969,10 +2969,9 @@ erkannt; dafür gibt es die Prüfung der Tool-Ergebnisse. Ein direkt mitgesendet
 Bild ist kein Text, also liest die Kante es nicht: Bei einem Prompt mit Bild prüft
 die Kante nur die Wörter, nie die Bytes des Bildes, und eine Schwärzung ändert diese
 Wörter und behält das Bild. Ein im Code gebauter Prompt
-kann auch eine Textdatei mitführen, die als Text in dem Zeichensatz geprüft
-wird, den ihr Medientyp angibt (UTF-8, wenn er keinen nennt); eine Datei, die
-dieser Zeichensatz nicht lesen kann, oder eine Schwärzung, die er nicht fassen
-kann, blockiert den Zug. Er kann auch einen
+kann auch eine Textdatei mitführen, die als der UTF-8-Text geprüft wird, den
+ein Modell erhält; eine Datei, die einen anderen Zeichensatz angibt oder in dem
+angegebenen nicht gültig ist, blockiert den Zug. Ein solcher Prompt kann auch einen
 Link mitführen, der ebenfalls geprüft wird: Eine Schwärzung lässt sich nicht in einen Link
 schreiben, ohne ihn zu zerstören, also blockiert ein Treffer dort. Weil
 die Bytes nicht mehr entscheiden, sagt die Prüfung vor dem Schreiben einen Zug mit
