@@ -2025,7 +2025,7 @@ class AgentRegistryService:
                 problems.add([f"Reviewer '{reviewer.name}': say what it looks for"])
 
         problems.add(await self._collection_problems(ctx, spec.collection_ids))
-        problems.add(await self._skill_problems(ctx, spec.skill_ids, spec.skill_bindings))
+        problems.add(await self.skill_problems(ctx, spec.skill_ids, spec.skill_bindings))
         problems.add(await self._context_problems(ctx, spec.context_ids))
 
         problems.add(await self._mcp_problems(ctx, spec.mcp_servers))
@@ -2432,7 +2432,7 @@ class AgentRegistryService:
                 problems.append(f"Collection not found: {collection_id}")
         return problems
 
-    async def _skill_problems(
+    async def skill_problems(
         self,
         ctx: AuthContext,
         skill_ids: Sequence[UUID],
@@ -2981,7 +2981,7 @@ class AgentRegistryService:
             problems.merge(await self._binding_problems(ctx, binding))
         problems.add(await self._collection_problems(ctx, specialist.collection_ids))
         problems.add(
-            await self._skill_problems(ctx, specialist.skill_ids, specialist.skill_bindings)
+            await self.skill_problems(ctx, specialist.skill_ids, specialist.skill_bindings)
         )
         problems.add(await self._context_problems(ctx, specialist.context_ids))
         # A specialist naming no profile runs on the parent's, which publish has
