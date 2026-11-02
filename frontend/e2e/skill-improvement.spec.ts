@@ -385,7 +385,7 @@ test("a shared skill improves on main, pins the agent it breaks and catches a fo
     await write(api, "post", `${path}/apply`, headers, {
       confirmed: true,
       acknowledge_unknown: false,
-      pin_worse: false,
+      outcome: "catch_up",
     });
     const forks = await read(api, `/skills/${skillId}/forks`, headers);
     const caughtUp = (Array.isArray(forks.items) ? forks.items.map(record) : []).find(
