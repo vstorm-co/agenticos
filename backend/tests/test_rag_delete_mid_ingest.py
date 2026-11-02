@@ -5,7 +5,6 @@ so each settler is what has to clean up. The orderings against a real delete are
 `tests/integration/test_document_delete_mid_ingest.py`.
 """
 
-import logging
 import uuid
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -15,11 +14,12 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from sqlalchemy.dialects import postgresql
 
+from app.db.vector_tables import VectorScope
 from app.repositories import rag_document_repo
 from app.services.rag.models import IngestionResult, IngestionStatus
 from app.services.rag_document import RAGDocumentService
-from app.worker.jobs import IngestDocument
-from app.worker.tasks import rag_tasks
+from app.worker.jobs import DISCARD_VECTOR_DOCUMENT, DiscardVectorDocument, IngestDocument
+from app.worker.tasks import rag_tasks, teardown_tasks
 
 pytestmark = pytest.mark.anyio
 
@@ -102,82 +102,119 @@ async def _session() -> AsyncIterator[MagicMock]:
     yield MagicMock()
 
 
-class TestASyncSettlingADeletedRow:
-    async def test_its_chunks_are_removed_through_the_ingester_that_wrote_them(
-        self, caplog: pytest.LogCaptureFixture
+SCOPE = VectorScope(tenant=uuid.uuid4(), knowledge_base_id=uuid.uuid4())
+
+
+class TestQueueingTheRemoval:
+    async def test_the_job_carries_the_scope_the_chunks_were_stamped_with(
+        self, monkeypatch
     ) -> None:
-        documents = MagicMock(
-            complete_ingestion=AsyncMock(return_value=False), add_claims=AsyncMock()
+        """A job, in the settlement's transaction: the row is gone, so a removal
+        that could only log its failure would leave the chunks searchable for good."""
+        queued = AsyncMock()
+        monkeypatch.setattr("app.services.rag_document.enqueue", queued)
+        db = MagicMock()
+
+        await RAGDocumentService(db).discard_untracked("docs", "vec-1", scope=SCOPE)
+
+        assert queued.await_args.args[:2] == (db, DISCARD_VECTOR_DOCUMENT)
+        assert queued.await_args.args[2] == DiscardVectorDocument(
+            collection="docs",
+            vector_document_id="vec-1",
+            tenant=SCOPE.tenant,
+            knowledge_base_id=SCOPE.knowledge_base_id,
         )
-        ingester = MagicMock(remove_document=AsyncMock(return_value=True))
+
+    @pytest.mark.security
+    async def test_the_job_deletes_only_within_that_scope(self, monkeypatch) -> None:
+        store = MagicMock(delete_document=AsyncMock())
+
+        @asynccontextmanager
+        async def vector_store() -> AsyncIterator[MagicMock]:
+            yield store
+
+        monkeypatch.setattr(teardown_tasks, "_vector_store", vector_store)
+
+        await teardown_tasks.discard_vector_document(
+            DiscardVectorDocument(
+                collection="docs",
+                vector_document_id="vec-1",
+                tenant=SCOPE.tenant,
+                knowledge_base_id=SCOPE.knowledge_base_id,
+            )
+        )
+
+        store.delete_document.assert_awaited_once_with(
+            "docs",
+            "vec-1",
+            VectorScope(tenant=SCOPE.tenant, knowledge_base_id=SCOPE.knowledge_base_id),
+        )
+
+    def test_the_worker_runs_it(self) -> None:
+        from app.worker.handlers import production
+
+        assert DISCARD_VECTOR_DOCUMENT.kind in production()
+
+
+def _documents(*, recorded: bool) -> MagicMock:
+    return MagicMock(
+        complete_ingestion=AsyncMock(return_value=recorded),
+        discard_untracked=AsyncMock(),
+        add_claims=AsyncMock(),
+    )
+
+
+@asynccontextmanager
+async def _session() -> AsyncIterator[MagicMock]:
+    yield MagicMock()
+
+
+class TestASyncSettlingADeletedRow:
+    async def test_it_queues_the_removal_under_the_ingesters_scope(self) -> None:
+        documents = _documents(recorded=False)
 
         with (
             patch.object(rag_tasks, "get_worker_db_context", new=_session),
             patch("app.services.rag_document.RAGDocumentService", return_value=documents),
-            caplog.at_level(logging.INFO, logger="app.worker.tasks.rag_tasks"),
         ):
             await rag_tasks._settle_document_row(
                 str(uuid.uuid4()),
                 DONE,
-                ingester=ingester,
+                ingester=MagicMock(scope=SCOPE),
                 collection_name="docs",
                 inherited=frozenset({uuid.uuid4()}),
             )
 
-        ingester.remove_document.assert_awaited_once_with("docs", "vec-1")
+        documents.discard_untracked.assert_awaited_once_with("docs", "vec-1", scope=SCOPE)
         # Nothing to claim: the row is gone.
         documents.add_claims.assert_not_awaited()
-        assert max(r.levelno for r in caplog.records) == logging.INFO
 
     async def test_a_recorded_row_keeps_its_chunks(self) -> None:
-        documents = MagicMock(complete_ingestion=AsyncMock(return_value=True))
-        ingester = MagicMock(remove_document=AsyncMock())
+        documents = _documents(recorded=True)
 
         with (
             patch.object(rag_tasks, "get_worker_db_context", new=_session),
             patch("app.services.rag_document.RAGDocumentService", return_value=documents),
         ):
             await rag_tasks._settle_document_row(
-                str(uuid.uuid4()), DONE, ingester=ingester, collection_name="docs"
+                str(uuid.uuid4()), DONE, ingester=MagicMock(scope=SCOPE), collection_name="docs"
             )
 
-        ingester.remove_document.assert_not_awaited()
-
-    async def test_a_removal_that_failed_is_logged_as_an_error(
-        self, caplog: pytest.LogCaptureFixture
-    ) -> None:
-        ingester = MagicMock(remove_document=AsyncMock(return_value=False))
-
-        with caplog.at_level(logging.INFO, logger="app.worker.tasks.rag_tasks"):
-            await rag_tasks._discard_untracked(ingester, "docs", "vec-1", row_id="row-1")
-
-        errors = [r for r in caplog.records if r.levelno == logging.ERROR]
-        assert len(errors) == 1
-        assert "vec-1" in errors[0].getMessage()
+        documents.discard_untracked.assert_not_awaited()
 
 
 @pytest.fixture
 def worker() -> Any:
     """`ingest_document` with an ingest that wrote `vec-1`."""
-    documents = MagicMock(
-        get_document=AsyncMock(
-            return_value=MagicMock(
-                organization_id=None, ingestion_config={}, knowledge_base_id=None
-            )
-        ),
-        complete_ingestion=AsyncMock(return_value=False),
-        fail_ingestion=AsyncMock(),
+    documents = _documents(recorded=False)
+    documents.get_document = AsyncMock(
+        return_value=MagicMock(organization_id=None, ingestion_config={}, knowledge_base_id=None)
     )
-    ingesters: list[MagicMock] = []
+    documents.fail_ingestion = AsyncMock()
 
     @asynccontextmanager
     async def ingestion_service(**_: object) -> AsyncIterator[MagicMock]:
-        ingester = MagicMock(
-            ingest_file=AsyncMock(return_value=DONE),
-            remove_document=AsyncMock(return_value=True),
-        )
-        ingesters.append(ingester)
-        yield ingester
+        yield MagicMock(ingest_file=AsyncMock(return_value=DONE))
 
     with (
         patch.object(rag_tasks, "get_worker_db_context", new=_session),
@@ -187,7 +224,7 @@ def worker() -> Any:
         patch("app.services.rag_document.RAGDocumentService", return_value=documents),
     ):
         config_service.return_value.build_processor = AsyncMock(return_value=MagicMock())
-        yield {"documents": documents, "ingesters": ingesters}
+        yield documents
 
 
 def _job() -> IngestDocument:
@@ -202,51 +239,41 @@ def _job() -> IngestDocument:
 
 
 class TestAnUploadDeletedWhileItIndexed:
-    async def test_its_chunks_are_removed_and_the_job_ends(self, worker: Any) -> None:
+    async def test_its_removal_is_queued_and_the_job_ends(self, worker: MagicMock) -> None:
         outcome = await rag_tasks.ingest_document(_job())
 
         assert outcome == {"status": "deleted", "filename": "a.md"}
-        # The ingest's own ingester is disposed by now; a second one removes.
-        writing, removing = worker["ingesters"]
-        writing.remove_document.assert_not_awaited()
-        removing.remove_document.assert_awaited_once_with("docs", "vec-1")
+        # The row has no base, so the chunks were written deployment-wide.
+        worker.discard_untracked.assert_awaited_once_with(
+            "docs", "vec-1", scope=VectorScope(tenant=None)
+        )
         # No failure is recorded on a row that is not there, and nothing is raised
         # into a retry that could only fail again.
-        worker["documents"].fail_ingestion.assert_not_awaited()
+        worker.fail_ingestion.assert_not_awaited()
 
-    async def test_a_recorded_upload_removes_nothing(self, worker: Any) -> None:
-        worker["documents"].complete_ingestion = AsyncMock(return_value=True)
+    async def test_a_recorded_upload_removes_nothing(self, worker: MagicMock) -> None:
+        worker.complete_ingestion = AsyncMock(return_value=True)
 
         outcome = await rag_tasks.ingest_document(_job())
 
         assert outcome["status"] == "done"
-        assert len(worker["ingesters"]) == 1
-        worker["ingesters"][0].remove_document.assert_not_awaited()
+        worker.discard_untracked.assert_not_awaited()
 
 
-@pytest.mark.parametrize(
-    ("recorded", "removed", "counted"),
-    [
-        (True, True, {"ingested": 1, "failed": 0}),
-        (False, True, {"ingested": 0, "failed": 0}),
-        (False, False, {"ingested": 0, "failed": 1}),
-    ],
-    ids=["recorded", "deleted", "deleted-but-not-removed"],
-)
-async def test_the_cli_removes_what_it_wrote_for_a_row_deleted_meanwhile(
-    monkeypatch, tmp_path, recorded: bool, removed: bool, counted: dict[str, int]
+@pytest.mark.parametrize("recorded", [True, False], ids=["recorded", "deleted"])
+async def test_the_cli_queues_the_removal_for_a_row_deleted_meanwhile(
+    monkeypatch, tmp_path, recorded: bool
 ) -> None:
-    """Removed through the command's own ingester, and never counted as ingested."""
+    """Under the command's own scope, and never counted as ingested."""
     from app.commands import rag as rag_command
 
     (tmp_path / "handbook.md").write_text("body")
-    documents = MagicMock(
-        create_document=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
-        hold_ingestion_name=AsyncMock(),
-        complete_ingestion=AsyncMock(return_value=recorded),
-        fail_ingestion=AsyncMock(),
-    )
+    documents = _documents(recorded=recorded)
+    documents.create_document = AsyncMock(return_value=MagicMock(id=uuid.uuid4()))
+    documents.hold_ingestion_name = AsyncMock()
+    documents.fail_ingestion = AsyncMock()
     ingestion = MagicMock(
+        scope=VectorScope(tenant=None),
         existing_document=AsyncMock(return_value=MagicMock(document_id=None, content_hash=None)),
         ingest_file=AsyncMock(
             return_value=MagicMock(
@@ -258,16 +285,15 @@ async def test_the_cli_removes_what_it_wrote_for_a_row_deleted_meanwhile(
                 error_message=None,
             )
         ),
-        remove_document=AsyncMock(return_value=removed),
     )
 
     @asynccontextmanager
     async def _db() -> AsyncIterator[MagicMock]:
         yield MagicMock()
 
+    complete_sync = AsyncMock()
     monkeypatch.setattr(rag_command, "get_db_context", _db)
     monkeypatch.setattr(rag_command, "RAGDocumentService", lambda _db: documents)
-    complete_sync = AsyncMock()
     monkeypatch.setattr(
         rag_command,
         "RAGSyncService",
@@ -287,8 +313,10 @@ async def test_the_cli_removes_what_it_wrote_for_a_row_deleted_meanwhile(
     )
 
     if recorded:
-        ingestion.remove_document.assert_not_awaited()
+        documents.discard_untracked.assert_not_awaited()
     else:
-        ingestion.remove_document.assert_awaited_once_with("docs", "vec-1")
-    kwargs = complete_sync.await_args.kwargs
-    assert {key: kwargs[key] for key in counted} == counted
+        documents.discard_untracked.assert_awaited_once_with(
+            "docs", "vec-1", scope=VectorScope(tenant=None)
+        )
+    assert complete_sync.await_args.kwargs["ingested"] == (1 if recorded else 0)
+    assert complete_sync.await_args.kwargs["failed"] == 0

@@ -1,5 +1,5 @@
 ---
-source_sha: "563e08f2a96b"
+source_sha: "65f260c4c95c"
 ---
 
 # Dateiverarbeitung { #file-processing }
@@ -1063,8 +1063,9 @@ danach entfernt
 Auch ein einzelnes Dokument, das während der Indexierung gelöscht wird, hinterlässt
 keine Chunks. Seine Zeile hat keine Vektordokument-ID, bis der Ingest eine
 einträgt, sodass das Löschen womöglich nichts zu entfernen hat; der Worker, der
-beim Festhalten des Ergebnisses die Zeile nicht mehr findet, entfernt die Chunks,
-die er gerade geschrieben hat. Ein Löschen, das auf diesen Eintrag wartet,
+beim Festhalten des Ergebnisses die Zeile nicht mehr findet, reiht in derselben
+Transaktion einen Job ein, der die gerade geschriebenen Chunks entfernt und bei
+einem Fehlschlag wiederholt wird. Ein Löschen, das auf diesen Eintrag wartet,
 entfernt sie selbst, anhand der ID, die die gelöschte Zeile trägt
 ([#2565](https://github.com/vstorm-co/agenticos/issues/2565)).
 

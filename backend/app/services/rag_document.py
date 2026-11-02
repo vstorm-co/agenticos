@@ -43,7 +43,12 @@ from app.services.ingestion_config import (
     IngestionConfigService,
     IngestionOverride,
 )
-from app.worker.jobs import INGEST_DOCUMENT, IngestDocument
+from app.worker.jobs import (
+    DISCARD_VECTOR_DOCUMENT,
+    INGEST_DOCUMENT,
+    DiscardVectorDocument,
+    IngestDocument,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -443,8 +448,9 @@ class RAGDocumentService:
         Returns `False` when the tracking row is gone - the document was deleted
         while it was being indexed - and `True` otherwise, a superseded attempt
         included. On `False` the caller owns the chunks it has just written and
-        removes them: the delete read the row before it held a vector id, so it
-        purged nothing, and nothing else tracks them (#2565).
+        queues their removal with `discard_untracked`: the delete read the row
+        before it held a vector id, so it purged nothing, and nothing else tracks
+        them (#2565).
 
         Neither `chunk_count` nor `replaced_document_id` has a default on
         purpose. `chunk_count` had one, `0`, and all four call sites took it -
@@ -500,6 +506,28 @@ class RAGDocumentService:
         # `ingestion_failed` still fires, and a connector run still reports its
         # whole-attempt figure through `sync_completed`.
         return True
+
+    async def discard_untracked(
+        self, collection_name: str, vector_document_id: str, *, scope: VectorScope
+    ) -> None:
+        """Queue the removal of chunks whose document was deleted while it indexed.
+
+        For a `complete_ingestion` that returned `False`, in the same transaction:
+        the row is gone, so the job is the only record of the chunks, and a removal
+        that only logged its failure left them searchable for good (#2565). `scope`
+        is the one the chunks were stamped with - the ingester's.
+        """
+        await enqueue(
+            self.db,
+            DISCARD_VECTOR_DOCUMENT,
+            DiscardVectorDocument(
+                collection=collection_name,
+                vector_document_id=vector_document_id,
+                tenant=scope.tenant,
+                knowledge_base_id=scope.knowledge_base_id,
+            ),
+            organization_id=scope.tenant,
+        )
 
     async def _retire_superseded(
         self,

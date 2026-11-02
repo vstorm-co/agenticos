@@ -479,13 +479,16 @@ async def _run_ingestion(
 
     try:
         async with get_worker_db_context() as db:
-            recorded = await RAGDocumentService(db).complete_ingestion(
+            documents = RAGDocumentService(db)
+            recorded = await documents.complete_ingestion(
                 rag_document_id,
                 vector_document_id=result.document_id,
                 chunk_count=result.chunk_count,
                 replaced_document_id=result.replaced_document_id,
                 attempt=attempt,
             )
+            if not recorded:
+                await documents.discard_untracked(collection_name, result.document_id, scope=scope)
     except Exception as exc:
         logger.exception("Indexed %s but could not record it", source_path)
         await _fail_document(
@@ -496,15 +499,7 @@ async def _run_ingestion(
         raise
 
     if not recorded:
-        # Deleted while it was indexed. The ingester's engine went with its block
-        # above; a second one is opened for this rare path rather than holding the
-        # first through every settlement.
-        async with _ingestion_service(
-            processor=processor, organization_id=organization_id, scope=scope
-        ) as ingester:
-            await _discard_untracked(
-                ingester, collection_name, result.document_id, row_id=rag_document_id
-            )
+        logger.info("Document %s was deleted while indexing", rag_document_id)
         return {"status": "deleted", "filename": source_path}
 
     logger.info("Ingestion complete: %s", source_path)
@@ -895,28 +890,6 @@ async def _open_document_row(
         return str(row.id)
 
 
-async def _discard_untracked(
-    ingester: IngestionService, collection_name: str, vector_document_id: str, *, row_id: str
-) -> None:
-    """Remove the chunks an ingest wrote for a document deleted while it ran (#2565).
-
-    The delete read the row before it held a vector id, so it purged nothing and
-    left these to the settlement. Through the ingester that wrote them, whose bound
-    scope is the one they were stamped with. A vector document id is minted per
-    parse, so no other row can be tracking it.
-    """
-    if await ingester.remove_document(collection_name, vector_document_id):
-        logger.info("Document %s was deleted while indexing; removed its chunks", row_id)
-    else:
-        logger.error(
-            "Document %s was deleted while indexing and its vector document %s in %s "
-            "could not be removed",
-            row_id,
-            vector_document_id,
-            collection_name,
-        )
-
-
 async def _settle_document_row(
     row_id: str,
     result: IngestionResult,
@@ -938,11 +911,10 @@ async def _settle_document_row(
     claim, and another source's run must not take this one's for its own.
 
     `ingester` and `collection_name` are what wrote the chunks: a row deleted
-    while they were written is settled by removing them (#2565).
+    while they were written is settled by queueing their removal (#2565).
     """
     from app.services.rag_document import RAGDocumentService
 
-    untracked: str | None = None
     try:
         async with get_worker_db_context() as db:
             documents = RAGDocumentService(db)
@@ -958,20 +930,21 @@ async def _settle_document_row(
                     replaced_document_id=result.replaced_document_id,
                     attempt=1,
                 ):
-                    # Removed after this transaction ends, not inside it.
-                    untracked = result.document_id
+                    await documents.discard_untracked(
+                        collection_name, result.document_id, scope=ingester.scope
+                    )
+                    logger.info("Document %s was deleted while indexing", row_id)
+                    return
             else:
                 await documents.fail_ingestion(
                     row_id, result.error_message or "Ingestion failed", attempt=1
                 )
-            if inherited and untracked is None:
+            if inherited:
                 await documents.add_claims(row_id, sync_source_ids=set(inherited))
     except NotFoundError:
         # The base was deleted mid-sync and took the row with it (#2561). Raising
         # here escaped the per-file loop's own handler and failed the whole run.
         logger.info("Document %s is gone; nothing to settle", row_id)
-    if untracked is not None:
-        await _discard_untracked(ingester, collection_name, untracked, row_id=row_id)
 
 
 async def _notify_sync_start_failure(

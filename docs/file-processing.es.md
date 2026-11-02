@@ -1,5 +1,5 @@
 ---
-source_sha: "563e08f2a96b"
+source_sha: "65f260c4c95c"
 ---
 
 # Procesamiento de archivos { #file-processing }
@@ -1017,8 +1017,9 @@ fragmentos
 Tampoco deja fragmentos un documento suelto borrado mientras aún se indexa. Su
 fila no tiene identificador de documento vectorial hasta que la ingesta lo
 registra, así que el borrado puede no tener nada que eliminar; el worker que no
-encuentra la fila al registrar el resultado elimina los fragmentos que acaba de
-escribir. Un borrado que espera a ese registro los elimina él mismo, por el
+encuentra la fila al registrar el resultado encola, en la misma transacción, un
+trabajo que elimina los fragmentos que acaba de escribir y se reintenta si la
+eliminación falla. Un borrado que espera a ese registro los elimina él mismo, por el
 identificador que tiene la fila borrada
 ([#2565](https://github.com/vstorm-co/agenticos/issues/2565)).
 

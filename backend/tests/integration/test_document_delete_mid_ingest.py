@@ -3,13 +3,15 @@
 The delete purges by the row's `vector_document_id`, which stays `NULL` until the
 ingest settles. Two things close that on Postgres: the delete takes the id from
 its own `DELETE ... RETURNING`, so a settlement that committed first is seen, and
-a settlement that finds the row gone removes the chunks it has just written.
+a settlement that finds the row gone queues the removal of the chunks it has just
+written, as a job in its own transaction.
 The write's `FOR KEY SHARE` hold on the row (`hold_for_vector_write`) is what
 orders a delete that arrives mid-write after the chunk commit.
 """
 
 import asyncio
 import uuid
+from datetime import timedelta
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 
@@ -20,11 +22,14 @@ from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 from app.core.background import drain, start_deferred
 from app.db.models.knowledge_base import KnowledgeBase
 from app.db.models.rag_document import DocumentStatus, RAGDocument
+from app.db.session import get_worker_db_context
+from app.repositories import background_job as job_repo
 from app.services.rag.ingestion import IngestionService
 from app.services.rag.models import IngestionResult, IngestionStatus
 from app.services.rag.vectorstore import PgVectorStore
 from app.services.rag_document import RAGDocumentService
-from app.worker.tasks import rag_tasks
+from app.worker.jobs import DISCARD_VECTOR_DOCUMENT
+from app.worker.tasks import rag_tasks, teardown_tasks
 from tests.integration.test_deletion_reconciliation import (
     _kb_document,
     _org,
@@ -94,9 +99,19 @@ class _Upload:
         start_deferred(s)
 
     async def settle(self, result: IngestionResult) -> None:
+        """Settle as the sync does, then run what that queued, as a worker would."""
         await rag_tasks._settle_document_row(
             str(self.row_id), result, ingester=self.ingester, collection_name=self.collection
         )
+        async with get_worker_db_context() as db:
+            while job := await job_repo.claim(
+                db, pool="system", worker_id="test", lease=timedelta(minutes=5)
+            ):
+                assert job.kind == DISCARD_VECTOR_DOCUMENT.kind
+                await teardown_tasks.discard_vector_document(
+                    DISCARD_VECTOR_DOCUMENT.load(job.payload)
+                )
+                await job_repo.complete(db, job.id, fence=job.attempts)
 
     async def remaining(self, result: IngestionResult) -> tuple[int, int]:
         assert result.document_id is not None

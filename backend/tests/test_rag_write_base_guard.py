@@ -411,8 +411,9 @@ class TestASyncSettlesARowItsBaseTookWithIt:
             fail_ingestion=AsyncMock(side_effect=gone),
             # A completion reports a row gone rather than raising (#2565).
             complete_ingestion=AsyncMock(return_value=False),
+            discard_untracked=AsyncMock(),
         )
-        ingester = MagicMock(remove_document=AsyncMock(return_value=True))
+        ingester = MagicMock()
 
         with (
             patch.object(rag_tasks, "get_worker_db_context", new=_session),

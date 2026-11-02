@@ -941,7 +941,8 @@ the delete, whose cleanup then removes its chunks
 A single document deleted while it is still indexing leaves no chunks behind
 either. Its row has no vector document id until the ingest records one, so the
 delete may have nothing to remove; the worker that finds the row gone when it
-records the result removes the chunks it has just written. A delete that waits
+records the result queues a job, in the same transaction, that removes the
+chunks it has just written and is retried if the removal fails. A delete that waits
 for that record removes them itself, by the id the deleted row holds
 ([#2565](https://github.com/vstorm-co/agenticos/issues/2565)).
 

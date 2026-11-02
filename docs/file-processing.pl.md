@@ -1,5 +1,5 @@
 ---
-source_sha: "563e08f2a96b"
+source_sha: "65f260c4c95c"
 ---
 
 # Przetwarzanie plików { #file-processing }
@@ -996,7 +996,8 @@ porządkowanie usuwa potem jego chunki
 Pojedynczy dokument usunięty w trakcie indeksowania również nie zostawia chunków.
 Jego wiersz nie ma identyfikatora dokumentu wektorowego, dopóki ingest go nie
 zapisze, więc usunięcie może nie mieć czego usunąć; worker, który przy zapisie
-wyniku nie znajduje wiersza, usuwa chunki, które właśnie zapisał. Usunięcie, które
+wyniku nie znajduje wiersza, kolejkuje w tej samej transakcji zadanie, które usuwa
+chunki, które właśnie zapisał, i jest ponawiane, gdy usunięcie się nie powiedzie. Usunięcie, które
 czeka na ten zapis, usuwa je samo, według identyfikatora z usuniętego wiersza
 ([#2565](https://github.com/vstorm-co/agenticos/issues/2565)).
 
