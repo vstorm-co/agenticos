@@ -1,5 +1,5 @@
 ---
-source_sha: "5fbc88beed86"
+source_sha: "33926c1fbeae"
 ---
 
 # Konsola { #the-console }
@@ -55,6 +55,8 @@ Nagłówki korzystają z odstępów otaczającego układu bez ich podwajania. Ka
 Okna kategorii szablonów dopasowują się do zawartości; wybranie branży agenta lub umiejętności otwiera większą bibliotekę. Na telefonie wybór wyglądu ma postać zwartych wierszy z miniaturami.
 
 Instrukcje agentów i projektów mają jeden zwarty pasek z tytułem, pomocą, przełączaniem źródła i podglądu oraz rozwijaniem. Rozwinięty Markdown zachowuje wybrany tryb źródła lub podglądu. Nieużywane zmienne promptu są początkowo zwinięte; istniejące własne zmienne lub niestandardowa strefa czasu pozostawiają panel otwarty. Rozwinięte edytory tekstu i plików zachowują równe marginesy na telefonie. Pola tekstowe na telefonie używają większej czcionki bez powiększania pól na komputerze.
+
+Na telefonie fokus w polu wiadomości przełącza czat w zwarty wiersz pisania z załącznikami i wysyłaniem. Wybór agenta oraz głos pozostają dostępne pod **+**. Powitanie i sugestie połączeń chowają się na czas pisania, a menu uzupełniania mieści się w dostępnej wysokości. Przejście z tekstu na Wyślij zachowuje stabilny układ.
 
 ## Dashboard { #the-dashboard }
 

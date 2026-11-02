@@ -1490,3 +1490,16 @@ it("loads earlier messages from the transcript control without losing the curren
   expect(screen.getByText("Current page")).toBeVisible();
   expect(screen.queryByRole("button", { name: "Load earlier messages" })).not.toBeInTheDocument();
 });
+
+it("keeps the draft focused when tapping dock buttons while leaving keyboard focus available", async () => {
+  mount();
+  const editor = await screen.findByRole("textbox", { name: "Type a message..." });
+  await userEvent.type(editor, "An unsent phone draft");
+  const send = screen.getByRole("button", { name: "Send message" });
+  expect(editor).toHaveFocus();
+  expect(fireEvent.mouseDown(send)).toBe(false);
+  expect(editor).toHaveFocus();
+  act(() => send.focus());
+  expect(send).toHaveFocus();
+  expect(messageOf(editor)).toBe("An unsent phone draft");
+});

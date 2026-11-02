@@ -862,3 +862,27 @@ describe("a run waiting for its person", () => {
     expect(screen.queryByRole("button", { name: "Call" })).not.toBeInTheDocument();
   });
 });
+
+it("keeps composing while focus moves to Send, and exits without losing an unsent draft", async () => {
+  const onSend = vi.fn();
+  render(
+    <>
+      <button>Outside</button>
+      <ChatInput onSend={onSend} />
+    </>,
+  );
+  const editor = screen.getByRole("textbox");
+  const form = editor.closest("form");
+  await userEvent.type(editor, "Phone draft");
+  expect(form).toHaveAttribute("data-editing", "true");
+  await userEvent.click(screen.getByRole("button", { name: "Outside" }));
+  expect(form).not.toHaveAttribute("data-editing");
+  expect(messageOf(editor)).toBe("Phone draft");
+  await userEvent.click(editor);
+  const send = screen.getByRole("button", { name: "Send message" });
+  fireEvent.blur(editor, { relatedTarget: send });
+  fireEvent.focus(send, { relatedTarget: editor });
+  expect(form).toHaveAttribute("data-editing", "true");
+  await userEvent.click(send);
+  expect(onSend).toHaveBeenCalledWith("Phone draft", undefined, undefined, undefined);
+});

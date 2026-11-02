@@ -47,7 +47,10 @@ export function SlashCommandPalette({
         <span>{t("commands")}</span>
         <span className="hidden sm:inline">{t("hint")}</span>
       </div>
-      <ul ref={listRef} className="max-h-64 overflow-y-auto py-1">
+      <ul
+        ref={listRef}
+        className="max-h-[min(16rem,calc(var(--app-height,100dvh)*0.4))] overflow-y-auto py-1"
+      >
         {commands.map((cmd, i) => (
           <li
             key={cmd.name}

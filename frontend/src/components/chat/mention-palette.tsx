@@ -59,7 +59,10 @@ export function MentionPalette({
           {failed ? t("failed") : isLoading ? t("loading") : t("nothing")}
         </p>
       ) : (
-        <ul ref={listRef} className="max-h-72 overflow-y-auto py-1">
+        <ul
+          ref={listRef}
+          className="max-h-[min(18rem,calc(var(--app-height,100dvh)*0.4))] overflow-y-auto py-1"
+        >
           {items.map((item, index) => {
             const heading = index === 0 || items[index - 1]?.kind !== item.kind;
             return (

@@ -50,6 +50,8 @@ Template category dialogs fit their content; choosing an agent or skill industry
 
 Agent and project instructions share one compact toolbar for their heading, help, source/preview and expansion. Expanded Markdown keeps the selected source or preview view. Unused prompt variables start folded, while existing custom variables or a custom time zone keep the panel open. Expanded text and file editors keep consistent phone gutters; phone text inputs use larger type without enlarging desktop fields.
 
+On phones, focusing the chat message switches to a compact writing row with attachment and send controls. Agent selection and voice input remain available under **+**. The welcome suggestions and connection suggestions step aside while composing, and completion menus stay within the available height. Moving focus from the draft to Send keeps the layout stable.
+
 ## The dashboard
 
 The landing page is an **arrangeable grid of widgets**, and it is the answer to

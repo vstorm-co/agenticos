@@ -1,5 +1,5 @@
 ---
-source_sha: "5fbc88beed86"
+source_sha: "33926c1fbeae"
 ---
 
 # Die Konsole { #the-console }
@@ -57,6 +57,8 @@ Seitenüberschriften verwenden die Abstände des umgebenden Layouts ohne Verdopp
 Dialoge für Vorlagenkategorien passen sich ihrem Inhalt an; die Auswahl einer Branche für Agenten oder Skills öffnet die größere Bibliothek. Auf dem Telefon erscheinen die Stile als kompakte Zeilen mit Miniaturen.
 
 Anweisungen für Agenten und Projekte haben eine kompakte gemeinsame Leiste für Titel, Hilfe, Quelltext/Vorschau und Vergrößern. Vergrößerte Markdown-Ansichten behalten den gewählten Modus. Ungenutzte Prompt-Variablen sind zunächst eingeklappt; vorhandene eigene Variablen oder eine eigene Zeitzone halten den Bereich offen. Vergrößerte Text- und Dateieditoren behalten auf dem Telefon gleichmäßige Außenabstände. Texteingaben nutzen dort größere Schrift, ohne Desktop-Felder zu vergrößern.
+
+Auf dem Telefon wechselt das Nachrichtenfeld beim Fokussieren in eine kompakte Schreibzeile mit Anhängen und Senden. Agentenauswahl und Spracheingabe bleiben unter **+** erreichbar. Begrüßung und Verbindungsvorschläge treten beim Schreiben zurück; Ergänzungsmenüs passen sich der verfügbaren Höhe an. Beim Fokuswechsel zum Senden bleibt das Layout stabil.
 
 ## Das Dashboard { #the-dashboard }
 
