@@ -368,19 +368,20 @@ def test_release_bundler_receives_the_same_public_key_as_the_running_app(tmp_pat
     assert config["bundle"]["createUpdaterArtifacts"] is True
 
 
-def test_release_dispatch_cannot_write_build_caches() -> None:
-    workflow = yaml.safe_load((ROOT / ".github/workflows/app-release.yml").read_text())
+def test_releases_only_read_dependency_caches_seeded_by_native_ci() -> None:
+    release = yaml.safe_load((ROOT / ".github/workflows/app-release.yml").read_text())
+    apps = yaml.safe_load((ROOT / ".github/workflows/apps.yml").read_text())
     for name in ("desktop", "android", "ios"):
-        steps = workflow["jobs"][name]["steps"]
-        cache_steps = [step for step in steps if step.get("uses", "").startswith("actions/cache/")]
-        assert len(cache_steps) == 2
-        restore, save = cache_steps
+        steps = release["jobs"][name]["steps"]
+        cache_steps = [step for step in steps if step.get("uses", "").startswith("actions/cache")]
+        assert len(cache_steps) == 1
+        restore = cache_steps[0]
         assert restore["uses"].startswith("actions/cache/restore@")
-        assert save["uses"].startswith("actions/cache/save@")
-        assert (
-            save["if"]
-            == "github.event_name == 'release' && steps.cargo-cache.outputs.cache-hit != 'true'"
+        seed = next(
+            step
+            for step in apps["jobs"][name]["steps"]
+            if step.get("name") == "Cache Cargo downloads for CI and releases"
         )
-        assert save["with"]["key"] == "${{ steps.cargo-cache.outputs.cache-primary-key }}"
-        assert save["with"]["path"] == restore["with"]["path"]
-        assert "${{ runner.os }}-${{ runner.arch }}" in restore["with"]["key"]
+        assert seed["uses"].startswith("actions/cache@")
+        assert restore["with"] == seed["with"]
+        assert "target" not in restore["with"]["path"]

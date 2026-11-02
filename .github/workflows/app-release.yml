@@ -64,20 +64,16 @@ jobs:
         id: rust-cache-key
         shell: bash
         run: echo "version=$(rustc --version)" >> "$GITHUB_OUTPUT"
-      - name: Restore Cargo dependencies and build artifacts
-        id: cargo-cache
+      # Release jobs only read the dependency cache seeded by native CI.
+      - name: Restore Cargo downloads
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
             ~/.cargo/registry/index
             ~/.cargo/registry/cache
             ~/.cargo/git/db
-            desktop/core/target
-            desktop/src-tauri/target
-            mobile/src-tauri/target
-            !**/target/**/bundle
-          key: cargo-desktop-release-${{ runner.os }}-${{ runner.arch }}-${{ matrix.target }}-${{ steps.rust-cache-key.outputs.version }}-${{ hashFiles('desktop/**/Cargo.lock', 'mobile/**/Cargo.lock', 'desktop/**/Cargo.toml', 'mobile/**/Cargo.toml') }}
-          restore-keys: cargo-desktop-release-${{ runner.os }}-${{ runner.arch }}-${{ matrix.target }}-${{ steps.rust-cache-key.outputs.version }}-
+          key: cargo-registry-${{ runner.os }}-${{ runner.arch }}-${{ steps.rust-cache-key.outputs.version }}-${{ hashFiles('desktop/**/Cargo.lock', 'mobile/**/Cargo.lock') }}
+          restore-keys: cargo-registry-${{ runner.os }}-${{ runner.arch }}-${{ steps.rust-cache-key.outputs.version }}-
       - name: Prepare version and signing
         shell: bash
         env:
@@ -166,20 +162,6 @@ jobs:
           args: --target ${{ matrix.target }} --config src-tauri/tauri.release.conf.json ${{ runner.os == 'Windows' && '--config src-tauri/tauri.windows.release.conf.json' || '' }} -- --locked
           uploadUpdaterJson: false
           uploadUpdaterSignatures: true
-      # Dispatch may select an older tag; it can read caches but cannot seed them.
-      - name: Save trusted release build artifacts
-        if: github.event_name == 'release' && steps.cargo-cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: |
-            ~/.cargo/registry/index
-            ~/.cargo/registry/cache
-            ~/.cargo/git/db
-            desktop/core/target
-            desktop/src-tauri/target
-            mobile/src-tauri/target
-            !**/target/**/bundle
-          key: ${{ steps.cargo-cache.outputs.cache-primary-key }}
 
   updater:
     needs: [resolve, desktop]
@@ -216,20 +198,16 @@ jobs:
         id: rust-cache-key
         shell: bash
         run: echo "version=$(rustc --version)" >> "$GITHUB_OUTPUT"
-      - name: Restore Cargo dependencies and build artifacts
-        id: cargo-cache
+      # Release jobs only read the dependency cache seeded by native CI.
+      - name: Restore Cargo downloads
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
             ~/.cargo/registry/index
             ~/.cargo/registry/cache
             ~/.cargo/git/db
-            desktop/core/target
-            desktop/src-tauri/target
-            mobile/src-tauri/target
-            !**/target/**/bundle
-          key: cargo-android-release-${{ runner.os }}-${{ runner.arch }}-android-${{ steps.rust-cache-key.outputs.version }}-${{ hashFiles('desktop/**/Cargo.lock', 'mobile/**/Cargo.lock', 'desktop/**/Cargo.toml', 'mobile/**/Cargo.toml') }}
-          restore-keys: cargo-android-release-${{ runner.os }}-${{ runner.arch }}-android-${{ steps.rust-cache-key.outputs.version }}-
+          key: cargo-registry-${{ runner.os }}-${{ runner.arch }}-${{ steps.rust-cache-key.outputs.version }}-${{ hashFiles('desktop/**/Cargo.lock', 'mobile/**/Cargo.lock') }}
+          restore-keys: cargo-registry-${{ runner.os }}-${{ runner.arch }}-${{ steps.rust-cache-key.outputs.version }}-
       - name: Android signing and toolchain
         env:
           TAG: ${{ needs.resolve.outputs.tag }}
@@ -265,20 +243,6 @@ jobs:
       - name: Remove signing material
         if: always()
         run: rm -f "$RUNNER_TEMP/android.keystore"
-      # Dispatch may select an older tag; it can read caches but cannot seed them.
-      - name: Save trusted release build artifacts
-        if: github.event_name == 'release' && steps.cargo-cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: |
-            ~/.cargo/registry/index
-            ~/.cargo/registry/cache
-            ~/.cargo/git/db
-            desktop/core/target
-            desktop/src-tauri/target
-            mobile/src-tauri/target
-            !**/target/**/bundle
-          key: ${{ steps.cargo-cache.outputs.cache-primary-key }}
 
   ios:
     needs: resolve
@@ -294,20 +258,16 @@ jobs:
         id: rust-cache-key
         shell: bash
         run: echo "version=$(rustc --version)" >> "$GITHUB_OUTPUT"
-      - name: Restore Cargo dependencies and build artifacts
-        id: cargo-cache
+      # Release jobs only read the dependency cache seeded by native CI.
+      - name: Restore Cargo downloads
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
             ~/.cargo/registry/index
             ~/.cargo/registry/cache
             ~/.cargo/git/db
-            desktop/core/target
-            desktop/src-tauri/target
-            mobile/src-tauri/target
-            !**/target/**/bundle
-          key: cargo-ios-release-${{ runner.os }}-${{ runner.arch }}-ios-${{ steps.rust-cache-key.outputs.version }}-${{ hashFiles('desktop/**/Cargo.lock', 'mobile/**/Cargo.lock', 'desktop/**/Cargo.toml', 'mobile/**/Cargo.toml') }}
-          restore-keys: cargo-ios-release-${{ runner.os }}-${{ runner.arch }}-ios-${{ steps.rust-cache-key.outputs.version }}-
+          key: cargo-registry-${{ runner.os }}-${{ runner.arch }}-${{ steps.rust-cache-key.outputs.version }}-${{ hashFiles('desktop/**/Cargo.lock', 'mobile/**/Cargo.lock') }}
+          restore-keys: cargo-registry-${{ runner.os }}-${{ runner.arch }}-${{ steps.rust-cache-key.outputs.version }}-
       - name: Prepare distribution identity and provisioning
         env:
           TAG: ${{ needs.resolve.outputs.tag }}
@@ -384,20 +344,6 @@ jobs:
           security delete-keychain "$RUNNER_TEMP/apps.keychain-db" || true
           rm -f "$RUNNER_TEMP/ios.p12" "$RUNNER_TEMP/appstore-key.p8"
           rm -rf "$HOME/.appstoreconnect/private_keys" "$HOME/Library/MobileDevice/Provisioning Profiles"
-      # Dispatch may select an older tag; it can read caches but cannot seed them.
-      - name: Save trusted release build artifacts
-        if: github.event_name == 'release' && steps.cargo-cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: |
-            ~/.cargo/registry/index
-            ~/.cargo/registry/cache
-            ~/.cargo/git/db
-            desktop/core/target
-            desktop/src-tauri/target
-            mobile/src-tauri/target
-            !**/target/**/bundle
-          key: ${{ steps.cargo-cache.outputs.cache-primary-key }}
 
   homebrew:
     timeout-minutes: 10

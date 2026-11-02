@@ -1,5 +1,5 @@
 ---
-source_sha: "b709427c03d4"
+source_sha: "98715dd7765c"
 ---
 
 # La app de escritorio { #the-desktop-app }
@@ -531,6 +531,13 @@ No crea una versión de la plataforma. El cask es un archivo descargable; public
 un tap Homebrew es una operación separada. **Check for Updates…** requiere un
 build con la clave pública y verifica la firma antes de instalar.
 
+Los builds de versiones de escritorio se ejecutan en paralelo. Cada uno sube
+sus paquetes firmados; un job final valida los cuatro targets nativos y publica
+`latest.json`. CI nativo guarda los resultados de compilación por sistema operativo,
+arquitectura, compilador, target y perfil de build. Las versiones solo restauran
+las dependencias descargadas del caché compartido. Un build fallido impide publicar
+el manifiesto de actualización.
+
 La publicación móvil está desactivada actualmente. La variable del repositorio
 `AGENTICOS_MOBILE_RELEASES_ENABLED=true` habilita las versiones firmadas de Android;
 iOS requiere además la opción de TestFlight indicada abajo. Las compilaciones
@@ -575,9 +582,3 @@ cuentas del operador; no pueden verificarse con un build local sin firma.
 Quick Ask admite hasta ocho pestañas independientes por ventana. Cada una conserva su borrador, adjuntos, agente y respuestas en curso. Conversaciones recientes abre una lista con búsqueda y reutiliza una pestaña ya abierta; los chats guardados recuperan mensajes e historial anterior. Las pestañas inactivas no capturan archivos, atajos de dictado ni el foco. Conversaciones recientes muestra avatares de agentes en una sección desplegable que ocupa solo el espacio necesario. Nuevo chat es la única acción para abrir una pestaña nueva. La barra lateral del navegador ofrece la descarga de escritorio; cerrar el aviso lo silencia durante 14 días para esa cuenta en ese navegador.
 
 Quick Ask tiene un botón de micrófono para iniciar el dictado con un clic, además del atajo de mantener pulsado. Las llamadas usan los mismos controles que el chat, con el transporte configurado del agente seleccionado, subtítulos, aprobaciones y preguntas. Los turnos hablados se guardan en la conversación. El envío de texto y el dictado esperan durante una llamada. Cambiar de pestaña o agente finaliza la llamada y libera el micrófono.
-
-Los builds de versiones de escritorio se ejecutan en paralelo. Cada uno sube
-sus paquetes firmados; un job final valida los cuatro targets nativos y publica
-`latest.json`. Las cachés de Cargo se separan por sistema operativo, arquitectura,
-compilador, target y perfil de build. Un build fallido impide publicar el manifiesto
-de actualización.

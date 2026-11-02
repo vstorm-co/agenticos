@@ -41,13 +41,19 @@ jobs:
         id: rust-cache-key
         shell: bash
         run: echo "version=$(rustc --version)" >> "$GITHUB_OUTPUT"
-      - name: Restore Cargo dependencies and build artifacts
+      - name: Cache Cargo downloads for CI and releases
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
             ~/.cargo/registry/index
             ~/.cargo/registry/cache
             ~/.cargo/git/db
+          key: cargo-registry-${{ runner.os }}-${{ runner.arch }}-${{ steps.rust-cache-key.outputs.version }}-${{ hashFiles('desktop/**/Cargo.lock', 'mobile/**/Cargo.lock') }}
+          restore-keys: cargo-registry-${{ runner.os }}-${{ runner.arch }}-${{ steps.rust-cache-key.outputs.version }}-
+      - name: Cache native build artifacts
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
             desktop/core/target
             desktop/src-tauri/target
             mobile/src-tauri/target
@@ -132,13 +138,19 @@ jobs:
         id: rust-cache-key
         shell: bash
         run: echo "version=$(rustc --version)" >> "$GITHUB_OUTPUT"
-      - name: Restore Cargo dependencies and build artifacts
+      - name: Cache Cargo downloads for CI and releases
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
             ~/.cargo/registry/index
             ~/.cargo/registry/cache
             ~/.cargo/git/db
+          key: cargo-registry-${{ runner.os }}-${{ runner.arch }}-${{ steps.rust-cache-key.outputs.version }}-${{ hashFiles('desktop/**/Cargo.lock', 'mobile/**/Cargo.lock') }}
+          restore-keys: cargo-registry-${{ runner.os }}-${{ runner.arch }}-${{ steps.rust-cache-key.outputs.version }}-
+      - name: Cache native build artifacts
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
             desktop/core/target
             desktop/src-tauri/target
             mobile/src-tauri/target
@@ -166,13 +178,19 @@ jobs:
         id: rust-cache-key
         shell: bash
         run: echo "version=$(rustc --version)" >> "$GITHUB_OUTPUT"
-      - name: Restore Cargo dependencies and build artifacts
+      - name: Cache Cargo downloads for CI and releases
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
             ~/.cargo/registry/index
             ~/.cargo/registry/cache
             ~/.cargo/git/db
+          key: cargo-registry-${{ runner.os }}-${{ runner.arch }}-${{ steps.rust-cache-key.outputs.version }}-${{ hashFiles('desktop/**/Cargo.lock', 'mobile/**/Cargo.lock') }}
+          restore-keys: cargo-registry-${{ runner.os }}-${{ runner.arch }}-${{ steps.rust-cache-key.outputs.version }}-
+      - name: Cache native build artifacts
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
             desktop/core/target
             desktop/src-tauri/target
             mobile/src-tauri/target

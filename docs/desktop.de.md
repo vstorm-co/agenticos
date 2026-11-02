@@ -1,5 +1,5 @@
 ---
-source_sha: "b709427c03d4"
+source_sha: "98715dd7765c"
 ---
 
 # Die Desktop-App { #the-desktop-app }
@@ -539,6 +539,13 @@ Der Cask ist eine herunterladbare Datei; ein Homebrew-Tap wird separat veröffen
 **Check for Updates…** benötigt einen Build mit öffentlichem Update-Schlüssel und
 prüft vor der Installation die Signatur.
 
+Desktop-Release-Builds laufen parallel. Jeder lädt seine eigenen signierten
+Pakete hoch; ein abschließender Job prüft alle vier nativen Targets und
+veröffentlicht `latest.json`. Native CI speichert Build-Ergebnisse getrennt nach
+Betriebssystem, Architektur, Compiler, Target und Build-Profil. Releases lesen nur
+die gemeinsam genutzten heruntergeladenen Abhängigkeiten aus dem Cache. Ein
+fehlgeschlagener Plattform-Build verhindert die Veröffentlichung des Updater-Manifests.
+
 Die Veröffentlichung der mobilen App ist derzeit deaktiviert. Die Repository-Variable
 `AGENTICOS_MOBILE_RELEASES_ENABLED=true` aktiviert signierte Android-Releases;
 iOS benötigt zusätzlich den unten genannten TestFlight-Schalter. Reguläre CI-Builds
@@ -585,9 +592,3 @@ ein unsignierter lokaler Build kann sie nicht bestätigen.
 Quick Ask unterstützt bis zu acht unabhängige Tabs pro Fenster. Jeder behält Entwurf, Anhänge, Agentenauswahl und laufende Antworten. Letzte Unterhaltungen öffnet eine durchsuchbare Liste und verwendet einen bereits offenen Tab erneut; gespeicherte Chats laden Nachrichten und frühere Beiträge. Inaktive Tabs übernehmen weder Dateiabgaben noch Diktiershortcuts oder Fokus. Letzte Unterhaltungen zeigt Agenten-Avatare in einem ausklappbaren Abschnitt, der nur seinen tatsächlichen Platz belegt. Neuer Chat ist die einzige Aktion für einen frischen Tab. Die Browser-Seitenleiste bietet den Desktop-Download an; Schließen pausiert die Erinnerung für dieses Konto und diesen Browser für 14 Tage.
 
 Quick Ask bietet eine Mikrofontaste für Diktat per Klick zusätzlich zum Gedrückthalten des Kurzbefehls. Sprachgespräche verwenden dieselben Steuerelemente wie der Chat, mit dem konfigurierten Transport des ausgewählten Agenten, Untertiteln, Freigaben und Fragen. Gesprochene Beiträge werden in der Unterhaltung gespeichert. Textversand und Diktat warten während eines Anrufs. Ein Tab- oder Agentenwechsel beendet den Anruf und gibt das Mikrofon frei.
-
-Desktop-Release-Builds laufen parallel. Jeder lädt seine eigenen signierten
-Pakete hoch; ein abschließender Job prüft alle vier nativen Targets und
-veröffentlicht `latest.json`. Cargo-Caches sind nach Betriebssystem, Architektur,
-Compiler, Target und Build-Profil getrennt. Ein fehlgeschlagener Plattform-Build
-verhindert die Veröffentlichung des Updater-Manifests.
