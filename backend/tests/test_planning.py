@@ -167,13 +167,13 @@ class TestGuidance:
 
 
 class TestConfig:
-    def test_the_defaults_are_a_flat_checklist_with_a_short_ttl(self):
+    def test_the_defaults_are_a_flat_checklist_with_a_legacy_ttl(self):
         config = PlanningConfig()
 
         assert config.enable_subtasks is False
         assert config.cache_ttl == "5m"
 
-    def test_the_cache_ttl_is_one_of_two_values(self):
+    def test_the_legacy_cache_ttl_is_still_validated(self):
         with pytest.raises(ValidationError):
             PlanningConfig(cache_ttl="10m")
 
@@ -187,7 +187,7 @@ class TestConfig:
         assert isinstance(capability, Planning)
         assert capability.enable_subtasks is False
 
-    def test_the_builder_carries_the_configured_ttl_and_subtasks_through(self):
+    def test_the_builder_loads_the_legacy_ttl_with_subtasks(self):
         built = build(
             [
                 CapabilityBinding(
