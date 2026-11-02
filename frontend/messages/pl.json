@@ -6328,7 +6328,7 @@
       },
       "agent-editor-fullscreen": {
         "title": "Powiększ edytor",
-        "body": "Przycisk powiększania pozwala wygodnie czytać i edytować dokument. Zamknięcie powiększonego edytora zachowuje bieżący szkic."
+        "body": "Przycisk powiększania pozwala wygodnie czytać i edytować dokument. Zamknięcie powiększonego edytora zachowuje bieżącą wersję roboczą."
       },
       "skill-editor-fullscreen": {
         "title": "Powiększ edytor",
