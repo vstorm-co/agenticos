@@ -27,7 +27,7 @@ from pydantic_ai.workspaces import FileEntry, Workspace, WrapperWorkspace
 from pydantic_ai_backends import StateBackend
 
 from app.agents.capabilities.sandbox._capped import CappedStateBackend
-from app.agents.capabilities.skills import SkillBody
+from app.agents.capabilities.skills import SkillBody, SkillBodyFile
 from app.services.skill_workspace import (
     SKILLS_ROOT,
     collect_changes,
@@ -42,6 +42,7 @@ pytestmark = pytest.mark.anyio
 class _Resource:
     def __init__(self, name: str, content: str) -> None:
         self.name = name
+        self.description: str | None = None
         self.content = content
 
 
@@ -129,6 +130,21 @@ class TestWritingSkillsIntoTheWorkspace:
         assert "description: Proposed." in body
         assert "New body." in body
         assert "Ask for the order id." not in body
+
+    async def test_a_candidate_with_its_own_files_replaces_the_stored_ones(self):
+        """A change that edits a skill's files is checked with those files on disk."""
+        skill = _Skill(resources=[_Resource("template.md", "old template")])
+        document, workspace = _document()
+        candidate = SkillBody(
+            description="Proposed.",
+            content="New body.",
+            resources=(SkillBodyFile(name="limits.md", description=None, content="Up to $500."),),
+        )
+
+        state = await materialise(workspace, [skill], {skill.id: candidate})
+
+        assert document.read_bytes(f"{SKILLS_ROOT}/refunds/limits.md").decode() == "Up to $500."
+        assert not any(path.endswith("/template.md") for path in state.written)
 
     async def test_a_workspace_that_refuses_a_write_still_runs_the_agent(self):
         """The skills are in the prompt either way, which is how they worked

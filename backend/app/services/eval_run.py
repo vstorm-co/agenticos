@@ -32,7 +32,7 @@ import json
 import logging
 from collections import defaultdict
 from collections.abc import Collection, Mapping, Sequence
-from dataclasses import dataclass, field, replace
+from dataclasses import asdict, dataclass, field, replace
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Literal
@@ -44,7 +44,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.capabilities.budget import price_request
 from app.agents.capabilities.context import ContextBody
-from app.agents.capabilities.skills import SkillBody
+from app.agents.capabilities.skills import SkillBody, SkillBodyFile
 from app.agents.spec import AgentSpec
 from app.agents.system_agents import JUDGE, refuse_system_agent, steps
 from app.core.config import settings
@@ -180,15 +180,33 @@ def spec_hash(
 
 def _bodies_json(
     bodies: Mapping[UUID, SkillBody] | Mapping[UUID, ContextBody],
-) -> dict[str, dict[str, str | None]]:
+) -> dict[str, dict[str, object]]:
     return {
         str(key): {
             "description": body.description,
             "content": body.content,
             **({"name": body.name} if body.name is not None else {}),
+            **(
+                {"resources": [asdict(file) for file in body.resources]}
+                if isinstance(body, SkillBody) and body.resources is not None
+                else {}
+            ),
         }
         for key, body in bodies.items()
     }
+
+
+def skill_body_from_json(body: Mapping[str, object]) -> SkillBody:
+    """A projected skill body as `_bodies_json` stored it."""
+    files = body.get("resources")
+    return SkillBody(
+        description=TypeAdapter(str).validate_python(body["description"]),
+        content=TypeAdapter(str).validate_python(body["content"]),
+        name=TypeAdapter(str | None).validate_python(body.get("name")),
+        resources=None
+        if files is None
+        else tuple(TypeAdapter(list[SkillBodyFile]).validate_python(files)),
+    )
 
 
 def attempt_state(attempt: EvalRunCase, score: CaseScore | None) -> CaseState:
@@ -782,11 +800,7 @@ class EvalRunService:
             model_label=arm.model_label,
             cached=(arm, run),
             skill_bodies={
-                UUID(key): SkillBody(
-                    description=body["description"],
-                    content=body["content"],
-                    name=TypeAdapter(str | None).validate_python(body.get("name")),
-                )
+                UUID(key): skill_body_from_json(body)
                 for key, body in (arm.skill_bodies or {}).items()
             },
             context_bodies={

@@ -38,7 +38,7 @@ from uuid import UUID
 
 from pydantic_ai.workspaces import Workspace
 
-from app.agents.capabilities.skills import SkillBody
+from app.agents.capabilities.skills import SkillBody, served_files
 from app.db.models.skill import Skill
 from app.services.skill_library import split_frontmatter
 
@@ -161,11 +161,10 @@ async def materialise(
         state.owners[skill.name] = skill.id
         state.versions[skill.name] = skill.version
         state.version_ids[skill.name] = skill.latest_version_id
-        files = {
-            f"{skill_dir(skill.name)}/{BODY_FILE}": render_body(skill, (bodies or {}).get(skill.id))
-        }
-        for resource in skill.resources:
-            files[f"{skill_dir(skill.name)}/{resource.name}"] = resource.content
+        body = (bodies or {}).get(skill.id)
+        files = {f"{skill_dir(skill.name)}/{BODY_FILE}": render_body(skill, body)}
+        for file in served_files(skill, body):
+            files[f"{skill_dir(skill.name)}/{file.name}"] = file.content
         for path, content in files.items():
             if await _write(workspace, path, content):
                 state.written[path] = content
