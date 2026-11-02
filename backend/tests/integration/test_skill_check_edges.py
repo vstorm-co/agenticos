@@ -590,7 +590,7 @@ class TestSampleAndTestSet:
         async def for_skill(_self, _ctx, _skill_id, **_):
             return pack
 
-        async def answers(_db, run_ids):
+        async def answers(_db, run_ids, *, organization_id):
             return {run_id: uuid.uuid4() for run_id in run_ids}
 
         async def add(_self, _ctx, dataset_id, message_ids, **kwargs):

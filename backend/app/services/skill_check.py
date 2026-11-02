@@ -1312,7 +1312,7 @@ class SkillCheckService:
 
         pack = await EvidenceService(self.db).for_skill(ctx, skill.id, window_days=window_days)
         answers = await conversation_repo.last_answers_of_runs(
-            self.db, [run.run_id for run in pack.runs]
+            self.db, [run.run_id for run in pack.runs], organization_id=ctx.organization_id
         )
         ratings = {run.run_id: run.rating for run in pack.runs}
         answer_as: dict[UUID, AnswerAs] = {
