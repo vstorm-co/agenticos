@@ -1,5 +1,5 @@
 ---
-source_sha: "6b5734e8d7df"
+source_sha: "b8f0073a7c90"
 ---
 
 # Skills { #skills }
@@ -353,6 +353,52 @@ ist, und ein Versprechen über Inhalte, die hier niemand gelesen hat. Jeder Ordn
 in `app/core/catalog/skills/` und `app/core/catalog/skill_gallery/` ist dasselbe
 kleine Versprechen, das auch der [MCP-Katalog](mcp.md#the-catalog) gibt: jemand
 hat es sich angesehen.
+
+## Die Seite eines Skills { #a-skills-page }
+
+Öffnen Sie einen Skill in der Liste, um seine Seite zu sehen. Sie hat drei Tabs.
+
+**Agents** listet jeden Agent, der den Skill nutzt, mit der Version, die er bekommt:
+
+- `v12 · main` - der Agent folgt main und bekommt jede neue Version sofort.
+- `v9 · fixiert · 3 hinter main` - der Agent bleibt auf einer älteren main-Version.
+- `Fork „Returns“ · ab v7 · 2 Änderungen` - der Agent nutzt einen Fork: eine Linie
+  von Versionen mit eigenen Änderungen, gestartet von einer main-Version.
+
+Eine Umgebung, die eine andere Version ausliefert, steht unter dem Agent. Ein Agent,
+der den Skill nur in seinem Entwurf bindet, ist mit **Nur im Entwurf** markiert und
+zählt zu keiner Linie. Agents, die Sie nicht sehen, werden gezählt, nicht genannt.
+Die Chips über der Tabelle zeigen alle, die Agents auf main, die fixierten oder
+einen Fork. Ein dort gewählter Fork ist auch die Linie, die der Verlauf zeigt und in
+die Bearbeiten speichert.
+
+**Version ändern** setzt einen Agent auf main, auf eine fixierte main-Version oder
+auf einen Fork. Es veröffentlicht eine neue Version des Agents aus seiner
+veröffentlichten Version, in der sich nur die Bindung dieses Skills ändert, und
+macht dieselbe Änderung im Entwurf des Agents. Andere unfertige Änderungen im
+Entwurf bleiben im Entwurf. Eine Version, auf der der Agent nicht ist, wurde auf ihm
+nicht geprüft, deshalb bestätigen Sie das zuerst. Das Steuerelement braucht das
+Recht, den Agent zu veröffentlichen; mit nur dem Recht zum Bearbeiten wird die
+Änderung im Entwurf gespeichert, und Sie veröffentlichen sie im Builder.
+
+**Verlauf** listet die Versionen der gewählten Linie, die neueste zuerst: woher jede
+kam (eine Bearbeitung, eine Dateiänderung, die Bibliothek, der Workspace eines
+Agents, Improve oder eine Wiederherstellung), wer sie gemacht hat und wann.
+**Änderungen zeigen** vergleicht Beschreibung und Anweisungen mit der Version davor -
+bei der ersten Version eines Forks mit seiner Basis auf main - und nennt die
+hinzugefügten, entfernten oder geänderten Dateien. **Wiederherstellen** holt eine
+frühere Version als neueste auf ihre eigene Linie zurück, und die Agents, die dieser
+Linie folgen, bekommen sie sofort.
+
+**Versionsbaum** zeichnet main von der neuesten Version abwärts, jeden Fork von der
+Version, bei der er begann, und die Agents bei der Version, die sie nutzen.
+Abschnitte, die kein Agent nutzt, werden zu einer Zeile zusammengefaltet.
+
+**Bearbeiten** speichert eine neue Version auf der angezeigten Linie. Auf main
+bekommen die Agents, die main folgen, sie sofort; fixierte Agents und Forks behalten
+ihre Version. Dateien und Kategorie gehören zu main, deshalb ändert das Bearbeiten
+eines Forks nur seine Beschreibung und Anweisungen. Bearbeiten, Wiederherstellen und
+Version ändern sehen nur Personen, die diese Änderung vornehmen dürfen.
 
 ## Skills oder Knowledge? { #skills-or-knowledge }
 
