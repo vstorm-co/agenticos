@@ -5523,6 +5523,30 @@
       "skill-tree": {
         "title": "Main and its forks",
         "body": "Main runs down from its newest version, each fork branches off the version it started from, and agents sit at the version they use."
+      },
+      "skill-improve": {
+        "title": "Improve the skill",
+        "body": "Opens a step-by-step session for the line on screen: main, or the fork you picked. Nothing changes until you accept a result."
+      },
+      "skill-improvement-start": {
+        "title": "Who it is checked on",
+        "body": "Every agent of the line is named before anything is spent, the ones that cannot be checked with the reason, and the price comes with a limit you set."
+      },
+      "skill-improvement-steps": {
+        "title": "The same five steps",
+        "body": "Understand, Changes, Check, Result and Accept, as in agent Improve. The session stops for you after Understand, after Changes and at the result."
+      },
+      "skill-improvement-agents": {
+        "title": "A result for every agent",
+        "body": "Each agent of the line comes out better, unchanged, within noise, worse or unknown, worst first, with what it fixed and broke and a link to its run."
+      },
+      "skill-improvement-accept": {
+        "title": "What you may do with it",
+        "body": "Apply it when nobody got worse. When somebody did: keep them on their version, make a fork for the agents it helped, improve it further or discard it."
+      },
+      "skill-improvement-test-set": {
+        "title": "Questions of the skill's own",
+        "body": "Agents without test questions come out unknown. The skill's own questions, written from answers where it was loaded, let them be checked next time."
       }
     },
     "chooseLanguage": "Language",

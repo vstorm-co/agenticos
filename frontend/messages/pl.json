@@ -5291,6 +5291,30 @@
       "skill-tree": {
         "title": "Main i jego forki",
         "body": "Main biegnie w dół od najnowszej wersji, każdy fork odchodzi od wersji, od której wystartował, a agenci stoją przy wersji, której używają."
+      },
+      "skill-improve": {
+        "title": "Ulepsz skill",
+        "body": "Otwiera sesję krok po kroku dla widocznej linii: main albo wybranego forka. Nic się nie zmienia, dopóki nie zaakceptujesz wyniku."
+      },
+      "skill-improvement-start": {
+        "title": "Na kim jest sprawdzany",
+        "body": "Każdy agent linii jest wymieniony, zanim cokolwiek zostanie wydane, ci, których nie da się sprawdzić, z powodem, a cena przychodzi z limitem, który ustawiasz."
+      },
+      "skill-improvement-steps": {
+        "title": "Tych samych pięć kroków",
+        "body": "Zrozum, Zmiany, Sprawdzenie, Wynik i Akceptacja, jak w ulepszaniu agenta. Sesja zatrzymuje się dla Ciebie po Zrozum, po Zmianach i przy wyniku."
+      },
+      "skill-improvement-agents": {
+        "title": "Wynik dla każdego agenta",
+        "body": "Każdy agent linii wypada lepiej, bez zmian, w granicach szumu, gorzej albo nie wiadomo, najgorsi na górze, z tym, co naprawił i zepsuł, i linkiem do runu."
+      },
+      "skill-improvement-accept": {
+        "title": "Co możesz z tym zrobić",
+        "body": "Zastosuj, gdy nikt nie wypadł gorzej. Gdy ktoś wypadł: zostaw go na jego wersji, zrób fork dla agentów, którym pomogło, popraw dalej albo odrzuć."
+      },
+      "skill-improvement-test-set": {
+        "title": "Własne pytania skilla",
+        "body": "Agenci bez pytań testowych wychodzą jako nie wiadomo. Własne pytania skilla, zapisane z odpowiedzi, w których był wczytany, pozwolą ich sprawdzić następnym razem."
       }
     },
     "chooseLanguage": "Język",

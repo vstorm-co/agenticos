@@ -5401,6 +5401,30 @@
       "skill-tree": {
         "title": "Main und seine Forks",
         "body": "Main läuft von der neuesten Version nach unten, jeder Fork zweigt von seiner Startversion ab, und Agents stehen bei der Version, die sie nutzen."
+      },
+      "skill-improve": {
+        "title": "Den Skill verbessern",
+        "body": "Öffnet eine Sitzung Schritt für Schritt für die angezeigte Linie: main oder den gewählten Fork. Nichts ändert sich, bevor Sie ein Ergebnis annehmen."
+      },
+      "skill-improvement-start": {
+        "title": "Auf wem geprüft wird",
+        "body": "Jeder Agent der Linie wird genannt, bevor etwas ausgegeben wird, die nicht prüfbaren mit Grund, und der Preis kommt mit einem Limit, das Sie setzen."
+      },
+      "skill-improvement-steps": {
+        "title": "Dieselben fünf Schritte",
+        "body": "Verstehen, Änderungen, Prüfung, Ergebnis und Annehmen, wie beim Verbessern eines Agents. Die Sitzung hält nach Verstehen, nach Änderungen und beim Ergebnis für Sie an."
+      },
+      "skill-improvement-agents": {
+        "title": "Ein Ergebnis für jeden Agent",
+        "body": "Jeder Agent der Linie wird besser, bleibt gleich, liegt im Rauschen, wird schlechter oder ist unbekannt, die schlechtesten zuerst, mit dem, was er behob und verschlechterte, und einem Link zu seinem Run."
+      },
+      "skill-improvement-accept": {
+        "title": "Was Sie damit tun können",
+        "body": "Anwenden, wenn niemand schlechter wurde. Wenn doch: diese auf ihrer Version lassen, einen Fork für die Agents anlegen, denen es half, weiter verbessern oder verwerfen."
+      },
+      "skill-improvement-test-set": {
+        "title": "Eigene Fragen des Skills",
+        "body": "Agents ohne Testfragen sind unbekannt. Die eigenen Fragen des Skills, aus Antworten geschrieben, in denen er geladen wurde, lassen sie beim nächsten Mal prüfen."
       }
     },
     "chooseLanguage": "Sprache",
