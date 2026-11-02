@@ -715,11 +715,13 @@ class RAGDocumentService:
         runner rather than raised. The store rides the process's vector engine, not
         this request's session, so the deferred coroutine may hold it safely.
 
-        A single document's cleanup stays in-process, where the bulk teardown paths
+        A settled document's cleanup stays in-process, where the bulk teardown paths
         (`_retire_superseded`, `KnowledgeBaseService.delete` and
         `delete_for_rag_collection`) queue theirs as a durable job (#1349): the leak
         a lost single-document task would strand is one file and one document's
         vectors, and a durable job per document delete is disproportionate to that.
+        A vector id discovered only by the delete belongs to an ingest that settled
+        concurrently; queue that removal durably, like the row-gone settlement path.
 
         **`ingestion_service` has no default, and that is the whole of it.** It
         was `Any = None`, and the vector cleanup ran only when a caller happened
@@ -737,6 +739,7 @@ class RAGDocumentService:
         # org's or base's document in a collection whose name they share (#1684,
         # #2537). Read now, before the row is deleted.
         scope = await self.vector_scope(doc)
+        loaded_vector_id = doc.vector_document_id
         # The vector id comes from the delete, not `doc`: the caller may have loaded
         # the row before an ingest settled it, and a delete that waited on that
         # settlement deletes the settled row. A row still without one belongs to an
@@ -746,6 +749,9 @@ class RAGDocumentService:
         from app.core.background import spawn_after_commit
 
         for vector_document_id in deleted.vector_document_ids:
+            if vector_document_id != loaded_vector_id:
+                await self.discard_untracked(collection_name, vector_document_id, scope=scope)
+                continue
             spawn_after_commit(
                 self.db,
                 ingestion_service.remove_document(collection_name, vector_document_id, scope=scope),

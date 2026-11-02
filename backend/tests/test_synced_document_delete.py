@@ -83,6 +83,43 @@ def _deletes(row: MagicMock) -> AsyncMock:
 
 
 class TestDeletingATrackedDocument:
+    @pytest.mark.parametrize("loaded_vector_id", [None, "previous-vector"])
+    async def test_a_concurrently_settled_vector_is_queued_durably(
+        self, monkeypatch: pytest.MonkeyPatch, loaded_vector_id: str | None
+    ) -> None:
+        row = _row(vector_document_id=loaded_vector_id)
+        monkeypatch.setattr(rag_document_repo, "get_by_id", AsyncMock(return_value=row))
+        monkeypatch.setattr(
+            rag_document_repo,
+            "delete_with_vectors",
+            AsyncMock(
+                return_value=rag_document_repo.DeletedDocuments(
+                    storage_paths=[], vector_document_ids=["new-vector"]
+                )
+            ),
+        )
+        queued = AsyncMock()
+        monkeypatch.setattr("app.services.rag_document.enqueue", queued)
+        ingestion = MagicMock(remove_document=AsyncMock())
+        db = _deferring_db()
+
+        await RAGDocumentService(db).delete_document(str(row.id), ingestion)
+
+        from app.worker.jobs import DISCARD_VECTOR_DOCUMENT, DiscardVectorDocument
+
+        assert queued.await_args.args == (
+            db,
+            DISCARD_VECTOR_DOCUMENT,
+            DiscardVectorDocument(
+                collection="docs",
+                vector_document_id="new-vector",
+                tenant=None,
+                knowledge_base_id=None,
+            ),
+        )
+        await _run_deferred(db)
+        ingestion.remove_document.assert_not_awaited()
+
     async def test_the_vectors_go_after_the_row_commits(self, monkeypatch):
         """The vector removal is deferred past the commit, so a rolled-back delete
         keeps the vectors beside the row it restores (#1347)."""

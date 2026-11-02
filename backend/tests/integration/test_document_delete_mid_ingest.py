@@ -235,6 +235,11 @@ async def test_a_delete_that_read_the_row_before_the_settlement_purges_what_it_s
         await upload.delete(s)
     await drain()
 
+    # The delete discovered the newly settled id. Its cleanup survives the API
+    # process exiting after commit, rather than relying on its deferred tasks.
+    assert await upload.remaining(result) == (1, 1)
+    assert await _run_queued() == [DISCARD_VECTOR_DOCUMENT.kind]
+
     assert await upload.remaining(result) == (0, 1)
 
 

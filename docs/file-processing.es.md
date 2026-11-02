@@ -1,5 +1,5 @@
 ---
-source_sha: "c7ffe5ebf590"
+source_sha: "4ccd1e16c6dc"
 ---
 
 # Procesamiento de archivos { #file-processing }
@@ -1019,8 +1019,8 @@ fila no tiene identificador de documento vectorial hasta que la ingesta lo
 registra, así que el borrado puede no tener nada que eliminar; el worker que no
 encuentra la fila al registrar el resultado encola, en la misma transacción, un
 trabajo que elimina los fragmentos que acaba de escribir y se reintenta si la
-eliminación falla. Un borrado que espera a ese registro los elimina él mismo, por el
-identificador que tiene la fila borrada
+eliminación falla. Un borrado que descubre el identificador recién registrado encola la misma
+eliminación duradera con el identificador de la fila borrada
 ([#2565](https://github.com/vstorm-co/agenticos/issues/2565)).
 
 Una sincronización local encolada para una base borrada antes de ejecutarse

@@ -1,5 +1,5 @@
 ---
-source_sha: "c7ffe5ebf590"
+source_sha: "4ccd1e16c6dc"
 ---
 
 # Przetwarzanie plików { #file-processing }
@@ -998,7 +998,8 @@ Jego wiersz nie ma identyfikatora dokumentu wektorowego, dopóki ingest go nie
 zapisze, więc usunięcie może nie mieć czego usunąć; worker, który przy zapisie
 wyniku nie znajduje wiersza, kolejkuje w tej samej transakcji zadanie, które usuwa
 chunki, które właśnie zapisał, i jest ponawiane, gdy usunięcie się nie powiedzie. Usunięcie, które
-czeka na ten zapis, usuwa je samo, według identyfikatora z usuniętego wiersza
+odczyta nowo zapisany identyfikator, kolejkuje takie samo trwałe zadanie
+według identyfikatora z usuniętego wiersza
 ([#2565](https://github.com/vstorm-co/agenticos/issues/2565)).
 
 Lokalna synchronizacja zakolejkowana dla bazy usuniętej przed jej uruchomieniem

@@ -1,5 +1,5 @@
 ---
-source_sha: "c7ffe5ebf590"
+source_sha: "4ccd1e16c6dc"
 ---
 
 # Dateiverarbeitung { #file-processing }
@@ -1065,8 +1065,8 @@ keine Chunks. Seine Zeile hat keine Vektordokument-ID, bis der Ingest eine
 einträgt, sodass das Löschen womöglich nichts zu entfernen hat; der Worker, der
 beim Festhalten des Ergebnisses die Zeile nicht mehr findet, reiht in derselben
 Transaktion einen Job ein, der die gerade geschriebenen Chunks entfernt und bei
-einem Fehlschlag wiederholt wird. Ein Löschen, das auf diesen Eintrag wartet,
-entfernt sie selbst, anhand der ID, die die gelöschte Zeile trägt
+einem Fehlschlag wiederholt wird. Ein Löschen, das die neu eingetragene ID entdeckt, reiht denselben dauerhaften
+Job anhand der ID der gelöschten Zeile ein
 ([#2565](https://github.com/vstorm-co/agenticos/issues/2565)).
 
 Eine lokale Synchronisierung, die für eine vor ihrem Start gelöschte Basis
