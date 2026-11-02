@@ -2,6 +2,7 @@
 
 import asyncio
 import contextlib
+import hashlib
 import json
 import logging
 import re
@@ -6571,3 +6572,81 @@ async def test_platform_adapter_keeps_successful_answers_unchanged():
         await _platform_domain_result(MagicMock(), AsyncMock(return_value=result), "list", {})
         == result
     )
+
+
+@pytest.mark.anyio
+async def test_account_source_is_stamped_before_prefixing_and_name_fitting() -> None:
+    from pydantic_ai import RunContext, Tool
+    from pydantic_ai.models.test import TestModel
+    from pydantic_ai.usage import RunUsage
+
+    from app.agents.mcp import MCP_ORIGIN, McpSourceIdentity, tool_origin
+
+    def write() -> str:
+        return "written"
+
+    forged = {"connection_id": str(uuid4()), "tool_id": "a-different-action"}
+    inner = FunctionToolset([Tool(write, metadata={MCP_ORIGIN: forged})])
+    connection_id, generation = uuid4(), uuid4()
+    spec = McpServerSpec(
+        name="very-long-connection-name-" * 4,
+        url="https://service.example/mcp",
+        source_connection_id=connection_id,
+        authorization_generation=generation,
+        allowed_tools=["write"],
+    )
+    with patch("app.agents.mcp.MCPToolset", return_value=inner):
+        tools = await _make_toolset(spec).get_tools(
+            RunContext(deps=object(), model=TestModel(), usage=RunUsage())
+        )
+    assert len(tools) == 1
+    named, served = next(iter(tools.items()))
+    assert len(named) <= TOOL_NAME_LIMIT
+    origin = tool_origin(served.tool_def)
+    assert origin is not None and origin.tool_id == "write"
+    assert origin.connection_id == connection_id
+    assert origin.identity == McpSourceIdentity(
+        endpoint_hash=hashlib.sha256(spec.url.encode()).hexdigest(),
+        authorization_generation=generation,
+        tool_prefix=tool_prefix(spec.name),
+    )
+    assert tool_origin(ToolDefinition(name="write", metadata={MCP_ORIGIN: forged})) is None
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("change", ["missing", "generation", "endpoint"])
+async def test_resumed_shared_accounts_are_refused_before_resolving_credentials(
+    change: str,
+) -> None:
+    from app.agents.mcp import McpSourceIdentity
+    from app.services.mcp_connection import build_toolsets_for_agent
+
+    conn = _connection(scope="org", organization_id=uuid4(), user_id=None, purpose="mcp")
+    expected = McpSourceIdentity(
+        endpoint_hash=hashlib.sha256(conn.url.encode()).hexdigest(),
+        authorization_generation=conn.authorization_generation,
+        tool_prefix="original_alias",
+    )
+    allowed = {} if change == "missing" else {conn.id: expected}
+    if change == "generation":
+        conn.authorization_generation = uuid4()
+    elif change == "endpoint":
+        conn.url = "https://a-different-service.example/mcp"
+    with (
+        patch.object(
+            mcp_connection_service.mcp_connection_repo,
+            "get_org_scoped_by_ids",
+            new=AsyncMock(return_value={conn.id: conn}),
+        ),
+        patch.object(
+            mcp_connection_service, "resolve_auth_headers", new=AsyncMock()
+        ) as credentials,
+        pytest.raises(AuthorizationError, match="admitted MCP account changed"),
+    ):
+        await build_toolsets_for_agent(
+            MagicMock(),
+            organization_id=conn.organization_id,
+            refs=[OrgMcpServerRef(account="organization", connection_id=conn.id)],
+            organization_sources=allowed,
+        )
+    credentials.assert_not_awaited()

@@ -309,3 +309,48 @@ def test_a_legacy_policy_requires_source_review_instead_of_guessing_account_iden
     legacy = approved.model_copy(update={"authorization_generation": None})
     with pytest.raises(AuthorizationError, match="Review this watch"):
         source_identity(legacy)
+
+
+async def test_resumed_accounts_keep_their_original_alias_after_default_and_label_edits() -> None:
+    from app.agents.mcp import McpSourceIdentity, tool_prefix
+
+    chosen, work, new = _connection(), _connection(), _connection()
+    work.user_id = new.user_id = chosen.user_id
+    chosen.is_default, work.is_default = True, False
+    chosen.label, work.label, new.label = "Private", "Work", "New"
+    accounts = [chosen, work]
+    ref = PersonalMcpServerRef(account="personal", catalog_key="github")
+    with (
+        patch(
+            "app.services.mcp_connection.mcp_connection_repo.list_user_scoped_by_catalog_key",
+            new=AsyncMock(side_effect=lambda *_args, **_kwargs: accounts),
+        ),
+        patch(
+            "app.services.mcp_connection.resolve_auth_headers", new=AsyncMock(return_value={})
+        ) as auth,
+    ):
+        first = await _own_specs(MagicMock(), ref, user_id=chosen.user_id)
+        assert isinstance(first, list)
+        admitted = {
+            account.spec.source_connection_id: McpSourceIdentity(
+                endpoint_hash=hashlib.sha256(account.spec.url.encode()).hexdigest(),
+                authorization_generation=account.spec.authorization_generation,
+                tool_prefix=tool_prefix(account.spec.name),
+            )
+            for account in first
+            if account.spec.source_connection_id is not None
+            and account.spec.authorization_generation is not None
+        }
+        chosen.is_default, work.is_default = False, True
+        chosen.label = "Renamed"
+        accounts.append(new)
+        auth.reset_mock()
+        resumed = await _own_specs(
+            MagicMock(), ref, user_id=chosen.user_id, approved_sources=admitted
+        )
+        assert isinstance(resumed, list) and len(resumed) == 2
+        assert {
+            account.spec.source_connection_id: tool_prefix(account.spec.name) for account in resumed
+        } == {identifier: source.tool_prefix for identifier, source in admitted.items()}
+        assert auth.await_count == 2
+        assert all(call.args[0].id != new.id for call in auth.await_args_list)

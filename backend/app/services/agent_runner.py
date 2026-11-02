@@ -179,7 +179,7 @@ from app.agents.failures import run_failure_summary
 from app.agents.hand_off import CallWorker, HandOffSpend
 from app.agents.loop_guard import ToolLoopStopped
 from app.agents.manifest import RunRecorder, as_payload, carried_over, fit
-from app.agents.mcp import PLATFORM_MCP_PREFIX, unreachable_briefing
+from app.agents.mcp import PLATFORM_MCP_PREFIX, McpSourceIdentity, unreachable_briefing
 from app.agents.model_resolver import ModelRequestSpec
 from app.agents.observability import current_trace_id
 from app.agents.person_briefing import Person, with_person
@@ -321,7 +321,7 @@ from app.services.notifications import NotificationService
 from app.services.organization import OrganizationService
 from app.services.organization_secret import OrganizationSecretService
 from app.services.project import ProjectService
-from app.services.routine_authority import RoutineAuthority
+from app.services.routine_authority import MCP_SOURCES, RoutineAuthority
 from app.services.run_heartbeat import run_heartbeat
 from app.services.sandbox_workspace import (
     SANDBOX_CAPABILITY_ID,
@@ -2514,6 +2514,7 @@ class _Delegation:
 
     routine_check: RoutineCheck | None = None
     routine_action_check: RoutineToolCheck | None = None
+    routine_sources: dict[UUID, McpSourceIdentity] | None = None
 
     catalog: _ModelCatalog = field(default_factory=_ModelCatalog)
     """The organization's model catalog, read at most once and only if asked for.
@@ -3624,16 +3625,19 @@ class AgentRunnerService:
         # surface. A surface that forgot would produce an agent missing half its
         # tools with nothing to show for it, and the answer would differ between
         # the playground and Slack for no reason anybody could see.
+        admitted_mcp_sources = (
+            routine.mcp_sources or {} if routine is not None and existing_run is not None else None
+        )
+        personal_sources = admitted_mcp_sources
+        if watch_sources is not None:
+            personal_sources = {watch_sources.connection_id: source_identity(watch_sources)}
         resolved = await build_toolsets_for_agent(
             self.db,
             organization_id=ctx.organization_id,
             refs=spec.mcp_servers,
             sender_user_id=personal_mcp_user_id,
-            personal_sources=(
-                None
-                if watch_sources is None
-                else {watch_sources.connection_id: source_identity(watch_sources)}
-            ),
+            personal_sources=personal_sources,
+            organization_sources=admitted_mcp_sources,
             platform_credential=await self._platform_credential(
                 spec,
                 ctx,
@@ -3679,6 +3683,9 @@ class AgentRunnerService:
             )
         spec = _with_personal_service_gaps(spec, briefed, surface, sender_present=sender_present)
         spec = _with_account_notes(spec, resolved.accounts)
+        if routine is not None and routine.routine_kind == "trigger" and existing_run is None:
+            routine = replace(routine, mcp_sources=resolved.sources)
+            routine_check = routine.check
 
         run = existing_run
         if run is None:
@@ -3702,9 +3709,12 @@ class AgentRunnerService:
                     else None
                     if routine is None
                     else {
+                        "mcp_sources": MCP_SOURCES.dump_python(
+                            routine.mcp_sources or {}, mode="json"
+                        ),
                         "action_consents": [
                             consent.model_dump(mode="json") for consent in routine.action_consents
-                        ]
+                        ],
                     }
                 ),
                 routine_activation_at=None
@@ -4031,6 +4041,7 @@ class AgentRunnerService:
             answering_call=None if voice is None else voice.options,
             routine_check=routine_check,
             routine_action_check=None if routine is None else routine.action_policy,
+            routine_sources=None if routine is None else routine.mcp_sources or {},
         )
         if runtime is not None:
             resources[SUBAGENT_RUNTIME_RESOURCE] = runtime
@@ -4308,6 +4319,7 @@ class AgentRunnerService:
         answering_call: VoiceOptions | None = None,
         routine_check: RoutineCheck | None = None,
         routine_action_check: RoutineToolCheck | None = None,
+        routine_sources: dict[UUID, McpSourceIdentity] | None = None,
     ) -> SubagentRuntime | None:
         """The delegation tree this run may reach, or `None` if it delegates to none.
 
@@ -4377,6 +4389,7 @@ class AgentRunnerService:
             answering_call=answering_call,
             routine_check=routine_check,
             routine_action_check=routine_action_check,
+            routine_sources=routine_sources,
         )
         # `max_depth` counts levels of delegation *including this agent's own*, so
         # the budget left below this level is one less. The subtraction is the whole
@@ -4877,6 +4890,8 @@ class AgentRunnerService:
             organization_id=ctx.organization_id,
             refs=runnable.mcp_servers,
             sender_user_id=delegation.personal_mcp_user_id,
+            personal_sources=delegation.routine_sources,
+            organization_sources=delegation.routine_sources,
             # The run's own person, as for the parent: on a resume `ctx` is the
             # approver's, and a delegate must not carry their authority either.
             platform_credential=await self._platform_credential(runnable, ctx, delegation.run),

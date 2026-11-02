@@ -75,6 +75,7 @@ from app.core.background import spawn_after_commit
 from app.core.config import settings
 from app.core.exceptions import (
     AlreadyExistsError,
+    AuthorizationError,
     BadRequestError,
     ExternalServiceError,
     NotFoundError,
@@ -2542,6 +2543,8 @@ class ResolvedMcpToolsets:
     unavailable: list[UnavailableBinding]
     accounts: list[AccountNote] = field(default_factory=list)
     """The accounts of each service reached through more than one, by prefix."""
+    sources: dict[UUID, McpSourceIdentity] = field(default_factory=dict)
+    """The concrete accounts admitted by reachable bindings, without credentials."""
     origins: dict[str, UUID] = field(default_factory=dict)
     """Each tool an organization connection serves, by the name the model calls,
     mapped to that connection. Filled as the run lists its tools, so read it once
@@ -2556,6 +2559,7 @@ async def build_toolsets_for_agent(
     sender_user_id: UUID | None = None,
     platform_credential: str | None = None,
     personal_sources: Mapping[UUID, McpSourceIdentity] | None = None,
+    organization_sources: Mapping[UUID, McpSourceIdentity] | None = None,
 ) -> ResolvedMcpToolsets:
     """Agent toolsets for a published agent: exactly the servers its spec names.
 
@@ -2644,6 +2648,10 @@ async def build_toolsets_for_agent(
                 organization_id,
             )
             continue
+        if not _source_allows(connection, organization_sources):
+            raise AuthorizationError(
+                message="This routine's admitted MCP account changed. Start a new run after reviewing its access."
+            )
         headers = await resolve_auth_headers(connection)
         if headers is None:
             # OAuth not authorized / expired, or an undecryptable bearer token.
@@ -2656,7 +2664,9 @@ async def build_toolsets_for_agent(
             )
             continue
         spec = McpServerSpec(
-            name=connection.name,
+            name=(organization_sources[connection.id].tool_prefix or connection.name)
+            if organization_sources is not None
+            else connection.name,
             url=connection.url,
             headers=headers,
             allowed_tools=_narrowed_tools(connection.allowed_tools, ref.allowed_tools),
@@ -2666,6 +2676,8 @@ async def build_toolsets_for_agent(
             # service names the second (#2125), and an approval should say which.
             account=connection.label,
             connection_id=connection.id,
+            source_connection_id=connection.id,
+            authorization_generation=connection.authorization_generation,
         )
         specs.append(spec)
         bindings[id(spec)] = f"the connection {connection.name!r}"
@@ -2745,6 +2757,15 @@ async def build_toolsets_for_agent(
             [reaches[id(spec)] for spec, _ in attached if id(spec) in reaches]
         ),
         origins=origins,
+        sources={
+            spec.source_connection_id: McpSourceIdentity(
+                endpoint_hash=hashlib.sha256(spec.url.encode()).hexdigest(),
+                authorization_generation=spec.authorization_generation,
+                tool_prefix=tool_prefix(spec.name),
+            )
+            for spec, _ in attached
+            if spec.source_connection_id is not None and spec.authorization_generation is not None
+        },
     )
 
 
@@ -2802,15 +2823,7 @@ async def _own_specs(
     if approved_sources is not None:
         # Before resolving a credential or probing a server: a new account or
         # changed endpoint must not widen an existing watch's source consent.
-        owned = [
-            account
-            for account in owned
-            if account.id in approved_sources
-            and approved_sources[account.id].endpoint_hash
-            == hashlib.sha256(account.url.encode()).hexdigest()
-            and approved_sources[account.id].authorization_generation
-            == account.authorization_generation
-        ]
+        owned = [account for account in owned if _source_allows(account, approved_sources)]
     if not owned:
         return "not_connected"
     primary = next((account for account in owned if account.is_default), owned[0])
@@ -2826,6 +2839,11 @@ async def _own_specs(
             )
             continue
         name = ref.catalog_key if account is primary else _extra_prefix(ref.catalog_key, account)
+        reviewed_prefix = (
+            None if approved_sources is None else approved_sources[account.id].tool_prefix
+        )
+        if reviewed_prefix is not None:
+            name = reviewed_prefix
         if name in taken:
             # Two labels that read the same as a tool name (`Sales US`, `Sales-US`)
             # would share one prefix, and the resolver keeps only the first.
@@ -2841,6 +2859,8 @@ async def _own_specs(
             # Named on an approval wherever it is a question: one of several accounts
             # on the service, or one its person labelled.
             account=_account_name(account) if len(owned) > 1 else account.label,
+            source_connection_id=account.id,
+            authorization_generation=account.authorization_generation,
         )
         accounts.append(_OwnAccount(spec=spec, label=_account_name(account)))
     return accounts or "unauthorized"
@@ -2923,3 +2943,16 @@ def _narrowed_tools(connection: list[str] | None, binding: list[str] | None) -> 
         return connection
     within = set(binding)
     return [tool for tool in connection if tool in within]
+
+
+def _source_allows(
+    connection: McpConnection, sources: Mapping[UUID, McpSourceIdentity] | None
+) -> bool:
+    if sources is None:
+        return True
+    identity = sources.get(connection.id)
+    return (
+        identity is not None
+        and identity.endpoint_hash == hashlib.sha256(connection.url.encode()).hexdigest()
+        and identity.authorization_generation == connection.authorization_generation
+    )

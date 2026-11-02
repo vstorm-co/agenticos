@@ -13,12 +13,13 @@ from datetime import UTC, datetime
 from typing import Literal, Self
 from uuid import UUID
 
+from pydantic import TypeAdapter
 from pydantic import ValidationError as PydanticValidationError
 from pydantic_ai.tools import ToolDefinition
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.capabilities import get as capability
-from app.agents.mcp import needs_approval
+from app.agents.mcp import McpSourceIdentity, McpToolOrigin, needs_approval, tool_origin
 from app.agents.routine_actions import RoutineToolDecision
 from app.agents.spec import AgentSpec
 from app.core.exceptions import AuthorizationError
@@ -39,6 +40,8 @@ from app.schemas.routine_actions import RoutineActionConsent
 from app.schemas.watch_sources import WatchSources
 from app.services.access import AGENT, resolve_access
 from app.services.routine_actions import CONSENTS, action_intent, routine_effect
+
+MCP_SOURCES = TypeAdapter(dict[UUID, McpSourceIdentity])
 
 
 def _refused() -> AuthorizationError:
@@ -71,6 +74,7 @@ class RoutineAuthority:
     sources: WatchSources | None = None
     action_consents: tuple[RoutineActionConsent, ...] = ()
     root_version_id: UUID | None = None
+    mcp_sources: dict[UUID, McpSourceIdentity] | None = None
 
     @classmethod
     async def capture(
@@ -110,6 +114,7 @@ class RoutineAuthority:
             except PydanticValidationError:
                 raise _refused() from None
         action_consents: tuple[RoutineActionConsent, ...] = ()
+        mcp_sources: dict[UUID, McpSourceIdentity] | None = None
         if kind == "trigger":
             trigger = await agent_trigger_repo.get(db, origin, organization_id=ctx.organization_id)
             if trigger is None:
@@ -121,6 +126,11 @@ class RoutineAuthority:
                     else (run.routine_policy or {}).get("action_consents", [])
                 )
                 action_consents = tuple(CONSENTS.validate_python(recorded))
+                source_policy = (
+                    None if run is None else (run.routine_policy or {}).get("mcp_sources")
+                )
+                if source_policy is not None:
+                    mcp_sources = MCP_SOURCES.validate_python(source_policy)
             except PydanticValidationError:
                 raise _refused() from None
         member = await member_repo.get_active(
@@ -142,6 +152,7 @@ class RoutineAuthority:
             routine_kind="watch" if kind == "watch" else "trigger",
             sources=sources,
             action_consents=action_consents,
+            mcp_sources=mcp_sources,
             root_version_id=version_id if run is None else run.agent_version_id,
         )
         await authority.check_in(db, agent_id)
@@ -247,6 +258,9 @@ class RoutineAuthority:
         async with get_db_context() as db:
             await self.check_in(db, agent_id)
             if tool.capability_id is None:
+                origin = tool_origin(tool)
+                if origin is not None:
+                    await self._mcp_in(db, origin)
                 # An unclassified external tool is a write unless the server declares
                 # read-only, matching the existing connection's writes policy.
                 return RoutineToolDecision(required=needs_approval(tool, "writes"))
@@ -301,3 +315,51 @@ class RoutineAuthority:
             # Framework/third-party capability tools absent from the declared catalog
             # have no authority that the routine can grant by guessing a name.
             return RoutineToolDecision(required=True)
+
+    async def _mcp_in(self, db: AsyncSession, origin: McpToolOrigin) -> None:
+        expected = None if self.mcp_sources is None else self.mcp_sources.get(origin.connection_id)
+        if self.routine_kind == "watch" and self.sources is not None:
+            if origin.connection_id != self.sources.connection_id:
+                raise _refused()
+            expected = (
+                McpSourceIdentity(
+                    endpoint_hash=self.sources.endpoint_hash,
+                    authorization_generation=self.sources.authorization_generation,
+                )
+                if self.sources.authorization_generation is not None
+                else None
+            )
+        if (
+            expected is None
+            or expected.endpoint_hash != origin.identity.endpoint_hash
+            or expected.authorization_generation != origin.identity.authorization_generation
+            or (self.routine_kind == "trigger" and expected.tool_prefix is None)
+            or (
+                expected.tool_prefix is not None
+                and expected.tool_prefix != origin.identity.tool_prefix
+            )
+        ):
+            raise _refused()
+        connection = await mcp_connection_repo.get_by_id(db, origin.connection_id)
+        if (
+            connection is None
+            or not connection.is_enabled
+            or connection.purpose != "mcp"
+            or (
+                connection.allowed_tools is not None
+                and origin.tool_id not in connection.allowed_tools
+            )
+            or connection.authorization_generation != expected.authorization_generation
+            or hashlib.sha256(connection.url.encode()).hexdigest() != expected.endpoint_hash
+            or not (
+                (
+                    connection.scope == "user"
+                    and self.acts_as_creator
+                    and connection.user_id == self.user_id
+                )
+                or (
+                    connection.scope == "org" and connection.organization_id == self.organization_id
+                )
+            )
+        ):
+            raise _refused()

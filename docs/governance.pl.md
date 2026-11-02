@@ -1,5 +1,5 @@
 ---
-source_sha: "a9d5a01d22f4"
+source_sha: "3be6e0e8497f"
 ---
 
 # Governance { #governance }
@@ -72,6 +72,10 @@ Migracja `0269_routine_end_cleanup.py` dodaje znacznik rozliczonego terminu i cz
 Obserwowane połączenie MCP zapisuje także generację autoryzacji. Zakończona ponowna zgoda OAuth lub jawna wymiana tokenu albo adresu unieważnia starą zgodę obserwacji na źródło, nawet gdy identyfikator połączenia pozostaje ten sam. Zwykłe odświeżenie tokenu, etykiety i zmiana konta domyślnego nie podmieniają tej tożsamości. Ponownie sprawdzone źródło jest dostępne dla późniejszych uruchomień; stary wstrzymany run nie może pożyczyć nowej zgody.
 
 Po migracji `0270_mcp_authorization_generation.py` jawnie przejrzyj źródła istniejących obserwacji (`review_sources=true` lub **Ponownie zatwierdź dołączone źródła** w edytorze obserwacji). Starsze polityki pozostają czytelne, ale nie zgadują konta za historyczną autoryzacją. Poświadczenia dostawcy nie są odczytywane dla konta spoza dopuszczonej generacji. Opróżnij stare workery i zaktualizuj API oraz workery razem. Przed downgrade wstrzymaj obserwacje; wznawiaj je dopiero z kodem sprawdzającym generację i po przeglądzie źródeł. Wymiana poświadczeń czyści listę narzędzi poprzedniego konta do kolejnego udanego sprawdzenia.
+
+Uruchomienia rutyn zachowują konta MCP i aliasy narzędzi dopuszczone dla danego wykonania. Wznowione wywołanie używa tych aliasów: zmiana nazwy konta lub konta domyślnego nie przekierowuje istniejącego zatwierdzenia. Delegaci pozostają w granicach dopuszczonych kont. Przed wywołaniem ponownie sprawdzane są właściciel konta, adres, generacja autoryzacji i lista narzędzi; nowe lub zmienione konta są odfiltrowywane przed odczytem poświadczeń.
+
+Wstrzymana rutyna bez tego zapisu dopuszczenia nie może kontynuować wywołań MCP zarządzanych kont. Po przeglądzie dostępu rozpocznij nowy run. Domyślne zachowanie agenta interaktywnego i jawne polityki zatwierdzania nie zmieniają się; wyjątki zatwierdzania dla konkretnych kont pozostają osobnym mechanizmem względem kontroli źródła.
 
 Wybór wersji pozwala śledzić domyślną opublikowaną wersję albo przypiąć jedną niezmienną wersję. Publikacja nie przesuwa pinu. Usuń go, aby ponownie śledzić wersję domyślną. Nazwane środowisko i pin wersji wzajemnie się wykluczają; nadal obowiązują bieżące uprawnienia, budżety i zatwierdzenia.
 

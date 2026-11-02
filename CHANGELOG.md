@@ -21,6 +21,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Changed
 
+- **Breaking:** resumed routines and delegates retain their admitted MCP accounts and original tool aliases. New defaults, credential replacements and renamed accounts cannot retarget existing approvals. Start a new run for old parked routines without account-admission state.
+
 - **Breaking:** watch source consent now binds the MCP authorization generation. Review existing watches after migration `0270_mcp_authorization_generation.py`; OAuth re-consent and explicit token/endpoint replacements require another review, while ordinary token refresh preserves consent. Drain old workers and upgrade API/workers together.
 
 - **Breaking:** unattended routines now require approval for actions, local file

@@ -1,5 +1,5 @@
 ---
-source_sha: "a9d5a01d22f4"
+source_sha: "3be6e0e8497f"
 ---
 
 # Governance { #governance }
@@ -75,6 +75,10 @@ Die Migration `0269_routine_end_cleanup.py` ergänzt eine Markierung des erledig
 Eine beobachtete MCP-Verbindung speichert auch ihre Autorisierungsgeneration. Eine abgeschlossene erneute OAuth-Zustimmung oder ein ausdrücklich ersetztes Token beziehungsweise eine geänderte Adresse macht die bisherige Quellenzustimmung ungültig, selbst wenn die Verbindungs-ID gleich bleibt. Normale Token-Erneuerung, Bezeichnungen und Änderungen des Standardkontos ersetzen diese Identität nicht. Eine erneut geprüfte Quelle gilt für spätere Läufe; ein alter angehaltener Lauf kann die neue Zustimmung nicht übernehmen.
 
 Prüfe nach der Migration `0270_mcp_authorization_generation.py` die Quellen bestehender Beobachtungen ausdrücklich erneut (`review_sources=true` oder **Angehängte Quellen erneut freigeben** im Editor). Alte Richtlinien bleiben lesbar, erraten aber nicht das Konto hinter einer historischen Autorisierung. Für ein Konto außerhalb der zugelassenen Generation werden keine Anbieter-Zugangsdaten gelesen. Leere alte Worker und aktualisiere API und Worker gemeinsam. Pausiere Beobachtungen vor dem Downgrade; setze sie erst mit generationsprüfendem Code und geprüften Quellen fort. Ersetzte Zugangsdaten leeren die Werkzeugliste des alten Kontos bis zur nächsten erfolgreichen Prüfung.
+
+Routinenläufe behalten die für diese Ausführung zugelassenen MCP-Konten und Werkzeugaliase. Fortgesetzte Aufrufe verwenden dieselben Aliase: Umbenennen oder ein anderes Standardkonto leiten eine bestehende Freigabe nicht um. Delegierte bleiben innerhalb der zugelassenen Konten. Vor Aufrufen werden Kontoinhaber, Adresse, Autorisierungsgeneration und Werkzeuglisten erneut geprüft; neue oder geänderte Konten werden vor dem Lesen der Zugangsdaten ausgefiltert.
+
+Eine angehaltene Routine ohne diesen Zulassungsstand kann MCP-Aufrufe verwalteter Konten nicht fortsetzen. Starte nach Prüfung des Zugriffs einen neuen Lauf. Die Vorgaben interaktiver Agenten und ausdrückliche Bestätigungsrichtlinien bleiben unverändert; kontospezifische Freigabeausnahmen für Routinen sind von dieser Quellenprüfung getrennt.
 
 Die Versionsauswahl folgt entweder der standardmäßig veröffentlichten Version oder legt eine unveränderliche Version fest. Eine Veröffentlichung verschiebt diese Festlegung nicht. Entfernen Sie sie, um wieder der Standardversion zu folgen. Eine benannte Umgebung und eine festgelegte Version schließen sich aus; aktuelle Zugriffsrechte, Budgets und Freigaben gelten weiterhin.
 

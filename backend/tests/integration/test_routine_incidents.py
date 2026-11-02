@@ -901,3 +901,58 @@ async def test_watch_authority_does_not_follow_reauthorized_account_or_new_revie
     await db.flush()
     with pytest.raises(AuthorizationError):
         await RoutineAuthority.capture(db, ctx, agent_id=world.agent.id, run=None)
+
+
+@pytest.mark.parametrize("other_account", [False, True])
+async def test_watch_mcp_origin_must_be_its_approved_source(
+    db: AsyncSession, world: World, other_account: bool
+) -> None:
+    import hashlib
+    from collections.abc import AsyncIterator
+    from contextlib import asynccontextmanager
+    from dataclasses import replace
+
+    from pydantic_ai.tools import ToolDefinition
+
+    from app.agents.mcp import MCP_ORIGIN, McpSourceIdentity, McpToolOrigin
+    from app.agents.spec import AgentSpec
+    from app.core.exceptions import AuthorizationError
+    from app.db.models.mcp_connection import McpConnection
+    from app.services.routine_authority import RoutineAuthority
+
+    world.org.proactive_watches_enabled = True
+    watch = await make_watch(db, world)
+    await db.flush()
+    ctx = replace(world.ctx, routine_id=watch.id, routine_kind="watch", fired_as_creator="schedule")
+    authority = await RoutineAuthority.capture(db, ctx, agent_id=world.agent.id, run=None)
+    assert authority is not None
+    connection = await db.get(McpConnection, watch.connection_id)
+    assert connection is not None
+    tool = ToolDefinition(
+        name="github_read",
+        metadata={
+            MCP_ORIGIN: McpToolOrigin(
+                connection_id=uuid.uuid4() if other_account else connection.id,
+                identity=McpSourceIdentity(
+                    endpoint_hash=hashlib.sha256(connection.url.encode()).hexdigest(),
+                    authorization_generation=connection.authorization_generation,
+                    tool_prefix="github",
+                ),
+                tool_id="read",
+            ),
+            "annotations": {"readOnlyHint": True},
+        },
+    )
+
+    @asynccontextmanager
+    async def context() -> AsyncIterator[AsyncSession]:
+        yield db
+
+    with patch("app.services.routine_authority.get_db_context", new=context):
+        if other_account:
+            with pytest.raises(AuthorizationError):
+                await authority.action_policy(world.agent.id, AgentSpec(name="Monitor"), tool)
+        else:
+            assert not (
+                await authority.action_policy(world.agent.id, AgentSpec(name="Monitor"), tool)
+            ).required

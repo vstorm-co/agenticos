@@ -594,6 +594,7 @@ class TestPrepare:
             # Nothing in this spec binds the platform's own server.
             "platform_credential": None,
             "personal_sources": None,
+            "organization_sources": None,
         }
         # Alongside what the surface brought, not instead of it: the WebSocket
         # chat still attaches its own, and dropping either half would leave an
@@ -7615,16 +7616,24 @@ async def test_a_revoked_routine_is_refused_before_models_or_mcp_connections_are
 @pytest.mark.anyio
 async def test_routine_origin_and_live_tool_guard_are_attached_during_preparation() -> None:
     from app.agents.routine_authority import RoutineGuard
+    from app.services.routine_authority import RoutineAuthority
 
     ctx = replace(_ctx(), routine_id=uuid.uuid4())
     service = AgentRunnerService(_db())
     agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4())
     spec = AgentSpec(name="Routine")
     check = AsyncMock()
-    authority = SimpleNamespace(
-        check=check, sources=None, action_consents=(), action_policy=AsyncMock()
+    assert ctx.routine_id is not None
+    authority = RoutineAuthority(
+        routine_id=ctx.routine_id,
+        organization_id=ctx.organization_id,
+        user_id=ctx.subject_id,
+        root_agent_id=agent.id,
+        role=ctx.role,
+        acts_as_creator=False,
     )
     with (
+        patch.object(RoutineAuthority, "check", new=check),
         patch.object(
             service.registry,
             "get_runnable_spec",
@@ -7646,6 +7655,7 @@ async def test_routine_origin_and_live_tool_guard_are_attached_during_preparatio
     ):
         await service.prepare(ctx, agent.id)
     assert create.await_args.kwargs["trigger_id"] == ctx.routine_id
+    assert create.await_args.kwargs["routine_policy"]["mcp_sources"] == {}
     guards = [
         item
         for item in build.call_args.kwargs["extra_capabilities"]
@@ -7723,7 +7733,12 @@ async def test_watch_preparation_uses_the_selected_agent_with_approved_sources_a
     approved = approve_sources(spec, source)
     published = spec.model_copy(update={"collection_ids": [*spec.collection_ids, uuid.uuid4()]})
     authority = SimpleNamespace(
-        check=AsyncMock(), sources=approved, action_consents=(), action_policy=AsyncMock()
+        check=AsyncMock(),
+        sources=approved,
+        action_consents=(),
+        action_policy=AsyncMock(),
+        routine_kind="watch",
+        mcp_sources=None,
     )
     receipt = WatchReadReceipt(activation_at=datetime.now(UTC))
     with (

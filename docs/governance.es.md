@@ -1,5 +1,5 @@
 ---
-source_sha: "a9d5a01d22f4"
+source_sha: "3be6e0e8497f"
 ---
 
 # Governance { #governance }
@@ -71,6 +71,10 @@ La migración `0269_routine_end_cleanup.py` añade una marca del vencimiento pro
 Una conexión MCP observada también registra su generación de autorización. Completar un nuevo consentimiento OAuth o sustituir explícitamente el token o la dirección invalida el consentimiento de origen anterior aunque siga igual el ID de conexión. La renovación normal del token, las etiquetas y los cambios de cuenta predeterminada no reemplazan esta identidad. Un origen revisado sirve para ejecuciones posteriores; una ejecución antigua pausada no puede tomar prestado el nuevo consentimiento.
 
 Tras la migración `0270_mcp_authorization_generation.py`, revisa explícitamente los orígenes de los seguimientos existentes (`review_sources=true`). Las políticas antiguas siguen siendo legibles, pero no adivinan la cuenta de una autorización histórica. No se leen credenciales del proveedor para resolver cuentas fuera de la generación admitida. Drena los workers antiguos y actualiza API y workers juntos. Pausa los seguimientos antes del downgrade; reanúdalos solo con código que compruebe la generación y orígenes revisados. Sustituir credenciales borra la lista de herramientas anterior hasta la siguiente comprobación correcta.
+
+Las ejecuciones de rutinas conservan las cuentas MCP y los alias de herramientas admitidos para esa ejecución. Al reanudar una llamada se reutilizan esos alias: renombrar una cuenta o cambiar la predeterminada no redirige una aprobación existente. Los delegados permanecen dentro de las cuentas admitidas. Antes de llamar se comprueban de nuevo propietario, dirección, generación de autorización y herramientas permitidas; las cuentas nuevas o modificadas se filtran antes de resolver credenciales.
+
+Una rutina pausada sin este estado de admisión no puede continuar llamadas MCP de cuentas gestionadas. Inicia una ejecución nueva tras revisar su acceso. No cambian los valores del agente interactivo ni las políticas explícitas de aprobación; las excepciones de aprobación por cuenta siguen siendo independientes de esta comprobación del origen.
 
 La política de versiones permite seguir la versión publicada predeterminada o fijar una versión inmutable. Una publicación no cambia la versión fijada. Elimina la fijación para volver a seguir la predeterminada. Un entorno con nombre y una versión fijada se excluyen mutuamente; siguen vigentes los permisos, presupuestos y aprobaciones actuales.
 

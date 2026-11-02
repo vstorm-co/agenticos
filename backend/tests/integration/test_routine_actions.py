@@ -369,3 +369,102 @@ async def test_granted_internal_table_writes_need_no_routine_exception(
         name="Worker", capabilities=[{"id": "virtual_tables", "approval": "required"}]
     )
     assert "update_record" in approval_required_tools(required)
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        "unchanged",
+        "reauthorize",
+        "reauthorize-resume",
+        "prefix",
+        "endpoint",
+        "disabled",
+        "tools",
+        "another-account",
+        "removed",
+        "foreign",
+        "publisher",
+        "legacy",
+    ],
+)
+async def test_resumed_mcp_calls_remain_bound_to_the_admitted_account(
+    db: AsyncSession, world: World, change: str
+) -> None:
+    import hashlib
+
+    from app.agents.mcp import MCP_ORIGIN, McpSourceIdentity, McpToolOrigin
+    from app.db.models.agent_run import AgentRun
+    from app.db.models.mcp_connection import McpConnection
+    from app.services.routine_authority import MCP_SOURCES
+
+    connection = McpConnection(
+        scope="org",
+        purpose="mcp",
+        organization_id=world.org.id,
+        name="Work account",
+        url="https://service.example/mcp",
+        is_enabled=True,
+    )
+    db.add(connection)
+    await db.flush()
+    identity = McpSourceIdentity(
+        endpoint_hash=hashlib.sha256(connection.url.encode()).hexdigest(),
+        authorization_generation=connection.authorization_generation,
+        tool_prefix="work_account",
+    )
+    snapshot = MCP_SOURCES.dump_python({connection.id: identity}, mode="json")
+    run = AgentRun(
+        organization_id=world.org.id,
+        user_id=world.ctx.user_id,
+        agent_version_id=world.version.id,
+        routine_origin_id=world.trigger.id,
+        routine_kind="trigger",
+        initiated_by_publisher_fallback=True,
+        surface="schedule",
+        routine_policy={"action_consents": [], "mcp_sources": snapshot},
+    )
+    if change in ("reauthorize", "reauthorize-resume"):
+        connection.authorization_generation = uuid4()
+    elif change == "endpoint":
+        connection.url = "https://different.example/mcp"
+    elif change == "disabled":
+        connection.is_enabled = False
+    elif change == "tools":
+        connection.allowed_tools = ["read"]
+    elif change == "removed":
+        await db.delete(connection)
+    elif change == "foreign":
+        other = Organization(
+            name="Other", slug=f"other-{uuid4()}", created_by_user_id=world.ctx.subject_id
+        )
+        db.add(other)
+        await db.flush()
+        connection.organization_id = other.id
+    elif change == "publisher":
+        connection.scope, connection.organization_id, connection.user_id = (
+            "user",
+            None,
+            world.ctx.subject_id,
+        )
+    elif change == "legacy":
+        run.routine_policy = None
+    await db.flush()
+    restored = await RoutineAuthority.capture(db, world.ctx, agent_id=world.agent.id, run=run)
+    assert restored is not None
+    if change == "reauthorize-resume":
+        identity = replace(identity, authorization_generation=connection.authorization_generation)
+    elif change == "prefix":
+        identity = replace(identity, tool_prefix="different_account")
+    origin = McpToolOrigin(
+        connection_id=uuid4() if change == "another-account" else connection.id,
+        identity=identity,
+        tool_id="write",
+    )
+    call = ToolDefinition(name="fitted_or_renamed_write", metadata={MCP_ORIGIN: origin})
+    if change == "unchanged":
+        assert restored.mcp_sources == {connection.id: identity}
+        assert (await restored.action_policy(world.agent.id, world.spec, call)).required
+    else:
+        with pytest.raises(AuthorizationError):
+            await restored.action_policy(world.agent.id, world.spec, call)

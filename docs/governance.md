@@ -72,6 +72,10 @@ A watched MCP connection also records its authorization generation. A completed 
 
 After migration `0270_mcp_authorization_generation.py`, review existing watches' sources explicitly (`review_sources=true` or **Approve attached sources again** in the watch editor). Older policies remain readable but cannot guess the account behind a historical authorization. No provider credential is read to resolve an account outside the admitted generation. Drain old workers and upgrade API and workers together. Pause watches before downgrading; resume only with generation-aware code and reviewed sources. Replacing credentials clears the old account’s cached tool list until another successful check.
 
+Routine runs retain the MCP accounts and tool aliases admitted for that execution. Resuming a call reuses those aliases: renaming an account or choosing a different default does not redirect an existing approval. Delegates remain within the admitted accounts. Current account ownership, endpoint, authorization generation and tool allowlists are checked again before calls; new or changed accounts are filtered before credentials are resolved.
+
+A parked routine without this admission state cannot continue managed-account MCP calls. Start a new run after reviewing its access. Ordinary interactive agent defaults and explicit approval policies are unchanged; account-specific routine approval exceptions are still separate from this source check.
+
 ## Budgets
 
 !!! abstract "Three levels, and they are not variations on one number"
