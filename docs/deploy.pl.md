@@ -528,9 +528,9 @@ Skonfiguruj to raz:
     `deploy-queue.yml` jest tym, co dzieje się, kiedy mimo wszystko zostanie
     zostawione: co sześć godzin anuluje uruchomienie Deploy czekające na
     zatwierdzenie dłużej niż dwanaście i zakłada zgłoszenie z nazwą tego
-    uruchomienia oraz z tym, jak daleko najnowsze stabilne wydanie odjechał od ostatniego udanego
+    uruchomienia oraz z tym, ile commitów dzieli najnowsze stabilne wydanie od ostatniego udanego
     wdrożenia. Niczego nie zatwierdza i niczego nie wdraża — opróżnia kolejkę, żeby
-    następne opublikowane wydanie dotarł do bramki, i mówi, że to zrobił. Ręcznie uruchamiasz je
+    następne opublikowane wydanie dotarło do bramki, i mówi, że to zrobił. Ręcznie uruchamiasz je
     przez `gh workflow run deploy-queue.yml`.
 
 !!! danger "Zatwierdzanie z kolejki środowiska zatwierdza **najstarsze** uruchomienie"

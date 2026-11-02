@@ -565,8 +565,8 @@ Einmal einrichten:
     sechs Stunden bricht es einen Deploy-Lauf ab, der länger als zwölf auf eine
     Freigabe gewartet hat, und legt ein Issue an, das den Lauf benennt und sagt,
     wie weit das neueste stabile Release vom letzten erfolgreichen Deploy abgedriftet ist. Es gibt
-    nichts frei und deployt nichts — es leert die Warteschlange, damit der nächste
-    Merge das Tor erreicht, und sagt, dass es das getan hat. Von Hand mit
+    nichts frei und deployt nichts — es leert die Warteschlange, damit das nächste
+    veröffentlichte Release das Tor erreicht, und sagt, dass es das getan hat. Von Hand mit
     `gh workflow run deploy-queue.yml`.
 
 !!! danger "Eine Freigabe aus der Warteschlange der Environment gibt den **ältesten** Lauf frei"
