@@ -1,5 +1,5 @@
 ---
-source_sha: "8949067d718b"
+source_sha: "c7bacb814666"
 ---
 
 # Governance { #governance }
@@ -606,7 +606,8 @@ herramientas y de guardar resultados.
 Los hallazgos nuevos conservan su identidad estable de vigilancia/elemento en la
 bandeja personal y regresan al chat de origen; fuera del chat se utiliza la
 conversación principal. Solo un hallazgo urgente solicitado envía además una
-notificación inmediata. Sin cambios no hay mensaje ni aviso de finalización.
+notificación inmediata. En el modo predeterminado **Solo cuando hay cambios
+relevantes**, sin cambios no hay mensaje ni aviso de finalización.
 Sin acceso al chat, el hallazgo permanece en la bandeja y se registra
 `delivery_unavailable`.
 
@@ -630,6 +631,27 @@ este acceso permanente. Las herramientas MCP de la plataforma `list_watches`,
 `create_watch`, `update_watch` y `delete_watch` usan el mismo servicio e IDs.
 Las peticiones privadas completas crean o modifican inmediatamente; publicar,
 invitar, eliminar y ejecutar ahora conservan sus reglas de aprobación.
+
+Una vigilancia puede elegir **Después de cada revisión, incluso sin cambios**
+(`report_mode: every_check`). Cada lectura correcta entrega el informe acordado
+en el chat de origen, aunque no haya hallazgos nuevos, y utiliza el sistema
+compartido de notificaciones. Un error o una lectura no disponible nunca se
+presenta como ausencia de cambios. La activación permanece en la tarea; su
+marcador se confirma con los resultados, de modo que reintentar una activación
+completada no repite el informe ni paga otra lectura. No requiere una segunda
+llamada de clasificación.
+
+Horarios y vigilancias heredan las preferencias de notificación personales.
+**Notificaciones de esta rutina** limita la entrega a correo, push del dispositivo,
+ambos o solo la app. `notification_channels: null` hereda; una lista vacía desactiva
+la entrega externa. No puede reactivar un canal desactivado por la persona.
+Las entregas pendientes revisan la política actual antes de enviar; pausar o
+eliminar la rutina detiene sus envíos externos pendientes. Los avisos obligatorios
+de seguridad/configuración no cambian. Un envío ya aceptado por el proveedor no
+puede retirarse.
+
+`0263_routine_notification_policy.py` añade estos ajustes. Las rutinas existentes
+conservan sus preferencias y las vigilancias siguen siendo silenciosas por defecto.
 
 ### Agentes de sistema { #system-agents }
 

@@ -21,6 +21,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- Routines can narrow inherited notification channels, including app-only
+  delivery, and pending sends recheck those limits. Watches can send requested
+  no-change reports with durable activation deduplication.
+
 - SMS bots send explicit files and charts through Twilio MMS using expiring
   media handoffs, with file-type, count and size limits checked before sending.
 

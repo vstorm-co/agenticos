@@ -8,6 +8,7 @@ from pydantic import AwareDatetime, Field, field_validator, model_validator
 
 from app.db.models.watch import MIN_WATCH_MINUTES, WatchAttemptStatus
 from app.schemas.base import BaseSchema
+from app.schemas.routine_notifications import ExternalNotificationChannel, WatchReportMode
 
 MAX_WATCH_MINUTES = 10080
 """A week: a watch read less often than that is a routine's job."""
@@ -17,6 +18,10 @@ WatchStopped = Literal["watches_off", "connection_disabled", "needs_agent"]
 
 
 class WatchCreate(BaseSchema):
+    notification_channels: list[ExternalNotificationChannel] | None = Field(
+        default=None, max_length=2
+    )
+    report_mode: WatchReportMode = "changes"
     agent_id: UUID = Field(
         description="The selected published agent; no separate proactivity model is substituted."
     )
@@ -49,6 +54,10 @@ class WatchCreate(BaseSchema):
 class WatchUpdate(BaseSchema):
     """Partial changes; only the environment, pin and end can be cleared."""
 
+    notification_channels: list[ExternalNotificationChannel] | None = Field(
+        default=None, max_length=2
+    )
+    report_mode: WatchReportMode | None = None
     title: str | None = Field(default=None, min_length=1, max_length=120)
     agent_id: UUID | None = None
     environment_id: UUID | None = None
@@ -87,7 +96,8 @@ class WatchUpdate(BaseSchema):
             name
             for name in self.model_fields_set
             if getattr(self, name) is None
-            and name not in {"environment_id", "pinned_version_id", "ends_at"}
+            and name
+            not in {"environment_id", "pinned_version_id", "ends_at", "notification_channels"}
         )
         if sent_null:
             raise ValueError(f"Cannot be null: {', '.join(sent_null)}")
@@ -95,6 +105,10 @@ class WatchUpdate(BaseSchema):
 
 
 class WatchRead(BaseSchema):
+    notification_channels: list[ExternalNotificationChannel] | None = Field(
+        default=None, max_length=2
+    )
+    report_mode: WatchReportMode = "changes"
     id: UUID
     agent_id: UUID | None = None
     environment_id: UUID | None = None

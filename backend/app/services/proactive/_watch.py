@@ -33,6 +33,7 @@ from app.db.models.organization import Organization
 from app.db.models.suggestion import SuggestionKind
 from app.db.models.watch import Watch, WatchAttemptStatus
 from app.repositories import (
+    agent_repo,
     agent_run_repo,
     conversation_repo,
     mcp_connection_repo,
@@ -143,12 +144,19 @@ class WatchLook:
                 claimed.append(watch)
         return claimed
 
-    async def look(self, watch_id: UUID) -> int:
+    async def look(self, watch_id: UUID, *, scheduled_for: datetime | None = None) -> int:
         """Read one watch's connection and record what is new. Returns how many findings."""
         watch = await watch_repo.get_by_id(self.db, watch_id)
         if watch is None or not watch.is_active:
             return 0
         now = datetime.now(UTC)
+        if (
+            watch.report_mode == "every_check"
+            and scheduled_for is not None
+            and watch.last_reported_activation is not None
+            and watch.last_reported_activation >= scheduled_for
+        ):
+            return 0
         if watch.ends_at is not None and watch.ends_at <= now:
             await watch_repo.update_fields(self.db, watch=watch, changes={"is_active": False})
             return 0
@@ -277,6 +285,8 @@ class WatchLook:
                     run=run,
                     ctx=ctx,
                     check=receipt.check,
+                    locale=user.locale,
+                    scheduled_for=scheduled_for or now,
                 )
         except AuthorizationError:
             await watch_repo.mark_attempt(
@@ -300,7 +310,13 @@ class WatchLook:
         run: AgentRun,
         ctx: AuthContext,
         check: RoutineCheck,
+        locale: str | None,
+        scheduled_for: datetime,
     ) -> tuple[int, bool]:
+        if watch.report_mode == "every_check" and not await watch_repo.claim_report_activation(
+            self.db, watch_id=watch.id, scheduled_for=scheduled_for
+        ):
+            return 0, False
         recorded = 0
         notifications = NotificationService(self.db)
         updates: list[str] = []
@@ -355,7 +371,17 @@ class WatchLook:
                     title=finding.title,
                     conversation_id=target,
                     run_id=run.id,
+                    watch_id=watch.id,
+                    external_delivery=watch.report_mode != "every_check",
                 )
+        if not updates and watch.report_mode == "every_check":
+            updates = [
+                {
+                    "pl": "Brak nowych istotnych zmian.",
+                    "de": "Keine neuen relevanten Änderungen.",
+                    "es": "No hay cambios relevantes nuevos.",
+                }.get(locale or "", "No new relevant changes.")
+            ]
         if updates and target is not None:
             await check(run.agent_id)
             await conversation_repo.create_message(
@@ -367,5 +393,20 @@ class WatchLook:
                 agent_version_id=run.agent_version_id,
                 model_name=run.model_label,
                 run_id=run.id,
+            )
+        if watch.report_mode == "every_check" and updates:
+            await check(run.agent_id)
+            agent = await agent_repo.get(
+                self.db, run.agent_id, organization_id=watch.organization_id
+            )
+            if agent is None:
+                raise AuthorizationError(message="The selected agent is no longer available")
+            await notifications.routine_finished(
+                run,
+                agent=agent,
+                routine_name=watch.title,
+                creator_id=watch.user_id,
+                answer="\n".join(updates),
+                source_conversation_id=target,
             )
         return recorded, bool(updates) and target is None

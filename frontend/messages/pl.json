@@ -11737,7 +11737,11 @@
     "nextCheck": "Następne sprawdzenie: {at}",
     "watchAndInform": "Obserwuj i informuj",
     "reviewSources": "Ponownie zatwierdź dołączone źródła",
-    "reviewSourcesHint": "Uwzględnij aktualnie dołączoną wiedzę i kontekst tego agenta. Pozostaw wyłączone, aby zachować dotychczasową zgodę na źródła."
+    "reviewSourcesHint": "Uwzględnij aktualnie dołączoną wiedzę i kontekst tego agenta. Pozostaw wyłączone, aby zachować dotychczasową zgodę na źródła.",
+    "reportMode": "Kiedy raportować",
+    "reportModeHint": "Nieudany lub niedostępny odczyt zawsze jest pokazywany jako błąd.",
+    "changesOnly": "Tylko gdy coś istotnego się zmieni",
+    "everyCheck": "Po każdym sprawdzeniu, także bez zmian"
   },
   "inbox": {
     "title": "Inbox",
@@ -12272,5 +12276,14 @@
     "resolve": "Zrobione",
     "mute": "Nie pytaj więcej",
     "open": "Otwórz"
+  },
+  "routineNotifications": {
+    "label": "Powiadomienia dla tej rutyny",
+    "hint": "Twoje preferencje nadal obowiązują. Ten wybór jedynie zawęża dostarczanie; wyniki pozostają w aplikacji.",
+    "inherit": "Zgodnie z moimi preferencjami",
+    "none": "Tylko w aplikacji",
+    "email": "Tylko e-mail",
+    "push": "Tylko powiadomienia na urządzeniu",
+    "both": "E-mail i powiadomienia na urządzeniu"
   }
 }

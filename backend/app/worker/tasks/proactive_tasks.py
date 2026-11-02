@@ -41,7 +41,9 @@ async def watch_sweep(tick: Tick) -> int:
 
 async def look_through_watch(payload: LookThroughWatch) -> int:
     async with get_db_context() as db:
-        return await ProactiveService(db).look_through(payload.watch_id)
+        return await ProactiveService(db).look_through(
+            payload.watch_id, scheduled_for=payload.scheduled_for
+        )
 
 
 async def brief_person(payload: ThinkForPerson) -> int:

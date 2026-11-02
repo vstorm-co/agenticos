@@ -61,7 +61,7 @@ from app.db.models.agent_run import AgentRun, ToolApproval
 from app.db.models.artifact import Artifact
 from app.db.models.audit_log import AppAdminAuditLog
 from app.db.models.mcp_connection import McpConnection
-from app.db.models.notification import NotificationEventType
+from app.db.models.notification import NotificationChannel, NotificationEventType
 from app.db.models.rag_document import RAGDocument
 from app.db.models.workflow import Workflow
 from app.db.models.workflow_log_alert import WorkflowLogAlertRule
@@ -129,6 +129,8 @@ def _outcome_links(run: AgentRun) -> dict[str, str]:
     that chat and close when the run's approvals are decided (#2575).
     """
     links = {"run_id": str(run.id)}
+    if run.routine_origin_id is not None:
+        links.update(routine_origin_id=str(run.routine_origin_id), routine_kind=run.routine_kind)
     if run.routine_kind == "watch" and run.routine_origin_id is not None:
         links["cause"] = f"watch:{run.routine_origin_id}"
     if run.conversation_id is not None:
@@ -414,6 +416,7 @@ class NotificationService:
         routine_name: str | None,
         creator_id: UUID | None,
         answer: str,
+        source_conversation_id: UUID | None = None,
     ) -> None:
         """A routine finished, told to whoever set it up with the start of what it said (#2301).
 
@@ -434,7 +437,10 @@ class NotificationService:
         excerpt = " ".join(answer.split())
         if len(excerpt) > ROUTINE_EXCERPT_CHARS:
             excerpt = excerpt[: ROUTINE_EXCERPT_CHARS - 1].rstrip() + "…"
-        path = self._link("/routines", run.organization_id)
+        target = (
+            "/routines" if source_conversation_id is None else f"/chat/{source_conversation_id}"
+        )
+        path = self._link(target, run.organization_id)
         await self._center.write(
             recipients=list(recipients),
             event_type=NotificationEventType.RUN_COMPLETED,
@@ -444,6 +450,12 @@ class NotificationService:
             render_context={
                 "agent_name": agent.name,
                 "routine_name": name,
+                **_outcome_links(run),
+                **(
+                    {"conversation_id": str(source_conversation_id)}
+                    if source_conversation_id is not None
+                    else {}
+                ),
                 "excerpt": excerpt,
                 **agent_face(agent),
                 "app_name": settings.PROJECT_NAME,
@@ -540,6 +552,8 @@ class NotificationService:
         title: str,
         conversation_id: UUID | None = None,
         run_id: UUID | None = None,
+        watch_id: UUID | None = None,
+        external_delivery: bool = True,
     ) -> None:
         """A watch found something its person asked to hear about at once (#2301).
 
@@ -556,10 +570,16 @@ class NotificationService:
         await self._center.write(
             recipients=list(recipients),
             event_type=NotificationEventType.FINDING,
+            channels={NotificationChannel.IN_APP} if not external_delivery else None,
             occurrence_id=str(finding_id),
             summary=title,
             context_url=path,
             render_context={
+                **(
+                    {"routine_origin_id": str(watch_id), "routine_kind": "watch"}
+                    if watch_id is not None
+                    else {}
+                ),
                 **(
                     {"conversation_id": str(conversation_id)} if conversation_id is not None else {}
                 ),

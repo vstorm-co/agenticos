@@ -30,6 +30,7 @@ from app.repositories import (
     suggestion_repo,
     watch_repo,
 )
+from app.schemas.routine_notifications import read_channels, read_report_mode
 from app.schemas.watch import WatchCreate, WatchRead, WatchStopped, WatchUpdate
 from app.schemas.watch_sources import WatchSources
 from app.services import watch_presets
@@ -55,6 +56,8 @@ def watch_read(
     watch: Watch, *, organization: Organization, connection: McpConnection, waiting: int = 0
 ) -> WatchRead:
     return WatchRead(
+        notification_channels=read_channels(watch.notification_channels),
+        report_mode=read_report_mode(watch.report_mode),
         id=watch.id,
         agent_id=watch.agent_id,
         environment_id=watch.environment_id,
@@ -258,6 +261,8 @@ class WatchService:
             urgent=data.urgent,
             interval_minutes=data.interval_minutes,
             next_run_at=datetime.now(UTC),
+            notification_channels=data.notification_channels,
+            report_mode=data.report_mode,
             agent_id=data.agent_id,
             environment_id=data.environment_id,
             pinned_version_id=data.pinned_version_id,

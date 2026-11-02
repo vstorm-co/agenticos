@@ -43,6 +43,7 @@ from app.services.email.service import EmailKey, get_email_service
 from app.services.notification_catalog import is_mandatory
 from app.services.notification_center import NotificationCenterService, absolute_context_url
 from app.services.push import PushService
+from app.services.routine_notifications import allowed_channels as routine_channels
 from app.services.web_push import PushMessage
 
 logger = logging.getLogger(__name__)
@@ -179,6 +180,15 @@ class NotificationDeliveryService:
 
         push = delivery.channel == NotificationChannel.PUSH.value
         if not is_mandatory(event_type):
+            allowed = await routine_channels(
+                self.db,
+                organization_id=notification.organization_id,
+                recipient_user_id=recipient.id,
+                context=notification.render_context,
+            )
+            if allowed is not None and NotificationChannel(delivery.channel) not in allowed:
+                await self._skip(delivery, claimed_at)
+                return "skipped"
             enabled = await (
                 self._center.push_channel_enabled(recipient.id, event_type)
                 if push

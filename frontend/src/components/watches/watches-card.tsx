@@ -198,6 +198,9 @@ function WatchRow({
             </>
           )}
         </p>
+        {watch.report_mode === "every_check" && (
+          <p className="text-muted-foreground text-xs">{t("everyCheck")}</p>
+        )}
         <div className="text-muted-foreground flex min-w-0 items-center gap-1.5 text-xs">
           <WatchAccount
             server={watch.server}

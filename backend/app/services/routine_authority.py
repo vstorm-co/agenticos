@@ -40,13 +40,15 @@ def _refused() -> AuthorizationError:
     )
 
 
-def _intent(watch: Watch) -> str:
+def _intent(watch: Watch, *, version: Literal[1, 2] = 2) -> str:
     material = [
         watch.instructions,
         watch.exclusions,
         watch.urgent,
         str(watch.source_conversation_id),
     ]
+    if version == 2:
+        material.append(watch.report_mode)
     return hashlib.sha256(json.dumps(material, ensure_ascii=True).encode()).hexdigest()
 
 
@@ -92,7 +94,9 @@ class RoutineAuthority:
                     watch.approved_sources if run is None else run.routine_policy
                 )
                 if run is None:
-                    sources = sources.model_copy(update={"intent_hash": _intent(watch)})
+                    sources = sources.model_copy(
+                        update={"intent_hash": _intent(watch), "intent_version": 2}
+                    )
             except PydanticValidationError:
                 raise _refused() from None
         member = await member_repo.get_active(
@@ -157,7 +161,10 @@ class RoutineAuthority:
             raise _refused()
         try:
             current_sources = WatchSources.model_validate(watch.approved_sources).model_copy(
-                update={"intent_hash": _intent(watch)}
+                update={
+                    "intent_hash": _intent(watch, version=self.sources.intent_version),
+                    "intent_version": self.sources.intent_version,
+                }
             )
         except PydanticValidationError:
             raise _refused() from None

@@ -1,5 +1,6 @@
 """What people asked the platform to watch in their connections (#2301)."""
 
+from collections.abc import Sequence
 from datetime import datetime
 from typing import Any
 from uuid import UUID
@@ -22,6 +23,8 @@ async def create(
     urgent: bool,
     interval_minutes: int,
     next_run_at: datetime,
+    notification_channels: Sequence[str] | None = None,
+    report_mode: str = "changes",
     agent_id: UUID | None = None,
     environment_id: UUID | None = None,
     pinned_version_id: UUID | None = None,
@@ -41,6 +44,10 @@ async def create(
         interval_minutes=interval_minutes,
         is_active=True,
         next_run_at=next_run_at,
+        notification_channels=None
+        if notification_channels is None
+        else list(notification_channels),
+        report_mode=report_mode,
         agent_id=agent_id,
         environment_id=environment_id,
         pinned_version_id=pinned_version_id,
@@ -123,3 +130,21 @@ async def mark_attempt(
     if status == WatchAttemptStatus.COMPLETED:
         values["last_run_at"] = at
     await db.execute(update(Watch).where(Watch.id == watch.id).values(**values))
+
+
+async def claim_report_activation(
+    db: AsyncSession, *, watch_id: UUID, scheduled_for: datetime
+) -> bool:
+    """Commit the report marker with its result writes; retries cannot replay that activation."""
+    result = await db.execute(
+        update(Watch)
+        .where(
+            Watch.id == watch_id,
+            (Watch.last_reported_activation.is_(None))
+            | (Watch.last_reported_activation < scheduled_for),
+        )
+        .execution_options(synchronize_session=False)
+        .values(last_reported_activation=scheduled_for)
+        .returning(Watch.id)
+    )
+    return result.scalar_one_or_none() is not None

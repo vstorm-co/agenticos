@@ -140,18 +140,18 @@ class ProactiveService:
             await enqueue(
                 self.db,
                 LOOK_THROUGH_WATCH,
-                LookThroughWatch(watch_id=watch.id),
+                LookThroughWatch(watch_id=watch.id, scheduled_for=now),
                 organization_id=watch.organization_id,
                 dedupe_key=f"watch:{watch.id}",
                 dedupe_active=True,
             )
         return len(due)
 
-    async def look_through(self, watch_id: UUID) -> int:
+    async def look_through(self, watch_id: UUID, *, scheduled_for: datetime | None = None) -> int:
         """One look through one watch's connection. Returns how many findings are new."""
         from app.services.proactive._watch import WatchLook
 
-        return await WatchLook(self.db).look(watch_id)
+        return await WatchLook(self.db).look(watch_id, scheduled_for=scheduled_for)
 
     async def brief(self, organization_id: UUID, user_id: UUID) -> int:
         """One person's morning briefing. Returns how many findings it listed."""

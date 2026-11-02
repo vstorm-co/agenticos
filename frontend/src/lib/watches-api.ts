@@ -1,3 +1,4 @@
+import type { RoutineNotificationChannel, WatchReportMode } from "@/types/routines";
 /**
  * What the signed-in person watches in their own connections (#2301).
  *
@@ -20,6 +21,8 @@ export type WatchAttemptStatus =
   | "delivery_unavailable";
 
 export interface Watch {
+  notification_channels?: RoutineNotificationChannel[] | null;
+  report_mode?: WatchReportMode;
   id: string;
   agent_id: string | null;
   environment_id: string | null;
@@ -56,6 +59,8 @@ export interface WatchPreset {
 }
 
 export interface WatchDraft {
+  notification_channels?: RoutineNotificationChannel[] | null;
+  report_mode?: WatchReportMode;
   agent_id: string;
   environment_id?: string | null;
   pinned_version_id?: string | null;
@@ -71,6 +76,8 @@ export interface WatchDraft {
 export type WatchChanges = Partial<
   Pick<
     Watch,
+    | "notification_channels"
+    | "report_mode"
     | "title"
     | "instructions"
     | "urgent"

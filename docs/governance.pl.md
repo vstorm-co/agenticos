@@ -1,5 +1,5 @@
 ---
-source_sha: "8949067d718b"
+source_sha: "c7bacb814666"
 ---
 
 # Governance { #governance }
@@ -594,8 +594,9 @@ są sprawdzane ponownie przed narzędziami i zapisem wyników.
 
 Nowe ustalenia zachowują identyfikator obserwacji i rzeczy w skrzynce osoby
 oraz wracają do rozmowy źródłowej; utworzenie poza czatem używa rozmowy głównej.
-Tylko żądane pilne ustalenie wysyła też natychmiastowe powiadomienie. Brak zmian
-nie tworzy wiadomości ani powiadomienia o zakończeniu. Utrata dostępu do rozmowy
+Tylko żądane pilne ustalenie wysyła też natychmiastowe powiadomienie. Domyślny
+tryb **Tylko gdy coś istotnego się zmieni** nie tworzy wiadomości ani
+powiadomienia o zakończeniu przy braku zmian. Utrata dostępu do rozmowy
 zostawia ustalenie w skrzynce i zapisuje `delivery_unavailable`.
 
 Ostatnia próba jest oddzielna od ostatniego udanego odczytu. Odpowiedź modelu bez
@@ -618,6 +619,26 @@ ani impersonacja nie mogą nadać stałego dostępu. Narzędzia platformowego MC
 usługi i identyfikatorów. Kompletne prośby w prywatnym czacie od razu tworzą lub
 zmieniają obserwację; publikacja, zaproszenia, usuwanie i uruchomienie teraz
 zachowują zwykłe zasady zatwierdzania.
+
+Obserwacja może wybrać **Po każdym sprawdzeniu, także bez zmian**
+(`report_mode: every_check`). Każdy udany odczyt dostarcza wtedy umówiony raport
+do rozmowy źródłowej, także bez nowych ustaleń, i korzysta ze wspólnego systemu
+powiadomień. Błąd lub niedostępność odczytu nigdy nie stają się raportem o braku
+zmian. Termin aktywacji pozostaje w zadaniu; znacznik raportu jest zatwierdzany
+z wynikami, więc ponowienie ukończonej aktywacji nie powtarza raportu ani płatnego
+odczytu. Nie ma drugiego wywołania klasyfikującego.
+
+Harmonogramy i obserwacje dziedziczą preferencje powiadomień osoby. Pole
+**Powiadomienia dla tej rutyny** zawęża dostawę do e-maila, powiadomień urządzenia,
+obu kanałów lub samej aplikacji. `notification_channels: null` dziedziczy;
+pusta lista wyłącza dostawę zewnętrzną. Wybór nie włącza kanału wyłączonego
+w preferencjach osoby. Oczekujące dostarczenia ponownie sprawdzają aktualną
+politykę przed wysyłką; pauza lub usunięcie rutyny zatrzymuje jej oczekujące
+wysyłki zewnętrzne. Obowiązkowe alerty bezpieczeństwa i konfiguracji nie zmieniają
+się. Wysyłki już przyjętej przez dostawcę nie można wycofać.
+
+`0263_routine_notification_policy.py` dodaje te ustawienia. Istniejące rutyny
+zachowują preferencje dostarczania, a obserwacje domyślnie nadal milczą bez zmian.
 
 ### Agenci systemowi { #system-agents }
 

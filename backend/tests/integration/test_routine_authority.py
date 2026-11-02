@@ -399,3 +399,81 @@ async def test_watch_authority_revokes_a_running_read_when_its_approval_changes(
                 agent_id=world.agent.id,
                 run=run,
             )
+
+
+async def test_parked_watch_policy_from_before_report_modes_keeps_its_original_intent_guard(
+    db: AsyncSession,
+):
+    import hashlib
+    import json
+
+    from app.agents.spec import AgentSpec, PersonalMcpServerRef
+    from app.db.models.mcp_connection import McpConnection
+    from app.db.models.watch import Watch
+    from app.services.watch_sources import approve_sources
+
+    world = await _world(db)
+    world.organization.proactive_watches_enabled = True
+    connection = McpConnection(
+        user_id=world.user.id,
+        scope="user",
+        purpose="mcp",
+        name="GitHub",
+        catalog_key="github",
+        url="https://github.example/mcp",
+        is_enabled=True,
+    )
+    db.add(connection)
+    await db.flush()
+    sources = approve_sources(
+        AgentSpec(
+            name="Monitor",
+            mcp_servers=[PersonalMcpServerRef(account="personal", catalog_key="github")],
+        ),
+        connection,
+    )
+    watch = Watch(
+        organization_id=world.organization.id,
+        user_id=world.user.id,
+        connection_id=connection.id,
+        agent_id=world.agent.id,
+        approved_sources=sources.model_dump(mode="json"),
+        instructions="Reviews",
+        title="Review",
+        interval_minutes=60,
+        next_run_at=datetime.now(UTC),
+    )
+    db.add(watch)
+    await db.flush()
+    legacy = sources.model_dump(mode="json")
+    legacy.pop("intent_version")
+    legacy["intent_hash"] = hashlib.sha256(
+        json.dumps(
+            [watch.instructions, watch.exclusions, watch.urgent, str(watch.source_conversation_id)],
+            ensure_ascii=True,
+        ).encode()
+    ).hexdigest()
+    run = await agent_run_repo.create_run(
+        db,
+        organization_id=world.organization.id,
+        agent_id=world.agent.id,
+        agent_version_id=None,
+        user_id=world.user.id,
+        conversation_id=None,
+        surface="proactive",
+        model_label=None,
+        started_at=datetime.now(UTC),
+        routine_origin_id=watch.id,
+        routine_kind="watch",
+        routine_policy=legacy,
+    )
+    authority = await RoutineAuthority.capture(db, world.ctx, agent_id=world.agent.id, run=run)
+    assert (
+        authority is not None
+        and authority.sources is not None
+        and authority.sources.intent_version == 1
+    )
+    watch.instructions = "A different responsibility"
+    await db.flush()
+    with pytest.raises(AuthorizationError):
+        await authority.check_in(db, world.agent.id)

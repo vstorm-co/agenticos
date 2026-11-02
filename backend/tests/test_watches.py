@@ -105,6 +105,8 @@ def _named(connection: MagicMock, name: str = "GitHub") -> MagicMock:
 def _watch(**overrides: object) -> Watch:
     fields: dict[str, object] = {
         "id": uuid.uuid4(),
+        "report_mode": "changes",
+        "notification_channels": None,
         "organization_id": ORG,
         "agent_id": AGENT,
         "approved_sources": WatchSources(
@@ -503,6 +505,7 @@ class TestOneLook:
             patch(f"{LOOK}.watch_repo.get_by_id", new=AsyncMock(return_value=watch)),
             patch(f"{LOOK}.watch_repo.mark_attempt", new=AsyncMock()),
             patch(f"{LOOK}.watch_repo.mark_ran", new=AsyncMock()),
+            patch(f"{LOOK}.watch_repo.claim_report_activation", new=AsyncMock(return_value=True)),
             patch(
                 f"{LOOK}.organization_repo.get_by_id",
                 new=AsyncMock(return_value=organization or _organization()),
@@ -1082,3 +1085,81 @@ async def test_a_watch_cannot_be_edited_to_end_in_the_past():
         pytest.raises(BadRequestError, match="future"),
     ):
         await WatchService(MagicMock()).update(_ctx(), watch.id, WatchUpdate(ends_at=NOW))
+
+
+@pytest.mark.parametrize("mode", ["changes", "every_check"])
+@pytest.mark.parametrize("source_reads", [0, 1])
+async def test_a_requested_no_change_report_is_delivered_only_after_a_successful_read(
+    mode, source_reads
+):
+    watch = _watch(report_mode=mode, source_conversation_id=uuid.uuid4())
+    patches, _ = TestOneLook._patches(watch, source_reads=source_reads)
+    message, report = AsyncMock(), AsyncMock()
+    with ExitStack() as stack:
+        for each in patches:
+            stack.enter_context(each)
+        stack.enter_context(
+            patch(
+                f"{LOOK}.ConversationService",
+                return_value=MagicMock(
+                    get_conversation=AsyncMock(
+                        return_value=MagicMock(
+                            id=watch.source_conversation_id, organization_id=ORG, user_id=USER
+                        )
+                    )
+                ),
+            )
+        )
+        stack.enter_context(patch(f"{LOOK}.conversation_repo.create_message", new=message))
+        stack.enter_context(
+            patch(f"{LOOK}.agent_repo.get", new=AsyncMock(return_value=MagicMock(id=AGENT)))
+        )
+        stack.enter_context(
+            patch(f"{LOOK}.NotificationService", return_value=MagicMock(routine_finished=report))
+        )
+        assert await WatchLook(MagicMock()).look(watch.id) == 0
+    if mode == "every_check" and source_reads:
+        assert "Brak nowych istotnych zmian" in message.await_args.kwargs["content"]
+        assert report.await_args.kwargs["source_conversation_id"] == watch.source_conversation_id
+        assert report.await_args.kwargs["creator_id"] == USER
+    else:
+        message.assert_not_awaited()
+        report.assert_not_awaited()
+
+
+async def test_a_retried_report_activation_does_not_pay_for_a_second_read():
+    watch = _watch(report_mode="every_check", last_reported_activation=NOW)
+    patches, execute = TestOneLook._patches(watch)
+    with ExitStack() as stack:
+        for each in patches:
+            stack.enter_context(each)
+        assert await WatchLook(MagicMock()).look(watch.id, scheduled_for=NOW) == 0
+    execute.assert_not_awaited()
+
+
+async def test_only_the_report_writer_that_claimed_the_activation_delivers():
+    watch = _watch(report_mode="every_check")
+    patches, _ = TestOneLook._patches(watch)
+    with ExitStack() as stack:
+        for each in patches:
+            stack.enter_context(each)
+        stack.enter_context(
+            patch(f"{LOOK}.watch_repo.claim_report_activation", new=AsyncMock(return_value=False))
+        )
+        notifications = stack.enter_context(patch(f"{LOOK}.NotificationService"))
+        assert await WatchLook(MagicMock()).look(watch.id, scheduled_for=NOW) == 0
+    notifications.assert_not_called()
+
+
+async def test_lost_agent_access_rolls_back_a_requested_report_instead_of_claiming_delivery():
+    watch = _watch(report_mode="every_check")
+    patches, _ = TestOneLook._patches(watch)
+    with ExitStack() as stack:
+        for each in patches:
+            stack.enter_context(each)
+        stack.enter_context(patch(f"{LOOK}.agent_repo.get", new=AsyncMock(return_value=None)))
+        attempt = stack.enter_context(patch(f"{LOOK}.watch_repo.mark_attempt", new=AsyncMock()))
+        success = stack.enter_context(patch(f"{LOOK}.watch_repo.mark_ran", new=AsyncMock()))
+        assert await WatchLook(MagicMock()).look(watch.id) == 0
+    success.assert_not_awaited()
+    assert attempt.await_args.kwargs["status"] == WatchAttemptStatus.ACCESS_REVOKED

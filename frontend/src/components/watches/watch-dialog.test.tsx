@@ -117,6 +117,21 @@ beforeEach(() => {
 });
 
 describe("WatchDialog", () => {
+  it("saves an explicit no-change report and app-only delivery together", async () => {
+    render(<WatchDialog open onOpenChange={vi.fn()} watch={watch()} />);
+    await userEvent.click(screen.getByRole("combobox", { name: "When to report" }));
+    await userEvent.click(
+      await screen.findByRole("option", { name: "After every check, including no changes" }),
+    );
+    await userEvent.click(screen.getByRole("combobox", { name: "Notifications for this routine" }));
+    await userEvent.click(await screen.findByRole("option", { name: "In the app only" }));
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(state.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        changes: expect.objectContaining({ report_mode: "every_check", notification_channels: [] }),
+      }),
+    );
+  });
   it("requires an explicit agent in the global creation flow", async () => {
     render(<WatchDialog open onOpenChange={vi.fn()} connectionId="c-gh" />);
     await userEvent.click(

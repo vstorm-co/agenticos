@@ -1,5 +1,6 @@
 """The sources a person approved for one read-only watch, retained across publications."""
 
+from typing import Literal
 from uuid import UUID
 
 from pydantic import ConfigDict, Field
@@ -17,3 +18,5 @@ class WatchSources(BaseSchema):
     collection_ids: tuple[UUID, ...] = ()
     context_ids: tuple[UUID, ...] = ()
     intent_hash: str | None = None
+    # Existing parked policies predate report modes; retain their original hash contract.
+    intent_version: Literal[1, 2] = 1

@@ -43,6 +43,8 @@ import {
 } from "@/components/triggers/cadence-choices";
 import { EndsAtField, endInput, endInstant } from "@/components/triggers/ends-at-field";
 import { VersionField } from "@/components/triggers/version-field";
+import { NotificationChannelsField } from "@/components/triggers/notification-channels-field";
+import type { RoutineNotificationChannel } from "@/types/routines";
 import { AnswerToField } from "@/components/triggers/answer-to-field";
 import { BudgetField, parseBudget } from "@/components/triggers/budget-field";
 import { OverlapField } from "@/components/triggers/overlap-field";
@@ -232,6 +234,9 @@ export function TriggerFormDialog({
   const [budget, setBudget] = useState(
     trigger?.monthly_budget_usd != null ? String(Number(trigger.monthly_budget_usd)) : "",
   );
+  const [notificationChannels, setNotificationChannels] = useState<
+    RoutineNotificationChannel[] | null
+  >(trigger?.notification_channels ?? null);
   const [endsAt, setEndsAt] = useState(() => endInput(trigger?.ends_at));
   const [endTouched, setEndTouched] = useState(false);
   const end = endInstant(endsAt);
@@ -459,6 +464,7 @@ export function TriggerFormDialog({
   function buildCreate(): TriggerCreate {
     const base = {
       prompt,
+      ...(notificationChannels !== null ? { notification_channels: notificationChannels } : {}),
       name: name.trim() || null,
       trigger_type: type,
       environment_id: environmentId === DEFAULT_ENV ? null : environmentId,
@@ -518,6 +524,11 @@ export function TriggerFormDialog({
         if (post !== (trigger.teams_conversation_id ?? null)) patch.teams_conversation_id = post;
         if (answerTo !== (trigger.answer_to ?? "run_log")) patch.answer_to = answerTo;
         if (endTouched && end !== undefined) patch.ends_at = end;
+        if (
+          JSON.stringify(notificationChannels) !==
+          JSON.stringify(trigger.notification_channels ?? null)
+        )
+          patch.notification_channels = notificationChannels;
         const limit = parseBudget(budget);
         const stored =
           trigger.monthly_budget_usd != null ? Number(trigger.monthly_budget_usd) : null;
@@ -784,6 +795,10 @@ export function TriggerFormDialog({
             <TeamsPostField value={teamsPost} onChange={setTeamsPost} />
 
             <AnswerToField value={answerTo} onChange={setAnswerTo} />
+            <NotificationChannelsField
+              value={notificationChannels}
+              onChange={setNotificationChannels}
+            />
 
             <EndsAtField value={endsAt} onChange={changeEnd} invalid={invalidEnd} />
 
@@ -921,6 +936,10 @@ export function TriggerFormDialog({
               <TeamsPostField value={teamsPost} onChange={setTeamsPost} />
 
               <AnswerToField value={answerTo} onChange={setAnswerTo} />
+              <NotificationChannelsField
+                value={notificationChannels}
+                onChange={setNotificationChannels}
+              />
 
               <EndsAtField value={endsAt} onChange={changeEnd} invalid={invalidEnd} />
 

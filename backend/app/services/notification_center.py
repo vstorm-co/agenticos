@@ -10,10 +10,12 @@ mark-all-read would otherwise return gate-blind.
 import contextlib
 import logging
 import uuid
+from contextlib import nullcontext
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any
 
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
@@ -34,6 +36,7 @@ from app.services.collection_access import readable_kb
 from app.services.notification_catalog import ContentGate, content_gate_for, is_mandatory
 from app.services.outcome import OutcomeService
 from app.services.push import PushService
+from app.services.routine_notifications import allowed_channels as routine_channels
 
 logger = logging.getLogger(__name__)
 
@@ -620,6 +623,26 @@ class NotificationCenterService:
 
         written: list[Notification] = []
         for recipient_id in recipients:
+            recipient_channels = channels
+            if not mandatory and render_context and "routine_origin_id" in render_context:
+                try:
+                    async with self.db.begin_nested() if use_savepoint else nullcontext():
+                        current = await routine_channels(
+                            self.db,
+                            organization_id=organization_id,
+                            recipient_user_id=recipient_id,
+                            context=render_context,
+                        )
+                except SQLAlchemyError:
+                    if not use_savepoint:
+                        raise
+                    logger.exception(
+                        "routine_notification_policy_failed",
+                        extra={"event_type": event_type.value, "occurrence_id": occurrence_id},
+                    )
+                    continue
+                if current is not None:
+                    recipient_channels = current if channels is None else current & channels
             # A recipient absent from either map means the same as a `None`
             # read did before batching: no preference row yet (or, for the
             # legacy column, a user row already gone) - default enabled.
@@ -627,11 +650,11 @@ class NotificationCenterService:
             # rather than replacing it - a recipient who has turned a
             # channel off stays off regardless of what the sender picked.
             in_app_visible = mandatory or (
-                _channel_allowed(channels, NotificationChannel.IN_APP)
+                _channel_allowed(recipient_channels, NotificationChannel.IN_APP)
                 and channels_read.in_app.get(recipient_id, True)
             )
             email_enabled = mandatory or (
-                _channel_allowed(channels, NotificationChannel.EMAIL)
+                _channel_allowed(recipient_channels, NotificationChannel.EMAIL)
                 and channels_read.email.get(recipient_id, True)
             )
             # Only for somebody with a browser to push to: a delivery row for
@@ -639,7 +662,7 @@ class NotificationCenterService:
             push_enabled = recipient_id in channels_read.subscribed and (
                 mandatory
                 or (
-                    _channel_allowed(channels, NotificationChannel.PUSH)
+                    _channel_allowed(recipient_channels, NotificationChannel.PUSH)
                     and channels_read.push.get(recipient_id, True)
                 )
             )

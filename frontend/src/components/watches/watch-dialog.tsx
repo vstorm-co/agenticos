@@ -1,5 +1,7 @@
 "use client";
 
+import { NotificationChannelsField } from "@/components/triggers/notification-channels-field";
+import type { RoutineNotificationChannel, WatchReportMode } from "@/types/routines";
 import { useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
@@ -115,6 +117,10 @@ export function WatchDialog({
   const [endTouched, setEndTouched] = useState(false);
   const [invalidEnd, setInvalidEnd] = useState(false);
   const [versionValid, setVersionValid] = useState(true);
+  const [notificationChannels, setNotificationChannels] = useState<
+    RoutineNotificationChannel[] | null
+  >(watch?.notification_channels ?? null);
+  const [reportMode, setReportMode] = useState<WatchReportMode>(watch?.report_mode ?? "changes");
   const [reviewSources, setReviewSources] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
@@ -157,6 +163,11 @@ export function WatchDialog({
         await update({
           id: watch.id,
           changes: {
+            ...(reportMode !== (watch.report_mode ?? "changes") ? { report_mode: reportMode } : {}),
+            ...(JSON.stringify(notificationChannels) !==
+            JSON.stringify(watch.notification_channels ?? null)
+              ? { notification_channels: notificationChannels }
+              : {}),
             title: draft.title.trim(),
             instructions: draft.instructions.trim(),
             urgent: draft.urgent,
@@ -171,6 +182,8 @@ export function WatchDialog({
         });
       } else {
         await create({
+          ...(reportMode !== "changes" ? { report_mode: reportMode } : {}),
+          ...(notificationChannels !== null ? { notification_channels: notificationChannels } : {}),
           agent_id: draft.agentId,
           environment_id: draft.environmentId,
           pinned_version_id: draft.pinnedVersionId,
@@ -352,6 +365,30 @@ export function WatchDialog({
               />
             </div>
           )}
+          <FormField
+            label={t("reportMode")}
+            htmlFor="watch-report-mode"
+            description={t("reportModeHint")}
+          >
+            <Select
+              value={reportMode}
+              onValueChange={(value) => {
+                if (value === "changes" || value === "every_check") setReportMode(value);
+              }}
+            >
+              <SelectTrigger id="watch-report-mode">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="changes">{t("changesOnly")}</SelectItem>
+                <SelectItem value="every_check">{t("everyCheck")}</SelectItem>
+              </SelectContent>
+            </Select>
+          </FormField>
+          <NotificationChannelsField
+            value={notificationChannels}
+            onChange={setNotificationChannels}
+          />
           <EndsAtField
             value={endsAt}
             invalid={invalidEnd}

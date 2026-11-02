@@ -11840,7 +11840,11 @@
     "nextCheck": "Nächste Prüfung: {at}",
     "watchAndInform": "Beobachten und informieren",
     "reviewSources": "Angehängte Quellen erneut freigeben",
-    "reviewSourcesHint": "Aktuell angehängtes Wissen und Kontext dieses Agenten einbeziehen. Deaktiviert lassen, um die bestehende Quellenfreigabe zu behalten."
+    "reviewSourcesHint": "Aktuell angehängtes Wissen und Kontext dieses Agenten einbeziehen. Deaktiviert lassen, um die bestehende Quellenfreigabe zu behalten.",
+    "reportMode": "Wann berichten",
+    "reportModeHint": "Ein fehlgeschlagener oder nicht verfügbarer Zugriff wird immer als Fehler angezeigt.",
+    "changesOnly": "Nur bei relevanten Änderungen",
+    "everyCheck": "Nach jeder Prüfung, auch ohne Änderungen"
   },
   "inbox": {
     "title": "Posteingang",
@@ -12168,5 +12172,14 @@
     "resolve": "Erledigt",
     "mute": "Nicht mehr fragen",
     "open": "Öffnen"
+  },
+  "routineNotifications": {
+    "label": "Benachrichtigungen für diese Routine",
+    "hint": "Deine Benachrichtigungseinstellungen gelten weiter. Die Auswahl schränkt die Zustellung nur ein; Ergebnisse bleiben in der App.",
+    "inherit": "Meine Einstellungen verwenden",
+    "none": "Nur in der App",
+    "email": "Nur E-Mail",
+    "push": "Nur Gerätebenachrichtigungen",
+    "both": "E-Mail und Gerätebenachrichtigungen"
   }
 }

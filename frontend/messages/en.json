@@ -11961,7 +11961,11 @@
     "nextCheck": "Next check: {at}",
     "watchAndInform": "Watch and inform",
     "reviewSources": "Approve attached sources again",
-    "reviewSourcesHint": "Include this agent’s currently attached knowledge and context. Leave off to retain the existing source approval."
+    "reviewSourcesHint": "Include this agent’s currently attached knowledge and context. Leave off to retain the existing source approval.",
+    "reportMode": "When to report",
+    "reportModeHint": "A failed or unavailable read is always shown as a failure.",
+    "changesOnly": "Only when something relevant changes",
+    "everyCheck": "After every check, including no changes"
   },
   "inbox": {
     "title": "Inbox",
@@ -12496,5 +12500,14 @@
     "resolve": "Done",
     "mute": "Stop asking",
     "open": "Open"
+  },
+  "routineNotifications": {
+    "label": "Notifications for this routine",
+    "hint": "Your notification preferences still apply. These choices only narrow delivery; results remain available in the app.",
+    "inherit": "Use my preferences",
+    "none": "In the app only",
+    "email": "E-mail only",
+    "push": "Device notifications only",
+    "both": "E-mail and device notifications"
   }
 }

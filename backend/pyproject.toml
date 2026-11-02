@@ -1221,6 +1221,8 @@ include = [
     # Watches over a person's own connections, and the presets they start from.
     "app/services/watches.py",
     "app/services/watch_sources.py",
+    "app/services/routine_notifications.py",
+    "app/schemas/routine_notifications.py",
     "app/schemas/watch_sources.py",
     "app/services/watch_presets.py",
     "app/repositories/watch.py",
@@ -1918,6 +1920,8 @@ include = [
     # Watches over a person's own connections, and the presets they start from.
     "app/services/watches.py",
     "app/services/watch_sources.py",
+    "app/services/routine_notifications.py",
+    "app/schemas/routine_notifications.py",
     "app/schemas/watch_sources.py",
     "app/services/watch_presets.py",
     "app/repositories/watch.py",

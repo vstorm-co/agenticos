@@ -555,8 +555,8 @@ pause and expiry are checked again before tools and before results are written.
 New findings keep their stable watch/item identity in the person's Inbox and
 return to the source conversation; creation outside chat uses their primary
 conversation. Only a requested urgent finding also sends an immediate
-notification. An unchanged reading creates no chat message or completion
-notification. Missing conversation access retains the Inbox finding and records
+notification. The default **Only when something relevant changes** mode creates
+no chat message or completion notification for an unchanged reading. Missing conversation access retains the Inbox finding and records
 `delivery_unavailable` instead of posting elsewhere.
 
 The latest attempt is separate from the last successful reading. A completed
@@ -578,6 +578,26 @@ and impersonation cannot grant this standing access. The platform MCP tools
 `list_watches`, `create_watch`, `update_watch` and `delete_watch` use the same
 service and identifiers. Complete private-chat requests create or edit immediately;
 publishing, inviting, deletion and run-now retain their normal approval policies.
+
+A watch can instead select **After every check, including no changes**
+(`report_mode: every_check`). Each successful reading then delivers an agreed
+report to its source chat, even when nothing new was found, and uses the shared
+notification system. A failed or unavailable read never becomes a no-change
+report. The scheduled activation travels with the queued job; its report marker
+commits with the result writes, so retrying a completed activation cannot replay
+the report or pay for another read. No second classification call is needed.
+
+Schedules and watches inherit the person's notification preferences. Their
+**Notifications for this routine** control can narrow delivery to e-mail, device
+push, both, or the app alone. `notification_channels: null` inherits; an empty
+list disables external delivery. A selection cannot re-enable a channel disabled
+in the person's preferences. Pending deliveries recheck current routine policy
+before sending; pausing or deleting the routine cancels its pending external
+sends. Mandatory security/configuration alerts are unaffected. A send the provider
+already accepted cannot be recalled.
+
+`0263_routine_notification_policy.py` adds these settings. Existing routines keep
+their delivery preferences, and existing watches retain quiet monitoring by default.
 
 ### System agents { #system-agents }
 

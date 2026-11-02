@@ -341,6 +341,7 @@ class AgentTrigger(Base, TimestampMixin):
     answer_to: Mapped[str] = mapped_column(
         String(16), nullable=False, default="run_log", server_default="run_log"
     )
+    notification_channels: Mapped[list[str] | None] = mapped_column(JSONB, nullable=True)
     delivery_conversation_id: Mapped[uuid.UUID | None] = mapped_column(
         PG_UUID(as_uuid=True),
         ForeignKey("conversations.id", ondelete="SET NULL"),

@@ -175,6 +175,7 @@ class LookThroughWatch(Payload):
     """One person's watch over one of their connections, due for a look (#2301)."""
 
     watch_id: UUID
+    scheduled_for: datetime | None = None
 
 
 class InstallRolePack(Payload):

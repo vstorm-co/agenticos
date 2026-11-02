@@ -21,6 +21,7 @@ from uuid import UUID
 from pydantic import JsonValue
 
 from app.agents.spec import CapabilityBindingSpec, McpServerRef
+from app.schemas.routine_notifications import ExternalNotificationChannel, WatchReportMode
 from app.schemas.user import ConsoleLocale
 from app.schemas.virtual_table import (
     ColumnInput,
@@ -492,6 +493,8 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         instructions: str,
         every_minutes: int,
         urgent: bool = False,
+        report_mode: WatchReportMode = "changes",
+        notification_channels: list[ExternalNotificationChannel] | None = None,
         ends_at: str | None = None,
         environment_id: UUID | None = None,
         pinned_version_id: UUID | None = None,
@@ -507,6 +510,9 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         private conversation, or the primary conversation when created outside chat.
         A complete instruction supplies all these fields: create it immediately,
         asking only for materially missing information. Requires personal consent.
+        report_mode=every_check sends an agreed report even when nothing changed;
+        changes is quiet monitoring. notification_channels inherits preferences
+        when omitted; [] disables external delivery, or choose email/push.
         """
         return await api.request(
             "POST",
@@ -518,6 +524,12 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
                 "instructions": instructions,
                 "interval_minutes": every_minutes,
                 "urgent": urgent,
+                **({"report_mode": report_mode} if report_mode != "changes" else {}),
+                **(
+                    {"notification_channels": notification_channels}
+                    if notification_channels is not None
+                    else {}
+                ),
                 "ends_at": ends_at,
                 "environment_id": str(environment_id) if environment_id is not None else None,
                 "pinned_version_id": str(pinned_version_id)
@@ -533,6 +545,9 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         every_minutes: int | None = None,
         active: bool | None = None,
         urgent: bool | None = None,
+        report_mode: WatchReportMode | None = None,
+        notification_channels: list[ExternalNotificationChannel] | None = None,
+        inherit_notifications: bool = False,
         ends_at: str | None = None,
         clear_end: bool = False,
         agent_id: UUID | None = None,
@@ -551,7 +566,8 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         Requires the person's own private chat or signed-in session.
         """
         if (
-            (clear_end and ends_at is not None)
+            (inherit_notifications and notification_channels is not None)
+            or (clear_end and ends_at is not None)
             or (clear_pin and pinned_version_id is not None)
             or (clear_environment and environment_id is not None)
             or (environment_id is not None and pinned_version_id is not None)
@@ -564,10 +580,15 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
             ("interval_minutes", every_minutes),
             ("is_active", active),
             ("urgent", urgent),
+            ("report_mode", report_mode),
             ("ends_at", ends_at),
         ):
             if value is not None:
                 body[key] = value
+        if notification_channels is not None:
+            body["notification_channels"] = notification_channels
+        if inherit_notifications:
+            body["notification_channels"] = None
         if clear_end:
             body["ends_at"] = None
         if agent_id is not None:
@@ -592,6 +613,7 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
     async def create_routine(
         agent_id: UUID,
         prompt: str,
+        notification_channels: list[ExternalNotificationChannel] | None = None,
         cron_expression: str | None = None,
         every_minutes: int | None = None,
         time_zone: str | None = None,
@@ -624,6 +646,8 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         and its management state.
         """
         body: dict[str, Any] = {"prompt": prompt, "runs_as_creator": runs_as_me}
+        if notification_channels is not None:
+            body["notification_channels"] = notification_channels
         if pinned_version_id is not None:
             body["pinned_version_id"] = str(pinned_version_id)
         if name:
@@ -650,6 +674,8 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         agent_id: UUID,
         routine_id: UUID,
         active: bool | None = None,
+        notification_channels: list[ExternalNotificationChannel] | None = None,
+        inherit_notifications: bool = False,
         prompt: str | None = None,
         cron_expression: str | None = None,
         every_minutes: int | None = None,
@@ -679,7 +705,11 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
             raise ValueError("Choose ends_at or clear_end, not both")
         if monthly_budget_usd is not None and clear_budget:
             raise ValueError("Choose monthly_budget_usd or clear_budget, not both")
+        if inherit_notifications and notification_channels is not None:
+            raise ValueError("Choose notification_channels or inherit_notifications, not both")
         body: dict[str, Any] = {}
+        if notification_channels is not None or inherit_notifications:
+            body["notification_channels"] = None if inherit_notifications else notification_channels
         if pinned_version_id is not None or follow_latest:
             body["pinned_version_id"] = None if follow_latest else str(pinned_version_id)
             body["environment_id"] = None

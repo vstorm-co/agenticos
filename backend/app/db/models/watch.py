@@ -6,10 +6,10 @@ pull requests waiting on their review. Only that connection's read-only tools
 are in reach, and what it finds is written for the person alone, as a
 `Suggestion` of kind `finding` keyed so the same thing is never reported twice.
 
-It is not a routine. A routine is an agent run whose answer is a message; a
-watch's answer is a handful of findings or nothing, and nothing is the usual
-answer. Its cadence is an interval, never more often than its organization
-allows (`Organization.proactive_watch_min_minutes`).
+A watch is a read-only ongoing responsibility of a selected published agent.
+It normally stays quiet without new findings, or sends an explicitly requested
+report after every successful check. Its cadence is an interval, never more
+often than its organization allows (`Organization.proactive_watch_min_minutes`).
 """
 
 import enum
@@ -41,6 +41,7 @@ class Watch(Base, TimestampMixin):
 
     __tablename__ = "watches"
     __table_args__ = (
+        CheckConstraint("report_mode IN ('changes', 'every_check')", name="ck_watch_report_mode"),
         CheckConstraint(
             "pinned_version_id IS NULL OR environment_id IS NULL", name="ck_watch_version_selection"
         ),
@@ -89,6 +90,13 @@ class Watch(Base, TimestampMixin):
         UUID(as_uuid=True), ForeignKey("conversations.id", ondelete="SET NULL"), nullable=True
     )
     ends_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    notification_channels: Mapped[list[str] | None] = mapped_column(JSONB, nullable=True)
+    last_reported_activation: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    report_mode: Mapped[str] = mapped_column(
+        String(16), nullable=False, default="changes", server_default="changes"
+    )
     # The catalog preset it was made from, or null for one the person described.
     preset_key: Mapped[str | None] = mapped_column(String(64), nullable=True)
     title: Mapped[str] = mapped_column(String(120), nullable=False)

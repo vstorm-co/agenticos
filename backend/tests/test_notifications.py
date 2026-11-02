@@ -50,6 +50,8 @@ FRONTEND = "https://console.example"
 def _run(*, org_id=None, user_id=None, cost="1.50", initiated_by_publisher_fallback=False):
     run = MagicMock()
     run.id = uuid.uuid4()
+    run.routine_origin_id = None
+    run.routine_kind = "trigger"
     run.organization_id = org_id or uuid.uuid4()
     run.user_id = user_id
     run.cost_usd = Decimal(cost)
@@ -2043,3 +2045,23 @@ class TestSuggestionsReady:
             )
 
         assert written.calls == []
+
+
+@pytest.mark.anyio
+async def test_an_urgent_finding_inside_a_requested_report_does_not_send_a_second_external_notice(
+    written,
+):
+    from app.db.models.notification import NotificationChannel
+
+    person = uuid.uuid4()
+    with patch(f"{MODULE}.member_repo.list_member_ids_for", new=_members(person)):
+        await NotificationService(MagicMock()).finding(
+            organization_id=uuid.uuid4(),
+            user_id=person,
+            finding_id=uuid.uuid4(),
+            title="Urgent",
+            watch_id=uuid.uuid4(),
+            external_delivery=False,
+        )
+    assert written.calls[0]["channels"] == {NotificationChannel.IN_APP}
+    assert written.calls[0]["render_context"]["routine_kind"] == "watch"

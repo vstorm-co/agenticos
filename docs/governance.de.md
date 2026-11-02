@@ -1,5 +1,5 @@
 ---
-source_sha: "8949067d718b"
+source_sha: "c7bacb814666"
 ---
 
 # Governance { #governance }
@@ -643,8 +643,9 @@ nochmals geprüft.
 Neue Funde behalten ihre stabile Beobachtungs-/Element-ID im persönlichen
 Posteingang und erscheinen im Quellchat; außerhalb des Chats erstellte
 Beobachtungen verwenden den primären Chat. Nur ausdrücklich gewünschte dringende
-Funde senden zusätzlich eine sofortige Benachrichtigung. Ohne Änderungen gibt
-es keine Chatnachricht oder Abschlussbenachrichtigung. Bei fehlendem Chatzugriff
+Funde senden zusätzlich eine sofortige Benachrichtigung. Im Standardmodus
+**Nur bei relevanten Änderungen** gibt es ohne Änderung keine Chatnachricht
+oder Abschlussbenachrichtigung. Bei fehlendem Chatzugriff
 bleibt der Fund im Posteingang und `delivery_unavailable` wird aufgezeichnet.
 
 Der letzte Versuch ist von der letzten erfolgreichen Prüfung getrennt. Eine
@@ -668,6 +669,27 @@ Dauerzugriff nicht erteilen. Die Plattform-MCP-Tools `list_watches`, `create_wat
 `update_watch` und `delete_watch` verwenden denselben Dienst und dieselben IDs.
 Vollständige private Chat-Aufträge erstellen oder ändern sofort; Veröffentlichung,
 Einladungen, Löschen und sofortiges Ausführen behalten ihre Genehmigungsregeln.
+
+Eine Beobachtung kann **Nach jeder Prüfung, auch ohne Änderungen** wählen
+(`report_mode: every_check`). Jede erfolgreiche Prüfung liefert dann den
+vereinbarten Bericht in den Quellchat, auch ohne neue Funde, und verwendet das
+gemeinsame Benachrichtigungssystem. Fehlgeschlagene oder nicht verfügbare
+Lesezugriffe werden nie als unveränderter Stand gemeldet. Die Aktivierungszeit
+bleibt im Job; der Berichtsmarker wird mit den Ergebnissen gespeichert. Eine
+Wiederholung derselben abgeschlossenen Aktivierung sendet keinen zweiten Bericht
+und bezahlt keine zweite Prüfung. Ein weiterer Klassifikationsaufruf entfällt.
+
+Zeitpläne und Beobachtungen erben die persönlichen Benachrichtigungseinstellungen.
+**Benachrichtigungen für diese Routine** schränkt auf E-Mail, Geräte-Push, beides
+oder nur die App ein. `notification_channels: null` erbt; eine leere Liste
+unterbindet externe Zustellung. Ein persönlich deaktivierter Kanal bleibt aus.
+Wartende Zustellungen prüfen die aktuelle Richtlinie vor dem Senden erneut;
+Pause oder Löschen stoppt wartende externe Sendungen. Verpflichtende Sicherheits-
+und Konfigurationshinweise bleiben unverändert. Eine vom Anbieter bereits
+angenommene Sendung lässt sich nicht zurückrufen.
+
+`0263_routine_notification_policy.py` ergänzt diese Einstellungen. Bestehende
+Routinen erben weiter ihre Einstellungen; Beobachtungen bleiben standardmäßig still.
 
 ### Systemagenten { #system-agents }
 

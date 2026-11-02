@@ -876,6 +876,7 @@ class AgentTriggerService:
             answer_to=data.answer_to,
             delivery_conversation_id=data.delivery_conversation_id,
             ends_at=data.ends_at,
+            notification_channels=data.notification_channels,
             monthly_budget_usd=data.monthly_budget_usd,
         )
         # Open the run-log conversation now, not on the first fire, so a new

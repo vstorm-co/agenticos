@@ -165,6 +165,86 @@ CALLS: list[tuple[str, dict[str, Any], tuple[Any, ...]]] = [
         {"watch_id": str(RUN), "clear_environment": True},
         ("PATCH", f"/me/watches/{RUN}", {"json": {"environment_id": None}}),
     ),
+    (
+        "create_watch",
+        {
+            "agent_id": str(AGENT),
+            "connection_id": str(KB),
+            "title": "Reviews",
+            "instructions": "Waiting on me",
+            "every_minutes": 60,
+            "report_mode": "every_check",
+            "notification_channels": [],
+        },
+        (
+            "POST",
+            "/me/watches",
+            {
+                "json": {
+                    "agent_id": str(AGENT),
+                    "connection_id": str(KB),
+                    "title": "Reviews",
+                    "instructions": "Waiting on me",
+                    "interval_minutes": 60,
+                    "urgent": False,
+                    "ends_at": None,
+                    "environment_id": None,
+                    "pinned_version_id": None,
+                    "report_mode": "every_check",
+                    "notification_channels": [],
+                }
+            },
+        ),
+    ),
+    (
+        "update_watch",
+        {"watch_id": str(RUN), "notification_channels": ["push"], "report_mode": "changes"},
+        (
+            "PATCH",
+            f"/me/watches/{RUN}",
+            {"json": {"notification_channels": ["push"], "report_mode": "changes"}},
+        ),
+    ),
+    (
+        "update_watch",
+        {"watch_id": str(RUN), "inherit_notifications": True},
+        ("PATCH", f"/me/watches/{RUN}", {"json": {"notification_channels": None}}),
+    ),
+    (
+        "create_routine",
+        {
+            "agent_id": str(AGENT),
+            "prompt": "Report",
+            "every_minutes": 60,
+            "notification_channels": [],
+        },
+        (
+            "POST",
+            f"/agents/{AGENT}/triggers",
+            {
+                "json": {
+                    "prompt": "Report",
+                    "runs_as_creator": True,
+                    "interval_seconds": 3600,
+                    "notification_channels": [],
+                }
+            },
+        ),
+    ),
+    (
+        "update_routine",
+        {"agent_id": str(AGENT), "routine_id": str(RUN), "notification_channels": ["email"]},
+        (
+            "PATCH",
+            f"/agents/{AGENT}/triggers/{RUN}",
+            {"json": {"notification_channels": ["email"]}},
+        ),
+    ),
+    (
+        "update_routine",
+        {"agent_id": str(AGENT), "routine_id": str(RUN), "inherit_notifications": True},
+        ("PATCH", f"/agents/{AGENT}/triggers/{RUN}", {"json": {"notification_channels": None}}),
+    ),
     ("whoami", {}, ("GET", "/me/permissions", {})),
     ("list_projects", {}, ("GET", "/projects", {"params": {"limit": 50, "skip": 0}})),
     (

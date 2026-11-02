@@ -21,6 +21,7 @@ from app.core.config import settings
 from app.db.models.agent_trigger import MIN_INTERVAL_SECONDS, EventSource
 from app.schemas.base import BaseSchema, TimestampSchema
 from app.schemas.local_target import LocalTarget
+from app.schemas.routine_notifications import ExternalNotificationChannel
 
 # The interval floor is a database CHECK (`ck_trigger_interval_floor`); this
 # ceiling is input-only, and its job is a 422 rather than a 500. `interval_seconds`
@@ -478,6 +479,9 @@ class TriggerCreate(BaseSchema):
             "is one of their chats (`delivery_conversation_id`), `run_log` only the log (#2575)"
         ),
     )
+    notification_channels: list[ExternalNotificationChannel] | None = Field(
+        default=None, max_length=2
+    )
     delivery_conversation_id: UUID | None = Field(
         default=None,
         description="With `answer_to` = `conversation`: one of the caller's own chats",
@@ -710,6 +714,9 @@ class TriggerUpdate(BaseSchema):
     answer_to: Literal["run_log", "primary", "conversation"] | None = Field(
         default=None, description="Where each fire's answer goes; see `TriggerCreate.answer_to`"
     )
+    notification_channels: list[ExternalNotificationChannel] | None = Field(
+        default=None, max_length=2
+    )
     delivery_conversation_id: UUID | None = Field(
         default=None,
         description="With `answer_to` = `conversation`: one of the caller's own chats; null clears it",
@@ -790,6 +797,9 @@ class TriggerRead(BaseSchema, TimestampSchema):
     )
     teams_conversation_id: UUID | None = None
     answer_to: Literal["run_log", "primary", "conversation"] = "run_log"
+    notification_channels: list[ExternalNotificationChannel] | None = Field(
+        default=None, max_length=2
+    )
     delivery_conversation_id: UUID | None = None
     ends_at: datetime | None = None
     monthly_budget_usd: Decimal | None = None

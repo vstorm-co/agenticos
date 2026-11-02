@@ -1,5 +1,6 @@
 """Agent trigger repository (PostgreSQL async)."""
 
+from collections.abc import Sequence
 from datetime import datetime, timedelta
 from decimal import Decimal
 from typing import Any
@@ -217,6 +218,7 @@ async def create(
     answer_to: str = "run_log",
     delivery_conversation_id: UUID | None = None,
     ends_at: datetime | None = None,
+    notification_channels: Sequence[str] | None = None,
     monthly_budget_usd: Decimal | None = None,
     pinned_version_id: UUID | None = None,
 ) -> AgentTrigger:
@@ -248,6 +250,9 @@ async def create(
         answer_to=answer_to,
         delivery_conversation_id=delivery_conversation_id,
         ends_at=ends_at,
+        notification_channels=None
+        if notification_channels is None
+        else list(notification_channels),
         monthly_budget_usd=monthly_budget_usd,
     )
     db.add(trigger)

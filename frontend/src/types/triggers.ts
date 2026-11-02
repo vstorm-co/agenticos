@@ -1,3 +1,4 @@
+import type { RoutineNotificationChannel } from "@/types/routines";
 /**
  * Types for agent triggers - when an agent runs with nobody at the keyboard.
  *
@@ -37,6 +38,7 @@ export type EventSource =
   | "zendesk";
 
 export interface Trigger {
+  notification_channels?: RoutineNotificationChannel[] | null;
   id: string;
   agent_id: string;
   /** Set only on the org-wide listing, where a row is shown away from its agent. */
@@ -139,6 +141,7 @@ export interface TriggerList {
 export type TriggerAnswerTo = "run_log" | "primary" | "conversation";
 
 export interface TriggerCreate {
+  notification_channels?: RoutineNotificationChannel[] | null;
   prompt: string;
   /** An optional title; omit to list the trigger by its agent's name. */
   name?: string | null;
@@ -198,6 +201,7 @@ export interface TriggerCreated extends Trigger {
  * is remade by deleting and recreating, the secret by rotating.
  */
 export interface TriggerUpdate {
+  notification_channels?: RoutineNotificationChannel[] | null;
   prompt?: string;
   name?: string | null;
   schedule_kind?: ScheduleKind;
