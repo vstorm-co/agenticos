@@ -1,5 +1,5 @@
 ---
-source_sha: "fed639325e0e"
+source_sha: "38736a8e5001"
 ---
 
 # La consola { #the-console }
@@ -383,6 +383,8 @@ capability, un delegado, un skill - y `/`; desaparecen en cuanto haces clic en �
 Encima, las tarjetas son los **primeros mensajes** propios del agent, definidos en
 el Builder bajo sus instrucciones; un agent sin ellos ofrece los cuatro del chat,
 entre ellos uno para preguntar qué puede hacer y otro para configurar una rutina.
+
+En pantallas de menos de 768 px, el razonamiento y los pasos habituales de herramientas durante la ejecución empiezan contraídos bajo la línea del tiempo de trabajo. Tócala para mostrar u ocultar los detalles. Las respuestas, preguntas, solicitudes de aprobación, errores y resultados visuales permanecen visibles. En pantallas más anchas se siguen mostrando los pasos en directo.
 
 **Debajo de una respuesta.** Un agent con
 [Follow-ups](reference/capabilities.md#follow-ups) ofrece debajo de su respuesta

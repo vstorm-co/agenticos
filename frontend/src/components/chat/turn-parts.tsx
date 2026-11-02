@@ -1,5 +1,6 @@
 "use client";
 
+import { Fragment, useState } from "react";
 import { Lightbulb, MessageCircleQuestion } from "lucide-react";
 import { useTranslations } from "next-intl";
 
@@ -75,6 +76,7 @@ export function TurnParts({
   /** The run was stopped part-way, so its work ends without an answer or a "Done". */
   stopped?: boolean;
 }) {
+  const [mobileWorkOpen, setMobileWorkOpen] = useState(false);
   const runs = runsOf(parts);
   const elapsed = useTurnElapsed(startedAt, isStreaming);
   // A browse is shown in the turn whether or not the steps around it fold:
@@ -139,9 +141,36 @@ export function TurnParts({
   if (isStreaming) {
     return (
       <>
-        {runs.some(isWork) && <WorkingLine elapsedMs={elapsed} />}
+        {runs.some(isWork) && (
+          <>
+            <div className="hidden md:block">
+              <WorkingLine elapsedMs={elapsed} />
+            </div>
+            <div className="md:hidden">
+              <WorkingLine
+                elapsedMs={elapsed}
+                expanded={mobileWorkOpen}
+                onToggle={() => setMobileWorkOpen((open) => !open)}
+              />
+            </div>
+          </>
+        )}
         <TurnBrowses calls={browseCalls(runs)} />
-        {runs.map((run, index) => render(run, true, index > 0 && isWork(runs[index - 1]!)))}
+        {runs.map((run, index) => {
+          // Questions, approvals, failures and tool payloads stay reachable while
+          // routine progress folds on small screens. Text keeps its turn order.
+          const foldable = isWork(run) && (run.kind !== "tools" || !mustShowEveryStep(run.parts));
+          return foldable ? (
+            <Fragment key={run.kind === "tools" ? run.parts[0].id : run.part.id}>
+              <div className={cn(!mobileWorkOpen && "hidden md:block")} data-work-detail>
+                {render(run, false)}
+              </div>
+              <TurnVisuals calls={visualCalls([run])} />
+            </Fragment>
+          ) : (
+            render(run, true, index > 0 && isWork(runs[index - 1]!))
+          );
+        })}
       </>
     );
   }

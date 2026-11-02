@@ -37,13 +37,32 @@ export function useTurnElapsed(startedAt: Date | undefined, running: boolean): n
 }
 
 /** "Working for 5s…" over a turn still at work, with a light passing over it. */
-export function WorkingLine({ elapsedMs }: { elapsedMs: number | null }) {
+export function WorkingLine({
+  elapsedMs,
+  expanded,
+  onToggle,
+}: {
+  elapsedMs: number | null;
+  expanded?: boolean;
+  onToggle?: () => void;
+}) {
   const t = useTranslations("chat.steps");
+  const Line = onToggle ? "button" : "p";
   return (
     // The orb sits in the same slot as the finished fold's mark, inside the
     // column: a negative margin pulled it past the transcript's edge, which
     // clips it.
-    <p role="status" className="flex items-center gap-2 py-0.5 text-[13px]">
+    <Line
+      type={onToggle ? "button" : undefined}
+      role={onToggle ? undefined : "status"}
+      aria-expanded={expanded}
+      onClick={onToggle}
+      className={cn(
+        "flex items-center gap-2 py-0.5 text-left text-[13px]",
+        onToggle &&
+          "text-muted-foreground hover:text-foreground min-h-9 rounded-md focus-visible:outline-2 focus-visible:outline-offset-2",
+      )}
+    >
       <span className="flex h-6 w-6 shrink-0 items-center justify-center">
         <ThinkingOrb state="breathing" size={20} className="h-6 w-6 opacity-80" />
       </span>
@@ -52,7 +71,16 @@ export function WorkingLine({ elapsedMs }: { elapsedMs: number | null }) {
           ? t("working")
           : t("workingFor", { duration: formatElapsed(elapsedMs, t) })}
       </span>
-    </p>
+      {onToggle && (
+        <ChevronRight
+          aria-hidden
+          className={cn(
+            "size-3.5 shrink-0 transition-transform motion-reduce:transition-none",
+            expanded && "rotate-90",
+          )}
+        />
+      )}
+    </Line>
   );
 }
 
@@ -100,7 +128,7 @@ export function WorkFold({
         type="button"
         aria-expanded={open}
         onClick={() => setOpen((was) => !was)}
-        className="group text-muted-foreground hover:text-foreground flex items-center gap-2 py-0.5 text-[13px] transition-colors"
+        className="group text-muted-foreground hover:text-foreground flex min-h-9 items-center gap-2 rounded-md py-0.5 text-left text-[13px] transition-colors md:min-h-0"
       >
         <span className="relative flex h-6 w-6 shrink-0 items-center justify-center">
           {/* The mark of work done; the way in once the pointer is on it, and the way
@@ -122,7 +150,9 @@ export function WorkFold({
           <ChevronRight
             className={cn(
               "absolute h-3.5 w-3.5 transition-[transform,opacity]",
-              open ? "rotate-90 opacity-100" : "opacity-0 group-hover:opacity-100",
+              open
+                ? "rotate-90 opacity-100"
+                : "opacity-100 md:opacity-0 md:group-hover:opacity-100",
             )}
             aria-hidden
           />

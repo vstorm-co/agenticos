@@ -1,5 +1,5 @@
 ---
-source_sha: "fed639325e0e"
+source_sha: "38736a8e5001"
 ---
 
 # Konsola { #the-console }
@@ -368,6 +368,8 @@ delegata, skilla - oraz `/`; znikają, gdy tylko w nie klikniesz. Nad nim karty
 to własne **pierwsze wiadomości** agenta, ustawiane w Builderze pod jego
 instrukcjami; agent bez nich proponuje cztery własne wiadomości czatu, w tym jedną
 z pytaniem, co potrafi, i jedną z ustawieniem rutyny.
+
+Na ekranach węższych niż 768 px rozumowanie i zwykłe kroki narzędzi podczas pracy są domyślnie zwinięte pod wierszem z czasem pracy. Dotknij go, aby rozwinąć lub zwinąć szczegóły. Odpowiedzi, pytania, prośby o zatwierdzenie, błędy i wyniki wizualne pozostają widoczne. Szersze ekrany nadal pokazują kroki na bieżąco.
 
 **Pod odpowiedzią.** Agent z [Następnymi krokami](reference/capabilities.md#follow-ups)
 proponuje pod najnowszą odpowiedzią do trzech następnych kroków jako przyciski, a

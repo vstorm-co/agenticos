@@ -1,5 +1,5 @@
 ---
-source_sha: "fed639325e0e"
+source_sha: "38736a8e5001"
 ---
 
 # Die Konsole { #the-console }
@@ -402,6 +402,8 @@ hineinklicken. Darüber sind die Karten die eigenen **ersten Nachrichten** des
 Agents, im Builder unter seinen Instruktionen gesetzt; ein Agent ohne sie bietet
 die vier des Chats an, darunter eine, die fragt, was er kann, und eine, die eine
 Routine einrichtet.
+
+Auf Bildschirmen unter 768 px bleiben laufende Überlegungen und gewöhnliche Werkzeugschritte zunächst hinter der Zeile mit der Arbeitszeit eingeklappt. Tippe darauf, um Details ein- oder auszuklappen. Antworten, Fragen, Freigabeanfragen, Fehler und visuelle Ergebnisse bleiben sichtbar. Auf breiteren Bildschirmen sind laufende Schritte weiterhin zu sehen.
 
 **Unter einer Antwort.** Ein Agent mit
 [Nächsten Schritten](reference/capabilities.md#follow-ups) bietet unter seiner

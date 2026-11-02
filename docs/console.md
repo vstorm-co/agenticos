@@ -354,6 +354,8 @@ are the agent's own **first messages**, set under its instructions in the
 Builder; an agent with none offers the chat's own four, two of them to ask what it
 can do and to set up a routine.
 
+On screens narrower than 768 px, live reasoning and routine tool steps start collapsed behind the working-time line. Tap the line to expand or collapse them. Answers, questions, approval requests, errors and visual results stay visible. Wider screens keep the live steps in view.
+
 **Under an answer.** An agent with [Follow-ups](reference/capabilities.md#follow-ups)
 offers up to three next steps as buttons under its latest answer, and a click
 sends one. A line says what it noted about you, or forgot, with **Manage** for
