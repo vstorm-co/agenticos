@@ -1,5 +1,5 @@
 ---
-source_sha: "e2344fe1861a"
+source_sha: "85e982232e6a"
 title: "Authoring-Assistent"
 description: "Der Authoring-Assistent liest, was Leute negativ bewertet haben und wie Runs endeten, und schlägt Änderungen an Anweisungen, Tools, Konfiguration, Skills und Context-Dateien eines Agents vor. Über jede entscheidet ein Mensch."
 ---
@@ -22,8 +22,9 @@ Er tut drei Dinge:
 - Ihre eigenen Änderungen **prüfen**: den Entwurf mit der Version, auf der er
   beruht - der zuletzt veröffentlichten -, anhand derselben Belege vergleichen und
   sagen, was die Änderungen verbessern, riskieren und entfernt haben.
-- **Einen Skill** oder **eine Context-Datei verbessern**: einen neuen Inhalt aus
-  den Runs vorschlagen, die sie gelesen haben.
+- **Eine Context-Datei verbessern**: einen neuen Inhalt aus den Runs vorschlagen,
+  die sie gelesen haben. Ein Skill wird Schritt für Schritt auf seiner eigenen
+  Seite verbessert - siehe [Einen Skill verbessern](skills.md#improving-a-skill).
 
 Der Assistent ist ein eigener [System-Agent](concepts.md#system-agents),
 aufgeführt mit den übrigen System-Agents der Organisation. Ein Administrator
@@ -259,9 +260,10 @@ erneut.
 
 ## Skills { #skills }
 
-Ein Skill wird aus seiner Werkbank unter Skills verbessert. Der Assistent schlägt
-einen vollständigen neuen Inhalt vor, der mit den anderen
-[Skill](skills.md)-Änderungen unter Skills wartet, mit Begründung und Belegen.
+Ein Skill wird auf seiner eigenen Seite unter Skills verbessert. **Verbessern**
+öffnet dort eine Sitzung für die angezeigte Linie, in denselben fünf Schritten
+wie bei einem Agent, und prüft die Änderung an jedem Agent dieser Linie, bevor
+etwas angewendet wird - siehe [Einen Skill verbessern](skills.md#improving-a-skill).
 
 Das Anwenden einer Skill-Änderung wirkt sofort: Jeder an den Skill gebundene
 Agent liest den neuen Inhalt beim nächsten Run. Deshalb lässt sich eine
@@ -334,9 +336,9 @@ diesen Agent verbessern.
 ## Wenn KI-Unterstützung ausgeschaltet ist { #when-ai-assistance-is-off }
 
 Ist der Schalter **KI-Unterstützung** der Organisation aus, läuft der Assistent
-nicht: Verbessern, Prüfen und das Verbessern eines Skills oder einer
-Context-Datei lehnt der Server ab,
-und die Konsole zeigt sie deaktiviert mit einem Link zum Schalter. Bereits
+nicht: Verbessern, Prüfen und das Verbessern einer Context-Datei lehnt der Server
+ab, und die Konsole zeigt sie deaktiviert mit einem Link zum Schalter. Eine
+Sitzung zum Verbessern eines Skills hält vor ihrem nächsten Schritt an. Bereits
 wartende Vorschläge lassen sich weiterhin annehmen, verwerfen und rückgängig
 machen, und ein Eval Run, der keinen Bewerter braucht, läuft weiterhin.
 

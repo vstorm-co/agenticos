@@ -21,8 +21,9 @@ It does three things:
 - **Verify** your own edits: compare the draft with the version it is based on -
   the latest published one - against the same evidence, and say what the edits improve, what they risk and what they
   removed.
-- **Improve a skill** or a **context file**: suggest a new body from the runs
-  that read it.
+- **Improve a context file**: suggest a new body from the runs that read it. A
+  skill is improved step by step on its own page - see
+  [Improving a skill](skills.md#improving-a-skill).
 
 The assistant is a [system agent](concepts.md#system-agents) of its own, listed with
 the organization's other system agents. An administrator edits its instructions
@@ -237,9 +238,10 @@ then run it again.
 
 ## Skills { #skills }
 
-A skill is improved from its workbench under Skills. What the assistant suggests
-is a whole new body, and it waits with the other [skill](skills.md) changes
-under Skills, with its rationale and evidence.
+A skill is improved on its own page under Skills. **Improve** there opens a
+session for the line on screen, in the same five steps as an agent's, and checks
+the change on every agent of that line before anything is applied - see
+[Improving a skill](skills.md#improving-a-skill).
 
 Applying a skill change is live: every agent bound to the skill reads the new
 body on its next run. So a skill change can be checked with evals first, on an
@@ -305,8 +307,9 @@ Grants count: a member with an edit grant on one agent may improve that agent.
 ## When AI assistance is off { #when-ai-assistance-is-off }
 
 With the organization's **AI assistance** switch off, the assistant does not run:
-Improve, Verify and Improve on a skill or a context file are refused by the server, and the console
-shows them disabled with a link to the switch. Suggestions already waiting can
+Improve, Verify and Improve on a context file are refused by the server, and the console
+shows them disabled with a link to the switch. A skill's Improve session stops
+before its next step. Suggestions already waiting can
 still be accepted, dismissed and undone, and an eval run that needs no judge
 still runs.
 
