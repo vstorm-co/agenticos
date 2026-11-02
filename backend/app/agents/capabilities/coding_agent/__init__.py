@@ -87,6 +87,7 @@ class CodingAgentConfig(BaseModel):
             "Codex use the sign-in they already have and need no key."
         ),
         json_schema_extra={
+            "x-widget": "coding-environment",
             "x-enum-labels": {
                 "sandbox": "In the agent's sandbox",
                 "this_computer": "On this computer",

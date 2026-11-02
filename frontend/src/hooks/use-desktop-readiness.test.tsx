@@ -40,3 +40,24 @@ it("preflights without prompting, refreshes after consent and surfaces refusal",
   });
   expect(toast.error).toHaveBeenCalled();
 });
+
+it("rechecks on a native window focus even when the webview stays visible", async () => {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const wrapper = ({ children }: { children: ReactNode }) => (
+    <QueryClientProvider client={client}>{children}</QueryClientProvider>
+  );
+  const { unmount } = renderHook(useDesktopReadiness, { wrapper });
+  await waitFor(() => expect(client.isFetching()).toBe(0));
+  vi.mocked(readDesktopReadiness).mockClear();
+  act(() => {
+    window.dispatchEvent(new Event("focus"));
+  });
+  await waitFor(() => expect(readDesktopReadiness).toHaveBeenCalledOnce());
+  unmount();
+  vi.mocked(readDesktopReadiness).mockClear();
+  act(() => {
+    window.dispatchEvent(new Event("focus"));
+  });
+  expect(readDesktopReadiness).not.toHaveBeenCalled();
+  client.clear();
+});

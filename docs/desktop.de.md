@@ -1,5 +1,5 @@
 ---
-source_sha: "75207a04abf7"
+source_sha: "5bf4baa63599"
 ---
 
 # Die Desktop-App { #the-desktop-app }
@@ -34,6 +34,8 @@ Ohne gespeicherte Auswahl startet die Desktop-App mit dem **System**-Modus und
 dem Stil **Glass**. Eine ausdrücklich gespeicherte Auswahl hat Vorrang.
 
 Unter **Chat controls → Computer use** bietet **Lokaler Computer** dieser Unterhaltung Screenshot-, Maus- und Tastaturwerkzeuge, auch wenn der Agent keine Computer-use-Fähigkeit hat. Die Auswahl ist unabhängig von Browser und Work on: Sie gewährt weder Ordner- noch Befehlszugriff und ändert den veröffentlichten Agenten nicht. Die Person muss ihr eigenes gekoppeltes Gerät verbunden haben; die native Bildschirmzustimmung und Betriebssystemberechtigungen gelten weiterhin.
+
+Bei der Rückkehr aus den Systemeinstellungen wird die Bereitschaft auch dann aktualisiert, wenn die Webview sichtbar bleibt. Ist die Bildschirmaufnahme aktiviert, der Zugriff aber weiterhin verweigert, beende und öffne die laufende Kopie erneut und aktualisiere den Status. Berechtigungen können zwischen einer installierten Version und einer Ad-hoc-Testkopie abweichen.
 
 ## Die App installieren { #installing-the-app }
 

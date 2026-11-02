@@ -12011,6 +12011,7 @@
       "askAdmin": "Poproś administratora o skonfigurowanie modelu dla organizacji.",
       "askAgentAdmin": "Poproś administratora o opublikowanie lub udostępnienie agenta, z którego możesz korzystać.",
       "permissionNote": "Sprawdzenie nie przechwytuje ekranu, dźwięku ani schowka. Uprawnienia są opcjonalne i wymagają kliknięcia. Po zmianie Nagrywania ekranu macOS może wymagać restartu aplikacji.",
+      "screenCaptureDenied": "macOS nie udostępnia ekranu tej uruchomionej aplikacji. Jeśli AgenticOS jest już włączony w ustawieniach systemowych, zamknij i otwórz ponownie tę kopię aplikacji, a następnie odśwież status. Inna zainstalowana kopia może mieć inne uprawnienia.",
       "retryScreenshot": "Spróbuj ponownie zrobić zrzut",
       "welcome": "Dokończ łączenie tej aplikacji",
       "welcomeHint": "Włącz funkcje desktopowe, z których chcesz korzystać. Opcjonalne kroki możesz dokończyć później.",

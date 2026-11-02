@@ -635,8 +635,10 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
                     canEdit={canEdit}
                   />
                 ) : (
-                  <div className="border-border flex flex-col items-center gap-3 rounded-xl border border-dashed px-6 py-12 text-center">
-                    <p className="text-sm font-medium">{t("kanbanGroupTitle")}</p>
+                  <div className="flex flex-col items-center gap-3 px-9 py-24 text-center sm:py-32">
+                    <p className="text-base font-semibold tracking-tight">
+                      {t("kanbanGroupTitle")}
+                    </p>
                     {groupable.length > 0 ? (
                       <>
                         <p className="text-muted-foreground max-w-md text-sm">
@@ -661,7 +663,7 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
                           {t("kanbanNoGroupable")}
                         </p>
                         {canEdit && (
-                          <Button size="sm" variant="outline" onClick={() => setAddingColumn(true)}>
+                          <Button size="sm" onClick={() => setAddingColumn(true)}>
                             <Plus className="h-4 w-4" /> {t("kanbanAddColumn")}
                           </Button>
                         )}
@@ -677,15 +679,18 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
                     records={records}
                     isLoading={recordsLoading}
                     onOpenRecord={setOpenRecord}
+                    onAddRecord={canEdit ? () => addRecord() : undefined}
                   />
-                  <div className="mt-3">
-                    <HasMorePager
-                      page={page}
-                      hasMore={hasMore}
-                      isLoading={recordsLoading || recordsPlaceholder}
-                      onPage={setPage}
-                    />
-                  </div>
+                  {(page > 0 || hasMore) && (
+                    <div className="mt-3">
+                      <HasMorePager
+                        page={page}
+                        hasMore={hasMore}
+                        isLoading={recordsLoading || recordsPlaceholder}
+                        onPage={setPage}
+                      />
+                    </div>
+                  )}
                 </>
               )}
             </>

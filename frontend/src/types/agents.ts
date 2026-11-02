@@ -868,7 +868,8 @@ export interface JsonSchemaProperty {
    * `model-profile` is one of the organization's model profiles, chosen from
    * the same picker the Builder uses for the agent's own model.
    */
-  "x-widget"?: "model-profile" | "browser-connection" | "computer-environment";
+  "x-widget"?:
+    "model-profile" | "browser-connection" | "computer-environment" | "coding-environment";
   /**
    * The choices an enum offers for each value of another field of the form -
    * the coding agent's models, which depend on its harness. A choice the other

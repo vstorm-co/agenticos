@@ -255,7 +255,9 @@ function SchemaField({
   const label = copy?.title ?? property.title ?? humanise(name);
 
   const computerEnvironment = property["x-widget"] === "computer-environment";
-  const tiled = computerEnvironment || property["x-widget"] === "browser-connection";
+  const codingEnvironment = property["x-widget"] === "coding-environment";
+  const tiled =
+    computerEnvironment || codingEnvironment || property["x-widget"] === "browser-connection";
   const choices =
     enumChoices(property)?.filter((choice) => !computerEnvironment || choice !== "auto") ?? null;
   const kind = resolveKind(property);
@@ -399,7 +401,10 @@ function SchemaField({
                 )}
               >
                 <span className="flex items-center gap-2 font-medium">
-                  {choiceMark(choice, computerEnvironment ? "desktop" : "browser-connection")}
+                  {choiceMark(
+                    choice,
+                    computerEnvironment || codingEnvironment ? "desktop" : "browser-connection",
+                  )}
                   {enumLabel(property, choice, copy)}
                 </span>
                 {copy?.options?.[choice]?.summary && (
@@ -796,6 +801,7 @@ function choiceMark(choice: string, field: string) {
         );
       case "sandbox":
         return <Container className={className} aria-hidden />;
+      case "this_computer":
       case "local":
         return <Laptop className={className} aria-hidden />;
       case "daemon":

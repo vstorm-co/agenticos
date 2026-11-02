@@ -1,5 +1,5 @@
 ---
-source_sha: "75207a04abf7"
+source_sha: "5bf4baa63599"
 ---
 
 # La app de escritorio { #the-desktop-app }
@@ -34,6 +34,8 @@ Sin una preferencia guardada, la aplicación de escritorio usa el tema **Sistema
 y el estilo **Glass**. Una elección explícita guardada tiene prioridad.
 
 En **Chat controls → Computer use**, selecciona **Local computer** para dar a esta conversación herramientas de capturas de pantalla, ratón y teclado, aunque el agente no tenga la capacidad Computer use. La elección es independiente de Browser y Work on: no concede acceso a carpetas ni comandos y no modifica el agente publicado. La persona debe tener conectado su propio dispositivo emparejado; siguen siendo necesarios el consentimiento nativo para la pantalla y los permisos del sistema operativo.
+
+Al volver de Ajustes del Sistema se actualiza el estado aunque la vista web siga visible. Si la grabación de pantalla está activada pero el acceso sigue denegado, cierra y vuelve a abrir la copia en ejecución y actualiza el estado. Los permisos pueden diferir entre una versión instalada y una copia de prueba con firma ad hoc.
 
 ## Instalar la aplicación { #installing-the-app }
 

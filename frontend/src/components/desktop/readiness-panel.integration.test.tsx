@@ -41,6 +41,7 @@ beforeEach(async () => {
   vi.clearAllMocks();
   events.clear();
   setup.items = [{ key: "screen_capture", state: "missing" }];
+  setup.native.status.data.screen_capture = "denied";
   setup.scope = "existing-user-server-one";
   setup.revision = "connection-one";
   setup.canManageAgents = false;
@@ -133,4 +134,9 @@ it("opens the relevant configuration page and manual refresh", async () => {
   expect(router.push).toHaveBeenCalledWith("/settings/shortcuts");
   await userEvent.click(screen.getByRole("button", { name: "Check again" }));
   expect(setup.refresh).toHaveBeenCalled();
+});
+
+it("explains when an OS-enabled permission still does not reach the running copy", () => {
+  mount(<ReadinessPanel />);
+  expect(screen.getByText(/macOS has not granted screen access to this running app/)).toBeVisible();
 });

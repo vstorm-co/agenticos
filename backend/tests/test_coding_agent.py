@@ -1565,3 +1565,11 @@ class TestChoosingAModel:
         assert isinstance(built, CodingAgent)
         assert built.api_key is None and built.sign_in is not None
         assert repr(built.sign_in(uuid4())).startswith("VaultCodexCredentials(")
+
+
+def test_coding_environment_uses_icon_choice_cards() -> None:
+    from app.agents.capabilities.coding_agent import CodingAgentConfig
+
+    field = CodingAgentConfig.model_json_schema()["properties"]["runs_on"]
+    assert field["x-widget"] == "coding-environment"
+    assert field["enum"] == ["sandbox", "this_computer"]

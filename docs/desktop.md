@@ -30,6 +30,8 @@ look. An explicit saved theme or look takes precedence.
 
 In **Chat controls → Computer use**, select **Local computer** to give this conversation screenshot, mouse and keyboard tools even when the agent has no Computer use binding. The choice is independent of Browser and Work on: it does not grant a folder or command access, and the published agent stays unchanged. The initiating person must have their own paired device connected; native screen consent and operating-system permissions still apply.
 
+Returning from System Settings refreshes readiness even when the webview stays visible. If Screen Recording is enabled but access is still denied, quit and reopen the running copy, then refresh. Permissions can differ between an installed build and an ad-hoc test copy.
+
 ## Installing the app
 
 Download the package for your computer from the [GitHub release](https://github.com/vstorm-co/agenticos/releases/latest). You do not need Rust or development tools to install a release.

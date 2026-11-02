@@ -1434,6 +1434,7 @@ it("offers local Codex read-only and clears it when returning to a sandbox", asy
         type: "string",
         enum: ["sandbox", "this_computer"],
         title: "Where it runs",
+        "x-widget": "coding-environment",
         default: "sandbox",
       },
       access: {
@@ -1460,7 +1461,11 @@ it("offers local Codex read-only and clears it when returning to a sandbox", asy
   await userEvent.click(screen.getByLabelText("Access"));
   expect(screen.getByRole("option", { name: "read_only" })).toBeInTheDocument();
   await userEvent.keyboard("{Escape}");
-  await userEvent.click(screen.getByLabelText("Where it runs"));
-  await userEvent.click(screen.getByRole("option", { name: "sandbox" }));
+  expect(screen.getByRole("radiogroup", { name: "Where it runs" })).toBeInTheDocument();
+  expect(screen.getByRole("radio", { name: "this_computer" })).toHaveAttribute(
+    "aria-checked",
+    "true",
+  );
+  await userEvent.click(screen.getByRole("radio", { name: "sandbox" }));
   expect(onChange).toHaveBeenLastCalledWith({ runs_on: "sandbox", access: undefined });
 });

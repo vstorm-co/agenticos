@@ -12235,6 +12235,7 @@
       "askAdmin": "Ask an administrator to configure a model for this organization.",
       "askAgentAdmin": "Ask an administrator to publish or share an agent you can use.",
       "permissionNote": "These checks capture no screen, audio or clipboard. Permissions are optional and requested only when you click. macOS may require restarting the app after a Screen Recording change.",
+      "screenCaptureDenied": "macOS has not granted screen access to this running app. If AgenticOS is already enabled in System Settings, quit and reopen this copy of the app, then refresh. A different installed copy can have different permissions.",
       "retryScreenshot": "Try the screenshot again",
       "welcome": "Finish connecting this desktop",
       "welcomeHint": "Enable the desktop features you want to use. You can finish the optional steps later.",

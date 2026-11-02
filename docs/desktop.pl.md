@@ -1,5 +1,5 @@
 ---
-source_sha: "75207a04abf7"
+source_sha: "5bf4baa63599"
 ---
 
 # Aplikacja desktopowa { #the-desktop-app }
@@ -34,6 +34,8 @@ Bez zapisanej preferencji desktop uruchamia się z motywem **Systemowym** i styl
 **Glass**. Wcześniejszy jawny wybór motywu lub stylu ma pierwszeństwo.
 
 W **Chat controls → Computer use** wybierz **Lokalny komputer**, aby udostępnić tej rozmowie narzędzia zrzutów ekranu, myszy i klawiatury, nawet jeśli agent nie ma zdolności Computer use. Wybór jest niezależny od Browser i Work on: nie daje dostępu do folderu ani komend i nie zmienia opublikowanego agenta. Osoba rozpoczynająca pracę musi mieć połączone własne, sparowane urządzenie; nadal obowiązują natywna zgoda na ekran i uprawnienia systemu operacyjnego.
+
+Powrót z ustawień systemowych odświeża gotowość również wtedy, gdy webview pozostaje widoczny. Jeśli Screen Recording jest włączone, ale dostęp nadal jest odrzucany, zamknij i otwórz uruchomioną kopię aplikacji, a następnie odśwież status. Uprawnienia mogą różnić się między zainstalowaną wersją a testową kopią z podpisem ad-hoc.
 
 ## Instalacja aplikacji { #installing-the-app }
 

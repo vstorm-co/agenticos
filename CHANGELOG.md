@@ -43,6 +43,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Coding-agent instructions remain fully readable, execution locations use icon cards, desktop readiness refreshes on native focus with guidance for macOS grants, and Tables uses consistent empty states across views without a large-screen catalog expansion button.
+
 - Conversation lists identify Claude Code and Codex used in a thread alongside its main agent, based on saved task reports and retained after refresh.
 
 - File viewers keep clear of macOS window controls, load directly linked workspace stylesheets and preserve original HTML in Source. Chat files retain their folder hierarchy, and files changed by a turn can be opened below its answer.
