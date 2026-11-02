@@ -163,7 +163,7 @@ export function PublicLinkSettings({
           value={origins}
           onChange={(event) => setOrigins(event.target.value)}
           placeholder={ORIGIN_EXAMPLE}
-          className="font-mono text-xs"
+          className="font-mono text-base md:text-xs"
         />
       </FormField>
       <Button

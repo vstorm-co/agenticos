@@ -75,7 +75,7 @@ export function DirectoryLoginForm({ onBack }: { onBack: () => void }) {
           autoComplete="username"
           autoCapitalize="none"
           spellCheck={false}
-          className="h-11 rounded-lg text-[15px]"
+          className="h-11 rounded-lg text-base md:text-[15px]"
         />
       </div>
 
@@ -91,7 +91,7 @@ export function DirectoryLoginForm({ onBack }: { onBack: () => void }) {
           required
           disabled={isLoading}
           autoComplete="current-password"
-          className="h-11 rounded-lg text-[15px]"
+          className="h-11 rounded-lg text-base md:text-[15px]"
         />
       </div>
 

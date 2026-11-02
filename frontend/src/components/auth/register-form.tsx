@@ -135,7 +135,7 @@ export function RegisterForm() {
             onChange={(e) => setName(e.target.value)}
             disabled={isLoading}
             autoComplete="name"
-            className="h-11 rounded-lg text-[15px]"
+            className="h-11 rounded-lg text-base md:text-[15px]"
           />
         </div>
 
@@ -153,7 +153,7 @@ export function RegisterForm() {
             required
             disabled={isLoading}
             autoComplete="email"
-            className={`h-11 rounded-lg text-[15px] ${emailTouched && email && !emailValid ? "border-destructive" : ""}`}
+            className={`h-11 rounded-lg text-base md:text-[15px] ${emailTouched && email && !emailValid ? "border-destructive" : ""}`}
           />
           {emailTouched && email && !emailValid && (
             <p className="text-destructive text-xs">{t("emailRequired")}</p>
@@ -173,7 +173,7 @@ export function RegisterForm() {
             required
             disabled={isLoading}
             autoComplete="new-password"
-            className={`h-11 rounded-lg text-[15px] ${password && !passwordLongEnough ? "border-destructive" : ""}`}
+            className={`h-11 rounded-lg text-base md:text-[15px] ${password && !passwordLongEnough ? "border-destructive" : ""}`}
           />
           {password && (
             <div className="space-y-1.5 pt-1">
@@ -220,7 +220,7 @@ export function RegisterForm() {
             required
             disabled={isLoading}
             autoComplete="new-password"
-            className={`h-11 rounded-lg text-[15px] ${confirmPassword && !passwordsMatch ? "border-destructive" : ""}`}
+            className={`h-11 rounded-lg text-base md:text-[15px] ${confirmPassword && !passwordsMatch ? "border-destructive" : ""}`}
           />
           {confirmPassword && !passwordsMatch && (
             <p className="text-destructive inline-flex items-center gap-1 text-xs">

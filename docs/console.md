@@ -48,6 +48,8 @@ Page headers use the surrounding layout’s spacing once. Cards, sidebar rows, t
 
 Template category dialogs fit their content; choosing an agent or skill industry opens the larger library. On phones, appearance choices use compact rows with thumbnails.
 
+Agent and project instructions share one compact toolbar for their heading, help, source/preview and expansion. Expanded Markdown keeps the selected source or preview view. Unused prompt variables start folded, while existing custom variables or a custom time zone keep the panel open. Expanded text and file editors keep consistent phone gutters; phone text inputs use larger type without enlarging desktop fields.
+
 ## The dashboard
 
 The landing page is an **arrangeable grid of widgets**, and it is the answer to

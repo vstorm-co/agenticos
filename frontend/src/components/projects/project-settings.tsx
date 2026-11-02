@@ -9,7 +9,6 @@ import {
   Button,
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
   ConfirmDialog,
@@ -22,6 +21,7 @@ import {
 import { useProject } from "@/hooks/use-projects";
 import { ROUTES } from "@/lib/constants";
 import type { Project } from "@/types/projects";
+import { ContextHelp } from "@/components/ui/context-help";
 import { ProjectSandboxSummary } from "./project-sandbox-choice";
 import { DefaultAgentSelect } from "./default-agent-select";
 
@@ -53,19 +53,21 @@ export function ProjectSettings({ project }: { project: Project }) {
     agentId !== project.default_agent_id;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <Card>
-        <CardHeader className="flex-row items-start gap-3 space-y-0">
-          <div className="min-w-0 flex-1 space-y-1.5">
-            <CardTitle>{t("instructions")}</CardTitle>
-            <CardDescription>{t("instructionsHint")}</CardDescription>
-          </div>
-          <MarkdownModeToggle mode={mode} onChange={setMode} />
-        </CardHeader>
-        <CardContent>
+        <CardContent className="p-4 sm:p-5">
           <MarkdownEditor
             id="project-instructions"
             label={t("instructions")}
+            toolbar={
+              <>
+                <div className="flex min-w-0 flex-1 items-center gap-1">
+                  <CardTitle className="min-w-0 truncate text-sm">{t("instructions")}</CardTitle>
+                  <ContextHelp>{t("instructionsHint")}</ContextHelp>
+                </div>
+                <MarkdownModeToggle mode={mode} onChange={setMode} />
+              </>
+            }
             value={instructions}
             onChange={(next) => setInstructions(next)}
             placeholder={t("instructionsPlaceholder")}

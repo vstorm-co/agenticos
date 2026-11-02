@@ -141,3 +141,17 @@ it("keeps expanded edits when returning to the form", async () => {
   expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   expect(screen.getByRole("textbox", { name: "Instructions" })).toHaveValue("Updated instructions");
 });
+
+it("expands the selected preview without switching it to source or exposing completions", async () => {
+  mount({ disabled: true, suggestions: <div>Source completions</div> });
+  await userEvent.click(screen.getByRole("button", { name: "Preview" }));
+  expect(screen.queryByText("Source completions")).not.toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: "Expand Instructions" }));
+  const dialog = screen.getByRole("dialog", { name: "Instructions" });
+  expect(within(dialog).getByRole("region", { name: "Instructions preview" })).toHaveTextContent(
+    "# Heading",
+  );
+  expect(within(dialog).queryByRole("textbox")).not.toBeInTheDocument();
+  await userEvent.click(within(dialog).getByRole("button", { name: "Close" }));
+  expect(screen.getByRole("region", { name: "Instructions preview" })).toBeInTheDocument();
+});

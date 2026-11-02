@@ -161,7 +161,7 @@ export function EmbedForm({
             onChange={(event) => setOrigins(event.target.value)}
             placeholder={"https://acme.com\nhttps://www.acme.com"}
             rows={3}
-            className="font-mono text-sm"
+            className="font-mono text-base md:text-sm"
           />
           <p className="text-muted-foreground text-xs">
             {kind === "socket" ? t("originsSocketHint") : t("onePerLineDifferent")}

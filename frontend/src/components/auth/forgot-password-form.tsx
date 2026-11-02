@@ -95,7 +95,7 @@ export function ForgotPasswordForm() {
             required
             disabled={isLoading}
             autoComplete="email"
-            className="h-11 rounded-lg text-[15px]"
+            className="h-11 rounded-lg text-base md:text-[15px]"
           />
         </div>
 

@@ -520,7 +520,7 @@ function SchemaField({
             disabled={disabled}
             spellCheck={false}
             className={cn(
-              "font-mono text-xs",
+              "font-mono text-base md:text-xs",
               masked && "pr-10",
               // No `type="password"` on a textarea, so the masking is the font.
               // It hides the value from a shoulder and from a screenshot, which

@@ -142,7 +142,7 @@ function QuickLogForm({
           maxLength={QUICK_LOG_MESSAGE_MAX}
           disabled={readOnly}
           onChange={(event) => setMessage(event.target.value)}
-          className="font-mono text-xs"
+          className="font-mono text-base md:text-xs"
         />
       </div>
       {outputs.length === 0 ? (

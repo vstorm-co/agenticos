@@ -20,7 +20,7 @@ export function CopyableValue({ id, label, value }: { id: string; label: string;
     <div className="space-y-1">
       <Label htmlFor={id}>{label}</Label>
       <div className="flex gap-2">
-        <Input id={id} value={value} readOnly className="flex-1 font-mono text-xs" />
+        <Input id={id} value={value} readOnly className="flex-1 font-mono text-base md:text-xs" />
         <Button
           type="button"
           variant="outline"

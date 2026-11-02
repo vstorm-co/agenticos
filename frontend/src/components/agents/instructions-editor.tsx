@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, type KeyboardEvent, type RefObject } from "react";
+import { useRef, useState, type KeyboardEvent, type ReactNode, type RefObject } from "react";
 import { useTranslations } from "next-intl";
 
 import { MarkdownEditor, type MarkdownMode } from "@/components/ui";
@@ -29,6 +29,7 @@ interface InstructionsEditorProps {
   textareaRef?: RefObject<HTMLTextAreaElement | null>;
   /** Source or preview, toggled from the card header that holds the editor. */
   mode: MarkdownMode;
+  toolbar?: ReactNode;
 }
 
 /**
@@ -48,6 +49,7 @@ export function InstructionsEditor({
   variables,
   textareaRef,
   mode,
+  toolbar,
 }: InstructionsEditorProps) {
   const t = useTranslations("agents");
   const ownRef = useRef<HTMLTextAreaElement>(null);
@@ -104,6 +106,7 @@ export function InstructionsEditor({
         disabled={disabled}
         placeholder={placeholder}
         mode={mode}
+        toolbar={toolbar}
         suggestions={
           showing && (
             <ul

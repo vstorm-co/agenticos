@@ -453,7 +453,7 @@ export function FileExplorer({
               aria-label={t("searchLabel")}
               placeholder={t("searchPlaceholder")}
               onChange={(event) => setQuery(event.target.value)}
-              className="h-8 pl-7 text-xs"
+              className="h-8 pl-7 text-base md:text-xs"
             />
           </div>
 

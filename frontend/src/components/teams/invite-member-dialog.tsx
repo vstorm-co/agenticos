@@ -108,7 +108,7 @@ export function InviteMemberDialog({ open, onOpenChange, orgId }: InviteMemberDi
                   readOnly
                   value={acceptUrl}
                   onFocus={(e) => e.currentTarget.select()}
-                  className="font-mono text-xs"
+                  className="font-mono text-base md:text-xs"
                 />
                 <Button type="button" variant="outline" onClick={() => copy(acceptUrl)}>
                   {copied ? t("copied") : t("copy")}

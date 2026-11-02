@@ -61,7 +61,7 @@ export function McpOAuthClientFields({
             onChange={(event) => onClientIdChange(event.target.value)}
             maxLength={512}
             autoComplete="off"
-            className="mt-1.5 font-mono text-sm"
+            className="mt-1.5 font-mono text-base md:text-sm"
           />
         </div>
         <div>
@@ -73,7 +73,7 @@ export function McpOAuthClientFields({
             onChange={(event) => onClientSecretChange(event.target.value)}
             maxLength={4096}
             autoComplete="new-password"
-            className="mt-1.5 font-mono text-sm"
+            className="mt-1.5 font-mono text-base md:text-sm"
           />
           <p className="text-muted-foreground mt-1 text-xs">{t("oauthClientSecretHint")}</p>
         </div>

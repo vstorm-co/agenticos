@@ -206,7 +206,7 @@ export function BindingField({
               // keyed so another node's or another source's path starts fresh.
               key={`${targetNodeId}:${current.candidate.key}`}
               id={`${idPrefix}-path`}
-              className="font-mono text-xs"
+              className="font-mono text-base md:text-xs"
               placeholder={t("bindingPathPlaceholder")}
               disabled={disabled}
               defaultValue={current.extraPath.join(".")}
@@ -380,7 +380,7 @@ function JsonLiteral({
       </div>
       <Textarea
         id={id}
-        className="font-mono text-xs"
+        className="font-mono text-base md:text-xs"
         rows={4}
         disabled={disabled}
         // i18n-exempt: JSON syntax shown as an example, and braces are ICU syntax in the catalog.

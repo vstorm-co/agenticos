@@ -250,7 +250,7 @@ export function NewFileForm({
             onChange={(event) => setName(event.target.value)}
             placeholder="references/workflows.md"
             spellCheck={false}
-            className="font-mono text-sm"
+            className="font-mono text-base md:text-sm"
             required
           />
           <p className="text-muted-foreground text-xs">{t("folderMadeByNaming")}</p>
@@ -271,7 +271,7 @@ export function NewFileForm({
         rows={10}
         placeholder={t("fileBody")}
         aria-label={t("fileContents")}
-        className="font-mono text-xs"
+        className="font-mono text-base md:text-xs"
       />
       <div className="flex items-center gap-2">
         <Button type="submit" size="sm" loading={busy} disabled={name.trim() === ""}>

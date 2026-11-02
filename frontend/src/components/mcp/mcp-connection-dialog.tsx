@@ -244,7 +244,7 @@ function ConnectionForm({
         onBlur={probe}
         placeholder="https://example.com/mcp"
         maxLength={2048}
-        className="mt-1.5 font-mono text-sm"
+        className="mt-1.5 font-mono text-base md:text-sm"
       />
       {signIn !== null && (
         <p className="text-muted-foreground mt-1 text-xs" role="status">
@@ -407,7 +407,7 @@ function ConnectionForm({
               draft.existing?.has_auth_token ? "•••••• (stored - type to replace)" : t("pasteHere")
             }
             maxLength={4096}
-            className="mt-1.5 font-mono text-sm"
+            className="mt-1.5 font-mono text-base md:text-sm"
           />
           <p className="text-muted-foreground mt-1 text-xs">
             {scope === "organization"

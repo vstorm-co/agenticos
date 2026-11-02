@@ -142,7 +142,7 @@ export function CurlImport({
                 }}
                 // i18n-exempt: a sample command, not console copy
                 placeholder="curl https://api.example.com/v1/items -H 'Accept: application/json'"
-                className="min-h-40 font-mono text-xs"
+                className="min-h-40 font-mono text-base md:text-xs"
               />
               {problem !== null && <p className="text-destructive text-xs">{problem}</p>}
             </div>

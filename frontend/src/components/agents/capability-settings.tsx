@@ -1094,7 +1094,7 @@ function ToolRow({ binding, tool, contract, onChange, disabled }: ToolRowProps) 
             aria-invalid={nameError !== null}
             aria-describedby={nameError === null ? undefined : `${fieldId("name")}-error`}
             onChange={(event) => edit("name", event.target.value)}
-            className="font-mono text-sm"
+            className="font-mono text-base md:text-sm"
           />
         </ToolField>
 
@@ -1146,7 +1146,7 @@ function ToolRow({ binding, tool, contract, onChange, disabled }: ToolRowProps) 
           }
           disabled={disabled}
           rows={6}
-          className="text-xs leading-relaxed"
+          className="text-base leading-relaxed md:text-xs"
           onChange={(event) => edit("description", event.target.value)}
         />
       </ToolField>

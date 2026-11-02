@@ -120,7 +120,7 @@ export function ProjectFileEditor({ projectId, path }: { projectId: string; path
                   setContent(event.target.value);
                   save.reset();
                 }}
-                className="min-h-0 flex-1 resize-none rounded-lg font-mono text-sm leading-relaxed"
+                className="min-h-0 flex-1 resize-none rounded-lg font-mono text-base leading-relaxed md:text-sm"
               />
             )
           )}

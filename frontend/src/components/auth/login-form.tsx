@@ -99,7 +99,7 @@ export function LoginForm() {
               required
               disabled={isLoading}
               autoComplete="email"
-              className={`h-11 rounded-lg text-[15px] ${emailTouched && email && !emailValid ? "border-destructive" : ""}`}
+              className={`h-11 rounded-lg text-base md:text-[15px] ${emailTouched && email && !emailValid ? "border-destructive" : ""}`}
             />
             {emailTouched && email && !emailValid && (
               <p className="text-destructive text-xs">{t("emailRequired")}</p>
@@ -127,7 +127,7 @@ export function LoginForm() {
               required
               disabled={isLoading}
               autoComplete="current-password"
-              className="h-11 rounded-lg text-[15px]"
+              className="h-11 rounded-lg text-base md:text-[15px]"
             />
           </div>
 

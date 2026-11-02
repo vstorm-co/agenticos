@@ -45,6 +45,7 @@ import { askedToTest, readTestPanel, writeTestPanel } from "@/lib/test-panel-sta
 import { toMapDelegates } from "@/components/agents/agent-map-tree";
 import { AgentStatusBadge } from "@/components/agents/status-badge";
 import { RemoteChangeBanner } from "@/components/live-updates/remote-change-banner";
+import { ContextHelp } from "@/components/ui/context-help";
 import { InstructionsEditor } from "@/components/agents/instructions-editor";
 import { PromptVariablesPanel } from "@/components/agents/prompt-variables-panel";
 import { StartersPanel } from "@/components/agents/starters-panel";
@@ -1401,22 +1402,26 @@ export default function AgentBuilderPage({ params }: PageProps) {
 
           <TabsContent value="build" className="mt-4 space-y-4">
             <Card data-tour="agent-instructions">
-              <CardHeader
-                data-tour="agent-instructions-header"
-                className="flex-row items-start gap-3 space-y-0"
-              >
-                <div className="min-w-0 flex-1 space-y-1.5">
-                  <CardTitle>{t("instructions")}</CardTitle>
-                  <CardDescription>{t("agentAposSBehaviour")}</CardDescription>
-                </div>
-                <MarkdownModeToggle mode={instructionsMode} onChange={setInstructionsMode} />
-              </CardHeader>
-              <CardContent>
+              <CardContent className="p-4 sm:p-5">
                 <InstructionsEditor
                   // Named, because a placeholder is not a label: it is the only
                   // accessible name this control had, and it is the one thing that
                   // disappears the moment somebody types into it.
                   label={t("instructions2")}
+                  toolbar={
+                    <>
+                      <div
+                        data-tour="agent-instructions-header"
+                        className="flex min-w-0 flex-1 items-center gap-1"
+                      >
+                        <CardTitle className="min-w-0 truncate text-sm">
+                          {t("instructions")}
+                        </CardTitle>
+                        <ContextHelp>{t("agentAposSBehaviour")}</ContextHelp>
+                      </div>
+                      <MarkdownModeToggle mode={instructionsMode} onChange={setInstructionsMode} />
+                    </>
+                  }
                   value={spec.instructions}
                   onChange={(instructions) => update({ instructions })}
                   disabled={!canEdit}

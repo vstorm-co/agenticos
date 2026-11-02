@@ -152,7 +152,7 @@ export function BrowserCommentLayer({
               placeholder={t("browserCommentPlaceholder")}
               aria-label={t("browserCommentPlaceholder")}
               rows={2}
-              className="bg-muted/60 placeholder:text-muted-foreground w-full resize-none rounded-lg px-2.5 py-2 text-sm outline-none"
+              className="bg-muted/60 placeholder:text-muted-foreground w-full resize-none rounded-lg px-2.5 py-2 text-base outline-none md:text-sm"
             />
             <div className="flex justify-end gap-1.5">
               <Button type="button" size="sm" variant="ghost" onClick={onDone}>

@@ -11,7 +11,6 @@ import { MarkdownModeToggle, type MarkdownMode } from "./markdown-mode-toggle";
 export { MarkdownModeToggle, type MarkdownMode } from "./markdown-mode-toggle";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "./dialog";
 import { DIALOG_WINDOW } from "@/lib/dialog-sizes";
-import { cn } from "@/lib/utils";
 import { useTranslations } from "next-intl";
 
 interface MarkdownEditorProps {
@@ -62,6 +61,8 @@ interface MarkdownEditorProps {
   mode?: MarkdownMode;
   /** Completion choices travel with the active editor, including its expanded view. */
   suggestions?: ReactNode;
+  /** Heading and caller-owned controls sharing the editor toolbar. */
+  toolbar?: ReactNode;
   /**
    * Draw an image in the preview as a link rather than loading it - for text the
    * person did not write, where an image URL is a request the author chose to
@@ -100,11 +101,18 @@ export function MarkdownEditor({
   mode: controlledMode,
   inertImages,
   suggestions,
+  toolbar,
 }: MarkdownEditorProps) {
   const t = useTranslations("ui");
   const [ownMode, setOwnMode] = useState<MarkdownMode>("source");
   const [expanded, setExpanded] = useState(false);
   const mode = controlledMode ?? ownMode;
+  const preview =
+    value.trim() === "" ? (
+      <p className="text-muted-foreground text-sm">{t("nothingWrittenYet")}</p>
+    ) : (
+      <MarkdownContent content={value} inertImages={inertImages} />
+    );
 
   return (
     <div className="min-w-0 space-y-1.5">
@@ -112,7 +120,8 @@ export function MarkdownEditor({
           strip reading "Markdown | Source Preview" boxed the text a second
           time, inside whatever card already held it. A caller with a header
           of its own takes the mode in hand and puts the toggle there. */}
-      <div className="flex items-center justify-end gap-2">
+      <div className="flex min-w-0 items-center justify-end gap-2">
+        {toolbar && <div className="flex min-w-0 flex-1 items-center gap-2">{toolbar}</div>}
         {controlledMode === undefined && <MarkdownModeToggle mode={mode} onChange={setOwnMode} />}
         <Button
           type="button"
@@ -159,38 +168,41 @@ export function MarkdownEditor({
           className="border-input resize-y overflow-auto rounded-xl border p-3"
           style={{ height: `calc(${rows} * 1.5rem + 1.5rem + 2px)` }}
         >
-          {value.trim() === "" ? (
-            <p className="text-muted-foreground text-sm">{t("nothingWrittenYet")}</p>
-          ) : (
-            <MarkdownContent content={value} inertImages={inertImages} />
-          )}
+          {preview}
         </div>
       )}
-      {!expanded && suggestions}
+      {!expanded && mode === "source" && suggestions}
       <Dialog open={expanded} onOpenChange={setExpanded}>
-        <DialogContent
-          className={cn(DIALOG_WINDOW, "max-sm:w-full max-sm:rounded-none")}
-          aria-describedby={undefined}
-        >
+        <DialogContent className={DIALOG_WINDOW} aria-describedby={undefined}>
           <DialogHeader>
             <DialogTitle>{label}</DialogTitle>
           </DialogHeader>
           <div className="min-h-0 flex-1 overflow-hidden rounded-xl border">
-            <CodeArea
-              name="field.md"
-              aria-label={label}
-              textareaRef={textareaRef}
-              onKeyDown={onKeyDown}
-              describedBy={describedBy}
-              value={value}
-              onChange={onChange}
-              invalid={invalid}
-              maxLength={maxLength}
-              disabled={disabled}
-              placeholder={placeholder}
-            />
+            {mode === "source" ? (
+              <CodeArea
+                name="field.md"
+                aria-label={label}
+                textareaRef={textareaRef}
+                onKeyDown={onKeyDown}
+                describedBy={describedBy}
+                value={value}
+                onChange={onChange}
+                invalid={invalid}
+                maxLength={maxLength}
+                disabled={disabled}
+                placeholder={placeholder}
+              />
+            ) : (
+              <div
+                role="region"
+                aria-label={t("labelPreview", { label })}
+                className="h-full overflow-auto p-4"
+              >
+                {preview}
+              </div>
+            )}
           </div>
-          {suggestions && (
+          {mode === "source" && suggestions && (
             <div className="max-h-[25dvh] shrink-0 overflow-y-auto">{suggestions}</div>
           )}
         </DialogContent>

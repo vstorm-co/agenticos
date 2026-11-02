@@ -350,7 +350,7 @@ export function OutputPane({
             aria-label={t("stepPinEditor")}
             value={draft}
             onChange={(event) => setDraft(event.target.value)}
-            className="min-h-60 font-mono text-xs"
+            className="min-h-60 font-mono text-base md:text-xs"
           />
           {draftProblem !== null && <p className="text-destructive text-xs">{draftProblem}</p>}
           <div className="flex justify-end gap-2">

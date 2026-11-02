@@ -1572,7 +1572,12 @@ function WebhookField({ url }: { url: string }) {
     <div className="space-y-1">
       <Label htmlFor="trigger-webhook">{t("webhookUrl")}</Label>
       <div className="flex gap-2">
-        <Input id="trigger-webhook" value={url} readOnly className="flex-1 font-mono text-xs" />
+        <Input
+          id="trigger-webhook"
+          value={url}
+          readOnly
+          className="flex-1 font-mono text-base md:text-xs"
+        />
         <Button type="button" variant="outline" onClick={copy}>
           {copied ? t("copied") : t("copy")}
         </Button>
