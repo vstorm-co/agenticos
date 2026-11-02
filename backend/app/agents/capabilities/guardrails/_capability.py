@@ -741,7 +741,7 @@ def _unreadable() -> GuardrailBlocked:
     return GuardrailBlocked(
         edge="input",
         message=f"{_BLOCK_MESSAGE['input']} An attached text file is not valid UTF-8 "
-        "text in its declared character set.",
+        "text, or declares a character set other than UTF-8.",
     )
 
 
