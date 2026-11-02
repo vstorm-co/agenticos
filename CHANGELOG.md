@@ -19,6 +19,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [1.37.0] - 2026-11-02
+
 ### Added
 
 - Discord bots (#2079). A bot connects over Discord's Gateway, so a deployment
@@ -19750,7 +19752,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.36.1...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.37.0...HEAD
+[1.37.0]: https://github.com/vstorm-co/agenticos/compare/v1.36.1...v1.37.0
 [1.36.1]: https://github.com/vstorm-co/agenticos/compare/v1.36.0...v1.36.1
 [1.36.0]: https://github.com/vstorm-co/agenticos/compare/v1.35.5...v1.36.0
 [1.35.5]: https://github.com/vstorm-co/agenticos/compare/v1.35.4...v1.35.5
