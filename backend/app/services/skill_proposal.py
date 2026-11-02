@@ -282,7 +282,9 @@ class SkillProposalService:
             return await self.get(ctx, proposal_id)
 
         source = (
-            SkillVersionSource.WORKSPACE
+            SkillVersionSource(proposal.source)
+            if proposal.source is not None
+            else SkillVersionSource.WORKSPACE
             if proposal.authoring_request_id is None
             else SkillVersionSource.IMPROVE
         )

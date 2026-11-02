@@ -243,3 +243,38 @@ async def test_gallery_refresh_can_inspect_install_and_adopt_a_copy(db) -> None:
     copy = await skill_repo.get_by_name(db, bundled.name, organization_id=ctx.organization_id)
     assert copy is not None and copy.library_fingerprint == bundled.fingerprint
     assert await service.refresh_gallery(ctx, key, dry_run=True) is LibraryRefresh.CURRENT
+
+
+async def test_an_update_agents_follow_waits_as_a_proposal_until_it_is_checked(
+    db, monkeypatch
+) -> None:
+    """A release's better text still changes what every following agent does; it goes
+    live through a check on them, like any other change to a shared skill."""
+    from typing import cast
+
+    from app.db.models.agent import Agent
+    from app.repositories import skill_proposal_repo
+    from app.services.skill_agents import LineAgent, SkillAgentService
+
+    ctx = await _owner_ctx(db)
+    before = await _as_an_earlier_release(db, ctx)
+
+    async def followers(_self, skill, fork_id):
+        return [LineAgent(agent=cast(Agent, object()), agent_version=1, via_specialist=None)]
+
+    monkeypatch.setattr(SkillAgentService, "line_agents", followers)
+    service = SkillService(db)
+
+    assert await service.plan_library_refresh(ctx, KEY) is LibraryRefresh.WAITING
+    assert await service.refresh_from_library(ctx, KEY) is LibraryRefresh.WAITING
+    assert await service.refresh_from_library(ctx, KEY) is LibraryRefresh.WAITING
+
+    after = await _copy(db, ctx)
+    assert (after.version, after.content) == (before.version, "The old body.")
+    waiting = await skill_proposal_repo.pending_for_skill(
+        db, organization_id=ctx.organization_id, skill_id=after.id, source="library"
+    )
+    bundled = skill_library.get(KEY)
+    assert bundled is not None
+    assert [item.content for item in waiting] == [bundled.content]
+    assert waiting[0].base_version_id == after.latest_version_id

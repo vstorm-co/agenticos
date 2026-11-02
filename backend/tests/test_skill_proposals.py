@@ -63,6 +63,7 @@ def _proposal(**overrides: object) -> MagicMock:
         base_version_id=_V3,
         fork_id=None,
         authoring_request_id=None,
+        source=None,
         revision=1,
         created_at=datetime(2026, 10, 1, tzinfo=UTC),
     )

@@ -37,6 +37,7 @@ from app.db.updates import writable
 from app.repositories import (
     agent_repo,
     resource_grant_repo,
+    skill_proposal_repo,
     skill_repo,
     skill_usage_repo,
     skill_version_repo,
@@ -168,6 +169,8 @@ class LibraryRefresh(StrEnum):
     """Edited here since it was copied; left alone."""
     UNTRACKED = "untracked"
     """Copied before fingerprints were kept and different now; left alone."""
+    WAITING = "waiting"
+    """An update agents follow: it waits as a proposal until it is checked on them."""
 
 
 def _fingerprint_of(skill: Skill) -> str:
@@ -685,7 +688,14 @@ class SkillService:
             NotFoundError: If no such skill ships with this deployment.
         """
         bundled, existing = await self._library_pair(ctx, key)
-        return _refresh_plan(existing, bundled, replace_edited=replace_edited)
+        plan = _refresh_plan(existing, bundled, replace_edited=replace_edited)
+        if (
+            plan is LibraryRefresh.UPDATE
+            and existing is not None
+            and await self._followed(existing)
+        ):
+            return LibraryRefresh.WAITING
+        return plan
 
     async def refresh_from_library(
         self, ctx: AuthContext, key: str, *, replace_edited: bool = False
@@ -695,7 +705,9 @@ class SkillService:
         Missing, it is installed. An unedited copy of an earlier version - one
         that still matches the fingerprint it was written with - is replaced,
         files and all, as a new main version, because nobody chose what it
-        says: the platform did, and the platform now says something better. A
+        says: the platform did, and the platform now says something better.
+        Unless agents follow its main line: then the update waits as a proposal,
+        and goes live once a check on those agents allows it. A
         copy edited here is the organization's and is left alone unless
         `replace_edited` says to take the bundled version over the edits, and so
         is one copied before fingerprints were kept, since nothing can tell
@@ -707,12 +719,19 @@ class SkillService:
                 and the copy - the listing's top-up, racing a seed.
         """
         bundled, existing = await self._library_pair(ctx, key)
-        return await self._refresh_bundled(ctx, bundled, existing, replace_edited=replace_edited)
+        return await self._refresh_bundled(
+            ctx, bundled, existing, replace_edited=replace_edited, wait_for_check=True
+        )
 
     async def refresh_gallery(
         self, ctx: AuthContext, key: str, *, dry_run: bool = False, replace_edited: bool = False
     ) -> LibraryRefresh:
-        """Refresh a gallery copy using the same edit protection as seeded skills."""
+        """Refresh a gallery copy using the same edit protection as seeded skills.
+
+        Written at once even when agents follow it: the one caller is the Architect's
+        refresh, whose guide travels with the platform's own template and has no
+        test questions an organization wrote.
+        """
         bundled = skill_library.gallery_get(key)
         if bundled is None:
             raise NotFoundError(message="No such gallery skill", details={"key": key})
@@ -723,7 +742,15 @@ class SkillService:
             await self.get(ctx, existing.id, perm=Perm.SKILLS_EDIT)
         if dry_run:
             return _refresh_plan(existing, bundled, replace_edited=replace_edited)
-        return await self._refresh_bundled(ctx, bundled, existing, replace_edited=replace_edited)
+        return await self._refresh_bundled(
+            ctx, bundled, existing, replace_edited=replace_edited, wait_for_check=False
+        )
+
+    async def _followed(self, skill: Skill) -> bool:
+        """Whether any agent's served version follows the skill's main line."""
+        from app.services.skill_agents import SkillAgentService
+
+        return bool(await SkillAgentService(self.db).line_agents(skill, None))
 
     async def _refresh_bundled(
         self,
@@ -732,6 +759,7 @@ class SkillService:
         existing: Skill | None,
         *,
         replace_edited: bool,
+        wait_for_check: bool,
     ) -> LibraryRefresh:
         if existing is not None:
             # Locked and re-read before deciding: an edit a member commits between
@@ -742,6 +770,9 @@ class SkillService:
         plan = _refresh_plan(existing, bundled, replace_edited=replace_edited)
         if existing is None:
             await self._copy_library_skill(ctx, bundled, seeded=True)
+        elif plan is LibraryRefresh.UPDATE and wait_for_check and await self._followed(existing):
+            await self._propose_from_library(ctx, existing, bundled)
+            return LibraryRefresh.WAITING
         elif plan is LibraryRefresh.UPDATE:
             await self._overwrite_from_library(
                 ctx,
@@ -757,6 +788,41 @@ class SkillService:
                 self.db, skill=existing, update_data={"library_fingerprint": bundled.fingerprint}
             )
         return plan
+
+    async def _propose_from_library(
+        self, ctx: AuthContext, skill: Skill, bundled: skill_library.LibrarySkill
+    ) -> None:
+        """Leave the bundled version waiting as a proposal, once per bundled version."""
+        waiting = await skill_proposal_repo.pending_for_skill(
+            self.db,
+            organization_id=ctx.organization_id,
+            skill_id=skill.id,
+            source=SkillVersionSource.LIBRARY.value,
+        )
+        resources = {resource.name: resource.content for resource in bundled.resources}
+        if any(
+            (item.description, item.content, item.resources)
+            == (bundled.description, bundled.content, resources)
+            for item in waiting
+        ):
+            return
+        proposal = await skill_proposal_repo.create(
+            self.db,
+            organization_id=ctx.organization_id,
+            skill_id=skill.id,
+            agent_id=None,
+            conversation_id=None,
+            name=skill.name,
+            description=bundled.description,
+            content=bundled.content,
+            resources=resources,
+            base_version=skill.version,
+            base_version_id=skill.latest_version_id,
+            fork_id=None,
+        )
+        await skill_proposal_repo.annotate(
+            self.db, proposal=proposal, values={"source": SkillVersionSource.LIBRARY.value}
+        )
 
     async def _library_pair(
         self, ctx: AuthContext, key: str
