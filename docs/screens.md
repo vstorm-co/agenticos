@@ -21,7 +21,7 @@ Your own view, the organization's arrangeable one, one group's and - for a deplo
 
 ### Chat
 
-A spreadsheet in, a published page out. The agent read the CSV with Python, worked out the numbers, published a revenue dashboard as an app and said which figures it checked and which it estimated. Each step it took is on screen and expandable - what a tool did is in the conversation, not in a log somebody else reads.
+A prepared Trail Supply conversation, a populated chat list and a working Kit Studio visual. Select products, change the budget and inspect the total in the real conversation renderer. Messages and catalog are seeded fixtures, not a record of a model generating the store.
 
 ![Chat](assets/screens/light/chat.webp#only-light)
 ![Chat](assets/screens/dark/chat.webp#only-dark)
@@ -277,10 +277,23 @@ A seeded launch-planning app with four task lanes, working filters and review br
 
 ### An interactive shopping demo
 
-A fictional store with budget controls, deterministic recommendations and a demo bag. It does not place orders or show a live agent widget.
+The self-contained Trail Supply App uses product photography, catalog filters, detail views, a budget-based product finder and a local demo bag. It does not place orders or contain a live widget.
 
 ![An interactive shopping demo](assets/screens/light/app-shopping.webp#only-light)
 ![An interactive shopping demo](assets/screens/dark/app-shopping.webp#only-dark)
+
+### Kit Studio
+
+A prepared interactive Visuals example saved as an App. Select products, change the budget and check delivery and totals. The catalog is fictional and calculation is deterministic.
+
+![Kit Studio](assets/screens/light/app-kit.webp#only-light)
+![Kit Studio](assets/screens/dark/app-kit.webp#only-dark)
+
+### A website widget, on your own site { #store-website-widget }
+
+A separate local store uses the actual AgenticOS widget script and WebSocket. A published read-only agent answered from the seeded catalog in a recorded model run. This is not a real retailer integration or checkout.
+
+![Fictional Trail Supply website with the actual AgenticOS widget answering a daypack question.](assets/screens/store-widget.webp)
 
 ### Visuals in the conversation
 

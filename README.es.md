@@ -1,4 +1,4 @@
-<!-- source_sha: e411fc7fc3a1 -->
+<!-- source_sha: f2664196f042 -->
 
 <div align="center">
 
@@ -45,7 +45,9 @@
 
 </div>
 
-<a href="docs/assets/readme/highlight-hero.webp"><img src="docs/assets/readme/highlight-hero.webp" alt="Modo oscuro, dos personas en el chat de un proyecto: el Chief of Staff le dice a Tom que aplicó su cambio de presupuesto y la confirmación de Peter al plan de lanzamiento, muestra el nuevo reparto y enumera lo que el equipo aún tiene pendiente." width="100%"></a>
+<a href="docs/assets/readme/highlight-hero.webp"><img src="docs/assets/readme/highlight-hero.webp" alt="Conversación preparada de Trail Supply con una lista de chats completa y un Kit Studio interactivo renderizado por Visuals." width="100%"></a>
+
+*Conversación preparada y catálogo ficticio; la interfaz y los Visuals interactivos son reales. El widget del sitio se probó por separado con un agent publicado.*
 
 AgenticOS da a cada equipo compañeros de IA: agentes que trabajan con archivos, ejecutan código, navegan por la web y usan las herramientas y el conocimiento de tu empresa. Tus compañeros y tus agentes trabajan en el mismo chat en vivo, y cualquier agente puede pasar código a Claude Code o Codex, con la suscripción de ChatGPT o Claude que ya pagas. Es de código abierto (Apache-2.0) y autoalojado, una capa que ejecutas en tu propia infraestructura. Crea y publica agentes en el navegador, compártelos con tus compañeros y gestiona su acceso, coste y resultados en un solo lugar.
 
@@ -118,15 +120,28 @@ Un agente publica un dashboard o un informe como página con enlace estable y ve
 *Company Brain, una app LLM wiki preparada: mapa interactivo de seis notas ficticias con vista previa de la fuente.*
 
 <details>
-<summary>Más apps: planificación de lanzamiento y compras</summary>
+<summary>Más Apps preparadas: lanzamiento, tienda y selección de kit</summary>
 
-Apps ilustrativas con datos sintéticos. Launch Room filtra tareas y abre briefs de revisión. Trail Supply recomienda productos mediante reglas preparadas y actualiza una bolsa demo; no realiza pedidos ni representa un widget de agente activo.
+Apps preparadas con datos ficticios. Launch Room filtra tareas y abre briefs. La tienda Trail Supply tiene detalles de productos y una bolsa demo local; Kit Studio compara productos y calcula el presupuesto. Ninguna de estas Apps realiza pedidos ni contiene un widget de agent activo.
 
-<a href="docs/assets/readme/highlight-launch-room.webp"><img src="docs/assets/readme/highlight-launch-room.webp" alt="Launch Room — Apps ilustrativas con datos sintéticos. Launch Room filtra tareas y abre briefs de revisión. Trail Supply recomienda productos mediante reglas preparadas y actualiza una bolsa demo; no realiza pedidos ni representa un widget de agente activo." width="100%"></a>
+<a href="docs/assets/readme/highlight-launch-room.webp"><img src="docs/assets/readme/highlight-launch-room.webp" alt="App Launch Room con etapas de tareas, filtros y briefs." width="100%"></a>
 
-<a href="docs/assets/readme/highlight-shopping.webp"><img src="docs/assets/readme/highlight-shopping.webp" alt="Trail Supply — Apps ilustrativas con datos sintéticos. Launch Room filtra tareas y abre briefs de revisión. Trail Supply recomienda productos mediante reglas preparadas y actualiza una bolsa demo; no realiza pedidos ni representa un widget de agente activo." width="100%"></a>
+<a href="docs/assets/readme/highlight-shopping.webp"><img src="docs/assets/readme/highlight-shopping.webp" alt="App de la tienda Trail Supply con fotografías y una bolsa demo." width="100%"></a>
+
+
+Kit Studio también es una App guardada: selecciona productos y comprueba total, entrega y presupuesto. El cálculo es determinista.
+
+<a href="docs/assets/readme/highlight-kit.webp"><img src="docs/assets/readme/highlight-kit.webp" alt="App Kit Studio con tres productos, presupuesto de €160 y un kit seleccionado de €157." width="100%"></a>
 
 </details>
+
+### Un widget en tu propio sitio web
+
+El widget real de AgenticOS ejecuta un agent publicado de solo lectura en el sitio ficticio Trail Supply. En la prueba local registrada respondió usando el catálogo de sus instrucciones. No están conectados inventario real, compras ni pagos.
+
+<a href="docs/assets/readme/highlight-widget.webp"><img src="docs/assets/readme/highlight-widget.webp" alt="Tienda ficticia Trail Supply con el widget real de AgenticOS respondiendo sobre una mochila." width="100%"></a>
+
+[Crea y publica un widget web](https://vstorm-co.github.io/agenticos/es/howto/support-widget/)
 
 ### Más de 4.700 servidores MCP
 

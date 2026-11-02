@@ -105,3 +105,97 @@ revision `d76c6d597`, the registry snapshot contained 5,703 entries and the cura
 contained 99 entries; do not add these as distinct services. Each connection still needs its own
 setup and access review. The selected integration graphic and logo sources live in
 `../integrations/`; the README does not repeat their attribution inventory.
+
+
+## Trail Supply follow-up: store, kit planner and widget
+
+The gallery now also includes Kit Studio. Chat and chat-hero use the prepared
+Trail Supply conversation with a populated list of specialist chats; the old CSV
+conversation is still in the demo database. The store App has photography, product
+details, filters, delivery-inclusive recommendations and a local demo bag. The kit
+planner is rendered in Visuals and saved as a separate App. These console messages
+are prepared fixtures, not a recorded model generation of the HTML.
+
+`store-widget.webp` captures a separate local website with the actual AgenticOS
+widget and a completed model answer from a published, read-only agent. Its catalog
+is seeded in the instructions, not fetched from a retailer. The Apps remain
+self-contained; their sandbox was not weakened to load an external widget. See
+the reproduction guide below for build/seed/serve commands and image/run
+provenance. No real orders, payments, credentials or customer data are included.
+
+To reproduce the prepared chat captures, select
+`CHAT="Trail Supply — build" HERO_CHAT="Trail Supply — build"` with Northwind Labs.
+Capturing the external widget is separate: a real response requires explicitly
+sending a message to its configured model, so the normal capture loop never does it.
+
+
+## Trail Supply reproduction guide
+
+Fictional catalog and policies, real product UI. `store.html` and `kit.html` are
+self-contained templates after building. Product photography is illustrative;
+product names, prices, stock, specifications and policies are invented.
+
+### Build and verify
+
+From the repository root, with the frontend dependencies installed:
+
+```bash
+node docs/assets/screens/demos/trail-supply-store/build.mjs
+node docs/assets/screens/demos/trail-supply-store/verify.mjs
+```
+
+The builder embeds the three local WebP files as data URLs. The resulting
+`../trail-supply.html` and `../trail-supply-kit.html` need no network and work under
+the Apps/Visuals sandbox. Verification checks delivery-inclusive budget boundaries,
+cart consistency, dialog keyboard behavior and mobile layouts. It calls no model.
+
+### Seed an isolated local demo
+
+Use a backend environment pointed at a **demonstration database**, the Northwind
+Labs seed organization and its actual owner. The selected organization must
+already contain Visuals Lab, Finance Analyst, Architect, Support Desk, Chief of
+Staff, Onboarding Buddy, Sales Researcher and Tech Lead. The model-profile UUID
+must refer to an existing configured profile in that organization.
+
+With the backend environment loaded, from the repository root:
+
+```bash
+PYTHONPATH=backend backend/.venv/bin/python docs/assets/screens/demos/trail-supply-store/seed.py \
+  --org ORG_UUID --user OWNER_UUID --model-profile MODEL_PROFILE_UUID \
+  --store-origin http://127.0.0.1:3110 --output /tmp/trail-supply-demo.json --confirm-demo
+python3 docs/assets/screens/demos/trail-supply-store/serve.py --metadata /tmp/trail-supply-demo.json
+```
+
+The seed publishes two private Apps through the artifact and Visuals services,
+creates nine prepared conversations and a private, published Trail Guide agent,
+and configures a public widget restricted to the selected local store origin.
+The widget agent has no capabilities or commerce tools, a two-dollar monthly
+budget and a three-step limit. The script uses the owner's actual membership;
+it does not manufacture administrator authority. Existing named fixture threads
+are reused, and only matching prepared messages are updated. It does not delete
+other conversations or change provider credentials. Inspect existing resources
+before reusing these fixture names with customized content.
+
+The generated metadata contains resource identifiers and the public embed
+snippet, not provider credentials. Keep it local; do not commit session files.
+Serving the page alone calls no model. Sending a message through the widget uses
+the configured model and is a real billed run if that provider charges for it.
+The store's product finder, bag and checkout remain local demonstrations.
+
+### Evidence and scope
+
+The console transcript and its draw record are explicitly prepared fixtures, not
+an LLM generation trace. Their HTML is rendered by the actual Visuals renderer,
+and the kit planner was saved through the actual Visuals publishing service.
+The separate website loads the unmodified AgenticOS widget script and talks to
+its public WebSocket endpoint. `recorded-run.json` identifies an observed,
+completed widget run. This establishes a read-only answer from the fictional
+catalog in the published instructions; it is not live retrieval, stock lookup,
+order placement, payment processing or a conversion experiment.
+
+The product finder and Kit Studio include delivery in the budget calculation.
+For example, the pack is €129 but €135 delivered; the pack plus bottle is €157
+with complimentary demo delivery. The bag and recommendation must agree.
+
+`images.json` records the three Unsplash image URLs and license. A pictured
+object's real-world brand does not endorse this fictional store; the photography does not establish the invented product specifications.

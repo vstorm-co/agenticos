@@ -43,7 +43,9 @@
 
 </div>
 
-<a href="docs/assets/readme/highlight-hero.webp"><img src="docs/assets/readme/highlight-hero.webp" alt="Dark mode, two people in a project chat: the Chief of Staff tells Tom it applied his budget change and Peter's confirmation to the launch plan, shows the new split and lists what is still open for the team." width="100%"></a>
+<a href="docs/assets/readme/highlight-hero.webp"><img src="docs/assets/readme/highlight-hero.webp" alt="Prepared Trail Supply conversation with a populated chat list and an interactive Kit Studio rendered by Visuals." width="100%"></a>
+
+*Prepared conversation and fictional catalog; the UI and interactive Visuals are real. The website widget is tested separately with a published agent.*
 
 AgenticOS gives every team AI teammates: agents that work with files, run code, browse the web and use your company's tools and knowledge. Your colleagues and your agents work in the same live chat, and any agent can hand code to Claude Code or Codex, on the ChatGPT or Claude subscription you already pay for. It is open source (Apache-2.0) and self-hosted, a layer you run on your own infrastructure. Build and publish agents in the browser, share them with colleagues, and manage their access, cost and results in one place.
 
@@ -116,15 +118,28 @@ An agent publishes a dashboard or a report as a page with a stable link and vers
 *Company Brain, a seeded LLM wiki app: an interactive map of six fictional source notes with a source preview.*
 
 <details>
-<summary>More app examples: launch planning and shopping</summary>
+<summary>More prepared Apps: launch planning, storefront and kit builder</summary>
 
-Illustrative apps with synthetic data. Launch Room filters tasks and opens review briefs. Trail Supply makes scripted product recommendations and updates a demo bag; it does not place orders or represent a live agent widget.
+Prepared Apps with fictional data. Launch Room filters tasks and opens review briefs. The Trail Supply storefront has product details and a local demo bag; Kit Studio compares products and updates the budget. Neither App places orders or contains a live agent widget.
 
-<a href="docs/assets/readme/highlight-launch-room.webp"><img src="docs/assets/readme/highlight-launch-room.webp" alt="Launch Room — Illustrative apps with synthetic data. Launch Room filters tasks and opens review briefs. Trail Supply makes scripted product recommendations and updates a demo bag; it does not place orders or represent a live agent widget." width="100%"></a>
+<a href="docs/assets/readme/highlight-launch-room.webp"><img src="docs/assets/readme/highlight-launch-room.webp" alt="Launch Room demo App with task lanes, filters and review briefs." width="100%"></a>
 
-<a href="docs/assets/readme/highlight-shopping.webp"><img src="docs/assets/readme/highlight-shopping.webp" alt="Trail Supply — Illustrative apps with synthetic data. Launch Room filters tasks and opens review briefs. Trail Supply makes scripted product recommendations and updates a demo bag; it does not place orders or represent a live agent widget." width="100%"></a>
+<a href="docs/assets/readme/highlight-shopping.webp"><img src="docs/assets/readme/highlight-shopping.webp" alt="Trail Supply storefront App with product photography and a demo shopping bag." width="100%"></a>
+
+
+Kit Studio is also a saved App: select products and check the total, delivery and budget. Its calculation is deterministic.
+
+<a href="docs/assets/readme/highlight-kit.webp"><img src="docs/assets/readme/highlight-kit.webp" alt="Kit Studio App comparing three products, a €160 budget and a €157 selected kit." width="100%"></a>
 
 </details>
+
+### A website widget, on your own site
+
+The actual AgenticOS widget runs a published, read-only agent on the fictional Trail Supply website. In the recorded local test it answered using the seeded catalog in its instructions. Live inventory, purchases and payments are not connected.
+
+<a href="docs/assets/readme/highlight-widget.webp"><img src="docs/assets/readme/highlight-widget.webp" alt="Fictional Trail Supply website with the actual AgenticOS widget answering a daypack question." width="100%"></a>
+
+[Build and publish a website widget](https://vstorm-co.github.io/agenticos/howto/support-widget/)
 
 ### 4,700+ MCP servers
 

@@ -79,7 +79,7 @@ const first = (prefix) => async (page) => {
  */
 const SCREENS = [
   { name: "dashboard", path: "/dashboard?view=org", then: dismissChecklist },
-  { name: "chat", path: (ids) => `/chat?id=${ids.conversation}` },
+  { name: "chat", path: (ids) => `/chat?id=${ids.conversation}`, then: framePreparedKit },
   // The README's first picture: a thread where the agent asked before it charted.
   {
     name: "chat-hero",
@@ -87,6 +87,7 @@ const SCREENS = [
     height: 1100,
     then: async (page) => {
       await page.getByText("Asked you", { exact: true }).first().click();
+      if (await framePreparedKit(page)) return;
       await page.waitForTimeout(800);
       // From the question down: the thread opens at its end.
       await page
@@ -218,6 +219,7 @@ const SCREENS = [
   { name: "app-detail", path: (ids) => `/apps/${ids.app}` },
   { name: "app-launch", path: (ids) => `/apps/${ids.launchApp}` },
   { name: "app-shopping", path: (ids) => `/apps/${ids.shoppingApp}` },
+  { name: "app-kit", path: (ids) => `/apps/${ids.kitApp}` },
   { name: "visuals", path: (ids) => `/chat?id=${ids.visualConversation}` },
   { name: "groups", path: "/groups" },
   { name: "organizations", path: "/orgs" },
@@ -233,6 +235,19 @@ const SCREENS = [
   { name: "admin-system", path: "/admin/system" },
   { name: "admin-deployment", path: "/admin/settings" },
 ];
+
+/** Frame the prepared kit walkthrough after its real Visuals iframe has settled. */
+async function framePreparedKit(page) {
+  if (!(await page.getByText("Trail Supply — Kit Studio", { exact: true }).count())) return false;
+  await page.frameLocator("iframe").first().getByRole("button", { name: "Review this kit" }).waitFor();
+  const messages = page.locator("[data-message-id]");
+  const count = await messages.count();
+  if (count < 2) return false;
+  await messages.nth(count - 2).evaluate((element) => element.scrollIntoView({ block: "start" }));
+  await page.mouse.move(1490, 500);
+  await page.mouse.wheel(0, -50);
+  return true;
+}
 
 /** The setup checklist is for a new deployment, not the picture of one in use. */
 async function dismissChecklist(page) {
@@ -274,6 +289,7 @@ async function lookUp(page) {
     app: (apps.find((item) => item.name === "demo-company-brain") ?? apps[0])?.id,
     launchApp: apps.find((item) => item.name === "demo-launch-room")?.id,
     shoppingApp: apps.find((item) => item.name === "demo-trail-supply")?.id,
+    kitApp: apps.find((item) => item.name === "demo-trail-supply-kit")?.id,
     visualConversation: conversations.find((item) =>
       item.title?.startsWith("Seeded demo · Visuals"),
     )?.id,

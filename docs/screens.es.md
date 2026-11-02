@@ -1,5 +1,5 @@
 ---
-source_sha: "239ccf2f3888"
+source_sha: "1dc3d32f9888"
 ---
 
 # Todas las pantallas de la consola { #every-screen-in-the-console }
@@ -25,7 +25,7 @@ Tu propia vista, la de la organización que se ordena, la de un grupo y - para u
 
 ### Chat { #chat }
 
-Entra una hoja de cálculo, sale una página publicada. El agent leyó el CSV con Python, calculó las cifras, publicó un dashboard de ingresos como app y dijo qué cifras comprobó y cuáles estimó. Cada paso está en pantalla y se puede desplegar: lo que hizo una herramienta está en la conversación, no en un log que lee otra persona.
+Una conversación preparada de Trail Supply, una lista completa de chats y un Visual Kit Studio funcional. Selecciona productos, cambia el presupuesto y comprueba el total en el renderizador real de conversaciones. Mensajes y catálogo son ejemplos preparados, no un registro de generación de la tienda por un modelo.
 
 ![Chat](assets/screens/light/chat.webp#only-light)
 ![Chat](assets/screens/dark/chat.webp#only-dark)
@@ -281,10 +281,23 @@ Una app preparada para planificar lanzamientos con cuatro columnas de tareas, fi
 
 ### Una demo interactiva de compras { #an-interactive-shopping-demo }
 
-Una tienda ficticia con presupuesto ajustable, recomendaciones basadas en reglas y una bolsa demo. No realiza pedidos ni muestra un widget de agente activo.
+La App autónoma Trail Supply ofrece fotografías de productos, filtros de catálogo, vistas de detalle, selección por presupuesto y una bolsa demo local. No realiza pedidos ni contiene un widget activo.
 
 ![Una demo interactiva de compras](assets/screens/light/app-shopping.webp#only-light)
 ![Una demo interactiva de compras](assets/screens/dark/app-shopping.webp#only-dark)
+
+### Kit Studio { #kit-studio }
+
+Un ejemplo interactivo preparado de Visuals guardado como App. Selecciona productos, cambia el presupuesto y comprueba entrega y total. El catálogo es ficticio y el cálculo determinista.
+
+![Kit Studio](assets/screens/light/app-kit.webp#only-light)
+![Kit Studio](assets/screens/dark/app-kit.webp#only-dark)
+
+### Un widget en tu propio sitio web { #store-website-widget }
+
+Un sitio local separado usa el script real del widget y WebSocket de AgenticOS. Un agent publicado de solo lectura respondió desde el catálogo preparado en una ejecución de modelo registrada. No es una integración con un comercio real ni un checkout.
+
+![Tienda ficticia Trail Supply con el widget real de AgenticOS respondiendo sobre una mochila.](assets/screens/store-widget.webp)
 
 ### Visuals en la conversación { #visuals-in-the-conversation }
 

@@ -41,6 +41,20 @@ const FRAMES = [
     width: 1450,
   },
   {
+    name: "kit",
+    source: "app-trail-kit",
+    background: "meadow-bg",
+    crop: [0, 0, 1600, 700],
+    width: 1450,
+  },
+  {
+    name: "widget",
+    source: "store-widget",
+    background: "cta",
+    crop: [0, 0, 1600, 1100],
+    width: 1450,
+  },
+  {
     name: "workflows",
     source: "workflows",
     background: "hero-bg",
@@ -63,7 +77,7 @@ const FRAMES = [
   },
   {
     name: "hero",
-    source: "dark-room-reply",
+    source: "chat-storefront-dark",
     background: "hero-bg",
     crop: [0, 0, 1600, 1000],
     width: 1380,
