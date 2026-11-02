@@ -25,19 +25,24 @@ a button either, so a prompt is sent as numbered lines and the webhook turns a l
 that fits back into the press it stands for (`sms_prompts`).
 """
 
+import asyncio
 import base64
 import hashlib
 import hmac
 import logging
+import mimetypes
 import re
+from collections.abc import Mapping
 from typing import Any
 from urllib.parse import parse_qsl
 
 import httpx
 
+from app.core.config import settings
 from app.services.channels import sms_prompts
 from app.services.channels.base import (
     ChannelAdapter,
+    IncomingAttachment,
     IncomingMessage,
     IncomingPress,
     OutgoingMessage,
@@ -58,6 +63,47 @@ MAX_CHARS = 1500
 """Roughly ten segments: enough for a real answer, short of a bill nobody asked for."""
 
 MORE_IN_THE_APP = "… (the rest is in AgenticOS)"
+
+MAX_MEDIA = 10
+_MEDIA = re.compile(
+    r"https://api\.twilio\.com(?P<path>/2010-04-01/Accounts/"
+    r"(?P<account>AC[0-9a-fA-F]{32})/Messages/(?P<message>(?:SM|MM)[0-9a-fA-F]{32})"
+    r"/Media/ME[0-9a-fA-F]{32})"
+)
+
+
+def _incoming_media(payload: Mapping[str, object]) -> list[IncomingAttachment]:
+    """Twilio's bounded media handles, fetched only after the router admits the sender.
+
+    Webhooks carry no file size or filename. Unknown size is checked against
+    streamed bytes on download, then by the ordinary channel upload validation.
+    See https://www.twilio.com/docs/messaging/guides/webhook-request.
+    """
+    count = payload.get("NumMedia")
+    if not isinstance(count, str) or not count.isascii() or not count.isdecimal() or len(count) > 2:
+        return []
+    attachments: list[IncomingAttachment] = []
+    for index in range(min(int(count), MAX_MEDIA)):
+        claimed = payload.get(f"MediaContentType{index}")
+        mime = claimed.split(";", 1)[0].strip().lower() if isinstance(claimed, str) else ""
+        mime = mime or "application/octet-stream"
+        extension = mimetypes.guess_extension(mime) or ".bin"
+        url = payload.get(f"MediaUrl{index}")
+        match = _MEDIA.fullmatch(url) if isinstance(url, str) else None
+        # Retain an invalid handle as an explicit download refusal, including
+        # media-only messages; never discard the person's whole message silently.
+        handle = (
+            match[0] if match is not None and match["message"] == payload.get("MessageSid") else ""
+        )
+        attachments.append(
+            IncomingAttachment(
+                filename=f"media-{index + 1}{extension}",
+                mime_type=mime,
+                size=0,
+                handle=handle,
+            )
+        )
+    return attachments
 
 
 def twilio_signature(url: str, params: dict[str, str], auth_token: str) -> str:
@@ -118,6 +164,34 @@ class SmsAdapter(ChannelAdapter):
 
     async def aclose(self) -> None:
         await self._client.aclose()
+
+    async def download_attachment(self, bot_token: str, attachment: IncomingAttachment) -> bytes:
+        """Download only a Twilio media resource belonging to this bot's account.
+
+        Credentials never accompany a webhook-supplied host, another account,
+        or a redirect. Bound both the whole transfer time and streamed bytes.
+        Twilio returns the content directly from the authenticated media endpoint:
+        https://www.twilio.com/docs/messaging/api/media-resource.
+        """
+        sid, auth_token, _ = split_credentials(bot_token)
+        match = _MEDIA.fullmatch(attachment.handle)
+        if match is None or match["account"] != sid:
+            raise ValueError("The attachment is not media for this Twilio account.")
+        limit = settings.CHAT_MAX_UPLOAD_SIZE_MB * 1024 * 1024
+        async with asyncio.timeout(30):
+            async with self._client.stream(
+                "GET", f"{self._api}{match['path']}", auth=(sid, auth_token), follow_redirects=False
+            ) as response:
+                response.raise_for_status()
+                claimed = response.headers.get("content-length")
+                if claimed is not None and int(claimed) > limit:
+                    raise ValueError("The attachment exceeds the chat upload size limit.")
+                data = bytearray()
+                async for chunk in response.aiter_bytes():
+                    if len(data) + len(chunk) > limit:
+                        raise ValueError("The attachment exceeds the chat upload size limit.")
+                    data.extend(chunk)
+        return bytes(data)
 
     async def send_message(self, bot_token: str, msg: OutgoingMessage) -> None:
         """Send one text to the sender's number.
@@ -200,10 +274,11 @@ class SmsAdapter(ChannelAdapter):
         return hmac.compare_digest(given, twilio_signature(url, params, secret))
 
     def parse_incoming(self, raw_payload: dict[str, Any], bot_id: str) -> IncomingMessage | None:
-        """A text from a number. Media-only messages and empty ones are ignored."""
+        """A private text or MMS, retaining media-only messages for ordinary file ingestion."""
         sender = str(raw_payload.get("From") or "")
         text = str(raw_payload.get("Body") or "").strip()
-        if not sender or not text:
+        attachments = _incoming_media(raw_payload)
+        if not sender or (not text and not attachments):
             return None
         return IncomingMessage(
             platform=self.platform,
@@ -215,4 +290,5 @@ class SmsAdapter(ChannelAdapter):
             raw=raw_payload,
             message_id=str(raw_payload.get("MessageSid") or "") or None,
             addressed=True,
+            attachments=attachments,
         )

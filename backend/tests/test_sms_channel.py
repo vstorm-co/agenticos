@@ -189,6 +189,45 @@ class TestTheWebhook:
     def _bot(self, platform: str = "sms") -> MagicMock:
         return MagicMock(id=uuid4(), platform=platform)
 
+    @pytest.mark.parametrize("body", ["", "1"])
+    async def test_signed_media_reaches_file_ingestion_instead_of_answering_a_prompt(
+        self, body: str
+    ) -> None:
+        bot = self._bot()
+        sid, message, media = "AC" + "1" * 32, "MM" + "2" * 32, "ME" + "3" * 32
+        params = {
+            "From": "+15559998888",
+            "Body": body,
+            "MessageSid": message,
+            "NumMedia": "1",
+            "MediaContentType0": "image/png",
+            "MediaUrl0": f"https://api.twilio.com/2010-04-01/Accounts/{sid}/Messages/{message}/Media/{media}",
+        }
+        event = AsyncMock()
+        answer = AsyncMock(return_value="an-approval")
+        with (
+            patch(
+                "app.api.routes.v1.sms_webhook.unseal_bot_token",
+                return_value=f"{sid}:secret-token:+15550001111",
+            ),
+            patch(
+                "app.api.routes.v1.sms_webhook.spawn", side_effect=lambda coro, name: coro.close()
+            ),
+            patch("app.api.routes.v1.sms_webhook.process_channel_event", new=event),
+            patch("app.api.routes.v1.sms_webhook.sms_prompts.answer", new=answer),
+        ):
+            async with _client(bot) as client:
+                response = await client.post(
+                    f"{self.ROOT}/{bot.id}/webhook",
+                    content=urlencode(params),
+                    headers=_signed(bot.id, params),
+                )
+        assert response.status_code == 200
+        answer.assert_not_awaited()
+        event.assert_called_once()
+        incoming = event.call_args.args[0]
+        assert incoming.text == body and incoming.attachments[0].handle == params["MediaUrl0"]
+
     async def test_a_signed_text_is_acknowledged_and_handed_to_the_router(self) -> None:
         bot = self._bot()
         params = {"From": "+15559998888", "Body": "hello", "MessageSid": "SM1"}

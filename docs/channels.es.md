@@ -1,5 +1,5 @@
 ---
-source_sha: "8aa44e606a15"
+source_sha: "7e814fa067e6"
 ---
 
 # Poner un agent donde la gente ya está { #putting-an-agent-where-people-already-are }
@@ -1094,7 +1094,17 @@ enlace se escribe completo - y se corta hacia los 1.500 caracteres con un aviso 
 está en AgenticOS, así que una pregunta cuesta unos segmentos, no una docena. El SMS no puede
 transmitir en directo, editar un mensaje ni pulsar un botón, así que una aprobación o una pregunta
 llega como líneas numeradas y se responde enviando el número por SMS. Un solo número que nombre una
-opción de una pregunta enviada a ese número es la respuesta. Las preguntas que esperan a la vez nunca comparten números: la segunda sigue donde terminó la primera, así que tras 1 y 2 vienen 3 y 4, y decidir una deja abierta la otra. Una pregunta sigue abierta un día, así que una selección múltiple admite varios números; cualquier otro texto es un mensaje normal. Los archivos enviados por SMS se ignoran.
+opción de una pregunta enviada a ese número es la respuesta. Las preguntas que esperan a la vez nunca comparten números: la segunda sigue donde terminó la primera, así que tras 1 y 2 vienen 3 y 4, y decidir una deja abierta la otra. Una pregunta sigue abierta un día, así que una selección múltiple admite varios números; cualquier otro texto es un mensaje normal.
+
+Los archivos MMS entrantes, también sin texto, pasan por el procesamiento
+compartido de adjuntos tras verificar identidad y acceso. Se leen hasta diez
+archivos; sus URL deben identificar la cuenta Twilio del bot y el mensaje
+entrante. Las descargas autenticadas rechazan redirecciones, se detienen en
+`CHAT_MAX_UPLOAD_SIZE_MB` y tienen un límite total de 30 segundos. La ruta de
+carga compartida valida tipo y contenido y guarda los archivos aceptados en la
+conversación. Un número con un archivo es un mensaje, no una aprobación numerada.
+Las respuestas salientes siguen siendo de texto; el envío de archivos MMS no
+está implementado.
 
 ## Correo electrónico { #email }
 

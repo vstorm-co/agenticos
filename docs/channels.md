@@ -1038,8 +1038,16 @@ is written out in full - and is cut at about 1,500 characters with a note that t
 in AgenticOS, so one question costs a few segments, not a dozen. SMS cannot stream, edit a
 message or press a button, so an approval or a question arrives as numbered lines and is
 answered by texting the number. A lone number that names a choice
-of a prompt sent to that number is the answer. Prompts waiting at once never share numbers - the second carries on where the first stopped, so 3 and 4 follow 1 and 2 - and deciding one leaves the other open. A prompt stays open for a day, so a multi-select takes several numbers; any other text is an ordinary message. Media
-sent by text is ignored.
+of a prompt sent to that number is the answer. Prompts waiting at once never share numbers - the second carries on where the first stopped, so 3 and 4 follow 1 and 2 - and deciding one leaves the other open. A prompt stays open for a day, so a multi-select takes several numbers; any other text is an ordinary message.
+
+Incoming MMS files, including messages with no text, use the ordinary channel
+attachment pipeline after identity and access checks. Up to ten files are read;
+their media URLs must name the bot's Twilio account and the incoming message.
+Authenticated downloads reject redirects, stop at `CHAT_MAX_UPLOAD_SIZE_MB` and
+have a 30-second total deadline. The shared upload path validates type and
+content and stores each accepted file in the conversation. A number sent with a
+file is a message, not a numbered approval. Outbound replies remain text-only;
+MMS file sending is not implemented.
 
 ## Email { #email }
 

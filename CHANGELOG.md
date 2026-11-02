@@ -21,6 +21,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- Incoming Twilio MMS files use the existing channel attachment pipeline, including media-only messages. Downloads are restricted to the bot’s own account and incoming message, reject redirects and enforce upload size and transfer-time limits. A number with media is retained as a message rather than settling a numbered prompt. Outbound MMS files remain unsupported.
+
 - **Set and remove a routine's end in its form.** The end-time field names the device time zone it uses and sends an offset-aware timestamp. Invalid or past edits are refused; changing another field preserves the exact existing end rather than rounding it to the input's minute precision.
 
 - **Automatic memory capture keeps each turn's audience.** Completed linked channel turns and personally authorized scheduled/workflow work can be read by memory maintenance alongside private web chat. A group turn writes only to its source room, never a personal profile. Jobs retain the runner's admitted audience and recheck terminal state, membership and erasure; embeds, API keys, impersonation and outsider events remain excluded.

@@ -1,5 +1,5 @@
 ---
-source_sha: "8aa44e606a15"
+source_sha: "7e814fa067e6"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -1073,8 +1073,17 @@ Odpowiedź to zwykły tekst — znaczniki markdown są usuwane, a link wypisany 
 ucinana przy około 1500 znaków z informacją, że reszta jest w AgenticOS, więc jedno pytanie
 kosztuje kilka segmentów, nie kilkanaście. SMS nie umie strumieniować, edytować wiadomości ani
 przycisków, więc zatwierdzenie lub pytanie przychodzi jako ponumerowane linie, a odpowiada się
-SMS-em z numerem. Sam numer wskazujący wybór w którymś z pytań wysłanych na ten numer jest odpowiedzią. Pytania czekające jednocześnie nigdy nie dzielą numerów - drugie kontynuuje tam, gdzie skończyło się pierwsze, więc po 1 i 2 przychodzą 3 i 4 - a rozstrzygnięcie jednego zostawia drugie otwarte. Pytanie zostaje otwarte przez dobę, więc wielokrotny wybór przyjmuje kilka numerów; każdy inny tekst to zwykła wiadomość. Multimedia
-wysłane SMS-em są ignorowane.
+SMS-em z numerem. Sam numer wskazujący wybór w którymś z pytań wysłanych na ten numer jest odpowiedzią. Pytania czekające jednocześnie nigdy nie dzielą numerów - drugie kontynuuje tam, gdzie skończyło się pierwsze, więc po 1 i 2 przychodzą 3 i 4 - a rozstrzygnięcie jednego zostawia drugie otwarte. Pytanie zostaje otwarte przez dobę, więc wielokrotny wybór przyjmuje kilka numerów; każdy inny tekst to zwykła wiadomość.
+
+Przychodzące pliki MMS, także bez tekstu, przechodzą przez zwykły mechanizm
+załączników kanałowych po weryfikacji tożsamości i dostępu. Odczytywanych jest
+najwyżej dziesięć plików; adresy mediów muszą wskazywać konto Twilio bota
+i przychodzącą wiadomość. Uwierzytelnione pobieranie odrzuca przekierowania,
+kończy się przy `CHAT_MAX_UPLOAD_SIZE_MB` i ma łączny limit 30 sekund. Wspólna
+ścieżka przesyłania sprawdza typ i zawartość oraz zapisuje zaakceptowany plik
+w rozmowie. Numer wysłany z plikiem jest wiadomością, a nie zatwierdzeniem
+numerowanym. Odpowiedzi wychodzące pozostają tekstowe; wysyłanie plików MMS
+nie jest zaimplementowane.
 
 ## E-mail { #email }
 

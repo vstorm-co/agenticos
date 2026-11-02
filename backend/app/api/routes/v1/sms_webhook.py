@@ -52,7 +52,11 @@ async def sms_webhook(bot_id: UUID, request: Request, bot_service: ChannelBotSvc
     if incoming is None:
         return Response(content=_EMPTY_TWIML, media_type="text/xml")
     # A lone digit that fits what was last asked of this number is the answer to it.
-    chosen = await sms_prompts.answer(str(bot_id), incoming.platform_chat_id, incoming.text)
+    chosen = (
+        await sms_prompts.answer(str(bot_id), incoming.platform_chat_id, incoming.text)
+        if not incoming.attachments
+        else None
+    )
     if chosen is not None and await link_has_lapsed(incoming.platform_user_id):
         # Not a press: a prompt sent just before the link lapsed would otherwise stay
         # answerable, approvals included, for as long as the prompt lives. As a message it
