@@ -529,10 +529,10 @@ hat, sagt das.
 Was Annehmen anbietet, folgt aus dem Ergebnis:
 
 - **Niemand schlechter** und jemand besser: als nächste Version der Linie anwenden.
-- **Jemand schlechter:** anwenden und diese Agents auf ihrer Version fixieren,
+- **Jemand schlechter:** anwenden und diese Agents auf ihrer Version festsetzen,
   einen Fork mit der Änderung für die Agents anlegen, denen sie half, weiter
   verbessern oder verwerfen. Auf einem Fork bleiben nur Weiterverbessern und
-  Verwerfen, weil ein Fork weder fixiert noch erneut geforkt werden kann.
+  Verwerfen, weil ein Fork weder festgesetzt noch erneut geforkt werden kann.
 - **Unbekannte Agents** müssen bestätigt werden, bevor etwas angewendet wird.
   **Testfragen hinzufügen** daneben schreibt die eigenen Fragen des Skills aus
   Antworten, in denen Agents ihn geladen haben, damit sie beim nächsten Mal
