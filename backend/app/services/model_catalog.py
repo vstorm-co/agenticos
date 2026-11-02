@@ -405,6 +405,16 @@ def _fallback(curated: list[CatalogModel]) -> tuple[list[CatalogModel], CatalogS
     return (curated, "curated") if curated else ([], "unlisted")
 
 
+CUSTOM_LISTINGS: dict[str, bool] = {"openrouter": False, "stav": True}
+"""Providers whose model list can be read at an endpoint the caller names, and
+whether the vault key goes with that request.
+
+OpenRouter's list is public, so a regional OpenRouter is asked with no key.
+Stav's needs one, and the key sent is the one the profile will send to that same
+endpoint on every run - listing there reaches no host the profile does not.
+"""
+
+
 async def models_for(
     provider: str, *, api_key: str | None = None, base_url: str | None = None
 ) -> tuple[list[CatalogModel], CatalogSource]:
@@ -419,15 +429,18 @@ async def models_for(
         provider: The provider id, as `PROVIDERS` spells it.
         api_key: A key for the provider, where its listing needs one. Only
             OpenRouter's is public.
-        base_url: A validated OpenRouter endpoint, authorized by the caller.
-            Its catalog never uses the global curated fallback.
+        base_url: A validated endpoint for a provider in `CUSTOM_LISTINGS`,
+            authorized by the caller. Its catalog never uses the global curated
+            fallback.
     """
     spec = LISTINGS.get(provider)
     curated = list(curated_models(provider))
     cache_key = provider
     if base_url is not None:
-        if provider != "openrouter" or spec is None:
-            raise ValueError("Custom model listing endpoints are supported only for OpenRouter")
+        if provider not in CUSTOM_LISTINGS or spec is None:
+            raise ValueError(
+                "Custom model listing endpoints are supported only for OpenRouter and Stav"
+            )
         # Regional catalogs must never inherit the global fallback or cache.
         endpoint = base_url.rstrip("/")
         spec = replace(spec, url=f"{endpoint}/models")

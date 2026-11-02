@@ -293,7 +293,11 @@ export function AddModel({
     isLoading: loadingModels,
   } = useProviderModels(
     providerId,
-    providerId === "openrouter" ? baseUrl.trim().replace(/\/+$/, "") || undefined : undefined,
+    // Only OpenRouter and Stav can be listed at an endpoint of the reader's: a
+    // regional or staging Stav serves its own catalogue, not the public one.
+    providerId === "openrouter" || providerId === "stav"
+      ? baseUrl.trim().replace(/\/+$/, "") || undefined
+      : undefined,
   );
   // Stav.ai says per model which API it is served on, so nobody is asked.
   const apiFromModel = capabilities?.api_from_model ?? false;

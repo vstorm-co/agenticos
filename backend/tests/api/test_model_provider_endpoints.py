@@ -34,6 +34,27 @@ async def test_custom_listing_uses_the_endpoint_without_opening_a_vault_key():
     assert response.items[0].id == "vendor/chat"
 
 
+async def test_a_custom_stav_listing_sends_the_key_the_profile_will_send():
+    secrets = MagicMock(spec=OrganizationSecretService)
+    secrets.listing_key = AsyncMock(return_value="sk_stav_test")
+    with (
+        patch(
+            "app.api.routes.v1.model_providers.validate_endpoint_url",
+            new=AsyncMock(side_effect=lambda url: url),
+        ),
+        patch(
+            "app.api.routes.v1.model_providers.models_for",
+            new=AsyncMock(return_value=([CatalogModel(id="mistralai/m", name="M")], "live")),
+        ) as listing,
+    ):
+        await list_provider_models(
+            "stav", secrets, context(), base_url="https://staging-api.stav.ai/v1"
+        )
+    listing.assert_awaited_once_with(
+        "stav", api_key="sk_stav_test", base_url="https://staging-api.stav.ai/v1"
+    )
+
+
 async def test_a_stav_listing_says_which_apis_each_model_is_served_on():
     secrets = MagicMock(spec=OrganizationSecretService)
     secrets.listing_key = AsyncMock(return_value="sk_stav_test")

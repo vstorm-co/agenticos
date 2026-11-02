@@ -588,7 +588,7 @@ async def test_openrouter_custom_catalog_is_isolated_and_never_falls_back_to_glo
 
 
 @pytest.mark.anyio
-async def test_a_stav_catalog_is_read_with_the_key():
+async def test_a_stav_catalog_is_read_at_its_endpoint_with_the_key():
     requests: list[httpx.Request] = []
 
     def respond(request: httpx.Request) -> httpx.Response:
@@ -610,9 +610,11 @@ async def test_a_stav_catalog_is_read_with_the_key():
 
     async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as client:
         with patch(f"{MODULE}._client", return_value=client):
-            models, source = await models_for("stav", api_key="sk_stav_test")
+            models, source = await models_for(
+                "stav", api_key="sk_stav_test", base_url="https://staging-api.stav.ai/v1/"
+            )
     assert source == "live"
-    assert str(requests[-1].url) == "https://api.stav.ai/v1/models"
+    assert str(requests[-1].url) == "https://staging-api.stav.ai/v1/models"
     assert requests[-1].headers["Authorization"] == "Bearer sk_stav_test"
     assert [(m.id, m.name, m.context_length) for m in models] == [
         ("mistralai/mistral-small-4", "Mistral Small 4", 128000)

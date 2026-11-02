@@ -1146,6 +1146,13 @@ describe("choosing where a Stav model's requests run", () => {
     expect(sent()).toEqual(expect.objectContaining({ region: "global" }));
   });
 
+  it("lists Stav's models at the endpoint the profile names", async () => {
+    await fillStav();
+    await userEvent.type(screen.getByLabelText("Endpoint"), "https://staging-api.stav.ai/v1/");
+
+    expect(listingRequests).toHaveBeenLastCalledWith("stav", "https://staging-api.stav.ai/v1");
+  });
+
   it("opens a Stav model stored with no region as unchanged", async () => {
     // A profile written with no region runs in the default one, which is where
     // the form starts - so it is the model in use, not an edit of it.
