@@ -1131,3 +1131,7 @@ help:
 	@echo "  make routes        Show all API routes"
 	@echo "  make clean         Clean cache files"
 	@echo ""
+
+.PHONY: release-cut
+release-cut: ## Plan a release train cut (BUMP=patch|minor; CREATE_PR=1 opens it)
+	python3 scripts/release_cut.py $(BUMP) $(if $(filter 1,$(CREATE_PR)),--create-pr,)

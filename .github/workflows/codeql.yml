@@ -48,8 +48,30 @@ permissions:
   contents: read
 
 jobs:
+  changes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      reuse: ${{ steps.release.outputs.reuse }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Verify release-only changes against a full successful analysis
+        id: release
+        if: github.event_name != 'schedule'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/ci_release_scope.py --workflow codeql.yml >> "$GITHUB_OUTPUT"
+
   analyze:
     name: analyze ${{ matrix.language }}
+    needs: changes
+    if: ${{ !cancelled() && needs.changes.outputs.reuse != 'true' }}
     runs-on: ubuntu-latest
     # Measured against default setup's own weekly runs, which finish the Python
     # and JavaScript analyses in about six minutes each. Generous enough for a

@@ -109,19 +109,35 @@ jobs:
     permissions:
       contents: read
       pull-requests: read
+      actions: read
     outputs:
-      backend: ${{ steps.scope.outputs.backend }}
-      frontend: ${{ steps.scope.outputs.frontend }}
-      e2e: ${{ steps.scope.outputs.e2e }}
+      backend: ${{ steps.reused.outputs.backend || steps.scope.outputs.backend }}
+      frontend: ${{ steps.reused.outputs.frontend || steps.scope.outputs.frontend }}
+      e2e: ${{ steps.reused.outputs.e2e || steps.scope.outputs.e2e }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          fetch-depth: 0
+
+      - name: Verify release-only changes against a full successful run
+        id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/ci_release_scope.py --workflow ci.yml >> "$GITHUB_OUTPUT"
+
+      - name: Reuse the checked release source
+        if: steps.release.outputs.reuse == 'true'
+        id: reused
+        run: |
+          echo "backend=false" >> "$GITHUB_OUTPUT"
+          echo "frontend=false" >> "$GITHUB_OUTPUT"
+          echo "e2e=false" >> "$GITHUB_OUTPUT"
 
       - name: Work out which suites the changed paths require
         id: scope
-        # Nothing is emitted on a push, so every downstream `if:` compares against
-        # an empty string and runs: a merge to `main` gets the whole matrix.
+        # Pure cuts reuse suites only after the proof above. Other main pushes
+        # emit no scope outputs, so they run every suite.
         #
         # That covers a *skipped step*. It does not cover this *job* failing - a 502
         # from the API, a rate limit, `set -euo pipefail` catching anything - because
@@ -130,7 +146,7 @@ jobs:
         # the six required contexts, so nothing would have blocked: the merge button
         # would go green on a branch where no suite ran. Hence `!cancelled()` on each
         # gated job, which is what makes them run when this one fails.
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request' && steps.release.outputs.cut != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
@@ -141,14 +157,10 @@ jobs:
             > "$RUNNER_TEMP/files.json"
           jq -r '.[] | .filename, (.previous_filename // empty)' \
             < "$RUNNER_TEMP/files.json" > "$RUNNER_TEMP/changed.txt"
-          # The same answer, kept whole: `patch` is what lets a version-only bump
-          # skip the matrix, and it has to be the diff rather than the path,
-          # because those three files also hold the dependency and coverage lists.
-          # `--paginate` concatenates pages as separate arrays, so they are
-          # flattened into one.
-          jq -s 'add // []' < "$RUNNER_TEMP/files.json" > "$RUNNER_TEMP/patches.json"
+          # Version exemptions belong exclusively to the semantic classifier
+          # above, with full-run evidence; paths alone never exempt manifests.
           python3 scripts/ci_changed_scope.py \
-            "$RUNNER_TEMP/changed.txt" "$RUNNER_TEMP/patches.json" >> "$GITHUB_OUTPUT"
+            "$RUNNER_TEMP/changed.txt" >> "$GITHUB_OUTPUT"
 
   lint:
     # Never gated. It is one billed minute, `make lint-spelling` reads every
