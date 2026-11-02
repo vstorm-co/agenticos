@@ -225,6 +225,25 @@ class TestCapabilityDestinations:
 
         assert section.rows[0][1] == "environment production v2"
 
+    @pytest.mark.parametrize(
+        "config", [{"runs_on": "this_computer"}, {"runs_on": "sandbox"}, {}, None]
+    )
+    async def test_coding_agent_destination_follows_the_published_execution_target(
+        self, config: dict[str, str] | None
+    ) -> None:
+        db = _db(
+            [("coder", 3, {"capabilities": [{"id": "coding_agent", "config": config}]})],
+            [],
+        )
+        section = await _capability_destinations(db)
+        destination = section.rows[0][3]
+        if config and config.get("runs_on") == "this_computer":
+            assert "directly from that computer" in destination
+            assert "does not control its model, endpoint or sign-in" in destination
+            assert "sandbox" not in destination
+        else:
+            assert "from the agent's sandbox" in destination
+
     def test_every_registered_capability_is_classified(self) -> None:
         """A new capability fails here rather than leaving the inventory short."""
         capability_registry.load_builtins()

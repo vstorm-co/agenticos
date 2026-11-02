@@ -531,6 +531,17 @@ async def _capability_destinations(db: AsyncSession) -> Section:
             destination = OUTBOUND_CAPABILITIES.get(str(capability_id))
             if destination is None:
                 continue
+            config = binding.get("config") if isinstance(binding, dict) else None
+            if (
+                capability_id == "coding_agent"
+                and isinstance(config, dict)
+                and config.get("runs_on") == "this_computer"
+            ):
+                destination = (
+                    "The provider or gateway configured in Claude Code or Codex on the person's "
+                    "computer, directly from that computer, with the task and code the coding "
+                    "agent reads. The deployment does not control its model, endpoint or sign-in."
+                )
             rows.append([f"agent {slug}", f"{where} v{version}", str(capability_id), destination])
     return Section(
         title="Capability destinations",

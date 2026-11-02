@@ -1061,8 +1061,6 @@ class TestTheLibrarySet:
 
     async def test_the_world_map_needs_no_tile_server_and_its_outlines_are_unaltered(self) -> None:
         """The map draws from files the deployment serves and from nothing else."""
-        import json
-
         data, _ = await artifacts.library_file("world-atlas-2.0.2-110m.js")
         text = data.decode()
         prefix, suffix = "window.AO_WORLD_110M=", ";\n"
