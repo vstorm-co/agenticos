@@ -732,6 +732,7 @@ include = [
     "app/repositories/local_service.py",
     "app/repositories/sandbox_connection.py",
     "app/repositories/skill_proposal.py",
+    "app/repositories/skill_version.py",
     "app/services/attachments.py",
     # The one subprocess in the chat attachment feature (#1591): a managed,
     # killable `soffice` for DOC. Every branch is a refusal or a teardown - a
@@ -746,6 +747,8 @@ include = [
     "app/services/sandboxd_compat.py",
     "app/services/usage_report.py",
     "app/services/skill_proposal.py",
+    "app/services/skill_usage.py",
+    "app/services/skill_versions.py",
     "app/services/skill_workspace.py",
     "app/services/channels/attachments.py",
     "app/services/channels/dedupe.py",
@@ -1470,6 +1473,7 @@ include = [
     "app/repositories/local_service.py",
     "app/repositories/sandbox_connection.py",
     "app/repositories/skill_proposal.py",
+    "app/repositories/skill_version.py",
     "app/services/attachments.py",
     # The one subprocess in the chat attachment feature (#1591): a managed,
     # killable `soffice` for DOC. Every branch is a refusal or a teardown - a
@@ -1484,6 +1488,8 @@ include = [
     "app/services/sandboxd_compat.py",
     "app/services/usage_report.py",
     "app/services/skill_proposal.py",
+    "app/services/skill_usage.py",
+    "app/services/skill_versions.py",
     "app/services/skill_workspace.py",
     "app/services/channels/attachments.py",
     "app/services/channels/dedupe.py",

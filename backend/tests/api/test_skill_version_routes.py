@@ -1,0 +1,256 @@
+"""Skill versions and forks, through the app.
+
+What a version holds, how lines are numbered and who may change them is
+`integration/test_skill_versions`'s, against a real database. Here the service is a
+stub, and what is left is the HTTP contract the skill page is built on: each path
+reaches the right method with what was sent, answers with the right status, and a
+refusal keeps its status on the way out.
+"""
+
+import uuid
+from collections.abc import AsyncIterator, Iterator
+from datetime import UTC, datetime
+from unittest.mock import AsyncMock, MagicMock
+
+import pytest
+from httpx import ASGITransport, AsyncClient
+
+from app.api import deps
+from app.core.exceptions import ConcurrentChangeError, InUseError, NotFoundError
+from app.core.permissions import AuthContext, OrgRoleName
+from app.db.models.skill_version import SkillVersionSource
+from app.main import app
+from app.schemas.skill_version import (
+    SkillForkList,
+    SkillForkRead,
+    SkillVersionList,
+    SkillVersionRead,
+    VersionNumberRef,
+    VersionResourceRead,
+)
+
+pytestmark = pytest.mark.anyio
+
+SKILL = uuid.uuid4()
+VERSION = uuid.uuid4()
+FORK = uuid.uuid4()
+NOW = datetime(2026, 11, 2, tzinfo=UTC)
+
+
+def _version(fork_id: uuid.UUID | None = None) -> SkillVersionRead:
+    return SkillVersionRead(
+        id=VERSION,
+        skill_id=SKILL,
+        fork_id=fork_id,
+        number=2,
+        source=SkillVersionSource.EDIT,
+        previous=None,
+        created_at=NOW,
+        description="How refunds work.",
+        content="Ask for the receipt.",
+        resources=[],
+    )
+
+
+def _fork() -> SkillForkRead:
+    return SkillForkRead(
+        id=FORK,
+        skill_id=SKILL,
+        name="returns",
+        base=VersionNumberRef(id=VERSION, number=2),
+        latest=None,
+        changes=0,
+        behind_main=0,
+        archive_candidate=False,
+        created_at=NOW,
+    )
+
+
+@pytest.fixture
+def service() -> MagicMock:
+    stub = MagicMock()
+    stub.list_versions = AsyncMock(return_value=SkillVersionList(items=[_version()], total=1))
+    stub.read_version = AsyncMock(return_value=_version())
+    stub.read_resource = AsyncMock(
+        return_value=VersionResourceRead(name="refs/a.md", description=None, content="one")
+    )
+    stub.edit = AsyncMock(return_value=_version(FORK))
+    stub.restore = AsyncMock(return_value=_version())
+    stub.list_forks = AsyncMock(return_value=SkillForkList(items=[_fork()], total=1))
+    stub.create_fork = AsyncMock(return_value=_fork())
+    stub.rename_fork = AsyncMock(return_value=_fork())
+    stub.archive_fork = AsyncMock(return_value=_fork())
+    return stub
+
+
+@pytest.fixture
+def ctx() -> AuthContext:
+    return AuthContext(user_id=uuid.uuid4(), organization_id=uuid.uuid4(), role=OrgRoleName.OWNER)
+
+
+@pytest.fixture
+async def client(
+    service: MagicMock, ctx: AuthContext, mock_redis: MagicMock
+) -> AsyncIterator[AsyncClient]:
+    app.dependency_overrides[deps.get_auth_context] = lambda: ctx
+    app.dependency_overrides[deps.get_redis] = lambda: mock_redis
+    app.dependency_overrides[deps.get_skill_version_service] = lambda: service
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as opened:
+        yield opened
+    app.dependency_overrides.clear()
+
+
+@pytest.fixture(autouse=True)
+def _clean_overrides() -> Iterator[None]:
+    yield
+    app.dependency_overrides.clear()
+
+
+async def test_history_lists_one_line_and_pages(client, service, ctx):
+    response = await client.get(
+        f"/api/v1/skills/{SKILL}/versions", params={"fork_id": str(FORK), "skip": 5, "limit": 10}
+    )
+
+    assert response.status_code == 200
+    assert response.json()["total"] == 1
+    service.list_versions.assert_awaited_once_with(ctx, SKILL, fork_id=FORK, skip=5, limit=10)
+
+
+async def test_history_without_a_fork_is_mains(client, service, ctx):
+    await client.get(f"/api/v1/skills/{SKILL}/versions")
+
+    service.list_versions.assert_awaited_once_with(ctx, SKILL, fork_id=None, skip=0, limit=50)
+
+
+async def test_a_page_larger_than_a_hundred_is_refused(client, service):
+    response = await client.get(f"/api/v1/skills/{SKILL}/versions", params={"limit": 101})
+
+    assert response.status_code == 422
+    service.list_versions.assert_not_awaited()
+
+
+async def test_a_version_is_read_with_its_text(client, service, ctx):
+    response = await client.get(f"/api/v1/skills/{SKILL}/versions/{VERSION}")
+
+    assert response.status_code == 200
+    assert response.json()["content"] == "Ask for the receipt."
+    service.read_version.assert_awaited_once_with(ctx, SKILL, VERSION)
+
+
+async def test_a_versions_file_is_read_by_its_path(client, service, ctx):
+    response = await client.get(f"/api/v1/skills/{SKILL}/versions/{VERSION}/resources/refs/a.md")
+
+    assert response.status_code == 200
+    assert response.json()["content"] == "one"
+    service.read_resource.assert_awaited_once_with(ctx, SKILL, VERSION, "refs/a.md")
+
+
+async def test_an_edit_is_saved_as_a_new_version(client, service):
+    body = {
+        "fork_id": str(FORK),
+        "base_version_id": str(VERSION),
+        "description": "How refunds work.",
+        "content": "Ask for the receipt.",
+    }
+
+    response = await client.post(f"/api/v1/skills/{SKILL}/versions", json=body)
+
+    assert response.status_code == 201
+    [_, skill_id, data] = service.edit.await_args.args
+    assert (skill_id, data.fork_id, data.base_version_id) == (SKILL, FORK, VERSION)
+
+
+async def test_an_edit_without_the_version_it_was_made_on_is_refused(client, service):
+    response = await client.post(
+        f"/api/v1/skills/{SKILL}/versions", json={"description": "d", "content": "c"}
+    )
+
+    assert response.status_code == 422
+    service.edit.assert_not_awaited()
+
+
+async def test_an_edit_on_a_line_that_moved_is_a_conflict(client, service):
+    service.edit.side_effect = ConcurrentChangeError(message="newer", details={})
+
+    response = await client.post(
+        f"/api/v1/skills/{SKILL}/versions",
+        json={"base_version_id": str(VERSION), "description": "d", "content": "c"},
+    )
+
+    assert response.status_code == 409
+
+
+async def test_restore_answers_with_the_new_version(client, service):
+    response = await client.post(
+        f"/api/v1/skills/{SKILL}/versions/{VERSION}/restore",
+        json={"base_version_id": str(VERSION)},
+    )
+
+    assert response.status_code == 201
+    [_, skill_id, version_id, data] = service.restore.await_args.args
+    assert (skill_id, version_id, data.base_version_id) == (SKILL, VERSION, VERSION)
+
+
+async def test_a_version_the_caller_cannot_reach_is_not_found(client, service):
+    service.read_version.side_effect = NotFoundError(message="Version not found", details={})
+
+    response = await client.get(f"/api/v1/skills/{SKILL}/versions/{VERSION}")
+
+    assert response.status_code == 404
+
+
+async def test_forks_are_listed_active_by_default(client, service):
+    response = await client.get(f"/api/v1/skills/{SKILL}/forks")
+    archived = await client.get(f"/api/v1/skills/{SKILL}/forks", params={"archived": "true"})
+
+    assert response.status_code == archived.status_code == 200
+    assert [call.kwargs["archived"] for call in service.list_forks.await_args_list] == [False, True]
+
+
+async def test_a_fork_is_created_from_a_version(client, service):
+    response = await client.post(
+        f"/api/v1/skills/{SKILL}/forks",
+        json={"name": "returns", "from_version_id": str(VERSION)},
+    )
+
+    assert response.status_code == 201
+    [_, skill_id, data] = service.create_fork.await_args.args
+    assert (skill_id, data.name, data.from_version_id) == (SKILL, "returns", VERSION)
+
+
+async def test_a_fork_needs_a_name(client, service):
+    response = await client.post(
+        f"/api/v1/skills/{SKILL}/forks", json={"name": "", "from_version_id": str(VERSION)}
+    )
+
+    assert response.status_code == 422
+    service.create_fork.assert_not_awaited()
+
+
+async def test_a_fork_is_renamed(client, service):
+    response = await client.patch(f"/api/v1/skills/{SKILL}/forks/{FORK}", json={"name": "eu"})
+
+    assert response.status_code == 200
+    [_, skill_id, fork_id, data] = service.rename_fork.await_args.args
+    assert (skill_id, fork_id, data.name) == (SKILL, FORK, "eu")
+
+
+async def test_a_fork_is_archived(client, service, ctx):
+    response = await client.post(f"/api/v1/skills/{SKILL}/forks/{FORK}/archive")
+
+    assert response.status_code == 200
+    service.archive_fork.assert_awaited_once_with(ctx, SKILL, FORK)
+
+
+async def test_a_used_skill_answers_its_deletion_as_in_use(client):
+    """The refusal keeps its status and names who uses it, so the page can say so."""
+    skills = MagicMock()
+    skills.delete = AsyncMock(
+        side_effect=InUseError(message="in use", details={"agents": [], "hidden": 2})
+    )
+    app.dependency_overrides[deps.get_skill_service] = lambda: skills
+
+    response = await client.delete(f"/api/v1/skills/{SKILL}")
+
+    assert response.status_code == 409
+    assert response.json()["error"]["details"] == {"agents": [], "hidden": 2}

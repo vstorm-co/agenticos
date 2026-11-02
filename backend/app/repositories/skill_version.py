@@ -278,9 +278,9 @@ async def count_versions(
         )
         .group_by(SkillVersion.fork_id)
     )
-    for fork_id, count in result.tuples().all():
-        if fork_id is not None:
-            counts[fork_id] = count
+    counts.update(
+        (fork_id, count) for fork_id, count in result.tuples().all() if fork_id is not None
+    )
     return counts
 
 
