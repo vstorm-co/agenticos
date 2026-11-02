@@ -23,6 +23,14 @@ Two things are versioned separately from this file and worth knowing about:
 
 - A document deleted while it was still being indexed no longer leaves its chunks searchable. The delete removed nothing because the document had no vector id yet: its chunks were written, or still being written, and the ingest had not recorded them. The ingest now queues a retried job that removes the chunks it wrote when it finds the document deleted, and a delete that waited for the ingest to record its result removes them itself. Recording the embedding spend of such a document no longer fails the ingest on the deleted row, which had left the chunks in place and retried the job until it died: the spend is kept against no document. A sync no longer counts such a document as ingested. Clearing a default knowledge base mid-ingest was already covered ([#2565](https://github.com/vstorm-co/agenticos/issues/2565)).
 
+## [1.35.2] - 2026-11-02
+
+### Changed
+
+- Run backend coverage once, shard frontend and E2E tests, reuse the production frontend build, and cache native builds. Build desktop release platforms in parallel and publish updater metadata only after every signed target is available.
+
+- Reuse successful checks for proven release-only cuts, prepare release train PRs from the CLI, reuse unchanged browser images, and retain scans and SBOMs when images are retagged. Offer production deployment only after a stable release is published, while keeping manual deployments and rollback.
+
 ## [1.35.1] - 2026-11-02
 
 ### Fixed
@@ -19674,7 +19682,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.35.1...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.35.2...HEAD
+[1.35.2]: https://github.com/vstorm-co/agenticos/compare/v1.35.1...v1.35.2
 [1.35.1]: https://github.com/vstorm-co/agenticos/compare/v1.35.0...v1.35.1
 [1.35.0]: https://github.com/vstorm-co/agenticos/compare/v1.34.3...v1.35.0
 [1.34.3]: https://github.com/vstorm-co/agenticos/compare/v1.34.2...v1.34.3

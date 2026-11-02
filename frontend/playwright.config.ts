@@ -50,8 +50,8 @@ export default defineConfig({
   // them write to it. In parallel the sign-out spec ends the session another
   // spec is using and the sharing specs contend for the same rows: locally
   // that showed up as 8 failures that all passed in isolation, which is the
-  // kind of red people learn to re-run instead of read. Serialised, the whole
-  // suite is under two minutes.
+  // kind of red people learn to re-run instead of read. CI shards each get their own stack; files
+  // within a shard still execute serially.
   fullyParallel: false,
   /* Fail the build on CI if you accidentally left test.only in the source code. */
   forbidOnly: !!process.env.CI,

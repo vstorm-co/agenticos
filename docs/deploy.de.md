@@ -1,5 +1,5 @@
 ---
-source_sha: "7bd15584abde"
+source_sha: "88a69af9b330"
 ---
 
 # Auf einem Server deployen { #deploy-to-a-server }
@@ -535,10 +535,10 @@ nicht verfügbar.
 
 ### Aus GitHub, mit einer Freigabe { #from-github-with-an-approval }
 
-`.github/workflows/deploy.yml` bietet jeden Merge auf `main` zum Deployment an
+`.github/workflows/deploy.yml` bietet jedes veröffentlichte stabile Release zum Deployment an
 und wartet darauf, dass jemand ihn freigibt. Dieses Tor ist **eine
 Repository-Einstellung, kein Schritt in der Datei** — ohne es deployt der
-Workflow jeden Merge unbeaufsichtigt.
+Workflow jedes veröffentlichte stabile Release unbeaufsichtigt.
 
 Einmal einrichten:
 
@@ -554,7 +554,7 @@ Einmal einrichten:
     Jeder Lauf teilt sich die Concurrency-Gruppe `deploy-production`, und ein Lauf,
     der am Freigabe-Tor sitzt, hält sie. Er läuft nicht von selbst ab — GitHub bricht
     einen unbearbeiteten nach 30 Tagen ab — bis also jemand ihn freigibt oder
-    abbricht, stauen sich spätere Merges hinter einer Entscheidung, die niemand
+    abbricht, stauen sich spätere Releases hinter einer Entscheidung, die niemand
     treffen wird, und der Server betreibt weiter das, was zuletzt deployt wurde.
 
     Ein Deploy, gegen den Sie sich entschieden haben, wird also abgebrochen und nicht
@@ -564,9 +564,9 @@ Einmal einrichten:
     `deploy-queue.yml` ist das, was passiert, wenn er trotzdem stehen bleibt: alle
     sechs Stunden bricht es einen Deploy-Lauf ab, der länger als zwölf auf eine
     Freigabe gewartet hat, und legt ein Issue an, das den Lauf benennt und sagt,
-    wie weit `main` vom letzten erfolgreichen Deploy abgedriftet ist. Es gibt
-    nichts frei und deployt nichts — es leert die Warteschlange, damit der nächste
-    Merge das Tor erreicht, und sagt, dass es das getan hat. Von Hand mit
+    wie weit das neueste stabile Release vom letzten erfolgreichen Deploy abgedriftet ist. Es gibt
+    nichts frei und deployt nichts — es leert die Warteschlange, damit das nächste
+    veröffentlichte Release das Tor erreicht, und sagt, dass es das getan hat. Von Hand mit
     `gh workflow run deploy-queue.yml`.
 
 !!! danger "Eine Freigabe aus der Warteschlange der Environment gibt den **ältesten** Lauf frei"
@@ -575,7 +575,7 @@ Einmal einrichten:
     Moment, in dem die Warteschlange stecken blieb, und nicht den gerade
     gepushten — so kam ein zwei Wochen alter Commit auf diesen Server. Geben Sie
     von der Seite des Laufs frei, den Sie meinen, oder starten Sie mit
-    `gh workflow run deploy.yml --ref main` einen neuen und geben Sie den frei.
+    `gh workflow run deploy.yml --ref main -f ref=v1.34.3` einen neuen und geben Sie den frei.
 
 | Secret | Was |
 |---|---|
