@@ -124,6 +124,7 @@ class CodingAgentConfig(BaseModel):
         ),
         json_schema_extra={
             "x-enum-labels": _MODEL_NAMES,
+            "x-visible-when": {"field": "runs_on", "equals": ["sandbox"]},
             # The Builder offers each harness only its own vendor's models.
             "x-enum-when": {
                 "field": "harness",

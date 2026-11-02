@@ -1,5 +1,5 @@
 ---
-source_sha: "ad833f9cccfa"
+source_sha: "fa5f499e961a"
 ---
 
 # Datenschutz { #data-protection }
@@ -20,6 +20,8 @@ und dem, was ein Deployment tatsächlich entschieden hat.
     entschiedenen Aufbewahrung, den unterzeichneten Verträgen und dem Betreiber,
     der sie führt. Jede dieser Bedingungen ist unten als etwas benannt, das zu
     beschaffen und zu prüfen ist, nie als etwas Angenommenes.
+
+Das Capability-Inventar enthält auch den pro Konversation auswählbaren lokalen Coding-Agent, selbst wenn der veröffentlichte Spec keinen solchen Binding enthält oder eine Sandbox nutzt. Diese Zeile beschreibt einen möglichen Weg, keinen Nachweis seiner Nutzung.
 
 ## Was standardmäßig das System verlässt { #nothing-leaves-by-default }
 

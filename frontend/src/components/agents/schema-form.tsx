@@ -106,6 +106,10 @@ export function SchemaForm({
     // A choice that depended on this field and is no longer offered goes,
     // rather than staying selected where the form cannot show it.
     for (const [other, property] of Object.entries(schema.properties ?? {})) {
+      if (property["x-visible-when"]?.field === key && !visible(property, schema, next)) {
+        next[other] = undefined;
+        continue;
+      }
       const when = property["x-enum-when"];
       if (
         when === undefined ||

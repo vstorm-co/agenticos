@@ -191,7 +191,9 @@ function ComputerWorkOn({ agentEnabled }: { agentEnabled: boolean }) {
   });
 
   const linked = device?.linked === true;
-  const grants = state.data?.grants ?? [];
+  const grants = (state.data?.grants ?? []).filter(
+    (grant) => coding === null || grant.mode === "full_access",
+  );
   const modes = (state.data?.modes ?? []).filter(
     (mode) => coding === null || mode === "full_access",
   );

@@ -1,5 +1,5 @@
 ---
-source_sha: "ad833f9cccfa"
+source_sha: "fa5f499e961a"
 ---
 
 # Protección de datos { #data-protection }
@@ -19,6 +19,8 @@ que el software puede hacer y lo que un deployment ha decidido de verdad.
     los acuerdos firmados y del operador que lo lleva. Cada una de esas
     condiciones aparece abajo como algo que hay que obtener y verificar, nunca
     como algo que se da por supuesto.
+
+El inventario de capabilities incluye también el coding agent local seleccionable por conversación, aunque el spec publicado no tenga ese binding o use un sandbox. Esa fila describe una ruta posible, no demuestra que se haya utilizado.
 
 ## Qué sale por defecto { #nothing-leaves-by-default }
 

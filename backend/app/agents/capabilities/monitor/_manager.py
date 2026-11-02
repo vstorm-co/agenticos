@@ -12,14 +12,15 @@ outlives the turn that asked for it.
 
 import base64
 import binascii
+import codecs
 import logging
 import shlex
 import uuid
 from collections import deque
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Protocol
 
-from pydantic_ai.workspaces import WorkspaceError
+from pydantic_ai.workspaces import CommandResult, WorkspaceError
 
 logger = logging.getLogger(__name__)
 
@@ -49,6 +50,10 @@ def parse_match(match: str | None) -> tuple[str, ...]:
     return tuple(word.strip().casefold() for word in match.split("|") if word.strip())
 
 
+class MonitorWorkspace(Protocol):
+    async def run(self, command: str, *, shell: bool, timeout: float) -> CommandResult: ...
+
+
 @dataclass
 class Watch:
     """One running command and how far its log has been read."""
@@ -62,6 +67,12 @@ class Watch:
     words: tuple[str, ...]
     offset: int = 0
     pending: bytes = b""
+    decoder: codecs.IncrementalDecoder = field(
+        default_factory=lambda: codecs.getincrementaldecoder("utf-8")("replace")
+    )
+    match_tail: str = ""
+    matched: bool = False
+    nonblank: bool = False
     reported: int = 0
     running: bool = True
     exited: bool = False
@@ -87,6 +98,7 @@ class MonitorManager:
     def __init__(self) -> None:
         self._run = uuid.uuid4().hex[:12]
         self._watches: dict[str, Watch] = {}
+        self._starting = 0
 
     @property
     def folder(self) -> str:
@@ -102,7 +114,7 @@ class MonitorManager:
         return [watch for watch in self._watches.values() if watch.running]
 
     async def start(
-        self, workspace: Any, command: str, label: str | None, match: str | None
+        self, workspace: MonitorWorkspace, command: str, label: str | None, match: str | None
     ) -> Watch:
         """Start `command` detached and begin watching its output.
 
@@ -113,7 +125,7 @@ class MonitorManager:
         command = command.strip()
         if not command or len(command) > MAX_COMMAND_CHARS:
             raise ValueError(f"Give a command of at most {MAX_COMMAND_CHARS} characters.")
-        if len(self.running) >= MAX_WATCHES:
+        if len(self.running) + self._starting >= MAX_WATCHES:
             raise ValueError(f"At most {MAX_WATCHES} watches run at once; stop one first.")
         watch_id = uuid.uuid4().hex[:8]
         folder = self.folder
@@ -123,23 +135,27 @@ class MonitorManager:
             f"mkdir -p {shlex.quote(folder)}; : > {shlex.quote(log)}; "
             f"nohup sh -c {shlex.quote(inner)} > {shlex.quote(log)} 2>&1 < /dev/null & echo $!"
         )
-        result = await workspace.run(line, shell=True, timeout=COMMAND_SECONDS)  # noqa: S604
-        pid = result.stdout.strip().splitlines()[-1] if result.stdout.strip() else ""
-        if result.exit_code != 0 or not pid.isdigit():
-            raise WorkspaceError("The command could not be started in the workspace.")
-        watch = Watch(
-            id=watch_id,
-            label=(label or command)[:60],
-            command=command,
-            log=log,
-            status=status,
-            pid=pid,
-            words=parse_match(match),
-        )
-        self._watches[watch_id] = watch
-        return watch
+        self._starting += 1
+        try:
+            result = await workspace.run(line, shell=True, timeout=COMMAND_SECONDS)  # noqa: S604
+            pid = result.stdout.strip().splitlines()[-1] if result.stdout.strip() else ""
+            if result.exit_code != 0 or not pid.isdigit():
+                raise WorkspaceError("The command could not be started in the workspace.")
+            watch = Watch(
+                id=watch_id,
+                label=(label or command)[:60],
+                command=command,
+                log=log,
+                status=status,
+                pid=pid,
+                words=parse_match(match),
+            )
+            self._watches[watch_id] = watch
+            return watch
+        finally:
+            self._starting -= 1
 
-    async def collect(self, workspace: Any) -> list[Update]:
+    async def collect(self, workspace: MonitorWorkspace) -> list[Update]:
         """Read every running watch once and return what each has to report."""
         updates: list[Update] = []
         for watch in self.running:
@@ -152,7 +168,7 @@ class MonitorManager:
                 updates.append(update)
         return updates
 
-    async def _read(self, workspace: Any, watch: Watch) -> Update | None:
+    async def _read(self, workspace: MonitorWorkspace, watch: Watch) -> Update | None:
         # The state is read *before* the log: a process that finishes in between is then
         # reported on the next read, with every line it wrote, instead of being declared
         # finished while its last lines are still unread.
@@ -173,17 +189,15 @@ class MonitorManager:
         # A log longer than one chunk is read to its end before the watch is finished.
         finished = exited and len(chunk) < CHUNK_BYTES
         watch.exited = exited
-        *whole, watch.pending = (watch.pending + chunk).split(b"\n")
-        if finished and watch.pending:
-            whole.append(watch.pending)
-            watch.pending = b""
-        lines = [line.decode("utf-8", "replace")[:MAX_LINE_CHARS] for line in whole]
-        kept = [
-            line
-            for line in lines
-            if line.strip()
-            and (not watch.words or any(word in line.casefold() for word in watch.words))
-        ]
+        *whole, tail = chunk.split(b"\n")
+        kept = []
+        for part in whole:
+            line = self._line(watch, part, final=True)
+            if line is not None:
+                kept.append(line)
+        line = self._line(watch, tail, final=finished)
+        if line is not None:
+            kept.append(line)
         watch.recent.extend(kept)
         watch.reported += len(kept)
         if finished:
@@ -200,24 +214,59 @@ class MonitorManager:
             exit_code=watch.exit_code,
         )
 
-    async def stop(self, workspace: Any, watch_id: str) -> Watch | None:
+    @staticmethod
+    def _line(watch: Watch, part: bytes, *, final: bool) -> str | None:
+        """Match the entire stream while keeping only a bounded preview and search tail."""
+        text = watch.decoder.decode(part, final=final)
+        watch.nonblank = watch.nonblank or bool(text.strip())
+        probe = watch.match_tail + text.casefold()
+        watch.matched = (
+            watch.matched or not watch.words or any(word in probe for word in watch.words)
+        )
+        overlap = max((len(word) for word in watch.words), default=1) - 1
+        watch.match_tail = probe[-overlap:] if overlap else ""
+        watch.pending = (watch.pending + part)[: MAX_LINE_CHARS * 4]
+        if not final:
+            return None
+        line = (
+            watch.pending.decode("utf-8", "replace")[:MAX_LINE_CHARS]
+            if watch.nonblank and watch.matched
+            else None
+        )
+        watch.pending = b""
+        watch.match_tail = ""
+        watch.matched = False
+        watch.nonblank = False
+        watch.decoder.reset()
+        return line
+
+    async def stop(self, workspace: MonitorWorkspace, watch_id: str) -> Watch | None:
         """Stop one watch and the processes it started."""
         watch = self._watches.get(watch_id)
         if watch is None:
             return None
-        if watch.running and not watch.exited:
+        if watch.exited:
+            watch.running = False
+        if watch.running:
             kill = (
-                'killtree() { for child in $(pgrep -P "$1" 2>/dev/null); do killtree "$child"; done; '
-                f'kill "$1" 2>/dev/null; }}; killtree {watch.pid}; true'
+                'pids=""; killtree() { for child in $(pgrep -P "$1" 2>/dev/null); do killtree "$child"; done; '
+                'pids="$pids $1"; }; '
+                f"killtree {watch.pid}; "
+                "kill -TERM $pids 2>/dev/null; "
+                'i=0; while [ "$i" -lt 20 ]; do alive=; '
+                'for pid in $pids; do if kill -0 "$pid" 2>/dev/null; then alive=1; fi; done; '
+                '[ -z "$alive" ] && break; sleep 0.1; i=$((i+1)); done; '
+                "kill -KILL $pids 2>/dev/null; true"
             )
             try:
                 await workspace.run(kill, shell=True, timeout=STOP_SECONDS)  # noqa: S604
             except WorkspaceError as failed:
                 logger.warning("A watch could not be stopped: %s", failed)
+                return watch
             watch.running = False
         return watch
 
-    async def stop_all(self, workspace: Any) -> None:
+    async def stop_all(self, workspace: MonitorWorkspace) -> None:
         """Stop every watch, then remove what they wrote - finished ones included.
 
         Command output can hold anything the command printed, and the workspace may
@@ -225,7 +274,7 @@ class MonitorManager:
         """
         for watch in self.running:
             await self.stop(workspace, watch.id)
-        if not self._watches:
+        if not self._watches or self.running:
             return
         try:
             await workspace.run(  # noqa: S604

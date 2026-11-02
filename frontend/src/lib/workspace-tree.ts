@@ -1,7 +1,7 @@
 import type { WorkspaceFile } from "./sandbox-workspaces-api";
 
 function segments(path: string): string[] {
-  return path.split("/").filter(Boolean);
+  return path.split("/").filter((part) => part !== "" && part !== ".");
 }
 
 export interface WorkspaceTreeNode<T extends WorkspaceFile> {

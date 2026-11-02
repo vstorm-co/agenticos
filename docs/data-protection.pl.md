@@ -1,5 +1,5 @@
 ---
-source_sha: "ad833f9cccfa"
+source_sha: "fa5f499e961a"
 ---
 
 # Ochrona danych { #data-protection }
@@ -18,6 +18,8 @@ oprogramowanie potrafi, a tym, co wdrożenie faktycznie postanowiło.
     zależy od skonfigurowanych providerów, ustalonej retencji, podpisanych umów
     i operatora, który je prowadzi. Każdy taki warunek jest poniżej nazwany jako
     coś do zdobycia i zweryfikowania, nigdy jako coś założonego.
+
+Inwentarz capability uwzględnia też lokalnego coding agenta wybieranego dla konwersacji, nawet gdy opublikowany spec nie ma takiego bindingu albo używa sandboxa. Ten wiersz opisuje możliwą ścieżkę, a nie dowód jej użycia.
 
 ## Co wychodzi domyślnie { #nothing-leaves-by-default }
 

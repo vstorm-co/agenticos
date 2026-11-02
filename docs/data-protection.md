@@ -15,6 +15,8 @@ deployment has actually decided.
     agreements signed and the operator running it. Every such condition is
     named below as something to obtain and verify, never assumed.
 
+The capability inventory also includes the selectable per-conversation desktop coding-agent override, even when the published spec has no coding-agent binding or uses a sandbox. That row describes a possible route, not evidence that it was used.
+
 ## What leaves by default { #nothing-leaves-by-default }
 
 A fresh deployment holds everything in its own PostgreSQL and on its own disk or

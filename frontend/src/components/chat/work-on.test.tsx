@@ -70,6 +70,7 @@ vi.mock("@/hooks/use-desktop", () => ({
         grants: [
           { path: "/first", mode: "read_only" },
           { path: "/second", mode: "read_only" },
+          { path: "/coding", mode: "full_access" },
         ],
         modes: modeState.ready ? ["read_only", "full_access"] : [],
       },
@@ -433,4 +434,14 @@ it("keeps folder details collapsed while showing the selected workspace", async 
   await userEvent.click(summary!);
   expect(summary?.parentElement).toHaveAttribute("open");
   expect(screen.getByRole("combobox", { name: "Folder access" })).toBeVisible();
+});
+
+it("offers only existing full-access grants while a coding harness is selected", async () => {
+  useWorkOnStore.getState().setCoding("chat", "codex");
+  render(<WorkOn agentCapabilities={["sandbox"]} />);
+  expect(screen.queryByRole("radio", { name: /first/ })).not.toBeInTheDocument();
+  expect(screen.queryByRole("radio", { name: /second/ })).not.toBeInTheDocument();
+  await userEvent.click(screen.getByRole("radio", { name: /coding/ }));
+  expect(useWorkOnStore.getState().targetFor("chat")?.mode).toBe("full_access");
+  expect(useWorkOnStore.getState().codingFor("chat")).toBe("codex");
 });

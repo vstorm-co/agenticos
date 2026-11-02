@@ -43,6 +43,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- The egress inventory includes per-chat local coding overrides; local launches recheck revoked grants after confirmation. Coding folder choices exclude incompatible grants, and file trees normalize current-directory path components.
+
+- Monitor starts reserve their limit before waiting, unfinished output stays bounded while matching full lines, and shutdown escalates unresponsive processes. Cancelled local coding-agent starts also reap sessions whose open replies were not observed; switching to local execution clears a sandbox-only model.
+
 - Coding-agent instructions remain fully readable, execution locations use icon cards, desktop readiness refreshes on native focus with guidance for macOS grants, and Tables uses consistent empty states across views without a large-screen catalog expansion button.
 
 - Conversation lists identify Claude Code and Codex used in a thread alongside its main agent, based on saved task reports and retained after refresh.

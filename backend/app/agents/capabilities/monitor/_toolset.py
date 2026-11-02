@@ -79,6 +79,10 @@ def build_toolset(manager: MonitorManager) -> FunctionToolset[Any]:
         if not ctx.workspace.attached:
             return NEEDS_SHELL
         watch = await manager.stop(ctx.workspace, monitor_id)
-        return f"No watch has the id {monitor_id}." if watch is None else f"Stopped {watch.label}."
+        if watch is None:
+            return f"No watch has the id {monitor_id}."
+        if watch.running:
+            return f"Could not stop {watch.label}; it is still marked running."
+        return f"Stopped {watch.label}."
 
     return toolset

@@ -1532,6 +1532,10 @@ class TestChoosingAModel:
     def test_the_builder_offers_each_harness_its_own_models(self) -> None:
         when = CodingAgentConfig.model_json_schema()["properties"]["model"]["x-enum-when"]
         assert when["field"] == "harness"
+        assert CodingAgentConfig.model_json_schema()["properties"]["model"]["x-visible-when"] == {
+            "field": "runs_on",
+            "equals": ["sandbox"],
+        }
         assert all(model.startswith("anthropic:") for model in when["choices"]["claude_code"])
         assert all(model.startswith("openai:") for model in when["choices"]["codex"])
 

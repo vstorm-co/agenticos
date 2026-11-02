@@ -200,7 +200,7 @@ async def test_a_workspace_that_fails_a_read_or_a_stop_is_logged_not_raised(
     assert "could not be read" in caplog.text
     [watch] = manager.running
     assert await manager.stop(shell, watch.id) is watch
-    assert "could not be stopped" in caplog.text and not watch.running
+    assert "could not be stopped" in caplog.text and watch.running
 
 
 async def test_stopping_kills_the_watch_and_what_it_started_and_unknown_ids_are_nothing() -> None:
@@ -221,7 +221,8 @@ async def test_a_workspace_that_cannot_remove_the_logs_is_logged_not_raised(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     shell, manager = Shell(), MonitorManager()
-    await started(shell, manager)
+    watch = await started(shell, manager)
+    watch.running = False
     shell.fail = WorkspaceError
 
     await manager.stop_all(shell)
@@ -378,3 +379,129 @@ async def test_a_windows_device_refuses_monitoring_before_starting_a_command(
     answer = await tool(SimpleNamespace(workspace=workspace), "npm run dev")
     assert "POSIX shell" in answer
     workspace.run.assert_not_awaited()
+
+
+async def test_unterminated_lines_stay_bounded_and_match_beyond_the_preview() -> None:
+    shell, manager = Shell(), MonitorManager()
+    watch = await started(shell, manager, match="error")
+    shell.log = b"x" * (manager_module.CHUNK_BYTES * 4 - 2) + b"ERROR\nnext\n"
+    for _ in range(3):
+        assert await manager.collect(shell) == []
+        assert len(watch.pending) <= manager_module.MAX_LINE_CHARS * 4
+    assert await manager.collect(shell) == []
+    [update] = await manager.collect(shell)
+    assert update.lines == ["x" * manager_module.MAX_LINE_CHARS]
+    assert watch.pending == b""
+
+
+async def test_parallel_starts_reserve_slots_and_failed_start_releases_its_slot() -> None:
+    import asyncio
+
+    entered = asyncio.Event()
+    release = asyncio.Event()
+
+    class SlowShell(Shell):
+        async def run(self, command: str, *, shell: bool, timeout: float) -> CommandResult:
+            entered.set()
+            await release.wait()
+            return await super().run(command, shell=shell, timeout=timeout)
+
+    shell, manager = SlowShell(), MonitorManager()
+    async with asyncio.TaskGroup() as tasks:
+        for _ in range(MAX_WATCHES):
+            tasks.create_task(started(shell, manager))
+        await entered.wait()
+        with pytest.raises(ValueError, match="At most"):
+            await started(shell, manager)
+        release.set()
+    assert len(manager.running) == MAX_WATCHES
+    failed_manager = MonitorManager()
+    shell.fail = WorkspaceError
+    with pytest.raises(WorkspaceError):
+        await started(shell, failed_manager)
+    shell.fail = None
+    assert (await started(shell, failed_manager)).running
+
+
+async def test_shutdown_escalates_after_waiting_for_term_and_preserves_failed_watches() -> None:
+    shell, manager = Shell(), MonitorManager()
+    watch = await started(shell, manager)
+    await manager.stop(shell, watch.id)
+    command = shell.commands[-1]
+    assert command.index("kill -TERM") < command.index("sleep 0.1") < command.index("kill -KILL")
+    shell2, manager2 = Shell(), MonitorManager()
+    watch2 = await started(shell2, manager2)
+    shell2.fail = WorkspaceError
+    await manager2.stop_all(shell2)
+    assert manager2.running == [watch2]
+
+
+async def test_stopping_a_watch_with_unread_exit_output_still_removes_its_logs() -> None:
+    shell, manager = Shell(), MonitorManager()
+    watch = await started(shell, manager)
+    watch.exited = True
+    await manager.stop_all(shell)
+    assert manager.watches == []
+    assert shell.commands[-1].startswith("rm -rf")
+
+
+async def test_a_failed_stop_is_not_reported_as_success() -> None:
+    shell, manager = Shell(), MonitorManager()
+    watch = await started(shell, manager)
+    shell.fail = WorkspaceError
+    tool = build_toolset(manager).tools["stop_monitor"]
+    assert "Could not stop" in await tool.function(ctx(shell), watch.id)
+
+
+async def test_a_multibyte_match_can_cross_chunk_boundaries() -> None:
+    shell, manager = Shell(), MonitorManager()
+    await started(shell, manager, match="żółć")
+    shell.log = b"x" * (manager_module.CHUNK_BYTES - 1) + "ŻÓŁĆ\n".encode()
+    assert await manager.collect(shell) == []
+    [update] = await manager.collect(shell)
+    assert update.lines == ["x" * manager_module.MAX_LINE_CHARS]
+
+
+async def test_shutdown_kills_a_real_command_which_ignores_term() -> None:
+    import asyncio
+
+    class LocalShell(Shell):
+        async def run(self, command: str, *, shell: bool, timeout: float) -> CommandResult:
+            assert shell
+            process = await asyncio.create_subprocess_exec(
+                "/bin/sh",
+                "-c",
+                command,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            try:
+                stdout, stderr = await asyncio.wait_for(process.communicate(), timeout)
+            finally:
+                if process.returncode is None:
+                    process.kill()
+                    await process.wait()
+            assert process.returncode is not None
+            return CommandResult(
+                exit_code=process.returncode, stdout=stdout.decode(), stderr=stderr.decode()
+            )
+
+    shell, manager = LocalShell(), MonitorManager()
+    watch = await manager.start(
+        shell, "trap '' TERM; echo ready; while :; do sleep 0.1; done", None, None
+    )
+    try:
+        for _ in range(30):
+            updates = await manager.collect(shell)
+            if updates and "ready" in updates[0].lines:
+                break
+            await asyncio.sleep(0.05)
+        else:
+            pytest.fail("The command never reported its installed signal handler")
+        await manager.stop(shell, watch.id)
+        # The manager validated this process id as digits before returning the watch.
+        state = await shell.run(f"ps -p {watch.pid} -o stat=", shell=True, timeout=5)  # noqa: S604
+        assert not state.stdout.strip() or state.stdout.strip().startswith("Z")
+        assert not watch.running
+    finally:
+        await manager.stop_all(shell)

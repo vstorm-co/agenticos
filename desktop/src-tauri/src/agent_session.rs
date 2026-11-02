@@ -117,6 +117,7 @@ struct Session {
     output: Arc<Output>,
     kill: Option<oneshot::Sender<()>>,
     resume_key: Option<ResumeKey>,
+    opening_call: Option<String>,
 }
 
 /// Every running agent, by the id the server uses.
@@ -229,6 +230,7 @@ fn spawn(program: &Path, args: &[String], cwd: &Path, path_env: Option<String>) 
         output,
         kill: Some(kill),
         resume_key: None,
+        opening_call: None,
     })
 }
 
@@ -321,7 +323,7 @@ fn path_with(program: &Path) -> Option<String> {
         .and_then(|joined| joined.into_string().ok())
 }
 
-async fn open(app: &AppHandle, args: &Map<String, Value>) -> Result<Map<String, Value>, Refusal> {
+async fn open(app: &AppHandle, args: &Map<String, Value>, call_id: &str) -> Result<Map<String, Value>, Refusal> {
     let OpenArgs {
         agent,
         root,
@@ -371,6 +373,8 @@ async fn open(app: &AppHandle, args: &Map<String, Value>) -> Result<Map<String, 
                 .map(|item| item.session_id.clone())
         })
     };
+    // The person can revoke or narrow the grant while the launch dialog is open.
+    local_work::granted_folder(app, &root.to_string_lossy(), Mode::FullAccess)?;
     let mut session = spawn(
         &npx,
         &["--yes".into(), package(agent).into()],
@@ -378,6 +382,7 @@ async fn open(app: &AppHandle, args: &Map<String, Value>) -> Result<Map<String, 
         path_with(&npx),
     )?;
     session.resume_key = key;
+    session.opening_call = Some(call_id.to_owned());
     let id = uuid::Uuid::new_v4().simple().to_string();
     sessions.map.lock().await.insert(id.clone(), session);
     drop(slot);
@@ -485,6 +490,25 @@ async fn close(app: &AppHandle, args: &Map<String, Value>) -> Result<Map<String,
     Ok(Map::new())
 }
 
+/// A cancelled open can have completed before its reply was observed by the server.
+/// Called after aborting and joining that call, so it cannot insert another session.
+pub async fn cancel_call(app: &AppHandle, call_id: &str) {
+    let sessions = app.state::<Sessions>();
+    remove_opened_by(&mut *sessions.map.lock().await, call_id);
+}
+
+fn remove_opened_by(map: &mut HashMap<String, Session>, call_id: &str) {
+    map.retain(|_, session| {
+        if session.opening_call.as_deref() != Some(call_id) {
+            return true;
+        }
+        if let Some(kill) = session.kill.take() {
+            let _ = kill.send(());
+        }
+        false
+    });
+}
+
 /// Stop every agent: the server is gone, so nothing is listening to them.
 pub async fn close_all(app: &AppHandle) {
     let sessions = app.state::<Sessions>();
@@ -504,9 +528,14 @@ fn object(value: Value) -> Map<String, Value> {
 }
 
 /// Run one `agent.*` operation.
-pub async fn run(app: &AppHandle, op: &str, args: &Map<String, Value>) -> Result<Map<String, Value>, Refusal> {
+pub async fn run(
+    app: &AppHandle,
+    op: &str,
+    args: &Map<String, Value>,
+    call_id: &str,
+) -> Result<Map<String, Value>, Refusal> {
     match op {
-        "agent.open" => open(app, args).await,
+        "agent.open" => open(app, args, call_id).await,
         "agent.send" => send(app, args).await,
         "agent.remember" => remember_running(app, args).await,
         "agent.poll" => poll(app, args).await,
@@ -533,6 +562,24 @@ mod tests {
             .map(|l| l.as_str().unwrap().to_owned())
             .collect();
         (lines, answer["cursor"].as_u64().unwrap(), answer["exit"].as_i64())
+    }
+
+    #[tokio::test]
+    async fn a_cancelled_open_reaps_only_the_session_it_created() {
+        let mut cancelled = shell("sleep 60");
+        cancelled.opening_call = Some("cancelled-call".into());
+        let output = Arc::clone(&cancelled.output);
+        let mut other = shell("sleep 60");
+        other.opening_call = Some("other-call".into());
+        let mut map = HashMap::from([("first".into(), cancelled), ("second".into(), other)]);
+        remove_opened_by(&mut map, "cancelled-call");
+        assert!(!map.contains_key("first"));
+        assert!(map.contains_key("second"));
+        remove_opened_by(&mut map, "cancelled-call");
+        assert_eq!(map.len(), 1);
+        let answer = poll_output(&output, 0, Duration::from_secs(5)).await.unwrap();
+        assert!(!answer["exit"].is_null());
+        remove_opened_by(&mut map, "other-call");
     }
 
     #[tokio::test]
