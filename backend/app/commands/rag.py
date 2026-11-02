@@ -237,9 +237,6 @@ async def ingest_path_async(
                     source_path=source_path,
                 )
                 if result.status.value == "done":
-                    success_count += 1
-                    if result.message and "replaced" in result.message:
-                        replaced_count += 1
                     # `ingest_file` only sets `document_id` on the branch that
                     # returns `DONE` - the two travel together in `IngestionResult`.
                     assert result.document_id is not None
@@ -254,11 +251,20 @@ async def ingest_path_async(
                             replaced_document_id=result.replaced_document_id,
                             attempt=1,
                         )
-                    if not recorded:
-                        # Its row was deleted while it indexed, so nothing else
-                        # will remove these chunks (#2565).
-                        await ingestion.remove_document(collection, result.document_id)
+                    if recorded:
+                        success_count += 1
+                        if result.message and "replaced" in result.message:
+                            replaced_count += 1
+                    # Its row was deleted while it indexed, so nothing else will
+                    # remove these chunks (#2565).
+                    elif await ingestion.remove_document(collection, result.document_id):
                         tqdm.write(f"  - {filepath.name}: deleted while indexing")
+                    else:
+                        error_count += 1
+                        tqdm.write(
+                            f"  ✗ {filepath.name}: deleted while indexing; vector document "
+                            f"{result.document_id} could not be removed"
+                        )
                 else:
                     error_count += 1
                     tqdm.write(f"  ✗ {filepath.name}: {result.error_message}")

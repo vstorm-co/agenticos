@@ -731,7 +731,7 @@ async def delete_by_knowledge_base(db: AsyncSession, kb_id: UUID) -> list[str]:
 
 @dataclass(frozen=True)
 class DeletedDocuments:
-    """What a base's deleted document rows leave behind outside the database."""
+    """What deleted document rows leave behind outside the database."""
 
     storage_paths: list[str]
     vector_document_ids: list[str]

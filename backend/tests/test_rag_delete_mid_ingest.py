@@ -87,10 +87,14 @@ async def test_the_delete_reads_the_vector_id_from_the_deleted_row() -> None:
 
 
 @pytest.mark.parametrize("found", [True, False])
-async def test_presence_is_read_from_the_database(found: bool) -> None:
+async def test_presence_is_a_query_not_the_sessions_cached_row(found: bool) -> None:
+    """A column select, which the identity map cannot answer from a loaded row."""
     db = MagicMock(scalar=AsyncMock(return_value=uuid.uuid4() if found else None))
 
     assert await rag_document_repo.is_present(db, uuid.uuid4()) is found
+    sql = str(db.scalar.await_args.args[0].compile(dialect=postgresql.dialect()))
+    assert sql.startswith("SELECT rag_documents.id")
+    assert "WHERE rag_documents.id =" in sql
 
 
 @asynccontextmanager
@@ -202,7 +206,9 @@ class TestAnUploadDeletedWhileItIndexed:
         outcome = await rag_tasks.ingest_document(_job())
 
         assert outcome == {"status": "deleted", "filename": "a.md"}
-        removing = worker["ingesters"][-1]
+        # The ingest's own ingester is disposed by now; a second one removes.
+        writing, removing = worker["ingesters"]
+        writing.remove_document.assert_not_awaited()
         removing.remove_document.assert_awaited_once_with("docs", "vec-1")
         # No failure is recorded on a row that is not there, and nothing is raised
         # into a retry that could only fail again.
@@ -218,10 +224,19 @@ class TestAnUploadDeletedWhileItIndexed:
         worker["ingesters"][0].remove_document.assert_not_awaited()
 
 
-@pytest.mark.parametrize("recorded", [True, False])
+@pytest.mark.parametrize(
+    ("recorded", "removed", "counted"),
+    [
+        (True, True, {"ingested": 1, "failed": 0}),
+        (False, True, {"ingested": 0, "failed": 0}),
+        (False, False, {"ingested": 0, "failed": 1}),
+    ],
+    ids=["recorded", "deleted", "deleted-but-not-removed"],
+)
 async def test_the_cli_removes_what_it_wrote_for_a_row_deleted_meanwhile(
-    monkeypatch, tmp_path, recorded: bool
+    monkeypatch, tmp_path, recorded: bool, removed: bool, counted: dict[str, int]
 ) -> None:
+    """Removed through the command's own ingester, and never counted as ingested."""
     from app.commands import rag as rag_command
 
     (tmp_path / "handbook.md").write_text("body")
@@ -243,7 +258,7 @@ async def test_the_cli_removes_what_it_wrote_for_a_row_deleted_meanwhile(
                 error_message=None,
             )
         ),
-        remove_document=AsyncMock(return_value=True),
+        remove_document=AsyncMock(return_value=removed),
     )
 
     @asynccontextmanager
@@ -252,12 +267,13 @@ async def test_the_cli_removes_what_it_wrote_for_a_row_deleted_meanwhile(
 
     monkeypatch.setattr(rag_command, "get_db_context", _db)
     monkeypatch.setattr(rag_command, "RAGDocumentService", lambda _db: documents)
+    complete_sync = AsyncMock()
     monkeypatch.setattr(
         rag_command,
         "RAGSyncService",
         lambda _db: MagicMock(
             create_sync_log=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
-            complete_sync=AsyncMock(),
+            complete_sync=complete_sync,
         ),
     )
 
@@ -274,3 +290,5 @@ async def test_the_cli_removes_what_it_wrote_for_a_row_deleted_meanwhile(
         ingestion.remove_document.assert_not_awaited()
     else:
         ingestion.remove_document.assert_awaited_once_with("docs", "vec-1")
+    kwargs = complete_sync.await_args.kwargs
+    assert {key: kwargs[key] for key in counted} == counted

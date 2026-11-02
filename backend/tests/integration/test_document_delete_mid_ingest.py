@@ -155,7 +155,7 @@ async def _until_a_statement_waits_on_a_lock(factory) -> None:
 
 
 async def test_a_delete_during_the_write_waits_for_it_and_leaves_no_chunks(
-    upload: _Upload,
+    upload: _Upload, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """The write holds its row `FOR KEY SHARE` from before its insert to its
     commit. A delete arriving in that window waits on it, then removes a row
@@ -175,7 +175,7 @@ async def test_a_delete_during_the_write_waits_for_it_and_leaves_no_chunks(
         deleting.append(asyncio.create_task(delete()))
         await _until_a_statement_waits_on_a_lock(upload.factory)
 
-    upload.store._ensure_collection = ensure_with_a_delete_queued  # ty: ignore[invalid-assignment]
+    monkeypatch.setattr(upload.store, "_ensure_collection", ensure_with_a_delete_queued)
     result = await upload.ingest()
     await asyncio.wait_for(deleting[0], timeout=10)
     await drain()
@@ -202,3 +202,23 @@ async def test_a_delete_that_read_the_row_before_the_settlement_purges_what_it_s
     await drain()
 
     assert await upload.remaining(result) == (0, 1)
+
+
+async def test_a_settlement_after_its_table_was_dropped_removes_nothing_quietly(
+    upload: _Upload, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A last base deleted mid-ingest drops the table with every chunk in it, so the
+    settlement that finds the row gone has nothing left to remove - and says so at
+    INFO rather than as a failed delete."""
+    import logging
+
+    result = await upload.ingest()
+    async with upload.factory() as s:
+        await s.execute(text(f"DELETE FROM rag_documents WHERE id = '{upload.row_id}'"))  # noqa: S608
+        await s.execute(text(f"DROP TABLE {upload.table}"))
+        await s.commit()
+
+    with caplog.at_level(logging.INFO):
+        await upload.settle(result)
+
+    assert not [r for r in caplog.records if r.levelno >= logging.ERROR]

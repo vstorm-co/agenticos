@@ -942,6 +942,7 @@ async def _settle_document_row(
     """
     from app.services.rag_document import RAGDocumentService
 
+    untracked: str | None = None
     try:
         async with get_worker_db_context() as db:
             documents = RAGDocumentService(db)
@@ -957,20 +958,20 @@ async def _settle_document_row(
                     replaced_document_id=result.replaced_document_id,
                     attempt=1,
                 ):
-                    await _discard_untracked(
-                        ingester, collection_name, result.document_id, row_id=row_id
-                    )
-                    return
+                    # Removed after this transaction ends, not inside it.
+                    untracked = result.document_id
             else:
                 await documents.fail_ingestion(
                     row_id, result.error_message or "Ingestion failed", attempt=1
                 )
-            if inherited:
+            if inherited and untracked is None:
                 await documents.add_claims(row_id, sync_source_ids=set(inherited))
     except NotFoundError:
         # The base was deleted mid-sync and took the row with it (#2561). Raising
         # here escaped the per-file loop's own handler and failed the whole run.
         logger.info("Document %s is gone; nothing to settle", row_id)
+    if untracked is not None:
+        await _discard_untracked(ingester, collection_name, untracked, row_id=row_id)
 
 
 async def _notify_sync_start_failure(
