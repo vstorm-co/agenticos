@@ -421,7 +421,7 @@ class SkillService:
         which is deliberate and is the same rule delegates and collections follow:
         the binding is checked once, against the publisher, when the agent is
         published, and the agent then reads it for everyone who may run it. See
-        `_skill_problems` in `app/services/agent_registry.py` for the check.
+        `skill_problems` in `app/services/agent_registry.py` for the check.
 
         Re-checking here would be wrong twice over. `resolve_access` refuses every
         context with no subject, so an API key, an embedded widget and a channel

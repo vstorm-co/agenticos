@@ -150,8 +150,8 @@ async def agents_using_skill(
     nothing; nobody runs them.
     """
     using: set[UUID] = set()
-    for environment, version in await agent_environment_repo.served(
-        db, organization_id=organization_id
+    for environment, version in await agent_environment_repo.served_mentioning(
+        db, [str(skill_id)], organization_id=organization_id
     ):
         if environment.agent_id not in using and _binds_skill(version.spec, skill_id):
             using.add(environment.agent_id)
@@ -179,13 +179,11 @@ async def agents_serving_skills(
     from app.services.eval_suite import binds
 
     serving: dict[UUID, set[UUID]] = {skill_id: set() for skill_id in skill_ids}
-    for environment, version in await agent_environment_repo.served(
-        db, organization_id=ctx.organization_id
+    for environment, version in await agent_environment_repo.served_mentioning(
+        db, [str(skill_id) for skill_id in skill_ids], organization_id=ctx.organization_id
     ):
         text = json.dumps(version.spec)
         named = [skill_id for skill_id in skill_ids if str(skill_id) in text]
-        if not named:
-            continue
         try:
             spec = AgentSpec.model_validate(version.spec)
         except ValidationError:

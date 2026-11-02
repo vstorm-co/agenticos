@@ -295,19 +295,23 @@ the change lists the environments it goes live in, and their owners are told. A
 pinned agent is reached by neither.
 
 **The skill's agents** are those that run it: a version one of their environments
-serves binds it. The skill page lists each with the version it reads, how many
-main versions it is behind, and any environment that reads it differently. An
-agent that binds the skill only in its draft is listed as such. Agents you cannot
-see are counted, not named.
+serves binds it, itself or through an inline specialist. An agent and each of its
+specialists read the skill their own way, so each is a row: the page lists it with
+the version it reads, how many main versions it is behind, and any environment that
+reads it differently. An agent that binds the skill only in its draft is listed as
+such. Agents you cannot see are counted, not named.
 
 **Change version** moves one agent to main, a main version or a fork, and it is a
-change to the agent. With permission to publish it, the published spec with only
-that binding changed goes live as the agent's next version, and environments move
-by their usual follow and promotion rules. The draft takes the same change and
-keeps its other unfinished edits, which do not go live. With permission to edit the
-agent only, the change waits in the draft. A Builder already open on the agent does
-not see the change until it is reloaded, and saving it before then puts the old
-binding back.
+change to the agent. Whether the agent uses the skill itself is read from its draft,
+as the Builder shows it; a skill only one of its specialists binds is changed in the
+Builder. With permission to publish it, the agent's newest published spec with only
+that binding changed goes live as its next version, and environments move by their
+usual follow and promotion rules. The draft takes the same change and keeps its
+other unfinished edits, which do not go live. With permission to edit the agent
+only, for an agent never published, or for one whose published version does not bind
+the skill yet, the change waits in the draft, and only the new binding is checked. A
+Builder already open on the agent does not see the change until it is reloaded, and
+saving it before then puts the old binding back.
 
 ### Deleting a skill
 
