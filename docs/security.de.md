@@ -1,5 +1,5 @@
 ---
-source_sha: "738a7d3bb6fa"
+source_sha: "28251d1c4760"
 ---
 
 # Sicherheit { #security }
@@ -48,7 +48,8 @@ erweitert, was eine Rolle erlaubt, ohne das Mitglied zu befördern.
 
 ## Was das Deployment verlässt { #what-leaves-the-deployment }
 
-Nichts funkt nach Hause. Jeder ausgehende Aufruf ist einer, den das Deployment
+Abgesehen von der [Deployment-Diagnose](configuration.md#diagnostics), die
+standardmäßig aktiv ist, ist jeder ausgehende Aufruf einer, den das Deployment
 konfiguriert hat, und jeder ist eine Grenze, nach der die Prüfung eines Kunden
 fragen wird.
 
@@ -63,6 +64,7 @@ fragen wird.
 | Der Kartenkachelserver, den `VISUAL_MAP_TILES` nennt | Von diesem Deployment, nie von einer Seite: die Koordinaten jeder Kachel, die eine Karte zeigt und die noch nicht im Cache liegt | Nur wenn die Einstellung gesetzt ist und jemand eine Karte öffnet. Eine Seite schickt dem Deployment drei Zahlen, jede gegen ihre Zoomstufe geprüft; Adresse und Schlüssel des Servers bleiben auf dem Server ([Apps](artifacts.md#how-the-page-is-isolated)) |
 | Ein Realtime-Sprach-Provider (OpenAI, Azure OpenAI, Google, xAI) | Während eines [Sprachanrufs](voice.md): das Audio des Anrufers, die Anweisungen des Agents, Tool-Definitionen und -Ergebnisse sowie die früheren Züge der Unterhaltung als Text, wenn ein Anruf beginnt oder sich neu verbindet | Nur für einen Agent, dessen Abschnitt „Sprachgespräche“ diesen Provider benennt, solange ein Anruf offen ist. Hier wird kein Audio gespeichert; was der Provider behält, regelt Ihre Vereinbarung mit ihm |
 | Ein Speech-to-Text-Provider | Eine Aufnahme: eine Sprachnachricht aus einem Kanal, ein Diktat in `/chat` oder die eines Besuchers auf einer gehosteten Seite oder einem Widget, die auf `server` stehen | Immer wenn eine transkribiert wird. Das Diktat eines Besuchers ist anonym und liegt außerhalb jedes Modell-Budgets, begrenzt wird es also durch das Rate-Limit des Links mal das längste Diktat. Standardmäßig ist ein Diktat rohes PCM, dessen Samples gezählt und über dem Limit vor dem Senden abgelehnt werden, diese Grenze ist also exakt; ein Deployment, das [komprimiertes Audio annimmt](deployment.md#what-a-dictation-may-be-uploaded-as), liest die Länge stattdessen aus dem Header der Datei, den eine von Hand gebaute Datei zu kurz angeben kann - [Kanäle](channels.md#dictation-on-a-widget-or-a-hosted-page) rechnet den schlimmsten Fall in beiden Fällen durch. Bei `browser` schickt der Browser des Besuchers das Audio stattdessen an seinen eigenen Anbieter, und nichts geht hier durch |
+| Der Diagnose-Kollektor | Version, Zustand von Datenbank und Worker, grobe Nutzungszähler, Zähler fehlgeschlagener Runs, Jobs und Ingestionen nach geschlossenen Kategorien und ein pseudonymes Aktivitätssignal; nie Prompts, Konversationen, Dateinamen, Kontonamen, E-Mail-Adressen, Provider-Schlüssel oder Ausnahmemeldungen | Stündlich vom Worker und, von jedem Browser oder jeder App, solange jemand aktiv ist; aus mit `DIAGNOSTICS_ENABLED=false`, oder an einen Kollektor, den Sie betreiben, mit `DIAGNOSTICS_COLLECTOR_URL` ([Konfiguration](configuration.md#diagnostics)) |
 
 ## Was wo verschlüsselt ist { #what-is-encrypted-where }
 
