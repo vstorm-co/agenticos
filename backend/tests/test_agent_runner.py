@@ -1984,6 +1984,7 @@ def _skill() -> SimpleNamespace:
         id=uuid.uuid4(),
         name="reconcile",
         version=1,
+        latest_version_id=uuid.uuid4(),
         description="Match the ledger",
         content="Run reconcile.py.",
         resources=[SimpleNamespace(name="reconcile.py", content="print('ok')")],
@@ -5709,11 +5710,12 @@ class TestTheModelIsToldWhereTheSkillFilesWent:
         spec = AgentSpec(name="Analyst", capabilities=[{"id": "sandbox", "config": {}}])
         skill = MagicMock(
             id=uuid.uuid4(),
-            name="refunds",
             description="Handle refunds",
             content="Ask.",
             resources=[],
         )
+        # `MagicMock(name=...)` names the mock, not the attribute.
+        skill.name = "refunds"
 
         _, built = await TestTheWorkspaceReachesTheAgent._prepare(spec, skills=[skill])
 

@@ -8,7 +8,7 @@ member's request reaches.
 """
 
 import logging
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
 from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
@@ -345,6 +345,34 @@ class ConversationService:
             messages=messages,
             ordinal=await conversation_repo.last_ordinal(self.db, conversation_id),
         )
+
+    async def readable(self, ctx: AuthContext, conversation_ids: Iterable[UUID]) -> set[UUID]:
+        """Which of these conversations the caller may read the text of.
+
+        All of them with `runs:view`, the lens that reads any run in its context.
+        Otherwise those the caller may open - their own, shared with them, or in a
+        project they belong to - each asked once. A conversation that no longer
+        exists has nobody left to authorize it, and is not readable.
+        """
+        wanted = set(conversation_ids)
+        if ctx.has(Perm.RUNS_VIEW):
+            return wanted
+        if ctx.user_id is None:
+            return set()
+        readable: set[UUID] = set()
+        for conversation_id in wanted:
+            try:
+                await self.get_conversation(
+                    conversation_id,
+                    organization_id=ctx.organization_id,
+                    user_id=ctx.subject_id,
+                    ctx=ctx,
+                    include_favourite=False,
+                )
+            except NotFoundError:
+                continue
+            readable.add(conversation_id)
+        return readable
 
     async def get_conversation(
         self,
