@@ -1,5 +1,5 @@
 ---
-source_sha: "4f24faa08f17"
+source_sha: "1ed94d5a70b8"
 ---
 
 # Die Konsole { #the-console }
@@ -402,6 +402,8 @@ hineinklicken. Darüber sind die Karten die eigenen **ersten Nachrichten** des
 Agents, im Builder unter seinen Instruktionen gesetzt; ein Agent ohne sie bietet
 die vier des Chats an, darunter eine, die fragt, was er kann, und eine, die eine
 Routine einrichtet.
+
+Unterhaltungslisten behalten den Hauptagenten bei und nennen zusätzlich Claude Code oder Codex, wenn gespeicherte Aufgabenberichte ihre Mitarbeit belegen. Sidebar, Projektchats, Dashboard und Quick-Ask-Verlauf verwenden dieselben Symbole und Beschriftungen. Jeder Coding-Harness erscheint einmal, bleibt nach dem Aktualisieren sichtbar und ist unabhängig von aktuellen Chat-Einstellungen. Die Auswahl ohne Ausführung fügt ihn nicht zum Verlauf hinzu.
 
 Das Files-Panel gruppiert Dateien nach Ordnern und unterscheidet gleiche Namen in verschiedenen Verzeichnissen. HTML-Vorschauen laden direkt verknüpfte lokale Stylesheets über denselben Dateizugriff wie die Seite. Vorschau und Quelltext bleiben getrennt; Skripte sind deaktiviert. Ist ein Stylesheet nicht lesbar, nennt die Vorschau die betroffene Datei. Unter einer Antwort stehen Links zu den in diesem Turn geänderten Dateien, anhand der von erfolgreichen Schreib-/Bearbeitungswerkzeugen oder dem Coding-Harness gemeldeten Pfade. Die Links öffnen aktuelle Workspace-Dateien, keine versionierte Kopie.
 

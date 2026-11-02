@@ -354,6 +354,8 @@ are the agent's own **first messages**, set under its instructions in the
 Builder; an agent with none offers the chat's own four, two of them to ask what it
 can do and to set up a routine.
 
+Conversation lists keep the main agent and also name Claude Code or Codex when saved task reports show they worked in the thread. The sidebar, project chats, dashboard and Quick Ask history share the same portraits and labels. Each coding harness appears once, survives a refresh and is independent of current chat settings; choosing a harness without running it does not add it to the history.
+
 The Files panel groups files by folder, keeping identical names in different directories distinct. HTML previews load directly linked local stylesheets through the same file access as the page. Preview and Source remain separate; scripts stay disabled. If a linked stylesheet cannot be read, the preview says which one failed. Files changed by a turn are linked below its answer, using paths reported by successful write/edit tools or the coding harness. These links open the current workspace files, not a versioned snapshot.
 
 On screens narrower than 768 px, live reasoning and routine tool steps start collapsed behind the working-time line. Tap the line to expand or collapse them. Answers, questions, approval requests, errors and visual results stay visible. Wider screens keep the live steps in view.

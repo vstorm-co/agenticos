@@ -11,6 +11,8 @@ from sqlalchemy import (
     Integer,
     Numeric,
     and_,
+    case,
+    cast,
     distinct,
     func,
     or_,
@@ -20,6 +22,7 @@ from sqlalchemy import (
 )
 from sqlalchemy import delete as sql_delete
 from sqlalchemy import update as sql_update
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import defer, load_only, raiseload, selectinload
@@ -46,6 +49,47 @@ _MESSAGE_FILE_COLUMNS = (
     ChatFile.mime_type,
     ChatFile.file_type,
 )
+
+
+type CodingHarness = Literal["claude_code", "codex"]
+
+
+async def coding_agents_in_conversations(
+    db: AsyncSession, conversation_ids: list[UUID]
+) -> dict[UUID, list[CodingHarness]]:
+    """Coding harnesses actually invoked here, newest first, once each.
+
+    Read saved tool reports for the authorized page in one query. Refusals are
+    plain text, and older reports may omit kind; neither current preferences nor
+    an agent's edited spec can identify who worked in a historical conversation.
+    """
+    if not conversation_ids:
+        return {}
+    # PostgreSQL 16's soft validation lets plain refusals coexist with JSON
+    # reports. Aggregate in SQL so only two labels per conversation cross the DB
+    # boundary, rather than loading every coding task's answer into a list view.
+    report = cast(
+        case((func.pg_input_is_valid(ToolCall.result, "jsonb"), ToolCall.result), else_="{}"),
+        JSONB,
+    )
+    harness = report["harness"].astext.label("harness")
+    result = await db.execute(
+        select(Message.conversation_id, harness)
+        .join(ToolCall, ToolCall.message_id == Message.id)
+        .where(
+            Message.conversation_id.in_(conversation_ids),
+            ToolCall.tool_name == "run_coding_agent",
+            harness.in_(("claude_code", "codex")),
+            report["outcome"].astext.in_(("completed", "failed", "timed_out")),
+        )
+        .group_by(Message.conversation_id, harness)
+        .order_by(Message.conversation_id, func.max(ToolCall.started_at).desc(), harness)
+    )
+    found: dict[UUID, list[CodingHarness]] = {}
+    for conversation_id, harness_name in result.all():
+        named: CodingHarness = "codex" if harness_name == "codex" else "claude_code"
+        found.setdefault(conversation_id, []).append(named)
+    return found
 
 
 async def agents_in_conversations(

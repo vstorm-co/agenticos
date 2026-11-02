@@ -1,5 +1,5 @@
 ---
-source_sha: "4f24faa08f17"
+source_sha: "1ed94d5a70b8"
 ---
 
 # Konsola { #the-console }
@@ -368,6 +368,8 @@ delegata, skilla - oraz `/`; znikają, gdy tylko w nie klikniesz. Nad nim karty
 to własne **pierwsze wiadomości** agenta, ustawiane w Builderze pod jego
 instrukcjami; agent bez nich proponuje cztery własne wiadomości czatu, w tym jedną
 z pytaniem, co potrafi, i jedną z ustawieniem rutyny.
+
+Listy rozmów zachowują głównego agenta i pokazują też Claude Code lub Codex, gdy zapisane raporty zadań potwierdzają ich pracę w danym wątku. Sidebar, czaty projektu, dashboard i historia Quick Ask korzystają z tych samych ikon i etykiet. Każdy coding harness pojawia się raz, pozostaje po odświeżeniu i nie zależy od bieżących ustawień czatu. Sam wybór harnessu bez jego uruchomienia nie dopisuje go do historii.
 
 Panel Files grupuje pliki według folderów, rozróżniając identyczne nazwy w różnych katalogach. Podgląd HTML wczytuje bezpośrednio podłączone lokalne arkusze stylów przez ten sam mechanizm dostępu co stronę. Podgląd i Źródło pozostają oddzielne, a skrypty są wyłączone. Jeśli arkusza nie można odczytać, podgląd wskazuje, który plik zawiódł. Pliki zmienione w turze mają skróty pod odpowiedzią, na podstawie ścieżek zgłoszonych przez pomyślne narzędzia zapisu/edycji lub coding harness. Skróty otwierają bieżące pliki workspace, a nie wersjonowaną kopię.
 

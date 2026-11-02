@@ -528,6 +528,11 @@ class ConversationRead(ConversationBase, TimestampSchema):
         ),
     )
 
+    coding_agents: list[Literal["claude_code", "codex"]] = Field(
+        default_factory=list,
+        description="Coding harnesses used in this conversation, most recently first, from saved task reports",
+    )
+
 
 class ConversationReadWithMessages(ConversationRead):
     """Conversation with all messages."""

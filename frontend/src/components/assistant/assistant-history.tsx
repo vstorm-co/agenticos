@@ -168,8 +168,12 @@ function HistoryRow({
       )}
     >
       <span className="relative shrink-0">
-        {conversation.agents && conversation.agents.length > 0 ? (
-          <ConversationAgents agents={conversation.agents} showName={false} />
+        {conversation.agents?.length || conversation.coding_agents?.length ? (
+          <ConversationAgents
+            agents={conversation.agents}
+            codingAgents={conversation.coding_agents}
+            showName={false}
+          />
         ) : (
           <span className="flex size-6 items-center justify-center">
             <MessageSquare className="text-muted-foreground h-4 w-4" aria-hidden />

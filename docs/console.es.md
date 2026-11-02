@@ -1,5 +1,5 @@
 ---
-source_sha: "4f24faa08f17"
+source_sha: "1ed94d5a70b8"
 ---
 
 # La consola { #the-console }
@@ -383,6 +383,8 @@ capability, un delegado, un skill - y `/`; desaparecen en cuanto haces clic en �
 Encima, las tarjetas son los **primeros mensajes** propios del agent, definidos en
 el Builder bajo sus instrucciones; un agent sin ellos ofrece los cuatro del chat,
 entre ellos uno para preguntar qué puede hacer y otro para configurar una rutina.
+
+Las listas de conversaciones conservan el agente principal y también muestran Claude Code o Codex cuando los informes de tareas guardados confirman su participación. La barra lateral, los chats de proyecto, el dashboard y el historial de Quick Ask comparten los mismos iconos y etiquetas. Cada coding harness aparece una vez, permanece tras actualizar y no depende de los ajustes actuales del chat. Seleccionarlo sin ejecutarlo no lo añade al historial.
 
 El panel Files agrupa los archivos por carpetas y distingue nombres iguales en distintos directorios. Las vistas previas HTML cargan las hojas de estilo locales enlazadas directamente mediante el mismo acceso que la página. La vista previa y el código fuente permanecen separados; los scripts siguen desactivados. Si no se puede leer una hoja de estilo, se indica cuál ha fallado. Debajo de cada respuesta aparecen enlaces a los archivos modificados en ese turno, según las rutas comunicadas por herramientas de escritura/edición exitosas o por el coding harness. Los enlaces abren los archivos actuales del workspace, no una copia versionada.
 

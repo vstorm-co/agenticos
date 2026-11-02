@@ -946,7 +946,11 @@ class ConversationService:
         by_conversation = await conversation_repo.agents_in_conversations(
             self.db, [conversation.id for conversation in conversations]
         )
+        coding = await conversation_repo.coding_agents_in_conversations(
+            self.db, [conversation.id for conversation in conversations]
+        )
         for conversation in conversations:
+            conversation.coding_agents = coding.get(conversation.id, [])  # ty: ignore[unresolved-attribute]
             conversation.agents = [  # ty: ignore[unresolved-attribute]
                 ConversationAgent(
                     id=agent.id,
@@ -1045,6 +1049,9 @@ class ConversationService:
         by_conversation = await conversation_repo.agents_in_conversations(
             self.db, [conv.id for conv, _count, _email in rows]
         )
+        coding = await conversation_repo.coding_agents_in_conversations(
+            self.db, [conv.id for conv, _count, _email in rows]
+        )
         items = [
             AdminConversationRead(
                 id=conv.id,
@@ -1053,6 +1060,7 @@ class ConversationService:
                 is_archived=conv.is_archived,
                 message_count=msg_count,
                 user_email=email,
+                coding_agents=coding.get(conv.id, []),
                 agents=[
                     ConversationAgent(
                         id=agent.id,
