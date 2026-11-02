@@ -26,6 +26,7 @@ Two things are versioned separately from this file and worth knowing about:
 ### Fixed
 
 - Declare the Harness tool argument repair extra so dependency upgrades retain `json-repair` and agent startup does not fail when importing `RepairToolArguments`. Update Harness and its matching Pydantic AI and graph packages to the compatible releases, preserve plan metadata and step IDs in structured tool returns, and keep goal reminders from repeating user text. Dependency freshness runs the whole suite with the same bounded parallel runner as CI so validation finishes within its job limit.
+- A document deleted while it was still being indexed no longer leaves its chunks searchable. The delete removed nothing because the document had no vector id yet: its chunks were written, or still being written, and the ingest had not recorded them. The ingest now queues a retried job that removes the chunks it wrote when it finds the document deleted, and a delete that waited for the ingest to record its result removes them itself. Recording the embedding spend of such a document no longer fails the ingest on the deleted row, which had left the chunks in place and retried the job until it died: the spend is kept against no document. Clearing a default knowledge base mid-ingest was already covered ([#2565](https://github.com/vstorm-co/agenticos/issues/2565)).
 
 ## [1.34.3] - 2026-11-02
 
@@ -33,8 +34,6 @@ Two things are versioned separately from this file and worth knowing about:
 
 - CI, load tests and dependency freshness checks disable deployment diagnostics so ephemeral test installations and browser activity do not enter the live analytics collector.
 - Parallel integration tests synchronize quota audit pool exhaustion and scope listener probes and connection termination to their own database, avoiding load-dependent pool timeouts and interference between pytest workers.
-
-- A document deleted while it was still being indexed no longer leaves its chunks searchable. The delete removed nothing because the document had no vector id yet: its chunks were written, or still being written, and the ingest had not recorded them. The ingest now queues a retried job that removes the chunks it wrote when it finds the document deleted, and a delete that waited for the ingest to record its result removes them itself. Clearing a default knowledge base mid-ingest was already covered ([#2565](https://github.com/vstorm-co/agenticos/issues/2565)).
 
 ## [1.34.2] - 2026-11-01
 
