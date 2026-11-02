@@ -626,7 +626,7 @@ class AuthoringRun:
         ):
             raise Stopped("Whoever started this may no longer edit the skill.")
         pack = await self.evidence.for_skill(
-            self.ctx, skill.name, window_days=self.request.window_days
+            self.ctx, skill.id, window_days=self.request.window_days
         )
         self._record_evidence(pack)
         digests = await self._digests(pack, f'agents using the skill "{skill.name}"')

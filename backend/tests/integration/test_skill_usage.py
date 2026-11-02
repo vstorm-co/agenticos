@@ -7,7 +7,10 @@ What only a database shows:
   inside a window, and never an eval or a Builder test;
 - a run that only named the skill's workspace folder is counted apart;
 - the caller sees agents it may see and a count of the rest, needs `runs:view`,
-  and never reaches another organization's skill.
+  and never reaches another organization's skill;
+- a skill's evidence reads the runs that used it across agents, a delegate's
+  too, counts the older runs nobody recorded as unknown, and withholds the text
+  of a conversation the reader may not open.
 """
 
 import uuid
@@ -19,14 +22,17 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import AuthorizationError, NotFoundError
 from app.core.permissions import AuthContext, OrgRoleName, Perm
-from app.db.models.agent import Agent
+from app.db.models.agent import Agent, AgentVersion
 from app.db.models.agent_run import AgentRun, RunSurface
+from app.db.models.conversation import Conversation, Message
+from app.db.models.message_rating import MessageRating
 from app.db.models.organization import Organization
 from app.db.models.skill import Skill
 from app.db.models.skill_usage import RunSkillUse
 from app.db.models.user import User
 from app.repositories import skill_usage_repo
 from app.schemas.skill_usage import SkillUseRecord
+from app.services.authoring_evidence import EvidenceService
 from app.services.skills import SkillService
 
 pytestmark = pytest.mark.anyio
@@ -264,3 +270,182 @@ class TestStatistics:
 
         with pytest.raises(NotFoundError):
             await SkillService(db).usage(_builder(org, user), foreign.id, days=30)
+
+
+async def _answered(
+    db: AsyncSession,
+    org: Organization,
+    agent: Agent,
+    asker: User,
+    *,
+    rating: int = -1,
+    status: str = "completed",
+    version: AgentVersion | None = None,
+    recorded: bool = True,
+) -> AgentRun:
+    """A run in `asker`'s own conversation, its answer rated."""
+    conversation = Conversation(id=uuid.uuid4(), organization_id=org.id, user_id=asker.id)
+    db.add(conversation)
+    await db.flush()
+    run = AgentRun(
+        id=uuid.uuid4(),
+        organization_id=org.id,
+        agent_id=agent.id,
+        agent_version_id=None if version is None else version.id,
+        user_id=asker.id,
+        conversation_id=conversation.id,
+        surface=RunSurface.WEB.value,
+        status=status,
+        started_at=datetime.now(UTC),
+        skill_uses_recorded=recorded,
+    )
+    db.add(run)
+    await db.flush()
+    db.add(
+        Message(
+            id=uuid.uuid4(),
+            conversation_id=conversation.id,
+            role="user",
+            content="Can I return opened shoes?",
+            run_id=run.id,
+        )
+    )
+    answer = Message(
+        id=uuid.uuid4(),
+        conversation_id=conversation.id,
+        role="assistant",
+        content="Only unworn ones.",
+        agent_id=agent.id,
+        run_id=run.id,
+    )
+    db.add(answer)
+    await db.flush()
+    db.add(MessageRating(message_id=answer.id, user_id=asker.id, rating=rating))
+    await db.flush()
+    return run
+
+
+async def _binding(db: AsyncSession, agent: Agent, skill: Skill) -> AgentVersion:
+    version = AgentVersion(
+        id=uuid.uuid4(),
+        agent_id=agent.id,
+        organization_id=agent.organization_id,
+        version=1,
+        spec={"name": agent.name, "skill_ids": [str(skill.id)]},
+    )
+    db.add(version)
+    await db.flush()
+    return version
+
+
+class TestEvidence:
+    async def test_runs_that_used_the_skill_across_agents_are_read_and_marked(
+        self, db: AsyncSession
+    ):
+        org, user = await _org(db)
+        desk = await _agent(db, org, user, "Desk")
+        clerk = await _agent(db, org, user, "Clerk")
+        specialist = await _agent(db, org, user, "Specialist")
+        elsewhere = await _agent(db, org, user, "Elsewhere")
+        skill = await _skill(db, org)
+        other = await _skill(db, org, "shipping")
+        opened = await _answered(db, org, desk, user)
+        await _used(db, opened, skill)
+        through_delegate = await _answered(db, org, clerk, user, status="failed")
+        await _used(db, through_delegate, skill, agent=specialist)
+        named_only = await _answered(db, org, clerk, user)
+        await _used(db, named_only, skill, loaded=False, workspace_reads=1)
+        await _used(db, await _answered(db, org, elsewhere, user), other)
+
+        pack = await EvidenceService(db).for_skill(_builder(org, user), skill.id, window_days=30)
+
+        by_run = {run.run_id: run for run in pack.runs}
+        assert set(by_run) == {opened.id, through_delegate.id, named_only.id}
+        assert (by_run[opened.id].skill_use, by_run[opened.id].via_delegate) == ("used", False)
+        assert by_run[through_delegate.id].via_delegate is True
+        assert by_run[named_only.id].skill_use == "probable"
+        assert by_run[opened.id].prompt == "Can I return opened shoes?"
+        assert "probable" in by_run[named_only.id].render()
+        assert "delegated" in by_run[through_delegate.id].render()
+        assert (pack.unknown_runs, pack.hidden_agents) == (0, 0)
+
+    async def test_older_runs_of_an_agent_bound_to_the_skill_are_counted_as_unknown(
+        self, db: AsyncSession
+    ):
+        org, user = await _org(db)
+        desk = await _agent(db, org, user, "Desk")
+        unbound = await _agent(db, org, user, "Unbound")
+        skill = await _skill(db, org)
+        bound = await _binding(db, desk, skill)
+        await _answered(db, org, desk, user, version=bound, recorded=False)
+        await _answered(db, org, desk, user, version=bound, recorded=False, status="failed")
+        # Liked, so no evidence of a problem; and one whose transcript proved a load.
+        await _answered(db, org, desk, user, version=bound, recorded=False, rating=1)
+        proven = await _answered(db, org, desk, user, version=bound, recorded=False)
+        await _used(db, proven, skill)
+        await _answered(db, org, unbound, user, recorded=False)
+
+        pack = await EvidenceService(db).for_skill(_builder(org, user), skill.id, window_days=30)
+
+        assert [run.run_id for run in pack.runs] == [proven.id]
+        assert pack.unknown_runs == 2
+
+    async def test_agents_the_reader_cannot_see_are_only_counted(self, db: AsyncSession):
+        org, user = await _org(db)
+        desk = await _agent(db, org, user, "Desk")
+        skill = await _skill(db, org)
+        await _used(db, await _answered(db, org, desk, user), skill)
+        key = _builder(org, user, key_scopes=frozenset({Perm.RUNS_VIEW, Perm.SKILLS_VIEW}))
+
+        pack = await EvidenceService(db).for_skill(key, skill.id, window_days=30)
+
+        assert (pack.runs, pack.hidden_agents) == ([], 1)
+
+    async def test_a_hidden_delegate_keeps_its_run_out(self, db: AsyncSession):
+        org, user = await _org(db)
+        desk = await _agent(db, org, user, "Desk")
+        private = await _agent(db, org, user, "Private")
+        private.visibility = "private"
+        stranger = User(
+            id=uuid.uuid4(), email=f"{uuid.uuid4().hex}@example.com", hashed_password="x"
+        )
+        db.add(stranger)
+        await db.flush()
+        private.owner_user_id = stranger.id
+        await db.flush()
+        skill = await _skill(db, org)
+        run = await _answered(db, org, desk, user)
+        await _used(db, run, skill, agent=private)
+        member = AuthContext(user_id=user.id, organization_id=org.id, role=OrgRoleName.MEMBER)
+
+        pack = await EvidenceService(db).for_skill(member, skill.id, window_days=30)
+
+        assert (pack.runs, pack.hidden_agents) == ([], 1)
+
+    async def test_a_conversation_the_reader_cannot_open_keeps_its_rating_and_loses_its_text(
+        self, db: AsyncSession
+    ):
+        org, user = await _org(db)
+        stranger = User(
+            id=uuid.uuid4(), email=f"{uuid.uuid4().hex}@example.com", hashed_password="x"
+        )
+        db.add(stranger)
+        await db.flush()
+        desk = await _agent(db, org, user, "Desk")
+        skill = await _skill(db, org)
+        theirs = await _answered(db, org, desk, stranger)
+        await _used(db, theirs, skill)
+        mine = await _answered(db, org, desk, user)
+        await _used(db, mine, skill)
+        # Sees the agent, may not read runs, so only conversations it may open.
+        member = AuthContext(user_id=user.id, organization_id=org.id, role=OrgRoleName.MEMBER)
+
+        pack = await EvidenceService(db).for_skill(member, skill.id, window_days=30)
+
+        by_run = {run.run_id: run for run in pack.runs}
+        assert by_run[theirs.id].masked is True
+        assert by_run[theirs.id].rating == -1
+        assert "shoes" not in by_run[theirs.id].render()
+        assert by_run[theirs.id].people == frozenset()
+        assert by_run[mine.id].masked is False
+        assert by_run[mine.id].prompt == "Can I return opened shoes?"

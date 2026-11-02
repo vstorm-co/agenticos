@@ -209,6 +209,9 @@ TENANT_REQUIRED = [
     (skill_usage_repo, "mark_unrecorded"),
     (skill_usage_repo, "usage_by_agent"),
     (skill_usage_repo, "usage_by_version"),
+    (skill_usage_repo, "uses_in_runs"),
+    (skill_usage_repo, "unknown_runs"),
+    (skill_usage_repo, "agents_involved"),
 ]
 
 # Deliberately unscoped, each documented at its definition.

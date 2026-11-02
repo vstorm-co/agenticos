@@ -9,8 +9,12 @@ from sqlalchemy import ColumnElement, and_, func, or_, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models.agent_run import AgentRun, RunSurface
+from app.db.models.agent import AgentVersion
+from app.db.models.agent_run import AgentRun, RunStatus, RunSurface
+from app.db.models.conversation import Message
+from app.db.models.message_rating import MessageRating
 from app.db.models.skill_usage import RunSkillUse
+from app.repositories.agent_run import served_runs
 from app.schemas.skill_usage import SkillUseRecord
 
 
@@ -146,3 +150,71 @@ async def usage_by_version(
         .group_by(RunSkillUse.agent_id, RunSkillUse.skill_version_id)
     )
     return [VersionUsage(*row) for row in rows.all()]
+
+
+async def uses_in_runs(
+    db: AsyncSession, *, organization_id: UUID, skill_id: UUID, run_ids: Collection[UUID]
+) -> list[RunSkillUse]:
+    """How each of these runs used the skill, one row per agent that used it."""
+    if not run_ids:
+        return []
+    rows = await db.execute(
+        select(RunSkillUse).where(
+            RunSkillUse.organization_id == organization_id,
+            RunSkillUse.skill_id == skill_id,
+            RunSkillUse.run_id.in_(list(run_ids)),
+        )
+    )
+    return list(rows.scalars().all())
+
+
+async def unknown_runs(
+    db: AsyncSession, *, organization_id: UUID, skill_id: UUID, since: datetime
+) -> dict[UUID, int]:
+    """Per agent, the rated-down or failed runs whose use of the skill nobody recorded.
+
+    Runs from before uses were recorded, of an agent whose published version
+    bound the skill, with nothing copied from their transcripts either: they may
+    have used it, and nothing says whether they did.
+    """
+    rated_down = (
+        select(Message.id)
+        .join(MessageRating, MessageRating.message_id == Message.id)
+        .where(Message.run_id == AgentRun.id, MessageRating.rating < 0)
+    )
+    failed = AgentRun.status.in_(
+        (RunStatus.FAILED.value, RunStatus.BUDGET_EXCEEDED.value, RunStatus.GUARDRAIL_BLOCKED.value)
+    )
+    recorded = select(RunSkillUse.id).where(
+        RunSkillUse.run_id == AgentRun.id, RunSkillUse.skill_id == skill_id
+    )
+    rows = await db.execute(
+        select(AgentRun.agent_id, func.count())
+        .join(AgentVersion, AgentVersion.id == AgentRun.agent_version_id)
+        .where(*served_runs(organization_id=organization_id, since=since))
+        .where(
+            AgentRun.skill_uses_recorded.is_(False),
+            AgentVersion.spec["skill_ids"].contains([str(skill_id)]),
+            or_(rated_down.exists(), failed),
+            ~recorded.exists(),
+        )
+        .group_by(AgentRun.agent_id)
+    )
+    return dict(rows.tuples().all())
+
+
+async def agents_involved(
+    db: AsyncSession, *, organization_id: UUID, skill_id: UUID, since: datetime
+) -> set[UUID]:
+    """Every agent in a run that used the skill since `since`: the run's own and any delegate."""
+    rows = await db.execute(
+        select(RunSkillUse.agent_id, AgentRun.agent_id)
+        .join(AgentRun, AgentRun.id == RunSkillUse.run_id)
+        .where(
+            RunSkillUse.organization_id == organization_id,
+            RunSkillUse.skill_id == skill_id,
+            RunSkillUse.created_at >= since,
+        )
+        .distinct()
+    )
+    return {agent_id for row in rows.all() for agent_id in row}
