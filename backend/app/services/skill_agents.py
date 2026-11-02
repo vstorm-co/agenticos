@@ -100,6 +100,15 @@ def line_of(spec: dict[str, object], skill_id: UUID) -> Line | None:
     )
 
 
+@dataclass(frozen=True)
+class LineAgent:
+    """An agent whose served version follows a line: the version that runs, and how."""
+
+    agent: Agent
+    agent_version: int
+    via_specialist: str | None
+
+
 @dataclass
 class _Uses:
     agent: Agent
@@ -231,6 +240,28 @@ class SkillAgentService:
                 if binding.fork is not None:
                     by_fork[binding.fork.id] += 1
         return by_version, by_fork
+
+    async def line_agents(self, skill: Skill, fork_id: UUID | None) -> list[LineAgent]:
+        """The agents a change to this line reaches: main's followers, or the fork's.
+
+        An agent counts when a served version reads the line - its default
+        environment's first, else the first environment that does. Pinned agents,
+        other lines and agents bound in a draft alone are not reached.
+        """
+        found: list[LineAgent] = []
+        for use in await self._uses(skill):
+            on_line = [
+                served
+                for served in use.served
+                if (served[2].state == "main" if fork_id is None else served[2].fork_id == fork_id)
+            ]
+            if not on_line:
+                continue
+            _, number, line = next(
+                (served for served in on_line if served[0].is_default), on_line[0]
+            )
+            found.append(LineAgent(use.agent, number, line.via_specialist))
+        return found
 
     async def fork_users(self, skill: Skill, fork_id: UUID) -> list[Agent]:
         """The agents that read a fork, in a served version or their draft."""

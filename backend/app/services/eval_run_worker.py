@@ -1033,3 +1033,12 @@ class EvalRunWorker:
                 db, run=run, values={"status": status.value, "ended_at": datetime.now(UTC)}
             )
             await NotificationService(db).eval_run_finished(run)
+            record = (
+                None
+                if run.proposal_check is None
+                else ProposalCheckRecord.model_validate(run.proposal_check)
+            )
+            if record is not None and record.skill_check_id is not None:
+                from app.services.skill_check import SkillCheckService
+
+                await SkillCheckService(db).after_run(run.organization_id, run.id)

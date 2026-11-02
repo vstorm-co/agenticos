@@ -76,6 +76,10 @@ class ProposalCheckRecord(BaseSchema):
     on_draft: bool = False
     suggestions: int = Field(ge=1)
     improvement_run_id: UUID | None = None
+    skill_check_id: UUID | None = Field(
+        default=None,
+        description="The check of a skill change on every agent this run is one stage of",
+    )
     evidence_run_ids: list[UUID] = Field(default_factory=list)
     attempt_holdout: list[UUID] | None = Field(
         default=None,
