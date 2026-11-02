@@ -558,19 +558,20 @@ spend and its recent executions.
 | Role | What it does | Configured |
 |---|---|---|
 | `daily_briefing` | The nightly look at each person's week and the briefing built from it | Under Proactivity, above: the same model and limit, shown here read-only |
-| `memory_maintenance` | Reads a finished web chat once and records the durable facts, preferences and decisions in it as [claims](reference/capabilities.md#memory-claims) | Here: a switch, a model and a monthly budget of its own |
+| `memory_maintenance` | Reads a completed admitted turn once and records the durable facts, preferences and decisions in it as [claims](reference/capabilities.md#memory-claims) | Here: a switch, a model and a monthly budget of its own |
 
-A role is disabled, not deleted. **Memory maintenance** runs only where a model
-was chosen - there is no default - and stops at its monthly budget or the
-organization's cap; a person's proactivity limit is not spent on it. It reads a
-chat only where memory works: a completed web chat with a person behind it, for an
-agent that has Memory on.
+A role is disabled, not deleted. **Memory maintenance** needs an explicitly chosen
+model and respects its monthly budget and the organization's cap. It reads completed
+turns only when the runner admitted a real person with memory writes enabled: private
+chat, linked channel messages, and that person's own scheduled or workflow work.
+Embeds, API keys, impersonation, outsider-supplied events and delegations are excluded.
 
-An embed, an API-key run, a group chat, a scheduled or an
-event run and a delegation are never read. What it records stays in the
-conversation's own scope - the person's profile or their relationship with that
-agent - and it cannot share or correct a claim. Deterministic work, such as the
-scheduled consolidation of changed memory, needs no model and no role.
+The queued job retains the original audience. A private turn records claims in the
+person's profile or relationship with the agent; a group turn records only in the
+source room, even when the model calls a fact general. Current membership and erasure
+are rechecked under the write lock after the model answers. Older jobs without an
+audience remain limited to private web chat. Maintenance cannot share or correct a
+claim. Deterministic consolidation needs no model or role.
 
 ### What run history shows
 

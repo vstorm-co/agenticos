@@ -1,5 +1,5 @@
 ---
-source_sha: "86cf21a8e53e"
+source_sha: "f3d41f62f0bd"
 ---
 
 # Governance { #governance }
@@ -643,21 +643,21 @@ Ausführungen.
 | Rolle | Was sie tut | Konfiguriert |
 |---|---|---|
 | `daily_briefing` | Der nächtliche Blick auf die Woche jeder Person und das daraus gebaute Briefing | Unter Proaktivität, oben: dasselbe Modell und Limit, hier nur lesbar |
-| `memory_maintenance` | Liest einen beendeten Web-Chat einmal und hält die dauerhaften Fakten, Vorlieben und Entscheidungen darin als [Claims](reference/capabilities.md#memory-claims) fest | Hier: ein Schalter, ein Modell und ein eigenes Monatsbudget |
+| `memory_maintenance` | Liest eine abgeschlossene zugelassene Runde einmal und hält die dauerhaften Fakten, Vorlieben und Entscheidungen darin als [Claims](reference/capabilities.md#memory-claims) fest | Hier: ein Schalter, ein Modell und ein eigenes Monatsbudget |
 
-Eine Rolle wird ausgeschaltet, nicht gelöscht. Die **Gedächtnispflege** läuft nur,
-wo ein Modell gewählt wurde - es gibt keinen Standard - und hält an ihrem
-Monatsbudget oder an der Obergrenze der Organisation an; das Proaktivitätslimit
-einer Person wird dafür nicht verbraucht. Sie liest einen Chat nur dort, wo das
-Gedächtnis funktioniert: ein beendeter Web-Chat mit einer Person dahinter, für
-einen Agent mit aktivem Gedächtnis.
+Eine Rolle wird ausgeschaltet, nicht gelöscht. Die **Gedächtnispflege** benötigt
+ein ausdrücklich gewähltes Modell und beachtet ihr Monatsbudget sowie die Obergrenze
+der Organisation. Sie liest abgeschlossene Gesprächsrunden nur, wenn der Runner eine
+reale Person mit Schreibrecht zugelassen hat: private Chats, verknüpfte Kanalnachrichten
+und eigene Zeitplan- oder Workflow-Aufgaben. Embeds, API-Schlüssel, Identitätsübernahmen,
+Ereignisse von Außenstehenden und Delegationen sind ausgeschlossen.
 
-Ein Embed, ein Run mit API-Key, ein
-Gruppenchat, ein geplanter oder ereignisgesteuerter Run und eine Delegation werden
-nie gelesen. Was sie festhält, bleibt im eigenen Scope der Unterhaltung - dem
-Profil der Person oder ihrer Beziehung zu diesem Agent - und sie kann keinen Claim
-teilen oder korrigieren. Deterministische Arbeit, etwa die geplante Konsolidierung
-geänderten Gedächtnisses, braucht weder Modell noch Rolle.
+Der Auftrag bewahrt den ursprünglichen Empfängerkreis. Private Runden schreiben in das
+Profil der Person oder ihre Beziehung zum Agenten; Gruppenrunden ausschließlich in den
+Quellraum, auch bei allgemeinen Fakten. Nach der Modellantwort werden Mitgliedschaft
+und Löschungen unter der Schreibsperre erneut geprüft. Ältere Aufträge ohne Empfängerdaten
+bleiben auf private Web-Chats beschränkt. Die Pflege teilt und korrigiert keine Claims.
+Deterministische Konsolidierung benötigt weder Modell noch Rolle.
 
 ### Was die Run-Historie zeigt { #what-run-history-shows }
 

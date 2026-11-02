@@ -5344,11 +5344,19 @@ class AgentRunnerService:
         Guarded for the reason `_notify` is: this runs from a `finally` block, and a
         failure to queue background work must not replace the run's own outcome.
         """
+        deps = prepared.built.deps
+        if deps.impersonated or deps.run_person is None or deps.audience is None:
+            return
         try:
             from app.services.memory.extraction import queue_extraction
 
             async with self.db.begin_nested():
-                await queue_extraction(self.db, run, prepared.spec.model_dump(mode="json"))
+                await queue_extraction(
+                    self.db,
+                    run,
+                    prepared.spec.model_dump(mode="json"),
+                    audience=deps.audience,
+                )
         except Exception:
             logger.exception("memory_extraction_queue_failed", extra={"run_id": str(run.id)})
 

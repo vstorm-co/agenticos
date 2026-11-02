@@ -21,6 +21,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- **Automatic memory capture keeps each turn's audience.** Completed linked channel turns and personally authorized scheduled/workflow work can be read by memory maintenance alongside private web chat. A group turn writes only to its source room, never a personal profile. Jobs retain the runner's admitted audience and recheck terminal state, membership and erasure; embeds, API keys, impersonation and outsider events remain excluded.
+
 - **Pin a routine to one published version.** The routine form and MCP tools can select an immutable agent version or follow the default environment again. Pins are checked against the same agent and organization, cannot coexist with a named environment, and prevent deletion of the selected version. They keep using the shared runner with current access, budgets and approvals. Migration `0259_trigger_version_pin`.
 
 - **Manage a routine from the chat that requested it.** Private chat runs retain their source conversation on internal platform credentials, so a newly created routine answers there by default. The chat shows a card with its current authorized state, next activation, edit, pause and removal controls. The platform MCP tools expose end times, delivery destinations and monthly budgets, including explicit removal of limits. Ordinary API keys cannot acquire personal standing authority through this provenance. Migration `0257_run_conversation_provenance`.
@@ -996,6 +998,10 @@ Two things are versioned separately from this file and worth knowing about:
 - **Document properties use table columns.** Remove the Markdown YAML-property editor and stop generating frontmatter in the notebook template. Keep automatic record metadata and preserve existing imported headers during body edits.
 
 ### Fixed
+
+- **Platform model calls no longer claim to have executed the starter agent's version.** Their role remains recorded and the run manifest contains the actual platform instructions; the unrelated agent version is left empty.
+
+- **An erasure wins over extraction waiting to write.** Memory maintenance obtains the personal-data lock before its final erasure check, so a concurrent forget request cannot be followed by a recreated claim.
 
 - **Existing private channel history is adopted once.** Migration `0258_primary_channel_history` seeds missing primary conversations only when provider identifiers prove a direct chat and recorded runs prove the selected agent. Existing choices win; groups, project threads and uncertain history stay separate. Opening a conversation after clearing it still starts fresh. New channel sessions now retain their actual chat type.
 

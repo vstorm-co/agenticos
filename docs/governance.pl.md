@@ -1,5 +1,5 @@
 ---
-source_sha: "86cf21a8e53e"
+source_sha: "f3d41f62f0bd"
 ---
 
 # Governance { #governance }
@@ -599,19 +599,20 @@ miesiącu i ostatnimi wykonaniami.
 | Rola | Co robi | Konfiguracja |
 |---|---|---|
 | `daily_briefing` | Nocne spojrzenie na tydzień każdej osoby i zbudowany z niego briefing | W Proaktywności, powyżej: ten sam model i limit, tutaj tylko do odczytu |
-| `memory_maintenance` | Czyta zakończony czat webowy raz i zapisuje trwałe fakty, preferencje i decyzje jako [claimy](reference/capabilities.md#memory-claims) | Tutaj: przełącznik, model i własny budżet miesięczny |
+| `memory_maintenance` | Czyta zakończoną dopuszczoną turę raz i zapisuje trwałe fakty, preferencje i decyzje jako [claimy](reference/capabilities.md#memory-claims) | Tutaj: przełącznik, model i własny budżet miesięczny |
 
-Rolę się wyłącza, nie usuwa. **Utrzymanie pamięci** działa tylko tam, gdzie
-wybrano model — nie ma domyślnego — i zatrzymuje się na swoim budżecie miesięcznym
-albo na limicie organizacji; limit proaktywności osoby nie jest na nią wydawany.
-Czyta czat tylko tam, gdzie działa pamięć: zakończony czat webowy z osobą po
-drugiej stronie, dla agenta z włączoną Pamięcią.
+Rolę się wyłącza, nie usuwa. **Utrzymanie pamięci** wymaga wybranego modelu i
+respektuje własny budżet miesięczny oraz limit organizacji. Czyta zakończone tury,
+jeżeli runner dopuścił rzeczywistą osobę z prawem zapisu pamięci: prywatny czat,
+wiadomości z powiązanego kanału oraz jej własne zadania harmonogramu lub workflow.
+Wykluczone są embedy, klucze API, podszywanie się, zdarzenia od osób z zewnątrz i delegacje.
 
-Embed, run z kluczem API, czat
-grupowy, run z harmonogramu lub zdarzenia i delegacja nigdy nie są czytane. To, co
-zapisuje, zostaje w zakresie samej rozmowy — profilu osoby albo jej relacji z tym
-agentem — i nie może udostępnić ani poprawić claimu. Praca deterministyczna, jak
-zaplanowana konsolidacja zmienionej pamięci, nie potrzebuje modelu ani roli.
+Zadanie zachowuje pierwotnych odbiorców. Prywatna tura zapisuje claimy w profilu osoby
+lub relacji z agentem; tura grupowa wyłącznie w pokoju źródłowym, nawet jeśli model
+uzna fakt za ogólny. Po odpowiedzi modelu bieżące członkostwo i polecenia usunięcia są
+sprawdzane ponownie pod blokadą zapisu. Starsze zadania bez informacji o odbiorcach
+pozostają ograniczone do prywatnego czatu webowego. Utrzymanie nie udostępnia ani nie
+poprawia claimów. Deterministyczna konsolidacja nie potrzebuje modelu ani roli.
 
 ### Co pokazuje historia runów { #what-run-history-shows }
 

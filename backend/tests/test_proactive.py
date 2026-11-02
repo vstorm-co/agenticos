@@ -235,6 +235,7 @@ class TestThinking:
         assert create_run.await_args.kwargs["user_id"] == USER
         # Attributed to the platform role that did the work, not left as the starter's.
         assert create_run.await_args.kwargs["system_role"] == "daily_briefing"
+        assert create_run.await_args.kwargs["agent_version_id"] is None
         finished = finish_run.await_args.kwargs
         assert finished["status"] == RunStatus.COMPLETED.value
         # The test model is not priced: recorded as zero and marked partial, not lost.

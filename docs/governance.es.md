@@ -1,5 +1,5 @@
 ---
-source_sha: "86cf21a8e53e"
+source_sha: "f3d41f62f0bd"
 ---
 
 # Governance { #governance }
@@ -611,20 +611,20 @@ y sus últimas ejecuciones.
 | Rol | Qué hace | Configuración |
 |---|---|---|
 | `daily_briefing` | La mirada nocturna a la semana de cada persona y el briefing que se construye con ella | En Proactividad, arriba: el mismo modelo y límite, aquí solo de lectura |
-| `memory_maintenance` | Lee una vez un chat web terminado y registra los hechos, preferencias y decisiones duraderos que contiene como [claims](reference/capabilities.md#memory-claims) | Aquí: un interruptor, un modelo y un presupuesto mensual propio |
+| `memory_maintenance` | Lee una vez un turno admitido terminado y registra los hechos, preferencias y decisiones duraderos que contiene como [claims](reference/capabilities.md#memory-claims) | Aquí: un interruptor, un modelo y un presupuesto mensual propio |
 
-Un rol se desactiva, no se borra. El **mantenimiento de memoria** solo corre donde
-se eligió un modelo —no hay uno por defecto— y se detiene en su presupuesto
-mensual o en el tope de la organización; el límite de proactividad de una persona
-no se gasta en él. Lee un chat solo donde funciona la memoria: un chat web
-terminado con una persona detrás, para un agent con Memoria activada.
+Un rol se desactiva, no se borra. El **mantenimiento de memoria** requiere un modelo
+elegido expresamente y respeta su presupuesto mensual y el tope de la organización.
+Lee turnos terminados solo cuando el runner admitió a una persona real con permiso de
+escritura: chats privados, mensajes de canales vinculados y sus propias tareas programadas
+o de workflow. Se excluyen embeds, claves API, suplantaciones, eventos de terceros y delegaciones.
 
-Un embed, un
-run con clave de API, un chat de grupo, un run programado o por evento y una
-delegación nunca se leen. Lo que registra se queda en el scope de la propia
-conversación —el perfil de la persona o su relación con ese agent— y no puede
-compartir ni corregir un claim. El trabajo determinista, como la consolidación
-programada de memoria cambiada, no necesita modelo ni rol.
+El trabajo conserva la audiencia original. Un turno privado escribe en el perfil de la
+persona o su relación con el agente; un turno grupal solo en la sala de origen, aunque
+el modelo considere general un hecho. Tras la respuesta del modelo se comprueban de
+nuevo la membresía y los borrados bajo el bloqueo de escritura. Los trabajos antiguos
+sin audiencia siguen limitados al chat web privado. El mantenimiento no comparte ni
+corrige claims. La consolidación determinista no necesita modelo ni rol.
 
 ### Qué muestra el historial de runs { #what-run-history-shows }
 

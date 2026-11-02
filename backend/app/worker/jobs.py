@@ -15,10 +15,10 @@ too; see `app.db.models.background_job`.
 import enum
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import Literal
+from typing import Literal, Self
 from uuid import UUID, uuid5
 
-from pydantic import BaseModel, ConfigDict, Field, JsonValue
+from pydantic import BaseModel, ConfigDict, Field, JsonValue, model_validator
 
 
 class Pool(enum.StrEnum):
@@ -160,6 +160,15 @@ class ExtractMemory(Payload):
 
     organization_id: UUID
     run_id: UUID
+    audience_user_id: UUID | None = None
+    """The runner's admitted person; absent on jobs queued before audience capture existed."""
+    audience_room_key: str | None = Field(default=None, max_length=200, pattern=r"^room:[^:]+:.+$")
+
+    @model_validator(mode="after")
+    def _room_has_an_admitted_person(self) -> Self:
+        if self.audience_room_key is not None and self.audience_user_id is None:
+            raise ValueError("Room capture requires the runner's admitted person")
+        return self
 
 
 class LookThroughWatch(Payload):

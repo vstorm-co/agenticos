@@ -9,6 +9,7 @@ retry or a second worker finds the work already done.
 
 import logging
 
+from app.agents.audience import RunAudience
 from app.db.session import get_db_context
 from app.repositories import memory_claim as claim_repo
 from app.services.memory import claims, extraction
@@ -23,6 +24,16 @@ SCOPES_PER_SWEEP = 200
 async def extract_memory(payload: ExtractMemory) -> int:
     """Read one finished chat for what is worth remembering. Returns how many claims it recorded."""
     async with get_db_context() as db:
+        if payload.audience_user_id is not None:
+            return await extraction.extract(
+                db,
+                payload.organization_id,
+                payload.run_id,
+                audience=RunAudience(
+                    user_id=payload.audience_user_id,
+                    room_key=payload.audience_room_key,
+                ),
+            )
         return await extraction.extract(db, payload.organization_id, payload.run_id)
 
 

@@ -7,12 +7,13 @@ preferences and decisions the agent did not write down.
 
 What keeps it safe is how little it is allowed to do:
 
-- **It runs only where memory does.** A completed web chat with a person behind it,
-  for an agent that has Memory switched on. Never an embed, an API-key run, a group
-  chat or a scheduled or event run: those have no person's store to write to.
+- **It runs only where memory does.** A completed turn with an admitted person
+  behind it, for an agent that has Memory switched on. The runner freezes its
+  audience in the job; an embed, API key, impersonation or outsider-supplied event
+  cannot borrow a person's store. Older jobs without audience facts remain web-only.
 - **It writes in the conversation's own scope.** The same rule `remember` follows
-  (`claim_write_scope`): the person's profile or the person-agent relationship,
-  never wider. It cannot share, and it cannot correct.
+  (`claim_write_scope`): the person's profile or person-agent relationship, or the
+  source room for a group turn. It cannot share, and it cannot correct.
 - **It records, it does not decide.** A claim that contradicts a person's word is
   kept aside as disputed like any other agent claim.
 - **It costs only when something changed.** One bounded model call per finished
@@ -29,6 +30,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.audience import RunAudience
 from app.agents.memory_scope import claim_write_scope
+from app.db.locks import LockScope, hold_subject
 from app.db.models.agent_run import AgentRun, RunStatus, RunSurface
 from app.db.models.system_agent_profile import MEMORY_MAINTENANCE
 from app.repositories import (
@@ -97,25 +99,44 @@ def _allows_personal(binding: dict[str, object]) -> bool:
     return not (isinstance(config, dict) and config.get("allow_personal") is False)
 
 
-async def queue_extraction(db: AsyncSession, run: AgentRun, spec: dict[str, object]) -> bool:
-    """Queue the read of one finished run, if the role is on and the run qualifies.
+def _eligible(run: AgentRun, audience: RunAudience | None) -> bool:
+    """Only an admitted person's completed turn, with its original audience intact."""
+    return (
+        run.status == RunStatus.COMPLETED.value
+        and run.user_id is not None
+        and run.conversation_id is not None
+        and not run.is_test
+        and not run.initiated_by_publisher_fallback
+        and run.key_scopes is None
+        and run.parent_run_id is None
+        and run.surface
+        not in {RunSurface.EMBED.value, RunSurface.A2A.value, RunSurface.PROACTIVE.value}
+        and (
+            run.surface == RunSurface.WEB.value
+            if audience is None
+            else audience.user_id == run.user_id and audience.writes_memory
+        )
+    )
 
-    Called in the run's own terminal transaction, so the job exists exactly when the
-    run's final state does. Returns whether a job was queued.
+
+async def queue_extraction(
+    db: AsyncSession,
+    run: AgentRun,
+    spec: dict[str, object],
+    *,
+    audience: RunAudience | None = None,
+) -> bool:
+    """Queue in the terminal transaction, preserving the runner's admitted audience.
+
+    Older callers and stored jobs without an audience retain the private web-chat
+    contract. Only server-derived audience facts extend capture to other surfaces.
     """
-    if (
-        run.status != RunStatus.COMPLETED.value
-        or run.surface != RunSurface.WEB.value
-        or run.user_id is None
-        or run.conversation_id is None
-        or run.is_test
-        or run.initiated_by_publisher_fallback
-        or run.key_scopes is not None
-        or run.parent_run_id is not None
-    ):
+    if not _eligible(run, audience):
         return False
     binding = _memory_binding(spec)
-    if binding is None or not _allows_personal(binding):
+    if binding is None or (
+        (audience is None or audience.room_key is None) and not _allows_personal(binding)
+    ):
         return False
     profile = await system_agent_repo.get(
         db, organization_id=run.organization_id, role=MEMORY_MAINTENANCE
@@ -125,7 +146,12 @@ async def queue_extraction(db: AsyncSession, run: AgentRun, spec: dict[str, obje
     job = await enqueue(
         db,
         EXTRACT_MEMORY,
-        ExtractMemory(organization_id=run.organization_id, run_id=run.id),
+        ExtractMemory(
+            organization_id=run.organization_id,
+            run_id=run.id,
+            audience_user_id=audience.user_id if audience is not None else None,
+            audience_room_key=audience.room_key if audience is not None else None,
+        ),
         organization_id=run.organization_id,
         dedupe_key=f"extract-memory:{run.id}",
     )
@@ -152,7 +178,13 @@ async def _erased_since(db: AsyncSession, run: AgentRun) -> bool:
     )
 
 
-async def extract(db: AsyncSession, organization_id: UUID, run_id: UUID) -> int:
+async def extract(
+    db: AsyncSession,
+    organization_id: UUID,
+    run_id: UUID,
+    *,
+    audience: RunAudience | None = None,
+) -> int:
     """Read one run's turns and record what is worth keeping. Returns how many were recorded.
 
     Re-checks everything the queueing checked, because the job runs later: the role
@@ -164,13 +196,16 @@ async def extract(db: AsyncSession, organization_id: UUID, run_id: UUID) -> int:
         or run.user_id is None
         or run.conversation_id is None
         or run.agent_version_id is None
+        or not _eligible(run, audience)
     ):
         return 0
     version = await agent_repo.get_version(
         db, run.agent_version_id, organization_id=organization_id
     )
     binding = _memory_binding(version.spec) if version is not None else None
-    if binding is None or not _allows_personal(binding):
+    if binding is None or (
+        (audience is None or audience.room_key is None) and not _allows_personal(binding)
+    ):
         return 0
     ctx = await member_context(db, organization_id=organization_id, user_id=run.user_id)
     if ctx is None or await _erased_since(db, run):
@@ -187,10 +222,17 @@ async def extract(db: AsyncSession, organization_id: UUID, run_id: UUID) -> int:
         instructions=_INSTRUCTIONS,
         prompt=f"Conversation:\n\n{transcript}",
     )
-    # Again after the model call: the person may have erased their memory while it ran.
-    if found is None or await _erased_since(db, run):
+    if found is None:
         return 0
-    audience = RunAudience(user_id=run.user_id)
+    # Acquire before the final erasure check, not only when the first claim is
+    # inserted: otherwise an erasure can commit while that insertion waits.
+    await hold_subject(db, LockScope.PERSONAL_DATA_PER_USER, run.user_id)
+    if (
+        await _erased_since(db, run)
+        or await member_context(db, organization_id=organization_id, user_id=run.user_id) is None
+    ):
+        return 0
+    audience = audience or RunAudience(user_id=run.user_id)
     recorded = 0
     for item in found.claims:
         scope = claim_write_scope(

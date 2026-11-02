@@ -195,7 +195,9 @@ class ProactiveThinker:
             self.db,
             organization_id=ctx.organization_id,
             agent_id=agent.id,
-            agent_version_id=version.id,
+            # This call uses the platform instructions below, not the starter's
+            # spec. Its exact instructions are recorded in the run manifest.
+            agent_version_id=None,
             user_id=ctx.user_id,
             conversation_id=None,
             surface=RunSurface.PROACTIVE.value,

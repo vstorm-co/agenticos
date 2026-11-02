@@ -1,5 +1,6 @@
 """System agents against Postgres (#2575): configuration, history and the memory extraction job."""
 
+import asyncio
 import uuid
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
@@ -7,10 +8,12 @@ from unittest.mock import AsyncMock
 
 import pytest
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
+from app.agents.audience import RunAudience
 from app.core.exceptions import BadRequestError, NotFoundError
 from app.core.permissions import AuthContext, OrgRoleName
+from app.db.locks import LockScope, hold_subject
 from app.db.models.agent import Agent, AgentVersion
 from app.db.models.agent_run import RunStatus, RunSurface
 from app.db.models.background_job import BackgroundJob
@@ -516,3 +519,180 @@ async def test_an_erasure_that_lands_while_the_model_is_answering_still_wins(
     assert await extraction.extract(db, org.id, run.id) == 0
     claims = (await db.execute(select(MemoryClaim))).scalars().all()
     assert claims == []
+
+
+@pytest.mark.parametrize("room", [False, True])
+async def test_channel_capture_preserves_the_admitted_audience(
+    db: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+    room: bool,
+) -> None:
+    user, org, agent, version, model, ctx = await _world(db)
+    await _enabled(db, org, model)
+    run, conversation = await _chat_run(
+        db, org, agent, version, user, surface=RunSurface.SLACK.value
+    )
+    await _transcript(db, conversation, run, [("user", "We decided to renew Acme in March")])
+    audience = RunAudience(user_id=user.id, room_key="room:slack:C123" if room else None)
+    _think(
+        monkeypatch,
+        [extraction._Extracted(statement="Acme renews in March", kind="decision", profile=True)],
+    )
+    assert not await extraction.queue_extraction(db, run, SPEC), (
+        "legacy jobs cannot guess a channel audience"
+    )
+    assert await extraction.queue_extraction(db, run, SPEC, audience=audience)
+    assert await extraction.extract(db, org.id, run.id, audience=audience) == 1
+    claim = await db.scalar(select(MemoryClaim).where(MemoryClaim.source_run_id == run.id))
+    assert claim is not None
+    assert claim.scope_key == ("room:slack:C123" if room else f"person:{user.id}")
+    assert claim.agent_id == (agent.id if room else None)
+    assert claim.kind == "decision"
+    job = await db.scalar(select(BackgroundJob).where(BackgroundJob.kind == "extract-memory"))
+    assert job is not None
+    assert job.payload["audience_user_id"] == str(user.id)
+    assert job.payload["audience_room_key"] == audience.room_key
+
+
+@pytest.mark.parametrize("case", ["wrong-person", "read-only", "failed", "key", "test", "embed"])
+async def test_capture_refusals_are_rechecked_by_the_worker(
+    db: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+    case: str,
+) -> None:
+    user, org, agent, version, model, ctx = await _world(db)
+    run, conversation = await _chat_run(db, org, agent, version, user)
+    await _transcript(db, conversation, run, [("user", "Remember me")])
+    audience = RunAudience(
+        user_id=uuid.uuid4() if case == "wrong-person" else user.id,
+        writes_memory=case != "read-only",
+    )
+    if case == "failed":
+        run.status = RunStatus.FAILED.value
+    if case == "key":
+        run.key_scopes = ["agents:run"]
+    if case == "test":
+        run.is_test = True
+    if case == "embed":
+        run.surface = RunSurface.EMBED.value
+    await db.flush()
+    think = _think(monkeypatch, [extraction._Extracted(statement="Prefers tea")])
+    assert not await extraction.queue_extraction(db, run, SPEC, audience=audience)
+    assert await extraction.extract(db, org.id, run.id, audience=audience) == 0
+    think.assert_not_awaited()
+
+
+async def test_erasure_committing_while_capture_waits_for_its_write_lock_wins(
+    db: AsyncSession,
+    engine: AsyncEngine,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.services.memory import MemoryService
+
+    user, org, agent, version, model, ctx = await _world(db)
+    run, conversation = await _chat_run(db, org, agent, version, user)
+    await _transcript(db, conversation, run, [("user", "I prefer tea")])
+    await db.commit()
+    model_reading, erasure_ready, writer_waiting = asyncio.Event(), asyncio.Event(), asyncio.Event()
+    sessions = async_sessionmaker(engine, expire_on_commit=False)
+
+    async def answer(*args: object, **kwargs: object) -> extraction._Extraction:
+        model_reading.set()
+        await erasure_ready.wait()
+        return extraction._Extraction(claims=[extraction._Extracted(statement="Prefers tea")])
+
+    async def write_lock(session: AsyncSession, scope: LockScope, person: uuid.UUID) -> None:
+        writer_waiting.set()
+        await hold_subject(session, scope, person)
+
+    original_exists = extraction.person_still_exists
+
+    async def exists(session: AsyncSession, key: str) -> bool:
+        writer_waiting.set()
+        return await original_exists(session, key)
+
+    monkeypatch.setattr(_thinker.ProactiveThinker, "think", answer)
+    monkeypatch.setattr(extraction, "hold_subject", write_lock, raising=False)
+    monkeypatch.setattr(extraction, "person_still_exists", exists)
+
+    async def erase() -> None:
+        await model_reading.wait()
+        async with sessions() as session:
+            await hold_subject(session, LockScope.PERSONAL_DATA_PER_USER, user.id)
+            await MemoryService(session).forget_person(ctx, user.id)
+            erasure_ready.set()
+            await writer_waiting.wait()
+            await session.commit()
+
+    async def capture() -> None:
+        async with sessions() as session:
+            assert await extraction.extract(session, org.id, run.id) == 0
+            await session.commit()
+
+    async with asyncio.timeout(20), asyncio.TaskGroup() as tasks:
+        tasks.create_task(erase())
+        tasks.create_task(capture())
+    assert await db.scalar(select(MemoryClaim).where(MemoryClaim.source_run_id == run.id)) is None
+
+
+async def test_the_worker_preserves_a_room_audience(
+    db: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from contextlib import asynccontextmanager
+
+    from app.worker.jobs import ExtractMemory
+
+    @asynccontextmanager
+    async def reuse():
+        yield db
+
+    monkeypatch.setattr(memory_tasks, "get_db_context", reuse)
+    read = AsyncMock(return_value=1)
+    monkeypatch.setattr(memory_tasks.extraction, "extract", read)
+    org_id, run_id, user_id = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
+    payload = ExtractMemory(
+        organization_id=org_id,
+        run_id=run_id,
+        audience_user_id=user_id,
+        audience_room_key="room:slack:C123",
+    )
+    assert await memory_tasks.extract_memory(payload) == 1
+    read.assert_awaited_once_with(
+        db, org_id, run_id, audience=RunAudience(user_id=user_id, room_key="room:slack:C123")
+    )
+
+
+def test_a_room_capture_job_cannot_drop_its_admitted_person() -> None:
+    from pydantic import ValidationError
+
+    from app.worker.jobs import ExtractMemory
+
+    with pytest.raises(ValidationError, match="admitted person"):
+        ExtractMemory(
+            organization_id=uuid.uuid4(), run_id=uuid.uuid4(), audience_room_key="room:slack:C123"
+        )
+
+
+async def test_membership_removed_during_extraction_prevents_writing(
+    db: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    user, org, agent, version, model, ctx = await _world(db)
+    run, conversation = await _chat_run(db, org, agent, version, user)
+    await _transcript(db, conversation, run, [("user", "I prefer tea")])
+
+    async def answer(*args: object, **kwargs: object) -> extraction._Extraction:
+        member = await db.scalar(
+            select(OrganizationMember).where(
+                OrganizationMember.organization_id == org.id,
+                OrganizationMember.user_id == user.id,
+            )
+        )
+        assert member is not None
+        await db.delete(member)
+        await db.flush()
+        return extraction._Extraction(claims=[extraction._Extracted(statement="Prefers tea")])
+
+    monkeypatch.setattr(_thinker.ProactiveThinker, "think", answer)
+    assert await extraction.extract(db, org.id, run.id) == 0
+    assert await db.scalar(select(MemoryClaim).where(MemoryClaim.source_run_id == run.id)) is None
