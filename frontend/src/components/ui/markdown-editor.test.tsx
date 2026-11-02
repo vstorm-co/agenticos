@@ -114,14 +114,16 @@ describe("the markdown editor", () => {
 });
 
 describe("MarkdownModeToggle", () => {
-  it("marks the open mode and answers a click", async () => {
+  it("offers only the other view and switches both ways", async () => {
     const onChange = vi.fn();
-    render(<MarkdownModeToggle mode="source" onChange={onChange} />);
-
-    expect(screen.getByRole("button", { name: "Source" })).toHaveAttribute("aria-pressed", "true");
+    const { rerender } = render(<MarkdownModeToggle mode="source" onChange={onChange} />);
+    expect(screen.getAllByRole("button")).toHaveLength(1);
+    expect(screen.queryByRole("button", { name: "Source" })).toBeNull();
     await userEvent.click(screen.getByRole("button", { name: "Preview" }));
-
-    expect(onChange).toHaveBeenCalledWith("preview");
+    expect(onChange).toHaveBeenLastCalledWith("preview");
+    rerender(<MarkdownModeToggle mode="preview" onChange={onChange} />);
+    await userEvent.click(screen.getByRole("button", { name: "Source" }));
+    expect(onChange).toHaveBeenLastCalledWith("source");
   });
 });
 

@@ -290,7 +290,7 @@ describe("drawn bare", () => {
     const { container, unmount } = render(
       <FileTextView kind="markdown" name="notes.md" text="# Title" bare />,
     );
-    expect(container.firstElementChild).toHaveClass("px-6");
+    expect(container.firstElementChild).toHaveClass("px-4", "sm:px-6");
     unmount();
 
     const table = render(<FileTextView kind="csv" name="a.csv" text={"a,b\n1,2"} bare />);

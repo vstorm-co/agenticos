@@ -277,7 +277,7 @@ it("opens a full-page document in Write and returns to Preview in its side panel
       onChange={vi.fn()}
     />,
   );
-  expect(screen.getByRole("button", { name: "Preview" })).toHaveAttribute("aria-pressed", "true");
+  expect(screen.getByRole("button", { name: "Write" })).toBeInTheDocument();
   rerender(
     <RecordCellEditor
       column={column}
@@ -288,7 +288,7 @@ it("opens a full-page document in Write and returns to Preview in its side panel
     />,
   );
   expect(screen.getByRole("textbox", { name: "Notes" })).toHaveValue("# A document");
-  expect(screen.getByRole("button", { name: "Write" })).toHaveAttribute("aria-pressed", "true");
+  expect(screen.getByRole("button", { name: "Preview" })).toBeInTheDocument();
 });
 
 it("releases earlier pasted images when a later upload fails", async () => {

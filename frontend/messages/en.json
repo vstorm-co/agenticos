@@ -9317,6 +9317,7 @@
     "currentTag": "Current",
     "publicUpdated": "Updated {when}",
     "backToArtifacts": "Back to apps",
+    "viewerControls": "App controls",
     "share": "Share",
     "moreActions": "More actions",
     "accessRestricted": "Only people with access",
@@ -9584,7 +9585,6 @@
       "blockedSwitch": "An Owner or Admin has to turn on live data on public pages in the organization's settings first.",
       "blockedLink": "The page has no public link. Turn it on first."
     },
-    "appTheme": "App theme",
     "lightTheme": "Use light app theme",
     "darkTheme": "Use dark app theme"
   },

@@ -365,6 +365,7 @@ export function FileExplorer({
       ? null
       : (all.find((file) => segments(file.path).join("/") === segments(selected).join("/")) ??
         null);
+  if (readerExpanded && chosen === null) toggleReader();
   const kind = chosen === null ? null : resolveFileKind(chosen.path);
 
   return (

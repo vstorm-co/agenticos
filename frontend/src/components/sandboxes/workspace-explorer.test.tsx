@@ -816,3 +816,21 @@ it("refuses dragging a file onto its current folder and accepts root hover", asy
   fireEvent.dragOver(grid, { dataTransfer: { types: ["text/plain"] } });
   fireEvent.drop(grid, { dataTransfer: null });
 });
+
+it("releases fullscreen when a refreshed listing no longer contains the selected file", async () => {
+  const props = {
+    source: { kind: "project" as const, id: "p-1" },
+    isLoading: false,
+    error: null,
+  };
+  const { rerender } = render(<FileExplorer {...props} files={listing([file("brief.md")])} />);
+  const treePane = screen.getByRole("tree").parentElement;
+  await userEvent.click(screen.getByRole("button", { name: "brief.md" }));
+  await userEvent.click(screen.getByRole("button", { name: "Full screen" }));
+  expect(treePane?.inert).toBe(true);
+  expect(document.body.style.overflow).toBe("hidden");
+  rerender(<FileExplorer {...props} files={listing([])} />);
+  expect(screen.queryByRole("dialog")).toBeNull();
+  expect(document.body.style.overflow).not.toBe("hidden");
+  expect(treePane?.inert).toBe(false);
+});

@@ -47,14 +47,13 @@ function textFile(path: string, body = "body"): File {
 const name = () => screen.getByLabelText("Name");
 const description = () => screen.getByLabelText("Description");
 // The body is SKILL.md in the file pane, as the workbench has it - editable
-// only once the pane is flipped to Source.
+// directly in its source view.
 const content = () => screen.getByLabelText("SKILL.md source");
 const create = () => screen.getByRole("button", { name: "Create" });
 
 async function fill() {
   await userEvent.type(name(), "refund-policy");
   await userEvent.type(description(), "How refunds work.");
-  await userEvent.click(screen.getByRole("button", { name: "Source" }));
   await userEvent.type(content(), "## Refunds");
 }
 
@@ -88,7 +87,7 @@ describe("CreateSkillDialog", () => {
     // Twice: once in the tree, once naming the open pane.
     expect(screen.getAllByText("SKILL.md")).toHaveLength(2);
     expect(screen.getByRole("button", { name: "Preview" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Source" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Source" })).toBeNull();
   });
 
   it("offers the shelves in use and the predefined ones, without constraining the field", async () => {

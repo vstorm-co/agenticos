@@ -264,7 +264,7 @@ describe("SchemaForm", () => {
       />,
     );
 
-    expect(screen.getByLabelText(/Summary prompt/).tagName).toBe("TEXTAREA");
+    expect(screen.getByRole("textbox", { name: "Summary prompt" }).tagName).toBe("TEXTAREA");
     expect(screen.getByLabelText(/Tool name/).tagName).toBe("INPUT");
     // The editor's own toggle, which is what distinguishes it from a textarea.
     expect(screen.getByRole("button", { name: /Preview/i })).toBeVisible();
@@ -286,7 +286,7 @@ describe("SchemaForm", () => {
       />,
     );
 
-    const field = screen.getByLabelText(/Summary prompt/);
+    const field = screen.getByRole("textbox", { name: "Summary prompt" });
     expect(field).toHaveAttribute("aria-invalid", "true");
     expect(field).toHaveAccessibleDescription(/must contain/);
   });
@@ -307,7 +307,7 @@ describe("SchemaForm", () => {
       />,
     );
 
-    expect(screen.getByLabelText(/Summary prompt/)).toHaveValue("");
+    expect(screen.getByRole("textbox", { name: "Summary prompt" })).toHaveValue("");
   });
 
   it("clears a multiline field back to unset rather than to an empty string", async () => {
@@ -326,7 +326,7 @@ describe("SchemaForm", () => {
       />,
     );
 
-    await userEvent.clear(screen.getByLabelText(/Summary prompt/));
+    await userEvent.clear(screen.getByRole("textbox", { name: "Summary prompt" }));
 
     expect(onChange).toHaveBeenLastCalledWith({ summary_prompt: undefined });
   });
@@ -345,7 +345,7 @@ describe("SchemaForm", () => {
       />,
     );
 
-    await userEvent.type(screen.getByLabelText(/Summary prompt/), "!");
+    await userEvent.type(screen.getByRole("textbox", { name: "Summary prompt" }), "!");
 
     expect(onChange).toHaveBeenLastCalledWith({ summary_prompt: "Summarise!" });
   });

@@ -1,5 +1,5 @@
 ---
-source_sha: "1eb28af1cb33"
+source_sha: "666f72857496"
 ---
 
 # Die Konsole { #the-console }
@@ -47,6 +47,8 @@ Ist **Approve everything** nicht verfügbar, unterscheiden die Chat-Einstellunge
 Auf Telefonen stehen Seitenaktionen in zwei ausgerichteten Spalten. Beim Öffnen einer Projekt- oder Workspace-Datei ersetzt die Dateiansicht den Ordnerbaum; der Zurück-Pfeil führt zu den Ordnern zurück, und **Vollbild** vergrößert die Ansicht.
 
 Markdown-Felder und Dateieditoren bieten ebenfalls eine Schaltfläche zum Vergrößern, ohne den aktuellen Entwurf zu verwerfen. Beschreibung und Kategorie eines Skills lassen sich über dem Editor aufklappen. Das Chat-Eingabefeld benötigt weniger Platz und begrenzt lange Entwürfe anhand der verfügbaren Bildschirmhöhe. Beim Öffnen der Navigation erhält das Panel den Fokus; mit Tab sind dessen Bedienelemente weiterhin erreichbar. Der Workflow-Canvas bietet auf Telefonen eine schwebende Vollbild-Schaltfläche und eine kleinere Minimap.
+
+Auf Telefonen bleiben Beschreibung, Kategorie und Dateiverwaltung in Skill- und Kontexteditoren beim Schreiben eingeklappt. Eine Schaltfläche wechselt zwischen Quelltext und Vorschau. Apps bietet schwebende Zurück- und Optionsschaltflächen; die Optionen zeigen Titel, Version, Design und Freigabe.
 
 ## Das Dashboard { #the-dashboard }
 

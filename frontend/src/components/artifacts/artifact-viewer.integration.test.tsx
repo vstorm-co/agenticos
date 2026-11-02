@@ -275,6 +275,19 @@ describe("ArtifactViewer", () => {
     expect(sharingPanel).not.toHaveBeenCalled();
   });
 
+  it("opens floating controls and returns focus when Escape closes them", async () => {
+    useArtifactMock.mockReturnValue(state(detail()));
+    render(<ArtifactViewer artifactId="a1" initialVersionId={null} />);
+    const toggle = screen.getByRole("button", { name: "App controls" });
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    await userEvent.click(toggle);
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    screen.getByRole("button", { name: "Use dark app theme" }).focus();
+    await userEvent.keyboard("{Escape}");
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(toggle).toHaveFocus();
+  });
+
   it("changes the app theme independently of the console without reloading its frame", async () => {
     useArtifactMock.mockReturnValue(state(detail()));
     document.documentElement.classList.add("dark");
@@ -285,10 +298,8 @@ describe("ArtifactViewer", () => {
       await userEvent.click(screen.getByRole("button", { name: "Use dark app theme" }));
       expect(screen.getByTitle("Weekly report")).toBe(frame);
       expect(frame).toHaveStyle({ colorScheme: "dark" });
-      expect(screen.getByRole("button", { name: "Use dark app theme" })).toHaveAttribute(
-        "aria-pressed",
-        "true",
-      );
+      expect(screen.queryByRole("button", { name: "Use dark app theme" })).toBeNull();
+      expect(screen.getByRole("button", { name: "Use light app theme" })).toBeInTheDocument();
       await userEvent.click(screen.getByRole("button", { name: "Use light app theme" }));
       expect(frame).toHaveStyle({ colorScheme: "light" });
       expect(document.documentElement).toHaveClass("dark");

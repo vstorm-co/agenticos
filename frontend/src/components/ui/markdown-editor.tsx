@@ -1,12 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import type { KeyboardEvent, RefObject } from "react";
-import { Code2, Eye, Maximize2 } from "lucide-react";
+import type { KeyboardEvent, ReactNode, RefObject } from "react";
+import { Maximize2 } from "lucide-react";
 
 import { MarkdownContent } from "@/components/chat/markdown-content";
 import { CodeArea } from "@/components/ui/code-area";
 import { Button } from "./button";
+import { MarkdownModeToggle, type MarkdownMode } from "./markdown-mode-toggle";
+export { MarkdownModeToggle, type MarkdownMode } from "./markdown-mode-toggle";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "./dialog";
 import { DIALOG_WINDOW } from "@/lib/dialog-sizes";
 import { cn } from "@/lib/utils";
@@ -58,6 +60,8 @@ interface MarkdownEditorProps {
    * keeps the mode and draws the toggle above the field.
    */
   mode?: MarkdownMode;
+  /** Completion choices travel with the active editor, including its expanded view. */
+  suggestions?: ReactNode;
   /**
    * Draw an image in the preview as a link rather than loading it - for text the
    * person did not write, where an image URL is a request the author chose to
@@ -79,7 +83,6 @@ interface MarkdownEditorProps {
  * opened a form to edit should be editable when they get there; a file somebody
  * clicked in a tree is one they came to read.
  */
-export type MarkdownMode = "source" | "preview";
 
 export function MarkdownEditor({
   value,
@@ -96,6 +99,7 @@ export function MarkdownEditor({
   onKeyDown,
   mode: controlledMode,
   inertImages,
+  suggestions,
 }: MarkdownEditorProps) {
   const t = useTranslations("ui");
   const [ownMode, setOwnMode] = useState<MarkdownMode>("source");
@@ -131,7 +135,7 @@ export function MarkdownEditor({
         >
           <CodeArea
             name="field.md"
-            textareaRef={textareaRef}
+            textareaRef={expanded ? undefined : textareaRef}
             id={id}
             maxLength={maxLength}
             aria-label={label}
@@ -162,6 +166,7 @@ export function MarkdownEditor({
           )}
         </div>
       )}
+      {!expanded && suggestions}
       <Dialog open={expanded} onOpenChange={setExpanded}>
         <DialogContent
           className={cn(DIALOG_WINDOW, "max-sm:w-full max-sm:rounded-none")}
@@ -174,6 +179,9 @@ export function MarkdownEditor({
             <CodeArea
               name="field.md"
               aria-label={label}
+              textareaRef={textareaRef}
+              onKeyDown={onKeyDown}
+              describedBy={describedBy}
               value={value}
               onChange={onChange}
               invalid={invalid}
@@ -182,62 +190,11 @@ export function MarkdownEditor({
               placeholder={placeholder}
             />
           </div>
+          {suggestions && (
+            <div className="max-h-[25dvh] shrink-0 overflow-y-auto">{suggestions}</div>
+          )}
         </DialogContent>
       </Dialog>
     </div>
-  );
-}
-
-/** Source or preview, as a small segmented control - inside a field or a header. */
-export function MarkdownModeToggle({
-  mode,
-  onChange,
-}: {
-  mode: MarkdownMode;
-  onChange: (mode: MarkdownMode) => void;
-}) {
-  const t = useTranslations("ui");
-  return (
-    <div className="border-input flex w-fit items-center gap-0.5 rounded-lg border p-0.5">
-      <ModeButton
-        icon={Code2}
-        label={t("source")}
-        active={mode === "source"}
-        onClick={() => onChange("source")}
-      />
-      <ModeButton
-        icon={Eye}
-        label={t("preview")}
-        active={mode === "preview"}
-        onClick={() => onChange("preview")}
-      />
-    </div>
-  );
-}
-
-function ModeButton({
-  icon: Icon,
-  label,
-  active,
-  onClick,
-}: {
-  icon: typeof Eye;
-  label: string;
-  active: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-pressed={active}
-      className={cn(
-        "touch:min-h-11 inline-flex min-h-9 items-center gap-1 rounded-md px-2 py-1 text-xs transition-colors sm:min-h-0",
-        active ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground",
-      )}
-    >
-      <Icon className="h-3 w-3" />
-      {label}
-    </button>
   );
 }

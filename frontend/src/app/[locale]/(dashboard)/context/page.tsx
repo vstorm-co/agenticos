@@ -344,7 +344,9 @@ export default function ContextPage() {
           <DialogContent className={cn(DIALOG_FILL, DIALOG_BROAD)}>
             <DialogHeader>
               <DialogTitle className="font-mono">{selected.name}</DialogTitle>
-              <DialogDescription>{t("nameHowItIsReferred")}</DialogDescription>
+              <DialogDescription className="max-md:sr-only">
+                {t("nameHowItIsReferred")}
+              </DialogDescription>
             </DialogHeader>
             {fileError ? (
               <ErrorState

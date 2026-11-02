@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState, type FocusEvent } from "react";
-import { Bold, Italic, Link2, ImagePlus, Video, Maximize2 } from "lucide-react";
+import { Bold, Italic, Link2, ImagePlus, Video, Maximize2, Eye, Code2 } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { MarkdownContent } from "@/components/chat/markdown-content";
@@ -113,26 +113,10 @@ export function MarkdownCellEditor({
   const editor = (fieldId: string) => (
     <>
       <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 px-2 py-2">
-        <div className="flex gap-1" role="group" aria-label={label}>
-          <Button
-            type="button"
-            variant={preview ? "ghost" : "secondary"}
-            size="sm"
-            aria-pressed={!preview}
-            onClick={() => setPreview(false)}
-          >
-            {t("write")}
-          </Button>
-          <Button
-            type="button"
-            variant={preview ? "secondary" : "ghost"}
-            size="sm"
-            aria-pressed={preview}
-            onClick={() => setPreview(true)}
-          >
-            {t("preview")}
-          </Button>
-        </div>
+        <Button type="button" variant="outline" size="sm" onClick={() => setPreview(!preview)}>
+          {preview ? <Code2 aria-hidden /> : <Eye aria-hidden />}
+          {t(preview ? "write" : "preview")}
+        </Button>
         {!disabled && !preview && (
           <div className="flex items-center gap-0.5">
             {[

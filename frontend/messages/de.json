@@ -9196,6 +9196,7 @@
     "currentTag": "Aktuell",
     "publicUpdated": "Aktualisiert {when}",
     "backToArtifacts": "Zurück zu den Apps",
+    "viewerControls": "App-Steuerung",
     "share": "Teilen",
     "moreActions": "Weitere Aktionen",
     "accessRestricted": "Nur Personen mit Zugriff",
@@ -9463,7 +9464,6 @@
       "blockedSwitch": "Ein Owner oder Admin muss zuerst Live-Daten auf öffentlichen Seiten in den Einstellungen der Organisation einschalten.",
       "blockedLink": "Die Seite hat keinen öffentlichen Link. Schalten Sie ihn zuerst ein."
     },
-    "appTheme": "App-Design",
     "lightTheme": "Helles App-Design verwenden",
     "darkTheme": "Dunkles App-Design verwenden"
   },

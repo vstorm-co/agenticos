@@ -219,7 +219,6 @@ describe("the file pane", () => {
   it("saves the edited content and forgets the draft", async () => {
     const { onSave } = mount();
 
-    await userEvent.click(screen.getByRole("button", { name: "Source" }));
     await userEvent.type(screen.getByLabelText("checklist.md source"), "!");
     await userEvent.click(screen.getByRole("button", { name: "Save file" }));
 
@@ -233,7 +232,6 @@ describe("the file pane", () => {
 
     expect(screen.queryByRole("button", { name: "Discard" })).toBeNull();
 
-    await userEvent.click(screen.getByRole("button", { name: "Source" }));
     await userEvent.type(screen.getByLabelText("checklist.md source"), "!");
 
     expect(screen.getByRole("button", { name: "Discard" })).toBeInTheDocument();
@@ -242,7 +240,6 @@ describe("the file pane", () => {
   it("throws the draft away on discard, back to what the server holds", async () => {
     mount();
 
-    await userEvent.click(screen.getByRole("button", { name: "Source" }));
     await userEvent.type(screen.getByLabelText("checklist.md source"), "!");
     await userEvent.click(screen.getByRole("button", { name: "Discard" }));
 
@@ -252,7 +249,6 @@ describe("the file pane", () => {
   it("cannot be saved while a save is in flight", async () => {
     mount({ busy: true });
 
-    await userEvent.click(screen.getByRole("button", { name: "Source" }));
     await userEvent.type(screen.getByLabelText("checklist.md source"), "!");
 
     expect(screen.getByRole("button", { name: "Save file" })).toBeDisabled();

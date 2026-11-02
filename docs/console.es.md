@@ -1,5 +1,5 @@
 ---
-source_sha: "1eb28af1cb33"
+source_sha: "666f72857496"
 ---
 
 # La consola { #the-console }
@@ -47,6 +47,8 @@ Cuando **Approve everything** no está disponible, los ajustes del chat distingu
 En el teléfono, las acciones de la página se organizan en dos columnas alineadas. Al abrir un archivo de proyecto o workspace, el visor sustituye al árbol de carpetas; la flecha de regreso vuelve a las carpetas y **Pantalla completa** amplía el visor.
 
 Los campos Markdown y los editores de archivos también ofrecen un botón para ampliar sin descartar el borrador actual. La descripción y la categoría de un skill pueden desplegarse encima del editor. El cuadro del chat ocupa menos espacio y limita los borradores largos según la altura disponible. Al abrir la navegación, el foco se sitúa en el panel; Tab sigue permitiendo acceder a sus controles. En el teléfono, el lienzo del workflow ofrece un control flotante de pantalla completa y un minimapa más pequeño.
+
+En teléfonos, los editores de skills y contexto mantienen plegadas la descripción, la categoría y la gestión de archivos mientras se escribe. Un botón alterna entre código y vista previa. Apps ofrece botones flotantes para volver y abrir opciones; estas muestran el título, la versión, el tema y los controles para compartir.
 
 ## El dashboard { #the-dashboard }
 

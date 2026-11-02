@@ -446,7 +446,7 @@ describe("TriggersPanel", () => {
     await user.click(within(dialog).getByRole("button", { name: "Continue" }));
     // The message field is the same MarkdownEditor the agent's instructions use,
     // so it carries that field's source/preview toggle rather than a bare box.
-    expect(within(dialog).getByRole("button", { name: "Source" })).toBeInTheDocument();
+    expect(within(dialog).queryByRole("button", { name: "Source" })).toBeNull();
     expect(within(dialog).getByRole("button", { name: "Preview" })).toBeInTheDocument();
   });
 

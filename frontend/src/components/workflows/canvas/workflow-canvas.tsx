@@ -40,7 +40,7 @@ export function WorkflowCanvas({ workflow, catalog, readOnly = false }: Workflow
     >
       <div
         data-tour="workflow-canvas-fullscreen"
-        className="bg-background absolute right-3 bottom-16 z-20 rounded-full border shadow-sm md:hidden"
+        className="bg-background absolute right-3 bottom-16 z-20 rounded-full border shadow-sm"
       >
         <WorkspaceFullscreenButton expanded={expanded} onToggle={toggle} />
       </div>

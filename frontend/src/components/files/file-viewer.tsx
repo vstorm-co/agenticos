@@ -6,6 +6,7 @@ import { useLocale, useTranslations } from "next-intl";
 
 import type { Translate } from "@/lib/agent-step-captions";
 
+import { MarkdownModeToggle } from "@/components/ui/markdown-mode-toggle";
 import { FileContent } from "./file-content";
 import { FileIcon } from "./file-icon";
 import {
@@ -155,14 +156,14 @@ export function FileViewer({ file, access, navigation, extraTabs = [], onClose }
             that same line, opposite the name. `pr-10` keeps it clear of the close
             button in the corner. */}
         <DialogHeader className="gap-0 pr-10">
-          <div className="flex min-w-0 items-center justify-between gap-3">
-            <DialogTitle className="flex min-w-0 items-baseline gap-2 text-base">
+          <div className="flex min-w-0 flex-wrap items-center justify-between gap-2 sm:flex-nowrap sm:gap-3">
+            <DialogTitle className="flex min-w-0 flex-1 basis-full items-baseline gap-2 text-base sm:basis-auto">
               <FileIcon
                 name={file.name}
                 mimeType={file.mimeType}
                 className="text-muted-foreground h-4 w-4 shrink-0 self-center"
               />
-              <span className="shrink-0 truncate">{file.name}</span>
+              <span className="min-w-0 truncate">{file.name}</span>
               {showsPath(file.path) && (
                 <span className="text-muted-foreground truncate font-mono text-xs font-normal">
                   {file.path}
@@ -176,7 +177,13 @@ export function FileViewer({ file, access, navigation, extraTabs = [], onClose }
                 the files that happen to have no tabs at all. Still exactly one
                 `DialogDescription`, because Radix wires `aria-describedby` to it
                 wherever it sits and two would be one sentence read twice. */}
-            <div className="flex shrink-0 items-center gap-2">
+            <div className="flex max-w-full min-w-0 items-center gap-2">
+              {extraTabs.length === 0 && hasSourceView(kind) && (
+                <MarkdownModeToggle
+                  mode={view === "source" ? "source" : "preview"}
+                  onChange={setView}
+                />
+              )}
               <DialogDescription className="truncate text-xs">
                 {describe(file, kind, t, tTime, locale)}
                 {strip !== null &&
@@ -198,7 +205,7 @@ export function FileViewer({ file, access, navigation, extraTabs = [], onClose }
           </div>
         </DialogHeader>
 
-        {tabs.length > 1 && (
+        {extraTabs.length > 0 && tabs.length > 1 && (
           <Tabs value={view} onValueChange={setView}>
             <TabsList>
               {tabs.map((tab) => (

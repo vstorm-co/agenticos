@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within, waitFor } from "@testing-library/react";
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 
@@ -74,4 +74,21 @@ describe("InstructionsEditor", () => {
     fireEvent.keyDown(box, { key: "Enter" });
     expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
   });
+});
+
+it("keeps variable suggestions and caret integration in the expanded editor", async () => {
+  const onChange = vi.fn();
+  render(<Harness onChange={onChange} />);
+  fireEvent.click(screen.getByRole("button", { name: "Expand Instructions" }));
+  const dialog = screen.getByRole("dialog", { name: "Instructions" });
+  const box = within(dialog).getByRole("textbox", { name: "Instructions" });
+  fireEvent.change(box, { target: { value: "Hi {{", selectionStart: 5 } });
+  expect(within(dialog).getByRole("listbox")).toBeInTheDocument();
+  fireEvent.keyDown(box, { key: "ArrowDown" });
+  fireEvent.keyDown(box, { key: "Tab" });
+  expect(onChange).toHaveBeenLastCalledWith("Hi {{current_time}}");
+  await waitFor(() => expect(box).toHaveFocus());
+  expect(box).toHaveValue("Hi {{current_time}}");
+  fireEvent.click(within(dialog).getByRole("button", { name: "Close" }));
+  expect(screen.getByRole("textbox", { name: "Instructions" })).toHaveValue("Hi {{current_time}}");
 });

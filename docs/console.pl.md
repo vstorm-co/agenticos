@@ -1,5 +1,5 @@
 ---
-source_sha: "1eb28af1cb33"
+source_sha: "666f72857496"
 ---
 
 # Konsola { #the-console }
@@ -45,6 +45,8 @@ Gdy **Approve everything** jest niedostępne, ustawienia chatu rozróżniają br
 Na telefonie akcje strony układają się w dwóch wyrównanych kolumnach. Otwarcie pliku projektu lub workspace zastępuje drzewo folderów czytnikiem; strzałka wstecz wraca do folderów, a **Pełny ekran** powiększa czytnik.
 
 Pola Markdown i edytory plików również mają przycisk powiększania, który zachowuje bieżący szkic. Opis i kategorię skilla można rozwinąć nad edytorem. Pole wiadomości na czacie zajmuje mniej miejsca i ogranicza wysokość długiego szkicu do dostępnej wysokości ekranu. Otwarcie nawigacji ustawia focus na panelu, a Tab nadal przechodzi do jego kontrolek. Canvas workflow ma na telefonie pływający przycisk pełnego ekranu i mniejszą minimapę.
+
+Na telefonie edytory skilli i contextu chowają opis, kategorię i zarządzanie plikami podczas pisania. Jeden przycisk przełącza źródło i podgląd. Apps ma pływające przyciski powrotu i opcji; opcje rozwijają tytuł, wersję, motyw i udostępnianie.
 
 ## Dashboard { #the-dashboard }
 

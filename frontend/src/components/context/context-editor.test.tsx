@@ -51,7 +51,10 @@ function mount(props: Partial<React.ComponentProps<typeof ContextEditor>> = {}) 
 }
 
 const save = () => screen.getByRole("button", { name: "Save" });
-const openSource = () => userEvent.click(screen.getByRole("button", { name: "Source" }));
+const openSource = async () => {
+  const source = screen.queryByRole("button", { name: "Source" });
+  if (source) await userEvent.click(source);
+};
 const body = () => screen.getByLabelText("glossary.md source");
 
 describe("ContextEditor", () => {
@@ -175,4 +178,15 @@ it("does not offer the resource menu to a reader", () => {
 it("disables destructive actions while a save is pending", () => {
   mount({ isSaving: true, onDelete: vi.fn() });
   expect(screen.getByRole("button", { name: "More actions for glossary" })).toBeDisabled();
+});
+
+it("folds context details without losing the description draft", async () => {
+  mount();
+  const toggle = screen.getByRole("button", { name: "Description" });
+  expect(toggle).toHaveAttribute("aria-expanded", "false");
+  await userEvent.click(toggle);
+  await userEvent.type(screen.getByLabelText("Description"), " revised");
+  await userEvent.click(toggle);
+  await userEvent.click(toggle);
+  expect(screen.getByLabelText("Description")).toHaveValue("terms revised");
 });

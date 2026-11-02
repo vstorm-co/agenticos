@@ -908,6 +908,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
     id: "agent-editor-fullscreen",
     page: AGENT_BUILDER,
     target: "text-editor-expand",
+    activate: "agent-tab-build",
     permission: Perm.agentsView,
     optional: true,
   },

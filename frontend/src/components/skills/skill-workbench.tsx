@@ -1,7 +1,7 @@
 "use client";
 
 import { useId, useMemo, useState } from "react";
-import { AlertTriangle, BookOpen, ChevronDown, FilePlus, Upload } from "lucide-react";
+import { AlertTriangle, BookOpen, ChevronDown, FolderOpen, FilePlus, Upload } from "lucide-react";
 
 import { Alert, AlertDescription, Button, DialogFooter, Textarea, Label } from "@/components/ui";
 import { FileEditor } from "@/components/files";
@@ -70,6 +70,8 @@ export function SkillWorkbench({
   const [adding, setAdding] = useState(false);
   const [metadataOpen, setMetadataOpen] = useState(false);
   const metadataId = useId();
+  const filesId = useId();
+  const [filesOpen, setFilesOpen] = useState(false);
 
   const files = useMemo(() => skill.resources ?? [], [skill.resources]);
   const tree = useMemo(() => buildTree(files), [files]);
@@ -88,17 +90,38 @@ export function SkillWorkbench({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-3">
-      <button
-        type="button"
-        className="flex min-h-11 min-w-0 shrink-0 items-center gap-2 rounded-lg border px-3 text-left text-sm md:hidden"
-        aria-expanded={metadataOpen}
-        aria-controls={metadataId}
-        onClick={() => setMetadataOpen(!metadataOpen)}
-      >
-        <span className="shrink-0 font-medium">{t("description3")}</span>{" "}
-        <span className="text-muted-foreground min-w-0 flex-1 truncate">{description}</span>
-        <ChevronDown className={cn("size-4 shrink-0", metadataOpen && "rotate-180")} aria-hidden />
-      </button>
+      <div className="flex shrink-0 items-center gap-2 md:hidden">
+        <button
+          type="button"
+          className="touch:min-h-11 flex h-8 min-w-0 items-center gap-2 rounded-lg border px-3 text-left text-xs"
+          aria-expanded={metadataOpen}
+          aria-controls={metadataId}
+          onClick={() => {
+            setMetadataOpen(!metadataOpen);
+            setFilesOpen(false);
+          }}
+        >
+          <span className="shrink-0 font-medium">{t("description3")}</span>{" "}
+          <span className="sr-only">{description}</span>
+          <ChevronDown
+            className={cn("size-4 shrink-0", metadataOpen && "rotate-180")}
+            aria-hidden
+          />
+        </button>
+        <Button
+          variant="outline"
+          size="sm"
+          aria-expanded={filesOpen}
+          aria-controls={filesId}
+          onClick={() => {
+            setFilesOpen(!filesOpen);
+            setMetadataOpen(false);
+          }}
+        >
+          <FolderOpen aria-hidden />
+          {t("files3")}
+        </Button>
+      </div>
       <div
         id={metadataId}
         className={cn(
@@ -117,6 +140,7 @@ export function SkillWorkbench({
             readOnly={!canEdit}
           />
           <p className="text-muted-foreground text-xs">{t("onlyPartModelReads2")}</p>
+          <p className="text-muted-foreground text-xs">{t("markdownLoadedOnlyAfter")}</p>
         </div>
         <div className="w-full shrink-0 space-y-1.5 md:w-56">
           <Label htmlFor="skill-category">{t("category2")}</Label>
@@ -132,8 +156,14 @@ export function SkillWorkbench({
         </div>
       </div>
 
-      <div className="grid min-h-0 flex-1 grid-rows-[auto_minmax(0,1fr)] gap-3 md:grid-cols-[minmax(0,15rem)_minmax(0,1fr)] md:grid-rows-1">
-        <div className="flex min-h-0 flex-col gap-2">
+      <div className="flex min-h-0 flex-1 flex-col gap-3 md:grid md:grid-cols-[minmax(0,15rem)_minmax(0,1fr)] md:grid-rows-1">
+        <div
+          id={filesId}
+          className={cn(
+            "flex min-h-0 shrink-0 flex-col gap-2 max-md:max-h-[30dvh] md:shrink",
+            !filesOpen && "max-md:hidden",
+          )}
+        >
           {canEdit && (
             // One row of three, above the tree: stacked below it they wrapped
             // onto two lines and read as an afterthought under a tall empty box.
@@ -145,6 +175,7 @@ export function SkillWorkbench({
                 onClick={() => {
                   setAdding(true);
                   setOpenId(null);
+                  setFilesOpen(false);
                 }}
               >
                 <FilePlus className="h-3.5 w-3.5" />
@@ -164,6 +195,7 @@ export function SkillWorkbench({
               onClick={() => {
                 setOpenId(null);
                 setAdding(false);
+                setFilesOpen(false);
               }}
               aria-current={openId === null && !adding}
               className={cn(
@@ -180,13 +212,14 @@ export function SkillWorkbench({
               onOpen={(id) => {
                 setOpenId(id);
                 setAdding(false);
+                setFilesOpen(false);
               }}
             />
           </div>
         </div>
 
         {/* The reader takes the remaining height; saving stays within reach below it. */}
-        <div className="flex min-h-0 flex-col">
+        <div className="flex min-h-0 flex-1 flex-col">
           {adding ? (
             <NewFileForm
               busy={addResource.isPending}
@@ -194,6 +227,7 @@ export function SkillWorkbench({
               onSubmit={async (draft) => {
                 await addResource.mutateAsync(draft);
                 setAdding(false);
+                setFilesOpen(false);
               }}
             />
           ) : selected ? (
@@ -210,15 +244,7 @@ export function SkillWorkbench({
               }}
             />
           ) : (
-            <FileEditor
-              name={BODY}
-              content={content}
-              canEdit={canEdit}
-              onChange={setContent}
-              footer={
-                <p className="text-muted-foreground text-xs">{t("markdownLoadedOnlyAfter")}</p>
-              }
-            />
+            <FileEditor name={BODY} content={content} canEdit={canEdit} onChange={setContent} />
           )}
         </div>
       </div>
@@ -230,9 +256,10 @@ export function SkillWorkbench({
         </Alert>
       )}
 
-      <DialogFooter className="grid shrink-0 grid-cols-2 sm:flex [&>div]:col-span-2">
-        <div className="flex items-center gap-2 sm:mr-auto">
+      <DialogFooter className="shrink-0 flex-row items-center max-md:pt-2">
+        <div className="mr-auto flex items-center gap-2">
           <ShareResourceButton
+            compact
             resourceType="skill"
             resourceId={skill.id}
             name={skill.name}

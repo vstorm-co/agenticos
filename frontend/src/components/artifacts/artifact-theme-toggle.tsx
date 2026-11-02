@@ -15,26 +15,12 @@ export function ArtifactThemeToggle({
   onChange: (theme: ArtifactTheme) => void;
 }) {
   const t = useTranslations("artifacts");
+  const next = theme === "light" ? "dark" : "light";
+  const label = t(next === "dark" ? "darkTheme" : "lightTheme");
+  const Icon = next === "dark" ? Moon : Sun;
   return (
-    <div role="group" aria-label={t("appTheme")} className="flex shrink-0 items-center gap-1">
-      <IconButton
-        variant={theme === "light" ? "secondary" : "ghost"}
-        aria-label={t("lightTheme")}
-        title={t("lightTheme")}
-        aria-pressed={theme === "light"}
-        onClick={() => onChange("light")}
-      >
-        <Sun className="h-4 w-4" aria-hidden />
-      </IconButton>
-      <IconButton
-        variant={theme === "dark" ? "secondary" : "ghost"}
-        aria-label={t("darkTheme")}
-        title={t("darkTheme")}
-        aria-pressed={theme === "dark"}
-        onClick={() => onChange("dark")}
-      >
-        <Moon className="h-4 w-4" aria-hidden />
-      </IconButton>
-    </div>
+    <IconButton variant="ghost" aria-label={label} title={label} onClick={() => onChange(next)}>
+      <Icon className="h-4 w-4" aria-hidden />
+    </IconButton>
   );
 }

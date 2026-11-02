@@ -81,7 +81,7 @@ describe("the chat's file dialog", () => {
     open({ filename: "notes.md", mime_type: "text/markdown" });
 
     expect(await screen.findByTestId("markdown")).toHaveTextContent("# Notes");
-    expect(screen.getByRole("tab", { name: "Preview" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("button", { name: "Source" })).toBeInTheDocument();
   });
 
   it("shows the characters once the source is asked for", async () => {
@@ -89,7 +89,7 @@ describe("the chat's file dialog", () => {
     open({ filename: "notes.md", mime_type: "text/markdown" });
     await screen.findByTestId("markdown");
 
-    await userEvent.click(screen.getByRole("tab", { name: "Source" }));
+    await userEvent.click(screen.getByRole("button", { name: "Source" }));
 
     expect(await screen.findByText("# Notes")).toBeInTheDocument();
     expect(screen.queryByTestId("markdown")).toBeNull();

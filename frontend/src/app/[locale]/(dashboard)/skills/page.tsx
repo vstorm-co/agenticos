@@ -378,7 +378,9 @@ export default function SkillsPage() {
           <DialogContent className={cn(DIALOG_FILL, DIALOG_CANVAS, "max-md:overflow-y-auto")}>
             <DialogHeader>
               <DialogTitle className="font-mono">{selected.name}</DialogTitle>
-              <DialogDescription>{t("nameHowModelRefers")}</DialogDescription>
+              <DialogDescription className="max-md:sr-only">
+                {t("nameHowModelRefers")}
+              </DialogDescription>
             </DialogHeader>
             {skill === undefined ? (
               <div

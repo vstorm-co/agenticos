@@ -9999,6 +9999,7 @@
     "currentTag": "Bieżąca",
     "publicUpdated": "Zaktualizowano {when}",
     "backToArtifacts": "Wróć do aplikacji",
+    "viewerControls": "Opcje aplikacji",
     "share": "Udostępnij",
     "moreActions": "Więcej akcji",
     "accessRestricted": "Tylko osoby z dostępem",
@@ -10266,7 +10267,6 @@
       "blockedSwitch": "Najpierw właściciel lub administrator musi włączyć dane na żywo na stronach publicznych w ustawieniach organizacji.",
       "blockedLink": "Strona nie ma publicznego linku. Najpierw go włącz."
     },
-    "appTheme": "Motyw aplikacji",
     "lightTheme": "Użyj jasnego motywu aplikacji",
     "darkTheme": "Użyj ciemnego motywu aplikacji"
   },

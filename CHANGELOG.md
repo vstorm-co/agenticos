@@ -22,7 +22,7 @@ Two things are versioned separately from this file and worth knowing about:
 ### Fixed
 
 - CI, load tests and dependency freshness checks disable deployment diagnostics so ephemeral test installations and browser activity do not enter the live analytics collector.
-- Improve phone layouts across page actions, app preview toolbars, skill descriptions and file readers. Project and workspace files use a dedicated reading pane on narrow screens, and Markdown fields and file editors can be expanded while preserving drafts. Align the source editor’s painted text with its input on phones, reduce the chat composer’s height, and open mobile navigation without focusing its close button.
+- Improve phone layouts across page actions, app controls, skill and context editors, and file readers. Mobile editors fold descriptions and file management away while writing; project and workspace files have a dedicated reader. Source/preview controls use one button. Apps use floating back and options buttons, keeping more space for their content. Expanded editors preserve drafts and variable completion. Reduce the chat composer's height, align painted source text with its input, and open navigation without focusing its close button.
 
 ## [1.34.2] - 2026-11-01
 
