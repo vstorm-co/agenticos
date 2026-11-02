@@ -1,4 +1,4 @@
-<!-- source_sha: f04030a1e1ca -->
+<!-- source_sha: bacd0d42dd92 -->
 
 <div align="center">
 
@@ -130,7 +130,7 @@ AgenticOS ist ein MCP-Server. Mit einem Befehl hinzufügen und im Browser anmeld
 
 ## 💡 Was ist AgenticOS?
 
-**AgenticOS ist eine quelloffene (Apache-2.0), selbst gehostete Schicht, um KI-Agenten im ganzen Unternehmen zu erstellen, zu teilen und zu steuern.** Teams konfigurieren einen Agenten im Browser: Sie schreiben seine Anweisungen, wählen ein Modell und schalten Werkzeuge ein. Sie verbinden ihn mit Unternehmensdokumenten und Apps und veröffentlichen ihn im Webchat, in Slack, Mattermost, Telegram, als Website-Widget oder über eine API. Administratoren steuern, wer einen Agenten nutzen darf, was er ausgeben darf und welche Aktionen die Freigabe einer Person brauchen. Jeder Run wird aufgezeichnet.
+**AgenticOS ist eine quelloffene (Apache-2.0), selbst gehostete Schicht, um KI-Agenten im ganzen Unternehmen zu erstellen, zu teilen und zu steuern.** Teams konfigurieren einen Agenten im Browser: Sie schreiben seine Anweisungen, wählen ein Modell und schalten Werkzeuge ein. Sie verbinden ihn mit Unternehmensdokumenten und Apps und veröffentlichen ihn im Webchat, in Slack, Mattermost, Telegram, WhatsApp, als Website-Widget oder über eine API. Administratoren steuern, wer einen Agenten nutzen darf, was er ausgeben darf und welche Aktionen die Freigabe einer Person brauchen. Jeder Run wird aufgezeichnet.
 
 Die meisten Agent-Frameworks liefern eine Bibliothek, also wird jede Änderung am Verhalten eines Agenten zu Pull Request, Review und Release. Das passt nicht zu den kleinen Agenten, die ein Unternehmen tatsächlich will, denn wer weiß, was der Agent sagen soll, hat meist keinen Commit-Zugriff. **Code definiert, Konfiguration setzt zusammen:** Entwickler erweitern den Baukasten, und Konfiguration erreicht immer nur das, was Code registriert hat.
 
@@ -197,7 +197,7 @@ AgenticOS verbindet Agenten mit den Modellen, Chatwerkzeugen, Geschäftsanwendun
 
 | Verbinden | Wie | Mehr dazu |
 |---|---|---|
-| **Chatwerkzeuge** | Veröffentliche einen Agenten in Slack, Mattermost oder Telegram, als Website-Widget, gehostete Seite, über die API oder einen WebSocket | [Kanäle](https://vstorm-co.github.io/agenticos/de/channels/) |
+| **Chatwerkzeuge** | Veröffentliche einen Agenten in Slack, Mattermost, Telegram oder WhatsApp, als Website-Widget, gehostete Seite, über die API oder einen WebSocket | [Kanäle](https://vstorm-co.github.io/agenticos/de/channels/) |
 | **Geschäftswerkzeuge** | **über 4.700 MCP-Server** in der Galerie (Notion, GitHub, Jira, HubSpot, Stripe…) und eigene Server; wähle, welche Werkzeuge jeder Agent aufrufen darf | [MCP](https://vstorm-co.github.io/agenticos/de/mcp/) |
 | **Dokumente** | Synchronisiere Google Drive, S3/MinIO, Git-Repositories, Websites, SharePoint und OneDrive in Wissensbasen | [Synchronisationsquellen](https://vstorm-co.github.io/agenticos/de/howto/configure-sync-sources/) |
 | **Ereignisse** | Starte Agenten nach Zeitplan, bei einem neuen GitHub-Issue, einer Gmail-Nachricht oder einem signierten Webhook | [Routinen](https://vstorm-co.github.io/agenticos/de/triggers/) |
@@ -215,7 +215,7 @@ Wähle Modell, Anweisungen und Werkzeuge eines Agenten im Browser. Veröffentlic
 
 Der Agent Builder hat vier Bereiche: **(1)** Name und Veröffentlichungsstatus, wobei ein Entwurf privat bleibt, bis du eine Version veröffentlichst; **(2)** Tabs für Toolbox, MCP-Server, Limits, Verfügbarkeit und Versionshistorie; **(3)** die Anweisungen, in einfacher Sprache geschrieben wie ein Briefing für einen neuen Kollegen; und **(4)** das Modell, pro Agent aus deinen konfigurierten Anbietern gewählt.
 
-Kollegen können einen veröffentlichten Agenten im **Webchat, in Slack, Mattermost oder Telegram** nutzen, wenn diese Kanäle eingerichtet sind, als **Website-Widget** oder **gehostete Seite** oder über die **API** und den **WebSocket**. [Agent erstellen](https://vstorm-co.github.io/agenticos/de/first-agent/) · [Kanal verbinden](https://vstorm-co.github.io/agenticos/de/channels/)
+Kollegen können einen veröffentlichten Agenten im **Webchat, in Slack, Mattermost, Telegram oder WhatsApp** nutzen, wenn diese Kanäle eingerichtet sind, als **Website-Widget** oder **gehostete Seite** oder über die **API** und den **WebSocket**. [Agent erstellen](https://vstorm-co.github.io/agenticos/de/first-agent/) · [Kanal verbinden](https://vstorm-co.github.io/agenticos/de/channels/)
 
 ### 📂 Mit Dateien und Code arbeiten
 
@@ -338,7 +338,7 @@ Dazu jedes Werkzeug eines verbundenen MCP-Servers und Capabilities, die deine En
 <img src="docs/assets/readme/eight-surfaces.webp" alt="Acht Orte, an denen ein Agent antworten kann." width="100%">
 <img src="docs/assets/readme/model-providers.webp" alt="28 Modellanbieter: gehostet, über deinen Cloud-Vertrag oder auf deiner Hardware." width="100%">
 
-**Wo Agenten antworten:** Webchat, ein Website-Widget, eine gehostete Seite, die HTTP-API, ein streamender WebSocket, Slack, Mattermost und Telegram.
+**Wo Agenten antworten:** Webchat, ein Website-Widget, eine gehostete Seite, die HTTP-API, ein streamender WebSocket, Slack, Mattermost, Telegram und WhatsApp.
 
 **Modellanbieter:**
 - **Gehostet (22):** OpenAI, Anthropic, Google Gemini, OpenRouter, Mistral, DeepSeek, xAI, Cohere, Groq, Cerebras, Together, Fireworks, Hugging Face, GitHub Models, Alibaba, Moonshot, Z.AI, Nebius, OVHcloud, SambaNova, Heroku und Vercel AI Gateway.

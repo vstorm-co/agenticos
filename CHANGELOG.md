@@ -19,6 +19,26 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- **WhatsApp as a channel** (#2076). A published agent answers on a WhatsApp Business
+  number through Meta's Cloud API, in direct chats and in text: images, documents,
+  voice notes and other messages are refused by name until a later release. Register
+  the bot from **Channels** or `channel-add-bot --platform whatsapp`, then paste the
+  callback URL it shows into the Meta app. Every webhook POST is checked against
+  Meta's signature with the app secret before it is read. An unlinked sender
+  confirms the link in the browser and sends the 6-digit code it shows from the
+  chat within 5 minutes. Answers go as one message, split at 4096 characters and
+  converted to WhatsApp formatting, with a read receipt and a typing indicator. A
+  bot whose access token Meta refuses is shown as down. The `whitelist` policy is
+  impractical on WhatsApp, because a sender is identified by a business-scoped id
+  an operator cannot see: use linking. Outbound traffic goes to `graph.facebook.com`.
+
+### Changed
+
+- A conversation a Microsoft Teams bot starts is now titled "Microsoft Teams Chat"
+  instead of "Teams Chat". Existing conversations keep their title.
+
 ### Fixed
 
 - The input guardrail no longer reads an attached picture's bytes. On a prompt with a picture it screened the prompt's whole representation, image data included, so PII redaction refused most pictures, a blocked keyword such as `png` matched the data, and a redaction ended the turn as `failed`. The edge now screens the prompt's text alone (a text file sent inline as text, and a link, where a match blocks because a link cannot be rewritten), a redaction rewrites that text and keeps the picture, and the check that runs before an attachment is written now predicts the edge for a turn with a picture too, so a blocked one no longer leaves its picture in the workspace. An inline text file is screened as the UTF-8 a model is sent, and one that declares another character set or is not valid UTF-8 blocks the turn instead of being screened as different text. The size limits of a resumed request count the text of all its prompt parts together (#2566).

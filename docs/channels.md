@@ -1,7 +1,7 @@
 # Putting an agent where people already are
 
 An agent that only answers inside this dashboard is a demo. The same published
-agent answers in eight places, and every one of them runs the *same frozen
+agent answers in nine places, and every one of them runs the *same frozen
 version* through the same budget, the same approval gate and the same tenant
 checks — the surface changes, the agent does not.
 
@@ -15,6 +15,7 @@ checks — the surface changes, the agent does not.
 | **Slack** | a bot token | a Slack account, optionally linked to a member |
 | **Telegram** | a bot token | a Telegram account, optionally linked |
 | **Mattermost** | a bot token and your server URL | a Mattermost account, optionally linked |
+| **WhatsApp** | a Meta app, a business number and an access token | a WhatsApp account, linked by a code sent from the chat |
 
 The dashboard also opens as a [desktop app](desktop.md): a window around the same
 console, loaded from the same server, with nothing bundled.
@@ -26,7 +27,7 @@ console, loaded from the same server, with nothing bundled.
     - **A run that failed is still in history with what it spent** — the tokens
       were spent before it broke, and a budget that ignores that is not a budget.
 
-!!! info "Three of those eight are one table, and its rows differ by a `kind`"
+!!! info "Three of those nine are one table, and its rows differ by a `kind`"
 
     A widget, a raw socket and a hosted page are each an *embed* — and a kind is
     fixed at creation, because a tag already pasted, a client already written and
@@ -367,6 +368,8 @@ They are now. Every "no" below has a reason, and a reason is either "this would
 be wrong here" or "this is not built yet" — never silence.
 
 The last column is Teams (#1985), standing for the chat platforms beside them.
+WhatsApp (#2076) answers in text only in this release, in one message, with files
+refused by name: see [WhatsApp](#whatsapp).
 
 | | `/chat` (dashboard) | Raw WebSocket | The public API | Teams |
 |---|---|---|---|---|
@@ -1459,6 +1462,91 @@ bot there. A chart is drawn into the message.
 remembered, and a trigger can name one of the organization's team channels or
 group chats: every fire's answer is then posted there as a new message, under the
 trigger's name. A personal chat is never offered — it is somebody's own.
+
+## WhatsApp { #whatsapp }
+
+A WhatsApp bot is a business number on Meta's **WhatsApp Business Cloud API**, and
+the agent answers **direct chats only** (#2076). This release answers in **text**:
+a customer who sends an image, a document, a voice note or any other message that
+is not text is told the bot cannot fetch files from WhatsApp yet, and the message
+goes through the same access, duplicate and rate-limit checks as any other.
+
+1. In [Meta for Developers](https://developers.facebook.com), create an app with
+   the **WhatsApp** use case, and attach it to a WhatsApp Business account.
+2. Choose the number: Meta's **test number** costs nothing and needs no payment
+   method, or add your own. Note its **phone number ID** and the **WhatsApp Business
+   account ID**.
+3. In Meta Business settings, create a **System User**, give it the app and the
+   account, and generate a **permanent token** with `whatsapp_business_messaging`
+   and `whatsapp_business_management`. A token that expires after a day is the
+   temporary one from the app's start page; it will stop the bot.
+4. Copy the app's **app secret** (*App settings → Basic*). Choose a **verify
+   token**: any string, which only you and Meta know.
+5. Register it: **Channels → Add channel**, platform `whatsapp`, with the access
+   token, the two IDs, the app secret and the verify token. The CLI takes the same
+   (`channel-add-bot --platform whatsapp --whatsapp-phone-number-id ...
+   --whatsapp-account-id ... --whatsapp-verify-token ... --webhook-secret <app secret>`;
+   see [Commands](commands.md)). The API calls the app secret `webhook_secret`.
+6. Paste the **callback URL** the bot shows (`/api/v1/whatsapp/{bot_id}/webhook`,
+   under your public base URL) and the verify token into the app's *WhatsApp →
+   Configuration*, and verify it.
+7. **Subscribe** the `messages` field.
+8. Put the Meta app in **Live** mode. Meta does not send every webhook to an app in
+   Development mode, so a bot can look connected and stay silent.
+
+**Every POST is checked before it is read.** Meta signs each delivery; the
+signature is compared against the app secret over the raw bytes before anything
+is parsed or stored, and a request that fails is a 401. A bot with no app secret
+refuses every POST, so it never answers an unsigned request.
+
+**Who is speaking** is the sender's WhatsApp **business-scoped user ID**, not their
+phone number. AgenticOS stores that ID, the profile name the sender chose and, as
+the label shown for them, the WhatsApp username when they have one and otherwise the
+phone number masked as `•••• 1234`; it never logs a message ID or a phone number.
+
+### Linking with a code
+
+WhatsApp has no browser session to share, so a link is confirmed from the chat.
+Anybody the bot does not know sends it a message and receives a link; they open it
+and confirm in the browser while signed in. The page then shows a **6-digit code**
+which they **send from that WhatsApp chat within 5 minutes**. Text sent before the
+code gets a reminder of what to do. A different 6-digit message cancels the
+request, so a guess costs a fresh confirmation.
+
+The confirmation page shows the
+sender's profile name marked **not verified** — a person chooses it, so it proves
+nothing — and the masked number, so the member can see which chat they are
+connecting. The code applies to WhatsApp only; the other platforms link as before.
+
+Because an operator cannot see a sender's business-scoped ID, the **`whitelist`**
+access policy is impractical here. Use `jwt_linked` and let people link.
+
+### How answers look
+
+WhatsApp cannot edit a message, so the answer arrives as **one message** when it is
+done, and one longer than 4096 characters is split at that limit without cutting
+through an emoji. Markdown is converted to WhatsApp's own formatting: a code block
+stays a code block, a table becomes a monospace block and a URL is left alone. The
+message you sent is marked **read** and a **typing indicator** shows while the agent
+works.
+
+### What it costs
+
+Messages a customer sends are free. Each business number gets **1,000 free service
+messages a month**; Meta charges for the ones after that. The test number needs no
+payment method.
+
+### Limits
+
+- **Direct chats only**; there are no groups.
+- **A long answer arrives as several messages, and they may arrive out of order**:
+  Meta does not guarantee the order of messages sent in quick succession.
+- A restart between the moment AgenticOS acknowledges Meta and the moment it
+  processes a message loses that message, as on every channel. Meta's retries and
+  duplicates are recognised for 15 minutes.
+- **When Meta refuses the access token** (an expired or revoked token), the bot is
+  shown as **down** with what to do, and the next message that sends clears it. The
+  status lapses after 15 minutes without traffic.
 
 ## A bot that cannot start stops, rather than retrying
 
@@ -2556,7 +2644,7 @@ the message came from. See
 flowchart TD
     A{a site of your own?} -->|no| L{a link will do?}
     L -->|yes| H[a hosted page]
-    L -->|no| T[Slack, Teams, Telegram or Mattermost]
+    L -->|no| T[Slack, Teams, Telegram, Mattermost or WhatsApp]
     A -->|yes| U{your own interface?}
     U -->|yes| WS[the raw WebSocket]
     U -->|no| P{visitors signed in to your product?}
@@ -2569,7 +2657,7 @@ flowchart TD
 - Inside your product, per-user → **widget, `jwt` mode**.
 - Your own interface entirely → **WebSocket**.
 - No site of your own, and a link will do → **a hosted page**.
-- Where the team already talks → **Slack, Teams, Telegram or Mattermost**.
+- Where the team already talks → **Slack, Teams, Telegram, Mattermost or WhatsApp**.
 - Another system entirely → the REST API (`POST /api/v1/agents/{id}/run`).
 
 !!! success "The first four are one object"
@@ -2582,7 +2670,7 @@ flowchart TD
 ## Recap
 
 - **One runner behind every surface.** Web chat, a hosted page, a widget, the API,
-  Slack, Teams, Telegram and Mattermost all reach the same code, so governance is
+  Slack, Teams, Telegram, Mattermost and WhatsApp all reach the same code, so governance is
   not something a caller can route around.
 - A bot answers as **one agent**, and a mention runs as **the sender** — never as
   the bot.

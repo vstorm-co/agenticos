@@ -163,6 +163,8 @@ Publish once. The same runner answers on all of these:
 - **The HTTP API**, and a raw WebSocket for streaming
 - **Slack**, **Telegram** and **Mattermost**, where an `@mention` runs as the
   person who sent it — not as the bot
+- **WhatsApp**, in direct chats, answered in text, with a member linked by a code
+  sent from the chat
 
 Speech to text runs on the organization's own provider on these too: dictation
 in web chat, on a hosted page and in the widget, and voice notes transcribed
