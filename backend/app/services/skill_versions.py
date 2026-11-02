@@ -223,6 +223,14 @@ class SkillVersionService:
     async def _fork(
         self, ctx: AuthContext, skill: Skill, fork_id: UUID, *, lock: bool = False
     ) -> SkillFork:
+        """The skill's fork, or 404. Locked, it is taken after the skill itself.
+
+        Applying a proposal locks the skill and then the fork, so every writer of a
+        fork takes the two in that order: two of them wait for each other instead of
+        deadlocking.
+        """
+        if lock:
+            await skill_repo.lock(self.db, skill.id)
         fork = await skill_version_repo.get_fork(
             self.db, fork_id, organization_id=ctx.organization_id, skill_id=skill.id, lock=lock
         )
@@ -567,7 +575,6 @@ class SkillVersionService:
         skill = await self.skill_for(ctx, skill_id, Perm.SKILLS_EDIT)
         fork = await self._fork(ctx, skill, fork_id, lock=True)
         if data.name != fork.name:
-            await skill_repo.lock(self.db, skill.id)
             await self._refuse_taken(ctx, skill, data.name)
             fork = await skill_version_repo.update_fork(
                 self.db, fork=fork, update_data={"name": data.name}
