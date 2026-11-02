@@ -1274,11 +1274,7 @@ async def run_outcomes(db: AsyncSession, run_ids: Collection[UUID]) -> dict[UUID
 
 
 def _refused(run_id: UUID) -> ColumnElement[bool]:
-    """Whether `run_id` ended `guardrail_blocked`, read in the statement that writes the row.
-
-    So a row written for a run after it ended - web chat's answer, a channel's
-    transcript - is marked as the run's own rows were (#2578).
-    """
+    """Whether `run_id` ended `guardrail_blocked`, for a row written after it did (#2578)."""
     return exists().where(
         AgentRun.id == run_id, AgentRun.status == RunStatus.GUARDRAIL_BLOCKED.value
     )
@@ -1580,7 +1576,11 @@ async def link_message_to_run(
     await db.execute(
         sql_update(Message)
         .where(Message.id == message_id, Message.conversation_id == conversation_id)
-        .values(run_id=run_id, guardrail_refused=_refused(run_id))
+        .values(
+            run_id=run_id,
+            # Kept if already set: a refusal is never taken back by a relink.
+            guardrail_refused=Message.guardrail_refused | _refused(run_id),
+        )
     )
 
 

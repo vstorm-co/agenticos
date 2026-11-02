@@ -389,14 +389,23 @@ class TestTheRefusalIsWrittenOnTheMessage:
         )
         assert marked == {blocked.id: True, allowed.id: False}
 
-
-def _backfill() -> ModuleType:
-    path = Path(__file__).parents[2] / "alembic/versions/0249_message_guardrail_refused.py"
-    spec = importlib.util.spec_from_file_location("message_guardrail_refused", path)
-    assert spec is not None and spec.loader is not None
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
+        # A link reads the run as `create_message` does, and never clears a mark.
+        await conversation_repo.link_message_to_run(
+            db, message_id=loose.id, run_id=blocked.id, conversation_id=chat.id
+        )
+        await conversation_repo.link_message_to_run(
+            db, message_id=late.id, run_id=allowed.id, conversation_id=chat.id
+        )
+        relinked = dict(
+            (
+                await db.execute(
+                    select(Message.id, Message.guardrail_refused).where(
+                        Message.id.in_([loose.id, late.id])
+                    )
+                )
+            ).all()
+        )
+        assert relinked == {loose.id: True, late.id: True}
 
 
 class TestTheMarkIsBackfilledFromTheRuns:
@@ -424,7 +433,7 @@ class TestTheMarkIsBackfilledFromTheRuns:
             .values(guardrail_refused=False)
         )
 
-        await db.execute(text(_backfill().MARK_REFUSED))
+        await db.execute(text(_migration("0249_message_guardrail_refused").MARK_REFUSED))
 
         marked = {
             (run_id, role): refused
@@ -441,9 +450,9 @@ class TestTheMarkIsBackfilledFromTheRuns:
         assert marked[(allowed.id, "assistant")] is False
 
 
-def _migration() -> ModuleType:
-    path = Path(__file__).parents[2] / "alembic/versions/0248_drop_refused_turn_summaries.py"
-    spec = importlib.util.spec_from_file_location("drop_refused_turn_summaries", path)
+def _migration(name: str = "0248_drop_refused_turn_summaries") -> ModuleType:
+    path = Path(__file__).parents[2] / f"alembic/versions/{name}.py"
+    spec = importlib.util.spec_from_file_location(name, path)
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)

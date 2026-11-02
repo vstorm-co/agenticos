@@ -62,6 +62,7 @@ class MockMessage:
         model_name=None,
         tokens_used=None,
         run_id=None,
+        guardrail_refused=False,
     ):
         self.id = id or uuid4()
         self.conversation_id = conversation_id or uuid4()
@@ -73,7 +74,7 @@ class MockMessage:
         # reads a status off it so a stopped turn can say it was stopped.
         self.run_id = run_id
         # Whether a guardrail stopped its turn: a history withholds it (#2578).
-        self.guardrail_refused = False
+        self.guardrail_refused = guardrail_refused
         self.attachment_context = None
         self.parts: list[dict[str, object]] | None = None
         # Who typed it and what it answers: nobody named, nothing answered.
@@ -2281,8 +2282,9 @@ class TestTheThreadAModelIsGivenBack:
         the words typed and the head of the file attached with them."""
         conversation = MockConversation()
         # The run is gone - retention retired it - and the row still says so.
-        refused = MockMessage(role="user", content="summarise SECRETWORD", run_id=None)
-        refused.guardrail_refused = True
+        refused = MockMessage(
+            role="user", content="summarise SECRETWORD", run_id=None, guardrail_refused=True
+        )
         refused.context_used_tokens = None
         refused.attachment_context = "\n---\nAttached file: notes.txt\nFirst 20 lines:\nSECRETWORD"
         allowed = MockMessage(role="user", content="what did it say?", run_id=uuid4())
@@ -2305,11 +2307,13 @@ class TestTheThreadAModelIsGivenBack:
         same run, and was read back after the prompt it belongs to was withheld."""
         conversation = MockConversation()
         run_id = uuid4()
-        prompt = MockMessage(role="user", content="pay the invoice", run_id=run_id)
-        prompt.guardrail_refused = True
+        prompt = MockMessage(
+            role="user", content="pay the invoice", run_id=run_id, guardrail_refused=True
+        )
         prompt.context_used_tokens = None
-        answer = MockMessage(role="assistant", content="Working", run_id=run_id)
-        answer.guardrail_refused = True
+        answer = MockMessage(
+            role="assistant", content="Working", run_id=run_id, guardrail_refused=True
+        )
         answer.context_used_tokens = None
         answer.parts = [{"type": "steer", "text": "Use account EU-42"}]
         monkeypatch.setattr(
@@ -2335,8 +2339,9 @@ class TestTheThreadAModelIsGivenBack:
         )
         conversation.summary_ordinal = 4
         run_id = uuid4()
-        refused = MockMessage(role="user", content="SECRETWORD", run_id=run_id)
-        refused.guardrail_refused = True
+        refused = MockMessage(
+            role="user", content="SECRETWORD", run_id=run_id, guardrail_refused=True
+        )
         refused.context_used_tokens = None
         monkeypatch.setattr(
             conversation_repo, "get_conversation_by_id", AsyncMock(return_value=conversation)
@@ -2359,8 +2364,9 @@ class TestTheThreadAModelIsGivenBack:
         or from outside it."""
         conversation = MockConversation()
         run_id = uuid4()
-        refused = MockMessage(role="user", content="SECRETWORD", run_id=run_id)
-        refused.guardrail_refused = True
+        refused = MockMessage(
+            role="user", content="SECRETWORD", run_id=run_id, guardrail_refused=True
+        )
         refused.context_used_tokens = None
         reply = MockMessage(role="user", content="and this?")
         reply.context_used_tokens = None
