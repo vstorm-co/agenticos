@@ -69,15 +69,17 @@ Reply to a person or an agent's answer, and the agent applies the change and say
 
 Any agent can hand software work to Claude Code or Codex. They build in the agent's own computer, on your ChatGPT or Claude subscription, and report what they changed, what they checked and what they need from you.
 
-<a href="docs/assets/readme/highlight-coding.webp"><img src="docs/assets/readme/highlight-coding.webp" alt="The full coding conversation: a Python module request, Tech Lead delegating to Coder, and a concise report naming the files and test results." width="100%"></a>
+<a href="docs/assets/readme/highlight-coding.webp"><img src="docs/assets/readme/highlight-coding.webp" alt="Prepared interface example: Claude Code implements a supplier portal and Codex reviews it in read-only mode. Fictional handoffs; no coding CLI execution is represented." width="100%"></a>
+
+*Prepared interface example: Claude Code implements a supplier portal and Codex reviews it in read-only mode. Fictional handoffs; no coding CLI execution is represented.*
 
 ### Ask how it works, get a drawing you can use
 
 An agent draws while it writes: a diagram from your documents, a calculator with sliders, a chart or a 3D scene, live under its message. One click saves it as an app your team opens by link.
 
-<a href="docs/assets/readme/highlight-visuals.webp"><img src="docs/assets/readme/highlight-visuals.webp" alt="A seeded Visuals example in the conversation: an interactive explanation linking a question, source excerpt and cited answer. No live model or retrieval call is represented." width="100%"></a>
+<a href="docs/assets/readme/highlight-visuals.webp"><img src="docs/assets/readme/highlight-visuals.webp" alt="A prepared manufacturing Visual inside chat: a supply network, inbound delivery exceptions and assembly windows. Interactive fictional data; no ERP, machine connection or live model call is represented." width="100%"></a>
 
-*A seeded Visuals example in the conversation: an interactive explanation linking a question, source excerpt and cited answer. No live model or retrieval call is represented.*
+*A prepared manufacturing Visual inside chat: a supply network, inbound delivery exceptions and assembly windows. Interactive fictional data; no ERP, machine connection or live model call is represented.*
 
 ### Write to an agent and leave
 
@@ -89,7 +91,7 @@ Ask for research that takes a while and close the tab. The agent keeps working, 
 
 Open the console to what your agents did, the calls waiting on you and the conversations to pick up again - with a tour of what they can do that is easy to miss.
 
-<a href="docs/assets/readme/highlight-dashboard.webp"><img src="docs/assets/readme/highlight-dashboard.webp" alt="The Me tab of the dashboard: a greeting, a getting-started checklist, a carousel of features with isometric illustrations, and this period's runs, completion and spend" width="100%"></a>
+<a href="docs/assets/readme/highlight-dashboard.webp"><img src="docs/assets/readme/highlight-dashboard.webp" alt="The personal Me dashboard with an actionable briefing, team knowledge follow-ups and a carousel of AgenticOS capabilities." width="100%"></a>
 
 ### Agents that work as a team
 
@@ -107,7 +109,7 @@ Watch it click through sites, take over when a sign-in needs you, point at a spo
 
 Enable tools and try a real task in the draft test panel before publishing the agent for colleagues.
 
-<a href="docs/assets/readme/highlight-builder-test.webp"><img src="docs/assets/readme/highlight-builder-test.webp" alt="The Finance Analyst toolbox with capability cards and a draft test panel ready for a task." width="100%"></a>
+<a href="docs/assets/readme/highlight-builder-test.webp"><img src="docs/assets/readme/highlight-builder-test.webp" alt="Finance Analyst calculating a sample invoice in the builder’s draft test panel: subtotal €6,180, VAT €1,421.40 and total €7,601.40." width="100%"></a>
 
 ### Apps, not just answers
 

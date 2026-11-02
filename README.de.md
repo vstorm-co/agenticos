@@ -1,4 +1,4 @@
-<!-- source_sha: 18a2fb03d39d -->
+<!-- source_sha: f6ac414308b0 -->
 
 <div align="center">
 
@@ -71,15 +71,17 @@ Antworte auf die Nachricht einer Person oder eines Agents, und der Agent überni
 
 Jeder Agent kann Softwarearbeit an Claude Code oder Codex übergeben. Sie bauen auf dem eigenen Computer des Agents, mit deinem ChatGPT- oder Claude-Abo, und berichten, was sie geändert und geprüft haben und was sie von dir brauchen.
 
-<a href="docs/assets/readme/highlight-coding.webp"><img src="docs/assets/readme/highlight-coding.webp" alt="Das vollständige Programmiergespräch: eine Python-Modulanfrage, die Übergabe von Tech Lead an Coder und ein kurzer Bericht zu Dateien und Testergebnissen." width="100%"></a>
+<a href="docs/assets/readme/highlight-coding.webp"><img src="docs/assets/readme/highlight-coding.webp" alt="Vorbereitetes Oberflächenbeispiel: Claude Code erstellt ein Lieferantenportal, Codex prüft es schreibgeschützt. Fiktive Übergaben; keine Ausführung eines Coding-CLI." width="100%"></a>
+
+*Vorbereitetes Oberflächenbeispiel: Claude Code erstellt ein Lieferantenportal, Codex prüft es schreibgeschützt. Fiktive Übergaben; keine Ausführung eines Coding-CLI.*
 
 ### Frag, wie es funktioniert, und bekomm eine Zeichnung, die du nutzen kannst
 
 Ein Agent zeichnet, während er schreibt: ein Diagramm aus deinen Dokumenten, einen Rechner mit Schiebereglern, ein Diagramm oder eine 3D-Szene, live unter seiner Nachricht. Ein Klick speichert es als App, die dein Team per Link öffnet.
 
-<a href="docs/assets/readme/highlight-visuals.webp"><img src="docs/assets/readme/highlight-visuals.webp" alt="Ein vorbereitetes Visuals-Beispiel im Gespräch: eine interaktive Erklärung, die Frage, Quellenauszug und belegte Antwort verbindet. Es zeigt keinen echten Modell- oder Retrieval-Aufruf." width="100%"></a>
+<a href="docs/assets/readme/highlight-visuals.webp"><img src="docs/assets/readme/highlight-visuals.webp" alt="Vorbereitete Fertigungsvisualisierung im Chat: Liefernetzwerk, Lieferausnahmen und Montagefenster. Interaktive fiktive Daten; ohne ERP, Maschinenverbindung oder Modellaufruf." width="100%"></a>
 
-*Ein vorbereitetes Visuals-Beispiel im Gespräch: eine interaktive Erklärung, die Frage, Quellenauszug und belegte Antwort verbindet. Es zeigt keinen echten Modell- oder Retrieval-Aufruf.*
+*Vorbereitete Fertigungsvisualisierung im Chat: Liefernetzwerk, Lieferausnahmen und Montagefenster. Interaktive fiktive Daten; ohne ERP, Maschinenverbindung oder Modellaufruf.*
 
 ### Schreib einem Agent und geh
 
@@ -91,7 +93,7 @@ Gib eine Recherche in Auftrag, die dauert, und schließ den Tab. Der Agent arbei
 
 Die Konsole öffnet mit dem, was deine Agents getan haben, den Entscheidungen, die auf dich warten, und den Unterhaltungen zum Weitermachen - samt einer Tour durch das, was leicht zu übersehen ist.
 
-<a href="docs/assets/readme/highlight-dashboard.webp"><img src="docs/assets/readme/highlight-dashboard.webp" alt="Der Me-Tab des Dashboards: eine Begrüßung, eine Einstiegs-Checkliste, ein Karussell mit isometrischen Illustrationen, Runs, Abschlussquote und Kosten des Zeitraums, wartende Entscheidungen und Unterhaltungen zum Fortsetzen" width="100%"></a>
+<a href="docs/assets/readme/highlight-dashboard.webp"><img src="docs/assets/readme/highlight-dashboard.webp" alt="Das persönliche Me-Dashboard mit einem Briefing, offenen Wissensfragen und einem Karussell der AgenticOS-Funktionen." width="100%"></a>
 
 ### Agents, die als Team arbeiten
 
@@ -109,7 +111,7 @@ Sieh zu, wie er sich durch Seiten klickt, übernimm, wenn eine Anmeldung dich br
 
 Aktiviere Werkzeuge und prüfe eine echte Aufgabe im Testpanel des Entwurfs, bevor du den Agenten für Kollegen veröffentlichst.
 
-<a href="docs/assets/readme/highlight-builder-test.webp"><img src="docs/assets/readme/highlight-builder-test.webp" alt="Die Werkzeugauswahl des Finance Analyst mit Fähigkeitenkarten und einem bereiten Entwurfs-Testpanel." width="100%"></a>
+<a href="docs/assets/readme/highlight-builder-test.webp"><img src="docs/assets/readme/highlight-builder-test.webp" alt="Finance Analyst berechnet eine Beispielrechnung im Entwurfs-Testpanel: Zwischensumme 6.180 €, MwSt. 1.421,40 € und Gesamtbetrag 7.601,40 €." width="100%"></a>
 
 ### Apps, nicht nur Antworten
 

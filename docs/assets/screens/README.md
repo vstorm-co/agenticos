@@ -260,3 +260,24 @@ Styles: Achromatic ledger (seed 1146000248) for sales; Data terminal for industr
 monitoring. The signature elements are the revenue/target comparison, supplier map
 with assembly windows, and selectable exploded assembly. Embedded Inter and Geist
 Mono fonts are supplied with their OFL license. All generated HTML is self-contained.
+
+### Presentation pass: populated chat and readable industrial views
+
+The README hero is intentionally unchanged. Other marketing frames retain their
+complete native viewport at 2× and render to 3200px-wide WebP at quality 94.
+Chat captures use populated, attributed Northwind conversations; one incomplete
+local demo thread was archived, not rewritten as a successful run.
+
+The builder capture contains an actual Finance Analyst draft test: 48 × €125 plus
+€180 delivery gives €6,180 subtotal, €1,421.40 VAT and €7,601.40 total. It is a
+sample calculation, not a real invoice. Coding uses the native `run_coding_agent`
+renderer with the openly fictional exchanges preserved in
+`demos/industrial-showcase/prepared-coding-handoffs.json`. Those exchanges do not
+establish CLI execution, tests passing or deployment.
+
+`demos/northline-chat-visual.html` preserves the compact prepared Visual rendered
+inside chat. Its local controls work with fictional data. The primary Visual
+figure now shows that production planner instead of the old green source-trace
+explanation. Northline and Motor Atlas Apps use light surfaces with contrasting
+map routes, labels and component details. The personal dashboard capture uses Me
+and English demonstration briefing items.

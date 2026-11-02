@@ -1,4 +1,4 @@
-<!-- source_sha: 18a2fb03d39d -->
+<!-- source_sha: f6ac414308b0 -->
 
 <div align="center">
 
@@ -71,15 +71,17 @@ Odpowiedz na wiadomość osoby albo agenta, a agent wprowadzi zmianę i powie, c
 
 Każdy agent może przekazać pracę programistyczną do Claude Code albo Codexa. Budują na własnym komputerze agenta, w ramach Twojej subskrypcji ChatGPT albo Claude, i raportują, co zmienili, co sprawdzili i czego potrzebują od Ciebie.
 
-<a href="docs/assets/readme/highlight-coding.webp"><img src="docs/assets/readme/highlight-coding.webp" alt="Pełna rozmowa programistyczna: prośba o moduł Python, przekazanie pracy od Tech Lead do Coder i krótkie podsumowanie plików oraz wyników testów." width="100%"></a>
+<a href="docs/assets/readme/highlight-coding.webp"><img src="docs/assets/readme/highlight-coding.webp" alt="Przygotowany przykład interfejsu: Claude Code buduje portal dostawców, a Codex przegląda zmiany w trybie tylko do odczytu. Fikcyjne przekazania pracy; bez uruchomienia CLI." width="100%"></a>
+
+*Przygotowany przykład interfejsu: Claude Code buduje portal dostawców, a Codex przegląda zmiany w trybie tylko do odczytu. Fikcyjne przekazania pracy; bez uruchomienia CLI.*
 
 ### Zapytaj, jak to działa, i dostań rysunek, którego możesz użyć
 
 Agent rysuje w trakcie pisania: diagram z Twoich dokumentów, kalkulator z suwakami, wykres albo scenę 3D, na żywo pod wiadomością. Jedno kliknięcie zapisuje go jako aplikację, którą zespół otwiera z linku.
 
-<a href="docs/assets/readme/highlight-visuals.webp"><img src="docs/assets/readme/highlight-visuals.webp" alt="Seedowany przykład Visuals w rozmowie: interaktywne wyjaśnienie łączące pytanie, fragment źródła i odpowiedź z cytowaniem. Nie przedstawia rzeczywistego wywołania modelu ani wyszukiwania." width="100%"></a>
+<a href="docs/assets/readme/highlight-visuals.webp"><img src="docs/assets/readme/highlight-visuals.webp" alt="Przygotowany Visual produkcyjny wewnątrz chatu: sieć dostaw, wyjątki w dostawach i okna montażowe. Interaktywne, fikcyjne dane; bez połączenia z ERP, maszynami i bez wywołania modelu." width="100%"></a>
 
-*Seedowany przykład Visuals w rozmowie: interaktywne wyjaśnienie łączące pytanie, fragment źródła i odpowiedź z cytowaniem. Nie przedstawia rzeczywistego wywołania modelu ani wyszukiwania.*
+*Przygotowany Visual produkcyjny wewnątrz chatu: sieć dostaw, wyjątki w dostawach i okna montażowe. Interaktywne, fikcyjne dane; bez połączenia z ERP, maszynami i bez wywołania modelu.*
 
 ### Napisz do agenta i wyjdź
 
@@ -91,7 +93,7 @@ Zleć research, który potrwa, i zamknij kartę. Agent pracuje dalej, odpowiedź
 
 Konsola otwiera się na tym, co zrobiły Twoje agenty, decyzjach czekających na Ciebie i rozmowach do podjęcia - z przeglądem funkcji, które łatwo przeoczyć.
 
-<a href="docs/assets/readme/highlight-dashboard.webp"><img src="docs/assets/readme/highlight-dashboard.webp" alt="Zakładka Me dashboardu: powitanie, lista pierwszych kroków, karuzela funkcji z izometrycznymi ilustracjami, runy, ukończenie i koszt w tym okresie, decyzje czekające i rozmowy do kontynuacji" width="100%"></a>
+<a href="docs/assets/readme/highlight-dashboard.webp"><img src="docs/assets/readme/highlight-dashboard.webp" alt="Osobisty dashboard Me: briefing z zadaniami do przeglądu, firmowa wiedza i karuzela możliwości AgenticOS." width="100%"></a>
 
 ### Agenci, którzy pracują jak zespół
 
@@ -109,7 +111,7 @@ Patrz, jak klika po stronach, przejmij ją, gdy logowanie wymaga Ciebie, wskaż 
 
 Włącz narzędzia i wypróbuj rzeczywiste zadanie w panelu testowym szkicu, zanim opublikujesz agenta dla zespołu.
 
-<a href="docs/assets/readme/highlight-builder-test.webp"><img src="docs/assets/readme/highlight-builder-test.webp" alt="Narzędzia Finance Analyst z kartami capabilities i panelem testowym szkicu gotowym na zadanie." width="100%"></a>
+<a href="docs/assets/readme/highlight-builder-test.webp"><img src="docs/assets/readme/highlight-builder-test.webp" alt="Finance Analyst liczy przykładową fakturę w panelu testowym szkicu: subtotal 6 180 €, VAT 1 421,40 € i kwota końcowa 7 601,40 €." width="100%"></a>
 
 ### Aplikacje, nie tylko odpowiedzi
 

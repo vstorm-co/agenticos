@@ -11,8 +11,8 @@
       body {
         margin: 0;
         font-family: ui-sans-serif, system-ui, sans-serif;
-        background: #f5f5f0;
-        color: #192b26;
+        background: #fafaff;
+        color: #252139;
         line-height: 1.5;
       }
       button,
@@ -26,7 +26,7 @@
       button:focus-visible,
       a:focus-visible,
       input:focus-visible {
-        outline: 3px solid #1d8064;
+        outline: 3px solid #7962c9;
         outline-offset: 4px;
       }
       button {
@@ -37,7 +37,7 @@
         align-items: center;
         justify-content: space-between;
         gap: 20px;
-        border-bottom: 1px solid #d9e1da;
+        border-bottom: 1px solid #e4e0ed;
         padding: 21px 4vw;
       }
       .brand {
@@ -51,8 +51,8 @@
       .brandmark {
         display: grid;
         place-items: center;
-        background: #203c31;
-        color: #ecf4dd;
+        background: #51407e;
+        color: #f0eaff;
         width: 33px;
         height: 33px;
         border-radius: 10px;
@@ -63,27 +63,27 @@
         font-size: 13px;
       }
       nav span {
-        color: #6c7a71;
+        color: #77728a;
       }
       .label {
         font-size: 12px;
-        color: #63736b;
+        color: #77728a;
       }
       .badge {
         display: inline-flex;
         gap: 7px;
         align-items: center;
-        border: 1px solid #cfdad0;
+        border: 1px solid #e2daee;
         border-radius: 20px;
         padding: 5px 11px;
         font-size: 11px;
-        background: #edf4e8;
+        background: #f2edfc;
       }
       .badge:before {
         content: "";
         height: 5px;
         width: 5px;
-        background: #508268;
+        background: #8870c7;
         border-radius: 100%;
       }
       .wrap {
@@ -112,7 +112,7 @@
         margin: 0 0 13px;
       }
       .muted {
-        color: #6b7972;
+        color: #77728a;
       }
       .hero {
         display: flex;
@@ -126,8 +126,8 @@
         max-width: 600px;
       }
       .primary {
-        background: #203c31;
-        color: #f5f6ec;
+        background: #51407e;
+        color: #faf8ff;
         border: 0;
         border-radius: 8px;
         padding: 11px 18px;
@@ -136,13 +136,13 @@
       }
       .quiet {
         background: transparent;
-        border: 1px solid #cdd7cf;
+        border: 1px solid #ded7ed;
         border-radius: 7px;
         padding: 8px 14px;
         font-size: 13px;
       }
       .selected {
-        background: #203c31 !important;
+        background: #51407e !important;
         color: #fff !important;
       }
       .chips {
@@ -152,14 +152,14 @@
       }
       .chips button {
         background: #fff;
-        border: 1px solid #d9e1da;
+        border: 1px solid #e4e0ed;
         border-radius: 20px;
         font-size: 12px;
         padding: 6px 13px;
       }
       .paper {
         background: #fff;
-        border: 1px solid #d9e1da;
+        border: 1px solid #e4e0ed;
         border-radius: 12px;
         padding: 22px;
       }
@@ -167,8 +167,8 @@
         display: grid;
         grid-template-columns: repeat(4, 1fr);
         margin: 25px 0 32px;
-        border-top: 1px solid #d6dfd6;
-        border-bottom: 1px solid #d6dfd6;
+        border-top: 1px solid #e2ddec;
+        border-bottom: 1px solid #e2ddec;
       }
       .stat {
         padding: 19px 15px 18px 0;
@@ -181,7 +181,7 @@
       }
       .stat span {
         font-size: 12px;
-        color: #6b7972;
+        color: #77728a;
       }
       .row {
         display: flex;
@@ -190,7 +190,7 @@
         gap: 18px;
       }
       .avatar {
-        background: #e3eddd;
+        background: #eae3f6;
         border-radius: 50%;
         padding: 5px 7px;
         font-size: 10px;
@@ -200,8 +200,8 @@
         font-size: 11px;
       }
       .footer {
-        border-top: 1px solid #d9e1da;
-        color: #7c8981;
+        border-top: 1px solid #e4e0ed;
+        color: #817c89;
         margin-top: 28px;
         padding-top: 15px;
         font-size: 11px;
@@ -210,15 +210,15 @@
         gap: 15px;
       }
       dialog {
-        border: 1px solid #cad5cc;
+        border: 1px solid #cecad5;
         border-radius: 16px;
         max-width: 480px;
         padding: 30px;
-        background: #fbfcf7;
-        color: #192b26;
+        background: #f9f7fc;
+        color: #252139;
       }
       dialog::backdrop {
-        background: #152c2455;
+        background: #1e152c55;
       }
       dialog h2 {
         font-size: 27px;
@@ -230,14 +230,14 @@
       }
       .demo {
         font-size: 11px;
-        color: #7a817c;
+        color: #7d7a81;
       }
       .pill {
         padding: 3px 8px;
         border-radius: 5px;
         font-size: 10px;
-        background: #e6eee0;
-        color: #3e6249;
+        background: #e5e0ee;
+        color: #4c3e62;
       }
       button:disabled {
         cursor: not-allowed;
@@ -282,12 +282,12 @@
       .flow-step {
         flex: 1;
         text-align: center;
-        background: #edf1e7;
+        background: #ebe7f1;
         padding: 18px 10px;
         border-radius: 9px;
       }
       .flow-step.active {
-        background: #dcebd8;
+        background: #dfd8eb;
       }
       .flow-step strong,
       .flow-step small {
@@ -299,11 +299,11 @@
       }
       .flow-step small {
         font-size: 10px;
-        color: #6f7e6c;
+        color: #736c7e;
       }
       .flow-icon {
         font-size: 23px;
-        color: #376443;
+        color: #483764;
       }
       .evidence {
         display: grid;
@@ -311,7 +311,7 @@
         gap: 22px;
       }
       .answer {
-        background: #e4eedb;
+        background: #e2dbee;
         border-radius: 10px;
         padding: 22px;
         font-size: 16px;
@@ -319,7 +319,7 @@
         min-height: 210px;
       }
       mark {
-        background: #dcebc8;
+        background: #d5c8eb;
         color: inherit;
         padding: 1px 3px;
         border-radius: 3px;
@@ -343,50 +343,52 @@
       }
       @media (prefers-color-scheme: dark) {
         body {
-          background: #1e241e;
-          color: #eef2e7;
+          background: #201e24;
+          color: #ebe7f2;
         }
         .muted,
         .label,
         .tiny.muted,
         .footer,
         .flow-step small {
-          color: #b8c5b1;
+          color: #b9b1c5;
         }
         .paper,
         .chips button {
-          background: #293228;
-          color: #edf2e8;
-          border-color: #45553f;
+          background: #2c2832;
+          color: #ece8f2;
+          border-color: #473f55;
         }
         .badge {
-          background: #2f3e2a;
-          color: #d8e5cf;
-          border-color: #485c40;
+          background: #322a3e;
+          color: #d7cfe5;
+          border-color: #4b405c;
         }
         .rag-flow .flow-step {
-          background: #2b3528;
+          background: #2d2835;
         }
         .rag-flow .active,
         .answer,
         .question {
-          background: #33472c;
+          background: #362c47;
         }
         .flow-icon {
-          color: #b9d3a9;
+          color: #b9a9d3;
         }
         .selected {
-          background: #516d42 !important;
+          background: #52426d !important;
         }
         .footer {
-          border-color: #48553e;
+          border-color: #473e55;
         }
         mark {
-          background: #506c3e;
-          color: #f3f8eb;
+          background: #4f3e6c;
+          color: #f0ebf8;
         }
       }
-    </style>
+
+header{padding:13px 24px}.wrap{padding:20px 24px}h1{font-size:30px;letter-spacing:-1px}.hero{margin-bottom:16px}.hero p{font-size:12px}.paper{padding:16px;border-radius:8px}.brand{font-size:16px}.trace-layout{gap:16px}.graph{background-color:#f4f1fa}.node{border-color:#d4cae7}.source{border-color:#e2ddec}
+</style>
   </head>
   <body>
     <main class="wrap" style="padding: 25px; max-width: 1000px">

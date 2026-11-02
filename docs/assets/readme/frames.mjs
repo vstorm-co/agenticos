@@ -118,7 +118,7 @@ const FRAMES = [
   },
   {
     name: "visuals",
-    source: "visual-source-trace",
+    source: "visual-production",
     background: "cta",
     width: 1380,
   },
@@ -185,9 +185,9 @@ for (const frame of FRAMES) {
   const [x, y, w, h] = [0, 0, 1600, 1600 * nativeHeight / nativeWidth];
   // Fit the window inside the frame with room for the photograph around it.
   // Badges sit on the sky above the window, so a frame with badges leaves room for them.
-  const scale = Math.min(frame.width / w, (frame.badges ? 760 : 880) / h);
+  const scale = Math.min(frame.width / w, (frame.badges ? 700 : 880) / h);
   const shown = { width: Math.round(w * scale), height: Math.round(h * scale) };
-  const top = frame.badges ? 1000 - shown.height - 60 : Math.round((1000 - shown.height) / 2);
+  const top = frame.badges ? 240 : Math.round((1000 - shown.height) / 2);
   const left = (1600 - shown.width) / 2;
   const badges = (frame.badges ?? [])
     .map((badge, index, all) => {
@@ -202,7 +202,7 @@ for (const frame of FRAMES) {
   const html = `<!doctype html><html><head><style>
     html,body{margin:0;width:1600px;height:1000px;overflow:hidden}
     body{background:#1d1931 url('${pathToFileURL(join(here, "backgrounds", `${frame.background}.webp`)).href}') center/cover}
-    .heading{position:absolute;left:80px;top:75px;margin:0;color:#fff;font:600 56px/1.08 Inter,system-ui,sans-serif;letter-spacing:-.045em}
+    .heading{position:absolute;left:80px;top:75px;margin:0;color:#fff;font:600 48px/1.08 Inter,system-ui,sans-serif;letter-spacing:-.045em}
     .glow{position:absolute;inset:0;background:radial-gradient(ellipse at 50% 55%,rgba(255,255,255,.18),transparent 62%)}
     .win{position:absolute;left:${left}px;top:${top}px;width:${shown.width}px;height:${shown.height}px;
       border-radius:18px;overflow:hidden;background:#fff;
@@ -224,9 +224,9 @@ for (const frame of FRAMES) {
   execFileSync("magick", [
     png,
     "-resize",
-    "2400x",
+    "3200x",
     "-quality",
-    "84",
+    "94",
     join(here, `highlight-${frame.name}.webp`),
   ]);
   console.log(`highlight-${frame.name}.webp`);

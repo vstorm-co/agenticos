@@ -1,4 +1,4 @@
-<!-- source_sha: 18a2fb03d39d -->
+<!-- source_sha: f6ac414308b0 -->
 
 <div align="center">
 
@@ -71,15 +71,17 @@ Responde al mensaje de una persona o de un agente, y el agente aplica el cambio 
 
 Cualquier agente puede pasar trabajo de software a Claude Code o Codex. Construyen en el ordenador propio del agente, con tu suscripción de ChatGPT o Claude, e informan de lo que cambiaron, lo que comprobaron y lo que necesitan de ti.
 
-<a href="docs/assets/readme/highlight-coding.webp"><img src="docs/assets/readme/highlight-coding.webp" alt="La conversación de programación completa: la petición de un módulo Python, la delegación de Tech Lead a Coder y un breve informe de archivos y resultados de pruebas." width="100%"></a>
+<a href="docs/assets/readme/highlight-coding.webp"><img src="docs/assets/readme/highlight-coding.webp" alt="Ejemplo preparado de la interfaz: Claude Code implementa un portal de proveedores y Codex lo revisa en modo de solo lectura. Delegaciones ficticias; sin ejecución de CLI." width="100%"></a>
+
+*Ejemplo preparado de la interfaz: Claude Code implementa un portal de proveedores y Codex lo revisa en modo de solo lectura. Delegaciones ficticias; sin ejecución de CLI.*
 
 ### Pregunta cómo funciona y recibe un dibujo que puedes usar
 
 Un agente dibuja mientras escribe: un diagrama a partir de tus documentos, una calculadora con controles deslizantes, un gráfico o una escena 3D, en vivo bajo su mensaje. Un clic lo guarda como una app que tu equipo abre con un enlace.
 
-<a href="docs/assets/readme/highlight-visuals.webp"><img src="docs/assets/readme/highlight-visuals.webp" alt="Un ejemplo preparado de Visuals en la conversación: una explicación interactiva que conecta pregunta, fragmento fuente y respuesta con cita. No representa una llamada real al modelo ni a recuperación." width="100%"></a>
+<a href="docs/assets/readme/highlight-visuals.webp"><img src="docs/assets/readme/highlight-visuals.webp" alt="Visual de fabricación preparado dentro del chat: red de suministro, incidencias de entregas y ventanas de montaje. Datos ficticios interactivos; sin ERP, conexión a máquinas ni llamada al modelo." width="100%"></a>
 
-*Un ejemplo preparado de Visuals en la conversación: una explicación interactiva que conecta pregunta, fragmento fuente y respuesta con cita. No representa una llamada real al modelo ni a recuperación.*
+*Visual de fabricación preparado dentro del chat: red de suministro, incidencias de entregas y ventanas de montaje. Datos ficticios interactivos; sin ERP, conexión a máquinas ni llamada al modelo.*
 
 ### Escribe a un agente y vete
 
@@ -91,7 +93,7 @@ Pide una investigación que lleva tiempo y cierra la pestaña. El agente sigue t
 
 La consola se abre con lo que hicieron tus agents, las decisiones que te esperan y las conversaciones para retomar - con un recorrido por lo que es fácil pasar por alto.
 
-<a href="docs/assets/readme/highlight-dashboard.webp"><img src="docs/assets/readme/highlight-dashboard.webp" alt="La pestaña Me del dashboard: un saludo, una lista para empezar, un carrusel de funciones con ilustraciones isométricas, los runs, la finalización y el gasto del periodo, las decisiones pendientes y las conversaciones para continuar" width="100%"></a>
+<a href="docs/assets/readme/highlight-dashboard.webp"><img src="docs/assets/readme/highlight-dashboard.webp" alt="El dashboard personal Me con un briefing, tareas de conocimiento del equipo y un carrusel de funciones de AgenticOS." width="100%"></a>
 
 ### Agentes que trabajan en equipo
 
@@ -109,7 +111,7 @@ Míralo hacer clic por los sitios, toma el control cuando un inicio de sesión t
 
 Activa herramientas y prueba una tarea real en el panel de pruebas del borrador antes de publicar el agente para el equipo.
 
-<a href="docs/assets/readme/highlight-builder-test.webp"><img src="docs/assets/readme/highlight-builder-test.webp" alt="Herramientas de Finance Analyst con tarjetas de capacidades y un panel de pruebas preparado para una tarea." width="100%"></a>
+<a href="docs/assets/readme/highlight-builder-test.webp"><img src="docs/assets/readme/highlight-builder-test.webp" alt="Finance Analyst calcula una factura de ejemplo en el panel de pruebas del borrador: subtotal de 6.180 €, IVA de 1.421,40 € y total de 7.601,40 €." width="100%"></a>
 
 ### Apps, no solo respuestas
 
