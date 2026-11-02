@@ -454,13 +454,13 @@ export async function saveDraft(page: Page): Promise<void> {
 /**
  * The card for one skill in the gallery.
  *
- * A card is a button labelled by the skill's own name and description — there
- * is no heading or test id to aim at. Anchoring the name to the start is what
- * separates it from the icon-only delete button beside it, whose accessible
- * name is "Delete <the same skill>".
+ * A card is a link to the skill's page, labelled by the skill's own name and
+ * description — there is no heading or test id to aim at. Anchoring the name to
+ * the start is what separates it from the controls beside it, whose accessible
+ * names repeat the skill's.
  */
 export function skillCard(page: Page, name: string): Locator {
-  return page.getByRole("main").getByRole("button", { name: new RegExp(`^${name}\\b`) });
+  return page.getByRole("main").getByRole("link", { name: new RegExp(`^${name}\\b`) });
 }
 
 /**
