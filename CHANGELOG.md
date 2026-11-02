@@ -19,6 +19,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [1.35.3] - 2026-11-02
+
 ### Security
 
 - A link in an agent's answer that leads to another site now opens in a new tab, whatever its address looks like. A link written without `https://` - `//evil.example`, `https:evil.example`, `HTTPS:/evil.example` - was rendered as an in-page link, so a click took the console's own tab to that site. The chat decides a link is off-site by where the browser resolves it against the console, and opens it in a new tab with `rel="noopener noreferrer"`. Console links, including the Architect's links that point at a control, still open in place.
@@ -19682,7 +19684,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.35.2...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.35.3...HEAD
+[1.35.3]: https://github.com/vstorm-co/agenticos/compare/v1.35.2...v1.35.3
 [1.35.2]: https://github.com/vstorm-co/agenticos/compare/v1.35.1...v1.35.2
 [1.35.1]: https://github.com/vstorm-co/agenticos/compare/v1.35.0...v1.35.1
 [1.35.0]: https://github.com/vstorm-co/agenticos/compare/v1.34.3...v1.35.0
