@@ -1,4 +1,4 @@
-<!-- source_sha: f2664196f042 -->
+<!-- source_sha: 0b85e01dafa4 -->
 
 <div align="center">
 
@@ -71,7 +71,7 @@ Responde al mensaje de una persona o de un agente, y el agente aplica el cambio 
 
 Cualquier agente puede pasar trabajo de software a Claude Code o Codex. Construyen en el ordenador propio del agente, con tu suscripción de ChatGPT o Claude, e informan de lo que cambiaron, lo que comprobaron y lo que necesitan de ti.
 
-<a href="docs/assets/readme/highlight-coding.webp"><img src="docs/assets/readme/highlight-coding.webp" alt="Una entrega de programación con archivos generados, pruebas, decisiones de implementación y asuntos pendientes." width="100%"></a>
+<a href="docs/assets/readme/highlight-coding.webp"><img src="docs/assets/readme/highlight-coding.webp" alt="La conversación de programación completa: la petición de un módulo Python, la delegación de Tech Lead a Coder y un breve informe de archivos y resultados de pruebas." width="100%"></a>
 
 ### Pregunta cómo funciona y recibe un dibujo que puedes usar
 

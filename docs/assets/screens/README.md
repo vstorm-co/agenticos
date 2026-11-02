@@ -199,3 +199,19 @@ with complimentary demo delivery. The bag and recommendation must agree.
 
 `images.json` records the three Unsplash image URLs and license. A pictured
 object's real-world brand does not endorse this fictional store; the photography does not establish the invented product specifications.
+
+
+## Coding highlight: show the handoff, not the expanded transcript
+
+`../readme/sources/coding-context-dark.webp` is a fresh capture of the historical
+Python-module conversation on the current local console. It shows the request,
+Tech Lead's collapsed `Asked Coder` step and the final report in a 1600 × 720
+viewport. No message, tool result or file list was rewritten for the image.
+The 26-test result is the recorded conversation's report, not a newly executed
+verification. The historical sandbox could not be reached from this local clone,
+so the Files panel is not part of the screenshot.
+
+To recapture, open that coding conversation in dark mode, collapse `Asked Coder`,
+scroll to the first user message and use the viewport above. Preserve the full
+console window. Render the editorial title, nature background and brand marks
+with `node docs/assets/readme/frames.mjs coding`.

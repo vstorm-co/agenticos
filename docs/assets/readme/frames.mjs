@@ -24,6 +24,7 @@ const { chromium } = require("@playwright/test");
 /**
  * `crop` is [x, y, width, height] in the capture's CSS pixels; it is shown at `width` px in a 1600 x 1000 frame.
  * `badges` float brand marks beside the window, from marks.json (paths copied from the landing's brand glyphs).
+ * `heading` adds an editorial title above the window; the screenshot itself stays unchanged.
  */
 const FRAMES = [
   {
@@ -98,10 +99,11 @@ const FRAMES = [
   },
   {
     name: "coding",
-    source: "room-codex-answer",
+    source: "coding-context-dark",
     background: "night",
-    crop: [430, 290, 1130, 720],
-    width: 1180,
+    crop: [0, 0, 1600, 720],
+    width: 1450,
+    heading: "Delegate the code.<br>Keep the context.",
     badges: [
       { mark: "claude_code", label: "Claude Code" },
       { mark: "codex", label: "Codex" },
@@ -188,14 +190,17 @@ for (const frame of FRAMES) {
   const badges = (frame.badges ?? [])
     .map((badge, index, all) => {
       const mark = MARKS[badge.mark];
-      // Centred as a row over the window, 300 px apart.
-      const x = 800 - (all.length * 300) / 2 + index * 300 + 20;
-      return `<div class="badge" style="left:${x}px;top:${top - 108}px"><span class="tile"><svg viewBox="0 0 24 24"><path fill-rule="evenodd" fill="${mark.color ?? "#111"}" d="${mark.d}"/></svg></span>${badge.label}</div>`;
+      // Leave the title its own column when present; otherwise centre the marks.
+      const x = frame.heading
+        ? 970 + index * 300
+        : 800 - (all.length * 300) / 2 + index * 300 + 20;
+      return `<div class="badge" style="left:${x}px;top:${frame.heading ? 124 : top - 108}px"><span class="tile"><svg viewBox="0 0 24 24"><path fill-rule="evenodd" fill="${mark.color ?? "#111"}" d="${mark.d}"/></svg></span>${badge.label}</div>`;
     })
     .join("");
   const html = `<!doctype html><html><head><style>
     html,body{margin:0;width:1600px;height:1000px;overflow:hidden}
     body{background:#1d1931 url('${pathToFileURL(join(here, "backgrounds", `${frame.background}.webp`)).href}') center/cover}
+    .heading{position:absolute;left:80px;top:75px;margin:0;color:#fff;font:600 56px/1.08 Inter,system-ui,sans-serif;letter-spacing:-.045em}
     .glow{position:absolute;inset:0;background:radial-gradient(ellipse at 50% 55%,rgba(255,255,255,.18),transparent 62%)}
     .win{position:absolute;left:${left}px;top:${top}px;width:${shown.width}px;height:${shown.height}px;
       border-radius:18px;overflow:hidden;background:#fff;
@@ -206,7 +211,7 @@ for (const frame of FRAMES) {
       box-shadow:0 30px 60px -20px rgba(5,4,15,.7),0 0 0 1px rgba(255,255,255,.6)}
     .badge .tile{display:flex;width:56px;height:56px;border-radius:16px;background:#f4f2ee;align-items:center;justify-content:center}
     .badge svg{width:34px;height:34px}
-  </style></head><body><div class="glow"></div><div class="win"><img class="shot" src="${pathToFileURL(join(here, "sources", `${frame.source}.webp`)).href}"></div>${badges}</body></html>`;
+  </style></head><body><div class="glow"></div><div class="win"><img class="shot" src="${pathToFileURL(join(here, "sources", `${frame.source}.webp`)).href}"></div>${badges}${frame.heading ? `<h1 class="heading">${frame.heading}</h1>` : ""}</body></html>`;
   // A page opened from disk may load the local photograph and screenshot; one set as content may not.
   const file = join(scratch, `${frame.name}.html`);
   writeFileSync(file, html);

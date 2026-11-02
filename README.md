@@ -69,7 +69,7 @@ Reply to a person or an agent's answer, and the agent applies the change and say
 
 Any agent can hand software work to Claude Code or Codex. They build in the agent's own computer, on your ChatGPT or Claude subscription, and report what they changed, what they checked and what they need from you.
 
-<a href="docs/assets/readme/highlight-coding.webp"><img src="docs/assets/readme/highlight-coding.webp" alt="A coding handoff naming the generated files, tests, implementation choices and remaining decisions." width="100%"></a>
+<a href="docs/assets/readme/highlight-coding.webp"><img src="docs/assets/readme/highlight-coding.webp" alt="The full coding conversation: a Python module request, Tech Lead delegating to Coder, and a concise report naming the files and test results." width="100%"></a>
 
 ### Ask how it works, get a drawing you can use
 

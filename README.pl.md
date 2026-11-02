@@ -1,4 +1,4 @@
-<!-- source_sha: f2664196f042 -->
+<!-- source_sha: 0b85e01dafa4 -->
 
 <div align="center">
 
@@ -71,7 +71,7 @@ Odpowiedz na wiadomość osoby albo agenta, a agent wprowadzi zmianę i powie, c
 
 Każdy agent może przekazać pracę programistyczną do Claude Code albo Codexa. Budują na własnym komputerze agenta, w ramach Twojej subskrypcji ChatGPT albo Claude, i raportują, co zmienili, co sprawdzili i czego potrzebują od Ciebie.
 
-<a href="docs/assets/readme/highlight-coding.webp"><img src="docs/assets/readme/highlight-coding.webp" alt="Przekazanie pracy programistycznej z nazwami plików, testami, wyborami implementacyjnymi i pozostałymi decyzjami." width="100%"></a>
+<a href="docs/assets/readme/highlight-coding.webp"><img src="docs/assets/readme/highlight-coding.webp" alt="Pełna rozmowa programistyczna: prośba o moduł Python, przekazanie pracy od Tech Lead do Coder i krótkie podsumowanie plików oraz wyników testów." width="100%"></a>
 
 ### Zapytaj, jak to działa, i dostań rysunek, którego możesz użyć
 

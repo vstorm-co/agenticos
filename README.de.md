@@ -1,4 +1,4 @@
-<!-- source_sha: f2664196f042 -->
+<!-- source_sha: 0b85e01dafa4 -->
 
 <div align="center">
 
@@ -71,7 +71,7 @@ Antworte auf die Nachricht einer Person oder eines Agents, und der Agent überni
 
 Jeder Agent kann Softwarearbeit an Claude Code oder Codex übergeben. Sie bauen auf dem eigenen Computer des Agents, mit deinem ChatGPT- oder Claude-Abo, und berichten, was sie geändert und geprüft haben und was sie von dir brauchen.
 
-<a href="docs/assets/readme/highlight-coding.webp"><img src="docs/assets/readme/highlight-coding.webp" alt="Eine Entwicklungsübergabe mit erzeugten Dateien, Tests, Implementierungsentscheidungen und offenen Punkten." width="100%"></a>
+<a href="docs/assets/readme/highlight-coding.webp"><img src="docs/assets/readme/highlight-coding.webp" alt="Das vollständige Programmiergespräch: eine Python-Modulanfrage, die Übergabe von Tech Lead an Coder und ein kurzer Bericht zu Dateien und Testergebnissen." width="100%"></a>
 
 ### Frag, wie es funktioniert, und bekomm eine Zeichnung, die du nutzen kannst
 
