@@ -39,7 +39,7 @@ An agent's spec is [versioned on publish](../concepts.md#version) and [exports a
 
 Sauna is a US service: its policy says personal data may be processed in the US and in the countries where its sub-processors operate, under the EU Standard Contractual Clauses. When you sign up, it researches you on the public web and keeps the result in your workspace. Its site and app load advertising pixels from Meta, LinkedIn, Google and Reddit, off by default in some regions. Product analytics are kept for up to seven years.
 
-AgenticOS stores conversations, documents and vectors in [your own Postgres](../data-protection.md#where-personal-data-lives), and a fresh install [sends nothing anywhere](../data-protection.md#nothing-leaves-by-default). You set [retention per class](../governance.md#retention). With a local model, nothing needs to leave your network.
+AgenticOS stores conversations, documents and vectors in [your own Postgres](../data-protection.md#where-personal-data-lives), and a fresh install [sends no prompts or documents anywhere](../data-protection.md#nothing-leaves-by-default); [deployment diagnostics](../configuration.md#diagnostics) are on by default and can be switched off. You set [retention per class](../governance.md#retention). With a local model, your content does not need to leave your network.
 
 ### A model you choose, and a budget per agent
 

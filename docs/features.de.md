@@ -1,5 +1,5 @@
 ---
-source_sha: "b8de3c3b35e1"
+source_sha: "21569b3f9ec9"
 ---
 
 # Funktionen { #features }
@@ -269,13 +269,25 @@ dasselbe Budget, dieselbe Audit-Spur — nur tippt niemand.
 
 [Trigger →](triggers.md)
 
-## Selbst gehostet, und still { #self-hosted-and-quiet }
+## Selbst gehostet, und klar darüber, was hinausgeht { #self-hosted-and-quiet }
 
 Docker Compose, Ihr Postgres, Ihr Redis, Ihre Hardware.
 
-Nichts telefoniert nach Hause. Modellpreise stammen aus einem Snapshot, der dem
-Release beiliegt, und die einzigen ausgehenden Anfragen sind die, die Ihre Agents
-stellen.
+Ihre Prompts, Konversationen und Dokumente bleiben in Ihrem eigenen Deployment, in
+dessen Datenbank und Speicher. Sie gehen nirgendwohin, solange Sie nichts
+hinzufügen, das ein Ziel benennt: ein Model-Profil, einen Embedding- oder
+Parsing-Provider für eine Collection, einen MCP-Server oder einen Kanal.
+Modellpreise stammen aus einem Snapshot, der dem Release beiliegt.
+
+Ein Bericht ist standardmäßig aktiv: die [Deployment-Diagnose](configuration.md#diagnostics).
+Einmal pro Stunde sendet der Worker die Version, den Zustand von Datenbank und
+Worker, grobe Nutzungszähler und Zähler fehlgeschlagener Runs, Jobs und
+Ingestionen nach geschlossenen Kategorien. Angemeldete Browser sowie die Desktop-
+und die Mobile-App senden ein pseudonymes Aktivitätssignal direkt an den Kollektor.
+Gesendet werden keine Prompts, Konversationen, Dateinamen, Kontonamen,
+E-Mail-Adressen, Provider-Schlüssel oder Ausnahmemeldungen. Mit
+`DIAGNOSTICS_ENABLED=false` schalten Sie sie ab, oder richten Sie
+`DIAGNOSTICS_COLLECTOR_URL` auf einen Kollektor, den Sie betreiben.
 
 ## Open Source { #open-source }
 
