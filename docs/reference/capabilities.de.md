@@ -1,5 +1,5 @@
 ---
-source_sha: "b4bd3ed6f404"
+source_sha: "5bddf06f5881"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -2914,6 +2914,15 @@ neben `budget_exceeded`, denn eine Ablehnung ist die Plattform bei der Arbeit, u
 ein Betreiber, der nach Problemen filtert, sollte sie finden können, statt dass
 sie sich wie jede abgeschlossene Antwort liest. Siehe
 [Governance](../governance.md).
+
+**Die Nachricht eines blockierten Zugs wird nicht erneut gelesen.** Jede Prüfung
+liest nur, was in ihrem eigenen Zug neu ist, daher spielt der Verlauf eines späteren
+Zugs die Nachricht eines `guardrail_blocked`-Runs nicht erneut ab, gleich welche
+Prüfung ihn gestoppt hat. An ihrer Stelle liest das Modell einen kurzen Hinweis,
+dass ein Guardrail diesen Zug gestoppt hat, ohne den Text der Nachricht und ohne
+das, was die mit ihr gesendeten Dateien hinzugefügt haben. Die Unterhaltung zeigt
+der Person weiterhin, was sie eingegeben hat. Die Suche in früheren Unterhaltungen
+(`conversation_search`) filtert diese Nachrichten noch nicht.
 
 **Eine Ausgabeprüfung greift, bevor jemand die Antwort sieht.** Jede Oberfläche
 streamt: Der Web-Chat und das eingebettete Widget senden die Antwort, während sie

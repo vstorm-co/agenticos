@@ -2590,6 +2590,14 @@ beside `budget_exceeded`, because a refusal is the platform working and an opera
 filtering for problems should be able to find it rather than have it read like any
 completed answer. See [Governance](../governance.md).
 
+**A blocked turn's message is not read back.** A check reads only what is new in
+its own turn, so a later turn's history does not replay the message of a
+`guardrail_blocked` run, whichever check stopped it. In its place the model reads a
+short note that a guardrail stopped that turn, without the message's text or what
+the files sent with it added. The conversation still shows the person what they
+typed. Search over past conversations (`conversation_search`) does not filter these
+messages yet.
+
 **An output check screens the answer before anyone sees it.** Every surface
 streams: the web chat and the embedded widget send the answer as it is written, and
 a channel bot edits its reply as the text arrives. When any output check is

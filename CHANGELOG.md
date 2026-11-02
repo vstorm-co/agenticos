@@ -19,6 +19,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Security
+
+- The message of a turn a guardrail stopped is no longer replayed to the model in later turns' history. Each check reads only what is new in its own turn, so the message of a `guardrail_blocked` run was read back as history on the next turn, with the text that was typed and the head of each attached file (or the whole file for an agent without a workspace). A harmless follow-up could then get refused content past the input check. The history that web chat, the API, channels, the widget, workflows and a voice call's seed build now shows the model a short note in place of that message, whichever check stopped the turn, and a reply that quotes it quotes the note. A stopped turn also no longer keeps what its files added to the prompt. The person's own transcript still shows what they typed. The filter also applies to conversations from before the upgrade: migration `0248_drop_refused_turn_summaries` drops each stored conversation summary that reaches past such a message, so the next turn rebuilds its history from the transcript and pays for one new summary if it needs one; turns beyond the recent window that only the dropped summary recalled are no longer read back. The mark is kept on the message itself (`messages.guardrail_refused`, added by migration `0249_message_guardrail_refused`), so it holds after run retention deletes the run. The migration marks the messages of every `guardrail_blocked` run still stored; a message whose run retention deleted before the upgrade cannot be identified and stays unmarked. Search over past conversations (`conversation_search`) does not filter these messages yet.
+
 ## [1.35.5] - 2026-11-02
 
 ### Fixed
