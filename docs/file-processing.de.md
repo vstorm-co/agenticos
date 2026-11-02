@@ -1,5 +1,5 @@
 ---
-source_sha: "759491a1f3dc"
+source_sha: "4ccd1e16c6dc"
 ---
 
 # Dateiverarbeitung { #file-processing }
@@ -1060,6 +1060,15 @@ erster kommt, wird vor dem Löschen festgeschrieben, dessen Aufräumen seine Chu
 danach entfernt
 ([#2561](https://github.com/vstorm-co/agenticos/issues/2561)).
 
+Auch ein einzelnes Dokument, das während der Indexierung gelöscht wird, hinterlässt
+keine Chunks. Seine Zeile hat keine Vektordokument-ID, bis der Ingest eine
+einträgt, sodass das Löschen womöglich nichts zu entfernen hat; der Worker, der
+beim Festhalten des Ergebnisses die Zeile nicht mehr findet, reiht in derselben
+Transaktion einen Job ein, der die gerade geschriebenen Chunks entfernt und bei
+einem Fehlschlag wiederholt wird. Ein Löschen, das die neu eingetragene ID entdeckt, reiht denselben dauerhaften
+Job anhand der ID der gelöschten Zeile ein
+([#2565](https://github.com/vstorm-co/agenticos/issues/2565)).
+
 Eine lokale Synchronisierung, die für eine vor ihrem Start gelöschte Basis
 eingereiht ist, endet mit einem Fehler und schreibt nichts
 ([#2561](https://github.com/vstorm-co/agenticos/issues/2561)).
@@ -1714,8 +1723,12 @@ sie nicht anbietet, ist das Löschen eines Profils: das gehört dorthin, wo die
 Modelle einer Organisation verwaltet werden, und ein Profil, das Agents nutzen,
 lässt sich gar nicht löschen.
 
-Die erzeugten Beschreibungen werden in den Dokumenttext aufgenommen,
-für eine bessere semantische Suche.
+PyMuPDF überspringt die Extraktion eingebetteter Bilder, wenn die
+Bildbeschreibung ausgeschaltet ist. Ist sie eingeschaltet, wird jeder Bild-xref
+nur einmal pro Dokument extrahiert; wiederholte Verweise auf einer Seite werden
+zusammengefasst und identische Bildbytes nur einmal beschrieben. Jede Seite mit
+einem Bildverweis erhält dessen Beschreibung im Text für die semantische Suche.
+Chunks enthalten diesen Text, ohne die eingebetteten Bilder der Seite zu kopieren.
 
 ## Aus einem Kanal { #from-a-channel }
 

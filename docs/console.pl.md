@@ -1,5 +1,5 @@
 ---
-source_sha: "fed639325e0e"
+source_sha: "0104cd08b898"
 ---
 
 # Konsola { #the-console }
@@ -41,6 +41,26 @@ Ustawienia chatu mają stały nagłówek i przycisk zamknięcia nad przewijaną 
 Agenci rozmowy są uporządkowani według ostatniej wiadomości lub uruchomienia głównego agenta, od najnowszego. Zwinięty pasek chatu zachowuje pełny rozmiar avatarów, nakłada maksymalnie trzy i ukrywa starszych uczestników; pełna lista pozostaje dostępna w podpowiedzi.
 
 Gdy **Approve everything** jest niedostępne, ustawienia chatu rozróżniają brak uprawnienia do zatwierdzania i politykę organizacji wyłączającą stałą zgodę. Osoba z uprawnieniem do zatwierdzania otrzymuje odnośnik do **Budżetu i zatwierdzeń**, gdzie może jawnie zmienić tę politykę. Chat nie zmienia polityki organizacji automatycznie.
+
+Na telefonie modale zachowują 12 px marginesu z każdej strony. Zwarte nagłówki mieszczą tytuł i akcje w jednym wierszu, gdy jest na to miejsce. Opis pliku Context rozwija się z paska edytora.
+
+Na telefonie główne akcje strony pozostają widoczne, a drugorzędne polecenia rozwija przycisk **Więcej akcji strony**. Filtry Inbox i format tabeli wybiera się selectem. Ustawienia z wieloma sekcjami mają menu wyboru sekcji; klienta MCP wybiera się z listy. Plik projektu lub workspace otwiera czytnik na pełnym ekranie, a strzałka wstecz wraca do folderów. Edytor kroku workflow pokazuje jeden wybrany panel: ustawienia, wejście albo wynik. Przełączanie zachowuje edycję; desktop nadal pokazuje panele obok siebie.
+
+Pola Markdown i edytory plików również mają przycisk powiększania, który zachowuje bieżący szkic. Opis i kategorię skilla można rozwinąć nad edytorem. Pole wiadomości na czacie zajmuje mniej miejsca i ogranicza wysokość długiego szkicu do dostępnej wysokości ekranu. Otwarcie nawigacji ustawia focus na panelu, a Tab nadal przechodzi do jego kontrolek. Canvas workflow ma na telefonie pływający przycisk pełnego ekranu i mniejszą minimapę.
+
+Na telefonie edytory skilli i contextu chowają opis, kategorię i zarządzanie plikami podczas pisania. Jeden przycisk przełącza źródło i podgląd. Apps ma pływające przyciski powrotu i opcji; opcje rozwijają tytuł, wersję, motyw i udostępnianie.
+
+Nagłówki korzystają z odstępów otaczającego układu bez ich podwajania. Karty, wiersze panelu bocznego, zakładki i puste stany mają mniejsze odstępy na komputerze, a kontrolki zachowują większe obszary dotykowe. Długie listy sekcji ustawień również na komputerze korzystają z menu. Pola profilu mieszczą się w jednym wierszu, gdy jest miejsce; **Zapisz zmiany** jest dostępne dopiero po edycji. Karta możliwości ma jeden obszar otwierający ustawienia i osobny przełącznik włączenia. W panelu ustawień przykłady są pod ikoną informacji, zamiast powtarzanej ilustracji z galerii.
+
+Okna kategorii szablonów dopasowują się do zawartości; wybranie branży agenta lub umiejętności otwiera większą bibliotekę. Na telefonie wybór wyglądu ma postać zwartych wierszy z miniaturami.
+
+Instrukcje agentów i projektów mają jeden zwarty pasek z tytułem, pomocą, przełączaniem źródła i podglądu oraz rozwijaniem. Rozwinięty Markdown zachowuje wybrany tryb źródła lub podglądu. Nieużywane zmienne promptu są początkowo zwinięte; istniejące własne zmienne lub niestandardowa strefa czasu pozostawiają panel otwarty. Rozwinięte edytory tekstu i plików zachowują równe marginesy na telefonie. Pola tekstowe na telefonie używają większej czcionki bez powiększania pól na komputerze.
+
+Na telefonie fokus w polu wiadomości przełącza czat w zwarty wiersz pisania z załącznikami i wysyłaniem. Wybór agenta oraz głos pozostają dostępne pod **+**. Powitanie i sugestie połączeń chowają się na czas pisania, a menu uzupełniania mieści się w dostępnej wysokości. Przejście z tekstu na Wyślij zachowuje stabilny układ.
+
+Czat na telefonie nie ustawia automatycznie fokusu w polu przy otwieraniu ani po zakończeniu odpowiedzi.
+
+Na telefonach akcje pod wiadomościami użytkownika i agenta są początkowo ukryte. Przycisk **Więcej** obok nadawcy pokazuje lub ukrywa kopiowanie, odpowiedzi, oceny i pozostałe dostępne akcje. Na komputerze przyciski nadal pojawiają się po najechaniu kursorem.
 
 ## Dashboard { #the-dashboard }
 
@@ -230,7 +250,8 @@ następnym otwarciu strony.
 
 ## Asystent { #the-assistant }
 
-Na każdej stronie, w prawym dolnym rogu, jest **Architekt**: agent, którego
+Na telefonie **Architekt** jest w górnym pasku obok powiadomień, a na komputerze
+w prawym dolnym rogu: agent, którego
 każda organizacja dostaje bez instalowania czegokolwiek, wspólny dla wszystkich,
 którzy mogą uruchamiać agentów (`agents:run`). Jest powiązany z
 [serwerem MCP tej platformy](mcp.md#agenticos-as-an-mcp-server). Zapytaj go,

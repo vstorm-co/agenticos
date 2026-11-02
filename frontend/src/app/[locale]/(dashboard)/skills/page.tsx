@@ -135,22 +135,20 @@ export default function SkillsPage() {
     <PageHeader
       title={t("skills2")}
       description={t("skillKnowHowWritten")}
+      secondaryActions={
+        canCreate ? (
+          <Button variant="outline" data-tour="skills-gallery" onClick={() => setGalleryOpen(true)}>
+            <Library className="h-4 w-4" />
+            {tGallery("browse")}
+          </Button>
+        ) : undefined
+      }
       actions={
         canCreate ? (
-          <div className="flex flex-wrap items-center gap-2">
-            <Button
-              variant="outline"
-              data-tour="skills-gallery"
-              onClick={() => setGalleryOpen(true)}
-            >
-              <Library className="h-4 w-4" />
-              {tGallery("browse")}
-            </Button>
-            <Button data-tour="skills-new" onClick={() => setCreateOpen(true)}>
-              <Plus className="h-4 w-4" />
-              {t("newSkill")}
-            </Button>
-          </div>
+          <Button data-tour="skills-new" onClick={() => setCreateOpen(true)}>
+            <Plus className="h-4 w-4" />
+            {t("newSkill")}
+          </Button>
         ) : undefined
       }
     />
@@ -161,7 +159,7 @@ export default function SkillsPage() {
   // something the server has not said yet.
   if (!isBusy && !can(Perm.skillsView)) {
     return (
-      <div className="space-y-6">
+      <div className="space-y-4">
         {header}
         <EmptyState
           icon={Lock}
@@ -176,7 +174,7 @@ export default function SkillsPage() {
   // that draws a different shape from what follows is a layout jump on load.
   if (isBusy) {
     return (
-      <div className="space-y-6">
+      <div className="space-y-4">
         {header}
         <ListCard layout="grid" namedByPage title={t("skills")} counted={null}>
           <LoadingState variant="skeleton-cards" rows={3} />
@@ -292,7 +290,7 @@ export default function SkillsPage() {
     ) : undefined;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {header}
 
       {/* Above the list, because it is a decision somebody has to make and the
@@ -378,7 +376,9 @@ export default function SkillsPage() {
           <DialogContent className={cn(DIALOG_FILL, DIALOG_CANVAS, "max-md:overflow-y-auto")}>
             <DialogHeader>
               <DialogTitle className="font-mono">{selected.name}</DialogTitle>
-              <DialogDescription>{t("nameHowModelRefers")}</DialogDescription>
+              <DialogDescription className="max-md:sr-only">
+                {t("nameHowModelRefers")}
+              </DialogDescription>
             </DialogHeader>
             {skill === undefined ? (
               <div

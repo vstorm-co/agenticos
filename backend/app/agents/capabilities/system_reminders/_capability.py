@@ -230,12 +230,13 @@ def static_producer(content: str) -> ReminderProducer[Any]:
 
 
 def goal_reanchor_producer(fallback: str) -> ReminderProducer[Any]:
-    """A producer that re-states the run's first user request as the anchor.
+    """A producer that points the model back to the run's first user request.
 
-    The harness `GoalReanchor` reads the first user message off `ctx.messages` and
-    asks the model to check its next action advances it - no model call and no
-    dependencies. Reused rather than reimplemented: it is public and stateless, so
-    the only thing to add is the async wrapper the producer protocol wants.
+    The harness `GoalReanchor` asks the model to check its next action advances
+    the first user request, without repeating user text as steering guidance.
+    It makes no model call and has no dependencies. Reused rather than
+    reimplemented: it is public and stateless, so the only thing to add is the
+    async wrapper the producer protocol wants.
     """
     reanchor = GoalReanchor[Any](fallback=fallback)
 

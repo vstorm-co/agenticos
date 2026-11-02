@@ -26,7 +26,7 @@ from app.agents.capabilities.budget import (
 )
 from app.agents.observability import inherited_instrumentation
 from app.repositories import conversation_repo
-from app.services.message_history import HistoryMessage, build_message_history
+from app.services.message_history import REFUSED_TURN, HistoryMessage, build_message_history
 
 if TYPE_CHECKING:
     from app.services.agent_runner import PreparedRun
@@ -53,8 +53,15 @@ async def seed_history(
     summary of the older turns followed by the recent ones.
     """
     rows = await conversation_repo.get_recent_messages(db, conversation_id, limit=HISTORY_LIMIT)
+    # A prompt a guardrail refused is not seeded, as a typed turn's history does
+    # not replay it (#2578): the input edge screens only what is said next.
     history: list[HistoryMessage] = [
-        {"role": row.role, "content": row.content}
+        {
+            "role": row.role,
+            "content": REFUSED_TURN
+            if row.role == "user" and row.guardrail_refused
+            else row.content,
+        }
         for row in rows
         if row.role in ("user", "assistant") and row.content.strip()
     ]

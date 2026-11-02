@@ -86,7 +86,7 @@ export function ResetPasswordForm({ token }: Props) {
             required
             autoComplete="new-password"
             disabled={submitting}
-            className="h-11 rounded-lg text-[15px]"
+            className="h-11 rounded-lg text-base md:text-[15px]"
           />
           {password && (
             <div className="space-y-1.5 pt-1">
@@ -126,7 +126,7 @@ export function ResetPasswordForm({ token }: Props) {
             required
             autoComplete="new-password"
             disabled={submitting}
-            className={`h-11 rounded-lg text-[15px] ${confirm && !matches ? "border-destructive" : ""}`}
+            className={`h-11 rounded-lg text-base md:text-[15px] ${confirm && !matches ? "border-destructive" : ""}`}
           />
           {confirm && !matches && (
             <p className="text-destructive inline-flex items-center gap-1 text-xs">

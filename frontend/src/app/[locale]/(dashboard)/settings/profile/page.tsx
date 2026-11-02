@@ -56,6 +56,7 @@ export default function ProfileSettingsPage() {
       }
       const updated = await apiClient.patch<User>("/users/me", payload);
       setUser(updated);
+      if (payload.email !== undefined) setEmail(updated.email);
       // A new address is staged rather than applied, so the field re-seeds to
       // the address the account still has. Saying "profile updated" over that
       // reads as a change that silently did not take.
@@ -122,90 +123,93 @@ export default function ProfileSettingsPage() {
   if (!user) {
     return null;
   }
+  const profileChanged = name !== (user.full_name ?? "") || email !== user.email;
 
   return (
-    <div className="flex flex-1 flex-col space-y-6">
+    <div className="flex flex-1 flex-col space-y-4">
       <SectionCard title={t("avatar")} description={t("squareImagesLookBest")}>
-        <div className="flex items-center gap-5">
-          <button
-            type="button"
-            onClick={() => avatarInputRef.current?.click()}
-            disabled={avatarUploading}
-            aria-label={user.avatar_url ? t("replaceAvatar3") : t("uploadAvatar3")}
-            className={cn(
-              "border-border hover:bg-accent group relative flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-full border transition-colors",
-              user.avatar_url && "bg-muted",
-            )}
-          >
-            {user.avatar_url ? (
-              <Image
-                src={`/api/users/avatar/${user.id}?v=${avatarVersion}`}
-                alt=""
-                width={80}
-                height={80}
-                className="h-full w-full object-cover"
-                unoptimized
-              />
-            ) : (
-              // The same face every other screen draws for this person, at the
-              // size they are about to replace it. Showing initials here and a
-              // face everywhere else made this the one page that disagreed with
-              // the product about what somebody looks like.
-              <AvatarFace seed={user.id} colorSlot={user.avatar_color} />
-            )}
-            <span className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 transition-opacity group-hover:opacity-100">
-              <Camera className="h-5 w-5 text-white" />
-            </span>
-          </button>
-          <input
-            ref={avatarInputRef}
-            type="file"
-            accept="image/jpeg,image/png,image/webp,image/gif"
-            onChange={handleAvatarUpload}
-            className="hidden"
-          />
-          <div>
-            <Button
+        <div className="grid items-center gap-4 md:grid-cols-2">
+          <div className="flex items-center gap-4">
+            <button
               type="button"
-              variant="outline"
-              size="sm"
               onClick={() => avatarInputRef.current?.click()}
               disabled={avatarUploading}
+              aria-label={user.avatar_url ? t("replaceAvatar3") : t("uploadAvatar3")}
+              className={cn(
+                "border-border hover:bg-accent group relative flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-full border transition-colors",
+                user.avatar_url && "bg-muted",
+              )}
             >
-              {avatarUploading
-                ? t("uploading3")
-                : user.avatar_url
-                  ? t("replaceAvatar4")
-                  : t("uploadAvatar4")}
-            </Button>
-            <p className="text-muted-foreground mt-2 text-xs">
-              {isAppAdmin(user) ? t("admin") : ""}
-              {t("memberSince", { date: formatDate(user.created_at, locale) })}
-            </p>
+              {user.avatar_url ? (
+                <Image
+                  src={`/api/users/avatar/${user.id}?v=${avatarVersion}`}
+                  alt=""
+                  width={80}
+                  height={80}
+                  className="h-full w-full object-cover"
+                  unoptimized
+                />
+              ) : (
+                // The same face every other screen draws for this person, at the
+                // size they are about to replace it. Showing initials here and a
+                // face everywhere else made this the one page that disagreed with
+                // the product about what somebody looks like.
+                <AvatarFace seed={user.id} colorSlot={user.avatar_color} />
+              )}
+              <span className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 transition-opacity group-hover:opacity-100">
+                <Camera className="h-5 w-5 text-white" />
+              </span>
+            </button>
+            <input
+              ref={avatarInputRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp,image/gif"
+              onChange={handleAvatarUpload}
+              className="hidden"
+            />
+            <div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => avatarInputRef.current?.click()}
+                disabled={avatarUploading}
+              >
+                {avatarUploading
+                  ? t("uploading3")
+                  : user.avatar_url
+                    ? t("replaceAvatar4")
+                    : t("uploadAvatar4")}
+              </Button>
+              <p className="text-muted-foreground mt-2 text-xs">
+                {isAppAdmin(user) ? t("admin") : ""}
+                {t("memberSince", { date: formatDate(user.created_at, locale) })}
+              </p>
+            </div>
           </div>
-        </div>
-        <div className="mt-5">
-          <p className="text-foreground mb-2 text-sm font-medium">{t("avatarColour")}</p>
-          <p className="text-muted-foreground mb-3 text-xs">{t("avatarColourHint")}</p>
-          <AvatarColorPicker value={user.avatar_color ?? null} onChange={handleColorChange} />
+          <div>
+            <p className="text-foreground mb-2 text-sm font-medium">{t("avatarColour")}</p>
+            <p className="text-muted-foreground mb-3 text-xs">{t("avatarColourHint")}</p>
+            <AvatarColorPicker value={user.avatar_color ?? null} onChange={handleColorChange} />
+          </div>
         </div>
       </SectionCard>
 
       <SectionCard
-        fill
         title={t("personalInfo")}
         description={t("visibleTeammatesSharedOrganizations")}
         action={
-          <Button onClick={handleSaveProfile} disabled={saving} size="sm">
+          <Button onClick={handleSaveProfile} disabled={saving || !profileChanged} size="sm">
             {saving ? t("saving3") : t("saveChanges")}
           </Button>
         }
       >
-        <div className="flex flex-1 flex-col space-y-4">
+        <div className="grid items-start gap-4 md:grid-cols-2">
           <FormField label={t("displayName")} htmlFor="profile-name">
             <Input
               id="profile-name"
               value={name}
+              disabled={saving}
               onChange={(e) => setName(e.target.value)}
               placeholder={t("howShouldWeCall")}
             />
@@ -223,6 +227,7 @@ export default function ProfileSettingsPage() {
               id="profile-email"
               type="email"
               value={email}
+              disabled={saving}
               onChange={(e) => setEmail(e.target.value)}
             />
           </FormField>

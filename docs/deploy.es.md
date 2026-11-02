@@ -1,5 +1,5 @@
 ---
-source_sha: "7bd15584abde"
+source_sha: "88a69af9b330"
 ---
 
 # Despliega en un servidor { #deploy-to-a-server }
@@ -522,9 +522,9 @@ eso lleva.
 
 ### Desde GitHub, con una aprobación { #from-github-with-an-approval }
 
-`.github/workflows/deploy.yml` ofrece cada merge a `main` para desplegarlo y
+`.github/workflows/deploy.yml` ofrece cada release estable publicado para desplegarlo y
 espera a que alguien lo apruebe. Esa barrera es **un ajuste del repositorio, no
-un paso del archivo** — sin ella, el workflow despliega cada merge sin
+un paso del archivo** — sin ella, el workflow despliega cada release estable publicado sin
 supervisión.
 
 Configúralo una vez:
@@ -540,7 +540,7 @@ Configúralo una vez:
     Todas las ejecuciones comparten el grupo de concurrencia `deploy-production`,
     y una ejecución parada en la barrera de aprobación lo retiene. No caduca por
     sí sola — GitHub cancela una sin atender después de 30 días — así que hasta
-    que alguien la apruebe o la cancele, los merges posteriores hacen cola detrás
+    que alguien la apruebe o la cancele, los releases posteriores hacen cola detrás
     de una decisión que nadie va a tomar, y el servidor sigue ejecutando lo
     último que se desplegó.
 
@@ -552,8 +552,8 @@ Configúralo una vez:
     `deploy-queue.yml` es lo que ocurre cuando se deja de todos modos: cada seis
     horas cancela una ejecución de Deploy que lleve más de doce esperando una
     aprobación, y abre una incidencia que nombra esa ejecución y dice cuánto se ha
-    alejado `main` del último despliegue correcto. No aprueba nada ni despliega
-    nada — vacía la cola para que el siguiente merge llegue a la barrera, y dice
+    alejado el último release estable del último despliegue correcto. No aprueba nada ni despliega
+    nada — vacía la cola para que el siguiente release publicado llegue a la barrera, y dice
     que lo ha hecho. A mano, con `gh workflow run deploy-queue.yml`.
 
 !!! danger "Aprobar desde la cola del entorno aprueba la ejecución **más antigua**"
@@ -562,7 +562,7 @@ Configúralo una vez:
     momento en que la cola se atascó, no el que se acaba de empujar — así llegó a
     este servidor un commit de hace dos semanas. Aprueba desde la página de la
     ejecución del commit que quieres, o arranca una nueva con
-    `gh workflow run deploy.yml --ref main` y aprueba esa.
+    `gh workflow run deploy.yml --ref main -f ref=v1.34.3` y aprueba esa.
 
 | Secreto | Qué |
 |---|---|

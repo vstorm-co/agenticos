@@ -1,6 +1,6 @@
 [project]
 name = "agenticos"
-version = "1.34.1"
+version = "1.36.1"
 description = "OS for your agents."
 requires-python = ">=3.15"
 license = { text = "Apache-2.0" }
@@ -86,9 +86,10 @@ dependencies = [
     # store, tools and cache-safe tail reminder) and `compaction` (the
     # context-window handling and its strategies). Uncapped for the same reason
     # Pydantic AI is: this is where those are maintained, and pinning would
-    # freeze the detectors and the model registry they read. 0.52.0 is the
-    # floor: the first release on the slim that brought workspaces.
-    "pydantic-ai-harness[e2b]>=0.61.0",
+    # freeze the detectors and the model registry they read. Every agent also
+    # wraps RepairToolArguments, whose json-repair dependency is selected by
+    # its capability extra in the 0.64 release.
+    "pydantic-ai-harness[e2b,repair-tool-arguments]>=0.64.0",
     "websockets>=15.0",
     # Required, not optional: hybrid retrieval fuses BM25 with the vector search
     # and a deployment cannot choose otherwise. It is also the only reason

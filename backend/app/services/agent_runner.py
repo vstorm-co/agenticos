@@ -6678,7 +6678,11 @@ class AgentRunnerService:
                     prompt=said,
                     answer=output,
                     attachments=attachments,
-                    attachment_context=attachment_context,
+                    # Replayed after the prompt on every later turn, where the input
+                    # edge no longer looks: a refused turn keeps none of it (#2578).
+                    attachment_context=(
+                        None if status is RunStatus.GUARDRAIL_BLOCKED else attachment_context
+                    ),
                     tool_calls=called,
                     settled=settled,
                     # So the step the run stopped on reads "awaiting approval" when

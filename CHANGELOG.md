@@ -41,6 +41,91 @@ Two things are versioned separately from this file and worth knowing about:
 - A Microsoft Teams bot's form no longer offers a reaction to a question.
   Teams never drew it, so the reaction chosen there was saved and ignored.
 
+## [1.36.1] - 2026-11-02
+
+### Fixed
+
+- Hide message action rows on phones until the More button beside the user or agent is tapped, saving room in the transcript. Keep desktop hover actions. Release the full-screen file reader when its listing fails and move focus into an auto-opened reader, restoring it to the file on return.
+
+- Move the phone Architect launcher into the header and reclaim its bottom clearance for lists and tables. Align the compact chat editor and actions to equal touch heights.
+
+- Make phone chat more comfortable while writing: keep attach, message and send in a compact row, offer agent selection and voice under the plus menu, hide welcome suggestions while composing and bound completion menus to the visible height. Preserve draft text and stable send targets as focus moves. Do not automatically focus touch-keyboard input on arrival or when a reply finishes.
+
+- Give agent and project instructions one compact toolbar, fold unused prompt variables, preserve preview when expanding Markdown, and align expanded-editor phone gutters. Keep phone text fields legible across authentication, files, integrations, tables and workflow forms while preserving desktop sizing. Keep floating App controls clear of the native status bar.
+
+- Reduce oversized desktop and phone spacing across headers, cards, settings, navigation, template categories and empty states. Capability cards open settings through one target, with explanations available on demand. Enable profile saving only for changed values and reset the email field after staging verification.
+
+- Keep phone dialog gutters consistent on all four edges, compact shared navigation and page headers, and move Context descriptions into the editor toolbar to leave more room for text.
+
+- Allow development assets from the hostname configured by `PUBLIC_SITE_URL`, so a console opened over Wi-Fi can initialize its login form.
+- Simplify phone navigation and editing: Inbox filters and MCP clients use selects, long settings navigation uses a section menu, secondary page commands fold away, project files open full screen and workflow step panels switch without losing edits. Keep administrative row actions visible on narrow screens and reduce dialog footer and run-summary height.
+- Improve phone layouts across page actions, app controls, skill and context editors, and file readers. Mobile editors fold descriptions and file management away while writing; project and workspace files have a dedicated reader. Source/preview controls use one button. Apps use floating back and options buttons, keeping more space for their content. Expanded editors preserve drafts and variable completion. Reduce the chat composer's height, align painted source text with its input, and open navigation without focusing its close button.
+
+## [1.36.0] - 2026-11-02
+
+### Security
+
+- The message of a turn a guardrail stopped is no longer replayed to the model in later turns' history. Each check reads only what is new in its own turn, so the message of a `guardrail_blocked` run was read back as history on the next turn, with the text that was typed and the head of each attached file (or the whole file for an agent without a workspace). A harmless follow-up could then get refused content past the input check. The history that web chat, the API, channels, the widget, workflows and a voice call's seed build now shows the model a short note in place of that message, whichever check stopped the turn, and a reply that quotes it quotes the note. A stopped turn also no longer keeps what its files added to the prompt. The person's own transcript still shows what they typed. The filter also applies to conversations from before the upgrade: migration `0248_drop_refused_turn_summaries` drops each stored conversation summary that reaches past such a message, so the next turn rebuilds its history from the transcript and pays for one new summary if it needs one; turns beyond the recent window that only the dropped summary recalled are no longer read back. The mark is kept on the message itself (`messages.guardrail_refused`, added by migration `0249_message_guardrail_refused`), so it holds after run retention deletes the run. The migration marks the messages of every `guardrail_blocked` run still stored; a message whose run retention deleted before the upgrade cannot be identified and stays unmarked. Search over past conversations (`conversation_search`) does not filter these messages yet.
+
+## [1.35.5] - 2026-11-02
+
+### Fixed
+
+- A document deleted while it was still being indexed no longer leaves its chunks searchable. The delete removed nothing because the document had no vector id yet: its chunks were written, or still being written, and the ingest had not recorded them. The ingest now queues a retried job that removes the chunks it wrote when it finds the document deleted, and a delete that discovers the newly recorded vector id queues the same durable removal. Recording the embedding spend of such a document no longer fails the ingest on the deleted row, which had left the chunks in place and retried the job until it died: the spend is kept against no document. A sync no longer counts such a document as ingested. Clearing a default knowledge base mid-ingest was already covered ([#2565](https://github.com/vstorm-co/agenticos/issues/2565)).
+
+## [1.35.4] - 2026-11-02
+
+### Fixed
+
+- The input guardrail no longer reads an attached picture's bytes. On a prompt with a picture it screened the prompt's whole representation, image data included, so PII redaction refused most pictures, a blocked keyword such as `png` matched the data, and a redaction ended the turn as `failed`. The edge now screens the prompt's text alone (a text file sent inline as text, and a link, where a match blocks because a link cannot be rewritten), a redaction rewrites that text and keeps the picture, and the check that runs before an attachment is written now predicts the edge for a turn with a picture too, so a blocked one no longer leaves its picture in the workspace. An inline text file is screened as the UTF-8 a model is sent, and one that declares another character set or is not valid UTF-8 blocks the turn instead of being screened as different text. The size limits of a resumed request count the text of all its prompt parts together (#2566).
+
+## [1.35.3] - 2026-11-02
+
+### Security
+
+- A link in an agent's answer that leads to another site now opens in a new tab, whatever its address looks like. A link written without `https://` - `//evil.example`, `https:evil.example`, `HTTPS:/evil.example` - was rendered as an in-page link, so a click took the console's own tab to that site. The chat decides a link is off-site by where the browser resolves it against the console, and opens it in a new tab with `rel="noopener noreferrer"`. Console links, including the Architect's links that point at a control, still open in place.
+
+## [1.35.2] - 2026-11-02
+
+### Changed
+
+- Run backend coverage once, shard frontend and E2E tests, reuse the production frontend build, and cache native builds. Build desktop release platforms in parallel and publish updater metadata only after every signed target is available.
+
+- Reuse successful checks for proven release-only cuts, prepare release train PRs from the CLI, reuse unchanged browser images, and retain scans and SBOMs when images are retagged. Offer production deployment only after a stable release is published, while keeping manual deployments and rollback.
+
+## [1.35.1] - 2026-11-02
+
+### Fixed
+
+- PyMuPDF ingestion skips embedded images when image description is off. With
+  descriptions on, shared images are extracted and described once per document,
+  while every referencing page keeps its description. Chunks no longer copy
+  embedded images, avoiding memory growth from repeated logos and diagrams in
+  large PDFs ([#2584](https://github.com/vstorm-co/agenticos/issues/2584)).
+
+## [1.35.0] - 2026-11-02
+
+### Changed
+
+- **Planning cache and history migration:** Harness 0.64 returns framed plans with tool metadata and records a missing or changed visible plan as user-channel run history. It no longer inserts a planning cache breakpoint. Existing `planning.cache_ttl` values still load but are ignored: move custom retention to `cache` in the agent or model profile's model settings, for example `cache: "1h"`. Platform prompt caching remains enabled by default.
+
+### Fixed
+
+- Declare the Harness tool argument repair extra so dependency upgrades retain `json-repair` and agent startup does not fail when importing `RepairToolArguments`. Update Harness and its matching Pydantic AI and graph packages to the compatible releases, preserve plan metadata and step IDs in structured tool returns, and keep goal reminders from repeating user text. Dependency freshness runs the whole suite with the same bounded parallel runner as CI so validation finishes within its job limit.
+
+## [1.34.3] - 2026-11-02
+
+### Fixed
+
+- CI, load tests and dependency freshness checks disable deployment diagnostics so ephemeral test installations and browser activity do not enter the live analytics collector.
+- Parallel integration tests synchronize quota audit pool exhaustion and scope listener probes and connection termination to their own database, avoiding load-dependent pool timeouts and interference between pytest workers.
+
+## [1.34.2] - 2026-11-01
+
+### Fixed
+
+- Documentation and `llms.txt` no longer say that nothing phones home or that a fresh install sends nothing anywhere. Deployment diagnostics are on by default, so the docs now state that prompts, conversations and documents stay in the deployment's own database, that diagnostics send the version, health, coarse usage counts and a pseudonymous activity signal, that the default collector is remote (`https://analytics-agenticos.testapp.ovh`), and how to turn them off with `DIAGNOSTICS_ENABLED=false`. The diagnostics collector is added to the lists of what leaves a deployment in the data protection and security pages, and the Polish, German and Spanish translations are updated to match.
+
 ## [1.34.1] - 2026-11-01
 
 ### Changed
@@ -1697,7 +1782,6 @@ Two things are versioned separately from this file and worth knowing about:
   history and the chat's tool row. The row says which kind of picture it
   was instead.
 
-
 ## [1.30.0] - 2026-10-30
 
 ### Added
@@ -1722,7 +1806,6 @@ Two things are versioned separately from this file and worth knowing about:
   Model** beside it, which opens the Model card on the Build tab.
 
 ### Fixed
-
 
 - Architect highlighting follows locale-cookie redirects and skips controls
   hidden by a responsive stylesheet.
@@ -19661,7 +19744,16 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.27.0...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.36.1...HEAD
+[1.36.1]: https://github.com/vstorm-co/agenticos/compare/v1.36.0...v1.36.1
+[1.36.0]: https://github.com/vstorm-co/agenticos/compare/v1.35.5...v1.36.0
+[1.35.5]: https://github.com/vstorm-co/agenticos/compare/v1.35.4...v1.35.5
+[1.35.4]: https://github.com/vstorm-co/agenticos/compare/v1.35.3...v1.35.4
+[1.35.3]: https://github.com/vstorm-co/agenticos/compare/v1.35.2...v1.35.3
+[1.35.2]: https://github.com/vstorm-co/agenticos/compare/v1.35.1...v1.35.2
+[1.35.1]: https://github.com/vstorm-co/agenticos/compare/v1.35.0...v1.35.1
+[1.35.0]: https://github.com/vstorm-co/agenticos/compare/v1.34.3...v1.35.0
+[1.34.3]: https://github.com/vstorm-co/agenticos/compare/v1.34.2...v1.34.3
 [1.27.0]: https://github.com/vstorm-co/agenticos/compare/v1.26.0...v1.27.0
 [1.26.0]: https://github.com/vstorm-co/agenticos/compare/v1.25.0...v1.26.0
 [1.25.0]: https://github.com/vstorm-co/agenticos/compare/v1.24.0...v1.25.0

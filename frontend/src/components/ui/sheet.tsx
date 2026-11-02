@@ -17,6 +17,8 @@ interface SheetContentProps {
   className?: string;
   /** `bottom` is a phone's action sheet - full width, up from the bottom edge. */
   side?: "left" | "right" | "bottom";
+  /** Navigation opens on its container, without selecting a close control or opening a keyboard. */
+  focusContent?: boolean;
 }
 
 export function Sheet({ open, onOpenChange, children }: SheetProps) {
@@ -27,12 +29,20 @@ export function Sheet({ open, onOpenChange, children }: SheetProps) {
   );
 }
 
-export function SheetContent({ children, className, side = "left" }: SheetContentProps) {
+export function SheetContent({
+  children,
+  className,
+  side = "left",
+  focusContent = false,
+}: SheetContentProps) {
   const opener = React.useRef<HTMLElement | null>(null);
+  const content = React.useRef<HTMLDivElement>(null);
   return (
     <DialogPrimitive.Portal>
       <DialogPrimitive.Overlay className="data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=open]:fade-in-0 data-[state=closed]:fade-out-0 fixed inset-0 z-50 bg-black/40" />
       <DialogPrimitive.Content
+        ref={content}
+        tabIndex={-1}
         aria-describedby={undefined}
         onEscapeKeyDown={(event) => {
           // Radix handles Escape during capture, before the input can clear itself.
@@ -44,10 +54,14 @@ export function SheetContent({ children, className, side = "left" }: SheetConten
           )
             event.preventDefault();
         }}
-        onOpenAutoFocus={() => {
+        onOpenAutoFocus={(event) => {
           // Most sheets are controlled by actions outside a Radix trigger.
           opener.current =
             document.activeElement instanceof HTMLElement ? document.activeElement : null;
+          if (focusContent) {
+            event.preventDefault();
+            content.current?.focus({ preventScroll: true });
+          }
         }}
         onCloseAutoFocus={(event) => {
           event.preventDefault();
@@ -86,7 +100,7 @@ export function SheetHeader({
   className?: string;
 }) {
   return (
-    <div className={cn("flex items-center justify-between border-b p-4", className)}>
+    <div className={cn("flex items-center justify-between gap-2 border-b px-4 py-2", className)}>
       {children}
     </div>
   );
@@ -100,7 +114,7 @@ export function SheetTitle({
   className?: string;
 }) {
   return (
-    <DialogPrimitive.Title className={cn("text-lg font-semibold", className)}>
+    <DialogPrimitive.Title className={cn("text-base font-semibold", className)}>
       {children}
     </DialogPrimitive.Title>
   );
@@ -114,8 +128,8 @@ export function SheetClose({ onClick, className }: { onClick: () => void; classN
       onClick={onClick}
       className={cn(
         "ring-offset-background rounded-sm opacity-70 transition-opacity",
-        "focus:ring-ring hover:opacity-100 focus:ring-2 focus:ring-offset-2 focus:outline-none",
-        "flex h-11 w-11 shrink-0 touch-manipulation items-center justify-center",
+        "focus-visible:ring-ring hover:opacity-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2",
+        "touch:min-h-11 touch:min-w-11 flex size-9 shrink-0 touch-manipulation items-center justify-center",
         className,
       )}
     >

@@ -41,7 +41,7 @@ export function StatusList({ rows, className }: { rows: StatusRow[]; className?:
   return (
     <ul className={cn("space-y-1", className)}>
       {rows.map((row) => (
-        <li key={row.id ?? row.label} className="flex min-h-11 items-center gap-3 py-2 text-sm">
+        <li key={row.id ?? row.label} className="flex min-h-9 items-center gap-3 py-1.5 text-sm">
           {row.icon ? (
             <span
               className={cn(

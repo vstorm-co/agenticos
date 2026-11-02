@@ -1,5 +1,5 @@
 ---
-source_sha: "fa5a6c8ba066"
+source_sha: "77658c876710"
 ---
 
 # O AgenticOS { #about-agenticos }
@@ -99,10 +99,13 @@ przetestowany kod w tym repozytorium, a konektor, kanał czy strategia ingestii 
 ten sam wzorzec. Różnica polega na tym, że narzędzie piszesz raz, a potem
 komponuje z nim każdy.
 
-**To nie jest usługa hostowana.** Nic nie dzwoni do domu. Ceny modeli pochodzą
-ze snapshotu dołączonego do wydania, a jedyne żądania wychodzące to te, które
-robią Twoi agenci. System operacyjny instaluje się na własnej maszynie; nikt nie
-wynajmuje jądra za stanowisko.
+**To nie jest usługa hostowana.** Twoje prompty, rozmowy i dokumenty zostają
+w Twoim wdrożeniu, w jego bazie danych i magazynie. Jedyne żądania wychodzące to
+te, które robią Twoi agenci, te, których potrzebuje parser albo dostawca
+embeddingów kolekcji, oraz [diagnostyka wdrożenia](../configuration.md#diagnostics),
+domyślnie włączona i możliwa do wyłączenia. Ceny modeli pochodzą ze snapshotu
+dołączonego do wydania. System operacyjny instaluje się na własnej maszynie; nikt
+nie wynajmuje jądra za stanowisko.
 
 **To nie jest miejsce na pisanie integracji.** Integracja z produktem SaaS to
 [połączenie MCP](../mcp.md), a nie moduł Pythona, który ktoś w tym repozytorium

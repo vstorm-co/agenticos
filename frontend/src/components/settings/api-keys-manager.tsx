@@ -1,5 +1,6 @@
 "use client";
 
+import { ContextHelp } from "@/components/ui/context-help";
 import { useState } from "react";
 import { KeyRound, Plus } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
@@ -113,8 +114,10 @@ export function ApiKeysManager() {
     >
       <header className="border-border flex flex-wrap items-start justify-between gap-3 border-b px-5 py-4">
         <div className="min-w-0 flex-1">
-          <h2 className="text-foreground text-sm font-semibold">{t("title")}</h2>
-          <p className="text-muted-foreground mt-1 text-xs">{t("why")}</p>
+          <div className="flex items-center gap-1">
+            <h2 className="text-foreground text-sm font-semibold">{t("title")}</h2>
+            <ContextHelp>{t("why")}</ContextHelp>
+          </div>
         </div>
         {canCreate && catalog && (
           <Button size="sm" onClick={() => setCreating(true)}>

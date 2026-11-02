@@ -51,7 +51,16 @@ MAKEFILE = REPO_ROOT / "Makefile"
 # organization and a running backend. The image build is not in this workflow at
 # all any more - `images.yml` builds and publishes on a push to `main` and on a
 # tag, and `test_images_workflow.py` is what reads that file.
-GATING_JOBS = ("lint", "test", "test-frontend", "docs", "security")
+GATING_JOBS = (
+    "lint",
+    "test",
+    "lint-frontend",
+    "frontend-shards",
+    "build-frontend",
+    "test-frontend",
+    "docs",
+    "security",
+)
 
 # Commands that prepare a runner rather than check anything. They have no place in
 # `check` - it checks a checkout, it does not build one - so they answer to
@@ -82,6 +91,13 @@ INSTALL_EXEMPT = frozenset(
 # not drift. Anything else appearing in a gating job has to be reachable from
 # `check`.
 CI_ONLY_TARGETS = {
+    # This disables durability only on CI's ephemeral database container.
+    "ci-test-db-configure",
+    # Distribution and aggregation transport the same suite/gate as test-frontend-cov.
+    "test-frontend-jobs-check",
+    "test-frontend-reports-check",
+    "test-frontend-merge",
+    "build-frontend-pack",
     # `downgrade base` against CI's throwaway `test_db` is a rollback test;
     # against a laptop's `backend/.env` it is somebody's afternoon.
     "test-migrations",

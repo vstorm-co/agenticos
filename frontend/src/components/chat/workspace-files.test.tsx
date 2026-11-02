@@ -357,7 +357,6 @@ describe("the workspace panel", () => {
     // away. A CSV an agent wrote used to render as a wall of commas here and as
     // bytes-and-a-download for every other kind.
     expect(await screen.findByRole("dialog")).toBeVisible();
-    await userEvent.click(screen.getByRole("tab", { name: "Preview" }));
     await waitFor(() => expect(screen.getByRole("columnheader", { name: "month" })).toBeVisible());
 
     await userEvent.click(screen.getByRole("button", { name: "Close" }));

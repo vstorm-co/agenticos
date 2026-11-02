@@ -2762,10 +2762,27 @@ body .tour-spotlight {
   select {
     font-size: 16px;
   }
+
+  .page-actions,
+  .page-actions > div:not([data-secondary-actions]) {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: stretch;
+    gap: 0.5rem;
+  }
+
+  .page-actions :where(button, a) {
+    min-block-size: 2.75rem;
+    min-inline-size: 0;
+    white-space: nowrap;
+    text-align: center;
+    padding-inline: 0.75rem;
+    font-size: 0.8125rem;
+  }
 }
 
 /* A card's padding: 16px on a phone, where a card of cards spent a third of the
-   width on padding, 24px from the small breakpoint up. A variable rather than
+   width on padding, 20px from the small breakpoint up. A variable rather than
    "p-4 sm:p-6" on the card, because a caller's own "p-0" merges away the base
    class and leaves the "sm:" one behind. */
 :root {
@@ -2773,7 +2790,7 @@ body .tour-spotlight {
 }
 @media (min-width: 40rem) {
   :root {
-    --card-pad: 1.5rem;
+    --card-pad: 1.25rem;
   }
 }
 
@@ -2848,6 +2865,14 @@ body .tour-spotlight {
   );
 }
 
+@media (max-width: 767px) {
+  :root {
+    --dialog-available-height: calc(
+      var(--app-height, 100dvh) - var(--shell-inset-top, 0px) - var(--safe-bottom, 0px) - 1.5rem
+    );
+  }
+}
+
 /* Sonner's default palette follows its own theme; these roles also follow a
    person's explicit console appearance, including changes while a toast is open. */
 .console-toasts[data-sonner-toaster][data-sonner-theme] {
@@ -2857,4 +2882,53 @@ body .tour-spotlight {
 }
 .console-toasts [data-sonner-toast][data-styled="true"] [data-description] {
   color: var(--color-muted-foreground);
+}
+
+/* A phone keeps the draft between attach and send while writing. Focus may move
+   to either button without moving its target before the click finishes. */
+@media (max-width: 767px) {
+  .chat-input-form[data-editing] {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    column-gap: 4px;
+  }
+  .chat-input-form[data-editing] .chat-input-editor {
+    order: 2;
+    flex: 1;
+  }
+  .chat-input-form[data-editing] .chat-input-actions {
+    display: contents;
+  }
+  .chat-input-form[data-editing] .chat-input-actions > button {
+    order: 1;
+    flex-shrink: 0;
+  }
+  .chat-input-form[data-editing] .chat-input-send {
+    order: 3;
+    align-self: flex-end;
+    padding-bottom: 0;
+  }
+  .chat-input-form[data-editing] .composer-editor {
+    min-height: 44px;
+    padding-block: 10px;
+  }
+  .chat-input-form[data-editing] .chat-input-actions > button,
+  .chat-input-form[data-editing] .chat-input-send > button {
+    min-height: 44px;
+    min-width: 44px;
+  }
+  .chat-input-form[data-editing] .chat-input-selection,
+  .chat-input-form[data-editing] .chat-input-mic {
+    display: none;
+  }
+  .chat-input-form[data-editing] .chat-input-attachments,
+  .chat-input-form[data-editing] .chat-input-reply {
+    order: 0;
+    width: 100%;
+  }
+  .chat-surface:has(.chat-input-form[data-editing]) .chat-empty-state,
+  .chat-surface:has(.chat-input-form[data-editing]) .chat-composer-suggestions {
+    display: none;
+  }
 }

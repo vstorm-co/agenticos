@@ -28,6 +28,9 @@ on:
 permissions:
   contents: read
 
+env:
+  DIAGNOSTICS_ENABLED: "false"
+
 jobs:
   newest:
     name: the newest release of everything
@@ -63,6 +66,7 @@ jobs:
           --health-retries 5
 
     env:
+      PYTEST_XDIST_AUTO_NUM_WORKERS: "4"
       POSTGRES_HOST: localhost
       POSTGRES_PORT: 5432
       POSTGRES_USER: postgres
@@ -125,8 +129,7 @@ jobs:
         working-directory: backend
 
       - name: Run the whole suite
-        run: uv run pytest tests/ -q
-        working-directory: backend
+        run: make test-fast
 
       - name: Open an issue when the newest release breaks us
         if: failure()

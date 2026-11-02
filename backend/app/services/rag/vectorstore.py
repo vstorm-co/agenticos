@@ -367,11 +367,12 @@ class BaseVectorStore(ABC):
         document: Document,
         scope: VectorScope,
     ) -> dict[str, Any]:
+        image_count = len(chunk.images) if chunk.image_count is None else chunk.image_count
         metadata: dict[str, Any] = {
             "page_num": chunk.page_num,
             "chunk_num": chunk.chunk_num,
-            "has_images": bool(getattr(chunk, "images", None)),
-            "image_count": len(getattr(chunk, "images", [])),
+            "has_images": image_count > 0,
+            "image_count": image_count,
             **document.metadata.model_dump(),
         }
         # The tenant tag. `document.metadata.organization_id` already carries it in
@@ -1075,6 +1076,11 @@ class PgVectorStore(BaseVectorStore):
     async def delete_document(
         self, collection_name: str, document_id: str, scope: VectorScope
     ) -> None:
+        # A missing table is a no-op, as in `delete_knowledge_base_chunks`: a
+        # collection dropped while its document indexed already took the chunks
+        # the ingest's settlement comes to remove (#2565).
+        if not await self._collection_exists(collection_name):
+            return
         table = self._table(collection_name)
         sanitized = self._sanitize_id(document_id)
         # The document is named by its own id, so its unfiled chunks - written

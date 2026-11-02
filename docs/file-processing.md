@@ -938,6 +938,14 @@ nothing and fails at the index step, and a write that comes first commits before
 the delete, whose cleanup then removes its chunks
 ([#2561](https://github.com/vstorm-co/agenticos/issues/2561)).
 
+A single document deleted while it is still indexing leaves no chunks behind
+either. Its row has no vector document id until the ingest records one, so the
+delete may have nothing to remove; the worker that finds the row gone when it
+records the result queues a job, in the same transaction, that removes the
+chunks it has just written and is retried if the removal fails. A delete that discovers the newly recorded id queues the same durable removal
+from the id its deleted row holds
+([#2565](https://github.com/vstorm-co/agenticos/issues/2565)).
+
 A local sync queued for a base deleted before it runs ends with an error and writes
 nothing
 ([#2561](https://github.com/vstorm-co/agenticos/issues/2561)).
@@ -1518,8 +1526,11 @@ dead end. What it does not offer is deleting a profile: that belongs where an
 organization's models are managed, and a profile that agents use cannot be
 deleted at all.
 
-The generated descriptions are included in the document text for better semantic
-search.
+PyMuPDF skips embedded image extraction when image description is off. When it
+is on, each image xref is extracted once per document, repeated references on a
+page are collapsed, and identical image bytes are described once. Each page
+referencing an image still receives its description in the text for semantic
+search. Chunks carry that text without copying the page's embedded images.
 
 ## From a channel
 

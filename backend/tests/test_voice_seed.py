@@ -13,6 +13,7 @@ from pydantic_ai import Agent
 from pydantic_ai.messages import ModelRequest, ModelResponse
 from pydantic_ai.models.instrumented import InstrumentationSettings
 
+from app.services.message_history import REFUSED_TURN
 from app.services.voice.seed import RECENT_TURNS_KEPT, seed_history
 
 pytestmark = pytest.mark.anyio
@@ -24,6 +25,7 @@ def _rows(n: int, size: int = 20):
             role="user" if i % 2 == 0 else "assistant",
             content=f"turn {i} " + "x" * size,
             context_used_tokens=None,
+            guardrail_refused=False,
         )
         for i in range(n)
     ]
@@ -58,6 +60,33 @@ async def test_the_summary_is_written_by_the_chat_model_and_booked_on_the_run():
     )
     assert await summariser(prepared)("user: hello") == "A summary."
     assert len(ledger.entries) == 1
+
+
+@pytest.mark.security
+async def test_a_turn_the_guardrail_refused_is_not_seeded():
+    """#2578: a call continues the typed thread, and a refused prompt read back
+    verbatim would reach the realtime model the input edge kept it from."""
+    rows = [
+        SimpleNamespace(
+            role="user", content="SECRETWORD", context_used_tokens=None, guardrail_refused=True
+        ),
+        SimpleNamespace(
+            role="user", content="hello", context_used_tokens=None, guardrail_refused=False
+        ),
+    ]
+    with (
+        patch(
+            "app.services.voice.seed.conversation_repo.get_recent_messages",
+            AsyncMock(return_value=rows),
+        ),
+    ):
+        seeded = await seed_history(
+            MagicMock(), conversation_id=uuid4(), context_window=32_000, summarise=AsyncMock()
+        )
+    assert [part.content for message in seeded for part in message.parts] == [
+        REFUSED_TURN,
+        "hello",
+    ]
 
 
 @pytest.mark.security

@@ -771,7 +771,6 @@
     "startsWithRecommended": "{count, plural, =0 {Startet ohne Tools} =1 {Startet mit 1 empfohlenen Tool} other {Startet mit # empfohlenen Tools}}",
     "capabilityRecommended": "Empfohlen",
     "capabilitySettingsTitle": "Einstellungen: {name}",
-    "capabilityOpenSettings": "Einstellungen",
     "capabilityShelfEnabled": "{enabled} von {total} an",
     "capabilityShelfPrevious": "Zurück in {shelf}",
     "capabilityShelfNext": "Mehr in {shelf}",
@@ -2210,6 +2209,7 @@
   },
   "common": {
     "archiveNamedConfirm": "{name} archivieren?",
+    "chooseSection": "Bereich: {section}",
     "back": "Zurück",
     "cancel": "Abbrechen",
     "close": "Schließen",
@@ -3065,6 +3065,7 @@
       "reset": "Wieder der Seite folgen"
     },
     "pageStatus": "Status",
+    "morePageActions": "Weitere Seitenaktionen",
     "startChecklist": {
       "title": "Erste Schritte",
       "progress": "{done} von {total} erledigt",
@@ -3897,6 +3898,7 @@
     "serverDisconnected": "{name} getrennt.",
     "serverUpdated": "{name} aktualisiert.",
     "serverUrl": "Server-URL",
+    "client": "MCP-Client",
     "servers": "Server",
     "settings": "Einstellungen",
     "stateDisabled": "Deaktiviert",
@@ -4585,6 +4587,30 @@
         "title": "Ihre Dokumente",
         "body": "Wenn ein Agent eine Datei speichert, landet sie hier - durchsuchen, ansehen und herunterladen, was Ihre Unterhaltungen erzeugt haben."
       },
+      "project-file-fullscreen": {
+        "title": "Mehr Platz für Dateien",
+        "body": "Öffne eine Datei und vergrößere ihre Ansicht auf dem Bildschirm. Der Zurück-Pfeil führt zur Ordnerliste."
+      },
+      "workspace-file-fullscreen": {
+        "title": "Mehr Platz für Dateien",
+        "body": "Öffne eine Datei und vergrößere ihre Ansicht auf dem Bildschirm. Der Zurück-Pfeil führt zur Ordnerliste."
+      },
+      "agent-editor-fullscreen": {
+        "title": "Editor vergrößern",
+        "body": "Mit der Vergrößern-Schaltfläche kannst du das ganze Dokument lesen oder bearbeiten. Beim Schließen bleibt dein aktueller Entwurf erhalten."
+      },
+      "skill-editor-fullscreen": {
+        "title": "Editor vergrößern",
+        "body": "Mit der Vergrößern-Schaltfläche kannst du das ganze Dokument lesen oder bearbeiten. Beim Schließen bleibt dein aktueller Entwurf erhalten."
+      },
+      "context-editor-fullscreen": {
+        "title": "Editor vergrößern",
+        "body": "Mit der Vergrößern-Schaltfläche kannst du das ganze Dokument lesen oder bearbeiten. Beim Schließen bleibt dein aktueller Entwurf erhalten."
+      },
+      "workflow-canvas-fullscreen": {
+        "title": "Im Vollbild arbeiten",
+        "body": "Die schwebende Schaltfläche vergrößert das Diagramm. Erneut drücken, um zum Workflow-Kopf zurückzukehren; dein Entwurf bleibt erhalten."
+      },
       "workspaces-detail": {
         "title": "In einem Ordner",
         "body": "Die Dateien eines Agents, Ordner für Ordner. Sehen Sie eine Datei an oder laden Sie herunter, was ein Agent für Sie erstellt hat."
@@ -4832,6 +4858,10 @@
       "project-file-location": {
         "title": "Dein Computer oder gemeinsame Dateien",
         "body": "Computer zeigt deinen freigegebenen lokalen Ordner. Gemeinsame Projektdateien enthält hochgeladene Kopien für Personen mit Projektzugriff. Die beiden Orte werden nicht automatisch synchronisiert."
+      },
+      "workflow-step-view": {
+        "title": "Ein Bereich im Fokus",
+        "body": "Wähle auf dem Smartphone die Schritteinstellungen, Eingabe oder Ausgabe. Der aktive Bereich erhält den verfügbaren Platz; dein Entwurf bleibt beim Wechsel erhalten."
       }
     },
     "chooseLanguage": "Sprache",
@@ -7779,6 +7809,7 @@
     "minutesAgo": "{count, plural, other {vor # Min.}}"
   },
   "ui": {
+    "expandEditor": "{label} vergrößern",
     "cancel": "Abbrechen",
     "checkConnection": "Prüfen Sie Ihre Verbindung und versuchen Sie es erneut.",
     "close": "Schließen",
@@ -9048,6 +9079,8 @@
     "dataEmpty": "Nichts darin",
     "dataMoreRows": "{count, plural, one {# weitere Zeile zeigen} other {# weitere Zeilen zeigen}}",
     "stepInput": "Eingabe",
+    "stepEditorView": "Schrittansicht",
+    "stepEditorSettings": "Schritteinstellungen",
     "stepInputSource": "Daten aus Schritt",
     "stepPinned": "Testdaten",
     "stepNoDataYet": "Noch keine Daten. Führen Sie den Workflow aus oder testen Sie den Schritt davor.",
@@ -9466,6 +9499,7 @@
     "currentTag": "Aktuell",
     "publicUpdated": "Aktualisiert {when}",
     "backToArtifacts": "Zurück zu den Apps",
+    "viewerControls": "App-Steuerung",
     "share": "Teilen",
     "moreActions": "Weitere Aktionen",
     "accessRestricted": "Nur Personen mit Zugriff",
@@ -9733,7 +9767,6 @@
       "blockedSwitch": "Ein Owner oder Admin muss zuerst Live-Daten auf öffentlichen Seiten in den Einstellungen der Organisation einschalten.",
       "blockedLink": "Die Seite hat keinen öffentlichen Link. Schalten Sie ihn zuerst ein."
     },
-    "appTheme": "App-Design",
     "lightTheme": "Helles App-Design verwenden",
     "darkTheme": "Dunkles App-Design verwenden"
   },
@@ -11183,8 +11216,8 @@
         "description": "Fügt Teilaufgaben und Abhängigkeiten hinzu: Ein Schritt wartet als blockiert, bis die Schritte davor fertig sind. Standardmäßig aus, weil für die meiste Arbeit eine flache Checkliste genügt."
       },
       "cache_ttl": {
-        "title": "Lebensdauer des Prompt-Caches",
-        "description": "Wie lange der Provider das Prompt-Präfix vor der Planerinnerung cachen darf. Die Erinnerung ändert sich in jeder Runde und steht bewusst hinter diesem Punkt, damit das stabile Präfix cachebar bleibt; eine längere TTL passt zu einem Gespräch, das offen bleibt, die kürzere zu einer schnellen Folge von Runden."
+        "title": "Bisherige Prompt-Cache-Dauer",
+        "description": "Bleibt erhalten, damit bestehende Agent-Spezifikationen weiterhin geladen werden. Die Planung nutzt diesen Wert nicht mehr; konfigurieren Sie den Prompt-Cache über cache in den Modelleinstellungen."
       }
     },
     "sandbox": {
@@ -11521,6 +11554,7 @@
     "why": "Claude Code, Codex, Cursor oder jeder andere MCP-Client kann über den eigenen MCP-Server von AgenticOS in dieser Organisation arbeiten: Agents auflisten und ausführen, Runs und ihre Kosten lesen, Wissensdatenbanken durchsuchen und füllen, Mitglieder einladen.",
     "docs": "Was der MCP-Server kann",
     "serverUrl": "Server-URL",
+    "client": "MCP-Client",
     "signIn": "Anmeldung",
     "viaBrowser": "Über den Browser",
     "viaKey": "Mit einem API-Schlüssel",

@@ -211,11 +211,11 @@ names no author is in the evidence column below.
 | pycparser | 3.12 | BSD-3-Clause | https://github.com/eliben/pycparser | License-Expression |
 | pydantic | 2.14.1 | MIT | https://github.com/pydantic/pydantic | License-Expression |
 | pydantic-ai-backend | 0.2.39 | MIT | https://github.com/vstorm-co/pydantic-ai-backend | License-Expression |
-| pydantic-ai-harness | 0.61.0 | MIT | https://github.com/pydantic/pydantic-ai | License-Expression |
+| pydantic-ai-harness | 0.64.0 | MIT | https://github.com/pydantic/pydantic-ai | License-Expression |
 | pydantic-ai-skills | 2.1.0 | MIT | https://github.com/dougtrajano/pydantic-ai-skills | License-Expression |
-| pydantic-ai-slim | 2.61.0 | MIT | https://github.com/pydantic/pydantic-ai/tree/main/pydantic_ai_slim | License-Expression |
+| pydantic-ai-slim | 2.64.0 | MIT | https://github.com/pydantic/pydantic-ai/tree/main/pydantic_ai_slim | License-Expression |
 | pydantic-core | 2.50.1 | MIT | https://github.com/pydantic/pydantic/tree/main/pydantic-core | License-Expression |
-| pydantic-graph | 2.61.0 | MIT | https://github.com/pydantic/pydantic-ai | License-Expression |
+| pydantic-graph | 2.64.0 | MIT | https://github.com/pydantic/pydantic-ai | License-Expression |
 | pydantic-monty | 1.4.0 | MIT | https://github.com/pydantic/monty | License-Expression; no licence file, attributed to Pydantic Services Inc. |
 | pydantic-monty-client | 1.4.0 | MIT | https://github.com/pydantic/monty | License field; no licence file, attributed to Pydantic Services Inc. |
 | pydantic-monty-runtime | 1.4.0 | MIT | https://github.com/pydantic/monty | License field; no licence file, attributed to Pydantic Services Inc. |

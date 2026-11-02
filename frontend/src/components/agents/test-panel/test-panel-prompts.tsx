@@ -71,7 +71,7 @@ export function TestPanelPrompts({
           onChange={(event) => setText(event.target.value)}
           placeholder={comparing ? t("testPanelAskBothPlaceholder") : t("testPanelPinPlaceholder")}
           aria-label={t("testPanelPrompt")}
-          className="h-7 text-xs"
+          className="h-7 text-base md:text-xs"
           maxLength={500}
         />
         <Button

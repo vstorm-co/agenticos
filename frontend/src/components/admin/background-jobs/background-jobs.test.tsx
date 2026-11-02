@@ -134,7 +134,7 @@ describe("the jobs table", () => {
     render(<JobsTable status={undefined} pool={undefined} onPool={vi.fn()} />);
 
     expect(screen.getByText("killed by SIGKILL")).toBeInTheDocument();
-    expect(screen.getByText("2 of 2")).toBeInTheDocument();
+    expect(screen.getAllByText("2 of 2")).toHaveLength(2);
     fireEvent.click(screen.getByRole("button", { name: "Retry" }));
     expect(retry).toHaveBeenCalledWith(dead);
     fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
