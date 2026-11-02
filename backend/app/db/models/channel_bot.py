@@ -64,6 +64,15 @@ class ChannelBot(Base, TimestampMixin):
     # The token Mattermost gives a slash command when it is created, which every
     # `/agent` request carries (#2084). Sealed like the rest; Mattermost bots only.
     command_token_encrypted: Mapped[str | None] = mapped_column(String(1000), nullable=True)
+    # A WhatsApp bot's Cloud API registration (#2076): the business phone number
+    # it answers on and the WhatsApp Business Account that owns it. Identifiers,
+    # not credentials - the System User access token is `token_encrypted` and the
+    # Meta app secret every webhook is signed with is `webhook_secret_encrypted`.
+    # The verify token answers Meta's one-off subscription handshake; it is sealed
+    # like the rest, at `secret_key_version`. NULL on other platforms.
+    whatsapp_phone_number_id: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    whatsapp_account_id: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    whatsapp_verify_token_encrypted: Mapped[str | None] = mapped_column(String(1000), nullable=True)
 
     # The emoji the bot reacts to a question with the moment it arrives (#2084),
     # by the platform's own name for it - `eyes`. Null reacts with nothing.
@@ -167,6 +176,11 @@ class ChannelBot(Base, TimestampMixin):
     def has_command_token(self) -> bool:
         """Whether `/agent` requests can be verified - never the token itself."""
         return self.command_token_encrypted is not None
+
+    @property
+    def has_whatsapp_verify_token(self) -> bool:
+        """Whether Meta's subscription handshake can be answered - never the token."""
+        return self.whatsapp_verify_token_encrypted is not None
 
     @property
     def has_slack_app_token(self) -> bool:

@@ -68,6 +68,8 @@ StepDisplay = Literal["timeline", "plan"]
 """How a streamed answer shows its tool calls: one row each, or one plan."""
 
 
+WHATSAPP_ID_PATTERN = r"^\d{5,32}$"
+"""A Cloud API phone number or account id: digits only."""
 TEAMS_ID_PATTERN = r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
 """An Entra app id or tenant id: a GUID."""
 
@@ -97,7 +99,8 @@ class ChannelBotCreate(BaseSchema):
             "The shared secret an inbound webhook is authenticated against. Paste "
             "the token Mattermost shows when the outgoing webhook is created; for "
             "Telegram, leave it empty and one is generated and handed over when "
-            "the webhook is registered. Sealed in the vault, never returned."
+            "the webhook is registered; for WhatsApp, it is the Meta app secret. "
+            "Sealed in the vault, never returned."
         ),
     )
     access_policy: AccessPolicy = Field(default_factory=AccessPolicy)
@@ -137,6 +140,29 @@ class ChannelBotCreate(BaseSchema):
         default=None,
         pattern=TEAMS_ID_PATTERN,
         description="The Entra tenant the single-tenant Azure Bot is registered in. Teams only.",
+    )
+    whatsapp_phone_number_id: str | None = Field(
+        default=None,
+        pattern=WHATSAPP_ID_PATTERN,
+        description=(
+            "The Cloud API id of the business phone number the bot answers on. "
+            "WhatsApp bots only; the token is its System User access token."
+        ),
+    )
+    whatsapp_account_id: str | None = Field(
+        default=None,
+        pattern=WHATSAPP_ID_PATTERN,
+        description="The WhatsApp Business Account that owns the number. WhatsApp only.",
+    )
+    whatsapp_verify_token: str | None = Field(
+        default=None,
+        min_length=8,
+        max_length=255,
+        description=(
+            "The verify token entered in Meta's webhook setup, which Meta echoes "
+            "back once to subscribe. WhatsApp bots only; sealed, never returned. "
+            "The Meta app secret goes in `webhook_secret`."
+        ),
     )
     stream_answers: bool = Field(
         default=True,
@@ -239,6 +265,34 @@ class ChannelBotCreate(BaseSchema):
         return self
 
     @model_validator(mode="after")
+    def _a_whatsapp_bot_carries_its_number(self) -> ChannelBotCreate:
+        """A WhatsApp bot is saved with its number, account and both secrets (#2076).
+
+        Without the number it cannot send, without the app secret no webhook can
+        be believed and without the verify token Meta cannot subscribe it. And it
+        is always a webhook bot: Meta posts every message to the bot's endpoint,
+        and there is nothing to poll.
+        """
+        whatsapp = self.platform == "whatsapp"
+        given = (
+            self.whatsapp_phone_number_id,
+            self.whatsapp_account_id,
+            self.whatsapp_verify_token,
+        )
+        if whatsapp and (None in given or self.webhook_secret is None):
+            raise ValueError(
+                "A WhatsApp bot needs its phone number ID, account ID, app secret and verify token"
+            )
+        if not whatsapp and any(value is not None for value in given):
+            raise ValueError(
+                f"A phone number ID, account ID and verify token are for a WhatsApp bot, "
+                f"not a {self.platform} bot"
+            )
+        if whatsapp:
+            self.webhook_mode = True
+        return self
+
+    @model_validator(mode="after")
     def _a_self_hosted_bot_carries_its_server(self) -> ChannelBotCreate:
         """A Mattermost bot is saved with its server's URL, or not saved.
 
@@ -289,6 +343,9 @@ class ChannelBotUpdate(BaseSchema):
     slack_app_token: str | None = Field(default=None, min_length=8, max_length=500)
     transcribe_voice_notes: bool | None = None
     command_token: str | None = Field(default=None, min_length=8, max_length=255)
+    whatsapp_phone_number_id: str | None = Field(default=None, pattern=WHATSAPP_ID_PATTERN)
+    whatsapp_account_id: str | None = Field(default=None, pattern=WHATSAPP_ID_PATTERN)
+    whatsapp_verify_token: str | None = Field(default=None, min_length=8, max_length=255)
     ack_reaction: str | None = Field(default=None, pattern=ACK_REACTION_PATTERN)
     stream_answers: bool | None = None
     step_display: StepDisplay | None = None
@@ -382,6 +439,10 @@ class ChannelBotRead(BaseSchema):
     # Identifiers, not secrets: the console builds the Teams app package from them.
     teams_app_id: str | None = None
     teams_tenant_id: str | None = None
+    # The number and its account are identifiers; the verify token is a boolean.
+    whatsapp_phone_number_id: str | None = None
+    whatsapp_account_id: str | None = None
+    has_whatsapp_verify_token: bool = False
     ack_reaction: str | None = None
     stream_answers: bool = True
     step_display: StepDisplay = "timeline"
