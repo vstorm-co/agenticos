@@ -671,6 +671,35 @@ class TestAListingTheStoreCannotAnswer:
         assert answer["skipped"] == 0
 
 
+class TestADocumentDeletedWhileItSynced:
+    """Its chunks are removed by the settlement, so the sync must not report it
+    as ingested - a run whose every file went would read as a success (#2565)."""
+
+    async def test_the_connector_sync_counts_it_as_nothing(self):
+        async with _syncing(mode="full", listing=[], connector=_connector()) as (_, documents):
+            documents.complete_ingestion = AsyncMock(return_value=False)
+            documents.discard_untracked = AsyncMock()
+            answer = await rag_tasks._run_source_sync(
+                str(uuid.uuid4()), sync_log_id=str(uuid.uuid4())
+            )
+
+        documents.discard_untracked.assert_awaited_once()
+        assert (answer["ingested"], answer["updated"], answer["failed"]) == (0, 0, 0)
+
+    async def test_the_local_sync_counts_it_as_nothing(self, tmp_path: Path):
+        (tmp_path / "handbook.md").write_text("body")
+
+        async with TestTheLocalDirectorySync._syncing(result=_result()) as documents:
+            documents.complete_ingestion = AsyncMock(return_value=False)
+            documents.discard_untracked = AsyncMock()
+            answer = await rag_tasks._run_sync(
+                str(uuid.uuid4()), "local", "docs", "full", str(tmp_path)
+            )
+
+        documents.discard_untracked.assert_awaited_once()
+        assert (answer["ingested"], answer["updated"], answer["failed"]) == (0, 0, 0)
+
+
 class TestTheLocalDirectorySync:
     """The same two guarantees, on the flow that names a path on the server.
 

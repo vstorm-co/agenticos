@@ -76,6 +76,7 @@ def production() -> Handlers:
             Handler(jobs.INSTALL_ROLE_PACK, proactive_tasks.install_role_pack),
             Handler(jobs.WELCOME_MEMBER, proactive_tasks.welcome_member),
             Handler(jobs.CLEANUP_EXTERNAL_STATE, teardown_tasks.run_external_state_cleanup),
+            Handler(jobs.DISCARD_VECTOR_DOCUMENT, teardown_tasks.discard_vector_document),
             Handler(jobs.CHECK_AGENT_TRIGGERS, _each_tick(trigger_tasks.check_agent_triggers)),
             Handler(jobs.POLL_PORTAL_GRANTS, _each_tick(trigger_tasks.poll_portal_grants)),
             Handler(

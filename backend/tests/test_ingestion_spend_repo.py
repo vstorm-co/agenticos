@@ -43,8 +43,9 @@ class _RecordingSession:
 
 class TestRecording:
     async def test_a_window_is_written_with_everything_a_bill_needs(self):
-        session = _RecordingSession()
         organization_id, document_id = uuid.uuid4(), uuid.uuid4()
+        # The document is still there: the lookup finds it.
+        session = _RecordingSession(scalar_result=document_id)
 
         spend = await ingestion_spend_repo.record(
             session,
@@ -65,6 +66,36 @@ class TestRecording:
             0,
         )
         assert (spend.cost_usd, spend.cost_is_partial) == (Decimal("0.13"), False)
+        # Held against a delete until the insert commits, not merely read - the
+        # organization first, in the order its purge takes the two.
+        organization, document = (
+            str(statement.compile(dialect=postgresql.dialect())) for statement in session.statements
+        )
+        assert organization.startswith("SELECT organizations.id")
+        assert document.startswith("SELECT rag_documents.id")
+        assert "FOR KEY SHARE" in organization
+        assert "FOR KEY SHARE" in document
+
+    @pytest.mark.parametrize("organization_id", [uuid.uuid4(), None], ids=["org", "app"])
+    async def test_a_document_deleted_meanwhile_keeps_its_spend_against_none(
+        self, organization_id: uuid.UUID | None
+    ):
+        """The foreign key would refuse the row; the spend still happened (#2565)."""
+        session = _RecordingSession(scalar_result=None)
+
+        spend = await ingestion_spend_repo.record(
+            session,
+            organization_id=organization_id,
+            rag_document_id=uuid.uuid4(),
+            model="text-embedding-3-large",
+            input_tokens=10,
+            output_tokens=0,
+            cost_usd=Decimal("0.01"),
+            cost_is_partial=False,
+        )
+
+        assert session.added == [spend]
+        assert spend.rag_document_id is None
 
     async def test_an_unpriced_window_is_flagged_not_silently_free(self):
         session = _RecordingSession()
