@@ -22,6 +22,7 @@ Two things are versioned separately from this file and worth knowing about:
 ### Fixed
 
 - CI, load tests and dependency freshness checks disable deployment diagnostics so ephemeral test installations and browser activity do not enter the live analytics collector.
+- Parallel integration tests synchronize quota audit pool exhaustion and scope listener probes and connection termination to their own database, avoiding load-dependent pool timeouts and interference between pytest workers.
 
 ## [1.34.2] - 2026-11-01
 
