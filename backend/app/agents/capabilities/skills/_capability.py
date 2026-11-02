@@ -50,6 +50,15 @@ served where the stored one would be, and nothing is written to the skill.
 
 
 @dataclass(frozen=True)
+class SkillBodyFile:
+    """One file of a skill as a proposal would leave it."""
+
+    name: str
+    description: str | None
+    content: str
+
+
+@dataclass(frozen=True)
 class SkillBody:
     """A skill's description and instructions, as a proposal would leave them."""
 
@@ -57,6 +66,20 @@ class SkillBody:
     content: str
     name: str | None = None
     """A name marks a new skill projected for this run only, with no stored row."""
+    resources: tuple[SkillBodyFile, ...] | None = None
+    """The files in place of the stored ones; `None` keeps the stored files."""
+
+
+def served_files(skill: Skill, body: SkillBody | None = None) -> list[SkillBodyFile]:
+    """The files a run is given for a skill: the body's when it brings its own."""
+    if body is not None and body.resources is not None:
+        return list(body.resources)
+    return [
+        SkillBodyFile(
+            name=resource.name, description=resource.description, content=resource.content
+        )
+        for resource in skill.resources
+    ]
 
 
 def to_toolkit_skill(skill: Skill, body: SkillBody | None = None) -> ToolkitSkill:
@@ -66,12 +89,8 @@ def to_toolkit_skill(skill: Skill, body: SkillBody | None = None) -> ToolkitSkil
         description=skill.description if body is None else body.description,
         content=skill.content if body is None else body.content,
         resources=[
-            ToolkitResource(
-                name=resource.name,
-                description=resource.description,
-                content=resource.content,
-            )
-            for resource in skill.resources
+            ToolkitResource(name=file.name, description=file.description, content=file.content)
+            for file in served_files(skill, body)
         ],
     )
 

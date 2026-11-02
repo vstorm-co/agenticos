@@ -295,6 +295,11 @@ class EvalRunArm(Base):
     skill_bodies: Mapped[dict[str, Any] | None] = mapped_column(
         JSONB(none_as_null=True), nullable=True
     )
+    # `{skill_id: version_id}`: the stored versions the arm's agent and its inline
+    # specialists were served. A baseline is reused only by an arm served the same ones.
+    skill_versions: Mapped[dict[str, str] | None] = mapped_column(
+        JSONB(none_as_null=True), nullable=True
+    )
     # `{context_id: {description, content}}`, the same for a context file change.
     context_bodies: Mapped[dict[str, Any] | None] = mapped_column(
         JSONB(none_as_null=True), nullable=True

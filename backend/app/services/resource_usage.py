@@ -165,3 +165,48 @@ async def agents_using_skill(
         (agent for agent in agents.values() if agent.status != AgentStatus.ARCHIVED.value),
         key=lambda agent: agent.name,
     )
+
+
+async def agents_serving_skills(
+    db: AsyncSession, ctx: AuthContext, *, skill_ids: Collection[UUID]
+) -> dict[UUID, list[AgentUsage]]:
+    """For each skill, the agents a served version of which binds it, that the caller may see.
+
+    A skill's agents are the ones that run it: a version one of their environments
+    serves binds it, the agent's own or an inline specialist's. A draft that binds
+    it runs nothing yet.
+    """
+    from app.services.eval_suite import binds
+
+    serving: dict[UUID, set[UUID]] = {skill_id: set() for skill_id in skill_ids}
+    for environment, version in await agent_environment_repo.served(
+        db, organization_id=ctx.organization_id
+    ):
+        text = json.dumps(version.spec)
+        named = [skill_id for skill_id in skill_ids if str(skill_id) in text]
+        if not named:
+            continue
+        try:
+            spec = AgentSpec.model_validate(version.spec)
+        except ValidationError:
+            continue
+        for skill_id in named:
+            if binds(spec, "skill", skill_id):
+                serving[skill_id].add(environment.agent_id)
+    agents = await agent_repo.get_many(
+        db,
+        sorted({agent_id for ids in serving.values() for agent_id in ids}),
+        organization_id=ctx.organization_id,
+    )
+    found = {
+        skill_id: sorted(
+            (
+                agents[agent_id]
+                for agent_id in ids
+                if agent_id in agents and agents[agent_id].status != AgentStatus.ARCHIVED.value
+            ),
+            key=lambda agent: agent.name,
+        )
+        for skill_id, ids in serving.items()
+    }
+    return await _visible_usage(db, ctx, found)

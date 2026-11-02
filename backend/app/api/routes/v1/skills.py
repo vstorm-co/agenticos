@@ -15,7 +15,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, Query, UploadFile, status
 
-from app.api.deps import Auth, SkillSvc, SkillVersionSvc, require
+from app.api.deps import Auth, SkillAgentSvc, SkillSvc, SkillVersionSvc, require
 from app.api.public_api import PUBLIC
 from app.core.permissions import Perm
 from app.repositories.skill import SkillSort
@@ -34,6 +34,9 @@ from app.schemas.skill import (
 )
 from app.schemas.skill_usage import SkillUsageRead
 from app.schemas.skill_version import (
+    SkillAgentList,
+    SkillBindingChange,
+    SkillBindingChanged,
     SkillForkCreate,
     SkillForkList,
     SkillForkRead,
@@ -343,3 +346,29 @@ async def rename_fork(
 async def archive_fork(skill_id: UUID, fork_id: UUID, service: SkillVersionSvc, ctx: Auth) -> Any:
     """Archive a fork. It keeps its versions; it is never deleted."""
     return await service.archive_fork(ctx, skill_id, fork_id)
+
+
+@router.get("/{skill_id}/agents", response_model=SkillAgentList)
+async def list_skill_agents(skill_id: UUID, service: SkillAgentSvc, ctx: Auth) -> Any:
+    """The agents that use the skill, with the version each reads in each environment.
+
+    Agents the caller may not see are counted in `hidden` and not named.
+    """
+    return await service.agents(ctx, skill_id)
+
+
+@router.put("/{skill_id}/agents/{agent_id}/binding", response_model=SkillBindingChanged)
+async def change_skill_binding(
+    skill_id: UUID,
+    agent_id: UUID,
+    data: SkillBindingChange,
+    service: SkillAgentSvc,
+    ctx: Auth,
+) -> Any:
+    """Move an agent to main's newest version, a main version, or a fork of this skill.
+
+    With `agents:publish` on the agent, its published spec with only this binding
+    changed goes live as a new agent version and the draft takes the same change;
+    with `agents:edit` alone, only the draft changes and `published` is false.
+    """
+    return await service.change_binding(ctx, skill_id, agent_id, data)
