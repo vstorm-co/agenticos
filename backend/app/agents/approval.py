@@ -19,6 +19,7 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Any
+from uuid import UUID
 
 
 class ApprovalMode(StrEnum):
@@ -64,7 +65,7 @@ class ApprovalRequest:
 
     capability_id: str | None
     """The capability that owns the tool, or `None` for one no capability does -
-    an MCP server's. Only `ASK_ALL` produces the second: the spec-driven gate
+    an MCP server's. A stricter session or routine policy can produce the second: the spec-driven gate
     reaches capability tools alone, because an MCP tool's approval is a property
     of the connection. A person tightening their own session is asking about
     everything the agent can reach, which includes those."""
@@ -92,6 +93,9 @@ class ApprovalRequest:
     already has a decision for - a resumed run's - would pay a database session and
     up to the gate's timeout for a description nobody reads. Shown beside the
     arguments, never instead of them: the arguments are what runs."""
+
+    routine_consented_by: UUID | None = None
+    """A human named by the trusted routine policy for this exact action."""
 
 
 @dataclass(frozen=True)

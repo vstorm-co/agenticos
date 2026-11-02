@@ -212,6 +212,8 @@ export const qk = {
     targets: (agentId: string) => ["exposures", agentId, "targets"] as const,
   },
   triggers: {
+    actionConsents: (agentId: string, triggerId: string) =>
+      ["triggers", agentId, "action-consents", triggerId] as const,
     all: () => ["triggers"] as const,
     // One agent's schedules and event triggers, for the Builder's panel.
     list: (agentId: string) => ["triggers", agentId] as const,

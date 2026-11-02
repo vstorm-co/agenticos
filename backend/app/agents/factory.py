@@ -16,6 +16,7 @@ import logging
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from decimal import Decimal
+from functools import partial
 from typing import Any
 from uuid import UUID
 
@@ -84,6 +85,7 @@ from app.agents.loop_guard import LoopGuard
 from app.agents.manifest import RecordingModel, RunRecorder
 from app.agents.model_resolver import PROMPT_CACHE, ModelRequestSpec
 from app.agents.observability import instrument_agent, suppress_content
+from app.agents.routine_actions import RoutineToolCheck
 from app.agents.run_reviewer import RunReviewer
 from app.agents.setup_briefing import SetupBriefing
 from app.agents.spec import AgentSpec
@@ -97,6 +99,7 @@ from app.agents.voice import (
     voice_configured,
     voice_instructions,
 )
+from app.core.exceptions import BadRequestError
 from app.core.secret_kinds import ApiKeySecret, StorableSecret
 
 logger = logging.getLogger(__name__)
@@ -228,6 +231,7 @@ def build_agent(
     group_limits: Sequence[SpendLimit] = (),
     request_approval: ApprovalCallback | None = None,
     gate_every_tool: bool = False,
+    routine_action_check: RoutineToolCheck | None = None,
     shared_budget: BudgetGuard | None = None,
     recorded_overhead: int | None = None,
     recorded_reminder_state: dict[str, Any] | None = None,
@@ -315,6 +319,11 @@ def build_agent(
             the organization no longer has, or an approval the gate could not
             enforce because the model provider executes the tool.
     """
+    routine_policy = None
+    if routine_action_check is not None:
+        if agent_id is None:
+            raise BadRequestError(message="A routine action policy requires an agent identity")
+        routine_policy = partial(routine_action_check, agent_id, spec)
     refuse_ungateable_approvals(spec)
     # Function-local: `virtual_tables/_toolset.py` imports `app.services.virtual_tables` at
     # module level, which loops back through the factory to this module.
@@ -477,6 +486,7 @@ def build_agent(
         Steering(),
         budget,
         ApprovalGate(
+            routine_policy=routine_policy,
             required_tool_names=approval_required,
             gate_every_tool=gate_every_tool,
             describers=approval_describers(spec),
@@ -517,7 +527,7 @@ def build_agent(
                 ),
                 CodeCalls(recorder=recorder),
             ]
-            if spec.code_mode.enabled and not gate_every_tool
+            if spec.code_mode.enabled and not gate_every_tool and routine_action_check is None
             else []
         ),
         # Every agent: a moved cache prefix costs the most on exactly the long,

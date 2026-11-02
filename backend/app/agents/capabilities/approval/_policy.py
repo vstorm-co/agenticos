@@ -24,13 +24,10 @@ def tool_needs_approval(*, tool: CapabilityToolInfo, binding: CapabilityBindingS
     2. the binding's `approval` - this agent's decision about the whole
        capability, and so the default for every tool in it.
 
-    `'default'` at either level is not an answer but a deferral, and when
-    nobody has said anything the answer is **no approval**. Every tool runs
-    unattended until somebody who owns the agent asks for a person - the
-    product's decision, because a gate nobody chose parked runs in channels and
-    routines where nobody was there to answer it. `side_effecting` still says
-    what a tool does to the world, and the Builder shows it beside the choice;
-    it no longer makes the choice.
+    `'default'` at either level defers to no approval in the agent's policy.
+    Unattended routines additionally require approval for actions through their
+    live routine policy; this function describes only the spec's own floor.
+    A routine exception never weakens a required spec approval.
 
     Keyed on the tool's stable id rather than the name the model sees, so a
     renamed tool keeps the gate its operator put on it.

@@ -98,6 +98,7 @@ from app.schemas.agent_trigger import (
 )
 from app.schemas.local_target import LocalTarget
 from app.schemas.portal import PortalPresetRead, PortalRead
+from app.schemas.routine_actions import RoutineActionOptions, RoutineActions
 from app.services import portal_catalog, portals, rate_limit, trigger_dedupe, trigger_events
 from app.services.access import AGENT, resolve_access, visible_resource_ids
 from app.services.agent_registry import AgentRegistryService
@@ -110,6 +111,7 @@ from app.services.outcome import OutcomeService
 from app.services.portal_catalog import DeliveryMode
 from app.services.portals.github_app import GitHubAppPortalAdapter
 from app.services.primary_conversation import PrimaryConversationService
+from app.services.routine_actions import RoutineActionService
 from app.services.spend import month_start
 from app.worker.jobs import FIRE_TRIGGER, FireTrigger
 
@@ -1262,6 +1264,18 @@ class AgentTriggerService:
             changes["local_target"] = local_target.model_dump(mode="json")
         if not acting and trigger.local_target is not None:
             changes["local_target"] = None
+
+    async def action_options(
+        self, ctx: AuthContext, agent_id: UUID, trigger_id: UUID
+    ) -> RoutineActionOptions:
+        trigger = await self._owned(ctx, agent_id, trigger_id)
+        return await RoutineActionService(self.db).options(ctx, trigger)
+
+    async def set_action_consents(
+        self, ctx: AuthContext, agent_id: UUID, trigger_id: UUID, data: RoutineActions
+    ) -> RoutineActionOptions:
+        trigger = await self._owned(ctx, agent_id, trigger_id)
+        return await RoutineActionService(self.db).replace(ctx, trigger, data)
 
     async def delete(self, ctx: AuthContext, agent_id: UUID, trigger_id: UUID) -> None:
         """Remove a schedule entirely - the agent stops running itself."""

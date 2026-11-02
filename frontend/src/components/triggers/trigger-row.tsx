@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { CalendarClock, Pause, Pencil, Play, Trash2, Zap } from "lucide-react";
+import { CalendarClock, Pause, Pencil, Play, ShieldCheck, Trash2, Zap } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { AgentAvatar } from "@/components/agents/agent-avatar";
@@ -11,6 +11,8 @@ import { TriggerFormDialog } from "@/components/triggers/trigger-form-dialog";
 import { TriggerRunsSheet } from "@/components/triggers/trigger-runs-view";
 import { TriggerSummary } from "@/components/triggers/trigger-summary";
 import { Badge, Button, ConfirmDialog } from "@/components/ui";
+import { ActionConsentsDialog } from "@/components/triggers/action-consents-dialog";
+import { useAuthStore } from "@/stores";
 import { useTriggers } from "@/hooks/use-triggers";
 import type { Trigger } from "@/types/triggers";
 
@@ -58,6 +60,8 @@ interface TriggerRowProps {
  */
 export function TriggerRow({ trigger, showAgent = false }: TriggerRowProps) {
   const t = useTranslations("triggers");
+  const me = useAuthStore((state) => state.user?.id);
+  const [consenting, setConsenting] = useState(false);
   const { setActive, runNow, remove } = useTriggers(trigger.agent_id);
   const [editing, setEditing] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
@@ -140,6 +144,17 @@ export function TriggerRow({ trigger, showAgent = false }: TriggerRowProps) {
       )}
       {trigger.can_manage && (
         <div className="ml-auto flex shrink-0 items-center gap-0.5 sm:ml-0">
+          {me != null && me === trigger.created_by_user_id && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              aria-label={t("actionConsents.title")}
+              onClick={() => setConsenting(true)}
+            >
+              <ShieldCheck className="h-4 w-4" />
+            </Button>
+          )}
           <Button
             variant="ghost"
             size="icon"
@@ -183,6 +198,9 @@ export function TriggerRow({ trigger, showAgent = false }: TriggerRowProps) {
             <Trash2 className="h-4 w-4" />
           </Button>
         </div>
+      )}
+      {consenting && (
+        <ActionConsentsDialog trigger={trigger} onClose={() => setConsenting(false)} />
       )}
       {editing && (
         <TriggerFormDialog

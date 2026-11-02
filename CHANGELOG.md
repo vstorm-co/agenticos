@@ -19,6 +19,14 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Changed
+
+- **Breaking:** unattended routines now require approval for actions, local file
+  mutations and delegation. Owners can authorize individual capability actions
+  for one published version and routine configuration in the console; required
+  agent approvals remain required. Existing routines get no exceptions. Drain
+  old workers and upgrade API and workers together before resuming duties.
+
 ### Added
 
 - Routine and watch failures share a recoverable owner incident. Continuing

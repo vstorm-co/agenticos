@@ -10,11 +10,11 @@ The newest of those surfaces is a **trigger**: an agent running itself on a sche
 or on an incoming event — a GitHub issue, an inbound email (see
 [Concepts](concepts.md#trigger)).
 
-It changes none of what follows. It spends against the same two caps, parks on the
-same approval gate — routed to its creator, the member it runs as, and the
-administrators — and is recorded in the same audit trail.
+It uses the same spending ledger, approval queue and audit trail. The
+[unattended action policy](#routine-action-consent) tightens which calls need
+approval; explicit standing consent names individual actions and one version.
 
-The one thing "unattended" adds is what happens to a **refusal**:
+Unattended work also has defined outcomes for a **refusal**:
 
 - A fired run the budget stops ends `budget_exceeded` and **waits for the next
   fire** rather than being retried.
@@ -618,6 +618,36 @@ checks reuse it. Acknowledging or muting cancels pending deliveries. When the
 next activation has budget again, or the responsibility is removed, its open
 budget cases resolve and pending sends are cancelled. Changing the configured
 limit allows a new breach notice; a muted case stays muted for that month.
+
+### Action consent { #routine-action-consent }
+
+An unattended routine asks before capability actions, local file changes and
+delegation. External MCP calls ask unless their server marks them read-only;
+a connection's stronger approval policy still applies. Ordinary interactive
+agent defaults are unchanged. Code mode is disabled for routine runs so bundled
+scripts cannot skip the individual action gates.
+
+The creator can open **Action consent** on their routine and select capability
+actions that may run without asking. This requires `approvals:decide` and the
+organization's `chat_may_waive_approvals` switch. An API key, agent, impersonated
+session or administrator acting for another owner cannot grant it. The agent's
+explicit required approvals cannot be waived here. External-account exceptions
+are not offered by this picker yet.
+
+Saving requires the version and configuration the person reviewed to remain
+current. Consent names the immutable published version, stable capability/tool IDs and
+routine configuration. Changing the work or destination invalidates it. Each run
+retains its admitted consent IDs; adding consent later cannot release a parked
+run, and revoking then regranting creates a new identity. Current membership,
+permissions, organization policy and consent are checked again at each tool.
+Every waived call records an approved row naming its consenting person and
+arguments. Delegates require their own decisions; a parent's waiver is not lent.
+
+`0267_routine_action_consents.py` creates no exceptions for existing routines.
+This changes unattended execution: an existing action may now wait for approval.
+Drain old workers and upgrade the API and workers together before resuming duties,
+as an old worker does not enforce this gate. Downgrade removes stored exceptions;
+existing approval audit rows and already performed effects remain.
 
 ### Failure incidents { #routine-failure-incidents }
 

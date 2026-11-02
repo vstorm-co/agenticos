@@ -8448,7 +8448,17 @@
     "endsAtLabel": "Ends at (device time)",
     "endsAtHint": "Leave blank to run until stopped. This time uses {zone}, independently of the schedule zone.",
     "endsAtInvalid": "Choose a valid future time, or clear the field to remove the end.",
-    "deliveryUnavailable": "Last answer unavailable in chat"
+    "deliveryUnavailable": "Last answer unavailable in chat",
+    "actionConsents": {
+      "title": "Action consent",
+      "description": "Routine actions ask for approval by default. Allow only the listed actions to run without asking. Consent applies to this published version and routine configuration; agent-required approvals still apply.",
+      "retry": "Try again",
+      "notAllowed": "Your approval permissions and the organization’s standing-consent setting must allow exceptions. You can still revoke existing consent.",
+      "empty": "This version has no capability actions to authorize here. External account actions still ask for approval.",
+      "required": "Approval required by the agent",
+      "revokeAll": "Revoke all",
+      "save": "Save consent"
+    }
   },
   "portals": {
     "mailboxInterval": {

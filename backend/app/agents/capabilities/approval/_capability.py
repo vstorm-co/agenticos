@@ -44,6 +44,8 @@ from app.agents.approval import (
 from app.agents.capabilities._registry import FRAMEWORK_TOOL_NAMES, ApprovalDescriber
 from app.agents.deps import AgentDeps
 from app.agents.mcp import ACCOUNT, NEEDS_APPROVAL
+from app.agents.routine_actions import RoutineToolDecision, RoutineToolPolicy
+from app.core.exceptions import AuthorizationError
 
 logger = logging.getLogger(__name__)
 
@@ -78,6 +80,7 @@ class ApprovalGate(AbstractCapability[AgentDeps]):
     queue exists for.
     """
 
+    routine_policy: RoutineToolPolicy | None = None
     required_tool_names: frozenset[str] = frozenset()
     gate_every_tool: bool = False
     # Tools that are themselves a question to the person there - `connect_account`
@@ -149,7 +152,19 @@ class ApprovalGate(AbstractCapability[AgentDeps]):
                 and (capability_id is not None or tool_def.name in FRAMEWORK_TOOL_NAMES)
             )
         )
-        if not gated:
+        try:
+            routine = (
+                RoutineToolDecision()
+                if self.routine_policy is None
+                else await self.routine_policy(tool_def)
+            )
+        except AuthorizationError as error:
+            return refusal(tool_def.name, error.message)
+        if tool_def.name in self.asking_tool_names:
+            return await handler(args)
+        # A routine exception never weakens an explicit spec/connection gate.
+        consented_by = routine.consented_by if not gated else None
+        if not gated and not routine.required and consented_by is None:
             return await handler(args)
 
         ask = ctx.deps.request_approval
@@ -173,6 +188,7 @@ class ApprovalGate(AbstractCapability[AgentDeps]):
         decision = await ask(
             ApprovalRequest(
                 capability_id=capability_id,
+                routine_consented_by=consented_by,
                 tool_name=tool_def.name,
                 tool_call_id=call.tool_call_id,
                 tool_args=asked,

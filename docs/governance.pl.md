@@ -1,5 +1,5 @@
 ---
-source_sha: "6e7c2eb26531"
+source_sha: "00fa27f5b7ce"
 ---
 
 # Governance { #governance }
@@ -14,12 +14,11 @@ Najnowszą z tych powierzchni jest **trigger**: agent uruchamiający sam siebie
 według harmonogramu albo na przychodzące zdarzenie — issue na GitHubie,
 przychodzący e-mail (zobacz [Koncepcje](concepts.md#trigger)).
 
-Nie zmienia on niczego z tego, co następuje dalej. Wydaje w ramach tych samych
-dwóch limitów, parkuje na tej samej bramce zatwierdzeń — kierowanej do jego
-twórcy, do członka, jako który działa, i do administratorów — i jest zapisywany
-w tym samym śladzie audytowym.
+Korzysta z tej samej ewidencji kosztów, kolejki zatwierdzeń i audytu.
+[Polityka działań bez nadzoru](#routine-action-consent) zaostrza wybór wywołań
+wymagających zatwierdzenia; jawna stała zgoda wskazuje konkretne działania i wersję.
 
-Jedyne, co dokłada praca „bez nadzoru”, to co dzieje się z **odmową**:
+Praca bez nadzoru określa też, co dzieje się z **odmową**:
 
 - Odpalony run, który zatrzyma budżet, kończy się jako `budget_exceeded` i
   **czeka na kolejne odpalenie**, zamiast być ponawiany.
@@ -661,6 +660,36 @@ wysyłki. Gdy następna aktywacja znów ma budżet albo zadanie zostaje usunięt
 otwarte sprawy budżetowe zamykają się i anulują oczekujące wysyłki. Zmiana limitu
 pozwala wysłać nowy komunikat po jego wykorzystaniu; sprawa wyciszona pozostaje
 wyciszona przez dany miesiąc.
+
+### Zgody na działania { #routine-action-consent }
+
+Rutyna działająca bez nadzoru pyta przed działaniami funkcji, zmianami lokalnych
+plików i delegowaniem. Wywołania zewnętrznego MCP pytają, chyba że serwer oznacza je
+jako tylko do odczytu; silniejsza polityka zatwierdzania połączenia nadal obowiązuje.
+Domyślne zachowanie zwykłego interaktywnego agenta nie zmienia się. Tryb kodu jest
+wyłączony w rutynach, aby skrypt zbiorczy nie omijał kontroli pojedynczych działań.
+
+Twórca może otworzyć **Zgody na działania** swojej rutyny i wybrać działania funkcji
+wykonywane bez pytania. Wymaga to `approvals:decide` i ustawienia organizacji
+`chat_may_waive_approvals`. Klucz API, agent, sesja podszywania się ani administrator
+działający za innego właściciela nie mogą nadać zgody. Nie da się tu wyłączyć
+zatwierdzeń jawnie wymaganych przez agenta. Wybór nie oferuje jeszcze wyjątków dla
+zewnętrznych kont.
+
+Zapis wymaga, aby wersja i konfiguracja nadal odpowiadały przeglądowi osoby.
+Zgoda wskazuje niezmienną opublikowaną wersję, stałe identyfikatory funkcji i
+narzędzia oraz konfigurację rutyny. Zmiana pracy lub odbiorcy ją unieważnia. Każdy
+przebieg zachowuje przyjęte identyfikatory zgód; dodanie zgody później nie zwalnia
+wstrzymanego przebiegu, a cofnięcie i ponowne nadanie tworzy nową tożsamość. Przy
+każdym narzędziu ponownie sprawdzane są członkostwo, uprawnienia, polityka organizacji
+i zgoda. Każde wykonanie na podstawie zgody zapisuje zatwierdzony wpis z osobą i
+argumentami. Delegaci wymagają własnych decyzji; nie pożyczają wyjątku rodzica.
+
+`0267_routine_action_consents.py` nie tworzy wyjątków istniejącym rutynom. Zmienia
+się wykonanie bez nadzoru: dotychczasowe działanie może teraz czekać na zatwierdzenie.
+Opróżnij stare workery i zaktualizuj API oraz workery razem przed wznowieniem zadań,
+ponieważ stary worker nie egzekwuje tej kontroli. Downgrade usuwa zapisane wyjątki;
+wpisy audytu zatwierdzeń i wykonane już skutki pozostają.
 
 ### Sprawy dotyczące awarii { #routine-failure-incidents }
 

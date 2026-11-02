@@ -39,6 +39,7 @@ from app.schemas.portal import (
     PortalTargetList,
     PortalTargetRead,
 )
+from app.schemas.routine_actions import RoutineActionOptions, RoutineActions
 from app.schemas.trigger_template import TriggerTemplateList, TriggerTemplateRead
 from app.services import trigger_templates
 
@@ -221,3 +222,27 @@ async def delete_trigger(
     """Remove a schedule entirely - the agent stops running itself."""
     await service.delete(ctx, agent_id, trigger_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.get(
+    "/{agent_id}/triggers/{trigger_id}/action-consents", response_model=RoutineActionOptions
+)
+async def routine_action_options(
+    agent_id: UUID, trigger_id: UUID, ctx: Auth, service: AgentTriggerSvc
+) -> Any:
+    """Review the published routine's actions and version-bound standing consent."""
+    return await service.action_options(ctx, agent_id, trigger_id)
+
+
+@router.put(
+    "/{agent_id}/triggers/{trigger_id}/action-consents", response_model=RoutineActionOptions
+)
+async def replace_routine_action_consents(
+    agent_id: UUID, trigger_id: UUID, data: RoutineActions, ctx: Auth, service: AgentTriggerSvc
+) -> Any:
+    """Replace the owner's explicit action exceptions, or revoke them with an empty list.
+
+    Console session only: an API key or an agent cannot grant standing consent.
+    Agent- and connection-required approvals remain required.
+    """
+    return await service.set_action_consents(ctx, agent_id, trigger_id, data)

@@ -14,8 +14,13 @@ from typing import Literal, Self
 from uuid import UUID
 
 from pydantic import ValidationError as PydanticValidationError
+from pydantic_ai.tools import ToolDefinition
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.agents.capabilities import get as capability
+from app.agents.mcp import needs_approval
+from app.agents.routine_actions import RoutineToolDecision
+from app.agents.spec import AgentSpec
 from app.core.exceptions import AuthorizationError
 from app.core.permissions import AuthContext, Perm
 from app.db.models.agent import AgentStatus
@@ -30,8 +35,10 @@ from app.repositories import (
     organization_repo,
     watch_repo,
 )
+from app.schemas.routine_actions import RoutineActionConsent
 from app.schemas.watch_sources import WatchSources
 from app.services.access import AGENT, resolve_access
+from app.services.routine_actions import CONSENTS, action_intent, routine_effect
 
 
 def _refused() -> AuthorizationError:
@@ -62,6 +69,8 @@ class RoutineAuthority:
     acts_as_creator: bool
     routine_kind: Literal["trigger", "watch"] = "trigger"
     sources: WatchSources | None = None
+    action_consents: tuple[RoutineActionConsent, ...] = ()
+    root_version_id: UUID | None = None
 
     @classmethod
     async def capture(
@@ -71,6 +80,7 @@ class RoutineAuthority:
         *,
         agent_id: UUID,
         run: AgentRun | None,
+        version_id: UUID | None = None,
     ) -> Self | None:
         """Freeze the actor's current role, retaining origin across approval and deletion."""
         origin = ctx.routine_id if run is None else run.routine_origin_id
@@ -99,6 +109,20 @@ class RoutineAuthority:
                     )
             except PydanticValidationError:
                 raise _refused() from None
+        action_consents: tuple[RoutineActionConsent, ...] = ()
+        if kind == "trigger":
+            trigger = await agent_trigger_repo.get(db, origin, organization_id=ctx.organization_id)
+            if trigger is None:
+                raise _refused()
+            try:
+                recorded = (
+                    trigger.action_consents
+                    if run is None
+                    else (run.routine_policy or {}).get("action_consents", [])
+                )
+                action_consents = tuple(CONSENTS.validate_python(recorded))
+            except PydanticValidationError:
+                raise _refused() from None
         member = await member_repo.get_active(
             db, organization_id=ctx.organization_id, user_id=person
         )
@@ -117,6 +141,8 @@ class RoutineAuthority:
             ),
             routine_kind="watch" if kind == "watch" else "trigger",
             sources=sources,
+            action_consents=action_consents,
+            root_version_id=version_id if run is None else run.agent_version_id,
         )
         await authority.check_in(db, agent_id)
         return authority
@@ -211,3 +237,65 @@ class RoutineAuthority:
                 db, current, agent, Perm.AGENTS_RUN, resource_type=AGENT
             ):
                 raise _refused()
+
+    async def action_policy(
+        self, agent_id: UUID, spec: AgentSpec, tool: ToolDefinition
+    ) -> RoutineToolDecision:
+        """Default to approval for effects; only current, snapshotted consent may waive it."""
+        async with get_db_context() as db:
+            await self.check_in(db, agent_id)
+            if tool.capability_id is None:
+                # An unclassified external tool is a write unless the server declares
+                # read-only, matching the existing connection's writes policy.
+                return RoutineToolDecision(required=needs_approval(tool, "writes"))
+            for binding in spec.capabilities:
+                if not binding.enabled or binding.id != tool.capability_id:
+                    continue
+                definition = capability(binding.id)
+                for declared in definition.effective_tools(binding.tool_overrides):
+                    if declared.name != tool.name:
+                        continue
+                    trigger = (
+                        await agent_trigger_repo.get_by_id(db, self.routine_id, fresh=True)
+                        if self.routine_kind == "trigger"
+                        else None
+                    )
+                    effect = routine_effect(
+                        definition,
+                        declared,
+                        local=trigger is not None and trigger.local_target is not None,
+                    )
+                    if not effect:
+                        return RoutineToolDecision()
+                    if self.routine_kind != "trigger" or agent_id != self.root_agent_id:
+                        return RoutineToolDecision(required=True)
+                    trigger = await agent_trigger_repo.get_by_id(db, self.routine_id, fresh=True)
+                    organization = await organization_repo.get_by_id(db, self.organization_id)
+                    if (
+                        trigger is None
+                        or organization is None
+                        or not organization.chat_may_waive_approvals
+                    ):
+                        return RoutineToolDecision(required=True)
+                    member = await member_repo.get_active(
+                        db, organization_id=self.organization_id, user_id=self.user_id
+                    )
+                    if member is None or not AuthContext(
+                        user_id=self.user_id, organization_id=self.organization_id, role=member.role
+                    ).has(Perm.APPROVALS_DECIDE):
+                        return RoutineToolDecision(required=True)
+                    current = CONSENTS.validate_python(trigger.action_consents)
+                    for consent in self.action_consents:
+                        if (
+                            consent in current
+                            and consent.consented_by == self.user_id
+                            and consent.version_id == self.root_version_id
+                            and consent.intent_hash == action_intent(trigger)
+                            and consent.capability_id == binding.id
+                            and consent.tool_id == declared.id
+                        ):
+                            return RoutineToolDecision(required=True, consented_by=self.user_id)
+                    return RoutineToolDecision(required=True)
+            # Framework/third-party capability tools absent from the declared catalog
+            # have no authority that the routine can grant by guessing a name.
+            return RoutineToolDecision(required=True)

@@ -1,5 +1,5 @@
 ---
-source_sha: "6e7c2eb26531"
+source_sha: "00fa27f5b7ce"
 ---
 
 # Governance { #governance }
@@ -15,12 +15,11 @@ La más reciente de esas superficies es un **trigger**: un agent que se ejecuta 
 sí mismo según un horario o ante un evento entrante — una issue de GitHub, un
 correo recibido (mira [Conceptos](concepts.md#trigger)).
 
-No cambia nada de lo que sigue. Gasta contra los dos mismos topes, se aparca en la
-misma puerta de aprobación — dirigida a quien lo creó, al miembro como el que se
-ejecuta y a los administradores — y queda registrado en el mismo registro de
-auditoría.
+Usa el mismo registro de gasto, cola de aprobaciones y auditoría. La
+[política de acciones desatendidas](#routine-action-consent) refuerza qué llamadas
+requieren aprobación; el consentimiento explícito identifica acciones y una versión.
 
-Lo único que añade lo "desatendido" es lo que le ocurre a un **rechazo**:
+El trabajo desatendido también define el resultado de un **rechazo**:
 
 - Un run disparado que el budget detiene termina en `budget_exceeded` y **espera
   al siguiente disparo** en lugar de reintentarse.
@@ -674,6 +673,37 @@ pendientes. Cuando la siguiente activación vuelve a tener presupuesto o se
 elimina la responsabilidad, sus casos presupuestarios abiertos se resuelven y
 se cancelan las entregas pendientes. Cambiar el límite permite otro aviso al
 alcanzarlo; un caso silenciado sigue silenciado durante ese mes.
+
+### Consentimiento para acciones { #routine-action-consent }
+
+Una rutina desatendida pide aprobación antes de acciones de capacidades, cambios
+en archivos locales y delegaciones. Las llamadas MCP externas preguntan salvo que
+su servidor las marque como solo lectura; sigue vigente una política más estricta
+de la conexión. No cambian los valores del agente interactivo. El modo de código
+se desactiva en rutinas para que los scripts agrupados no eviten controles por acción.
+
+El creador abre **Consentimiento para acciones** en su rutina y elige acciones de
+capacidades que pueden ejecutarse sin preguntar. Requiere `approvals:decide` y el
+ajuste `chat_may_waive_approvals` de la organización. Una clave API, un agente, una
+sesión suplantada o un administrador actuando por otro propietario no pueden
+consentir. Las aprobaciones explícitamente exigidas por el agente se mantienen.
+Este selector aún no ofrece excepciones para cuentas externas.
+
+Al guardar, la versión y configuración deben seguir coincidiendo con lo revisado
+por la persona. El consentimiento identifica la versión publicada inmutable, los identificadores
+estables de capacidad y herramienta y la configuración de la rutina. Cambiar el
+trabajo o destino lo invalida. Cada ejecución conserva las identidades admitidas;
+un consentimiento posterior no libera una ejecución suspendida y revocar y
+consentir de nuevo crea una identidad nueva. Se comprueban de nuevo la pertenencia,
+los permisos, la política y el consentimiento antes de cada herramienta. Cada
+llamada autorizada registra una fila aprobada con persona y argumentos. Los
+delegados requieren sus propias decisiones y no heredan la excepción del padre.
+
+`0267_routine_action_consents.py` no crea excepciones para rutinas existentes.
+Una acción antes desatendida puede esperar ahora una aprobación. Drena los workers
+antiguos y actualiza API y workers juntos antes de reanudar tareas: un worker
+antiguo no aplica este control. El downgrade elimina excepciones guardadas;
+permanecen los registros de aprobación y los efectos ya ejecutados.
 
 ### Incidentes de ejecución { #routine-failure-incidents }
 

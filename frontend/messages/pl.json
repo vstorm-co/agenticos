@@ -7296,7 +7296,17 @@
     "endsAtLabel": "Koniec (czas urządzenia)",
     "endsAtHint": "Pozostaw puste, aby działać do zatrzymania. Ta data używa strefy {zone}, niezależnie od strefy harmonogramu.",
     "endsAtInvalid": "Wybierz prawidłową przyszłą datę albo wyczyść pole, aby usunąć koniec.",
-    "deliveryUnavailable": "Ostatni wynik niedostępny w czacie"
+    "deliveryUnavailable": "Ostatni wynik niedostępny w czacie",
+    "actionConsents": {
+      "title": "Zgody na działania",
+      "description": "Działania rutyny domyślnie wymagają zatwierdzenia. Zezwól tylko wybranym działaniom wykonywać się bez pytania. Zgoda dotyczy tej opublikowanej wersji i konfiguracji rutyny; zatwierdzenia wymagane przez agenta nadal obowiązują.",
+      "retry": "Spróbuj ponownie",
+      "notAllowed": "Twoje uprawnienia do zatwierdzania i ustawienie organizacji muszą pozwalać na stałą zgodę. Nadal możesz cofnąć istniejące zgody.",
+      "empty": "Ta wersja nie ma tutaj działań funkcji do zatwierdzenia. Działania na zewnętrznych kontach nadal wymagają zatwierdzenia.",
+      "required": "Agent wymaga zatwierdzenia",
+      "revokeAll": "Cofnij wszystkie",
+      "save": "Zapisz zgody"
+    }
   },
   "portals": {
     "mailboxInterval": {

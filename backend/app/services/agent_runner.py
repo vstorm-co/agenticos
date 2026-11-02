@@ -183,6 +183,7 @@ from app.agents.mcp import PLATFORM_MCP_PREFIX, unreachable_briefing
 from app.agents.model_resolver import ModelRequestSpec
 from app.agents.observability import current_trace_id
 from app.agents.person_briefing import Person, with_person
+from app.agents.routine_actions import RoutineToolCheck
 from app.agents.routine_authority import RoutineCheck, guard_for
 from app.agents.spec import (
     AgentSpec,
@@ -938,10 +939,12 @@ class ParkedApproval:
     account: str | None = None
     """Which account of an MCP service the call acts as, where its binding names one."""
 
+    routine_consented_by: UUID | None = None
     standing: bool = False
     """Whether this was granted by standing consent rather than parked.
 
-    `ApprovalMode.APPROVE_ALL` grants the call and records it anyway, so the row
+    `ApprovalMode.APPROVE_ALL` or a scoped routine exception grants the call and
+    records it anyway, so the row
     exists and says who consented: skipping it would make a waived run
     indistinguishable from an agent that was never gated, and the audit trail
     `docs/governance.md` describes would quietly become untrue (#925). The row is
@@ -1045,7 +1048,8 @@ class ApprovalChannel:
         # between a run somebody waived and an agent nobody ever gated. It is not
         # added to `parked`, because nothing is waiting - `paused_state` names the
         # calls a resume has to answer, and this one already ran (#925).
-        if self.standing_consent_by is None:
+        consenting = self.standing_consent_by or request.routine_consented_by
+        if consenting is None:
             self.parked[str(approval_id)] = request.tool_call_id
         self.requested.append(
             ParkedApproval(
@@ -1056,7 +1060,8 @@ class ApprovalChannel:
                 capability_tool_id=request.capability_tool_id,
                 context=context,
                 account=request.account,
-                standing=self.standing_consent_by is not None,
+                standing=consenting is not None,
+                routine_consented_by=request.routine_consented_by,
                 subagent=None if delegate is None else delegate.name,
                 # The delegate's own agent, which is *not* `self.agent_id`: that one
                 # is the agent whose run this is and what the row is scoped by. Null
@@ -1065,7 +1070,7 @@ class ApprovalChannel:
                 task_id=None if delegate is None else delegate.task_id,
             )
         )
-        if self.standing_consent_by is not None:
+        if consenting is not None:
             return ApprovalGranted(request.tool_args)
         return ApprovalPending()
 
@@ -2508,6 +2513,7 @@ class _Delegation:
     `task` call, which no approval row answers."""
 
     routine_check: RoutineCheck | None = None
+    routine_action_check: RoutineToolCheck | None = None
 
     catalog: _ModelCatalog = field(default_factory=_ModelCatalog)
     """The organization's model catalog, read at most once and only if asked for.
@@ -2598,6 +2604,7 @@ def _delegate_builder(
             secrets=secrets,
             extra_toolsets=extra_toolsets,
             extra_capabilities=guard_for(delegation.routine_check, agent_id=agent_id),
+            routine_action_check=delegation.routine_action_check,
             # Its own reviewers, resolved with everything else: without their
             # models `_reviewers` leaves each one out, and an agent reviewed when
             # called directly would run unreviewed as a delegate.
@@ -3409,7 +3416,9 @@ class AgentRunnerService:
         that created it - at the run's own agent (agenticos#175) and inside a nested
         delegate (agenticos#254) alike.
         """
-        routine = await RoutineAuthority.capture(self.db, ctx, agent_id=agent.id, run=existing_run)
+        routine = await RoutineAuthority.capture(
+            self.db, ctx, agent_id=agent.id, run=existing_run, version_id=version_id
+        )
         routine_check = None if routine is None else routine.check
         spec = _with_local_capabilities(
             await self.registry.with_assistant_guidance(agent, spec), local
@@ -3688,7 +3697,15 @@ class AgentRunnerService:
                 routine_origin_id=ctx.routine_id,
                 routine_kind=ctx.routine_kind,
                 routine_policy=(
-                    None if watch_sources is None else watch_sources.model_dump(mode="json")
+                    watch_sources.model_dump(mode="json")
+                    if watch_sources is not None
+                    else None
+                    if routine is None
+                    else {
+                        "action_consents": [
+                            consent.model_dump(mode="json") for consent in routine.action_consents
+                        ]
+                    }
                 ),
                 routine_activation_at=None
                 if watch_receipt is None
@@ -4013,6 +4030,7 @@ class AgentRunnerService:
             stash=stash,
             answering_call=None if voice is None else voice.options,
             routine_check=routine_check,
+            routine_action_check=None if routine is None else routine.action_policy,
         )
         if runtime is not None:
             resources[SUBAGENT_RUNTIME_RESOURCE] = runtime
@@ -4087,6 +4105,7 @@ class AgentRunnerService:
                     user_id=None if audience_user_id is None else str(audience_user_id),
                     user_name=user_name,
                     extra_capabilities=guard_for(routine_check, agent_id=agent.id),
+                    routine_action_check=None if routine is None else routine.action_policy,
                     audience=audience,
                     run_person=run_person,
                     impersonated=impersonated,
@@ -4169,6 +4188,7 @@ class AgentRunnerService:
             run_limit_usd=run_limit_usd,
             group_limits=group_limits,
             request_approval=channel,
+            routine_action_check=None if routine is None else routine.action_policy,
             gate_every_tool=approval_mode is ApprovalMode.ASK_ALL,
             # Both from one read of the conversation (see
             # `_recorded_conversation_state`): the request overhead, without which
@@ -4287,6 +4307,7 @@ class AgentRunnerService:
         stash: DelegationStash,
         answering_call: VoiceOptions | None = None,
         routine_check: RoutineCheck | None = None,
+        routine_action_check: RoutineToolCheck | None = None,
     ) -> SubagentRuntime | None:
         """The delegation tree this run may reach, or `None` if it delegates to none.
 
@@ -4355,6 +4376,7 @@ class AgentRunnerService:
             output_screen=_output_screen(spec),
             answering_call=answering_call,
             routine_check=routine_check,
+            routine_action_check=routine_action_check,
         )
         # `max_depth` counts levels of delegation *including this agent's own*, so
         # the budget left below this level is one less. The subtraction is the whole
@@ -5231,7 +5253,11 @@ class AgentRunnerService:
                 # Who consented in advance, for a call granted by standing consent
                 # rather than parked. `None` leaves the row pending, which is every
                 # other approval there has ever been.
-                standing_consent_by=(channel.standing_consent_by if parked.standing else None),
+                standing_consent_by=(
+                    (parked.routine_consented_by or channel.standing_consent_by)
+                    if parked.standing
+                    else None
+                ),
             )
 
     @staticmethod

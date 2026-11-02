@@ -1,5 +1,5 @@
 ---
-source_sha: "6e7c2eb26531"
+source_sha: "00fa27f5b7ce"
 ---
 
 # Governance { #governance }
@@ -14,13 +14,12 @@ Die jüngste dieser Oberflächen ist ein **Trigger**: ein Agent, der sich selbst
 nach einem Zeitplan oder auf ein eingehendes Ereignis hin ausführt — ein
 GitHub-Issue, eine eingehende E-Mail (siehe [Konzepte](concepts.md#trigger)).
 
-An nichts von dem, was folgt, ändert er etwas. Er gibt gegen dieselben zwei Caps
-aus, parkt am selben Freigabe-Gate — geroutet an seinen Ersteller, an das
-Mitglied, als das er läuft, und an die Administratoren — und wird im selben
-Audit-Trail festgehalten.
+Er nutzt dieselbe Kostenerfassung, Bestätigungswarteschlange und Prüfungsspur.
+Die [Richtlinie für unbeaufsichtigte Aktionen](#routine-action-consent) verschärft,
+welche Aufrufe eine Bestätigung brauchen; ausdrückliche dauerhafte Zustimmung
+benennt einzelne Aktionen und eine Version.
 
-Das Einzige, was „unbeaufsichtigt" hinzufügt, ist das, was mit einer **Ablehnung**
-geschieht:
+Unbeaufsichtigte Arbeit bestimmt auch den Umgang mit einer **Ablehnung**:
 
 - Ein ausgelöster Run, den das Budget stoppt, endet mit `budget_exceeded` und
   **wartet auf das nächste Auslösen**, statt wiederholt zu werden.
@@ -712,6 +711,38 @@ storniert ausstehende Zustellungen. Hat die nächste Aktivierung wieder Budget
 oder wird die Aufgabe entfernt, werden ihre offenen Budgetfälle erledigt und
 ausstehende Zustellungen storniert. Ein geändertes Limit erlaubt eine neue
 Meldung bei dessen Erreichen; ein stummgeschalteter Fall bleibt im Monat stumm.
+
+### Aktionsfreigaben { #routine-action-consent }
+
+Eine unbeaufsichtigte Routine fragt vor Fähigkeitsaktionen, lokalen Dateiänderungen
+und Delegation. Externe MCP-Aufrufe fragen, sofern ihr Server sie nicht als nur
+lesend kennzeichnet; eine strengere Bestätigungspolitik der Verbindung gilt weiter.
+Die Vorgaben interaktiver Agenten bleiben gleich. Der Codemodus ist für Routinen
+ausgeschaltet, damit Sammelskripte keine Einzelkontrollen umgehen.
+
+Die erstellende Person öffnet **Aktionsfreigaben** ihrer Routine und wählt
+Fähigkeitsaktionen ohne Rückfrage. Das erfordert `approvals:decide` und den
+Organisationsschalter `chat_may_waive_approvals`. API-Schlüssel, Agenten, übernommene
+Identitäten und Administratoren für andere Personen dürfen nicht zustimmen.
+Ausdrücklich vom Agenten geforderte Bestätigungen bleiben bestehen. Ausnahmen für
+externe Konten bietet diese Auswahl noch nicht.
+
+Beim Speichern müssen Version und Konfiguration noch der menschlichen Prüfung
+entsprechen. Eine Freigabe nennt die unveränderliche veröffentlichte Version, stabile
+Fähigkeits- und Werkzeugkennungen sowie die Routinenkonfiguration. Geänderte Arbeit
+oder Ziele machen sie ungültig. Jeder Lauf behält seine zugelassenen Freigabe-IDs;
+eine spätere Zustimmung gibt keinen geparkten Lauf frei, und Widerruf mit erneuter
+Zustimmung erzeugt eine neue Identität. Mitgliedschaft, Rechte, Organisationspolitik
+und Zustimmung werden vor jedem Werkzeug erneut geprüft. Jeder freigegebene Aufruf
+zeichnet eine genehmigte Zeile mit zustimmender Person und Argumenten auf.
+Delegierte brauchen eigene Entscheidungen und erben keine Ausnahme des Elternlaufs.
+
+`0267_routine_action_consents.py` erzeugt keine Ausnahmen für bestehende Routinen.
+Eine bisher unbeaufsichtigte Aktion kann nun auf Bestätigung warten. Alte Worker
+abwickeln lassen und API sowie Worker gemeinsam aktualisieren, bevor Aufgaben
+weiterlaufen; ein alter Worker erzwingt diese Kontrolle nicht. Ein Downgrade
+entfernt gespeicherte Ausnahmen; Bestätigungsprotokolle und bereits ausgeführte
+Wirkungen bleiben bestehen.
 
 ### Störungsfälle { #routine-failure-incidents }
 

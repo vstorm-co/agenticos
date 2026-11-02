@@ -1634,7 +1634,11 @@ class TestWhatAParkedCallRecords:
             run_id=uuid.uuid4(),
         )
         request = MagicMock(
-            tool_call_id="tc-1", tool_name="write_file", tool_args={"path": "/a.txt"}, describe=None
+            tool_call_id="tc-1",
+            tool_name="write_file",
+            tool_args={"path": "/a.txt"},
+            describe=None,
+            routine_consented_by=None,
         )
 
         await channel(request)
@@ -7617,7 +7621,9 @@ async def test_routine_origin_and_live_tool_guard_are_attached_during_preparatio
     agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4())
     spec = AgentSpec(name="Routine")
     check = AsyncMock()
-    authority = SimpleNamespace(check=check, sources=None)
+    authority = SimpleNamespace(
+        check=check, sources=None, action_consents=(), action_policy=AsyncMock()
+    )
     with (
         patch.object(
             service.registry,
@@ -7712,7 +7718,9 @@ async def test_watch_preparation_uses_the_selected_agent_with_approved_sources_a
     )
     approved = approve_sources(spec, source)
     published = spec.model_copy(update={"collection_ids": [*spec.collection_ids, uuid.uuid4()]})
-    authority = SimpleNamespace(check=AsyncMock(), sources=approved)
+    authority = SimpleNamespace(
+        check=AsyncMock(), sources=approved, action_consents=(), action_policy=AsyncMock()
+    )
     receipt = WatchReadReceipt(activation_at=datetime.now(UTC))
     with (
         patch.object(
