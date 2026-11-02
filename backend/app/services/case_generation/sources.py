@@ -193,7 +193,9 @@ class SourceGatherer:
         # bodies to the caller, so only the skills the caller may view go in.
         skills = [
             skill
-            for skill in await SkillService(self.db).resolve_for_agent(ctx, list(spec.skill_ids))
+            for skill in await SkillService(self.db).resolve_for_agent(
+                ctx, list(spec.skill_ids), bindings=spec.skill_bindings
+            )
             if await resolve_access(self.db, ctx, skill, Perm.SKILLS_VIEW, resource_type=SKILL)
         ]
         tools: list[Tool] = []

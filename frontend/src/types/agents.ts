@@ -29,6 +29,16 @@ export type ApprovalMode = "default" | "required" | "never";
  * would be passed over for. An absent key means the value the capability
  * declared in code.
  */
+/**
+ * A bound skill that does not read its main line's newest version: a main version
+ * it stays on (`version`), or a fork it follows (`fork_id`). Exactly one is set.
+ */
+export interface SkillBindingSpec {
+  skill_id: string;
+  version?: number | null;
+  fork_id?: string | null;
+}
+
 export interface ToolOverride {
   name?: string;
   description?: string;
@@ -286,6 +296,8 @@ export interface SpecialistSpec {
   capabilities: CapabilityBindingSpec[];
   collection_ids: string[];
   skill_ids: string[];
+  /** Which version of a bound skill it reads, where not main's newest. */
+  skill_bindings?: SkillBindingSpec[];
   context_ids: string[];
   max_steps?: number | null;
   preferred_mode?: DelegationMode | null;
@@ -404,6 +416,8 @@ export interface AgentSpec {
   capabilities: CapabilityBindingSpec[];
   collection_ids: string[];
   skill_ids: string[];
+  /** Which version of a bound skill it reads, where not main's newest. */
+  skill_bindings?: SkillBindingSpec[];
   context_ids: string[];
   mcp_servers: McpServerRef[];
   /**
