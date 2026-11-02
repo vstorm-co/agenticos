@@ -189,27 +189,6 @@ environment without a person's decision.
   greeting counts everything waiting on the reader, and spend on improvements
   is shown apart from evals.
 
-- Discord bots (#2079). A bot connects over Discord's Gateway, so a deployment
-  needs no public address for it. It answers direct messages, @mentions and
-  replies in a thread it opens on the question. It also answers `/ask` and
-  **Apps → Ask the agent** on any message. Answers stream by editing the
-  message in place, with text the guardrails have already screened.
-  Approvals and questions are buttons, or selects for more than 25 options.
-  `/link`, `/unlink`, `/agents`, `/new` and `/help` work as on the other
-  platforms. A thread the bot is brought into partway is read for its earlier
-  messages and files before it answers, and `read_channel_history` works there. Register one under **Channels → Add channel** with the bot token
-  and the Message Content Intent switched on. Explicitly approve server IDs in
-  the add/edit form, or pass `--discord-guild` to the CLI; an empty list permits
-  DMs only. Existing installations and removal/re-adds do not approve a server.
-  Console transcript access also requires Read Message History. `/ask` first
-  acknowledges privately, admits against the parent/thread key, rate-limits
-  link invitations and only then publishes the question. Signed attachment URL
-  queries are redacted from failure logs. A public bot, one anyone can add
-  to their own server, is refused until **Public Bot** is switched off; its
-  commands are offered only in servers it was added to. A Discord bot takes no
-  webhook, and setting one is refused. A bot in more than 2,500 servers stops and says
-  Discord requires sharding, which is not supported yet.
-
 ### Changed
 
 - The agent page's tabs are reordered, with an **Evals** tab that shows results
@@ -231,9 +210,6 @@ environment without a person's decision.
   including edit grants, and stop an agent page of another organization from
   loading forever.
 
-- A Microsoft Teams bot's form no longer offers a reaction to a question.
-  Teams never drew it, so the reaction chosen there was saved and ignored.
-
 ### Security
 
 - Recognised secrets are redacted from dataset cases, eval answers, tool-call
@@ -250,6 +226,36 @@ environment without a person's decision.
   the generator reads them.
 - A suite and a promotion override can be set up only by a person signed in as
   themselves, not through an API key or impersonation.
+
+## [1.37.0] - 2026-11-02
+
+### Added
+
+- Discord bots (#2079). A bot connects over Discord's Gateway, so a deployment
+  needs no public address for it. It answers direct messages, @mentions and
+  replies in a thread it opens on the question. It also answers `/ask` and
+  **Apps → Ask the agent** on any message. Answers stream by editing the
+  message in place, with text the guardrails have already screened.
+  Approvals and questions are buttons, or selects for more than 25 options.
+  `/link`, `/unlink`, `/agents`, `/new` and `/help` work as on the other
+  platforms. A thread the bot is brought into partway is read for its earlier
+  messages and files before it answers, and `read_channel_history` works there. Register one under **Channels → Add channel** with the bot token
+  and the Message Content Intent switched on. Explicitly approve server IDs in
+  the add/edit form, or pass `--discord-guild` to the CLI; an empty list permits
+  DMs only. Existing installations and removal/re-adds do not approve a server.
+  Console transcript access also requires Read Message History. `/ask` first
+  acknowledges privately, admits against the parent/thread key, rate-limits
+  link invitations and only then publishes the question. Signed attachment URL
+  queries are redacted from failure logs. A public bot, one anyone can add
+  to their own server, is refused until **Public Bot** is switched off; its
+  commands are offered only in servers it was added to. A Discord bot takes no
+  webhook, and setting one is refused. A bot in more than 2,500 servers stops and says
+  Discord requires sharding, which is not supported yet.
+
+### Fixed
+
+- A Microsoft Teams bot's form no longer offers a reaction to a question.
+  Teams never drew it, so the reaction chosen there was saved and ignored.
 
 ## [1.36.1] - 2026-11-02
 
@@ -19954,7 +19960,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.36.1...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.37.0...HEAD
+[1.37.0]: https://github.com/vstorm-co/agenticos/compare/v1.36.1...v1.37.0
 [1.36.1]: https://github.com/vstorm-co/agenticos/compare/v1.36.0...v1.36.1
 [1.36.0]: https://github.com/vstorm-co/agenticos/compare/v1.35.5...v1.36.0
 [1.35.5]: https://github.com/vstorm-co/agenticos/compare/v1.35.4...v1.35.5
