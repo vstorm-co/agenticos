@@ -70,12 +70,9 @@ make docs-build         # mkdocs --strict — a dead link is a failure
 make audit              # the locked dependency set against the advisory database
 ```
 
-About five minutes serial, against CI's twelve in parallel — the backend `test`
-job the long pole there, which #520 is cutting. The equality is
-maintained rather than asserted: the workflow calls these targets rather than
-repeating their commands, and `tests/test_ci_parity.py` fails if a gating job
-grows a step `make check` does not run. It has drifted four times — see
-[Commands](commands.md#before-a-pull-request) for what `check` leaves out and why.
+CI executes independent checks in parallel. The workflow calls the same
+Makefile targets as local checks; `tests/test_ci_parity.py` guards their parity.
+See [Commands](commands.md#before-a-pull-request) for the deliberate exceptions.
 
 !!! info "CI may run fewer jobs than `check` does, and that is not drift"
 
@@ -635,3 +632,20 @@ asserts the payload, as the `queued_fires` fixture in
   lists in `backend/pyproject.toml`.
 - The order is shuffled every run; replay a failure with its printed seed before
   concluding anything about the change.
+
+## CI distribution
+
+The backend suite measures all application code once. The platform report still
+requires 100% coverage; `make coverage-all REUSE_COVERAGE=1` reports inherited
+code from the same data without running tests again.
+
+Frontend lint, production build and four test shards run independently. Shards
+retain file isolation and defer the unchanged coverage thresholds to one merged
+report. The required `test-frontend` check fails if a job or shard is missing,
+skipped unexpectedly or unsuccessful. E2E reuses the production build and runs
+four shards, each with its own database, Redis, backend, seed and stub server;
+files within a shard still execute serially with no retries.
+
+CI PostgreSQL uses a disposable RAM-backed data directory and disables fsync,
+synchronous commits and full-page writes only inside its service container.
+Production and development databases retain their normal durability settings.

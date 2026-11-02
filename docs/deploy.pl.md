@@ -1,5 +1,5 @@
 ---
-source_sha: "7bd15584abde"
+source_sha: "88a69af9b330"
 ---
 
 # Wdrożenie na serwer { #deploy-to-a-server }
@@ -499,9 +499,9 @@ zmienił, więc witryna jest niedostępna przez te kilka sekund, które to zajmu
 
 ### Z GitHuba, z zatwierdzeniem { #from-github-with-an-approval }
 
-`.github/workflows/deploy.yml` oferuje każdy merge do `main` do wdrożenia i czeka,
+`.github/workflows/deploy.yml` oferuje każde opublikowane stabilne wydanie do wdrożenia i czeka,
 aż ktoś to zatwierdzi. Ta bramka jest **ustawieniem repozytorium, a nie krokiem w
-pliku** — bez niej workflow wdraża każdy merge bez nadzoru.
+pliku** — bez niej workflow wdraża każde opublikowane stabilne wydanie bez nadzoru.
 
 Skonfiguruj to raz:
 
@@ -517,7 +517,7 @@ Skonfiguruj to raz:
     Każde uruchomienie dzieli grupę współbieżności `deploy-production`, a
     uruchomienie siedzące przy bramce zatwierdzenia ją trzyma. Nie wygasa samo z
     siebie — GitHub anuluje takie, na które nie zareagowano, po 30 dniach — więc
-    dopóki ktoś go nie zatwierdzi albo nie anuluje, późniejsze merge'e stoją w
+    dopóki ktoś go nie zatwierdzi albo nie anuluje, późniejsze wydania'e stoją w
     kolejce za decyzją, której nikt nie podejmie, a serwer dalej uruchamia to, co
     zostało wdrożone ostatnio.
 
@@ -528,9 +528,9 @@ Skonfiguruj to raz:
     `deploy-queue.yml` jest tym, co dzieje się, kiedy mimo wszystko zostanie
     zostawione: co sześć godzin anuluje uruchomienie Deploy czekające na
     zatwierdzenie dłużej niż dwanaście i zakłada zgłoszenie z nazwą tego
-    uruchomienia oraz z tym, jak daleko `main` odjechał od ostatniego udanego
+    uruchomienia oraz z tym, ile commitów dzieli najnowsze stabilne wydanie od ostatniego udanego
     wdrożenia. Niczego nie zatwierdza i niczego nie wdraża — opróżnia kolejkę, żeby
-    następny merge dotarł do bramki, i mówi, że to zrobił. Ręcznie uruchamiasz je
+    następne opublikowane wydanie dotarło do bramki, i mówi, że to zrobił. Ręcznie uruchamiasz je
     przez `gh workflow run deploy-queue.yml`.
 
 !!! danger "Zatwierdzanie z kolejki środowiska zatwierdza **najstarsze** uruchomienie"
@@ -539,7 +539,7 @@ Skonfiguruj to raz:
     w której kolejka się zakleszczyła, a nie ten dopiero co wypchnięty — tak właśnie
     na ten serwer trafił commit sprzed dwóch tygodni. Zatwierdzaj ze strony
     uruchomienia dla commita, o który ci chodzi, albo zacznij nowe przez
-    `gh workflow run deploy.yml --ref main` i zatwierdź je.
+    `gh workflow run deploy.yml --ref main -f ref=v1.34.3` i zatwierdź je.
 
 | Sekret | Co |
 |---|---|
