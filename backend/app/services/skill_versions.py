@@ -318,7 +318,10 @@ class SkillVersionService:
             content=version.content,
             resources=[
                 VersionResourceSummary(
-                    name=name, description=entry["description"], size_bytes=entry["size_bytes"]
+                    name=name,
+                    description=entry["description"],
+                    size_bytes=entry["size_bytes"],
+                    digest=entry["sha256"],
                 )
                 for name, entry in sorted(version.resources.items())
             ],

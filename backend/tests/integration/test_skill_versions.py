@@ -257,6 +257,9 @@ class TestEditingAndRestoring:
         file = await versions.read_resource(ctx, skill.id, old, "a.md")
 
         assert [resource.name for resource in read.resources] == ["a.md"]
+        newest = await versions.read_version(ctx, skill.id, skill.latest_version_id)
+        assert read.resources[0].size_bytes == newest.resources[0].size_bytes
+        assert read.resources[0].digest != newest.resources[0].digest
         assert file.content == "old"
         with pytest.raises(NotFoundError):
             await versions.read_resource(ctx, skill.id, old, "missing.md")

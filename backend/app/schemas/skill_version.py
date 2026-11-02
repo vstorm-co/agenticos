@@ -51,6 +51,12 @@ class VersionResourceSummary(BaseSchema):
     name: str
     description: str | None = None
     size_bytes: int
+    digest: str = Field(
+        description=(
+            "The SHA-256 of the file's content: two versions name the same file with "
+            "the same content exactly when their digests are equal"
+        )
+    )
 
 
 class SkillVersionRead(SkillVersionSummary):
