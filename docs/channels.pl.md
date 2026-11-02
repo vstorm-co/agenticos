@@ -1,5 +1,5 @@
 ---
-source_sha: "7e814fa067e6"
+source_sha: "e2d30005e314"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -1082,8 +1082,22 @@ i przychodzącą wiadomość. Uwierzytelnione pobieranie odrzuca przekierowania,
 kończy się przy `CHAT_MAX_UPLOAD_SIZE_MB` i ma łączny limit 30 sekund. Wspólna
 ścieżka przesyłania sprawdza typ i zawartość oraz zapisuje zaakceptowany plik
 w rozmowie. Numer wysłany z plikiem jest wiadomością, a nie zatwierdzeniem
-numerowanym. Odpowiedzi wychodzące pozostają tekstowe; wysyłanie plików MMS
-nie jest zaimplementowane.
+numerowanym.
+
+Odpowiedź może wysłać jawnie wskazane pliki workspace i wykresy jako MMS, również
+bez tekstu. Zwykłe narzędzie plików kanałowych nadal kontroluje plik i miejsce
+wysyłki. Adapter odrzuca nieobsługiwane typy, puste pliki, ponad dziesięć
+załączników i ponad 5 MB tekstu oraz mediów łącznie. JPEG/PNG/GIF mogą wykorzystać
+ten limit; pozostałe dozwolone typy, w tym PDF i CSV, mają limit 500 KB.
+Nadal obowiązuje obsługa przez operatora i kraj; odmowa dostawcy pozostaje błędem.
+
+MMS wymaga publicznego adresu HTTPS `PUBLIC_BASE_URL` i współdzielonego Redis.
+Przechowywane są tylko kopie jawnie przekazane adapterowi, każda z losowym
+poświadczeniem pobrania na 15 minut. Twilio używa go przy GET i HEAD; właściwy
+magazyn plików wymagający logowania nie jest udostępniany. Kolejka Twilio ma limit
+dziesięciu minut, krótszy od życia kopii. Linki nie trafiają do czatu ani modelu.
+Przyjęcie wiadomości przez API oznacza zgłoszenie do wysyłki, a nie doręczenie przez
+operatora. Zobacz [formaty i limity Twilio](https://www.twilio.com/docs/messaging/guides/accepted-mime-types).
 
 ## E-mail { #email }
 

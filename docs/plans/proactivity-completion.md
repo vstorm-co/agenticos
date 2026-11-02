@@ -44,7 +44,7 @@ Provider tests use deterministic fakes unless a dedicated test account is availa
 
 | Area | Implemented | Still required |
 |---|---|---|
-| Review defects | Claim scope/erasure guards, effective dates, atomic numbered replies, one-time verified private-thread backfill; bounded inbound MMS and media-only messages; operator upgrade/rollback guidance | Outbound MMS and wider channel approval coverage |
+| Review defects | Claim scope/erasure guards, effective dates, atomic numbered replies, one-time verified private-thread backfill; bounded inbound/outbound MMS, media-only messages, explicit file/chart delivery with expiring copies; operator upgrade/rollback guidance | Wider channel approval coverage |
 | Selected agent | Selected-agent watches through the shared runner, immutable pins/environments, approved account/tool/knowledge/context ceilings, in-flight revocation and safe legacy rebinding | General action-specific authority beyond read-only watches |
 | Chat management | Trusted private-chat provenance, routine/watch source delivery and management cards, shared global/agent watch forms, MCP end/budget controls and end-time form control | Complete responsibility flow |
 | Standing authority | Immutable-pin consent and live routine/actor/run-grant checks before root, delegate and resumed tools | Per-action waivers, persistent device/folder/operation grants and bounded source authority |

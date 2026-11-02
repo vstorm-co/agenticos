@@ -1046,8 +1046,23 @@ their media URLs must name the bot's Twilio account and the incoming message.
 Authenticated downloads reject redirects, stop at `CHAT_MAX_UPLOAD_SIZE_MB` and
 have a 30-second total deadline. The shared upload path validates type and
 content and stores each accepted file in the conversation. A number sent with a
-file is a message, not a numbered approval. Outbound replies remain text-only;
-MMS file sending is not implemented.
+file is a message, not a numbered approval.
+
+Outbound replies can send explicit workspace files and charts as MMS, including
+media-only replies. The ordinary channel file tool still controls which file is
+sent and where. The adapter refuses unsupported types, empty files, more than ten
+attachments, or over 5 MB of text and media combined. JPEG/PNG/GIF images can use
+that total; other accepted types, including PDF and CSV, are capped at 500 KB.
+Carrier and destination support still applies; provider refusal remains an error.
+
+MMS needs a publicly reachable HTTPS `PUBLIC_BASE_URL` and shared Redis. Only
+copies explicitly handed to the outbound adapter are staged, each under a random
+fetch credential for 15 minutes. Twilio's GET and HEAD requests use that credential;
+the original authenticated file store is never exposed. Its outgoing queue is
+limited to ten minutes, shorter than the copy's lifetime. These links are not
+written to chat or returned to the model. The API accepting a message means it
+was submitted, not that the carrier delivered it. See [Twilio's accepted media
+and limits](https://www.twilio.com/docs/messaging/guides/accepted-mime-types).
 
 ## Email { #email }
 

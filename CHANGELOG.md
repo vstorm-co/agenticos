@@ -21,6 +21,9 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- SMS bots send explicit files and charts through Twilio MMS using expiring
+  media handoffs, with file-type, count and size limits checked before sending.
+
 - Watches run through a selected published agent, follow or pin its version,
   retain approved account and knowledge/context boundaries, and return new
   findings to the source chat. The same controls work in chat and Routines.

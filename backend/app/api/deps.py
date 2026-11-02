@@ -229,6 +229,15 @@ def get_channel_bot_service(db: DBSession) -> ChannelBotService:
 
 ChannelBotSvc = Annotated[ChannelBotService, Depends(get_channel_bot_service)]
 
+from app.services.channels.sms_media import SmsMediaService
+
+
+def get_sms_media_service(redis: Redis) -> SmsMediaService:
+    return SmsMediaService(redis)
+
+
+SmsMediaSvc = Annotated[SmsMediaService, Depends(get_sms_media_service)]
+
 
 from app.services.channels.feedback import ChannelFeedback
 

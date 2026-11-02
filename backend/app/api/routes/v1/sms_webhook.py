@@ -1,12 +1,13 @@
 """SMS receiver: Twilio's incoming-message webhook (#2082)."""
 
 import logging
+from typing import Any
 from urllib.parse import parse_qsl
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, Request, Response
+from fastapi import APIRouter, HTTPException, Query, Request, Response
 
-from app.api.deps import ChannelBotSvc
+from app.api.deps import ChannelBotSvc, SmsMediaSvc
 from app.core.background import spawn
 from app.services.channel_bot import unseal_bot_token
 from app.services.channels import get_adapter, inbound_webhook_url, sms_prompts
@@ -76,3 +77,29 @@ async def sms_webhook(bot_id: UUID, request: Request, bot_service: ChannelBotSvc
     else:
         spawn(process_channel_event(incoming), name=f"sms_event:{bot_id}")
     return Response(content=_EMPTY_TWIML, media_type="text/xml")
+
+
+@router.api_route("/media/{media_id}", methods=["GET", "HEAD"], response_model=None)
+async def get_outbound_mms_media(
+    media_id: UUID,
+    request: Request,
+    service: SmsMediaSvc,
+    token: str | None = Query(None, max_length=64),
+) -> Any:
+    """Twilio's bounded fetch of an explicitly sent MMS file, with an expiring credential.
+
+    GET and HEAD use the same credential and expiry; a HEAD probe does not consume
+    it before Twilio downloads the bytes. It opens only the staged copy, never the
+    user's authenticated file store. Missing, forged and expired links all give 404.
+    """
+    stored = await service.open(media_id, token)
+    return Response(
+        content=None if request.method == "HEAD" else stored.content,
+        media_type=stored.mime_type,
+        headers={
+            "Content-Length": str(len(stored.content)),
+            "Content-Disposition": f'inline; filename="{stored.filename}"',
+            "Cache-Control": "no-store",
+            "X-Content-Type-Options": "nosniff",
+        },
+    )

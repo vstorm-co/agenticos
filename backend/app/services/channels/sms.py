@@ -45,10 +45,12 @@ from app.services.channels.base import (
     IncomingAttachment,
     IncomingMessage,
     IncomingPress,
+    OutgoingAttachment,
     OutgoingMessage,
     PromptMessage,
 )
 from app.services.channels.exceptions import ChannelNotConfigured
+from app.services.channels.sms_media import open_media_store, validate_attachments
 
 logger = logging.getLogger(__name__)
 
@@ -194,7 +196,7 @@ class SmsAdapter(ChannelAdapter):
         return bytes(data)
 
     async def send_message(self, bot_token: str, msg: OutgoingMessage) -> None:
-        """Send one text to the sender's number.
+        """Submit one SMS or bounded MMS to the sender's number.
 
         Raises:
             ChannelNotConfigured: The bot's token is malformed.
@@ -202,12 +204,31 @@ class SmsAdapter(ChannelAdapter):
         """
         sid, auth_token, from_number = split_credentials(bot_token)
         body = fit_to_sms(msg.text)
-        if not body:
+        files = list(msg.attachments)
+        if msg.image_png is not None:
+            files.insert(
+                0,
+                OutgoingAttachment(
+                    filename=msg.image_filename, content=msg.image_png, mime_type="image/png"
+                ),
+            )
+        if not body and not files:
             return
+        data: dict[str, str | list[str]] = {
+            "To": msg.platform_chat_id,
+            "From": from_number,
+            "Body": body,
+        }
+        if files:
+            validate_attachments(files, text=body)
+            # Keep Twilio's queue shorter than the expiring media handoff.
+            data["ValidityPeriod"] = "600"
+            async with open_media_store() as media:
+                data["MediaUrl"] = [await media.stage(file) for file in files]
         response = await self._client.post(
             f"{self._api}/2010-04-01/Accounts/{sid}/Messages.json",
             auth=(sid, auth_token),
-            data={"To": msg.platform_chat_id, "From": from_number, "Body": body},
+            data=data,
         )
         response.raise_for_status()
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "7e814fa067e6"
+source_sha: "e2d30005e314"
 ---
 
 # Poner un agent donde la gente ya está { #putting-an-agent-where-people-already-are }
@@ -1103,8 +1103,22 @@ entrante. Las descargas autenticadas rechazan redirecciones, se detienen en
 `CHAT_MAX_UPLOAD_SIZE_MB` y tienen un límite total de 30 segundos. La ruta de
 carga compartida valida tipo y contenido y guarda los archivos aceptados en la
 conversación. Un número con un archivo es un mensaje, no una aprobación numerada.
-Las respuestas salientes siguen siendo de texto; el envío de archivos MMS no
-está implementado.
+
+Las respuestas pueden enviar archivos del workspace elegidos explícitamente y
+gráficos como MMS, incluso sin texto. La herramienta de archivos del canal sigue
+controlando el archivo y destino. El adaptador rechaza tipos no admitidos,
+archivos vacíos, más de diez adjuntos o más de 5 MB de texto y medios en total.
+JPEG/PNG/GIF pueden usar ese total; otros tipos aceptados, incluidos PDF y CSV,
+tienen un límite de 500 KB. Sigue siendo necesaria la compatibilidad del operador
+y destino; un rechazo del proveedor sigue siendo un error.
+
+MMS requiere una `PUBLIC_BASE_URL` HTTPS pública y Redis compartido. Solo se
+almacenan copias entregadas explícitamente al adaptador, cada una con una
+credencial aleatoria de descarga durante 15 minutos. Twilio la usa para GET y
+HEAD; el almacén autenticado original no se expone. Su cola se limita a diez
+minutos, menos que la vida de la copia. Los enlaces no se guardan en el chat ni
+se devuelven al modelo. La aceptación de la API significa envío al proveedor,
+no entrega del operador. Consulta [formatos y límites de Twilio](https://www.twilio.com/docs/messaging/guides/accepted-mime-types).
 
 ## Correo electrónico { #email }
 

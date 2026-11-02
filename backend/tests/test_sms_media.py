@@ -3,6 +3,7 @@
 import asyncio
 import base64
 from collections.abc import AsyncIterator, Callable
+from dataclasses import replace
 from unittest.mock import patch
 
 import httpx
@@ -207,4 +208,95 @@ async def test_cancellation_closes_the_media_stream() -> None:
         if not task.done():
             task.cancel()
             await asyncio.gather(task, return_exceptions=True)
+        await adapter.aclose()
+
+
+async def test_outbound_mms_posts_all_files_and_a_chart_even_without_text() -> None:
+    from unittest.mock import AsyncMock, MagicMock
+    from urllib.parse import parse_qs
+
+    from app.services.channels.base import OutgoingAttachment, OutgoingMessage
+
+    sent = []
+
+    def accept(request: httpx.Request) -> httpx.Response:
+        sent.append(parse_qs(request.content.decode(), keep_blank_values=True))
+        return httpx.Response(201, json={"sid": MESSAGE})
+
+    media = MagicMock(
+        stage=AsyncMock(side_effect=["https://media.example/chart", "https://media.example/data"])
+    )
+    context = MagicMock(
+        __aenter__=AsyncMock(return_value=media), __aexit__=AsyncMock(return_value=False)
+    )
+    adapter = await _adapter(accept)
+    try:
+        with patch("app.services.channels.sms.open_media_store", return_value=context):
+            await adapter.send_message(
+                TOKEN,
+                OutgoingMessage(
+                    platform_chat_id="+15559998888",
+                    text="",
+                    image_png=b"png",
+                    attachments=[
+                        OutgoingAttachment(
+                            filename="data.csv", content=b"x,y\n1,2", mime_type="text/csv"
+                        )
+                    ],
+                ),
+            )
+        assert sent == [
+            {
+                "To": ["+15559998888"],
+                "From": ["+15550001111"],
+                "Body": [""],
+                "MediaUrl": ["https://media.example/chart", "https://media.example/data"],
+                "ValidityPeriod": ["600"],
+            }
+        ]
+        assert media.stage.await_args_list[0].args[0].content == b"png"
+        assert media.stage.await_args_list[1].args[0].filename == "data.csv"
+        context.__aexit__.assert_awaited_once()
+    finally:
+        await adapter.aclose()
+
+
+@pytest.mark.parametrize("problem", ["type", "count", "combined", "other", "empty"])
+async def test_outbound_mms_refuses_unsupported_or_excessive_files_before_staging_or_sending(
+    problem: str,
+) -> None:
+    from unittest.mock import MagicMock
+
+    from app.services.channels.base import OutgoingAttachment, OutgoingMessage
+
+    files = [OutgoingAttachment(filename="file.png", content=b"x", mime_type="image/png")]
+    if problem == "type":
+        files[0] = replace(files[0], mime_type="application/zip")
+    elif problem == "count":
+        files *= 11
+    elif problem == "combined":
+        files[0] = replace(files[0], content=b"x" * 5_000_000)
+    elif problem == "other":
+        files = [
+            OutgoingAttachment(
+                filename="file.pdf", content=b"x" * 500_001, mime_type="application/pdf"
+            )
+        ]
+    elif problem == "empty":
+        files[0] = replace(files[0], content=b"")
+
+    def never(request: httpx.Request) -> httpx.Response:
+        raise AssertionError("Invalid MMS must never reach Twilio")
+
+    adapter = await _adapter(never)
+    try:
+        with (
+            patch("app.services.channels.sms.open_media_store", new=MagicMock()) as store,
+            pytest.raises(ValueError),
+        ):
+            await adapter.send_message(
+                TOKEN, OutgoingMessage(platform_chat_id="+1", text="text", attachments=files)
+            )
+        store.assert_not_called()
+    finally:
         await adapter.aclose()

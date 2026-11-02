@@ -1,5 +1,5 @@
 ---
-source_sha: "7e814fa067e6"
+source_sha: "e2d30005e314"
 ---
 
 # Einen Agent dorthin bringen, wo die Menschen schon sind { #putting-an-agent-where-people-already-are }
@@ -1157,8 +1157,24 @@ die eingehende Nachricht benennen. Authentifizierte Downloads lehnen
 Weiterleitungen ab, enden bei `CHAT_MAX_UPLOAD_SIZE_MB` und haben ein Gesamtlimit
 von 30 Sekunden. Der gemeinsame Upload prüft Typ und Inhalt und speichert
 akzeptierte Dateien in der Unterhaltung. Eine Zahl mit Datei ist eine Nachricht,
-keine nummerierte Freigabe. Ausgehende Antworten bleiben Text; der Versand von
-MMS-Dateien ist nicht implementiert.
+keine nummerierte Freigabe.
+
+Ausgehende Antworten können ausdrücklich gewählte Workspace-Dateien und Diagramme
+als MMS senden, auch ohne Text. Das normale Kanaldatei-Tool bestimmt weiterhin
+Datei und Ziel. Der Adapter lehnt nicht unterstützte Typen, leere Dateien, mehr
+als zehn Anhänge und insgesamt über 5 MB Text und Medien ab. JPEG/PNG/GIF können
+dieses Gesamtlimit nutzen; andere akzeptierte Typen einschließlich PDF und CSV
+sind auf 500 KB begrenzt. Netzbetreiber- und Länderunterstützung gelten weiterhin;
+eine Ablehnung des Anbieters bleibt ein Fehler.
+
+MMS braucht eine öffentlich erreichbare HTTPS-`PUBLIC_BASE_URL` und gemeinsames
+Redis. Nur ausdrücklich an den Adapter übergebene Kopien werden bereitgestellt,
+jeweils mit einem zufälligen Abrufnachweis für 15 Minuten. Twilio verwendet ihn
+für GET und HEAD; der authentifizierte Dateispeicher wird nicht geöffnet. Twilios
+Warteschlange ist auf zehn Minuten begrenzt, kürzer als die Lebensdauer der Kopie.
+Links werden weder im Chat gespeichert noch dem Modell übergeben. Die API-Annahme
+bedeutet Übermittlung an den Anbieter, nicht Zustellung durch den Netzbetreiber.
+Siehe [Twilios Formate und Limits](https://www.twilio.com/docs/messaging/guides/accepted-mime-types).
 
 ## E-Mail { #email }
 
