@@ -82,11 +82,28 @@ async def record_uses(
 
 
 async def mark_recorded(db: AsyncSession, *, organization_id: UUID, run_id: UUID) -> None:
-    """Say a run's uses were written, so a run with none used no skill rather than unknown."""
+    """Say a run's uses were written, so a run with none used no skill rather than unknown.
+
+    A run one of whose segments could not be written stays unknown: what that
+    segment used is lost, so a later segment's write does not make the run whole.
+    """
+    await db.execute(
+        update(AgentRun)
+        .where(
+            AgentRun.id == run_id,
+            AgentRun.organization_id == organization_id,
+            AgentRun.skill_uses_recorded.is_not(False),
+        )
+        .values(skill_uses_recorded=True)
+    )
+
+
+async def mark_unrecorded(db: AsyncSession, *, organization_id: UUID, run_id: UUID) -> None:
+    """Say part of a run's uses are lost, so the run stays unknown whatever is written later."""
     await db.execute(
         update(AgentRun)
         .where(AgentRun.id == run_id, AgentRun.organization_id == organization_id)
-        .values(skill_uses_recorded=True)
+        .values(skill_uses_recorded=False)
     )
 
 
@@ -212,7 +229,7 @@ async def unknown_runs(
         .join(AgentVersion, AgentVersion.id == AgentRun.agent_version_id)
         .where(*served_runs(organization_id=organization_id, since=since))
         .where(
-            AgentRun.skill_uses_recorded.is_(False),
+            AgentRun.skill_uses_recorded.is_not(True),
             AgentVersion.spec["skill_ids"].contains([str(skill_id)]),
             or_(rated_down.exists(), failed),
             ~recorded.exists(),
