@@ -8,19 +8,64 @@ gone for the rest of the worker's life.
 
 import asyncio
 import logging
-from collections.abc import Callable
+from collections.abc import AsyncGenerator, Callable
 from unittest.mock import AsyncMock, MagicMock
 
 import asyncpg
 import pytest
 from sqlalchemy import text
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from app.repositories import background_job as job_repo
 from app.worker import listener as module
 from app.worker.listener import _until_lost, asyncpg_dsn, listener
 
 pytestmark = pytest.mark.anyio
+
+
+@pytest.fixture
+async def other_database_listener(schema_url: str) -> AsyncGenerator[asyncpg.Connection]:
+    connection = await asyncpg.connect(asyncpg_dsn(schema_url), database="postgres")
+    try:
+        await connection.execute("LISTEN unrelated_listener_probe")
+        yield connection
+    finally:
+        await connection.close(timeout=5)
+
+
+async def _terminate_listeners(sessions: async_sessionmaker[AsyncSession]) -> None:
+    async with sessions() as db, db.begin():
+        await db.execute(
+            text(
+                "SELECT pg_terminate_backend(pid) FROM pg_stat_activity "
+                "WHERE datname = current_database() "
+                "AND query LIKE 'LISTEN%' AND pid <> pg_backend_pid()"
+            )
+        )
+
+
+async def test_a_listener_in_another_database_does_not_count_as_ready(
+    engine: AsyncEngine, other_database_listener: asyncpg.Connection
+) -> None:
+    sessions = async_sessionmaker(engine, expire_on_commit=False)
+    await _until_listening(sessions, 0)
+    assert not other_database_listener.is_closed()
+
+
+async def test_terminating_a_listener_leaves_other_databases_connected(
+    engine: AsyncEngine, schema_url: str, other_database_listener: asyncpg.Connection
+) -> None:
+    sessions = async_sessionmaker(engine, expire_on_commit=False)
+    connection = await asyncpg.connect(asyncpg_dsn(schema_url))
+    closed = asyncio.Event()
+    connection.add_termination_listener(lambda _connection: closed.set())
+    try:
+        await connection.execute("LISTEN owned_listener_probe")
+        await _terminate_listeners(sessions)
+        await asyncio.wait_for(closed.wait(), timeout=5)
+        assert await other_database_listener.fetchval("SELECT 1") == 1
+    finally:
+        await connection.close(timeout=5)
 
 
 async def _until_logged(caplog: pytest.LogCaptureFixture, message: str, times: int = 1) -> None:
@@ -54,13 +99,7 @@ async def test_a_backend_the_server_terminated_is_listened_on_again(
         serving = asyncio.create_task(listen(woken.put_nowait))
         try:
             await _until_listening(sessions, 1)
-            async with sessions() as db, db.begin():
-                await db.execute(
-                    text(
-                        "SELECT pg_terminate_backend(pid) FROM pg_stat_activity "
-                        "WHERE query LIKE 'LISTEN%' AND pid <> pg_backend_pid()"
-                    )
-                )
+            await _terminate_listeners(sessions)
             await _until_logged(caplog, "background_listener_disconnected")
             await _until_listening(sessions, 1)
             async with sessions() as db, db.begin():
@@ -80,7 +119,8 @@ async def _until_listening(sessions: async_sessionmaker[AsyncSession], count: in
                 listening = await db.scalar(
                     text(
                         "SELECT count(*) FROM pg_stat_activity "
-                        "WHERE query LIKE 'LISTEN%' AND pid <> pg_backend_pid()"
+                        "WHERE datname = current_database() "
+                        "AND query LIKE 'LISTEN%' AND pid <> pg_backend_pid()"
                     )
                 )
             if listening == count:
