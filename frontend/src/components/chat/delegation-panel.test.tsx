@@ -349,3 +349,13 @@ describe("DelegationPanels - while the turn runs", () => {
     expect(screen.queryByRole("button", { expanded: false })).toBeNull();
   });
 });
+
+it.each(["completed", "failed", "cancelled"] as const)(
+  "does not duplicate a settled %s coding task beneath the transcript",
+  (status) => {
+    const { container } = render(
+      <DelegationPanels settled delegations={[delegation({ status, harness: "claude_code" })]} />,
+    );
+    expect(container).toBeEmptyDOMElement();
+  },
+);

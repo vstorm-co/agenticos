@@ -948,10 +948,14 @@
           "agent": "Użyj ustawienia agenta",
           "claudeCode": "Claude Code na tym komputerze",
           "codex": "Codex na tym komputerze",
-          "description": "Dotyczy tego czatu. Opublikowany agent pozostaje bez zmian.",
+          "description": "Wybór lokalnego agenta programistycznego przygotowuje też dostęp do lokalnych plików. Wskaż folder w oknie wyboru; każde zadanie nadal wymaga potwierdzenia.",
           "folder": "Wybierz folder w sekcji Pracuj na i przyznaj Pełny dostęp. Dostęp do całego komputera nie pozwala uruchomić agenta programistycznego.",
-          "setup": "Zainstaluj tego agenta i zaloguj się w Ustawienia → Aplikacja desktopowa."
-        }
+          "setup": "Zainstaluj tego agenta i zaloguj się w Ustawienia → Aplikacja desktopowa.",
+          "pickFolder": "Wybierz folder",
+          "changeFolder": "Zmień folder · {folder}",
+          "agentWithHarness": "Ustawienie agenta · {agent}"
+        },
+        "off": "Wyłączone"
       },
       "modelSection": "Model",
       "permissionsSection": "Uprawnienia",
@@ -959,7 +963,9 @@
       "waiverOrg": "Organizacja wyłączyła ten tryb. Można go włączyć w sekcji Budżet i zatwierdzenia.",
       "waiverUnknown": "Ustawienia zatwierdzeń organizacji nie są jeszcze dostępne. Spróbuj po załadowaniu organizacji.",
       "waiverSettings": "Otwórz ustawienia zatwierdzeń",
-      "savedPreferences": "Zapamiętane między chatami"
+      "toolsTab": "Narzędzia i pliki",
+      "preferencesTab": "Preferencje",
+      "savedAutomatically": "Zmiany są zapisywane automatycznie"
     },
     "conversationArchived": "Ta rozmowa jest zarchiwizowana",
     "conversationDeleted": "Rozmowa usunięta",

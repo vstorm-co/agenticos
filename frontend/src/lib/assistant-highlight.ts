@@ -126,7 +126,8 @@ export async function pointAt(anchor: string, page: string): Promise<boolean> {
   // Architect names the card, and both sit behind the same tab.
   const tab = TOUR_STEPS.find((step) => step.target === anchor || step.id === anchor)?.activate;
   const left = window.location.pathname;
-  let revealed = false;
+  const activations = typeof tab === "string" ? [tab] : (tab ?? []);
+  let revealIndex = 0;
   for (let waited = 0; waited <= WAIT_MS; waited += POLL_MS) {
     const arrived = arrivedAt(page, left, waited >= LOCALE_WAIT_MS);
     const element = arrived ? findShown(anchor) : null;
@@ -136,13 +137,19 @@ export async function pointAt(anchor: string, page: string): Promise<boolean> {
       setTimeout(() => element.classList.remove(HIGHLIGHT_CLASS), RING_MS);
       return true;
     }
-    if (tab && !revealed && arrived) {
-      const trigger = find(tab);
+    const activation = activations[revealIndex];
+    if (activation && arrived) {
+      const trigger = find(activation);
       if (trigger) {
         // A tab switch leaves focus where the reader was typing, in the
         // Architect's panel. A popover still takes it as it opens.
-        activateTab(trigger, { moveFocus: false });
-        revealed = true;
+        if (
+          trigger.getAttribute("data-state") !== "active" &&
+          trigger.getAttribute("aria-expanded") !== "true"
+        ) {
+          activateTab(trigger, { moveFocus: false });
+        }
+        revealIndex += 1;
       }
     }
     await new Promise((resolve) => setTimeout(resolve, POLL_MS));

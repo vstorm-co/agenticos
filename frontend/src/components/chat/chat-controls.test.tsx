@@ -135,14 +135,15 @@ describe("the chat controls trigger", () => {
     render(<ChatControls onModelProfileChange={vi.fn()} />);
     const caption = document.createElement("div");
     caption.className = "driver-popover";
+    caption.style.pointerEvents = "auto";
     document.body.appendChild(caption);
     await userEvent.click(trigger());
     await userEvent.click(caption);
-    expect(screen.getByText("Remembered across chats")).toBeInTheDocument();
+    expect(screen.getByText("Changes are saved automatically")).toBeInTheDocument();
 
     caption.remove();
-    await userEvent.click(document.body);
-    expect(screen.queryByText("Remembered across chats")).toBeNull();
+    await userEvent.keyboard("{Escape}");
+    expect(screen.queryByText("Changes are saved automatically")).toBeNull();
   });
 
   it("is one icon, titled 'Chat controls' when the agent's model could not be read", () => {
@@ -176,6 +177,7 @@ describe("the chat controls trigger", () => {
     await userEvent.click(screen.getByRole("button", { name: /pick a model/ }));
 
     expect(handlers.onModelProfileChange).toHaveBeenCalledWith("p-1");
+    await userEvent.click(screen.getByRole("button", { name: "Close" }));
     expect(trigger()).toHaveAttribute("title", "Model: openai default");
     expect(screen.getByTestId("override-dot")).toBeInTheDocument();
   });
@@ -191,6 +193,7 @@ describe("the chat controls trigger", () => {
     await userEvent.click(screen.getByRole("button", { name: /Back to the agent/ }));
 
     expect(handlers.onModelProfileChange).toHaveBeenLastCalledWith(null);
+    await userEvent.click(screen.getByRole("button", { name: "Close" }));
     expect(trigger()).toHaveAttribute("title", "Chat controls");
     expect(screen.queryByTestId("override-dot")).toBeNull();
   });
@@ -199,13 +202,13 @@ describe("the chat controls trigger", () => {
     // Before the first turn there is no conversation to save it against.
     const { unmount } = render(<ChatControls onModelProfileChange={vi.fn()} />);
     await userEvent.click(trigger());
-    expect(screen.getByText("Remembered across chats")).toBeInTheDocument();
+    expect(screen.getByText("Changes are saved automatically")).toBeInTheDocument();
     unmount();
 
     state.conversationId = "c-1";
     render(<ChatControls onModelProfileChange={vi.fn()} />);
     await userEvent.click(trigger());
-    expect(screen.getByText("Remembered across chats")).toBeInTheDocument();
+    expect(screen.getByText("Changes are saved automatically")).toBeInTheDocument();
   });
 
   it("names a model that is no longer in the organization's list as no model", async () => {
@@ -219,6 +222,7 @@ describe("the chat controls trigger", () => {
 
     await userEvent.click(screen.getByRole("button", { name: /pick a model/ }));
 
+    await userEvent.click(screen.getByRole("button", { name: "Close" }));
     expect(trigger()).toHaveAttribute("title", "Chat controls");
   });
 });
@@ -299,6 +303,7 @@ describe("the approval mode", () => {
 
     await userEvent.click(screen.getByRole("radio", { name: /Ask about everything/ }));
 
+    await userEvent.click(screen.getByRole("button", { name: "Close" }));
     expect(screen.getByRole("button", { name: "Chat controls" })).toContainHTML("rounded-full");
   });
 });
@@ -311,19 +316,16 @@ it("keeps the composer controls free of a duplicate folder badge", () => {
   expect(trigger()).toBeVisible();
 });
 
-it("puts browser and sandbox choices before permissions, with notifications afterwards", async () => {
+it("opens desktop tools first and keeps model and approval settings in Preferences", async () => {
   state.desktop = true;
   open();
   await userEvent.click(trigger());
-  const environment = screen.getByRole("region", { name: "Work environment" });
-  const permissions = screen.getByRole("radiogroup");
-  const notifications = screen.getByText("Conversation notifications");
-  expect(
-    environment.compareDocumentPosition(permissions) & Node.DOCUMENT_POSITION_FOLLOWING,
-  ).not.toBe(0);
-  expect(
-    permissions.compareDocumentPosition(notifications) & Node.DOCUMENT_POSITION_FOLLOWING,
-  ).not.toBe(0);
+  expect(screen.getByRole("region", { name: "Work environment" })).toBeVisible();
+  expect(screen.queryByRole("radiogroup")).toBeNull();
+  await userEvent.click(screen.getByRole("tab", { name: "Preferences" }));
+  expect(screen.queryByRole("region", { name: "Work environment" })).toBeNull();
+  expect(screen.getByRole("radiogroup")).toBeVisible();
+  expect(screen.getByText("Conversation notifications")).toBeVisible();
 });
 
 describe("the compact settings panel", () => {

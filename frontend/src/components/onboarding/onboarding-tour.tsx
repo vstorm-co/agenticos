@@ -274,11 +274,13 @@ export function OnboardingTour() {
 
       // On the right page. Reveal the tab that opens the section, switch to it,
       // then land the spotlight on the target — the caption never having moved.
-      if (step.activate) {
+      const activations =
+        typeof step.activate === "string" ? [step.activate] : (step.activate ?? []);
+      for (const activation of activations) {
         // An optional step's tab can itself be conditional (the Memory tab renders only
         // when the capability is bound), so the activate wait takes the short timeout too.
         const trigger = await waitForElement(
-          `[data-tour="${step.activate}"]`,
+          `[data-tour="${activation}"]`,
           signal,
           step.optional ? OPTIONAL_WAIT_MS : undefined,
         );
@@ -287,7 +289,11 @@ export function OnboardingTour() {
         // builder's Build, its Toolbox) each named it, so the light climbed to the
         // tab bar, pressed a tab that was already selected and dropped back down —
         // a detour on every step that read as the light jumping around.
-        if (trigger instanceof HTMLElement && trigger.getAttribute("data-state") !== "active") {
+        if (
+          trigger instanceof HTMLElement &&
+          trigger.getAttribute("data-state") !== "active" &&
+          trigger.getAttribute("aria-expanded") !== "true"
+        ) {
           await show(trigger, true);
           if (signal.aborted) return;
           await pulse(trigger, signal, REVEAL_MS);

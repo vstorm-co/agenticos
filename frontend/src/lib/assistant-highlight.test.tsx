@@ -414,7 +414,22 @@ describe("pointAt", () => {
       <Popover>
         <PopoverTrigger data-tour="chat-settings">Settings</PopoverTrigger>
         <PopoverContent>
-          <div data-tour="chat-approval-mode">approval</div>
+          <Tabs defaultValue="tools">
+            <TabsList>
+              <TabsTrigger value="tools" data-tour="chat-settings-tools">
+                Tools
+              </TabsTrigger>
+              <TabsTrigger value="preferences" data-tour="chat-settings-preferences">
+                Preferences
+              </TabsTrigger>
+            </TabsList>
+            <TabsContent value="preferences">
+              <div data-tour="chat-approval-mode">approval</div>
+            </TabsContent>
+            <TabsContent value="tools">
+              <div data-tour="chat-local-coding">coding</div>
+            </TabsContent>
+          </Tabs>
         </PopoverContent>
       </Popover>,
     );
@@ -423,6 +438,9 @@ describe("pointAt", () => {
 
     await expect(settled(pointing)).resolves.toBe(true);
     expect(ringed("chat-approval-mode")).toBe(true);
+    const coding = await pointFor("chat-local-coding", "/chat");
+    await expect(settled(coding.pointing)).resolves.toBe(true);
+    expect(ringed("chat-local-coding")).toBe(true);
   });
 
   it("jumps rather than glides for a reader who asked for less motion", async () => {

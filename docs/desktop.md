@@ -439,7 +439,9 @@ and about its own public address.
 
 **Settings → Desktop app → Coding agents on this computer** shows installed Claude Code and Codex versions and sign-in status. **Sign in** opens the agent's own command in Terminal on macOS, PowerShell on Windows or an available terminal on Linux. Return to refresh the status. AgenticOS does not read or copy credentials. Node.js 22 or later is required for the pinned ACP adapters.
 
-In desktop **Chat controls → Work on → Coding agent**, choose **Claude Code on this computer** or **Codex on this computer** for this conversation, even when the published agent has no enabled Coding agent capability. **Use agent setting** restores the published configuration. Choose a folder with **Full access**; each task still needs native confirmation. Existing read-only and approval rules carry over. The choice is saved for this chat and does not change the published agent or apply to new chats.
+In desktop **Chat controls → Tools & files → Coding agent**, choose **Claude Code on this computer** or **Codex on this computer**, even when the published capability is disabled or absent. The app prepares local file tools and opens the native folder picker unless the current folder already has a full-access grant. Cancelling leaves the previous settings unchanged. **Use agent setting** restores the published configuration.
+
+The choice belongs to this chat. Existing read-only and approval rules still apply, and each task needs native confirmation. Switching to Cloud clears the conversation's local coding choice. Model and approval settings are under **Preferences**.
 
 Set the **Coding agent** capability to **On this computer**, choose a folder under **Work on**, and grant it full access. Every task starts with a native confirmation, with up to five minutes to answer. The adapter runs as your operating-system account: the folder selects its working directory, not an OS sandbox. Whole-computer access cannot start a coding agent. The composer names the agent, folder and access policy.
 

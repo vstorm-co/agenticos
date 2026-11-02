@@ -98,6 +98,8 @@ beforeEach(() => {
   modeState.ready = true;
   useConversationStore.setState({ currentConversationId: "chat" });
   useWorkOnStore.setState({
+    codingByConversation: {},
+    draftCoding: null,
     byConversation: {
       chat: {
         folder: "/first",
@@ -352,10 +354,10 @@ it("keeps browser and workspace explanations behind their header information but
   expect(screen.queryByText(browserHint)).not.toBeInTheDocument();
   expect(screen.queryByText(workspaceHint)).not.toBeInTheDocument();
   const help = screen.getAllByRole("button", { name: "More information" });
-  await userEvent.click(help[0]!);
+  await userEvent.click(help[1]!);
   expect(screen.getByText(browserHint)).toBeVisible();
   await userEvent.keyboard("{Escape}");
-  await userEvent.click(help[2]!);
+  await userEvent.click(help[0]!);
   expect(screen.getByText(workspaceHint)).toBeVisible();
 });
 
@@ -383,11 +385,11 @@ it("disables absent agent capabilities without choosing local access", () => {
   });
   useChatControlsStore.setState({ byScope: {} });
   render(<WorkOn agentCapabilities={[]} />);
-  for (const option of screen.getAllByRole("radio", { name: "Agent setting" })) {
-    expect(option).toBeDisabled();
-    expect(option).toHaveAttribute("aria-checked", "false");
+  for (const option of screen.getAllByRole("radio", { name: "Off" })) {
+    expect(option).toBeEnabled();
+    expect(option).toHaveAttribute("aria-checked", "true");
   }
-  expect(screen.getByRole("radio", { name: "Cloud" })).toBeDisabled();
+  expect(screen.getAllByRole("radio", { name: "Off" })).toHaveLength(3);
   expect(screen.getByRole("radio", { name: "Local browser" })).toHaveAttribute(
     "aria-checked",
     "false",
@@ -406,4 +408,16 @@ it("can turn off local use even when the agent has no equivalent capability", as
   const group = screen.getByRole("radiogroup", { name: "Computer use" });
   await userEvent.click(within(group).getByRole("radio", { name: "Local computer" }));
   expect(useWorkOnStore.getState().computerFor("chat")).toBe(false);
+});
+
+it("keeps coding agents on full-access folders and clears the override when switching to cloud", async () => {
+  useWorkOnStore.getState().setCoding("chat", "codex");
+  useWorkOnStore.getState().set("chat", { folder: "/approved", mode: "full_access" });
+  render(<WorkOn agentCapabilities={["sandbox"]} />);
+  const access = screen.getByRole("combobox", { name: "Folder access" });
+  expect(access).toHaveValue("full_access");
+  expect(within(access).getAllByRole("option")).toHaveLength(1);
+  await userEvent.click(screen.getByRole("radio", { name: "Cloud" }));
+  expect(useWorkOnStore.getState().codingFor("chat")).toBeNull();
+  expect(useWorkOnStore.getState().targetFor("chat")).toBeNull();
 });

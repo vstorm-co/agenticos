@@ -1250,10 +1250,14 @@
           "agent": "Agenteneinstellung verwenden",
           "claudeCode": "Claude Code auf diesem Computer",
           "codex": "Codex auf diesem Computer",
-          "description": "Gilt für diesen Chat. Der veröffentlichte Agent bleibt unverändert.",
+          "description": "Die Auswahl eines lokalen Programmieragenten richtet auch den lokalen Dateizugriff ein. Wählen Sie bei Aufforderung einen Ordner; jede Aufgabe erfordert weiterhin eine Bestätigung.",
           "folder": "Wählen Sie unter Arbeitsumgebung einen Ordner mit Vollzugriff. Zugriff auf den gesamten Computer kann keinen Programmieragenten starten.",
-          "setup": "Installieren Sie diesen Agenten und melden Sie sich unter Einstellungen → Desktop-App an."
-        }
+          "setup": "Installieren Sie diesen Agenten und melden Sie sich unter Einstellungen → Desktop-App an.",
+          "pickFolder": "Ordner auswählen",
+          "changeFolder": "Ordner ändern · {folder}",
+          "agentWithHarness": "Agenteneinstellung · {agent}"
+        },
+        "off": "Aus"
       },
       "modelSection": "Modell",
       "permissionsSection": "Berechtigungen",
@@ -1261,7 +1265,9 @@
       "waiverOrg": "Deine Organisation hat diesen Modus deaktiviert. Er lässt sich unter Budget und Genehmigungen aktivieren.",
       "waiverUnknown": "Die Genehmigungseinstellungen der Organisation sind noch nicht verfügbar. Versuche es nach dem Laden der Organisation erneut.",
       "waiverSettings": "Genehmigungseinstellungen öffnen",
-      "savedPreferences": "Für weitere Chats gespeichert"
+      "toolsTab": "Werkzeuge und Dateien",
+      "preferencesTab": "Einstellungen",
+      "savedAutomatically": "Änderungen werden automatisch gespeichert"
     },
     "conversationArchived": "Diese Unterhaltung ist archiviert",
     "conversationDeleted": "Unterhaltung gelöscht",

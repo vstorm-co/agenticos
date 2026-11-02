@@ -47,6 +47,8 @@ export function WorkOn({
   const shell = useShell();
   return isDesktopShell(shell) ? (
     <>
+      <LocalCodingControl />
+      <ComputerWorkOn agentEnabled={agentCapabilities?.includes("sandbox") === true} />
       <LocalToolControl
         tool="browser"
         agentEnabled={agentCapabilities?.includes("browser_use") === true}
@@ -55,8 +57,6 @@ export function WorkOn({
         tool="computer"
         agentEnabled={agentCapabilities?.includes("computer_use") === true}
       />
-      <ComputerWorkOn agentEnabled={agentCapabilities?.includes("sandbox") === true} />
-      <LocalCodingControl />
       <LocalSkillsControl />
     </>
   ) : null;
@@ -111,16 +111,16 @@ function LocalToolControl({
         <button
           type="button"
           role="radio"
-          aria-checked={!local && agentEnabled}
-          disabled={!agentEnabled || selection.isPending}
+          aria-checked={!local}
+          disabled={selection.isPending}
           onClick={() => setLocal(conversationId, false)}
           className={cn(
             "flex min-h-10 items-center justify-center gap-2 rounded-lg px-2 text-xs disabled:cursor-not-allowed disabled:opacity-40",
-            !local && agentEnabled && "bg-background shadow-sm",
+            !local && "bg-background shadow-sm",
           )}
         >
           <Globe className="size-4" aria-hidden />
-          {t("agentBrowser")}
+          {t(agentEnabled ? "agentBrowser" : "off")}
         </button>
         <button
           type="button"
@@ -159,6 +159,8 @@ function ComputerWorkOn({ agentEnabled }: { agentEnabled: boolean }) {
   const conversationId = useConversationStore((store) => store.currentConversationId);
   const target = useWorkOnStore((store) => store.targetFor(conversationId));
   const setTarget = useWorkOnStore((store) => store.set);
+  const coding = useWorkOnStore((store) => store.codingFor(conversationId));
+  const setCoding = useWorkOnStore((store) => store.setCoding);
   const onComputer = target !== null;
   const wholeComputer = target?.computer_grant !== undefined;
   const fail = (error: Error) => {
@@ -175,7 +177,10 @@ function ComputerWorkOn({ agentEnabled }: { agentEnabled: boolean }) {
       return allowWholeComputer(choice.conversationId);
     },
     onSuccess: (grant, choice) => {
-      if (grant) setTarget(choice.conversationId, { ...choice.target, ...grant });
+      if (grant) {
+        setCoding(choice.conversationId, null);
+        setTarget(choice.conversationId, { ...choice.target, ...grant });
+      }
     },
     onError: fail,
   });
@@ -189,9 +194,13 @@ function ComputerWorkOn({ agentEnabled }: { agentEnabled: boolean }) {
 
   const linked = device?.linked === true;
   const grants = state.data?.grants ?? [];
-  const modes = state.data?.modes ?? [];
+  const modes = (state.data?.modes ?? []).filter(
+    (mode) => coding === null || mode === "full_access",
+  );
   const selectedMode =
-    target?.mode ?? (modes.includes("workspace_write") ? "workspace_write" : "read_only");
+    coding !== null
+      ? "full_access"
+      : (target?.mode ?? (modes.includes("workspace_write") ? "workspace_write" : "read_only"));
 
   // Mutation-level callbacks survive the popover unmounting while a native
   // dialog has focus. Per-call mutate callbacks are dropped on unmount.
@@ -226,7 +235,10 @@ function ComputerWorkOn({ agentEnabled }: { agentEnabled: boolean }) {
 
   const chooseCloud = () => {
     if (wholeComputer) clearComputer.mutate({ conversationId, target });
-    else setTarget(conversationId, null);
+    else {
+      setCoding(conversationId, null);
+      setTarget(conversationId, null);
+    }
   };
 
   const chooseComputer = () => {
@@ -250,7 +262,7 @@ function ComputerWorkOn({ agentEnabled }: { agentEnabled: boolean }) {
             {
               key: "cloud",
               icon: Cloud,
-              active: !onComputer && agentEnabled,
+              active: !onComputer,
               onClick: chooseCloud,
             },
             {
@@ -270,8 +282,7 @@ function ComputerWorkOn({ agentEnabled }: { agentEnabled: boolean }) {
               link.isPending ||
               pick.isPending ||
               selection.isPending ||
-              (key === "computer" && (device === undefined || modes.length === 0)) ||
-              (key === "cloud" && !agentEnabled)
+              (key === "computer" && (device === undefined || modes.length === 0))
             }
             aria-busy={key === "computer" && link.isPending}
             onClick={onClick}
@@ -284,7 +295,13 @@ function ComputerWorkOn({ agentEnabled }: { agentEnabled: boolean }) {
             )}
           >
             <Icon className="h-3.5 w-3.5 shrink-0" aria-hidden />
-            {t(key === "computer" && link.isPending ? "linking" : key)}
+            {t(
+              key === "computer" && link.isPending
+                ? "linking"
+                : key === "cloud" && !agentEnabled
+                  ? "off"
+                  : key,
+            )}
           </button>
         ))}
       </div>

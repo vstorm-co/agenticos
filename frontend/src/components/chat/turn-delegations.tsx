@@ -88,7 +88,10 @@ export function TurnDelegations({
   const exchanges = toolCalls.filter(
     (call) =>
       (call.name === "task" && typeof call.args.subagent_type === "string") ||
-      (call.name === CODING_TOOL && call.status !== "pending" && call.status !== "running"),
+      (call.name === CODING_TOOL &&
+        call.status !== "pending" &&
+        call.status !== "running" &&
+        parseCodingReport(String(call.result ?? "")) !== null),
   );
   if (exchanges.length === 0) return null;
 

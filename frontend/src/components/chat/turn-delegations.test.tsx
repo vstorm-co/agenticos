@@ -198,9 +198,7 @@ describe("a coding agent's task under an answer", () => {
         agents={AGENTS}
       />,
     );
-    expect(
-      screen.getByText("Talked it through with Coding agent · 1 exchange"),
-    ).toBeInTheDocument();
+    expect(screen.queryByText(/Talked it through/)).toBeNull();
 
     rerender(<TurnDelegations toolCalls={[coded("2", "", "running")]} agents={AGENTS} />);
     expect(screen.queryByText(/Talked it through/)).toBeNull();

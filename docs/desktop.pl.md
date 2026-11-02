@@ -1,5 +1,5 @@
 ---
-source_sha: "af91e08369b0"
+source_sha: "ce532dc16715"
 ---
 
 # Aplikacja desktopowa { #the-desktop-app }
@@ -449,7 +449,9 @@ ktoś to zmienił - i co do własnego publicznego adresu.
 
 **Settings → Desktop app → Coding agents on this computer** pokazuje wersje zainstalowanych Claude Code i Codex oraz stan logowania. **Sign in** otwiera własną komendę agenta w Terminalu na macOS, PowerShellu na Windowsie lub dostępnym terminalu na Linuksie. Po powrocie stan się odświeża. AgenticOS nie czyta ani nie kopiuje credentials. Przypięte adaptery ACP wymagają Node.js 22 lub nowszego.
 
-W aplikacji desktopowej wybierz **Ustawienia czatu → Pracuj na → Agent programistyczny**, a następnie **Claude Code na tym komputerze** lub **Codex na tym komputerze** dla tej rozmowy, również gdy opublikowany agent nie ma włączonej capability Coding agent. Opcja **Użyj ustawienia agenta** przywraca opublikowaną konfigurację. Wybierz folder z **Pełnym dostępem**; każde zadanie nadal wymaga natywnego potwierdzenia. Istniejące reguły trybu tylko do odczytu i zatwierdzania pozostają aktywne. Wybór jest zapisywany dla tego czatu i nie zmienia opublikowanego agenta ani nowych czatów.
+W aplikacji desktopowej wybierz **Ustawienia czatu → Narzędzia i pliki → Agent programistyczny**, a następnie **Claude Code na tym komputerze** lub **Codex na tym komputerze**, również gdy opublikowana capability jest wyłączona lub nieobecna. Aplikacja przygotowuje lokalne narzędzia plikowe i otwiera natywny wybór folderu, chyba że bieżący folder ma już grant pełnego dostępu. Anulowanie pozostawia poprzednie ustawienia. **Użyj ustawienia agenta** przywraca opublikowaną konfigurację.
+
+Wybór dotyczy tego czatu. Reguły trybu tylko do odczytu i zatwierdzania nadal obowiązują, a każde zadanie wymaga natywnego potwierdzenia. Przejście do chmury usuwa wybór lokalnego coding agenta dla tej rozmowy. Model i zatwierdzanie znajdziesz w **Preferencjach**.
 
 Ustaw capability **Coding agent** na **On this computer**, wybierz folder w **Work on** i przyznaj mu pełny dostęp. Każde zadanie wymaga natywnego potwierdzenia; masz do pięciu minut na odpowiedź. Adapter działa jako Twoje konto systemowe: folder wyznacza katalog roboczy, a nie sandbox systemu. Dostęp do całego komputera nie uruchamia coding agenta. Composer pokazuje agenta, folder i politykę dostępu.
 
