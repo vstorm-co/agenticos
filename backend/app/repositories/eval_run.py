@@ -1,6 +1,6 @@
 """Rows in `eval_runs`, `eval_run_arms` and `eval_run_cases`."""
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime, timedelta
 from typing import Any, NamedTuple
 from uuid import UUID
@@ -688,13 +688,15 @@ async def latest_arm(
     execution: RunExecution | None = None,
     since: datetime | None = None,
     exclude_run_id: UUID | None = None,
+    skill_versions: Mapping[str, str] | None,
 ) -> tuple[EvalRunArm, EvalRun] | None:
     """The newest arm of a completed run that ran this version, as published, on this dataset.
 
     Only an arm that can stand for the version: one that served no proposed
-    skill or context body, in a run that left out none of its cases. Each
-    narrowing argument left `None` matches anything. `execution` matches a run
-    with no environment only to one with none.
+    skill or context body, in a run that left out none of its cases, and was
+    served exactly `skill_versions` - `None` for a version that binds no skill.
+    Each other narrowing argument left `None` matches anything. `execution`
+    matches a run with no environment only to one with none.
     """
     conditions = [
         EvalRunArm.organization_id == organization_id,
@@ -706,6 +708,9 @@ async def latest_arm(
         EvalRunArm.skill_bodies.is_(None),
         EvalRunArm.context_bodies.is_(None),
         func.cardinality(EvalRun.excluded_case_ids) == 0,
+        EvalRunArm.skill_versions.is_(None)
+        if skill_versions is None
+        else EvalRunArm.skill_versions == cast(dict(skill_versions), JSONB),
     ]
     if dataset_version_id is not None:
         conditions.append(EvalRun.dataset_version_id == dataset_version_id)

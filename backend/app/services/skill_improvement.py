@@ -1034,7 +1034,10 @@ class SkillImprovementService:
         return SessionLine(skill, fork)
 
     async def _line_agents(self, ctx: AuthContext, line: SessionLine) -> tuple[int, int]:
-        agents = await self.skill_agents.line_agents(line.skill, line.fork_id)
+        agents = [
+            reached.agent
+            for reached in await self.skill_agents.line_agents(line.skill, line.fork_id)
+        ]
         visible = await accessible_ids(self.db, ctx, agents, Perm.AGENTS_VIEW, resource_type=AGENT)
         return len(visible), len(agents) - len(visible)
 

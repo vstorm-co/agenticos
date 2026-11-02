@@ -22,7 +22,7 @@ The edits a session proposes reuse the authoring tables:
 requests, which only exist with these tables.
 
 Revision ID: 0252_skill_improvement_sessions
-Revises: 0250_skill_versions
+Revises: 0251_skill_checks
 Create Date: 2026-11-02
 """
 
@@ -34,7 +34,7 @@ from sqlalchemy.dialects import postgresql
 from alembic import op
 
 revision: str = "0252_skill_improvement_sessions"
-down_revision: str | Sequence[str] | None = "0250_skill_versions"
+down_revision: str | Sequence[str] | None = "0251_skill_checks"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

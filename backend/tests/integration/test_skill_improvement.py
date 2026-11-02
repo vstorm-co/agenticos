@@ -797,7 +797,7 @@ async def _agent_run(db: AsyncSession, ctx: AuthContext, skill: Skill) -> AgentR
     run = AgentRun(
         id=uuid.uuid4(),
         organization_id=ctx.organization_id,
-        agent_id=agents[0].id,
+        agent_id=agents[0].agent.id,
         surface="web",
         status="completed",
         started_at=datetime.now(UTC),
