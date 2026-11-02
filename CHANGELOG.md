@@ -19,6 +19,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- A document deleted while it was still being indexed no longer leaves its chunks searchable. The delete removed nothing because the document had no vector id yet, and the ingest then wrote its chunks against a row that was gone. The worker now removes the chunks it wrote when it finds the document deleted, and a delete that waited for the ingest to record its result removes them itself. Clearing a default knowledge base mid-ingest was already covered ([#2565](https://github.com/vstorm-co/agenticos/issues/2565)).
+
 ## [1.34.2] - 2026-11-01
 
 ### Fixed

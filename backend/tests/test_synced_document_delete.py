@@ -72,13 +72,23 @@ def _row(*, vector_document_id: str | None, storage_path: str = "") -> MagicMock
     )
 
 
+def _deletes(row: MagicMock) -> AsyncMock:
+    """The row's delete, answering with what the deleted row held."""
+    return AsyncMock(
+        return_value=rag_document_repo.DeletedDocuments(
+            storage_paths=[row.storage_path] if row.storage_path else [],
+            vector_document_ids=[row.vector_document_id] if row.vector_document_id else [],
+        )
+    )
+
+
 class TestDeletingATrackedDocument:
     async def test_the_vectors_go_after_the_row_commits(self, monkeypatch):
         """The vector removal is deferred past the commit, so a rolled-back delete
         keeps the vectors beside the row it restores (#1347)."""
         row = _row(vector_document_id="vector-doc-1")
         monkeypatch.setattr(rag_document_repo, "get_by_id", AsyncMock(return_value=row))
-        monkeypatch.setattr(rag_document_repo, "delete", AsyncMock(return_value=True))
+        monkeypatch.setattr(rag_document_repo, "delete_with_vectors", _deletes(row))
         ingestion = MagicMock(remove_document=AsyncMock(return_value=True))
         db = _deferring_db()
 
@@ -100,7 +110,7 @@ class TestDeletingATrackedDocument:
         row.knowledge_base_id = uuid.uuid4()
         scope = VectorScope(tenant=uuid.uuid4(), knowledge_base_id=row.knowledge_base_id)
         monkeypatch.setattr(rag_document_repo, "get_by_id", AsyncMock(return_value=row))
-        monkeypatch.setattr(rag_document_repo, "delete", AsyncMock(return_value=True))
+        monkeypatch.setattr(rag_document_repo, "delete_with_vectors", _deletes(row))
         monkeypatch.setattr(
             knowledge_base_repo, "get_by_id", AsyncMock(return_value=MagicMock(vector_scope=scope))
         )
@@ -117,7 +127,7 @@ class TestDeletingATrackedDocument:
         asking would be a query about a document that was never written."""
         row = _row(vector_document_id=None)
         monkeypatch.setattr(rag_document_repo, "get_by_id", AsyncMock(return_value=row))
-        monkeypatch.setattr(rag_document_repo, "delete", AsyncMock(return_value=True))
+        monkeypatch.setattr(rag_document_repo, "delete_with_vectors", _deletes(row))
         ingestion = MagicMock(remove_document=AsyncMock())
 
         await RAGDocumentService(MagicMock()).delete_document(str(row.id), ingestion)
@@ -129,7 +139,7 @@ class TestDeletingATrackedDocument:
         once it commits, so a rollback keeps both beside the restored row (#1293, #1347)."""
         row = _row(vector_document_id="vector-doc-1", storage_path="rag/docs/report.pdf")
         monkeypatch.setattr(rag_document_repo, "get_by_id", AsyncMock(return_value=row))
-        monkeypatch.setattr(rag_document_repo, "delete", AsyncMock(return_value=True))
+        monkeypatch.setattr(rag_document_repo, "delete_with_vectors", _deletes(row))
         storage = MagicMock(delete=AsyncMock())
         monkeypatch.setattr("app.services.file_storage.get_file_storage", lambda: storage)
         ingestion = MagicMock(remove_document=AsyncMock(return_value=True))
@@ -147,7 +157,7 @@ class TestDeletingATrackedDocument:
         (#1293, #1347)."""
         row = _row(vector_document_id="vector-doc-1", storage_path="rag/docs/report.pdf")
         monkeypatch.setattr(rag_document_repo, "get_by_id", AsyncMock(return_value=row))
-        monkeypatch.setattr(rag_document_repo, "delete", AsyncMock(return_value=True))
+        monkeypatch.setattr(rag_document_repo, "delete_with_vectors", _deletes(row))
         storage = MagicMock(delete=AsyncMock())
         monkeypatch.setattr("app.services.file_storage.get_file_storage", lambda: storage)
         ingestion = MagicMock(remove_document=AsyncMock(return_value=True))

@@ -479,7 +479,7 @@ async def _run_ingestion(
 
     try:
         async with get_worker_db_context() as db:
-            await RAGDocumentService(db).complete_ingestion(
+            recorded = await RAGDocumentService(db).complete_ingestion(
                 rag_document_id,
                 vector_document_id=result.document_id,
                 chunk_count=result.chunk_count,
@@ -494,6 +494,18 @@ async def _run_ingestion(
             attempt=attempt,
         )
         raise
+
+    if not recorded:
+        # Deleted while it was indexed. The ingester's engine went with its block
+        # above; a second one is opened for this rare path rather than holding the
+        # first through every settlement.
+        async with _ingestion_service(
+            processor=processor, organization_id=organization_id, scope=scope
+        ) as ingester:
+            await _discard_untracked(
+                ingester, collection_name, result.document_id, row_id=rag_document_id
+            )
+        return {"status": "deleted", "filename": source_path}
 
     logger.info("Ingestion complete: %s", source_path)
     return {"status": "done", "document_id": result.document_id, "filename": source_path}
@@ -692,7 +704,9 @@ async def _run_sync(
                 # Either way, which is the other half of #997: a file that failed
                 # to parse used to leave no row and no reason, so a sync log
                 # saying four of forty failed named none of the four.
-                await _settle_document_row(row_id, result)
+                await _settle_document_row(
+                    row_id, result, ingester=ingester, collection_name=collection_name
+                )
 
                 if result.status is IngestionStatus.DONE:
                     if result.replaced_document_id:
@@ -881,8 +895,35 @@ async def _open_document_row(
         return str(row.id)
 
 
+async def _discard_untracked(
+    ingester: IngestionService, collection_name: str, vector_document_id: str, *, row_id: str
+) -> None:
+    """Remove the chunks an ingest wrote for a document deleted while it ran (#2565).
+
+    The delete read the row before it held a vector id, so it purged nothing and
+    left these to the settlement. Through the ingester that wrote them, whose bound
+    scope is the one they were stamped with. A vector document id is minted per
+    parse, so no other row can be tracking it.
+    """
+    if await ingester.remove_document(collection_name, vector_document_id):
+        logger.info("Document %s was deleted while indexing; removed its chunks", row_id)
+    else:
+        logger.error(
+            "Document %s was deleted while indexing and its vector document %s in %s "
+            "could not be removed",
+            row_id,
+            vector_document_id,
+            collection_name,
+        )
+
+
 async def _settle_document_row(
-    row_id: str, result: IngestionResult, *, inherited: frozenset[UUID] = frozenset()
+    row_id: str,
+    result: IngestionResult,
+    *,
+    ingester: IngestionService,
+    collection_name: str,
+    inherited: frozenset[UUID] = frozenset(),
 ) -> None:
     """Move an open row to what the ingest actually did.
 
@@ -895,6 +936,9 @@ async def _settle_document_row(
     at the same address (`_reconcile_stale_rows`). They claim the row once it
     settles, never while it is `PROCESSING`: a stale row is found by its
     claim, and another source's run must not take this one's for its own.
+
+    `ingester` and `collection_name` are what wrote the chunks: a row deleted
+    while they were written is settled by removing them (#2565).
     """
     from app.services.rag_document import RAGDocumentService
 
@@ -906,13 +950,17 @@ async def _settle_document_row(
             # column's own default; re-syncing the same source another night
             # opens another row rather than resubmitting this one.
             if result.status is IngestionStatus.DONE and result.document_id:
-                await documents.complete_ingestion(
+                if not await documents.complete_ingestion(
                     row_id,
                     vector_document_id=result.document_id,
                     chunk_count=result.chunk_count,
                     replaced_document_id=result.replaced_document_id,
                     attempt=1,
-                )
+                ):
+                    await _discard_untracked(
+                        ingester, collection_name, result.document_id, row_id=row_id
+                    )
+                    return
             else:
                 await documents.fail_ingestion(
                     row_id, result.error_message or "Ingestion failed", attempt=1
@@ -1533,6 +1581,8 @@ async def _sync_source(source_id: str, sync_log_id: str | None) -> dict[str, Any
                         await _settle_document_row(
                             row_id,
                             result,
+                            ingester=ingester,
+                            collection_name=collection_name,
                             inherited=inherited.get(remote_file.source_path, frozenset()),
                         )
 
@@ -1569,6 +1619,8 @@ async def _sync_source(source_id: str, sync_log_id: str | None) -> dict[str, Any
                                     status=IngestionStatus.ERROR,
                                     error_message=failure_summary(e, stage=IngestionStage.INGEST),
                                 ),
+                                ingester=ingester,
+                                collection_name=collection_name,
                                 inherited=inherited.get(remote_file.source_path, frozenset()),
                             )
 

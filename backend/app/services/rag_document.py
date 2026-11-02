@@ -437,8 +437,14 @@ class RAGDocumentService:
         chunk_count: int,
         replaced_document_id: str | None,
         attempt: int,
-    ) -> None:
+    ) -> bool:
         """Mark a document as successfully ingested, retiring what it replaced.
+
+        Returns `False` when the tracking row is gone - the document was deleted
+        while it was being indexed - and `True` otherwise, a superseded attempt
+        included. On `False` the caller owns the chunks it has just written and
+        removes them: the delete read the row before it held a vector id, so it
+        purged nothing, and nothing else tracks them (#2565).
 
         Neither `chunk_count` nor `replaced_document_id` has a default on
         purpose. `chunk_count` had one, `0`, and all four call sites took it -
@@ -457,7 +463,9 @@ class RAGDocumentService:
         and is silently ignored, matching the delivery sweep's own "who still
         holds the claim" rule one layer up (Decision 3).
         """
-        doc = await self.get_document(doc_id)
+        doc = await rag_document_repo.get_by_id(self.db, UUID(doc_id))
+        if doc is None:
+            return False
         updated = await rag_document_repo.update_status(
             self.db,
             doc.id,
@@ -468,12 +476,16 @@ class RAGDocumentService:
             expected_attempt=attempt,
         )
         if updated is None:
+            # No row matched: deleted after the read above, or moved on to a newer
+            # attempt. Only the first leaves these chunks without an owner.
+            if not await rag_document_repo.is_present(self.db, doc.id):
+                return False
             logger.info(
                 "Ignoring a stale ingestion settlement for %s: attempt %d no longer current",
                 doc_id,
                 attempt,
             )
-            return
+            return True
         if replaced_document_id:
             await self._retire_superseded(
                 collection_name=doc.collection_name,
@@ -487,6 +499,7 @@ class RAGDocumentService:
         # thirty interruptions that buried the rows worth reading.
         # `ingestion_failed` still fires, and a connector run still reports its
         # whole-attempt figure through `sync_completed`.
+        return True
 
     async def _retire_superseded(
         self,
@@ -691,28 +704,32 @@ class RAGDocumentService:
         """
         doc = await self.get_document(doc_id)
         collection_name = doc.collection_name
-        vector_document_id = doc.vector_document_id
-        storage_path = doc.storage_path
         # The scope the chunks were stamped with at ingest - the knowledge base's
         # own - so the vector delete is confined to them and cannot reach another
         # org's or base's document in a collection whose name they share (#1684,
         # #2537). Read now, before the row is deleted.
         scope = await self.vector_scope(doc)
-        await rag_document_repo.delete(self.db, doc.id)
+        # The vector id comes from the delete, not `doc`: the caller may have loaded
+        # the row before an ingest settled it, and a delete that waited on that
+        # settlement deletes the settled row. A row still without one belongs to an
+        # ingest whose settlement removes its own chunks (#2565).
+        deleted = await rag_document_repo.delete_with_vectors(self.db, doc.id)
 
         from app.core.background import spawn_after_commit
 
-        if vector_document_id:
+        for vector_document_id in deleted.vector_document_ids:
             spawn_after_commit(
                 self.db,
                 ingestion_service.remove_document(collection_name, vector_document_id, scope=scope),
                 name="delete-document-vectors",
             )
-        if storage_path:
+        if deleted.storage_paths:
             from app.services.file_storage import delete_files_best_effort
 
             spawn_after_commit(
-                self.db, delete_files_best_effort([storage_path]), name="delete-document-file"
+                self.db,
+                delete_files_best_effort(deleted.storage_paths),
+                name="delete-document-file",
             )
 
     async def unlisted_by_source(

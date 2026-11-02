@@ -1,5 +1,5 @@
 ---
-source_sha: "759491a1f3dc"
+source_sha: "563e08f2a96b"
 ---
 
 # Dateiverarbeitung { #file-processing }
@@ -1059,6 +1059,14 @@ nichts und schlägt im Indexierungsschritt fehl, und ein Schreibvorgang, der als
 erster kommt, wird vor dem Löschen festgeschrieben, dessen Aufräumen seine Chunks
 danach entfernt
 ([#2561](https://github.com/vstorm-co/agenticos/issues/2561)).
+
+Auch ein einzelnes Dokument, das während der Indexierung gelöscht wird, hinterlässt
+keine Chunks. Seine Zeile hat keine Vektordokument-ID, bis der Ingest eine
+einträgt, sodass das Löschen womöglich nichts zu entfernen hat; der Worker, der
+beim Festhalten des Ergebnisses die Zeile nicht mehr findet, entfernt die Chunks,
+die er gerade geschrieben hat. Ein Löschen, das auf diesen Eintrag wartet,
+entfernt sie selbst, anhand der ID, die die gelöschte Zeile trägt
+([#2565](https://github.com/vstorm-co/agenticos/issues/2565)).
 
 Eine lokale Synchronisierung, die für eine vor ihrem Start gelöschte Basis
 eingereiht ist, endet mit einem Fehler und schreibt nichts

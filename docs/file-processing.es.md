@@ -1,5 +1,5 @@
 ---
-source_sha: "759491a1f3dc"
+source_sha: "563e08f2a96b"
 ---
 
 # Procesamiento de archivos { #file-processing }
@@ -1013,6 +1013,14 @@ encuentra la base, no escribe nada y falla en el paso de indexación, y una escr
 que llega primera se confirma antes del borrado, cuya limpieza elimina después sus
 fragmentos
 ([#2561](https://github.com/vstorm-co/agenticos/issues/2561)).
+
+Tampoco deja fragmentos un documento suelto borrado mientras aún se indexa. Su
+fila no tiene identificador de documento vectorial hasta que la ingesta lo
+registra, así que el borrado puede no tener nada que eliminar; el worker que no
+encuentra la fila al registrar el resultado elimina los fragmentos que acaba de
+escribir. Un borrado que espera a ese registro los elimina él mismo, por el
+identificador que tiene la fila borrada
+([#2565](https://github.com/vstorm-co/agenticos/issues/2565)).
 
 Una sincronización local encolada para una base borrada antes de ejecutarse
 termina con un error y no escribe nada
