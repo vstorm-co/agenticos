@@ -25,6 +25,7 @@ from app.agents.capabilities.skills import (
     Skills,
     SkillUseLog,
     served_skills,
+    tool_identities,
 )
 from app.agents.spec import AgentSpec, CapabilityBindingSpec
 from app.core.permissions import AuthContext, OrgRoleName
@@ -130,6 +131,32 @@ class TestObserve:
         assert len(log.records()) == 1
         assert log.records() == []
 
+    def test_a_renamed_skill_tool_or_listing_is_read_by_its_stable_id(self) -> None:
+        log = SkillUseLog(
+            agent_id=AGENT,
+            served={"refunds": ServedSkill(REFUNDS)},
+            tools={"open_policy_file": "read_skill_resource", "list_files": "ls", "ls": "grep"},
+        )
+        log.observe("open_policy_file", {"skill_name": "refunds", "resource_name": "a.md"})
+        log.observe("list_files", {"path": "/workspace/skills/refunds"})
+        log.observe("read_skill_resource", {"skill_name": "refunds", "resource_name": "a.md"})
+        log.observe("ls", {"pattern": "x", "path": "/workspace/skills/refunds/SKILL.md"})
+        [record] = log.records()
+        assert (record.resource_reads, record.workspace_reads) == (2, 1)
+
+    def test_tool_identities_follow_each_bindings_renames(self) -> None:
+        identities = tool_identities(
+            [
+                CapabilityBindingSpec(
+                    id="skills",
+                    tool_overrides={"read_skill_resource": {"name": "open_policy_file"}},
+                ),
+                CapabilityBindingSpec(id="no-such-capability"),
+            ]
+        )
+        assert identities["open_policy_file"] == "read_skill_resource"
+        assert "read_skill_resource" not in identities
+
     def test_no_skills_served_means_nothing_scanned(self) -> None:
         log = SkillUseLog(agent_id=AGENT, served={})
         log.observe("execute", {"command": "cat /workspace/skills/refunds/SKILL.md"})
@@ -140,7 +167,7 @@ class TestDelegates:
     def test_a_delegate_records_under_its_own_agent_on_the_shared_log(self) -> None:
         parent = _log()
         delegate_agent = uuid.uuid4()
-        delegate = parent.for_agent(delegate_agent, {"refunds": ServedSkill(REFUNDS)})
+        delegate = parent.for_agent(delegate_agent, {"refunds": ServedSkill(REFUNDS)}, {})
         parent.observe("load_capability", {"id": "refunds"})
         delegate.observe("load_capability", {"id": "refunds"})
         records = {record.agent_id: record for record in parent.records()}
@@ -149,7 +176,7 @@ class TestDelegates:
 
     def test_an_inline_specialist_uses_skills_as_the_delegating_agent(self) -> None:
         parent = _log()
-        inline = parent.for_agent(None, {"shipping": ServedSkill(SHIPPING)})
+        inline = parent.for_agent(None, {"shipping": ServedSkill(SHIPPING)}, {})
         inline.observe("load_capability", {"id": "shipping"})
         [record] = parent.records()
         assert (record.agent_id, record.skill_id) == (AGENT, SHIPPING)
@@ -308,6 +335,18 @@ class TestTheRunnerWritesTheLog:
         assert "skill_uses_not_written" in caplog.text
         recorded.assert_not_awaited()
 
+    async def test_a_lost_mark_is_logged_and_does_not_fail_the_run(self, caplog) -> None:
+        service = AgentRunnerService(_savepoint_db())
+        lost = AsyncMock(side_effect=RuntimeError("connection lost"))
+
+        with (
+            patch(f"{RUNNER}.skill_usage_repo.record_uses", new=lost),
+            patch(f"{RUNNER}.skill_usage_repo.mark_unrecorded", new=lost),
+        ):
+            await service._write_skill_uses(_prepared(_log()))
+
+        assert "skill_uses_not_marked" in caplog.text
+
 
 class TestADelegateUsesSkillsUnderItsOwnName:
     async def _resources(self, parent: dict[str, Any], agent_id: uuid.UUID | None) -> Any:
@@ -355,3 +394,12 @@ class TestTheCapabilityTakesTheRunnersLog:
 
         assert isinstance(built, Skills)
         assert built._log is log
+
+
+def test_a_use_names_its_run_skill_and_whether_it_loaded() -> None:
+    from app.db.models.skill_usage import RunSkillUse
+
+    run = uuid.uuid4()
+    assert repr(RunSkillUse(run_id=run, skill_id=REFUNDS, loaded=True)) == (
+        f"<RunSkillUse(run={run}, skill={REFUNDS}, loaded=True)>"
+    )
