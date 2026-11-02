@@ -1,5 +1,5 @@
 ---
-source_sha: "423bbd5c7b5c"
+source_sha: "b050f5afe59f"
 ---
 
 # Skills { #skills }
@@ -208,8 +208,11 @@ der Liste auf der Seite Skills für alle, die diesen Skill bearbeiten dürfen - 
 Besitzer oder wer eine Bearbeitungsfreigabe darauf hat - und bei einem Skill, den
 es noch nicht gibt, für alle, die Skills anlegen dürfen. Sonst sieht ihn niemand:
 
-- **Apply** speichert die Änderung als nächste Version der Linie, für die sie
-  geschrieben wurde, und erreicht deren Agents bei ihrem nächsten Run.
+- **Check on agents** führt die Änderung auf jedem Agent der Linie aus, für die
+  sie geschrieben wurde, und angewendet wird sie - als nächste Version dieser
+  Linie, die deren Agents beim nächsten Run lesen - aus dem Ergebnis dieser
+  Prüfung. Siehe
+  [Eine Änderung auf jedem Agent prüfen](#checking-a-change-on-every-agent).
 - **Discard** behält den Eintrag. Ein Agent, der wiederholt dieselbe Änderung
   vorschlägt, sagt jemandem etwas über den Skill, und eine gelöschte Zeile macht
   das unsichtbar.
@@ -248,16 +251,94 @@ Skill von Hand, oder frage erneut.
 
 Der [Authoring-Assistent](authoring.md#skills) schlägt Skill-Änderungen auf
 dieselbe Weise vor, mit seiner Begründung und den Runs, auf die sie sich stützt,
-und Apply lehnt sie auf dieselbe Weise ab.
+und das Anwenden lehnt sie auf dieselbe Weise ab.
 
-Jede Änderung sagt neben **Apply**, welche veröffentlichten Agent-Versionen den
-Skill lesen, welche Eval-Suites ihr Anwenden in die Warteschlange stellt und
-welche Wächter sie erst bei der nächsten Promotion prüfen, und
-**Check with evals** kommt zuerst. Das Anwenden benachrichtigt die Besitzer
-dieser Agents. Eine Entscheidung nennt die Version der Änderung, die Sie gelesen
-haben: Eine seitdem umgeschriebene Änderung - durch eine spätere Runde oder eine
-neue Anfrage - wird mit „The proposal changed since you opened it“ abgelehnt,
-und von zwei gleichzeitig getroffenen Entscheidungen zählt nur eine.
+Jede Änderung sagt, welche veröffentlichten Agent-Versionen den Skill lesen,
+welche Eval-Suites ihr Anwenden in die Warteschlange stellt und welche Wächter
+sie erst bei der nächsten Promotion prüfen. Das Anwenden benachrichtigt die
+Besitzer dieser Agents. Eine Entscheidung nennt die Version der Änderung, die Sie
+gelesen haben: Eine seitdem umgeschriebene Änderung - durch eine spätere Runde
+oder eine neue Anfrage - wird mit „The proposal changed since you opened it“
+abgelehnt, und von zwei gleichzeitig getroffenen Entscheidungen zählt nur eine.
+Ein Skill, den der Agent neu geschrieben hat, hat noch keine Agents, also legt
+**Apply** ihn sofort an.
+
+## Eine Änderung auf jedem Agent prüfen { #checking-a-change-on-every-agent }
+
+Ein Skill wird geteilt, also wird eine Änderung auf jedem Agent beurteilt, der sie
+lesen würde: auf main an den Agents, die der neuesten main-Version folgen; auf
+einem Fork an den Agents dieses Forks. Agents, die auf eine ältere Version
+angeheftet sind, und die Agents anderer Forks werden nicht ausgeführt - die
+Änderung erreicht sie nicht. Die veröffentlichte Version jedes Agents beantwortet
+ihre Fragen zweimal, mit dem Skill, wie er ist, und mit der Änderung, und sonst
+unterscheidet sich nichts.
+
+Eine Änderung, die der Workspace eines Agents geschrieben hat, eine, die der
+Assistent vorgeschlagen hat, und ein
+[Bibliotheks-Update](#getting-skills-into-an-organization) eines Skills, dem
+Agents folgen, gehen nur über diese Prüfung live. Wer den Skill von Hand
+bearbeitet, speichert sofort eine neue Version, und diese Bearbeitung wird nicht
+geprüft.
+
+### Was sie fragt { #what-a-check-asks }
+
+Zuerst die eigenen **Testfragen** des Skills, auf jedem Agent dieselben. Jeder
+Skill hat einen Satz, angelegt über die API - `POST /api/v1/skills/{id}/test-set`,
+leer oder aus jüngsten Antworten, die den Skill geladen haben - und bearbeitet wie
+jedes andere [Dataset](datasets.md). Dann die eigenen Fragen des Agents:
+
+- **Quick**, der Standard: höchstens vier Fragen aus dem Dataset des Agents,
+  deren neueste Antwort den Skill geladen hat - die, die die meisten Wörter mit
+  den geänderten Zeilen teilen. Ein Agent ohne solche Fragen wird nur mit dem
+  Satz des Skills geprüft, und seine Zeile sagt das.
+- **Thorough**: das ganze Dataset des Agents. Eine Änderung der Beschreibung
+  des Skills wird immer so geprüft, denn die Beschreibung entscheidet, wann ein
+  Agent den Skill überhaupt öffnet.
+
+!!! note "Die Fragen des Skills sagen, was der Skill tun soll"
+
+    Sie werden auf jedem Agent gleich bewertet, also fangen sie eine Änderung,
+    die die eigene Regel des Skills bricht. Eine Änderung, die einem Agent wegen
+    seiner eigenen Lage schadet, zeigt sich an dessen eigenen Fragen. Und eine
+    gewollte Regeländerung besteht keine Frage, die noch die alte Antwort
+    erwartet: Aktualisieren Sie zuerst die Testfragen.
+
+### Die Regel { #the-rule }
+
+- Kein Agent darf **schlechter** werden, durch eine Regression, die erneutes
+  Fragen bestätigt hat.
+- Mindestens ein Agent muss **besser** werden.
+- Ein Unterschied, den die Prüfung nicht bestätigen konnte, liegt **im
+  Rauschen**: eine Warnung, keine Sperre.
+- Ein Agent, der nicht geprüft werden konnte - keine Fragen, kein Zugriff, kein
+  Budget mehr, keine veröffentlichte Version, ein fehlgeschlagener Run - ist
+  **unbekannt**, und eine Person bestätigt das vor dem Anwenden.
+
+Der Anteil jedes Agents sind seine eigenen Eval-Runs, abgerechnet über sein
+Budget. Die Schätzung nennt einen Preis, wahrscheinlich und höchstens, und vor
+dem Start die Agents, deren Budget ihn nicht deckt. Starten braucht `runs:view`
+und Bearbeitungszugriff auf den Skill. Ein Agent, den Sie nicht ausführen dürfen,
+wird nicht ausgeführt, und einer, den Sie nicht sehen dürfen, ist eine Zahl, nie
+ein Name.
+
+### Wenn ein Agent schlechter wurde { #when-an-agent-got-worse }
+
+**Check on agents** unter Skills schätzt die Prüfung, führt sie aus, zeigt das
+Ergebnis jedes Agents und wendet die Änderung dann an oder verwirft sie. Auf main
+kann eine Person dennoch:
+
+- **die Änderung anwenden und die schlechteren Agents lassen, wo sie sind** -
+  jeder wird, als neue veröffentlichte Version, auf die Version angeheftet, die
+  er jetzt liest, bevor die Änderung live geht, sodass keiner sie auch nur einmal
+  ausliefert. Das Anheften erfordert, jeden von ihnen veröffentlichen zu dürfen;
+- **einen Fork für die Agents anlegen, denen sie geholfen hat**, und main lassen,
+  wie es ist - über die API, `POST /api/v1/skills/{id}/checks/{check_id}/fork`;
+- sie **verwerfen**.
+
+Auf einem Fork bleiben nur Weiterverbessern und Verwerfen: Ein Anheften nennt
+eine main-Version, und ein Fork beginnt nie bei einem anderen Fork. Eine Prüfung
+verweigert das Anwenden, sobald die Linie eine neuere Version hat oder ein Agent
+ihr zu folgen begonnen hat, denn sie hat keines von beiden gemessen.
 
 ## Versionen und Forks { #versions-and-forks }
 
@@ -411,7 +492,9 @@ Er installiert, was fehlt, und **aktualisiert, was niemand bearbeitet hat**. Jed
 Kopie hält fest, aus welcher mitgelieferten Version sie geschrieben wurde;
 verbessert ein Release einen mitgelieferten Skill, wird die unberührte Kopie einer
 Organisation durch die neue ersetzt — samt Dateien, als neue Version und mit einem
-Audit-Eintrag `skill.refreshed`.
+Audit-Eintrag `skill.refreshed`. Es sei denn, Agents folgen ihr: Dann wartet die
+mitgelieferte Version unter Skills als Änderung und geht live, sobald eine
+[Prüfung auf diesen Agents](#checking-a-change-on-every-agent) es erlaubt.
 
 Eine hier bearbeitete Kopie bleibt genau so, wie sie ist, sodass eine bearbeitete
 Rückerstattungsregel ein erneutes Seeding überlebt; `--replace` ist der einzige

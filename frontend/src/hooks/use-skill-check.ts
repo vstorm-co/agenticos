@@ -5,11 +5,13 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { qk } from "@/lib/query-keys";
 import {
   applySkillCheck,
+  cancelSkillCheck,
   createSkillTestSet,
   discardSkillCheck,
   estimateSkillCheck,
   getSkillCheck,
   getSkillTestSet,
+  listSkillChecks,
   startSkillCheck,
 } from "@/lib/skill-checks-api";
 import type { SkillCheckApply, SkillCheckStart } from "@/types/skill-checks";
@@ -53,6 +55,10 @@ export function useSkillCheck(skillId: string, checkId: string | null) {
       mutationFn: () => discardSkillCheck(skillId, checkId as string),
       onSuccess: decided,
     }),
+    cancel: useMutation({
+      mutationFn: () => cancelSkillCheck(skillId, checkId as string),
+      onSuccess: decided,
+    }),
   };
 }
 
@@ -69,4 +75,21 @@ export function useSkillTestSet(skillId: string) {
     onSettled: () => queryClient.invalidateQueries({ queryKey: qk.skills.testSet(skillId) }),
   });
   return { testSet: query.data, isLoading: query.isLoading, error: query.error, create };
+}
+
+/**
+ * The check of one waiting change that is still running or not yet decided, if
+ * there is one - so reopening the change goes back to it instead of paying again.
+ */
+export function useOpenSkillCheck(skillId: string, forkId: string | null, proposalId: string) {
+  return useQuery({
+    queryKey: qk.skillChecks.line(skillId, forkId ?? ""),
+    queryFn: () => listSkillChecks(skillId, forkId),
+    select: (checks) =>
+      checks.find(
+        (check) =>
+          check.proposal_id === proposalId &&
+          (check.status === "running" || check.status === "done"),
+      ) ?? null,
+  });
 }

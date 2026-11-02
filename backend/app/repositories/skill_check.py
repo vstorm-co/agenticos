@@ -10,7 +10,7 @@ from sqlalchemy.dialects.postgresql import distinct_on
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.eval_run import EvalRun, EvalRunArm, EvalRunCase, EvalRunStatus
-from app.db.models.skill_check import CheckStatus, SkillCheck, SkillCheckAgent
+from app.db.models.skill_check import AgentState, CheckStatus, SkillCheck, SkillCheckAgent
 from app.db.models.skill_usage import RunSkillUse
 from app.repositories.skill_usage import used
 
@@ -56,6 +56,20 @@ async def get(
     if lock:
         statement = statement.with_for_update()
     return (await db.execute(statement)).scalar_one_or_none()
+
+
+async def open_for_proposal(
+    db: AsyncSession, proposal_id: UUID, *, organization_id: UUID
+) -> list[SkillCheck]:
+    """The checks of a proposal still running or finished and not yet decided."""
+    rows = await db.execute(
+        select(SkillCheck).where(
+            SkillCheck.organization_id == organization_id,
+            SkillCheck.proposal_id == proposal_id,
+            SkillCheck.status.in_([CheckStatus.RUNNING.value, CheckStatus.DONE.value]),
+        )
+    )
+    return list(rows.scalars())
 
 
 async def list_for_skill(
@@ -205,7 +219,8 @@ async def loaded_cases(
 async def checked_versions(
     db: AsyncSession, *, organization_id: UUID, skill_id: UUID, agent_ids: Collection[UUID]
 ) -> list[tuple[UUID, UUID, SkillCheckAgent, datetime]]:
-    """For each agent, every version of the skill a check made after measuring it there.
+    """For each agent, every version of the skill a check made after measuring it there -
+    an agent the check could not measure was not checked on it.
 
     `(agent_id, version_id, the agent's row, when the check finished)`, newest check first.
     """
@@ -220,6 +235,7 @@ async def checked_versions(
             SkillCheck.applied_version_id.is_not(None),
             SkillCheck.finished_at.is_not(None),
             SkillCheckAgent.agent_id.in_(agent_ids),
+            SkillCheckAgent.state != AgentState.UNKNOWN.value,
         )
         .order_by(SkillCheck.finished_at.desc())
     )

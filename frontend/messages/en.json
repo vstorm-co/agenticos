@@ -8533,7 +8533,9 @@
         "needs_ack": "No agent that was checked got worse, but some could not be checked.",
         "blocked": "An agent got worse. You can still apply the change and keep that agent on the version it uses now.",
         "no_better": "No agent got better, so there is nothing to apply."
-      }
+      },
+      "unaffordable": "The organization's budget left this month cannot cover this check.",
+      "cancel": "Stop the check"
     }
   },
   "states": {
@@ -15392,8 +15394,8 @@
       "skillSetOnly": "Checked only on the skill's own questions: it had none of its own where it loaded the skill.",
       "stage": {
         "skill_set": "Run on the skill's questions",
-        "dataset_sample": "Run on a sample of {name}",
-        "dataset": "Run on {name}"
+        "dataset_sample": "{named, select, yes {Run on a sample of {name}} other {Run on a sample of the agent's questions}}",
+        "dataset": "{named, select, yes {Run on {name}} other {Run on the agent's questions}}"
       }
     },
     "testSet": {

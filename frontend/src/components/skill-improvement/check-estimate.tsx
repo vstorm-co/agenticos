@@ -29,7 +29,7 @@ export function CheckEstimate({ quote }: { quote: ContinuationEstimate }) {
       {unchecked.length > 0 && (
         <ul className="text-warning space-y-1">
           {unchecked.map((row) => (
-            <li key={row.agent.id}>
+            <li key={`${row.agent.id}:${row.via_specialist ?? ""}`}>
               {t("unchecked", { name: row.agent.name, reason: row.unknown_reason ?? "failed" })}
             </li>
           ))}

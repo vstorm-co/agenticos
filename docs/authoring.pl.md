@@ -1,5 +1,5 @@
 ---
-source_sha: "85e982232e6a"
+source_sha: "b9fd4129c2f5"
 title: "Asystent tworzenia"
 description: "Asystent tworzenia czyta, co ludzie ocenili negatywnie i jak kończyły się runy, i sugeruje zmiany w instrukcjach agenta, jego narzędziach, konfiguracji, skillach i plikach kontekstowych. O każdej decyduje człowiek."
 ---
@@ -252,12 +252,13 @@ tam sesję dla linii widocznej na ekranie, w tych samych pięciu krokach co dla
 agenta, i sprawdza zmianę na każdym agencie tej linii, zanim cokolwiek zostanie
 zastosowane - zobacz [Poprawianie skilla](skills.md#improving-a-skill).
 
-Zastosowanie zmiany skilla działa od razu: każdy agent powiązany ze skillem
-czyta nową treść przy następnym runie. Dlatego zmianę skilla można najpierw
-sprawdzić w ewaluacji na agencie, który go używa: obie strony uruchamiają
-opublikowaną wersję tego agenta, a różni się tylko treść skilla. Zmiana
-napisana dla starszej wersji skilla jest odrzucana, jeśli ktoś w międzyczasie
-zmienił skill.
+Zastosowanie zmiany skilla działa od razu: każdy agent podążający za linią
+skilla czyta nową treść przy następnym runie. Dlatego zmiana skilla trafia na
+żywo tylko przez
+[sprawdzenie na każdym agencie jej linii](skills.md#checking-a-change-on-every-agent):
+opublikowana wersja każdego z nich odpowiada ze skillem takim, jaki jest, i ze
+zmianą, a zmianę stosuje się z wyniku tego sprawdzenia. Zmiana napisana dla
+starszej wersji skilla jest odrzucana, jeśli ktoś w międzyczasie zmienił skill.
 
 ## Pliki kontekstowe { #context-files }
 

@@ -65,4 +65,14 @@ describe("CheckAgents", () => {
     expect(screen.queryByText(/^Fixes/)).toBeNull();
     expect(screen.getByRole("link", { name: "Run on a sample of Support cases" })).toBeVisible();
   });
+
+  it("lists an agent and its specialist as two rows, and names no dataset the reader may not see", () => {
+    const own = checkAgent("Support", "better");
+    own.stages = [{ ...own.stages[0]!, kind: "dataset", dataset_name: null }];
+    const specialist = checkAgent("Support", "no_change", { via_specialist: "Refund helper" });
+    render(<CheckAgents check={skillCheck({ agents: [own, specialist] })} />);
+
+    expect(screen.getAllByRole("link", { name: "Support" })).toHaveLength(2);
+    expect(screen.getByRole("link", { name: "Run on the agent's questions" })).toBeVisible();
+  });
 });

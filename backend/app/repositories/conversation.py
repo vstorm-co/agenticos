@@ -1488,13 +1488,20 @@ async def first_user_turns(
     return {run_id: content for run_id, content in result.tuples().all() if run_id}
 
 
-async def last_answers_of_runs(db: AsyncSession, run_ids: Collection[UUID]) -> dict[UUID, UUID]:
-    """The id of the last assistant turn each of these runs recorded."""
+async def last_answers_of_runs(
+    db: AsyncSession, run_ids: Collection[UUID], *, organization_id: UUID
+) -> dict[UUID, UUID]:
+    """The id of the last assistant turn each of this organization's runs recorded."""
     if not run_ids:
         return {}
     result = await db.execute(
         select(Message.run_id, Message.id)
-        .where(Message.run_id.in_(run_ids), Message.role == "assistant")
+        .join(AgentRun, AgentRun.id == Message.run_id)
+        .where(
+            Message.run_id.in_(run_ids),
+            Message.role == "assistant",
+            AgentRun.organization_id == organization_id,
+        )
         .ext(distinct_on(Message.run_id))
         .order_by(Message.run_id, Message.ordinal.desc())
     )

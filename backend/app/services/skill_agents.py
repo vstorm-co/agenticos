@@ -316,7 +316,11 @@ class SkillAgentService:
             checks.setdefault(agent_id, {}).setdefault(
                 version_id,
                 AgentCheckRef(
-                    check_id=found.check_id, version_id=version_id, state=found.state, at=at
+                    check_id=found.check_id,
+                    version_id=version_id,
+                    state=found.state,
+                    sample=found.sample,
+                    at=at,
                 ),
             )
         rows: list[SkillAgentUsage] = []

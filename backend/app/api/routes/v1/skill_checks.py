@@ -10,6 +10,7 @@ from uuid import UUID
 from fastapi import APIRouter, Query, status
 
 from app.api.deps import Auth, SkillCheckSvc
+from app.api.public_api import ASSISTANT
 from app.schemas.dataset import DatasetRead
 from app.schemas.skill_check import (
     SkillCheckApplied,
@@ -26,7 +27,9 @@ from app.schemas.skill_check import (
 router = APIRouter()
 
 
-@router.post("/{skill_id}/checks/estimate", response_model=SkillCheckEstimate)
+@router.post(
+    "/{skill_id}/checks/estimate", response_model=SkillCheckEstimate, dependencies=[ASSISTANT]
+)
 async def estimate_check(
     skill_id: UUID, data: SkillCheckStart, service: SkillCheckSvc, ctx: Auth
 ) -> Any:
@@ -40,7 +43,10 @@ async def estimate_check(
 
 
 @router.post(
-    "/{skill_id}/checks", response_model=SkillCheckRead, status_code=status.HTTP_201_CREATED
+    "/{skill_id}/checks",
+    response_model=SkillCheckRead,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[ASSISTANT],
 )
 async def start_check(
     skill_id: UUID, data: SkillCheckStart, service: SkillCheckSvc, ctx: Auth
@@ -51,7 +57,7 @@ async def start_check(
     return await service.start(ctx, skill_id, data)
 
 
-@router.get("/{skill_id}/checks", response_model=SkillCheckList)
+@router.get("/{skill_id}/checks", response_model=SkillCheckList, dependencies=[ASSISTANT])
 async def list_checks(
     skill_id: UUID,
     service: SkillCheckSvc,
@@ -64,17 +70,25 @@ async def list_checks(
     return await service.list_checks(ctx, skill_id, fork_id=fork_id, skip=skip, limit=limit)
 
 
-@router.get("/{skill_id}/checks/{check_id}", response_model=SkillCheckRead)
+@router.get(
+    "/{skill_id}/checks/{check_id}", response_model=SkillCheckRead, dependencies=[ASSISTANT]
+)
 async def read_check(skill_id: UUID, check_id: UUID, service: SkillCheckSvc, ctx: Auth) -> Any:
     return await service.read(ctx, skill_id, check_id)
 
 
-@router.post("/{skill_id}/checks/{check_id}/cancel", response_model=SkillCheckRead)
+@router.post(
+    "/{skill_id}/checks/{check_id}/cancel", response_model=SkillCheckRead, dependencies=[ASSISTANT]
+)
 async def cancel_check(skill_id: UUID, check_id: UUID, service: SkillCheckSvc, ctx: Auth) -> Any:
     return await service.cancel(ctx, skill_id, check_id)
 
 
-@router.post("/{skill_id}/checks/{check_id}/apply", response_model=SkillCheckApplied)
+@router.post(
+    "/{skill_id}/checks/{check_id}/apply",
+    response_model=SkillCheckApplied,
+    dependencies=[ASSISTANT],
+)
 async def apply_check(
     skill_id: UUID, check_id: UUID, data: SkillCheckApply, service: SkillCheckSvc, ctx: Auth
 ) -> Any:
@@ -91,6 +105,7 @@ async def apply_check(
     "/{skill_id}/checks/{check_id}/fork",
     response_model=SkillCheckForked,
     status_code=status.HTTP_201_CREATED,
+    dependencies=[ASSISTANT],
 )
 async def fork_check(
     skill_id: UUID, check_id: UUID, data: SkillCheckFork, service: SkillCheckSvc, ctx: Auth
@@ -99,20 +114,25 @@ async def fork_check(
     return await service.fork(ctx, skill_id, check_id, data)
 
 
-@router.post("/{skill_id}/checks/{check_id}/discard", response_model=SkillCheckRead)
+@router.post(
+    "/{skill_id}/checks/{check_id}/discard", response_model=SkillCheckRead, dependencies=[ASSISTANT]
+)
 async def discard_check(skill_id: UUID, check_id: UUID, service: SkillCheckSvc, ctx: Auth) -> Any:
     """Refuse the change, keeping the record of what it found."""
     return await service.discard(ctx, skill_id, check_id)
 
 
-@router.get("/{skill_id}/test-set", response_model=DatasetRead)
+@router.get("/{skill_id}/test-set", response_model=DatasetRead, dependencies=[ASSISTANT])
 async def read_test_set(skill_id: UUID, service: SkillCheckSvc, ctx: Auth) -> Any:
     """The skill's own test questions; 404 when it has none yet."""
     return await service.test_set(ctx, skill_id)
 
 
 @router.post(
-    "/{skill_id}/test-set", response_model=DatasetRead, status_code=status.HTTP_201_CREATED
+    "/{skill_id}/test-set",
+    response_model=DatasetRead,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[ASSISTANT],
 )
 async def create_test_set(
     skill_id: UUID, data: SkillTestSetStart, service: SkillCheckSvc, ctx: Auth

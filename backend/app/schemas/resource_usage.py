@@ -56,6 +56,7 @@ class ProposalDecision(BaseSchema):
         default=None,
         description=(
             "For applying a change to a skill: the check of this change on the agents of its "
-            "line. A skill change is applied only after one"
+            "line. A skill change is applied only after one. Here only a check that passed "
+            "applies; one with agents to acknowledge or pin is decided through its own route"
         ),
     )

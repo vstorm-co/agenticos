@@ -433,24 +433,27 @@ class EvalRunService:
         A skill's text is not part of the agent version that binds it: an agent on
         main reads whatever main's newest version is when it runs. So two runs of
         one agent version answered from the same skill text only when these match.
+        Keyed by reader and skill - `":<skill>"` for the agent, `"<specialist>:<skill>"`
+        for an inline specialist - since each may bind the skill differently. A
+        published delegate is another agent with versions of its own, and is not read.
         """
         from app.agents.capabilities.subagents import SubagentsConfig
         from app.services.skills import SkillService
 
-        readers = [(spec.skill_ids, spec.skill_bindings)]
+        readers = [("", spec.skill_ids, spec.skill_bindings)]
         binding = delegation_binding(spec)
         if binding is not None:
             try:
                 inline = SubagentsConfig.model_validate(binding.config).inline
             except ValidationError:
                 inline = []
-            readers += [(item.skill_ids, item.skill_bindings) for item in inline]
+            readers += [(item.name, item.skill_ids, item.skill_bindings) for item in inline]
         served: dict[str, str] = {}
         skills = SkillService(self.db)
-        for skill_ids, bindings in readers:
+        for reader, skill_ids, bindings in readers:
             for skill in await skills.resolve_for_agent(ctx, skill_ids, bindings=bindings):
                 if skill.latest_version_id is not None:
-                    served[str(skill.id)] = str(skill.latest_version_id)
+                    served[f"{reader}:{skill.id}"] = str(skill.latest_version_id)
         return served or None
 
     async def plan(

@@ -747,8 +747,8 @@ export const qk = {
     file: (id: string, path: string) => ["sandbox-workspaces", "file", id, path] as const,
   },
   skillChecks: {
-    // One check, read until every agent of its line has a result.
     detail: (skillId: string, checkId: string) => ["skill-checks", skillId, checkId] as const,
+    line: (skillId: string, forkId: string) => ["skill-checks", skillId, "line", forkId] as const,
   },
   skillChanges: {
     all: () => ["skill-changes"] as const,

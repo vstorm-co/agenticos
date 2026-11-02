@@ -243,11 +243,13 @@ session for the line on screen, in the same five steps as an agent's, and checks
 the change on every agent of that line before anything is applied - see
 [Improving a skill](skills.md#improving-a-skill).
 
-Applying a skill change is live: every agent bound to the skill reads the new
-body on its next run. So a skill change can be checked with evals first, on an
-agent that uses the skill: both sides run that agent's published version, and
-only the skill's body differs. A change written against an older version of the
-skill is refused once somebody has changed the skill since.
+Applying a skill change is live: every agent following the skill's line reads the
+new body on its next run. So a skill change goes live only through a
+[check on every agent of its line](skills.md#checking-a-change-on-every-agent):
+each one's published version answers with the skill as it is and with the
+change, and the change is applied from that check's result. A change written
+against an older version of the skill is refused once somebody has changed the
+skill since.
 
 ## Context files { #context-files }
 

@@ -29,6 +29,19 @@ export function getSkillCheck(skillId: string, checkId: string) {
   return apiClient.get<SkillCheck>(`${root(skillId)}/${checkId}`);
 }
 
+/** A line's checks, newest first: where a check started earlier is found again. */
+export async function listSkillChecks(skillId: string, forkId: string | null) {
+  const query = forkId === null ? "" : `?fork_id=${forkId}`;
+  const data = await apiClient.get<{ items: SkillCheck[]; total: number }>(
+    `${root(skillId)}${query}`,
+  );
+  return data.items;
+}
+
+export function cancelSkillCheck(skillId: string, checkId: string) {
+  return apiClient.post<SkillCheck>(`${root(skillId)}/${checkId}/cancel`, {});
+}
+
 export function applySkillCheck(skillId: string, checkId: string, body: SkillCheckApply) {
   return apiClient.post<unknown>(`${root(skillId)}/${checkId}/apply`, body);
 }

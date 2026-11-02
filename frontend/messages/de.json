@@ -8411,7 +8411,9 @@
         "needs_ack": "Kein geprüfter Agent wurde schlechter, aber einige konnten nicht geprüft werden.",
         "blocked": "Ein Agent wurde schlechter. Du kannst die Änderung trotzdem übernehmen und ihn auf seiner jetzigen Version lassen.",
         "no_better": "Kein Agent wurde besser, also gibt es nichts zu übernehmen."
-      }
+      },
+      "unaffordable": "Das restliche Monatsbudget der Organisation deckt diese Prüfung nicht.",
+      "cancel": "Prüfung anhalten"
     }
   },
   "states": {
@@ -15064,8 +15066,8 @@
       "skillSetOnly": "Nur auf den eigenen Fragen des Skills geprüft: Er hatte keine eigenen, bei denen er den Skill geladen hat.",
       "stage": {
         "skill_set": "Run auf den Fragen des Skills",
-        "dataset_sample": "Run auf einer Stichprobe von {name}",
-        "dataset": "Run auf {name}"
+        "dataset_sample": "{named, select, yes {Run auf einer Stichprobe von {name}} other {Run auf einer Stichprobe der Fragen des Agents}}",
+        "dataset": "{named, select, yes {Run auf {name}} other {Run auf den Fragen des Agents}}"
       }
     },
     "testSet": {

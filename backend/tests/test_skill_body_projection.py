@@ -103,7 +103,10 @@ class TestServedSkillVersions:
 
         result = await EvalRunService(MagicMock()).served_skill_versions(MagicMock(), spec)
 
-        assert result == {str(own): str(own_version), str(specialists): str(specialist_version)}
+        assert result == {
+            f":{own}": str(own_version),
+            f"reader:{specialists}": str(specialist_version),
+        }
 
     async def test_an_agent_with_no_skill_is_served_none(self, monkeypatch):
         async def resolve(_self, _ctx, skill_ids, *, bindings=()):
@@ -129,4 +132,4 @@ class TestServedSkillVersions:
 
         result = await EvalRunService(MagicMock()).served_skill_versions(MagicMock(), spec)
 
-        assert result == {str(own): str(version)}
+        assert result == {f":{own}": str(version)}

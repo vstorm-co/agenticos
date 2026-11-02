@@ -37,7 +37,7 @@ export function CheckAgents({ check }: { check: SkillCheck }) {
     <div className="space-y-2" data-tour="skill-improvement-agents">
       <ul className="divide-border divide-y rounded-xl border">
         {rows.map((row) => (
-          <AgentRow key={row.agent.id} row={row} />
+          <AgentRow key={`${row.agent.id}:${row.via_specialist ?? ""}`} row={row} />
         ))}
       </ul>
       {hidden > 0 && (
@@ -89,7 +89,10 @@ function AgentRow({ row }: { row: SkillCheckAgent }) {
                   className="underline underline-offset-4"
                   href={`${ROUTES.AGENT_DETAIL(row.agent.id)}/evals/${stage.eval_run_id}`}
                 >
-                  {t(`stage.${stage.kind}`, { name: stage.dataset_name })}
+                  {t(`stage.${stage.kind}`, {
+                    name: stage.dataset_name ?? "",
+                    named: stage.dataset_name === null ? "no" : "yes",
+                  })}
                 </Link>
               ),
           )}

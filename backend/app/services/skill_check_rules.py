@@ -5,8 +5,10 @@ text against the candidate, and the agent improvement verdict reads it the same
 way here: a confirmed regression is `worse`; confirmed fixes and a pass rate that
 did not drop are `better`; anything not measured is `unknown`. A stage with
 flips its re-asks could not confirm is `within_noise` - the check saw a
-difference it cannot tell from the grading moving. A worse stage makes the
-agent worse; otherwise one better stage makes it better.
+difference it cannot tell from the grading moving; a better stage with such
+flips stays better, and its row is marked noisy. A worse stage makes the agent
+worse; otherwise one better stage makes it better. An inconclusive stage is not
+asked again: the agent is `unknown`, and a person checks the change again.
 
 **The change.** It passes when no agent is worse and at least one is better.
 `within_noise` warns and never blocks. An agent that could not be checked is
@@ -38,9 +40,8 @@ SAMPLE_SIZE = 4
 
 _WORD = re.compile(r"[a-z0-9]+(?:'[a-z]+)?")
 
-# Words that say nothing about which rule a question is about. Short on purpose:
-# a domain word kept by mistake costs one point of overlap, a rule word dropped
-# by mistake would hide the questions the change can break.
+# Short on purpose: a stray domain word costs one point of overlap, a dropped rule
+# word would hide the questions the change can break.
 _STOP_TEXT = (
     "a an and are as at be but by can do does for from has have i if in is it its me my "
     "no not of on or our so that the their them then there they this to was we what when "
@@ -66,13 +67,16 @@ def stage_state(stage: StageResult) -> AgentState:
         return AgentState.WORSE
     if verdict is ImprovementVerdict.INCONCLUSIVE:
         return AgentState.UNKNOWN
-    if stage.regressions_unconfirmed or (
-        verdict is ImprovementVerdict.NO_CHANGE and stage.fixed_unconfirmed
-    ):
-        return AgentState.WITHIN_NOISE
     if verdict is ImprovementVerdict.BETTER:
         return AgentState.BETTER
+    if stage.regressions_unconfirmed or stage.fixed_unconfirmed:
+        return AgentState.WITHIN_NOISE
     return AgentState.NO_CHANGE
+
+
+def noisy(stage: StageResult) -> bool:
+    """Whether a stage saw flips its re-asks could not confirm, whatever it concluded."""
+    return bool(stage.regressions_unconfirmed or stage.fixed_unconfirmed)
 
 
 def combined(states: Sequence[AgentState]) -> AgentState:

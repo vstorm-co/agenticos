@@ -8293,7 +8293,9 @@
         "needs_ack": "Żaden sprawdzony agent nie jest gorszy, ale części nie dało się sprawdzić.",
         "blocked": "Któryś agent jest gorszy. Nadal możesz zastosować zmianę i zostawić go na wersji, której używa teraz.",
         "no_better": "Żaden agent nie jest lepszy, więc nie ma czego zastosować."
-      }
+      },
+      "unaffordable": "Budżet organizacji na ten miesiąc nie pokryje tego sprawdzenia.",
+      "cancel": "Zatrzymaj sprawdzenie"
     }
   },
   "states": {
@@ -15166,8 +15168,8 @@
       "skillSetOnly": "Sprawdzony tylko na pytaniach skilla: nie miał własnych tam, gdzie wczytał skill.",
       "stage": {
         "skill_set": "Run na pytaniach skilla",
-        "dataset_sample": "Run na próbce {name}",
-        "dataset": "Run na {name}"
+        "dataset_sample": "{named, select, yes {Run na próbce {name}} other {Run na próbce pytań agenta}}",
+        "dataset": "{named, select, yes {Run na {name}} other {Run na pytaniach agenta}}"
       }
     },
     "testSet": {
