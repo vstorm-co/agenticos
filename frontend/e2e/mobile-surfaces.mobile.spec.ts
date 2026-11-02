@@ -351,6 +351,9 @@ for (const platform of ["ios", "android"] as const) {
         await page.goto(href);
         const controls = page.getByRole("button", { name: "App controls", exact: true });
         await expectTouchTarget(controls);
+        const floating = await controls.boundingBox();
+        if (!floating) throw new Error("Expected the floating app controls");
+        expect(floating.y).toBeGreaterThanOrEqual((platform === "ios" ? 54 : 28) + 12);
         const share = page.getByRole("button", { name: "Share", exact: true });
         await expect(share).toBeHidden();
         await controls.tap();

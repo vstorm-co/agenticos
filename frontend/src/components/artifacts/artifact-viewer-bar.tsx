@@ -118,7 +118,7 @@ export function ArtifactViewerBar({
   return (
     <header
       data-tour="artifact-strip"
-      className="grid shrink-0 grid-cols-[auto_minmax(0,1fr)] items-center gap-x-2 gap-y-1 border-b px-2 py-2 max-sm:pointer-events-none max-sm:fixed max-sm:inset-x-3 max-sm:top-[calc(env(safe-area-inset-top)+0.75rem)] max-sm:z-40 max-sm:flex max-sm:justify-between max-sm:border-0 max-sm:p-0 sm:flex sm:min-h-12 sm:gap-2 sm:px-3 sm:py-1.5"
+      className="grid shrink-0 grid-cols-[auto_minmax(0,1fr)] items-center gap-x-2 gap-y-1 border-b px-2 py-2 max-sm:pointer-events-none max-sm:fixed max-sm:inset-x-3 max-sm:top-[calc(max(var(--shell-inset-top,0px),env(safe-area-inset-top))+0.75rem)] max-sm:z-40 max-sm:flex max-sm:justify-between max-sm:border-0 max-sm:p-0 sm:flex sm:min-h-12 sm:gap-2 sm:px-3 sm:py-1.5"
     >
       <IconButton
         asChild

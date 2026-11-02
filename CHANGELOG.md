@@ -21,7 +21,7 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
-- Give agent and project instructions one compact toolbar, fold unused prompt variables, preserve preview when expanding Markdown, and align expanded-editor phone gutters. Keep phone text fields legible across authentication, files, integrations, tables and workflow forms while preserving desktop sizing.
+- Give agent and project instructions one compact toolbar, fold unused prompt variables, preserve preview when expanding Markdown, and align expanded-editor phone gutters. Keep phone text fields legible across authentication, files, integrations, tables and workflow forms while preserving desktop sizing. Keep floating App controls clear of the native status bar.
 
 - Reduce oversized desktop and phone spacing across headers, cards, settings, navigation, template categories and empty states. Capability cards open settings through one target, with explanations available on demand. Enable profile saving only for changed values and reset the email field after staging verification.
 
