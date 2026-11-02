@@ -52,6 +52,7 @@ from app.db.models.authoring import (
     HunkStatus,
 )
 from app.db.models.context import ContextFile
+from app.db.models.improvement import ImprovementStatus
 from app.db.models.skill import Skill
 from app.db.session import get_worker_db_context
 from app.repositories import (
@@ -79,6 +80,7 @@ from app.schemas.authoring import (
     VerifyReport,
 )
 from app.schemas.skill import SkillCreate, skill_name_refusal
+from app.schemas.skill_improvement import SkillEdits, SkillProblems
 from app.services import authoring_hunks
 from app.services.access import AGENT, CONTEXT, SKILL, resolve_access
 from app.services.api_key import job_context
@@ -251,6 +253,51 @@ def _skill_prompt(skill: Skill, pack: EvidencePack, digests: Sequence[RunFinding
         f"# Its description\n{skill.description}\n\n"
         f"# Its current body\n<skill>\n{skill.content}\n</skill>\n\n"
         f"# Runs that opened it\n{_evidence_section(pack, digests)}"
+    )
+
+
+def _skill_problems_prompt(
+    skill: Skill, line: str, pack: EvidencePack, digests: Sequence[RunFindings] | None
+) -> str:
+    return (
+        f'Group the bad answers of agents that opened the skill "{skill.name}" ({line}) '
+        "into problems. For each, say whether the skill's text leads to it, whether the "
+        "agent's own instructions or knowledge do, or whether the answer was fine. Propose "
+        "no change.\n\n"
+        f"# Its description\n{skill.description}\n\n"
+        f"# Its body\n<skill>\n{skill.content}\n</skill>\n\n"
+        f"# Runs that opened it\n{_evidence_section(pack, digests)}"
+    )
+
+
+def _skill_edits_prompt(
+    name: str,
+    line: str,
+    description: str,
+    content: str,
+    problems: Sequence[dict[str, Any]],
+    pack: EvidencePack,
+    digests: Sequence[RunFindings] | None,
+    note: str | None,
+) -> str:
+    found = "\n".join(f"- {item.get('title')}: {item.get('summary')}" for item in problems)
+    asked = (
+        "\n\n# What the person who asked for this attempt wants you to keep in mind\n"
+        f"<note>\n{note}\n</note>\n{_NOTE_RULE}"
+        if note
+        else ""
+    )
+    return (
+        f'Propose edits to the skill "{name}" ({line}) that fix the problems below. Every '
+        "agent on this line reads the skill, so change only the passages the problems "
+        "point at, as edits to passages of the body - never a whole new body. Change the "
+        "description only when agents open the skill when they should not, or do not when "
+        "they should.\n\n"
+        f"# Its description\n{description}\n\n"
+        f"# Its current body\n<skill>\n{content}\n</skill>\n\n"
+        f"# The problems the skill's text leads to\n{found}\n\n"
+        f"# Runs that opened it\n{_evidence_section(pack, digests)}"
+        f"{asked}"
     )
 
 
@@ -484,7 +531,9 @@ class AuthoringRun:
         # asked may have been taken away while the request waited.
         if not self.ctx.has(Perm.RUNS_VIEW):
             raise Stopped("Whoever started this may no longer read runs.")
-        if self.request.target == AuthoringTarget.SKILL.value:
+        if self.request.skill_improvement_run_id is not None:
+            await self._skill_session()
+        elif self.request.target == AuthoringTarget.SKILL.value:
             await self._improve_skill()
         elif self.request.target == AuthoringTarget.CONTEXT.value:
             await self._improve_context()
@@ -684,6 +733,142 @@ class AuthoringRun:
                 "skill_proposal_id": str(proposal_row.id),
             }
         )
+
+    async def _skill_session(self) -> None:
+        """A skill session's step: group the problems, or propose edits to the line's text."""
+        from app.repositories import skill_improvement_repo
+        from app.services.skill_improvement import SkillImprovementService
+
+        assert self.request.skill_improvement_run_id is not None
+        org = self.ctx.organization_id
+        session = await skill_improvement_repo.get_run(
+            self.db, self.request.skill_improvement_run_id, organization_id=org
+        )
+        if session is None or not ImprovementStatus(session.status).active:
+            raise Stopped("The improvement session stopped.")
+        sessions = SkillImprovementService(self.db)
+        line = await sessions.line_for_session(self.ctx, session)
+        base = await sessions.base_of(session)
+        skill = line.skill
+        if not await resolve_access(
+            self.db, self.ctx, skill, Perm.SKILLS_EDIT, resource_type=SKILL
+        ):
+            raise Stopped("Whoever started this may no longer edit the skill.")
+        pack = await sessions.evidence_of(self.ctx, line, session)
+        self._record_evidence(pack)
+        digests = await self._digests(pack, f'agents using the skill "{skill.name}"')
+        if self.request.kind == AuthoringKind.ANALYZE.value:
+            found = await self._ask(
+                _skill_problems_prompt(skill, line.name, pack, digests), SkillProblems
+            )
+            pack = await self.evidence.forget_erased(pack)
+            known = {run.run_id for run in pack.runs}
+            problems = []
+            for problem in found.problems:
+                kept, _ = pack.verify(problem.evidence)
+                problems.append(
+                    {
+                        "title": problem.title[:200],
+                        "summary": problem.summary,
+                        "cause": problem.cause,
+                        "run_ids": [str(run_id) for run_id in problem.run_ids if run_id in known],
+                        "evidence": kept,
+                    }
+                )
+            await self._finish({"problems": problems, "usage_unknown": pack.unknown_runs})
+            return
+        analysis = (
+            None
+            if session.analysis_request_id is None
+            else await authoring_repo.get_request(
+                self.db, session.analysis_request_id, organization_id=org
+            )
+        )
+        problems = [
+            item
+            for item in ((analysis.report or {}) if analysis else {}).get("problems", [])
+            if item.get("cause") == "skill"
+        ]
+        attempt = await skill_improvement_repo.get_iteration(
+            self.db, organization_id=org, run_id=session.id, number=session.iteration
+        )
+        edits = await self._ask(
+            _skill_edits_prompt(
+                skill.name,
+                line.name,
+                base.description,
+                base.content,
+                problems,
+                pack,
+                digests,
+                None if attempt is None else attempt.note,
+            ),
+            SkillEdits,
+        )
+        pack = await self.evidence.forget_erased(pack)
+        hunks = self._skill_hunks(base.content, base.description, pack, edits)
+        batch = await authoring_repo.create_skill_batch(
+            self.db,
+            organization_id=org,
+            skill_id=skill.id,
+            fork_id=session.fork_id,
+            base_skill_version_id=base.id,
+            skill_improvement_run_id=session.id,
+            request_id=self.request.id,
+            source_started_at=self.request.started_at or self.request.created_at,
+            expected_effect=edits.expected_effect,
+            evidence_conversation_ids=pack.conversation_ids,
+        )
+        await authoring_repo.add_hunks(self.db, organization_id=org, batch_id=batch.id, hunks=hunks)
+        await self._finish(
+            {
+                "summary": edits.summary,
+                "expected_effect": edits.expected_effect,
+                "proposed": len(edits.edits) + (edits.description is not None),
+                "recorded": len(hunks),
+                **self._rejections(),
+            }
+        )
+
+    def _skill_hunks(
+        self, content: str, description: str, pack: EvidencePack, edits: SkillEdits
+    ) -> list[dict[str, Any]]:
+        hunks: list[dict[str, Any]] = []
+        for edit in edits.edits:
+            columns = authoring_hunks.anchor_change(
+                content, InstructionChange.model_validate(edit.model_dump())
+            )
+            if isinstance(columns, Rejection):
+                self._reject(
+                    HunkKind.SKILL_BODY,
+                    columns,
+                    {"old_text": edit.old_text, "new_text": edit.new_text, "after": edit.after},
+                )
+                continue
+            kept, dropped = pack.verify(edit.evidence)
+            hunks.append(
+                {
+                    **columns,
+                    "kind": HunkKind.SKILL_BODY.value,
+                    "origin": HunkOrigin.IMPROVE.value,
+                    "rationale": edit.rationale,
+                    "evidence": kept,
+                    "evidence_dropped": dropped,
+                }
+            )
+        if edits.description is not None and edits.description[:500] != description:
+            hunks.append(
+                {
+                    "kind": HunkKind.SKILL_DESCRIPTION.value,
+                    "origin": HunkOrigin.IMPROVE.value,
+                    "base_description": description,
+                    "new_description": edits.description[:500],
+                    "rationale": edits.description_rationale,
+                    "evidence": [],
+                    "evidence_dropped": 0,
+                }
+            )
+        return hunks
 
     async def _improve_context(self) -> None:
         context_id = self.request.context_id
@@ -982,7 +1167,6 @@ class AuthoringRun:
         started = self.request.started_at or self.request.created_at
         await self._serialize(agent_id)
         if self.request.improvement_run_id is not None:
-            from app.db.models.improvement import ImprovementStatus
             from app.repositories import improvement_repo
 
             session = await improvement_repo.get_run(
@@ -1183,6 +1367,13 @@ class AuthoringWorker:
 
 
 async def _wake_session(db: AsyncSession, request: AuthoringRequest) -> None:
+    if request.skill_improvement_run_id is not None:
+        from app.services.skill_improvement import SkillImprovementService
+
+        await SkillImprovementService(db).wake(
+            request.skill_improvement_run_id, organization_id=request.organization_id
+        )
+        return
     if request.improvement_run_id is None:
         return
     await ImprovementPipelineService(db).wake(

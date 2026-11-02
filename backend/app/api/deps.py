@@ -2232,6 +2232,16 @@ def get_improvement_service(db: DBSession) -> ImprovementPipelineService:
 ImprovementSvc = Annotated[ImprovementPipelineService, Depends(get_improvement_service)]
 
 
+from app.services.skill_improvement import SkillImprovementService
+
+
+def get_skill_improvement_service(db: DBSession) -> SkillImprovementService:
+    return SkillImprovementService(db)
+
+
+SkillImprovementSvc = Annotated[SkillImprovementService, Depends(get_skill_improvement_service)]
+
+
 from app.services.project_workspace_transfer import ProjectWorkspaceTransferService
 
 

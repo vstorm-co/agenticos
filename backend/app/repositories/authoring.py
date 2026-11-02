@@ -51,12 +51,14 @@ async def create_request(
     excluded_message_ids: Sequence[UUID] = (),
     improvement_run_id: UUID | None = None,
     improver_agent_id: UUID | None = None,
+    skill_improvement_run_id: UUID | None = None,
 ) -> AuthoringRequest:
     request = AuthoringRequest(
         organization_id=organization_id,
         kind=kind,
         improver_agent_id=improver_agent_id,
         improvement_run_id=improvement_run_id,
+        skill_improvement_run_id=skill_improvement_run_id,
         target=target,
         agent_id=agent_id,
         skill_id=skill_id,
@@ -224,6 +226,38 @@ async def create_batch(
         source_started_at=source_started_at,
         status=BatchStatus.CANDIDATE.value if improvement_run_id else BatchStatus.OPEN.value,
         improvement_run_id=improvement_run_id,
+        expected_effect=expected_effect,
+        evidence_conversation_ids=list(evidence_conversation_ids),
+    )
+    db.add(batch)
+    await db.flush()
+    await db.refresh(batch)
+    return batch
+
+
+async def create_skill_batch(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    skill_id: UUID,
+    fork_id: UUID | None,
+    base_skill_version_id: UUID,
+    skill_improvement_run_id: UUID,
+    request_id: UUID,
+    source_started_at: datetime,
+    expected_effect: str,
+    evidence_conversation_ids: Sequence[UUID],
+) -> SpecProposalBatch:
+    """A skill session's candidate: edits to one line's text, never an agent's open batch."""
+    batch = SpecProposalBatch(
+        organization_id=organization_id,
+        skill_id=skill_id,
+        fork_id=fork_id,
+        base_skill_version_id=base_skill_version_id,
+        skill_improvement_run_id=skill_improvement_run_id,
+        request_id=request_id,
+        source_started_at=source_started_at,
+        status=BatchStatus.CANDIDATE.value,
         expected_effect=expected_effect,
         evidence_conversation_ids=list(evidence_conversation_ids),
     )

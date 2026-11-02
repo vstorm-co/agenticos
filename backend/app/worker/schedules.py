@@ -84,6 +84,7 @@ SCHEDULES: tuple[Schedule, ...] = (
     # Schedule, start and settle the eval suites.
     Schedule("check-eval-suites", jobs.CHECK_EVAL_SUITES, _MINUTE),
     Schedule("sweep-improvements", jobs.SWEEP_IMPROVEMENTS, _MINUTE),
+    Schedule("sweep-skill-improvements", jobs.SWEEP_SKILL_IMPROVEMENTS, _MINUTE),
     # Fail the eval runs whose worker went silent, freeing the eval slots they hold.
     Schedule("reap-abandoned-evals", jobs.REAP_ABANDONED_EVALS, _MINUTE),
     # The workflow engine's sweeps. Postgres holds a run's position and every

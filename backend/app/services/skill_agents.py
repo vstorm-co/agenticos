@@ -232,6 +232,21 @@ class SkillAgentService:
                     by_fork[binding.fork.id] += 1
         return by_version, by_fork
 
+    async def line_agents(self, skill: Skill, fork_id: UUID | None) -> list[Agent]:
+        """The agents a line serves: their default environment follows main, or the fork.
+
+        Pinned agents and agents bound only in their draft are on no line.
+        """
+        agents: list[Agent] = []
+        for use in await self._uses(skill):
+            if not use.served:
+                continue
+            _, _, line = _default(use)
+            on_main = fork_id is None and line.state == "main"
+            if on_main or (line.state == "fork" and line.fork_id == fork_id):
+                agents.append(use.agent)
+        return agents
+
     async def fork_users(self, skill: Skill, fork_id: UUID) -> list[Agent]:
         """The agents that read a fork, in a served version or their draft."""
         return [

@@ -55,7 +55,7 @@ from app.api.routes.v1 import datasets
 from app.api.routes.v1 import dataset_generations
 from app.api.routes.v1 import agent_test_sets, eval_runs, eval_suites
 from app.api.routes.v1 import knowledge_gaps
-from app.api.routes.v1 import authoring, improvements
+from app.api.routes.v1 import authoring, improvements, skill_improvements
 from app.api.routes.v1 import virtual_tables
 from app.api.routes.v1 import (
     workflow_approvals,
@@ -149,6 +149,8 @@ v1_router.include_router(knowledge_gaps.router, prefix="/knowledge-gaps", tags=[
 v1_router.include_router(authoring.router, tags=["authoring"])
 v1_router.include_router(improvements.router, tags=["improvements"])
 v1_router.include_router(improvements.sessions, tags=["improvements"])
+v1_router.include_router(skill_improvements.router, tags=["skill-improvements"])
+v1_router.include_router(skill_improvements.sessions, tags=["skill-improvements"])
 v1_router.include_router(virtual_tables.router, prefix="/tables", tags=["tables"])
 v1_router.include_router(workflows.router, prefix="/workflows", tags=["workflows"])
 v1_router.include_router(workflow_runs.router, prefix="/workflow-runs", tags=["workflow-runs"])

@@ -79,6 +79,11 @@ def production() -> Handlers:
             Handler(jobs.RUN_AUTHORING, authoring_tasks.run_authoring),
             Handler(jobs.ADVANCE_IMPROVEMENT, improvement_tasks.advance_improvement),
             Handler(jobs.SWEEP_IMPROVEMENTS, _each_tick(improvement_tasks.sweep_improvements)),
+            Handler(jobs.ADVANCE_SKILL_IMPROVEMENT, improvement_tasks.advance_skill_improvement),
+            Handler(
+                jobs.SWEEP_SKILL_IMPROVEMENTS,
+                _each_tick(improvement_tasks.sweep_skill_improvements),
+            ),
             Handler(jobs.CLASSIFY_GAPS, knowledge_gap_tasks.classify_knowledge_gaps),
             Handler(jobs.DRAFT_TOPIC, knowledge_gap_tasks.draft_knowledge_gap),
             Handler(jobs.GENERATE_CASES, case_generation_tasks.generate_cases),
