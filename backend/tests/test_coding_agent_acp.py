@@ -423,6 +423,7 @@ class Computer:
         self.agent = agent
         self.unavailable = unavailable
         self.ops: list[str] = []
+        self.arguments: list[tuple[str, dict[str, Any]]] = []
         self.cursor = 0
         self.lines: list[str] = []
 
@@ -430,6 +431,7 @@ class Computer:
         self, session_id: Any, op: str, args: dict[str, Any], *, timeout: float
     ) -> dict[str, Any]:
         self.ops.append(op)
+        self.arguments.append((op, args))
         if self.unavailable:
             raise DeviceUnavailable(message="Your computer is not connected")
         if op == "agent.open":
@@ -443,7 +445,7 @@ class Computer:
         if op == "agent.poll":
             lines = self.lines[args["cursor"] :]
             return {"lines": lines, "cursor": args["cursor"] + len(lines), "exit": None}
-        if op == "agent.close":
+        if op in ("agent.close", "agent.remember"):
             return {}
         raise DeviceCallFailed(message="refused", details={})
 
@@ -690,19 +692,20 @@ def test_a_rejection_is_recognised_by_the_option_that_was_chosen() -> None:
     assert not acp._was_rejected(params, {"outcome": {"outcome": "selected", "optionId": "ok"}})
 
 
-def test_a_task_on_this_computer_does_not_promise_a_session_it_does_not_keep() -> None:
+def test_local_tasks_describe_continuation_and_an_explicit_fresh_start() -> None:
     local = CodingAgent(runs_on="this_computer")
-    assert "Each task starts a new session" in local.get_instructions()
-    assert "continue the same session" not in local.get_instructions()
-    schema = local.get_toolset().tools["run_coding_agent"].function_schema.json_schema  # type: ignore[attr-defined]
-    parameters = {
-        name: " ".join(spec["description"].lower().split())
-        for name, spec in schema["properties"].items()
-    }
-    assert "every task starts a new session" in parameters["task"]
-    assert "every task is a new session" in parameters["fresh_session"]
-    sandbox = CodingAgent().get_toolset().tools["run_coding_agent"].function_schema.json_schema  # type: ignore[attr-defined]
-    assert "continuing" in sandbox["properties"]["fresh_session"]["description"].lower()
+    assert "continue the same session" in local.get_instructions()
+    tools = build_coding_toolset(
+        harness="claude_code",
+        access="edit",
+        model=None,
+        base_url=None,
+        api_key=None,
+        timeout_seconds=60,
+        runs_on="this_computer",
+    )
+    schema = tools.tools["run_coding_agent"].function_schema.json_schema
+    assert "resum" in schema["properties"]["fresh_session"]["description"].lower()
 
 
 def test_a_model_is_refused_where_the_agent_uses_its_own_and_a_gateway_is_dropped() -> None:
@@ -713,3 +716,269 @@ def test_a_model_is_refused_where_the_agent_uses_its_own_and_a_gateway_is_droppe
     config = CodingAgentConfig(runs_on="this_computer", base_url="https://openrouter.ai/api")
     assert config.base_url is None and config.model is None
     assert CodingAgentConfig(model="anthropic:claude-opus-5-5").model is not None
+
+
+async def test_read_only_claude_disables_the_adapters_bypass_permission_mode() -> None:
+    agent = ScriptedAgent(kind="read")
+    await _run(agent, access="read_only")
+    created = next(m["params"] for m in agent.seen if m.get("method") == "session/new")
+    assert created["_meta"]["claudeCode"]["options"]["allowDangerouslySkipPermissions"] is False
+
+
+def test_local_codex_accepts_read_only_without_relaxing_the_sandbox() -> None:
+    from pydantic import ValidationError
+
+    config = CodingAgentConfig(harness="codex", runs_on="this_computer", access="read_only")
+    assert config.access == "read_only"
+    with pytest.raises(ValidationError, match="Codex can only"):
+        CodingAgentConfig(harness="codex", runs_on="sandbox", access="read_only")
+
+
+async def test_launch_consent_has_its_own_interaction_timeout() -> None:
+    class TimedDevice(FakeDevice):
+        async def agent_call(
+            self, op: str, args: dict[str, Any], *, timeout: float
+        ) -> dict[str, Any]:
+            if op == "agent.open":
+                assert timeout >= 300
+            return await super().agent_call(op, args, timeout=timeout)
+
+    await acp.DevicePipe(TimedDevice([]), "claude_code").open()
+
+
+class ResumableAgent(ScriptedAgent):
+    def on_message(self, message: dict[str, Any]) -> None:
+        if message.get("method") == "initialize":
+            self.seen.append(message)
+            self._result(message, {"agentCapabilities": {"loadSession": True}})
+        elif message.get("method") == "session/load":
+            self.seen.append(message)
+            self.out.append(
+                self._update(
+                    {"sessionUpdate": "agent_message_chunk", "content": {"text": "old answer"}}
+                )
+            )
+            self._result(message, {})
+        elif message.get("method") == "session/set_mode":
+            self.seen.append(message)
+            self._result(message, {})
+        else:
+            super().on_message(message)
+
+
+async def test_a_resumed_task_loads_its_session_without_replaying_the_old_answer() -> None:
+    agent = ResumableAgent()
+    remembered: list[str] = []
+
+    async def remember(session_id: str) -> None:
+        remembered.append(session_id)
+
+    report, _, pipe = await _run(agent, previous_session="s-1", remember=remember)
+    assert "session/new" not in [m.get("method") for m in agent.seen]
+    assert (
+        next(m for m in agent.seen if m.get("method") == "session/load")["params"]["sessionId"]
+        == "s-1"
+    )
+    assert remembered == ["s-1"]
+    assert report.answer == "Done." and pipe.closed
+
+
+async def test_an_adapter_without_resume_refuses_instead_of_silently_losing_context() -> None:
+    with pytest.raises(acp.AcpError, match="Start a fresh task explicitly"):
+        await _run(ScriptedAgent(), previous_session="s-1")
+
+
+async def test_codex_read_only_sets_the_native_mode_before_the_prompt() -> None:
+    agent = ResumableAgent(kind="read")
+    pipe = ScriptedPipe(agent)
+    report = await acp.run_task(
+        pipe,
+        harness="codex",
+        access="read_only",
+        root="/w",
+        task="Review",
+        timeout_seconds=60,
+        shown=_nothing,
+    )
+    mode = next(m for m in agent.seen if m.get("method") == "session/set_mode")
+    assert mode["params"] == {"sessionId": "s-1", "modeId": "read-only"}
+    assert report.files_changed == []
+
+
+async def test_the_device_pipe_keeps_continuation_scoped_and_an_explicit_fresh_start() -> None:
+    device = FakeDevice([], opened={"id": "proc", "session_id": "s-previous"})
+    pipe = acp.DevicePipe(device, "codex", resume_key="scope", fresh_session=True)
+    await pipe.open()
+    assert pipe.session_id is None
+    assert device.calls[0][1] == {"agent": "codex", "resume_key": "scope", "fresh_session": True}
+    await pipe.remember("s-new")
+    assert device.calls[-1] == ("agent.remember", {"id": "proc", "session_id": "s-new"})
+    no_conversation = acp.DevicePipe(device, "codex")
+    before = len(device.calls)
+    await no_conversation.remember("s-ignored")
+    assert len(device.calls) == before
+
+
+@pytest.mark.parametrize("with_acknowledgement", [False, True])
+async def test_a_live_correction_interrupts_and_continues_the_same_task(
+    with_acknowledgement: bool,
+) -> None:
+    from app.agents.steering import SteeringInbox
+
+    started = anyio.Event()
+    applied: list[str] = []
+
+    async def on_applied(text: str) -> None:
+        applied.append(text)
+
+    observed = anyio.Event()
+
+    class ObservedInbox(SteeringInbox):
+        def unapplied(self) -> list[str]:
+            waiting = super().unapplied()
+            if not waiting:
+                observed.set()
+            return waiting
+
+    inbox = ObservedInbox(on_applied=on_applied if with_acknowledgement else None)
+
+    class InterruptedAgent(ScriptedAgent):
+        prompts = 0
+
+        def on_message(self, message: dict[str, Any]) -> None:
+            if message.get("method") == "session/prompt":
+                self.prompts += 1
+                if self.prompts == 1:
+                    self.seen.append(message)
+                    self._prompt = message["id"]
+                    started.set()
+                    return
+            if message.get("method") == "session/cancel":
+                self.seen.append(message)
+                self.out.append(
+                    {"jsonrpc": "2.0", "id": self._prompt, "result": {"stopReason": "cancelled"}}
+                )
+                return
+            super().on_message(message)
+
+    class ResponsivePipe(ScriptedPipe):
+        def __init__(self, agent: ScriptedAgent) -> None:
+            super().__init__(agent)
+            self.changed = anyio.Event()
+
+        async def send(self, message: dict[str, Any]) -> None:
+            await super().send(message)
+            self.changed.set()
+
+        async def receive(self) -> dict[str, Any]:
+            while not self.agent.out:
+                self.changed = anyio.Event()
+                await self.changed.wait()
+            return self.agent.out.pop(0)
+
+    async def correction() -> None:
+        await started.wait()
+        await observed.wait()
+        inbox.add("Use the EU data")
+
+    agent = InterruptedAgent()
+    async with anyio.create_task_group() as group:
+        group.start_soon(correction)
+        report = await acp.run_task(
+            ResponsivePipe(agent),
+            harness="claude_code",
+            access="edit",
+            root="/w",
+            task="Analyze data",
+            timeout_seconds=5,
+            shown=_nothing,
+            steering=inbox,
+        )
+    prompts = [m for m in agent.seen if m.get("method") == "session/prompt"]
+    assert len(prompts) == 2
+    assert all(m["params"]["sessionId"] == "s-1" for m in prompts)
+    assert "Use the EU data" in prompts[-1]["params"]["prompt"][0]["text"]
+    assert applied == (["Use the EU data"] if with_acknowledgement else [])
+    assert inbox.unapplied() == []
+    assert report.task_updates == ["Use the EU data"] and report.outcome == "completed"
+
+
+async def test_a_prompt_failure_with_steering_preserves_the_domain_error() -> None:
+    from app.agents.steering import SteeringInbox
+
+    with pytest.raises(acp.AcpError, match="refused the request"):
+        await _run(ScriptedAgent(fail_on="session/prompt"), steering=SteeringInbox())
+
+
+async def test_simultaneous_transport_failures_are_preserved_after_the_watcher_settles() -> None:
+    from app.agents.steering import SteeringInbox
+
+    failed = anyio.Event()
+
+    class FailingPipe:
+        async def send(self, message: dict[str, Any]) -> None:
+            if message["method"] == "session/cancel":
+                failed.set()
+                raise OSError("cancel transport failed")
+
+        async def receive(self) -> dict[str, Any]:
+            with anyio.CancelScope(shield=True):
+                await failed.wait()
+                raise acp.AcpError("read transport failed")
+
+        async def close(self) -> None:
+            return None
+
+    inbox = SteeringInbox()
+    inbox.add("Change the task")
+    conversation = acp.Conversation(
+        FailingPipe(), access="edit", collector=acp._Collector(), shown=_nothing
+    )
+    with pytest.raises(ExceptionGroup) as errors:
+        await conversation.prompt("s-1", "Task", inbox)
+    assert len(errors.value.exceptions) == 2
+
+
+async def test_resume_identity_does_not_cross_conversations_and_no_chat_keeps_nothing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    computer = Computer(ScriptedAgent())
+    monkeypatch.setattr(workspace_module._hub, "call", computer.call)
+    workspace = _local_workspace()
+    tools = build_coding_toolset(
+        harness="claude_code",
+        access="edit",
+        model=None,
+        base_url=None,
+        api_key=None,
+        timeout_seconds=60,
+        runs_on="this_computer",
+    ).tools
+    call = tools["run_coding_agent"].function
+    first = _ctx(workspace, [])
+    await call(first, task="First")
+    await call(first, task="New", fresh_session=True)
+    another = _ctx(workspace, [])
+    await call(another, task="Separate")
+    another.deps.conversation_id = None
+    await call(another, task="Unfiled")
+    opens = [args for op, args in computer.arguments if op == "agent.open"]
+    assert opens[0]["resume_key"] == opens[1]["resume_key"]
+    assert opens[1]["fresh_session"] is True
+    assert opens[0]["resume_key"] != opens[2]["resume_key"]
+    assert "resume_key" not in opens[3]
+
+
+async def test_a_failed_local_task_still_marks_subscription_spend_as_unpriced(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.agents.capabilities.budget import SpendLedger, metered_by
+    from app.agents.capabilities.coding_agent._toolset import UNREPORTED
+
+    ledger = SpendLedger()
+    with metered_by(ledger):
+        answer, _ = await _local_task(
+            monkeypatch, Computer(ScriptedAgent(fail_on="session/new")), _local_workspace()
+        )
+    assert "could not run" in answer
+    assert [(entry.model_name, entry.priced) for entry in ledger.entries] == [(UNREPORTED, False)]

@@ -401,3 +401,54 @@ def test_release_bundler_receives_the_same_public_key_as_the_running_app(tmp_pat
     }
     assert json.loads(path.read_text()) == expected
     assert config["bundle"]["createUpdaterArtifacts"] is True
+
+
+@pytest.mark.parametrize("push_fails", [False, True])
+def test_tap_deploy_key_is_scoped_and_removed_even_when_publishing_fails(
+    tmp_path: Path,
+    push_fails: bool,
+) -> None:
+    workflow = yaml.safe_load((ROOT / ".github/workflows/app-release.yml").read_text())
+    step = next(
+        s
+        for s in workflow["jobs"]["homebrew"]["steps"]
+        if s.get("name") == "Publish the cask to the Homebrew tap"
+    )
+    tools = tmp_path / "bin"
+    tools.mkdir()
+    git = tools / "git"
+    git.write_text("""#!/bin/sh
+case "$1" in
+  clone) mkdir -p "$3" ;;
+  diff) exit 1 ;;
+  push) test "$PUSH_FAILS" = "false" ;;
+esac
+""")
+    curl = tools / "curl"
+    curl.write_text(
+        "#!/bin/sh\nprintf '%s\\n' '{\"ssh_keys\":[\"ssh-ed25519 public-host-key\"]}'\n"
+    )
+    for tool in (git, curl):
+        tool.chmod(0o700)
+    (tmp_path / "agenticos.rb").write_text("cask 'agenticos'\n")
+    bash = shutil.which("bash")
+    assert bash is not None
+    result = subprocess.run(
+        [bash, "-c", step["run"]],
+        capture_output=True,
+        text=True,
+        env={
+            **os.environ,
+            "PATH": f"{tools}:{os.environ['PATH']}",
+            "RUNNER_TEMP": str(tmp_path),
+            "TAP_DEPLOY_KEY": "test-private-deploy-key",
+            "GH_TOKEN": "",
+            "TAG": "v1.35.0",
+            "PUSH_FAILS": str(push_fails).lower(),
+        },
+    )
+    assert (result.returncode != 0) == push_fails
+    assert not (tmp_path / "tap_deploy_key").exists()
+    assert not (tmp_path / "tap_known_hosts").exists()
+    assert "test-private-deploy-key" not in result.stdout + result.stderr
+    assert (tmp_path / "tap/Casks/agenticos.rb").read_text() == "cask 'agenticos'\n"

@@ -8,6 +8,7 @@ from pydantic_ai.toolsets import FunctionToolset
 from pydantic_ai.workspaces import WorkspaceError
 
 from app.agents.capabilities.monitor._manager import MonitorManager
+from app.services.device_hub.workspace import DeviceWorkspace
 
 NEEDS_SHELL = "Watching needs a workspace with a shell, and this agent has none. Say so."
 
@@ -38,6 +39,11 @@ def build_toolset(manager: MonitorManager) -> FunctionToolset[Any]:
         if not ctx.workspace.attached:
             return NEEDS_SHELL
         try:
+            backend = ctx.workspace.backend
+            if isinstance(backend, DeviceWorkspace) and await backend.platform() == "windows":
+                return (
+                    "Watching commands requires a POSIX shell. Choose a Linux or macOS workspace."
+                )
             watch = await manager.start(ctx.workspace, command, label, match)
         except ValueError as refused:
             return str(refused)

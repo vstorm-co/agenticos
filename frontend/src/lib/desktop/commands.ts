@@ -552,6 +552,8 @@ export async function signOutLocalAgent(id: LocalAgent["id"]): Promise<LocalAgen
 
 /** A skill found on this computer, as the app lists it (#2576). */
 export interface LocalSkill {
+  /** Local display identity: aliases share this without disclosing a home path. */
+  shared_id?: string;
   name: string;
   description: string;
   source: SkillSource;
@@ -567,6 +569,7 @@ const isSkillSourceOrNull = (value: unknown): value is SkillSource | null =>
 function parseLocalSkill(value: unknown): LocalSkill {
   const fields = record(value, "a local skill");
   return {
+    ...(fields.shared_id === undefined ? {} : { shared_id: field(fields, "shared_id", isString) }),
     name: field(fields, "name", isString),
     description: field(fields, "description", isString),
     source: field(fields, "source", isSkillSource),

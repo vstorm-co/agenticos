@@ -936,11 +936,11 @@
         "computerUseLocal": "Lokalny komputer",
         "skills": {
           "title": "Moje skille i instrukcje",
-          "help": "Używaj w tym czacie skilli z folderów .agents, .claude i .codex w swoim folderze domowym oraz swojego AGENTS.md. Są czytane z tego komputera na miejscu i nigdy nie są kopiowane ani synchronizowane do AgenticOS. Wyłączone w każdym nowym czacie.",
+          "help": "Wybierz lokalne źródła skills dla AgenticOS w tym czacie. Pliki pozostają na komputerze; odczytany tekst skilli i instrukcji trafia przez Twój serwer do modelu agenta. Nowe czaty mają źródła wyłączone. Lokalne coding agents zachowują własną konfigurację.",
           "count": "{count, plural, one {# skill} few {# skille} many {# skilli} other {# skilla}}",
           "hidden": "{count, plural, one {# skill jest ukryty przez skill o tej samej nazwie we wcześniejszym folderze} few {# skille są ukryte przez skille o tych samych nazwach we wcześniejszych folderach} many {# skilli jest ukrytych przez skille o tych samych nazwach we wcześniejszych folderach} other {# skilla jest ukrytych przez skille o tych samych nazwach we wcześniejszych folderach}}.",
-          "on": "Ten czat może ładować powyższe skille i stosuje Twój AGENTS.md (nowszy z plików w .codex i .claude), a potem ten z folderu roboczego.",
-          "off": "Wyłączone: ten czat używa tylko tego, co jest w AgenticOS."
+          "on": "Ten czat może ładować włączone lokalne skills i stosuje globalne instrukcje, a następnie hierarchię projektowych AGENTS.md i CLAUDE.md.",
+          "off": "Wyłączone: AgenticOS nie ładuje Twoich lokalnych skilli ani instrukcji."
         }
       },
       "modelSection": "Model",
@@ -6083,6 +6083,14 @@
       "remote-agents-list": {
         "title": "Agenci innych dostawców",
         "body": "Agentów zarejestrowanych tu po ich agent card A2A można wybrać jako delegatów obok twoich własnych agentów."
+      },
+      "desktop-local-agents": {
+        "title": "Coding agents na tym komputerze",
+        "body": "Sprawdź instalację i logowanie Claude Code oraz Codex. Desktop otwiera ich własne komendy logowania w terminalu. Aby uruchomić lokalne zadanie, wybierz On this computer w capability agenta i folder w Work on."
+      },
+      "chat-local-skills": {
+        "title": "Twoje lokalne skills i instrukcje",
+        "body": "Wybierz źródła dostępne w tej rozmowie. Skills pozostają na komputerze; wśród włączonych źródeł kolizje rozstrzyga kolejność .agents, .claude, .codex. AGENTS.md i CLAUDE.md zawierają instrukcje projektu. Nowe czaty mają źródła wyłączone."
       },
       "settings-tabs": {
         "title": "Twoje ustawienia",
@@ -11877,7 +11885,7 @@
         "signInNamed": "Zaloguj do {name}",
         "signOut": "Wyloguj",
         "signOutNamed": "Wyloguj z {name}",
-        "terminalNote": "Logowanie otwiera się w Terminalu. Wróć tutaj po jego zakończeniu, a stan się odświeży."
+        "terminalNote": "Logowanie otwiera terminal systemowy. Wróć po jego zakończeniu, aby odświeżyć stan."
       }
     },
     "quickAsk": {

@@ -103,6 +103,11 @@ fn fallback_dirs(home: &Path) -> Vec<PathBuf> {
     .iter()
     .map(|dir| home.join(dir))
     .chain(["/opt/homebrew/bin", "/usr/local/bin"].map(PathBuf::from))
+    .chain(
+        cfg!(target_os = "macos").then(|| {
+            PathBuf::from("/Applications/ChatGPT.app/Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS")
+        }),
+    )
     .collect()
 }
 
@@ -256,6 +261,57 @@ fn sign_in_script(program: &Path, args: &[&str]) -> String {
     format!("#!/bin/sh\nexec {}\n", words.join(" "))
 }
 
+/// Keep terminal arguments separate from shell syntax, including program paths
+/// containing spaces or metacharacters. The terminal owns the interactive login.
+async fn open_terminal(program: &Path, args: &[&str]) -> Result<(), String> {
+    #[cfg(target_os = "windows")]
+    let mut command = {
+        use base64::Engine;
+        let quote = |text: &str| format!("'{}'", text.replace('\'', "''"));
+        let script = format!(
+            "& {} {}",
+            quote(&program.to_string_lossy()),
+            args.iter().map(|arg| quote(arg)).collect::<Vec<_>>().join(" ")
+        );
+        let encoded: Vec<u8> = script.encode_utf16().flat_map(u16::to_le_bytes).collect();
+        let mut command = tokio::process::Command::new("powershell.exe");
+        command.args([
+            "-NoProfile",
+            "-NoExit",
+            "-EncodedCommand",
+            &base64::engine::general_purpose::STANDARD.encode(encoded),
+        ]);
+        command.creation_flags(0x00000010); // CREATE_NEW_CONSOLE: sign-in needs a visible terminal.
+        command
+    };
+    #[cfg(not(target_os = "windows"))]
+    let mut command = {
+        let (terminal, separator) = [
+            ("x-terminal-emulator", "-e"),
+            ("gnome-terminal", "--"),
+            ("konsole", "-e"),
+            ("xterm", "-e"),
+            ("kitty", "--"),
+            ("alacritty", "-e"),
+        ]
+        .into_iter()
+        .find_map(|(name, separator)| locate(name).map(|path| (path, separator)))
+        .ok_or_else(|| {
+            "No supported terminal was found. Run the agent's sign-in command in your terminal.".to_owned()
+        })?;
+        let mut command = tokio::process::Command::new(terminal);
+        command.arg(separator).arg(program).args(args);
+        command
+    };
+    let mut child = command
+        .spawn()
+        .map_err(|error| format!("The sign-in terminal could not open: {error}"))?;
+    tauri::async_runtime::spawn(async move {
+        let _ = child.wait().await;
+    });
+    Ok(())
+}
+
 /// Open the agent's own sign-in in Terminal. The person finishes it there.
 #[tauri::command]
 pub async fn local_agent_sign_in(app: AppHandle, id: AgentId) -> Result<(), String> {
@@ -263,14 +319,10 @@ pub async fn local_agent_sign_in(app: AppHandle, id: AgentId) -> Result<(), Stri
     use tauri_plugin_opener::OpenerExt;
 
     let spec = spec(id);
-    if !cfg!(target_os = "macos") {
-        return Err(format!(
-            "Signing in from the app works on macOS. Run `{} {}` in a terminal instead.",
-            spec.program,
-            spec.login.join(" ")
-        ));
-    }
     let program = locate(spec.program).ok_or_else(|| format!("{} is not installed.", spec.name))?;
+    if !cfg!(target_os = "macos") {
+        return open_terminal(&program, spec.login).await;
+    }
     let dir = app
         .path()
         .app_data_dir()
@@ -360,8 +412,11 @@ mod tests {
             Some(on_path.join("claude"))
         );
         // A file that is not executable is not an install.
-        make(&on_path.join("codex"), 0o644);
-        assert_eq!(resolve("codex", Some(&path_env), Some(&home)), None);
+        make(&on_path.join("agenticos-test-non-executable"), 0o644);
+        assert_eq!(
+            resolve("agenticos-test-non-executable", Some(&path_env), Some(&home)),
+            None
+        );
         std::fs::remove_dir_all(temp).unwrap();
     }
 

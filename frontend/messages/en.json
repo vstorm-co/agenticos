@@ -1238,11 +1238,11 @@
         "computerUseLocal": "Local computer",
         "skills": {
           "title": "My skills and instructions",
-          "help": "Use the skills in the .agents, .claude and .codex folders of your home folder, and your AGENTS.md, in this chat. They are read from this computer in place and never copied or synced into AgenticOS. Off for every new chat.",
+          "help": "Choose local skill sources for AgenticOS in this chat. Files stay on your computer; loaded skill and instruction text reaches the agent's configured model through your server. Off for new chats. Local coding agents retain their own configuration.",
           "count": "{count, plural, one {# skill} other {# skills}}",
           "hidden": "{count, plural, one {# skill is hidden by one of the same name in an earlier folder} other {# skills are hidden by ones of the same name in an earlier folder}}.",
-          "on": "This chat can load the skills above and follows your AGENTS.md (the newer of the .codex and .claude ones), then the working folder's.",
-          "off": "Off: this chat uses only what is in AgenticOS."
+          "on": "This chat can load the enabled local skills and follows your global instructions, then the project's AGENTS.md and CLAUDE.md hierarchy.",
+          "off": "Off: AgenticOS does not load your local skills or instructions."
         }
       },
       "modelSection": "Model",
@@ -4701,6 +4701,14 @@
       "remote-agents-list": {
         "title": "Agents from other vendors",
         "body": "Agents registered here by their A2A agent card can be picked as delegates, beside your own agents."
+      },
+      "desktop-local-agents": {
+        "title": "Coding agents on this computer",
+        "body": "Check Claude Code and Codex installation and sign-in here. The desktop app opens their own sign-in commands in your terminal. Choose On this computer in the agent capability and a folder in Work on to run a task locally."
+      },
+      "chat-local-skills": {
+        "title": "Your local skills and instructions",
+        "body": "Choose which sources this conversation may read. Skills stay on your computer; enabled sources settle name clashes in the order .agents, .claude, .codex. AGENTS.md and CLAUDE.md provide project instructions. New chats start with every source off."
       },
       "settings-tabs": {
         "title": "Your settings",
@@ -12101,7 +12109,7 @@
         "signInNamed": "Sign in to {name}",
         "signOut": "Sign out",
         "signOutNamed": "Sign out of {name}",
-        "terminalNote": "Sign-in opens in Terminal. Come back here when it finishes and the status refreshes."
+        "terminalNote": "Sign-in opens in your system terminal. Come back when it finishes to refresh the status."
       }
     },
     "quickAsk": {

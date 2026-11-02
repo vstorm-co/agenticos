@@ -11,6 +11,7 @@ the sandbox beside the work, so the second task in a chat knows what the first
 read without the model carrying ids around. `fresh_session` starts over.
 """
 
+import hashlib
 import json
 import logging
 import uuid
@@ -79,9 +80,9 @@ LOCAL_DOC = """Hand a software task to the coding agent, which works on it on th
 
         Args:
             task: The task in full: the goal, the files or area it concerns, constraints, and
-                how to check the result. Every task starts a new session, so the coding agent
-                sees nothing of this conversation or of your earlier tasks but this text.
-            fresh_session: Not used on this computer: every task is a new session.
+                how to check the result. Later tasks in this conversation resume this
+                agent's session for the same folder and access policy.
+            fresh_session: Start over instead of resuming this conversation's earlier session.
 
         Returns:
             JSON with `outcome` (`completed`, `failed` or `timed_out`), `answer` - what it
@@ -218,7 +219,7 @@ def build_coding_toolset(
             and `steps`, what it read and ran. Answer the person from `answer`.
         """
         if runs_on == "this_computer":
-            return await run_local(ctx, task)
+            return await run_local(ctx, task, fresh_session)
         if api_key is None and sign_in is None:
             # Unreachable once published - the key is required at publish and at
             # build. A retry rather than a crash for a preview built without one.
@@ -257,7 +258,7 @@ def build_coding_toolset(
             {"kind": report.kind, **report.model_dump(mode="json", exclude_defaults=True)}
         )
 
-    async def run_local(ctx: RunContext[Any], task: str) -> str:
+    async def run_local(ctx: RunContext[Any], task: str, fresh_session: bool) -> str:
         """The task on the person's computer, in the folder they chose, over ACP.
 
         The agent signs in with its own command on that computer, so there is no
@@ -274,9 +275,25 @@ def build_coding_toolset(
         await assert_ambient_budget()
         narration = Narration.for_call(ctx.deps, ctx.tool_call_id or uuid.uuid4().hex, harness)
         await narration.started(task)
-        pipe = DevicePipe(workspace, harness)
+        identity = ctx.deps
+        scope = (
+            str(identity.organization_id),
+            str(identity.user_id),
+            str(identity.agent_id),
+            str(identity.conversation_id),
+            harness,
+            access,
+        )
+        resume_key = (
+            hashlib.sha256(json.dumps(scope).encode()).hexdigest()
+            if identity.conversation_id is not None
+            else None
+        )
+        pipe = DevicePipe(workspace, harness, resume_key=resume_key, fresh_session=fresh_session)
+        agent_started = False
         try:
             await pipe.open()
+            agent_started = True
             report = await run_task(
                 pipe,
                 harness=harness,
@@ -285,6 +302,9 @@ def build_coding_toolset(
                 task=task,
                 timeout_seconds=timeout_seconds,
                 shown=narration.shown,
+                previous_session=pipe.session_id,
+                remember=pipe.remember,
+                steering=ctx.deps.steering,
             )
         except AcpError as failed:
             await narration.finished("failed", error=failed.message[:500])
@@ -296,8 +316,10 @@ def build_coding_toolset(
             with anyio.CancelScope(shield=True):
                 await narration.finished("cancelled")
             raise
-        # A subscription session reports no tokens to price: booked as one unpriced call.
-        _book(Usage())
+        finally:
+            if agent_started:
+                # Failed and cancelled tasks may have spent subscription tokens too.
+                _book(Usage())
         await narration.finished(
             "completed" if report.outcome == "completed" else "failed",
             error=None if report.outcome == "completed" else report.answer[:500],

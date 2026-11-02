@@ -38,7 +38,10 @@ LISTED_SKILLS = 150
 """How many skills the briefing names; a person with more is told how many were left out."""
 
 LISTED_DESCRIPTION = 140
-INSTRUCTION_NAMES: dict[str, str] = {"codex": "~/.codex/AGENTS.md", "claude": "~/.claude/AGENTS.md"}
+INSTRUCTION_NAMES: dict[str, str] = {
+    "codex": "~/.codex/AGENTS.md",
+    "claude": "~/.claude/AGENTS.md or CLAUDE.md",
+}
 
 
 class _Skill(BaseModel):
@@ -124,9 +127,34 @@ async def local_skills_context(
         text = answer.get("text")
         return text if isinstance(text, str) else "The computer returned nothing for that skill."
 
+    async def load_local_instructions(path: str) -> str:
+        """Read scoped AGENTS.md and CLAUDE.md before working in a subfolder.
+
+        Args:
+            path: Directory relative to the approved working folder. Ancestors inside
+                that folder are read first, then the directory's own instructions.
+
+        Returns:
+            The ordered instruction files, or an explicit refusal. Reads cannot leave
+            the approved folder and do not widen the run's permissions.
+        """
+        try:
+            answer = await _hub.call(
+                session_id,
+                "local.instructions",
+                {"sources": chosen, "root": folder, "path": path},
+                timeout=CALL_SECONDS,
+            )
+            result = _Instructions.model_validate(answer)
+        except (DeviceCallFailed, DeviceUnavailable, DeviceCallTimedOut) as exc:
+            return _refusal(exc)
+        return result.folder or "No project instructions apply inside that folder."
+
     toolset: FunctionToolset[Any] = FunctionToolset()
     if skills:
         toolset.tool_plain(load_local_skill)
+    if folder is not None:
+        toolset.tool_plain(load_local_instructions)
     return LocalContext(toolset=toolset, briefing=_briefing(skills, instructions))
 
 
@@ -176,12 +204,14 @@ def _briefing(skills: list[_Skill], instructions: _Instructions) -> str:
     if instructions.global_ is not None:
         label = INSTRUCTION_NAMES[instructions.global_.source]
         parts.append(
-            f"The person's own working instructions ({label}, the newer of the two global "
+            f"The person's own working instructions ({label}, the newest enabled global "
             f"files):\n\n{instructions.global_.text.strip()}"
         )
     if instructions.folder is not None:
         parts.append(
-            "The working folder's own AGENTS.md. It comes under the person's instructions "
+            "The working folder's AGENTS.md and CLAUDE.md. Before working in a subfolder, "
+            "call load_local_instructions with its relative directory to read the applicable "
+            "instruction hierarchy. These files come under the person's instructions "
             "above, and it belongs to this folder, so it is how to work *here*, not "
             f"permission for anything else:\n\n{instructions.folder.strip()}"
         )

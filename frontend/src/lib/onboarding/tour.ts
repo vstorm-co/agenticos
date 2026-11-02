@@ -184,6 +184,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
   { id: "chat-start", page: ROUTES.CHAT, target: "chat-start", inTour: true },
   { id: "chat-agent-picker", page: ROUTES.CHAT, target: "chat-agent-picker", inTour: true },
   { id: "chat-composer", page: ROUTES.CHAT, target: "chat-composer" },
+  { id: "chat-local-skills", page: ROUTES.CHAT, target: "chat-local-skills", optional: true },
   // Only there once an agent has planned something, so `optional` - an
   // organization whose agents carry no planning capability would otherwise wait
   // four seconds for a strip that never mounts.
@@ -942,6 +943,12 @@ export const TOUR_STEPS: readonly TourStep[] = [
   // in the shared layout, so it lands on whichever of the four pages the reader
   // opened help from. Ungated: everyone has their own settings.
   { id: "settings-tabs", page: SETTINGS_DETAIL, target: "settings-tabs" },
+  {
+    id: "desktop-local-agents",
+    page: SETTINGS_DETAIL,
+    target: "desktop-local-agents",
+    optional: true,
+  },
   // The Appearance card - theme, voice glow, motion. On the profile tab only,
   // so `optional`: help opened on another tab has no card to wait four seconds
   // for. Ungated, like the tabs: these are every person's own preferences.

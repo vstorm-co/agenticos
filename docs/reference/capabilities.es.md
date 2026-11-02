@@ -1,5 +1,5 @@
 ---
-source_sha: "84c18f38fe4c"
+source_sha: "60474df64ce2"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -1531,7 +1531,7 @@ especialista.
 | Configuración | Predeterminado | Valores |
 |---|---|---|
 | `harness` | `claude_code` | `claude_code` (una clave API de Anthropic o un token de suscripción de Claude), `codex` (una clave API de OpenAI o un inicio de sesión de ChatGPT) |
-| `access` | `edit` | `edit` cambia archivos y ejecuta comandos; `read_only` lee el código y responde (solo Claude Code) |
+| `access` | `edit` | `edit` cambia archivos y ejecuta comandos; `read_only` lee el código y responde (Claude Code o Codex en este ordenador) |
 | `model` | el del harness | Claude Opus, Sonnet o Haiku 5.5 para Claude Code; GPT-5.6 Sol, Terra, Luna o GPT-5.3 Codex para Codex |
 | `base_url` | Anthropic directamente | Solo Claude Code: una pasarela que habla la API de Anthropic, como `https://openrouter.ai/api`, cuya clave guarda entonces el vault. Se descarta al elegir Codex |
 | `timeout_minutes` | 15 | 1–60, por tarea |
@@ -1545,14 +1545,16 @@ están documentadas. Con `read_only`, Claude Code se ejecuta en modo plan, sin
 ninguna herramienta que escriba - ni las de edición ni la shell - y lee con Read, Grep
 y Glob; sabe que no se puede aprobar nada más. Ni siquiera comandos que leen: ninguna
 lista de prefijos de comandos hace de una shell algo de solo lectura, porque
-`git log --output=<archivo>` encaja con `git log` igual que cualquier lectura. Codex no tiene `read_only`: su modo de solo lectura es una
+`git log --output=<archivo>` encaja con `git log` igual que cualquier lectura. Codex dentro de un contenedor no tiene `read_only`: su modo de solo lectura es una
 sandbox propia, que no arranca dentro del contenedor del agent, y la publicación
 rechaza la combinación. Que una persona diga sí antes de cada tarea es la
 **Aprobación humana** de la capability, puesta en **Preguntar siempre** — como toda
 compuerta, está desactivada hasta que alguien la pone. No hay pestaña de
 herramientas: la única herramienta es la capability.
 
-**En este ordenador.** Con `runs_on` en `this_computer`, la misma herramienta inicia el harness en el ordenador desde el que trabaja la persona, mediante el [Agent Client Protocol](https://agentclientprotocol.com), en lugar de en el sandbox: la aplicación de escritorio inicia el adaptador del agente (`@agentclientprotocol/claude-agent-acp` o `codex-acp`, en una versión fijada) mediante `npx` y pasa bytes en ambos sentidos, y el servidor habla el protocolo. El chat debe trabajar en ese ordenador (**Work on: This computer**), en una carpeta con acceso total, porque el agente se ejecuta como la persona; cada inicio se confirma en un cuadro nativo y el agente inicia sesión con su propio comando, así que la clave es opcional. Dentro de una tarea, las peticiones de permiso del agente se responden según `access`, sin plantearlas una a una a una persona, porque una ejecución aparcada para una aprobación no podría mantener viva la sesión: la aprobación es de la capacidad, una vez por tarea. Cada tarea es una sesión nueva y una suscripción no informa de tokens que valorar, por lo que el coste de la ejecución es un mínimo. Consulta [la aplicación de escritorio](../desktop.md#coding-agents-on-this-computer).
+**En este ordenador.** Configura `runs_on` como `this_computer` para usar el harness instalado mediante [Agent Client Protocol](https://agentclientprotocol.com). El escritorio inicia un adaptador con versión fijada mediante `npx`; el servidor habla ACP. Elige una carpeta con acceso completo en **Work on** y confirma cada inicio de forma nativa. La carpeta es un directorio de trabajo, no una sandbox del sistema. El harness usa su propia sesión; la clave de vault es opcional. Los permisos siguen `access`; la aprobación se aplica una vez por tarea. Claude read-only desactiva bypass y herramientas de escritura; Codex local selecciona su modo de lectura nativo.
+
+Las siguientes tareas cargan la misma sesión de conversación; `fresh_session` inicia otra explícitamente. Las correcciones interrumpen el turno ACP y continúan la sesión tras confirmar la parada. Los identificadores quedan fuera del repositorio y se borran al desvincular. Las tareas de suscripción sin precio, incluidas las iniciadas que fallan, hacen del coste del run un mínimo. Consulta [la aplicación de escritorio](../desktop.md#coding-agents-on-this-computer).
 
 **La persona lo ve trabajar.** El harness se arranca en segundo plano en la sandbox
 (`claude -p --output-format stream-json` o `codex exec --json`), y su archivo de

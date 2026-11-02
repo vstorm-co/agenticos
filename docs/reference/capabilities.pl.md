@@ -1,5 +1,5 @@
 ---
-source_sha: "84c18f38fe4c"
+source_sha: "60474df64ce2"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -1499,7 +1499,7 @@ a czat pokazuje jego pracę. Inny agent sięga do coding agenta zwykłą
 | Konfiguracja | Domyślnie | Wartości |
 |---|---|---|
 | `harness` | `claude_code` | `claude_code` (klucz API Anthropic albo token subskrypcji Claude), `codex` (klucz API OpenAI albo logowanie ChatGPT) |
-| `access` | `edit` | `edit` zmienia pliki i uruchamia polecenia; `read_only` czyta kod i odpowiada (tylko Claude Code) |
+| `access` | `edit` | `edit` zmienia pliki i uruchamia polecenia; `read_only` czyta kod i odpowiada (Claude Code lub Codex na tym komputerze) |
 | `model` | domyślny dla harnessu | Claude Opus, Sonnet albo Haiku 5.5 dla Claude Code; GPT-5.6 Sol, Terra, Luna albo GPT-5.3 Codex dla Codexa |
 | `base_url` | bezpośrednio Anthropic | Tylko Claude Code: bramka obsługująca API Anthropic, np. `https://openrouter.ai/api`, której klucz trzyma wtedy vault. Usuwany po wyborze Codexa |
 | `timeout_minutes` | 15 | 1–60, na jedno zadanie |
@@ -1513,14 +1513,16 @@ przełączniki są opisane. Przy `read_only` Claude Code działa w trybie planu,
 żadnego narzędzia, które pisze - bez narzędzi edycji i bez powłoki - i czyta przez
 Read, Grep i Glob; wie, że niczego innego nie da się zatwierdzić. Nawet poleceń
 czytających: żadna lista prefiksów poleceń nie robi z powłoki narzędzia tylko do
-odczytu, bo `git log --output=<plik>` pasuje do `git log` tak samo jak każdy odczyt. Codex nie ma `read_only`: jego tryb tylko do odczytu
+odczytu, bo `git log --output=<plik>` pasuje do `git log` tak samo jak każdy odczyt. Codex w kontenerze nie ma `read_only`: jego tryb tylko do odczytu
 to jego własny sandbox, który nie startuje w kontenerze agenta, więc publikacja
 odrzuca to połączenie. To, czy człowiek mówi „tak” przed każdym zadaniem, ustawia
 **Zatwierdzenie przez człowieka** capability na **Zawsze pytaj** — jak każda bramka,
 jest wyłączona, dopóki ktoś jej nie ustawi. Nie ma zakładki Narzędzia: jedno
 narzędzie to sama capability.
 
-**Na tym komputerze.** Gdy `runs_on` ma wartość `this_computer`, to samo narzędzie uruchamia harness na komputerze, z którego osoba pracuje, przez [Agent Client Protocol](https://agentclientprotocol.com), zamiast w sandboxie: aplikacja desktopowa uruchamia adapter agenta (`@agentclientprotocol/claude-agent-acp` lub `codex-acp`, w przypiętej wersji) przez `npx` i przekazuje bajty w obie strony, a protokół prowadzi serwer. Czat musi pracować na tym komputerze (**Work on: This computer**), w folderze z pełnym dostępem, bo agent działa jako osoba; każdy start jest potwierdzany w natywnym oknie, a agent loguje się własnym poleceniem, więc klucz jest opcjonalny. W zadaniu prośby agenta o pozwolenie są rozstrzygane z `access`, a nie pytane po jednej, bo przebieg zaparkowany na zatwierdzenie nie utrzymałby sesji: zatwierdzenie należy do capability, raz na zadanie. Zadanie to za każdym razem nowa sesja, a subskrypcja nie zgłasza tokenów do wyceny, więc koszt przebiegu jest dolną granicą. Zobacz [aplikację desktopową](../desktop.md#coding-agents-on-this-computer).
+**Na tym komputerze.** Ustaw `runs_on` na `this_computer`, aby użyć zainstalowanego harnessu przez [Agent Client Protocol](https://agentclientprotocol.com). Desktop uruchamia przypięty adapter przez `npx`, a protokół prowadzi serwer. Wybierz folder z pełnym dostępem w **Work on** i potwierdź każdy start w natywnym oknie. Folder jest katalogiem roboczym, nie sandboxem systemowym. Harness używa własnego logowania, więc klucz w vault jest opcjonalny. Prośby o uprawnienia stosują `access`; zgoda obowiązuje raz na zadanie. Claude read-only wyłącza bypass i narzędzia zapisujące; lokalny Codex wybiera natywny tryb odczytu.
+
+Kolejne zadania ładują tę samą sesję rozmowy; `fresh_session` jawnie zaczyna od nowa. Korekta przerywa turę ACP i kontynuuje tę samą sesję po potwierdzeniu zatrzymania. Identyfikatory sesji pozostają poza repozytorium i są usuwane po odłączeniu. Niewycenione zadania subskrypcji, także rozpoczęte zadania zakończone błędem, oznaczają koszt runu jako dolną granicę. Zobacz [aplikację desktopową](../desktop.md#coding-agents-on-this-computer).
 
 **Człowiek widzi jego pracę.** Harness startuje w sandboxie w tle
 (`claude -p --output-format stream-json` albo `codex exec --json`), a plik jego

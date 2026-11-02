@@ -1,8 +1,8 @@
 """A coding task over the Agent Client Protocol, on the person's own computer (#2576).
 
 The desktop app starts the agent's ACP adapter and hands this module a pipe; the
-protocol is spoken here, so the app stays a thin process runner. One task is one
-ACP session: `initialize`, `session/new`, `session/prompt`, and while the prompt
+protocol is spoken here, so the app stays a thin process runner. A task initializes
+the adapter, creates or loads its session, then prompts it. While the prompt
 runs the agent's `session/update` notifications become the steps the chat shows
 and its `session/request_permission` requests are answered by policy.
 
@@ -37,6 +37,7 @@ from app.agents.capabilities.coding_agent._harness import (
     clip,
     last_steps,
 )
+from app.agents.steering import SteeringInbox, screen_steer
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +47,7 @@ POLL_WAIT_MS = 20_000
 
 POLL_TIMEOUT_SECONDS = 40.0
 CALL_TIMEOUT_SECONDS = 30.0
+LAUNCH_TIMEOUT_SECONDS = 300.0
 
 _METHOD_NOT_FOUND = -32601
 
@@ -121,7 +123,17 @@ class AgentCalls(Protocol):
 class DevicePipe:
     """An agent running on the person's computer, reached through the device hub."""
 
-    def __init__(self, device: AgentCalls, harness: Harness) -> None:
+    def __init__(
+        self,
+        device: AgentCalls,
+        harness: Harness,
+        *,
+        resume_key: str | None = None,
+        fresh_session: bool = False,
+    ) -> None:
+        self._resume_key = resume_key
+        self._fresh_session = fresh_session
+        self.session_id: str | None = None
         self._device = device
         self._harness = harness
         self._id: str | None = None
@@ -129,13 +141,26 @@ class DevicePipe:
         self._pending: deque[dict[str, Any]] = deque()
 
     async def open(self) -> None:
-        opened = await self._device.agent_call(
-            "agent.open", {"agent": self._harness}, timeout=CALL_TIMEOUT_SECONDS
+        args: dict[str, Any] = {"agent": self._harness}
+        if self._resume_key is not None:
+            args.update(resume_key=self._resume_key, fresh_session=self._fresh_session)
+        opened = await self._device.agent_call("agent.open", args, timeout=LAUNCH_TIMEOUT_SECONDS)
+        previous = opened.get("session_id")
+        self.session_id = (
+            previous if isinstance(previous, str) and not self._fresh_session else None
         )
         identifier = opened.get("id")
         if not isinstance(identifier, str):
             raise AcpError("The computer's app did not start the agent.")
         self._id = identifier
+
+    async def remember(self, session_id: str) -> None:
+        if self._resume_key is not None:
+            await self._device.agent_call(
+                "agent.remember",
+                {"id": self._id, "session_id": session_id},
+                timeout=CALL_TIMEOUT_SECONDS,
+            )
 
     async def send(self, message: dict[str, Any]) -> None:
         await self._device.agent_call(
@@ -203,6 +228,7 @@ class _Collector:
     order: list[str] = field(default_factory=list)
     said: list[str] = field(default_factory=list)
     refused: list[str] = field(default_factory=list)
+    task_updates: list[str] = field(default_factory=list)
 
     def update(self, update: dict[str, Any]) -> list[LiveItem]:
         match update.get("sessionUpdate"):
@@ -264,6 +290,7 @@ class _Collector:
             steps=last_steps(steps),
             files_changed=[] if access == "read_only" else changed,
             refused=self.refused,
+            task_updates=self.task_updates,
         )
 
 
@@ -295,12 +322,16 @@ class Conversation:
         self._shown = shown
         self._ids = itertools.count(1)
 
-    async def request(self, method: str, params: dict[str, Any]) -> Any:
+    async def request(
+        self, method: str, params: dict[str, Any], *, sent: anyio.Event | None = None
+    ) -> Any:
         """Send a request and read until its answer, handling everything between."""
         identifier = next(self._ids)
         await self._pipe.send(
             {"jsonrpc": "2.0", "id": identifier, "method": method, "params": params}
         )
+        if sent is not None:
+            sent.set()
         while True:
             message = await self._pipe.receive()
             if "method" in message:
@@ -315,6 +346,64 @@ class Conversation:
                     shown = f" (code {code})" if isinstance(code, int) else ""
                     raise AcpError(f"The agent refused the request{shown}.")
                 return message.get("result")
+
+    async def prompt(
+        self,
+        session_id: str,
+        text: str,
+        steering: SteeringInbox | None,
+    ) -> Any:
+        """Interrupt the current turn for a correction, then continue the same session.
+
+        Cancel is part of ACP for both adapters. Waiting for its stop response
+        before the next prompt avoids overlapping prompts and ambiguous writes.
+        """
+        if steering is None:
+            return await self.request(
+                "session/prompt",
+                {"sessionId": session_id, "prompt": [{"type": "text", "text": text}]},
+            )
+        while True:
+            interrupted = False
+            sent = anyio.Event()
+
+            async def watch(ready: anyio.Event) -> None:
+                nonlocal interrupted
+                await ready.wait()
+                while True:
+                    if steering.unapplied():
+                        interrupted = True
+                        await self.cancel(session_id)
+                        return
+                    await anyio.sleep(0.2)
+
+            try:
+                async with anyio.create_task_group() as group:
+                    group.start_soon(watch, sent)
+                    result = await self.request(
+                        "session/prompt",
+                        {"sessionId": session_id, "prompt": [{"type": "text", "text": text}]},
+                        sent=sent,
+                    )
+                    group.cancel_scope.cancel()
+            except BaseExceptionGroup as errors:
+                # The watcher must settle before returning a transport failure;
+                # preserve its type for the tool's existing error boundary.
+                if len(errors.exceptions) == 1:
+                    raise errors.exceptions[0] from None
+                raise
+            if not interrupted:
+                return result
+            updates = [screen_steer(steering, item.text) for item in steering.take()]
+            self._collector.task_updates.extend(updates)
+            self._collector.said.clear()
+            text = (
+                "The person updated the task while you were working. Continue the original task, "
+                "applying these corrections:\n\n" + "\n\n".join(updates)
+            )
+            if steering.on_applied is not None:
+                for update in updates:
+                    await steering.on_applied(update)
 
     async def cancel(self, session_id: str) -> None:
         await self._pipe.send(
@@ -369,6 +458,9 @@ async def run_task(
     task: str,
     timeout_seconds: int,
     shown: Shown,
+    previous_session: str | None = None,
+    remember: Callable[[str], Awaitable[None]] | None = None,
+    steering: SteeringInbox | None = None,
 ) -> CodingReport:
     """One task as one ACP session, ended however the task ends.
 
@@ -383,7 +475,7 @@ async def run_task(
         # One deadline from the first request: an adapter that never answers `initialize`
         # or `session/new` ends the task like one that never finishes the prompt.
         with anyio.move_on_after(timeout_seconds):
-            await conversation.request(
+            initialized = await conversation.request(
                 "initialize",
                 {
                     "protocolVersion": PROTOCOL_VERSION,
@@ -391,16 +483,44 @@ async def run_task(
                     "clientInfo": {"name": "agenticos", "title": "AgenticOS"},
                 },
             )
-            created = await conversation.request("session/new", {"cwd": root, "mcpServers": []})
-            identifier = (created or {}).get("sessionId")
+            session_params: dict[str, Any] = {"cwd": root, "mcpServers": []}
+            if harness == "claude_code" and access == "read_only":
+                session_params["_meta"] = {
+                    "claudeCode": {
+                        "options": {
+                            "allowDangerouslySkipPermissions": False,
+                            "tools": ["Read", "Glob", "Grep", "WebFetch", "WebSearch"],
+                        }
+                    }
+                }
+            capabilities = (initialized or {}).get("agentCapabilities") or {}
+            if previous_session is not None:
+                if not capabilities.get("loadSession"):
+                    raise AcpError(
+                        "This adapter cannot resume the earlier session. Start a fresh task explicitly."
+                    )
+                await conversation.request(
+                    "session/load", {**session_params, "sessionId": previous_session}
+                )
+                identifier = previous_session
+                # session/load may replay earlier messages; only this task belongs in its report.
+                collector.tools.clear()
+                collector.order.clear()
+                collector.said.clear()
+            else:
+                created = await conversation.request("session/new", session_params)
+                identifier = (created or {}).get("sessionId")
             if not isinstance(identifier, str):
                 raise AcpError("The agent did not open a session.")
             session_id = identifier
+            if harness == "codex" and access == "read_only":
+                await conversation.request(
+                    "session/set_mode", {"sessionId": session_id, "modeId": "read-only"}
+                )
+            if remember is not None:
+                await remember(session_id)
             prompt = f"{_READ_ONLY_NOTE}{task}" if access == "read_only" else task
-            result = await conversation.request(
-                "session/prompt",
-                {"sessionId": session_id, "prompt": [{"type": "text", "text": prompt}]},
-            )
+            result = await conversation.prompt(session_id, prompt, steering)
             stop = str((result or {}).get("stopReason", "end_turn"))
         answer = "".join(collector.said).strip()
         if stop == "timed_out":

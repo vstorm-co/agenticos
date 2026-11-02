@@ -1433,7 +1433,7 @@ chat shows it working. Another agent reaches a coding agent through ordinary
 | Config | Default | Values |
 |---|---|---|
 | `harness` | `claude_code` | `claude_code` (an Anthropic API key or a Claude subscription token), `codex` (an OpenAI API key or a ChatGPT sign-in) |
-| `access` | `edit` | `edit` changes files and runs commands; `read_only` reads the code and answers (Claude Code only) |
+| `access` | `edit` | `edit` changes files and runs commands; `read_only` reads the code and answers (Claude Code, or Codex on this computer) |
 | `model` | the harness's default | Claude Opus, Sonnet or Haiku 5.5 for Claude Code; GPT-5.6 Sol, Terra, Luna or GPT-5.3 Codex for Codex |
 | `base_url` | Anthropic directly | Claude Code only: a gateway that speaks Anthropic's API, such as `https://openrouter.ai/api`, whose key the vault then holds. Dropped when Codex is chosen |
 | `timeout_minutes` | 15 | 1–60, for one task |
@@ -1447,13 +1447,15 @@ documented for. At `read_only`, Claude Code runs in plan mode without any tool
 that writes - its editing tools and the shell - and reads with Read, Grep and Glob;
 it is told that nothing else can be approved. Not even reading commands: no list of
 command prefixes keeps a shell read-only, since `git log --output=<file>` matches
-`git log` as well as any read does. Codex has no `read_only`: its read-only mode is a
+`git log` as well as any read does. Codex in a container has no `read_only`: its read-only mode is a
 sandbox of its own, which cannot start inside the agent's container, and publish
 refuses the combination. Whether a person says yes before each task is the
 capability's **Human approval**, set to **Always ask** — like every gate, it is off
 until somebody sets it. There is no Tools tab: the one tool is the capability.
 
-**On this computer.** With `runs_on` set to `this_computer` the same tool starts the harness on the computer the person works from, over the [Agent Client Protocol](https://agentclientprotocol.com), instead of in the sandbox: the desktop app starts the agent's adapter (`@agentclientprotocol/claude-agent-acp` or `codex-acp`, at a pinned version) through `npx` and passes bytes both ways, and the server speaks the protocol. The chat must be working on that computer (**Work on: This computer**), in a folder granted full access, because the agent runs as the person; every start is confirmed in a native dialog, and the agent signs in with its own command, so the key is optional. Inside a task the agent's permission requests are answered from `access`, not put to a person one by one, because a run that is parked for an approval could not keep the session alive: the approval is the capability's, once per task. A task is a new session each time, and a subscription reports no tokens to price, so the run's cost says it is a floor. See [the desktop app](../desktop.md#coding-agents-on-this-computer).
+**On this computer.** Set `runs_on` to `this_computer` to use the person's installed harness over the [Agent Client Protocol](https://agentclientprotocol.com). The desktop app launches a pinned adapter through `npx`; the server speaks ACP. Choose a full-access folder in **Work on** and confirm each start natively. The folder is a working directory, not an operating-system sandbox. The harness uses its own sign-in, so a vault key is optional. Permission requests follow `access`; approval applies once per task. Claude read-only disables bypass and writing tools; local Codex selects its native read-only mode.
+
+Later tasks load the same conversation session; `fresh_session` starts over explicitly. Corrections interrupt the current ACP turn and continue the same session after its stop response. Resume identifiers stay outside the repository and are cleared on unlink. Unpriced subscription tasks, including failed tasks that started, make the run's cost a floor. See [the desktop app](../desktop.md#coding-agents-on-this-computer).
 
 **The person watches it work.** The harness is started detached in the sandbox,
 `claude -p --output-format stream-json` or `codex exec --json`, and its events file

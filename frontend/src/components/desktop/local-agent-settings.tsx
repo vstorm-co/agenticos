@@ -18,7 +18,7 @@ export function LocalAgentSettings() {
   const { state, signIn, signOut } = useLocalAgents();
   const error = state.error ?? signIn.error ?? signOut.error;
   return (
-    <SectionCard title={t("title")} description={t("description")}>
+    <SectionCard title={t("title")} description={t("description")} tour="desktop-local-agents">
       <ul className="space-y-3">
         {(state.data ?? []).map((agent) => (
           <li key={agent.id} className="flex items-center justify-between gap-3 text-sm">

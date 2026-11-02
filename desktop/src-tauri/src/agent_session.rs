@@ -20,7 +20,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex as StdMutex};
 use std::time::Duration;
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use tauri::{AppHandle, Manager};
 use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
@@ -116,6 +116,7 @@ struct Session {
     stdin: Mutex<tokio::process::ChildStdin>,
     output: Arc<Output>,
     kill: Option<oneshot::Sender<()>>,
+    resume_key: Option<ResumeKey>,
 }
 
 /// Every running agent, by the id the server uses.
@@ -227,6 +228,7 @@ fn spawn(program: &Path, args: &[String], cwd: &Path, path_env: Option<String>) 
         stdin: Mutex::new(stdin),
         output,
         kill: Some(kill),
+        resume_key: None,
     })
 }
 
@@ -246,6 +248,35 @@ fn one_message(message: &Value) -> Result<String, Refusal> {
 struct OpenArgs {
     agent: AgentId,
     root: String,
+    #[serde(default)]
+    resume_key: Option<String>,
+    #[serde(default)]
+    fresh_session: bool,
+}
+
+/// Opaque scope derived by the server from the tenant, person, agent, conversation
+/// and access policy. The native folder and connection revision prevent reuse
+/// after changing computers, folders, accounts or deployments.
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+pub struct ResumeKey {
+    scope: String,
+    root: String,
+    connection: String,
+    agent: AgentId,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct Remembered {
+    key: ResumeKey,
+    session_id: String,
+}
+
+pub fn remember(history: &mut Vec<Remembered>, key: ResumeKey, session_id: String) {
+    history.retain(|item| item.key != key);
+    history.push(Remembered { key, session_id });
+    if history.len() > 128 {
+        history.drain(..history.len() - 128);
+    }
 }
 
 #[derive(Deserialize)]
@@ -258,8 +289,9 @@ async fn confirm(app: &AppHandle, agent: AgentId, root: &Path) -> bool {
     let (answered, answer) = oneshot::channel();
     app.dialog()
         .message(format!(
-            "{name} will work in {} as you: it can read and change files and run commands there. \
-             AgenticOS asks in the chat before it does anything its own permissions gate.",
+            "{name} starts in {} and runs as your account, without an operating-system sandbox. \
+             It can reach other files and the network as your account can. AgenticOS applies \
+             the task's read-only or editing policy to the agent's tools. Confirm only a task you trust.",
             root.display()
         ))
         .title(format!("Let {name} work on this computer?"))
@@ -290,7 +322,12 @@ fn path_with(program: &Path) -> Option<String> {
 }
 
 async fn open(app: &AppHandle, args: &Map<String, Value>) -> Result<Map<String, Value>, Refusal> {
-    let OpenArgs { agent, root } = serde_json::from_value(Value::Object(args.clone())).map_err(bad)?;
+    let OpenArgs {
+        agent,
+        root,
+        resume_key,
+        fresh_session,
+    } = serde_json::from_value(Value::Object(args.clone())).map_err(bad)?;
     // The adapter runs as the person, so only a folder granted full access may host it.
     let root = local_work::granted_folder(app, &root, Mode::FullAccess)?;
     let sessions = app.state::<Sessions>();
@@ -314,16 +351,60 @@ async fn open(app: &AppHandle, args: &Map<String, Value>) -> Result<Map<String, 
         .map_err(|e| Refusal::new("io", e.to_string()))?
         .join("agent-runtime");
     std::fs::create_dir_all(&runtime).map_err(|e| Refusal::new("io", e.to_string()))?;
-    let session = spawn(
+    let settings = crate::settings::current(app);
+    let key = resume_key
+        .filter(|key| key.len() == 64 && key.bytes().all(|b| b.is_ascii_hexdigit()))
+        .map(|scope| ResumeKey {
+            scope,
+            root: root.to_string_lossy().into_owned(),
+            connection: settings.connection_revision.clone(),
+            agent,
+        });
+    let resumed = if fresh_session {
+        None
+    } else {
+        key.as_ref().and_then(|key| {
+            settings
+                .coding_sessions
+                .iter()
+                .find(|item| &item.key == key)
+                .map(|item| item.session_id.clone())
+        })
+    };
+    let mut session = spawn(
         &npx,
         &["--yes".into(), package(agent).into()],
         &runtime,
         path_with(&npx),
     )?;
+    session.resume_key = key;
     let id = uuid::Uuid::new_v4().simple().to_string();
     sessions.map.lock().await.insert(id.clone(), session);
     drop(slot);
-    Ok(object(serde_json::json!({ "id": id })))
+    Ok(object(serde_json::json!({ "id": id, "session_id": resumed })))
+}
+
+async fn remember_running(app: &AppHandle, args: &Map<String, Value>) -> Result<Map<String, Value>, Refusal> {
+    let id = args.get("id").and_then(Value::as_str).unwrap_or_default();
+    let session_id = args
+        .get("session_id")
+        .and_then(Value::as_str)
+        .filter(|id| {
+            !id.is_empty() && id.len() <= 128 && id.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_')
+        })
+        .ok_or_else(|| Refusal::new("denied", "That session identifier is not valid."))?;
+    let sessions = app.state::<Sessions>();
+    let map = sessions.map.lock().await;
+    let session = map
+        .get(id)
+        .ok_or_else(|| Refusal::new("not_found", "That agent is not running."))?;
+    if let Some(key) = &session.resume_key {
+        crate::settings::update(app, |settings| {
+            remember(&mut settings.coding_sessions, key.clone(), session_id.to_owned())
+        })
+        .map_err(|e| Refusal::new("io", e))?;
+    }
+    Ok(Map::new())
 }
 
 async fn send(app: &AppHandle, args: &Map<String, Value>) -> Result<Map<String, Value>, Refusal> {
@@ -427,6 +508,7 @@ pub async fn run(app: &AppHandle, op: &str, args: &Map<String, Value>) -> Result
     match op {
         "agent.open" => open(app, args).await,
         "agent.send" => send(app, args).await,
+        "agent.remember" => remember_running(app, args).await,
         "agent.poll" => poll(app, args).await,
         "agent.close" => close(app, args).await,
         other => Err(Refusal::new("denied", format!("This app does not do {other}."))),
@@ -565,5 +647,50 @@ mod tests {
     fn path_puts_the_programs_own_directory_first() {
         let joined = path_with(Path::new("/opt/node/bin/npx")).unwrap();
         assert!(joined.starts_with("/opt/node/bin:"));
+    }
+    #[test]
+    fn continuation_is_bounded_and_isolated_by_folder_connection_and_harness() {
+        let key = ResumeKey {
+            scope: "a".repeat(64),
+            root: "/work".into(),
+            connection: "account-1".into(),
+            agent: AgentId::ClaudeCode,
+        };
+        let mut history = Vec::new();
+        remember(&mut history, key.clone(), "first".into());
+        remember(&mut history, key.clone(), "second".into());
+        assert_eq!(history.len(), 1);
+        assert_eq!(history[0].session_id, "second");
+        for other in [
+            ResumeKey {
+                root: "/other".into(),
+                ..key.clone()
+            },
+            ResumeKey {
+                connection: "account-2".into(),
+                ..key.clone()
+            },
+            ResumeKey {
+                agent: AgentId::Codex,
+                ..key.clone()
+            },
+        ] {
+            assert_ne!(key, other);
+            remember(&mut history, other, "separate".into());
+        }
+        assert_eq!(history.len(), 4);
+        for index in 0..150 {
+            remember(
+                &mut history,
+                ResumeKey {
+                    scope: format!("{index:064x}"),
+                    ..key.clone()
+                },
+                "bounded".into(),
+            );
+        }
+        assert_eq!(history.len(), 128);
+        let saved = serde_json::to_string(&history).unwrap();
+        assert_eq!(serde_json::from_str::<Vec<Remembered>>(&saved).unwrap().len(), 128);
     }
 }

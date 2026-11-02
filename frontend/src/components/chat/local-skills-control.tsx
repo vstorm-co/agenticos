@@ -6,7 +6,7 @@ import { useTranslations } from "next-intl";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ContextHelp } from "@/components/ui/context-help";
 import { useDeviceLink, useDeviceStatus, useLocalSkills } from "@/hooks/use-desktop";
-import { SKILL_SOURCES, type SkillSource } from "@/lib/desktop/commands";
+import { SKILL_SOURCES, type LocalSkill, type SkillSource } from "@/lib/desktop/commands";
 import { useConversationStore } from "@/stores";
 import { useWorkOnStore } from "@/stores/work-on-store";
 
@@ -39,17 +39,29 @@ export function LocalSkillsControl() {
       if (linked) setSkills(conversationId, next);
     },
   });
-  const hidden = skills.filter((skill) => skill.shadowed_by !== null).length;
+  const visible = new Map<string, LocalSkill>();
+  let hidden = 0;
+  for (const source of SKILL_SOURCES.filter((source) => chosen.includes(source))) {
+    for (const skill of skills.filter((skill) => skill.source === source)) {
+      const winner = visible.get(skill.name);
+      if (winner === undefined) visible.set(skill.name, skill);
+      else if (skill.shared_id === undefined || winner.shared_id !== skill.shared_id) hidden += 1;
+    }
+  }
   return (
     <div className="border-foreground/10 mt-4 border-t pt-4">
-      <div className="mb-2 flex items-center gap-1">
+      <div className="mb-2 flex items-center gap-1" data-tour="chat-local-skills">
         <p className="text-foreground/85 text-[13px] font-medium">{t("title")}</p>
         <ContextHelp>{t("help")}</ContextHelp>
       </div>
       <ul className="grid gap-1">
         {SKILL_SOURCES.map((source) => {
           const count = skills.filter(
-            (skill) => skill.source === source && skill.shadowed_by === null,
+            (skill) =>
+              skill.source === source &&
+              (chosen.includes(source)
+                ? visible.get(skill.name) === skill
+                : skill.shadowed_by !== source),
           ).length;
           const checked = chosen.includes(source);
           const id = `local-skills-${source}`;

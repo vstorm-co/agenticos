@@ -107,8 +107,14 @@ export function SchemaForm({
     // rather than staying selected where the form cannot show it.
     for (const [other, property] of Object.entries(schema.properties ?? {})) {
       const when = property["x-enum-when"];
-      if (when?.field !== key || next[other] === undefined) continue;
-      if (!(when.choices[String(fieldValue)] ?? []).includes(String(next[other]))) {
+      if (
+        when === undefined ||
+        (when.field !== key && when.unless?.field !== key) ||
+        next[other] === undefined
+      )
+        continue;
+      const allowed = conditionalChoices(property, schema, next);
+      if (allowed !== undefined && !allowed.includes(String(next[other]))) {
         next[other] = undefined;
       }
     }
@@ -158,10 +164,9 @@ function narrowed(
   schema: JsonSchema,
   value: Record<string, unknown>,
 ): JsonSchemaProperty {
-  const when = property["x-enum-when"];
-  if (when === undefined) return property;
-  const current = value[when.field] ?? schema.properties?.[when.field]?.default;
-  const allowed = new Set(when.choices[String(current)] ?? []);
+  const choices = conditionalChoices(property, schema, value);
+  if (choices === undefined) return property;
+  const allowed = new Set(choices);
   const keep = (values: unknown[] | undefined) =>
     values?.filter((choice) => allowed.has(String(choice)));
   return {
@@ -171,6 +176,18 @@ function narrowed(
       branch.enum ? { ...branch, enum: keep(branch.enum) } : branch,
     ),
   };
+}
+
+function conditionalChoices(
+  property: JsonSchemaProperty,
+  schema: JsonSchema,
+  value: Record<string, unknown>,
+): string[] | undefined {
+  const when = property["x-enum-when"];
+  if (when === undefined) return undefined;
+  const read = (field: string) => value[field] ?? schema.properties?.[field]?.default;
+  if (when.unless?.equals.includes(String(read(when.unless.field)))) return undefined;
+  return when.choices[String(read(when.field))] ?? [];
 }
 
 /**

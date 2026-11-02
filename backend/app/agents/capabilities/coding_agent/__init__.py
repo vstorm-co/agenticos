@@ -109,6 +109,7 @@ class CodingAgentConfig(BaseModel):
             "x-enum-when": {
                 "field": "harness",
                 "choices": {"claude_code": ["edit", "read_only"], "codex": ["edit"]},
+                "unless": {"field": "runs_on", "equals": ["this_computer"]},
             },
         },
     )
@@ -177,7 +178,7 @@ class CodingAgentConfig(BaseModel):
 
     @model_validator(mode="after")
     def _codex_may_edit(self) -> CodingAgentConfig:
-        if self.harness == "codex" and self.access == "read_only":
+        if self.runs_on == "sandbox" and self.harness == "codex" and self.access == "read_only":
             raise ValueError(
                 "Codex can only run with access to change files: its read-only mode is "
                 "a sandbox of its own, which cannot start inside the agent's sandbox. "

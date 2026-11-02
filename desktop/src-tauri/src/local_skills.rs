@@ -224,11 +224,36 @@ fn object(value: Value) -> Map<String, Value> {
     }
 }
 
-/// The skills a chat's sources offer, for the person to see and the model to choose from.
+/// Local-only directory identity lets the UI distinguish aliases from name clashes.
+#[derive(Serialize)]
+pub struct ListedSkill {
+    #[serde(flatten)]
+    skill: Skill,
+    shared_id: String,
+}
+
+fn listed_skills(home: &Path, sources: &[Source]) -> Vec<ListedSkill> {
+    use std::hash::{DefaultHasher, Hash, Hasher};
+    sources
+        .iter()
+        .flat_map(|source| discover(home, &[*source]))
+        .map(|found| {
+            // Only a display grouping key, never an authorization or filesystem lookup.
+            let mut hash = DefaultHasher::new();
+            found.directory.hash(&mut hash);
+            ListedSkill {
+                skill: found.skill,
+                shared_id: format!("{:016x}", hash.finish()),
+            }
+        })
+        .collect()
+}
+
+/// Each source's skills, read independently so unchecked sources cannot hide one.
 #[tauri::command]
-pub fn local_skills(sources: Vec<Source>) -> Result<Vec<Skill>, String> {
+pub fn local_skills(sources: Vec<Source>) -> Result<Vec<ListedSkill>, String> {
     let home = home().map_err(|r| r.message)?;
-    Ok(discover(&home, &sources).into_iter().map(|found| found.skill).collect())
+    Ok(listed_skills(&home, &sources))
 }
 
 fn list(args: &Map<String, Value>) -> Result<Map<String, Value>, Refusal> {
@@ -271,15 +296,22 @@ fn read(args: &Map<String, Value>) -> Result<Map<String, Value>, Refusal> {
     Ok(object(serde_json::json!({ "text": text })))
 }
 
-/// The newer of the two global `AGENTS.md` files, `~/.codex` or `~/.claude`.
+/// The newest enabled global AGENTS.md or CLAUDE.md file.
 fn global_instructions(home: &Path, enabled: &[Source]) -> Option<(Source, String)> {
     let newest = [Source::Codex, Source::Claude]
         .into_iter()
         .filter(|source| enabled.contains(source))
-        .filter_map(|source| {
-            let path = home.join(source.directory()).join("AGENTS.md");
-            let modified = std::fs::metadata(&path).ok()?.modified().ok()?;
-            Some((modified, source, path))
+        .flat_map(|source| {
+            let names: &[&str] = if source == Source::Claude {
+                &["AGENTS.md", "CLAUDE.md"]
+            } else {
+                &["AGENTS.md"]
+            };
+            names.iter().filter_map(move |name| {
+                let path = home.join(source.directory()).join(name);
+                let modified = std::fs::metadata(&path).ok()?.modified().ok()?;
+                Some((modified, source, path))
+            })
         })
         .max_by_key(|(modified, ..)| *modified)?;
     let (_, source, path) = newest;
@@ -293,25 +325,60 @@ fn global_instructions(home: &Path, enabled: &[Source]) -> Option<(Source, Strin
     (!text.trim().is_empty()).then_some((source, text))
 }
 
+/// Root instructions, followed by each directory's instructions down to `relative`.
+/// Only the approved tree is read; ancestors outside it and symlinks are refused.
+fn folder_instructions(root: &Path, relative: &Path) -> std::io::Result<Option<String>> {
+    let directory = crate::local_fs::open(root)?;
+    let mut folders = vec![PathBuf::new()];
+    let mut current = PathBuf::new();
+    for component in relative.components() {
+        if let std::path::Component::Normal(name) = component {
+            current.push(name);
+            if folders.len() >= 32 {
+                return Err(std::io::Error::other("The instruction path is too deep."));
+            }
+            folders.push(current.clone());
+        }
+    }
+    let mut parts = Vec::new();
+    let mut remaining = TEXT_LIMIT;
+    for folder in folders {
+        for name in ["AGENTS.md", "CLAUDE.md"] {
+            let path = folder.join(name);
+            let file = match crate::local_fs::regular(&directory, &path, false) {
+                Ok(file) => file,
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
+                Err(error) => return Err(error),
+            };
+            let text = text_of(file, remaining)?;
+            remaining = remaining.saturating_sub(text.len() as u64);
+            if !text.trim().is_empty() {
+                parts.push(format!("### {}\n\n{}", path.display(), text.trim()));
+            }
+            if remaining == 0 {
+                break;
+            }
+        }
+        if remaining == 0 {
+            break;
+        }
+    }
+    Ok((!parts.is_empty()).then(|| parts.join("\n\n")))
+}
+
 async fn instructions(app: &AppHandle, args: &Map<String, Value>) -> Result<Map<String, Value>, Refusal> {
     let global = global_instructions(&home()?, &sources(args)?);
     // Only a folder the person granted, read through the same confinement as any file.
     let folder = match args.get("root").and_then(Value::as_str) {
         Some(root) => {
             let granted = local_work::granted_folder(app, root, Mode::ReadOnly)?;
-            let path = granted.clone();
-            tauri::async_runtime::spawn_blocking(move || {
-                let directory = crate::local_fs::open(&path).ok()?;
-                let relative = crate::local_fs::relative(&path, "AGENTS.md").ok()?;
-                let file = crate::local_fs::regular(&directory, &relative, false).ok()?;
-                let mut data = Vec::new();
-                file.take(TEXT_LIMIT + 1).read_to_end(&mut data).ok()?;
-                data.truncate(TEXT_LIMIT as usize);
-                let text = String::from_utf8_lossy(&data).into_owned();
-                (!text.trim().is_empty()).then_some(text)
-            })
-            .await
-            .map_err(|e| Refusal::new("io", e.to_string()))?
+            let requested = args.get("path").and_then(Value::as_str).unwrap_or(".");
+            let relative = crate::local_fs::relative(&granted, requested)
+                .map_err(|_| Refusal::new("denied", "Instruction paths must stay in the approved folder."))?;
+            tauri::async_runtime::spawn_blocking(move || folder_instructions(&granted, &relative))
+                .await
+                .map_err(|e| Refusal::new("io", e.to_string()))?
+                .map_err(|e| Refusal::new("denied", e.to_string()))?
         }
         None => None,
     };
@@ -555,5 +622,53 @@ mod tests {
         );
         assert!(parse(serde_json::json!(["/etc"])).is_err());
         assert!(sources(&Map::new()).is_err());
+    }
+    #[test]
+    fn project_instructions_are_ordered_by_scope_and_include_claude_files() {
+        let root = std::fs::canonicalize(home()).unwrap();
+        std::fs::create_dir_all(root.join("src/deep")).unwrap();
+        for (file, text) in [
+            ("AGENTS.md", "root"),
+            ("CLAUDE.md", "root claude"),
+            ("src/AGENTS.md", "source rules"),
+            ("src/deep/CLAUDE.md", "deep rules"),
+        ] {
+            std::fs::write(root.join(file), text).unwrap();
+        }
+        let text = folder_instructions(&root, Path::new("src/deep")).unwrap().unwrap();
+        assert!(text.find("root claude").unwrap() < text.find("source rules").unwrap());
+        assert!(text.find("source rules").unwrap() < text.find("deep rules").unwrap());
+        assert!(!folder_instructions(&root, Path::new("src"))
+            .unwrap()
+            .unwrap()
+            .contains("deep rules"));
+        symlink(root.join("CLAUDE.md"), root.join("src/CLAUDE.md")).unwrap();
+        assert!(folder_instructions(&root, Path::new("src")).is_err());
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn a_claude_global_file_is_used_only_when_its_source_is_enabled() {
+        let home = home();
+        std::fs::create_dir_all(home.join(".claude")).unwrap();
+        std::fs::write(home.join(".claude/CLAUDE.md"), "personal claude rules").unwrap();
+        assert_eq!(
+            global_instructions(&home, &[Source::Claude]),
+            Some((Source::Claude, "personal claude rules".into()))
+        );
+        assert!(global_instructions(&home, &[Source::Agents]).is_none());
+        std::fs::remove_dir_all(home).unwrap();
+    }
+    #[test]
+    fn the_source_picker_can_count_an_alias_without_calling_it_a_name_clash() {
+        let home = home();
+        let real = skill(&home, ".agents", "review", "---\nname: review\n---\n");
+        std::fs::create_dir_all(home.join(".claude/skills")).unwrap();
+        symlink(&real, home.join(".claude/skills/review")).unwrap();
+        let listed = listed_skills(&home, &ALL);
+        assert_eq!(listed.len(), 2);
+        assert_eq!(listed[0].shared_id, listed[1].shared_id);
+        assert_eq!(listed_skills(&home, &[Source::Claude]).len(), 1);
+        std::fs::remove_dir_all(home).unwrap();
     }
 }

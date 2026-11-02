@@ -874,7 +874,11 @@ export interface JsonSchemaProperty {
    * the coding agent's models, which depend on its harness. A choice the other
    * field no longer allows is cleared when that field changes.
    */
-  "x-enum-when"?: { field: string; choices: Record<string, string[]> };
+  "x-enum-when"?: {
+    field: string;
+    choices: Record<string, string[]>;
+    unless?: { field: string; equals: string[] };
+  };
   /**
    * Show this field only while another field of the same form holds one of
    * these values - a proxy's address under "Through a proxy" and nowhere else.

@@ -213,3 +213,27 @@ def test_skills_alone_make_a_target_without_a_folder() -> None:
         LocalTarget(skills=["/etc"])  # type: ignore[list-item]
     with pytest.raises(ValidationError):
         LocalTarget(skills=["agents", "claude", "codex", "agents"])
+
+
+async def test_subfolder_instructions_use_only_the_chats_approved_root_and_sources(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    call = computer(instructions={"folder": "nested CLAUDE.md rules"})
+    result = await context(monkeypatch, call, folder="/work/app")
+    tool = result.toolset.tools["load_local_instructions"].function
+    assert await tool("src") == "nested CLAUDE.md rules"
+    assert operations(call)[-1] == (
+        "local.instructions",
+        {"sources": ["agents", "claude"], "root": "/work/app", "path": "src"},
+    )
+
+
+async def test_subfolder_instruction_absence_and_refusal_are_explicit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    call = computer()
+    result = await context(monkeypatch, call, folder="/work/app")
+    tool = result.toolset.tools["load_local_instructions"].function
+    assert "No project instructions" in await tool("src")
+    call.side_effect = DeviceCallFailed(message="Outside the approved folder")
+    assert "Outside the approved folder" in await tool("../private")

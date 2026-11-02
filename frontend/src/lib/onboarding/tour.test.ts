@@ -230,6 +230,7 @@ describe("stepsForPage", () => {
       "chat-start",
       "chat-agent-picker",
       "chat-composer",
+      "chat-local-skills",
       "chat-plan",
       "chat-visual",
       "chat-model-picker",
@@ -261,6 +262,7 @@ describe("stepsForPage", () => {
     // tab only.
     expect(stepsForPage(ROUTES.SETTINGS_NOTIFICATIONS, () => true).map((s) => s.id)).toEqual([
       "settings-tabs",
+      "desktop-local-agents",
       "settings-appearance",
       "my-memory",
       "sign-in-to-site",

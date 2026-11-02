@@ -323,3 +323,13 @@ describe("local agents", () => {
     expect(() => commands.parseLocalAgents(null)).toThrow("malformed");
   });
 });
+
+it("reads optional shared directory identity while accepting older desktop responses", async () => {
+  const skill = { name: "pdf", description: "d", source: "agents", shadowed_by: null };
+  invoke.mockResolvedValue([{ ...skill, shared_id: "opaque-directory" }]);
+  await expect(commands.getLocalSkills(["agents"])).resolves.toEqual([
+    { ...skill, shared_id: "opaque-directory" },
+  ]);
+  invoke.mockResolvedValue([{ ...skill, shared_id: 42 }]);
+  await expect(commands.getLocalSkills(["agents"])).rejects.toThrow("malformed");
+});

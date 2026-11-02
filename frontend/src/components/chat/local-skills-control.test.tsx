@@ -63,10 +63,11 @@ it("is off for a new chat, and says so, with what each folder holds", () => {
   mount();
   expect(screen.getByRole("checkbox", { name: /~\/\.agents\/skills/ })).not.toBeChecked();
   expect(screen.getByText("2 skills")).toBeInTheDocument();
-  expect(screen.getByText("1 skill")).toBeInTheDocument();
-  expect(screen.getByText("0 skills")).toBeInTheDocument();
-  expect(screen.getByText(/Off: this chat uses only what is in AgenticOS/)).toBeInTheDocument();
-  expect(screen.getByText(/1 skill is hidden by one of the same name/)).toBeInTheDocument();
+  expect(screen.getAllByText("1 skill")).toHaveLength(2);
+  expect(
+    screen.getByText(/Off: AgenticOS does not load your local skills or instructions/),
+  ).toBeInTheDocument();
+  expect(screen.queryByText(/skill is hidden by one of the same name/)).not.toBeInTheDocument();
 });
 
 it("turns sources on and off one at a time, in the order that settles a clash", async () => {
@@ -78,7 +79,7 @@ it("turns sources on and off one at a time, in the order that settles a clash", 
   await waitFor(() => expect(chosen()).toEqual(["agents", "codex"]));
   await user.click(screen.getByRole("checkbox", { name: /~\/\.codex\/skills/ }));
   await waitFor(() => expect(chosen()).toEqual(["agents"]));
-  expect(screen.getByText(/follows your AGENTS\.md/)).toBeInTheDocument();
+  expect(screen.getByText(/follows your global instructions/)).toBeInTheDocument();
 });
 
 it("links this computer first when it is not linked, and stays off if that is refused", async () => {
@@ -103,4 +104,50 @@ it("a draft chat's choice moves under its id when the chat is filed", () => {
   useWorkOnStore.getState().setSkills(null, ["codex"]);
   useWorkOnStore.getState().resetDraft();
   expect(useWorkOnStore.getState().skillsFor(null)).toEqual([]);
+});
+
+it("counts an enabled lower-priority source until its competitor is enabled", async () => {
+  const user = userEvent.setup();
+  mount();
+  await user.click(screen.getByRole("checkbox", { name: /~\/\.codex\/skills/ }));
+  await waitFor(() => expect(chosen()).toEqual(["codex"]));
+  expect(
+    screen.getByRole("checkbox", { name: /~\/\.codex\/skills/ }).closest("li"),
+  ).toHaveTextContent("1 skill");
+  expect(screen.queryByText(/skill is hidden by one of the same name/)).toBeNull();
+  await user.click(screen.getByRole("checkbox", { name: /~\/\.agents\/skills/ }));
+  await waitFor(() => expect(chosen()).toEqual(["agents", "codex"]));
+  expect(
+    screen.getByRole("checkbox", { name: /~\/\.codex\/skills/ }).closest("li"),
+  ).toHaveTextContent("0 skills");
+  expect(screen.getByText(/1 skill is hidden by one of the same name/)).toBeInTheDocument();
+});
+
+it("deduplicates enabled aliases without reporting a conflicting skill", async () => {
+  env.skills = [
+    { ...skill("shared", "agents"), shared_id: "same-directory" },
+    { ...skill("shared", "claude"), shared_id: "same-directory" },
+  ];
+  const user = userEvent.setup();
+  mount();
+  await user.click(screen.getByRole("checkbox", { name: /~\/\.claude\/skills/ }));
+  await waitFor(() => expect(chosen()).toEqual(["claude"]));
+  expect(
+    screen.getByRole("checkbox", { name: /~\/\.claude\/skills/ }).closest("li"),
+  ).toHaveTextContent("1 skill");
+  await user.click(screen.getByRole("checkbox", { name: /~\/\.agents\/skills/ }));
+  await waitFor(() => expect(chosen()).toEqual(["agents", "claude"]));
+  expect(screen.queryByText(/skill is hidden by one of the same name/)).toBeNull();
+});
+
+it("counts a same-name clash within one source only once", async () => {
+  env.skills = [skill("review", "claude"), skill("review", "claude", "claude")];
+  const user = userEvent.setup();
+  mount();
+  const choice = screen.getByRole("checkbox", { name: /~\/\.claude\/skills/ });
+  expect(choice.closest("li")).toHaveTextContent("1 skill");
+  await user.click(choice);
+  await waitFor(() => expect(chosen()).toEqual(["claude"]));
+  expect(choice.closest("li")).toHaveTextContent("1 skill");
+  expect(screen.getByText(/1 skill is hidden by one of the same name/)).toBeInTheDocument();
 });

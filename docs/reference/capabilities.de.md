@@ -1,5 +1,5 @@
 ---
-source_sha: "84c18f38fe4c"
+source_sha: "60474df64ce2"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -1593,7 +1593,7 @@ jeden Spezialisten.
 | Konfiguration | Standard | Werte |
 |---|---|---|
 | `harness` | `claude_code` | `claude_code` (ein Anthropic-API-Key oder ein Claude-Abo-Token), `codex` (ein OpenAI-API-Key oder eine ChatGPT-Anmeldung) |
-| `access` | `edit` | `edit` ändert Dateien und führt Befehle aus; `read_only` liest den Code und antwortet (nur Claude Code) |
+| `access` | `edit` | `edit` ändert Dateien und führt Befehle aus; `read_only` liest den Code und antwortet (Claude Code oder Codex auf diesem Computer) |
 | `model` | Standard des Harness | Claude Opus, Sonnet oder Haiku 5.5 für Claude Code; GPT-5.6 Sol, Terra, Luna oder GPT-5.3 Codex für Codex |
 | `base_url` | direkt Anthropic | Nur Claude Code: ein Gateway, das die API von Anthropic spricht, etwa `https://openrouter.ai/api`, dessen Key dann im Vault liegt. Entfällt, sobald Codex gewählt ist |
 | `timeout_minutes` | 15 | 1–60, pro Aufgabe |
@@ -1608,14 +1608,16 @@ Planmodus ohne jedes Tool, das schreibt - ohne seine Bearbeitungstools und ohne 
 und liest mit Read, Grep und Glob; es weiß, dass nichts anderes freigegeben werden
 kann. Nicht einmal lesende Befehle: Keine Liste von Befehlspräfixen hält eine Shell
 schreibgeschützt, denn `git log --output=<Datei>` passt auf `git log` wie jeder
-Lesezugriff. Codex hat kein `read_only`: Sein
+Lesezugriff. Codex in einem Container hat kein `read_only`: Sein
 Nur-Lesen-Modus ist ein eigener Sandbox, der im Container des Agent nicht startet,
 und das Veröffentlichen lehnt die Kombination ab. Ob ein Mensch vor jeder Aufgabe Ja
 sagt, ist die **Freigabe durch einen Menschen** der Capability, auf **Immer fragen**
 gesetzt — wie jede Sperre ist sie aus, bis jemand sie setzt. Es gibt keinen
 Tools-Tab: Das eine Tool ist die Capability.
 
-**Auf diesem Computer.** Steht `runs_on` auf `this_computer`, startet dasselbe Tool den Harness auf dem Computer, an dem die Person arbeitet, über das [Agent Client Protocol](https://agentclientprotocol.com), statt in der Sandbox: Die Desktop-App startet den Adapter des Agenten (`@agentclientprotocol/claude-agent-acp` oder `codex-acp`, in fester Version) über `npx` und reicht Bytes in beide Richtungen weiter, und der Server spricht das Protokoll. Der Chat muss auf diesem Computer arbeiten (**Work on: This computer**), in einem Ordner mit Vollzugriff, weil der Agent als die Person läuft; jeder Start wird in einem nativen Dialog bestätigt, und der Agent meldet sich mit seinem eigenen Befehl an, sodass der Schlüssel optional ist. Innerhalb einer Aufgabe werden die Berechtigungsanfragen des Agenten aus `access` beantwortet und nicht einzeln einer Person vorgelegt, weil ein auf eine Freigabe geparkter Lauf die Sitzung nicht am Leben halten könnte: Die Freigabe gehört der Capability, einmal pro Aufgabe. Jede Aufgabe ist eine neue Sitzung, und ein Abonnement meldet keine Tokens zum Bepreisen, daher sind die Kosten des Laufs eine Untergrenze. Siehe [die Desktop-App](../desktop.md#coding-agents-on-this-computer).
+**Auf diesem Computer.** Setze `runs_on` auf `this_computer`, um den installierten Harness über das [Agent Client Protocol](https://agentclientprotocol.com) zu nutzen. Die Desktop-App startet einen fest versionierten Adapter mit `npx`; der Server spricht ACP. Wähle einen Ordner mit Vollzugriff in **Work on** und bestätige jeden Start nativ. Der Ordner ist ein Arbeitsverzeichnis, keine Betriebssystem-Sandbox. Der Harness verwendet seine eigene Anmeldung; ein Vault-Schlüssel ist optional. Berechtigungsanfragen folgen `access`; die Freigabe gilt einmal pro Aufgabe. Claude read-only deaktiviert Bypass und Schreibwerkzeuge; lokales Codex wählt seinen nativen Lesemodus.
+
+Weitere Aufgaben laden dieselbe Unterhaltungssitzung; `fresh_session` beginnt ausdrücklich neu. Korrekturen unterbrechen den ACP-Turn und setzen dieselbe Sitzung nach bestätigtem Stopp fort. Sitzungskennungen bleiben außerhalb des Repositorys und werden beim Trennen gelöscht. Unbepreiste Abonnementaufgaben, auch gestartete fehlgeschlagene Aufgaben, machen die Run-Kosten zur Untergrenze. Siehe [Desktop-App](../desktop.md#coding-agents-on-this-computer).
 
 **Man sieht ihm bei der Arbeit zu.** Das Harness wird im Sandbox im Hintergrund
 gestartet (`claude -p --output-format stream-json` oder `codex exec --json`), und

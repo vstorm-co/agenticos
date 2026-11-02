@@ -1424,3 +1424,43 @@ it("presents browser connections as one icon card choice and writes the selected
   await userEvent.click(choices[3]!);
   expect(change).toHaveBeenCalledWith(expect.objectContaining({ connection: "local" }));
 });
+
+it("offers local Codex read-only and clears it when returning to a sandbox", async () => {
+  const schema: JsonSchema = {
+    type: "object",
+    properties: {
+      harness: { type: "string", default: "codex" },
+      runs_on: {
+        type: "string",
+        enum: ["sandbox", "this_computer"],
+        title: "Where it runs",
+        default: "sandbox",
+      },
+      access: {
+        type: "string",
+        enum: ["edit", "read_only"],
+        title: "Access",
+        "x-enum-when": {
+          field: "harness",
+          choices: { codex: ["edit"] },
+          unless: { field: "runs_on", equals: ["this_computer"] },
+        },
+      },
+    },
+  };
+  const onChange = vi.fn();
+  render(
+    <SchemaForm
+      schema={schema}
+      value={{ runs_on: "this_computer", access: "read_only" }}
+      onChange={onChange}
+      idPrefix="local"
+    />,
+  );
+  await userEvent.click(screen.getByLabelText("Access"));
+  expect(screen.getByRole("option", { name: "read_only" })).toBeInTheDocument();
+  await userEvent.keyboard("{Escape}");
+  await userEvent.click(screen.getByLabelText("Where it runs"));
+  await userEvent.click(screen.getByRole("option", { name: "sandbox" }));
+  expect(onChange).toHaveBeenLastCalledWith({ runs_on: "sandbox", access: undefined });
+});

@@ -21,6 +21,9 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- Local coding tasks resume their conversation's harness session across process restarts. Mid-task corrections interrupt and continue the same session, with applied updates recorded in the transcript and report. Resume identifiers stay outside the repository and are isolated by account, agent, conversation, folder and access policy.
+- Local project instructions support both `AGENTS.md` and `CLAUDE.md`, with a tool to read the hierarchy inside the approved folder. Sign-in opens a native terminal on macOS, Windows and Linux.
+
 - The desktop app finds Claude Code and Codex on the computer, shows their version and whether they are signed in under Settings → Desktop app, and opens each agent's own sign-in in Terminal. AgenticOS never reads or copies the files an agent keeps its credentials in.
 - The `coding_agent` capability can run Claude Code or Codex on the person's own computer (**Where it runs: On this computer**), in a folder granted full access, over the Agent Client Protocol. The agent signs in with its own command, so no key is needed. Each start is confirmed in a native dialog; permission requests inside a task are answered from the binding's access, and the capability's approval stays once per task.
 - Chat controls → Work on → **My skills and instructions** lets a chat use the skills in `~/.agents`, `~/.claude` and `~/.codex` and your `AGENTS.md` (the newer of `~/.codex` and `~/.claude`, then the working folder's), read in place on the desktop and never copied. Off for every new chat and chosen per folder; a name clash goes to `.agents`, then `.claude`, then `.codex`.
@@ -38,6 +41,9 @@ Two things are versioned separately from this file and worth knowing about:
 - `GET /conversations` leaves out threads a bot answers in (Slack, Mattermost, Telegram, Teams) by default, so `/chat` no longer fills with them. Pass `hide_channels=false` to list them again; they stay reachable from Runs and the channel's page.
 
 ### Fixed
+
+- Local Claude Code read-only tasks disable bypass permissions and expose reading tools only. Local Codex read-only is available in the Builder and selects its native read-only mode. Launch consent has a five-minute interaction timeout, and local skill counts follow the enabled sources.
+- Homebrew publishing supports a deploy key restricted to the tap repository, with temporary key cleanup on success and failure. The stable macOS publisher fingerprint is pinned for installer verification.
 
 - The desktop app can be allowed to use the microphone: the bundle now declares the audio-input and Apple Events entitlements it needs under the hardened runtime, and the setup wizard offers the microphone next to Screen Recording and Accessibility.
 - The cask attached to a release clears the download quarantine flag from the installed app, so Gatekeeper does not refuse an unnotarized build installed through Homebrew.

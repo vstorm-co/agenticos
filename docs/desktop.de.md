@@ -1,5 +1,5 @@
 ---
-source_sha: "e3d63bb1b47b"
+source_sha: "f1b53cac2267"
 ---
 
 # Die Desktop-App { #the-desktop-app }
@@ -45,6 +45,8 @@ Lade das Paket für deinen Computer aus dem [GitHub-Release](https://github.com/
 - **Linux:** Öffne `.deb` oder `.rpm` im Software-Installer deiner Distribution. Für eine portable Installation erlaube das Ausführen der `.AppImage` in ihren Dateieigenschaften und öffne sie.
 
 Beim ersten Start führt dich der Assistent zur Serververbindung oder einer lokalen Instanz. Nur lokale Instanzen benötigen Docker; der Assistent erkennt es und bietet bei Bedarf einen Download an. Die Installation gewährt keinen Bildschirm- oder Mikrofonzugriff.
+
+[Warum macOS diese Warnung anzeigt](howto/macos-warning.md).
 
 ### Desktop-Widgets unter macOS { #desktop-widgets-on-macos }
 
@@ -472,24 +474,27 @@ seiner eigenen öffentlichen Adresse.
   jeder API-Host und Worker einen Computer erreicht, und `DeviceWorkspace`, der
   Sandbox-Workspace, den die App ausführt.
 
-## Coding-Agenten auf diesem Computer { #coding-agents-on-this-computer }
+## Coding agents auf diesem Computer { #coding-agents-on-this-computer }
 
-Ist Claude Code oder Codex hier installiert, zeigt **Settings → Desktop app → Coding agents on this computer** Version und Anmeldestatus jedes Agenten. **Sign in** öffnet die eigene Anmeldung des Agenten im Terminal, **Sign out** führt seine eigene Abmeldung aus. AgenticOS liest oder kopiert nie die Dateien, in denen ein Agent seine Zugangsdaten hält, und der Status aktualisiert sich, wenn du zum Fenster zurückkehrst.
+**Settings → Desktop app → Coding agents on this computer** zeigt installierte Versionen von Claude Code und Codex sowie den Anmeldestatus. **Sign in** öffnet den eigenen Anmeldebefehl des Agents im Terminal unter macOS, in PowerShell unter Windows oder in einem verfügbaren Linux-Terminal. Nach der Rückkehr aktualisiert sich der Status. AgenticOS liest oder kopiert keine Zugangsdaten. Die fest versionierten ACP-Adapter benötigen Node.js 22 oder neuer.
 
-Ein Agent, dessen Capability **Coding agent** auf **Where it runs: On this computer** steht, führt diesen Coding-Agenten im Ordner aus, den du für den Chat gewählt hast, mit der Anmeldung, die er schon hat, sodass kein Schlüssel nötig ist. Der Composer zeigt, welcher Agent wo arbeitet (`Claude Code · agenticos · darf bearbeiten`) oder was fehlt.
+Wähle für die Capability **Coding agent** die Option **On this computer**, einen Ordner unter **Work on** und vollständigen Zugriff. Jede Aufgabe erfordert eine native Bestätigung mit bis zu fünf Minuten Antwortzeit. Der Adapter läuft unter deinem Betriebssystemkonto: Der Ordner bestimmt das Arbeitsverzeichnis, keine Betriebssystem-Sandbox. Zugriff auf den gesamten Computer startet keinen Coding agent. Der Composer zeigt Agent, Ordner und Zugriffsrichtlinie.
 
-- **Vollzugriff auf den Ordner ist nötig.** Der Agent läuft als du, was eine Betriebssystem-Sandbox verhindern würde; der Ordner braucht daher Vollzugriff, und jeder Start fragt in einem nativen Dialog nach Bestätigung. Mit Zugriff auf den ganzen Computer lässt sich kein Agent starten.
-- **Node.js 22 oder neuer.** Die App startet den ACP-Adapter des Agenten (`@agentclientprotocol/claude-agent-acp` oder `codex-acp`, jeweils in fester Version) über `npx`.
-- **Seine Anfragen werden durch den Zugriff der Bindung beantwortet, nicht einzeln erfragt.** Die Freigabe gehört der Capability, einmal pro Aufgabe. Innerhalb einer Aufgabe erlaubt `edit`, was der Agent verlangt, und `read_only` nur Lesen. Der Agent stoppt, wenn die App die Verbindung zum Server verliert.
-- Jede Aufgabe ist eine neue Sitzung, und die Tokens eines Abonnements werden nicht bepreist; die Kosten des Laufs sind daher eine Untergrenze.
+Die Capability-Freigabe gilt einmal pro Aufgabe. `edit` erlaubt angefragte Aktionen; `read_only` verweigert Änderungen. Claude deaktiviert im Lesemodus die Umgehung von Berechtigungen und bietet nur Lesewerkzeuge an. Codex wählt seine native schreibgeschützte Sandbox. Lokale Agents verwenden ihre eigenen Modelleinstellungen. Abonnementnutzung bleibt unbepreist; die angezeigten Run-Kosten sind eine Untergrenze.
+
+Weitere Aufgaben setzen die Harness-Sitzung für dieselbe Unterhaltung, denselben Agent, Ordner, Account und dieselbe Zugriffsrichtlinie fort. `fresh_session` beginnt ausdrücklich neu. Sitzungskennungen bleiben in den Desktop-Einstellungen außerhalb des Repositorys und werden beim Trennen oder Accountwechsel gelöscht. Kann eine gespeicherte Sitzung nicht geladen werden, schlägt die Aufgabe ausdrücklich fehl. Starte bei Bedarf neu. Eine Trennung stoppt den Prozess; gespeicherte Harness-Verläufe bleiben fortsetzbar.
+
+Eine während der lokalen Aufgabe gesendete Korrektur unterbricht den aktuellen ACP-Turn. Sobald der Adapter den Stopp bestätigt, setzt dieselbe Sitzung mit der Korrektur fort. Das Transkript hält die angewendete Korrektur fest. Nach Abschluss eingehende Nachrichten bleiben für den übergeordneten Agent verfügbar.
 
 ## Eigene Skills und Anweisungen { #your-own-skills-and-instructions }
 
-**Chat-Steuerung → Arbeiten auf → Meine Skills und Anweisungen** lässt einen Chat die Skills nutzen, die schon auf diesem Computer liegen, in `~/.agents/skills`, `~/.claude/skills` und `~/.codex/skills`, sowie deine `AGENTS.md`. Für jeden neuen Chat ist es aus und wird je Ordner gewählt.
+**Chat controls → Work on → My skills and instructions** wählt die Quellen einer Unterhaltung: `~/.agents/skills`, `~/.claude/skills` und `~/.codex/skills`. Neue Chats starten mit ausgeschalteten Quellen. Dateien werden direkt gelesen, ohne Zugangsdaten oder Konfiguration zu kopieren oder zu synchronisieren.
 
-- **Direkt gelesen.** Nichts wird nach AgenticOS kopiert oder synchronisiert, und die App liest nur die Ordner, die der Chat nennt.
-- **Konflikte.** Ein Skill gleichen Namens in zwei Ordnern wird aus `.agents`, dann `.claude`, dann `.codex` genommen, und das Panel zählt die verdeckten. Zwei Verknüpfungen auf einen Ordner sind ein Skill.
-- **Anweisungen.** Verwendet wird nur `AGENTS.md`. Die neuere von `~/.codex/AGENTS.md` und `~/.claude/AGENTS.md` steht zuletzt in dem, was das Modell liest, mit der `AGENTS.md` des Arbeitsordners darunter. Sie sind als Dateien deines Computers gekennzeichnet und können nicht erweitern, was der Lauf darf.
+Unter aktivierten Quellen gewinnt bei gleichen Namen `.agents`, dann `.claude`, dann `.codex`. Zähler berücksichtigen die aktuelle Auswahl. Links auf denselben Skill-Ordner werden beim Lesen dedupliziert. Globale Anweisungen stammen aus der neueren aktivierten Datei `~/.codex/AGENTS.md`, `~/.claude/AGENTS.md` oder `~/.claude/CLAUDE.md`, einschließlich Markdown-Symlinks.
+
+Danach folgen `AGENTS.md` und `CLAUDE.md` des freigegebenen Arbeitsordners. Vor Arbeiten in einem Unterordner kann der Agent mit `load_local_instructions` die Hierarchie von der freigegebenen Wurzel bis dorthin lesen. Spezifischere Dateien folgen den übergeordneten. Der Leser verlässt die Freigabe nicht und folgt keinen Projekt-Symlinks. Anweisungen erweitern keine Run-Berechtigungen.
+
+Geladene Skill- und Anweisungstexte gelangen über deinen Server zum konfigurierten Modell des Agents. Die Quellenauswahl steuert diesen AgenticOS-Kontext; lokal laufende Coding agents behalten ihre eigene Konfiguration und Anweisungssuche.
 
 ## Diagnose { #diagnostics }
 
@@ -560,7 +565,7 @@ Prüfungen laufen in CI; `make desktop-check` bleibt für gezielte lokale Änder
 verfügbar. **App release** hängt Installer, signierte Update-Dateien, ein APK und
 einen Homebrew-Cask an ein bestehendes veröffentlichtes stabiles Release
 `v1.MINOR.PATCH`, dessen Commit auf `main` liegt. Es erstellt kein Plattform-Release.
-Der Cask ist eine herunterladbare Datei; ein Homebrew-Tap wird separat veröffentlicht.
+Der Cask wird auch im Homebrew-Tap veröffentlicht, wenn ein Deploy-Key oder Token konfiguriert ist.
 **Check for Updates…** benötigt einen Build mit öffentlichem Update-Schlüssel und
 prüft vor der Installation die Signatur.
 
@@ -572,9 +577,11 @@ bleiben aktiv. Bis zur Freigabe der Verteilung gilt die Anleitung zur
 
 Vor einem Release die GitHub-Umgebung `apps-release` konfigurieren:
 
+- Dauerhafte macOS-Signierung: Secrets `MACOS_SELF_SIGNED_P12`, `MACOS_SELF_SIGNED_P12_PASSWORD` und Variable `MACOS_SELF_SIGNED_IDENTITY`. Den öffentlichen Fingerprint in `scripts/macos_signing_identity.txt` veröffentlichen.
+- Homebrew: Secret `HOMEBREW_TAP_DEPLOY_KEY`, ein schreibender Deploy-Key nur für das Tap-Repository. `HOMEBREW_TAP_TOKEN` bleibt eine Alternative. Temporäre Schlüsseldateien werden auch bei Fehlern entfernt.
 - Variable `AGENTICOS_UPDATER_PUBLIC_KEY`; Secrets `TAURI_SIGNING_PRIVATE_KEY`
   und `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` (dauerhaftes Update-Schlüsselpaar).
-- Optionale macOS-Developer-ID-Signierung: Setze die Repository-Variable `AGENTICOS_MACOS_SIGNING_ENABLED=true` und konfiguriere die folgenden Apple-Zugangsdaten. Fehlende Daten stoppen den Build ohne Ad-hoc-Fallback. Ohne Flag oder bei false werden Ad-hoc-Signaturen ohne Beglaubigung verwendet und Apple-Zugangsdaten ignoriert.
+- Optionale macOS-Developer-ID-Signierung: Setze die Repository-Variable `AGENTICOS_MACOS_SIGNING_ENABLED=true` und konfiguriere die folgenden Apple-Zugangsdaten. Fehlende Daten stoppen den Build ohne Ad-hoc-Fallback. Ohne Flag oder bei false wird das konfigurierte dauerhafte selbstsignierte Zertifikat verwendet, sonst eine Ad-hoc-Signatur. Beide sind nicht notarisiert; Apple-Zugangsdaten werden ignoriert.
 - macOS: `APPLE_CERTIFICATE` (Base64-P12), `APPLE_CERTIFICATE_PASSWORD`,
   `APPLE_SIGNING_IDENTITY`, `APPLE_ID`, `APPLE_PASSWORD` (App-Passwort)
   und `APPLE_TEAM_ID` für Developer-ID-Signatur und Notarisierung.

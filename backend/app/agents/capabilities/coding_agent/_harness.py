@@ -111,6 +111,7 @@ class CodingReport(BaseModel):
     session_id: str | None = None
     steps: list[CodingStep] = []
     files_changed: list[str] = []
+    task_updates: list[str] = []
     refused: list[str] = []
     """Tools the harness wanted and was not allowed at this access."""
 
