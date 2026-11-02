@@ -14,7 +14,7 @@ up as supported.
 
 import json
 import re
-from collections.abc import Sequence
+from collections.abc import Collection, Sequence
 from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime, timedelta
 from typing import Any, Literal
@@ -24,7 +24,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.permissions import AuthContext, Perm
 from app.db.models.conversation import Message
-from app.repositories import agent_repo, authoring_repo, conversation_repo, personal_data_repo
+from app.db.models.skill_usage import RunSkillUse
+from app.repositories import (
+    agent_repo,
+    authoring_repo,
+    conversation_repo,
+    personal_data_repo,
+    skill_usage_repo,
+)
 from app.repositories.authoring import EvidenceRun
 from app.schemas.authoring import (
     MAX_EVIDENCE_ITEMS,
@@ -34,7 +41,8 @@ from app.schemas.authoring import (
     EvidenceSource,
 )
 from app.schemas.scoring import ScorerResult
-from app.services.access import DATASET, accessible_ids
+from app.services.access import AGENT, DATASET, accessible_ids
+from app.services.conversation import ConversationService
 from app.services.eval_comparison import Attempt, Outcome
 
 MAX_EVIDENCE_RUNS = 20
@@ -81,6 +89,12 @@ class PackedRun:
             for a test question from a dataset answered in a train-part eval.
         number: Its place among the pack's items of the same kind, from 1; 0
             until a pack numbers it.
+        skill_use: For a skill's evidence, whether the run opened the skill or read
+            its files (`used`), or only named a path in its workspace folder
+            (`probable`).
+        via_delegate: The skill was used by an agent this run delegated to.
+        masked: Its text was withheld from a reader who may not open its
+            conversation.
     """
 
     run_id: UUID
@@ -96,6 +110,9 @@ class PackedRun:
     evidence_kind: Literal["chat", "train_eval"] = "chat"
     grades: tuple[ScorerResult, ...] = ()
     number: int = 0
+    skill_use: Literal["used", "probable"] | None = None
+    via_delegate: bool = False
+    masked: bool = False
 
     @property
     def grade_lines(self) -> list[str]:
@@ -118,6 +135,13 @@ class PackedRun:
         rated = {-1: "rated down", 1: "rated up", 0: "not rated"}[self.rating]
         heading = self.label[0].upper() + self.label[1:]
         lines = [f"## {heading} (run {self.run_id}) - {self.status}, {rated}"]
+        if self.skill_use == "probable":
+            lines.append(
+                "Skill use: probable - a call named a file in the skill's folder; "
+                "the skill itself was not opened"
+            )
+        if self.via_delegate:
+            lines.append("Skill used by an agent this one delegated to")
         lines += [f"Reader comment: {comment}" for comment in self.comments]
         lines += [f"Graded: {line}" for line in self.grade_lines]
         lines.append(
@@ -154,6 +178,10 @@ class EvidencePack:
 
     runs: list[PackedRun] = field(default_factory=list)
     training_feedback: str = ""
+    unknown_runs: int = 0
+    """Rated-down or failed runs that may have used the skill: nothing recorded whether they did."""
+    hidden_agents: int = 0
+    """Agents whose runs used the skill and the reader may not see."""
 
     def __post_init__(self) -> None:
         # A run keeps the number it was first given, so a pack narrowed after the
@@ -519,17 +547,74 @@ class EvidenceService:
         return packed[:MAX_EVIDENCE_RUNS], feedback
 
     async def for_skill(
-        self, ctx: AuthContext, skill_name: str, *, window_days: int
+        self,
+        ctx: AuthContext,
+        skill_id: UUID,
+        *,
+        window_days: int,
+        versions: Collection[UUID] | None = None,
     ) -> EvidencePack:
-        """The runs, of any agent, whose model opened the skill and was then rated or failed."""
+        """The runs that used the skill and were then rated or failed, across agents.
+
+        A run counts when its agent, or an agent it delegated to, used the skill
+        - of `versions` only, when given. Only the agents the caller may see are
+        read; the others are counted in `hidden_agents`. A run whose conversation
+        the caller may not open - or with none, to a caller without `runs:view` -
+        keeps its rating and outcome and loses its text, the rule datasets follow. Runs from before uses were recorded, of agents
+        whose version bound the skill, are counted in `unknown_runs`.
+        """
+        since = self._since(window_days)
+        involved = await skill_usage_repo.agents_involved(
+            self.db, organization_id=ctx.organization_id, skill_id=skill_id, since=since
+        )
+        unknown = await skill_usage_repo.unknown_runs(
+            self.db, organization_id=ctx.organization_id, skill_id=skill_id, since=since
+        )
+        agents = await agent_repo.get_many(
+            self.db, [*involved, *unknown], organization_id=ctx.organization_id
+        )
+        visible = await accessible_ids(
+            self.db, ctx, agents.values(), Perm.AGENTS_VIEW, resource_type=AGENT
+        )
         rows = await authoring_repo.evidence_runs(
             self.db,
             organization_id=ctx.organization_id,
-            skill_name=skill_name,
-            since=self._since(window_days),
+            skill_id=skill_id,
+            skill_versions=versions,
+            # A delegate the caller may not see would be named by its use of the skill.
+            skill_agent_ids=sorted(visible),
+            agent_ids=sorted(visible & involved),
+            since=since,
             limit=MAX_EVIDENCE_RUNS,
         )
-        return await self._pack(rows)
+        uses: dict[UUID, list[RunSkillUse]] = {}
+        for use in await skill_usage_repo.uses_in_runs(
+            self.db,
+            organization_id=ctx.organization_id,
+            skill_id=skill_id,
+            run_ids=[row.run.id for row in rows],
+        ):
+            uses.setdefault(use.run_id, []).append(use)
+        pack = await self._pack(rows)
+        readable = await ConversationService(self.db).readable(
+            ctx, [run.conversation_id for run in pack.runs if run.conversation_id]
+        )
+        agent_of = {row.run.id: row.run.agent_id for row in rows}
+        marked: list[PackedRun] = []
+        for run in pack.runs:
+            run = _by_skill(run, uses[run.run_id], agent_of[run.run_id])
+            # A run with no conversation is read by the lens that reads any run.
+            shown = (
+                run.conversation_id in readable
+                if run.conversation_id is not None
+                else ctx.has(Perm.RUNS_VIEW)
+            )
+            marked.append(run if shown else _masked(run))
+        return EvidencePack(
+            runs=marked,
+            unknown_runs=sum(count for agent, count in unknown.items() if agent in visible),
+            hidden_agents=len((involved | set(unknown)) - visible),
+        )
 
     async def for_context(
         self, ctx: AuthContext, context_id: UUID, *, window_days: int
@@ -616,3 +701,29 @@ class EvidenceService:
                 )
             )
         return EvidencePack(runs=packed)
+
+
+def _by_skill(run: PackedRun, uses: Sequence[RunSkillUse], agent_id: UUID) -> PackedRun:
+    """The run marked with how it used one skill: opened or read, or only probably."""
+    used = any(use.loaded or use.resource_reads for use in uses)
+    return replace(
+        run,
+        skill_use="used" if used else "probable",
+        via_delegate=all(use.agent_id != agent_id for use in uses),
+    )
+
+
+_WITHHELD = "(withheld: from a conversation you cannot open)"
+
+
+def _masked(run: PackedRun) -> PackedRun:
+    return replace(
+        run,
+        comments=[],
+        prompt=_WITHHELD,
+        answer=_WITHHELD,
+        calls=[],
+        error=None,
+        people=frozenset(),
+        masked=True,
+    )

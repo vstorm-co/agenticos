@@ -230,3 +230,20 @@ async def replace_pending(
         )
         if rewritten is not None:
             return rewritten
+
+
+async def pending_for_skill(
+    db: AsyncSession, *, organization_id: UUID, skill_id: UUID, source: str
+) -> list[SkillProposal]:
+    """The changes of one source still waiting on a skill, newest first."""
+    rows = await db.execute(
+        select(SkillProposal)
+        .where(
+            SkillProposal.organization_id == organization_id,
+            SkillProposal.skill_id == skill_id,
+            SkillProposal.source == source,
+            SkillProposal.status == ProposalStatus.PENDING.value,
+        )
+        .order_by(SkillProposal.created_at.desc())
+    )
+    return list(rows.scalars())

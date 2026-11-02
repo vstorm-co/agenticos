@@ -1,0 +1,155 @@
+"""Which skills a run used, kept for the run's terminal write."""
+
+import re
+from collections.abc import Iterable, Mapping
+from dataclasses import dataclass, field
+from typing import TYPE_CHECKING, Any
+from uuid import UUID
+
+from app.db.models.skill import Skill
+from app.schemas.skill_usage import SkillUseRecord
+
+if TYPE_CHECKING:
+    from app.agents.capabilities.skills._capability import SkillBody
+
+SKILL_USE_LOG_RESOURCE = "skill_use_log"
+
+LOAD_TOOL = "load_capability"
+RESOURCE_TOOL = "read_skill_resource"
+LISTING_TOOL = "ls"
+"""Listing a skill's folder names it without reading it, so it is not counted."""
+
+
+@dataclass(frozen=True)
+class ServedSkill:
+    """A skill as one run was served it.
+
+    Attributes:
+        skill_id: The stored skill.
+        version_id: The version the run was served, where one is known.
+        projected: The body is a proposed one served in place of the stored skill.
+    """
+
+    skill_id: UUID
+    version_id: UUID | None = None
+    projected: bool = False
+
+
+@dataclass
+class _Tally:
+    served: ServedSkill
+    loaded: bool = False
+    resource_reads: int = 0
+    workspace_reads: int = 0
+
+
+@dataclass
+class SkillUseLog:
+    """The skills one run used, by the agent that used them.
+
+    Filled by the skills capability as tool calls finish and written by the runner
+    when the run ends, so recording never touches the run's database session. A
+    delegate gets a view of the same tallies under its own agent and skills
+    through :meth:`for_agent`.
+
+    Attributes:
+        agent_id: The agent the uses are attributed to.
+        served: The agent's skills by the name the model calls them.
+        tallies: What has been used so far, shared by every view.
+    """
+
+    agent_id: UUID
+    served: Mapping[str, ServedSkill]
+    tallies: dict[tuple[UUID, UUID], _Tally] = field(default_factory=dict)
+    _paths: dict[str, re.Pattern[str]] = field(init=False, repr=False)
+
+    def __post_init__(self) -> None:
+        # The workspace's skills folder, absolute or relative, or the older `/skills`;
+        # never a deeper path that merely contains `skills/<name>`.
+        self._paths = {
+            name: re.compile(
+                rf"(?<![\w./~-])(?:/workspace/|/|\./)?skills/{re.escape(name)}(?=/|$|[\s'\";|&)])"
+            )
+            for name in self.served
+        }
+
+    def for_agent(self, agent_id: UUID | None, served: Mapping[str, ServedSkill]) -> SkillUseLog:
+        """A view for a delegate; one with no agent of its own uses skills as this one."""
+        return SkillUseLog(agent_id=agent_id or self.agent_id, served=served, tallies=self.tallies)
+
+    def observe(self, tool_name: str, args: Mapping[str, Any]) -> None:
+        """Count one finished tool call against the skills it used, if any."""
+        if tool_name == LOAD_TOOL:
+            name = args.get("id")
+            if isinstance(name, str) and name in self.served:
+                self._tally(name).loaded = True
+            return
+        if tool_name == RESOURCE_TOOL:
+            name = args.get("skill_name")
+            if isinstance(name, str) and name in self.served:
+                self._tally(name).resource_reads += 1
+            return
+        if tool_name == LISTING_TOOL or not self._paths:
+            return
+        texts = [part for text in _strings(args.values()) for part in _unlisted(text)]
+        for name, path in self._paths.items():
+            if any(path.search(text) for text in texts):
+                self._tally(name).workspace_reads += 1
+
+    def records(self) -> list[SkillUseRecord]:
+        """What was used, one record per agent and skill, and forget it."""
+        records = [
+            SkillUseRecord(
+                agent_id=agent_id,
+                skill_id=tally.served.skill_id,
+                skill_version_id=tally.served.version_id,
+                projected=tally.served.projected,
+                loaded=tally.loaded,
+                resource_reads=tally.resource_reads,
+                workspace_reads=tally.workspace_reads,
+            )
+            for (agent_id, _), tally in self.tallies.items()
+        ]
+        self.tallies.clear()
+        return records
+
+    def _tally(self, name: str) -> _Tally:
+        served = self.served[name]
+        return self.tallies.setdefault((self.agent_id, served.skill_id), _Tally(served))
+
+
+def served_skills(
+    skills: Iterable[Skill], bodies: Mapping[UUID, SkillBody]
+) -> dict[str, ServedSkill]:
+    """The run's stored skills by name, each marked where an eval serves another body.
+
+    A skill a proposal would create exists only for the run, with no row to
+    attribute a use to, so it is left out.
+    """
+    return {
+        skill.name: ServedSkill(skill_id=skill.id, projected=skill.id in bodies)
+        for skill in skills
+        if (body := bodies.get(skill.id)) is None or body.name is None
+    }
+
+
+_COMMANDS = re.compile(r"&&|\|\||[;|\n]")
+
+
+def _unlisted(text: str) -> list[str]:
+    """The text without its shell commands that only list a folder."""
+    return [
+        command
+        for command in _COMMANDS.split(text)
+        if (words := command.split()) == [] or words[0] != LISTING_TOOL
+    ]
+
+
+def _strings(values: Iterable[Any]) -> Iterable[str]:
+    for value in values:
+        if isinstance(value, str):
+            yield value
+        elif isinstance(value, Mapping):
+            yield from _strings(value.values())
+        elif isinstance(value, list | tuple):
+            yield from _strings(value)

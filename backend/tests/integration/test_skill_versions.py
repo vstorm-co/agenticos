@@ -177,7 +177,9 @@ class TestEveryChangeIsAVersion:
         db.add(proposal)
         await db.flush()
 
-        await SkillProposalService(db).apply(ctx, proposal.id, ProposalDecision(revision=1))
+        await SkillProposalService(db).apply(
+            ctx, proposal.id, ProposalDecision(revision=1), checked=True
+        )
 
         _, applied = await _versions(db, skill)
         assert (applied.source, applied.proposal_id) == ("workspace", proposal.id)

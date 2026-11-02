@@ -325,19 +325,6 @@ class TestService:
         assert packed.error is not None and packed.error.endswith("[...]")
         assert reads.await_args.kwargs["organization_id"] == ctx.organization_id
 
-    async def test_a_skills_evidence_is_the_rated_runs_that_opened_it(
-        self, monkeypatch, mock_db_session
-    ):
-        reads = AsyncMock(return_value=[_row(rating=1)])
-        monkeypatch.setattr(authoring_repo, "evidence_runs", reads)
-        monkeypatch.setattr(conversation_repo, "get_messages_by_run", AsyncMock(return_value=[]))
-        ctx = SimpleNamespace(organization_id=uuid.uuid4())
-
-        pack = await EvidenceService(mock_db_session).for_skill(ctx, "refunds", window_days=7)
-
-        assert reads.await_args.kwargs["skill_name"] == "refunds"
-        assert pack.runs[0].prompt == "" and pack.runs[0].rating == 1
-
 
 def _train_row(*, case_id: uuid.UUID, arm: SimpleNamespace, answer: str) -> SimpleNamespace:
     return SimpleNamespace(

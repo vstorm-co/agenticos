@@ -56,7 +56,9 @@ async def test_a_change_written_before_a_persons_edit_is_refused_and_the_edit_ke
     await SkillService(db).update(ctx, skill.id, SkillUpdate(content="Ask for the invoice."))
 
     with pytest.raises(ConcurrentChangeError, match="changed since"):
-        await service.apply(ctx, proposal.id, ProposalDecision(revision=proposal.revision))
+        await service.apply(
+            ctx, proposal.id, ProposalDecision(revision=proposal.revision), checked=True
+        )
     await db.refresh(skill)
     assert skill.content == "Ask for the invoice."
     assert skill.version == 2
@@ -83,7 +85,9 @@ async def test_a_later_run_rewriting_the_proposal_takes_the_version_it_was_given
     assert rewritten.id == first.id
     assert rewritten.base_version == 2
     assert rewritten.base_version_id == skill.latest_version_id
-    applied = await service.apply(ctx, rewritten.id, ProposalDecision(revision=rewritten.revision))
+    applied = await service.apply(
+        ctx, rewritten.id, ProposalDecision(revision=rewritten.revision), checked=True
+    )
     assert applied.status == "applied"
     await db.refresh(skill)
     assert skill.content == "Ask for the invoice, then the receipt."

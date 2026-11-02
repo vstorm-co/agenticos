@@ -12,22 +12,6 @@ import { ROUTES } from "@/lib/constants";
 import { Perm } from "@/types/permissions";
 import { CheckDialog } from "./check-dialog";
 
-/**
- * Check a pending skill change with evals before applying it: a dataset runs on
- * an agent that uses the skill, with the proposed body in place of the stored one.
- */
-export function SkillCheckButton({ skillId, proposalId }: { skillId: string; proposalId: string }) {
-  const t = useTranslations("authoring.skill");
-  return (
-    <CheckButton
-      label={t("check")}
-      assistant={useSkillAuthoring(skillId, { enabled: false })}
-      proposalId={proposalId}
-      subject="skill"
-    />
-  );
-}
-
 /** Check a pending context file change with evals, on an agent that uses the file. */
 export function ContextCheckButton({
   contextId,

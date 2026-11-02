@@ -1,5 +1,5 @@
 ---
-source_sha: "75c4cfd2c660"
+source_sha: "2e87e74bd259"
 ---
 
 # Skills { #skills }
@@ -141,6 +141,34 @@ benannten Skill gebunden ist, ebenfalls.
 
 Die Capability ohne gebundene Skills zu aktivieren ist nutzlos — geben Sie dem
 Agent Skills, oder lassen Sie die Capability aus.
+
+### Welche Skills eine Antwort verwendet hat { #which-skills-an-answer-used }
+
+Einen Skill zu binden heißt nicht, dass das Modell ihn gelesen hat. Jeder Run
+zeichnet die Skills auf, die er tatsächlich verwendet hat, nach der ID des Skills:
+ob das Modell einen mit `load_capability` geöffnet hat und wie viele seiner
+Dateien es mit `read_skill_resource` gelesen hat. Ein Run zeichnet das auf, wie
+auch immer er endet, auch wenn er nach dem Öffnen des Skills fehlgeschlagen ist.
+Ein Skill, den ein Delegate verwendet hat, wird beim delegierenden Run unter dem
+Agent des Delegates aufgezeichnet, weil die bewertete Antwort die dieses Runs ist.
+
+Ein Tool-Aufruf, der einen Pfad im Workspace-Ordner eines Skills nennt, etwa
+`cat /workspace/skills/refund-policy/SKILL.md`, zählt getrennt als
+wahrscheinliche Verwendung. Den Ordner aufzulisten zählt nicht. Ein Pfad, den eine
+Shell zusammensetzt, ein Glob über mehrere Skills oder ein Skript, das die Datei
+selbst liest, wird nicht erkannt.
+
+`GET /api/v1/skills/{id}/usage?days=30` liefert pro Agent, wie viele Runs den
+Skill in diesem Zeitraum verwendet haben, mit der Version, die jeder bekam. Runs
+von Evals und vom Testbereich des Builders werden nicht gezählt. Die Zahlen werden
+aus Runs gelesen und brauchen daher `runs:view`; ein Agent, den der Aufrufer nicht
+sehen darf, wird gezählt, aber nie genannt.
+
+Runs aus der Zeit vor dieser Aufzeichnung melden „Verwendung unbekannt“, und das
+ist nicht dasselbe wie „nicht verwendet“. Wird ein Skill verbessert, stammen seine
+Belege nur aus Runs, die ihn verwendet haben; negativ bewertete oder
+fehlgeschlagene Runs, die ihn verwendet haben könnten, zählen getrennt als
+unbekannt.
 
 ## In einem Workspace ist ein Skill auch Dateien { #in-a-workspace-a-skill-is-also-files }
 

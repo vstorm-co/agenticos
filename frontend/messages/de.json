@@ -8370,6 +8370,47 @@
       },
       "improve": "Verbessern",
       "improveFork": "Fork „{name}“ verbessern"
+    },
+    "checkOnAgents": "Auf Agents prüfen",
+    "checkChangeTo": "Die Änderung an {name} auf den Agents prüfen, die ihn nutzen",
+    "check": {
+      "title": "Diese Änderung auf jedem Agent prüfen, der den Skill nutzt",
+      "description": "Jeder Agent beantwortet seine Fragen mit dem Skill, wie er ist, und mit dieser Änderung. Nichts ändert sich, bevor du entscheidest.",
+      "price": "Wahrscheinlich ${expected}, höchstens ${most}. Der Anteil jedes Agents geht auf sein Budget.",
+      "start": "Prüfung starten",
+      "running": "Wird geprüft. Das dauert einige Minuten; du kannst das Fenster schließen und später zurückkommen.",
+      "asked": "{count, plural, =1 {1 Frage gestellt} other {# Fragen gestellt}}",
+      "skillSetOnly": "Nur mit den Fragen des Skills geprüft: keine Frage dieses Agents hat den Skill geöffnet.",
+      "hidden": "{count, plural, =1 {1 weiterer Agent nutzt diesen Skill, den du nicht sehen kannst.} other {# weitere Agents nutzen diesen Skill, die du nicht sehen kannst.}}",
+      "noisy": "Einige Ergebnisse lagen im Rauschen: die Prüfung sah einen Unterschied, den sie nicht bestätigen konnte.",
+      "forkLine": "Diese Änderung betrifft einen Fork, der weder angeheftet noch erneut geforkt werden kann. Verbessere sie weiter oder verwirf sie.",
+      "acknowledge": "Mir ist klar, dass einige Agents nicht geprüft werden konnten.",
+      "discard": "Verwerfen",
+      "apply": "Übernehmen",
+      "applyAndPin": "Übernehmen und schlechtere Agents auf ihrer Version lassen",
+      "reason": {
+        "no_questions": "Nicht geprüft: es gibt keine Fragen.",
+        "no_access": "Nicht geprüft: du darfst diesen Agent nicht ausführen.",
+        "no_budget": "Nicht geprüft: sein Budget deckt die Prüfung nicht.",
+        "no_published_version": "Nicht geprüft: er hat keine veröffentlichte Version.",
+        "inconclusive": "Nicht geprüft: nicht jede Antwort ließ sich bewerten.",
+        "failed": "Nicht geprüft: sein Run ist fehlgeschlagen."
+      },
+      "state": {
+        "queued": "Wartet",
+        "running": "Läuft",
+        "better": "Besser",
+        "no_change": "Unverändert",
+        "within_noise": "Im Rauschen",
+        "worse": "Schlechter",
+        "unknown": "Unbekannt"
+      },
+      "verdict": {
+        "passed": "Kein Agent wurde schlechter, mindestens einer besser.",
+        "needs_ack": "Kein geprüfter Agent wurde schlechter, aber einige konnten nicht geprüft werden.",
+        "blocked": "Ein Agent wurde schlechter. Du kannst die Änderung trotzdem übernehmen und ihn auf seiner jetzigen Version lassen.",
+        "no_better": "Kein Agent wurde besser, also gibt es nichts zu übernehmen."
+      }
     }
   },
   "states": {
@@ -15019,7 +15060,8 @@
         "no_access": "Nicht geprüft: Sie dürfen diesen Agent nicht ausführen.",
         "no_budget": "Nicht geprüft: Sein Budget ist aufgebraucht.",
         "no_published_version": "Nicht geprüft: Er hat keine veröffentlichte Version.",
-        "failed": "Nicht geprüft: Seine Prüfung ist fehlgeschlagen."
+        "failed": "Nicht geprüft: Seine Prüfung ist fehlgeschlagen.",
+        "inconclusive": "Nicht geprüft: Sein Run konnte nicht jede Antwort bewerten. Prüfen Sie erneut."
       },
       "skillSetOnly": "Nur auf den eigenen Fragen des Skills geprüft: Er hatte keine eigenen, bei denen er den Skill geladen hat.",
       "stage": {
@@ -15042,8 +15084,7 @@
         "needs_ack": "Kein Agent wurde schlechter und mindestens einer besser, aber einige Agents konnten nicht geprüft werden."
       },
       "warning": {
-        "within_noise": "Bei einigen Agents liegt die Änderung im Rauschen des Tests: Der Unterschied kann Zufall sein.",
-        "other_environments": "Einige Agents liefern diesen Skill auch in anderen Umgebungen aus; diese wurden nicht geprüft."
+        "within_noise": "Bei einigen Agents liegt die Änderung im Rauschen des Tests: Der Unterschied kann Zufall sein."
       },
       "forkLineOnly": "Auf einem Fork lassen sich die schlechter gewordenen Agents weder festsetzen noch erneut forken: weiter verbessern oder verwerfen.",
       "acknowledge": "{count, plural, =1 {Ich weiß, dass 1 Agent nicht geprüft werden konnte} other {Ich weiß, dass # Agents nicht geprüft werden konnten}}{names, select, other { ({names})}}, und er bekommt die Änderung trotzdem.",
@@ -15057,7 +15098,7 @@
       "openSession": "Diese Linie hat bereits eine offene Sitzung.",
       "continue": "Fortsetzen",
       "agents": "{count, plural, =0 {Kein Agent dieser Linie kann geprüft werden.} =1 {Es wird auf 1 Agent geprüft: {names}.} other {Es wird auf # Agents geprüft: {names}.}}",
-      "unchecked": "{name} kann nicht geprüft werden: {reason, select, no_questions {keine Testfragen, bei denen er den Skill geladen hat} no_access {Sie dürfen ihn nicht ausführen} no_budget {sein Budget ist aufgebraucht} no_published_version {keine veröffentlichte Version} other {die Prüfung ist fehlgeschlagen}}.",
+      "unchecked": "{name} kann nicht geprüft werden: {reason, select, no_questions {keine Testfragen, bei denen er den Skill geladen hat} no_access {Sie dürfen ihn nicht ausführen} no_budget {sein Budget ist aufgebraucht} no_published_version {keine veröffentlichte Version} inconclusive {sein Run konnte nicht jede Antwort bewerten} other {die Prüfung ist fehlgeschlagen}}.",
       "hidden": "{count, plural, =1 {1 weiterer Agent, den Sie nicht sehen, nutzt diese Linie.} other {# weitere Agents, die Sie nicht sehen, nutzen diese Linie.}}",
       "price": "Bis zum ersten Vorschlag kostet es etwa {cost}; jeder Versuch etwa {perRound}, höchstens {rounds, plural, =1 {1 Versuch} other {# Versuche}}.",
       "limit": "Ausgabenlimit für die ganze Sitzung (USD)",

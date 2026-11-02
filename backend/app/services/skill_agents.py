@@ -28,9 +28,15 @@ from app.db.models.agent import Agent, AgentStatus
 from app.db.models.agent_environment import AgentEnvironment
 from app.db.models.skill import Skill
 from app.db.models.skill_version import SkillFork, SkillVersion
-from app.repositories import agent_environment_repo, agent_repo, skill_version_repo
+from app.repositories import (
+    agent_environment_repo,
+    agent_repo,
+    skill_check_repo,
+    skill_version_repo,
+)
 from app.schemas.resource_usage import AgentUsage
 from app.schemas.skill_version import (
+    AgentCheckRef,
     AgentEnvironmentBinding,
     ForkRef,
     SkillAgentList,
@@ -98,6 +104,15 @@ def line_of(spec: dict[str, object], skill_id: UUID) -> Line | None:
         ),
         None,
     )
+
+
+@dataclass(frozen=True)
+class LineAgent:
+    """An agent whose served version follows a line: the version that runs, and how."""
+
+    agent: Agent
+    agent_version: int
+    via_specialist: str | None
 
 
 @dataclass
@@ -232,6 +247,28 @@ class SkillAgentService:
                     by_fork[binding.fork.id] += 1
         return by_version, by_fork
 
+    async def line_agents(self, skill: Skill, fork_id: UUID | None) -> list[LineAgent]:
+        """The agents a change to this line reaches: main's followers, or the fork's.
+
+        An agent counts when a served version reads the line - its default
+        environment's first, else the first environment that does. Pinned agents,
+        other lines and agents bound in a draft alone are not reached.
+        """
+        found: list[LineAgent] = []
+        for use in await self._uses(skill):
+            on_line = [
+                served
+                for served in use.served
+                if (served[2].state == "main" if fork_id is None else served[2].fork_id == fork_id)
+            ]
+            if not on_line:
+                continue
+            _, number, line = next(
+                (served for served in on_line if served[0].is_default), on_line[0]
+            )
+            found.append(LineAgent(use.agent, number, line.via_specialist))
+        return found
+
     async def fork_users(self, skill: Skill, fork_id: UUID) -> list[Agent]:
         """The agents that read a fork, in a served version or their draft."""
         return [
@@ -269,6 +306,19 @@ class SkillAgentService:
         lines = [line for use in uses for _, _, line in use.served]
         lines += [use.draft for use in uses if use.draft is not None]
         reader = await self._reader(skill, lines)
+        checks: dict[UUID, dict[UUID, AgentCheckRef]] = {}
+        for agent_id, version_id, found, at in await skill_check_repo.checked_versions(
+            self.db,
+            organization_id=skill.organization_id,
+            skill_id=skill.id,
+            agent_ids=[agent.id for agent in agents],
+        ):
+            checks.setdefault(agent_id, {}).setdefault(
+                version_id,
+                AgentCheckRef(
+                    check_id=found.check_id, version_id=version_id, state=found.state, at=at
+                ),
+            )
         rows: list[SkillAgentUsage] = []
         for use in uses:
             if use.served:
@@ -305,6 +355,8 @@ class SkillAgentService:
                     draft_differs=use.draft != line,
                     can_change=agent.id in editable,
                     can_publish=agent.id in publishable,
+                    checked=checks.get(agent.id, {}).get(binding.version.id),
+                    checked_versions=list(checks.get(agent.id, {}).values()),
                 )
             )
         return rows

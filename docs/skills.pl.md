@@ -1,5 +1,5 @@
 ---
-source_sha: "75c4cfd2c660"
+source_sha: "2e87e74bd259"
 ---
 
 # Skille { #skills }
@@ -135,6 +135,31 @@ samo jak publikacja agenta podpiętego do skilla o takiej nazwie.
 
 Włączenie capability bez podpiętych skilli nie ma sensu — albo daj agentowi
 skille, albo zostaw capability wyłączoną.
+
+### Których skilli użyła odpowiedź { #which-skills-an-answer-used }
+
+Podpięcie skilla nie znaczy, że model go przeczytał. Każdy run zapisuje skille,
+których naprawdę użył, po id skilla: czy model otworzył skill przez
+`load_capability` i ile jego plików przeczytał przez `read_skill_resource`. Run
+zapisuje to bez względu na to, jak się skończył, także wtedy, gdy zakończył się
+błędem po otwarciu skilla. Skill użyty przez delegata zapisuje się w runie, który
+delegował, pod agentem delegata, bo ocenę dostała odpowiedź tego runa.
+
+Wywołanie narzędzia, które podaje ścieżkę w folderze skilla w workspace, na
+przykład `cat /workspace/skills/refund-policy/SKILL.md`, liczy się osobno jako
+prawdopodobne użycie. Wylistowanie folderu się nie liczy. Ścieżka złożona przez
+shella, glob obejmujący kilka skilli ani skrypt, który sam czyta plik, nie są
+rozpoznawane.
+
+`GET /api/v1/skills/{id}/usage?days=30` zwraca dla każdego agenta liczbę runów,
+które użyły skilla w tym oknie, z wersją, którą każdy dostał. Runy ewaluacji i
+panelu testowego w Builderze są pominięte. Liczby pochodzą z runów, więc wymagają
+`runs:view`; agent, którego wywołujący nie widzi, jest policzony, ale nie nazwany.
+
+Runy sprzed wprowadzenia zapisu mówią „użycie nieznane”, co nie jest tym samym co
+„nieużyty”. Gdy skill jest ulepszany, dowody pochodzą tylko z runów, które go
+użyły, a ocenione negatywnie lub zakończone błędem runy, które mogły go użyć,
+liczą się osobno jako nieznane.
 
 ## W workspace skill to także pliki { #in-a-workspace-a-skill-is-also-files }
 

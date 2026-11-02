@@ -554,12 +554,18 @@ class DatasetService:
             raise _name_taken(name)
 
     async def create(
-        self, ctx: AuthContext, data: DatasetCreate, *, agent_id: UUID | None = None
+        self,
+        ctx: AuthContext,
+        data: DatasetCreate,
+        *,
+        agent_id: UUID | None = None,
+        skill_id: UUID | None = None,
     ) -> DatasetRead:
         """An empty dataset, visible to the whole organization unless `data` says otherwise.
 
         `agent_id` names the agent it is made to test, for the caller that made it
-        for one; the caller has checked that agent is theirs to see.
+        for one; the caller has checked that agent is theirs to see. `skill_id` makes
+        it that skill's own test questions, for a caller that may edit the skill.
         """
         await self._refuse_taken_name(ctx, data.name)
         try:
@@ -575,6 +581,7 @@ class DatasetService:
                     description=data.description,
                     visibility=data.visibility,
                     agent_id=agent_id,
+                    skill_id=skill_id,
                     improvement_holdout_share=data.improvement_holdout_share,
                 )
         except IntegrityError:
@@ -728,28 +735,14 @@ class DatasetService:
         reads = [_case_read(case) for case in cases]
         if ctx.has(Perm.RUNS_VIEW):
             return reads
-        accessible: dict[UUID, bool] = {}
-        conversations = ConversationService(self.db)
+        readable = await ConversationService(self.db).readable(
+            ctx,
+            {case.source_conversation_id for case in cases if case.source_conversation_id},
+        )
         for case, read in zip(cases, reads, strict=True):
             if case.source != CaseSource.CONVERSATION.value and case.source_conversation_id is None:
                 continue
-            source = case.source_conversation_id
-            if source is not None and source not in accessible:
-                allowed = False
-                if ctx.user_id is not None:
-                    try:
-                        await conversations.get_conversation(
-                            source,
-                            organization_id=ctx.organization_id,
-                            user_id=ctx.subject_id,
-                            ctx=ctx,
-                            include_favourite=False,
-                        )
-                        allowed = True
-                    except NotFoundError:
-                        allowed = False
-                accessible[source] = allowed
-            if source is not None and accessible[source]:
+            if case.source_conversation_id in readable:
                 continue
             read.input = "From a conversation you cannot open"
             read.history = []

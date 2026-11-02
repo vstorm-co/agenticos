@@ -12,18 +12,13 @@ import type {
   ImprovementStage,
   NextStepBlocked,
 } from "@/types/improvement";
-import type {
-  SkillCheck,
-  SkillCheckAgent,
-  SkillCheckOutcome,
-  SkillCheckVerdict,
-} from "@/types/skill-checks";
+import type { CheckOutcome, CheckVerdict, SkillCheck, SkillCheckAgent } from "@/types/skill-checks";
 import type { SkillVersionRef } from "@/types/skill-versions";
 
 export interface SkillImprovementIteration extends ImprovementIteration {
   /** The check that measured this attempt on the line's agents. */
   check_id: string | null;
-  check_verdict: SkillCheckVerdict | null;
+  check_verdict: CheckVerdict | null;
   /** A changed description decides when agents open the skill, so it is checked in full. */
   description_changed?: boolean;
 }
@@ -38,7 +33,7 @@ export interface SkillImprovement extends Omit<Improvement, "iterations"> {
   /** The current attempt's check on the line's agents. */
   check: SkillCheck | null;
   /** What may be done with the measured attempt, as its check decided. */
-  outcomes: SkillCheckOutcome[];
+  outcomes: CheckOutcome[];
   outcome: "applied" | "applied_pinned" | "forked" | "discarded" | null;
   applied_version_id: string | null;
   agents: number;

@@ -24,7 +24,6 @@ from app.db.models.agent import Agent, AgentVersion
 from app.db.models.audit_log import AppAdminAuditLog
 from app.db.models.context import ContextFile
 from app.db.models.context_proposal import ContextProposal
-from app.db.models.conversation import Message, ToolCall
 from app.db.models.eval_suite import EvalSuite, EvalSuiteResult
 from app.db.models.notification import Notification
 from app.db.models.organization import Organization, OrganizationMember
@@ -38,11 +37,13 @@ from app.repositories import (
     context_proposal_repo,
     eval_suite_repo,
     skill_proposal_repo,
+    skill_usage_repo,
 )
 from app.schemas.authoring import AuthoringStart
 from app.schemas.context import ContextFileUpdate
 from app.schemas.dataset import DatasetCaseCreate, DatasetCreate
 from app.schemas.resource_usage import ProposalDecision
+from app.schemas.skill_usage import SkillUseRecord
 from app.services.authoring import AuthoringService
 from app.services.authoring_worker import AuthoringWorker
 from app.services.context import ContextService
@@ -429,18 +430,13 @@ async def _opened(db: AsyncSession, *, content: str) -> tuple[AuthContext, Agent
     )
     db.add(skill)
     await db.flush()
-    answer = await db.scalar(
-        select(Message).where(Message.run_id == run.id, Message.role == "assistant")
-    )
-    assert answer is not None
-    db.add(
-        ToolCall(
-            message_id=answer.id,
-            tool_call_id="call-1",
-            tool_name="load_capability",
-            args={"id": "refunds"},
-            started_at=datetime.now(UTC),
-        )
+    # What the runner records when the model opens the skill.
+    await skill_usage_repo.record_uses(
+        db,
+        [SkillUseRecord(agent_id=run.agent_id, skill_id=skill.id, loaded=True)],
+        organization_id=ctx.organization_id,
+        run_id=run.id,
+        started_at=datetime.now(UTC),
     )
     spec = {**agent.draft_spec, "skill_ids": [str(skill.id)]}
     agent.draft_spec = spec
@@ -485,7 +481,7 @@ async def test_applying_a_skill_change_goes_live_where_served_and_tells_the_owne
     service = SkillProposalService(db)
 
     read = await service.read(ctx, proposal.id)
-    applied = await service.apply(ctx, proposal.id, ProposalDecision(revision=1))
+    applied = await service.apply(ctx, proposal.id, ProposalDecision(revision=1), checked=True)
 
     assert [(item.name, item.environments) for item in read.reaches] == [
         (agent.name, ["production"])
@@ -529,7 +525,9 @@ async def test_an_owner_who_cannot_see_the_skill_is_told_without_its_name(db):
     db.add(proposal)
     await db.flush()
 
-    await SkillProposalService(db).apply(ctx, proposal.id, ProposalDecision(revision=1))
+    await SkillProposalService(db).apply(
+        ctx, proposal.id, ProposalDecision(revision=1), checked=True
+    )
 
     (told,) = (
         await db.scalars(

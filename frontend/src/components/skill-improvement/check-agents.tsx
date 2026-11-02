@@ -5,9 +5,9 @@ import { useTranslations } from "next-intl";
 
 import { StateBadge, type Tone } from "@/components/improvement/widgets";
 import { ROUTES } from "@/lib/constants";
-import type { SkillCheck, SkillCheckAgent, SkillCheckAgentState } from "@/types/skill-checks";
+import type { AgentCheckState, SkillCheck, SkillCheckAgent } from "@/types/skill-checks";
 
-const TONE: Record<SkillCheckAgentState, Tone> = {
+const TONE: Record<AgentCheckState, Tone> = {
   queued: "neutral",
   running: "neutral",
   better: "good",
@@ -18,7 +18,7 @@ const TONE: Record<SkillCheckAgentState, Tone> = {
 };
 
 /** The agent a person has to look at first leads: worse, then unknown, then the rest. */
-const ORDER: SkillCheckAgentState[] = [
+const ORDER: AgentCheckState[] = [
   "worse",
   "unknown",
   "within_noise",
@@ -51,8 +51,6 @@ export function CheckAgents({ check }: { check: SkillCheck }) {
 
 function AgentRow({ row }: { row: SkillCheckAgent }) {
   const t = useTranslations("skillImprovement.agents");
-  const fixed = row.stages.reduce((sum, stage) => sum + stage.fixed, 0);
-  const broken = row.stages.reduce((sum, stage) => sum + stage.broken, 0);
   const measured = !["queued", "running", "unknown"].includes(row.state);
   return (
     <li className="space-y-1.5 px-4 py-3">
@@ -72,7 +70,9 @@ function AgentRow({ row }: { row: SkillCheckAgent }) {
         </div>
         <StateBadge tone={TONE[row.state]}>{t(`state.${row.state}`)}</StateBadge>
       </div>
-      {measured && <p className="text-sm">{t("fixedBroken", { fixed, broken })}</p>}
+      {measured && (
+        <p className="text-sm">{t("fixedBroken", { fixed: row.fixed, broken: row.broken })}</p>
+      )}
       {row.unknown_reason !== null && (
         <p className="text-muted-foreground text-sm">{t(`unknown.${row.unknown_reason}`)}</p>
       )}

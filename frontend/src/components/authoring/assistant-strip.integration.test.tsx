@@ -9,7 +9,6 @@ import type { AgentSpec } from "@/types/agents";
 import { Perm, type Permission } from "@/types/permissions";
 import { AssistantStrip } from "./assistant-strip";
 import { ImproveContextButton } from "./improve-skill-button";
-import { SkillCheckButton } from "./skill-check-button";
 
 const held = vi.hoisted(() => ({ permissions: new Set<string>() }));
 vi.mock("@/hooks/use-permissions", () => ({
@@ -69,7 +68,6 @@ function surfaces({ canCheck = true } = {}) {
         onDraft={vi.fn()}
       />
       <ImproveContextButton contextId="context-1" />
-      <SkillCheckButton skillId="skill-1" proposalId="change-1" />
     </>,
   );
 }
@@ -99,7 +97,7 @@ describe("the assistant's controls, by permission", () => {
     surfaces();
     expect(screen.getByRole("button", { name: "Improve agent-1" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Verify my edits" })).toBeInTheDocument();
-    expect(screen.getAllByRole("button", { name: "Check with evals" })).toHaveLength(2);
+    expect(screen.getByRole("button", { name: "Check with evals" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Improve with the assistant" })).toBeInTheDocument();
   });
 
@@ -107,7 +105,6 @@ describe("the assistant's controls, by permission", () => {
     held.permissions = new Set([Perm.agentsEdit, Perm.skillsEdit, Perm.runsView]);
     surfaces({ canCheck: false });
     expect(screen.getByRole("button", { name: "Improve agent-1" })).toBeInTheDocument();
-    // The one left is the skill change's, which checks on an agent of its own.
-    expect(screen.getAllByRole("button", { name: "Check with evals" })).toHaveLength(1);
+    expect(screen.queryByRole("button", { name: "Check with evals" })).toBeNull();
   });
 });

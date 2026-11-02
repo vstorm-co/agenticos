@@ -52,3 +52,10 @@ class ProposalDecision(BaseSchema):
             "pending proposal and raises it, and the decision is then refused"
         ),
     )
+    check_id: UUID | None = Field(
+        default=None,
+        description=(
+            "For applying a change to a skill: the check of this change on the agents of its "
+            "line. A skill change is applied only after one"
+        ),
+    )

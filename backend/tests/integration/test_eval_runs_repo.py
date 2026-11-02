@@ -128,6 +128,7 @@ async def _run(
     ended_at: datetime | None = None,
     from_recordings: bool = False,
     live_reads: bool = False,
+    skill_versions: dict[str, str] | None = None,
 ) -> tuple[EvalRun, EvalRunArm]:
     run = EvalRun(
         agent_id=agent.id,
@@ -151,6 +152,7 @@ async def _run(
         model_profile_id=model_profile_id,
         model_label="gpt-4.1",
         spec_hash="v",
+        skill_versions=skill_versions,
     )
     run = await eval_run_repo.create(db, organization_id=ctx.organization_id, run=run, arms=[arm])
     await eval_run_repo.add_cases(
@@ -307,6 +309,7 @@ async def test_a_cached_baseline_ran_the_way_the_candidate_will(db) -> None:
             agent_id=agent.id,
             dataset_id=dataset.id,
             agent_version_id=versions[0].id,
+            skill_versions=None,
             execution=execution,
         )
 
@@ -318,6 +321,42 @@ async def test_a_cached_baseline_ran_the_way_the_candidate_will(db) -> None:
         RunExecution(environment_id=uuid.uuid4(), from_recordings=True, live_reads=False),
     ):
         assert await lookup(other) is None
+
+
+async def test_a_cached_baseline_read_the_skill_versions_the_agent_reads_now(db) -> None:
+    """An agent on main reads main's newest skill version, which moves without a new
+    agent version: a baseline served an older one measured a different skill."""
+    ctx, agent, versions, dataset, dataset_version, revisions, _run_v7, _arm = await _setup(db)
+    skill = str(uuid.uuid4())
+    before, after = str(uuid.uuid4()), str(uuid.uuid4())
+    served_before, _ = await _run(
+        db,
+        ctx,
+        agent=agent,
+        version=versions[0],
+        dataset=dataset,
+        dataset_version=dataset_version,
+        revisions=revisions,
+        status=EvalRunStatus.COMPLETED,
+        ended_at=_NOW - timedelta(hours=1),
+        skill_versions={skill: before},
+    )
+
+    def lookup(served: dict[str, str] | None):
+        return eval_run_repo.latest_arm(
+            db,
+            organization_id=ctx.organization_id,
+            agent_id=agent.id,
+            dataset_id=dataset.id,
+            agent_version_id=versions[0].id,
+            skill_versions=served,
+        )
+
+    found = await lookup({skill: before})
+    assert found is not None and found[1].id == served_before.id
+    assert await lookup({skill: after}) is None
+    # An arm from before versions were recorded never stands in for a skilled agent.
+    assert await lookup(None) is None
 
 
 async def test_the_baseline_lookup_matches_what_it_is_asked_to_and_nothing_else(db) -> None:
@@ -352,6 +391,7 @@ async def test_the_baseline_lookup_matches_what_it_is_asked_to_and_nothing_else(
         agent_id=agent.id,
         dataset_id=dataset.id,
         agent_version_id=versions[0].id,
+        skill_versions=None,
     )
     assert found is not None and found[1].id == newer.id and found[0].id == newer_arm.id
 
@@ -361,6 +401,7 @@ async def test_the_baseline_lookup_matches_what_it_is_asked_to_and_nothing_else(
         agent_id=agent.id,
         dataset_id=dataset.id,
         agent_version_id=versions[0].id,
+        skill_versions=None,
         dataset_version_id=dataset_version.id,
         scoring_hash="a" * 64,
         since=_NOW - timedelta(hours=24),
@@ -375,6 +416,7 @@ async def test_the_baseline_lookup_matches_what_it_is_asked_to_and_nothing_else(
         agent_id=agent.id,
         dataset_id=dataset.id,
         agent_version_id=versions[0].id,
+        skill_versions=None,
         exclude_run_id=newer.id,
         model_profile_id=uuid.uuid4(),
     )
@@ -388,6 +430,7 @@ async def test_the_baseline_lookup_matches_what_it_is_asked_to_and_nothing_else(
             agent_id=agent.id,
             dataset_id=dataset.id,
             agent_version_id=versions[1].id,
+            skill_versions=None,
         )
         is None
     )
