@@ -84,6 +84,7 @@ TENANT_REQUIRED = [
     (channel_bot_repo, "delete"),
     (agent_environment_repo, "list_connections"),
     (agent_environment_repo, "replace_connections"),
+    (agent_environment_repo, "served_mentioning"),
     (intercepted_tool_call_repo, "add_many"),
     (intercepted_tool_call_repo, "list_for_run"),
     (dataset_repo, "get"),
