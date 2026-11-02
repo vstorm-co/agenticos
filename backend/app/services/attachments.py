@@ -509,9 +509,9 @@ class AttachmentRouter:
         written, and the edge alone decides.
 
         Text only, as the edge is: on a turn that inlines a picture the edge
-        reads the prompt's text part - this text, with the references - and
-        never the picture's bytes (`ScreenedPrompt`, #2566), so the prediction
-        holds for that turn too.
+        reads the prompt's text part and never the picture's bytes
+        (`ScreenedPrompt`, #2566), so those bytes cannot make the edge refuse a
+        turn this let through.
 
         Every file's reference is screened, including one the turn's text budget
         would drop: a refusal there fails closed, and the edge refuses the same

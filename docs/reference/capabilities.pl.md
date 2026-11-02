@@ -1,5 +1,5 @@
 ---
-source_sha: "111d0dd2eb9d"
+source_sha: "8a4f4b7a9d0c"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -2755,8 +2755,10 @@ Krawędź czyta tylko te początkowe linie, więc zablokowane słowo dalej w pli
 jest tu wychwytywane; do tego służy sprawdzanie wyników narzędzi. Obraz wysłany
 bezpośrednio nie jest tekstem, więc krawędź go nie czyta: w prompcie z obrazem
 krawędź sprawdza same słowa, nigdy bajty obrazu, a redakcja zmienia te słowa i
-zostawia obraz. Sprawdzenie przed zapisem czyta te same słowa, więc tura z obrazem,
-którą krawędź blokuje, również nic nie zapisuje.
+zostawia obraz. Plik tekstowy wysłany bezpośrednio jest sprawdzany jako tekst. Link
+też jest sprawdzany, ale redakcji nie da się wpisać w link bez jego zepsucia, więc
+dopasowanie w linku blokuje. Ponieważ bajty już nie decydują, sprawdzenie przed
+zapisem przewiduje turę z obrazem tak samo jak każdą inną.
 
 **Prześwietlanie wyników narzędzi jest powodem, dla którego ta krawędź znaczy
 najwięcej.** Jest jedynym strażnikiem nad niezaufaną treścią wchodzącą do pętli —

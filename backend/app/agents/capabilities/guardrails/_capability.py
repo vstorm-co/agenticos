@@ -48,6 +48,8 @@ from pydantic import BaseModel, Field, field_validator
 from pydantic_ai.capabilities import AbstractCapability, CombinedCapability, WrapModelRequestHandler
 from pydantic_ai.messages import (
     AgentStreamEvent,
+    BinaryContent,
+    FileUrl,
     ModelResponse,
     PartDeltaEvent,
     PartEndEvent,
@@ -544,26 +546,15 @@ type PromptContent = str | Sequence[UserContent]
 
 @dataclass
 class ScreenedPrompt(InputGuardrail[object]):
-    """The harness's input guardrail, reading only the text of a multimodal prompt.
+    """The harness's input guardrail, reading a multimodal prompt part by part (#2566).
 
-    The harness hands its guard a prompt built from several parts as the list's
-    `repr` - an attached picture's bytes included - so a long digit run in them
-    passed the PII redactor's size limit and a keyword such as `png` matched,
-    neither of it anything the person wrote; and it refuses to write a redaction
-    back over such a prompt, so the turn failed (#2566). Here each text part of
-    such a prompt - a plain string or a `TextContent` - is screened on its own,
-    a redaction is written back over that part, and every other part (a picture,
-    a URL, a cache marker) is left where it was. The harness finds the prompt -
-    the history's part, and any copy an outer capability sent the model - and
-    runs the guard chain, so a block and a refused verdict behave as they do for
-    a plain-text prompt, which takes the harness's path unchanged.
-
-    `AttachmentRouter` screens the turn's text with the same detector before a
-    file is written, and that text is the prompt's one text part when a picture
-    rides beside it, so what it predicts holds for a turn with a picture too.
-
-    Sequential only: `build_guardrails` never sets `parallel`, and a redaction
-    cannot be written over a prompt the model has already been sent.
+    The harness hands its guard such a prompt as the list's `repr`, a picture's
+    bytes included, and cannot write a redaction back over it. Here each text part
+    (a string or a `TextContent`, and a `text/*` or JSON `BinaryContent` decoded)
+    is screened on its own and a redaction written back over that part. A URL is
+    screened too, but cannot be rewritten without breaking it, so a redaction
+    there blocks. A picture, audio, video or cache marker is not read. A
+    plain-text prompt, and a parallel guard, take the harness's path unchanged.
     """
 
     async def wrap_model_request(
@@ -573,29 +564,37 @@ class ScreenedPrompt(InputGuardrail[object]):
         request_context: ModelRequestContext,
         handler: WrapModelRequestHandler,
     ) -> ModelResponse:
-        """Screen a multimodal prompt's text parts before the first model request."""
+        """Screen a multimodal prompt before the first model request."""
         if ctx.run_step > 1:
             return await handler(request_context)
         parts, original = _find_prompt_part(ctx, request_context.messages)
+        targets = [*parts, *([] if original is None else [original])]
         if (
-            not parts
-            or not _is_multimodal(parts[0].content)
+            self.parallel
+            or not any(_is_multimodal(target.content) for target in targets)
             # A resumed run reports several prompt parts as one `ctx.prompt`.
             or (ctx.prompt is not None and _history_prompt_parts(ctx) > 1)
         ):
             return await super().wrap_model_request(
                 ctx, request_context=request_context, handler=handler
             )
-        targets = [*parts, *([] if original is None else [original])]
-        # Every part screened before any is rewritten, so a block rewrites nothing.
-        screened = [await self._screened(ctx, target.content) for target in targets]
+        # Every part screened before any is rewritten, so a block rewrites nothing;
+        # a copy with the original's content is screened once.
+        screened: list[PromptContent | None] = []
+        for index, target in enumerate(targets):
+            twin = next((i for i in range(index) if targets[i].content == target.content), None)
+            screened.append(
+                screened[twin] if twin is not None else await self._screened(ctx, target.content)
+            )
+        traced: list[PromptContent] = []
         for target, content in zip(targets, screened, strict=True):
-            if content is not None:
-                target.content = content
-        if (
-            changed := next((content for content in screened if content is not None), None)
-        ) is not None:
-            trace_redaction(ctx, direction="input", replacement=changed)
+            if content is None:
+                continue
+            target.content = content
+            if content not in traced:
+                traced.append(content)
+                # The text alone: a picture's bytes are no redaction to record.
+                trace_redaction(ctx, direction="input", replacement=_text_of(content))
         return await handler(request_context)
 
     async def _screened(
@@ -603,22 +602,36 @@ class ScreenedPrompt(InputGuardrail[object]):
     ) -> PromptContent | None:
         """`content` with each text part as the guard leaves it, or `None` when unchanged.
 
-        Plain text is screened whole: the history's original of a copy the model
-        was sent need not have the copy's shape.
+        Plain text is screened whole: a copy the model is sent need not have the
+        shape of the history's original.
         """
         if isinstance(content, str):
             cleaned = await self._cleaned(ctx, content)
             return None if cleaned == content else cleaned
         result: list[UserContent] = []
+        changed = False
         for item in content:
-            if isinstance(item, str):
-                result.append(await self._cleaned(ctx, item))
-            elif isinstance(item, TextContent):
-                cleaned = await self._cleaned(ctx, item.content)
-                result.append(item if cleaned == item.content else replace(item, content=cleaned))
-            else:
-                result.append(item)
-        return None if result == list(content) else result
+            screened = await self._screened_part(ctx, item)
+            changed = changed or screened is not item
+            result.append(screened)
+        return result if changed else None
+
+    async def _screened_part(self, ctx: RunContext[object], item: UserContent) -> UserContent:
+        """One part of a prompt as the model may read it; the same object when unchanged."""
+        if isinstance(item, str):
+            cleaned = await self._cleaned(ctx, item)
+            return item if cleaned == item else cleaned
+        if isinstance(item, TextContent):
+            cleaned = await self._cleaned(ctx, item.content)
+            return item if cleaned == item.content else replace(item, content=cleaned)
+        if isinstance(item, BinaryContent) and _is_text(item.media_type):
+            text = item.data.decode("utf-8", errors="replace")
+            cleaned = await self._cleaned(ctx, text)
+            return item if cleaned == text else replace(item, data=cleaned.encode())
+        if isinstance(item, FileUrl) and await self._cleaned(ctx, item.url) != item.url:
+            logger.info("Guardrail blocked a run at the input edge: a redaction in a URL")
+            raise GuardrailBlocked(edge="input", message=_BLOCK_MESSAGE["input"])
+        return item
 
     async def _cleaned(self, ctx: RunContext[object], text: str) -> str:
         """`text` as the guard chain leaves it; a block, a retry and an approval raise."""
@@ -629,6 +642,22 @@ class ScreenedPrompt(InputGuardrail[object]):
 def _is_multimodal(content: PromptContent) -> bool:
     """A prompt of several parts - not plain text, and not a background task's result."""
     return not isinstance(content, str) and get_background_completion(content) is None
+
+
+def _is_text(media_type: str) -> bool:
+    """Whether an inline file is text a person could have written a key into."""
+    return media_type.startswith("text/") or media_type == "application/json"
+
+
+def _text_of(content: PromptContent) -> str:
+    """The text parts of a screened prompt, joined, for the redaction's trace span."""
+    if isinstance(content, str):
+        return content
+    return "\n".join(
+        item if isinstance(item, str) else item.content
+        for item in content
+        if isinstance(item, str | TextContent)
+    )
 
 
 def input_screen(config: GuardrailsConfig) -> TextDetector | None:

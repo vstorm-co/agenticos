@@ -1,5 +1,5 @@
 ---
-source_sha: "111d0dd2eb9d"
+source_sha: "8a4f4b7a9d0c"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -2968,8 +2968,11 @@ Zeilen, ein blockierter Begriff weiter unten in der Datei wird hier also nicht
 erkannt; dafür gibt es die Prüfung der Tool-Ergebnisse. Ein direkt mitgesendetes
 Bild ist kein Text, also liest die Kante es nicht: Bei einem Prompt mit Bild prüft
 die Kante nur die Wörter, nie die Bytes des Bildes, und eine Schwärzung ändert diese
-Wörter und behält das Bild. Die Prüfung vor dem Schreiben liest dieselben Wörter,
-also schreibt auch ein Zug mit Bild, den die Kante blockiert, nichts.
+Wörter und behält das Bild. Eine direkt mitgesendete Textdatei wird als Text
+geprüft. Ein Link wird ebenfalls geprüft, aber eine Schwärzung lässt sich nicht in
+einen Link schreiben, ohne ihn zu zerstören, also blockiert ein Treffer dort. Weil
+die Bytes nicht mehr entscheiden, sagt die Prüfung vor dem Schreiben einen Zug mit
+Bild so voraus wie jeden anderen.
 
 **Die Prüfung von Tool-Ergebnissen ist der Grund, warum diese Kante am meisten
 zählt.** Sie ist die einzige Absicherung gegen nicht vertrauenswürdige Inhalte, die

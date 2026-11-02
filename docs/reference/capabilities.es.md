@@ -1,5 +1,5 @@
 ---
-source_sha: "111d0dd2eb9d"
+source_sha: "8a4f4b7a9d0c"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -2825,8 +2825,10 @@ bloqueado más abajo en el archivo no se detecta aquí; para eso está la revisi
 los resultados de las herramientas. Una imagen enviada en línea no es texto, así que
 el borde no la lee: en un prompt con una imagen el borde revisa solo las palabras,
 nunca los bytes de la imagen, y una censura reescribe esas palabras y conserva la
-imagen. La revisión previa a la escritura lee las mismas palabras, así que un turno
-con imagen que el borde bloquea tampoco escribe nada.
+imagen. Un archivo de texto enviado en línea se revisa como texto. Un enlace también
+se revisa, pero una censura no se puede escribir en un enlace sin romperlo, así que
+una coincidencia en él bloquea. Como los bytes ya no deciden, la revisión previa a
+la escritura prevé un turno con imagen igual que cualquier otro.
 
 **El filtrado de los resultados de herramienta es la razón de que este borde sea el que
 más importa.** Es la única guarda sobre el contenido no confiable que entra en el

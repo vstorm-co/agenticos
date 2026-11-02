@@ -2635,9 +2635,11 @@ or `agent`-scoped workspace has no refused file to open. The edge reads only tho
 opening lines, so a blocked term further down the file is not caught here; screen
 tool results for that. A picture sent inline is not text, so the edge does not read
 it: on a prompt with a picture the edge screens the words alone, never the picture's
-bytes, and a redaction rewrites those words and keeps the picture. The check before
-the write reads the same words, so a turn with a picture that the edge blocks
-writes nothing either.
+bytes, and a redaction rewrites those words and keeps the picture. A text file sent
+inline is screened as text. A link is screened too, but a redaction cannot be
+written into a link without breaking it, so a match there blocks. Because the bytes
+no longer decide, the check before the write predicts a turn with a picture as it
+does any other.
 
 **Tool-result screening is the reason this edge matters most.** It is the only guard
 on untrusted content entering the loop — a fetched page, a file, an MCP server's
