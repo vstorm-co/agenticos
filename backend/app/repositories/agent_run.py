@@ -14,6 +14,7 @@ from sqlalchemy import (
     case,
     func,
     literal,
+    null,
     or_,
     select,
     tuple_,
@@ -73,6 +74,7 @@ async def create_run(
     test_spec: dict[str, Any] | None = None,
     key_scopes: list[str] | None = None,
     improvement_run_id: UUID | None = None,
+    skill_uses_recorded: bool | None = None,
 ) -> AgentRun:
     run = AgentRun(
         key_scopes=key_scopes,
@@ -97,9 +99,10 @@ async def create_run(
         subagent_task_id=subagent_task_id,
         status=RunStatus.RUNNING.value,
         started_at=started_at,
-        # Until its terminal write records the skills it used: a run that dies
-        # before then is unknown, not one that used none.
-        skill_uses_recorded=False,
+        # Null until its terminal write records the skills it used: a run that
+        # dies before then is unknown, not one that used none. `null()`, because a
+        # plain None gives way to the column's default.
+        skill_uses_recorded=null() if skill_uses_recorded is None else skill_uses_recorded,
     )
     db.add(run)
     await db.flush()
