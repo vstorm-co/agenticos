@@ -12,10 +12,17 @@ from unittest.mock import AsyncMock
 from uuid import uuid4
 
 import pytest
+from pydantic_ai import Agent
 from pydantic_ai.messages import BinaryContent
+from pydantic_ai.models.test import TestModel
 from pydantic_ai_harness import GuardrailResult
 
-from app.agents.capabilities.guardrails import GuardrailBlocked, GuardrailsConfig, input_screen
+from app.agents.capabilities.guardrails import (
+    GuardrailBlocked,
+    GuardrailsConfig,
+    build_guardrails,
+    input_screen,
+)
 from app.agents.capabilities.sandbox._capped import CappedStateBackend
 from app.repositories import chat_file as chat_file_repo
 from app.services import attachments as attachments_module
@@ -1421,6 +1428,29 @@ class TestTheInputEdgeScreensBeforeAnythingIsWritten:
 
         assert document.exists(workspace_path(chat_file))
         assert workspace_path(chat_file) in prompt
+
+    async def test_a_pictures_bytes_decide_neither_here_nor_at_the_edge(self, storage):
+        """The edge reads a picture's prompt by its text parts (#2566), so this
+        screen's prediction holds for it: written here, and run there."""
+        storage.return_value = PNG + b"XYZZY"
+        document = _document()
+        chat_file = _file(
+            filename="shot.png", file_type="image", mime_type="image/png", parsed_content=None
+        )
+
+        prompt = await AttachmentRouter(
+            document_workspace(document), screen=_blocking()
+        ).build_prompt("what is this?", [chat_file])
+
+        assert document.exists(workspace_path(chat_file))
+        assert isinstance(prompt, list)
+        assert [type(part) for part in prompt] == [str, BinaryContent]
+        capability = build_guardrails(GuardrailsConfig(blocked_keywords_in="XYZZY"))
+        assert capability is not None
+        agent: Agent = Agent(
+            model=TestModel(custom_output_text="a picture"), capabilities=[capability]
+        )
+        assert (await agent.run(prompt)).output == "a picture"
 
     async def test_a_redacting_screen_does_not_stop_the_write(self, storage):
         """Only a refusal stops the turn; a redaction is the edge's to apply."""
