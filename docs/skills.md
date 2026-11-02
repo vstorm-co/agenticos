@@ -163,8 +163,8 @@ So a write becomes a **proposal**, and it appears above the list on the Skills p
 for whoever may edit that skill - its owner, or anybody granted edit on it - and,
 for a skill not written yet, for anyone who may create skills. Nobody else sees it:
 
-- **Apply** saves the change as the skill's next version, which reaches every
-  bound agent on its next run.
+- **Apply** saves the change as the next version of the line it was written
+  for, which reaches that line's agents on their next run.
 - **Discard** keeps the record. An agent proposing the same edit repeatedly is
   telling somebody something about the skill, and a deleted row makes that
   invisible.
@@ -249,6 +249,43 @@ version it started from.
   never deleted. A fork that no run has read for 30 days is offered for archiving;
   nothing is archived automatically.
 
+### Which version an agent reads
+
+Each agent reads a bound skill in one of three ways:
+
+| State | What it reads |
+|---|---|
+| Main | The newest main version. This is every agent that names no other |
+| Pinned | One main version, until somebody moves it |
+| Fork | The newest version of one fork |
+
+The choice is part of the agent's spec, in `skill_bindings`, so it is published,
+promoted between environments and exported with the rest of the agent. A spec
+without the field reads main for every skill, which is what every agent did before
+skills had versions. Publish refuses a version the skill's main line does not have,
+a fork of another skill, an archived fork and anything of another organization.
+Each run records the skill versions it served, its inline specialists' included.
+
+A new version reaches only the agents on its line. A new main version reaches the
+agents on main, and a new fork version that fork's agents: their eval suites run,
+the change lists the environments it goes live in, and their owners are told. A
+pinned agent is reached by neither.
+
+**The skill's agents** are those that run it: a version one of their environments
+serves binds it. The skill page lists each with the version it reads, how many
+main versions it is behind, and any environment that reads it differently. An
+agent that binds the skill only in its draft is listed as such. Agents you cannot
+see are counted, not named.
+
+**Change version** moves one agent to main, a main version or a fork, and it is a
+change to the agent. With permission to publish it, the published spec with only
+that binding changed goes live as the agent's next version, and environments move
+by their usual follow and promotion rules. The draft takes the same change and
+keeps its other unfinished edits, which do not go live. With permission to edit the
+agent only, the change waits in the draft. A Builder already open on the agent does
+not see the change until it is reloaded, and saving it before then puts the old
+binding back.
+
 ### Deleting a skill
 
 A skill that an agent uses cannot be deleted. That is a skill bound by a live
@@ -265,6 +302,8 @@ others. A skill that nobody uses is deleted with its versions and forks.
 | `POST /api/v1/skills/{id}/versions/{version_id}/restore` | Restores a version onto its own line |
 | `GET`, `POST /api/v1/skills/{id}/forks` | Lists forks, or starts one from a main version |
 | `PATCH /api/v1/skills/{id}/forks/{fork_id}`, `POST …/archive` | Renames a fork, or archives it |
+| `GET /api/v1/skills/{id}/agents` | The skill's agents, the version each reads, and how many are hidden |
+| `PUT /api/v1/skills/{id}/agents/{agent_id}/binding` | Moves an agent to main, a main version or a fork |
 
 ## Getting skills into an organization
 
