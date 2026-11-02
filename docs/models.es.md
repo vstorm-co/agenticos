@@ -1,5 +1,5 @@
 ---
-source_sha: "f3ed2a9e7617"
+source_sha: "54529b3e6abc"
 ---
 
 # Modelos y providers { #models-and-providers }
@@ -281,7 +281,7 @@ por defecto:
 | `openai`, sin endpoint (la API propia de OpenAI) | `responses` |
 | `openai` con endpoint | `chat` |
 | `azure` | `chat`, porque la Responses API necesita una `api_version` reciente y el secreto puede fijar una anterior |
-| `stav` | `chat` |
+| `stav` | del modelo: `chat` donde se sirve, si no `responses` |
 
 El valor por defecto es solo donde empieza el formulario. Un endpoint regional de
 OpenAI como `https://eu.api.openai.com/v1` es un endpoint que sirve Responses, así

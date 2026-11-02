@@ -166,6 +166,7 @@
     "context_field": "context_length",
     "modalities_path": "architecture.output_modalities",
     "auth_header": "Authorization",
-    "auth_template": "Bearer {key}"
+    "auth_template": "Bearer {key}",
+    "surfaces_path": "stav_surfaces"
   }
 }

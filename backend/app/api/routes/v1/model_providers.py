@@ -80,6 +80,7 @@ async def list_provider_catalog() -> Any:
             apis=list(spec.apis),
             native_api=spec.native_api,
             regions=list(spec.regions),
+            api_from_model=spec.api_from_model,
         )
         for spec in provider_catalog()
     ]
@@ -426,6 +427,7 @@ async def list_provider_models(
                 name=entry.name,
                 context_length=entry.context_length,
                 output_modalities=list(entry.output_modalities),
+                apis=[api for api in ("chat", "responses") if api in entry.surfaces],
                 chat_capable=stated_outputs(provider, entry.id, entry.output_modalities).chat,
             )
             for entry in models

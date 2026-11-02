@@ -602,6 +602,7 @@ async def test_a_stav_catalog_is_read_with_the_key():
                         "name": "Mistral Small 4",
                         "context_length": 128000,
                         "architecture": {"output_modalities": ["text"]},
+                        "stav_surfaces": ["chat", "messages", "responses"],
                     }
                 ]
             },
@@ -616,6 +617,7 @@ async def test_a_stav_catalog_is_read_with_the_key():
     assert [(m.id, m.name, m.context_length) for m in models] == [
         ("mistralai/mistral-small-4", "Mistral Small 4", 128000)
     ]
+    assert models[0].surfaces == ("chat", "messages", "responses")
 
 
 @pytest.mark.anyio

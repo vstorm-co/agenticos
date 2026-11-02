@@ -20,6 +20,7 @@ from app.agents.model_resolver import (
     ModelRequestSpec,
     ProviderSpec,
     ResolvedCredential,
+    api_for_model,
     get_provider,
     lacks_key,
 )
@@ -51,7 +52,7 @@ from app.repositories import (
 )
 from app.schemas.model_profile import ModelProfileUpdate
 from app.services.access import AGENT, SECRET, accessible_ids, resolve_access
-from app.services.model_catalog import models_for
+from app.services.model_catalog import CatalogModel, models_for
 from app.services.model_outputs import model_outputs, not_chat_refusal
 from app.services.openai_codex import VaultCodexCredentials
 from app.services.organization_secret import OrganizationSecretService
@@ -310,6 +311,7 @@ class ModelProfileService:
         _validate_model_id(provider, model)
         if base_url is not None:
             base_url = await _checked_endpoint(spec, base_url)
+        api_given = api is not None
         if api is None:
             api = spec.default_api(base_url)
         if region is None:
@@ -318,6 +320,11 @@ class ModelProfileService:
         await self._check_label_free(ctx, label)
         if secret_id is not None:
             await self._check_key(ctx, secret_id, provider=provider)
+        listed = await self._listed_model(ctx, provider, model)
+        if not api_given and spec.api_from_model and listed is not None:
+            # The model's own listing says which API it is served on (Stav.ai):
+            # a Responses-only model gets Responses without anyone choosing it.
+            api = api_for_model(listed.surfaces) or api
 
         profile = await credential_repo.create_profile(
             self.db,
@@ -331,7 +338,7 @@ class ModelProfileService:
             region=region,
             params=params,
             fallback_profile_ids=[str(pid) for pid in (fallback_profile_ids or [])],
-            context_length=await self._context_length(ctx, provider, model),
+            context_length=listed.context_length if listed is not None else None,
             runs_without_key=secret_id is None,
         )
         await record_audit(
@@ -345,8 +352,13 @@ class ModelProfileService:
         )
         return profile
 
-    async def _context_length(self, ctx: AuthContext, provider: str, model: str) -> int | None:
-        """How many tokens this model accepts, as the provider's own listing says.
+    async def _listed_model(
+        self, ctx: AuthContext, provider: str, model: str
+    ) -> CatalogModel | None:
+        """The provider's own listing entry for this model, or None.
+
+        Read for how many tokens the model accepts and, on Stav.ai, which API it
+        is served on.
 
         Read once here rather than per run, because the request path must not
         call a provider - and stored, because the alternative source is wrong in
@@ -365,7 +377,7 @@ class ModelProfileService:
         """
         api_key = await OrganizationSecretService(self.db).listing_key(ctx, provider)
         models, _ = await models_for(provider, api_key=api_key)
-        return next((entry.context_length for entry in models if entry.id == model), None)
+        return next((entry for entry in models if entry.id == model), None)
 
     async def _check_label_free(self, ctx: AuthContext, label: str) -> None:
         """Refuse a label another profile in this organization already carries."""

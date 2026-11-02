@@ -79,6 +79,10 @@ class CatalogModel:
     # most of them: absent means "not stated", never "text only", because a
     # picker that filtered on a guess would hide models that do work.
     output_modalities: tuple[str, ...] = ()
+    # Which APIs the provider serves the model on, where its listing says -
+    # Stav.ai's `stav_surfaces`, `("chat", "messages", "responses")`. Empty
+    # means not stated.
+    surfaces: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -109,6 +113,9 @@ class ListingSpec:
     # OpenRouter and the Hugging Face router both answer
     # `architecture.output_modalities`; nobody else states it at all.
     modalities_path: str | None = None
+    # Dotted path to the list of APIs a model is served on, where the listing
+    # says. Only Stav.ai states it (`stav_surfaces`).
+    surfaces_path: str | None = None
 
 
 # Loaded from data rather than written out here. Every field is declarative - a
@@ -250,11 +257,14 @@ def _read_listing(payload: Any, spec: ListingSpec, *, bounded: bool = False) -> 
         name = row.get(spec.name_field) if spec.name_field else None
         context = row.get(spec.context_field) if spec.context_field else None
         modalities = _modalities(row, spec.modalities_path)
+        surfaces = _modalities(row, spec.surfaces_path)
         if bounded and (
             len(raw) > MAX_CATALOG_FIELD
             or (isinstance(name, str) and len(name) > MAX_CATALOG_FIELD)
             or len(modalities) > 16
             or any(len(entry) > 32 for entry in modalities)
+            or len(surfaces) > 16
+            or any(len(entry) > 32 for entry in surfaces)
         ):
             raise ValueError("The model catalog has oversized fields")
         models.append(
@@ -263,6 +273,7 @@ def _read_listing(payload: Any, spec: ListingSpec, *, bounded: bool = False) -> 
                 name=name if isinstance(name, str) and name else model_id,
                 context_length=context if isinstance(context, int) else None,
                 output_modalities=modalities,
+                surfaces=surfaces,
             )
         )
     return sorted(models, key=lambda entry: listing_order(entry.id))

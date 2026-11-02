@@ -36,6 +36,7 @@ interface ProviderCapabilities {
   apis: ("chat" | "responses")[];
   native_api: "chat" | "responses" | null;
   regions?: ("eu" | "eea" | "global")[];
+  api_from_model?: boolean;
 }
 
 const state = {
@@ -43,7 +44,12 @@ const state = {
   catalog: [] as ProviderCapabilities[],
   secrets: [] as Secret[],
   profiles: [] as { label: string }[],
-  models: [] as { id: string; name: string; context_length?: number | null }[],
+  models: [] as {
+    id: string;
+    name: string;
+    context_length?: number | null;
+    apis?: ("chat" | "responses")[];
+  }[],
   refused: [] as string[],
   source: "live" as "live" | "curated" | null,
   loadingModels: false,
@@ -1099,10 +1105,14 @@ describe("choosing where a Stav model's requests run", () => {
         apis: ["responses", "chat"],
         native_api: "chat",
         regions: ["eu", "eea", "global"],
+        api_from_model: true,
       }),
     ];
     state.secrets = [secret({ id: "s-stav", name: "Stav", purpose: "stav" })];
-    state.models = [{ id: "mistralai/mistral-small-4", name: "Mistral Small 4" }];
+    state.models = [
+      { id: "mistralai/mistral-small-4", name: "Mistral Small 4", apis: ["chat", "responses"] },
+      { id: "openai/o3-pro", name: "o3-pro", apis: ["responses"] },
+    ];
     mount();
     await pickProvider("Stav.ai");
     await userEvent.click(screen.getByLabelText("Model"));
@@ -1166,6 +1176,57 @@ describe("choosing where a Stav model's requests run", () => {
 
     expect(screen.getByLabelText("Region")).toHaveTextContent("EU only");
     expect(screen.getByText("In use")).toBeInTheDocument();
+  });
+
+  it("asks no API question; the model's listing answers it", async () => {
+    await fillStav();
+    expect(screen.queryByLabelText("API")).toBeNull();
+    expect(screen.getByText("Chat Completions, chosen from the model")).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Add model" }));
+    expect(sent()).toEqual(expect.objectContaining({ api: "chat" }));
+  });
+
+  it("sends Responses for a model served only there", async () => {
+    await fillStav();
+    await userEvent.click(screen.getByLabelText("Model"));
+    await userEvent.click(screen.getByRole("option", { name: /o3-pro/ }));
+    expect(screen.getByText("Responses, chosen from the model")).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Add model" }));
+    expect(sent()).toEqual(expect.objectContaining({ model: "openai/o3-pro", api: "responses" }));
+  });
+
+  it("does not claim the model chose an API it did not", async () => {
+    state.purposes = [...state.purposes, purpose("stav", "Stav.ai")];
+    state.catalog = [
+      ...state.catalog,
+      capabilities("stav", "Stav.ai", {
+        supports_base_url: true,
+        apis: ["responses", "chat"],
+        native_api: "chat",
+        regions: ["eu", "eea", "global"],
+        api_from_model: true,
+      }),
+    ];
+    state.secrets = [secret({ id: "s-stav", name: "Stav", purpose: "stav" })];
+    state.models = [
+      { id: "mistralai/mistral-small-4", name: "Mistral Small 4", apis: ["chat", "responses"] },
+    ];
+    mount({
+      selected: {
+        id: "p-forced",
+        label: "Stav.ai · mistralai/mistral-small-4",
+        provider: "stav",
+        model: "mistralai/mistral-small-4",
+        secret_id: "s-stav",
+        api: "responses",
+        region: "eu",
+        params: {},
+        fallback_profile_ids: [],
+      } as Parameters<typeof AddModel>[0]["selected"],
+    });
+    expect(screen.getByText("Responses, set on this model")).toBeInTheDocument();
   });
 
   it("sends no region for a provider without one", async () => {

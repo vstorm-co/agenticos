@@ -49,6 +49,11 @@ export interface ProviderInfo {
    * takes a region. The first is the default. Empty for every other provider.
    */
   regions?: ModelRegion[];
+  /**
+   * Whether the API is chosen from the model's own listing (Stav.ai) rather
+   * than by the person adding it. The form shows the choice instead of asking.
+   */
+  api_from_model?: boolean;
 }
 
 export interface ProviderCatalog {

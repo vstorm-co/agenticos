@@ -249,6 +249,8 @@ export interface ProviderModel {
   context_length?: number | null;
   /** False for a model the platform knows an agent cannot run on (#2487). */
   chat_capable?: boolean;
+  /** The APIs the provider says the model is served on (Stav.ai). Empty: not stated. */
+  apis?: ModelApi[];
 }
 
 interface ProviderModelList {

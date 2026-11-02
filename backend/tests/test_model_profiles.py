@@ -360,6 +360,23 @@ class TestProviderCatalog:
             "stav": ("responses", "chat"),
         }
 
+    def test_only_stav_takes_its_api_from_the_model(self):
+        assert [spec.id for spec in PROVIDERS.values() if spec.api_from_model] == ["stav"]
+
+    @pytest.mark.parametrize(
+        ("surfaces", "api"),
+        [
+            (("chat", "messages", "responses"), "chat"),
+            (("responses",), "responses"),
+            (("messages",), None),
+            ((), None),
+        ],
+    )
+    def test_the_model_s_listing_names_the_api(self, surfaces, api):
+        from app.agents.model_resolver import api_for_model
+
+        assert api_for_model(surfaces) == api
+
     def test_only_stav_offers_a_region(self):
         offering = {spec.id: spec.regions for spec in PROVIDERS.values() if spec.regions}
         assert offering == {"stav": ("eu", "eea", "global")}
@@ -2084,6 +2101,53 @@ class TestTheWindowAModelAccepts:
         catalog.assert_awaited_once_with("stav", api_key="sk_stav_test")
         assert create.call_args.kwargs["context_length"] == 128_000
         assert create.call_args.kwargs["region"] == stored
+
+    async def _stav_created(self, surfaces, *, api=None) -> dict:
+        catalog = AsyncMock(
+            return_value=(
+                [CatalogModel(id="openai/o3-pro", name="o3-pro", surfaces=surfaces)],
+                "live",
+            )
+        )
+        with (
+            patch("app.services.model_profile.models_for", new=catalog),
+            patch(
+                "app.services.model_profile.OrganizationSecretService.listing_key",
+                new=AsyncMock(return_value="sk_stav_test"),
+            ),
+            patch("app.services.model_profile.ModelProfileService._check_key", new=AsyncMock()),
+            patch(
+                "app.services.model_profile.credential_repo.create_profile",
+                new=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
+            ) as create,
+            patch("app.services.model_profile.record_audit", new=AsyncMock()),
+        ):
+            await ModelProfileService(_db()).create_profile(
+                _ctx(),
+                label="Stav o3-pro",
+                provider="stav",
+                model="openai/o3-pro",
+                secret_id=uuid.uuid4(),
+                api=api,
+            )
+        return create.call_args.kwargs
+
+    @pytest.mark.anyio
+    async def test_a_responses_only_stav_model_gets_responses(self):
+        assert (await self._stav_created(("responses",)))["api"] == "responses"
+
+    @pytest.mark.anyio
+    async def test_a_stav_model_on_chat_gets_chat(self):
+        assert (await self._stav_created(("chat", "messages", "responses")))["api"] == "chat"
+
+    @pytest.mark.anyio
+    async def test_a_stav_model_the_listing_says_nothing_about_keeps_the_default(self):
+        assert (await self._stav_created(()))["api"] == "chat"
+
+    @pytest.mark.anyio
+    async def test_an_api_someone_chose_wins_over_the_listing(self):
+        written = await self._stav_created(("chat", "responses"), api="responses")
+        assert written["api"] == "responses"
 
     @pytest.mark.anyio
     async def test_the_providers_own_number_is_what_gets_stored(self):

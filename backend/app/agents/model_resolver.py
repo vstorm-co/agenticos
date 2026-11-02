@@ -71,6 +71,21 @@ ModelApi = Literal["chat", "responses"]
 """Which of OpenAI's two APIs a profile's requests go to: Chat Completions or Responses."""
 
 
+def api_for_model(surfaces: tuple[str, ...]) -> ModelApi | None:
+    """The API a model's own listing says it is served on.
+
+    Chat Completions wherever it is served, because that is the API every
+    provider behind a gateway implements; Responses where it is the only one (a
+    few OpenAI models answer nothing else). None when the listing names neither,
+    and the caller keeps its default.
+    """
+    if "chat" in surfaces:
+        return "chat"
+    if "responses" in surfaces:
+        return "responses"
+    return None
+
+
 ModelRegion = Literal["eu", "eea", "global"]
 """Where a provider that takes a region may run a profile's requests.
 
@@ -114,6 +129,10 @@ class ProviderSpec:
     # say. The first entry is what a profile gets when it names none. Empty for
     # every provider without the choice.
     regions: tuple[ModelRegion, ...] = ()
+    # Whether the API is chosen from the model rather than by the person adding
+    # it: true where the provider's listing says which APIs each model is served
+    # on (Stav.ai), so a choice nobody can make well is not asked.
+    api_from_model: bool = False
 
     @property
     def prefix(self) -> str:
@@ -238,6 +257,7 @@ PROVIDERS: dict[str, ProviderSpec] = {
             model_prefix="openai-chat",
             native_api="chat",
             regions=(STAV_DEFAULT_REGION, "eea", "global"),
+            api_from_model=True,
         ),
         _api_key("vercel", "Vercel AI Gateway"),
         _api_key("zai", "Z.AI"),
