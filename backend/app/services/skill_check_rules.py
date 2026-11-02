@@ -38,9 +38,8 @@ SAMPLE_SIZE = 4
 
 _WORD = re.compile(r"[a-z0-9]+(?:'[a-z]+)?")
 
-# Words that say nothing about which rule a question is about. Short on purpose:
-# a domain word kept by mistake costs one point of overlap, a rule word dropped
-# by mistake would hide the questions the change can break.
+# Short on purpose: a stray domain word costs one point of overlap, a dropped rule
+# word would hide the questions the change can break.
 _STOP_TEXT = (
     "a an and are as at be but by can do does for from has have i if in is it its me my "
     "no not of on or our so that the their them then there they this to was we what when "

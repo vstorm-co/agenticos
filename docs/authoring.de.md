@@ -1,5 +1,5 @@
 ---
-source_sha: "b5a5a777ac99"
+source_sha: "4ffa404b73c6"
 title: "Authoring-Assistent"
 description: "Der Authoring-Assistent liest, was Leute negativ bewertet haben und wie Runs endeten, und schlägt Änderungen an Anweisungen, Tools, Konfiguration, Skills und Context-Dateien eines Agents vor. Über jede entscheidet ein Mensch."
 ---
@@ -263,13 +263,14 @@ Ein Skill wird aus seiner Werkbank unter Skills verbessert. Der Assistent schlä
 einen vollständigen neuen Inhalt vor, der mit den anderen
 [Skill](skills.md)-Änderungen unter Skills wartet, mit Begründung und Belegen.
 
-Das Anwenden einer Skill-Änderung wirkt sofort: Jeder an den Skill gebundene
-Agent liest den neuen Inhalt beim nächsten Run. Deshalb lässt sich eine
-Skill-Änderung zuerst mit Evals prüfen, an einem Agent, der den Skill nutzt:
-Beide Seiten führen die veröffentlichte Version dieses Agents aus, und nur der
-Inhalt des Skills unterscheidet sich. Eine Änderung, die für eine ältere Version
-des Skills geschrieben wurde, wird abgelehnt, sobald jemand den Skill seitdem
-geändert hat.
+Das Anwenden einer Skill-Änderung wirkt sofort: Jeder Agent, der der Linie des
+Skills folgt, liest den neuen Inhalt beim nächsten Run. Deshalb geht eine
+Skill-Änderung nur über eine
+[Prüfung auf jedem Agent ihrer Linie](skills.md#checking-a-change-on-every-agent)
+live: Die veröffentlichte Version jedes Agents antwortet mit dem Skill, wie er
+ist, und mit der Änderung, und die Änderung wird aus dem Ergebnis dieser Prüfung
+angewendet. Eine Änderung, die für eine ältere Version des Skills geschrieben
+wurde, wird abgelehnt, sobald jemand den Skill seitdem geändert hat.
 
 ## Context-Dateien { #context-files }
 
