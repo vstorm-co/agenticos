@@ -49,6 +49,7 @@ function renderWorkbench(props: Partial<React.ComponentProps<typeof SkillWorkben
       skill={SKILL}
       canEdit
       isSaving={false}
+      saveWarning="Saving makes v4 on main."
       onSave={onSave}
       onCancel={onCancel}
       {...props}
@@ -97,13 +98,17 @@ describe("SkillWorkbench", () => {
 
   it("says who an edit reaches, before it is saved rather than after", async () => {
     renderWorkbench();
-    // The blast radius is the thing people get wrong about skills: there is no
-    // draft, so the warning has to arrive while the save is still avoidable.
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     await userEvent.type(await content(), "!");
-    expect(screen.getByRole("alert")).toHaveTextContent(
-      "Saving reaches every agent bound to this skill on its next run.",
-    );
+    expect(screen.getByRole("alert")).toHaveTextContent("Saving makes v4 on main.");
+  });
+
+  it("keeps a fork's files and category read-only, since they are main's", async () => {
+    renderWorkbench({ fork: true });
+    expect(screen.queryByRole("button", { name: /New/ })).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Category")).toHaveAttribute("readonly");
+    await userEvent.type(await content(), "!");
+    expect(save()).toBeEnabled();
   });
 
   it("hands back the edited skill, not a patch of it", async () => {

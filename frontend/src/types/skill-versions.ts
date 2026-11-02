@@ -7,11 +7,16 @@
  */
 
 export type SkillVersionSource =
-  "backfill" | "created" | "edit" | "files" | "library" | "workspace" | "improve" | "restore";
+  "backfill" | "created" | "edit" | "resources" | "library" | "workspace" | "improve" | "restore";
 
 export interface SkillVersionRef {
   id: string;
   number: number;
+}
+
+export interface SkillLineVersionRef extends SkillVersionRef {
+  /** Null on the main line. */
+  fork_id: string | null;
 }
 
 export interface SkillVersionSummary {
@@ -21,15 +26,26 @@ export interface SkillVersionSummary {
   fork_id: string | null;
   number: number;
   source: SkillVersionSource;
-  restored_from: { id: string; number: number; fork_id: string | null } | null;
+  /** What this version changed from: the line's previous version, or a fork's base. */
+  previous: SkillLineVersionRef | null;
+  restored_from: SkillLineVersionRef | null;
   proposal_id: string | null;
   created_by: { id: string; name: string } | null;
   created_at: string;
+  /** Agents whose served versions resolve to it. */
+  agents: number;
+}
+
+export interface SkillVersionResource {
+  name: string;
+  description: string | null;
+  size_bytes: number;
 }
 
 export interface SkillVersionRead extends SkillVersionSummary {
   description: string;
   content: string;
+  resources: SkillVersionResource[];
 }
 
 export interface SkillVersionList {
@@ -63,7 +79,7 @@ export type SkillBindingState = "main" | "pinned" | "fork";
 export interface SkillBinding {
   state: SkillBindingState;
   /** The concrete version the binding resolves to now. */
-  version: SkillVersionRef & { fork_id: string | null };
+  version: SkillLineVersionRef;
   fork: { id: string; name: string; base_number: number; changes: number } | null;
   behind_main: number;
 }
@@ -74,19 +90,20 @@ export interface SkillAgentUsage {
     name: string;
     slug: string;
     has_avatar?: boolean;
-    avatar_color?: string | null;
+    avatar_color?: number | null;
   };
   /** Set when only one of the agent's specialists binds the skill. */
   via_specialist: string | null;
-  /** The default environment's binding; null when the agent was never published. */
-  published: SkillBinding | null;
+  /** Bound only in the draft, so it counts on no line; `binding` is the draft's. */
+  draft_only: boolean;
+  /** The default environment's binding, or the draft's when `draft_only`. */
+  binding: SkillBinding;
   agent_version: number | null;
-  /** Only the environments whose binding differs from `published`. */
+  /** Only the environments whose binding differs from `binding`. */
   environments: { id: string; name: string; agent_version: number; binding: SkillBinding }[];
-  /** Only when the draft's binding differs from `published`. */
-  draft: SkillBinding | null;
+  draft_differs: boolean;
   /** Whether the caller may change this agent's binding. */
-  can_change?: boolean;
+  can_change: boolean;
 }
 
 export interface SkillAgentList {

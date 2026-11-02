@@ -5,30 +5,30 @@ import type { SkillAgentUsage, SkillBindingState, SkillFork } from "@/types/skil
 
 function agent(
   name: string,
-  state: SkillBindingState | null,
+  state: SkillBindingState,
   number: number,
   fork: SkillFork | null = null,
+  { draftOnly = false }: { draftOnly?: boolean } = {},
 ): SkillAgentUsage {
   return {
     agent: { id: name, name, slug: name },
     via_specialist: null,
-    published:
-      state === null
-        ? null
-        : {
-            state,
-            version: { id: `${fork?.id ?? "main"}-${number}`, number, fork_id: fork?.id ?? null },
-            fork: fork && {
-              id: fork.id,
-              name: fork.name,
-              base_number: fork.base.number,
-              changes: fork.changes,
-            },
-            behind_main: 0,
-          },
-    agent_version: state === null ? null : 1,
+    draft_only: draftOnly,
+    binding: {
+      state,
+      version: { id: `${fork?.id ?? "main"}-${number}`, number, fork_id: fork?.id ?? null },
+      fork: fork && {
+        id: fork.id,
+        name: fork.name,
+        base_number: fork.base.number,
+        changes: fork.changes,
+      },
+      behind_main: 0,
+    },
+    agent_version: draftOnly ? null : 1,
     environments: [],
-    draft: null,
+    draft_differs: false,
+    can_change: true,
   };
 }
 
@@ -154,8 +154,12 @@ describe("versionTree", () => {
     expect(branch.agents.map((one) => one.agent.name)).toEqual(["Refund desk"]);
   });
 
-  it("leaves out an agent that was never published", () => {
-    const rows = versionTree({ mainLatest: 2, forks: [], agents: [agent("Draft", null, 0)] });
+  it("leaves out an agent that binds the skill only in its draft", () => {
+    const rows = versionTree({
+      mainLatest: 2,
+      forks: [],
+      agents: [agent("Draft", "pinned", 1, null, { draftOnly: true })],
+    });
 
     expect(rows.flatMap((row) => (row.kind === "version" ? row.agents : []))).toEqual([]);
   });

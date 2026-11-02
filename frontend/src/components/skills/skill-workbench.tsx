@@ -27,6 +27,13 @@ interface SkillWorkbenchProps {
   isSaving: boolean;
   /** What the category field suggests: shelves in use plus the deployment's predefined ones. */
   categorySuggestions?: string[];
+  /** What saving does to the agents using the line being edited. */
+  saveWarning: string;
+  /**
+   * Editing a fork: only its description and body are its own, so the files and the
+   * category - shared with main - stay read-only.
+   */
+  fork?: boolean;
   onSave: (edit: SkillEdit) => void;
   onCancel: () => void;
   onDelete?: () => void;
@@ -54,6 +61,8 @@ export function SkillWorkbench({
   canEdit,
   isSaving,
   categorySuggestions = [],
+  saveWarning,
+  fork = false,
   onSave,
   onCancel,
   onDelete,
@@ -106,7 +115,7 @@ export function SkillWorkbench({
             onChange={setCategory}
             suggestions={categorySuggestions}
             maxLength={64}
-            readOnly={!canEdit}
+            readOnly={!canEdit || fork}
           />
           <p className="text-muted-foreground text-xs">{t("groupsListingNeverReaches")}</p>
         </div>
@@ -114,7 +123,7 @@ export function SkillWorkbench({
 
       <div className="grid min-h-0 flex-1 gap-3 max-md:flex-none md:grid-cols-[minmax(0,15rem)_minmax(0,1fr)]">
         <div className="flex min-h-0 flex-col gap-2">
-          {canEdit && (
+          {canEdit && !fork && (
             // One row of three, above the tree: stacked below it they wrapped
             // onto two lines and read as an afterthought under a tall empty box.
             <div className="grid grid-cols-3 gap-1">
@@ -183,7 +192,7 @@ export function SkillWorkbench({
               key={selected.id}
               skillId={skill.id}
               resource={selected}
-              canEdit={canEdit}
+              canEdit={canEdit && !fork}
               busy={saveResource.isPending}
               onSave={(body) => saveResource.mutate({ id: selected.id, content: body })}
               onDelete={async () => {
@@ -208,7 +217,7 @@ export function SkillWorkbench({
       {changed && (
         <Alert variant="warning">
           <AlertTriangle className="h-4 w-4" />
-          <AlertDescription>{t("savingReachesEveryAgent")}</AlertDescription>
+          <AlertDescription>{saveWarning}</AlertDescription>
         </Alert>
       )}
 

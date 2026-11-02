@@ -115,7 +115,6 @@ export function useSkills({
       apiClient.patch<Skill>(`/skills/${id}`, changes),
     onSuccess: async () => {
       await invalidate();
-      // Skills are bound by reference, so an edit reaches every agent at once.
       toast.success(t("savedAgentsCurrent"));
     },
     onError: (error) => toast.error(getErrorMessage(error, tErrors)),
@@ -167,7 +166,7 @@ export function useSkill(skillId: string | null) {
   const t = useTranslations("skills");
   const queryClient = useQueryClient();
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, error } = useQuery({
     queryKey: qk.skills.detail(skillId ?? ""),
     queryFn: () => apiClient.get<Skill>(`/skills/${skillId}`),
     enabled: skillId !== null,
@@ -182,10 +181,9 @@ export function useSkill(skillId: string | null) {
   }, [queryClient]);
 
   const save = useMutation({
-    mutationFn: (edit: SkillEdit) => apiClient.patch<Skill>(`/skills/${skillId}`, edit),
+    mutationFn: (edit: Partial<SkillEdit>) => apiClient.patch<Skill>(`/skills/${skillId}`, edit),
     onSuccess: async () => {
       await invalidate();
-      // Agents bind to the skill, not to a version of it, so this is already live.
       toast.success(t("savedAgentsCurrent"));
     },
     onError: (error) => toast.error(getErrorMessage(error, tErrors)),
@@ -256,6 +254,7 @@ export function useSkill(skillId: string | null) {
   return {
     skill: data,
     isLoading,
+    error,
     save,
     addResource,
     saveResource,

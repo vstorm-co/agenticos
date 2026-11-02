@@ -422,6 +422,12 @@ export const qk = {
     gallery: () => ["skills", "gallery"] as const,
     resource: (skillId: string, resourceId: string) =>
       ["skills", skillId, "resources", resourceId] as const,
+    versions: (skillId: string, forkId: string | null, skip: number) =>
+      ["skills", skillId, "versions", forkId ?? "main", skip] as const,
+    version: (skillId: string, versionId: string) =>
+      ["skills", skillId, "version", versionId] as const,
+    forks: (skillId: string) => ["skills", skillId, "forks"] as const,
+    agents: (skillId: string) => ["skills", skillId, "agents"] as const,
   },
   mcpOauth: {
     request: (orgId: string, requestId: string) =>

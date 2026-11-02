@@ -7391,7 +7391,6 @@
       "whoReceivesThis": "Who receives this?"
     },
     "skills": {
-      "agentsBoundSkillWill": "Agents bound to this skill will run without it from their next run. This cannot be undone.",
       "allCategories": "All categories",
       "askAdministratorAccessSkills": "Ask an administrator for access to skills.",
       "categoryCount": "{count, plural, =1 {1 category} other {# categories}}",
@@ -8291,8 +8290,7 @@
     "review": "Review",
     "save": "Save",
     "saveFile": "Save file",
-    "savedAgentsCurrent": "Saved. Every agent using this skill is now current.",
-    "savingReachesEveryAgent": "Saving reaches every agent bound to this skill on its next run. There is no draft and no publish step.",
+    "savedAgentsCurrent": "Saved.",
     "showWhatChangedIn": "Show what changed in {name}",
     "sizeUploadsWhenCreated": "{size} · uploads when the skill is created",
     "support": "support",
@@ -8323,7 +8321,122 @@
     "moreFiles": "{count, plural, =1 {+1 file} other {+# files}}",
     "bodyPlaceholder": "# Refunds\n\nUse this when a customer asks for their money back.\n\n## Steps\n\n1. Check the order date.\n2. Within 14 days, refund without asking.\n3. After that, ask a person to approve it.",
     "whoCanUseIt": "Who can use it",
-    "expectedEffect": "Expected effect:"
+    "expectedEffect": "Expected effect:",
+    "page": {
+      "skills": "Skills",
+      "mainVersion": "v{number} on main",
+      "forkCount": "{count, plural, =1 {1 fork} other {# forks}}",
+      "editSkill": "Edit",
+      "editFork": "Edit fork “{name}”",
+      "open": "Open",
+      "tabs": {
+        "agents": "Agents",
+        "history": "History",
+        "tree": "Version tree"
+      },
+      "agentCount": "{count, plural, =0 {No agents} =1 {1 agent} other {# agents}}",
+      "delete": "Delete",
+      "deleteDescription": "Agents that use this skill stop finding it. Its versions go with it.",
+      "state": {
+        "main": "v{number} · main",
+        "pinned": "v{number} · pinned{behind, plural, =0 {} other { · # behind main}}",
+        "fork": "Fork “{name}” · from v{base}{changes, plural, =0 { · no changes yet} =1 { · 1 change} other { · # changes}}{behind, plural, =0 {} other { · # behind main}}"
+      },
+      "show": {
+        "label": "Which agents to show",
+        "all": "All ({count})",
+        "main": "Main ({count})",
+        "pinned": "Pinned ({count})",
+        "fork": "Fork “{name}” ({count})"
+      },
+      "agentsTable": {
+        "agent": "Agent",
+        "version": "Version",
+        "actions": "Actions",
+        "viaSpecialist": "Through its specialist {name}",
+        "empty": "No agent here uses this skill.",
+        "hidden": "{count, plural, =1 {1 more agent you can't see uses this skill.} other {# more agents you can't see use this skill.}}",
+        "draftOnly": "Only in the draft",
+        "environment": "{name}: {binding}",
+        "draftDiffers": "Its draft uses a different version."
+      },
+      "changeVersion": {
+        "button": "Change version",
+        "for": "Change the version of the skill for {name}",
+        "title": "Change the version of {skill} for {name}",
+        "now": "Now: {binding}",
+        "legend": "Version to use",
+        "followMain": "Main, latest: follows every new version",
+        "pin": "Pin a main version: stays on it when main moves",
+        "pinVersion": "Version to pin",
+        "versionOption": "v{number}",
+        "fork": "Fork “{name}”, latest",
+        "unchecked": "This version has not been checked on {name}. Its answers may change.",
+        "understood": "I understand, change it anyway",
+        "publishes": "This publishes a new version of {name} with only this change. Unfinished changes in its draft stay in the draft.",
+        "cancel": "Cancel",
+        "submit": "Change and publish",
+        "published": "Published. {count, plural, =0 {{name} has a new version.} other {{environments} now serve{count, plural, =1 {s} other {}} the new version of {name}.}}",
+        "savedInDraft": "Saved in the draft of {name}. Publish it in the Builder.",
+        "openBuilder": "Open the Builder"
+      },
+      "history": {
+        "title": "History of {line}",
+        "versionCount": "{count, plural, =1 {1 version} other {# versions}}",
+        "main": "main",
+        "fork": "fork “{name}”",
+        "lines": "Line to show",
+        "showChanges": "Show changes",
+        "hideChanges": "Hide changes",
+        "restore": "Restore",
+        "restoreVersion": "Restore v{number}",
+        "restoreTitle": "Restore v{number}?",
+        "restoreMain": "v{number} comes back as the newest version on main. Agents following main get it at once; pinned agents and forks keep their version.",
+        "restoreFork": "v{number} comes back as the newest version of fork “{name}”. The fork's agents get it at once.",
+        "restored": "v{number} is back as v{made}.",
+        "number": "v{number}",
+        "restoredFrom": "Restored from v{number}",
+        "source": {
+          "backfill": "As it was when versions began",
+          "created": "Created",
+          "edit": "Edited",
+          "resources": "Files changed",
+          "library": "From the library",
+          "workspace": "Written back by an agent",
+          "improve": "Improve",
+          "restore": "Restored"
+        },
+        "madeBy": "{who} · {when}{agents, plural, =0 {} =1 { · used by 1 agent} other { · used by # agents}}",
+        "unknownAuthor": "Unknown",
+        "loadingChanges": "Loading the changes",
+        "description": "Description",
+        "body": "Instructions",
+        "bodyUnchanged": "The instructions did not change.",
+        "files": "Files",
+        "file": {
+          "added": "added",
+          "removed": "removed",
+          "changed": "changed"
+        }
+      },
+      "tree": {
+        "title": "Version tree",
+        "summary": "{versions, plural, =1 {1 version on main} other {# versions on main}}{forks, plural, =0 {} =1 { · 1 fork} other { · # forks}}",
+        "folded": "{count} versions (v{from}–v{to})",
+        "number": "v{number}",
+        "latest": "latest",
+        "fork": "Fork “{name}”",
+        "forkFacts": "{changes, plural, =0 {no changes yet} =1 {1 change} other {# changes}}{behind, plural, =0 {} other { · # behind main}}",
+        "moreAgents": "+{count}"
+      },
+      "edit": {
+        "saved": "Saved as v{number}.",
+        "forkTitle": "{skill} · fork “{name}”",
+        "nameHowModelRefers": "The name is how the model refers to this skill.",
+        "warnMain": "Saving makes v{number} on main. {count, plural, =0 {No agent follows main yet.} =1 {1 agent following main gets it at once.} other {# agents following main get it at once.}} Pinned agents and forks keep their version.",
+        "warnFork": "Saving makes v{number} of fork “{name}”. {count, plural, =0 {No agent uses the fork yet.} =1 {Its 1 agent gets it at once.} other {Its # agents get it at once.}}"
+      }
+    }
   },
   "states": {
     "loading": "Loading"

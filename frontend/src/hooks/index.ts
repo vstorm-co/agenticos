@@ -142,6 +142,13 @@ export { useAllWorkspaceFiles, useWorkspaceFiles } from "./use-sandbox-workspace
 export { useFileActions, useFileBytes, useFileText } from "./use-file-content";
 export { useSkillChanges } from "./use-skill-changes";
 export { useSkill, useSkillResource, useSkills } from "./use-skills";
+export {
+  useSkillAgents,
+  useSkillForks,
+  useSkillVersion,
+  useSkillVersions,
+  useSkillVersionWrites,
+} from "./use-skill-versions";
 export { useSharing } from "./use-sharing";
 export { useEmbeds } from "./use-embeds";
 export { useChannelBots } from "./use-channel-bots";

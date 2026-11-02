@@ -64,6 +64,7 @@ export const ROUTES = {
   DOCUMENTS: "/documents",
   DOCUMENT_FOLDER: (id: string) => `/documents/${id}`,
   SKILLS: "/skills",
+  SKILL_DETAIL: (id: string) => `/skills/${id}`,
   CONTEXT: "/context",
   DATASETS: "/datasets",
   EVALS: "/evals",

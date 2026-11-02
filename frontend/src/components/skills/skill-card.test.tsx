@@ -1,6 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 
 import { SkillCard } from "./skill-card";
 import type { SkillSummary } from "@/types/providers";
@@ -24,9 +23,7 @@ const SKILL: SkillSummary = {
 };
 
 function renderCard(props: Partial<React.ComponentProps<typeof SkillCard>> = {}) {
-  const onOpen = vi.fn();
-  render(<SkillCard skill={SKILL} onOpen={onOpen} {...props} />);
-  return { onOpen };
+  render(<SkillCard skill={SKILL} {...props} />);
 }
 
 describe("SkillCard", () => {
@@ -73,10 +70,12 @@ describe("SkillCard", () => {
     expect(screen.getByText("Customer support")).toBeInTheDocument();
   });
 
-  it("opens the skill when its name is clicked", async () => {
-    const { onOpen } = renderCard();
-    await userEvent.click(screen.getByText("refund-policy"));
-    expect(onOpen).toHaveBeenCalled();
+  it("leads to the skill's own page", () => {
+    renderCard();
+    expect(screen.getByText("refund-policy").closest("a")).toHaveAttribute(
+      "href",
+      "/skills/skill-1",
+    );
   });
 
   it("keeps destructive actions out of the preview card", () => {
@@ -86,7 +85,7 @@ describe("SkillCard", () => {
   });
 
   it("shows the body's opening on a page, with a sheet behind it per file", () => {
-    const { container } = render(<SkillCard skill={SKILL} onOpen={vi.fn()} />);
+    const { container } = render(<SkillCard skill={SKILL} />);
 
     expect(screen.getByText("Refunds")).toBeInTheDocument();
     expect(screen.getByText("Use the refund tool")).toBeInTheDocument();
@@ -95,13 +94,7 @@ describe("SkillCard", () => {
   });
 
   it("draws a blank page, not the description twice, for a skill with no body", () => {
-    const { container } = render(
-      <SkillCard
-        skill={{ ...SKILL, excerpt: "", file_count: 0 }}
-
-        onOpen={vi.fn()}
-      />,
-    );
+    const { container } = render(<SkillCard skill={{ ...SKILL, excerpt: "", file_count: 0 }} />);
 
     expect(screen.getAllByText(SKILL.description)).toHaveLength(1);
     expect(screen.queryByText("+2 files")).toBeNull();

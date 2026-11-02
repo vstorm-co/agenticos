@@ -1,0 +1,86 @@
+import type { ReactNode } from "react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { render, screen } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+import { apiClient } from "@/lib/api-client";
+import type { SkillVersionRead } from "@/types/skill-versions";
+import { fileChanges, VersionDiff } from "./version-diff";
+
+vi.mock("@/lib/api-client", async (original) => ({
+  ...(await original<typeof import("@/lib/api-client")>()),
+  apiClient: { get: vi.fn(), post: vi.fn(), patch: vi.fn(), put: vi.fn(), delete: vi.fn() },
+}));
+
+function read(id: string, extra: Partial<SkillVersionRead>): SkillVersionRead {
+  return {
+    id,
+    skill_id: "s1",
+    fork_id: null,
+    number: 1,
+    source: "edit",
+    previous: null,
+    restored_from: null,
+    proposal_id: null,
+    created_by: null,
+    created_at: "2026-11-01T10:00:00Z",
+    agents: 0,
+    description: "Returns.",
+    content: "Refund within 30 days.",
+    resources: [],
+    ...extra,
+  };
+}
+
+function mount(versionId: string, previousId: string | null) {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  render(<VersionDiff skillId="s1" versionId={versionId} previousId={previousId} />, {
+    wrapper: ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    ),
+  });
+}
+
+beforeEach(() => vi.clearAllMocks());
+
+describe("fileChanges", () => {
+  it("names the files added, removed and changed between two versions", () => {
+    const file = (name: string, size_bytes: number) => ({ name, description: null, size_bytes });
+    expect(
+      fileChanges(
+        [file("a.md", 10), file("b.md", 20), file("c.md", 30)],
+        [file("a.md", 10), file("b.md", 25), file("d.md", 5)],
+      ),
+    ).toEqual({ added: ["d.md"], removed: ["c.md"], changed: ["b.md"] });
+  });
+});
+
+describe("VersionDiff", () => {
+  it("shows what the version changed against the one it came from", async () => {
+    vi.mocked(apiClient.get).mockImplementation(async (path: string) =>
+      path.endsWith("/m2")
+        ? read("m2", {
+            content: "Refund within 14 days.",
+            resources: [{ name: "form.pdf", description: null, size_bytes: 3 }],
+          })
+        : read("m1", {}),
+    );
+    mount("m2", "m1");
+
+    expect(await screen.findByText("Instructions")).toBeInTheDocument();
+    expect(screen.queryByText("Description")).toBeNull();
+    expect(screen.getByText("form.pdf")).toBeInTheDocument();
+    expect(screen.getByText("added")).toBeInTheDocument();
+  });
+
+  it("says when only the files changed", async () => {
+    vi.mocked(apiClient.get).mockImplementation(async (path: string) =>
+      path.endsWith("/m2")
+        ? read("m2", { resources: [{ name: "form.pdf", description: null, size_bytes: 3 }] })
+        : read("m1", {}),
+    );
+    mount("m2", "m1");
+
+    expect(await screen.findByText("The instructions did not change.")).toBeInTheDocument();
+  });
+});

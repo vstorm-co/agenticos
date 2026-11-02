@@ -1,0 +1,147 @@
+"use client";
+
+import { use, useState } from "react";
+import { useRouter } from "next/navigation";
+import { Bot, GitBranch, History } from "lucide-react";
+import { useTranslations } from "next-intl";
+
+import { EditSkillDialog } from "@/components/skills/edit-skill-dialog";
+import { SkillAgents } from "@/components/skills/skill-agents";
+import { SkillHistory } from "@/components/skills/skill-history";
+import { lineOf, shownAgents, type ShownAgents } from "@/components/skills/skill-lines";
+import { SkillPageHeader } from "@/components/skills/skill-page-header";
+import { VersionTree } from "@/components/skills/version-tree";
+import { ErrorState, LoadingState } from "@/components/states";
+import { ResourceUnavailable } from "@/components/states/resource-unavailable";
+import { ConfirmDialog, Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui";
+import { useSkill, useSkills } from "@/hooks";
+import { useSkillAgents, useSkillForks } from "@/hooks/use-skill-versions";
+import { useUrlState } from "@/hooks/use-url-state";
+import { ApiError, getErrorMessage } from "@/lib/api-error";
+import { ROUTES } from "@/lib/constants";
+
+/** The tabs `?tab=` may open, in the order they are drawn. */
+const TABS = ["agents", "history", "tree"];
+
+/**
+ * One skill: the agents that use it and the version each is served, every version
+ * it has had, and the tree of its main line and forks.
+ *
+ * What the page shows - everyone, one state or one fork - is `?show=`, and a fork
+ * chosen there is also the line History lists and Edit saves to.
+ */
+export default function SkillPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params);
+  const t = useTranslations("skills.page");
+  const tc = useTranslations("common");
+  const tErrors = useTranslations("errors");
+  const router = useRouter();
+  const [tabParam, setTabParam] = useUrlState("tab");
+  const tab = tabParam !== null && TABS.includes(tabParam) ? tabParam : "agents";
+  const [showParam, setShowParam] = useUrlState("show");
+  const [editing, setEditing] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const { skill, error } = useSkill(id);
+  const { forks } = useSkillForks(id);
+  const agents = useSkillAgents(id);
+  const { remove } = useSkills({ limit: 1 });
+
+  if (error instanceof ApiError && [403, 404].includes(error.status)) {
+    return <ResourceUnavailable back={ROUTES.SKILLS} label={tc("back")} />;
+  }
+  if (error) return <ErrorState description={getErrorMessage(error, tErrors)} />;
+  if (skill === undefined) return <LoadingState variant="skeleton-panel" rows={3} />;
+
+  const asked = shownAgents(showParam);
+  const forkId = lineOf(asked);
+  const fork = forks.find((one) => one.id === forkId) ?? null;
+  // A link to a fork that has since been archived shows everyone.
+  const shown: ShownAgents = forkId !== null && fork === null ? "all" : asked;
+  const followers = (agents.agents?.items ?? []).filter(
+    (usage) =>
+      !usage.draft_only &&
+      (fork === null ? usage.binding.state === "main" : usage.binding.fork?.id === fork.id),
+  ).length;
+
+  return (
+    <div className="space-y-6">
+      <SkillPageHeader skill={skill} line={fork?.name ?? null} onEdit={() => setEditing(true)} />
+      <Tabs
+        value={tab}
+        onValueChange={(next) => setTabParam(next === "agents" ? null : next)}
+        className="space-y-4"
+      >
+        <TabsList>
+          <TabsTrigger value="agents">
+            <Bot className="mr-1.5 size-4 shrink-0" aria-hidden />
+            {t("tabs.agents")}
+          </TabsTrigger>
+          <TabsTrigger value="history" data-tour="skill-history-tab">
+            <History className="mr-1.5 size-4 shrink-0" aria-hidden />
+            {t("tabs.history")}
+          </TabsTrigger>
+          <TabsTrigger value="tree" data-tour="skill-tree-tab">
+            <GitBranch className="mr-1.5 size-4 shrink-0" aria-hidden />
+            {t("tabs.tree")}
+          </TabsTrigger>
+        </TabsList>
+        <TabsContent value="agents">
+          <SkillAgents
+            skillId={id}
+            skillName={skill.name}
+            agents={agents.agents}
+            error={agents.error}
+            forks={forks}
+            shown={shown}
+            onShow={(next) => setShowParam(next === "all" ? null : next)}
+          />
+        </TabsContent>
+        <TabsContent value="history">
+          <SkillHistory
+            key={fork?.id ?? "main"}
+            skillId={id}
+            forkId={fork?.id ?? null}
+            forkName={fork?.name ?? null}
+            latestId={
+              fork === null ? (skill.latest_version?.id ?? null) : (fork.latest?.id ?? null)
+            }
+            canEdit={skill.can_edit === true}
+            forks={forks}
+            onLine={(next) => setShowParam(next === null ? "main" : `fork:${next}`)}
+          />
+        </TabsContent>
+        <TabsContent value="tree">
+          <VersionTree
+            mainLatest={skill.latest_version?.number ?? skill.version}
+            forks={forks}
+            agents={agents.agents?.items ?? []}
+          />
+        </TabsContent>
+      </Tabs>
+      {editing && (
+        <EditSkillDialog
+          skill={skill}
+          fork={fork}
+          followers={followers}
+          onClose={() => setEditing(false)}
+          onDelete={() => setDeleting(true)}
+        />
+      )}
+      {deleting && (
+        <ConfirmDialog
+          open
+          onOpenChange={() => setDeleting(false)}
+          title={tc("deleteNamedConfirm", { name: skill.name })}
+          description={t("deleteDescription")}
+          confirmLabel={t("delete")}
+          destructive
+          loading={remove.isPending}
+          onConfirm={async () => {
+            await remove.mutateAsync(skill.id);
+            router.push(ROUTES.SKILLS);
+          }}
+        />
+      )}
+    </div>
+  );
+}
