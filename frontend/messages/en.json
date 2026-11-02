@@ -1243,6 +1243,16 @@
           "hidden": "{count, plural, one {# skill is hidden by one of the same name in an earlier folder} other {# skills are hidden by ones of the same name in an earlier folder}}.",
           "on": "This chat can load the enabled local skills and follows your global instructions, then the project's AGENTS.md and CLAUDE.md hierarchy.",
           "off": "Off: AgenticOS does not load your local skills or instructions."
+        },
+        "coding": {
+          "title": "Coding agent",
+          "help": "Choose Claude Code or Codex on this computer for this conversation, even when the agent has no Coding agent capability. Its existing approval and read-only rules still apply. Each task asks for native confirmation.",
+          "agent": "Use agent setting",
+          "claudeCode": "Claude Code on this computer",
+          "codex": "Codex on this computer",
+          "description": "Applies to this chat. The published agent stays unchanged.",
+          "folder": "Choose a folder under Work on and grant Full access. Whole-computer access cannot start a coding agent.",
+          "setup": "Install and sign in to this coding agent under Settings → Desktop app."
         }
       },
       "modelSection": "Model",
@@ -2228,7 +2238,8 @@
       "edit": "can edit",
       "readOnly": "read only",
       "needsFolder": "{agent} runs on this computer: choose a folder under Chat controls → Work on → This computer.",
-      "needsFullAccess": "{agent} runs as you, so the folder needs full access. Change it under Chat controls → Work on."
+      "needsFullAccess": "{agent} runs as you, so the folder needs full access. Change it under Chat controls → Work on.",
+      "chosen": "{agent} · {folder}"
     }
   },
   "common": {
@@ -4985,6 +4996,10 @@
       "project-file-location": {
         "title": "Your computer or shared files",
         "body": "Computer shows your approved local folder. Shared project files contains uploaded copies for people with project access. The two locations do not synchronize automatically."
+      },
+      "chat-local-coding": {
+        "title": "Coding agent",
+        "body": "Choose Claude Code or Codex on this computer for this conversation, even when the agent has no Coding agent capability. Its existing approval and read-only rules still apply. Each task asks for native confirmation."
       }
     },
     "chooseLanguage": "Language",

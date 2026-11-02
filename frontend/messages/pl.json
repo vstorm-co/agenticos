@@ -941,6 +941,16 @@
           "hidden": "{count, plural, one {# skill jest ukryty przez skill o tej samej nazwie we wcześniejszym folderze} few {# skille są ukryte przez skille o tych samych nazwach we wcześniejszych folderach} many {# skilli jest ukrytych przez skille o tych samych nazwach we wcześniejszych folderach} other {# skilla jest ukrytych przez skille o tych samych nazwach we wcześniejszych folderach}}.",
           "on": "Ten czat może ładować włączone lokalne skills i stosuje globalne instrukcje, a następnie hierarchię projektowych AGENTS.md i CLAUDE.md.",
           "off": "Wyłączone: AgenticOS nie ładuje Twoich lokalnych skilli ani instrukcji."
+        },
+        "coding": {
+          "title": "Agent programistyczny",
+          "help": "Wybierz Claude Code lub Codex na tym komputerze dla tej rozmowy, również gdy agent nie ma capability Coding agent. Istniejące reguły zatwierdzania i trybu tylko do odczytu nadal obowiązują. Każde zadanie wymaga natywnego potwierdzenia.",
+          "agent": "Użyj ustawienia agenta",
+          "claudeCode": "Claude Code na tym komputerze",
+          "codex": "Codex na tym komputerze",
+          "description": "Dotyczy tego czatu. Opublikowany agent pozostaje bez zmian.",
+          "folder": "Wybierz folder w sekcji Pracuj na i przyznaj Pełny dostęp. Dostęp do całego komputera nie pozwala uruchomić agenta programistycznego.",
+          "setup": "Zainstaluj tego agenta i zaloguj się w Ustawienia → Aplikacja desktopowa."
         }
       },
       "modelSection": "Model",
@@ -1383,7 +1393,8 @@
       "edit": "może edytować",
       "readOnly": "tylko odczyt",
       "needsFolder": "{agent} działa na tym komputerze: wybierz folder w Ustawieniach czatu → Pracuj na → Ten komputer.",
-      "needsFullAccess": "{agent} działa jako Ty, więc folder wymaga pełnego dostępu. Zmień to w Ustawieniach czatu → Pracuj na."
+      "needsFullAccess": "{agent} działa jako Ty, więc folder wymaga pełnego dostępu. Zmień to w Ustawieniach czatu → Pracuj na.",
+      "chosen": "{agent} · {folder}"
     }
   },
   "errors": {
@@ -6367,6 +6378,10 @@
       "project-file-location": {
         "title": "Twój komputer czy wspólne pliki",
         "body": "Ten komputer pokazuje zatwierdzony lokalny folder. Wspólne pliki projektu to wgrane kopie dla osób z dostępem do projektu. Te miejsca nie synchronizują się automatycznie."
+      },
+      "chat-local-coding": {
+        "title": "Agent programistyczny",
+        "body": "Wybierz Claude Code lub Codex na tym komputerze dla tej rozmowy, również gdy agent nie ma capability Coding agent. Istniejące reguły zatwierdzania i trybu tylko do odczytu nadal obowiązują. Każde zadanie wymaga natywnego potwierdzenia."
       }
     },
     "chooseLanguage": "Język",

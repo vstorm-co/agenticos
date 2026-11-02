@@ -41,12 +41,19 @@ class LocalTarget(BaseModel):
     browser: bool = False
     """Override the agent browser with this computer, independently of its sandbox."""
 
+    coding_agent: Literal["claude_code", "codex"] | None = None
+    """Use this local coding harness for this run, independently of the published binding."""
+
     skills: list[Literal["agents", "claude", "codex"]] = Field(default_factory=list, max_length=3)
     """Which of this computer's skill folders (`~/.agents`, `~/.claude`, `~/.codex`) the run may
     read, in place, together with the `AGENTS.md` files; empty uses none of them."""
 
     @model_validator(mode="after")
     def require_work_or_browser(self) -> Self:
+        if self.coding_agent is not None and (
+            self.folder is None or self.mode != "full_access" or self.computer_grant is not None
+        ):
+            raise ValueError("Choose a folder with full access to use a local coding agent")
         if self.computer_grant is not None and (self.folder is None or self.mode != "full_access"):
             raise ValueError("Whole-computer access requires its home folder and full access")
         if self.folder is None and (

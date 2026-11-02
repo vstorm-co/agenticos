@@ -7647,3 +7647,71 @@ async def test_channel_reference_knows_whether_dispatch_adds_a_user_prompt(promp
     await prepared.execute(prompt, message_history=None, deferred_tool_results=None)
     (reference,) = prepared.built.agent.run.await_args.kwargs["capabilities"]
     assert reference.has_current_prompt is (prompt is not None)
+
+
+@pytest.mark.parametrize("enabled", [None, False, True])
+@pytest.mark.parametrize("harness", ["claude_code", "codex"])
+def test_local_coding_override_adds_or_enables_only_the_run_binding(
+    enabled: bool | None, harness: str
+) -> None:
+    from app.agents.capabilities.coding_agent import CodingAgentConfig
+    from app.agents.spec import CapabilityBindingSpec
+    from app.schemas.local_target import LocalTarget
+    from app.services.agent_runner import _with_execution_environment, _with_local_capabilities
+
+    bindings = (
+        []
+        if enabled is None
+        else [
+            CapabilityBindingSpec(
+                id="coding_agent",
+                enabled=enabled,
+                approval="required",
+                tool_approval={"run_coding_task": "required"},
+                secret_id=uuid.uuid4(),
+                config={
+                    "harness": "claude_code",
+                    "access": "read_only",
+                    "model": "anthropic:claude-sonnet-5-5",
+                },
+            )
+        ]
+    )
+    spec = AgentSpec(name="Local test", capabilities=bindings)
+    before = spec.model_dump()
+    local = LocalTarget.model_validate(
+        {"folder": "/approved", "mode": "full_access", "coding_agent": harness}
+    )
+    result = _with_local_capabilities(spec, local)
+    binding = next(item for item in result.capabilities if item.id == "coding_agent")
+    config = CodingAgentConfig.model_validate(binding.config)
+    assert binding.enabled
+    assert binding.secret_id is None
+    assert config.harness == harness
+    assert config.runs_on == "this_computer"
+    assert config.model is None
+    if enabled is not None:
+        assert binding.approval == "required"
+        assert binding.tool_approval == {"run_coding_task": "required"}
+        assert config.access == "read_only"
+    assert "Coding tasks use" in _with_execution_environment(result, local).instructions
+    assert spec.model_dump() == before
+    assert _with_local_capabilities(spec, None) is spec
+
+
+@pytest.mark.parametrize(
+    "target",
+    [
+        {"mode": "full_access"},
+        {"folder": "/approved", "mode": "workspace_write"},
+        {"folder": "/approved", "mode": "read_only"},
+        {"folder": "/approved", "mode": "full_access", "computer_grant": str(uuid.uuid4())},
+    ],
+)
+def test_local_coding_override_requires_a_full_access_folder(target: dict[str, str]) -> None:
+    from pydantic import ValidationError
+
+    from app.schemas.local_target import LocalTarget
+
+    with pytest.raises(ValidationError, match="Choose a folder with full access"):
+        LocalTarget.model_validate({**target, "coding_agent": "codex"})

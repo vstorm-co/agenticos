@@ -5034,3 +5034,21 @@ it("stops the originating live conversation from the desktop activity command", 
   expect(sent).toHaveBeenLastCalledWith(expect.objectContaining({ type: "stop" }));
   delete window.__AGENTICOS_SHELL__;
 });
+
+it("sends a per-chat coding choice alongside its approved folder", () => {
+  const store = useWorkOnStore.getState();
+  store.set(null, { folder: "/approved", mode: "full_access" });
+  store.setCoding(null, "codex");
+  try {
+    const { result } = renderHook(() => useChat(), { wrapper });
+    act(() => result.current.sendMessage("use the local coding agent"));
+    expect(lastFrame().local).toEqual({
+      folder: "/approved",
+      mode: "full_access",
+      coding_agent: "codex",
+    });
+  } finally {
+    store.set(null, null);
+    store.resetDraft();
+  }
+});

@@ -21,6 +21,7 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- Desktop chat controls can select local Claude Code or Codex for one conversation even when Coding agent is disabled or absent from the published agent. Existing approval and read-only rules remain active; a full-access folder and native task confirmation are still required.
 - Local coding tasks resume their conversation's harness session across process restarts. Mid-task corrections interrupt and continue the same session, with applied updates recorded in the transcript and report. Resume identifiers stay outside the repository and are isolated by account, agent, conversation, folder and access policy.
 - Local project instructions support both `AGENTS.md` and `CLAUDE.md`, with a tool to read the hierarchy inside the approved folder. Sign-in opens a native terminal on macOS, Windows and Linux.
 

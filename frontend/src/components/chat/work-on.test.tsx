@@ -25,6 +25,9 @@ const computer = vi.hoisted(() => ({ allow: vi.fn(), revoke: vi.fn() }));
 vi.mock("./local-skills-control", () => ({
   LocalSkillsControl: () => <div data-testid="skills" />,
 }));
+vi.mock("./local-coding-control", () => ({
+  LocalCodingControl: () => <div data-testid="coding" />,
+}));
 vi.mock("@/lib/desktop/commands", async (original) => ({
   ...(await original<typeof import("@/lib/desktop/commands")>()),
   allowWholeComputer: computer.allow,

@@ -185,6 +185,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
   { id: "chat-agent-picker", page: ROUTES.CHAT, target: "chat-agent-picker", inTour: true },
   { id: "chat-composer", page: ROUTES.CHAT, target: "chat-composer" },
   { id: "chat-local-skills", page: ROUTES.CHAT, target: "chat-local-skills", optional: true },
+  { id: "chat-local-coding", page: ROUTES.CHAT, target: "chat-local-coding", optional: true },
   // Only there once an agent has planned something, so `optional` - an
   // organization whose agents carry no planning capability would otherwise wait
   // four seconds for a strip that never mounts.

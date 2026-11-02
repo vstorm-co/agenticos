@@ -361,6 +361,7 @@ export interface LocalTarget {
   computer_grant?: string;
   browser?: boolean;
   computer?: boolean;
+  coding_agent?: "claude_code" | "codex";
   model_service?: string | null;
   mcp_services?: string[];
 }

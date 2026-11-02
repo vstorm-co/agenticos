@@ -32,9 +32,11 @@ function Chip() {
   const t = useTranslations("chat.localAgent");
   const conversationId = useConversationStore((state) => state.currentConversationId);
   const target = useWorkOnStore((state) => state.targetFor(conversationId));
+  const chosen = useWorkOnStore((state) => state.codingFor(conversationId));
   const { agents } = useAgents({ includeArchived: true });
   const selectedAgentId = useAgentSelectionStore((state) => state.selectedAgentId);
-  const local = agents.find((agent) => agent.id === selectedAgentId)?.local_coding_agent;
+  const published = agents.find((agent) => agent.id === selectedAgentId)?.local_coding_agent;
+  const local = chosen ? { harness: chosen, access: published?.access ?? "edit" } : published;
   if (!local) return null;
 
   const agent = t(local.harness === "codex" ? "codex" : "claudeCode");
@@ -56,11 +58,13 @@ function Chip() {
       <span className={cn(!problem && "truncate")}>
         {problem
           ? t(problem, { agent })
-          : t("ready", {
-              agent,
-              folder: folderName(target?.folder ?? ""),
-              access: t(local.access === "edit" ? "edit" : "readOnly"),
-            })}
+          : chosen
+            ? t("chosen", { agent, folder: folderName(target?.folder ?? "") })
+            : t("ready", {
+                agent,
+                folder: folderName(target?.folder ?? ""),
+                access: t(local.access === "edit" ? "edit" : "readOnly"),
+              })}
       </span>
     </p>
   );

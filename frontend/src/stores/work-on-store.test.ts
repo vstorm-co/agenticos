@@ -13,6 +13,8 @@ beforeEach(() => {
     draftComputer: undefined,
     browserByConversation: {},
     draftBrowser: undefined,
+    codingByConversation: {},
+    draftCoding: null,
   });
 });
 it("moves a new chat's local choice under its server identity", () => {
@@ -121,4 +123,22 @@ it("files an explicit project Cloud default instead of falling back to an unrela
   expect(store.targetFor("project-chat")).toBeNull();
   store.set("third", { ...target, folder: "/third" });
   expect(store.targetFor("project-chat")).toBeNull();
+});
+
+it("adopts a coding choice for one chat and leaves new chats on the agent setting", () => {
+  const store = useWorkOnStore.getState();
+  store.setCoding(null, "codex");
+  store.adopt("coding-chat");
+  expect(store.codingFor("coding-chat")).toBe("codex");
+  expect(store.codingFor(null)).toBeNull();
+  expect(store.codingFor("another-chat")).toBeNull();
+  store.setCoding("coding-chat", null);
+  expect(store.codingFor("coding-chat")).toBeNull();
+});
+
+it("keeps a conversation's existing coding choice when adopting its folder state", () => {
+  const store = useWorkOnStore.getState();
+  store.setCoding("existing-coding-chat", "claude_code");
+  store.adopt("existing-coding-chat");
+  expect(store.codingFor("existing-coding-chat")).toBe("claude_code");
 });

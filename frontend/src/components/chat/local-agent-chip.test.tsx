@@ -9,6 +9,7 @@ const env = vi.hoisted(() => ({
   shell: { platform: "macos", version: "0.2.0", window: "main", vibrancy: true } as unknown,
   agents: [] as unknown[],
   target: null as unknown,
+  coding: null as "claude_code" | "codex" | null,
 }));
 
 vi.mock("@/hooks/use-shell", () => ({ useShell: () => env.shell }));
@@ -20,8 +21,9 @@ vi.mock("@/stores", () => ({
     select({ currentConversationId: "c1" }),
 }));
 vi.mock("@/stores/work-on-store", () => ({
-  useWorkOnStore: (select: (state: { targetFor: () => unknown }) => unknown) =>
-    select({ targetFor: () => env.target }),
+  useWorkOnStore: (
+    select: (state: { targetFor: () => unknown; codingFor: () => typeof env.coding }) => unknown,
+  ) => select({ targetFor: () => env.target, codingFor: () => env.coding }),
 }));
 
 function agent(local: Agent["local_coding_agent"]): unknown {
@@ -34,9 +36,17 @@ const folder = (over: Partial<LocalTarget> = {}): LocalTarget => ({
 });
 
 beforeEach(() => {
+  env.coding = null;
   env.shell = { platform: "macos", version: "0.2.0", window: "main", vibrancy: true };
   env.agents = [agent({ harness: "claude_code", access: "edit" })];
   env.target = folder();
+});
+
+it("shows a conversation's coding choice without a published coding capability", () => {
+  env.agents = [agent(null)];
+  env.coding = "codex";
+  render(<LocalAgentChip />);
+  expect(screen.getByText("Codex · agenticos")).toBeInTheDocument();
 });
 
 it("names the agent, the folder and what it may do", () => {

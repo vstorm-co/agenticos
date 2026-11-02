@@ -1,5 +1,5 @@
 ---
-source_sha: "f1b53cac2267"
+source_sha: "af91e08369b0"
 ---
 
 # Die Desktop-App { #the-desktop-app }
@@ -477,6 +477,8 @@ seiner eigenen öffentlichen Adresse.
 ## Coding agents auf diesem Computer { #coding-agents-on-this-computer }
 
 **Settings → Desktop app → Coding agents on this computer** zeigt installierte Versionen von Claude Code und Codex sowie den Anmeldestatus. **Sign in** öffnet den eigenen Anmeldebefehl des Agents im Terminal unter macOS, in PowerShell unter Windows oder in einem verfügbaren Linux-Terminal. Nach der Rückkehr aktualisiert sich der Status. AgenticOS liest oder kopiert keine Zugangsdaten. Die fest versionierten ACP-Adapter benötigen Node.js 22 oder neuer.
+
+Wählen Sie in der Desktop-App unter **Chat-Steuerung → Arbeitsumgebung → Programmieragent** für diese Unterhaltung **Claude Code auf diesem Computer** oder **Codex auf diesem Computer**, auch wenn der veröffentlichte Agent keine aktivierte Coding-agent-Fähigkeit hat. **Agenteneinstellung verwenden** stellt die veröffentlichte Konfiguration wieder her. Wählen Sie einen Ordner mit **Vollzugriff**; jede Aufgabe erfordert weiterhin eine native Bestätigung. Bestehende Nur-Lesen- und Freigaberegeln bleiben erhalten. Die Auswahl gilt nur für diesen Chat und ändert weder den veröffentlichten Agenten noch neue Chats.
 
 Wähle für die Capability **Coding agent** die Option **On this computer**, einen Ordner unter **Work on** und vollständigen Zugriff. Jede Aufgabe erfordert eine native Bestätigung mit bis zu fünf Minuten Antwortzeit. Der Adapter läuft unter deinem Betriebssystemkonto: Der Ordner bestimmt das Arbeitsverzeichnis, keine Betriebssystem-Sandbox. Zugriff auf den gesamten Computer startet keinen Coding agent. Der Composer zeigt Agent, Ordner und Zugriffsrichtlinie.
 

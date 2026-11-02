@@ -1243,6 +1243,16 @@
           "hidden": "{count, plural, one {# Skill wird von einem gleichnamigen in einem früheren Ordner verdeckt} other {# Skills werden von gleichnamigen in früheren Ordnern verdeckt}}.",
           "on": "Dieser Chat kann aktivierte lokale Skills laden und folgt deinen globalen Anweisungen, danach der AGENTS.md- und CLAUDE.md-Hierarchie des Projekts.",
           "off": "Aus: AgenticOS lädt keine lokalen Skills oder Anweisungen."
+        },
+        "coding": {
+          "title": "Programmieragent",
+          "help": "Wählen Sie Claude Code oder Codex auf diesem Computer für diese Unterhaltung, auch wenn der Agent keine Coding-agent-Fähigkeit hat. Bestehende Freigabe- und Nur-Lesen-Regeln gelten weiterhin. Jede Aufgabe erfordert eine native Bestätigung.",
+          "agent": "Agenteneinstellung verwenden",
+          "claudeCode": "Claude Code auf diesem Computer",
+          "codex": "Codex auf diesem Computer",
+          "description": "Gilt für diesen Chat. Der veröffentlichte Agent bleibt unverändert.",
+          "folder": "Wählen Sie unter Arbeitsumgebung einen Ordner mit Vollzugriff. Zugriff auf den gesamten Computer kann keinen Programmieragenten starten.",
+          "setup": "Installieren Sie diesen Agenten und melden Sie sich unter Einstellungen → Desktop-App an."
         }
       },
       "modelSection": "Modell",
@@ -2228,7 +2238,8 @@
       "edit": "darf bearbeiten",
       "readOnly": "nur lesen",
       "needsFolder": "{agent} läuft auf diesem Computer: Wähle unter Chat-Steuerung → Arbeiten auf → Diesem Computer einen Ordner.",
-      "needsFullAccess": "{agent} läuft als du, deshalb braucht der Ordner Vollzugriff. Ändere das unter Chat-Steuerung → Arbeiten auf."
+      "needsFullAccess": "{agent} läuft als du, deshalb braucht der Ordner Vollzugriff. Ändere das unter Chat-Steuerung → Arbeiten auf.",
+      "chosen": "{agent} · {folder}"
     }
   },
   "common": {
@@ -4863,6 +4874,10 @@
       "project-file-location": {
         "title": "Dein Computer oder gemeinsame Dateien",
         "body": "Computer zeigt deinen freigegebenen lokalen Ordner. Gemeinsame Projektdateien enthält hochgeladene Kopien für Personen mit Projektzugriff. Die beiden Orte werden nicht automatisch synchronisiert."
+      },
+      "chat-local-coding": {
+        "title": "Programmieragent",
+        "body": "Wählen Sie Claude Code oder Codex auf diesem Computer für diese Unterhaltung, auch wenn der Agent keine Coding-agent-Fähigkeit hat. Bestehende Freigabe- und Nur-Lesen-Regeln gelten weiterhin. Jede Aufgabe erfordert eine native Bestätigung."
       }
     },
     "chooseLanguage": "Sprache",

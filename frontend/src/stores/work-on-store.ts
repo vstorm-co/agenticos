@@ -7,6 +7,7 @@ import { useAuthStore } from "./auth-store";
 import { useOrgStore } from "./org-store";
 
 import type { LocalTarget, SkillSource } from "@/lib/desktop/commands";
+import type { CodingHarness } from "@/types/chat";
 
 export type { LocalTarget };
 
@@ -24,6 +25,10 @@ const browserKey = (conversationId: string) =>
   `${useAuthStore.getState().user?.id ?? "-"}:${useOrgStore.getState().activeOrgId ?? "-"}:${conversationId}`;
 
 interface WorkOnState {
+  codingByConversation: Record<string, CodingHarness | null>;
+  draftCoding: CodingHarness | null;
+  codingFor: (conversationId: string | null) => CodingHarness | null;
+  setCoding: (conversationId: string | null, harness: CodingHarness | null) => void;
   computerByConversation: Record<string, boolean>;
   draftComputer: boolean | undefined;
   computerFor: (conversationId: string | null) => boolean;
@@ -59,6 +64,22 @@ const NO_SKILLS: SkillSource[] = [];
 export const useWorkOnStore = create<WorkOnState>()(
   persist(
     (set, get) => ({
+      codingByConversation: {},
+      draftCoding: null,
+      codingFor: (conversationId) =>
+        conversationId === null
+          ? get().draftCoding
+          : (get().codingByConversation[browserKey(conversationId)] ?? null),
+      setCoding: (conversationId, harness) => {
+        if (conversationId === null) set({ draftCoding: harness });
+        else
+          set({
+            codingByConversation: {
+              ...get().codingByConversation,
+              [browserKey(conversationId)]: harness,
+            },
+          });
+      },
       computerByConversation: {},
       draftComputer: undefined,
       computerFor: (conversationId) =>
@@ -130,6 +151,7 @@ export const useWorkOnStore = create<WorkOnState>()(
           draftBrowser: undefined,
           draftComputer: undefined,
           draftSkills: NO_SKILLS,
+          draftCoding: null,
         }),
       targetFor: (conversationId) => {
         if (conversationId === null)
@@ -164,6 +186,10 @@ export const useWorkOnStore = create<WorkOnState>()(
             state.draftSkills.length > 0
               ? { ...state.skillsByConversation, [key]: state.draftSkills }
               : state.skillsByConversation,
+          codingByConversation: Object.hasOwn(state.codingByConversation, key)
+            ? state.codingByConversation
+            : { ...state.codingByConversation, [key]: state.codingFor(null) },
+          draftCoding: null,
           browserByConversation: Object.hasOwn(state.browserByConversation, key)
             ? state.browserByConversation
             : { ...state.browserByConversation, [key]: state.browserFor(null) },
@@ -182,8 +208,10 @@ export const useWorkOnStore = create<WorkOnState>()(
         browserByConversation,
         computerByConversation,
         skillsByConversation,
+        codingByConversation,
       }) => ({
         skillsByConversation,
+        codingByConversation,
         byConversation,
         browserByConversation,
         computerByConversation,

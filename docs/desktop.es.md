@@ -1,5 +1,5 @@
 ---
-source_sha: "f1b53cac2267"
+source_sha: "af91e08369b0"
 ---
 
 # La app de escritorio { #the-desktop-app }
@@ -466,6 +466,8 @@ despliegue tiene que coincidir en el esquema - `DESKTOP_DEEP_LINK_SCHEME`,
 ## Coding agents en este equipo { #coding-agents-on-this-computer }
 
 **Settings → Desktop app → Coding agents on this computer** muestra las versiones instaladas de Claude Code y Codex y su estado de sesión. **Sign in** abre el comando propio del agente en Terminal de macOS, PowerShell de Windows o un terminal disponible en Linux. Al volver, se actualiza el estado. AgenticOS no lee ni copia credenciales. Los adaptadores ACP con versión fijada requieren Node.js 22 o posterior.
+
+En la aplicación de escritorio, elige **Controles del chat → Trabajar en → Agente de programación** y selecciona **Claude Code en este ordenador** o **Codex en este ordenador** para esta conversación, aunque el agente publicado no tenga activada la capacidad Coding agent. **Usar configuración del agente** restaura la configuración publicada. Elige una carpeta con **Acceso completo**; cada tarea sigue requiriendo confirmación nativa. Se conservan las reglas existentes de solo lectura y aprobación. La selección se guarda para este chat y no modifica el agente publicado ni los chats nuevos.
 
 Configura la capability **Coding agent** como **On this computer**, elige una carpeta en **Work on** y concédele acceso completo. Cada tarea requiere confirmación nativa, con hasta cinco minutos para responder. El adaptador se ejecuta con tu cuenta del sistema: la carpeta indica el directorio de trabajo, no una sandbox del sistema. El acceso a todo el equipo no puede iniciar un coding agent. El compositor muestra agente, carpeta y política de acceso.
 

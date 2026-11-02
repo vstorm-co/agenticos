@@ -1797,6 +1797,10 @@ def _with_execution_environment(spec: AgentSpec, local: LocalTarget | None) -> A
             selected.append(
                 "Computer tools operate this person's own screen and input, not a cloud desktop."
             )
+        if local.coding_agent is not None:
+            selected.append(
+                f"Coding tasks use {local.coding_agent} in the approved folder on this computer."
+            )
         if local.model_service is not None:
             selected.append(
                 "Inference uses the selected local model service; do not claim it runs in the cloud."
@@ -1822,6 +1826,12 @@ def _with_local_capabilities(spec: AgentSpec, local: LocalTarget | None) -> Agen
         requested[BROWSER_CAPABILITY_ID] = {"connection": "local"}
     if local.computer:
         requested["computer_use"] = {"desktop": "local"}
+    if local.coding_agent is not None:
+        requested[CODING_AGENT_ID] = {
+            "runs_on": "this_computer",
+            "harness": local.coding_agent,
+            "model": None,
+        }
     bindings = list(spec.capabilities)
     for capability_id, config in requested.items():
         own = next((entry for entry in bindings if entry.id == capability_id), None)
@@ -1830,6 +1840,9 @@ def _with_local_capabilities(spec: AgentSpec, local: LocalTarget | None) -> Agen
             if own is not None
             else CapabilityBindingSpec(id=capability_id, config=config)
         )
+        if capability_id == CODING_AGENT_ID:
+            # Local harnesses use their own sign-in, never the sandbox credential.
+            binding = binding.model_copy(update={"secret_id": None})
         bindings = [entry for entry in bindings if entry.id != capability_id] + [binding]
     return spec.model_copy(update={"capabilities": bindings})
 
