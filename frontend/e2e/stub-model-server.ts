@@ -210,8 +210,31 @@ function improvementReply(body: ChatRequest): string | null {
   return null;
 }
 
+/**
+ * Who an agent is to a shared skill, and what a question asks about it.
+ *
+ * `skill-improvement.spec.ts` checks one skill on several agents, so the answer
+ * has to come from the skill version the platform served rather than from the
+ * agent's own instructions. The agent opens the skill through `CALL-TOOL`, and
+ * once the skill has answered, its body holds one `<role>/<topic>: PONG-…` line
+ * per agent and topic. Nothing in the instructions names a token, so a check
+ * that measured the wrong version would see the wrong answer.
+ */
+const SKILL_ROLE = /\bE2E-SKILL-AS:([a-z]+)\b/;
+const SKILL_TOPIC = /\bTOPIC:([a-z]+)\b/;
+
+/** The token the served skill gives this role on this topic, once the skill was opened. */
+function skillReply(body: ChatRequest): string | null {
+  if (!toolAnswered(body)) return null;
+  const text = allText(body);
+  const role = SKILL_ROLE.exec(text)?.[1];
+  const topic = SKILL_TOPIC.exec(text)?.[1];
+  if (role === undefined || topic === undefined) return null;
+  return new RegExp(`\\b${role}/${topic}: (PONG-[A-Za-z0-9-]+)`).exec(text)?.[1] ?? null;
+}
+
 function replyFor(body: ChatRequest): string {
-  return ECHO.exec(allText(body))?.[0] ?? FALLBACK;
+  return skillReply(body) ?? ECHO.exec(allText(body))?.[0] ?? FALLBACK;
 }
 
 /**
