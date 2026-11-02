@@ -6,6 +6,7 @@ import { useLocale, useTranslations } from "next-intl";
 import { Button, Input, Label } from "@/components/ui";
 import { limitText, limitValue, usd } from "@/components/evals/format";
 import { useImprovement } from "@/hooks/use-improvements";
+import { subjectOf } from "@/lib/improvement-subject";
 import { ApiError, getErrorMessage } from "@/lib/api-error";
 import { currentAttempt, stopOf } from "@/lib/improvement-steps";
 import type { ContinuationEstimate, Improvement } from "@/types/improvement";
@@ -36,7 +37,7 @@ export function NextStep({
   const tErrors = useTranslations("errors");
   const locale = useLocale();
   const readOnly = useReadOnly();
-  const actions = useImprovement(session.agent_id, session.id);
+  const actions = useImprovement(subjectOf(session), session.id);
   const stop = stopOf(session);
   const [budget, setBudget] = useState(() => limitText(session.budget_usd, locale));
   const [asked, setAsked] = useState(session.budget_usd);

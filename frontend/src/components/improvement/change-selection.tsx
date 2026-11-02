@@ -6,6 +6,7 @@ import { useLocale, useTranslations } from "next-intl";
 import { Button, Checkbox } from "@/components/ui";
 import { usd } from "@/components/evals/format";
 import { useImprovement, useImprovementEvidence } from "@/hooks/use-improvements";
+import { subjectOf } from "@/lib/improvement-subject";
 import { getErrorMessage } from "@/lib/api-error";
 import type { Hunk } from "@/types/authoring";
 import type { Improvement, ImprovementIteration, SelectionEstimate } from "@/types/improvement";
@@ -32,8 +33,8 @@ export function ChangeSelection({
   const t = useTranslations("improvement");
   const tErrors = useTranslations("errors");
   const locale = useLocale();
-  const actions = useImprovement(session.agent_id, session.id);
-  const { evidence } = useImprovementEvidence(session.agent_id, { sessionId: session.id });
+  const actions = useImprovement(subjectOf(session), session.id);
+  const { evidence } = useImprovementEvidence(subjectOf(session), { sessionId: session.id });
   const sources = Object.fromEntries((evidence?.items ?? []).map((item) => [item.run_id, item]));
   const [quoted, setQuoted] = useState<{ key: string; quote: SelectionEstimate } | null>(null);
   const [error, setError] = useState<string | null>(null);

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui";
 import { useImprovement } from "@/hooks/use-improvements";
+import { subjectOf } from "@/lib/improvement-subject";
 import { getErrorMessage } from "@/lib/api-error";
 import type { Improvement, ImprovementIteration } from "@/types/improvement";
 import { useReadOnly } from "./read-only";
@@ -17,7 +18,7 @@ import { AttemptSummary } from "./round-results";
 export function AttemptChoice({ session, agent }: { session: Improvement; agent: string }) {
   const t = useTranslations("improvement.keep");
   const tErrors = useTranslations("errors");
-  const actions = useImprovement(session.agent_id, session.id);
+  const actions = useImprovement(subjectOf(session), session.id);
   const readOnly = useReadOnly();
   const [choice, setChoice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);

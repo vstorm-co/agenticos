@@ -7,6 +7,7 @@ import { LoadingState } from "@/components/states";
 import { Badge } from "@/components/ui";
 import { useAgentEvalSuites } from "@/hooks/use-eval-suites";
 import { useImprovementChanges, useImprovementEvidence } from "@/hooks/use-improvements";
+import { subjectOf } from "@/lib/improvement-subject";
 import { useKnowledgeGaps } from "@/hooks/use-knowledge-gaps";
 import type { Improvement } from "@/types/improvement";
 import { MeasuredChange } from "./measured-change";
@@ -25,10 +26,10 @@ const ENDINGS = new Set([
 function Changes({ session }: { session: Improvement }) {
   const t = useTranslations("improvement.decision");
   const { changes, isLoading, error, refetch } = useImprovementChanges(
-    session.agent_id,
+    subjectOf(session),
     session.id,
   );
-  const { evidence } = useImprovementEvidence(session.agent_id, { sessionId: session.id });
+  const { evidence } = useImprovementEvidence(subjectOf(session), { sessionId: session.id });
   const sources = Object.fromEntries((evidence?.items ?? []).map((item) => [item.run_id, item]));
   if (isLoading) return <LoadingState variant="skeleton-list" rows={2} />;
   if (error) return <StepError error={error} retry={refetch} />;
@@ -51,7 +52,7 @@ function Changes({ session }: { session: Improvement }) {
 function Knowledge({ session }: { session: Improvement }) {
   const t = useTranslations("improvement.decision");
   const { topics } = useKnowledgeGaps({ kind: "agent", id: session.agent_id });
-  const { evidence } = useImprovementEvidence(session.agent_id, { sessionId: session.id });
+  const { evidence } = useImprovementEvidence(subjectOf(session), { sessionId: session.id });
   const ours = new Set(evidence?.items.map((item) => item.topic_id).filter(Boolean));
   const later = session.deferred_topic_ids ?? [];
   const documents = topics.filter((topic) => ours.has(topic.id));

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { Button, ConfirmDialog } from "@/components/ui";
 import { useImprovement } from "@/hooks/use-improvements";
+import { subjectOf } from "@/lib/improvement-subject";
 import { getErrorMessage } from "@/lib/api-error";
 import type { Improvement } from "@/types/improvement";
 
@@ -14,7 +15,7 @@ import type { Improvement } from "@/types/improvement";
 export function EndSession({ session }: { session: Improvement }) {
   const t = useTranslations("improvement.endSession");
   const tErrors = useTranslations("errors");
-  const actions = useImprovement(session.agent_id, session.id);
+  const actions = useImprovement(subjectOf(session), session.id);
   const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState<string | null>(null);
   if (session.can_discard === false) return null;

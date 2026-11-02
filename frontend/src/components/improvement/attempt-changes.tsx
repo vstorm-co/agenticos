@@ -9,6 +9,7 @@ import {
   useImprovement,
   useImprovementEvidence,
 } from "@/hooks/use-improvements";
+import { subjectOf } from "@/lib/improvement-subject";
 import { getErrorMessage } from "@/lib/api-error";
 import { currentAttempt } from "@/lib/improvement-steps";
 import type { Hunk } from "@/types/authoring";
@@ -34,12 +35,12 @@ export function AttemptChanges({
   const t = useTranslations("improvement.attemptChanges");
   const tErrors = useTranslations("errors");
   const attempt = currentAttempt(session);
-  const proposed = useAttemptChanges(session.agent_id, session.id, session.iteration);
+  const proposed = useAttemptChanges(subjectOf(session), session.id, session.iteration);
   const { isLoading, error } = proposed;
   const changes = proposed.changes.filter((hunk) => !attempt?.dropped_hunk_ids.includes(hunk.id));
-  const { evidence } = useImprovementEvidence(session.agent_id, { sessionId: session.id });
+  const { evidence } = useImprovementEvidence(subjectOf(session), { sessionId: session.id });
   const sources = Object.fromEntries((evidence?.items ?? []).map((item) => [item.run_id, item]));
-  const actions = useImprovement(session.agent_id, session.id);
+  const actions = useImprovement(subjectOf(session), session.id);
   const [failure, setFailure] = useState<string | null>(null);
   const [unsaved, setUnsaved] = useState<string[]>([]);
   useEffect(() => {
