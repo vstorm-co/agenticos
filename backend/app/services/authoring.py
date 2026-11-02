@@ -768,7 +768,7 @@ class AuthoringService:
             )
         return BatchRead(
             id=batch.id,
-            agent_id=batch.agent_id,
+            agent_id=agent.id,
             status=batch.status,
             expected_effect=batch.expected_effect,
             request_id=batch.request_id,

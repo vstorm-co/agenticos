@@ -363,6 +363,7 @@ async def pending_counts(
     )
     counts: dict[UUID, dict[str, int]] = {}
     for agent_id, kind, count in result.all():
+        assert agent_id is not None, "filtered on agent_id"
         counts.setdefault(agent_id, {})[kind] = int(count)
     return counts
 
@@ -585,6 +586,7 @@ async def split_candidate(
     The source request still names its original batch. The split is attributed
     through the shared improvement run, so lookup by request remains unique.
     """
+    assert batch.agent_id is not None, "only an agent session's candidate is split"
     separate = await create_batch(
         db,
         organization_id=batch.organization_id,
