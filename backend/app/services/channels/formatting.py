@@ -84,6 +84,7 @@ def runtime_context(surface: str, *, console_url: str, linked_sender: bool) -> s
         "slack": "Slack",
         "teams": "Microsoft Teams",
         "telegram": "Telegram",
+        "whatsapp": "WhatsApp",
     }
     platform = names.get(surface)
     if platform is None:
@@ -153,11 +154,24 @@ You are answering in Microsoft Teams, which renders a subset of Markdown.
 - Keep paragraphs short. A chat pane is narrow, and a wall of text is skimmed.
 """
 
+_WHATSAPP = """
+You are answering in WhatsApp. Write ordinary Markdown: it is converted to what
+WhatsApp renders before it is sent.
+
+- Bold `**like this**`, italic `_like this_`, strikethrough `~~like this~~`, and
+  fenced code blocks and `inline code`. Lists are `- ` or `1. ` at the start of a line.
+- WhatsApp has no headings, no clickable link text and no tables. A heading becomes a
+  bold line, a link is shown as its text and address, and a table as a plain block, so
+  prefer a bold line, a bare address and a short list.
+- Keep answers short. A long answer is split into several messages.
+"""
+
 HOUSE_STYLE: dict[str, str] = {
     "mattermost": _MATTERMOST.strip(),
     "slack": _SLACK.strip(),
     "telegram": _TELEGRAM.strip(),
     "teams": _TEAMS.strip(),
+    "whatsapp": _WHATSAPP.strip(),
 }
 """Per platform, because the differences are not preferences - they are what the
 client will and will not draw.
