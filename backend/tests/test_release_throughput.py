@@ -303,6 +303,19 @@ esac
     uv.chmod(0o755)
     monkeypatch.setenv("PATH", f"{binary}:{os.environ['PATH']}")
     monkeypatch.setattr("sys.argv", ["release-cut", "minor", "--create-pr"])
+    original_run = cut.run
+    moved = False
+
+    def concurrent_fetch(*args: str, cwd: Path | None = None) -> str:
+        nonlocal moved
+        result = original_run(*args, cwd=cwd)
+        if args[:2] == ("git", "show") and not moved:
+            # Another worktree can fetch while release preparation reads files.
+            git("update-ref", "refs/remotes/origin/main", original)
+            moved = True
+        return result
+
+    monkeypatch.setattr(cut, "run", concurrent_fetch)
     cut.main()
     assert "https://example.com/cut-pr" in capsys.readouterr().out
     assert git("rev-parse", "HEAD") == original

@@ -74,10 +74,11 @@ def main() -> None:
     parser.add_argument("--create-pr", action="store_true")
     args = parser.parse_args()
     run("git", "fetch", "origin", "main")
-    files = {path: run("git", "show", f"origin/main:{path}") + "\n" for path in FILES}
+    base = run("git", "rev-parse", "origin/main^{commit}")
+    files = {path: run("git", "show", f"{base}:{path}") + "\n" for path in FILES}
     version, updated = cut_files(files, args.bump, datetime.now(UTC).date().isoformat())
     branch = f"codex/cut-{version}"
-    print(f"Cut {version} from origin/main on {branch}; changes: {', '.join(FILES)}")
+    print(f"Cut {version} from origin/main ({base[:12]}) on {branch}; changes: {', '.join(FILES)}")
     if not args.create_pr:
         print("Plan only. Add --create-pr to prepare and push the cut PR.")
         return
@@ -91,7 +92,7 @@ def main() -> None:
         raise ValueError("An open cut PR already exists; finish or close it before another cut")
     # Leave failures available for inspection; remove only after the PR exists.
     worktree = Path(tempfile.mkdtemp(prefix="agenticos-cut-")) / "repo"
-    run("git", "worktree", "add", "-b", branch, str(worktree), "origin/main")
+    run("git", "worktree", "add", "-b", branch, str(worktree), base)
     for path, content in updated.items():
         (worktree / path).write_text(content)
     run("git", "add", "--", *FILES, cwd=worktree)
