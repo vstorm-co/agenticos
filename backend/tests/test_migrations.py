@@ -1005,14 +1005,19 @@ class TestRunSkillUsesBackfill:
                     )
                 calls = {
                     loaded: [
-                        ("load_capability", {"id": "refunds"}),
-                        ("read_skill_resource", {"skill_name": "refunds"}),
-                        ("read_skill_resource", {"skill_name": "refunds"}),
-                        ("load_skill", {"skill_name": "shipping"}),
-                        ("load_capability", {"id": "returns"}),
-                        ("search_documents", {"query": "refunds"}),
+                        ("load_capability", {"id": "refunds"}, "completed"),
+                        ("read_skill_resource", {"skill_name": "refunds"}, "completed"),
+                        ("read_skill_resource", {"skill_name": "refunds"}, "completed"),
+                        ("load_skill", {"skill_name": "shipping"}, "completed"),
+                        ("load_capability", {"id": "returns"}, "completed"),
+                        ("search_documents", {"query": "refunds"}, "completed"),
                     ],
-                    quiet: [],
+                    # Calls that never ran opened nothing.
+                    quiet: [
+                        ("load_capability", {"id": "refunds"}, "failed"),
+                        ("read_skill_resource", {"skill_name": "refunds"}, "awaiting_approval"),
+                        ("read_skill_resource", {"skill_name": "refunds"}, "rejected"),
+                    ],
                 }
                 for run_id, made in calls.items():
                     connection.execute(
@@ -1031,12 +1036,12 @@ class TestRunSkillUsesBackfill:
                         ),
                         {"id": message, "conversation": uuid4(), "run": run_id},
                     )
-                    for index, (tool, args) in enumerate(made):
+                    for index, (tool, args, status) in enumerate(made):
                         connection.execute(
                             text(
                                 "INSERT INTO tool_calls (id, message_id, tool_call_id, tool_name, "
                                 "args, status, started_at) VALUES "
-                                "(:id, :message, :call, :tool, CAST(:args AS jsonb), 'completed', :at)"
+                                "(:id, :message, :call, :tool, CAST(:args AS jsonb), :status, :at)"
                             ),
                             {
                                 "id": uuid4(),
@@ -1044,6 +1049,7 @@ class TestRunSkillUsesBackfill:
                                 "call": f"c{index}",
                                 "tool": tool,
                                 "args": json.dumps(args),
+                                "status": status,
                                 "at": now,
                             },
                         )
