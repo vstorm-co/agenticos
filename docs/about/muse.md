@@ -19,4 +19,4 @@ Choose Muse when you want a managed personal agent without operating a platform.
 ## Sources
 
 - [Meta: Muse](https://about.fb.com/news/2026/09/introducing-muse-personal-ai-agent/)
-- [Muse: Product](https://ai.meta.com/tools/muse/)
+- [Muse: Product](https://muse.ai/)

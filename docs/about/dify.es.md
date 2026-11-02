@@ -59,7 +59,7 @@ El nodo Human Input de Dify pausa un workflow y envía un formulario, y la solic
 
 ### Un cambio que puede hacer un equipo de negocio { #a-change-a-business-team-can-make }
 
-En Dify cambias un proceso editando el lienzo. En AgenticOS un responsable de negocio edita las instrucciones o activa una capability, y después publica. Cada [versión](../concepts.md#version) sigue siendo legible, los [entornos](../environments.md#the-workflow-it-is-for) promueven una versión probada, y el spec [se exporta como YAML](../features.md#exportable-into-your-own-repository) para revisarlo en una pull request. La configuración solo puede alcanzar lo que registraron los ingenieros, y eso mantiene seguro un builder no-code.
+En Dify cambias un proceso editando el lienzo. En AgenticOS un responsable de negocio edita las instrucciones o activa una capability, o edita un workflow visual y después publica. Cada [versión](../concepts.md#version) sigue siendo legible, los [entornos](../environments.md#the-workflow-it-is-for) promueven una versión probada, y el spec [se exporta como YAML](../features.md#exportable-into-your-own-repository) para revisarlo en una pull request. La configuración solo puede alcanzar lo que registraron los ingenieros.
 
 ## Cuándo encaja mejor Dify { #when-dify-is-the-better-fit }
 

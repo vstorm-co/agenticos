@@ -1,6 +1,6 @@
 ---
 title: "AgenticOS vs Muse"
-source_sha: "44c4bdcc2921"
+source_sha: "dfe95c83c257"
 ---
 
 # AgenticOS vs Muse { #agenticos-vs-muse }
@@ -20,4 +20,4 @@ Wählen Sie Muse für einen verwalteten persönlichen Agent ohne Plattformbetrie
 ## Quellen { #sources }
 
 - [Meta: Muse](https://about.fb.com/news/2026/09/introducing-muse-personal-ai-agent/)
-- [Muse: Product](https://ai.meta.com/tools/muse/)
+- [Muse: Product](https://muse.ai/)
