@@ -66,17 +66,26 @@ class TestRecording:
             0,
         )
         assert (spend.cost_usd, spend.cost_is_partial) == (Decimal("0.13"), False)
-        # Held against a delete until the insert commits, not merely read.
-        lookup = str(session.statements[-1].compile(dialect=postgresql.dialect()))
-        assert "FOR KEY SHARE" in lookup
+        # Held against a delete until the insert commits, not merely read - the
+        # organization first, in the order its purge takes the two.
+        organization, document = (
+            str(statement.compile(dialect=postgresql.dialect())) for statement in session.statements
+        )
+        assert organization.startswith("SELECT organizations.id")
+        assert document.startswith("SELECT rag_documents.id")
+        assert "FOR KEY SHARE" in organization
+        assert "FOR KEY SHARE" in document
 
-    async def test_a_document_deleted_meanwhile_keeps_its_spend_against_none(self):
+    @pytest.mark.parametrize("organization_id", [uuid.uuid4(), None], ids=["org", "app"])
+    async def test_a_document_deleted_meanwhile_keeps_its_spend_against_none(
+        self, organization_id: uuid.UUID | None
+    ):
         """The foreign key would refuse the row; the spend still happened (#2565)."""
         session = _RecordingSession(scalar_result=None)
 
         spend = await ingestion_spend_repo.record(
             session,
-            organization_id=uuid.uuid4(),
+            organization_id=organization_id,
             rag_document_id=uuid.uuid4(),
             model="text-embedding-3-large",
             input_tokens=10,

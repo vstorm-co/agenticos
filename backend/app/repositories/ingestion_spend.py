@@ -8,6 +8,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.ingestion_spend import IngestionSpend
+from app.db.models.organization import Organization
 from app.db.models.rag_document import RAGDocument
 
 
@@ -29,9 +30,17 @@ async def record(
     key - which failed the ingest after its chunks were written, before the
     settlement that removes them could run (#2565). The row is held `FOR KEY
     SHARE` to the insert's commit: a delete arriving after the check waits, then
-    sets this row's reference to `NULL` as it does every other's.
+    sets this row's reference to `NULL` as it does every other's. The
+    organization is held first, the order an organization's purge locks the two
+    in: taken the other way round, the purge and this insert deadlocked.
     """
     if rag_document_id is not None:
+        if organization_id is not None:
+            await db.scalar(
+                select(Organization.id)
+                .where(Organization.id == organization_id)
+                .with_for_update(read=True, key_share=True)
+            )
         rag_document_id = await db.scalar(
             select(RAGDocument.id)
             .where(RAGDocument.id == rag_document_id)

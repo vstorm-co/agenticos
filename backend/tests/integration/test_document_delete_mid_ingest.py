@@ -22,13 +22,14 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from sqlalchemy import select, text
+from sqlalchemy import delete, select, text
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 
-from app.agents.capabilities.budget import record_ambient_cost
+from app.agents.capabilities.budget import SpendLedger, record_ambient_cost
 from app.core.background import drain, start_deferred
 from app.db.models.ingestion_spend import IngestionSpend
 from app.db.models.knowledge_base import KnowledgeBase
+from app.db.models.organization import Organization
 from app.db.models.rag_document import DocumentStatus, RAGDocument
 from app.db.session import get_worker_db_context
 from app.repositories import background_job as job_repo
@@ -57,6 +58,24 @@ async def _chunks_of(s, table: str, document_id: str) -> int:
             {"doc": document_id},
         )
     ).scalar_one()
+
+
+def _errors(caplog: pytest.LogCaptureFixture) -> list[str]:
+    return [r.getMessage() for r in caplog.records if r.levelno >= logging.ERROR]
+
+
+async def _run_queued() -> list[str]:
+    """Run the jobs the settlement queued, as a worker would; return their kinds."""
+    kinds: list[str] = []
+    async with get_worker_db_context() as db:
+        while job := await job_repo.claim(
+            db, pool="system", worker_id="test", lease=timedelta(minutes=5)
+        ):
+            kinds.append(job.kind)
+            assert job.kind == DISCARD_VECTOR_DOCUMENT.kind
+            await teardown_tasks.discard_vector_document(DISCARD_VECTOR_DOCUMENT.load(job.payload))
+            await job_repo.complete(db, job.id, fence=job.attempts)
+    return kinds
 
 
 class _Upload:
@@ -111,15 +130,7 @@ class _Upload:
         await rag_tasks._settle_document_row(
             str(self.row_id), result, ingester=self.ingester, collection_name=self.collection
         )
-        async with get_worker_db_context() as db:
-            while job := await job_repo.claim(
-                db, pool="system", worker_id="test", lease=timedelta(minutes=5)
-            ):
-                assert job.kind == DISCARD_VECTOR_DOCUMENT.kind
-                await teardown_tasks.discard_vector_document(
-                    DISCARD_VECTOR_DOCUMENT.load(job.payload)
-                )
-                await job_repo.complete(db, job.id, fence=job.attempts)
+        await _run_queued()
 
     async def remaining(self, result: IngestionResult) -> tuple[int, int]:
         assert result.document_id is not None
@@ -242,7 +253,7 @@ async def test_a_settlement_after_its_table_was_dropped_removes_nothing_quietly(
     with caplog.at_level(logging.INFO):
         await upload.settle(result)
 
-    assert not [r for r in caplog.records if r.levelno >= logging.ERROR]
+    assert _errors(caplog) == []
 
 
 class _Worker:
@@ -259,6 +270,7 @@ class _Worker:
         self.upload = upload
         self.before_write: Callable[[], Awaitable[None]] | None = None
         self.after_write: Callable[[], Awaitable[None]] | None = None
+        self.queued: list[str] = []
         ingester = upload.ingester
 
         async def ingest_file(*args: object, **kwargs: Any) -> IngestionResult:
@@ -299,17 +311,7 @@ class _Worker:
                 attempt=1,
             )
         )
-        async with get_worker_db_context() as db:
-            self.queued = []
-            while job := await job_repo.claim(
-                db, pool="system", worker_id="test", lease=timedelta(minutes=5)
-            ):
-                self.queued.append(job.kind)
-                assert job.kind == DISCARD_VECTOR_DOCUMENT.kind
-                await teardown_tasks.discard_vector_document(
-                    DISCARD_VECTOR_DOCUMENT.load(job.payload)
-                )
-                await job_repo.complete(db, job.id, fence=job.attempts)
+        self.queued = await _run_queued()
         return outcome
 
     async def chunks(self) -> int:
@@ -337,10 +339,6 @@ class _Worker:
 @pytest.fixture
 def worker(upload: _Upload, monkeypatch: pytest.MonkeyPatch) -> _Worker:
     return _Worker(upload, monkeypatch)
-
-
-def _errors(caplog: pytest.LogCaptureFixture) -> list[str]:
-    return [r.getMessage() for r in caplog.records if r.levelno >= logging.ERROR]
 
 
 async def test_an_upload_deleted_after_its_chunk_commit_ends_with_its_spend_kept(
@@ -386,6 +384,7 @@ async def test_an_upload_deleted_during_its_chunk_write_ends_with_its_spend_kept
         outcome = await worker.run()
 
     assert outcome == {"status": "deleted", "filename": "doomed.md"}
+    assert worker.queued == [DISCARD_VECTOR_DOCUMENT.kind]
     assert await worker.chunks() == 0
     assert await worker.spend() == [(None, "text-embedding-3-small")]
     assert _errors(caplog) == []
@@ -415,3 +414,34 @@ async def test_spend_on_a_document_still_there_is_kept_against_it(
 
     assert outcome["status"] == "done"
     assert await worker.spend() == [(worker.upload.row_id, "text-embedding-3-small")]
+
+
+async def test_spend_recorded_while_its_organization_purges_the_document_keeps_it(
+    worker: _Worker,
+) -> None:
+    """The purge holds its organization `FOR UPDATE`, then deletes the documents.
+
+    The spend waits behind the organization, as the purge orders the two, and then
+    finds the document gone: it is kept against none. Locking the document first
+    and the organization at the insert deadlocked the two (#2565).
+    """
+    upload = worker.upload
+    organization_id = upload.base.organization_id
+    ledger = SpendLedger(organization_id=organization_id)
+    ledger.record_cost("text-embedding-3-small", Decimal("0.0002"))
+
+    async with upload.factory() as purge:
+        await purge.execute(
+            select(Organization.id).where(Organization.id == organization_id).with_for_update()
+        )
+        recording = asyncio.create_task(
+            rag_tasks._record_embedding_spend(
+                ledger, organization_id=organization_id, rag_document_id=upload.row_id
+            )
+        )
+        await _until_a_statement_waits_on_a_lock(upload.factory)
+        await purge.execute(delete(RAGDocument).where(RAGDocument.id == upload.row_id))
+        await purge.commit()
+    await asyncio.wait_for(recording, timeout=10)
+
+    assert await worker.spend() == [(None, "text-embedding-3-small")]
