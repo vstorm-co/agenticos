@@ -1,5 +1,5 @@
 ---
-source_sha: "b8f0073a7c90"
+source_sha: "ea12c48420ef"
 ---
 
 # Skills { #skills }
@@ -364,8 +364,8 @@ Publica una versión nueva del agent a partir de su versión publicada, cambiand
 la vinculación de este skill, y hace el mismo cambio en el borrador del agent. Los
 demás cambios sin terminar del borrador se quedan en el borrador. Una versión en la
 que el agent no está no se ha comprobado en él, así que primero lo confirmas. El
-control requiere permiso para publicar el agent; con permiso solo para editarlo, el
-cambio se guarda en el borrador y lo publicas desde el Builder.
+control lo ve quien puede publicar el agent. Si el cambio no se puede publicar, se
+guarda en el borrador y lo publicas desde el Builder.
 
 **Historial** lista las versiones de la línea elegida, de la más nueva a la más
 antigua: de dónde vino cada una (una edición, un cambio de archivos, la biblioteca,
@@ -383,8 +383,8 @@ que ningún agent usa se pliegan en una sola fila.
 **Editar** guarda una versión nueva en la línea en pantalla. En main, los agents que
 siguen main la reciben de inmediato; los agents fijados y los forks conservan su
 versión. Los archivos y la categoría son de main, así que editar un fork cambia solo
-su descripción e instrucciones. Editar, Restaurar y Cambiar versión solo se muestran
-a quien puede hacer ese cambio.
+su descripción e instrucciones. Restaurar y Cambiar versión solo se muestran a
+quien puede hacer ese cambio; los demás abren el skill en modo de solo lectura.
 
 ## ¿Skills o conocimiento? { #skills-or-knowledge }
 

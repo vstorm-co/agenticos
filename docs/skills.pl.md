@@ -1,5 +1,5 @@
 ---
-source_sha: "b8f0073a7c90"
+source_sha: "ea12c48420ef"
 ---
 
 # Skille { #skills }
@@ -352,9 +352,9 @@ wybrany tam jest też linią, którą pokazuje Historia i do której zapisuje Ed
 fork. Publikuje nową wersję agenta z jego opublikowanej wersji, w której zmienia
 się tylko wiązanie tego skilla, i tę samą zmianę wprowadza w drafcie agenta. Inne
 niedokończone zmiany w drafcie zostają w drafcie. Wersja, na której agenta nie ma,
-nie była na nim sprawdzona, więc najpierw to potwierdzasz. Kontrolka wymaga prawa
-do publikacji agenta; z samym prawem do edycji zmiana trafia do draftu, a
-publikujesz ją w Builderze.
+nie była na nim sprawdzona, więc najpierw to potwierdzasz. Kontrolkę widzą osoby,
+które mogą opublikować agenta. Jeśli zmiany nie da się opublikować, trafia do
+draftu, a publikujesz ją w Builderze.
 
 **Historia** wymienia wersje wybranej linii od najnowszej: skąd się wzięła każda
 (edycja, zmiana plików, biblioteka, workspace agenta, Improve albo przywrócenie),
@@ -370,7 +370,8 @@ których nie używa żaden agent, zwijają się do jednego wiersza.
 **Edytuj** zapisuje nową wersję na widocznej linii. Na main agenci podążający za
 main dostają ją od razu; przypięci agenci i forki zostają przy swojej wersji. Pliki
 i kategoria należą do main, więc edycja forka zmienia tylko jego opis i instrukcje.
-Edytuj, Przywróć i Zmień wersję widzą tylko osoby, które mogą tę zmianę zrobić.
+Przywróć i Zmień wersję widzą tylko osoby, które mogą tę zmianę zrobić; pozostali
+otwierają skill tylko do odczytu.
 
 ## Skille czy wiedza? { #skills-or-knowledge }
 

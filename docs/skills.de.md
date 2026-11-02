@@ -1,5 +1,5 @@
 ---
-source_sha: "b8f0073a7c90"
+source_sha: "ea12c48420ef"
 ---
 
 # Skills { #skills }
@@ -377,9 +377,9 @@ auf einen Fork. Es veröffentlicht eine neue Version des Agents aus seiner
 veröffentlichten Version, in der sich nur die Bindung dieses Skills ändert, und
 macht dieselbe Änderung im Entwurf des Agents. Andere unfertige Änderungen im
 Entwurf bleiben im Entwurf. Eine Version, auf der der Agent nicht ist, wurde auf ihm
-nicht geprüft, deshalb bestätigen Sie das zuerst. Das Steuerelement braucht das
-Recht, den Agent zu veröffentlichen; mit nur dem Recht zum Bearbeiten wird die
-Änderung im Entwurf gespeichert, und Sie veröffentlichen sie im Builder.
+nicht geprüft, deshalb bestätigen Sie das zuerst. Das Steuerelement sehen Personen,
+die den Agent veröffentlichen dürfen. Lässt sich die Änderung nicht veröffentlichen,
+wird sie im Entwurf gespeichert, und Sie veröffentlichen sie im Builder.
 
 **Verlauf** listet die Versionen der gewählten Linie, die neueste zuerst: woher jede
 kam (eine Bearbeitung, eine Dateiänderung, die Bibliothek, der Workspace eines
@@ -397,8 +397,9 @@ Abschnitte, die kein Agent nutzt, werden zu einer Zeile zusammengefaltet.
 **Bearbeiten** speichert eine neue Version auf der angezeigten Linie. Auf main
 bekommen die Agents, die main folgen, sie sofort; fixierte Agents und Forks behalten
 ihre Version. Dateien und Kategorie gehören zu main, deshalb ändert das Bearbeiten
-eines Forks nur seine Beschreibung und Anweisungen. Bearbeiten, Wiederherstellen und
-Version ändern sehen nur Personen, die diese Änderung vornehmen dürfen.
+eines Forks nur seine Beschreibung und Anweisungen. Wiederherstellen und Version ändern
+sehen nur Personen, die diese Änderung vornehmen dürfen; alle anderen öffnen den
+Skill nur lesend.
 
 ## Skills oder Knowledge? { #skills-or-knowledge }
 

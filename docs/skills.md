@@ -343,8 +343,8 @@ there is also the line that History lists and Edit saves to.
 It publishes a new version of the agent from its published version, with only this
 skill's binding changed, and makes the same change in the agent's draft. Other
 unfinished edits in the draft stay in the draft. A version the agent is not on has
-not been checked on it, so you confirm that first. The control needs permission to
-publish the agent; with permission to edit it only, the change is saved in the
+not been checked on it, so you confirm that first. The control is shown to people who
+may publish the agent. If the change cannot be published, it is saved in the
 draft for you to publish from the Builder.
 
 **History** lists the chosen line's versions, newest first: where each came from
@@ -361,8 +361,8 @@ fold into one row.
 **Edit** saves a new version on the line on screen. On main, the agents following
 main get it at once; pinned agents and forks keep their version. Files and the
 category belong to main, so editing a fork changes only its description and
-instructions. Edit, Restore and Change version are shown only to people who may
-make that change.
+instructions. Restore and Change version are shown only to people who may make
+that change; anybody else opens the skill read-only.
 
 ## Skills or knowledge?
 
