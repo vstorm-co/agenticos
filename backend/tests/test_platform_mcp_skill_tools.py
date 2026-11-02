@@ -76,15 +76,17 @@ def _checked(agent_id: str, name: str, state: str, **row: Any) -> dict[str, Any]
         "agent": {"id": agent_id, "name": name},
         "state": state,
         "unknown_reason": None,
-        "stages": [
-            {
-                "fixed": row.get("fixed", 0),
-                "broken": row.get("broken", 0),
-                "regressions_confirmed": row.get("confirmed", 0),
-            }
-        ],
-        "cost_usd": "0.02",
-        **{key: value for key, value in row.items() if key == "unknown_reason"},
+        "sample": "own_questions",
+        "stages": [],
+        "fixed": 0,
+        "broken": 0,
+        "held_out": 8,
+        "fixed_confirmed": 0,
+        "regressions_confirmed": 0,
+        "noisy": False,
+        "expected_usd": "0.01",
+        "at_most_usd": "0.02",
+        **row,
     }
 
 
@@ -93,7 +95,7 @@ BLOCKED = {
     "warnings": [],
     "agents": [
         _checked(ONLINE, "Online returns desk", "better", fixed=8),
-        _checked(COUNTER, "Gift shop counter", "worse", broken=8, confirmed=8),
+        _checked(COUNTER, "Gift shop counter", "worse", broken=8, regressions_confirmed=8),
     ],
     "hidden": 0,
     "hidden_unknown": 0,
@@ -415,10 +417,14 @@ class TestReadingSessions:
             "name": "Gift shop counter",
             "state": "worse",
             "why_unknown": None,
+            "sample": "own_questions",
             "fixed": 0,
             "broken": 8,
             "broken_confirmed": 8,
-            "cost_usd": "0.02",
+            "held_out": 8,
+            "noisy": False,
+            "expected_usd": "0.01",
+            "at_most_usd": "0.02",
         }
         assert session["found"] == {
             "problems": ["Order numbers are not taken as receipts"],

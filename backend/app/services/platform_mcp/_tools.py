@@ -684,16 +684,24 @@ def _skill_fork(fork: dict[str, Any]) -> dict[str, Any]:
 
 
 def _checked_agent(row: dict[str, Any]) -> dict[str, Any]:
-    """How one agent came out of a skill check, in fixed and broken questions."""
-    stages = row.get("stages", [])
+    """How one agent came out of a skill check, in fixed and broken questions.
+
+    `sample` says, in a quick check, whether the agent's own questions were asked
+    or only the skill's, so an agent checked on the skill's questions alone is
+    never reported as checked on its own.
+    """
     return {
         "name": row["agent"]["name"],
         "state": row["state"],
         "why_unknown": row.get("unknown_reason"),
-        "fixed": sum(stage["fixed"] for stage in stages),
-        "broken": sum(stage["broken"] for stage in stages),
-        "broken_confirmed": sum(stage["regressions_confirmed"] for stage in stages),
-        "cost_usd": row.get("cost_usd"),
+        "sample": row.get("sample"),
+        "fixed": row.get("fixed", 0),
+        "broken": row.get("broken", 0),
+        "broken_confirmed": row.get("regressions_confirmed", 0),
+        "held_out": row.get("held_out", 0),
+        "noisy": row.get("noisy", False),
+        "expected_usd": row.get("expected_usd"),
+        "at_most_usd": row.get("at_most_usd"),
     }
 
 
