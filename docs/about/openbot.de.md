@@ -17,7 +17,7 @@ Wählen Sie OpenBot, wenn Desktop-Arbeitsumgebung und Anbieterintegrationen pass
 
 ## Zuerst eine Aufgabe übertragen { #move-one-task-first }
 
-Bilden Sie eine kleine Aufgabe in AgenticOS nach: wiederverwendbare Anweisungen, Wissen und Skills, Modellwahl, erneute Tool-Verbindung über den Vault sowie Budgets und Freigaben. Testen Sie vor der Veröffentlichung einen Lesezugriff und einen abgelehnten Schreibzugriff. Dies ist eine manuelle Anleitung; ein OpenBot-Importer, übertragbare Anmeldesitzungen oder identischer Speicher werden nicht versprochen.
+Bilden Sie eine kleine Aufgabe in AgenticOS nach: wiederverwendbare Anweisungen, Wissen und Skills, Modellwahl, erneute Tool-Verbindung über den Vault sowie Budgets und Freigaben. Testen Sie vor der Veröffentlichung einen Lesezugriff und einen abgelehnten Schreibzugriff. Dies ist eine manuelle Anleitung; ein OpenBot-Importer, übertragbare Anmeldesitzungen oder identisches Agent-Gedächtnis werden nicht versprochen.
 
 [AgenticOS: Projects](../projects.md) · [Workflows](../workflows.md) · [MCP](../mcp.md) · [Permissions](../permissions.md)
 
