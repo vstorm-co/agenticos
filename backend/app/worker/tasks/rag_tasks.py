@@ -699,11 +699,14 @@ async def _run_sync(
                 # Either way, which is the other half of #997: a file that failed
                 # to parse used to leave no row and no reason, so a sync log
                 # saying four of forty failed named none of the four.
-                await _settle_document_row(
+                settled = await _settle_document_row(
                     row_id, result, ingester=ingester, collection_name=collection_name
                 )
 
-                if result.status is IngestionStatus.DONE:
+                if not settled:
+                    # Deleted while it indexed: not a file this sync ingested (#2565).
+                    pass
+                elif result.status is IngestionStatus.DONE:
                     if result.replaced_document_id:
                         updated += 1
                     else:
@@ -897,8 +900,8 @@ async def _settle_document_row(
     ingester: IngestionService,
     collection_name: str,
     inherited: frozenset[UUID] = frozenset(),
-) -> None:
-    """Move an open row to what the ingest actually did.
+) -> bool:
+    """Move an open row to what the ingest actually did; `False` if the row is gone.
 
     The failure branch is not an afterthought: a document that failed to parse
     is the one a reader most needs to see, and its reason is a `failure_summary`
@@ -911,7 +914,8 @@ async def _settle_document_row(
     claim, and another source's run must not take this one's for its own.
 
     `ingester` and `collection_name` are what wrote the chunks: a row deleted
-    while they were written is settled by queueing their removal (#2565).
+    while they were written is settled by queueing their removal (#2565), and
+    the sync counts it as nothing - neither ingested nor failed.
     """
     from app.services.rag_document import RAGDocumentService
 
@@ -934,7 +938,7 @@ async def _settle_document_row(
                         collection_name, result.document_id, scope=ingester.scope
                     )
                     logger.info("Document %s was deleted while indexing", row_id)
-                    return
+                    return False
             else:
                 await documents.fail_ingestion(
                     row_id, result.error_message or "Ingestion failed", attempt=1
@@ -945,6 +949,8 @@ async def _settle_document_row(
         # The base was deleted mid-sync and took the row with it (#2561). Raising
         # here escaped the per-file loop's own handler and failed the whole run.
         logger.info("Document %s is gone; nothing to settle", row_id)
+        return False
+    return True
 
 
 async def _notify_sync_start_failure(
@@ -1552,7 +1558,7 @@ async def _sync_source(source_id: str, sync_log_id: str | None) -> dict[str, Any
                                 organizational_unit=source.organizational_unit,
                             )
 
-                        await _settle_document_row(
+                        settled = await _settle_document_row(
                             row_id,
                             result,
                             ingester=ingester,
@@ -1560,7 +1566,10 @@ async def _sync_source(source_id: str, sync_log_id: str | None) -> dict[str, Any
                             inherited=inherited.get(remote_file.source_path, frozenset()),
                         )
 
-                        if result.status is IngestionStatus.DONE:
+                        if not settled:
+                            # Deleted while it indexed: not a file this sync ingested.
+                            pass
+                        elif result.status is IngestionStatus.DONE:
                             if result.replaced_document_id:
                                 updated += 1
                             else:

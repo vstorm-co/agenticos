@@ -177,13 +177,16 @@ class TestASyncSettlingADeletedRow:
             patch.object(rag_tasks, "get_worker_db_context", new=_session),
             patch("app.services.rag_document.RAGDocumentService", return_value=documents),
         ):
-            await rag_tasks._settle_document_row(
+            settled = await rag_tasks._settle_document_row(
                 str(uuid.uuid4()),
                 DONE,
                 ingester=MagicMock(scope=SCOPE),
                 collection_name="docs",
                 inherited=frozenset({uuid.uuid4()}),
             )
+
+        # The sync then counts it as neither ingested nor failed.
+        assert settled is False
 
         documents.discard_untracked.assert_awaited_once_with("docs", "vec-1", scope=SCOPE)
         # Nothing to claim: the row is gone.
@@ -196,10 +199,11 @@ class TestASyncSettlingADeletedRow:
             patch.object(rag_tasks, "get_worker_db_context", new=_session),
             patch("app.services.rag_document.RAGDocumentService", return_value=documents),
         ):
-            await rag_tasks._settle_document_row(
+            settled = await rag_tasks._settle_document_row(
                 str(uuid.uuid4()), DONE, ingester=MagicMock(scope=SCOPE), collection_name="docs"
             )
 
+        assert settled is True
         documents.discard_untracked.assert_not_awaited()
 
 

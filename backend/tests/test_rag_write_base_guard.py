@@ -420,9 +420,10 @@ class TestASyncSettlesARowItsBaseTookWithIt:
             patch("app.services.rag_document.RAGDocumentService", return_value=documents),
             caplog.at_level(logging.INFO, logger="app.worker.tasks.rag_tasks"),
         ):
-            await rag_tasks._settle_document_row(
+            settled = await rag_tasks._settle_document_row(
                 str(uuid4()), result, ingester=ingester, collection_name="docs"
             )
 
+        assert settled is False
         assert max(r.levelno for r in caplog.records) == logging.INFO
         assert all(r.exc_info is None for r in caplog.records)
