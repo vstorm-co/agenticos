@@ -1,5 +1,5 @@
 ---
-source_sha: "65f260c4c95c"
+source_sha: "c7ffe5ebf590"
 ---
 
 # Procesamiento de archivos { #file-processing }
@@ -1648,8 +1648,12 @@ callejón sin salida. Lo que no ofrece es borrar un perfil: eso va donde se
 gestionan los modelos de una organización, y un perfil que usan agents no se
 puede borrar.
 
-Las descripciones generadas se incluyen en el texto del documento, para
-mejor búsqueda semántica.
+PyMuPDF omite la extracción de imágenes incrustadas cuando su descripción está
+desactivada. Al activarla, cada xref de imagen se extrae una sola vez por
+documento, se agrupan las referencias repetidas en una página y los bytes de
+imagen idénticos se describen una sola vez. Cada página que referencia una imagen
+sigue recibiendo su descripción en el texto para la búsqueda semántica. Los chunks
+contienen ese texto sin copiar las imágenes incrustadas de la página.
 
 ## Desde un canal { #from-a-channel }
 

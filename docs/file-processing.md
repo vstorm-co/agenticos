@@ -1526,8 +1526,11 @@ dead end. What it does not offer is deleting a profile: that belongs where an
 organization's models are managed, and a profile that agents use cannot be
 deleted at all.
 
-The generated descriptions are included in the document text for better semantic
-search.
+PyMuPDF skips embedded image extraction when image description is off. When it
+is on, each image xref is extracted once per document, repeated references on a
+page are collapsed, and identical image bytes are described once. Each page
+referencing an image still receives its description in the text for semantic
+search. Chunks carry that text without copying the page's embedded images.
 
 ## From a channel
 
