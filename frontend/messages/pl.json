@@ -5293,7 +5293,7 @@
         "body": "Main biegnie w dół od najnowszej wersji, każdy fork odchodzi od wersji, od której wystartował, a agenci stoją przy wersji, której używają."
       },
       "skill-improve": {
-        "title": "Ulepsz skill",
+        "title": "Popraw skill",
         "body": "Otwiera sesję krok po kroku dla widocznej linii: main albo wybranego forka. Nic się nie zmienia, dopóki nie zaakceptujesz wyniku."
       },
       "skill-improvement-start": {
@@ -5302,7 +5302,7 @@
       },
       "skill-improvement-steps": {
         "title": "Tych samych pięć kroków",
-        "body": "Zrozum, Zmiany, Sprawdzenie, Wynik i Akceptacja, jak w ulepszaniu agenta. Sesja zatrzymuje się dla Ciebie po Zrozum, po Zmianach i przy wyniku."
+        "body": "Zrozumienie, Zmiany, Sprawdzenie, Wynik i Akceptacja, jak w poprawianiu agenta. Sesja zatrzymuje się dla Ciebie po Zrozumieniu, po Zmianach i przy wyniku."
       },
       "skill-improvement-agents": {
         "title": "Wynik dla każdego agenta",
@@ -8249,8 +8249,8 @@
         "forkFiles": "Do forka należą tylko opis i instrukcje. Jego pliki pochodzą z wersji main, od której wystartował, a pliki edytuje się na main.",
         "noBase": "Ten skill nie ma jeszcze zapisanej wersji, na której można zapisać zmianę. Odśwież stronę i spróbuj ponownie."
       },
-      "improve": "Ulepsz",
-      "improveFork": "Ulepsz fork „{name}”"
+      "improve": "Popraw",
+      "improveFork": "Popraw fork „{name}”"
     }
   },
   "states": {
@@ -15091,10 +15091,10 @@
     "caseGone": "Tego przypadku nie ma już w datasecie, więc jego niezapisane zmiany odrzucono."
   },
   "skillImprovement": {
-    "title": "Ulepsz {name}",
+    "title": "Popraw {name}",
     "skills": "Skille",
-    "heading": "Ulepszanie",
-    "permission": "Ulepszanie skilla wymaga prawa do jego edycji i do odczytu runów.",
+    "heading": "Popraw",
+    "permission": "Poprawianie skilla wymaga prawa do jego edycji i do odczytu runów.",
     "openSkill": "Otwórz skill",
     "line": "Linia: {line}",
     "checkWaiting": "Sprawdzenie na agentach linii jeszcze się nie zaczęło.",
@@ -15154,7 +15154,7 @@
       "forkForHelped": "Zrób fork z tą zmianą dla {names}"
     },
     "start": {
-      "title": "Zacznij ulepszanie",
+      "title": "Zacznij poprawianie",
       "openSession": "Ta linia ma już otwartą sesję.",
       "continue": "Kontynuuj ją",
       "agents": "{count, plural, =0 {Żadnego agenta tej linii nie da się sprawdzić.} one {Sprawdzimy ją na # agencie: {names}.} few {Sprawdzimy ją na # agentach: {names}.} many {Sprawdzimy ją na # agentach: {names}.} other {Sprawdzimy ją na # agenta: {names}.}}",

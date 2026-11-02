@@ -467,12 +467,12 @@ i kategoria należą do main, więc edycja forka zmienia tylko jego opis i instr
 Przywróć i Zmień wersję widzą tylko osoby, które mogą tę zmianę zrobić; pozostali
 otwierają skill tylko do odczytu.
 
-### Ulepszanie skilla { #improving-a-skill }
+### Poprawianie skilla { #improving-a-skill }
 
-**Ulepsz** na stronie skilla otwiera sesję dla widocznej linii - main albo forka
-wybranego w chipach - w tych samych pięciu krokach co [ulepszanie
-agenta](authoring.md#the-improve-wizard): Zrozum, Zmiany, Sprawdzenie, Wynik i Akceptacja. Zatrzymuje
-się dla Ciebie po Zrozum, po Zmianach i przy wyniku, a niczego nie zmienia, dopóki
+**Popraw** na stronie skilla otwiera sesję dla widocznej linii - main albo forka
+wybranego w chipach - w tych samych pięciu krokach co [poprawianie
+agenta](authoring.md#the-improve-wizard): Zrozumienie, Zmiany, Sprawdzenie, Wynik i Akceptacja. Zatrzymuje
+się dla Ciebie po Zrozumieniu, po Zmianach i przy wyniku, a niczego nie zmienia, dopóki
 nie zaakceptujesz.
 
 Przed startem wymienia każdego agenta linii, na którym sprawdzi zmianę, i tych,
