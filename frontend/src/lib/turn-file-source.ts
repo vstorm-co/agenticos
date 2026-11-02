@@ -7,11 +7,11 @@ export function turnFileSourceFromEvent(event: unknown): TurnFileSource | undefi
   if (!source || typeof source !== "object" || !("kind" in source)) return undefined;
   if (
     source.kind === "local" &&
-    "root" in source &&
-    typeof source.root === "string" &&
-    source.root.length > 0
+    "id" in source &&
+    typeof source.id === "string" &&
+    source.id.length > 0
   )
-    return { kind: "local", root: source.root };
+    return { kind: "local", id: source.id };
   if (
     source.kind === "conversation" &&
     "id" in source &&

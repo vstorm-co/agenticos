@@ -1,5 +1,5 @@
 ---
-source_sha: "606f1efaec8c"
+source_sha: "8adf815937f3"
 ---
 
 # Die Konsole { #the-console }
@@ -65,6 +65,8 @@ Auf dem Telefon fokussiert der Chat das Eingabefeld weder beim Öffnen noch nach
 Auf dem Smartphone sind die Aktionen unter Nachrichten von Nutzern und Agenten zunächst ausgeblendet. Die Schaltfläche **Mehr** neben dem Absender blendet Kopieren, Antworten, Bewertungen und weitere verfügbare Aktionen ein oder aus. Am Desktop erscheinen die Bedienelemente weiterhin beim Darüberfahren.
 
 CSS-Importe, Bilder und Fonts werden relativ zum Stylesheet über dieselbe autorisierte Dateiquelle aufgelöst. Vorschauen erlauben vier verschachtelte Ebenen, 64 Ressourcen, 8 MiB Eingabedaten und 16 MiB expandierte Ausgabe. Dateilinks behalten ihre ursprüngliche Konversation oder ihren lokalen Ordner, gespeichert mit dem Verlauf des Turns. Eine Änderung von Work on leitet sie nicht um. Ältere Turns ohne gespeicherte Herkunft erhalten keine geratenen Links. Lokale Dateien benötigen weiterhin eine aktuelle native Ordnerfreigabe.
+
+Dateilink-Metadaten speichern für lokale Schritte nur eine opake Herkunftskennung. Die Ordnerzuordnung bleibt auf dem initiierenden Desktop und ist auf Konto und Organisation begrenzt; andere Teilnehmer und Computer können diese Links nicht auflösen. Ältere Herkunftsangaben mit einem lokalen Pfad werden beim Lesen gespeicherter Schritte weggelassen.
 
 ## Das Dashboard { #the-dashboard }
 

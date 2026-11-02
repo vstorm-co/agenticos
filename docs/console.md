@@ -58,6 +58,8 @@ On phones, the actions beneath user and agent messages start hidden. Tap the **M
 
 Preview CSS imports, images and fonts resolve relative to their stylesheet through the same authorized file source. Previews limit recursion to four nested levels, 64 assets, 8 MiB of input assets and 16 MiB of expanded output. Turn file links retain their original conversation or local folder, recorded with the saved timeline; changing Work on cannot retarget them. Older turns without a recorded origin have no inferred links. Opening a local file still requires its current native folder grant.
 
+File-link metadata stores only an opaque origin identifier for local turns. The folder mapping stays on the initiating desktop, scoped to its account and organization; other participants and computers cannot resolve those links. Legacy origins containing a local path are omitted when reading stored turns.
+
 ## The dashboard
 
 The landing page is an **arrangeable grid of widgets**, and it is the answer to

@@ -25,6 +25,10 @@ const browserKey = (conversationId: string) =>
   `${useAuthStore.getState().user?.id ?? "-"}:${useOrgStore.getState().activeOrgId ?? "-"}:${conversationId}`;
 
 interface WorkOnState {
+  /** Private folder mappings never leave this browser's account/organization scope. */
+  fileRoots: Record<string, string>;
+  rememberFileRoot: (id: string, root: string) => void;
+  fileRootFor: (id: string) => string | undefined;
   codingByConversation: Record<string, CodingHarness | null>;
   draftCoding: CodingHarness | null;
   codingFor: (conversationId: string | null) => CodingHarness | null;
@@ -64,6 +68,10 @@ const NO_SKILLS: SkillSource[] = [];
 export const useWorkOnStore = create<WorkOnState>()(
   persist(
     (set, get) => ({
+      fileRoots: {},
+      rememberFileRoot: (id, root) =>
+        set({ fileRoots: { ...get().fileRoots, [browserKey(`file:${id}`)]: root } }),
+      fileRootFor: (id) => get().fileRoots[browserKey(`file:${id}`)],
       codingByConversation: {},
       draftCoding: null,
       codingFor: (conversationId) =>
@@ -204,12 +212,14 @@ export const useWorkOnStore = create<WorkOnState>()(
       name: "work-on",
       version: 1,
       partialize: ({
+        fileRoots,
         byConversation,
         browserByConversation,
         computerByConversation,
         skillsByConversation,
         codingByConversation,
       }) => ({
+        fileRoots,
         skillsByConversation,
         codingByConversation,
         byConversation,

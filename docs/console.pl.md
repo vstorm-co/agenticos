@@ -1,5 +1,5 @@
 ---
-source_sha: "606f1efaec8c"
+source_sha: "8adf815937f3"
 ---
 
 # Konsola { #the-console }
@@ -63,6 +63,8 @@ Czat na telefonie nie ustawia automatycznie fokusu w polu przy otwieraniu ani po
 Na telefonach akcje pod wiadomościami użytkownika i agenta są początkowo ukryte. Przycisk **Więcej** obok nadawcy pokazuje lub ukrywa kopiowanie, odpowiedzi, oceny i pozostałe dostępne akcje. Na komputerze przyciski nadal pojawiają się po najechaniu kursorem.
 
 Importy CSS, obrazy i fonty w podglądzie są rozwiązywane względem arkusza przez ten sam autoryzowany dostęp do plików. Podgląd dopuszcza cztery zagnieżdżone poziomy, 64 zasoby, 8 MiB wejściowych zasobów i 16 MiB rozwiniętego wyniku. Skróty plików zachowują konwersację lub folder z chwili wykonania tury, zapisane z jej osią czasu. Zmiana Work on nie przekierowuje skrótów. Starsze tury bez zapisanego źródła nie otrzymują zgadywanych linków. Otwarcie lokalnego pliku nadal wymaga aktualnej zgody na folder.
+
+Metadane linków do plików zapisują dla lokalnych tur tylko niejawny identyfikator źródła. Powiązanie z folderem pozostaje na komputerze inicjującym, w zakresie konta i organizacji; inni uczestnicy i komputery nie mogą rozwiązać tych linków. Starsze źródła zawierające lokalną ścieżkę są pomijane przy odczycie zapisanych tur.
 
 ## Dashboard { #the-dashboard }
 

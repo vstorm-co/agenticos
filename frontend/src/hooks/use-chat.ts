@@ -268,6 +268,11 @@ export function useChat(options: UseChatOptions = {}) {
   // read from the store at that moment, because switching agents while an answer
   // is streaming must not re-credit that answer to the newly picked agent.
   const turnAgentIdRef = useRef<string | null>(null);
+  const pendingFileRootRef = useRef<{
+    root: string;
+    account: string | null;
+    organization: string | null;
+  } | null>(null);
   const turnFileSourceRef = useRef<TurnFileSource | undefined>(undefined);
   // Which conversation this hook is about: the store's, or the one passed in before
   // the store has caught up. Computed once because three places need the same answer
@@ -552,6 +557,17 @@ export function useChat(options: UseChatOptions = {}) {
       switch (wsEvent.type) {
         case "user_prompt": {
           turnFileSourceRef.current = turnFileSourceFromEvent(wsEvent.data);
+          if (
+            turnFileSourceRef.current?.kind === "local" &&
+            pendingFileRootRef.current !== null &&
+            pendingFileRootRef.current.account === (useAuthStore.getState().user?.id ?? null) &&
+            pendingFileRootRef.current.organization === useOrgStore.getState().activeOrgId
+          ) {
+            useWorkOnStore
+              .getState()
+              .rememberFileRoot(turnFileSourceRef.current.id, pendingFileRootRef.current.root);
+          }
+          pendingFileRootRef.current = null;
           unconfirmedRef.current = null;
           const { message_id } = wsEvent.data as { message_id?: string | null };
           const id = currentUserMessageIdRef.current;
@@ -1488,6 +1504,14 @@ export function useChat(options: UseChatOptions = {}) {
       const agentId = selectionApi.getState().selectedAgentId;
       if (agentId) payload.agent_id = agentId;
       turnAgentIdRef.current = agentId;
+      pendingFileRootRef.current =
+        local && !local.computer_grant
+          ? {
+              root: local.folder,
+              account: useAuthStore.getState().user?.id ?? null,
+              organization: useOrgStore.getState().activeOrgId,
+            }
+          : null;
       sendMessage(payload);
       return userMessageId;
     },

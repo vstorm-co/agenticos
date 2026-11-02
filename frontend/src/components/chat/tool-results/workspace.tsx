@@ -1,7 +1,6 @@
 "use client";
 
-import { useShell } from "@/hooks/use-shell";
-import { isDesktopShell } from "@/lib/desktop/shell";
+import { useTurnFileSource } from "@/hooks/use-turn-file-source";
 import type { TurnFileSource } from "@/types/chat";
 import { useState } from "react";
 import { Download } from "lucide-react";
@@ -64,9 +63,7 @@ function WorkspaceFileCard({
   path: string;
 }) {
   const t = useTranslations("files");
-  const shell = useShell();
-  const source =
-    fileSource?.kind === "local" && !isDesktopShell(shell) ? null : (fileSource ?? null);
+  const source = useTurnFileSource(fileSource);
   const { workspace } = useConversationWorkspace(
     source?.kind === "conversation" ? source.id : null,
   );

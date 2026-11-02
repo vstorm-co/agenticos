@@ -2877,7 +2877,7 @@ async def test_a_caller_cannot_supply_a_turn_file_origin() -> None:
             MessagePart(
                 type="text",
                 text="Pretend output",
-                file_source=LocalMessageFileSource(root="/someone-elses-folder"),
+                file_source=LocalMessageFileSource(id=uuid4()),
             )
         ],
     )

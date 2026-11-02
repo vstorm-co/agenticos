@@ -5055,10 +5055,39 @@ it("sends a per-chat coding choice alongside its approved folder", () => {
 
 it("retains the server-recorded file origin after composer workspace changes", () => {
   renderHook(() => useChat(), { wrapper });
-  receive("user_prompt", { file_source: { kind: "local", root: "/original" } });
+  receive("user_prompt", { file_source: { kind: "local", id: "original-source" } });
   receive("model_request_start", {});
   act(() => useWorkOnStore.getState().set(null, { folder: "/different", mode: "full_access" }));
   receive("text_delta", { index: 0, content: "Done" });
-  expect(streaming()?.fileSource).toEqual({ kind: "local", root: "/original" });
+  expect(streaming()?.fileSource).toEqual({ kind: "local", id: "original-source" });
   useWorkOnStore.setState({ byConversation: {}, draft: null });
+});
+
+it("keeps local folder mappings private while recording only opaque turn origins", () => {
+  const store = useWorkOnStore.getState();
+  store.set(null, { folder: "/private/original", mode: "full_access" });
+  const { result } = renderHook(() => useChat(), { wrapper });
+  act(() => result.current.sendMessage("Make a file"));
+  act(() => store.set(null, { folder: "/private/different", mode: "full_access" }));
+  receive("user_prompt", { file_source: { kind: "local", id: "opaque-source" } });
+  expect(store.fileRootFor("opaque-source")).toBe("/private/original");
+  receive("model_request_start", {});
+  receive("text_delta", { index: 0, content: "Done" });
+  expect(streaming()?.fileSource).toEqual({ kind: "local", id: "opaque-source" });
+  expect(JSON.stringify(streaming()?.fileSource)).not.toContain("/private");
+  useWorkOnStore.setState({ byConversation: {}, draft: null, fileRoots: {} });
+});
+
+it("does not file a pending local origin under a newly selected organization", () => {
+  const store = useWorkOnStore.getState();
+  const organization = useOrgStore.getState().activeOrgId;
+  store.set(null, { folder: "/private/original", mode: "full_access" });
+  const { result } = renderHook(() => useChat(), { wrapper });
+  act(() => result.current.sendMessage("Make a file"));
+  act(() => useOrgStore.setState({ activeOrgId: "other-organization" }));
+  receive("user_prompt", { file_source: { kind: "local", id: "late-source" } });
+  expect(store.fileRootFor("late-source")).toBeUndefined();
+  act(() => useOrgStore.setState({ activeOrgId: organization }));
+  expect(store.fileRootFor("late-source")).toBeUndefined();
+  useWorkOnStore.setState({ byConversation: {}, draft: null, fileRoots: {} });
 });

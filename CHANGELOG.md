@@ -43,6 +43,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Table, Kanban and List share one content background; local file-link origins use opaque identifiers with private desktop folder mappings.
+
+- Homebrew publication authenticates both Mac disk images against the pinned publisher before generating trusted tap checksums.
+
 - Bound the entire local ACP stream and close adapters on output overflow. Refuse monitors on desktop shells that cannot retain background processes. Require signing material when the publisher certificate is pinned. File links retain their original turn workspace, and HTML previews resolve nested CSS assets through that same authorized source.
 
 - The egress inventory includes per-chat local coding overrides; local launches recheck revoked grants after confirmation. Coding folder choices exclude incompatible grants, and file trees normalize current-directory path components.

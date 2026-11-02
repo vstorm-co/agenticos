@@ -655,7 +655,7 @@ class AgentSession:
         try:
             local_target = requested_local(data)
             if local_target is not None and local_target.folder is not None:
-                timeline.file_source = LocalMessageFileSource(root=local_target.folder)
+                timeline.file_source = LocalMessageFileSource(id=uuid4())
             elif self.current_conversation_id is not None:
                 timeline.file_source = ConversationMessageFileSource(
                     id=UUID(self.current_conversation_id)

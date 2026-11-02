@@ -429,8 +429,10 @@ it("keeps the persisted submission correlation for reconnect reconciliation", ()
 it("restores the recorded turn workspace independently of current Work on", () => {
   const message = conversationMessageToChatMessage(
     raw({
-      parts: [{ type: "text", text: "Done", file_source: { kind: "local", root: "/original" } }],
+      parts: [
+        { type: "text", text: "Done", file_source: { kind: "local", id: "original-source" } },
+      ],
     }),
   );
-  expect(message.fileSource).toEqual({ kind: "local", root: "/original" });
+  expect(message.fileSource).toEqual({ kind: "local", id: "original-source" });
 });

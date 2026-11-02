@@ -584,7 +584,7 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
           </div>
         </div>
 
-        <div className="flex min-h-0 flex-1 flex-col gap-3">
+        <div data-table-view-content className="bg-card flex min-h-0 flex-1 flex-col gap-3">
           {(tab === "table" ? grid.error : tab === "list" ? recordsError : null) ? (
             <ErrorState
               cta={{

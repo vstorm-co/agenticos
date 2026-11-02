@@ -53,7 +53,7 @@ export interface MessageReply {
 
 /** The workspace selected for a turn, retained after Work on changes. */
 export type TurnFileSource =
-  | { readonly kind: "local"; readonly root: string }
+  | { readonly kind: "local"; readonly id: string }
   | { readonly kind: "conversation"; readonly id: string };
 
 export interface ChatMessage {

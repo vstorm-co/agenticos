@@ -1,5 +1,5 @@
 ---
-source_sha: "606f1efaec8c"
+source_sha: "8adf815937f3"
 ---
 
 # La consola { #the-console }
@@ -65,6 +65,8 @@ En el teléfono, el chat no enfoca automáticamente el campo al abrirse ni cuand
 En el teléfono, las acciones bajo los mensajes del usuario y del agente empiezan ocultas. El botón **Más** junto al remitente muestra u oculta copiar, responder, valorar y las demás acciones disponibles. En el escritorio, los controles siguen apareciendo al pasar el cursor.
 
 Las importaciones CSS, imágenes y fuentes se resuelven respecto a su hoja de estilo mediante el mismo acceso autorizado. Las vistas previas permiten cuatro niveles anidados, 64 recursos, 8 MiB de entrada y 16 MiB de salida expandida. Los enlaces conservan su conversación o carpeta local original, registrada en la cronología del turno. Cambiar Work on no los redirige. Los turnos antiguos sin origen registrado no reciben enlaces inferidos. Abrir un archivo local sigue requiriendo su permiso nativo vigente.
+
+Los metadatos de enlaces guardan solo un identificador opaco del origen para los turnos locales. La relación con la carpeta permanece en el equipo que inició el turno, limitada a su cuenta y organización; otros participantes y equipos no pueden resolver esos enlaces. Los orígenes antiguos con una ruta local se omiten al leer turnos guardados.
 
 ## El dashboard { #the-dashboard }
 

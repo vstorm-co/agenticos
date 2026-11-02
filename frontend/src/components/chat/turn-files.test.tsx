@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, it, vi } from "vitest";
 import type { FileSource } from "@/lib/workspace-files";
 import type { ChatMessage } from "@/types/chat";
+import { useWorkOnStore } from "@/stores/work-on-store";
 import { TurnFiles } from "./turn-files";
 
 const env = vi.hoisted(() => ({ source: null as FileSource | null, access: vi.fn() }));
@@ -30,6 +31,9 @@ vi.mock("@/components/files", () => ({
   ),
 }));
 function message(paths: unknown = ["site/index.html", "site/style.css"]): ChatMessage {
+  const source = env.source;
+  const id = crypto.randomUUID();
+  if (source?.kind === "local") useWorkOnStore.getState().rememberFileRoot(id, source.root);
   return {
     id: "m",
     role: "assistant",
@@ -37,7 +41,11 @@ function message(paths: unknown = ["site/index.html", "site/style.css"]): ChatMe
     timestamp: new Date(),
     conversationId: "c1",
     fileSource:
-      env.source?.kind === "local" || env.source?.kind === "conversation" ? env.source : undefined,
+      source?.kind === "local"
+        ? { kind: "local", id }
+        : source?.kind === "conversation"
+          ? source
+          : undefined,
     toolCalls: [
       {
         id: "tc",

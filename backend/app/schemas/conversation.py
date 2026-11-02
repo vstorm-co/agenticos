@@ -8,7 +8,7 @@ from decimal import Decimal
 from typing import TYPE_CHECKING, Annotated, Any, Literal
 from uuid import UUID
 
-from pydantic import ConfigDict, Field
+from pydantic import ConfigDict, Field, field_validator
 
 from app.schemas.base import BaseSchema, TimestampSchema
 from app.schemas.mention import MentionKind
@@ -18,11 +18,10 @@ if TYPE_CHECKING:
 
 
 class LocalMessageFileSource(BaseSchema):
-    """The approved folder used by this turn; opening still checks its current grant."""
+    """Opaque turn origin; its folder mapping stays on the initiating desktop."""
 
-    model_config = ConfigDict(str_strip_whitespace=False)
     kind: Literal["local"] = "local"
-    root: str = Field(min_length=1, max_length=1024)
+    id: UUID
 
 
 class ConversationMessageFileSource(BaseSchema):
@@ -101,6 +100,15 @@ class MessagePart(BaseSchema):
         default=None,
         description="The turn's file origin, recorded with its timeline so later workspace changes cannot retarget its links.",
     )
+
+    @field_validator("file_source", mode="before")
+    @classmethod
+    def discard_legacy_local_paths(cls, value: object) -> object:
+        """Old previews lose their link rather than expose a private folder path."""
+        if isinstance(value, dict) and value.get("kind") == "local" and "root" in value:
+            return None
+        return value
+
     tool_call_id: str | None = Field(
         default=None, description="Which tool call this entry is, for a `tool` entry."
     )

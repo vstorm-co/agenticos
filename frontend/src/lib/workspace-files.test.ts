@@ -125,3 +125,22 @@ it("prepares linked local CSS through the same root and leaves Source unchanged"
   expect(readLocalFile).toHaveBeenCalledWith("/approved", "site/style.css");
   await expect(access.readText()).resolves.toEqual({ content: html, truncated: false });
 });
+
+it("loads CSS image bytes through the original local root", async () => {
+  const html = '<link rel="stylesheet" href="style.css">';
+  vi.mocked(readLocalFile).mockImplementation(async (_root, path) =>
+    new TextEncoder().encode(
+      path.endsWith(".css")
+        ? 'body{background:url("image.png")}'
+        : path.endsWith(".png")
+          ? "image-bytes"
+          : html,
+    ),
+  );
+  const preview = await workspaceFileAccess(
+    { kind: "local", root: "/original" },
+    "site/index.html",
+  ).readPreview?.();
+  expect(preview?.content).toContain("data:image/png;base64,");
+  expect(readLocalFile).toHaveBeenCalledWith("/original", "site/image.png");
+});

@@ -1043,6 +1043,7 @@ async def test_cumulative_stream_limits_abort_the_task_and_close_its_pipe(
     assert pipe.agent.out  # The remaining unbounded stream was not drained.
 
 
+@pytest.mark.security
 def test_stream_budget_counts_structural_updates_and_exact_boundaries(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
