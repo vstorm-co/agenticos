@@ -4,7 +4,7 @@ Re-states steering guidance mid-run to counter instruction fade: after many
 tool-use turns a model progressively ignores the guidance it was given at the
 start, and a single start-of-session prompt is not enough for extended work. This
 capability re-injects targeted guidance on a cadence - a fixed line, the original
-request re-stated, or a model-written nudge - and contributes no tools.
+request pointed out, or a model-written nudge - and contributes no tools.
 
 The strategy is a port of `pydantic-ai-harness`'s `SystemReminders`. Two things
 this platform had to add to it are the whole of why it is not a thin wrapper.
@@ -47,7 +47,7 @@ the first content of a user message.
 | Kind | Cost | Text it injects |
 |---|---|---|
 | `reminders[]` | none | A fixed line you write |
-| `goal_reanchor` | none | The run's first user request, re-stated as the anchor |
+| `goal_reanchor` | none | A pointer to the run's first user request, without repeating user text |
 | `llm_reminder` | one model call per fire | A short nudge a model writes from the recent transcript |
 
 Each carries its own cadence: `interval` and `first_after` count model requests

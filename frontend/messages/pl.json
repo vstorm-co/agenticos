@@ -8488,8 +8488,8 @@
         "description": "Dodaje podzadania i zależności: krok czeka jako zablokowany, aż skończą się kroki przed nim. Domyślnie wyłączone, bo do większości pracy wystarczy płaska lista."
       },
       "cache_ttl": {
-        "title": "Czas życia cache promptu",
-        "description": "Jak długo provider może trzymać w cache prefiks promptu przed przypomnieniem o planie. Przypomnienie zmienia się co turę i celowo stoi za tym punktem, żeby stały prefiks dało się cache'ować; dłuższy TTL pasuje do rozmowy, która zostaje otwarta, krótszy do serii szybkich tur."
+        "title": "Poprzedni czas przechowywania cache promptu",
+        "description": "Pozostawione, aby istniejące specyfikacje agentów nadal się wczytywały. Planowanie nie używa już tej wartości; skonfiguruj cache promptu przez cache w ustawieniach modelu."
       }
     },
     "sandbox": {

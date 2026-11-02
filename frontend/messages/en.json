@@ -11042,8 +11042,8 @@
         "description": "Adds subtasks and dependencies: a step waits as blocked until the steps before it finish. Off by default, because a flat checklist is enough for most work."
       },
       "cache_ttl": {
-        "title": "Prompt cache lifetime",
-        "description": "How long the provider may cache the prompt prefix that sits before the plan reminder. The reminder changes every turn and is deliberately kept behind this breakpoint so the stable prefix stays cacheable; a longer TTL suits a conversation that stays open, the shorter one a burst of turns."
+        "title": "Legacy prompt cache lifetime",
+        "description": "Kept so existing agent specs still load. Planning no longer uses this value; configure prompt caching through cache in the model settings."
       }
     },
     "sandbox": {

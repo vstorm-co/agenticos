@@ -1,5 +1,5 @@
 ---
-source_sha: "759491a1f3dc"
+source_sha: "ca71d9f5b056"
 ---
 
 # Dateiverarbeitung { #file-processing }
@@ -1714,8 +1714,12 @@ sie nicht anbietet, ist das Löschen eines Profils: das gehört dorthin, wo die
 Modelle einer Organisation verwaltet werden, und ein Profil, das Agents nutzen,
 lässt sich gar nicht löschen.
 
-Die erzeugten Beschreibungen werden in den Dokumenttext aufgenommen,
-für eine bessere semantische Suche.
+PyMuPDF überspringt die Extraktion eingebetteter Bilder, wenn die
+Bildbeschreibung ausgeschaltet ist. Ist sie eingeschaltet, wird jeder Bild-xref
+nur einmal pro Dokument extrahiert; wiederholte Verweise auf einer Seite werden
+zusammengefasst und identische Bildbytes nur einmal beschrieben. Jede Seite mit
+einem Bildverweis erhält dessen Beschreibung im Text für die semantische Suche.
+Chunks enthalten diesen Text, ohne die eingebetteten Bilder der Seite zu kopieren.
 
 ## Aus einem Kanal { #from-a-channel }
 

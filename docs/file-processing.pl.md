@@ -1,5 +1,5 @@
 ---
-source_sha: "759491a1f3dc"
+source_sha: "ca71d9f5b056"
 ---
 
 # Przetwarzanie plików { #file-processing }
@@ -1610,8 +1610,12 @@ wdrożenie bez żadnego profilu modelu nie jest ślepą uliczką. Czego nie ofer
 to usunięcie profilu: to należy tam, gdzie zarządza się modelami organizacji, a
 profilu, którego używają agenci, w ogóle nie da się usunąć.
 
-Wygenerowane opisy są dołączane do
-tekstu dokumentu dla lepszego wyszukiwania semantycznego.
+PyMuPDF pomija ekstrakcję osadzonych obrazów, gdy ich opisywanie jest wyłączone.
+Po włączeniu każdy xref obrazu jest wyodrębniany raz na dokument, powtórzone
+odwołania na stronie są scalane, a identyczne bajty obrazu są opisywane raz.
+Każda strona odwołująca się do obrazu nadal otrzymuje jego opis w tekście do
+wyszukiwania semantycznego. Chunki przenoszą ten tekst bez kopiowania osadzonych
+obrazów strony.
 
 ## Z kanału { #from-a-channel }
 
