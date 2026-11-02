@@ -430,7 +430,9 @@ export const qk = {
     agents: (skillId: string) => ["skills", skillId, "agents"] as const,
     improvements: (skillId: string, forkId: string | null) =>
       ["skills", skillId, "improvements", forkId ?? "main"] as const,
-    check: (skillId: string, checkId: string) => ["skills", skillId, "check", checkId] as const,
+    problems: (skillId: string, sessionId: string) =>
+      ["skills", skillId, "problems", sessionId] as const,
+    awaiting: () => ["skills", "improvements-awaiting"] as const,
     testSet: (skillId: string) => ["skills", skillId, "test-set"] as const,
   },
   mcpOauth: {

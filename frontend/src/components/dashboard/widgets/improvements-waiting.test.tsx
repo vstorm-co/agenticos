@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { TooltipProvider } from "@/components/ui";
 import type { Period } from "@/lib/dashboard/period";
 import type { ImprovementAwaiting } from "@/types/improvement";
+import type { SkillImprovementAwaiting } from "@/types/skill-improvement";
 import { ImprovementsWaitingWidget } from "./improvements-waiting";
 
 const state = vi.hoisted(() => ({
@@ -14,6 +15,13 @@ const state = vi.hoisted(() => ({
   refetch: vi.fn(),
 }));
 vi.mock("@/hooks/use-improvements", () => ({ useImprovementsAwaiting: () => state }));
+const skills = vi.hoisted(() => ({
+  sessions: [] as SkillImprovementAwaiting[],
+  isLoading: false,
+  error: null as Error | null,
+  refetch: vi.fn(),
+}));
+vi.mock("@/hooks/use-skill-improvement", () => ({ useSkillImprovementsAwaiting: () => skills }));
 
 const PERIOD: Period = { preset: "30d", from: "2026-09-27", to: "2026-10-26" };
 
@@ -44,6 +52,10 @@ beforeEach(() => {
   state.isLoading = false;
   state.error = null;
   state.refetch = vi.fn();
+  skills.sessions = [];
+  skills.isLoading = false;
+  skills.error = null;
+  skills.refetch = vi.fn();
 });
 
 describe("ImprovementsWaitingWidget", () => {
@@ -105,5 +117,53 @@ describe("ImprovementsWaitingWidget", () => {
     );
     await userEvent.click(screen.getByRole("button", { name: /try again|retry/i }));
     expect(state.refetch).toHaveBeenCalled();
+  });
+
+  it("lists a skill's sessions beside the agents', newest first", () => {
+    state.sessions = [waiting({ created_at: "2026-10-27T10:00:00Z" })];
+    skills.sessions = [
+      {
+        id: "k9",
+        skill_id: "sk1",
+        skill_name: "returns-policy",
+        fork_id: "f1",
+        line_name: "Returns",
+        status: "waiting",
+        stage: "filtering",
+        iteration: 1,
+        max_iterations: 3,
+        created_at: "2026-10-28T10:00:00Z",
+      },
+      {
+        id: "k8",
+        skill_id: "sk2",
+        skill_name: "tone",
+        fork_id: null,
+        line_name: "main",
+        status: "ready",
+        stage: null,
+        iteration: 1,
+        max_iterations: 3,
+        created_at: "2026-10-26T10:00:00Z",
+      },
+    ];
+    widget();
+
+    const rows = screen.getAllByRole("listitem");
+    expect(rows[0]!.textContent).toBe("returns-policy · fork “Returns”Review the changesOpen");
+    expect(rows[2]!.textContent).toBe("tone · mainReview the resultOpen");
+    expect(within(rows[0]!).getByRole("link", { name: "Open" })).toHaveAttribute(
+      "href",
+      "/skills/sk1/improve/k9",
+    );
+  });
+
+  it("retries both reads when the skills' fails", async () => {
+    skills.error = new Error("Unavailable");
+    widget();
+
+    await userEvent.click(screen.getByRole("button", { name: /try again|retry/i }));
+    expect(state.refetch).toHaveBeenCalled();
+    expect(skills.refetch).toHaveBeenCalled();
   });
 });

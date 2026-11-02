@@ -3179,7 +3179,8 @@
           "changes": "Review the changes",
           "result": "Review the result",
           "blocked": "Blocked: end it and start a new one"
-        }
+        },
+        "skill": "{name} · {line, select, main {main} other {fork “{line}”}}"
       }
     },
     "edit": {
@@ -15390,6 +15391,14 @@
       "limit": "Spending limit for the whole session (USD)",
       "unaffordable": "The organization's budget does not cover this.",
       "start": "Start"
+    },
+    "understand": {
+      "title": "Understand",
+      "loading": "Reading what went wrong…",
+      "summary": "{count, plural, =0 {No problem with the skill found} =1 {1 problem with the skill} other {# problems with the skill}}{elsewhere, plural, =0 {} other {, # answers whose trouble lies elsewhere}}{fine, plural, =0 {} other {, # that were fine}}.",
+      "usageUnknown": "{count, plural, =1 {1 answer is from before skill loads were recorded and is not counted.} other {# answers are from before skill loads were recorded and are not counted.}}",
+      "agent": "{name} ({runs})",
+      "occursIn": "In {runs, plural, =1 {1 answer} other {# answers}}, at {agents}{hidden, plural, =0 {} =1 { and 1 agent you can't see} other { and # agents you can't see}}."
     }
   }
 }

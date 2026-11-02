@@ -26,7 +26,8 @@ vi.mock("@/components/improvement/continue-session", () => ({
 
 function mount(check: SkillCheck, session: SkillImprovement = skillSession()) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  render(<SkillAccept session={session} check={check} onStarted={vi.fn()} />, {
+  const measured = { ...session, check, outcomes: check.outcomes };
+  render(<SkillAccept session={measured} check={check} onStarted={vi.fn()} />, {
     wrapper: ({ children }: { children: ReactNode }) => (
       <QueryClientProvider client={client}>{children}</QueryClientProvider>
     ),
@@ -54,9 +55,10 @@ describe("SkillAccept", () => {
       screen.getByRole("button", { name: "Apply as the next version of main" }),
     );
 
-    expect(apiClient.post).toHaveBeenCalledWith("/skills/k1/improvements/s1/accept", {
-      outcome: "apply",
+    expect(apiClient.post).toHaveBeenCalledWith("/skills/k1/improvements/s1/apply", {
+      confirmed: true,
       acknowledge_unknown: false,
+      pin_worse: false,
     });
   });
 
@@ -73,10 +75,10 @@ describe("SkillAccept", () => {
       screen.getByRole("button", { name: "Make a fork with this change for Support" }),
     );
 
-    expect(apiClient.post).toHaveBeenCalledWith("/skills/k1/improvements/s1/accept", {
-      outcome: "fork_for_helped",
+    expect(apiClient.post).toHaveBeenCalledWith("/skills/k1/improvements/s1/fork", {
+      confirmed: true,
+      name: "Returns",
       acknowledge_unknown: false,
-      fork_name: "Returns",
     });
   });
 
@@ -87,9 +89,10 @@ describe("SkillAccept", () => {
       screen.getByRole("button", { name: "Apply, and keep Refunds on the version it has" }),
     );
 
-    expect(apiClient.post).toHaveBeenCalledWith("/skills/k1/improvements/s1/accept", {
-      outcome: "apply_and_pin",
+    expect(apiClient.post).toHaveBeenCalledWith("/skills/k1/improvements/s1/apply", {
+      confirmed: true,
       acknowledge_unknown: false,
+      pin_worse: true,
     });
   });
 
@@ -122,7 +125,7 @@ describe("SkillAccept", () => {
     await userEvent.click(apply);
 
     expect(apiClient.post).toHaveBeenCalledWith(
-      "/skills/k1/improvements/s1/accept",
+      "/skills/k1/improvements/s1/apply",
       expect.objectContaining({ acknowledge_unknown: true }),
     );
   });

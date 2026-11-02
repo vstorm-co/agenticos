@@ -10,13 +10,11 @@ import { AttemptHistory } from "@/components/improvement/attempt-history";
 import { ImprovementShell, WorkingNote } from "@/components/improvement/improvement-shell";
 import { type ReadOnlyReason } from "@/components/improvement/read-only";
 import { TriedChanges } from "@/components/improvement/tried-changes";
-import { Understand } from "@/components/improvement/understand";
 import { ErrorState, LoadingState } from "@/components/states";
 import { Button } from "@/components/ui";
 import { useSkill } from "@/hooks";
 import { useImprovement } from "@/hooks/use-improvements";
 import { usePermissions } from "@/hooks/use-permissions";
-import { useSkillCheck } from "@/hooks/use-skill-improvement";
 import { getErrorMessage } from "@/lib/api-error";
 import { ROUTES } from "@/lib/constants";
 import { isActive, isClosed, stopOf } from "@/lib/improvement-steps";
@@ -25,6 +23,7 @@ import type { SkillImprovement } from "@/types/skill-improvement";
 import { CheckAgents } from "./check-agents";
 import { SkillAccept } from "./skill-accept";
 import { SkillStart } from "./skill-start";
+import { SkillUnderstand } from "./skill-understand";
 
 /**
  * Improving a skill, step by step, on the line the person chose: the agent Improve
@@ -34,11 +33,14 @@ export function SkillImprovementPage({
   skillId,
   sessionId,
   forkId,
+  fromRun = null,
 }: {
   skillId: string;
   sessionId: string;
   /** For a new session, the line to improve; null is main. */
   forkId: string | null;
+  /** For a new session, the agent session that handed its skill problems over. */
+  fromRun?: string | null;
 }) {
   const t = useTranslations("skillImprovement");
   const tErrors = useTranslations("errors");
@@ -71,7 +73,7 @@ export function SkillImprovementPage({
     <div className="mx-auto w-full max-w-5xl space-y-6 pb-16">
       {header}
       {sessionId === "new" ? (
-        <SkillStart skillId={skillId} forkId={forkId} />
+        <SkillStart skillId={skillId} forkId={forkId} fromRun={fromRun} />
       ) : (
         <SkillSession skillId={skillId} sessionId={sessionId} canEdit={skill.can_edit === true} />
       )}
@@ -94,8 +96,6 @@ function SkillSession({
   const actions = useImprovement({ skillId }, sessionId);
   const [wordingOpen, setWordingOpen] = useState(false);
   const session = actions.session as SkillImprovement | undefined;
-  const checkId = session?.iterations.findLast((round) => round.check_id)?.check_id ?? null;
-  const { check, error: checkError } = useSkillCheck(skillId, checkId);
   if (actions.isLoading) return <LoadingState variant="skeleton-cards" rows={3} />;
   if (actions.error || !session)
     return (
@@ -109,9 +109,8 @@ function SkillSession({
     : canEdit
       ? null
       : "viewOnly";
-  const measured = checkError ? (
-    <ErrorState description={getErrorMessage(checkError, tErrors)} />
-  ) : check ? (
+  const check = session.check;
+  const measured = check ? (
     <CheckAgents check={check} />
   ) : (
     <WorkingNote>{t("checkWaiting")}</WorkingNote>
@@ -129,7 +128,7 @@ function SkillSession({
             (views.understand.content === "working" ? (
               <WorkingNote>{tImprovement("understandWorking")}</WorkingNote>
             ) : (
-              <Understand session={session} />
+              <SkillUnderstand session={session} />
             ))}
           {step === "changes" &&
             (stopOf(session) === "changes" ? (

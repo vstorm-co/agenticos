@@ -3179,7 +3179,8 @@
           "changes": "Prüfen Sie die Änderungen",
           "result": "Prüfen Sie das Ergebnis",
           "blocked": "Blockiert: beenden und neu starten"
-        }
+        },
+        "skill": "{name} · {line, select, main {main} other {Fork „{line}“}}"
       }
     },
     "edit": {
@@ -15062,6 +15063,14 @@
       "limit": "Ausgabenlimit für die ganze Sitzung (USD)",
       "unaffordable": "Das Budget der Organisation deckt das nicht.",
       "start": "Starten"
+    },
+    "understand": {
+      "title": "Verstehen",
+      "loading": "Lese, was schiefging…",
+      "summary": "{count, plural, =0 {Kein Problem mit dem Skill gefunden} =1 {1 Problem mit dem Skill} other {# Probleme mit dem Skill}}{elsewhere, plural, =0 {} other {, # Antworten mit dem Problem anderswo}}{fine, plural, =0 {} other {, # in Ordnung}}.",
+      "usageUnknown": "{count, plural, =1 {1 Antwort stammt aus der Zeit vor der Aufzeichnung von Skill-Ladevorgängen und wird nicht gezählt.} other {# Antworten stammen aus der Zeit vor der Aufzeichnung von Skill-Ladevorgängen und werden nicht gezählt.}}",
+      "agent": "{name} ({runs})",
+      "occursIn": "In {runs, plural, =1 {1 Antwort} other {# Antworten}}, bei {agents}{hidden, plural, =0 {} =1 { und 1 Agent, den Sie nicht sehen} other { und # Agents, die Sie nicht sehen}}."
     }
   }
 }

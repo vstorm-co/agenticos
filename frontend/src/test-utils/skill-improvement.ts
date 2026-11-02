@@ -10,7 +10,19 @@ export function skillSession(overrides: Partial<SkillImprovement> = {}): SkillIm
     skill_id: "k1",
     fork_id: null,
     line_name: "main",
-    iterations: SESSION.iterations.map((round) => ({ ...round, check_id: "c1" })),
+    base_version: { id: "m12", number: 12 },
+    iterations: SESSION.iterations.map((round) => ({
+      ...round,
+      check_id: "c1",
+      check_verdict: "passed",
+    })),
+    check: skillCheck(),
+    outcomes: ["improve_further", "apply", "discard"],
+    outcome: null,
+    applied_version_id: null,
+    agents: 2,
+    hidden_agents: 0,
+    expires_at: null,
     ...overrides,
   };
 }

@@ -8,7 +8,7 @@ import { Button, Checkbox, Input, Label } from "@/components/ui";
 import { useSkillAccept } from "@/hooks/use-skill-improvement";
 import { getErrorMessage } from "@/lib/api-error";
 import type { SkillCheck } from "@/types/skill-checks";
-import type { SkillAcceptOutcome, SkillImprovement } from "@/types/skill-improvement";
+import type { SkillImprovement } from "@/types/skill-improvement";
 import { AddTestQuestions } from "./add-test-questions";
 
 /**
@@ -28,7 +28,8 @@ export function SkillAccept({
   const t = useTranslations("skillImprovement.accept");
   const tErrors = useTranslations("errors");
   const locale = useLocale();
-  const accept = useSkillAccept(session.skill_id, session.id);
+  const { apply, fork } = useSkillAccept(session.skill_id, session.id);
+  const busy = apply.isPending || fork.isPending;
   const list = new Intl.ListFormat(locale, { type: "conjunction" });
   const names = (state: string) =>
     list.format(check.agents.filter((row) => row.state === state).map((row) => row.agent.name));
@@ -41,37 +42,30 @@ export function SkillAccept({
   const blockedOnFork =
     check.verdict === "blocked" &&
     session.fork_id !== null &&
-    !check.outcomes.includes("apply_and_pin") &&
-    !check.outcomes.includes("fork_for_helped");
+    !session.outcomes.includes("apply_and_pin") &&
+    !session.outcomes.includes("fork_for_helped");
   const held = unknown > 0 && !acknowledged;
 
-  async function decide(outcome: SkillAcceptOutcome) {
+  async function decide(write: () => Promise<unknown>) {
     setRefusal(null);
     try {
-      await accept.mutateAsync({
-        outcome,
-        acknowledge_unknown: acknowledged,
-        ...(outcome === "fork_for_helped" ? { fork_name: forkName.trim() } : {}),
-      });
+      await write();
     } catch (failure) {
       setRefusal(getErrorMessage(failure, tErrors));
     }
   }
+  const applyIt = (pinWorse: boolean) =>
+    decide(() => apply.mutateAsync({ acknowledge_unknown: acknowledged, pin_worse: pinWorse }));
 
   const decisions = (
     <>
-      {check.outcomes.includes("apply") && (
-        <Button disabled={held} loading={accept.isPending} onClick={() => void decide("apply")}>
+      {session.outcomes.includes("apply") && (
+        <Button disabled={held} loading={busy} onClick={() => void applyIt(false)}>
           {t("apply", { line: session.line_name })}
         </Button>
       )}
-      {check.outcomes.includes("apply_and_pin") && (
-        <Button
-          variant="outline"
-          disabled={held}
-          loading={accept.isPending}
-          onClick={() => void decide("apply_and_pin")}
-        >
+      {session.outcomes.includes("apply_and_pin") && (
+        <Button variant="outline" disabled={held} loading={busy} onClick={() => void applyIt(true)}>
           {t("applyAndPin", { names: names("worse") })}
         </Button>
       )}
@@ -103,7 +97,7 @@ export function SkillAccept({
           <AddTestQuestions skillId={session.skill_id} />
         </div>
       )}
-      {check.outcomes.includes("fork_for_helped") && helped && (
+      {session.outcomes.includes("fork_for_helped") && helped && (
         <div className="max-w-md space-y-2">
           <Label htmlFor="skill-accept-fork">{t("forkName")}</Label>
           <Input
@@ -115,8 +109,12 @@ export function SkillAccept({
           <Button
             variant="outline"
             disabled={held || forkName.trim() === ""}
-            loading={accept.isPending}
-            onClick={() => void decide("fork_for_helped")}
+            loading={busy}
+            onClick={() =>
+              void decide(() =>
+                fork.mutateAsync({ name: forkName.trim(), acknowledge_unknown: acknowledged }),
+              )
+            }
           >
             {t("forkForHelped", { names: names("better") })}
           </Button>

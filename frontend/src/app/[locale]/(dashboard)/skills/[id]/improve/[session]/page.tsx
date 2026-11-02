@@ -5,7 +5,15 @@ import { SkillImprovementPage } from "@/components/skill-improvement/skill-impro
 
 export default function Page({ params }: { params: Promise<{ id: string; session: string }> }) {
   const { id, session } = use(params);
-  // `?fork=` picks the line a new session improves; without it, main.
-  const fork = useSearchParams().get("fork");
-  return <SkillImprovementPage skillId={id} sessionId={session} forkId={fork} />;
+  // `?fork=` picks the line a new session improves; `?from_run=` hands an agent's
+  // session over, whose problems the new one starts from.
+  const search = useSearchParams();
+  return (
+    <SkillImprovementPage
+      skillId={id}
+      sessionId={session}
+      forkId={search.get("fork")}
+      fromRun={search.get("from_run")}
+    />
+  );
 }

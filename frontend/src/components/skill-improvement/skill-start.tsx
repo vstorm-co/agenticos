@@ -18,12 +18,24 @@ import type { SkillImprovementEstimate } from "@/types/skill-improvement";
  * Starting a session on one line of the skill: which agents it will be checked on,
  * the ones that cannot be, named before anything is spent, and what it costs.
  */
-export function SkillStart({ skillId, forkId }: { skillId: string; forkId: string | null }) {
+export function SkillStart({
+  skillId,
+  forkId,
+  fromRun = null,
+}: {
+  skillId: string;
+  forkId: string | null;
+  /** An agent's session that handed its problems with this skill over. */
+  fromRun?: string | null;
+}) {
   const t = useTranslations("skillImprovement.start");
   const tErrors = useTranslations("errors");
   const locale = useLocale();
   const router = useRouter();
-  const { sessions, isLoading, error, estimate, start } = useSkillImprovements(skillId, forkId);
+  const { sessions, isLoading, error, estimate, start } = useSkillImprovements(skillId, {
+    forkId,
+    fromRun,
+  });
   const [quote, setQuote] = useState<SkillImprovementEstimate | null>(null);
   const [limit, setLimit] = useState("");
   const [refusal, setRefusal] = useState<string | null>(null);
@@ -90,8 +102,10 @@ export function SkillStart({ skillId, forkId }: { skillId: string; forkId: strin
           ))}
         </ul>
       )}
-      {quote.hidden > 0 && (
-        <p className="text-muted-foreground text-xs">{t("hidden", { count: quote.hidden })}</p>
+      {quote.hidden_agents > 0 && (
+        <p className="text-muted-foreground text-xs">
+          {t("hidden", { count: quote.hidden_agents })}
+        </p>
       )}
       <p className="text-sm">
         {t("price", {

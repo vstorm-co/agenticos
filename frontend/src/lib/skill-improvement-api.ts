@@ -1,6 +1,5 @@
 /**
- * API client for a skill's improvement sessions, the checks behind them, and the
- * skill's own test questions.
+ * API client for a skill's improvement sessions and the skill's own test questions.
  *
  * A session's steps share the agent session's routes under `/skills/{id}/improvements`
  * (`lib/improvement-subject.ts`); what is only a skill's is here.
@@ -9,14 +8,25 @@
 import { apiClient } from "./api-client";
 import { ApiError } from "./api-error";
 import type { Dataset } from "@/types/datasets";
-import type { SkillCheck } from "@/types/skill-checks";
 import type {
-  SkillAccept,
   SkillImprovement,
+  SkillImprovementAwaiting,
   SkillImprovementEstimate,
+  SkillProblems,
 } from "@/types/skill-improvement";
 
 const root = (skillId: string) => `/skills/${skillId}/improvements`;
+
+/** Where a new session starts: its line, and the agent session that handed it over, if any. */
+export interface SkillImprovementOrigin {
+  forkId: string | null;
+  fromRun: string | null;
+}
+
+const originBody = ({ forkId, fromRun }: SkillImprovementOrigin) => ({
+  fork_id: forkId,
+  ...(fromRun === null ? {} : { from_run: fromRun }),
+});
 
 export function listSkillImprovements(
   skillId: string,
@@ -29,35 +39,53 @@ export function listSkillImprovements(
 
 export function estimateSkillImprovement(
   skillId: string,
-  forkId: string | null,
+  origin: SkillImprovementOrigin,
 ): Promise<SkillImprovementEstimate> {
-  return apiClient.post<SkillImprovementEstimate>(`${root(skillId)}/estimate`, {
-    fork_id: forkId,
-  });
+  return apiClient.post<SkillImprovementEstimate>(`${root(skillId)}/estimate`, originBody(origin));
 }
 
 export function startSkillImprovement(
   skillId: string,
-  forkId: string | null,
+  origin: SkillImprovementOrigin,
   budgetUsd: string,
 ): Promise<SkillImprovement> {
   return apiClient.post<SkillImprovement>(root(skillId), {
-    fork_id: forkId,
+    ...originBody(origin),
     budget_usd: budgetUsd,
   });
 }
 
-/** Apply the measured attempt, pinning the agents it made worse, or fork it for the ones it helped. */
-export function acceptSkillImprovement(
-  skillId: string,
-  sessionId: string,
-  accept: SkillAccept,
-): Promise<SkillImprovement> {
-  return apiClient.post<SkillImprovement>(`${root(skillId)}/${sessionId}/accept`, accept);
+export function getSkillProblems(skillId: string, sessionId: string): Promise<SkillProblems> {
+  return apiClient.get<SkillProblems>(`${root(skillId)}/${sessionId}/evidence`);
 }
 
-export function getSkillCheck(skillId: string, checkId: string): Promise<SkillCheck> {
-  return apiClient.get<SkillCheck>(`/skills/${skillId}/checks/${checkId}`);
+/** Apply the measured attempt as the line's next version, pinning the agents it made worse. */
+export function applySkillImprovement(
+  skillId: string,
+  sessionId: string,
+  body: { acknowledge_unknown: boolean; pin_worse: boolean },
+): Promise<{ session: SkillImprovement }> {
+  return apiClient.post<{ session: SkillImprovement }>(`${root(skillId)}/${sessionId}/apply`, {
+    confirmed: true,
+    ...body,
+  });
+}
+
+/** Make a fork with the measured attempt for the agents it helped. */
+export function forkSkillImprovement(
+  skillId: string,
+  sessionId: string,
+  body: { name: string; acknowledge_unknown: boolean },
+): Promise<{ session: SkillImprovement }> {
+  return apiClient.post<{ session: SkillImprovement }>(`${root(skillId)}/${sessionId}/fork`, {
+    confirmed: true,
+    ...body,
+  });
+}
+
+/** Skill sessions anywhere the reader may see that wait for a person. */
+export function listSkillImprovementsAwaiting(): Promise<SkillImprovementAwaiting[]> {
+  return apiClient.get<SkillImprovementAwaiting[]>("/skill-improvements/awaiting");
 }
 
 /** The skill's own test questions, or null while it has none. */

@@ -16,8 +16,6 @@ const state = vi.hoisted(() => ({
   runsView: true,
   canEdit: true,
   session: null as unknown,
-  check: null as unknown,
-  checkError: null as unknown,
 }));
 vi.mock("next/navigation", async (original) => ({
   ...(await original<typeof import("next/navigation")>()),
@@ -36,7 +34,7 @@ vi.mock("@/hooks/use-organizations", async (original) => ({
   ...(await original<typeof import("@/hooks/use-organizations")>()),
   useOrganizationList: () => ({ data: [] }),
 }));
-vi.mock("@/components/improvement/understand", () => ({ Understand: () => <p>understand</p> }));
+vi.mock("./skill-understand", () => ({ SkillUnderstand: () => <p>understand</p> }));
 vi.mock("@/components/improvement/attempt-changes", () => ({
   AttemptChanges: () => <p>attempt changes</p>,
 }));
@@ -64,10 +62,6 @@ function serve() {
       if (state.session instanceof Error) throw state.session;
       return state.session;
     }
-    if (path === "/skills/k1/checks/c1") {
-      if (state.checkError) throw state.checkError;
-      return state.check;
-    }
     throw new ApiError(404, "None");
   });
 }
@@ -87,8 +81,6 @@ beforeEach(() => {
   state.runsView = true;
   state.canEdit = true;
   state.session = skillSession();
-  state.check = skillCheck();
-  state.checkError = null;
   serve();
 });
 
@@ -108,10 +100,8 @@ describe("SkillImprovementPage", () => {
 
   it("follows the line's check while it runs", async () => {
     state.step = "check";
-    state.check = skillCheck({
-      verdict: null,
-      agents: [checkAgentRunning()],
-      finished_at: null,
+    state.session = skillSession({
+      check: skillCheck({ verdict: null, agents: [checkAgentRunning()], finished_at: null }),
     });
     mount();
 
@@ -122,20 +112,10 @@ describe("SkillImprovementPage", () => {
 
   it("waits for the check before naming any result", async () => {
     state.step = "check";
-    state.session = skillSession({
-      iterations: skillSession().iterations.map((round) => ({ ...round, check_id: null })),
-    });
+    state.session = skillSession({ check: null });
     mount();
 
     expect(await screen.findByText(/has not started yet/)).toBeVisible();
-  });
-
-  it("says when the check cannot be read", async () => {
-    state.step = "result";
-    state.checkError = new ApiError(500, "Boom", { error: { code: "INTERNAL", message: "Boom" } });
-    mount();
-
-    expect(await screen.findByText("Boom")).toBeVisible();
   });
 
   it("draws Understand and the tried changes from the shared steps", async () => {

@@ -34,12 +34,13 @@ const ESTIMATE = {
     checkAgent("Support", "queued"),
     checkAgent("Billing", "unknown", { unknown_reason: "no_budget" }),
   ],
-  hidden: 1,
+  hidden_agents: 1,
+  line: { fork_id: null, name: "main" },
 };
 
-function mount(forkId: string | null = null) {
+function mount(forkId: string | null = null, fromRun: string | null = null) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  render(<SkillStart skillId="k1" forkId={forkId} />, {
+  render(<SkillStart skillId="k1" forkId={forkId} fromRun={fromRun} />, {
     wrapper: ({ children }: { children: ReactNode }) => (
       <QueryClientProvider client={client}>{children}</QueryClientProvider>
     ),
@@ -82,6 +83,22 @@ describe("SkillStart", () => {
       params: { fork_id: "f1" },
     });
     expect(push).toHaveBeenCalledWith("/skills/k1/improve/s9");
+  });
+
+  it("starts from the problems an agent's session handed over", async () => {
+    mount(null, "run-7");
+
+    await screen.findByText("It will be checked on 1 agent: Support.");
+    await userEvent.click(screen.getByRole("button", { name: "Start" }));
+
+    expect(apiClient.post).toHaveBeenCalledWith("/skills/k1/improvements/estimate", {
+      fork_id: null,
+      from_run: "run-7",
+    });
+    expect(apiClient.post).toHaveBeenCalledWith(
+      "/skills/k1/improvements",
+      expect.objectContaining({ fork_id: null, from_run: "run-7" }),
+    );
   });
 
   it("sends the person to the line's open session instead of a second one", async () => {
