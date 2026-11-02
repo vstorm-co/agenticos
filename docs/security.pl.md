@@ -1,5 +1,5 @@
 ---
-source_sha: "738a7d3bb6fa"
+source_sha: "28251d1c4760"
 ---
 
 # Bezpieczeństwo { #security }
@@ -44,8 +44,9 @@ grant na jednym zasobie poszerza to, na co rola pozwala, nie awansując członka
 
 ## Co opuszcza wdrożenie { #what-leaves-the-deployment }
 
-Nic nie dzwoni do domu. Każde wywołanie na zewnątrz jest tym, które wdrożenie
-skonfigurowało, i każde jest granicą, o którą przegląd u klienta zapyta.
+Poza [diagnostyką wdrożenia](configuration.md#diagnostics), która jest domyślnie
+włączona, każde wywołanie na zewnątrz jest tym, które wdrożenie skonfigurowało,
+i każde jest granicą, o którą przegląd u klienta zapyta.
 
 | Do | Co | Kiedy |
 |---|---|---|
@@ -58,6 +59,7 @@ skonfigurowało, i każde jest granicą, o którą przegląd u klienta zapyta.
 | Serwer kafelków map wskazany przez `VISUAL_MAP_TILES` | Z tego deploymentu, nigdy ze strony: współrzędne każdego kafelka pokazywanego na mapie, którego nie ma jeszcze w pamięci podręcznej | Tylko gdy ustawienie jest włączone i ktoś otwiera mapę. Strona wysyła deploymentowi trzy liczby, każdą sprawdzoną względem przybliżenia; adres i klucz serwera zostają na serwerze ([Aplikacje](artifacts.md#how-the-page-is-isolated)) |
 | Provider głosu realtime (OpenAI, Azure OpenAI, Google, xAI) | W trakcie [rozmowy głosowej](voice.md): dźwięk rozmówcy, instrukcje agenta, definicje i wyniki narzędzi oraz wcześniejsze tury rozmowy jako tekst, gdy rozmowa się zaczyna albo łączy ponownie | Tylko dla agenta, którego sekcja Głos nazywa tego providera, i tylko póki rozmowa jest otwarta. Dźwięk nie jest tu przechowywany; to, co zatrzymuje provider, reguluje twoja umowa z nim |
 | Provider speech-to-text | Nagranie: notatka głosowa z kanału, dyktowanie w `/chat` albo nagranie odwiedzającego na hostowanej stronie lub w widgecie ustawionych na `server` | Zawsze, gdy któreś jest transkrybowane. Dyktowanie odwiedzającego jest anonimowe i poza każdym budżetem modelu, więc ogranicza je rate limit linku razy najdłuższe dyktowanie. Domyślnie dyktowanie to surowy PCM, którego próbki są liczone, a nagranie ponad limit odrzucane przed wysłaniem, więc to ograniczenie jest dokładne; wdrożenie, które [przyjmuje skompresowany dźwięk](deployment.md#what-a-dictation-may-be-uploaded-as), odczytuje zamiast tego długość z nagłówka pliku, który ręcznie zbudowany plik może zaniżyć - [kanały](channels.md#dictation-on-a-widget-or-a-hosted-page) rozpisują najgorszy przypadek w obu wariantach. Przy `browser` przeglądarka odwiedzającego wysyła zamiast tego dźwięk do własnego dostawcy i nic nie przechodzi tędy |
+| Kolektor diagnostyki | Wersja, stan bazy i workera, zgrubne liczniki użycia, liczby nieudanych runów, zadań i ingestii według zamkniętej kategorii oraz pseudonimowy sygnał aktywności; nigdy prompty, rozmowy, nazwy plików, nazwy kont, adresy e-mail, klucze providerów ani komunikaty wyjątków | Co godzinę z workera oraz, z każdej przeglądarki lub aplikacji, gdy ktoś jest aktywny; wyłączana przez `DIAGNOSTICS_ENABLED=false` albo kierowana do kolektora, który prowadzisz, przez `DIAGNOSTICS_COLLECTOR_URL` ([konfiguracja](configuration.md#diagnostics)) |
 
 ## Co jest gdzie szyfrowane { #what-is-encrypted-where }
 
