@@ -183,6 +183,15 @@ class SkillVersionService:
         await skill_version_repo.update_fork(
             self.db, fork=fork, update_data={"latest_version_id": version.id}
         )
+        # Imported here: the eval suites reach the agent runner, which reads skills.
+        from app.services.eval_suite import EvalSuiteService
+
+        await EvalSuiteService(self.db).dependency_changed(
+            organization_id=fork.organization_id,
+            kind="skill",
+            resource_id=fork.skill_id,
+            fork_id=fork.id,
+        )
         return version
 
     @staticmethod

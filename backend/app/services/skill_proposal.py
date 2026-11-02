@@ -164,16 +164,28 @@ class SkillProposalService:
     async def _reaches(
         self, ctx: AuthContext, proposals: list[SkillProposal]
     ) -> dict[UUID, list[proposal_reach.Reach]]:
-        waiting = sorted(
-            {
-                proposal.skill_id
-                for proposal in proposals
-                if proposal.skill_id is not None and proposal.status == ProposalStatus.PENDING.value
-            }
-        )
-        return await proposal_reach.reach(
-            self.db, organization_id=ctx.organization_id, kind="skill", resource_ids=waiting
-        )
+        """For each waiting proposal, the agents on the line it would change."""
+        waiting = [
+            proposal
+            for proposal in proposals
+            if proposal.skill_id is not None and proposal.status == ProposalStatus.PENDING.value
+        ]
+        by_proposal: dict[UUID, list[proposal_reach.Reach]] = {}
+        for fork_id in dict.fromkeys(proposal.fork_id for proposal in waiting):
+            on_line = [proposal for proposal in waiting if proposal.fork_id == fork_id]
+            found = await proposal_reach.reach(
+                self.db,
+                organization_id=ctx.organization_id,
+                kind="skill",
+                resource_ids=sorted(
+                    {proposal.skill_id for proposal in on_line if proposal.skill_id}
+                ),
+                fork_id=fork_id,
+            )
+            for proposal in on_line:
+                assert proposal.skill_id is not None, "only proposals for a skill wait here"
+                by_proposal[proposal.id] = found[proposal.skill_id]
+        return by_proposal
 
     async def _readable(
         self,
@@ -185,7 +197,9 @@ class SkillProposalService:
         skill_id = proposal.skill_id
         pending = proposal.status == ProposalStatus.PENDING.value
         if skill_id is not None and pending:
-            reached, hidden_agents = await proposal_reach.reached(self.db, ctx, reaches[skill_id])
+            reached, hidden_agents = await proposal_reach.reached(
+                self.db, ctx, reaches[proposal.id]
+            )
             read = read.model_copy(update={"reaches": reached, "reaches_hidden": hidden_agents})
         if ctx.has(Perm.RUNS_VIEW):
             return read
@@ -307,17 +321,14 @@ class SkillProposalService:
             )
 
         reaches = (
-            []
-            if fork is not None
-            else (
-                await proposal_reach.reach(
-                    self.db,
-                    organization_id=ctx.organization_id,
-                    kind="skill",
-                    resource_ids=[skill.id],
-                )
-            )[skill.id]
-        )
+            await proposal_reach.reach(
+                self.db,
+                organization_id=ctx.organization_id,
+                kind="skill",
+                resource_ids=[skill.id],
+                fork_id=None if fork is None else fork.id,
+            )
+        )[skill.id]
         notifications = NotificationService(self.db)
         for item in reaches:
             await notifications.shared_change_applied(
