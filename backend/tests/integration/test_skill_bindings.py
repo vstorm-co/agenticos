@@ -12,6 +12,7 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.agents.capabilities.skills import served_skills
 from app.agents.spec import AgentSpec, SkillBindingSpec
 from app.core.exceptions import BadRequestError, InUseError, NotFoundError
 from app.core.permissions import AuthContext, OrgRoleName
@@ -19,6 +20,7 @@ from app.db.models.agent import Agent, AgentVersion
 from app.db.models.agent_environment import AgentEnvironment
 from app.db.models.resource_grant import Visibility
 from app.db.models.skill import Skill
+from app.db.models.skill_version import SkillVersion
 from app.schemas.skill import SkillUpdate
 from app.schemas.skill_version import SkillBindingChange, SkillForkCreate, SkillVersionCreate
 from app.services import proposal_reach
@@ -137,6 +139,25 @@ class TestWhatAnAgentReads:
         )
 
         assert resolved == []
+
+    async def test_a_pinned_agents_skill_uses_name_the_version_it_reads(self, db):
+        ctx = await _owner(db)
+        skill = await _skill(db, ctx)
+        [pinned] = await SkillService(db).resolve_for_agent(
+            ctx, [skill.id], bindings=[SkillBindingSpec(skill_id=skill.id, version=1)]
+        )
+
+        served = served_skills([pinned], {})
+
+        v1 = await db.scalar(
+            select(SkillVersion.id).where(
+                SkillVersion.skill_id == skill.id,
+                SkillVersion.fork_id.is_(None),
+                SkillVersion.number == 1,
+            )
+        )
+        await db.refresh(skill)
+        assert served[skill.name].version_id == v1 != skill.latest_version_id
 
     async def test_a_run_records_the_versions_it_and_its_specialists_serve(self, db):
         ctx = await _owner(db)
