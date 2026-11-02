@@ -1,5 +1,5 @@
 ---
-source_sha: "ec0e0a602926"
+source_sha: "8949067d718b"
 ---
 
 # Governance { #governance }
@@ -521,7 +521,7 @@ con su proceso.
 
 ### Trabajo por iniciativa propia { #proactive-work }
 
-Los runs proactivos se registran bajo el agent inicial **AgenticOS** publicado de
+Los runs nocturnos de sugerencias y briefing se registran bajo el agent inicial **AgenticOS** publicado de
 la organización (slug `agenticos`) para que cada uno tenga una fila, un coste y un
 rastro, pero el agent inicial no se ejecuta ni elige el modelo: cada uno de esos
 runs lleva el [rol de sistema](#system-agents) que hizo el trabajo. El modelo de
@@ -550,8 +550,8 @@ El campo del modelo usa el mismo selector de proveedor, modelo y clave del
 Vault que el Builder de agentes. Con `connections:manage`, una persona puede
 crear un perfil de modelo allí; sin ese permiso, elige un perfil existente.
 El perfil nuevo se guarda inmediatamente. **Guardar** aplica la selección a las
-sugerencias nocturnas y los watches de la organización, que comparten este
-modelo y el límite por persona.
+sugerencias nocturnas y el briefing. Las vigilancias del agente elegido comparten
+el límite por persona.
 
 La plataforma puede hacer un poco por iniciativa propia, y no hace nada de eso
 hasta que una organización lo activa: la tarjeta **Proactividad** en su página de
@@ -575,52 +575,61 @@ defecto, que se fija en la misma tarjeta (`proactive_limit_usd`). Una persona a 
 que no le pasó nada nuevo no cuesta nada: la tarea solo llama al modelo cuando hay
 algo que leer.
 
-Las **vigilancias** apuntan el mismo trabajo a las conexiones propias de una
-persona. Se activan aparte en la misma tarjeta (`proactive_watches_enabled`),
-con el mismo modelo y dentro del mismo límite. Una persona crea una con **New
-watch** en **Rutinas**, donde una tarjeta de vigilancias muestra cada una con
-cuándo revisó por última vez y cuántos de sus hallazgos esperan, o con **Watch**
-junto a **Tools** de la cuenta en la página de servidores MCP.
+**Las vigilancias** ejecutan el agente publicado que elige la persona,
+con el mismo motor que el chat y las rutinas, sus propias instrucciones y modelo.
+Se activan por separado (`proactive_watches_enabled`) y comparten el límite de
+gasto proactivo por persona, no el modelo del briefing. Créala en **Rutinas**,
+junto a los horarios del agente con **Vigilar e informar**, junto a una cuenta
+personal o desde un chat privado. Elige agente, cuenta, intervalo y final
+opcional. Puede seguir publicaciones, un entorno con nombre o una versión
+inmutable. La organización conserva el intervalo mínimo
+(`proactive_watch_min_minutes`).
 
-Elige una de sus propias conexiones MCP - cualquier servidor que haya conectado
-- y dice qué buscar - una vigilancia hecha para ese servidor o sus propias
-palabras - y cada cuánto, nunca más a menudo de lo que permite la organización
-(`proactive_watch_min_minutes`, cada hora por defecto).
+La publicación ya debe vincular ese servicio personal del catálogo. La vigilancia
+no activa vínculos ausentes ni sustituye al agente. Aquí no se admiten servidores
+propios sin un vínculo personal del catálogo. Crear aprueba esa cuenta y su
+endpoint concretos, la intersección de las listas de herramientas de cuenta y
+agente, y las bases de conocimiento y archivos de contexto actualmente adjuntos.
+Las publicaciones posteriores pueden quitar acceso, pero no añadir cuentas,
+herramientas o fuentes. **Volver a aprobar las fuentes actuales** renueva
+explícitamente el permiso. Una cuenta principal nueva no sustituye la aprobada.
 
-Cada revisión es un run de la superficie **proactive** al que solo se le ofrecen
-las herramientas que el servidor marca como de solo lectura (`readOnlyHint`), así
-que una vigilancia nunca cambia nada en la cuenta. Lo que encuentra es solo de la
-persona: una sugerencia de tipo `finding`, con la clave del id propio del
-elemento para que se avise una vez, con un enlace para abrirlo. Un hallazgo de
-una vigilancia configurada para avisar lo urgente al momento, que el modelo
-también juzgó urgente, se envía enseguida como notificación; el resto espera a su
-[briefing](console.md#the-inbox) de la mañana. A diferencia de una rutina, una vigilancia calla cuando no hay nada nuevo.
+Cada revisión es un run **proactive** normal atribuido al agente y versión reales.
+Las herramientas de origen deben tener `readOnlyHint`. Se permiten la cuenta
+aprobada, conocimiento/contexto, guardrails, planificación y recordatorios del
+sistema; no están disponibles web, sandbox, skills ejecutables, escritura de
+memoria ni delegación. Las aprobaciones interactivas obligatorias impiden la
+configuración en vez de omitirse. Se comprueban otra vez la membresía, el permiso
+de ejecución, el consentimiento de fuentes, la pausa y la caducidad antes de
+herramientas y de guardar resultados.
 
-La misma tarjeta tiene el **mensaje de bienvenida**, desactivado por defecto y
-sujeto a `org:settings`: un mensaje directo de los bots de Slack, Teams y
-Mattermost de la organización a un miembro nuevo, con las palabras de la
-organización si las escribió (`{organization}`, `{bot}` y `{url}` se rellenan) o
-el saludo incorporado en su idioma.
+Los hallazgos nuevos conservan su identidad estable de vigilancia/elemento en la
+bandeja personal y regresan al chat de origen; fuera del chat se utiliza la
+conversación principal. Solo un hallazgo urgente solicitado envía además una
+notificación inmediata. Sin cambios no hay mensaje ni aviso de finalización.
+Sin acceso al chat, el hallazgo permanece en la bandeja y se registra
+`delivery_unavailable`.
 
-El último intento de una observación se registra por separado de la última
-lectura correcta. Una fuente no disponible, la pérdida de acceso o una llamada
-al modelo que no terminó aparecen en la tarjeta de Rutinas, sin afirmar que no
-hubo cambios ni avanzar la fecha de la lectura correcta. `not_completed` incluye
-la falta de presupuesto o de disponibilidad del modelo; consulta Actividad y
-los ajustes de presupuesto/modelo de la organización para conocer la causa. Una
-lectura vacía válida sigue siendo silenciosa.
+El último intento se distingue de la última lectura correcta. Una respuesta del
+modelo sin lectura correcta de la fuente o con un error de lectura sin resolver
+es `not_completed`. Las fuentes no disponibles y el acceso revocado son explícitos;
+`budget_paused` indica presupuesto agotado. Estos errores no avanzan la fecha de
+éxito. Los errores inesperados siguen haciendo fallar la tarea.
 
-El registro de intentos comienza
-con `0261_watch_attempt_status.py`; las fechas anteriores se conservan sin
-inventar un historial de éxitos o errores. Los errores inesperados siguen
-haciendo fallar la tarea en segundo plano, en vez de simular una lectura vacía
-correcta.
+`0261_watch_attempt_status.py` inicia el historial sin inventar éxitos anteriores.
+`0262_watch_agent_sources.py` conserva IDs, hallazgos, intervalo y activación,
+pero no adivina qué agente asignar. Las vigilancias existentes muestran
+`needs_agent` y no llaman al modelo hasta que su propietario seleccione un agente
+publicado y apruebe sus fuentes. Eliminar la vigilancia no borra el origen ni la
+aprobación guardados en un run activo o pendiente.
 
-Crear o modificar una observación autoriza futuras lecturas de una cuenta
-privada y requiere la sesión de la propia persona o una credencial de confianza
-de su propia conversación privada con el agente. Una clave API ordinaria, un
-contexto sustituto de quien publica, una rutina en segundo plano o una sesión
-de suplantación no pueden crear, reactivar ni modificar ese consentimiento.
+Crear o modificar requiere la sesión de la propia persona o un chat humano
+privado de confianza. Las claves API ordinarias, el contexto sustituto del
+publicador, las rutinas en segundo plano y la suplantación no pueden conceder
+este acceso permanente. Las herramientas MCP de la plataforma `list_watches`,
+`create_watch`, `update_watch` y `delete_watch` usan el mismo servicio e IDs.
+Las peticiones privadas completas crean o modifican inmediatamente; publicar,
+invitar, eliminar y ejecutar ahora conservan sus reglas de aprobación.
 
 ### Agentes de sistema { #system-agents }
 

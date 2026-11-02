@@ -31,6 +31,7 @@ assistant) or from the organization-scoped ones a published agent's spec names.
 """
 
 import asyncio
+import hashlib
 import logging
 import re
 import secrets
@@ -2545,6 +2546,7 @@ async def build_toolsets_for_agent(
     refs: Sequence[McpServerRef],
     sender_user_id: UUID | None = None,
     platform_credential: str | None = None,
+    personal_sources: Mapping[UUID, str] | None = None,
 ) -> ResolvedMcpToolsets:
     """Agent toolsets for a published agent: exactly the servers its spec names.
 
@@ -2606,7 +2608,9 @@ async def build_toolsets_for_agent(
                 unavailable.append(UnavailablePlatformServer())
             continue
         if isinstance(ref, PersonalMcpServerRef):
-            own, gap = await _personal_specs(db, ref, sender_user_id=sender_user_id)
+            own, gap = await _personal_specs(
+                db, ref, sender_user_id=sender_user_id, approved_sources=personal_sources
+            )
             for account in own:
                 specs.append(account.spec)
                 bindings[id(account.spec)] = f"each person's own {ref.catalog_key}"
@@ -2750,17 +2754,25 @@ class _OwnAccount:
 
 
 async def _personal_specs(
-    db: AsyncSession, ref: PersonalMcpServerRef, *, sender_user_id: UUID | None
+    db: AsyncSession,
+    ref: PersonalMcpServerRef,
+    *,
+    sender_user_id: UUID | None,
+    approved_sources: Mapping[UUID, str] | None = None,
 ) -> tuple[list[_OwnAccount], PersonalServiceGapKind | None]:
     """The sender's own accounts on this service as servers, or why there are none."""
     if sender_user_id is None:
         return [], "nobody_to_speak_as"
-    own = await _own_specs(db, ref, user_id=sender_user_id)
+    own = await _own_specs(db, ref, user_id=sender_user_id, approved_sources=approved_sources)
     return (own, None) if isinstance(own, list) else ([], own)
 
 
 async def _own_specs(
-    db: AsyncSession, ref: PersonalMcpServerRef, *, user_id: UUID
+    db: AsyncSession,
+    ref: PersonalMcpServerRef,
+    *,
+    user_id: UUID,
+    approved_sources: Mapping[UUID, str] | None = None,
 ) -> list[_OwnAccount] | OwnAccountGap:
     """One person's own accounts on this service as servers, or why there are none.
 
@@ -2778,6 +2790,15 @@ async def _own_specs(
     owned = await mcp_connection_repo.list_user_scoped_by_catalog_key(
         db, user_id=user_id, catalog_key=ref.catalog_key
     )
+    if approved_sources is not None:
+        # Before resolving a credential or probing a server: a new account or
+        # changed endpoint must not widen an existing watch's source consent.
+        owned = [
+            account
+            for account in owned
+            if account.id in approved_sources
+            and approved_sources[account.id] == hashlib.sha256(account.url.encode()).hexdigest()
+        ]
     if not owned:
         return "not_connected"
     primary = next((account for account in owned if account.is_default), owned[0])

@@ -24,6 +24,21 @@ vi.mock("@/components/triggers/new-event-trigger-dialog", () => ({
     open ? <div role="dialog" aria-label="New event trigger" /> : null,
 }));
 
+const watchState = vi.hoisted(() => ({ allowed: false }));
+vi.mock("@/components/watches/watches-card", () => ({
+  useCanWatch: () => watchState.allowed,
+  WatchesCard: ({ agentId }: { agentId: string }) => (
+    <div data-testid="agent-watches">{agentId}</div>
+  ),
+}));
+vi.mock("@/components/watches/watch-dialog", () => ({
+  WatchDialog: ({ open, agentId }: { open: boolean; agentId: string }) =>
+    open ? (
+      <div role="dialog" aria-label="Watch and inform">
+        {agentId}
+      </div>
+    ) : null,
+}));
 const AGENT_ID = "a1";
 
 function wrapper({ children }: { children: ReactNode }) {
@@ -88,11 +103,26 @@ async function mount({ canCreate = true } = {}) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  watchState.allowed = false;
   // A new schedule is read in its maker's zone; pinned so no run reads the laptop's.
   useAuthStore.setState({ user: { id: "me", time_zone: "Europe/Warsaw" } as never });
 });
 
 describe("TriggersPanel", () => {
+  it("starts a watch with this agent only where the person may create it", async () => {
+    watchState.allowed = true;
+    serve([]);
+    await mount();
+    await userEvent.click(await screen.findByRole("button", { name: "Watch and inform" }));
+    expect(screen.getByRole("dialog", { name: "Watch and inform" })).toHaveTextContent(AGENT_ID);
+    expect(screen.getByTestId("agent-watches")).toHaveTextContent(AGENT_ID);
+  });
+  it("does not offer watches without agent-level creation access", async () => {
+    watchState.allowed = true;
+    serve([]);
+    await mount({ canCreate: false });
+    expect(screen.queryByRole("button", { name: "Watch and inform" })).not.toBeInTheDocument();
+  });
   it("says the agent runs only when messaged rather than showing an empty box", async () => {
     serve([]);
     await mount();

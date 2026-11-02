@@ -6,19 +6,31 @@ effect before the next tool. A changed role requires a fresh run, so tool contex
 assembled under the previous role cannot retain its authority.
 """
 
+import hashlib
+import json
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import Self
+from typing import Literal, Self
 from uuid import UUID
 
+from pydantic import ValidationError as PydanticValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import AuthorizationError
 from app.core.permissions import AuthContext, Perm
 from app.db.models.agent import AgentStatus
 from app.db.models.agent_run import AgentRun, RunSurface
+from app.db.models.watch import Watch
 from app.db.session import get_db_context
-from app.repositories import agent_repo, agent_trigger_repo, member_repo
+from app.repositories import (
+    agent_repo,
+    agent_trigger_repo,
+    mcp_connection_repo,
+    member_repo,
+    organization_repo,
+    watch_repo,
+)
+from app.schemas.watch_sources import WatchSources
 from app.services.access import AGENT, resolve_access
 
 
@@ -26,6 +38,16 @@ def _refused() -> AuthorizationError:
     return AuthorizationError(
         message="This routine stopped or its authorization changed. Start a new run after reviewing its access."
     )
+
+
+def _intent(watch: Watch) -> str:
+    material = [
+        watch.instructions,
+        watch.exclusions,
+        watch.urgent,
+        str(watch.source_conversation_id),
+    ]
+    return hashlib.sha256(json.dumps(material, ensure_ascii=True).encode()).hexdigest()
 
 
 @dataclass(frozen=True)
@@ -36,6 +58,8 @@ class RoutineAuthority:
     root_agent_id: UUID
     role: str
     acts_as_creator: bool
+    routine_kind: Literal["trigger", "watch"] = "trigger"
+    sources: WatchSources | None = None
 
     @classmethod
     async def capture(
@@ -55,6 +79,22 @@ class RoutineAuthority:
         person = ctx.user_id if run is None else run.user_id
         if person is None:
             raise _refused()
+        kind = ctx.routine_kind if run is None else run.routine_kind
+        if kind not in ("trigger", "watch"):
+            raise _refused()
+        sources: WatchSources | None = None
+        if kind == "watch":
+            watch = await watch_repo.get_by_id(db, origin)
+            if watch is None or watch.organization_id != ctx.organization_id:
+                raise _refused()
+            try:
+                sources = WatchSources.model_validate(
+                    watch.approved_sources if run is None else run.routine_policy
+                )
+                if run is None:
+                    sources = sources.model_copy(update={"intent_hash": _intent(watch)})
+            except PydanticValidationError:
+                raise _refused() from None
         member = await member_repo.get_active(
             db, organization_id=ctx.organization_id, user_id=person
         )
@@ -71,6 +111,8 @@ class RoutineAuthority:
                 if run is None
                 else not run.initiated_by_publisher_fallback
             ),
+            routine_kind="watch" if kind == "watch" else "trigger",
+            sources=sources,
         )
         await authority.check_in(db, agent_id)
         return authority
@@ -81,6 +123,13 @@ class RoutineAuthority:
             await self.check_in(db, agent_id)
 
     async def check_in(self, db: AsyncSession, agent_id: UUID) -> None:
+        if self.routine_kind == "watch":
+            await self._watch_in(db)
+        else:
+            await self._trigger_in(db)
+        await self._actor_in(db, agent_id)
+
+    async def _trigger_in(self, db: AsyncSession) -> None:
         trigger = await agent_trigger_repo.get(
             db, self.routine_id, organization_id=self.organization_id
         )
@@ -93,6 +142,50 @@ class RoutineAuthority:
             or (self.acts_as_creator and not trigger.runs_as_creator)
         ):
             raise _refused()
+
+    async def _watch_in(self, db: AsyncSession) -> None:
+        watch = await watch_repo.get_by_id(db, self.routine_id)
+        if (
+            self.sources is None
+            or watch is None
+            or watch.organization_id != self.organization_id
+            or watch.user_id != self.user_id
+            or watch.agent_id != self.root_agent_id
+            or not watch.is_active
+            or (watch.ends_at is not None and watch.ends_at <= datetime.now(UTC))
+        ):
+            raise _refused()
+        try:
+            current_sources = WatchSources.model_validate(watch.approved_sources).model_copy(
+                update={"intent_hash": _intent(watch)}
+            )
+        except PydanticValidationError:
+            raise _refused() from None
+        if current_sources != self.sources:
+            raise _refused()
+        organization = await organization_repo.get_by_id(db, self.organization_id)
+        connection = await mcp_connection_repo.get_by_id(db, self.sources.connection_id)
+        if (
+            organization is None
+            or not organization.proactive_watches_enabled
+            or connection is None
+            or not connection.is_enabled
+            or connection.user_id != self.user_id
+            or connection.scope != "user"
+            or connection.purpose != "mcp"
+            or hashlib.sha256(connection.url.encode()).hexdigest() != self.sources.endpoint_hash
+            or connection.catalog_key != self.sources.catalog_key
+            or (
+                connection.allowed_tools is not None
+                and (
+                    self.sources.allowed_tools is None
+                    or not set(self.sources.allowed_tools).issubset(connection.allowed_tools)
+                )
+            )
+        ):
+            raise _refused()
+
+    async def _actor_in(self, db: AsyncSession, agent_id: UUID) -> None:
         member = await member_repo.get_active(
             db, organization_id=self.organization_id, user_id=self.user_id
         )

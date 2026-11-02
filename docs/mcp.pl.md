@@ -1,5 +1,5 @@
 ---
-source_sha: "ab427a229108"
+source_sha: "394883aa6fc7"
 ---
 
 # MCP — narzędzia, których nikt tutaj nie musi pisać { #mcp-the-tools-nobody-here-has-to-write }
@@ -1073,6 +1073,8 @@ odmowa wraca jako błąd narzędzia nazywający brakujące uprawnienie.
 | `list_members` | `members:view` |
 | `invite_member` | `members:manage` i `roles:manage` |
 | `list_my_connections`, `set_my_language`, `set_my_profile` | — (własne wywołującego) |
+| `list_watches`, `delete_watch` | własne obserwacje wywołującego |
+| `create_watch`, `update_watch` | zgoda człowieka w prywatnej rozmowie; `agents:run` przy wyborze agenta |
 
 Wyszukiwanie przez `list_projects` zwraca tylko ID i nazwy projektów,
 pomijając opisy, instrukcje i pozostałe edytowalne etykiety. Odczyt wybranego projektu
@@ -1128,16 +1130,14 @@ nazwana jak to wdrożenie; jej włączenie wiąże go jako
   niczego nie tworzy. Nic nowego nie jest przyznawane, a gdy za runem nikt nie
   stoi - publiczny widget, harmonogram działający w niczyim imieniu - bindingu nie
   ma.
-- **Zmiany czekają na zatwierdzenie.** Domyślne `writes` wstrzymuje każde
-  narzędzie, które coś zmienia (`create_agent_draft`, `publish_agent`,
-  `create_routine`, `run_agent`, `invite_member` i pozostałe), do zgody osoby;
-  `all` wstrzymuje też odczyt. `none` nie jest oferowane: te narzędzia działają z
-  uprawnieniami człowieka. Jedyny zapis, który nigdy nie czeka, to
-  `set_my_language`: zmienia język konsoli pytającego, na jego słowo, a karta
-  zatwierdzenia dla „przełącz na angielski” byłaby całą rozmową.
-  `set_my_profile` czeka jak pozostałe, bo to, co zapisuje, słyszy każdy agent,
-  którego ta osoba uruchamia, a strona przeczytana przez agenta nie może tego
-  zapisać niezauważenie.
+- **Zmiany podlegają polityce zgód powiązania.** Domyślne `writes` zatrzymuje
+  zapis, np. publikację, zaproszenie, usunięcie i uruchomienie teraz; `all` także
+  odczyty. Tworzenie i edycja własnych rutyn/obserwacji oraz `set_my_language`
+  wykonują kompletną prośbę od razu. Nadal są oznaczone jako zapis; tylko te
+  nazwane narzędzia z zaufanego źródła platformy omijają bramkę powiązania.
+  Usługi nadal egzekwują zgodę człowieka w prywatnej rozmowie, własność i aktualne
+  uprawnienia. `set_my_profile` czeka, bo jego treść trafia do kolejnych agentów.
+
 - **Narzędzia można zawęzić** w ustawieniach karty, które pokazują każde narzędzie
   i oznaczają te, które coś zmieniają.
 

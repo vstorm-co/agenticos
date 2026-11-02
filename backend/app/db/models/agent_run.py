@@ -229,6 +229,10 @@ class AgentRun(Base, TimestampMixin):
         PG_UUID(as_uuid=True), nullable=True
     )
     """Immutable routine provenance; survives deletion so a parked run cannot lose its guard."""
+    routine_kind: Mapped[str] = mapped_column(
+        String(16), nullable=False, default="trigger", server_default="trigger"
+    )
+    routine_policy: Mapped[dict[str, object] | None] = mapped_column(JSONB, nullable=True)
     conversation_id: Mapped[uuid.UUID | None] = mapped_column(
         PG_UUID(as_uuid=True),
         ForeignKey("conversations.id", ondelete="SET NULL"),
@@ -403,6 +407,11 @@ class AgentRun(Base, TimestampMixin):
     heartbeat_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     __table_args__ = (
+        CheckConstraint(
+            "routine_kind IN ('trigger', 'watch') AND "
+            "(routine_kind != 'watch' OR (routine_origin_id IS NOT NULL AND routine_policy IS NOT NULL))",
+            name="ck_agent_runs_routine_policy",
+        ),
         # Monthly spend, per organization. Read before *every* model request to
         # check the budget, so it is the most frequently served query here.
         Index("ix_agent_runs_org_started", "organization_id", "started_at"),

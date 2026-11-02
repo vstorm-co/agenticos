@@ -27,6 +27,9 @@ const toastSuccess = vi.hoisted(() => vi.fn());
 const toastError = vi.hoisted(() => vi.fn());
 
 vi.mock("@/hooks", () => ({
+  useAgents: () => ({
+    agents: [{ id: "a-monitor", name: "Monitor", can_run: true, current_version_id: "v1" }],
+  }),
   useOrganizations: () => ({
     activeOrg: state.orgOn === undefined ? null : { proactive_watches_enabled: state.orgOn },
   }),
@@ -65,6 +68,11 @@ vi.mock("sonner", () => ({ toast: { success: toastSuccess, error: toastError } }
 
 const watch = (overrides: Partial<Watch> = {}): Watch => ({
   id: "w1",
+  agent_id: "a-monitor",
+  environment_id: null,
+  pinned_version_id: null,
+  source_conversation_id: null,
+  ends_at: null,
   connection_id: "c-gh",
   connection_name: "github",
   server: "github",
@@ -103,6 +111,20 @@ beforeEach(() => {
 const onNew = vi.fn();
 
 describe("WatchesCard", () => {
+  it("shows only this agent’s watches and current authorized chat references", () => {
+    state.watches = [
+      watch(),
+      watch({ id: "w2", agent_id: "another-agent", title: "Another responsibility" }),
+    ];
+    const { unmount } = render(<WatchesCard agentId="a-monitor" />);
+    expect(screen.getByText("Reviews")).toBeVisible();
+    expect(screen.queryByText("Another responsibility")).not.toBeInTheDocument();
+    unmount();
+    render(<WatchesCard watchId="removed-id" />);
+    expect(screen.getByText("This watch is no longer available.")).toBeVisible();
+    expect(screen.queryByText("Reviews")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "New watch" })).not.toBeInTheDocument();
+  });
   it.each([
     ["source_unavailable", "Source unavailable — no successful check."],
     ["access_revoked", "Access unavailable — check the account and organization permissions."],
@@ -194,7 +216,7 @@ describe("WatchesCard", () => {
     expect(screen.getAllByText("GitHub")).toHaveLength(1);
     expect(screen.getByText("Every hour · looked just now")).toBeInTheDocument();
     expect(screen.getByText("Our wiki")).toBeInTheDocument();
-    expect(screen.getByText("Daily · first look within a minute")).toBeInTheDocument();
+    expect(screen.getByText("Daily")).toBeInTheDocument();
     expect(screen.getByText("GitHub (Work)")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "2 in your inbox" })).toHaveAttribute(
       "href",

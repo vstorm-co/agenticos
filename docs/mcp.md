@@ -1033,6 +1033,8 @@ would be; an expected refusal returns an explicit error envelope naming the miss
 | `list_members` | `members:view` |
 | `invite_member` | `members:manage` and `roles:manage` |
 | `list_my_connections`, `set_my_language`, `set_my_profile` | — (the caller's own) |
+| `list_watches`, `delete_watch` | the caller’s own watches |
+| `create_watch`, `update_watch` | private-human consent; `agents:run` when selecting an agent |
 
 Project discovery with `list_projects` returns only project ids and names,
 excluding descriptions, instructions and other authored labels. Reading one chosen
@@ -1086,15 +1088,14 @@ named after this deployment; switching it on binds it as
   holding that person's permissions, so a Viewer's agent can read what the Viewer
   can read and create nothing. Nothing new is granted, and where nobody is behind
   the run - a public widget, a schedule acting for nobody - the binding is absent.
-- **Changes wait for approval.** `writes`, the default, holds every tool that
-  changes something (`create_agent_draft`, `publish_agent`, `create_routine`,
-  `run_agent`, `invite_member` and the rest) for the person to approve; `all` holds
-  reading too. `none` is not offered: these tools act with a person's authority.
-  The one write that never waits is `set_my_language`: it changes the asker's
-  own console language, on their word, and an approval card for "switch to
-  English" would be the whole conversation. `set_my_profile` waits like the
-  rest, because what it saves is told to every agent the person runs, and a page
-  an agent read must not be able to write it unseen.
+- **Changes follow the binding's approval policy.** `writes`, the default, holds
+  writes such as publishing, inviting, deleting and running now; `all` also holds
+  reads. Personal routine/watch creation and edits, and `set_my_language`, act
+  immediately on a complete request. They remain marked as writes; trusted
+  platform origin exempts only these named tools from the binding gate. Services
+  still enforce private-human consent, ownership and current permissions.
+  `set_my_profile` still waits: its saved content reaches every future agent run.
+
 - **The tools can be narrowed** in the card's settings, which list every tool and
   mark the ones that change something.
 

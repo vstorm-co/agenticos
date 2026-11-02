@@ -476,8 +476,9 @@ step; do not copy rows or create replacement schedules manually.
   access: historical rows do not prove how consent was originally given.
 
 Choose a model explicitly before enabling memory maintenance; the daily briefing
-keeps the existing organization model/budget settings. Watches still use that
-proactivity model; selected-agent watch execution is not implemented yet. Check
+keeps the existing organization model/budget settings. With `0262_watch_agent_sources.py`, watches use their selected agent and retain
+approved sources on runs. Existing watches require the owner to select an agent
+and approve its sources before running again; IDs and findings are preserved. Check
 [governance](governance.md#proactive-work) and the [channel setup](channels.md#sms),
 including `PUBLIC_BASE_URL` and expired SMS identity links. In a test organization,
 verify one private chat, one routine's Activity/delivery, pause/expiry and one

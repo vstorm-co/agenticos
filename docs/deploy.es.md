@@ -1,5 +1,5 @@
 ---
-source_sha: "5496bfe74d57"
+source_sha: "eb62b561a0c7"
 ---
 
 # Despliega en un servidor { #deploy-to-a-server }
@@ -506,8 +506,9 @@ despliegue; no copies filas ni crees horarios sustitutos manualmente.
 
 Elige explícitamente un modelo antes de activar el mantenimiento de memoria;
 el briefing diario conserva los ajustes de modelo/presupuesto de la organización.
-Las observaciones aún usan ese modelo de proactividad; la ejecución por el
-agente seleccionado todavía no está implementada. Revisa
+Desde `0262_watch_agent_sources.py`, las vigilancias ejecutan el agente elegido
+y retienen las fuentes aprobadas en el run. Las existentes requieren seleccionar
+un agente y aprobar fuentes; conservan sus IDs y hallazgos. Revisa
 [gobernanza](governance.md#proactive-work) y la [configuración de canales](channels.md#sms),
 incluidos `PUBLIC_BASE_URL` y los vínculos SMS caducados. En una organización de
 prueba verifica un chat privado, Actividad/entrega de una rutina, pausa/caducidad

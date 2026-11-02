@@ -129,6 +129,8 @@ def _outcome_links(run: AgentRun) -> dict[str, str]:
     that chat and close when the run's approvals are decided (#2575).
     """
     links = {"run_id": str(run.id)}
+    if run.routine_kind == "watch" and run.routine_origin_id is not None:
+        links["cause"] = f"watch:{run.routine_origin_id}"
     if run.conversation_id is not None:
         links["conversation_id"] = str(run.conversation_id)
     return links
@@ -530,7 +532,14 @@ class NotificationService:
         )
 
     async def finding(
-        self, *, organization_id: UUID, user_id: UUID, finding_id: UUID, title: str
+        self,
+        *,
+        organization_id: UUID,
+        user_id: UUID,
+        finding_id: UUID,
+        title: str,
+        conversation_id: UUID | None = None,
+        run_id: UUID | None = None,
     ) -> None:
         """A watch found something its person asked to hear about at once (#2301).
 
@@ -550,6 +559,12 @@ class NotificationService:
             occurrence_id=str(finding_id),
             summary=title,
             context_url=path,
+            render_context={
+                **(
+                    {"conversation_id": str(conversation_id)} if conversation_id is not None else {}
+                ),
+                **({"run_id": str(run_id)} if run_id is not None else {}),
+            },
             organization_id=organization_id,
             use_savepoint=True,
         )

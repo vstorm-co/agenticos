@@ -11680,7 +11680,8 @@
     "urgentBadge": "Dringendes sofort",
     "stopped": {
       "watches_off": "In der Organisation aus",
-      "connection_disabled": "Verbindung aus"
+      "connection_disabled": "Verbindung aus",
+      "needs_agent": "Agenten auswählen"
     },
     "activeLabel": "{title} beobachten",
     "editLabel": "{title} bearbeiten",
@@ -11821,8 +11822,25 @@
     "attempt": {
       "source_unavailable": "Quelle nicht verfügbar — keine erfolgreiche Prüfung.",
       "access_revoked": "Zugriff nicht verfügbar — Konto und Organisationsberechtigungen prüfen.",
-      "not_completed": "Prüfung nicht abgeschlossen — Aktivität und Budgeteinstellungen prüfen."
-    }
+      "not_completed": "Prüfung nicht abgeschlossen — Aktivität und Budgeteinstellungen prüfen.",
+      "needs_agent": "Vor der Ausführung einen Agenten auswählen.",
+      "budget_paused": "Pausiert — Budget aufgebraucht.",
+      "delivery_unavailable": "Quelle geprüft; die Zielunterhaltung ist nicht verfügbar. Ergebnisse bleiben im Posteingang."
+    },
+    "agent": "Agent",
+    "agentPlaceholder": "Agenten auswählen",
+    "unavailableAgent": "Agent nicht verfügbar",
+    "approvedSourcesHint": "Diese Beobachtung liest nur dieses Konto sowie freigegebenes Wissen und Kontext des Agenten. Andere Konten, Web-Werkzeuge, Delegierung und ausführbare Skills sind nicht verfügbar.",
+    "watchCard": "Beobachtung",
+    "watchUnavailable": "Diese Beobachtung ist nicht mehr verfügbar.",
+    "executedBy": "Agent: {name}",
+    "versionPinned": "Fixierte Version",
+    "versionFollowing": "Folgt der veröffentlichten Version",
+    "environmentSelected": "Ausgewählte Umgebung",
+    "nextCheck": "Nächste Prüfung: {at}",
+    "watchAndInform": "Beobachten und informieren",
+    "reviewSources": "Angehängte Quellen erneut freigeben",
+    "reviewSourcesHint": "Aktuell angehängtes Wissen und Kontext dieses Agenten einbeziehen. Deaktiviert lassen, um die bestehende Quellenfreigabe zu behalten."
   },
   "inbox": {
     "title": "Posteingang",

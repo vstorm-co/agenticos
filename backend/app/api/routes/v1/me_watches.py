@@ -10,6 +10,7 @@ from uuid import UUID
 from fastapi import APIRouter, status
 
 from app.api.deps import Auth, WatchSvc
+from app.api.public_api import PUBLIC
 from app.schemas.watch import (
     WatchCreate,
     WatchList,
@@ -19,7 +20,7 @@ from app.schemas.watch import (
     WatchUpdate,
 )
 
-router = APIRouter()
+router = APIRouter(dependencies=[PUBLIC])
 
 
 @router.get("", response_model=WatchList)

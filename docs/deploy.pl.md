@@ -1,5 +1,5 @@
 ---
-source_sha: "5496bfe74d57"
+source_sha: "eb62b561a0c7"
 ---
 
 # Wdrożenie na serwer { #deploy-to-a-server }
@@ -484,9 +484,9 @@ nie kopiuj ręcznie wierszy ani nie twórz zastępczych harmonogramów.
   wiersze nie dowodzą, w jaki sposób pierwotnie udzielono zgody.
 
 Przed włączeniem utrzymania pamięci wybierz model jawnie; poranny briefing
-zachowuje dotychczasowe ustawienia modelu i budżetu organizacji. Obserwacje nadal
-korzystają z tego modelu proaktywności; wykonanie przez wybranego agenta nie jest
-jeszcze zaimplementowane. Sprawdź [zarządzanie](governance.md#proactive-work)
+zachowuje dotychczasowe ustawienia modelu i budżetu organizacji. Od `0262_watch_agent_sources.py` obserwacje wykonuje wybrany agent, a runy
+zachowują zatwierdzone źródła. Istniejące obserwacje wymagają wybrania agenta
+i zatwierdzenia źródeł; identyfikatory i ustalenia pozostają. Sprawdź [zarządzanie](governance.md#proactive-work)
 i [konfigurację kanałów](channels.md#sms), w tym `PUBLIC_BASE_URL` i wygasłe
 powiązania SMS. W organizacji testowej sprawdź prywatny czat, Aktywność i dostawę
 jednej rutyny, pauzę/wygaśnięcie oraz obserwację niedostępnego źródła, zanim

@@ -30,6 +30,7 @@ describe("useWatches", () => {
 
     await waitFor(() => expect(result.current.watches).toEqual([{ id: "w1" }]));
     const draft = {
+      agent_id: "a-monitor",
       connection_id: "c1",
       preset_key: null,
       title: "t",

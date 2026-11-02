@@ -29,6 +29,7 @@ describe("the watches API", () => {
     expect(await listWatches()).toEqual([{ id: "w1" }]);
     expect(await listWatchPresets()).toEqual([{ id: "github-reviews" }]);
     const draft = {
+      agent_id: "a-monitor",
       connection_id: "c1",
       preset_key: null,
       title: "Reviews",

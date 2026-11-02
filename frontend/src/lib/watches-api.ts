@@ -8,13 +8,24 @@
 import { apiClient } from "./api-client";
 
 /** Why a watch that is on is not being read. */
-export type WatchStopped = "watches_off" | "connection_disabled";
+export type WatchStopped = "watches_off" | "connection_disabled" | "needs_agent";
 
 export type WatchAttemptStatus =
-  "completed" | "source_unavailable" | "access_revoked" | "not_completed";
+  | "completed"
+  | "source_unavailable"
+  | "access_revoked"
+  | "not_completed"
+  | "needs_agent"
+  | "budget_paused"
+  | "delivery_unavailable";
 
 export interface Watch {
   id: string;
+  agent_id: string | null;
+  environment_id: string | null;
+  pinned_version_id: string | null;
+  source_conversation_id: string | null;
+  ends_at: string | null;
   connection_id: string;
   connection_name: string;
   /** Its server's catalog key; `null` for a custom server. */
@@ -45,6 +56,10 @@ export interface WatchPreset {
 }
 
 export interface WatchDraft {
+  agent_id: string;
+  environment_id?: string | null;
+  pinned_version_id?: string | null;
+  ends_at?: string | null;
   connection_id: string;
   preset_key: string | null;
   title: string;
@@ -54,8 +69,20 @@ export interface WatchDraft {
 }
 
 export type WatchChanges = Partial<
-  Pick<Watch, "title" | "instructions" | "urgent" | "interval_minutes" | "is_active" | "exclusions">
->;
+  Pick<
+    Watch,
+    | "title"
+    | "instructions"
+    | "urgent"
+    | "interval_minutes"
+    | "is_active"
+    | "exclusions"
+    | "agent_id"
+    | "environment_id"
+    | "pinned_version_id"
+    | "ends_at"
+  >
+> & { review_sources?: boolean };
 
 interface Listed<T> {
   items: T[];

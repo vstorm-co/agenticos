@@ -22,6 +22,12 @@ async def create(
     urgent: bool,
     interval_minutes: int,
     next_run_at: datetime,
+    agent_id: UUID | None = None,
+    environment_id: UUID | None = None,
+    pinned_version_id: UUID | None = None,
+    approved_sources: dict[str, object] | None = None,
+    source_conversation_id: UUID | None = None,
+    ends_at: datetime | None = None,
 ) -> Watch:
     watch = Watch(
         organization_id=organization_id,
@@ -35,6 +41,12 @@ async def create(
         interval_minutes=interval_minutes,
         is_active=True,
         next_run_at=next_run_at,
+        agent_id=agent_id,
+        environment_id=environment_id,
+        pinned_version_id=pinned_version_id,
+        approved_sources=approved_sources,
+        source_conversation_id=source_conversation_id,
+        ends_at=ends_at,
     )
     db.add(watch)
     await db.flush()
@@ -107,8 +119,7 @@ async def mark_attempt(
     db: AsyncSession, *, watch: Watch, at: datetime, status: WatchAttemptStatus
 ) -> None:
     """Keep unsuccessful checks distinct from the last successful source reading."""
-    watch.last_attempt_at = at
-    watch.last_attempt_status = status
+    values: dict[str, object] = {"last_attempt_at": at, "last_attempt_status": status}
     if status == WatchAttemptStatus.COMPLETED:
-        watch.last_run_at = at
-    await db.flush()
+        values["last_run_at"] = at
+    await db.execute(update(Watch).where(Watch.id == watch.id).values(**values))

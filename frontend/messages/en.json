@@ -11801,7 +11801,8 @@
     "urgentBadge": "Urgent at once",
     "stopped": {
       "watches_off": "Off for the organization",
-      "connection_disabled": "Connection off"
+      "connection_disabled": "Connection off",
+      "needs_agent": "Choose an agent"
     },
     "activeLabel": "Watch {title}",
     "editLabel": "Edit {title}",
@@ -11942,8 +11943,25 @@
     "attempt": {
       "source_unavailable": "Source unavailable — no successful check.",
       "access_revoked": "Access unavailable — check the account and organization permissions.",
-      "not_completed": "Check did not complete — review Activity and budget settings."
-    }
+      "not_completed": "Check did not complete — review Activity and budget settings.",
+      "needs_agent": "Choose an agent before this watch can run.",
+      "budget_paused": "Paused — budget exhausted.",
+      "delivery_unavailable": "Source checked; the delivery conversation is unavailable. Findings remain in your inbox."
+    },
+    "agent": "Agent",
+    "agentPlaceholder": "Choose the agent",
+    "unavailableAgent": "Agent unavailable",
+    "approvedSourcesHint": "This watch reads only this account and the agent’s approved knowledge and context. Other accounts, web tools, delegation and executable skills are unavailable.",
+    "watchCard": "Watch",
+    "watchUnavailable": "This watch is no longer available.",
+    "executedBy": "Agent: {name}",
+    "versionPinned": "Pinned version",
+    "versionFollowing": "Follows published version",
+    "environmentSelected": "Selected environment",
+    "nextCheck": "Next check: {at}",
+    "watchAndInform": "Watch and inform",
+    "reviewSources": "Approve attached sources again",
+    "reviewSourcesHint": "Include this agent’s currently attached knowledge and context. Leave off to retain the existing source approval."
   },
   "inbox": {
     "title": "Inbox",

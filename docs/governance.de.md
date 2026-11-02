@@ -1,5 +1,5 @@
 ---
-source_sha: "ec0e0a602926"
+source_sha: "8949067d718b"
 ---
 
 # Governance { #governance }
@@ -565,7 +565,7 @@ dessen Ausgaben mit seinem Prozess sterben.
 
 ### Arbeit aus eigener Initiative { #proactive-work }
 
-Proaktive Runs werden unter dem veröffentlichten **AgenticOS**-Starter-Agent der
+Nächtliche Vorschlags- und Briefing-Runs werden unter dem veröffentlichten **AgenticOS**-Starter-Agent der
 Organisation (Slug `agenticos`) aufgezeichnet, damit jeder eine Zeile, Kosten und
 eine Spur hat; der Starter läuft jedoch nicht und wählt das Modell nicht: Jeder
 solche Run trägt die [Systemrolle](#system-agents), die die Arbeit erledigt hat.
@@ -585,8 +585,8 @@ Das Modellfeld verwendet dieselbe Auswahl für Anbieter, Modell und Vault-Schlü
 wie der Agent Builder. Mit `connections:manage` kann ein Mitglied dort ein
 Modellprofil erstellen; ohne diese Berechtigung wählt es ein vorhandenes Profil.
 Ein neues Profil wird sofort gespeichert. **Speichern** übernimmt die Auswahl
-für die nächtlichen Vorschläge und Watches der Organisation, die sich dieses
-Modell und das Limit pro Person teilen.
+für die nächtlichen Vorschläge und das Briefing. Beobachtungen durch ausgewählte
+Agenten teilen das Limit pro Person.
 
 Die Plattform kann ein wenig aus eigener Initiative tun, und tut nichts davon,
 bis eine Organisation es einschaltet: die Karte **Proaktivität** auf ihrer
@@ -610,52 +610,64 @@ auf derselben Karte eingestellt (`proactive_limit_usd`). Eine Person, bei der
 nichts Neues passiert ist, kostet nichts: Der Job ruft das Modell nur, wenn es
 etwas zu lesen gibt.
 
-**Beobachtungen** richten dieselbe Arbeit auf die eigenen Verbindungen einer
-Person. Sie werden auf derselben Karte getrennt eingeschaltet
-(`proactive_watches_enabled`), laufen auf demselben Modell und im selben Limit.
-Eine Person legt eine mit **Neue Beobachtung** unter **Routinen** an, wo eine
-Karte Beobachtungen jede mit ihrer letzten Prüfung und der Zahl ihrer wartenden
-Funde zeigt, oder mit **Beobachten** neben **Tools** des Kontos auf der Seite
-der MCP-Server. Sie wählt eine ihrer eigenen MCP-Verbindungen - jeden Server,
-den sie verbunden hat - und sagt, wonach gesucht wird - eine fertige Beobachtung
-für diesen Server oder ihre eigenen Worte - und wie oft, nie häufiger, als die
-Organisation erlaubt (`proactive_watch_min_minutes`, standardmäßig stündlich).
+**Beobachtungen** laufen durch den ausgewählten veröffentlichten Agenten,
+mit demselben Runner wie Chat und Routinen sowie seinen eigenen Anweisungen und
+seinem Modell. Sie werden getrennt eingeschaltet (`proactive_watches_enabled`)
+und teilen das Proaktivitätsbudget je Person, nicht das Briefing-Modell.
+Erstelle sie unter **Routinen**, neben den Zeitplänen eines Agenten mit
+**Beobachten und informieren**, neben einem persönlichen Konto oder im privaten
+Chat. Wähle Agent, Konto, Intervall und optionales Ende. Die Beobachtung folgt
+Veröffentlichungen, einer benannten Umgebung oder einer unveränderlichen
+Version. Die Organisation bestimmt das Mindestintervall
+(`proactive_watch_min_minutes`).
 
-Jeder Blick ist ein Run der Oberfläche **proactive**, dem nur die Tools angeboten
-werden, die der Server als nur lesend markiert (`readOnlyHint`), sodass eine
-Beobachtung im Konto nie etwas ändert. Was sie findet, gehört nur der Person:
-ein Vorschlag der Art `finding`, nach der eigenen ID des Elements verschlüsselt,
-sodass er einmal gemeldet wird, mit einem Link zum Öffnen. Ein Fund einer
-Beobachtung, die Dringendes sofort melden soll, und den auch das Modell für
-dringend hält, geht sofort als Benachrichtigung hinaus; der Rest wartet auf ihr
-Morgen-[Briefing](console.md#the-inbox). Anders als eine Routine schweigt eine Beobachtung, wenn nichts neu ist.
+Die Veröffentlichung muss diesen persönlichen Katalogdienst bereits einbinden.
+Eine Beobachtung aktiviert keine fehlende Bindung und ersetzt keinen Agenten.
+Eigene Server ohne persönliche Katalogbindung werden hier nicht unterstützt.
+Die Erstellung genehmigt das konkrete Konto und seinen Endpunkt, die gemeinsame
+Teilmenge der Tool-Listen von Konto und Agent sowie die derzeit angehängten
+Wissensbasen und Kontextdateien. Spätere Veröffentlichungen dürfen Zugriff
+entfernen, aber keine Konten, Tools oder Quellen hinzufügen. **Aktuelle Quellen
+erneut genehmigen** erneuert diese Zustimmung ausdrücklich. Ein neues primäres
+Konto ersetzt das genehmigte Konto nicht.
 
-Auf derselben Karte liegt die **Willkommensnachricht**, standardmäßig aus und
-an `org:settings` gebunden: eine Direktnachricht der Slack-, Teams- und
-Mattermost-Bots der Organisation an ein neues Mitglied, in den eigenen Worten der
-Organisation, wenn sie welche geschrieben hat (`{organization}`, `{bot}` und
-`{url}` werden ausgefüllt), sonst die eingebaute Begrüßung in seiner Sprache.
+Jede Prüfung ist ein gewöhnlicher **proactive**-Run des tatsächlichen Agenten
+und seiner Version. Quelltools brauchen `readOnlyHint`. Verfügbar sind das
+genehmigte Konto, Wissen/Kontext, Guardrails, Planung und Systemerinnerungen;
+Web, Sandbox, ausführbare Skills, Speicherschreibzugriffe und Delegation sind
+nicht verfügbar. Erforderliche interaktive Genehmigungen verhindern die
+Einrichtung und werden nicht umgangen. Mitgliedschaft, Ausführungsrecht,
+Quellzustimmung, Pause und Ablauf werden vor Tools und Ergebnisspeicherung
+nochmals geprüft.
 
-Der letzte Prüfversuch einer Beobachtung wird getrennt von der letzten
-erfolgreichen Prüfung gespeichert. Eine nicht verfügbare Quelle, fehlender
-Zugriff oder ein nicht abgeschlossener Modellaufruf erscheint auf der Karte unter
-Routinen, ohne einen unveränderten Stand zu behaupten oder den Zeitpunkt der
-erfolgreichen Prüfung fortzuschreiben. `not_completed` umfasst fehlendes Budget
-oder ein nicht verfügbares Modell; die Ursache steht in der Aktivität und den
-Budget-/Modelleinstellungen der Organisation. Eine gültige leere Prüfung bleibt
-still.
+Neue Funde behalten ihre stabile Beobachtungs-/Element-ID im persönlichen
+Posteingang und erscheinen im Quellchat; außerhalb des Chats erstellte
+Beobachtungen verwenden den primären Chat. Nur ausdrücklich gewünschte dringende
+Funde senden zusätzlich eine sofortige Benachrichtigung. Ohne Änderungen gibt
+es keine Chatnachricht oder Abschlussbenachrichtigung. Bei fehlendem Chatzugriff
+bleibt der Fund im Posteingang und `delivery_unavailable` wird aufgezeichnet.
 
-Die Versuchserfassung beginnt mit `0261_watch_attempt_status.py`; ältere
-Zeitstempel bleiben ohne erfundene Erfolgs- oder Fehlerhistorie erhalten.
-Unerwartete Fehler lassen weiterhin den Hintergrundjob fehlschlagen, statt als
-erfolgreiche leere Prüfung zu gelten.
+Der letzte Versuch ist von der letzten erfolgreichen Prüfung getrennt. Eine
+Modellantwort ohne erfolgreichen Quellzugriff oder mit ungelöstem Lesefehler ist
+`not_completed`. Nicht verfügbare Quellen und entzogener Zugriff sind explizit;
+`budget_paused` bedeutet verbrauchtes Budget. Diese Fehler verschieben den
+Erfolgszeitpunkt nicht. Unerwartete Fehler lassen den Job weiterhin fehlschlagen.
 
-Eine Beobachtung anzulegen oder zu ändern erlaubt zukünftige Lesezugriffe auf
-ein privates Konto. Dafür ist die eigene angemeldete Sitzung oder ein
-vertrauenswürdiger Berechtigungsnachweis aus dem eigenen privaten Chat mit dem Agenten erforderlich. Ein gewöhnlicher API-Schlüssel, ein Ersatzkontext
-des Veröffentlichenden, eine Hintergrundroutine oder eine Sitzung mit
-Identitätsübernahme darf diese Einwilligung weder anlegen, reaktivieren noch
-umschreiben.
+`0261_watch_attempt_status.py` beginnt die Versuchshistorie ohne erfundene ältere
+Erfolge. `0262_watch_agent_sources.py` erhält IDs, Funde, Intervall und
+Aktivierungszustand, erfindet aber keine Agentenzuordnung. Bestehende
+Beobachtungen zeigen `needs_agent` und rufen kein Modell auf, bis ihr Eigentümer
+einen veröffentlichten Agenten und seine Quellen bestätigt. Das Löschen einer
+Beobachtung entfernt Ursprung und Quellenzustimmung eines laufenden oder
+wartenden Runs nicht.
+
+Erstellung und Änderung erfordern die eigene angemeldete Sitzung oder den
+vertrauenswürdigen privaten menschlichen Chat. Gewöhnliche API-Schlüssel,
+Publisher-Ersatzkontext, Hintergrundroutinen und Identitätsübernahme können diesen
+Dauerzugriff nicht erteilen. Die Plattform-MCP-Tools `list_watches`, `create_watch`,
+`update_watch` und `delete_watch` verwenden denselben Dienst und dieselben IDs.
+Vollständige private Chat-Aufträge erstellen oder ändern sofort; Veröffentlichung,
+Einladungen, Löschen und sofortiges Ausführen behalten ihre Genehmigungsregeln.
 
 ### Systemagenten { #system-agents }
 

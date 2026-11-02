@@ -1,5 +1,5 @@
 ---
-source_sha: "ab427a229108"
+source_sha: "394883aa6fc7"
 ---
 
 # MCP — die Tools, die hier niemand schreiben muss { #mcp-the-tools-nobody-here-has-to-write }
@@ -1121,6 +1121,8 @@ Tool-Fehler zurück, der die fehlende Berechtigung nennt.
 | `list_members` | `members:view` |
 | `invite_member` | `members:manage` und `roles:manage` |
 | `list_my_connections`, `set_my_language`, `set_my_profile` | — (die eigenen des Aufrufers) |
+| `list_watches`, `delete_watch` | eigene Beobachtungen des Aufrufers |
+| `create_watch`, `update_watch` | private menschliche Zustimmung; `agents:run` bei der Agentenwahl |
 
 Die Suche mit `list_projects` liefert nur Projekt-IDs und Namen, ohne
 Beschreibungen, Anweisungen und weitere bearbeitbare Bezeichnungen. `get_project` liest ein
@@ -1178,16 +1180,15 @@ einzuschalten bindet ihn als `mcp_servers: [{account: platform, approval: writes
   eines Viewers liest, was der Viewer lesen darf, und nichts anlegt. Nichts Neues
   wird gewährt, und wo niemand hinter dem Run steht - ein öffentliches Widget, ein
   Zeitplan im Namen von niemandem - fehlt die Bindung.
-- **Änderungen warten auf Freigabe.** `writes`, der Standard, hält jedes Werkzeug,
-  das etwas ändert (`create_agent_draft`, `publish_agent`, `create_routine`,
-  `run_agent`, `invite_member` und die übrigen), zur Freigabe zurück; `all` auch
-  das Lesen. `none` wird nicht angeboten: Diese Werkzeuge handeln mit der Befugnis
-  eines Menschen. Der einzige Schreibzugriff, der nie wartet, ist
-  `set_my_language`: Er ändert die Konsolensprache des Fragenden, auf dessen
-  Wort, und eine Freigabekarte für „auf Englisch umstellen“ wäre die ganze
-  Unterhaltung. `set_my_profile` wartet wie die übrigen, denn was es speichert,
-  wird jedem Agenten mitgeteilt, den die Person ausführt, und eine Seite, die ein
-  Agent gelesen hat, darf es nicht unbemerkt schreiben.
+- **Änderungen folgen der Genehmigungsrichtlinie der Bindung.** Das normale
+  `writes` hält etwa Veröffentlichung, Einladung, Löschen und sofortiges Ausführen
+  an; `all` auch Lesezugriffe. Persönliche Routinen/Beobachtungen anzulegen oder
+  zu ändern und `set_my_language` führen vollständige Aufträge sofort aus. Sie
+  bleiben als Schreibzugriffe markiert; nur diese benannten Tools aus der
+  vertrauenswürdigen Plattformquelle umgehen das Bindungstor. Dienste prüfen
+  weiterhin menschliche Zustimmung im privaten Chat, Eigentum und aktuelle
+  Rechte. `set_my_profile` wartet weiterhin, weil sein Inhalt spätere Agenten erreicht.
+
 - **Die Werkzeuge lassen sich einschränken** in den Einstellungen der Karte, die
   jedes Werkzeug auflisten und die ändernden markieren.
 

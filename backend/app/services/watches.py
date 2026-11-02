@@ -10,6 +10,7 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.agents.spec import AgentSpec
 from app.core.audit import current_impersonator
 from app.core.exceptions import (
     AuthenticationError,
@@ -23,9 +24,19 @@ from app.db.models.mcp_connection import McpConnection
 from app.db.models.organization import Organization
 from app.db.models.watch import Watch
 from app.db.updates import writable
-from app.repositories import mcp_connection_repo, organization_repo, suggestion_repo, watch_repo
+from app.repositories import (
+    mcp_connection_repo,
+    organization_repo,
+    suggestion_repo,
+    watch_repo,
+)
 from app.schemas.watch import WatchCreate, WatchRead, WatchStopped, WatchUpdate
+from app.schemas.watch_sources import WatchSources
 from app.services import watch_presets
+from app.services.agent_registry import AgentRegistryService
+from app.services.conversation import ConversationService
+from app.services.primary_conversation import PrimaryConversationService
+from app.services.watch_sources import approve_sources, constrain_sources
 
 MAX_WATCHES = 20
 """Per person and organization: each is a model call per look on their limit."""
@@ -45,6 +56,11 @@ def watch_read(
 ) -> WatchRead:
     return WatchRead(
         id=watch.id,
+        agent_id=watch.agent_id,
+        environment_id=watch.environment_id,
+        pinned_version_id=watch.pinned_version_id,
+        ends_at=watch.ends_at,
+        source_conversation_id=watch.source_conversation_id,
         connection_id=watch.connection_id,
         connection_name=connection.label or connection.name,
         server=connection.catalog_key,
@@ -55,7 +71,8 @@ def watch_read(
         urgent=watch.urgent,
         interval_minutes=watch.interval_minutes,
         is_active=watch.is_active,
-        stopped=stopped_by(organization, connection),
+        stopped=stopped_by(organization, connection)
+        or ("needs_agent" if watch.agent_id is None else None),
         next_run_at=watch.next_run_at,
         last_run_at=watch.last_run_at,
         last_attempt_at=watch.last_attempt_at,
@@ -68,6 +85,54 @@ def watch_read(
 class WatchService:
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
+
+    async def _selected_spec(
+        self,
+        ctx: AuthContext,
+        agent_id: UUID,
+        *,
+        environment_id: UUID | None,
+        pinned_version_id: UUID | None,
+    ) -> AgentSpec:
+        if environment_id is not None and pinned_version_id is not None:
+            raise refused_field(
+                "pinned_version_id", "Choose an environment or a pinned version, not both"
+            )
+        registry = AgentRegistryService(self.db)
+        if pinned_version_id is None:
+            agent, spec, _ = await registry.get_runnable_spec(
+                ctx, agent_id, environment_id=environment_id
+            )
+        else:
+            agent, spec, _ = await registry.get_pinned_spec(ctx, agent_id, pinned_version_id)
+        return await registry.with_assistant_guidance(agent, spec)
+
+    @staticmethod
+    def _end(ends_at: datetime | None) -> None:
+        if ends_at is not None and ends_at <= datetime.now(UTC):
+            raise refused_field("ends_at", "The end must be in the future")
+
+    async def _source_conversation(self, ctx: AuthContext, agent_id: UUID) -> UUID:
+        if ctx.source_conversation_id is not None:
+            conversation = await ConversationService(self.db).get_conversation(
+                ctx.source_conversation_id,
+                organization_id=ctx.organization_id,
+                user_id=ctx.user_id,
+                for_write=True,
+                turn=True,
+                include_favourite=False,
+                ctx=ctx,
+            )
+            if (
+                conversation is None
+                or conversation.organization_id != ctx.organization_id
+                or conversation.user_id != ctx.user_id
+            ):
+                raise NotFoundError(message="Source conversation not found")
+            return conversation.id
+        return await PrimaryConversationService(self.db).ensure(
+            organization_id=ctx.organization_id, user_id=ctx.subject_id, agent_id=agent_id
+        )
 
     @staticmethod
     def _person(ctx: AuthContext) -> UUID:
@@ -173,6 +238,15 @@ class WatchService:
                 message=f"You can have at most {MAX_WATCHES} watches",
                 details={"limit": MAX_WATCHES},
             )
+        self._end(data.ends_at)
+        spec = await self._selected_spec(
+            ctx,
+            data.agent_id,
+            environment_id=data.environment_id,
+            pinned_version_id=data.pinned_version_id,
+        )
+        sources = approve_sources(spec, connection)
+        source_conversation_id = await self._source_conversation(ctx, data.agent_id)
         watch = await watch_repo.create(
             self.db,
             organization_id=ctx.organization_id,
@@ -184,6 +258,12 @@ class WatchService:
             urgent=data.urgent,
             interval_minutes=data.interval_minutes,
             next_run_at=datetime.now(UTC),
+            agent_id=data.agent_id,
+            environment_id=data.environment_id,
+            pinned_version_id=data.pinned_version_id,
+            approved_sources=sources.model_dump(mode="json"),
+            source_conversation_id=source_conversation_id,
+            ends_at=data.ends_at,
         )
         return watch_read(watch, organization=organization, connection=connection)
 
@@ -192,14 +272,41 @@ class WatchService:
         self._require_personal_consent(ctx)
         organization = await self._organization(ctx)
         watch = await self._own(ctx, person, watch_id)
-        changes = writable(data, over=Watch)
+        changes = writable(data, over=Watch, exclude={"review_sources"})
+        connection = await self._own_connection(person, watch.connection_id)
+        agent_id = data.agent_id or watch.agent_id
+        if agent_id is None and changes.get("is_active") is True:
+            raise refused_field("agent_id", "Select the agent that will execute this watch")
+        if "ends_at" in changes:
+            self._end(data.ends_at)
+        if data.agent_id is not None and data.agent_id != watch.agent_id:
+            changes.setdefault("environment_id", None)
+            changes.setdefault("pinned_version_id", None)
+        if agent_id is not None and (
+            {"agent_id", "environment_id", "pinned_version_id"}.intersection(data.model_fields_set)
+            or data.review_sources
+        ):
+            spec = await self._selected_spec(
+                ctx,
+                agent_id,
+                environment_id=changes.get("environment_id", watch.environment_id),
+                pinned_version_id=changes.get("pinned_version_id", watch.pinned_version_id),
+            )
+            if agent_id != watch.agent_id or data.review_sources or watch.approved_sources is None:
+                changes["approved_sources"] = approve_sources(spec, connection).model_dump(
+                    mode="json"
+                )
+            else:
+                constrain_sources(spec, WatchSources.model_validate(watch.approved_sources))
+            if watch.agent_id is None:
+                changes["source_conversation_id"] = await self._source_conversation(ctx, agent_id)
+                changes["next_run_at"] = datetime.now(UTC)
         if "interval_minutes" in changes:
             self._often_enough(organization, changes["interval_minutes"])
         if changes.get("is_active") is True and not watch.is_active:
             # Switched back on: look soon rather than at a time set weeks ago.
             changes["next_run_at"] = datetime.now(UTC)
         watch = await watch_repo.update_fields(self.db, watch=watch, changes=changes)
-        connection = await self._own_connection(person, watch.connection_id)
         return watch_read(watch, organization=organization, connection=connection)
 
     async def delete(self, ctx: AuthContext, watch_id: UUID) -> None:

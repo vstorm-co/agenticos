@@ -215,6 +215,7 @@ from app.agents.subagent_runtime import (
     SubagentRuntime,
 )
 from app.agents.voice import VoiceOptions, handed_off, without_voice_unavailable
+from app.agents.watch_sources import WatchReadReceipt, WatchSourceTools
 from app.core.audit import current_impersonator, record_audit
 from app.core.config import settings
 from app.core.exceptions import (
@@ -341,6 +342,7 @@ from app.services.transcript import (
     settled_calls_in,
     tool_calls_in,
 )
+from app.services.watch_sources import constrain_sources
 
 if TYPE_CHECKING:
     from pydantic_ai_harness.planning import PlanStore
@@ -3074,6 +3076,7 @@ class AgentRunnerService:
         test: bool = False,
         aside: bool = False,
         source_run: AgentRun | None = None,
+        watch_receipt: WatchReadReceipt | None = None,
     ) -> PreparedRun:
         """Assemble everything a run needs and open its row.
 
@@ -3232,6 +3235,7 @@ class AgentRunnerService:
             person_time_zone=person_time_zone,
             is_test=test or draft,
             test_spec=test_spec,
+            watch_receipt=watch_receipt,
         )
         prepared.output_schema = output_schema
         prepared.run_limit_usd = run_limit_usd
@@ -3373,6 +3377,7 @@ class AgentRunnerService:
         channel_file_attempts: int = 0,
         restored_channel_context: str = "",
         restored_channel_authors: dict[str, UUID] | None = None,
+        watch_receipt: WatchReadReceipt | None = None,
     ) -> PreparedRun:
         """Build the agent for a run, opening its row unless one is being resumed.
 
@@ -3409,6 +3414,15 @@ class AgentRunnerService:
         spec = _with_local_capabilities(
             await self.registry.with_assistant_guidance(agent, spec), local
         )
+        watch_sources = None if routine is None else routine.sources
+        if watch_sources is not None:
+            if local is not None or voice is not None or extra_toolsets:
+                raise AuthorizationError(
+                    message="This watch has not approved local, voice or additional tool sources."
+                )
+            spec = constrain_sources(spec, watch_sources)
+            watch_receipt = watch_receipt or WatchReadReceipt()
+            watch_receipt.check = routine_check
 
         # Whose ChatGPT sign-in the run's models may run on: the person the run
         # is for. On a resume `ctx` is the approver's, and releasing somebody's
@@ -3606,6 +3620,11 @@ class AgentRunnerService:
             organization_id=ctx.organization_id,
             refs=spec.mcp_servers,
             sender_user_id=personal_mcp_user_id,
+            personal_sources=(
+                None
+                if watch_sources is None
+                else {watch_sources.connection_id: watch_sources.endpoint_hash}
+            ),
             platform_credential=await self._platform_credential(
                 spec,
                 ctx,
@@ -3623,7 +3642,16 @@ class AgentRunnerService:
                 ),
             ),
         )
-        spec_toolsets = resolved.toolsets
+        spec_toolsets: list[AbstractToolset[object]] = resolved.toolsets
+        if watch_sources is not None:
+            if resolved.unavailable or not spec_toolsets:
+                raise BadRequestError(
+                    message="The watched source is unavailable; no successful check was made."
+                )
+            assert watch_receipt is not None
+            spec_toolsets = [
+                WatchSourceTools(toolset, receipt=watch_receipt) for toolset in spec_toolsets
+            ]
         on_use, briefed = _connect_on_use(
             resolved.unavailable,
             refs=spec.mcp_servers,
@@ -3656,7 +3684,12 @@ class AgentRunnerService:
                     None if test_spec is not None else version_id or agent.current_version_id
                 ),
                 user_id=ctx.user_id,
-                trigger_id=ctx.routine_id,
+                trigger_id=ctx.routine_id if ctx.routine_kind == "trigger" else None,
+                routine_origin_id=ctx.routine_id,
+                routine_kind=ctx.routine_kind,
+                routine_policy=(
+                    None if watch_sources is None else watch_sources.model_dump(mode="json")
+                ),
                 initiated_by_publisher_fallback=initiated_by_publisher_fallback,
                 key_scopes=(
                     None
@@ -5649,7 +5682,11 @@ class AgentRunnerService:
             # silently" gap this module's own docstring names.
             # A routine's own finish is told by the routine, with its name and the
             # start of its answer, which this point does not have (#2301).
-            if status is RunStatus.COMPLETED and RunSurface(run.surface) is not RunSurface.SCHEDULE:
+            if (
+                status is RunStatus.COMPLETED
+                and RunSurface(run.surface) is not RunSurface.SCHEDULE
+                and run.routine_kind != "watch"
+            ):
                 await notifications.run_completed(run, agent=agent)
             elif status in (RunStatus.FAILED, RunStatus.LOOP_STOPPED):
                 # A run stopped for looping produced nothing either, and says why.
@@ -5693,6 +5730,7 @@ class AgentRunnerService:
         aside: bool = False,
         reports_failure: bool = False,
         draft: bool = False,
+        watch_receipt: WatchReadReceipt | None = None,
     ) -> tuple[str, AgentRun]:
         """Run an agent to completion and return its answer.
 
@@ -5784,6 +5822,7 @@ class AgentRunnerService:
             public_origin=public_origin,
             aside=aside,
             draft=draft,
+            watch_receipt=watch_receipt,
         )
         prepared.channel_author_context = channel_author_context
         prepared.built.deps.steering = steering

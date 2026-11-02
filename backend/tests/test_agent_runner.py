@@ -593,6 +593,7 @@ class TestPrepare:
             "sender_user_id": None,
             # Nothing in this spec binds the platform's own server.
             "platform_credential": None,
+            "personal_sources": None,
         }
         # Alongside what the surface brought, not instead of it: the WebSocket
         # chat still attaches its own, and dropping either half would leave an
@@ -7616,7 +7617,7 @@ async def test_routine_origin_and_live_tool_guard_are_attached_during_preparatio
     agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4())
     spec = AgentSpec(name="Routine")
     check = AsyncMock()
-    authority = SimpleNamespace(check=check)
+    authority = SimpleNamespace(check=check, sources=None)
     with (
         patch.object(
             service.registry,
@@ -7685,4 +7686,71 @@ async def test_preparation_only_mints_source_provenance_for_private_human_chat(k
         )
     assert credential.await_args.kwargs["conversation_id"] == (
         conversation if kind == "private" else None
+    )
+
+
+@pytest.mark.anyio
+async def test_watch_preparation_uses_the_selected_agent_with_approved_sources_and_origin() -> None:
+    from app.agents.watch_sources import WatchReadReceipt, WatchSourceTools
+    from app.services.watch_sources import approve_sources
+
+    ctx = replace(
+        _ctx(), routine_id=uuid.uuid4(), routine_kind="watch", fired_as_creator="schedule"
+    )
+    service = AgentRunnerService(_db())
+    agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4())
+    spec = AgentSpec(
+        name="Chosen monitor",
+        instructions="My own operating instructions",
+        mcp_servers=[PersonalMcpServerRef(account="personal", catalog_key="github")],
+        collection_ids=[uuid.uuid4()],
+        context_ids=[uuid.uuid4()],
+        capabilities=[CapabilityBindingSpec(id="web"), CapabilityBindingSpec(id="knowledge")],
+    )
+    source = MagicMock(
+        id=uuid.uuid4(), catalog_key="github", url="https://github.example/mcp", allowed_tools=None
+    )
+    approved = approve_sources(spec, source)
+    published = spec.model_copy(update={"collection_ids": [*spec.collection_ids, uuid.uuid4()]})
+    authority = SimpleNamespace(check=AsyncMock(), sources=approved)
+    receipt = WatchReadReceipt()
+    with (
+        patch.object(
+            service.registry,
+            "get_runnable_spec",
+            new=AsyncMock(return_value=(agent, published, agent.current_version_id)),
+        ),
+        patch(
+            "app.services.agent_runner.RoutineAuthority.capture",
+            new=AsyncMock(return_value=authority),
+        ),
+        patch.object(
+            service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="chosen-model"))
+        ),
+        patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
+        patch.object(service.context, "resolve_for_agent", new=AsyncMock(return_value=[])),
+        patch.object(service, "_bound_collections", new=AsyncMock(return_value={})),
+        patch(
+            "app.services.agent_runner.agent_run_repo.create_run",
+            new=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
+        ) as create,
+        patch(
+            "app.services.agent_runner.build_toolsets_for_agent",
+            new=AsyncMock(return_value=ResolvedMcpToolsets(toolsets=[MagicMock()], unavailable=[])),
+        ) as mcp,
+        patch("app.services.agent_runner.build_agent", return_value=MagicMock()) as build,
+    ):
+        prepared = await service.prepare(ctx, agent.id, watch_receipt=receipt)
+    assert prepared.spec.instructions.startswith(spec.instructions)
+    assert prepared.spec.collection_ids == spec.collection_ids
+    assert {binding.id for binding in prepared.spec.capabilities} == {"knowledge"}
+    assert create.await_args.kwargs["agent_id"] == agent.id
+    assert create.await_args.kwargs["agent_version_id"] == agent.current_version_id
+    assert create.await_args.kwargs["trigger_id"] is None
+    assert create.await_args.kwargs["routine_origin_id"] == ctx.routine_id
+    assert create.await_args.kwargs["routine_policy"] == approved.model_dump(mode="json")
+    assert mcp.await_args.kwargs["personal_sources"] == {source.id: approved.endpoint_hash}
+    assert receipt.check == authority.check
+    assert any(
+        isinstance(item, WatchSourceTools) for item in build.call_args.kwargs["extra_toolsets"]
     )

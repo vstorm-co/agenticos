@@ -21,6 +21,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- Watches run through a selected published agent, follow or pin its version,
+  retain approved account and knowledge/context boundaries, and return new
+  findings to the source chat. The same controls work in chat and Routines.
+
 - Incoming Twilio MMS files use the existing channel attachment pipeline, including media-only messages. Downloads are restricted to the bot’s own account and incoming message, reject redirects and enforce upload size and transfer-time limits. A number with media is retained as a message rather than settling a numbered prompt. Outbound MMS files remain unsupported.
 
 - **Set and remove a routine's end in its form.** The end-time field names the device time zone it uses and sends an offset-aware timestamp. Invalid or past edits are refused; changing another field preserves the exact existing end rather than rounding it to the input's minute precision.
@@ -48,6 +52,9 @@ Two things are versioned separately from this file and worth knowing about:
 - **Memory records what an agent was told, with where it came from.** An agent can `remember` a fact, preference or decision, `recall` what is relevant without reading everything, `correct_memory` on a person's word and `share_memory` into a project or the organization when an authorized person asks and approves it - that tool always waits for a person, whatever the agent's approval settings say. A claim lives in a person profile (shared by every agent acting for them), a person-agent relationship, a group chat, a project or the organization; automatic writes stay in the conversation's own scope and only an explicit share widens one. A correction supersedes and keeps what it corrects, a person's word outranks an inference, and a scheduled pass folds agreement and flags disagreement without a model call, only where a scope changed. Settings → Memory shows what is on record about you with its source and lets you correct or retract it. Erasing a person removes their claims and the copies shared out of them (#2090).
 
 ### Changed
+
+- Existing watches require an explicit published agent and source approval
+  after migration `0262_watch_agent_sources.py`; their IDs and findings remain.
 
 - **Planning cache and history migration:** Harness 0.64 returns framed plans with tool metadata and records a missing or changed visible plan as user-channel run history. It no longer inserts a planning cache breakpoint. Existing `planning.cache_ttl` values still load but are ignored: move custom retention to `cache` in the agent or model profile's model settings, for example `cache: "1h"`. Platform prompt caching remains enabled by default.
 

@@ -69,10 +69,15 @@ async def create_run(
     key_scopes: list[str] | None = None,
     system_role: str | None = None,
     trigger_id: UUID | None = None,
+    routine_origin_id: UUID | None = None,
+    routine_kind: str = "trigger",
+    routine_policy: dict[str, object] | None = None,
 ) -> AgentRun:
     run = AgentRun(
         trigger_id=trigger_id,
-        routine_origin_id=trigger_id,
+        routine_origin_id=routine_origin_id or trigger_id,
+        routine_kind=routine_kind,
+        routine_policy=routine_policy,
         key_scopes=key_scopes,
         system_role=system_role,
         organization_id=organization_id,

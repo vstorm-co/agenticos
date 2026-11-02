@@ -1,5 +1,5 @@
 ---
-source_sha: "ec0e0a602926"
+source_sha: "8949067d718b"
 ---
 
 # Governance { #governance }
@@ -525,7 +525,7 @@ wydatki umierają razem z jego procesem.
 
 ### Praca z własnej inicjatywy { #proactive-work }
 
-Uruchomienia proaktywne są zapisywane pod opublikowanym agentem startowym
+Nocne sugestie i briefingi są zapisywane pod opublikowanym agentem startowym
 **AgenticOS** organizacji (slug `agenticos`), żeby każde miało wiersz, koszt i
 ślad, ale agent startowy się nie wykonuje i nie wybiera modelu: każde takie
 uruchomienie niesie [rolę systemową](#system-agents), która wykonała pracę.
@@ -543,8 +543,8 @@ zostały przycięte.
 Pole modelu korzysta z tego samego wyboru dostawcy, modelu i klucza z sejfu co
 Builder agenta. Uprawnienie `connections:manage` pozwala utworzyć tam profil
 modelu; bez niego wybiera się istniejący profil. Nowy profil jest zapisywany
-od razu. **Zapisz** stosuje wybór do nocnych sugestii i obserwacji organizacji,
-które współdzielą ten model oraz limit na osobę.
+od razu. **Zapisz** stosuje wybór do nocnych sugestii i briefingu. Obserwacje wybranego
+agenta współdzielą limit na osobę.
 
 Platforma może zrobić trochę z własnej inicjatywy, ale nie robi nic takiego,
 dopóki organizacja tego nie włączy: karta **Proaktywność** na stronie jej
@@ -565,49 +565,59 @@ Ponadto runy z własnej inicjatywy każdej osoby w miesiącu kalendarzowym ogran
 samej karcie (`proactive_limit_usd`). Osoba, u której nic nowego się nie
 wydarzyło, nic nie kosztuje: zadanie woła model tylko wtedy, gdy jest co czytać.
 
-**Obserwacje** kierują tę samą pracę na własne połączenia osoby. Włącza się je
-osobno na tej samej karcie (`proactive_watches_enabled`), działają na tym samym
-modelu i w tym samym limicie. Osoba zakłada obserwację przyciskiem **Nowa
-obserwacja** w **Rutynach**, gdzie karta Obserwacje pokazuje każdą z tym, kiedy
-ostatnio sprawdzała i ile jej znalezisk czeka, albo przyciskiem **Obserwuj**
-obok **Tools** konta na stronie serwerów MCP. Wybiera jedno ze swoich połączeń
-MCP - dowolny serwer, który podłączyła - i mówi, czego szukać - gotowa
-obserwacja dla tego serwera albo jej własne słowa - i jak często, nigdy
-częściej, niż pozwala organizacja (`proactive_watch_min_minutes`, domyślnie co
-godzinę).
+**Obserwacje** wykonuje wybrany przez osobę opublikowany agent, tym samym
+silnikiem co czat i rutyny, z własnymi instrukcjami i modelem. Włącza się je
+osobno (`proactive_watches_enabled`); współdzielą limit wydatków proaktywności
+na osobę, ale nie model briefingu. Utwórz obserwację w **Rutynach**, obok
+harmonogramów agenta przyciskiem **Obserwuj i informuj**, przy prywatnym koncie
+albo w prywatnej rozmowie. Wybierz agenta, własne konto, częstotliwość i opcjonalny
+koniec. Obserwacja może śledzić publikacje, wskazywać nazwane środowisko albo
+przypiętą niezmienną wersję. Minimalny odstęp nadal ustala organizacja
+(`proactive_watch_min_minutes`).
 
-Każdy przegląd to jeden run z powierzchni **proactive**, który dostaje tylko
-narzędzia oznaczone przez serwer jako tylko do odczytu (`readOnlyHint`), więc
-obserwacja niczego na koncie nie zmienia. To, co znajdzie, należy tylko do tej
-osoby: sugestia rodzaju `finding`, z kluczem z identyfikatora samej rzeczy, więc
-każda jest zgłaszana raz, z linkiem, żeby ją otworzyć. Znalezisko z obserwacji
-ustawionej na pilne od razu, które model też uznał za pilne, idzie od razu jako
-powiadomienie; reszta czeka na jej poranny [briefing](console.md#the-inbox). W odróżnieniu od rutyny obserwacja milczy,
-gdy nie ma nic nowego.
+Publikacja musi już zawierać osobiste powiązanie tej usługi katalogowej.
+Obserwacja nie włącza brakującego powiązania ani nie podstawia innego agenta.
+Własne serwery bez osobistego powiązania katalogowego nie są tu obsługiwane.
+Utworzenie zatwierdza konkretne konto i adres serwera, część wspólną list
+narzędzi konta i agenta oraz obecnie dołączone bazy wiedzy i pliki kontekstu.
+Kolejna publikacja może zawęzić dostęp, ale nie dodaje kont, narzędzi ani źródeł.
+**Zatwierdź ponownie obecne źródła** jawnie odświeża zgodę. Zmiana konta głównego
+nie podmienia konta zatwierdzonego dla obserwacji.
 
-Na tej samej karcie jest **wiadomość powitalna**, domyślnie wyłączona i
-wymagająca `org:settings`: wiadomość prywatna dla nowej osoby od botów
-organizacji w Slacku, Teams i Mattermost, słowami organizacji, jeśli je napisała
-(`{organization}`, `{bot}` i `{url}` zostają uzupełnione), albo wbudowanym
-powitaniem w jej języku.
+Każdy przegląd jest zwykłym runem **proactive**, przypisanym rzeczywistemu
+agentowi i wersji. Narzędzia źródła muszą mieć `readOnlyHint`. Obserwacja dopuszcza
+zatwierdzone konto, wiedzę/kontekst, guardrails, planowanie i przypomnienia
+systemowe; nie udostępnia sieci, sandboxa, wykonywalnych skills, zapisu pamięci
+ani delegacji. Wymagane interaktywne zgody blokują konfigurację zamiast zostać
+pominięte. Członkostwo, uprawnienie uruchomienia, zgoda na źródła, pauza i koniec
+są sprawdzane ponownie przed narzędziami i zapisem wyników.
 
-Ostatnia próba obserwacji jest zapisywana oddzielnie od ostatniego udanego
-odczytu. Niedostępne źródło, utrata dostępu lub nieukończone wywołanie modelu
-są widoczne na karcie w Rutynach, bez twierdzenia, że nic się nie zmieniło,
-i bez przesuwania czasu udanego odczytu. `not_completed` obejmuje brak budżetu
-lub niedostępny model; przyczyny należy szukać w Aktywności i ustawieniach
-budżetu/modelu organizacji. Poprawny pusty odczyt pozostaje cichy.
+Nowe ustalenia zachowują identyfikator obserwacji i rzeczy w skrzynce osoby
+oraz wracają do rozmowy źródłowej; utworzenie poza czatem używa rozmowy głównej.
+Tylko żądane pilne ustalenie wysyła też natychmiastowe powiadomienie. Brak zmian
+nie tworzy wiadomości ani powiadomienia o zakończeniu. Utrata dostępu do rozmowy
+zostawia ustalenie w skrzynce i zapisuje `delivery_unavailable`.
 
-Śledzenie prób
-zaczyna się od migracji `0261_watch_attempt_status.py`; starsze znaczniki czasu
-pozostają bez dopisywania nieznanej historii sukcesów i błędów. Nieoczekiwane
-błędy nadal kończą zadanie w tle błędem, zamiast udawać udany pusty odczyt.
+Ostatnia próba jest oddzielna od ostatniego udanego odczytu. Odpowiedź modelu bez
+udanego odczytu źródła lub z nierozwiązanym błędem odczytu to `not_completed`.
+Niedostępne źródło i odebrany dostęp są jawne, a `budget_paused` oznacza wyczerpany
+budżet. Te błędy nie przesuwają czasu udanego odczytu. Nieoczekiwany błąd nadal
+kończy zadanie błędem.
 
-Utworzenie lub zmiana obserwacji zezwala na przyszłe odczyty prywatnego konta,
-więc wymaga sesji zalogowanej osoby albo zaufanego poświadczenia z jej własnej
-prywatnej rozmowy z agentem. Zwykły klucz API, zastępczy kontekst publikującego,
-rutyna w tle ani sesja z impersonacją nie mogą utworzyć, wznowić ani zmienić
-tej zgody.
+`0261_watch_attempt_status.py` rozpoczyna historię prób bez zgadywania starszych
+sukcesów. `0262_watch_agent_sources.py` zachowuje identyfikatory obserwacji,
+ustalenia, częstotliwość i stan aktywności, ale nie zgaduje przypisania agenta.
+Starsze obserwacje pokazują `needs_agent` i nie wołają modelu, dopóki właściciel
+nie wybierze opublikowanego agenta i nie zatwierdzi źródeł. Usunięcie obserwacji
+nie usuwa pochodzenia ani zgody zapisanych w trwającym lub oczekującym runie.
+
+Utworzenie lub zmiana wymaga własnej zalogowanej sesji albo zaufanej prywatnej
+rozmowy z człowiekiem. Zwykły klucz API, kontekst publikującego, rutyna w tle
+ani impersonacja nie mogą nadać stałego dostępu. Narzędzia platformowego MCP
+`list_watches`, `create_watch`, `update_watch` i `delete_watch` używają tej samej
+usługi i identyfikatorów. Kompletne prośby w prywatnym czacie od razu tworzą lub
+zmieniają obserwację; publikacja, zaproszenia, usuwanie i uruchomienie teraz
+zachowują zwykłe zasady zatwierdzania.
 
 ### Agenci systemowi { #system-agents }
 

@@ -42,6 +42,129 @@ def server(api: MagicMock) -> FastMCP:
 
 
 CALLS: list[tuple[str, dict[str, Any], tuple[Any, ...]]] = [
+    ("list_watches", {}, ("GET", "/me/watches", {})),
+    (
+        "create_watch",
+        {
+            "agent_id": str(AGENT),
+            "connection_id": str(KB),
+            "title": "Reviews",
+            "instructions": "Waiting on me",
+            "every_minutes": 60,
+        },
+        (
+            "POST",
+            "/me/watches",
+            {
+                "json": {
+                    "agent_id": str(AGENT),
+                    "connection_id": str(KB),
+                    "title": "Reviews",
+                    "instructions": "Waiting on me",
+                    "interval_minutes": 60,
+                    "urgent": False,
+                    "ends_at": None,
+                    "environment_id": None,
+                    "pinned_version_id": None,
+                }
+            },
+        ),
+    ),
+    (
+        "create_watch",
+        {
+            "agent_id": str(AGENT),
+            "connection_id": str(KB),
+            "title": "Reviews",
+            "instructions": "Waiting on me",
+            "every_minutes": 60,
+            "urgent": True,
+            "ends_at": "2026-12-01T08:00:00Z",
+            "environment_id": str(RUN),
+        },
+        (
+            "POST",
+            "/me/watches",
+            {
+                "json": {
+                    "agent_id": str(AGENT),
+                    "connection_id": str(KB),
+                    "title": "Reviews",
+                    "instructions": "Waiting on me",
+                    "interval_minutes": 60,
+                    "urgent": True,
+                    "ends_at": "2026-12-01T08:00:00Z",
+                    "environment_id": str(RUN),
+                    "pinned_version_id": None,
+                }
+            },
+        ),
+    ),
+    (
+        "update_watch",
+        {
+            "watch_id": str(RUN),
+            "active": False,
+            "urgent": False,
+            "clear_end": True,
+            "clear_pin": True,
+        },
+        (
+            "PATCH",
+            f"/me/watches/{RUN}",
+            {
+                "json": {
+                    "is_active": False,
+                    "urgent": False,
+                    "ends_at": None,
+                    "pinned_version_id": None,
+                }
+            },
+        ),
+    ),
+    (
+        "update_watch",
+        {
+            "watch_id": str(RUN),
+            "agent_id": str(AGENT),
+            "pinned_version_id": str(KB),
+            "review_sources": True,
+            "title": "New title",
+            "instructions": "Different purpose",
+            "every_minutes": 180,
+            "ends_at": "2026-12-01T08:00:00Z",
+        },
+        (
+            "PATCH",
+            f"/me/watches/{RUN}",
+            {
+                "json": {
+                    "agent_id": str(AGENT),
+                    "pinned_version_id": str(KB),
+                    "environment_id": None,
+                    "review_sources": True,
+                    "title": "New title",
+                    "instructions": "Different purpose",
+                    "interval_minutes": 180,
+                    "ends_at": "2026-12-01T08:00:00Z",
+                }
+            },
+        ),
+    ),
+    (
+        "update_watch",
+        {"watch_id": str(RUN), "environment_id": str(KB)},
+        (
+            "PATCH",
+            f"/me/watches/{RUN}",
+            {"json": {"environment_id": str(KB), "pinned_version_id": None}},
+        ),
+    ),
+    (
+        "update_watch",
+        {"watch_id": str(RUN), "clear_environment": True},
+        ("PATCH", f"/me/watches/{RUN}", {"json": {"environment_id": None}}),
+    ),
     ("whoami", {}, ("GET", "/me/permissions", {})),
     ("list_projects", {}, ("GET", "/projects", {"params": {"limit": 50, "skip": 0}})),
     (
@@ -747,13 +870,17 @@ class TestRemovingARoutine:
 
 
 class TestWhatNeverWaitsForApproval:
-    def test_only_the_askers_own_language_is_ungated(self) -> None:
-        """Switching the console's language changes the asker's own account on
-        their word (#2301); every other write - publishing and creating a skill
-        above all - is held."""
+    def test_reversible_personal_routine_writes_do_not_wait_for_approval(self) -> None:
+        """Personal routine edits act on the request; publication still waits."""
         tools = {tool.name: tool for tool in platform_tool_catalog()}
 
-        assert {name for name, tool in tools.items() if tool.ungated} == {"set_my_language"}
+        assert {name for name, tool in tools.items() if tool.ungated} == {
+            "set_my_language",
+            "create_routine",
+            "update_routine",
+            "create_watch",
+            "update_watch",
+        }
         assert tools["set_my_language"].writes
 
     @pytest.mark.security
@@ -1279,3 +1406,25 @@ async def test_routine_creation_can_pin_a_published_version(
         },
     )
     assert api.request.await_args.kwargs["json"]["pinned_version_id"] == str(KB)
+
+
+@pytest.mark.parametrize(
+    "conflict",
+    [
+        {"clear_pin": True, "pinned_version_id": KB},
+        {"clear_end": True, "ends_at": "2026-12-01T08:00:00Z"},
+    ],
+)
+async def test_a_watch_limit_cannot_be_cleared_and_set_in_the_same_tool_request(api, conflict):
+    tool = {tool.name: tool for tool in platform_tools(api)}["update_watch"]
+    with pytest.raises(ValueError, match="set and cleared"):
+        await tool.function(watch_id=RUN, **conflict)
+    api.request.assert_not_awaited()
+
+
+async def test_delete_watch_uses_the_same_identity_and_requires_approval(api):
+    tool = {tool.name: tool for tool in platform_tools(api)}["delete_watch"]
+    assert await tool.function(watch_id=RUN) == {"deleted": str(RUN)}
+    api.request.assert_awaited_once_with("DELETE", f"/me/watches/{RUN}")
+    definition = {tool.name: tool for tool in platform_tool_catalog()}["delete_watch"]
+    assert definition.writes and not definition.ungated

@@ -1,5 +1,5 @@
 ---
-source_sha: "5496bfe74d57"
+source_sha: "eb62b561a0c7"
 ---
 
 # Auf einem Server deployen { #deploy-to-a-server }
@@ -521,8 +521,9 @@ Deployments; kopiere keine Zeilen und lege keine Ersatzzeitpläne manuell an.
 
 Wähle vor dem Einschalten der Speicherpflege ausdrücklich ein Modell; das
 Tagesbriefing behält die bisherigen Modell-/Budgeteinstellungen der Organisation.
-Beobachtungen nutzen weiterhin dieses Proaktivitätsmodell; die Ausführung durch
-einen ausgewählten Agenten ist noch nicht implementiert. Prüfe
+Seit `0262_watch_agent_sources.py` verwenden Beobachtungen den ausgewählten
+Agenten und behalten die genehmigten Quellen im Run. Bestehende Beobachtungen
+erfordern eine Agentenauswahl und Quellenfreigabe; IDs und Funde bleiben erhalten. Prüfe
 [Governance](governance.md#proactive-work) und die [Kanaleinrichtung](channels.md#sms),
 einschließlich `PUBLIC_BASE_URL` und abgelaufener SMS-Verknüpfungen. Prüfe in einer
 Testorganisation einen privaten Chat, Aktivität/Zustellung einer Routine,

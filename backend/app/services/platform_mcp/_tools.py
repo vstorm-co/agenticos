@@ -36,12 +36,16 @@ from app.workflows.graph.model import WorkflowGraph
 
 InviteRole = Literal["admin", "builder", "operator", "member", "viewer"]
 
-UNGATED = frozenset({"set_my_language"})
+UNGATED = frozenset(
+    {"set_my_language", "create_routine", "update_routine", "create_watch", "update_watch"}
+)
 """Writes no binding holds for a person's approval, whatever its policy.
 
 Changing the console's language changes the person asking's own account on their
-own word, and Settings undoes it - an approval card for "switch to English" would
-be the whole conversation. `set_my_profile` is not here: what it saves is told to
+own word, and Settings undoes it. Creating or editing a personal routine acts
+on a complete request immediately; service-level private-human consent still
+bounds its authority. Publishing, inviting, deletion and running now keep their
+normal approval policies. `set_my_profile` is not here: what it saves is told to
 every agent the person runs, in every organization, so a page an agent read must
 not be able to write it unseen. `app.agents.mcp` names the same set as
 `PLATFORM_UNGATED_TOOLS`, and a test holds the two equal.
@@ -476,6 +480,114 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         if agent_id is not None:
             return await api.request("GET", f"/agents/{agent_id}/triggers")
         return await api.request("GET", "/triggers", params={"limit": limit})
+
+    async def list_watches() -> dict[str, object]:
+        """The person's read-only watches, their selected agents, next checks and blockers."""
+        return await api.request("GET", "/me/watches")
+
+    async def create_watch(
+        agent_id: UUID,
+        connection_id: UUID,
+        title: str,
+        instructions: str,
+        every_minutes: int,
+        urgent: bool = False,
+        ends_at: str | None = None,
+        environment_id: UUID | None = None,
+        pinned_version_id: UUID | None = None,
+    ) -> dict[str, object]:
+        """Entrust read-only monitoring to a selected published agent and start it now.
+
+        Use list_my_connections for the person's source ID. The agent must already
+        bind that personal service; never enable a missing capability or substitute
+        a proactivity assistant. Only that account and the agent's approved attached
+        knowledge/context are available. New publications cannot add sources.
+        The person's organization sets the minimum cadence. ends_at is an ISO
+        timestamp with offset; honor a requested duration. Results belong to this
+        private conversation, or the primary conversation when created outside chat.
+        A complete instruction supplies all these fields: create it immediately,
+        asking only for materially missing information. Requires personal consent.
+        """
+        return await api.request(
+            "POST",
+            "/me/watches",
+            json={
+                "agent_id": str(agent_id),
+                "connection_id": str(connection_id),
+                "title": title,
+                "instructions": instructions,
+                "interval_minutes": every_minutes,
+                "urgent": urgent,
+                "ends_at": ends_at,
+                "environment_id": str(environment_id) if environment_id is not None else None,
+                "pinned_version_id": str(pinned_version_id)
+                if pinned_version_id is not None
+                else None,
+            },
+        )
+
+    async def update_watch(
+        watch_id: UUID,
+        instructions: str | None = None,
+        title: str | None = None,
+        every_minutes: int | None = None,
+        active: bool | None = None,
+        urgent: bool | None = None,
+        ends_at: str | None = None,
+        clear_end: bool = False,
+        agent_id: UUID | None = None,
+        pinned_version_id: UUID | None = None,
+        clear_pin: bool = False,
+        environment_id: UUID | None = None,
+        clear_environment: bool = False,
+        review_sources: bool = False,
+    ) -> dict[str, object]:
+        """Edit, pause or resume the person's watch without changing its identity.
+
+        Pass only what changes. clear_end removes an end; clear_pin removes the
+        explicit version pin. Select an environment, or clear_environment to leave
+        one. Clear both pin and environment to follow default publications. review_sources explicitly approves current attached
+        knowledge/context again; never set it merely to change a title or cadence.
+        Requires the person's own private chat or signed-in session.
+        """
+        if (
+            (clear_end and ends_at is not None)
+            or (clear_pin and pinned_version_id is not None)
+            or (clear_environment and environment_id is not None)
+            or (environment_id is not None and pinned_version_id is not None)
+        ):
+            raise ValueError("A limit cannot be set and cleared in the same request")
+        body: dict[str, object] = {}
+        for key, value in (
+            ("instructions", instructions),
+            ("title", title),
+            ("interval_minutes", every_minutes),
+            ("is_active", active),
+            ("urgent", urgent),
+            ("ends_at", ends_at),
+        ):
+            if value is not None:
+                body[key] = value
+        if clear_end:
+            body["ends_at"] = None
+        if agent_id is not None:
+            body["agent_id"] = str(agent_id)
+        if pinned_version_id is not None:
+            body.update(pinned_version_id=str(pinned_version_id), environment_id=None)
+        if environment_id is not None:
+            body.update(environment_id=str(environment_id), pinned_version_id=None)
+        if clear_environment:
+            body["environment_id"] = None
+        if clear_pin:
+            body["pinned_version_id"] = None
+        if review_sources:
+            body["review_sources"] = True
+        return await api.request("PATCH", f"/me/watches/{watch_id}", json=body)
+
+    async def delete_watch(watch_id: UUID) -> dict[str, object]:
+        """Permanently stop a watch and remove its findings. Pause with update_watch instead."""
+        await api.request("DELETE", f"/me/watches/{watch_id}")
+        return {"deleted": str(watch_id)}
 
     async def create_routine(
         agent_id: UUID,
@@ -1144,6 +1256,10 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         (discard_agent_draft, True),
         (run_agent, True),
         (list_models, False),
+        (list_watches, False),
+        (create_watch, True),
+        (update_watch, True),
+        (delete_watch, True),
         (list_routines, False),
         (create_routine, True),
         (update_routine, True),

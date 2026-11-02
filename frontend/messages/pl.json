@@ -11577,7 +11577,8 @@
     "urgentBadge": "Pilne od razu",
     "stopped": {
       "watches_off": "Wyłączone w organizacji",
-      "connection_disabled": "Połączenie wyłączone"
+      "connection_disabled": "Połączenie wyłączone",
+      "needs_agent": "Wybierz agenta"
     },
     "activeLabel": "Obserwuj: {title}",
     "editLabel": "Edytuj: {title}",
@@ -11718,8 +11719,25 @@
     "attempt": {
       "source_unavailable": "Źródło niedostępne — sprawdzenie nie powiodło się.",
       "access_revoked": "Brak dostępu — sprawdź konto i uprawnienia w organizacji.",
-      "not_completed": "Sprawdzenie nie zostało ukończone — sprawdź Aktywność i ustawienia budżetu."
-    }
+      "not_completed": "Sprawdzenie nie zostało ukończone — sprawdź Aktywność i ustawienia budżetu.",
+      "needs_agent": "Wybierz agenta, zanim obserwacja będzie mogła działać.",
+      "budget_paused": "Wstrzymano — budżet wyczerpany.",
+      "delivery_unavailable": "Źródło sprawdzone; rozmowa docelowa jest niedostępna. Wyniki pozostają w skrzynce."
+    },
+    "agent": "Agent",
+    "agentPlaceholder": "Wybierz agenta",
+    "unavailableAgent": "Agent niedostępny",
+    "approvedSourcesHint": "Obserwacja odczytuje tylko to konto oraz zatwierdzoną wiedzę i kontekst agenta. Inne konta, narzędzia sieciowe, delegowanie i wykonywalne umiejętności są niedostępne.",
+    "watchCard": "Obserwacja",
+    "watchUnavailable": "Ta obserwacja nie jest już dostępna.",
+    "executedBy": "Agent: {name}",
+    "versionPinned": "Przypięta wersja",
+    "versionFollowing": "Śledzi opublikowaną wersję",
+    "environmentSelected": "Wybrane środowisko",
+    "nextCheck": "Następne sprawdzenie: {at}",
+    "watchAndInform": "Obserwuj i informuj",
+    "reviewSources": "Ponownie zatwierdź dołączone źródła",
+    "reviewSourcesHint": "Uwzględnij aktualnie dołączoną wiedzę i kontekst tego agenta. Pozostaw wyłączone, aby zachować dotychczasową zgodę na źródła."
   },
   "inbox": {
     "title": "Inbox",

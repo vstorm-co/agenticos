@@ -226,6 +226,7 @@ async def test_nonpersonal_routines_and_runs_with_no_routine_keep_their_contract
         routine_origin_id=world.trigger.id,
         user_id=world.user.id,
         initiated_by_publisher_fallback=True,
+        routine_kind="trigger",
     )
     resumed = await RoutineAuthority.capture(db, world.ctx, agent_id=world.agent.id, run=run)
     assert resumed is not None and not resumed.acts_as_creator
@@ -280,3 +281,121 @@ async def test_a_published_parent_lends_its_pinned_delegate_without_a_direct_gra
     await db.delete(world.delegate_grant)
     await db.flush()
     await authority.check_in(db, world.delegate.id)
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        "paused",
+        "deleted",
+        "expired",
+        "role",
+        "root-grant",
+        "account-disabled",
+        "account-owner",
+        "account-endpoint",
+        "account-tools",
+        "intent",
+        "sources",
+        "organization-disabled",
+        "agent",
+    ],
+)
+async def test_watch_authority_revokes_a_running_read_when_its_approval_changes(
+    db: AsyncSession,
+    change: str,
+) -> None:
+    from app.agents.spec import AgentSpec, PersonalMcpServerRef
+    from app.db.models.mcp_connection import McpConnection
+    from app.db.models.watch import Watch
+    from app.services.watch_sources import approve_sources
+
+    world = await _world(db)
+    world.organization.proactive_watches_enabled = True
+    connection = McpConnection(
+        organization_id=None,
+        user_id=world.user.id,
+        scope="user",
+        purpose="mcp",
+        name="GitHub",
+        catalog_key="github",
+        url="https://github.example/mcp",
+        is_enabled=True,
+    )
+    db.add(connection)
+    await db.flush()
+    spec = AgentSpec(
+        name="Monitor", mcp_servers=[PersonalMcpServerRef(account="personal", catalog_key="github")]
+    )
+    sources = approve_sources(spec, connection)
+    watch = Watch(
+        organization_id=world.organization.id,
+        user_id=world.user.id,
+        connection_id=connection.id,
+        agent_id=world.agent.id,
+        title="Reviews",
+        instructions="Reviews waiting on me",
+        interval_minutes=60,
+        next_run_at=datetime.now(UTC),
+        approved_sources=sources.model_dump(mode="json"),
+    )
+    db.add(watch)
+    await db.flush()
+    ctx = replace(world.ctx, routine_id=watch.id, routine_kind="watch")
+    authority = await RoutineAuthority.capture(db, ctx, agent_id=world.agent.id, run=None)
+    assert authority is not None and authority.sources is not None
+    await authority.check_in(db, world.agent.id)
+    # A parked run retains the original approval, independently of the resumer.
+    run = await agent_run_repo.create_run(
+        db,
+        organization_id=world.organization.id,
+        agent_id=world.agent.id,
+        agent_version_id=None,
+        user_id=world.user.id,
+        conversation_id=None,
+        surface="proactive",
+        model_label=None,
+        started_at=datetime.now(UTC),
+        routine_origin_id=watch.id,
+        routine_kind="watch",
+        routine_policy=authority.sources.model_dump(mode="json"),
+    )
+    if change == "paused":
+        watch.is_active = False
+    elif change == "deleted":
+        await db.delete(watch)
+    elif change == "expired":
+        watch.ends_at = datetime.now(UTC) - timedelta(seconds=1)
+    elif change == "role":
+        world.member.role = "owner"
+    elif change == "root-grant":
+        await db.delete(world.grant)
+    elif change == "account-disabled":
+        connection.is_enabled = False
+    elif change == "account-owner":
+        connection.user_id = world.owner.id
+    elif change == "account-endpoint":
+        connection.url = "https://a-different-source.example/mcp"
+    elif change == "account-tools":
+        connection.allowed_tools = []
+    elif change == "intent":
+        watch.instructions = "A changed purpose requiring a new admission"
+    elif change == "sources":
+        watch.approved_sources = sources.model_copy(
+            update={"collection_ids": (uuid4(),)}
+        ).model_dump(mode="json")
+    elif change == "organization-disabled":
+        world.organization.proactive_watches_enabled = False
+    elif change == "agent":
+        watch.agent_id = world.delegate.id
+    await db.flush()
+    with pytest.raises(AuthorizationError):
+        await authority.check_in(db, world.agent.id)
+    if change not in {"role", "root-grant"}:
+        with pytest.raises(AuthorizationError):
+            await RoutineAuthority.capture(
+                db,
+                replace(ctx, user_id=world.owner.id, role="owner"),
+                agent_id=world.agent.id,
+                run=run,
+            )

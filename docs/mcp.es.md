@@ -1,5 +1,5 @@
 ---
-source_sha: "ab427a229108"
+source_sha: "394883aa6fc7"
 ---
 
 # MCP — las herramientas que aquí nadie tiene que escribir { #mcp-the-tools-nobody-here-has-to-write }
@@ -1102,6 +1102,8 @@ permiso que faltaba.
 | `list_members` | `members:view` |
 | `invite_member` | `members:manage` y `roles:manage` |
 | `list_my_connections`, `set_my_language`, `set_my_profile` | — (los de quien llama) |
+| `list_watches`, `delete_watch` | vigilancias propias de quien llama |
+| `create_watch`, `update_watch` | consentimiento humano privado; `agents:run` al elegir agente |
 
 La búsqueda con `list_projects` devuelve solo identificadores y nombres,
 omitiendo descripciones, instrucciones y otras etiquetas editables. `get_project` lee un
@@ -1160,16 +1162,15 @@ con los propios registros de la plataforma. En el Builder es la primera tarjeta 
   lee lo que el Viewer puede leer y no crea nada. No se concede nada nuevo, y donde
   nadie está detrás del run - un widget público, una programación que no actúa por
   nadie - el enlace no está.
-- **Los cambios esperan aprobación.** `writes`, el valor predeterminado, retiene
-  cada herramienta que cambia algo (`create_agent_draft`, `publish_agent`,
-  `create_routine`, `run_agent`, `invite_member` y las demás) hasta que la persona
-  la apruebe; `all` retiene también la lectura. `none` no se ofrece: estas
-  herramientas actúan con la autoridad de una persona. La única escritura que nunca
-  espera es `set_my_language`: cambia el idioma de la consola de quien pregunta,
-  por su palabra, y una tarjeta de aprobación para «cambia a inglés» sería toda la
-  conversación. `set_my_profile` espera como las demás, porque lo que guarda se le
-  dice a cada agente que la persona ejecuta, y una página que un agente leyó no
-  debe poder escribirlo sin que se vea.
+- **Los cambios siguen la política de aprobación del vínculo.** `writes`,
+  por defecto, detiene acciones como publicar, invitar, eliminar y ejecutar ahora;
+  `all` también las lecturas. Crear o editar rutinas/vigilancias personales y
+  `set_my_language` ejecutan las peticiones completas inmediatamente. Siguen
+  marcadas como escrituras; solo esas herramientas con origen de plataforma
+  confiable evitan la aprobación del vínculo. Los servicios siguen exigiendo
+  consentimiento humano privado, propiedad y permisos actuales. `set_my_profile`
+  sigue esperando porque su contenido llega a los agentes posteriores.
+
 - **Las herramientas se pueden acotar** en los ajustes de la tarjeta, que listan
   cada herramienta y marcan las que cambian algo.
 

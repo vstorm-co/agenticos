@@ -573,3 +573,78 @@ async def test_architect_keeps_platform_domain_errors_readable(db: AsyncSession,
         )
     assert result["error"]["status"] == 403
     assert result["error"]["code"] == "AUTHORIZATION_ERROR"
+
+
+async def test_watch_chat_tools_preserve_private_consent_and_source_conversation(
+    db: AsyncSession,
+    served: None,
+) -> None:
+    from unittest.mock import AsyncMock, patch
+
+    from app.agents.spec import AgentSpec, PersonalMcpServerRef
+    from app.db.models.conversation import Conversation
+    from app.db.models.mcp_connection import McpConnection
+    from app.db.models.watch import Watch
+    from app.services.watches import WatchService
+
+    key, organization = await _owner_key(db, Perm.AGENTS_RUN, Perm.AGENTS_VIEW)
+    organization.proactive_watches_enabled = True
+    agent = Agent(
+        organization_id=organization.id,
+        owner_user_id=organization.created_by_user_id,
+        name="Monitor",
+        slug=f"monitor-{uuid.uuid4()}",
+    )
+    connection = McpConnection(
+        user_id=organization.created_by_user_id,
+        scope="user",
+        purpose="mcp",
+        name="GitHub",
+        catalog_key="github",
+        url="https://github.example/mcp",
+        is_enabled=True,
+    )
+    db.add_all([agent, connection])
+    await db.flush()
+    conversation = Conversation(
+        organization_id=organization.id, user_id=organization.created_by_user_id
+    )
+    db.add(conversation)
+    await db.flush()
+    ctx = AuthContext(
+        user_id=organization.created_by_user_id, organization_id=organization.id, role="owner"
+    )
+    private_key = await ApiKeyService(db).issue_for_run(
+        ctx, agent_id=agent.id, conversation_id=conversation.id
+    )
+    assert private_key is not None
+    await db.commit()
+    args = {
+        "agent_id": str(agent.id),
+        "connection_id": str(connection.id),
+        "title": "Reviews",
+        "instructions": "Reviews waiting on me",
+        "every_minutes": 60,
+    }
+    async with _connected(key) as session:
+        listed = await session.call_tool("list_watches", {})
+        assert not listed.is_error and _content(listed)["total"] == 0
+        refused = await session.call_tool("create_watch", args)
+        assert refused.is_error and "own consent" in str(refused.content)
+    with patch.object(
+        WatchService,
+        "_selected_spec",
+        new=AsyncMock(
+            return_value=AgentSpec(
+                name="Monitor",
+                mcp_servers=[PersonalMcpServerRef(account="personal", catalog_key="github")],
+            )
+        ),
+    ):
+        async with _connected(private_key) as session:
+            created = await session.call_tool("create_watch", args)
+    assert not created.is_error, created
+    saved = await db.get(Watch, uuid.UUID(_content(created)["id"]))
+    assert saved is not None
+    assert saved.agent_id == agent.id and saved.source_conversation_id == conversation.id
+    assert saved.approved_sources["connection_id"] == str(connection.id)

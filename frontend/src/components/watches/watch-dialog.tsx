@@ -24,6 +24,7 @@ import {
   Textarea,
 } from "@/components/ui";
 import { FormField } from "@/components/ui/form-field";
+import { endInput, endInstant, EndsAtField } from "@/components/triggers/ends-at-field";
 import { useMcpConnections, useOrganizations } from "@/hooks";
 import { useWatchPresets, useWatches } from "@/hooks/use-watches";
 import { submitFailure } from "@/lib/api-error";
@@ -33,11 +34,25 @@ import { cn } from "@/lib/utils";
 import { allowedIntervals, cadenceLabel } from "@/lib/watch-cadence";
 import type { Watch } from "@/lib/watches-api";
 import { WatchAccount, useAccountName } from "./watch-account";
+import { WatchAgentFields } from "./watch-agent-fields";
 
 const CUSTOM = "custom";
-const FIELDS = ["connection_id", "interval_minutes", "preset_key", "title", "instructions"];
+const FIELDS = [
+  "agent_id",
+  "environment_id",
+  "pinned_version_id",
+  "ends_at",
+  "connection_id",
+  "interval_minutes",
+  "preset_key",
+  "title",
+  "instructions",
+];
 
 interface Draft {
+  agentId: string;
+  environmentId: string | null;
+  pinnedVersionId: string | null;
   connectionId: string;
   presetKey: string;
   title: string;
@@ -47,8 +62,15 @@ interface Draft {
   exclusions: string;
 }
 
-function startFrom(watch: Watch | undefined, connectionId: string | undefined): Draft {
+function startFrom(
+  watch: Watch | undefined,
+  connectionId: string | undefined,
+  agentId: string | undefined,
+): Draft {
   return {
+    agentId: watch?.agent_id ?? agentId ?? "",
+    environmentId: watch?.environment_id ?? null,
+    pinnedVersionId: watch?.pinned_version_id ?? null,
     connectionId: watch?.connection_id ?? connectionId ?? "",
     presetKey: watch?.preset_key ?? CUSTOM,
     title: watch?.title ?? "",
@@ -70,11 +92,13 @@ export function WatchDialog({
   onOpenChange,
   watch,
   connectionId,
+  agentId,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   watch?: Watch;
   connectionId?: string;
+  agentId?: string;
 }) {
   const t = useTranslations("watches");
   const tCadence = useTranslations("watches.cadence");
@@ -86,7 +110,12 @@ export function WatchDialog({
   const accountName = useAccountName();
   const router = useRouter();
   const onRoutines = usePathname().endsWith(ROUTES.ROUTINES);
-  const [draft, setDraft] = useState(() => startFrom(watch, connectionId));
+  const [draft, setDraft] = useState(() => startFrom(watch, connectionId, agentId));
+  const [endsAt, setEndsAt] = useState(() => endInput(watch?.ends_at));
+  const [endTouched, setEndTouched] = useState(false);
+  const [invalidEnd, setInvalidEnd] = useState(false);
+  const [versionValid, setVersionValid] = useState(true);
+  const [reviewSources, setReviewSources] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
 
@@ -114,6 +143,14 @@ export function WatchDialog({
   };
 
   const save = async () => {
+    const end = endTouched ? endInstant(endsAt) : (watch?.ends_at ?? null);
+    if (
+      end === undefined ||
+      (endTouched && end !== null && new Date(end).getTime() <= Date.now())
+    ) {
+      setInvalidEnd(true);
+      return;
+    }
     setSaving(true);
     try {
       if (watch) {
@@ -125,10 +162,19 @@ export function WatchDialog({
             urgent: draft.urgent,
             interval_minutes: draft.interval,
             exclusions: draft.exclusions.split("\n"),
+            ...(draft.agentId !== watch.agent_id ? { agent_id: draft.agentId } : {}),
+            environment_id: draft.environmentId,
+            pinned_version_id: draft.pinnedVersionId,
+            ...(endTouched ? { ends_at: end } : {}),
+            ...(reviewSources ? { review_sources: true } : {}),
           },
         });
       } else {
         await create({
+          agent_id: draft.agentId,
+          environment_id: draft.environmentId,
+          pinned_version_id: draft.pinnedVersionId,
+          ends_at: end,
           connection_id: draft.connectionId,
           preset_key: draft.presetKey === CUSTOM ? null : draft.presetKey,
           title: draft.title.trim(),
@@ -161,7 +207,12 @@ export function WatchDialog({
   };
 
   const ready =
-    draft.connectionId !== "" && draft.title.trim() !== "" && draft.instructions.trim() !== "";
+    draft.agentId !== "" &&
+    versionValid &&
+    !invalidEnd &&
+    draft.connectionId !== "" &&
+    draft.title.trim() !== "" &&
+    draft.instructions.trim() !== "";
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className={DIALOG_COLUMN}>
@@ -170,6 +221,23 @@ export function WatchDialog({
           <DialogDescription>{t("dialogDescription")}</DialogDescription>
         </DialogHeader>
         <div className={cn(DIALOG_BODY, "space-y-4")}>
+          <WatchAgentFields
+            agentId={draft.agentId}
+            environmentId={draft.environmentId}
+            pinnedVersionId={draft.pinnedVersionId}
+            disabled={saving}
+            error={errors.agent_id ?? errors.environment_id ?? errors.pinned_version_id}
+            onAgent={(id) => {
+              edit({ agentId: id, environmentId: null, pinnedVersionId: null });
+              setVersionValid(true);
+            }}
+            onEnvironment={(id) => {
+              edit({ environmentId: id, pinnedVersionId: null });
+              setVersionValid(true);
+            }}
+            onVersion={(id) => edit({ pinnedVersionId: id })}
+            onVersionValid={setVersionValid}
+          />
           <FormField
             label={t("connection")}
             htmlFor="watch-connection"
@@ -270,6 +338,33 @@ export function WatchDialog({
               </SelectContent>
             </Select>
           </FormField>
+          {watch && draft.agentId === watch.agent_id && (
+            <div className="flex items-start justify-between gap-4">
+              <div className="space-y-1">
+                <Label htmlFor="watch-review-sources">{t("reviewSources")}</Label>
+                <p className="text-muted-foreground text-xs">{t("reviewSourcesHint")}</p>
+              </div>
+              <Switch
+                id="watch-review-sources"
+                checked={reviewSources}
+                disabled={saving}
+                onCheckedChange={setReviewSources}
+              />
+            </div>
+          )}
+          <EndsAtField
+            value={endsAt}
+            invalid={invalidEnd}
+            onChange={(value) => {
+              setEndsAt(value);
+              setEndTouched(true);
+              const parsed = endInstant(value);
+              setInvalidEnd(
+                parsed === undefined ||
+                  (parsed !== null && new Date(parsed).getTime() <= Date.now()),
+              );
+            }}
+          />
           <div className="flex items-start justify-between gap-4">
             <div className="space-y-1">
               <Label htmlFor="watch-urgent">{t("urgent")}</Label>

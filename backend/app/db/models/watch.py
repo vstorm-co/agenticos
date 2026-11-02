@@ -31,6 +31,9 @@ class WatchAttemptStatus(enum.StrEnum):
     SOURCE_UNAVAILABLE = "source_unavailable"
     ACCESS_REVOKED = "access_revoked"
     NOT_COMPLETED = "not_completed"
+    NEEDS_AGENT = "needs_agent"
+    BUDGET_PAUSED = "budget_paused"
+    DELIVERY_UNAVAILABLE = "delivery_unavailable"
 
 
 class Watch(Base, TimestampMixin):
@@ -39,12 +42,18 @@ class Watch(Base, TimestampMixin):
     __tablename__ = "watches"
     __table_args__ = (
         CheckConstraint(
+            "pinned_version_id IS NULL OR environment_id IS NULL", name="ck_watch_version_selection"
+        ),
+        CheckConstraint(
+            "agent_id IS NULL OR approved_sources IS NOT NULL", name="ck_watch_approved_sources"
+        ),
+        CheckConstraint(
             f"interval_minutes >= {MIN_WATCH_MINUTES}", name="ck_watch_interval_minutes"
         ),
         CheckConstraint(
             "(last_attempt_at IS NULL AND last_attempt_status IS NULL) OR "
             "(last_attempt_at IS NOT NULL AND last_attempt_status IS NOT NULL AND "
-            "last_attempt_status IN ('completed', 'source_unavailable', 'access_revoked', 'not_completed'))",
+            "last_attempt_status IN ('completed', 'source_unavailable', 'access_revoked', 'not_completed', 'needs_agent', 'budget_paused', 'delivery_unavailable'))",
             name="ck_watch_attempt_status",
         ),
     )
@@ -66,6 +75,20 @@ class Watch(Base, TimestampMixin):
         nullable=False,
         index=True,
     )
+    agent_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("agents.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    pinned_version_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("agent_versions.id", ondelete="RESTRICT"), nullable=True
+    )
+    environment_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("agent_environments.id", ondelete="SET NULL"), nullable=True
+    )
+    approved_sources: Mapped[dict[str, object] | None] = mapped_column(JSONB, nullable=True)
+    source_conversation_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("conversations.id", ondelete="SET NULL"), nullable=True
+    )
+    ends_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     # The catalog preset it was made from, or null for one the person described.
     preset_key: Mapped[str | None] = mapped_column(String(64), nullable=True)
     title: Mapped[str] = mapped_column(String(120), nullable=False)

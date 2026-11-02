@@ -20,17 +20,21 @@ from urllib.parse import urlparse
 from uuid import UUID
 
 from pydantic import BaseModel, Field
-from pydantic_ai import RunContext
-from pydantic_ai.tools import ToolDefinition
+from pydantic import ValidationError as PydanticValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.agents.mcp import build_mcp_toolsets, needs_approval
 from app.agents.person_briefing import LANGUAGE_NAMES
+from app.agents.routine_authority import RoutineCheck
+from app.agents.watch_sources import WatchReadReceipt
+from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError, RunFailedError
 from app.core.permissions import AuthContext
+from app.db.models.agent_run import AgentRun, RunStatus, RunSurface
 from app.db.models.organization import Organization
 from app.db.models.suggestion import SuggestionKind
 from app.db.models.watch import Watch, WatchAttemptStatus
 from app.repositories import (
+    agent_run_repo,
+    conversation_repo,
     mcp_connection_repo,
     member_repo,
     organization_repo,
@@ -38,9 +42,10 @@ from app.repositories import (
     user_repo,
     watch_repo,
 )
-from app.services.mcp_connection import watched_connection_spec
+from app.services.agent_runner import AgentRunnerService
+from app.services.conversation import ConversationService
 from app.services.notifications import NotificationService
-from app.services.proactive._thinker import ProactiveThinker
+from app.services.spend import month_start
 from app.services.watches import stopped_by
 
 logger = logging.getLogger(__name__)
@@ -92,11 +97,6 @@ def _key(watch_id: UUID, item: str) -> str:
     return f"{SuggestionKind.FINDING.value}:{digest[:48]}"
 
 
-def _reads_only(_ctx: RunContext[object], tool: ToolDefinition) -> bool:
-    """Whether the server marks this tool as one that only reads - the rest are never offered."""
-    return not needs_approval(tool, "writes")
-
-
 def _web_link(url: str | None) -> str | None:
     """The link, where it is one a browser opens: an `http(s)` address with a host."""
     if url is None:
@@ -108,7 +108,7 @@ def _web_link(url: str | None) -> str | None:
 class WatchLook:
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
-        self.thinker = ProactiveThinker(db)
+        self.runner = AgentRunnerService(db)
 
     async def due(self, *, now: datetime) -> list[Watch]:
         """Claim the watches whose time has come, move each to its next look, and return them.
@@ -126,13 +126,20 @@ class WatchLook:
                     self.db, watch.organization_id
                 )
             organization = organizations[watch.organization_id]
+            if watch.ends_at is not None and watch.ends_at <= now:
+                await watch_repo.update_fields(self.db, watch=watch, changes={"is_active": False})
+                continue
             floor = organization.proactive_watch_min_minutes if organization else 0
             await watch_repo.schedule(
                 self.db,
                 watch_id=watch.id,
                 next_run_at=now + timedelta(minutes=max(watch.interval_minutes, floor)),
             )
-            if organization is not None and organization.proactive_watches_enabled:
+            if (
+                organization is not None
+                and organization.proactive_watches_enabled
+                and watch.agent_id is not None
+            ):
                 claimed.append(watch)
         return claimed
 
@@ -142,6 +149,14 @@ class WatchLook:
         if watch is None or not watch.is_active:
             return 0
         now = datetime.now(UTC)
+        if watch.ends_at is not None and watch.ends_at <= now:
+            await watch_repo.update_fields(self.db, watch=watch, changes={"is_active": False})
+            return 0
+        if watch.agent_id is None or watch.approved_sources is None:
+            await watch_repo.mark_attempt(
+                self.db, watch=watch, at=now, status=WatchAttemptStatus.NEEDS_AGENT
+            )
+            return 0
         organization = await organization_repo.get_by_id(self.db, watch.organization_id)
         connection = await mcp_connection_repo.get_by_id(self.db, watch.connection_id)
         member = await member_repo.get_active(
@@ -169,20 +184,18 @@ class WatchLook:
                 self.db, watch=watch, at=now, status=WatchAttemptStatus.ACCESS_REVOKED
             )
             return 0
-        spec = await watched_connection_spec(connection)
-        if spec is None:
-            logger.info("watch_connection_unauthorized", extra={"watch_id": str(watch.id)})
+        spent = await agent_run_repo.proactive_spend_since(
+            self.db,
+            organization_id=watch.organization_id,
+            user_id=watch.user_id,
+            since=month_start(),
+        )
+        remaining = organization.proactive_limit_usd - spent
+        if remaining <= 0:
             await watch_repo.mark_attempt(
-                self.db, watch=watch, at=now, status=WatchAttemptStatus.SOURCE_UNAVAILABLE
+                self.db, watch=watch, at=now, status=WatchAttemptStatus.BUDGET_PAUSED
             )
             return 0
-        toolsets = await build_mcp_toolsets([spec])
-        if not toolsets:
-            await watch_repo.mark_attempt(
-                self.db, watch=watch, at=now, status=WatchAttemptStatus.SOURCE_UNAVAILABLE
-            )
-            return 0
-        reading_tools = [toolset.filtered(_reads_only) for toolset in toolsets]
         material = {
             "person": {
                 "language": LANGUAGE_NAMES.get(user.locale or "", "English"),
@@ -196,31 +209,122 @@ class WatchLook:
                 self.db, watch_id=watch.id, limit=RECENT_TITLES
             ),
         }
-        reading = await self.thinker.think(
-            AuthContext(user_id=user.id, organization_id=organization.id, role=member.role),
-            feature="watches",
-            output_type=WatchReading,
-            instructions=_INSTRUCTIONS,
-            prompt=json.dumps(material, ensure_ascii=False),
-            toolsets=reading_tools,
+        ctx = AuthContext(
+            user_id=user.id,
+            organization_id=organization.id,
+            role=member.role,
+            fired_as_creator="schedule",
+            routine_id=watch.id,
+            routine_kind="watch",
         )
-        if reading is None:
+        receipt = WatchReadReceipt()
+        structured: list[dict[str, object]] = []
+        try:
+            _, run = await self.runner.execute(
+                ctx,
+                watch.agent_id,
+                _INSTRUCTIONS + "\n" + json.dumps(material, ensure_ascii=False),
+                surface=RunSurface.PROACTIVE,
+                environment_id=watch.environment_id,
+                version_id=watch.pinned_version_id,
+                acts_for_sender=True,
+                output_schema=WatchReading.model_json_schema(),
+                structured=structured,
+                run_limit_usd=remaining,
+                watch_receipt=receipt,
+                reports_failure=True,
+            )
+            if (
+                run.status != RunStatus.COMPLETED.value
+                or not structured
+                or receipt.completed_calls == 0
+                or receipt.failed_requests
+            ):
+                status = (
+                    WatchAttemptStatus.BUDGET_PAUSED
+                    if run.status == RunStatus.BUDGET_EXCEEDED.value
+                    else WatchAttemptStatus.NOT_COMPLETED
+                )
+                await watch_repo.mark_attempt(self.db, watch=watch, at=now, status=status)
+                return 0
+            reading = WatchReading.model_validate(structured[-1])
+            if receipt.check is None:
+                raise RuntimeError("A watch run did not retain its authorization check")
+            await receipt.check(watch.agent_id)
+        except AuthorizationError, NotFoundError:
+            await watch_repo.mark_attempt(
+                self.db, watch=watch, at=now, status=WatchAttemptStatus.ACCESS_REVOKED
+            )
+            return 0
+        except BadRequestError:
+            await watch_repo.mark_attempt(
+                self.db, watch=watch, at=now, status=WatchAttemptStatus.SOURCE_UNAVAILABLE
+            )
+            return 0
+        except RunFailedError, PydanticValidationError:
+            logger.warning("watch_reading_incomplete", extra={"watch_id": str(watch.id)})
             await watch_repo.mark_attempt(
                 self.db, watch=watch, at=now, status=WatchAttemptStatus.NOT_COMPLETED
             )
             return 0
-        recorded = await self._record(
-            watch, reading, server=connection.catalog_key, account=spec.account
-        )
+        try:
+            async with self.db.begin_nested():
+                recorded, delivery_blocked = await self._record(
+                    watch,
+                    reading,
+                    server=connection.catalog_key,
+                    account=connection.label or connection.name,
+                    run=run,
+                    ctx=ctx,
+                    check=receipt.check,
+                )
+        except AuthorizationError:
+            await watch_repo.mark_attempt(
+                self.db, watch=watch, at=now, status=WatchAttemptStatus.ACCESS_REVOKED
+            )
+            return 0
         await watch_repo.mark_ran(self.db, watch=watch, at=now)
+        if delivery_blocked:
+            await watch_repo.mark_attempt(
+                self.db, watch=watch, at=now, status=WatchAttemptStatus.DELIVERY_UNAVAILABLE
+            )
         return recorded
 
     async def _record(
-        self, watch: Watch, reading: WatchReading, *, server: str | None, account: str | None
-    ) -> int:
+        self,
+        watch: Watch,
+        reading: WatchReading,
+        *,
+        server: str | None,
+        account: str | None,
+        run: AgentRun,
+        ctx: AuthContext,
+        check: RoutineCheck,
+    ) -> tuple[int, bool]:
         recorded = 0
         notifications = NotificationService(self.db)
+        updates: list[str] = []
+        target: UUID | None = None
+        if watch.source_conversation_id is not None:
+            try:
+                conversation = await ConversationService(self.db).get_conversation(
+                    watch.source_conversation_id,
+                    organization_id=watch.organization_id,
+                    user_id=watch.user_id,
+                    for_write=True,
+                    turn=True,
+                    include_favourite=False,
+                    ctx=ctx,
+                )
+                if (
+                    conversation.organization_id == watch.organization_id
+                    and conversation.user_id == watch.user_id
+                ):
+                    target = conversation.id
+            except NotFoundError, AuthorizationError:
+                logger.info("watch_delivery_source_unavailable", extra={"watch_id": str(watch.id)})
         for found in reading.findings:
+            await check(run.agent_id)
             urgent = watch.urgent and found.urgent
             finding = await suggestion_repo.propose(
                 self.db,
@@ -237,11 +341,31 @@ class WatchLook:
             if finding is None:
                 continue
             recorded += 1
+            updates.append(
+                f"- **{found.title}**"
+                + (f" — {found.detail}" if found.detail else "")
+                + (f"\n  {url}" if (url := _web_link(found.url)) else "")
+            )
             if urgent:
+                await check(run.agent_id)
                 await notifications.finding(
                     organization_id=watch.organization_id,
                     user_id=watch.user_id,
                     finding_id=finding.id,
                     title=finding.title,
+                    conversation_id=target,
+                    run_id=run.id,
                 )
-        return recorded
+        if updates and target is not None:
+            await check(run.agent_id)
+            await conversation_repo.create_message(
+                self.db,
+                conversation_id=target,
+                role="assistant",
+                content=f"**{watch.title}**\n\n" + "\n".join(updates),
+                agent_id=watch.agent_id,
+                agent_version_id=run.agent_version_id,
+                model_name=run.model_label,
+                run_id=run.id,
+            )
+        return recorded, bool(updates) and target is None

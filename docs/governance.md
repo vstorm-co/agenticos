@@ -486,7 +486,7 @@ heartbeat recorded, unlike a text run, whose spend dies with its process.
 
 ### Proactive work { #proactive-work }
 
-Proactive runs are recorded under the organization's published **AgenticOS**
+Nightly suggestion and briefing runs are recorded under the organization's published **AgenticOS**
 starter agent (`agenticos` slug) so each has a row, a cost and a trace, but the
 starter does not run and does not choose the model: every such run carries the
 [system role](#system-agents) that did the work. Choose the separate proactivity
@@ -504,7 +504,7 @@ The model field uses the same provider, model and vault-key picker as the Agent
 Builder. With `connections:manage`, a member can create a model profile there;
 without it, they choose an existing profile. Creating a profile stores it
 immediately. **Save** applies the selection to the organization's nightly
-suggestions and watches, which share this model and the per-person limit.
+suggestions and briefing. Selected-agent watches share the per-person limit.
 
 The platform can do a little on its own initiative, and does nothing of the kind
 until an organization turns it on: the **Proactivity** card on its members page
@@ -525,47 +525,59 @@ the organization's **proactive limit** - $1 by default, set on the same card
 (`proactive_limit_usd`). A person nothing new happened to costs nothing: the job
 only calls the model when there is something to read.
 
-**Watches** point the same work at a person's own connections, switched on
-separately on the same card (`proactive_watches_enabled`), on the same model and
-inside the same limit. A person starts one with **New watch** under
-**Routines**, where a Watches card lists each with when it last looked and how
-many of its findings wait, or with **Watch** beside the account's **Tools** on
-the MCP servers page. They pick one of their own MCP connections - any server
-they connected - and say what to look for - a ready-made watch for that server
-or their own words - and how often, never more often than the organization
-allows (`proactive_watch_min_minutes`, an hour by default).
+**Watches** run through the published agent the person selects, using the same
+runner as chat and routines and the agent's own instructions and model. Enable
+watches separately (`proactive_watches_enabled`); they share the organization's
+per-person proactivity spending limit, not its briefing model. Create one under
+**Routines**, beside an agent's schedules with **Watch and inform**, beside a
+personal account, or by asking in a private chat. Select the agent, personal
+account, cadence and optional end time. Follow publications, select a named
+environment, or pin an immutable published version. The organization still sets
+the minimum cadence (`proactive_watch_min_minutes`).
 
-Each look is one run from the **proactive** surface, offered only the tools the
-server marks read-only (`readOnlyHint`), so a watch never changes anything in the
-account. What it finds is the person's alone: a suggestion of kind `finding`,
-keyed on the item's own id so it is reported once, with a link to open it. A
-finding on a watch set to say urgent things at once, which the model also judged
-urgent, is sent straight away as a notification; the rest waits for their morning
-[briefing](console.md#the-inbox).
-Unlike a routine, a watch says nothing when nothing is new.
+The selected publication must already bind that personal catalog service. A watch
+never enables a missing binding or substitutes another agent. Custom servers
+without a personal catalog binding are not supported here. Creating the watch
+approves that concrete account and endpoint, the intersection of account and
+agent tool allowlists, and the currently attached knowledge bases/context files.
+Later publications can remove this access but cannot add accounts, tools or
+attached sources. **Approve current sources again** explicitly refreshes that
+approval. A newly selected primary account does not replace the approved account.
 
-The same card holds the **welcome message**, off by default and gated on
-`org:settings`: a new member's direct message from the organization's Slack,
-Teams and Mattermost bots, in the organization's own words when it wrote some
-(`{organization}`, `{bot}` and `{url}` are filled in) or the built-in greeting in
-their language.
+Each look is an ordinary **proactive** run attributed to the actual selected
+agent and version. Its source tools must carry `readOnlyHint`. The watch preset
+permits only its approved account, knowledge/context, guardrails, planning and
+system reminders; web access, sandbox, executable skills, memory writes and
+delegation are unavailable. Required interactive approvals are refused at setup
+rather than silently waived. Current membership, run permission, source consent,
+pause and expiry are checked again before tools and before results are written.
 
-A watch's latest attempt is separate from its last successful reading. An
-unavailable source, lost access, or a model call that did not complete is shown
-on its Routines card, without claiming that nothing changed or advancing the
-successful-reading timestamp. `not_completed` includes budget or model
-unavailability; review Activity and the organization's budget/model settings for
-the cause. A valid empty reading remains quiet.
+New findings keep their stable watch/item identity in the person's Inbox and
+return to the source conversation; creation outside chat uses their primary
+conversation. Only a requested urgent finding also sends an immediate
+notification. An unchanged reading creates no chat message or completion
+notification. Missing conversation access retains the Inbox finding and records
+`delivery_unavailable` instead of posting elsewhere.
 
-Attempt tracking starts with
-migration `0261_watch_attempt_status.py`; older timestamps are retained without
-inventing a success/failure history. Unexpected errors still fail the background
-job rather than becoming successful empty readings.
+The latest attempt is separate from the last successful reading. A completed
+model answer without a successful source read, or with an unresolved failed
+source request, is `not_completed`. Source unavailability and revoked access are
+explicit; `budget_paused` reports exhausted spending. These failures do not
+advance the successful-reading timestamp. Unexpected errors still fail the job.
 
-Creating or changing a watch grants future reads of a private account, so it
-requires the person's signed-in session or a trusted credential from their own
-private human conversation. An ordinary API key, publisher fallback, background
-routine or impersonated session cannot create, rearm or rewrite that consent.
+`0261_watch_attempt_status.py` starts attempt history without inventing older
+successes. `0262_watch_agent_sources.py` preserves existing watch IDs, findings,
+cadence and active settings, but assigns no guessed agent. Existing watches show
+`needs_agent` and make no model calls until their owner selects a published agent
+and approves its sources. Deleting a watch does not erase the origin or approved
+source policy retained by an in-flight or parked run.
+
+Creating or changing a watch requires the person's signed-in session or trusted
+private human chat. Ordinary API keys, publisher fallback, background routines
+and impersonation cannot grant this standing access. The platform MCP tools
+`list_watches`, `create_watch`, `update_watch` and `delete_watch` use the same
+service and identifiers. Complete private-chat requests create or edit immediately;
+publishing, inviting, deletion and run-now retain their normal approval policies.
 
 ### System agents { #system-agents }
 
