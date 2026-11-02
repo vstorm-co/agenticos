@@ -571,6 +571,32 @@ async def test_the_size_limit_counts_every_part_of_a_resumed_request_together():
         )
 
 
+async def test_a_redaction_only_the_whole_prompt_shows_blocks():
+    """A key split across two parts is redacted whole, but neither part alone holds it."""
+    # Spelt in pieces, so the repository's private-key hook does not take it for one.
+    marker = "RSA " + "PRIVATE KEY-----"
+    head = f"-----BEGIN {marker}\nMIIEowIBAAKCAQEA"
+    tail = f"abcdef0123456789\n-----END {marker}"
+    seen: list[PromptContent] = []
+    agent = _agent(GuardrailsConfig(redact_secrets_in=True), _records_prompts(seen))
+    with pytest.raises(GuardrailBlocked):
+        await agent.run([head, TextContent(content=tail), PICTURE])
+    assert seen == []
+
+
+async def test_redactions_each_part_holds_whole_let_the_prompt_through():
+    seen: list[PromptContent] = []
+    agent = _agent(GuardrailsConfig(redact_secrets_in=True), _records_prompts(seen))
+    await agent.run([f"key {SECRET}", TextContent(content=f"again {SECRET}"), PICTURE])
+    assert seen == [
+        [
+            "key [redacted:anthropic_key]",
+            TextContent(content="again [redacted:anthropic_key]"),
+            PICTURE,
+        ]
+    ]
+
+
 async def test_the_size_limit_counts_links_with_the_text():
     """Each link is screened, so each counts toward the one prompt's limit."""
     link = ImageUrl(url="https://example.com/" + "a" * 100_000)

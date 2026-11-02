@@ -592,13 +592,14 @@ class ScreenedPrompt(InputGuardrail[object]):
         # The whole prompt first, so a size limit counts all of its text rather
         # than each part afresh: a resumed request's parts together, and each copy
         # of any other prompt on its own. The rewrites come from the parts below.
-        prompts = [targets] if resumed else [[target] for target in targets]
+        indexes = [range(len(targets))] if resumed else [[i] for i in range(len(targets))]
+        wholes: list[tuple[Sequence[int], str]] = []
         checked: list[list[str]] = []
-        for prompt in prompts:
-            texts = [text for target in prompt for text in _screened_texts(target.content)]
+        for prompt in indexes:
+            texts = [text for i in prompt for text in _screened_texts(targets[i].content)]
             if len(texts) > 1 and texts not in checked:
                 checked.append(texts)
-                await self._cleaned(ctx, "\n".join(texts))
+                wholes.append((prompt, await self._cleaned(ctx, "\n".join(texts))))
         # Every part screened before any is rewritten, so a block rewrites nothing;
         # a copy with the original's content is screened once.
         screened: list[PromptContent | None] = []
@@ -607,6 +608,15 @@ class ScreenedPrompt(InputGuardrail[object]):
             screened.append(
                 screened[twin] if twin is not None else await self._screened(ctx, target.content)
             )
+        for prompt, cleaned in wholes:
+            parts = [
+                text for i in prompt for text in _screened_texts(screened[i] or targets[i].content)
+            ]
+            if "\n".join(parts) != cleaned:
+                # A match only the whole prompt shows, such as a key split across
+                # two parts, has no part to be written back over.
+                logger.info("Guardrail blocked a run at the input edge: a redaction across parts")
+                raise GuardrailBlocked(edge="input", message=_BLOCK_MESSAGE["input"])
         traced: list[PromptContent] = []
         for target, content in zip(targets, screened, strict=True):
             if content is None:
