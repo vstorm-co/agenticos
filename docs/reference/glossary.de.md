@@ -1,5 +1,5 @@
 ---
-source_sha: "efcb7fe03f88"
+source_sha: "525439bc4593"
 ---
 
 # Glossar { #glossary }
@@ -24,6 +24,11 @@ nicht bricht.
 | Erste Nachrichten | Was ein leerer Chat jemandem anbietet, der den Agent öffnet, jede mit einem Klick | `starters` |
 | Capability | Etwas, das ein Agent tun darf, im Builder eingeschaltet | `capabilities[]` |
 | Skill | Einmal aufgeschriebenes Know-how, das jeder Agent liest, der es braucht | `skill` |
+| Skill-Version | Ein gespeicherter Stand eines Skills, danach nie mehr geändert; **Wiederherstellen** bringt eine frühere als neue Version zurück | `skill_version` |
+| Main | Die Hauptlinie eines Skills; ein Agent auf main liest ihre neueste Version | `state: main` |
+| Fixiert | Ein Agent, der auf einer Main-Version eines Skills bleibt, bis jemand ihn verschiebt | `state: pinned` |
+| Fork | Eine benannte Linie eines Skills, ab einer Main-Version, mit eigenen Versionen für manche Agents | `skill_fork`, `state: fork` |
+| Hinter main | Wie viele Main-Versionen ein fixierter Agent oder ein Fork nicht übernommen hat | `behind_main` |
 | Kontext | Dauerhaftes Wissen, das ein Agent immer hat, etwa ein Glossar oder eine Richtlinie | `context` |
 | Wissensdatenbank | Dokumente, die ein Agent durchsucht und zitiert | `collection` |
 | Wissenslücke | Ein Thema aus Fragen, die eine Wissensdatenbank nicht beantworten konnte, nach Bedeutung gruppiert; Verbessern zählt sie als **Fehlendes Wissen in der Wissensdatenbank** | `knowledge_gap_topic` |
@@ -105,6 +110,9 @@ nicht bricht.
 | Erneut versuchen | Startet vom Ergebnis aus einen weiteren Versuch, mit einem optionalen **Hinweis für den Helfer**; er schreibt neue Änderungen und hält bei **Änderungen** an | `/{run_id}/continue` mit `note` |
 | Ausgabenlimit | Was eine Sitzung insgesamt ausgeben darf, Analyse und jeder Versuch eingeschlossen; jeder Schritt wird geschätzt, bevor er startet | `budget_usd` |
 | Automatische Prüfung | **Diese Fragen bei jeder Änderung automatisch prüfen**: beim Annehmen eine Suite, die die Fragen der Sitzung vor jeder Veröffentlichung stellt und keine bestätigte Regression erlaubt | `automatic_check` |
+| Skill verbessern | Eine Sitzung, die eine Linie eines Skills verbessert, main oder einen Fork, und die Änderung an jedem Agent dieser Linie prüft | `/skills/{id}/improvements` |
+| Skill-Prüfung | Eine Skill-Änderung, ausgeführt auf jedem Agent ihrer Linie; besser, wenn kein Agent eine bestätigte Regression hat und mindestens einer besser ist | `skill_check` |
+| Unbekannt | Ein Agent, auf dem eine Skill-Prüfung nicht laufen konnte, mit dem Grund genannt; die Person bestätigt ihn vor dem Anwenden | `state: unknown` |
 
 ## Capabilities { #capabilities }
 

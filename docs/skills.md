@@ -309,6 +309,39 @@ agent only, the change waits in the draft. A Builder already open on the agent d
 not see the change until it is reloaded, and saving it before then puts the old
 binding back.
 
+### Improving a skill
+
+**Improve** on the skill page improves one line of the skill: main, or one fork.
+It runs in the same wizard as [an agent's](authoring.md#improving-a-skill), with
+the same steps, stops, prices and expiry.
+
+Its check runs the change on every agent of that line and on no other: main's
+agents for main, a fork's agents for that fork. Pinned agents and agents on
+another fork are not checked, because the change does not reach them. Each agent
+answers the skill's own test questions, then some of its own, and its share of
+the check is billed to its own budget.
+
+A change is better when:
+
+- no agent has a confirmed regression;
+- at least one agent is better.
+
+A result within noise is a warning, not a block. An agent that could not be
+checked shows as **unknown**, with the reason, and the person acknowledges it
+before applying the change.
+
+When an agent comes out worse, the person chooses one of four:
+
+| Choice | What happens |
+|---|---|
+| Improve further | Another attempt, with a note in the person's words |
+| Apply and pin | Main gets the new version; the worse agents stay pinned on the version they read |
+| Fork for the agents it helped | Main stays as it is; a new fork with the change takes the agents that got better |
+| Discard | Nothing changes |
+
+On a fork, only **Improve further** and **Discard** are offered when an agent comes
+out worse: forks start only from main, and pinning is a state on the main line.
+
 ### Deleting a skill
 
 A skill that an agent uses cannot be deleted. That is a skill bound by a live
@@ -327,6 +360,9 @@ others. A skill that nobody uses is deleted with its versions and forks.
 | `PATCH /api/v1/skills/{id}/forks/{fork_id}`, `POST …/archive` | Renames a fork, or archives it |
 | `GET /api/v1/skills/{id}/agents` | The skill's agents, the version each reads, and how many are hidden |
 | `PUT /api/v1/skills/{id}/agents/{agent_id}/binding` | Moves an agent to main, a main version or a fork |
+| `POST /api/v1/skills/{id}/improvements/estimate`, `POST /api/v1/skills/{id}/improvements` | Prices and starts an Improve session on main or on a fork |
+| `POST /api/v1/skills/{id}/improvements/{session_id}/apply`, `…/fork`, `…/discard` | Applies a session's result, with or without pinning the worse agents, forks it for the agents it helped, or discards it |
+| `GET /api/v1/skill-improvements/awaiting` | The skill sessions waiting for a person |
 
 ## Getting skills into an organization
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "e2344fe1861a"
+source_sha: "b308ba6c2440"
 title: "Asystent tworzenia"
 description: "Asystent tworzenia czyta, co ludzie ocenili negatywnie i jak kończyły się runy, i sugeruje zmiany w instrukcjach agenta, jego narzędziach, konfiguracji, skillach i plikach kontekstowych. O każdej decyduje człowiek."
 ---
@@ -250,12 +250,13 @@ Skill ulepsza się z jego workbencha w zakładce Skille. Asystent sugeruje cał�
 nową treść, która czeka razem z innymi zmianami [skilli](skills.md) w zakładce
 Skille, z uzasadnieniem i dowodami.
 
-Zastosowanie zmiany skilla działa od razu: każdy agent powiązany ze skillem
-czyta nową treść przy następnym runie. Dlatego zmianę skilla można najpierw
-sprawdzić w ewaluacji na agencie, który go używa: obie strony uruchamiają
-opublikowaną wersję tego agenta, a różni się tylko treść skilla. Zmiana
-napisana dla starszej wersji skilla jest odrzucana, jeśli ktoś w międzyczasie
-zmienił skill.
+Zastosowanie zmiany skilla tworzy nową wersję main, którą czytają tylko agenci na
+main; agenci przypięci i forki zostają przy swoich (zobacz
+[Wersje i forki](skills.md#versions-and-forks)). Zmianę skilla można najpierw
+sprawdzić w ewaluacji: obie strony uruchamiają opublikowaną wersję agenta, a różni
+się tylko treść skilla. Zmiana napisana dla starszej wersji skilla jest odrzucana,
+jeśli ktoś w międzyczasie zmienił skill. Skill czytany przez kilku agentów ulepsza
+się, ze sprawdzeniem na każdym z nich, przez [Popraw](#improving-a-skill).
 
 ## Pliki kontekstowe { #context-files }
 
@@ -496,6 +497,47 @@ każdy kolejny krok swoją cenę. Woła te same akcje co kreator, jako Ty, więc
 obowiązują te same sprawdzenia: zmieniony agent odmawia przyjęcia, chronione
 środowisko czeka na swój check, a dziennik audytu zapisuje Ciebie, z
 poświadczeniem Architekta obok.
+
+### Ulepszanie skilla { #improving-a-skill }
+
+Skill czytany przez kilku agentów ulepsza się z jego własnej strony, przyciskiem
+**Popraw**. Sesja ulepsza jedną linię skilla, main albo jeden fork, w tym samym
+kreatorze co sesja agenta. Ma te same pięć kroków, te same postoje po
+**Zrozumieniu**, po **Zmianach** i na wyniku, **Następny krok** z ceną,
+**Spróbuj ponownie** z notatką i to samo wygaśnięcie po siedmiu dniach.
+
+- **Zrozumienie** czyta tylko odpowiedzi, w których agent otworzył wersję tej
+  linii skilla, od każdego agenta na tej linii. Dzieli złe odpowiedzi na problemy
+  w skillu i problemy, które nie są winą skilla, na przykład instrukcje agenta
+  albo brakującą wiedzę. Każdy problem wymienia agentów, u których występuje.
+- **Zmiany** proponują edycje fragmentów treści skilla i najwyżej jedną zmianę
+  jego opisu, nigdy jego plików. Każdą można wybrać, przeredagować albo pominąć,
+  tak jak u agenta.
+- **Sprawdzenie** uruchamia wybrane zmiany na każdym agencie linii, według reguły
+  z [Ulepszania skilla](skills.md#improving-a-skill). Szybkie sprawdzenie używa
+  pytań testowych skilla i najwyżej czterech własnych pytań każdego agenta, w
+  których otworzył skill. Zmieniony opis zawsze dostaje dokładne sprawdzenie, na
+  całym zestawie pytań testowych każdego agenta, bo opis decyduje, kiedy agent
+  otwiera skill. Część kosztu każdego agenta idzie z budżetu tego agenta, a agenci
+  bez budżetu są wymienieni przed startem kroku.
+- **Wynik** pokazuje każdego agenta jako lepszego, bez zmian, w granicach szumu,
+  gorszego albo nieznanego.
+- **Akceptacja** stosuje zmianę, stosuje ją z przypięciem gorszych agentów albo
+  robi fork dla agentów, którym pomogła, zależnie od tego, na co pozwala wynik. Do
+  tego momentu żaden agent nie czyta niczego nowego.
+
+Akceptacja wymaga prawa edycji skilla, a przypięcie gorszego agenta - prawa do
+jego publikacji. Agenci, których nie widzisz, są policzeni, nigdy wymienieni.
+
+Gdy sesja Popraw agenta znajdzie problem w skillu, który agent czyta, nie kopiuje
+tekstu skilla do instrukcji agenta. Proponuje **Popraw skill**, które zaczyna sesję
+na linii agenta w tym skillu - na jego forku, jeśli jest na forku - z tymi
+problemami już w **Zrozumieniu**.
+
+Sesje skilli czekające na człowieka są na karcie **Poprawki czekające na Ciebie**.
+[Architekt](#asking-the-architect) czyta agentów skilla, jego wersje i sesje.
+Zaczyna sesję, uruchamia krok, akceptuje wynik, kończy sesję albo przesuwa agenta
+na inną wersję tylko na Twoją prośbę, każde przez kartę akceptacji.
 
 ### Propozycja nowego skilla { #proposing-a-new-skill }
 

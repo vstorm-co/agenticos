@@ -1,5 +1,5 @@
 ---
-source_sha: "e2344fe1861a"
+source_sha: "b308ba6c2440"
 title: "Asistente de autoría"
 description: "El asistente de autoría lee lo que la gente valoró negativamente y cómo acabaron los runs, y sugiere cambios a las instrucciones, las herramientas, la configuración, los skills y los archivos de contexto de un agent. Una persona decide cada uno."
 ---
@@ -255,12 +255,14 @@ Un skill se mejora desde su banco de trabajo en Skills. Lo que sugiere el
 asistente es un cuerpo nuevo completo, que espera con los demás cambios de
 [skills](skills.md) en Skills, con su justificación y evidencia.
 
-Aplicar un cambio a un skill es inmediato: cada agent vinculado al skill lee el
-cuerpo nuevo en su siguiente run. Por eso un cambio a un skill se puede comprobar
-antes con evals, en un agent que lo usa: los dos lados ejecutan la versión
-publicada de ese agent, y solo cambia el cuerpo del skill. Un cambio escrito para
-una versión anterior del skill se rechaza si alguien ha cambiado el skill desde
-entonces.
+Aplicar un cambio a un skill crea una versión nueva de main, que solo leen los
+agents en main; los agents fijados y los forks conservan la suya (ver
+[Versiones y forks](skills.md#versions-and-forks)). Un cambio a un skill se puede
+comprobar antes con evals: los dos lados ejecutan la versión publicada de un agent,
+y solo cambia el cuerpo del skill. Un cambio escrito para una versión anterior del
+skill se rechaza si alguien ha cambiado el skill desde entonces. Para mejorar un
+skill que leen varios agents, comprobado en todos ellos, usa
+[Improve](#improving-a-skill).
 
 ## Archivos de contexto { #context-files }
 
@@ -506,6 +508,48 @@ sesión, y cada paso siguiente su propio precio. Llama a las mismas acciones que
 el asistente, como tú, así que se aplican las mismas comprobaciones: un agente
 cambiado rechaza la aceptación, un entorno protegido espera su comprobación y el
 registro de auditoría te anota a ti, con la credencial del Architect al lado.
+
+### Mejorar un skill { #improving-a-skill }
+
+Un skill que leen varios agents se mejora desde su propia página, con **Improve**.
+Una sesión mejora una línea del skill, main o un fork, en el mismo asistente que la
+de un agent. Tiene los mismos cinco pasos, las mismas paradas tras **Comprender**,
+tras **Cambios** y en el resultado, **Next step** con su precio, **Try again** con
+una nota y la misma caducidad de siete días.
+
+- **Comprender** lee solo respuestas en las que un agent abrió una versión de esta
+  línea del skill, de cada agent de la línea. Separa las malas en problemas del
+  skill y problemas que no son del skill, como las instrucciones de un agent o el
+  conocimiento que falta. Cada problema nombra los agents en los que aparece.
+- **Cambios** propone ediciones de partes del cuerpo del skill y como mucho un
+  cambio de su descripción, nunca sus archivos. Cada una se puede elegir,
+  reformular o dejar fuera, como en un agent.
+- **Comprobación** ejecuta los cambios elegidos en cada agent de la línea, con la regla de
+  [Mejorar un skill](skills.md#improving-a-skill). Una comprobación rápida usa las
+  preguntas de prueba del skill y hasta cuatro preguntas propias de cada agent en
+  las que abrió el skill. Una descripción cambiada siempre recibe la comprobación
+  completa, con todas las preguntas de prueba de cada agent, porque la descripción
+  decide cuándo un agent abre el skill. La parte de cada agent se carga a su
+  budget, y los agents sin budget se nombran antes de empezar el paso.
+- **Resultado** muestra cada agent como mejor, sin cambios, dentro del ruido, peor o
+  desconocido.
+- **Aceptar** aplica el cambio, lo aplica fijando los agents que empeoraron o crea
+  un fork para los agents a los que ayudó, según lo que permita el resultado.
+  Antes de eso ningún agent lee nada nuevo.
+
+Aceptar requiere acceso de edición al skill, y fijar un agent que empeoró requiere
+permiso para publicarlo. Los agents que no puedes ver se cuentan, nunca se nombran.
+
+Cuando la sesión Improve de un agent encuentra un problema en un skill que el agent
+lee, no copia el texto del skill en las instrucciones del agent. Ofrece
+**Improve skill**, que inicia una sesión en la línea del agent en ese skill, su
+fork cuando está en uno, con esos problemas ya en **Comprender**.
+
+Las sesiones de skills que esperan a una persona aparecen en
+**Improvements waiting for you**. El [Architect](#asking-the-architect) lee los
+agents, las versiones y las sesiones de un skill. Inicia una sesión, ejecuta un
+paso, acepta un resultado, termina una sesión o mueve un agent a otra versión solo
+cuando se lo pides, cada vez mediante una tarjeta de aprobación.
 
 ### Proponer un skill nuevo { #proposing-a-new-skill }
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "7114c0b3ea9f"
+source_sha: "6e334ae9eef2"
 ---
 
 # Skills { #skills }
@@ -344,6 +344,42 @@ nur zu bearbeiten, wartet die Änderung im Entwurf. Ein bereits auf dem Agent
 geöffneter Builder sieht die Änderung erst nach dem Neuladen, und ein Speichern
 davor stellt die alte Bindung wieder her.
 
+### Einen Skill verbessern { #improving-a-skill }
+
+**Verbessern** auf der Seite des Skills verbessert eine Linie des Skills: main oder
+einen Fork. Es läuft im selben Assistenten wie
+[das Verbessern eines Agents](authoring.md#improving-a-skill), mit denselben
+Schritten, Halten, Preisen und derselben Ablauffrist.
+
+Die Prüfung führt die Änderung auf jedem Agent dieser Linie aus und auf keinem
+anderen: auf den Agents von main für main, auf den Agents eines Forks für diesen
+Fork. Fixierte Agents und Agents auf einem anderen Fork werden nicht geprüft, weil
+die Änderung sie nicht erreicht. Jeder Agent beantwortet die eigenen Testfragen
+des Skills, dann einige seiner eigenen, und sein Anteil an der Prüfung geht auf
+sein eigenes Budget.
+
+Eine Änderung ist besser, wenn:
+
+- kein Agent eine bestätigte Regression hat;
+- mindestens ein Agent besser ist.
+
+Ein Ergebnis im Rauschen ist eine Warnung, keine Sperre. Ein Agent, der sich nicht
+prüfen ließ, erscheint als **unbekannt**, mit dem Grund, und die Person bestätigt
+ihn, bevor sie die Änderung anwendet.
+
+Wird ein Agent schlechter, wählt die Person eine von vier Möglichkeiten:
+
+| Wahl | Was geschieht |
+|---|---|
+| Weiter verbessern | Ein weiterer Versuch, mit einer Notiz in den Worten der Person |
+| Anwenden und fixieren | Main bekommt die neue Version; die schlechteren Agents bleiben auf der Version fixiert, die sie lesen |
+| Fork für die Agents, denen es half | Main bleibt, wie es ist; ein neuer Fork mit der Änderung übernimmt die Agents, die besser wurden |
+| Verwerfen | Nichts ändert sich |
+
+Auf einem Fork gibt es, wenn ein Agent schlechter wird, nur **Weiter verbessern**
+und **Verwerfen**: Forks gehen nur von main aus, und Fixieren ist ein Zustand auf
+der Main-Linie.
+
 ### Einen Skill löschen { #deleting-a-skill }
 
 Ein Skill, den ein Agent verwendet, lässt sich nicht löschen. Das ist ein Skill,
@@ -363,6 +399,9 @@ den niemand verwendet, wird mit seinen Versionen und Forks gelöscht.
 | `PATCH /api/v1/skills/{id}/forks/{fork_id}`, `POST …/archive` | Benennt einen Fork um oder archiviert ihn |
 | `GET /api/v1/skills/{id}/agents` | Die Agents des Skills, die Version, die jeder liest, und wie viele verborgen sind |
 | `PUT /api/v1/skills/{id}/agents/{agent_id}/binding` | Verschiebt einen Agent auf main, eine Main-Version oder einen Fork |
+| `POST /api/v1/skills/{id}/improvements/estimate`, `POST /api/v1/skills/{id}/improvements` | Berechnet den Preis einer Verbessern-Sitzung auf main oder einem Fork und startet sie |
+| `POST /api/v1/skills/{id}/improvements/{session_id}/apply`, `…/fork`, `…/discard` | Übernimmt das Ergebnis einer Sitzung, mit oder ohne Fixieren der schlechteren Agents, macht daraus einen Fork für die Agents, denen es half, oder verwirft es |
+| `GET /api/v1/skill-improvements/awaiting` | Die Skill-Sitzungen, die auf einen Menschen warten |
 
 ## Skills in eine Organisation bekommen { #getting-skills-into-an-organization }
 

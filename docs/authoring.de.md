@@ -1,5 +1,5 @@
 ---
-source_sha: "e2344fe1861a"
+source_sha: "b308ba6c2440"
 title: "Authoring-Assistent"
 description: "Der Authoring-Assistent liest, was Leute negativ bewertet haben und wie Runs endeten, und schlägt Änderungen an Anweisungen, Tools, Konfiguration, Skills und Context-Dateien eines Agents vor. Über jede entscheidet ein Mensch."
 ---
@@ -263,13 +263,14 @@ Ein Skill wird aus seiner Werkbank unter Skills verbessert. Der Assistent schlä
 einen vollständigen neuen Inhalt vor, der mit den anderen
 [Skill](skills.md)-Änderungen unter Skills wartet, mit Begründung und Belegen.
 
-Das Anwenden einer Skill-Änderung wirkt sofort: Jeder an den Skill gebundene
-Agent liest den neuen Inhalt beim nächsten Run. Deshalb lässt sich eine
-Skill-Änderung zuerst mit Evals prüfen, an einem Agent, der den Skill nutzt:
-Beide Seiten führen die veröffentlichte Version dieses Agents aus, und nur der
-Inhalt des Skills unterscheidet sich. Eine Änderung, die für eine ältere Version
-des Skills geschrieben wurde, wird abgelehnt, sobald jemand den Skill seitdem
-geändert hat.
+Das Anwenden einer Skill-Änderung erzeugt eine neue Main-Version, die nur die
+Agents auf main lesen; fixierte Agents und Forks behalten ihre (siehe
+[Versionen und Forks](skills.md#versions-and-forks)). Eine Skill-Änderung lässt
+sich zuerst mit Evals prüfen: Beide Seiten führen die veröffentlichte Version eines
+Agents aus, und nur der Inhalt des Skills unterscheidet sich. Eine Änderung, die für
+eine ältere Version des Skills geschrieben wurde, wird abgelehnt, sobald jemand den
+Skill seitdem geändert hat. Einen Skill, den mehrere Agents lesen, verbessern Sie,
+geprüft an allen, mit [Verbessern](#improving-a-skill).
 
 ## Context-Dateien { #context-files }
 
@@ -524,6 +525,54 @@ Sitzung, jeder weitere Schritt seinen eigenen Preis. Er ruft als Sie dieselben
 Aktionen wie der Assistent auf, daher gelten dieselben Prüfungen: Ein geänderter
 Agent lehnt die Übernahme ab, eine geschützte Umgebung wartet auf ihren Check,
 und das Audit-Log verzeichnet Sie, mit der Kennung des Architekten daneben.
+
+### Einen Skill verbessern { #improving-a-skill }
+
+Einen Skill, den mehrere Agents lesen, verbessern Sie auf seiner eigenen Seite mit
+**Verbessern**. Eine Sitzung verbessert eine Linie des Skills, main oder einen
+Fork, im selben Assistenten wie die eines Agents. Sie hat dieselben fünf Schritte,
+dieselben Halte nach **Verstehen**, nach **Änderungen** und beim Ergebnis,
+**Nächster Schritt** mit seinem Preis, **Erneut versuchen** mit einer Notiz und
+dieselbe Ablauffrist von sieben Tagen.
+
+- **Verstehen** liest nur Antworten, in denen ein Agent eine Version dieser Linie
+  des Skills geöffnet hat, von jedem Agent auf der Linie. Es teilt die schlechten
+  in Probleme im Skill und Probleme, die nicht beim Skill liegen, etwa die
+  Anweisungen eines Agents oder fehlendes Wissen. Jedes Problem nennt die Agents,
+  bei denen es auftritt.
+- **Änderungen** schlägt Bearbeitungen von Teilen des Skill-Inhalts vor und
+  höchstens eine Änderung seiner Beschreibung, nie seine Dateien. Jede lässt sich
+  wählen, umformulieren oder weglassen, wie bei einem Agent.
+- **Prüfung** führt die gewählten Änderungen auf jedem Agent der Linie aus, nach
+  der Regel in [Einen Skill verbessern](skills.md#improving-a-skill). Eine schnelle
+  Prüfung nutzt die Testfragen des Skills und bis zu vier eigene Fragen jedes
+  Agents, in denen er den Skill geöffnet hat. Eine geänderte Beschreibung bekommt
+  immer die gründliche Prüfung, auf allen Testfragen jedes Agents, weil die
+  Beschreibung entscheidet, wann ein Agent den Skill öffnet. Der Anteil jedes Agents
+  geht auf dessen Budget, und Agents ohne verbleibendes Budget werden vor dem
+  Schritt genannt.
+- **Ergebnis** zeigt jeden Agent als besser, unverändert, im Rauschen, schlechter
+  oder unbekannt.
+- **Annehmen** wendet die Änderung an, wendet sie mit fixierten schlechteren Agents
+  an oder macht einen Fork für die Agents, denen sie half, je nachdem, was das
+  Ergebnis erlaubt. Vorher liest kein Agent etwas Neues.
+
+Annehmen braucht Bearbeitungszugriff auf den Skill, und das Fixieren eines
+schlechteren Agents die Berechtigung, ihn zu veröffentlichen. Agents, die Sie nicht
+sehen, werden gezählt, nie genannt.
+
+Findet die Verbessern-Sitzung eines Agents ein Problem in einem Skill, den der Agent
+liest, kopiert sie den Text des Skills nicht in die Anweisungen des Agents. Sie
+bietet **Skill verbessern** an, das eine Sitzung auf der Linie des Agents in diesem
+Skill startet, auf seinem Fork, wenn er auf einem ist, mit diesen Problemen schon
+in **Verstehen**.
+
+Skill-Sitzungen, die auf einen Menschen warten, stehen auf der Karte
+**Verbesserungen, die auf Sie warten**. Der [Architekt](#asking-the-architect) liest
+die Agents, Versionen und Sitzungen eines Skills. Er startet eine Sitzung, führt
+einen Schritt aus, nimmt ein Ergebnis an, beendet eine Sitzung oder verschiebt einen
+Agent auf eine andere Version nur, wenn Sie darum bitten, jeweils über eine
+Freigabekarte.
 
 ### Einen neuen Skill vorschlagen { #proposing-a-new-skill }
 

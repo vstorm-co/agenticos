@@ -1,5 +1,5 @@
 ---
-source_sha: "7114c0b3ea9f"
+source_sha: "6e334ae9eef2"
 ---
 
 # Skille { #skills }
@@ -318,6 +318,40 @@ pozostałe niedokończone edycje, które nie wchodzą. Z samym prawem edycji age
 zmiana czeka w wersji roboczej. Builder otwarty już na tym agencie nie widzi zmiany
 do odświeżenia, a zapis przed odświeżeniem przywraca stare wiązanie.
 
+### Ulepszanie skilla { #improving-a-skill }
+
+**Popraw** na stronie skilla ulepsza jedną linię skilla: main albo jeden fork.
+Działa w tym samym kreatorze co [Popraw agenta](authoring.md#improving-a-skill),
+z tymi samymi krokami, postojami, cenami i wygasaniem.
+
+Sprawdzenie uruchamia zmianę na każdym agencie tej linii i na żadnym innym: na
+agentach main dla main, na agentach forka dla tego forka. Agenci przypięci i
+agenci na innym forku nie są sprawdzani, bo zmiana do nich nie trafia. Każdy agent
+odpowiada na pytania testowe samego skilla, potem na część własnych, a jego część
+kosztu sprawdzenia idzie z jego własnego budżetu.
+
+Zmiana jest lepsza, gdy:
+
+- żaden agent nie ma potwierdzonej regresji;
+- co najmniej jeden agent jest lepszy.
+
+Wynik w granicach szumu to ostrzeżenie, nie blokada. Agent, którego nie dało się
+sprawdzić, jest pokazany jako **nieznany**, z powodem, a osoba potwierdza go przed
+zastosowaniem zmiany.
+
+Gdy agent wychodzi gorzej, osoba wybiera jedną z czterech opcji:
+
+| Wybór | Co się dzieje |
+|---|---|
+| Popraw dalej | Kolejna próba, z notatką własnymi słowami tej osoby |
+| Zastosuj i przypnij | Main dostaje nową wersję; gorsi agenci zostają przypięci do wersji, którą czytają |
+| Fork dla agentów, którym pomogła | Main zostaje bez zmian; nowy fork ze zmianą przejmuje agentów, którzy wyszli lepiej |
+| Odrzuć | Nic się nie zmienia |
+
+Na forku, gdy agent wychodzi gorzej, dostępne są tylko **Popraw dalej** i
+**Odrzuć**: forki zaczynają się wyłącznie od main, a przypięcie to stan na linii
+main.
+
 ### Usuwanie skilla { #deleting-a-skill }
 
 Skilla, którego używa agent, nie można usunąć. Chodzi o skill związany przez
@@ -337,6 +371,9 @@ jego wersjami i forkami.
 | `PATCH /api/v1/skills/{id}/forks/{fork_id}`, `POST …/archive` | Zmienia nazwę forka albo go archiwizuje |
 | `GET /api/v1/skills/{id}/agents` | Agenci skilla, wersja, którą czyta każdy z nich, i liczba ukrytych |
 | `PUT /api/v1/skills/{id}/agents/{agent_id}/binding` | Przesuwa agenta na main, wersję main albo fork |
+| `POST /api/v1/skills/{id}/improvements/estimate`, `POST /api/v1/skills/{id}/improvements` | Wycenia i zaczyna sesję Popraw na main albo na forku |
+| `POST /api/v1/skills/{id}/improvements/{session_id}/apply`, `…/fork`, `…/discard` | Stosuje wynik sesji, z przypięciem gorszych agentów albo bez, robi z niego fork dla agentów, którym pomógł, albo go odrzuca |
+| `GET /api/v1/skill-improvements/awaiting` | Sesje skilli czekające na człowieka |
 
 ## Jak skille trafiają do organizacji { #getting-skills-into-an-organization }
 

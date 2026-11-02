@@ -1,5 +1,5 @@
 ---
-source_sha: "7114c0b3ea9f"
+source_sha: "6e334ae9eef2"
 ---
 
 # Skills { #skills }
@@ -327,6 +327,40 @@ para editar el agent, el cambio espera en el borrador. Un Builder ya abierto en 
 agent no ve el cambio hasta que se recarga, y guardar antes vuelve a poner el
 vínculo anterior.
 
+### Mejorar un skill { #improving-a-skill }
+
+**Improve** en la página del skill mejora una línea del skill: main o un fork.
+Funciona en el mismo asistente que [el de un agent](authoring.md#improving-a-skill),
+con los mismos pasos, paradas, precios y caducidad.
+
+Su comprobación ejecuta el cambio en cada agent de esa línea y en ningún otro: los
+agents de main para main, los agents de un fork para ese fork. Los agents fijados y
+los agents en otro fork no se comprueban, porque el cambio no les llega. Cada agent
+responde a las preguntas de prueba del propio skill y después a algunas de las
+suyas, y su parte de la comprobación se carga a su propio budget.
+
+Un cambio es mejor cuando:
+
+- ningún agent tiene una regresión confirmada;
+- al menos un agent mejora.
+
+Un resultado dentro del ruido es un aviso, no un bloqueo. Un agent que no se pudo
+comprobar aparece como **desconocido**, con el motivo, y la persona lo reconoce
+antes de aplicar el cambio.
+
+Cuando un agent sale peor, la persona elige una de cuatro opciones:
+
+| Opción | Qué ocurre |
+|---|---|
+| Seguir mejorando | Otro intento, con una nota en palabras de la persona |
+| Aplicar y fijar | Main recibe la versión nueva; los agents que empeoraron quedan fijados en la versión que leen |
+| Fork para los agents a los que ayudó | Main queda como está; un fork nuevo con el cambio se lleva a los agents que mejoraron |
+| Descartar | No cambia nada |
+
+En un fork, cuando un agent sale peor, solo se ofrecen **Seguir mejorando** y
+**Descartar**: los forks parten solo de main, y fijar es un estado de la línea
+main.
+
 ### Borrar un skill { #deleting-a-skill }
 
 Un skill que usa un agent no se puede borrar. Es un skill vinculado por el borrador
@@ -345,6 +379,9 @@ cuenta los demás. Un skill que nadie usa se borra con sus versiones y sus forks
 | `PATCH /api/v1/skills/{id}/forks/{fork_id}`, `POST …/archive` | Cambia el nombre de un fork o lo archiva |
 | `GET /api/v1/skills/{id}/agents` | Los agents del skill, la versión que lee cada uno y cuántos están ocultos |
 | `PUT /api/v1/skills/{id}/agents/{agent_id}/binding` | Mueve un agent a main, a una versión de main o a un fork |
+| `POST /api/v1/skills/{id}/improvements/estimate`, `POST /api/v1/skills/{id}/improvements` | Calcula el precio de una sesión Improve en main o en un fork y la inicia |
+| `POST /api/v1/skills/{id}/improvements/{session_id}/apply`, `…/fork`, `…/discard` | Aplica el resultado de una sesión, fijando o no los agents que empeoraron, lo convierte en un fork para los agents a los que ayudó, o lo descarta |
+| `GET /api/v1/skill-improvements/awaiting` | Las sesiones de skills que esperan a una persona |
 
 ## Cómo llegan los skills a una organización { #getting-skills-into-an-organization }
 
