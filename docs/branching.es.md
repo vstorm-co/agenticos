@@ -1,5 +1,5 @@
 ---
-source_sha: "67be83d81d42"
+source_sha: "9fe09e5e598b"
 ---
 
 # Ramas y qué las protege { #branches-and-what-protects-them }
@@ -390,6 +390,11 @@ ejecuciones correctas; sin prueba o ante errores de API se ejecutan las comproba
 completas. Se aplica al PR de corte y a su merge en `main`. Los cambios normales
 mantienen sus comprobaciones y CodeQL programado sigue siendo completo.
 El ruleset y la protección de merge por code scanning siguen activos.
+
+Reutilizar CodeQL exige además los cuatro informes SARIF conservados de un análisis
+completo. Se suben para el nuevo commit y se espera su procesamiento, de modo que
+la protección de merge recibe resultados para ese commit. Las ejecuciones que
+reutilizan informes no permiten otra reutilización; los análisis programados siguen completos.
 
 Backend y frontend se siguen construyendo para el SHA del corte porque contienen
 la versión de aplicación. La etiqueta reutiliza los manifiestos de ese mismo SHA;

@@ -1,5 +1,5 @@
 ---
-source_sha: "67be83d81d42"
+source_sha: "9fe09e5e598b"
 ---
 
 # Branches und was sie schützt { #branches-and-what-protects-them }
@@ -404,6 +404,11 @@ erfolgreichen Läufe; fehlende Nachweise oder API-Fehler starten vollständige
 Prüfungen. Das gilt für Cut-PR und Merge auf `main`. Normale Änderungen behalten
 ihre Prüfungen, geplante CodeQL-Läufe bleiben vollständig. Ruleset und
 Code-Scanning-Mergeschutz bleiben aktiv.
+
+CodeQL-Wiederverwendung verlangt zusätzlich alle vier gespeicherten SARIF-Berichte
+einer vollständigen Analyse. Sie werden für den neuen Commit hochgeladen und ihre
+Verarbeitung wird abgewartet, damit der Mergeschutz Ergebnisse für diesen Commit erhält.
+Wiederverwendende Läufe dienen nicht als neue Quelle; geplante Analysen bleiben vollständig.
 
 Backend und Frontend werden weiter für die Cut-SHA gebaut, weil sie die
 Anwendungsversion enthalten. Ein Tag verwendet die Manifeste derselben SHA;

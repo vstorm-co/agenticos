@@ -124,7 +124,7 @@ def fetch_commit(sha: str) -> None:
         command("git", "fetch", "--no-tags", "--depth=1", "origin", sha)
 
 
-def checked_source(repository: str, workflow: str, head: str) -> bool:
+def checked_source(repository: str, workflow: str, head: str) -> int | None:
     runs = records(
         api(f"repos/{repository}/actions/workflows/{workflow}/runs?status=success&per_page=30"),
         "workflow_runs",
@@ -163,9 +163,25 @@ def checked_source(repository: str, workflow: str, head: str) -> bool:
             except (OSError, ValueError, subprocess.SubprocessError) as error:
                 print(f"Cannot reuse run {run_id}: {error}", file=sys.stderr)
                 continue
-            print(f"Reusing full {workflow} run {run_id} at {sha}", file=sys.stderr)
-            return True
-    return False
+            if workflow == "codeql.yml":
+                artifacts = records(
+                    api(f"repos/{repository}/actions/runs/{run_id}/artifacts?per_page=100"),
+                    "artifacts",
+                )
+                available = {
+                    artifact.get("name")
+                    for artifact in artifacts
+                    if artifact.get("expired") is False and isinstance(artifact.get("name"), str)
+                }
+                expected = {
+                    f"codeql-sarif-{language}"
+                    for language in ("actions", "javascript-typescript", "python", "rust")
+                }
+                if not expected <= available:
+                    continue
+            print(f"Reusing full {workflow} run {run_id} at {checked}", file=sys.stderr)
+            return run_id
+    return None
 
 
 def event_commits() -> tuple[str, str]:
@@ -189,16 +205,18 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--workflow", choices=("ci.yml", "codeql.yml"), required=True)
     args = parser.parse_args()
-    fast = False
+    evidence: int | None = None
     cut = False
     try:
         base, head = event_commits()
         cut = is_cut(base, head)
-        fast = cut and checked_source(os.environ["GITHUB_REPOSITORY"], args.workflow, head)
+        if cut:
+            evidence = checked_source(os.environ["GITHUB_REPOSITORY"], args.workflow, head)
     except (OSError, ValueError, TypeError, subprocess.SubprocessError) as error:
         print(f"Full checks required: {error}", file=sys.stderr)
     print(f"cut={'true' if cut else 'false'}")
-    print(f"reuse={'true' if fast else 'false'}")
+    print(f"reuse={'true' if evidence is not None else 'false'}")
+    print(f"evidence_run={evidence if evidence is not None else ''}")
 
 
 if __name__ == "__main__":

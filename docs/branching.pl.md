@@ -1,5 +1,5 @@
 ---
-source_sha: "67be83d81d42"
+source_sha: "9fe09e5e598b"
 ---
 
 # Gałęzie i to, co je chroni { #branches-and-what-protects-them }
@@ -393,6 +393,11 @@ Sprawdzanych jest 30 ostatnich udanych przebiegów;
 brak dowodu lub błąd API oznacza pełne kontrole. Dotyczy to PR-a cut i jego merge'a
 na `main`. Zwykłe zmiany zachowują dotychczasowe kontrole, a zaplanowany CodeQL
 pozostaje pełny. Ruleset i ochrona merge przez code scanning pozostają aktywne.
+
+Ponowne użycie CodeQL wymaga też czterech zachowanych raportów SARIF z pełnej
+analizy. Raporty trafiają do nowego commita, a workflow czeka na ich przetworzenie,
+więc ochrona merge przez code scanning otrzymuje wyniki dla tego commita. Przebiegi
+korzystające z raportów nie stanowią źródła kolejnego użycia; analizy zaplanowane są pełne.
 
 Backend i frontend nadal powstają dla SHA cut, ponieważ zawierają wersję aplikacji.
 Tag korzysta z manifestów tego samego SHA; skany i sześć SBOM nadal się wykonują,

@@ -112,7 +112,7 @@ def test_evidence_requires_real_successful_suites(
         }
 
     monkeypatch.setattr(scope, "api", api)
-    assert scope.checked_source("owner/repo", "ci.yml", head) is (missing is None)
+    assert scope.checked_source("owner/repo", "ci.yml", head) == (42 if missing is None else None)
 
 
 def test_api_failure_falls_back_to_full_run(
@@ -358,3 +358,33 @@ def test_pr_without_checkout_evidence_cannot_be_reused(
     monkeypatch.setattr(scope, "api", api)
     monkeypatch.setattr(scope, "checked_commit", missing)
     assert not scope.checked_source("owner/repo", "ci.yml", head)
+
+
+@pytest.mark.parametrize("missing", [None, "rust"])
+def test_codeql_requires_all_original_sarif_artifacts(
+    repository: tuple[str, str], monkeypatch: pytest.MonkeyPatch, missing: str | None
+) -> None:
+    base, head = repository
+    languages = ("actions", "javascript-typescript", "python", "rust")
+
+    def api(endpoint: str) -> object:
+        if "/runs?" in endpoint:
+            return {"workflow_runs": [{"head_sha": base, "id": 42, "event": "push"}]}
+        if "/artifacts?" in endpoint:
+            return {
+                "artifacts": [
+                    {"name": f"codeql-sarif-{language}", "expired": False}
+                    for language in languages
+                    if language != missing
+                ]
+            }
+        return {
+            "jobs": [
+                {"name": f"analyze {language}", "conclusion": "success"} for language in languages
+            ]
+        }
+
+    monkeypatch.setattr(scope, "api", api)
+    assert scope.checked_source("owner/repo", "codeql.yml", head) == (
+        42 if missing is None else None
+    )

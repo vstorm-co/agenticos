@@ -365,6 +365,11 @@ failure runs full checks. This applies to the cut PR and its merge on `main`.
 Ordinary source changes run the existing checks, and scheduled CodeQL stays full.
 The ruleset and code-scanning merge protection remain enabled.
 
+CodeQL reuse additionally requires all four retained SARIF reports from a full
+analysis. It uploads them for the new commit and waits for processing, so code-scanning
+merge protection still receives results for that commit. Reused runs do not seed
+further reuse; scheduled analyses remain full.
+
 Images still build backend and frontend for the cut SHA because those images
 contain the application version. A tag reuses that SHA's published manifests;
 scans and all six SBOMs still run, and SBOMs attach to the existing release. Each

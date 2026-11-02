@@ -56,6 +56,7 @@ jobs:
       actions: read
     outputs:
       reuse: ${{ steps.release.outputs.reuse }}
+      evidence_run: ${{ steps.release.outputs.evidence_run }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -71,7 +72,7 @@ jobs:
   analyze:
     name: analyze ${{ matrix.language }}
     needs: changes
-    if: ${{ !cancelled() && needs.changes.outputs.reuse != 'true' }}
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     # Measured against default setup's own weekly runs, which finish the Python
     # and JavaScript analyses in about six minutes each. Generous enough for a
@@ -84,6 +85,7 @@ jobs:
       # What the analysis upload needs. Declared per job rather than at the top
       # so nothing else in this file can write a security event.
       security-events: write
+      actions: read
     strategy:
       fail-fast: false
       matrix:
@@ -94,6 +96,7 @@ jobs:
           persist-credentials: false
 
       - name: Initialize CodeQL
+        if: needs.changes.outputs.reuse != 'true'
         uses: github/codeql-action/init@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
         with:
           languages: ${{ matrix.language }}
@@ -107,14 +110,42 @@ jobs:
           queries: security-extended
 
       - name: Perform CodeQL analysis
+        if: needs.changes.outputs.reuse != 'true'
         uses: github/codeql-action/analyze@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
         with:
           category: /language:${{ matrix.language }}
+          output: codeql-results
+
+      - name: Keep the full analysis for equivalent release source
+        if: needs.changes.outputs.reuse != 'true'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: codeql-sarif-${{ matrix.language }}
+          path: codeql-results/*.sarif
+          if-no-files-found: error
+          overwrite: true
+          retention-days: 30
+
+      - name: Restore the proven full analysis
+        if: needs.changes.outputs.reuse == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVIDENCE_RUN: ${{ needs.changes.outputs.evidence_run }}
+          LANGUAGE: ${{ matrix.language }}
+        run: gh run download "$EVIDENCE_RUN" --repo "$GITHUB_REPOSITORY" --name "codeql-sarif-$LANGUAGE" --dir codeql-results
+
+      - name: Publish the equivalent-source results for this commit
+        if: needs.changes.outputs.reuse == 'true'
+        uses: github/codeql-action/upload-sarif@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
+        with:
+          sarif_file: codeql-results
+          category: /language:${{ matrix.language }}
+          wait-for-processing: true
 
   checked-source:
     name: Record the checked source
-    needs: analyze
-    if: ${{ !cancelled() && needs.analyze.result == 'success' }}
+    needs: [changes, analyze]
+    if: ${{ !cancelled() && needs.changes.outputs.reuse != 'true' && needs.analyze.result == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
