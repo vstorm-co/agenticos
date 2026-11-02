@@ -2,11 +2,13 @@
 
 import { useState } from "react";
 import type { ReactNode } from "react";
-import { Code2, Eye, Trash2 } from "lucide-react";
+import { Code2, Eye, Maximize2, Trash2 } from "lucide-react";
 
 import { FileTextView } from "./file-render";
 import { Button } from "@/components/ui";
 import { CodeArea } from "@/components/ui/code-area";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import { DIALOG_WINDOW } from "@/lib/dialog-sizes";
 import { resolveFileKind } from "@/lib/file-kinds";
 import { cn } from "@/lib/utils";
 import { useTranslations } from "next-intl";
@@ -66,9 +68,11 @@ export function FileEditor({
 }) {
   const t = useTranslations("files");
   const tc = useTranslations("common");
+  const tu = useTranslations("ui");
   const [mode, setMode] = useState<"preview" | "source">(initialMode);
+  const [expanded, setExpanded] = useState(false);
 
-  return (
+  const pane = (
     <div className={cn("flex min-h-0 flex-1 flex-col rounded-md border", className)}>
       <div className="flex flex-wrap items-center gap-2 border-b px-3 py-2">
         <span className="min-w-0 flex-1 truncate font-mono text-xs">{name}</span>
@@ -86,6 +90,18 @@ export function FileEditor({
             onClick={() => setMode("source")}
           />
         </div>
+        {!expanded && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            data-tour="text-editor-expand"
+            aria-label={tu("expandEditor", { label: name })}
+            onClick={() => setExpanded(true)}
+          >
+            <Maximize2 className="size-4" aria-hidden />
+          </Button>
+        )}
         {onDelete && canEdit && (
           <Button
             variant="ghost"
@@ -129,6 +145,20 @@ export function FileEditor({
       {footer && <div className="flex items-center gap-2 border-t px-3 py-2">{footer}</div>}
     </div>
   );
+  return (
+    <>
+      {!expanded && pane}
+      <Dialog open={expanded} onOpenChange={setExpanded}>
+        <DialogContent
+          className={cn(DIALOG_WINDOW, "pt-14 max-sm:w-full max-sm:rounded-none sm:pt-14")}
+          aria-describedby={undefined}
+        >
+          <DialogTitle className="sr-only">{name}</DialogTitle>
+          {pane}
+        </DialogContent>
+      </Dialog>
+    </>
+  );
 }
 
 function ModeButton({
@@ -148,7 +178,7 @@ function ModeButton({
       onClick={onClick}
       aria-pressed={active}
       className={cn(
-        "inline-flex items-center gap-1 rounded px-2 py-1 text-xs transition-colors",
+        "touch:min-h-11 inline-flex min-h-9 items-center gap-1 rounded px-2 py-1 text-xs transition-colors sm:min-h-0",
         active ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground",
       )}
     >

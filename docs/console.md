@@ -36,6 +36,10 @@ Conversation agents are ordered by their latest message or top-level run, newest
 
 When **Approve everything** is unavailable, chat settings distinguish missing approval-decision permission from an organization policy that disables standing consent. A person allowed to decide approvals gets a link to **Budget and approvals**, where that policy can be changed explicitly. The chat never changes organization policy automatically.
 
+On phones, page actions use an aligned two-column layout. Opening a project or workspace file replaces the folder tree with its reader; the back arrow returns to the folders, and **Full screen** expands the reader.
+
+Markdown fields and file editors also offer an expand button without discarding the current draft. Skill descriptions and categories can be expanded above the editor. The chat composer uses less space and caps long drafts against the available screen height. Opening navigation focuses the panel, while Tab still reaches its controls. The workflow canvas has a floating full-screen control and a smaller minimap on phones.
+
 ## The dashboard
 
 The landing page is an **arrangeable grid of widgets**, and it is the answer to

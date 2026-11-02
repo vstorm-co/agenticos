@@ -102,3 +102,20 @@ it("traps keyboard focus and restores the opener when dismissed", async () => {
   await waitFor(() => expect(opener).toHaveFocus());
   expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
 });
+
+it("opens navigation on the panel and lets Tab reach its controls", async () => {
+  render(
+    <Sheet open onOpenChange={vi.fn()}>
+      <SheetContent focusContent>
+        <SheetTitle>Navigation</SheetTitle>
+        <button>Close navigation</button>
+        <a href="#agents">Agents</a>
+      </SheetContent>
+    </Sheet>,
+  );
+  await waitFor(() => expect(screen.getByRole("dialog")).toHaveFocus());
+  await userEvent.tab();
+  expect(screen.getByRole("button", { name: "Close navigation" })).toHaveFocus();
+  await userEvent.tab();
+  expect(screen.getByRole("link", { name: "Agents" })).toHaveFocus();
+});

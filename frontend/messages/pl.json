@@ -5044,6 +5044,7 @@
     "pushOnHint": "To urządzenie otrzymuje powiadomienia push"
   },
   "ui": {
+    "expandEditor": "Powiększ: {label}",
     "cancel": "Anuluj",
     "checkConnection": "Sprawdź połączenie i spróbuj ponownie.",
     "close": "Zamknij",
@@ -6088,6 +6089,30 @@
       "workspaces-browser": {
         "title": "Twoje dokumenty",
         "body": "Gdy agent zapisze plik, trafia tutaj - przeglądaj, podglądaj i pobieraj wszystko, co powstało w Twoich rozmowach."
+      },
+      "project-file-fullscreen": {
+        "title": "Więcej miejsca na pliki",
+        "body": "Otwórz plik i powiększ czytnik, aby wykorzystać ekran. Strzałka wstecz wraca do listy folderów."
+      },
+      "workspace-file-fullscreen": {
+        "title": "Więcej miejsca na pliki",
+        "body": "Otwórz plik i powiększ czytnik, aby wykorzystać ekran. Strzałka wstecz wraca do listy folderów."
+      },
+      "agent-editor-fullscreen": {
+        "title": "Powiększ edytor",
+        "body": "Przycisk powiększania pozwala wygodnie czytać i edytować dokument. Zamknięcie powiększonego edytora zachowuje bieżący szkic."
+      },
+      "skill-editor-fullscreen": {
+        "title": "Powiększ edytor",
+        "body": "Przycisk powiększania pozwala wygodnie czytać i edytować dokument. Zamknięcie powiększonego edytora zachowuje bieżący szkic."
+      },
+      "context-editor-fullscreen": {
+        "title": "Powiększ edytor",
+        "body": "Przycisk powiększania pozwala wygodnie czytać i edytować dokument. Zamknięcie powiększonego edytora zachowuje bieżący szkic."
+      },
+      "workflow-canvas-fullscreen": {
+        "title": "Pracuj na pełnym ekranie",
+        "body": "Pływający przycisk powiększa diagram. Naciśnij go ponownie, aby wrócić do nagłówka workflow; szkic pozostaje zachowany."
       },
       "workspaces-detail": {
         "title": "W folderze",

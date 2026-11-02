@@ -74,6 +74,8 @@ export const TABLE_DETAIL = "table-detail";
  * One workflow's runs, `/workflows/<id>/runs`, collapsed the same way. Not
  * `/workflows/runs` - every workflow's runs - which is a page of its own.
  */
+export const WORKFLOW_DETAIL = "workflow-detail";
+
 export const WORKFLOW_RUNS_DETAIL = "workflow-runs-detail";
 
 /** One workflow's log, `/workflows/<id>/logs`: "?"-only and shown in place, like its runs. */
@@ -447,6 +449,12 @@ export const TOUR_STEPS: readonly TourStep[] = [
     page: ROUTES.WORKFLOWS,
     target: "workflows-list",
     permission: Perm.workflowsView,
+  },
+  {
+    id: "workflow-canvas-fullscreen",
+    page: WORKFLOW_DETAIL,
+    target: "workflow-canvas-fullscreen",
+    optional: true,
   },
   // Every workflow's runs, filtered on the server: one describing stop on the list.
   {
@@ -884,6 +892,40 @@ export const TOUR_STEPS: readonly TourStep[] = [
   { id: "project-tabs", page: PROJECT_DETAIL, target: "project-tabs" },
   { id: "project-file-location", page: PROJECT_DETAIL, target: "project-file-location" },
 
+  {
+    id: "project-file-fullscreen",
+    page: PROJECT_DETAIL,
+    target: "workspace-fullscreen",
+    optional: true,
+  },
+  {
+    id: "workspace-file-fullscreen",
+    page: WORKSPACE_DETAIL,
+    target: "workspace-fullscreen",
+    optional: true,
+  },
+  {
+    id: "agent-editor-fullscreen",
+    page: AGENT_BUILDER,
+    target: "text-editor-expand",
+    permission: Perm.agentsView,
+    optional: true,
+  },
+  {
+    id: "skill-editor-fullscreen",
+    page: ROUTES.SKILLS,
+    target: "text-editor-expand",
+    permission: Perm.skillsView,
+    optional: true,
+  },
+  {
+    id: "context-editor-fullscreen",
+    page: ROUTES.CONTEXT,
+    target: "text-editor-expand",
+    permission: Perm.contextView,
+    optional: true,
+  },
+
   // Other vendors' agents, reached over A2A (#2092). The list is what the page
   // is for; registering is `agents:edit`, which the button carries.
   {
@@ -1011,6 +1053,8 @@ export function pageKey(path: string): string {
   if (path.startsWith(`${ROUTES.ARTIFACTS}/`)) return ARTIFACT_DETAIL;
   if (WORKFLOW_RUNS_PATH.test(path)) return WORKFLOW_RUNS_DETAIL;
   if (WORKFLOW_LOGS_PATH.test(path)) return WORKFLOW_LOGS_DETAIL;
+  if (/^\/workflows\/[^/]+$/.test(path) && path !== ROUTES.WORKFLOW_ALL_RUNS)
+    return WORKFLOW_DETAIL;
   return path;
 }
 

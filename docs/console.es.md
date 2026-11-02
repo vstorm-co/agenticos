@@ -1,5 +1,5 @@
 ---
-source_sha: "fed639325e0e"
+source_sha: "1eb28af1cb33"
 ---
 
 # La consola { #the-console }
@@ -43,6 +43,10 @@ Los ajustes del chat tienen un encabezado fijo y un botón de cierre sobre el co
 Los agentes de una conversación se ordenan por su último mensaje o ejecución principal, del más reciente al más antiguo. La barra de chat contraída mantiene los avatares a tamaño completo, superpone hasta tres y oculta a los participantes más antiguos; la lista completa sigue disponible en la ayuda emergente.
 
 Cuando **Approve everything** no está disponible, los ajustes del chat distinguen entre la falta de permiso para decidir aprobaciones y una política de la organización que desactiva el consentimiento permanente. Quien puede decidir aprobaciones recibe un enlace a **Presupuesto y aprobaciones** para cambiar esa política expresamente. El chat nunca modifica la política de la organización automáticamente.
+
+En el teléfono, las acciones de la página se organizan en dos columnas alineadas. Al abrir un archivo de proyecto o workspace, el visor sustituye al árbol de carpetas; la flecha de regreso vuelve a las carpetas y **Pantalla completa** amplía el visor.
+
+Los campos Markdown y los editores de archivos también ofrecen un botón para ampliar sin descartar el borrador actual. La descripción y la categoría de un skill pueden desplegarse encima del editor. El cuadro del chat ocupa menos espacio y limita los borradores largos según la altura disponible. Al abrir la navegación, el foco se sitúa en el panel; Tab sigue permitiendo acceder a sus controles. En el teléfono, el lienzo del workflow ofrece un control flotante de pantalla completa y un minimapa más pequeño.
 
 ## El dashboard { #the-dashboard }
 

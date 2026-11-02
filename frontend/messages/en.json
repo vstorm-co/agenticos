@@ -4707,6 +4707,30 @@
         "title": "Your documents",
         "body": "When an agent saves a file, it lands here - browse, preview and download whatever your conversations produced."
       },
+      "project-file-fullscreen": {
+        "title": "More room for files",
+        "body": "Open a file, then expand its reader to use the screen. The back arrow returns to the folder list."
+      },
+      "workspace-file-fullscreen": {
+        "title": "More room for files",
+        "body": "Open a file, then expand its reader to use the screen. The back arrow returns to the folder list."
+      },
+      "agent-editor-fullscreen": {
+        "title": "Expand the editor",
+        "body": "Use the expand button to read or edit the whole document. Closing the expanded editor keeps your current draft."
+      },
+      "skill-editor-fullscreen": {
+        "title": "Expand the editor",
+        "body": "Use the expand button to read or edit the whole document. Closing the expanded editor keeps your current draft."
+      },
+      "context-editor-fullscreen": {
+        "title": "Expand the editor",
+        "body": "Use the expand button to read or edit the whole document. Closing the expanded editor keeps your current draft."
+      },
+      "workflow-canvas-fullscreen": {
+        "title": "Work on the full screen",
+        "body": "This floating button expands the diagram. Use it again to return to the workflow header; your draft stays in place."
+      },
       "workspaces-detail": {
         "title": "Inside a folder",
         "body": "One agent's files, folder by folder. Preview a file, or download whatever an agent produced for you."
@@ -7898,6 +7922,7 @@
     "minutesAgo": "{count, plural, other {#m ago}}"
   },
   "ui": {
+    "expandEditor": "Expand {label}",
     "cancel": "Cancel",
     "checkConnection": "Check your connection and try again.",
     "close": "Close",

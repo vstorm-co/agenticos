@@ -1580,7 +1580,12 @@ function ChatUI({
                           composerStrip !== null && "rounded-t-none",
                         )}
                       >
-                        <div className={cn("px-3 pt-3 pb-1", !compact && "sm:px-4 sm:pt-4")}>
+                        <div
+                          className={cn(
+                            "px-2.5 pt-1 pb-0.5",
+                            !compact && "sm:px-4 sm:pt-4 sm:pb-1",
+                          )}
+                        >
                           {isArchived && (
                             <p className="text-muted-foreground pb-2 text-center font-mono text-xs tracking-wider uppercase">
                               {t("conversationArchived")}

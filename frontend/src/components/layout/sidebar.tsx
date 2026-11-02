@@ -26,7 +26,7 @@ export function Sidebar() {
 
   return (
     <Sheet open={isOpen} onOpenChange={close}>
-      <SheetContent side="left" className="w-72 p-0">
+      <SheetContent side="left" className="w-72 p-0" focusContent>
         <SheetHeader className="h-14 shrink-0 px-4">
           {/* The mark beside the name, as the bar it slides over and the
               desktop column both draw it. */}

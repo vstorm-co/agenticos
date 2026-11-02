@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
@@ -160,4 +160,16 @@ describe("the file editor", () => {
 
     expect(screen.getByText("the header")).toBeInTheDocument();
   });
+});
+
+it("keeps its editing mode when the file is expanded and closed", async () => {
+  mount();
+  await userEvent.click(screen.getByRole("button", { name: "Expand checklist.md" }));
+  const dialog = screen.getByRole("dialog", { name: "checklist.md" });
+  expect(within(dialog).getByRole("textbox")).toHaveValue("# Heading");
+  await userEvent.click(within(dialog).getByRole("button", { name: "Preview" }));
+  expect(within(dialog).getByTestId("rendered")).toHaveTextContent("# Heading");
+  await userEvent.click(within(dialog).getByRole("button", { name: "Close" }));
+  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Preview" })).toHaveAttribute("aria-pressed", "true");
 });

@@ -22,6 +22,8 @@ import {
   type EditableProjectFile,
 } from "@/lib/projects-api";
 import { qk } from "@/lib/query-keys";
+import { DIALOG_CANVAS, DIALOG_FILL } from "@/lib/dialog-sizes";
+import { cn } from "@/lib/utils";
 
 /** A modal editor keeps tree navigation from silently throwing away a draft. */
 export function ProjectFileEditor({ projectId, path }: { projectId: string; path: string }) {
@@ -86,7 +88,7 @@ export function ProjectFileEditor({ projectId, path }: { projectId: string; path
         }}
       >
         <DialogContent
-          className="flex h-[min(85dvh,56rem)] max-w-5xl flex-col gap-4 overflow-hidden"
+          className={cn(DIALOG_CANVAS, DIALOG_FILL)}
           onEscapeKeyDown={(event) => {
             event.preventDefault();
             close();

@@ -132,7 +132,9 @@ export function CodeArea({
 
   // A text face, not a code one: what is written here is prose for a model to
   // read, and set in a terminal font it read as configuration.
-  const shared = "px-4 py-3 font-sans text-[14px] leading-6 whitespace-pre-wrap break-words";
+  // iOS fields use 16px; the painted copy must wrap at exactly the same glyphs.
+  const shared =
+    "px-3 py-3 font-sans text-base md:text-[14px] leading-6 whitespace-pre-wrap break-words sm:px-4";
 
   return (
     // Both layers are absolutely positioned against this box, so they are the

@@ -109,12 +109,12 @@ export function ComposerHints({
       {previous && (
         <p
           key={`out-${shown}`}
-          className="composer-hint-out absolute inset-x-0 top-0 truncate py-2.5"
+          className="composer-hint-out absolute inset-x-0 top-0 truncate py-1.5 sm:py-2.5"
         >
           {say(previous)}
         </p>
       )}
-      <p key={`in-${shown}`} className="composer-hint-in truncate py-2.5">
+      <p key={`in-${shown}`} className="composer-hint-in truncate py-1.5 sm:py-2.5">
         {say(current)}
       </p>
     </div>

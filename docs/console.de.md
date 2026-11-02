@@ -1,5 +1,5 @@
 ---
-source_sha: "fed639325e0e"
+source_sha: "1eb28af1cb33"
 ---
 
 # Die Konsole { #the-console }
@@ -43,6 +43,10 @@ Die Chat-Einstellungen haben eine feste Überschrift und Schließen-Schaltfläch
 Die Agenten einer Unterhaltung sind nach ihrer letzten Nachricht oder ihrem letzten übergeordneten Lauf sortiert, die neuesten zuerst. Die eingeklappte Chat-Leiste behält die volle Avatargröße bei, überlagert bis zu drei Bilder und blendet ältere Teilnehmer aus; die vollständige Liste bleibt im Tooltip verfügbar.
 
 Ist **Approve everything** nicht verfügbar, unterscheiden die Chat-Einstellungen zwischen fehlender Entscheidungsberechtigung und einer Organisationsrichtlinie, die pauschale Zustimmung deaktiviert. Wer Genehmigungen entscheiden darf, erhält einen Link zu **Budget und Genehmigungen**, um die Richtlinie ausdrücklich zu ändern. Der Chat ändert die Organisationsrichtlinie niemals automatisch.
+
+Auf Telefonen stehen Seitenaktionen in zwei ausgerichteten Spalten. Beim Öffnen einer Projekt- oder Workspace-Datei ersetzt die Dateiansicht den Ordnerbaum; der Zurück-Pfeil führt zu den Ordnern zurück, und **Vollbild** vergrößert die Ansicht.
+
+Markdown-Felder und Dateieditoren bieten ebenfalls eine Schaltfläche zum Vergrößern, ohne den aktuellen Entwurf zu verwerfen. Beschreibung und Kategorie eines Skills lassen sich über dem Editor aufklappen. Das Chat-Eingabefeld benötigt weniger Platz und begrenzt lange Entwürfe anhand der verfügbaren Bildschirmhöhe. Beim Öffnen der Navigation erhält das Panel den Fokus; mit Tab sind dessen Bedienelemente weiterhin erreichbar. Der Workflow-Canvas bietet auf Telefonen eine schwebende Vollbild-Schaltfläche und eine kleinere Minimap.
 
 ## Das Dashboard { #the-dashboard }
 

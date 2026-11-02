@@ -41,7 +41,7 @@ export function PageHeader({
 }: PageHeaderProps) {
   const t = useTranslations("dashboard");
   return (
-    <div className={cn("mb-6", className)}>
+    <div className={cn("mb-4 shrink-0 sm:mb-6", className)}>
       {breadcrumbs && breadcrumbs.length > 0 && (
         <nav aria-label={t("breadcrumb")} className="mb-3">
           <ol className="text-muted-foreground flex flex-wrap items-center gap-1.5 text-xs">
@@ -75,7 +75,7 @@ export function PageHeader({
       {/* Keep the primary actions beside the title; wrap naturally on a narrow screen. */}
       <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
         <div className="min-w-0 flex-1 basis-80">
-          <div className="flex min-h-9 items-center gap-3">
+          <div className="flex min-h-9 items-center gap-2 sm:gap-3">
             <h1 className="text-foreground min-w-0 text-xl leading-tight font-semibold tracking-tight text-balance md:text-2xl">
               {title}
             </h1>
@@ -106,7 +106,7 @@ export function PageHeader({
         )}
         {/* Wrapped on a phone: scrolled sideways, the Builder's last actions
             sat past the screen's edge with nothing saying they were there. */}
-        <div className="order-2 flex max-w-full min-w-0 flex-wrap items-center gap-2 md:order-1 md:justify-end">
+        <div className="page-actions order-2 flex w-full max-w-full min-w-0 flex-wrap items-center gap-2 md:order-1 md:w-auto md:justify-end">
           {actions}
           <span className="hidden md:inline-flex">
             <RestartTourButton />

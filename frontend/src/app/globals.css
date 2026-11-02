@@ -2762,6 +2762,28 @@ body .tour-spotlight {
   select {
     font-size: 16px;
   }
+
+  .page-actions,
+  .page-actions > div {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: stretch;
+    gap: 0.5rem;
+  }
+
+  /* Keep walkthrough groups measurable while their buttons share the phone grid. */
+  .page-actions > div {
+    grid-column: 1 / -1;
+  }
+
+  .page-actions :where(button, a) {
+    min-block-size: 2.75rem;
+    min-inline-size: 0;
+    white-space: normal;
+    text-align: center;
+    padding-inline: 0.625rem;
+    font-size: 0.8125rem;
+  }
 }
 
 /* A card's padding: 16px on a phone, where a card of cards spent a third of the

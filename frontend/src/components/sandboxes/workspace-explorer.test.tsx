@@ -229,6 +229,22 @@ describe("the workspace explorer", () => {
     expect(screen.getByRole("button", { name: "chart.png" })).toBeVisible();
   });
 
+  it("keeps the selected file and source mode when expanding and returning to folders", async () => {
+    render(<WorkspaceExplorer workspaceId="w-1" />);
+    await userEvent.click(screen.getByRole("button", { name: "report.md" }));
+    await userEvent.click(screen.getByRole("button", { name: "Source" }));
+    await userEvent.click(screen.getByRole("button", { name: "Full screen" }));
+    expect(screen.getByRole("dialog", { name: "/report.md" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Preview" })).toHaveAttribute("aria-pressed", "true");
+    await userEvent.click(screen.getByRole("button", { name: "Exit full screen" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Preview" })).toHaveAttribute("aria-pressed", "true");
+    await userEvent.click(screen.getByRole("button", { name: "Full screen" }));
+    await userEvent.click(screen.getByRole("button", { name: "Folders" }));
+    expect(screen.getByRole("button", { name: "report.md" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Preview" })).not.toBeInTheDocument();
+  });
+
   it("offers markdown as source, and offers nothing to toggle on an image", async () => {
     // The toggle exists where there are two renderings to choose between. On a PNG
     // it would offer to show the same thing twice.

@@ -99,7 +99,7 @@ export function ArtifactViewerBar({
   const t = useTranslations("artifacts");
   const tc = useTranslations("common");
   return (
-    <header className="flex min-h-16 shrink-0 flex-wrap items-center gap-2 border-b px-2 py-2 sm:min-h-12 sm:px-3 sm:py-1.5">
+    <header className="grid shrink-0 grid-cols-[auto_minmax(0,1fr)] items-center gap-x-2 gap-y-1 border-b px-2 py-2 sm:flex sm:min-h-12 sm:gap-2 sm:px-3 sm:py-1.5">
       <IconButton asChild aria-label={t("backToArtifacts")}>
         <Link href={ROUTES.ARTIFACTS}>
           <ArrowLeft className="h-4 w-4" />
@@ -124,7 +124,7 @@ export function ArtifactViewerBar({
         )}
       </div>
       {artifact !== null && (
-        <div className="flex max-w-full shrink-0 flex-wrap items-center justify-end gap-2">
+        <div className="col-span-2 flex min-w-0 items-center justify-end gap-1 overflow-x-auto sm:max-w-full sm:shrink-0 sm:flex-wrap sm:gap-2">
           {children}
           <ArtifactActionsMenu actions={actions} />
           <RestartTourButton />

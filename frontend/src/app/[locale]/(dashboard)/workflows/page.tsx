@@ -153,7 +153,7 @@ export default function WorkflowsPage() {
     );
 
   const statusControls = (
-    <div data-tour="workflows-list" className="flex min-w-0 flex-wrap items-center gap-2">
+    <div data-tour="workflows-list" className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
       <SearchInput
         className="min-w-0 flex-1 sm:flex-none"
         value={queryParam ?? ""}
@@ -284,7 +284,7 @@ export default function WorkflowsPage() {
               : t("shownOfTotal", { visible: list.matched, total: list.total })
         }
         controls={
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
             {statusControls}
             <WorkspaceFullscreenButton
               expanded={galleryFullscreen}

@@ -4585,6 +4585,30 @@
         "title": "Ihre Dokumente",
         "body": "Wenn ein Agent eine Datei speichert, landet sie hier - durchsuchen, ansehen und herunterladen, was Ihre Unterhaltungen erzeugt haben."
       },
+      "project-file-fullscreen": {
+        "title": "Mehr Platz für Dateien",
+        "body": "Öffne eine Datei und vergrößere ihre Ansicht auf dem Bildschirm. Der Zurück-Pfeil führt zur Ordnerliste."
+      },
+      "workspace-file-fullscreen": {
+        "title": "Mehr Platz für Dateien",
+        "body": "Öffne eine Datei und vergrößere ihre Ansicht auf dem Bildschirm. Der Zurück-Pfeil führt zur Ordnerliste."
+      },
+      "agent-editor-fullscreen": {
+        "title": "Editor vergrößern",
+        "body": "Mit der Vergrößern-Schaltfläche kannst du das ganze Dokument lesen oder bearbeiten. Beim Schließen bleibt dein aktueller Entwurf erhalten."
+      },
+      "skill-editor-fullscreen": {
+        "title": "Editor vergrößern",
+        "body": "Mit der Vergrößern-Schaltfläche kannst du das ganze Dokument lesen oder bearbeiten. Beim Schließen bleibt dein aktueller Entwurf erhalten."
+      },
+      "context-editor-fullscreen": {
+        "title": "Editor vergrößern",
+        "body": "Mit der Vergrößern-Schaltfläche kannst du das ganze Dokument lesen oder bearbeiten. Beim Schließen bleibt dein aktueller Entwurf erhalten."
+      },
+      "workflow-canvas-fullscreen": {
+        "title": "Im Vollbild arbeiten",
+        "body": "Die schwebende Schaltfläche vergrößert das Diagramm. Erneut drücken, um zum Workflow-Kopf zurückzukehren; dein Entwurf bleibt erhalten."
+      },
       "workspaces-detail": {
         "title": "In einem Ordner",
         "body": "Die Dateien eines Agents, Ordner für Ordner. Sehen Sie eine Datei an oder laden Sie herunter, was ein Agent für Sie erstellt hat."
@@ -7777,6 +7801,7 @@
     "minutesAgo": "{count, plural, other {vor # Min.}}"
   },
   "ui": {
+    "expandEditor": "{label} vergrößern",
     "cancel": "Abbrechen",
     "checkConnection": "Prüfen Sie Ihre Verbindung und versuchen Sie es erneut.",
     "close": "Schließen",

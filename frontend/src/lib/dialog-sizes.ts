@@ -65,7 +65,8 @@ export const DIALOG_BROAD = "sm:max-w-5xl";
  * The widest rung, and the last - a dialog that wants the whole window wants
  * `DIALOG_WINDOW`, which is a different shape rather than a wider one.
  */
-export const DIALOG_CANVAS = "sm:max-w-[80rem]";
+export const DIALOG_CANVAS =
+  "sm:max-w-[80rem] max-sm:w-full max-sm:rounded-none max-sm:border-0 max-sm:p-4 max-sm:h-[var(--dialog-available-height)]";
 
 /**
  * Content that may outgrow the window: the dialog scrolls as one piece.

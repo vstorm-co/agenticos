@@ -55,12 +55,14 @@ export function AssistantLauncher({
       className={cn(
         "bg-background border-border fixed right-4 bottom-[calc(1rem+env(safe-area-inset-bottom))] z-50 rounded-full border p-1 shadow-lg transition-transform duration-300 ease-out hover:scale-105 active:scale-95 md:right-6 md:bottom-6 [html[data-typing]_&]:hidden",
         docked &&
-          "right-0 translate-x-[calc(100%-1.125rem)] rounded-r-none border-r-0 hover:translate-x-0 hover:scale-100 focus-visible:translate-x-0 md:right-0",
+          "md:right-0 md:translate-x-[calc(100%-1.125rem)] md:rounded-r-none md:border-r-0 md:hover:translate-x-0 md:hover:scale-100 md:focus-visible:translate-x-0",
         open && "hidden",
         overComposer && "hidden",
       )}
     >
-      <AssistantFace assistant={assistant} agentId={agentId} size="lg" />
+      <span className="block size-9 md:size-14 [&>*]:size-full">
+        <AssistantFace assistant={assistant} agentId={agentId} size="lg" />
+      </span>
       {waiting && (
         <span
           aria-hidden

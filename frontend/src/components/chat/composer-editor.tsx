@@ -309,7 +309,7 @@ export function ComposerEditor({
         ) : (
           <span
             aria-hidden
-            className="text-muted-foreground pointer-events-none absolute inset-x-0 top-0 truncate py-2.5 text-base"
+            className="text-muted-foreground pointer-events-none absolute inset-x-0 top-0 truncate py-1.5 text-base sm:py-2.5"
           >
             {placeholder}
           </span>
@@ -328,7 +328,7 @@ export function ComposerEditor({
         autoCapitalize="sentences"
         spellCheck
         className={cn(
-          "relative block max-h-[200px] min-h-[40px] w-full scrollbar-thin overflow-y-auto py-2.5 text-base break-words whitespace-pre-wrap focus:outline-none",
+          "composer-editor relative block max-h-[min(8rem,calc(var(--app-height,100dvh)*0.25))] min-h-9 w-full scrollbar-thin overflow-y-auto py-1.5 text-base break-words whitespace-pre-wrap focus:outline-none sm:max-h-[200px] sm:min-h-10 sm:py-2.5",
           disabled && "cursor-not-allowed opacity-50",
           readOnly && "text-foreground/55",
           className,

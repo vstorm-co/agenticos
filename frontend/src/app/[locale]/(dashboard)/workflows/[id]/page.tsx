@@ -189,7 +189,7 @@ export default function WorkflowEditorPage({ params }: PageProps) {
   return (
     // Fills what the shell's `main` leaves: the editor is a workspace, and a canvas
     // in a fixed-height box scrolls the page instead of the graph.
-    <div key={workflow.id} className="flex min-h-[40rem] flex-1 flex-col gap-3 pb-4">
+    <div key={workflow.id} className="flex min-h-0 flex-1 flex-col gap-3 pb-4 sm:min-h-[40rem]">
       <PageHeader
         // The canvas is the page: the header gives it the height a list page
         // would keep for breathing room.

@@ -1,5 +1,6 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 
 import { MarkdownEditor, MarkdownModeToggle } from "./markdown-editor";
@@ -122,4 +123,19 @@ describe("MarkdownModeToggle", () => {
 
     expect(onChange).toHaveBeenCalledWith("preview");
   });
+});
+
+it("keeps expanded edits when returning to the form", async () => {
+  function Draft() {
+    const [value, setValue] = useState("Original instructions");
+    return <MarkdownEditor label="Instructions" value={value} onChange={setValue} />;
+  }
+  render(<Draft />);
+  await userEvent.click(screen.getByRole("button", { name: "Expand Instructions" }));
+  const dialog = screen.getByRole("dialog", { name: "Instructions" });
+  await userEvent.clear(within(dialog).getByRole("textbox"));
+  await userEvent.type(within(dialog).getByRole("textbox"), "Updated instructions");
+  await userEvent.click(within(dialog).getByRole("button", { name: "Close" }));
+  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  expect(screen.getByRole("textbox", { name: "Instructions" })).toHaveValue("Updated instructions");
 });

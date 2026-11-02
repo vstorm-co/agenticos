@@ -1,5 +1,5 @@
 ---
-source_sha: "fed639325e0e"
+source_sha: "1eb28af1cb33"
 ---
 
 # Konsola { #the-console }
@@ -41,6 +41,10 @@ Ustawienia chatu mają stały nagłówek i przycisk zamknięcia nad przewijaną 
 Agenci rozmowy są uporządkowani według ostatniej wiadomości lub uruchomienia głównego agenta, od najnowszego. Zwinięty pasek chatu zachowuje pełny rozmiar avatarów, nakłada maksymalnie trzy i ukrywa starszych uczestników; pełna lista pozostaje dostępna w podpowiedzi.
 
 Gdy **Approve everything** jest niedostępne, ustawienia chatu rozróżniają brak uprawnienia do zatwierdzania i politykę organizacji wyłączającą stałą zgodę. Osoba z uprawnieniem do zatwierdzania otrzymuje odnośnik do **Budżetu i zatwierdzeń**, gdzie może jawnie zmienić tę politykę. Chat nie zmienia polityki organizacji automatycznie.
+
+Na telefonie akcje strony układają się w dwóch wyrównanych kolumnach. Otwarcie pliku projektu lub workspace zastępuje drzewo folderów czytnikiem; strzałka wstecz wraca do folderów, a **Pełny ekran** powiększa czytnik.
+
+Pola Markdown i edytory plików również mają przycisk powiększania, który zachowuje bieżący szkic. Opis i kategorię skilla można rozwinąć nad edytorem. Pole wiadomości na czacie zajmuje mniej miejsca i ogranicza wysokość długiego szkicu do dostępnej wysokości ekranu. Otwarcie nawigacji ustawia focus na panelu, a Tab nadal przechodzi do jego kontrolek. Canvas workflow ma na telefonie pływający przycisk pełnego ekranu i mniejszą minimapę.
 
 ## Dashboard { #the-dashboard }
 

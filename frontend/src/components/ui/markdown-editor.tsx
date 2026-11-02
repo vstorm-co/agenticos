@@ -2,10 +2,13 @@
 
 import { useState } from "react";
 import type { KeyboardEvent, RefObject } from "react";
-import { Code2, Eye } from "lucide-react";
+import { Code2, Eye, Maximize2 } from "lucide-react";
 
 import { MarkdownContent } from "@/components/chat/markdown-content";
 import { CodeArea } from "@/components/ui/code-area";
+import { Button } from "./button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "./dialog";
+import { DIALOG_WINDOW } from "@/lib/dialog-sizes";
 import { cn } from "@/lib/utils";
 import { useTranslations } from "next-intl";
 
@@ -96,19 +99,28 @@ export function MarkdownEditor({
 }: MarkdownEditorProps) {
   const t = useTranslations("ui");
   const [ownMode, setOwnMode] = useState<MarkdownMode>("source");
+  const [expanded, setExpanded] = useState(false);
   const mode = controlledMode ?? ownMode;
 
   return (
-    <div className="space-y-1.5">
+    <div className="min-w-0 space-y-1.5">
       {/* The toggle sits above the field rather than in a bar inside it: a
           strip reading "Markdown | Source Preview" boxed the text a second
           time, inside whatever card already held it. A caller with a header
           of its own takes the mode in hand and puts the toggle there. */}
-      {controlledMode === undefined && (
-        <div className="flex justify-end">
-          <MarkdownModeToggle mode={mode} onChange={setOwnMode} />
-        </div>
-      )}
+      <div className="flex items-center justify-end gap-2">
+        {controlledMode === undefined && <MarkdownModeToggle mode={mode} onChange={setOwnMode} />}
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          data-tour="text-editor-expand"
+          aria-label={t("expandEditor", { label })}
+          onClick={() => setExpanded(true)}
+        >
+          <Maximize2 className="size-4" aria-hidden />
+        </Button>
+      </div>
       {mode === "source" ? (
         // The source shows its own structure - headings bold, markers dimmed,
         // `{{variables}}` as tokens - and stays plain Markdown underneath. Sized
@@ -150,6 +162,28 @@ export function MarkdownEditor({
           )}
         </div>
       )}
+      <Dialog open={expanded} onOpenChange={setExpanded}>
+        <DialogContent
+          className={cn(DIALOG_WINDOW, "max-sm:w-full max-sm:rounded-none")}
+          aria-describedby={undefined}
+        >
+          <DialogHeader>
+            <DialogTitle>{label}</DialogTitle>
+          </DialogHeader>
+          <div className="min-h-0 flex-1 overflow-hidden rounded-xl border">
+            <CodeArea
+              name="field.md"
+              aria-label={label}
+              value={value}
+              onChange={onChange}
+              invalid={invalid}
+              maxLength={maxLength}
+              disabled={disabled}
+              placeholder={placeholder}
+            />
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -198,7 +232,7 @@ function ModeButton({
       onClick={onClick}
       aria-pressed={active}
       className={cn(
-        "inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs transition-colors",
+        "touch:min-h-11 inline-flex min-h-9 items-center gap-1 rounded-md px-2 py-1 text-xs transition-colors sm:min-h-0",
         active ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground",
       )}
     >
