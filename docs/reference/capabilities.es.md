@@ -1,5 +1,5 @@
 ---
-source_sha: "30ec7731488d"
+source_sha: "111d0dd2eb9d"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -2822,9 +2822,11 @@ que un turno que el borde bloquea no escribe nada, y un turno posterior en un
 workspace con alcance `conversation`, `user` o `agent` no tiene ningún archivo
 rechazado que abrir. El borde solo lee esas primeras líneas, así que un término
 bloqueado más abajo en el archivo no se detecta aquí; para eso está la revisión de
-los resultados de las herramientas. Una imagen enviada en línea es la excepción: el
-borde también lee sus bytes, y un bloqueo que causan esos bytes no se prevé, así que
-esa imagen se sigue escribiendo.
+los resultados de las herramientas. Una imagen enviada en línea no es texto, así que
+el borde no la lee: en un prompt con una imagen el borde revisa solo las palabras,
+nunca los bytes de la imagen, y una censura reescribe esas palabras y conserva la
+imagen. La revisión previa a la escritura lee las mismas palabras, así que un turno
+con imagen que el borde bloquea tampoco escribe nada.
 
 **El filtrado de los resultados de herramienta es la razón de que este borde sea el que
 más importa.** Es la única guarda sobre el contenido no confiable que entra en el

@@ -2633,9 +2633,11 @@ a workspace has that text screened before the file is copied to `uploads/`, so a
 turn the edge blocks writes nothing, and a later turn in a `conversation`-, `user`-
 or `agent`-scoped workspace has no refused file to open. The edge reads only those
 opening lines, so a blocked term further down the file is not caught here; screen
-tool results for that. A picture sent inline is the exception: the edge also reads
-its bytes, and a block those bytes cause is not foreseen, so that picture is still
-written.
+tool results for that. A picture sent inline is not text, so the edge does not read
+it: on a prompt with a picture the edge screens the words alone, never the picture's
+bytes, and a redaction rewrites those words and keeps the picture. The check before
+the write reads the same words, so a turn with a picture that the edge blocks
+writes nothing either.
 
 **Tool-result screening is the reason this edge matters most.** It is the only guard
 on untrusted content entering the loop — a fetched page, a file, an MCP server's

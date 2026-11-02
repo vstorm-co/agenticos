@@ -1,5 +1,5 @@
 ---
-source_sha: "30ec7731488d"
+source_sha: "111d0dd2eb9d"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -2752,9 +2752,11 @@ tekst sprawdzony, zanim plik zostanie skopiowany do `uploads/`, więc tura
 zablokowana przez krawędź nic nie zapisuje, a późniejsza tura w workspace'ie o
 zakresie `conversation`, `user` lub `agent` nie ma odrzuconego pliku do otwarcia.
 Krawędź czyta tylko te początkowe linie, więc zablokowane słowo dalej w pliku nie
-jest tu wychwytywane; do tego służy sprawdzanie wyników narzędzi. Wyjątkiem jest
-obraz wysłany bezpośrednio: krawędź czyta też jego bajty, a blokada, którą wywołują
-te bajty, nie jest przewidywana, więc taki obraz nadal zostaje zapisany.
+jest tu wychwytywane; do tego służy sprawdzanie wyników narzędzi. Obraz wysłany
+bezpośrednio nie jest tekstem, więc krawędź go nie czyta: w prompcie z obrazem
+krawędź sprawdza same słowa, nigdy bajty obrazu, a redakcja zmienia te słowa i
+zostawia obraz. Sprawdzenie przed zapisem czyta te same słowa, więc tura z obrazem,
+którą krawędź blokuje, również nic nie zapisuje.
 
 **Prześwietlanie wyników narzędzi jest powodem, dla którego ta krawędź znaczy
 najwięcej.** Jest jedynym strażnikiem nad niezaufaną treścią wchodzącą do pętli —

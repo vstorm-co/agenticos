@@ -19,6 +19,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- The input guardrail no longer reads an attached picture's bytes. On a prompt with a picture it screened the prompt's whole representation, image data included, so PII redaction refused most pictures, a blocked keyword such as `png` matched the data, and a redaction ended the turn as `failed`. The edge now screens the prompt's text alone, a redaction rewrites that text and keeps the picture, and the check that runs before an attachment is written now predicts the edge for a turn with a picture too, so a blocked one no longer leaves its picture in the workspace (#2566).
+
 ## [1.34.2] - 2026-11-01
 
 ### Fixed
