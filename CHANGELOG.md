@@ -21,9 +21,13 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
-- The input guardrail no longer reads an attached picture's bytes. On a prompt with a picture it screened the prompt's whole representation, image data included, so PII redaction refused most pictures, a blocked keyword such as `png` matched the data, and a redaction ended the turn as `failed`. The edge now screens the prompt's text alone (a text file sent inline as text, and a link, where a match blocks because a link cannot be rewritten), a redaction rewrites that text and keeps the picture, and the check that runs before an attachment is written now predicts the edge for a turn with a picture too, so a blocked one no longer leaves its picture in the workspace. An inline text file is screened as the UTF-8 a model is sent, and one that declares another character set or is not valid UTF-8 blocks the turn instead of being screened as different text. The size limits of a resumed request count the text of all its prompt parts together (#2566).
+- A document deleted while it was still being indexed no longer leaves its chunks searchable. The delete removed nothing because the document had no vector id yet: its chunks were written, or still being written, and the ingest had not recorded them. The ingest now queues a retried job that removes the chunks it wrote when it finds the document deleted, and a delete that discovers the newly recorded vector id queues the same durable removal. Recording the embedding spend of such a document no longer fails the ingest on the deleted row, which had left the chunks in place and retried the job until it died: the spend is kept against no document. A sync no longer counts such a document as ingested. Clearing a default knowledge base mid-ingest was already covered ([#2565](https://github.com/vstorm-co/agenticos/issues/2565)).
 
-- A document deleted while it was still being indexed no longer leaves its chunks searchable. The delete removed nothing because the document had no vector id yet: its chunks were written, or still being written, and the ingest had not recorded them. The ingest now queues a retried job that removes the chunks it wrote when it finds the document deleted, and a delete that waited for the ingest to record its result removes them itself. Recording the embedding spend of such a document no longer fails the ingest on the deleted row, which had left the chunks in place and retried the job until it died: the spend is kept against no document. A sync no longer counts such a document as ingested. Clearing a default knowledge base mid-ingest was already covered ([#2565](https://github.com/vstorm-co/agenticos/issues/2565)).
+## [1.35.4] - 2026-11-02
+
+### Fixed
+
+- The input guardrail no longer reads an attached picture's bytes. On a prompt with a picture it screened the prompt's whole representation, image data included, so PII redaction refused most pictures, a blocked keyword such as `png` matched the data, and a redaction ended the turn as `failed`. The edge now screens the prompt's text alone (a text file sent inline as text, and a link, where a match blocks because a link cannot be rewritten), a redaction rewrites that text and keeps the picture, and the check that runs before an attachment is written now predicts the edge for a turn with a picture too, so a blocked one no longer leaves its picture in the workspace. An inline text file is screened as the UTF-8 a model is sent, and one that declares another character set or is not valid UTF-8 blocks the turn instead of being screened as different text. The size limits of a resumed request count the text of all its prompt parts together (#2566).
 
 ## [1.35.3] - 2026-11-02
 
@@ -19690,7 +19694,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.35.3...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.35.4...HEAD
+[1.35.4]: https://github.com/vstorm-co/agenticos/compare/v1.35.3...v1.35.4
 [1.35.3]: https://github.com/vstorm-co/agenticos/compare/v1.35.2...v1.35.3
 [1.35.2]: https://github.com/vstorm-co/agenticos/compare/v1.35.1...v1.35.2
 [1.35.1]: https://github.com/vstorm-co/agenticos/compare/v1.35.0...v1.35.1
