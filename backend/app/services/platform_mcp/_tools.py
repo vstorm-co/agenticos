@@ -726,7 +726,9 @@ def _skill_next_actions(session: dict[str, Any]) -> list[str]:
     if status == "failed":
         actions.append("Retry this step")
     outcomes = (session.get("outcomes") or []) if status == "ready" else []
-    line = "main" if session.get("fork_id") is None else f'the fork "{session.get("line_name")}"'
+    fork = session.get("line_name")
+    on_main = session.get("fork_id") is None or session.get("purpose") == "to_main"
+    line = "main" if on_main else f'the fork "{fork}"'
     check = session.get("check")
     base = (session.get("base_version") or {}).get("number")
     if "apply" in outcomes:
@@ -735,6 +737,10 @@ def _skill_next_actions(session: dict[str, Any]) -> list[str]:
         actions.append(f"Apply to main and keep {_names(check, 'worse')} on v{base}")
     if "fork_for_helped" in outcomes:
         actions.append(f"Make a fork for {_names(check, 'better')}")
+    if "catch_up" in outcomes:
+        actions.append(f'Catch the fork "{fork}" up with main')
+    if "return_to_main" in outcomes:
+        actions.append(f'Drop the fork "{fork}" and return its agents to main')
     if "improve_further" in outcomes and not session.get("try_again_blocked"):
         attempt = session["iteration"] + 1
         actions.append(f"Improve further (attempt {attempt} of {session['max_iterations']})")
@@ -762,7 +768,12 @@ def _skill_summary(session: dict[str, Any]) -> str:
     """How improving a skill stands, in plain sentences built from the session's own facts."""
     line = session.get("line_name") or "main"
     base = (session.get("base_version") or {}).get("number")
-    sentences = [f"Improving the {line} line, started from v{base}."]
+    sentences = [
+        {
+            "catch_up": f'Catching the fork "{line}" up with main, from v{base}.',
+            "to_main": f'Moving the fork "{line}" to main, from v{base}.',
+        }.get(session.get("purpose") or "", f"Improving the {line} line, started from v{base}.")
+    ]
     waiting = _waiting(session)
     if waiting is not None:
         sentences.append(
@@ -791,12 +802,45 @@ def _skill_summary(session: dict[str, Any]) -> str:
     return " ".join(sentences)
 
 
+def _behind(item: dict[str, Any]) -> dict[str, Any]:
+    """A pinned agent or a fork that main has moved past, and what catching it up is."""
+    main = item["main_latest"]["number"]
+    pinned = item["kind"] == "pinned"
+    name = item["agent"]["name"] if pinned else item["fork"]["name"]
+    return {
+        "skill_id": item["skill"]["id"],
+        "skill": item["skill"]["name"],
+        "kind": item["kind"],
+        "agent_id": item["agent"]["id"] if pinned else None,
+        "fork_id": None if pinned else item["fork"]["id"],
+        "name": name,
+        "on_version": item["version"]["number"],
+        "main_version": main,
+        "behind_main": item["behind_main"],
+        "agents": item["agents"],
+        "can_act": item["can_act"],
+        "catch_up": f"Update {name} to v{main}" if pinned else f'Catch the fork "{name}" up',
+        "link": skill_link(item["skill"]["id"]),
+    }
+
+
+def _merge_part(index: int, part: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "index": index,
+        "fork": part["fork"],
+        "main": part["main"],
+        "result": part["result"],
+        "edited": part.get("edited", False),
+    }
+
+
 def _skill_session(skill_id: UUID | str, session: dict[str, Any]) -> dict[str, Any]:
     """A skill session as the Architect reads it: where it stands and what may be done."""
     check = session.get("check")
     actions = _skill_next_actions(session)
     return {
         "id": session["id"],
+        "purpose": session.get("purpose") or "improve",
         "status": session["status"],
         "stage": session.get("stage"),
         "line": session.get("line_name") or "main",
@@ -813,6 +857,7 @@ def _skill_session(skill_id: UUID | str, session: dict[str, Any]) -> dict[str, A
         "check": _skill_check(check) if check else None,
         "outcome": session.get("outcome"),
         "applied_version_id": session.get("applied_version_id"),
+        "merge_id": session.get("merge_id"),
         "summary": _skill_summary(session),
         "next_actions": actions,
         "ask": _ask(actions),
@@ -2105,7 +2150,7 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
     async def accept_skill_improvement(
         skill_id: UUID,
         session_id: UUID,
-        outcome: Literal["apply", "apply_and_pin", "fork_for_helped"],
+        outcome: Literal["apply", "apply_and_pin", "fork_for_helped", "catch_up"],
         acknowledge_unknown: bool = False,
         fork_name: str | None = None,
     ) -> dict[str, Any]:
@@ -2115,7 +2160,9 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         main and keeps every agent it made worse on its current version, which
         also needs `agents:publish` on each of them. `fork_for_helped` leaves
         main as it is and makes a fork named `fork_name` with this change for
-        the agents it helped. Offer only the session's `next_actions`, and say
+        the agents it helped. `catch_up` gives a fork the merged text as its
+        new version and moves its start to main's newest version. Offer only
+        the session's `next_actions`, and say
         which agents each choice moves. `acknowledge_unknown` only after the
         person accepted the agents that could not be checked.
         """
@@ -2174,6 +2221,7 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         version: int | None = None,
         fork_id: UUID | None = None,
         note: str | None = None,
+        check_id: UUID | None = None,
     ) -> dict[str, Any]:
         """Move one agent to another version of a skill, only when the person asked for it.
         Needs `agents:edit` on the agent; going live also needs `agents:publish`.
@@ -2183,7 +2231,9 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         the chosen version was never checked on this agent, say it is unknown
         and go on only once the person confirms. With `agents:publish` the
         change is published as a new agent version; otherwise it lands in the
-        agent's draft only, and `published` is false.
+        agent's draft only, and `published` is false. Updating a pinned agent
+        to main passes the `check_id` of its update check, so the agent reads
+        as checked rather than unknown.
         """
         binding: dict[str, Any] = {"state": state}
         if state == "pinned":
@@ -2196,6 +2246,8 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
             binding["fork_id"] = str(fork_id)
         if note is not None:
             binding["note"] = note
+        if check_id is not None:
+            binding["check_id"] = str(check_id)
         moved = await api.request(
             "PUT", f"/skills/{skill_id}/agents/{agent_id}/binding", json=binding
         )
@@ -2206,6 +2258,117 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
             "agent": _skill_agent(moved["usage"]) if moved.get("usage") else None,
             "link": skill_link(skill_id),
         }
+
+    async def list_skills_behind_main() -> dict[str, Any]:
+        """Pinned agents and forks that main has moved past, across the organization. Needs
+        `skills:view`.
+
+        A pinned agent catches up with an update check, then change_skill_version
+        to main with that check; a fork with start_skill_catch_up. Nothing
+        catches up by itself, because every catch-up costs a check. Agents you
+        cannot see are only counted in `hidden_agents`.
+        """
+        behind = await api.request("GET", "/skills/behind-main")
+        return {
+            "items": [_behind(item) for item in behind["items"]],
+            "hidden_agents": behind["hidden"],
+            "total": behind["total"],
+        }
+
+    async def start_skill_update_check(
+        skill_id: UUID, agent_id: UUID, thorough: bool = False
+    ) -> dict[str, Any]:
+        """Check main's newest version on one pinned agent, only when the person asked for it.
+        Needs `skills:edit`, `runs:view` and access to the agent.
+
+        The check is billed to that agent's budget. Read it with get_skill_check;
+        when it passes, change_skill_version moves the agent to main with its
+        `check_id`.
+        """
+        body = {"mode": "thorough" if thorough else "quick"}
+        check = await api.request(
+            "POST", f"/skills/{skill_id}/agents/{agent_id}/update-check", json=body
+        )
+        return {"check_id": check["id"], "status": check["status"], **_skill_check(check)}
+
+    async def get_skill_check(skill_id: UUID, check_id: UUID) -> dict[str, Any]:
+        """One skill check: how each agent did, its verdict and what it allows. Needs
+        `skills:view` and `runs:view`.
+        """
+        check = await api.request("GET", f"/skills/{skill_id}/checks/{check_id}")
+        return {
+            "check_id": check["id"],
+            "status": check["status"],
+            **_skill_check(check),
+            "outcomes": check.get("outcomes", []),
+        }
+
+    async def start_skill_catch_up(
+        skill_id: UUID, fork_id: UUID, to_main: bool = False
+    ) -> dict[str, Any]:
+        """Catch a fork up with main, or move its changes to main, only when the person asked.
+        Needs `skills:edit` and `runs:view`.
+
+        Catching up merges main's changes into the fork: parts changed on one
+        side merge by themselves, and where both changed the same part the
+        session proposes the combined text, read with get_skill_merge. The fork's
+        agents are then checked. `to_main` merges the fork's changes onto main
+        instead, checked on every main agent by the full rule. It runs as a skill
+        session, step by step like Improve.
+        """
+        route = "to-main" if to_main else "catch-up"
+        session = await api.request("POST", f"/skills/{skill_id}/forks/{fork_id}/{route}")
+        return _skill_session(skill_id, session)
+
+    async def get_skill_merge(skill_id: UUID, merge_id: UUID) -> dict[str, Any]:
+        """A catch-up's merge: the parts both sides changed, each as fork, main and result.
+        Needs `skills:view`.
+
+        Parts changed on one side only merged by themselves and are only
+        counted. Show a conflict as fork / main / result before the check.
+        """
+        merge = await api.request("GET", f"/skills/{skill_id}/merges/{merge_id}")
+        parts = merge["parts"]
+        return {
+            "conflicts": [
+                _merge_part(index, part)
+                for index, part in enumerate(parts)
+                if part["state"] == "conflict"
+            ],
+            "merged_by_themselves": sum(
+                part["state"] in {"fork", "main", "both_same"} for part in parts
+            ),
+            "unresolved": merge["unresolved"],
+        }
+
+    async def edit_skill_merge_part(
+        skill_id: UUID, merge_id: UUID, index: int, result: str
+    ) -> dict[str, Any]:
+        """Replace the result of one merged part with the person's text, only when they asked.
+        Needs `skills:edit`.
+        """
+        part = await api.request(
+            "PATCH",
+            f"/skills/{skill_id}/merges/{merge_id}/parts/{index}",
+            json={"result": result},
+        )
+        return _merge_part(index, part)
+
+    async def return_fork_to_main(
+        skill_id: UUID, fork_id: UUID, agent_ids: list[UUID] | None = None
+    ) -> dict[str, Any]:
+        """Move a fork's agents back to main, only when the person asked for it. Needs
+        `agents:edit` on each agent; going live also needs `agents:publish`.
+
+        Offer it when a catch-up says main alone is not worse than the fork.
+        `agent_ids` moves only those agents; without it, all of them. The fork
+        is archived once no agent reads it.
+        """
+        body = {"agent_ids": [str(agent) for agent in agent_ids]} if agent_ids else {}
+        returned = await api.request(
+            "POST", f"/skills/{skill_id}/forks/{fork_id}/return-to-main", json=body
+        )
+        return {**returned, "link": skill_link(skill_id)}
 
     async def estimate_knowledge_draft(topic_id: UUID) -> dict[str, Any]:
         """The most drafting a document for one missing-knowledge topic costs. Needs `runs:view`
@@ -2761,6 +2924,13 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         (accept_skill_improvement, True),
         (end_skill_improvement, True),
         (change_skill_version, True),
+        (list_skills_behind_main, False),
+        (start_skill_update_check, True),
+        (get_skill_check, False),
+        (start_skill_catch_up, True),
+        (get_skill_merge, False),
+        (edit_skill_merge_part, True),
+        (return_fork_to_main, True),
         (estimate_knowledge_draft, False),
         (draft_knowledge_topic, True),
         (list_datasets, False),

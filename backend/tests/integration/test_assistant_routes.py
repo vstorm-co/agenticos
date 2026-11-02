@@ -395,6 +395,10 @@ async def test_the_architect_s_skill_writes_wait_for_a_card_and_its_reads_do_not
             "accept_skill_improvement",
             "end_skill_improvement",
             "change_skill_version",
+            "start_skill_update_check",
+            "start_skill_catch_up",
+            "edit_skill_merge_part",
+            "return_fork_to_main",
         )
     )
     assert not any(
@@ -407,5 +411,8 @@ async def test_the_architect_s_skill_writes_wait_for_a_card_and_its_reads_do_not
             "get_skill_improvement",
             "estimate_skill_improvement",
             "estimate_next_skill_improvement_step",
+            "list_skills_behind_main",
+            "get_skill_check",
+            "get_skill_merge",
         )
     )
