@@ -1,5 +1,5 @@
 ---
-source_sha: "b3f95ce9d50a"
+source_sha: "9f3be485f8b2"
 title: "AgenticOS vs n8n"
 seo_title: "AgenticOS vs n8n: alternatywa na Apache-2.0 dla agentów AI"
 description: "Porównaj n8n z AgenticOS pod kątem agentów AI: licencja, SSO i role bez płatnych planów, budżety per agent zamiast limitów wykonań oraz zatwierdzenia."
@@ -12,6 +12,8 @@ n8n to narzędzie do automatyzacji workflow. Na kanwie łączysz wyzwalacze, int
 Dobrze się uzupełniają. n8n przenosi dane między systemami według harmonogramu. AgenticOS uruchamia agentów, którzy potrzebują właściciela, osoby zatwierdzającej i limitu wydatków.
 
 Utrzymuje zespół AgenticOS. Źródła sprawdzono 21 października 2026. Wersja bazowa AgenticOS: v1.10.0. Zakres n8n: strona z cennikiem, dokumentacja i licencja w wersji n8n@2.44.5, bez testowanego planu chmurowego ani licencji Enterprise dla self-hostingu.
+
+Opisy funkcji AgenticOS odświeżono 2 listopada 2026 na podstawie v1.35.0. Data sprawdzenia źródeł dostawcy powyżej pozostaje bez zmian; nie jest to nowy audyt jego cen.
 
 ## W skrócie { #at-a-glance }
 
@@ -60,7 +62,7 @@ n8n buduje wyszukiwanie z węzłów: loaderów, embeddingów i wybranej przez ci
 ## Kiedy n8n pasuje lepiej { #when-n8n-is-the-better-fit }
 
 - Zadanie polega na przenoszeniu danych między wieloma systemami, z rozgałęzieniami, ponowieniami i harmonogramami.
-- Chcesz jego dużej biblioteki integracji i wizualnej kanwy. AgenticOS nie ma kanwy workflow.
+- Wolisz bibliotekę węzłów, integracje i sposób edycji workflow tego produktu. AgenticOS także ma wizualny edytor; dostępne węzły i semantyka wykonania różnią się.
 - Potrzebujesz jego kanałów przeglądu, takich jak Microsoft Teams, WhatsApp czy Gmail, albo jego metryk ewaluacji. AgenticOS nie ma jeszcze ani jednego, ani drugiego.
 
 ## Używaj obu razem { #use-them-together }

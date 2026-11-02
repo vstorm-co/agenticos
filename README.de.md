@@ -1,12 +1,12 @@
-<!-- source_sha: f04030a1e1ca -->
+<!-- source_sha: 23e6c989580e -->
 
 <div align="center">
 
 <img src="docs/assets/readme-banner.webp" alt="AgenticOS: Open-Source-KI-Teammates für dein Unternehmen. Agents, als Blobs gezeichnet, arbeiten mit den Capabilities der Toolbox: Wissenssuche, ein Webbrowser, Subagents, eine Sandbox, Diagramme, Apps, Skills und Guardrails." width="100%">
 
 <p>
-  <b>Die selbst gehostete Agent-Schicht: KI-Agenten auf deiner eigenen Infrastruktur bauen, betreiben und steuern.</b><br>
-  Dein Team und seine Agents in einem Live-Chat, mit Claude Code und Codex zur Hand, einem echten Browser, MCP und einer API, mit Budgets, Freigaben und einem aufgezeichneten Run.<br>
+  <b>Open-Source-Plattform für die KI-Teammates deines Unternehmens, auf eigener Infrastruktur.</b><br>
+  Agents mit eigenen Servern und Modellen bauen, betreiben und steuern: gemeinsamer Chat, RAG, Skills, ein echter Browser, MCP, Budgets, Freigaben und Audit-Protokoll.<br>
   <sub>Apache-2.0 &middot; gebaut auf Pydantic AI</sub>
 </p>
 
@@ -128,13 +128,19 @@ AgenticOS ist ein MCP-Server. Mit einem Befehl hinzufügen und im Browser anmeld
 <p align="center"><sub><b>AgenticOS in zwei Minuten.</b> Eine aufgezeichnete Sitzung: Ein Stabschef verteilt Arbeit an andere Agenten, der Architect entwirft einen neuen Agenten zur Freigabe, ein Finanzagent bekommt seine Tools, wird getestet und veröffentlicht ein Dashboard, ein anderer durchsucht GitHub, und einer liest Notion über MCP. Mit synthetischer Stimme vertont. <a href="https://github.com/user-attachments/assets/9d2a7923-a52e-4ee6-ab6a-734692824d5a">Ansehen (2:11)</a></sub></p>
 
 
+## 🧩 Nützliche Abläufe mit Agents bauen
+
+Mit [Workflows](https://vstorm-co.github.io/agenticos/de/workflows/) verbindest du typisierte Schritte, Agent-Aufrufe und MCP-Tools auf einer visuellen Arbeitsfläche. Strukturierte Ergebnisse stehen in [Virtual Tables](https://vstorm-co.github.io/agenticos/de/virtual-tables/); [Routines](https://vstorm-co.github.io/agenticos/de/triggers/) starten die Arbeit. Runs und Freigaben bleiben überprüfbar. [Sprachanrufe](https://vstorm-co.github.io/agenticos/de/voice/) und die [Desktop-App](https://vstorm-co.github.io/agenticos/de/desktop/) nutzen dieselben veröffentlichten Agents.
+
+Beginne mit einer konkreten Aufgabe: einem [LLM-Wiki in einem Project](https://vstorm-co.github.io/agenticos/de/projects/), einem [Agent-Widget auf einer Website](https://vstorm-co.github.io/agenticos/de/channels/) oder Teamarbeit mit gemeinsamen Projektdateien und Anweisungen. Das Widget stellt die Unterhaltung bereit; Empfehlungen und Warenkorb-Aktionen erfordern deinen Katalog, Tool-Integrationen und Berechtigungsprüfungen.
+
 ## 💡 Was ist AgenticOS?
 
 **AgenticOS ist eine quelloffene (Apache-2.0), selbst gehostete Schicht, um KI-Agenten im ganzen Unternehmen zu erstellen, zu teilen und zu steuern.** Teams konfigurieren einen Agenten im Browser: Sie schreiben seine Anweisungen, wählen ein Modell und schalten Werkzeuge ein. Sie verbinden ihn mit Unternehmensdokumenten und Apps und veröffentlichen ihn im Webchat, in Slack, Mattermost, Telegram, als Website-Widget oder über eine API. Administratoren steuern, wer einen Agenten nutzen darf, was er ausgeben darf und welche Aktionen die Freigabe einer Person brauchen. Jeder Run wird aufgezeichnet.
 
 Die meisten Agent-Frameworks liefern eine Bibliothek, also wird jede Änderung am Verhalten eines Agenten zu Pull Request, Review und Release. Das passt nicht zu den kleinen Agenten, die ein Unternehmen tatsächlich will, denn wer weiß, was der Agent sagen soll, hat meist keinen Commit-Zugriff. **Code definiert, Konfiguration setzt zusammen:** Entwickler erweitern den Baukasten, und Konfiguration erreicht immer nur das, was Code registriert hat.
 
-Es läuft mit Docker Compose auf deiner eigenen Infrastruktur und arbeitet mit 28 Modellanbietern, darunter dein ChatGPT-Abo und lokale Modelle über Ollama und vLLM. Die Agenten laufen auf [Pydantic AI](https://ai.pydantic.dev) und [pydantic-ai-harness](https://github.com/pydantic/pydantic-ai-harness); die Schicht drumherum nutzt FastAPI, PostgreSQL mit pgvector und Next.js. Gepflegt wird es von [Vstorm](https://vstorm.co).
+Es läuft mit Docker Compose auf deiner eigenen Infrastruktur und arbeitet mit 28 Modellanbietern, darunter dein ChatGPT-Abo und lokale Modelle über Ollama und vLLM. Die Agenten laufen auf [Pydantic AI](https://ai.pydantic.dev) und [pydantic-ai-harness](https://pydantic.dev/docs/ai/harness/); die Schicht drumherum nutzt FastAPI, PostgreSQL mit pgvector und Next.js. Gepflegt wird es von [Vstorm](https://vstorm.co).
 
 **Für wen es gedacht ist:**
 
@@ -149,9 +155,7 @@ Es läuft mit Docker Compose auf deiner eigenen Infrastruktur und arbeitet mit 2
 
 **Wie sich AgenticOS in ein Unternehmen einfügt:** Abteilungen wie Finanzen, Betrieb oder Vorstand nutzen gemeinsame Agenten im Webchat, in Slack oder in einem privaten Workspace. Deine Systeme rufen Agenten über die API auf, und Ereignisse oder Zeitpläne starten sie automatisch. Jede Anfrage durchläuft dieselben Kontrollen: Rollen, Budgets, Freigaben, Guardrails und einen aufgezeichneten Run. Deine Daten, Vektoren, Code-Sandboxes, der Vault für Zugangsdaten und optionale lokale Modelle bleiben auf deiner Infrastruktur. Gehostete Modelle, SaaS-Werkzeuge und externe Dokumentquellen werden nur genutzt, wenn du sie konfigurierst.
 
-<img src="docs/assets/readme/figures.webp" alt="29 integrierte Capabilities, pro Agent einschaltbar; 8 Orte, an denen ein Agent antwortet; 28 Modellanbieter, gehostet, in deiner Cloud oder lokal; 5 Quellen für die Dokumentsynchronisation; über 4.700 MCP-Server in der Galerie; 30 Tutorials, jedes mit einer Prüfung, die du ausführen kannst." width="100%">
-
-<p align="center"><sub><b>Auf einen Blick:</b> 29 integrierte Capabilities · 8 Orte, an denen ein Agent antwortet · 28 Modellanbieter · 5 Synchronisationsquellen für Dokumente · über 4.700 MCP-Server · 30 Tutorials.</sub></p>
+28 Modellanbieter · über 4.700 MCP-Galerieeinträge · gemeinsamer Chat und Projects · visuelle Workflows und Virtual Tables · Web, Desktop, API und Messaging. Verfügbarkeit und Tools werden pro veröffentlichtem Agent konfiguriert.
 
 ## ✨ Was du damit machen kannst
 
@@ -364,7 +368,7 @@ KI-Teammates kommen in die Cloud jedes Anbieters. AgenticOS ist der, den du selb
 
 Wähle es, wenn ein Team wiederkehrende Arbeit mit Dokumenten oder Werkzeugen hat, Fachleute die Anweisungen pflegen können und jemand den Betrieb einer selbst gehosteten Bereitstellung verantwortet. Wisse, wo es heute endet:
 
-<img src="docs/assets/readme/limits.webp" alt="Acht Grenzen mit Alternativen: Berechtigungen der Quellsysteme, Microsoft-365-Trigger, visueller Workflow-Builder, MFA/SAML/SCIM, Werkzeuge für Suchqualität, horizontale Skalierung, Budgets unter Last, Ergebnisse." width="100%">
+Berechtigungen der Quellsysteme werden nicht automatisch gespiegelt; ein Agent kann sein angebundenes Wissen seinen Nutzern zugänglich machen. Selbsthosting braucht einen Betreiber. Ergebnisse hängen von Modell, Tool-Konfiguration und Aufgabe ab. Lies die aktuellen [Grenzen und Abwägungen](https://vstorm-co.github.io/agenticos/de/about/comparison/#what-agenticos-does-not-do-yet).
 
 ## 🔐 Betrieb, Modelle und Zugriff selbst kontrollieren
 
@@ -382,7 +386,7 @@ AgenticOS ist gebaut mit FastAPI, Pydantic AI, PostgreSQL mit pgvector, Redis un
 |---|---|
 | Konsole | Next.js |
 | API | FastAPI |
-| Agent-Laufzeit | [Pydantic AI](https://ai.pydantic.dev) und [pydantic-ai-harness](https://github.com/pydantic/pydantic-ai-harness), ein Runner hinter jeder Oberfläche |
+| Agent-Laufzeit | [Pydantic AI](https://ai.pydantic.dev) und [pydantic-ai-harness](https://pydantic.dev/docs/ai/harness/), ein Runner hinter jeder Oberfläche |
 | Hintergrundarbeit | Eine Job-Queue in PostgreSQL, bedient von `python -m app.worker` |
 | Daten | PostgreSQL mit pgvector |
 | Codeausführung | Container, gestartet von `sandboxd` |

@@ -12,6 +12,8 @@ They fit together well. n8n moves data between systems on a schedule. AgenticOS 
 
 Maintained by the AgenticOS team. Sources checked 21 October 2026. AgenticOS baseline: v1.10.0. n8n scope: its pricing page, documentation and licence at n8n@2.44.5, not a tested cloud plan or self-hosted Enterprise licence.
 
+AgenticOS feature statements refreshed on 2 November 2026 against v1.35.0. The vendor source-check date above is unchanged; this is not a fresh vendor pricing audit.
+
 ## At a glance
 
 | Area | n8n | AgenticOS |
@@ -59,7 +61,7 @@ n8n builds retrieval from nodes: loaders, embeddings and a vector store you choo
 ## When n8n is the better fit
 
 - The job is moving data between many systems, with branches, retries and schedules.
-- You want its large integration library and visual canvas. AgenticOS has no workflow canvas.
+- You prefer this product's particular node library, integrations and workflow editing experience. AgenticOS also has a visual workflow builder; available nodes and execution semantics differ.
 - You need its review channels such as Microsoft Teams, WhatsApp or Gmail, or its evaluation metrics. AgenticOS has neither yet.
 
 ## Use them together

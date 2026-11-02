@@ -1,6 +1,6 @@
 # AgenticOS
 
-> AgenticOS is one place to build, run and govern a company's AI agents. It is called an operating system because it does the seven things one does - processes, permissions, resource limits, drivers, a filesystem, one shell over many interfaces, and an audit log - and each has a mechanism in this codebase. Self-hosted, open source (Apache-2.0), multi-tenant, and built by [Vstorm](https://vstorm.co). Its design is one sentence: code defines, configuration composes. A business team assembles agents in a browser — instructions, a model, a set of capabilities, a budget — and engineers extend what there is to assemble, in typed Python. Configuration can only ever reach what code registered, which is what makes a no-code Builder safe to hand to somebody who is not an engineer.
+> AgenticOS is an open-source, self-hosted AI agent platform for a company's AI teammates. Build, run and govern agents on your own servers and models. It is called an operating system because it does the seven things one does - processes, permissions, resource limits, drivers, a filesystem, one shell over many interfaces, and an audit log - and each has a mechanism in this codebase. Self-hosted, open source (Apache-2.0), multi-tenant, and built by [Vstorm](https://vstorm.co). Its design is one sentence: code defines, configuration composes. A business team assembles agents in a browser — instructions, a model, a set of capabilities, a budget — and engineers extend what there is to assemble, in typed Python. Configuration can only ever reach what code registered, which is what makes a no-code Builder safe to hand to somebody who is not an engineer.
 
 Companies end up with agents in five places and cannot answer four questions: what agents do we run, what did they cost, what did they touch, and who said they could. AgenticOS is one place to build them and one set of books for all of them, running on infrastructure the company already owns.
 
@@ -8,6 +8,7 @@ The person who knows what an agent should say is rarely the person with commit a
 
 Repository: https://github.com/vstorm-co/agenticos
 Documentation: https://vstorm-co.github.io/agenticos/
+Website: https://vstorm-co.github.io/vstormos-landing/
 Maintainer: Vstorm (https://vstorm.co), an applied agentic AI engineering consultancy.
 
 ## Why it is called an operating system
@@ -17,7 +18,7 @@ The word is used as a specification here rather than as a label. An operating sy
 1. **Runs and isolates processes.** A run is the process — it starts, it can be stopped, it is isolated from other tenants by database constraints, and it leaves a record of what it did.
 2. **Enforces resource limits.** A monthly budget per agent, checked *before* each model request rather than tallied afterwards. A run that fails still records what it spent.
 3. **Controls access.** A permission catalog in code, roles composed from it, per-resource grants that widen and never narrow. `approval: required` is the `sudo`: a tool acting on the outside world parks the run and waits for a person.
-4. **Reaches hardware through drivers.** One interface to 27 model providers and to any MCP server by URL. Changing a model profile moves every agent using it, without republishing one of them.
+4. **Reaches hardware through drivers.** One interface to 28 model providers and to any MCP server by URL. Changing a model profile moves every agent using it, without republishing one of them.
 5. **Keeps a filesystem.** Knowledge collections, skills and context files in the operator's own PostgreSQL, with embeddings keyed per organization.
 6. **Gives many interfaces one shell.** One runner behind web chat, the HTTP API, Slack, Telegram, Mattermost, an embeddable widget, a hosted page and a schedule.
 7. **Writes an audit log.** Who ran what, when, what it cost and who approved it — written even when the run failed.
@@ -109,3 +110,7 @@ Each guide cites the vendor's own pages, checked on 25 September 2026, and says 
 - [AgenticOS vs Viktor](https://vstorm-co.github.io/agenticos/about/viktor/): Viktor is one shared AI teammate per Slack or Teams workspace; AgenticOS runs many agents with their own access, knowledge and budgets.
 - [AgenticOS vs Wonderful](https://vstorm-co.github.io/agenticos/about/wonderful/): Wonderful delivers a closed enterprise platform with its own teams; AgenticOS is a platform the client owns, with implementation help from Vstorm agreed separately.
 - [AgenticOS vs Claude Code](https://vstorm-co.github.io/agenticos/about/claude-code/), [vs OpenAI Codex](https://vstorm-co.github.io/agenticos/about/codex/) and [vs OpenCode](https://vstorm-co.github.io/agenticos/about/opencode/): coding agents for developers; AgenticOS is for the agents everyone else uses, and these tools help extend it.
+
+- [Workflows](https://vstorm-co.github.io/agenticos/workflows/): visual canvas with typed steps, including explicit MCP calls without model-driven tool selection.
+- [Virtual Tables](https://vstorm-co.github.io/agenticos/virtual-tables/): structured records for people, agents and workflows.
+- [Muse](https://vstorm-co.github.io/agenticos/about/muse/) and [Claude Duet](https://vstorm-co.github.io/agenticos/about/claude-duet/): documented personal cloud-agent alternatives, checked 2 November 2026.

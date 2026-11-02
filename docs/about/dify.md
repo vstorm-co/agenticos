@@ -10,11 +10,13 @@ Both products self-host and both do document retrieval, so the difference is els
 
 Maintained by the AgenticOS team. Sources checked 21 October 2026. AgenticOS baseline: v1.10.0. Dify scope: the public repository at 1.17.1, its licence, documentation and pricing page, not a tested cloud plan or a pinned deployment.
 
+AgenticOS feature statements refreshed on 2 November 2026 against v1.35.0. The vendor source-check date above is unchanged; this is not a fresh vendor pricing audit.
+
 ## At a glance
 
 | Area | Dify Community Edition | AgenticOS |
 | --- | --- | --- |
-| How you build | A visual canvas of workflow, chatflow and agent nodes | Instructions, a model profile, capabilities, collections and a budget, published as a version |
+| How you build | A visual canvas of workflow, chatflow and agent nodes | Versioned agents and a visual workflow canvas with typed steps, branches and loops |
 | Licence | Dify Open Source License: Apache 2.0 with added conditions | Apache-2.0; see [bundled component licences](../licenses.md) |
 | Tenancy | One workspace; several workspaces are Enterprise | Many organizations in one deployment |
 | Roles | Four built-in roles; custom roles are Enterprise | Six roles, 33 permissions and per-resource grants for people and groups |
@@ -56,11 +58,11 @@ Dify's Human Input node pauses a workflow and sends a form, and the request clos
 
 ### A change a business team can make
 
-In Dify you change a process by editing the canvas. In AgenticOS a business owner edits instructions or switches a capability on, then publishes. Every [version](../concepts.md#version) stays readable, [environments](../environments.md#the-workflow-it-is-for) promote a tested version, and the spec [exports as YAML](../features.md#exportable-into-your-own-repository) for review in a pull request. Configuration can only reach what engineers registered, which keeps a no-code builder safe.
+In Dify you change a process by editing the canvas. In AgenticOS a business owner edits instructions or switches a capability on, or edits a visual workflow, then publishes. Every [version](../concepts.md#version) stays readable, [environments](../environments.md#the-workflow-it-is-for) promote a tested version, and the spec [exports as YAML](../features.md#exportable-into-your-own-repository) for review in a pull request. Configuration can only reach what engineers registered.
 
 ## When Dify is the better fit
 
-- Your team thinks in flowcharts and wants a visual canvas of nodes, loops and branches. AgenticOS has no workflow canvas.
+- You prefer this product's particular node library, integrations and workflow editing experience. AgenticOS also has a visual workflow builder; available nodes and execution semantics differ.
 - You need its marketplace plugins, its hybrid search with rerank, or its many observability integrations. AgenticOS has no reranker or trace dashboard yet.
 - One workspace is enough, or the Enterprise edition's terms suit you.
 
@@ -82,7 +84,7 @@ Dify's licence requires written permission to operate a multi-tenant environment
 
 ### Does AgenticOS have a visual workflow builder like Dify?
 
-No. AgenticOS builds agents from instructions, capabilities, knowledge and a budget, and handles multi-step work with delegation, planning and triggers. If a node canvas is how your team works, Dify fits better.
+Yes. AgenticOS includes a visual workflow builder with typed steps, branches, loops and published versions. Dify remains a distinct product with its own node library and ecosystem; compare the nodes your task actually requires.
 
 ### Which one costs less to run?
 

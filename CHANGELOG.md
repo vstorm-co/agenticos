@@ -19,6 +19,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Documentation
+
+- Align README and documentation homepages around the self-hosted AI agent platform; add workflows, tables, voice and practical entry points, link the website, remove obsolete no-workflow claims, add Muse/Duet comparisons, and refresh Grok Bot against official Enterprise and pricing documentation.
+
 ## [1.35.0] - 2026-11-02
 
 ### Changed

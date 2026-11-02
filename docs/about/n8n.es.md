@@ -1,5 +1,5 @@
 ---
-source_sha: "b3f95ce9d50a"
+source_sha: "9f3be485f8b2"
 title: "AgenticOS vs n8n"
 seo_title: "AgenticOS vs n8n: alternativa Apache-2.0 para agents de IA"
 description: "Compara n8n con AgenticOS para agents de IA: licencia, SSO y roles sin planes de pago, budgets por agent en lugar de cuotas de ejecuciones, y aprobaciones."
@@ -12,6 +12,8 @@ n8n es una herramienta de automatización de workflows. Conectas triggers, integ
 Encajan bien juntos. n8n mueve datos entre sistemas según una programación. AgenticOS ejecuta los agents que necesitan un responsable, un aprobador y un límite de gasto.
 
 Mantenido por el equipo de AgenticOS. Fuentes revisadas el 21 de octubre de 2026. Versión de referencia de AgenticOS: v1.10.0. Alcance de n8n: su página de precios, su documentación y su licencia en n8n@2.44.5, no un plan de nube probado ni una licencia Enterprise autoalojada.
+
+Las funciones de AgenticOS se actualizaron el 2 de noviembre de 2026 con v1.35.0. La fecha de revisión del proveedor indicada arriba no cambia; esto no es una nueva auditoría de precios.
 
 ## De un vistazo { #at-a-glance }
 
@@ -60,7 +62,7 @@ n8n construye la recuperación con nodos: loaders, embeddings y un almacén vect
 ## Cuándo n8n encaja mejor { #when-n8n-is-the-better-fit }
 
 - El trabajo consiste en mover datos entre muchos sistemas, con ramas, reintentos y programaciones.
-- Quieres su gran biblioteca de integraciones y su lienzo visual. AgenticOS no tiene lienzo de workflows.
+- Prefieres la biblioteca de nodos, integraciones y edición de workflows de este producto. AgenticOS también tiene un editor visual; los nodos disponibles y la semántica de ejecución difieren.
 - Necesitas sus canales de revisión, como Microsoft Teams, WhatsApp o Gmail, o sus métricas de evaluación. AgenticOS todavía no tiene ninguna de las dos cosas.
 
 ## Úsalos juntos { #use-them-together }
