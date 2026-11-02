@@ -95,6 +95,12 @@ class SkillChange:
     base_version: int | None
     """The version of the skill the agent was given, or `None` for one it created."""
 
+    base_version_id: UUID | None
+    """That version exactly - which line it is on as well as its number."""
+
+    fork_id: UUID | None
+    """The fork the agent read the skill from, or `None` for main."""
+
     description: str
     content: str
     resources: dict[str, str]
@@ -114,6 +120,8 @@ class MaterialisedSkills:
     owners: dict[str, Any] = field(default_factory=dict)
     #: `directory name -> skill version` written, so a change applies only onto it.
     versions: dict[str, int] = field(default_factory=dict)
+    #: `directory name -> skill version id` written, the exact version a change is onto.
+    version_ids: dict[str, UUID | None] = field(default_factory=dict)
 
 
 def skill_dir(name: str) -> str:
@@ -155,6 +163,7 @@ async def materialise(
     for skill in skills:
         state.owners[skill.name] = skill.id
         state.versions[skill.name] = skill.version
+        state.version_ids[skill.name] = skill.latest_version_id
         files = {
             f"{skill_dir(skill.name)}/{BODY_FILE}": render_body(skill, (bodies or {}).get(skill.id))
         }
@@ -207,7 +216,13 @@ async def collect_changes(workspace: Workspace, state: MaterialisedSkills) -> li
             path: content for path, content in state.written.items() if _skill_of(path) == name
         }:
             continue
-        change = _to_change(name, files, state.owners.get(name), state.versions.get(name))
+        change = _to_change(
+            name,
+            files,
+            state.owners.get(name),
+            state.versions.get(name),
+            state.version_ids.get(name),
+        )
         if change is not None:
             changes.append(change)
     return changes
@@ -262,7 +277,11 @@ def _skill_of(path: str) -> str | None:
 
 
 def _to_change(
-    name: str, files: dict[str, str], skill_id: Any | None, base_version: int | None
+    name: str,
+    files: dict[str, str],
+    skill_id: Any | None,
+    base_version: int | None,
+    base_version_id: UUID | None,
 ) -> SkillChange | None:
     """One skill's files as a proposal, or `None` if they are not a skill.
 
@@ -297,6 +316,8 @@ def _to_change(
         name=name,
         skill_id=skill_id,
         base_version=base_version,
+        base_version_id=base_version_id,
+        fork_id=None,
         description=description,
         content=instructions.strip(),
         resources={

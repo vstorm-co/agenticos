@@ -46,6 +46,8 @@ async def test_failed_proposal_flush_leaves_terminal_run_and_session_usable(db):
         name="invalid",
         skill_id=None,
         base_version=None,
+        base_version_id=None,
+        fork_id=None,
         description="x" * 501,
         content="Body",
         resources={},

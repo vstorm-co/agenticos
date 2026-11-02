@@ -155,7 +155,8 @@ class TestWriting:
         possible, because the same edit means different things asked by a lead
         and inferred from one complaint."""
         session = _RecordingSession()
-        organization_id, skill_id, agent_id, conversation_id = (
+        organization_id, skill_id, agent_id, conversation_id, base_version_id = (
+            uuid.uuid4(),
             uuid.uuid4(),
             uuid.uuid4(),
             uuid.uuid4(),
@@ -173,6 +174,8 @@ class TestWriting:
             content="Ask for the receipt.",
             resources={"a.md": "one"},
             base_version=3,
+            base_version_id=base_version_id,
+            fork_id=None,
         )
 
         [created] = session.added
@@ -182,6 +185,8 @@ class TestWriting:
         assert created.conversation_id == conversation_id
         assert created.resources == {"a.md": "one"}
         assert created.base_version == 3
+        assert created.base_version_id == base_version_id
+        assert created.fork_id is None
 
     async def test_replacing_a_body_is_conditional_on_what_was_read(self):
         """The row stays the one a reviewer is looking at, its revision moves, and
@@ -198,6 +203,8 @@ class TestWriting:
             resources={"b.md": "two"},
             conversation_id=None,
             base_version=4,
+            base_version_id=None,
+            fork_id=None,
         )
 
         assert replaced is row
@@ -217,6 +224,8 @@ class TestWriting:
             resources={},
             conversation_id=None,
             base_version=4,
+            base_version_id=None,
+            fork_id=None,
         )
         assert gone is None
 

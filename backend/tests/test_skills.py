@@ -14,10 +14,11 @@ import pytest
 from sqlalchemy.exc import IntegrityError
 
 from app.agents.capabilities.skills import SAFE_SKILL_TOOLS, SkillBody, Skills
-from app.core.exceptions import AlreadyExistsError, BadRequestError, NotFoundError
+from app.core.exceptions import AlreadyExistsError, BadRequestError, InUseError, NotFoundError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.resource_grant import GrantLevel, Visibility
 from app.db.models.skill import Skill
+from app.db.models.skill_version import SkillVersionSource
 from app.schemas.skill import SkillResourceUpdate, SkillUpdate
 from app.services import skill_library
 from app.services.skill_library import LibraryResource, LibrarySkill
@@ -39,8 +40,27 @@ def _used_nowhere(monkeypatch: pytest.MonkeyPatch) -> None:
     async def nowhere(*_args: object, resource_ids: list[UUID], **_kwargs: object):
         return {resource_id: [] for resource_id in resource_ids}
 
+    async def no_forks(*_args: object, skill_ids: list[UUID], **_kwargs: object):
+        return dict.fromkeys(skill_ids, 0)
+
     monkeypatch.setattr("app.services.skills.agents_using", nowhere)
     monkeypatch.setattr("app.services.skills.groups_sharing", nowhere)
+    monkeypatch.setattr("app.services.skills.agents_using_skill", AsyncMock(return_value=[]))
+    monkeypatch.setattr(
+        "app.services.skills.skill_version_repo.count_active_forks", AsyncMock(side_effect=no_forks)
+    )
+
+
+@pytest.fixture(autouse=True)
+def recorded(monkeypatch: pytest.MonkeyPatch) -> AsyncMock:
+    """Every new version, recorded as the service asked for it.
+
+    What a version holds and how it is numbered is `integration/test_skill_versions`'s,
+    against a real database; here it is enough to know which writes made one.
+    """
+    record = AsyncMock()
+    monkeypatch.setattr("app.services.skill_versions.SkillVersionService.record_main", record)
+    return record
 
 
 @pytest.fixture(autouse=True)
@@ -88,6 +108,7 @@ def _row(name: str) -> Skill:
         content="---\nname: x\n---\n\n# Refunds\n\nCheck the order first.",
         category=None,
         visibility="org",
+        version=1,
         resources=[],
     )
 
@@ -631,8 +652,8 @@ class TestSkillManagement:
         assert create.call_args.kwargs["category"] == "support"
 
     @pytest.mark.anyio
-    async def test_an_edit_bumps_the_version_agents_are_told_about(self):
-        """Agents bind to a skill, not a version, so the bump is how an edit is noticed."""
+    async def test_an_edit_of_the_text_is_a_new_main_version(self, recorded):
+        """The row takes the new text, and the row as it then stands is recorded."""
         ctx = _ctx()
         skill = _skill(ctx=ctx)
 
@@ -646,12 +667,29 @@ class TestSkillManagement:
                 ctx, skill.id, SkillUpdate(content="# New policy")
             )
 
-        assert update.call_args.kwargs["update_data"] == {
-            "content": "# New policy",
-            "version": skill.version + 1,
-        }
-        assert update.call_args.kwargs["skill"] is skill
+        assert update.call_args.kwargs["update_data"] == {"content": "# New policy"}
+        recorded.assert_awaited_once_with(
+            ctx, skill, source=SkillVersionSource.EDIT, proposal_id=None
+        )
         assert updated is skill
+
+    @pytest.mark.anyio
+    async def test_a_new_category_alone_is_no_new_version(self, recorded):
+        """An agent reads the text and the description; the shelf a person files it on
+        changes nothing it executes."""
+        ctx = _ctx()
+        skill = _skill(ctx=ctx)
+
+        with (
+            patch("app.services.skills.skill_repo.get", new=AsyncMock(return_value=skill)),
+            patch("app.services.skills.skill_repo.update", new=AsyncMock(return_value=skill)),
+            patch("app.services.skills.record_audit", new=AsyncMock()),
+        ):
+            await SkillService(_db()).update(
+                ctx, skill.id, SkillUpdate(category="support", content=skill.content)
+            )
+
+        recorded.assert_not_awaited()
 
     @pytest.mark.anyio
     async def test_an_edit_is_audited_with_what_changed(self):
@@ -723,25 +761,31 @@ class TestSkillManagement:
         assert audit.call_args.kwargs["target_id"] == str(skill.id)
 
     @pytest.mark.anyio
-    async def test_deleting_a_skill_is_a_change_the_suites_of_its_agents_hear(self):
-        """A published spec keeps the deleted skill's id and runs without it."""
+    async def test_a_skill_an_agent_uses_is_not_deleted(self):
+        """Its agents name the versions they run, which must not vanish from under them.
+        The refusal names the agents the caller may see and counts the rest."""
         ctx = _ctx()
         skill = _skill(ctx=ctx)
+        seen, unseen = MagicMock(id=uuid.uuid4()), MagicMock(id=uuid.uuid4())
+        seen.name = "Refund desk"
 
         with (
             patch("app.services.skills.skill_repo.get", new=AsyncMock(return_value=skill)),
-            patch("app.services.skills.resource_grant_repo.delete_for_resource", new=AsyncMock()),
-            patch("app.services.skills.skill_repo.delete", new=AsyncMock()),
-            patch("app.services.skills.record_audit", new=AsyncMock()),
             patch(
-                "app.services.eval_suite.EvalSuiteService.dependency_changed", new=AsyncMock()
-            ) as changed,
+                "app.services.skills.agents_using_skill",
+                new=AsyncMock(return_value=[seen, unseen]),
+            ),
+            patch("app.services.skills.accessible_ids", new=AsyncMock(return_value={seen.id})),
+            patch("app.services.skills.skill_repo.delete", new=AsyncMock()) as delete,
+            pytest.raises(InUseError) as refused,
         ):
             await SkillService(_db()).delete(ctx, skill.id)
 
-        changed.assert_awaited_once_with(
-            organization_id=skill.organization_id, kind="skill", resource_id=skill.id
-        )
+        assert refused.value.details == {
+            "agents": [{"id": seen.id, "name": "Refund desk"}],
+            "hidden": 1,
+        }
+        delete.assert_not_awaited()
 
 
 class TestTheListingOnlyReads:
@@ -1108,8 +1152,8 @@ class TestSkillFiles:
     # -- attaching one file ---------------------------------------------
 
     @pytest.mark.anyio
-    async def test_attaching_a_file_bumps_the_version_and_names_it_in_the_audit(
-        self, service, ctx, repo, audit, skill
+    async def test_attaching_a_file_is_a_new_version_and_named_in_the_audit(
+        self, service, ctx, repo, audit, skill, recorded
     ):
         """A file is part of the skill as far as a bound agent is concerned, so
         adding one is the same kind of event as rewriting the body. A version
@@ -1124,7 +1168,9 @@ class TestSkillFiles:
 
         assert created is stored
         assert repo.create_resource.await_args.kwargs["skill_id"] == skill.id
-        assert repo.update.await_args.kwargs["update_data"] == {"version": skill.version + 1}
+        recorded.assert_awaited_once_with(
+            ctx, skill, source=SkillVersionSource.RESOURCES, proposal_id=None
+        )
         recorded = audit.await_args.kwargs
         assert recorded["action"] == "skill.resource_added"
         assert recorded["details"] == {"name": skill.name, "resource": "template.md"}
@@ -1202,16 +1248,14 @@ class TestSkillFiles:
 
     @pytest.mark.anyio
     async def test_the_version_moves_once_for_the_whole_upload(
-        self, service, ctx, repo, audit, skill
+        self, service, ctx, repo, audit, skill, recorded
     ):
         """Three files dropped in together are one edit. A bump per file would
         make the version a count of files rather than a mark that what bound
         agents execute has changed."""
         await service.put_resources(ctx, skill.id, [("a.md", b"a"), ("b.md", b"b"), ("c.md", b"c")])
 
-        repo.update.assert_awaited_once_with(
-            service.db, skill=skill, update_data={"version": skill.version + 1}
-        )
+        recorded.assert_awaited_once()
 
     @pytest.mark.anyio
     async def test_a_path_that_steps_outside_the_skill_never_reaches_the_repository(
@@ -1323,8 +1367,8 @@ class TestSkillFiles:
         assert refused.value.details == {"resource_id": str(resource_id)}
 
     @pytest.mark.anyio
-    async def test_editing_a_file_bumps_the_version_and_is_audited(
-        self, service, ctx, repo, audit, skill
+    async def test_editing_a_file_is_a_new_version_and_is_audited(
+        self, service, ctx, repo, audit, skill, recorded
     ):
         stored = _resource(name="checklist.md")
         repo.get_resource.return_value = stored
@@ -1336,7 +1380,9 @@ class TestSkillFiles:
 
         assert updated is stored
         assert repo.update_resource.await_args.kwargs["update_data"] == {"content": "# New"}
-        assert repo.update.await_args.kwargs["update_data"] == {"version": skill.version + 1}
+        recorded.assert_awaited_once_with(
+            ctx, skill, source=SkillVersionSource.RESOURCES, proposal_id=None
+        )
         recorded = audit.await_args.kwargs
         assert recorded["action"] == "skill.resource_updated"
         assert recorded["details"] == {"name": skill.name, "resource": "checklist.md"}
@@ -1357,8 +1403,8 @@ class TestSkillFiles:
         audit.assert_not_awaited()
 
     @pytest.mark.anyio
-    async def test_removing_a_file_bumps_the_version_and_names_it_in_the_audit(
-        self, service, ctx, repo, audit, skill
+    async def test_removing_a_file_is_a_new_version_and_named_in_the_audit(
+        self, service, ctx, repo, audit, skill, recorded
     ):
         """The name is read before the row goes. Taken afterwards it would be
         gone, and the entry would say which skill lost a file without saying
@@ -1369,7 +1415,9 @@ class TestSkillFiles:
         await service.remove_resource(ctx, skill.id, stored.id)
 
         assert repo.delete_resource.await_args.args[1] is stored
-        assert repo.update.await_args.kwargs["update_data"] == {"version": skill.version + 1}
+        recorded.assert_awaited_once_with(
+            ctx, skill, source=SkillVersionSource.RESOURCES, proposal_id=None
+        )
         recorded = audit.await_args.kwargs
         assert recorded["action"] == "skill.resource_removed"
         assert recorded["details"] == {"name": skill.name, "resource": "checklist.md"}
