@@ -1,14 +1,14 @@
 """Channel bot, identity, and session schemas."""
 
 from datetime import datetime
-from typing import Literal
+from typing import Annotated, Literal
 from uuid import UUID
 
 from pydantic import Field, computed_field, model_validator
 
 from app.schemas.base import BaseSchema
 from app.schemas.urls import ServiceAddress
-from app.services.channels.webhooks import inbound_command_url, inbound_webhook_url
+from app.services.channels.webhooks import STREAM_ONLY, inbound_command_url, inbound_webhook_url
 from app.services.speech_to_text import is_offered
 
 
@@ -18,6 +18,11 @@ class AccessPolicy(BaseSchema):
     mode: Literal["open", "whitelist", "jwt_linked", "group_only"] = "open"
     whitelist: list[str] = []
     allowed_groups: list[str] = []
+    discord_guild_ids: list[Annotated[str, Field(pattern=r"^[1-9][0-9]{0,19}$")]] = Field(
+        default_factory=list,
+        max_length=2500,
+        description="Discord server IDs explicitly approved by the operator. Empty permits DMs only.",
+    )
     require_link: bool = False
     respond_to_broadcasts: bool = Field(
         default=False,
@@ -236,6 +241,15 @@ class ChannelBotCreate(BaseSchema):
             raise ValueError(f"An app and tenant ID are for a Teams bot, not a {self.platform} bot")
         if teams:
             self.webhook_mode = True
+        return self
+
+    @model_validator(mode="after")
+    def _a_gateway_bot_has_no_webhook(self) -> ChannelBotCreate:
+        """A Discord bot is reached over its Gateway connection, never a webhook (#2079)."""
+        if self.platform in STREAM_ONLY and (self.webhook_mode or self.webhook_secret is not None):
+            raise ValueError(
+                f"A {self.platform} bot connects over its own Gateway connection and takes no webhook"
+            )
         return self
 
     @model_validator(mode="after")

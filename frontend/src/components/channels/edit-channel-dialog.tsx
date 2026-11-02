@@ -33,6 +33,7 @@ import { DIALOG_FORM, DIALOG_SCROLL_GUTTER } from "@/lib/dialog-sizes";
 import { cn } from "@/lib/utils";
 import type { AnswerStyle, ChannelBot, ChannelBotUpdate, ChannelPlatform } from "@/types/channels";
 import { MentionPolicyFields } from "./mention-policy-fields";
+import { DiscordGuildsField, parseDiscordGuilds, validDiscordGuilds } from "./discord-guilds-field";
 import { useTranslations } from "next-intl";
 
 const PLATFORM_LABEL: Record<ChannelPlatform, string> = {
@@ -41,6 +42,7 @@ const PLATFORM_LABEL: Record<ChannelPlatform, string> = {
   mattermost: "Mattermost",
   // i18n-exempt: a product\'s own name, written the same in every language
   teams: "Microsoft Teams",
+  discord: "Discord",
 };
 
 const MAX_NAME = 255;
@@ -59,6 +61,7 @@ export interface ChannelBotDraft {
   /** Slack: whether Slack calls this deployment, or the deployment connects out. */
   webhookMode: boolean;
   respondToBroadcasts: boolean;
+  discordGuilds: string;
   answerStyle: AnswerStyle;
   transcription: TranscriptionChoice;
 }
@@ -117,6 +120,17 @@ export function botPatch(bot: ChannelBot, draft: ChannelBotDraft): ChannelBotUpd
       ...bot.access_policy,
       respond_to_broadcasts: draft.respondToBroadcasts,
     };
+  }
+  if (bot.platform === "discord") {
+    const guilds = parseDiscordGuilds(draft.discordGuilds);
+    const storedGuilds = parseDiscordGuilds((bot.access_policy.discord_guild_ids ?? []).join(" "));
+    if (guilds.join(",") !== storedGuilds.join(",")) {
+      patch.access_policy = {
+        ...bot.access_policy,
+        ...patch.access_policy,
+        discord_guild_ids: guilds,
+      };
+    }
   }
   Object.assign(patch, transcriptionPatch(bot, draft.transcription));
   return patch;
@@ -186,6 +200,7 @@ function BotEditForm({ bot, onOpenChange, onSubmit, isPending }: BotEditFormProp
     commandToken: "",
     webhookMode: bot.webhook_mode,
     respondToBroadcasts: bot.access_policy.respond_to_broadcasts ?? false,
+    discordGuilds: (bot.access_policy.discord_guild_ids ?? []).join(", "),
     answerStyle: {
       ack_reaction: bot.ack_reaction,
       stream_answers: bot.stream_answers,
@@ -381,6 +396,13 @@ function BotEditForm({ bot, onOpenChange, onSubmit, isPending }: BotEditFormProp
             </FormField>
           ))}
 
+        {bot.platform === "discord" && (
+          <DiscordGuildsField
+            idPrefix="edit-channel"
+            value={draft.discordGuilds}
+            onChange={(discordGuilds) => setDraft((current) => ({ ...current, discordGuilds }))}
+          />
+        )}
         <MentionPolicyFields
           idPrefix="edit-channel"
           platform={bot.platform}
@@ -413,7 +435,12 @@ function BotEditForm({ bot, onOpenChange, onSubmit, isPending }: BotEditFormProp
         <Button
           onClick={submit}
           loading={isPending}
-          disabled={nothingToSave || shortToken || badReaction}
+          disabled={
+            nothingToSave ||
+            shortToken ||
+            badReaction ||
+            (bot.platform === "discord" && !validDiscordGuilds(draft.discordGuilds))
+          }
         >
           {t("save")}
         </Button>

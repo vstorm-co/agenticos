@@ -272,3 +272,27 @@ async def test_the_keeper_reads_them_again_once_the_minute_is_up(
     await _passes(monkeypatch, 3)
 
     assert main.get_active_polling_bot_ids.await_count == 3  # ty: ignore[unresolved-attribute]
+
+
+@pytest.mark.security
+async def test_restart_restores_operator_server_approvals_before_connecting(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.services.channels import supervisor
+    from app.services.channels.discord import DiscordAdapter
+
+    bot = _bot("discord")
+    bot.access_policy = {"discord_guild_ids": ["100", "200"]}
+    _rows(monkeypatch, [bot])
+    monkeypatch.setattr(main, "unseal_bot_token", MagicMock(return_value="tok"))
+    monkeypatch.setattr(main, "unseal_slack_app_token", MagicMock(return_value=None))
+    adapter = DiscordAdapter()
+    start = AsyncMock()
+    monkeypatch.setattr(adapter, "start_polling", start)
+    monkeypatch.setattr(supervisor, "get_adapter", lambda _platform: adapter)
+    try:
+        await main._start_channel_polling("discord")
+        assert adapter._approved_guilds[str(bot.id)] == frozenset({"100", "200"})
+        start.assert_awaited_once()
+    finally:
+        await adapter.aclose()

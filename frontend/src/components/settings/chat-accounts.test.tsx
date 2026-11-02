@@ -73,10 +73,10 @@ describe("connected chat accounts", () => {
   });
 
   it("shows a platform it has no label for rather than nothing", async () => {
-    vi.mocked(listLinkedAccounts).mockResolvedValue([account({ platform: "discord" })]);
+    vi.mocked(listLinkedAccounts).mockResolvedValue([account({ platform: "whatsapp" })]);
     render(<ChatAccounts />);
 
-    expect(await screen.findByText("discord")).toBeVisible();
+    expect(await screen.findByText("whatsapp")).toBeVisible();
   });
 
   it("says how to connect one when there are none", async () => {
