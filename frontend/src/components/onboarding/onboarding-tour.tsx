@@ -282,7 +282,11 @@ export function OnboardingTour() {
       const targetIsVisible = step.target
         ? [...document.querySelectorAll(`[data-tour="${step.target}"]`)].some(isRendered)
         : false;
-      if (step.activate && !targetIsVisible) {
+      const targetsTab = step.activate
+        ? document.querySelector(`[data-tour="${step.activate}"][role="tab"]`) !== null
+        : false;
+      // A mounted target does not establish which tab is selected.
+      if (step.activate && (!targetIsVisible || targetsTab)) {
         // An optional step's tab can itself be conditional (the Memory tab renders only
         // when the capability is bound), so the activate wait takes the short timeout too.
         const trigger = await waitForElement(
