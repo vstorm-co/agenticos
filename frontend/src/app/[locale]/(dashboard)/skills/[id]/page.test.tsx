@@ -120,38 +120,37 @@ function version(number: number, extra: Partial<SkillVersionSummary> = {}): Skil
 
 const skill = vi.hoisted(() => ({ canEdit: true, error: null as unknown }));
 
-function serve() {
-  vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
-    if (path === "/skills/s1") {
-      if (skill.error) throw skill.error;
-      return {
-        id: "s1",
-        name: "returns-policy",
-        description: "How returns are handled.",
-        content: "# Returns",
-        category: null,
-        version: 12,
-        latest_version: { id: "m12", number: 12 },
-        forks: 1,
-        can_edit: skill.canEdit,
-        visibility: "org",
-        owner_user_id: null,
-        resources: [],
-      };
-    }
-    if (path.startsWith("/skills/s1/forks")) return { items: [RETURNS], total: 1 };
-    if (path === "/skills/s1/agents") return AGENTS;
-    if (path.startsWith("/skills/s1/versions?")) {
-      return {
-        items: [
-          version(12),
-          version(11, { source: "restore", restored_from: { id: "m4", number: 4, fork_id: null } }),
-        ],
-        total: 12,
-      };
-    }
-    return { items: [], total: 0, categories: [], suggested_categories: [] };
-  });
+/** What the API answers for each read the page makes. */
+async function serveOnce(path: string): Promise<unknown> {
+  if (path === "/skills/s1") {
+    if (skill.error) throw skill.error;
+    return {
+      id: "s1",
+      name: "returns-policy",
+      description: "How returns are handled.",
+      content: "# Returns",
+      category: null,
+      version: 12,
+      latest_version: { id: "m12", number: 12 },
+      forks: 1,
+      can_edit: skill.canEdit,
+      visibility: "org",
+      owner_user_id: null,
+      resources: [],
+    };
+  }
+  if (path.startsWith("/skills/s1/forks")) return { items: [RETURNS], total: 1 };
+  if (path === "/skills/s1/agents") return AGENTS;
+  if (path.startsWith("/skills/s1/versions?")) {
+    return {
+      items: [
+        version(12),
+        version(11, { source: "restore", restored_from: { id: "m4", number: 4, fork_id: null } }),
+      ],
+      total: 12,
+    };
+  }
+  return { items: [], total: 0, categories: [], suggested_categories: [] };
 }
 
 function wrapper({ children }: { children: ReactNode }) {
@@ -176,7 +175,7 @@ beforeEach(() => {
   state.show = null;
   skill.canEdit = true;
   skill.error = null;
-  serve();
+  vi.mocked(apiClient.get).mockImplementation(serveOnce);
 });
 
 describe("SkillPage", () => {
@@ -268,5 +267,85 @@ describe("SkillPage", () => {
 
     expect(await screen.findByRole("link", { name: "Back" })).toHaveAttribute("href", "/skills");
     expect(screen.queryByText("returns-policy")).toBeNull();
+  });
+});
+
+describe("SkillPage's lines and writes", () => {
+  it("says the forks cannot be read rather than guessing the line", async () => {
+    vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
+      if (path.startsWith("/skills/s1/forks")) throw new Error("forks offline");
+      return serveOnce(path);
+    });
+    await mount();
+
+    expect(await screen.findByText("forks offline")).toBeInTheDocument();
+    expect(screen.queryByText("returns-policy")).toBeNull();
+  });
+
+  it("opens a fork's history and editor from a link to the fork", async () => {
+    state.tab = "history";
+    state.show = "fork:f1";
+    await mount();
+
+    expect(await screen.findByText("History of fork “Returns”")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Edit fork “Returns”" })).toBeInTheDocument();
+  });
+
+  it("reads a link to a fork that is gone as everyone, on main", async () => {
+    state.show = "fork:gone";
+    await mount();
+
+    expect(await screen.findByRole("button", { name: "All (4)" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(screen.getByRole("button", { name: "Edit" })).toBeInTheDocument();
+  });
+
+  it("points History at the line picked there", async () => {
+    state.tab = "history";
+    await mount();
+
+    await userEvent.click(await screen.findByRole("button", { name: "fork “Returns”" }));
+    expect(await screen.findByText("History of fork “Returns”")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "main" }));
+    expect(await screen.findByText("History of main")).toBeInTheDocument();
+  });
+
+  it("opens the editor and closes it", async () => {
+    await mount();
+
+    await userEvent.click(await screen.findByRole("button", { name: "Edit" }));
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("deletes the skill from the editor and returns to the list", async () => {
+    vi.mocked(apiClient.delete).mockResolvedValue(undefined);
+    await mount();
+
+    await userEvent.click(await screen.findByRole("button", { name: "Edit" }));
+    await userEvent.click(
+      await screen.findByRole("button", { name: "More actions for returns-policy" }),
+    );
+    await userEvent.click(screen.getByRole("menuitem", { name: /Delete/ }));
+    await userEvent.click(screen.getByRole("button", { name: "Delete" }));
+
+    expect(apiClient.delete).toHaveBeenCalledWith("/skills/s1");
+    expect(state.push).toHaveBeenCalledWith("/skills");
+  });
+
+  it("asks again before deleting, and keeps the skill on cancel", async () => {
+    await mount();
+
+    await userEvent.click(await screen.findByRole("button", { name: "Edit" }));
+    await userEvent.click(
+      await screen.findByRole("button", { name: "More actions for returns-policy" }),
+    );
+    await userEvent.click(screen.getByRole("menuitem", { name: /Delete/ }));
+    await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+
+    expect(apiClient.delete).not.toHaveBeenCalled();
   });
 });

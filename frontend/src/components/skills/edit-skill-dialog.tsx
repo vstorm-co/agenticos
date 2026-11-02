@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
@@ -16,7 +17,7 @@ import {
 import { useSkill, useSkills } from "@/hooks";
 import { useSkillVersion, useSkillVersionWrites } from "@/hooks/use-skill-versions";
 import type { SkillEdit } from "@/hooks/use-skills";
-import { getErrorMessage } from "@/lib/api-error";
+import { ApiError, getErrorMessage } from "@/lib/api-error";
 import { DIALOG_CANVAS, DIALOG_FILL } from "@/lib/dialog-sizes";
 import { cn } from "@/lib/utils";
 import type { Skill } from "@/types/providers";
@@ -26,7 +27,9 @@ import type { SkillFork } from "@/types/skill-versions";
  * The skill's editor, saving a new version on the line the page is showing.
  *
  * On main it is the whole skill; on a fork it is the fork's newest text, and only
- * that text - the files and the category are main's.
+ * that text - the files and the category are main's. The version a save is written
+ * over is the one on screen when the dialog opened, so a line that moved since is
+ * refused, and the text stays for the person to keep.
  */
 export function EditSkillDialog({
   skill,
@@ -43,42 +46,54 @@ export function EditSkillDialog({
   onDelete: () => void;
 }) {
   const t = useTranslations("skills.page.edit");
+  const tSkills = useTranslations("skills");
   const tErrors = useTranslations("errors");
   const { categories, suggestedCategories } = useSkills({ limit: 1 });
   const { save } = useSkill(skill.id);
   const { edit } = useSkillVersionWrites(skill.id);
-  const forkVersionId = fork === null ? null : (fork.latest?.id ?? fork.base.id);
-  const forkText = useSkillVersion(skill.id, forkVersionId);
-  const baseVersionId = forkVersionId ?? skill.latest_version?.id ?? null;
+  const [base] = useState(() =>
+    fork === null ? skill.latest_version : (fork.latest ?? fork.base),
+  );
+  const [next] = useState(() =>
+    fork === null ? skill.latest_version.number + 1 : (fork.latest?.number ?? 0) + 1,
+  );
+  const [refusal, setRefusal] = useState<string | null>(null);
+  const forkText = useSkillVersion(skill.id, fork === null ? null : base.id);
   const shown =
     fork === null || forkText.version === undefined
       ? skill
-      : { ...skill, description: forkText.version.description, content: forkText.version.content };
-  const next =
-    fork === null
-      ? (skill.latest_version?.number ?? skill.version) + 1
-      : (fork.latest?.number ?? 0) + 1;
+      : {
+          ...skill,
+          description: forkText.version.description,
+          content: forkText.version.content,
+          resources: [],
+        };
 
   async function handleSave(change: SkillEdit) {
+    setRefusal(null);
     try {
       const textChanged =
         change.description !== shown.description || change.content !== shown.content;
-      if (textChanged && baseVersionId !== null) {
+      if (textChanged) {
         await edit.mutateAsync({
           forkId: fork?.id ?? null,
-          baseVersionId,
+          baseVersionId: base.id,
           description: change.description,
           content: change.content,
         });
-        toast.success(t("saved", { number: next }));
       }
       // The category is the skill's, not a version's, so it is saved beside the text.
       if (fork === null && change.category !== skill.category) {
         await save.mutateAsync({ category: change.category });
       }
+      toast.success(textChanged ? t("saved", { number: next }) : tSkills("savedAgentsCurrent"));
       onClose();
-    } catch (refusal) {
-      toast.error(getErrorMessage(refusal, tErrors));
+    } catch (failure) {
+      setRefusal(
+        failure instanceof ApiError && failure.status === 409
+          ? t("lineMoved")
+          : getErrorMessage(failure, tErrors),
+      );
     }
   }
 
@@ -89,13 +104,20 @@ export function EditSkillDialog({
           <DialogTitle className="font-mono">
             {fork === null ? skill.name : t("forkTitle", { skill: skill.name, name: fork.name })}
           </DialogTitle>
-          <DialogDescription>{t("nameHowModelRefers")}</DialogDescription>
+          <DialogDescription>
+            {fork === null ? t("nameHowModelRefers") : t("forkFiles")}
+          </DialogDescription>
         </DialogHeader>
+        {refusal !== null && (
+          <p role="alert" className="text-destructive text-sm">
+            {refusal}
+          </p>
+        )}
         {fork !== null && forkText.version === undefined ? (
           <Skeleton className="min-h-[22rem] w-full" />
         ) : (
           <SkillWorkbench
-            key={`${skill.id}:${forkVersionId ?? "main"}`}
+            key={`${skill.id}:${base.id}`}
             skill={shown}
             fork={fork !== null}
             canEdit={skill.can_edit === true}
@@ -108,7 +130,7 @@ export function EditSkillDialog({
             }
             onSave={(change) => void handleSave(change)}
             onCancel={onClose}
-            onDelete={onDelete}
+            onDelete={fork === null ? onDelete : undefined}
           />
         )}
       </DialogContent>

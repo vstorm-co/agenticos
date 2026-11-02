@@ -138,9 +138,7 @@ describe("useSkills", () => {
     expect(cancelOrder).toBeLessThan(invalidateOrder);
   });
 
-  it("says an edit reaches every agent at once", async () => {
-    // Skills are bound by reference. That is the whole point, and the person
-    // editing one should know it before they hit save.
+  it("says an edit was saved", async () => {
     vi.mocked(apiClient.patch).mockResolvedValue({ name: "refunds" });
     const { result } = renderHook(() => useSkills(), { wrapper });
     await waitFor(() => expect(result.current.isLoading).toBe(false));
@@ -148,16 +146,7 @@ describe("useSkills", () => {
     await result.current.update.mutateAsync({ id: "s1", content: "# Refunds v2" });
 
     expect(apiClient.patch).toHaveBeenCalledWith("/skills/s1", { content: "# Refunds v2" });
-    expect(toastSuccess.mock.calls.at(-1)?.[0]).toMatch(/every agent/i);
-  });
-
-  it("deletes a skill", async () => {
-    vi.mocked(apiClient.delete).mockResolvedValue(undefined);
-    const { result } = renderHook(() => useSkills(), { wrapper });
-    await waitFor(() => expect(result.current.isLoading).toBe(false));
-
-    await result.current.remove.mutateAsync("s1");
-    expect(apiClient.delete).toHaveBeenCalledWith("/skills/s1");
+    expect(toastSuccess.mock.calls.at(-1)?.[0]).toBe("Saved.");
   });
 });
 
@@ -167,6 +156,7 @@ const BODY = {
   description: "How refunds work",
   content: "# Refunds",
   version: 1,
+  latest_version: { id: "v1", number: 1 },
   visibility: "organization",
   owner_user_id: null,
 };
@@ -205,7 +195,18 @@ describe("useSkill", () => {
       content: "# Refunds v2",
       category: null,
     });
-    expect(toastSuccess.mock.calls.at(-1)?.[0]).toMatch(/every agent/i);
+    // The editor says what the save made; the hook adds nothing on top.
+    expect(toastSuccess).not.toHaveBeenCalled();
+  });
+
+  it("deletes the skill", async () => {
+    vi.mocked(apiClient.delete).mockResolvedValue(undefined);
+    const { result } = renderHook(() => useSkill("s1"), { wrapper });
+    await waitFor(() => expect(result.current.skill).toEqual(BODY));
+
+    await result.current.remove.mutateAsync();
+    expect(apiClient.delete).toHaveBeenCalledWith("/skills/s1");
+    expect(toastSuccess).toHaveBeenCalled();
   });
 });
 
@@ -257,9 +258,9 @@ describe("useSkills failures", () => {
 
   it("reports a failed delete", async () => {
     vi.mocked(apiClient.delete).mockRejectedValue(new Error("in use by an agent"));
-    const { result } = renderHook(() => useSkills(), { wrapper });
+    const { result } = renderHook(() => useSkill("s1"), { wrapper });
 
-    await expect(result.current.remove.mutateAsync("s1")).rejects.toThrow();
+    await expect(result.current.remove.mutateAsync()).rejects.toThrow();
 
     expect(toastError).toHaveBeenCalledWith("in use by an agent");
   });
@@ -390,22 +391,14 @@ describe("useSkill files", () => {
     expect(toastError).toHaveBeenCalledWith("disk full");
   });
 
-  it("reports a failed body save", async () => {
+  it("leaves a failed save for the editor to report", async () => {
     vi.mocked(apiClient.patch).mockRejectedValue(new Error("stale"));
     const { result } = renderHook(() => useSkill("s1"), { wrapper });
     await waitFor(() => expect(result.current.skill).toEqual(BODY));
 
-    // The whole editable set, because that is what `SkillEdit` is - a partial
-    // would silently reset whatever it omitted.
-    await expect(
-      result.current.save.mutateAsync({
-        description: "d",
-        content: "x",
-        category: null,
-      }),
-    ).rejects.toThrow();
+    await expect(result.current.save.mutateAsync({ category: "support" })).rejects.toThrow();
 
-    expect(toastError).toHaveBeenCalledWith("stale");
+    expect(toastError).not.toHaveBeenCalled();
   });
 });
 

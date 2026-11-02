@@ -4,7 +4,9 @@ import { useState } from "react";
 import { useTranslations } from "next-intl";
 
 import { AgentAvatar } from "@/components/agents/agent-avatar";
+import { ErrorState } from "@/components/states";
 import { ListCard } from "@/components/ui";
+import { getErrorMessage } from "@/lib/api-error";
 import { versionTree, type TreeFork, type TreeRow } from "@/lib/skill-version-tree";
 import { cn } from "@/lib/utils";
 import type { SkillAgentUsage, SkillFork } from "@/types/skill-versions";
@@ -20,12 +22,16 @@ export function VersionTree({
   mainLatest,
   forks,
   agents,
+  error,
 }: {
   mainLatest: number;
   forks: SkillFork[];
   agents: SkillAgentUsage[];
+  /** Why the agents could not be read; the tree is not drawn without them. */
+  error: unknown;
 }) {
   const t = useTranslations("skills.page.tree");
+  const tErrors = useTranslations("errors");
   const [expanded, setExpanded] = useState<Map<string, Set<number>>>(new Map());
   const unfold = (line: string, from: number, to: number) =>
     setExpanded((was) => {
@@ -42,9 +48,13 @@ export function VersionTree({
       counted={t("summary", { versions: mainLatest, forks: forks.length })}
       headerTour="skill-tree"
     >
-      <div className="p-4">
-        <Line rows={rows} line="main" onUnfold={unfold} />
-      </div>
+      {error ? (
+        <ErrorState description={getErrorMessage(error, tErrors)} />
+      ) : (
+        <div className="p-4">
+          <Line rows={rows} line="main" onUnfold={unfold} />
+        </div>
+      )}
     </ListCard>
   );
 }

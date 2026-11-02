@@ -36,6 +36,7 @@ const SKILL: Skill = {
   content: "## Refunds\n\nWithin 30 days, no questions asked.",
   category: null,
   version: 3,
+  latest_version: { id: "v3", number: 3 },
   visibility: "organization",
   owner_user_id: null,
   resources: [],

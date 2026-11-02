@@ -8218,7 +8218,9 @@
         "forkTitle": "{skill} · fork „{name}”",
         "nameHowModelRefers": "Pod tą nazwą model odwołuje się do skilla.",
         "warnMain": "Zapis tworzy v{number} na main. {count, plural, =0 {Żaden agent jeszcze nie podąża za main.} one {# agent podążający za main dostanie ją od razu.} few {# agentów podążających za main dostanie ją od razu.} many {# agentów podążających za main dostanie ją od razu.} other {# agenta podążającego za main dostanie ją od razu.}} Przypięci agenci i forki zostają przy swojej wersji.",
-        "warnFork": "Zapis tworzy v{number} forka „{name}”. {count, plural, =0 {Żaden agent jeszcze nie używa forka.} one {Jego # agent dostanie ją od razu.} few {Jego # agentów dostanie ją od razu.} many {Jego # agentów dostanie ją od razu.} other {Jego # agenta dostanie ją od razu.}}"
+        "warnFork": "Zapis tworzy v{number} forka „{name}”. {count, plural, =0 {Żaden agent jeszcze nie używa forka.} one {Jego # agent dostanie ją od razu.} few {Jego # agentów dostanie ją od razu.} many {Jego # agentów dostanie ją od razu.} other {Jego # agenta dostanie ją od razu.}}",
+        "lineMoved": "Ktoś zapisał nowszą wersję, odkąd to otworzyłeś. Twój tekst nadal tu jest: skopiuj go, zamknij i otwórz najnowszą wersję, żeby go tam wprowadzić.",
+        "forkFiles": "Do forka należą tylko opis i instrukcje. Jego pliki pochodzą z wersji main, od której wystartował, a pliki edytuje się na main."
       }
     }
   },

@@ -26,7 +26,7 @@ export function SkillPageHeader({
   onEdit: () => void;
 }) {
   const t = useTranslations("skills.page");
-  const latest = skill.latest_version?.number ?? skill.version;
+  const latest = skill.latest_version.number;
   return (
     <PageHeader
       title={<span className="font-mono">{skill.name}</span>}
@@ -36,9 +36,9 @@ export function SkillPageHeader({
       badges={
         <>
           <Badge variant="outline">{t("mainVersion", { number: latest })}</Badge>
-          {(skill.forks ?? 0) > 0 && (
-            <Badge variant="outline">{t("forkCount", { count: skill.forks ?? 0 })}</Badge>
-          )}
+          {skill.forks ? (
+            <Badge variant="outline">{t("forkCount", { count: skill.forks })}</Badge>
+          ) : null}
         </>
       }
       actions={

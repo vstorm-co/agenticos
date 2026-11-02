@@ -8324,7 +8324,7 @@
       "tree": {
         "title": "Versionsbaum",
         "summary": "{versions, plural, =1 {1 Version auf main} other {# Versionen auf main}}{forks, plural, =0 {} =1 { · 1 Fork} other { · # Forks}}",
-        "folded": "{count} Versionen (v{from}–v{to})",
+        "folded": "{count, plural, other {# Versionen}} (v{from}–v{to})",
         "number": "v{number}",
         "latest": "neueste",
         "fork": "Fork „{name}“",
@@ -8336,7 +8336,9 @@
         "forkTitle": "{skill} · Fork „{name}“",
         "nameHowModelRefers": "Unter diesem Namen spricht das Modell den Skill an.",
         "warnMain": "Speichern erzeugt v{number} auf main. {count, plural, =0 {Noch folgt kein Agent main.} =1 {1 Agent, der main folgt, erhält sie sofort.} other {# Agents, die main folgen, erhalten sie sofort.}} Fixierte Agents und Forks behalten ihre Version.",
-        "warnFork": "Speichern erzeugt v{number} von Fork „{name}“. {count, plural, =0 {Noch nutzt kein Agent den Fork.} =1 {Sein 1 Agent erhält sie sofort.} other {Seine # Agents erhalten sie sofort.}}"
+        "warnFork": "Speichern erzeugt v{number} von Fork „{name}“. {count, plural, =0 {Noch nutzt kein Agent den Fork.} =1 {Sein 1 Agent erhält sie sofort.} other {Seine # Agents erhalten sie sofort.}}",
+        "lineMoved": "Seit Sie dies geöffnet haben, hat jemand eine neuere Version gespeichert. Ihr Text ist noch hier: kopieren Sie ihn, schließen Sie und öffnen Sie die neueste Version, um ihn dort einzufügen.",
+        "forkFiles": "Nur Beschreibung und Anweisungen gehören zum Fork. Seine Dateien stammen aus der main-Version, bei der er begann, und Dateien werden auf main bearbeitet."
       }
     }
   },

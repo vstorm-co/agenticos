@@ -129,7 +129,7 @@ export interface Skill {
   category: string | null;
   version: number;
   /** Main's newest version: what an edit on main is written over. */
-  latest_version?: { id: string; number: number };
+  latest_version: { id: string; number: number };
   /** How many forks the skill has that are not archived. */
   forks?: number;
   /** Whether the caller may edit the skill, restore its versions and fork it. */

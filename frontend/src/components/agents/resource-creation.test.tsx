@@ -24,6 +24,7 @@ vi.mock("@/components/skills/create-skill-dialog", () => ({
             content: "",
             category: null,
             version: 1,
+            latest_version: { id: "v1", number: 1 },
             visibility: "org",
             owner_user_id: null,
           })

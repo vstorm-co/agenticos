@@ -653,7 +653,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
     optional: true,
   },
   { id: "skill-agents", page: SKILL_DETAIL, target: "skill-agents", permission: Perm.skillsView },
-  // The chips and the button render only once the skill has agents.
+  // Rendered once the agents load, and the button only on rows the caller may publish.
   {
     id: "skill-lines",
     page: SKILL_DETAIL,

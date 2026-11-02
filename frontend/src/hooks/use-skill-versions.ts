@@ -47,11 +47,11 @@ export function useSkillForks(skillId: string) {
 }
 
 export function useSkillAgents(skillId: string) {
-  const { data, isLoading, error, refetch } = useQuery({
+  const { data, isLoading, error } = useQuery({
     queryKey: qk.skills.agents(skillId),
     queryFn: () => listSkillAgents(skillId),
   });
-  return { agents: data, isLoading, error, refetch };
+  return { agents: data, isLoading, error };
 }
 
 /**

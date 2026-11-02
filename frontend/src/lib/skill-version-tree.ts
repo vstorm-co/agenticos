@@ -2,11 +2,13 @@
  * A skill's version tree, laid out as the rows a reader scans from the newest down.
  *
  * Main versions run v1 to its latest without gaps, and each fork's versions do the
- * same within the fork. An agent sits where its default environment's version
- * binds it, and one bound only in its draft is on no line; a fork with no versions of its own holds its agents on the branch
- * itself, since it still serves its base. Only versions somebody would look for are drawn - each
- * line's latest, v1, a version an agent uses and a fork's base; every other stretch
- * of two or more folds into one row, so twenty versions nobody uses take one line.
+ * same within the fork. An agent sits where its default environment's version binds
+ * it, and one bound only in its draft is on no line. A fork with no versions of its
+ * own holds its agents on the branch itself, since it still serves its base.
+ *
+ * Only versions somebody would look for are drawn - each line's latest, v1, a version
+ * an agent uses and a fork's base; every other stretch of two or more folds into one
+ * row, so twenty versions nobody uses take one line.
  */
 
 import type { SkillAgentUsage, SkillFork } from "@/types/skill-versions";

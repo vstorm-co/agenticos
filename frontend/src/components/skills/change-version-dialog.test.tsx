@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { toast } from "sonner";
+import { toast, type Action } from "sonner";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { apiClient } from "@/lib/api-client";
@@ -155,5 +155,64 @@ describe("ChangeVersionDialog", () => {
 
     expect(await screen.findByText("That fork is archived")).toHaveAttribute("role", "alert");
     expect(onClose).not.toHaveBeenCalled();
+  });
+});
+
+describe("ChangeVersionDialog's pin", () => {
+  it("offers the newest main versions and the one the agent is pinned on", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({
+      items: [
+        { id: "m12", number: 12 },
+        { id: "m11", number: 11 },
+      ],
+      total: 12,
+    });
+    vi.mocked(apiClient.put).mockResolvedValue({
+      published: true,
+      agent_version: 5,
+      environments: [],
+      usage: HR,
+    });
+    renderDialog();
+
+    await userEvent.click(screen.getByRole("combobox", { name: "Version to pin" }));
+    expect(screen.getAllByRole("option").map((option) => option.textContent)).toEqual([
+      "v12",
+      "v11",
+      "v9",
+    ]);
+    await userEvent.click(screen.getByRole("option", { name: "v11" }));
+    await userEvent.click(screen.getByLabelText("I understand, change it anyway"));
+    await userEvent.click(screen.getByRole("button", { name: "Change and publish" }));
+
+    expect(apiClient.put).toHaveBeenCalledWith("/skills/s1/agents/a1/binding", {
+      state: "pinned",
+      version: 11,
+    });
+    expect(toast.success).toHaveBeenCalledWith("Published. HR bot has a new version.");
+  });
+
+  it("opens the Builder from the draft notice", async () => {
+    vi.mocked(apiClient.put).mockResolvedValue({
+      published: false,
+      agent_version: null,
+      environments: [],
+      usage: HR,
+    });
+    renderDialog();
+
+    await userEvent.click(screen.getByRole("radio", { name: /Main, latest/ }));
+    await userEvent.click(screen.getByLabelText("I understand, change it anyway"));
+    await userEvent.click(screen.getByRole("button", { name: "Change and publish" }));
+    const action = vi.mocked(toast.info).mock.calls[0]?.[1]?.action as Action;
+    action.onClick({} as React.MouseEvent<HTMLButtonElement>);
+
+    expect(push).toHaveBeenCalledWith("/agents/a1");
+  });
+
+  it("closes on Escape", async () => {
+    const { onClose } = renderDialog();
+    await userEvent.keyboard("{Escape}");
+    expect(onClose).toHaveBeenCalled();
   });
 });

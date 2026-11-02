@@ -79,6 +79,14 @@ export function ChangeVersionDialog({
   const unchanged = sameTarget(target, current);
   const name = usage.agent.name;
   const pinned = target.state === "pinned" ? String(target.version) : "";
+  // The newest page of main, and the version the agent is pinned on wherever it sits.
+  const pinnable = [
+    ...new Set([
+      ...(current.state === "pinned" ? [current.version] : []),
+      ...versions.map((version) => version.number),
+    ]),
+  ].sort((a, b) => b - a);
+  const firstPin = current.state === "pinned" ? current.version : pinnable[0];
 
   async function submit() {
     setError(null);
@@ -140,27 +148,28 @@ export function ChangeVersionDialog({
         <fieldset className="space-y-3">
           <legend className="sr-only">{t("legend")}</legend>
           {option({ state: "main" }, t("followMain"))}
-          {option(
-            { state: "pinned", version: versions[0]?.number ?? 1 },
-            t("pin"),
-            target.state === "pinned" && (
-              <Select
-                value={pinned}
-                onValueChange={(value) => setTarget({ state: "pinned", version: Number(value) })}
-              >
-                <SelectTrigger className="w-40" aria-label={t("pinVersion")}>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {versions.map((version) => (
-                    <SelectItem key={version.id} value={String(version.number)}>
-                      {t("versionOption", { number: version.number })}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            ),
-          )}
+          {firstPin !== undefined &&
+            option(
+              { state: "pinned", version: firstPin },
+              t("pin"),
+              target.state === "pinned" && (
+                <Select
+                  value={pinned}
+                  onValueChange={(value) => setTarget({ state: "pinned", version: Number(value) })}
+                >
+                  <SelectTrigger className="w-40" aria-label={t("pinVersion")}>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {pinnable.map((number) => (
+                      <SelectItem key={number} value={String(number)}>
+                        {t("versionOption", { number })}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ),
+            )}
           {forks.map((fork) => (
             <div key={fork.id}>
               {option({ state: "fork", fork_id: fork.id }, t("fork", { name: fork.name }))}

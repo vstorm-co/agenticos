@@ -120,15 +120,6 @@ export function useSkills({
     onError: (error) => toast.error(getErrorMessage(error, tErrors)),
   });
 
-  const remove = useMutation({
-    mutationFn: (id: string) => apiClient.delete<void>(`/skills/${id}`),
-    onSuccess: async () => {
-      await invalidate();
-      toast.success(t("deleted"));
-    },
-    onError: (error) => toast.error(getErrorMessage(error, tErrors)),
-  });
-
   return {
     skills: data?.items ?? [],
     total: data?.total ?? 0,
@@ -140,7 +131,6 @@ export function useSkills({
     refetch,
     create,
     update,
-    remove,
   };
 }
 
@@ -180,11 +170,17 @@ export function useSkill(skillId: string | null) {
     await queryClient.invalidateQueries({ queryKey: qk.skills.all() });
   }, [queryClient]);
 
+  /** The editor says what a save made, and what refused it, so this stays quiet. */
   const save = useMutation({
     mutationFn: (edit: Partial<SkillEdit>) => apiClient.patch<Skill>(`/skills/${skillId}`, edit),
+    onSuccess: invalidate,
+  });
+
+  const remove = useMutation({
+    mutationFn: () => apiClient.delete<void>(`/skills/${skillId}`),
     onSuccess: async () => {
       await invalidate();
-      toast.success(t("savedAgentsCurrent"));
+      toast.success(t("deleted"));
     },
     onError: (error) => toast.error(getErrorMessage(error, tErrors)),
   });
@@ -256,6 +252,7 @@ export function useSkill(skillId: string | null) {
     isLoading,
     error,
     save,
+    remove,
     addResource,
     saveResource,
     removeResource,

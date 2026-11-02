@@ -84,3 +84,28 @@ describe("VersionDiff", () => {
     expect(await screen.findByText("The instructions did not change.")).toBeInTheDocument();
   });
 });
+
+describe("VersionDiff's edges", () => {
+  it("compares a first version with nothing", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue(read("m1", {}));
+    mount("m1", null);
+
+    expect(await screen.findByText("Instructions")).toBeInTheDocument();
+    expect(screen.getByText("Description")).toBeInTheDocument();
+    expect(apiClient.get).toHaveBeenCalledTimes(1);
+  });
+
+  it("waits for both versions before drawing", () => {
+    vi.mocked(apiClient.get).mockReturnValue(new Promise(() => undefined));
+    mount("m2", "m1");
+
+    expect(screen.getByLabelText("Loading the changes")).toBeInTheDocument();
+  });
+
+  it("says when a version cannot be read", async () => {
+    vi.mocked(apiClient.get).mockRejectedValue(new Error("gone"));
+    mount("m2", "m1");
+
+    expect(await screen.findByText("gone")).toBeInTheDocument();
+  });
+});

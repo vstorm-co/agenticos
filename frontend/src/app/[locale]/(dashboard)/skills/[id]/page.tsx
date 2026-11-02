@@ -14,7 +14,7 @@ import { VersionTree } from "@/components/skills/version-tree";
 import { ErrorState, LoadingState } from "@/components/states";
 import { ResourceUnavailable } from "@/components/states/resource-unavailable";
 import { ConfirmDialog, Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui";
-import { useSkill, useSkills } from "@/hooks";
+import { useSkill } from "@/hooks";
 import { useSkillAgents, useSkillForks } from "@/hooks/use-skill-versions";
 import { useUrlState } from "@/hooks/use-url-state";
 import { ApiError, getErrorMessage } from "@/lib/api-error";
@@ -41,16 +41,21 @@ export default function SkillPage({ params }: { params: Promise<{ id: string }> 
   const [showParam, setShowParam] = useUrlState("show");
   const [editing, setEditing] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  const { skill, error } = useSkill(id);
-  const { forks } = useSkillForks(id);
+  const { skill, error, remove } = useSkill(id);
+  const lines = useSkillForks(id);
   const agents = useSkillAgents(id);
-  const { remove } = useSkills({ limit: 1 });
 
   if (error instanceof ApiError && [403, 404].includes(error.status)) {
     return <ResourceUnavailable back={ROUTES.SKILLS} label={tc("back")} />;
   }
-  if (error) return <ErrorState description={getErrorMessage(error, tErrors)} />;
-  if (skill === undefined) return <LoadingState variant="skeleton-panel" rows={3} />;
+  // Forks name the lines `?show=`, History and Edit act on, so nothing is drawn on a
+  // guess about which one the address meant.
+  const failed = error ?? lines.error;
+  if (failed) return <ErrorState description={getErrorMessage(failed, tErrors)} />;
+  if (skill === undefined || lines.isLoading) {
+    return <LoadingState variant="skeleton-panel" rows={3} />;
+  }
+  const { forks } = lines;
 
   const asked = shownAgents(showParam);
   const forkId = lineOf(asked);
@@ -102,9 +107,7 @@ export default function SkillPage({ params }: { params: Promise<{ id: string }> 
             skillId={id}
             forkId={fork?.id ?? null}
             forkName={fork?.name ?? null}
-            latestId={
-              fork === null ? (skill.latest_version?.id ?? null) : (fork.latest?.id ?? null)
-            }
+            latestId={fork === null ? skill.latest_version.id : (fork.latest?.id ?? null)}
             canEdit={skill.can_edit === true}
             forks={forks}
             onLine={(next) => setShowParam(next === null ? "main" : `fork:${next}`)}
@@ -112,9 +115,10 @@ export default function SkillPage({ params }: { params: Promise<{ id: string }> 
         </TabsContent>
         <TabsContent value="tree">
           <VersionTree
-            mainLatest={skill.latest_version?.number ?? skill.version}
+            mainLatest={skill.latest_version.number}
             forks={forks}
             agents={agents.agents?.items ?? []}
+            error={agents.error}
           />
         </TabsContent>
       </Tabs>
@@ -137,7 +141,7 @@ export default function SkillPage({ params }: { params: Promise<{ id: string }> 
           destructive
           loading={remove.isPending}
           onConfirm={async () => {
-            await remove.mutateAsync(skill.id);
+            await remove.mutateAsync();
             router.push(ROUTES.SKILLS);
           }}
         />
