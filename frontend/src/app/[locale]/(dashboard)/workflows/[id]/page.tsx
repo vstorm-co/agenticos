@@ -167,7 +167,7 @@ export default function WorkflowEditorPage({ params }: PageProps) {
 
   if (!workflow) {
     return (
-      <div className="space-y-6">
+      <div className="space-y-4">
         <PageHeader
           title={t("notFound")}
           breadcrumbs={[{ label: t("title"), href: ROUTES.WORKFLOWS }, { label: t("notFound") }]}

@@ -41,7 +41,7 @@ export default function RoutinesPage() {
   const tab = tabParam === "watches" ? "watches" : "agents";
 
   return (
-    <div className="flex flex-1 flex-col space-y-6">
+    <div className="flex flex-1 flex-col space-y-4">
       {/* The two ways to start a routine are the page's primary actions, so they
           sit where every other page keeps its create button - in the header. */}
       <PageHeader

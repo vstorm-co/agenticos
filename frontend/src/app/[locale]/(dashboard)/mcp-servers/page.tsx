@@ -43,7 +43,7 @@ export default function McpServersPage() {
   useMcpOAuthOutcome();
 
   return (
-    <div className="flex flex-1 flex-col space-y-6">
+    <div className="flex flex-1 flex-col space-y-4">
       <PageHeader title={t("mcpServers")} description={t("externalToolsYourAgents")} />
 
       {isLoading ? (

@@ -11,7 +11,7 @@ import { useTranslations } from "next-intl";
 export default function SettingsLayout({ children }: { children: ReactNode }) {
   const t = useTranslations("pages.settings");
   return (
-    <div className="flex flex-1 flex-col space-y-6">
+    <div className="flex flex-1 flex-col space-y-4">
       <PageHeader title={t("settings")} description={t("manageYourAccountIntegrations")} />
       <div data-tour="settings-tabs">
         <PageTabs tabs={SETTINGS_TABS} />

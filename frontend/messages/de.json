@@ -771,7 +771,6 @@
     "startsWithRecommended": "{count, plural, =0 {Startet ohne Tools} =1 {Startet mit 1 empfohlenen Tool} other {Startet mit # empfohlenen Tools}}",
     "capabilityRecommended": "Empfohlen",
     "capabilitySettingsTitle": "Einstellungen: {name}",
-    "capabilityOpenSettings": "Einstellungen",
     "capabilityShelfEnabled": "{enabled} von {total} an",
     "capabilityShelfPrevious": "Zurück in {shelf}",
     "capabilityShelfNext": "Mehr in {shelf}",

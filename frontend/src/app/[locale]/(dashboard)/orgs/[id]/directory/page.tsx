@@ -60,7 +60,7 @@ export default function DirectoryPage({ params }: PageProps) {
   // retention page's reasoning (#1420 review).
   if (permissionsError || !isLoaded || !canRead) {
     return (
-      <div className="space-y-6">
+      <div className="space-y-4">
         {header}
         {permissionsError ? (
           <ErrorState />
@@ -79,7 +79,7 @@ export default function DirectoryPage({ params }: PageProps) {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {header}
 
       <DirectoryMappingList

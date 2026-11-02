@@ -251,7 +251,7 @@ function NotificationPanel({
                 type="button"
                 onClick={loadMore}
                 disabled={isLoadingMore}
-                className="text-muted-foreground hover:text-foreground min-h-11 w-full py-2 text-center text-xs disabled:opacity-50"
+                className="text-muted-foreground hover:text-foreground touch:min-h-11 min-h-9 w-full py-2 text-center text-xs disabled:opacity-50"
               >
                 {t("loadMore")}
               </button>

@@ -74,7 +74,7 @@ export default function SandboxesPage() {
   };
 
   return (
-    <div className="flex flex-1 flex-col space-y-6">
+    <div className="flex flex-1 flex-col space-y-4">
       <PageHeader
         title={t("sandboxes2")}
         description={t("pageDescription")}

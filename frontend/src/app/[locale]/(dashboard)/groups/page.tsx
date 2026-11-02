@@ -35,7 +35,7 @@ export default function GroupsPage() {
   const [templates, setTemplates] = useState(false);
 
   return (
-    <div className="flex flex-1 flex-col space-y-6">
+    <div className="flex flex-1 flex-col space-y-4">
       <PageHeader
         title={t("departmentsTitle")}
         description={t("departmentsDescription")}

@@ -33,7 +33,7 @@ interface PageHeaderProps {
 
 /**
  * The single page-header used across the whole dashboard. Keeps title/description/
- * actions/breadcrumbs consistent and theme-aware. Replaces ad-hoc per-page heroes.
+ * actions/breadcrumbs consistent and theme-aware. The parent owns outer spacing.
  */
 export function PageHeader({
   title,
@@ -70,7 +70,7 @@ export function PageHeader({
     };
   }, [secondaryOpen]);
   return (
-    <div ref={header} className={cn("mb-3 shrink-0 sm:mb-6", className)}>
+    <div ref={header} className={cn("shrink-0", className)}>
       {breadcrumbs && breadcrumbs.length > 0 && (
         <nav aria-label={t("breadcrumb")} className="mb-1 sm:mb-3">
           <ol className="text-muted-foreground flex flex-wrap items-center gap-1.5 text-xs">

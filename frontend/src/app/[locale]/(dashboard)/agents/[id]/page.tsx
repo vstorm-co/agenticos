@@ -883,7 +883,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
     // Beside the Builder rather than over it: the test panel shares the width
     // (#2074), so the Builder stays usable while the agent is being tried.
     <div className="flex items-start gap-4">
-      <div className="min-w-0 flex-1 space-y-3 sm:space-y-6">
+      <div className="min-w-0 flex-1 space-y-3 sm:space-y-4">
         <PageHeader
           title={
             <span className="flex min-w-0 items-center gap-3">
@@ -1399,7 +1399,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="build" className="mt-6 space-y-6">
+          <TabsContent value="build" className="mt-4 space-y-4">
             <Card data-tour="agent-instructions">
               <CardHeader
                 data-tour="agent-instructions-header"
@@ -1587,7 +1587,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
             </Card>
           </TabsContent>
 
-          <TabsContent value="toolbox" className="mt-6 space-y-6">
+          <TabsContent value="toolbox" className="mt-4 space-y-4">
             <Card data-tour="agent-capabilities">
               <CardHeader data-tour="agent-capabilities-header">
                 <CardTitle>{t("capabilities")}</CardTitle>
@@ -1644,7 +1644,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
             outside the deployment for - and the picker embeds the whole server
             catalog, so it pushed the capability workbench off the top of the
             screen on any organization with more than a handful of servers. */}
-          <TabsContent value="mcp" className="mt-6 space-y-6">
+          <TabsContent value="mcp" className="mt-4 space-y-4">
             <Card data-tour="agent-mcp">
               {/* The passive tour points here rather than at the card: the picker
                 below embeds the whole server catalog, so the card runs well past
@@ -1740,7 +1740,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
             </Card>
           </TabsContent>
 
-          <TabsContent value="limits" className="mt-6 space-y-6">
+          <TabsContent value="limits" className="mt-4 space-y-4">
             <Card data-tour="agent-limits">
               <CardHeader>
                 <CardTitle>{t("runLimits")}</CardTitle>
@@ -1834,7 +1834,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
             />
           </TabsContent>
 
-          <TabsContent value="availability" className="mt-6 space-y-6">
+          <TabsContent value="availability" className="mt-4 space-y-4">
             {/* Where people reach it first - a website, a page, the API - then the
                 chat apps, then what runs it on its own. Two cards here were both
                 called "where", and the one most people came for was last. */}
@@ -1863,7 +1863,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
             />
           </TabsContent>
 
-          <TabsContent value="history" className="mt-6 space-y-6">
+          <TabsContent value="history" className="mt-4 space-y-4">
             {/* The first publish mints `production`; before it there is nothing
                 to point anywhere, and a card of explanation with nothing under
                 it read as a page that failed to load. */}

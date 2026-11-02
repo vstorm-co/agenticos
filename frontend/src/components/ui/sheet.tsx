@@ -100,7 +100,7 @@ export function SheetHeader({
   className?: string;
 }) {
   return (
-    <div className={cn("flex items-center justify-between border-b p-4", className)}>
+    <div className={cn("flex items-center justify-between gap-2 border-b px-4 py-2", className)}>
       {children}
     </div>
   );
@@ -114,7 +114,7 @@ export function SheetTitle({
   className?: string;
 }) {
   return (
-    <DialogPrimitive.Title className={cn("text-lg font-semibold", className)}>
+    <DialogPrimitive.Title className={cn("text-base font-semibold", className)}>
       {children}
     </DialogPrimitive.Title>
   );
@@ -129,7 +129,7 @@ export function SheetClose({ onClick, className }: { onClick: () => void; classN
       className={cn(
         "ring-offset-background rounded-sm opacity-70 transition-opacity",
         "focus-visible:ring-ring hover:opacity-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2",
-        "flex h-11 w-11 shrink-0 touch-manipulation items-center justify-center",
+        "touch:min-h-11 touch:min-w-11 flex size-9 shrink-0 touch-manipulation items-center justify-center",
         className,
       )}
     >

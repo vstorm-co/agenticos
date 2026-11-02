@@ -76,7 +76,7 @@ export default function TablesPage() {
   const tc = useTranslations("common");
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-6">
+    <div className="flex min-h-0 flex-1 flex-col gap-4">
       <PageHeader
         title={t("title")}
         description={t("description")}

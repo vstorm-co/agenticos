@@ -43,7 +43,7 @@ export default function GroupsPage({ params }: PageProps) {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <PageHeader
         title={<span data-tour="org-groups">{t("title")}</span>}
         description={

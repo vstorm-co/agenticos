@@ -73,7 +73,7 @@ export function InboxPage() {
   const open = filter === "done" ? [] : suggestions.filter(KEEPS[filter]);
 
   return (
-    <div className="flex flex-1 flex-col space-y-6">
+    <div className="flex flex-1 flex-col space-y-4">
       <PageHeader title={t("title")} description={t("description")} />
       <ListCard
         fill

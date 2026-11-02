@@ -347,7 +347,7 @@ export default function OrgMembersPage({ params }: PageProps) {
   }, [canManage, user?.id, assignable, changeRole, removeMember, tDirectory]);
 
   return (
-    <div className="flex flex-1 flex-col space-y-6">
+    <div className="flex flex-1 flex-col space-y-4">
       <PageHeader
         title={org?.name ?? t("members")}
         description={t("membersDescription", { count: total })}

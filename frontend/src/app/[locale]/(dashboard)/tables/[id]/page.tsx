@@ -334,6 +334,7 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
   const content = (
     <div className="flex min-h-0 flex-1 flex-col">
       <PageHeader
+        className="mb-4"
         title={table.name}
         descriptionMode="summary"
         description={table.description ?? undefined}

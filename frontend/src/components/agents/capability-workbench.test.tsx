@@ -275,6 +275,12 @@ describe("the capability workbench", () => {
 
     await openCapability("Charts");
 
+    expect(screen.queryByText("For example")).not.toBeInTheDocument();
+    await userEvent.click(
+      within(screen.getByRole("group", { name: "Charts" })).getByRole("button", {
+        name: "More information",
+      }),
+    );
     expect(screen.getByText("For example")).toBeInTheDocument();
     expect(screen.getByText("Sales this month by region, as bars")).toBeInTheDocument();
     expect(screen.getByText("Never changes the data it draws.")).toBeInTheDocument();
@@ -844,7 +850,7 @@ describe("workflows, whose grants are the workflows it may start", () => {
   });
 });
 
-it("routes new workflow and table tools through MCP while keeping old bindings editable", () => {
+it("routes new workflow and table tools through MCP while keeping old bindings editable", async () => {
   renderWorkbench({
     catalog: [
       { ...CHARTS, id: "workflows", name: "Workflows" },
@@ -855,6 +861,7 @@ it("routes new workflow and table tools through MCP while keeping old bindings e
   });
   expect(screen.queryByRole("button", { name: "Workflows" })).toBeNull();
   expect(screen.queryByRole("button", { name: "Tables" })).toBeNull();
+  await userEvent.click(screen.getByRole("button", { name: "More information" }));
   expect(
     screen.getByText(/Workflows and Tables are tools in the AgenticOS MCP server/),
   ).toBeVisible();

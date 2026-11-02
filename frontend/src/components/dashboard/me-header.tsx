@@ -59,6 +59,7 @@ export function MeHeader({
 
   return (
     <PageHeader
+      className="mb-4"
       descriptionMode="summary"
       title={
         <span className="flex flex-col">

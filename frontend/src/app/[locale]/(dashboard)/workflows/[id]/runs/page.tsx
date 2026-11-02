@@ -73,7 +73,7 @@ export default function WorkflowRunsPage({ params }: PageProps) {
             };
           });
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-6">
+    <div className="flex min-h-0 flex-1 flex-col gap-4">
       <PageHeader
         title={t("runsTitle")}
         description={t("runsDescription")}

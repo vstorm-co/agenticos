@@ -55,6 +55,7 @@ export function KBDetailHeader({
   const t = useTranslations("pages.kb");
   return (
     <PageHeader
+      className="mb-4"
       breadcrumbs={[{ label: t("knowledgeBases"), href: ROUTES.RAG }, { label: kb.name }]}
       title={kb.name}
       description={

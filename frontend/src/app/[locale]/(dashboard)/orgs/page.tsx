@@ -75,7 +75,7 @@ export default function OrgsPage() {
   }, [fetchOrgs, searchParams]);
 
   return (
-    <div className="flex flex-1 flex-col space-y-6">
+    <div className="flex flex-1 flex-col space-y-4">
       <PageHeader
         title={t("organizations")}
         description={t("switchBetweenWorkspacesManage")}

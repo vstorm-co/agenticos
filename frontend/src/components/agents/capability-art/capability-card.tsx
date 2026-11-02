@@ -34,7 +34,7 @@ export function CapabilityArt({
 }) {
   const svg = CAPABILITY_ART[id] ?? DRAWN_ART[id];
   const style = { "--h": CAPABILITY_HUE[id] ?? DRAWN_HUE[id] ?? hueOf(id) } as CSSProperties;
-  const stage = "stage v-B aspect-video";
+  const stage = "stage v-B h-20 sm:h-24";
   return (
     <div className={cn("cap-art", off && "is-off")} style={style}>
       {svg !== undefined ? (
@@ -57,7 +57,7 @@ export function CapabilityArt({
 export function RecommendedBadge({ className }: { className?: string }) {
   const t = useTranslations("agents");
   return (
-    <Badge variant="success" className={cn("px-1.5 py-0 text-[10px] leading-4", className)}>
+    <Badge variant="success" className={cn("px-1.5 py-0 text-[11px] leading-4", className)}>
       {t("capabilityRecommended")}
     </Badge>
   );
@@ -92,56 +92,53 @@ export function CapabilityCard({
         type="button"
         onClick={onFocus}
         aria-current={focused ? "true" : undefined}
-        aria-label={entry.name}
-        className="relative block overflow-hidden border-b text-left"
+        aria-label={t("capabilitySettingsTitle", { name: entry.name })}
+        className="focus-visible:ring-ring flex flex-1 flex-col text-left outline-none focus-visible:ring-2 focus-visible:ring-inset"
       >
-        <CapabilityArt id={entry.id} name={entry.name} off={!enabled} />
-        {entry.recommended && (
-          <RecommendedBadge className="bg-background/90 absolute top-2 left-2 shadow-sm backdrop-blur" />
-        )}
-      </button>
-      <div className="flex flex-1 flex-col gap-1 px-3 py-2.5">
-        <div className="flex items-start gap-2">
-          <button type="button" onClick={onFocus} className="min-w-0 flex-1 text-left">
-            <span className="flex items-center gap-1.5">
-              <span className={cn("text-sm font-medium", !enabled && "text-muted-foreground")}>
-                {entry.name}
-              </span>
-              {entry.side_effecting && (
-                <ShieldAlert
-                  className="text-muted-foreground h-3 w-3"
-                  aria-label={t("actsWorld")}
-                />
-              )}
-            </span>
-          </button>
-          <Switch
-            checked={enabled}
-            disabled={disabled}
-            aria-label={t("giveThisAgent", { name: entry.name })}
-            onCheckedChange={onToggle}
-            className="shrink-0"
-          />
+        <div className="relative w-full overflow-hidden border-b">
+          <CapabilityArt id={entry.id} name={entry.name} off={!enabled} />
+          {entry.recommended && (
+            <RecommendedBadge className="bg-background/90 absolute top-2 left-2 shadow-sm backdrop-blur" />
+          )}
         </div>
-        <p className="text-muted-foreground line-clamp-2 text-xs leading-relaxed">
-          {entry.description}
-        </p>
-        <div className="text-muted-foreground mt-auto flex items-center gap-1.5 pt-1 text-[11px]">
+        <div className="w-full space-y-1 px-3 pt-2.5 pb-1">
+          <span className="flex items-center gap-1.5">
+            <span
+              className={cn(
+                "min-w-0 flex-1 text-sm font-medium",
+                !enabled && "text-muted-foreground",
+              )}
+            >
+              {entry.name}
+            </span>
+            {entry.side_effecting && (
+              <ShieldAlert
+                className="text-muted-foreground size-3 shrink-0"
+                aria-label={t("actsWorld")}
+              />
+            )}
+            <Settings2 className="text-muted-foreground size-3.5 shrink-0" aria-hidden />
+          </span>
+          <span className="text-muted-foreground line-clamp-2 text-xs leading-relaxed">
+            {entry.description}
+          </span>
+        </div>
+      </button>
+      <div className="text-muted-foreground mt-auto flex items-center justify-between gap-2 px-3 pt-1 pb-2.5 text-[11px]">
+        <span className="flex items-center gap-1.5">
           <span
             aria-hidden
             className={cn("size-1.5 rounded-full", enabled ? "bg-success" : "bg-foreground/25")}
           />
           {t("capabilityToolCount", { count: entry.tools.length })}
-          <button
-            type="button"
-            onClick={onFocus}
-            aria-label={t("capabilitySettingsTitle", { name: entry.name })}
-            className="hover:text-foreground ml-auto flex items-center gap-1 rounded-md px-1.5 py-0.5 font-medium transition-colors"
-          >
-            <Settings2 className="size-3" aria-hidden />
-            {t("capabilityOpenSettings")}
-          </button>
-        </div>
+        </span>
+        <Switch
+          checked={enabled}
+          disabled={disabled}
+          aria-label={t("giveThisAgent", { name: entry.name })}
+          onCheckedChange={onToggle}
+          className="shrink-0"
+        />
       </div>
     </div>
   );

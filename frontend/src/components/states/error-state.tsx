@@ -17,7 +17,7 @@ export function ErrorState({ title, description, cta, className }: ErrorStatePro
     <div
       role="alert"
       className={cn(
-        "border-border bg-card flex flex-col items-center justify-center rounded-xl border px-5 py-10 text-center sm:px-6 sm:py-14",
+        "border-border bg-card flex flex-col items-center justify-center rounded-xl border px-5 py-6 text-center sm:px-6 sm:py-8",
         className,
       )}
     >

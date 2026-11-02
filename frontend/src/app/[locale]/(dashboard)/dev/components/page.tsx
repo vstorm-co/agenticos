@@ -88,7 +88,7 @@ function Gallery() {
   const [confirmOpen, setConfirmOpen] = useState(false);
 
   return (
-    <div className="space-y-6 pb-8">
+    <div className="space-y-4 pb-8">
       <PageHeader
         title="Component gallery"
         description="Core design-system primitives, in one place."

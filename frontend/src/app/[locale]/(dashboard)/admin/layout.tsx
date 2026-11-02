@@ -11,7 +11,7 @@ import { useTranslations } from "next-intl";
 export default function AdminLayout({ children }: { children: ReactNode }) {
   const t = useTranslations("pages.admin");
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-6">
+    <div className="flex min-h-0 flex-1 flex-col gap-4">
       <PageHeader
         title={t("workspaceAdministration")}
         description={t("usersConversationsOrgsSystem")}

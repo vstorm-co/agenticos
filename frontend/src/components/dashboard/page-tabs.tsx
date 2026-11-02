@@ -62,6 +62,7 @@ export function PageTabs({
   const activeTab = tabs.find((tab) => isActive(tab.href, tab.exact)) ?? tabs[0];
   const activeHref = activeTab?.href;
   const many = tabs.length > 4;
+  const sectionMenu = tabs.length > 6;
   useScrollFade(strip);
 
   // On a phone the strip is wider than the screen, and a tab past its edge -
@@ -75,9 +76,16 @@ export function PageTabs({
   }, [activeHref]);
 
   return (
-    <div className={cn("border-border border-b", many && "max-md:border-0", className)}>
+    <div
+      className={cn(
+        "border-border border-b",
+        many && "max-md:border-0",
+        sectionMenu && "border-0",
+        className,
+      )}
+    >
       {many && activeTab && (
-        <div className="md:hidden">
+        <div className={sectionMenu ? "w-full md:w-64" : "md:hidden"}>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
@@ -115,6 +123,7 @@ export function PageTabs({
           "relative -mb-px flex min-w-0 [scrollbar-width:none] gap-0.5 overflow-x-auto overscroll-x-contain [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden",
           SCROLL_FADE,
           many && "hidden md:flex",
+          sectionMenu && "md:hidden",
         )}
       >
         {tabs.map((tab) => {
@@ -125,7 +134,7 @@ export function PageTabs({
               href={tab.href}
               aria-current={active ? "page" : undefined}
               className={cn(
-                "focus-visible:outline-ring inline-flex min-h-11 shrink-0 touch-manipulation items-center gap-1.5 border-b-2 px-3.5 py-2.5 text-sm font-medium whitespace-nowrap transition-colors focus-visible:outline-2 focus-visible:outline-offset-[-2px]",
+                "focus-visible:outline-ring touch:min-h-11 inline-flex min-h-9 shrink-0 touch-manipulation items-center gap-1.5 border-b-2 px-3 py-2 text-sm font-medium whitespace-nowrap transition-colors focus-visible:outline-2 focus-visible:outline-offset-[-2px]",
                 active
                   ? "border-foreground text-foreground"
                   : "text-muted-foreground hover:text-foreground border-transparent",
