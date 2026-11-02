@@ -1,5 +1,5 @@
 ---
-source_sha: "9d067aa7eb86"
+source_sha: "b5980b04db6b"
 ---
 
 # Skille { #skills }
@@ -342,7 +342,10 @@ Otwórz skill z listy, żeby zobaczyć jego stronę. Ma trzy zakładki.
 - `Fork „Returns” · od v7 · 2 zmiany` - agent używa forka: linii wersji z
   własnymi zmianami, zaczętej od jednej wersji main.
 
-Środowisko, które serwuje inną wersję, jest podane pod agentem. Agent, który wiąże
+Środowisko, które serwuje inną wersję, jest podane pod agentem.
+[Specjalista inline](concepts.md#delegate-vs-inline-specialist), który sam wiąże
+skill, czyta własną wersję, więc ma osobny wiersz pod nazwą swojego agenta; jego
+wersję zmienia się w Builderze agenta. Agent, który wiąże
 skill tylko w drafcie, ma oznaczenie **Tylko w drafcie** i nie liczy się do żadnej
 linii. Agentów, których nie widzisz, strona liczy, ale nie nazywa. Chipy nad
 tabelą pokazują wszystkich, agentów na main, przypiętych albo jeden fork. Fork

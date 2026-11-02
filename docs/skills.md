@@ -333,7 +333,10 @@ Open a skill from the list to see its page. It has three tabs.
 - `Fork "Returns" · from v7 · 2 changes` - the agent uses a fork: a line of
   versions with changes of its own, started from one main version.
 
-An environment that serves a different version is named under the agent. An agent
+An environment that serves a different version is named under the agent. An
+[inline specialist](concepts.md#delegate-vs-inline-specialist) that binds the skill
+itself reads its own version, so it has a row of its own under its agent's name;
+its version is changed in the agent's Builder. An agent
 that binds the skill only in its draft is marked **Only in the draft** and counts on
 no line. Agents you cannot see are counted, not named. The chips above the table
 show everyone, the agents on main, the pinned ones, or one fork. A fork you pick
