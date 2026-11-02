@@ -237,7 +237,7 @@ describe("how big the dialog is", () => {
     for (const name of ["handbook.pdf", "chart.png", "demo.mp4", "rows.csv", "report.md"]) {
       const { unmount } = open({ name });
       expect(dialog()).toContain("w-[calc(100%-1.5rem)]");
-      expect(dialog()).toContain("sm:w-[calc(100%-4rem)]");
+      expect(dialog()).toContain("md:w-[calc(100%-4rem)]");
       expect(dialog()).toContain("h-[var(--dialog-available-height)]");
       unmount();
     }

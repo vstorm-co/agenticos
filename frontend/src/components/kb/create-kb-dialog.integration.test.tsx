@@ -596,8 +596,11 @@ describe("the image-description prompt", () => {
 
     const prompt = await screen.findByLabelText("Prompt");
     expect(prompt).toBeVisible();
-    expect(screen.getByRole("button", { name: "Preview" })).toBeVisible();
-    expect(screen.getByRole("button", { name: "Source" })).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Source" })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Preview" }));
+    expect(screen.getByRole("region", { name: "Prompt preview" })).toBeVisible();
+    await userEvent.click(screen.getByRole("button", { name: "Source" }));
+    expect(screen.getByLabelText("Prompt")).toBeVisible();
   });
 
   it("still caps what can be typed at the length the API enforces", async () => {

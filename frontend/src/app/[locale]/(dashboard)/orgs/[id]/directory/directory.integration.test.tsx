@@ -131,7 +131,9 @@ describe("the directory mappings page", () => {
     ).toBeInTheDocument();
     // A group the server could not name is shown by its id.
     expect(screen.getByText("g-gone")).toBeInTheDocument();
-    expect(screen.getByText(/admin, builder, operator, member, viewer/)).toBeInTheDocument();
+    expect(screen.queryByText(/admin, builder, operator, member, viewer/)).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "More information" }));
+    expect(screen.getByText(/admin, builder, operator, member, viewer/)).toBeVisible();
   });
 
   it("gives a member manager without roles:manage nothing to add or delete", async () => {

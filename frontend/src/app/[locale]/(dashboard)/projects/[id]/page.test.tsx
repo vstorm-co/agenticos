@@ -67,9 +67,8 @@ describe("project loading layout", () => {
     const { container, rerender } = await mount(<ProjectPage params={params} />);
     const tabs = await screen.findByRole("tablist");
     const header = container.querySelector("h1");
-    const gridClasses = Array.from(container.querySelectorAll(".grid")).map(
-      (node) => node.className,
-    );
+    const files = screen.getByRole("tabpanel", { name: "Files" });
+    const gridClasses = Array.from(files.querySelectorAll(".grid")).map((node) => node.className);
     project = {
       id: "p-1",
       name: "Launch",
@@ -92,7 +91,8 @@ describe("project loading layout", () => {
     rerender(<ProjectPage params={params} />);
     expect(await screen.findByRole("heading", { name: "Launch" })).toBe(header);
     expect(screen.getByRole("tablist")).toBe(tabs);
-    expect(Array.from(container.querySelectorAll(".grid")).map((node) => node.className)).toEqual(
+    expect(screen.getByRole("tabpanel", { name: "Files" })).toBe(files);
+    expect(Array.from(files.querySelectorAll(".grid")).map((node) => node.className)).toEqual(
       gridClasses,
     );
   });
