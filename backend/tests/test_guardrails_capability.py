@@ -571,6 +571,14 @@ async def test_the_size_limit_counts_every_part_of_a_resumed_request_together():
         )
 
 
+async def test_the_size_limit_counts_links_with_the_text():
+    """Each link is screened, so each counts toward the one prompt's limit."""
+    link = ImageUrl(url="https://example.com/" + "a" * 100_000)
+    agent = _agent(GuardrailsConfig(redact_pii_in=True), _answers("hi"))
+    with pytest.raises(GuardrailBlocked):
+        await agent.run(["look", link, replace(link, url=link.url + "b")])
+
+
 @pytest.mark.parametrize(
     "media_type", ["text/plain; charset=utf-16", "text/plain; charset=cp037", "text/plain"]
 )

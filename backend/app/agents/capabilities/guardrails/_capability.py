@@ -557,7 +557,8 @@ class ScreenedPrompt(InputGuardrail[object]):
     as the UTF-8 a model is sent) is screened on its own and a redaction written
     back over that part. A file that declares another character set, is not valid
     in the one it declares, or cannot hold its redaction blocks. Size limits count the
-    whole prompt's text - every prompt part of a resumed request together. A URL is
+    whole prompt's text and links - every prompt part of a resumed request
+    together. A URL is
     screened too, but cannot be rewritten without breaking it, so a redaction
     there blocks. A picture, audio, video or cache marker is not read. A
     plain-text prompt, and a parallel guard, take the harness's path unchanged.
@@ -594,7 +595,7 @@ class ScreenedPrompt(InputGuardrail[object]):
         prompts = [targets] if resumed else [[target] for target in targets]
         checked: list[list[str]] = []
         for prompt in prompts:
-            texts = [text for target in prompt for text in _texts(target.content)]
+            texts = [text for target in prompt for text in _screened_texts(target.content)]
             if len(texts) > 1 and texts not in checked:
                 checked.append(texts)
                 await self._cleaned(ctx, "\n".join(texts))
@@ -750,6 +751,19 @@ def _texts(content: PromptContent) -> list[str]:
     if isinstance(content, str):
         return [content]
     return [text for item in content if (text := _text(item)) is not None]
+
+
+def _screened_texts(content: PromptContent) -> list[str]:
+    """Everything of a prompt the guard screens, in order: its text and its links."""
+    if isinstance(content, str):
+        return [content]
+    texts: list[str] = []
+    for item in content:
+        if isinstance(item, FileUrl):
+            texts.append(item.url)
+        elif (text := _text(item)) is not None:
+            texts.append(text)
+    return texts
 
 
 def _text_of(content: PromptContent) -> str:
