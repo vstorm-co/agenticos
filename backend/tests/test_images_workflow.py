@@ -194,7 +194,7 @@ class TestEveryPackagePageHasADescription:
 class TestTheComposeFilesPullWhatTheWorkflowPublishes:
     def test_the_workflow_names_every_published_image(self, workflow: dict[str, Any]) -> None:
         prefix = workflow["env"]["IMAGE_PREFIX"]
-        images = workflow["jobs"]["build"]["strategy"]["matrix"]["image"]
+        images = workflow["jobs"]["publish"]["strategy"]["matrix"]["image"]
         assert {f"{prefix}-{image}" for image in images} == PUBLISHED
 
     @pytest.mark.parametrize("name", PULLING_COMPOSE_FILES)

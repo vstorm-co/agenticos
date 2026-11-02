@@ -19,9 +19,11 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
-### Documentation
+### Changed
 
-- Align README and documentation homepages around the self-hosted AI agent platform; add workflows, tables, voice and practical entry points, link the website, remove obsolete no-workflow claims, add Muse/Duet comparisons, and refresh Grok Bot against official Enterprise and pricing documentation.
+- Run backend coverage once, shard frontend and E2E tests, reuse the production frontend build, and cache native builds. Build desktop release platforms in parallel and publish updater metadata only after every signed target is available.
+
+- Reuse successful checks for proven release-only cuts, prepare release train PRs from the CLI, reuse unchanged browser images, and retain scans and SBOMs when images are retagged. Offer production deployment only after a stable release is published, while keeping manual deployments and rollback.
 
 ## [1.35.1] - 2026-11-02
 
