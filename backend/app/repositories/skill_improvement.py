@@ -5,6 +5,7 @@ from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
+from pydantic import JsonValue
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -35,7 +36,7 @@ async def create_run(
     max_iterations: int,
     estimate_usd: Decimal,
     budget_usd: Decimal,
-    seed_run_ids: Sequence[UUID],
+    seed: dict[str, JsonValue] | None,
 ) -> SkillImprovementRun:
     """A queued session.
 
@@ -53,7 +54,7 @@ async def create_run(
         max_iterations=max_iterations,
         estimate_usd=estimate_usd,
         budget_usd=budget_usd,
-        seed_run_ids=list(seed_run_ids),
+        seed=seed,
     )
     db.add(run)
     await db.flush()

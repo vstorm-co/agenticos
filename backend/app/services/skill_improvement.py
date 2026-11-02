@@ -113,6 +113,8 @@ from app.services.api_key import job_context
 from app.services.authoring import AuthoringService
 from app.services.authoring_evidence import EvidencePack
 from app.services.background_jobs import enqueue
+from app.services.improvement_pipeline import ImprovementPipelineService
+from app.services.improvement_skills import SkillSeed
 from app.services.skill_agents import SkillAgentService
 from app.services.skill_check import SkillCheckService
 from app.services.skill_versions import SkillVersionService
@@ -239,14 +241,32 @@ class SkillImprovementService:
     async def estimate(
         self, ctx: AuthContext, skill_id: UUID, target: SkillImprovementTarget
     ) -> SkillImprovementEstimate:
-        """What a session on the line would read and cost before it first waits for a person."""
+        """What a session on the line would read and cost before it first waits for a person.
+
+        With `from_run`, the line is the one the handing agent follows, whatever
+        `fork_id` says.
+        """
+        estimate, _ = await self._estimate(ctx, skill_id, target)
+        return estimate
+
+    async def _estimate(
+        self, ctx: AuthContext, skill_id: UUID, target: SkillImprovementTarget
+    ) -> tuple[SkillImprovementEstimate, SkillSeed | None]:
         self._require_runs_view(ctx)
-        line = await self._line(ctx, skill_id, target.fork_id, Perm.SKILLS_EDIT)
+        seed = (
+            None
+            if target.from_run is None
+            else await ImprovementPipelineService(self.db).skill_seed(
+                ctx, target.from_run, skill_id
+            )
+        )
+        fork_id = target.fork_id if seed is None else seed.fork_id
+        line = await self._line(ctx, skill_id, fork_id, Perm.SKILLS_EDIT)
         pack = await self._evidence(ctx, line, target.window_days)
         priced = await self.authoring.estimate_pack(ctx, pack)
         visible, hidden = await self._line_agents(ctx, line)
         base = await self._base(line)
-        return SkillImprovementEstimate(
+        estimate = SkillImprovementEstimate(
             line=SkillLine(fork_id=line.fork_id, name=line.name),
             base_version=SkillVersionRef(id=base.id, number=base.number),
             proposal_usd=priced.estimate_usd * 2,
@@ -263,6 +283,7 @@ class SkillImprovementService:
             affordable=priced.affordable,
             reason="no_evidence" if not pack.runs else None,
         )
+        return estimate, seed
 
     async def start(
         self, ctx: AuthContext, skill_id: UUID, data: SkillImprovementStart
@@ -276,8 +297,8 @@ class SkillImprovementService:
             PaymentRequiredError: The budget, the improver's or the organization's, is too small.
             AlreadyExistsError: The line has an open session.
         """
-        estimate = await self.estimate(ctx, skill_id, data)
-        line = await self._line(ctx, skill_id, data.fork_id, Perm.SKILLS_EDIT)
+        estimate, seed = await self._estimate(ctx, skill_id, data)
+        line = await self._line(ctx, skill_id, estimate.line.fork_id, Perm.SKILLS_EDIT)
         if line.archived:
             raise refused_field("fork_id", "An archived fork cannot be improved")
         if estimate.reason == "no_evidence":
@@ -310,7 +331,14 @@ class SkillImprovementService:
                     max_iterations=data.max_iterations,
                     estimate_usd=estimate.total_usd,
                     budget_usd=data.budget_usd,
-                    seed_run_ids=[],
+                    seed=None
+                    if seed is None
+                    else {
+                        "agent_id": str(seed.agent_id),
+                        "run_ids": [str(run_id) for run_id in seed.run_ids],
+                        "problems": list(seed.problems),
+                        "quotes": list(seed.quotes),
+                    },
                 )
         except IntegrityError as exc:
             # The skill and its fork were read in this transaction, so the open-session

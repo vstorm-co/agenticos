@@ -240,3 +240,20 @@ async def test_reading_a_lines_evidence_is_priced_like_any_improve(db):
     priced = await AuthoringService(db).estimate_pack(ctx, EvidencePack())
 
     assert (priced.runs, priced.reason) == (0, "no_evidence")
+
+
+async def test_the_analysis_reads_what_a_handing_agents_improve_found(db, evidence):
+    ctx, run = await _session(db, evidence)
+    assert run.analysis_request_id is not None
+    run.seed = {"problems": ["The window is wrong"], "quotes": []}
+    await db.flush()
+    model = SkillImprover(db)
+
+    with _answering(model):
+        await AuthoringWorker(
+            run.analysis_request_id, ctx.organization_id, sessions=_sessions(db)
+        ).run()
+
+    [analysis] = [prompt for prompt in model.prompts if prompt.startswith("Group the bad answers")]
+    assert "# What an agent's own Improve found in this skill" in analysis
+    assert "- The window is wrong" in analysis and "(none)" in analysis

@@ -67,6 +67,16 @@ SKILL_STAGES = (
 """The steps a skill session takes; drafting knowledge is an agent session's alone."""
 
 
+class SkillImprovementPurpose(StrEnum):
+    """What a session on a line is for."""
+
+    IMPROVE = "improve"
+    CATCH_UP = "catch_up"
+    """A fork taking main's changes in."""
+    TO_MAIN = "to_main"
+    """Main taking a fork's changes in; the fork is `source_fork_id`."""
+
+
 class SkillImprovementOutcome(StrEnum):
     """What a person decided on a checked candidate."""
 
@@ -76,6 +86,8 @@ class SkillImprovementOutcome(StrEnum):
     FORKED = "forked"
     """Made a fork for the agents it helped; main stayed as it was."""
     DISCARDED = "discarded"
+    CAUGHT_UP = "caught_up"
+    RETURNED_TO_MAIN = "returned_to_main"
 
 
 def _values(members: tuple[StrEnum, ...] | type[StrEnum]) -> str:
@@ -98,6 +110,13 @@ class SkillImprovementRun(Base):
     )
     skill_id: Mapped[uuid.UUID] = mapped_column(PG_UUID(as_uuid=True), nullable=False)
     fork_id: Mapped[uuid.UUID | None] = mapped_column(PG_UUID(as_uuid=True), nullable=True)
+    purpose: Mapped[str] = mapped_column(
+        String(16),
+        nullable=False,
+        default=SkillImprovementPurpose.IMPROVE.value,
+        server_default=SkillImprovementPurpose.IMPROVE.value,
+    )
+    source_fork_id: Mapped[uuid.UUID | None] = mapped_column(PG_UUID(as_uuid=True), nullable=True)
     # The line's latest version at the start, kept without a foreign key as an agent
     # session keeps its base: a line that moved on makes the session stale.
     base_version_id: Mapped[uuid.UUID] = mapped_column(PG_UUID(as_uuid=True), nullable=False)
@@ -120,10 +139,10 @@ class SkillImprovementRun(Base):
     iteration: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     max_iterations: Mapped[int] = mapped_column(Integer, nullable=False, default=3)
     window_days: Mapped[int] = mapped_column(Integer, nullable=False)
-    # Runs an agent's own session found pointing at this skill, read beside the line's
-    # evidence; never sent by a client.
-    seed_run_ids: Mapped[list[uuid.UUID]] = mapped_column(
-        ARRAY(PG_UUID(as_uuid=True)), nullable=False, default=list, server_default="{}"
+    # What an agent's own session found wrong in this skill, when it handed the skill
+    # over: `{agent_id, run_ids, problems, quotes}`, read on the server, never sent.
+    seed: Mapped[dict[str, JsonValue] | None] = mapped_column(
+        JSONB(none_as_null=True), nullable=True
     )
     analysis_request_id: Mapped[uuid.UUID | None] = mapped_column(
         PG_UUID(as_uuid=True),
@@ -166,7 +185,22 @@ class SkillImprovementRun(Base):
             ["skill_forks.id", "skill_forks.organization_id"],
             ondelete="CASCADE",
         ),
+        ForeignKeyConstraint(
+            ["source_fork_id", "organization_id"],
+            ["skill_forks.id", "skill_forks.organization_id"],
+            ondelete="CASCADE",
+        ),
         UniqueConstraint("id", "organization_id", name="uq_skill_improvement_runs_tenant"),
+        CheckConstraint(
+            f"purpose IN ({_values(SkillImprovementPurpose)})",
+            name="ck_skill_improvement_run_purpose",
+        ),
+        # Only a session bringing a fork into main names a second fork, and it runs on main.
+        CheckConstraint(
+            "(purpose = 'to_main') = (fork_id IS NULL AND source_fork_id IS NOT NULL) "
+            "AND (purpose = 'to_main' OR source_fork_id IS NULL)",
+            name="ck_skill_improvement_run_source_fork",
+        ),
         CheckConstraint(
             f"status IN ({_values(ImprovementStatus)})", name="ck_skill_improvement_run_status"
         ),

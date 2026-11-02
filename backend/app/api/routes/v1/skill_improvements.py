@@ -6,6 +6,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Query, status
 
 from app.api.deps import Auth, SkillImprovementSvc, require
+from app.api.public_api import ASSISTANT
 from app.core.permissions import Perm
 from app.schemas.authoring import HunkRead
 from app.schemas.improvement import ChangeEdit, ImprovementDiscard, ImprovementSelection
@@ -25,8 +26,8 @@ from app.schemas.skill_improvement import (
     SkillImprovementTarget,
 )
 
-router = APIRouter(prefix="/skills/{skill_id}/improvements")
-sessions = APIRouter(prefix="/skill-improvements")
+router = APIRouter(prefix="/skills/{skill_id}/improvements", dependencies=[ASSISTANT])
+sessions = APIRouter(prefix="/skill-improvements", dependencies=[ASSISTANT])
 
 
 @sessions.get(

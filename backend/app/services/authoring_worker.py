@@ -297,8 +297,24 @@ def _skill_prompt(skill: Skill, pack: EvidencePack, digests: Sequence[RunFinding
     )
 
 
+def _seed_section(seed: Mapping[str, Any] | None) -> str:
+    """What an agent's own Improve found in the skill when it handed the skill over."""
+    if not seed:
+        return ""
+    problems = "\n".join(f"- {problem}" for problem in seed.get("problems", []))
+    quotes = "\n".join(f"> {quote}" for quote in seed.get("quotes", []))
+    return (
+        "\n\n# What an agent's own Improve found in this skill\n"
+        f"{problems}\n\nQuoted from its runs:\n{quotes or '(none)'}"
+    )
+
+
 def _skill_problems_prompt(
-    skill: Skill, line: str, pack: EvidencePack, digests: Sequence[RunFindings] | None
+    skill: Skill,
+    line: str,
+    pack: EvidencePack,
+    digests: Sequence[RunFindings] | None,
+    seed: Mapping[str, Any] | None,
 ) -> str:
     return (
         f'Group the bad answers of agents that opened the skill "{skill.name}" ({line}) '
@@ -308,6 +324,7 @@ def _skill_problems_prompt(
         f"# Its description\n{skill.description}\n\n"
         f"# Its body\n<skill>\n{skill.content}\n</skill>\n\n"
         f"# Runs that opened it\n{_evidence_section(pack, digests)}"
+        f"{_seed_section(seed)}"
     )
 
 
@@ -817,7 +834,8 @@ class AuthoringRun:
         digests = await self._digests(pack, f'agents using the skill "{skill.name}"')
         if self.request.kind == AuthoringKind.ANALYZE.value:
             found = await self._ask(
-                _skill_problems_prompt(skill, line.name, pack, digests), SkillProblems
+                _skill_problems_prompt(skill, line.name, pack, digests, session.seed),
+                SkillProblems,
             )
             pack = await self.evidence.forget_erased(pack)
             known = {run.run_id for run in pack.runs}

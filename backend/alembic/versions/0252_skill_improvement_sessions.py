@@ -6,6 +6,8 @@ forks serves several - so a session on a skill gets its own pair of tables rathe
 than nullable agent columns on the agent's: `skill_improvement_runs`, one session
 per line with at most one open (main's null fork counts as one line, hence
 `NULLS NOT DISTINCT`), and `skill_improvement_iterations`, one attempt each.
+A session's `purpose` is improving the line, or - for catching up - taking main
+into a fork, or a fork (`source_fork_id`) into main.
 Statuses, stages and stop reasons are the agent session's values.
 
 The edits a session proposes reuse the authoring tables:
@@ -66,6 +68,8 @@ def upgrade() -> None:
         sa.Column("organization_id", sa.UUID(), nullable=False),
         sa.Column("skill_id", sa.UUID(), nullable=False),
         sa.Column("fork_id", sa.UUID(), nullable=True),
+        sa.Column("purpose", sa.String(length=16), server_default="improve", nullable=False),
+        sa.Column("source_fork_id", sa.UUID(), nullable=True),
         sa.Column("base_version_id", sa.UUID(), nullable=False),
         sa.Column("created_by_user_id", sa.UUID(), nullable=True),
         sa.Column("created_by_api_key_id", sa.UUID(), nullable=True),
@@ -76,7 +80,9 @@ def upgrade() -> None:
         sa.Column("iteration", sa.Integer(), nullable=False),
         sa.Column("max_iterations", sa.Integer(), nullable=False),
         sa.Column("window_days", sa.Integer(), nullable=False),
-        sa.Column("seed_run_ids", postgresql.ARRAY(sa.UUID()), server_default="{}", nullable=False),
+        sa.Column(
+            "seed", postgresql.JSONB(none_as_null=True, astext_type=sa.Text()), nullable=True
+        ),
         sa.Column("analysis_request_id", sa.UUID(), nullable=True),
         sa.Column("estimate_usd", sa.Numeric(precision=12, scale=6), nullable=False),
         sa.Column("budget_usd", sa.Numeric(precision=12, scale=6), nullable=False),
@@ -95,7 +101,8 @@ def upgrade() -> None:
         sa.Column("heartbeat_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("finished_at", sa.DateTime(timezone=True), nullable=True),
         sa.CheckConstraint(
-            "outcome IS NULL OR outcome IN ('applied', 'applied_pinned', 'forked', 'discarded')",
+            "outcome IS NULL OR outcome IN ('applied', 'applied_pinned', 'forked', 'discarded', "
+            "'caught_up', 'returned_to_main')",
             name=op.f("skill_improvement_runs_ck_skill_improvement_run_outcome_check"),
         ),
         sa.CheckConstraint(
@@ -135,6 +142,21 @@ def upgrade() -> None:
             ["skill_forks.id", "skill_forks.organization_id"],
             name=op.f("skill_improvement_runs_fork_id_fkey"),
             ondelete="CASCADE",
+        ),
+        sa.ForeignKeyConstraint(
+            ["source_fork_id", "organization_id"],
+            ["skill_forks.id", "skill_forks.organization_id"],
+            name=op.f("skill_improvement_runs_source_fork_id_fkey"),
+            ondelete="CASCADE",
+        ),
+        sa.CheckConstraint(
+            "purpose IN ('improve', 'catch_up', 'to_main')",
+            name=op.f("skill_improvement_runs_ck_skill_improvement_run_purpose_check"),
+        ),
+        sa.CheckConstraint(
+            "(purpose = 'to_main') = (fork_id IS NULL AND source_fork_id IS NOT NULL) "
+            "AND (purpose = 'to_main' OR source_fork_id IS NULL)",
+            name=op.f("skill_improvement_runs_ck_skill_improvement_run_source_fork_check"),
         ),
         sa.ForeignKeyConstraint(
             ["organization_id"],

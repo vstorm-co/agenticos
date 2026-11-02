@@ -61,6 +61,8 @@ from app.schemas.skill_version import SkillForkRead, VersionNumberRef, VersionRe
 from app.services import authoring_hunks
 from app.services.authoring import AuthoringService
 from app.services.authoring_evidence import EvidencePack, PackedRun
+from app.services.improvement_pipeline import ImprovementPipelineService
+from app.services.improvement_skills import SkillSeed
 from app.services.skill_improvement import SkillImprovementService
 from app.services.skill_versions import SkillVersionService
 from app.services.skills import SkillService
@@ -1362,3 +1364,55 @@ class TestOutcomes:
 
         assert (quote.mode, read.iteration, read.stage) == ("next_round", 2, "proposing")
         assert read.check is None
+
+
+class TestHandedOver:
+    async def test_a_session_started_from_an_agents_improve_runs_on_that_agents_line(
+        self, db, evidence, monkeypatch
+    ):
+        ctx = await _owner(db)
+        skill = await _skill_on_main(db, ctx)
+        fork = await _fork(db, ctx, skill, "fork text")
+        handed = uuid.uuid4()
+        seed = SkillSeed(
+            agent_id=uuid.uuid4(),
+            fork_id=fork.id,
+            run_ids=[uuid.uuid4()],
+            problems=["The window is wrong"],
+            quotes=["Refunds take 14 days."],
+        )
+        asked: list[tuple[uuid.UUID, uuid.UUID]] = []
+
+        async def skill_seed(self, ctx, run_id, skill_id):
+            asked.append((run_id, skill_id))
+            return seed
+
+        monkeypatch.setattr(ImprovementPipelineService, "skill_seed", skill_seed)
+        service = SkillImprovementService(db)
+
+        quote = await service.estimate(ctx, skill.id, SkillImprovementTarget(from_run=handed))
+        read = await service.start(ctx, skill.id, _start(from_run=handed))
+        run = await _row(db, read)
+
+        assert asked == [(handed, skill.id), (handed, skill.id)]
+        assert (quote.line.fork_id, read.fork_id, read.line_name) == (fork.id, fork.id, "returns")
+        assert run.seed == {
+            "agent_id": str(seed.agent_id),
+            "run_ids": [str(seed.run_ids[0])],
+            "problems": ["The window is wrong"],
+            "quotes": ["Refunds take 14 days."],
+        }
+
+    async def test_a_hand_off_the_agents_session_refuses_is_refused(
+        self, db, evidence, monkeypatch
+    ):
+        ctx = await _owner(db)
+        skill = await _skill_on_main(db, ctx)
+
+        async def skill_seed(self, ctx, run_id, skill_id):
+            raise BadRequestError(message="The session found no problem in that skill")
+
+        monkeypatch.setattr(ImprovementPipelineService, "skill_seed", skill_seed)
+
+        with pytest.raises(BadRequestError):
+            await SkillImprovementService(db).start(ctx, skill.id, _start(from_run=uuid.uuid4()))

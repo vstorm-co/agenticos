@@ -131,3 +131,13 @@ async def test_waiting_for_you_lists_skill_sessions_for_a_reader_of_runs(
     assert response.status_code == 200 and response.json() == []
     awaiting.assert_awaited_once_with(ctx)
     assert refused.status_code == 403
+
+
+def test_the_platforms_own_tools_reach_every_skill_session_route() -> None:
+    from app.api.public_api import is_assistant_route
+    from app.api.routes.v1 import skill_improvements
+
+    routes = [*skill_improvements.router.routes, *skill_improvements.sessions.routes]
+
+    assert len(routes) == 16
+    assert all(is_assistant_route(route) for route in routes)
