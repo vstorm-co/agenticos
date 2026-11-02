@@ -27,7 +27,6 @@ export function AddTestQuestions({ skillId }: { skillId: string }) {
       </p>
     );
   }
-  // Somebody else wrote them in the meantime: the refreshed read shows them.
   const refused =
     create.error && !(create.error instanceof ApiError && create.error.status === 409)
       ? getErrorMessage(create.error, tErrors)
