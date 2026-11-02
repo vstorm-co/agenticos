@@ -3,7 +3,7 @@
 import base64
 import json
 import time
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Sequence
 from contextlib import asynccontextmanager
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
@@ -54,6 +54,23 @@ class _Redis:
 
     async def delete(self, key: str) -> int:
         return int(self.data.pop(key, None) is not None)
+
+    async def reserve_range(self, key: str, *, minimum: int, count: int, ttl: int) -> int:
+        last = max(int(self.data.get(key, "0")), minimum)
+        self.data[key] = str(last + count)
+        return last + 1
+
+    async def update_mapping(
+        self, key: str, *, updates: dict[str, str], remove: Sequence[str] = (), ttl: int
+    ) -> None:
+        stored: dict[str, str] = json.loads(self.data.get(key, "{}"))
+        stored.update(updates)
+        for field in remove:
+            stored.pop(field, None)
+        if stored:
+            await self.set(key, json.dumps(stored), ttl=ttl)
+        else:
+            await self.delete(key)
 
 
 @pytest.fixture

@@ -993,6 +993,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- SMS and e-mail prompts reserve reply numbers atomically before delivery and retain unused numbers after settlement, preventing concurrent sends and delayed replies from deciding another approval.
+
 - Memory corrections require organization-wide edit authority for organization claims; expired claims cannot be corrected or shared. Same-scope sharing is refused, and person-memory erasure waits for concurrent claim writes.
 
 - Workers keep the internal AgenticOS MCP server available until agent and workflow jobs finish, so platform-bound agents can run outside the web API process.

@@ -3,6 +3,9 @@
 Provides a class-based Redis client for connection management and operations.
 """
 
+import json
+from collections.abc import Sequence
+
 from redis import asyncio as aioredis
 
 from app.core.config import settings
@@ -18,6 +21,24 @@ _DELETE_IF_EQUAL = (
     "if redis.call('get', KEYS[1]) == ARGV[1] then "
     "return redis.call('del', KEYS[1]) else return 0 end"
 )
+
+_RESERVE_RANGE = """
+local last = math.max(tonumber(redis.call('get', KEYS[1]) or '0'), tonumber(ARGV[1]))
+redis.call('set', KEYS[1], last + tonumber(ARGV[2]), 'EX', ARGV[3])
+return last + 1
+"""
+
+_UPDATE_MAPPING = """
+local values = cjson.decode(redis.call('get', KEYS[1]) or '{}')
+for key, value in pairs(cjson.decode(ARGV[1])) do values[key] = value end
+for _, key in ipairs(cjson.decode(ARGV[2])) do values[key] = nil end
+if next(values) == nil then
+  redis.call('del', KEYS[1])
+else
+  redis.call('set', KEYS[1], cjson.encode(values), 'EX', ARGV[3])
+end
+return 1
+"""
 
 
 class RedisClient:
@@ -100,6 +121,21 @@ class RedisClient:
         if not self.client:
             raise RuntimeError("Redis client not connected")
         return bool(await self.client.expire(key, ttl))
+
+    async def reserve_range(self, key: str, *, minimum: int, count: int, ttl: int) -> int:
+        """Reserve consecutive numbers atomically, retaining failed-delivery gaps until expiry."""
+        result = await self.raw.eval(_RESERVE_RANGE, 1, key, minimum, count, ttl)
+        if not isinstance(result, int):
+            raise TypeError("Redis returned an invalid number reservation")
+        return result
+
+    async def update_mapping(
+        self, key: str, *, updates: dict[str, str], remove: Sequence[str] = (), ttl: int
+    ) -> None:
+        """Merge/remove JSON fields atomically without losing concurrent prompt changes."""
+        await self.raw.eval(
+            _UPDATE_MAPPING, 1, key, json.dumps(updates), json.dumps(list(remove)), ttl
+        )
 
     async def delete_if_equal(self, key: str, value: str) -> bool:
         """Delete a key only while it still holds `value` - a lease given back by its holder."""

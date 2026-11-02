@@ -156,7 +156,9 @@ class EmailAdapter(ChannelAdapter):
     async def send_prompt(self, bot_token: str, prompt: PromptMessage) -> None:
         """Send the question with its choices numbered, and remember what each number means."""
         chat = prompt.platform_chat_id.lower()
-        start = await sms_prompts.first_number(prompt.bot_id, chat, platform=PLATFORM)
+        start = await sms_prompts.reserve(
+            prompt.bot_id, chat, len(prompt.choices), platform=PLATFORM
+        )
         lines = [f"{number}. {choice.label}" for number, choice in enumerate(prompt.choices, start)]
         await self.send_message(
             bot_token,

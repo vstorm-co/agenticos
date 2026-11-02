@@ -21,6 +21,7 @@ import logging
 
 from app.clients.redis import RedisClient
 from app.services.channels.base import read_press
+from app.services.channels.exceptions import ChannelNotConfigured
 
 logger = logging.getLogger(__name__)
 
@@ -55,6 +56,26 @@ async def first_number(bot_id: str, chat_id: str, *, platform: str = "sms") -> i
     return max((int(code) for code in await _pending(bot_id, chat_id, platform)), default=0) + 1
 
 
+async def reserve(bot_id: str, chat_id: str, count: int, *, platform: str = "sms") -> int:
+    """Reserve before sending so concurrent workers never advertise the same choices.
+
+    A failed send leaves a gap, not an answerable prompt. Numbers are not recycled
+    after settlement: a delayed reply must never decide a later approval.
+    """
+    if _redis is None:
+        raise ChannelNotConfigured("Numbered replies require the shared prompt store.")
+    minimum = await first_number(bot_id, chat_id, platform=platform) - 1
+    start = await _redis.reserve_range(
+        _key(bot_id, chat_id, platform) + ":counter",
+        minimum=minimum,
+        count=count,
+        ttl=TTL_SECONDS,
+    )
+    if start + count - 1 > 10**MAX_DIGITS - 1:
+        raise ChannelNotConfigured("Too many pending choices; decide this request in the console.")
+    return start
+
+
 async def remember(
     bot_id: str, chat_id: str, values: list[str], *, start: int, platform: str = "sms"
 ) -> None:
@@ -65,9 +86,11 @@ async def remember(
     """
     if _redis is None:
         return
-    pending = await _pending(bot_id, chat_id, platform)
-    pending.update({str(start + offset): value for offset, value in enumerate(values)})
-    await _redis.set(_key(bot_id, chat_id, platform), json.dumps(pending), ttl=TTL_SECONDS)
+    await _redis.update_mapping(
+        _key(bot_id, chat_id, platform),
+        updates={str(start + offset): value for offset, value in enumerate(values)},
+        ttl=TTL_SECONDS,
+    )
 
 
 async def forget(bot_id: str, chat_id: str, *, platform: str = "sms") -> None:
@@ -82,15 +105,14 @@ async def settle(bot_id: str, chat_id: str, value: str, *, platform: str = "sms"
     if _redis is None or pressed is None:
         return
     pending = await _pending(bot_id, chat_id, platform)
-    kept = {
-        code: choice
+    remove = [
+        code
         for code, choice in pending.items()
-        if (read_press(choice) or ("", None))[0] != pressed[0]
-    }
-    if kept:
-        await _redis.set(_key(bot_id, chat_id, platform), json.dumps(kept), ttl=TTL_SECONDS)
-    else:
-        await _redis.delete(_key(bot_id, chat_id, platform))
+        if (read_press(choice) or ("", None))[0] == pressed[0]
+    ]
+    await _redis.update_mapping(
+        _key(bot_id, chat_id, platform), updates={}, remove=remove, ttl=TTL_SECONDS
+    )
 
 
 async def answer(bot_id: str, chat_id: str, text: str, *, platform: str = "sms") -> str | None:

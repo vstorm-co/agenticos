@@ -143,7 +143,9 @@ class SmsAdapter(ChannelAdapter):
         There are no buttons to press, so the person replies with a digit; the router
         reads it back through `sms_prompts.answer`.
         """
-        start = await sms_prompts.first_number(prompt.bot_id, prompt.platform_chat_id)
+        start = await sms_prompts.reserve(
+            prompt.bot_id, prompt.platform_chat_id, len(prompt.choices)
+        )
         lines = [f"{number}. {choice.label}" for number, choice in enumerate(prompt.choices, start)]
         await self.send_message(
             bot_token,

@@ -1,6 +1,8 @@
 """SMS through Twilio (#2082): the signature, the transport and the webhook."""
 
-from collections.abc import AsyncIterator
+import asyncio
+import json
+from collections.abc import AsyncIterator, Sequence
 from contextlib import asynccontextmanager
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -315,6 +317,23 @@ class _Redis:
     async def delete(self, key: str) -> int:
         return int(self.data.pop(key, None) is not None)
 
+    async def reserve_range(self, key: str, *, minimum: int, count: int, ttl: int) -> int:
+        last = max(int(self.data.get(key, "0")), minimum)
+        self.data[key] = str(last + count)
+        return last + 1
+
+    async def update_mapping(
+        self, key: str, *, updates: dict[str, str], remove: Sequence[str] = (), ttl: int
+    ) -> None:
+        stored: dict[str, str] = json.loads(self.data.get(key, "{}"))
+        stored.update(updates)
+        for field in remove:
+            stored.pop(field, None)
+        if stored:
+            await self.set(key, json.dumps(stored), ttl=ttl)
+        else:
+            await self.delete(key)
+
 
 @pytest.fixture
 def prompts() -> _Redis:
@@ -327,6 +346,60 @@ def prompts() -> _Redis:
 
 
 class TestNumberedAnswers:
+    async def test_reservation_requires_a_store_and_refuses_unanswerable_numbers(
+        self, prompts: _Redis
+    ) -> None:
+        from app.services.channels import sms_prompts
+
+        prompts.data["channel:sms:prompt:bot:test:counter"] = "999"
+        with pytest.raises(ChannelNotConfigured, match="console"):
+            await sms_prompts.reserve("bot", "test", 1)
+        sms_prompts.configure(None)
+        with pytest.raises(ChannelNotConfigured, match="shared prompt store"):
+            await sms_prompts.reserve("bot", "test", 1)
+
+    async def test_overlapping_sends_reserve_distinct_choices_before_delivery(
+        self, prompts: _Redis
+    ) -> None:
+        from app.services.channels import sms_prompts
+        from app.services.channels.base import ChannelChoice, PromptMessage
+
+        both_started = asyncio.Event()
+        bodies: list[str] = []
+
+        async def handler(request: httpx.Request) -> httpx.Response:
+            bodies.append(request.content.decode())
+            if len(bodies) == 2:
+                both_started.set()
+            await both_started.wait()
+            return httpx.Response(201, json={})
+
+        adapter = SmsAdapter(api="https://twilio.test")
+        adapter._client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+        try:
+            async with asyncio.TaskGroup() as tasks:
+                for prompt_id in ("a", "b"):
+                    tasks.create_task(
+                        adapter.send_prompt(
+                            TOKEN,
+                            PromptMessage(
+                                platform_chat_id="+1555",
+                                text="Go?",
+                                bot_id="bot",
+                                choices=[ChannelChoice("Yes", f"aos:{prompt_id}:0")],
+                            ),
+                        )
+                    )
+            assert "1.+Yes" in bodies[0] and "2.+Yes" in bodies[1]
+            assert await sms_prompts.answer("bot", "+1555", "1") == "aos:a:0"
+            assert await sms_prompts.answer("bot", "+1555", "2") == "aos:b:0"
+            await sms_prompts.settle("bot", "+1555", "aos:a:0")
+            await sms_prompts.settle("bot", "+1555", "aos:b:0")
+            assert await sms_prompts.reserve("bot", "+1555", 1) == 3
+            assert await sms_prompts.answer("bot", "+1555", "1") is None
+        finally:
+            await adapter.aclose()
+
     async def test_a_digit_that_fits_names_the_choice_and_leaves_the_prompt_open(
         self, prompts: _Redis
     ) -> None:
@@ -445,7 +518,9 @@ class TestNumberedAnswers:
                 ),
             )
 
-        assert prompts.data == {}
+        from app.services.channels import sms_prompts
+
+        assert await sms_prompts.answer("bot", "+1555", "1") is None
         await adapter.aclose()
 
     async def test_settling_with_nowhere_to_keep_prompts_is_harmless(self) -> None:
