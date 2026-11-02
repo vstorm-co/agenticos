@@ -353,7 +353,7 @@ class TestRunning:
         stale.created_at = stale.created_at - timedelta(days=2)
         await db.flush()
 
-        async def fail(_self, _check):
+        async def fail(_self, _check, _ctx):
             raise RuntimeError("cannot settle")
 
         monkeypatch.setattr(SkillCheckService, "_expire", fail)
@@ -673,11 +673,30 @@ class TestWhatTheCheckMeasuredIsWhatShips:
         with pytest.raises(ConcurrentChangeError, match="decided elsewhere"):
             await service.fork(lab.ctx, lab.skill.id, check.id, SkillCheckFork(name="x"))
 
+    async def test_a_stale_check_whose_starter_is_gone_still_ends(self, db, monkeypatch):
+        lab = await _lab(db)
+        evals = FakeEvals()
+        evals.install(monkeypatch)
+        service = SkillCheckService(db)
+        check = await service.start(lab.ctx, lab.skill.id, _start())
+        row = await skill_check_repo.get(db, check.id, organization_id=lab.ctx.organization_id)
+        assert row is not None
+        row.created_at = row.created_at - timedelta(days=2)
+        row.created_by_user_id = None
+        await db.flush()
+
+        await service.advance(check.id, lab.ctx.organization_id)
+
+        read = await service.read(lab.ctx, lab.skill.id, check.id)
+        assert read.status is CheckStatus.DONE
+        assert {run.status for run in evals.runs.values()} == {EvalRunStatus.RUNNING.value}
+
     async def test_a_check_running_for_a_day_is_ended_when_it_is_next_advanced(
         self, db, monkeypatch
     ):
         lab = await _lab(db)
-        FakeEvals(refuse_start={lab.c.id}).install(monkeypatch)
+        evals = FakeEvals(refuse_start={lab.c.id})
+        evals.install(monkeypatch)
         service = SkillCheckService(db)
         check = await service.start(lab.ctx, lab.skill.id, _start())
         row = await skill_check_repo.get(db, check.id, organization_id=lab.ctx.organization_id)
@@ -691,6 +710,7 @@ class TestWhatTheCheckMeasuredIsWhatShips:
         assert read.status is CheckStatus.DONE
         reasons = {item.agent.name: item.unknown_reason for item in read.agents}
         assert reasons == {"A": "failed", "B": "failed", "C": "failed"}
+        assert {run.status for run in evals.runs.values()} == {EvalRunStatus.CANCELLED.value}
 
     async def test_a_file_replaced_on_main_keeps_its_description_as_it_would_ship(
         self, db, monkeypatch

@@ -679,15 +679,15 @@ class SkillCheckService:
         )
         if check is None or check.status != CheckStatus.RUNNING.value:
             return
-        if check.created_at < datetime.now(UTC) - STALE_AFTER:
-            await self._expire(check)
-            return
         ctx = await job_context(
             self.db,
             organization_id=organization_id,
             user_id=check.created_by_user_id,
             api_key_id=None,
         )
+        if check.created_at < datetime.now(UTC) - STALE_AFTER:
+            await self._expire(check, ctx)
+            return
         rows = await skill_check_repo.list_agents(
             self.db, [check.id], organization_id=organization_id
         )
@@ -820,13 +820,20 @@ class SkillCheckService:
             )
         return len(found)
 
-    async def _expire(self, check: SkillCheck) -> None:
-        """End a check whose agents never settled: they are unknown, and it is decided on."""
-        for row in await skill_check_repo.list_agents(
-            self.db, [check.id], organization_id=check.organization_id
-        ):
-            if not AgentState(row.state).settled:
-                await self._unknown(row, UnknownReason.FAILED)
+    async def _expire(self, check: SkillCheck, ctx: AuthContext | None) -> None:
+        """End a check whose agents never settled: their runs are stopped where the starter
+        may still stop them, the agents are unknown, and the check is decided on."""
+        unsettled = [
+            row
+            for row in await skill_check_repo.list_agents(
+                self.db, [check.id], organization_id=check.organization_id
+            )
+            if not AgentState(row.state).settled
+        ]
+        if ctx is not None:
+            await self._stop_runs(ctx, unsettled)
+        for row in unsettled:
+            await self._unknown(row, UnknownReason.FAILED)
         await self._settle(check)
 
     async def after_run(self, organization_id: UUID, eval_run_id: UUID) -> None:
@@ -1050,9 +1057,22 @@ class SkillCheckService:
             raise AlreadyExistsError(
                 message="The check is not running", details={"check_id": check.id}
             )
-        for row in await skill_check_repo.list_agents(
-            self.db, [check.id], organization_id=ctx.organization_id
-        ):
+        await self._stop_runs(
+            ctx,
+            await skill_check_repo.list_agents(
+                self.db, [check.id], organization_id=ctx.organization_id
+            ),
+        )
+        await skill_check_repo.update(
+            self.db,
+            row=check,
+            values={"status": CheckStatus.CANCELLED.value, "finished_at": datetime.now(UTC)},
+        )
+        return await self.read(ctx, skill_id, check.id)
+
+    async def _stop_runs(self, ctx: AuthContext, rows: Sequence[SkillCheckAgent]) -> None:
+        """Cancel the eval runs of these agents still going, so they stop spending."""
+        for row in rows:
             for run_id in (row.skill_set_run_id, row.dataset_run_id):
                 if run_id is not None:
                     run = await eval_run_repo.get(
@@ -1060,12 +1080,6 @@ class SkillCheckService:
                     )
                     if run is not None and EvalRunStatus(run.status) not in _SETTLED_RUNS:
                         await self.evals.cancel(ctx, run_id)
-        await skill_check_repo.update(
-            self.db,
-            row=check,
-            values={"status": CheckStatus.CANCELLED.value, "finished_at": datetime.now(UTC)},
-        )
-        return await self.read(ctx, skill_id, check.id)
 
     async def stop_for_proposal(self, ctx: AuthContext, skill_id: UUID, proposal_id: UUID) -> None:
         """Stop the running checks of a proposal withdrawn before anybody decided it."""
