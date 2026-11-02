@@ -185,7 +185,7 @@ async def _until_a_statement_waits_on_a_lock(factory) -> None:
         if waiting:
             return
         await asyncio.sleep(0.02)
-    raise AssertionError("The delete never waited for the write")
+    raise AssertionError("No statement ever waited on a lock")
 
 
 async def test_a_delete_during_the_write_waits_for_it_and_leaves_no_chunks(
@@ -417,7 +417,7 @@ async def test_spend_on_a_document_still_there_is_kept_against_it(
 
 
 async def test_spend_recorded_while_its_organization_purges_the_document_keeps_it(
-    worker: _Worker,
+    worker: _Worker, caplog: pytest.LogCaptureFixture
 ) -> None:
     """The purge holds its organization `FOR UPDATE`, then deletes the documents.
 
@@ -430,18 +430,20 @@ async def test_spend_recorded_while_its_organization_purges_the_document_keeps_i
     ledger = SpendLedger(organization_id=organization_id)
     ledger.record_cost("text-embedding-3-small", Decimal("0.0002"))
 
-    async with upload.factory() as purge:
-        await purge.execute(
-            select(Organization.id).where(Organization.id == organization_id).with_for_update()
-        )
-        recording = asyncio.create_task(
-            rag_tasks._record_embedding_spend(
-                ledger, organization_id=organization_id, rag_document_id=upload.row_id
+    with caplog.at_level(logging.INFO):
+        async with upload.factory() as purge:
+            await purge.execute(
+                select(Organization.id).where(Organization.id == organization_id).with_for_update()
             )
-        )
-        await _until_a_statement_waits_on_a_lock(upload.factory)
-        await purge.execute(delete(RAGDocument).where(RAGDocument.id == upload.row_id))
-        await purge.commit()
-    await asyncio.wait_for(recording, timeout=10)
+            recording = asyncio.create_task(
+                rag_tasks._record_embedding_spend(
+                    ledger, organization_id=organization_id, rag_document_id=upload.row_id
+                )
+            )
+            await _until_a_statement_waits_on_a_lock(upload.factory)
+            await purge.execute(delete(RAGDocument).where(RAGDocument.id == upload.row_id))
+            await purge.commit()
+        await asyncio.wait_for(recording, timeout=10)
 
     assert await worker.spend() == [(None, "text-embedding-3-small")]
+    assert _errors(caplog) == []
