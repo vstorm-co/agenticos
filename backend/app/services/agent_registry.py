@@ -3153,13 +3153,53 @@ class AgentRegistryService:
         agent = await self.get(ctx, agent_id, perm=Perm.AGENTS_PUBLISH, for_update=True)
         spec = AgentSpec.model_validate(agent.draft_spec)
         await self.validate_spec(ctx, spec, agent_id=agent.id)
+        version = await self._freeze(ctx, agent, spec, note=note, draft=spec)
+        # The authoring assistant's suggestions were for the draft just frozen:
+        # their decisions are final now, and Undo would edit a published version.
+        batch = await authoring_repo.get_open_batch(
+            self.db, organization_id=ctx.organization_id, agent_id=agent.id, lock=True
+        )
+        if batch is not None:
+            await authoring_repo.close_batch(self.db, batch=batch, status=BatchStatus.PUBLISHED)
+        return version
 
+    async def publish_spec(
+        self,
+        ctx: AuthContext,
+        agent_id: UUID,
+        spec: AgentSpec,
+        *,
+        draft: AgentSpec,
+        note: str | None = None,
+    ) -> AgentVersion:
+        """Publish a spec that is not the draft, and leave `draft` as the agent's draft.
+
+        For a change made to what is published rather than to what is being edited:
+        the published spec with one thing changed goes live, and the draft takes the
+        same change and keeps the rest of its unfinished edits. Its open authoring
+        suggestions stay open, because the draft they were made for was not frozen.
+        """
+        agent = await self.get(ctx, agent_id, perm=Perm.AGENTS_PUBLISH, for_update=True)
+        await self.validate_spec(ctx, spec, agent_id=agent.id)
+        return await self._freeze(ctx, agent, spec, note=note, draft=draft)
+
+    async def _freeze(
+        self,
+        ctx: AuthContext,
+        agent: Agent,
+        spec: AgentSpec,
+        *,
+        note: str | None,
+        draft: AgentSpec,
+    ) -> AgentVersion:
+        """Freeze a validated spec as the agent's next version, and move what follows it."""
         # Publish is where the spec is confirmed against this deployment's own
         # registry and models, so the frozen copy carries this deployment's spec
         # version - not whatever an imported draft claimed. Otherwise the number
         # is write-only: a `spec_version: 3` YAML publishes carrying constructs
         # this code understands and stays labelled 3.
         spec.spec_version = SPEC_VERSION
+        draft.spec_version = SPEC_VERSION
         frozen = spec.model_dump(mode="json")
 
         number = await agent_repo.next_version_number(self.db, agent_id=agent.id)
@@ -3178,19 +3218,15 @@ class AgentRegistryService:
         await agent_repo.update(
             self.db,
             agent=agent,
-            update_data={"status": AgentStatus.PUBLISHED.value, "draft_spec": frozen},
+            update_data={
+                "status": AgentStatus.PUBLISHED.value,
+                "draft_spec": frozen if draft is spec else draft.model_dump(mode="json"),
+            },
         )
         # `current_version_id` is the default environment's pointer, so the step
         # that moves environments is the step that moves it - see below.
         await self._move_environments_that_follow(ctx, agent=agent, version=version)
         await self.withdraw_creator_consent(ctx, agent)
-        # The authoring assistant's suggestions were for the draft just frozen:
-        # their decisions are final now, and Undo would edit a published version.
-        batch = await authoring_repo.get_open_batch(
-            self.db, organization_id=ctx.organization_id, agent_id=agent.id, lock=True
-        )
-        if batch is not None:
-            await authoring_repo.close_batch(self.db, batch=batch, status=BatchStatus.PUBLISHED)
         from app.services.eval_suite import EvalSuiteService
 
         await EvalSuiteService(self.db).version_published(ctx, agent=agent, version=version)
