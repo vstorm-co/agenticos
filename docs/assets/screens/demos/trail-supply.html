@@ -1,0 +1,569 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Trail Supply · demonstration store</title>
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        font-family: ui-sans-serif, system-ui, sans-serif;
+        background: #f5f5f0;
+        color: #192b26;
+        line-height: 1.5;
+      }
+      button,
+      input,
+      select {
+        font: inherit;
+      }
+      button {
+        cursor: pointer;
+      }
+      button:focus-visible,
+      a:focus-visible,
+      input:focus-visible {
+        outline: 3px solid #1d8064;
+        outline-offset: 4px;
+      }
+      button {
+        color: inherit;
+      }
+      header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 20px;
+        border-bottom: 1px solid #d9e1da;
+        padding: 21px 4vw;
+      }
+      .brand {
+        font-weight: 700;
+        letter-spacing: -0.6px;
+        font-size: 19px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      .brandmark {
+        display: grid;
+        place-items: center;
+        background: #203c31;
+        color: #ecf4dd;
+        width: 33px;
+        height: 33px;
+        border-radius: 10px;
+      }
+      nav {
+        display: flex;
+        gap: 24px;
+        font-size: 13px;
+      }
+      nav span {
+        color: #6c7a71;
+      }
+      .label {
+        font-size: 12px;
+        color: #63736b;
+      }
+      .badge {
+        display: inline-flex;
+        gap: 7px;
+        align-items: center;
+        border: 1px solid #cfdad0;
+        border-radius: 20px;
+        padding: 5px 11px;
+        font-size: 11px;
+        background: #edf4e8;
+      }
+      .badge:before {
+        content: "";
+        height: 5px;
+        width: 5px;
+        background: #508268;
+        border-radius: 100%;
+      }
+      .wrap {
+        max-width: 1400px;
+        margin: auto;
+        padding: 34px 4vw;
+      }
+      h1 {
+        font-size: clamp(34px, 4.2vw, 56px);
+        font-weight: 550;
+        letter-spacing: -2.5px;
+        line-height: 1.07;
+        margin: 10px 0 15px;
+      }
+      h2 {
+        font-size: 19px;
+        letter-spacing: -0.5px;
+        font-weight: 600;
+        margin: 0 0 15px;
+      }
+      h3 {
+        font-size: 15px;
+        margin: 0 0 7px;
+      }
+      p {
+        margin: 0 0 13px;
+      }
+      .muted {
+        color: #6b7972;
+      }
+      .hero {
+        display: flex;
+        justify-content: space-between;
+        align-items: end;
+        gap: 30px;
+        margin-bottom: 30px;
+      }
+      .hero p {
+        font-size: 14px;
+        max-width: 600px;
+      }
+      .primary {
+        background: #203c31;
+        color: #f5f6ec;
+        border: 0;
+        border-radius: 8px;
+        padding: 11px 18px;
+        font-weight: 550;
+        font-size: 13px;
+      }
+      .quiet {
+        background: transparent;
+        border: 1px solid #cdd7cf;
+        border-radius: 7px;
+        padding: 8px 14px;
+        font-size: 13px;
+      }
+      .selected {
+        background: #203c31 !important;
+        color: #fff !important;
+      }
+      .chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 7px;
+      }
+      .chips button {
+        background: #fff;
+        border: 1px solid #d9e1da;
+        border-radius: 20px;
+        font-size: 12px;
+        padding: 6px 13px;
+      }
+      .paper {
+        background: #fff;
+        border: 1px solid #d9e1da;
+        border-radius: 12px;
+        padding: 22px;
+      }
+      .stats {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        margin: 25px 0 32px;
+        border-top: 1px solid #d6dfd6;
+        border-bottom: 1px solid #d6dfd6;
+      }
+      .stat {
+        padding: 19px 15px 18px 0;
+      }
+      .stat strong {
+        font-size: 35px;
+        font-weight: 550;
+        letter-spacing: -1.6px;
+        display: block;
+      }
+      .stat span {
+        font-size: 12px;
+        color: #6b7972;
+      }
+      .row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 18px;
+      }
+      .avatar {
+        background: #e3eddd;
+        border-radius: 50%;
+        padding: 5px 7px;
+        font-size: 10px;
+        font-weight: 600;
+      }
+      .tiny {
+        font-size: 11px;
+      }
+      .footer {
+        border-top: 1px solid #d9e1da;
+        color: #7c8981;
+        margin-top: 28px;
+        padding-top: 15px;
+        font-size: 11px;
+        display: flex;
+        justify-content: space-between;
+        gap: 15px;
+      }
+      dialog {
+        border: 1px solid #cad5cc;
+        border-radius: 16px;
+        max-width: 480px;
+        padding: 30px;
+        background: #fbfcf7;
+        color: #192b26;
+      }
+      dialog::backdrop {
+        background: #152c2455;
+      }
+      dialog h2 {
+        font-size: 27px;
+      }
+      .two {
+        display: grid;
+        grid-template-columns: 1fr 330px;
+        gap: 24px;
+      }
+      .demo {
+        font-size: 11px;
+        color: #7a817c;
+      }
+      .pill {
+        padding: 3px 8px;
+        border-radius: 5px;
+        font-size: 10px;
+        background: #e6eee0;
+        color: #3e6249;
+      }
+      button:disabled {
+        cursor: not-allowed;
+        opacity: 0.55;
+      }
+      @media (max-width: 800px) {
+        header {
+          padding: 17px 20px;
+        }
+        nav {
+          display: none;
+        }
+        .wrap {
+          padding: 25px 20px;
+        }
+        .hero {
+          display: block;
+        }
+        .hero .primary {
+          margin-top: 10px;
+        }
+        .two {
+          grid-template-columns: 1fr;
+        }
+        .stats {
+          grid-template-columns: repeat(2, 1fr);
+        }
+        h1 {
+          letter-spacing: -1.5px;
+        }
+        .footer {
+          display: block;
+        }
+      }
+      .shop-layout {
+        display: grid;
+        grid-template-columns: 1fr 330px;
+        gap: 30px;
+      }
+      .products {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 17px;
+      }
+      .product {
+        background: #fff;
+        border: 1px solid #d8dfd6;
+        border-radius: 11px;
+        overflow: hidden;
+      }
+      .pack-scene {
+        position: relative;
+        background: #e6eade;
+        height: 285px;
+        display: grid;
+        place-items: center;
+      }
+      .pack-scene svg {
+        height: 240px;
+        width: 210px;
+      }
+      .pack-scene > span {
+        position: absolute;
+        bottom: 12px;
+        left: 15px;
+        font-size: 11px;
+        color: #6f7a65;
+      }
+      .product h3 {
+        font-size: 14px;
+        margin: 0;
+      }
+      .product b {
+        font-size: 14px;
+      }
+      .shopping-guide {
+        background: #fff;
+        border: 1px solid #d8dfd6;
+        border-radius: 13px;
+        padding: 22px;
+      }
+      .guide-message {
+        background: #edf2e7;
+        border-radius: 10px;
+        padding: 16px;
+        font-size: 13px;
+        margin: 22px 0;
+      }
+      .shopping-guide select {
+        display: block;
+        width: 100%;
+        padding: 10px;
+        border: 1px solid #d7dfd3;
+        border-radius: 7px;
+        margin-top: 8px;
+        background: white;
+        font-size: 12px;
+      }
+      .shopping-guide input {
+        width: 100%;
+        accent-color: #42684e;
+      }
+      .recommendation {
+        border-top: 1px solid #e0e6dc;
+        margin-top: 23px;
+        padding-top: 20px;
+      }
+      .recommendation p {
+        font-size: 12px;
+        color: #6b7b6d;
+        line-height: 1.7;
+      }
+      .recommendation h3 {
+        font-size: 16px;
+      }
+      @media (max-width: 950px) {
+        .shop-layout {
+          grid-template-columns: 1fr;
+        }
+      }
+      @media (max-width: 600px) {
+        .products {
+          grid-template-columns: 1fr;
+        }
+        .pack-scene {
+          height: 220px;
+        }
+        .pack-scene svg {
+          height: 190px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div class="brand"><span class="brandmark">△</span> Trail Supply</div>
+      <nav><b>Find your next trail</b><span>Daypacks</span><span>Field notes</span></nav>
+      <span class="badge">Fictional demo store</span>
+    </header>
+    <main class="wrap">
+      <div class="hero">
+        <div>
+          <div class="label">Fewer choices. A better fit.</div>
+          <h1>A day outside.<br />The right pack along.</h1>
+          <p class="muted">
+            Tell us how you walk. Explore three fictional daypacks<br />and see how a shopping
+            assistant could help you decide.
+          </p>
+        </div>
+        <button id="cart" class="quiet">Demo bag · <span id="cart-count">0</span></button>
+      </div>
+      <div class="shop-layout">
+        <div>
+          <div class="row" style="margin-bottom: 22px">
+            <h2 style="margin: 0">Made for a different kind of day</h2>
+            <span class="muted tiny">3 example products</span>
+          </div>
+          <div class="products" id="products"></div>
+          <div class="paper" style="margin-top: 23px; background: #e6eddd">
+            <h2>Advice that explains the trade-off.</h2>
+            <p class="muted" style="font-size: 13px; margin: 0">
+              Show why a product fits the budget and the trip. Ask before adding it to the bag. Keep
+              checkout with the customer.
+            </p>
+          </div>
+        </div>
+        <aside class="shopping-guide">
+          <div class="row">
+            <div class="brand" style="font-size: 15px">
+              <span class="brandmark" style="width: 29px; height: 29px">✳</span>
+              Your trail guide
+            </div>
+            <span class="tiny muted">Scripted demo</span>
+          </div>
+          <div class="guide-message">
+            A short city walk or a full day on the trail? Pick a trip and a budget. I’ll explain
+            which pack fits.
+          </div>
+          <label class="label" for="trip">What are you planning?</label
+          ><select id="trip">
+            <option value="city">City walks & a laptop</option>
+            <option value="day" selected>Day hikes & changing weather</option>
+            <option value="fast">A light, fast trail day</option>
+          </select>
+          <div class="row" style="margin-top: 17px">
+            <label class="label" for="budget">Budget</label
+            ><strong id="budget-label" style="font-size: 15px">$150</strong>
+          </div>
+          <input id="budget" type="range" min="80" max="200" value="150" step="10" /><button
+            id="recommend"
+            class="primary"
+            style="width: 100%; margin-top: 16px"
+          >
+            Find my fit →
+          </button>
+          <div class="recommendation" id="recommendation" aria-live="polite"></div>
+          <div class="demo" style="margin-top: 20px">
+            Deterministic recommendations, seeded products and prices. No live AI request, payment,
+            stock check or real order.
+          </div>
+        </aside>
+      </div>
+      <div class="footer">
+        <span
+          >A demonstration shopping experience · not an actual retailer or a deployed agent
+          widget</span
+        ><span>AgenticOS app / local demo</span>
+      </div>
+    </main>
+    <dialog id="bag">
+      <h2>Your demo bag</h2>
+      <p id="bag-content">Nothing added yet.</p>
+      <p class="muted tiny">
+        Checkout is intentionally unavailable. This is a local product demonstration.
+      </p>
+      <button class="primary" id="bag-close">Keep exploring</button>
+    </dialog>
+    <script>
+      "use strict";
+      const products = [
+        {
+          id: "city",
+          name: "Commuter 18",
+          price: 89,
+          litres: 18,
+          description: "Laptop sleeve · compact carry",
+          color: "#6d8278",
+          fit: "A compact everyday pack with room for a laptop. Best for city walks rather than wet trail days.",
+        },
+        {
+          id: "day",
+          name: "Ridgeline 24",
+          price: 139,
+          litres: 24,
+          description: "Rain cover · all-day comfort",
+          color: "#b69e73",
+          fit: "The most room for a changing-weather day hike. A rain cover is included in this fictional specification.",
+        },
+        {
+          id: "fast",
+          name: "Summit 16",
+          price: 119,
+          litres: 16,
+          description: "Light build · close fit",
+          color: "#8b9c8b",
+          fit: "The smaller, lighter choice for a fast trail day. Less room for bulky layers than Ridgeline 24.",
+        },
+      ];
+      const items = [];
+      const holder = document.getElementById("products");
+      products.forEach((p) => {
+        const card = document.createElement("article");
+        card.className = "product";
+        card.innerHTML =
+          '<div class="pack-scene"><svg viewBox="0 0 230 270" role="img" aria-label="Illustration of ' +
+          p.name +
+          '"><path d="M79 70C60 90 64 190 69 216M151 70C171 90 165 190 160 216" fill="none" stroke="#394b40" stroke-width="11"/><path d="M96 63V45Q115 30 134 45V63" fill="none" stroke="#405245" stroke-width="7"/><path d="M75 66Q115 46 155 66L166 229Q116 248 64 229Z" fill="' +
+          p.color +
+          '"/><path d="M83 129Q116 116 149 129L153 205Q116 216 78 205Z" fill="#ffffff22" stroke="#40524555" stroke-width="2"/><path d="M76 99L155 99M86 143L148 143" stroke="#3f50475c" stroke-width="2"/><rect x="104" y="74" width="24" height="20" rx="4" fill="#e8eadb"/><path d="M110 87L116 79L122 87" fill="none" stroke="#556849" stroke-width="2"/></svg><span>' +
+          p.litres +
+          ' L</span></div><div style="padding:17px"><div class="row"><h3>' +
+          p.name +
+          "</h3><b>$" +
+          p.price +
+          '</b></div><p class="muted tiny">' +
+          p.description +
+          '</p><button class="quiet add" data-id="' +
+          p.id +
+          '" style="width:100%;margin-top:8px">Add to demo bag</button></div>';
+        holder.append(card);
+      });
+      function add(id) {
+        const p = products.find((p) => p.id === id);
+        if (!p) return;
+        items.push(p);
+        document.getElementById("cart-count").textContent = String(items.length);
+        document.querySelectorAll('.add[data-id="' + id + '"]').forEach((b) => {
+          b.textContent = "Added to demo bag ✓";
+        });
+      }
+      holder.onclick = (e) => {
+        const b = e.target.closest("button[data-id]");
+        if (b) add(b.dataset.id);
+      };
+      function recommend() {
+        const trip = document.getElementById("trip").value;
+        const budget = Number(document.getElementById("budget").value);
+        const preferred = products.find((p) => p.id === trip);
+        const chosen =
+          preferred.price <= budget
+            ? preferred
+            : products.filter((p) => p.price <= budget).sort((a, b) => a.price - b.price)[0];
+        const box = document.getElementById("recommendation");
+        box.replaceChildren();
+        if (!chosen) {
+          box.textContent =
+            "None of these example packs fits that budget. Increase it to $89 or more.";
+          return;
+        }
+        const h = document.createElement("h3");
+        h.textContent = "Start with " + chosen.name;
+        const p = document.createElement("p");
+        p.textContent =
+          chosen.fit +
+          (chosen.id !== trip ? " Your preferred trip match is above the current budget." : "");
+        const b = document.createElement("button");
+        b.className = "quiet";
+        b.textContent = "Add " + chosen.name + " · $" + chosen.price;
+        b.onclick = () => {
+          add(chosen.id);
+          b.textContent = "Added to demo bag ✓";
+        };
+        box.append(h, p, b);
+      }
+      document.getElementById("recommend").onclick = recommend;
+      document.getElementById("budget").oninput = (e) => {
+        document.getElementById("budget-label").textContent = "$" + e.target.value;
+      };
+      document.getElementById("cart").onclick = () => {
+        document.getElementById("bag-content").textContent = items.length
+          ? items.map((p) => p.name + " · $" + p.price).join(" / ")
+          : "Nothing added yet.";
+        document.getElementById("bag").showModal();
+      };
+      document.getElementById("bag-close").onclick = () => document.getElementById("bag").close();
+      recommend();
+    </script>
+  </body>
+</html>

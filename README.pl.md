@@ -1,4 +1,4 @@
-<!-- source_sha: 23e6c989580e -->
+<!-- source_sha: e411fc7fc3a1 -->
 
 <div align="center">
 
@@ -8,6 +8,10 @@
   <b>Otwarta platforma agentów AI na własnej infrastrukturze — dla współpracowników AI w Twojej firmie.</b><br>
   Twórz, uruchamiaj i nadzoruj agentów na własnych serwerach i modelach: wspólny czat, RAG, skills, prawdziwa przeglądarka, MCP, budżety, zatwierdzenia i ślad audytowy.<br>
   <sub>Apache-2.0 &middot; zbudowany na Pydantic AI</sub>
+</p>
+
+<p>
+  🏆 <b>Projekt Vstorm — laureata Open Agentic AI Innovation Award 2026.</b><br>Agentic AI Foundation wyróżniła Vstorm za stosowanie AGENTS.md i integrację MCP w otwartym frameworku.<br><a href="https://aaif.io/blog/winners-of-the-first-aaif-annual-technical-excellence-awards">Ogłoszenie AAIF</a> &middot; <a href="https://vstorm.co/agentic-ai/open-agentic-ai-standards-aaif-award/">Praca stojąca za nagrodą</a>
 </p>
 
 <p>
@@ -65,13 +69,15 @@ Odpowiedz na wiadomość osoby albo agenta, a agent wprowadzi zmianę i powie, c
 
 Każdy agent może przekazać pracę programistyczną do Claude Code albo Codexa. Budują na własnym komputerze agenta, w ramach Twojej subskrypcji ChatGPT albo Claude, i raportują, co zmienili, co sprawdzili i czego potrzebują od Ciebie.
 
-<a href="docs/assets/readme/highlight-coding.webp"><img src="docs/assets/readme/highlight-coding.webp" alt="Odpowiedź agenta Coder po tym, jak Codex zbudował stronę premiery: użyte kolory i nagłówek, co pominął, testy, które przeszły, i dwie decyzje dla zespołu" width="100%"></a>
+<a href="docs/assets/readme/highlight-coding.webp"><img src="docs/assets/readme/highlight-coding.webp" alt="Przekazanie pracy programistycznej z nazwami plików, testami, wyborami implementacyjnymi i pozostałymi decyzjami." width="100%"></a>
 
 ### Zapytaj, jak to działa, i dostań rysunek, którego możesz użyć
 
 Agent rysuje w trakcie pisania: diagram z Twoich dokumentów, kalkulator z suwakami, wykres albo scenę 3D, na żywo pod wiadomością. Jedno kliknięcie zapisuje go jako aplikację, którą zespół otwiera z linku.
 
-<a href="docs/assets/readme/highlight-visuals.webp"><img src="docs/assets/readme/highlight-visuals.webp" alt="Kalkulator ROI narysowany w czacie przez agenta Visuals Lab: suwaki faktur, minut na fakturę, kosztu godziny i oszczędzonego czasu, oszczędność w dolarach rocznie i wykres miesięcznego kosztu przed i po" width="100%"></a>
+<a href="docs/assets/readme/highlight-visuals.webp"><img src="docs/assets/readme/highlight-visuals.webp" alt="Seedowany przykład Visuals w rozmowie: interaktywne wyjaśnienie łączące pytanie, fragment źródła i odpowiedź z cytowaniem. Nie przedstawia rzeczywistego wywołania modelu ani wyszukiwania." width="100%"></a>
+
+*Seedowany przykład Visuals w rozmowie: interaktywne wyjaśnienie łączące pytanie, fragment źródła i odpowiedź z cytowaniem. Nie przedstawia rzeczywistego wywołania modelu ani wyszukiwania.*
 
 ### Napisz do agenta i wyjdź
 
@@ -95,7 +101,7 @@ Agent prowadzący przekazuje części zadania kolegom i spisuje, co znaleźli - 
 
 Patrz, jak klika po stronach, przejmij ją, gdy logowanie wymaga Ciebie, wskaż miejsce, żeby je skomentować.
 
-<a href="docs/assets/readme/highlight-browser.webp"><img src="docs/assets/readme/highlight-browser.webp" alt="Przeglądarka Sales Researchera na żywo pod jego wiadomością w czacie, otwarta na stronie misji Artemis III na nasa.gov, a pod nią odpowiedź napisana na podstawie strony" width="100%"></a>
+<a href="docs/assets/readme/highlight-browser.webp"><img src="docs/assets/readme/highlight-browser.webp" alt="Zapisane kroki przeglądarki agenta Sales Researcher i odpowiedź ze źródłami o cenniku Ramp." width="100%"></a>
 
 ### Buduj, wyposażaj i testuj w jednym oknie
 
@@ -107,7 +113,20 @@ Włączasz narzędzia z ilustrowanych kart, a potem dajesz wersji roboczej prawd
 
 Agent publikuje dashboard albo raport jako stronę ze stałym linkiem i wersjami.
 
-<a href="docs/assets/readme/highlight-app.webp"><img src="docs/assets/readme/highlight-app.webp" alt="Kalkulator ROI, który agent Visuals Lab narysował w czacie, zapisany jako aplikacja z własnym linkiem: suwaki faktur, minut i stawki godzinowej, 69 120 USD oszczędności rocznie i miesięczny koszt przed i po" width="100%"></a>
+<a href="docs/assets/readme/highlight-app.webp"><img src="docs/assets/readme/highlight-app.webp" alt="Company Brain, seedowana aplikacja LLM wiki: interaktywna mapa sześciu fikcyjnych notatek z podglądem źródła." width="100%"></a>
+
+*Company Brain, seedowana aplikacja LLM wiki: interaktywna mapa sześciu fikcyjnych notatek z podglądem źródła.*
+
+<details>
+<summary>Więcej aplikacji: planowanie premiery i zakupy</summary>
+
+Przykładowe aplikacje z fikcyjnymi danymi. Launch Room filtruje zadania i otwiera briefy do przeglądu. Trail Supply rekomenduje produkty według przygotowanych reguł i aktualizuje koszyk demo; nie składa zamówień ani nie przedstawia działającego widgetu agenta.
+
+<a href="docs/assets/readme/highlight-launch-room.webp"><img src="docs/assets/readme/highlight-launch-room.webp" alt="Launch Room — Przykładowe aplikacje z fikcyjnymi danymi. Launch Room filtruje zadania i otwiera briefy do przeglądu. Trail Supply rekomenduje produkty według przygotowanych reguł i aktualizuje koszyk demo; nie składa zamówień ani nie przedstawia działającego widgetu agenta." width="100%"></a>
+
+<a href="docs/assets/readme/highlight-shopping.webp"><img src="docs/assets/readme/highlight-shopping.webp" alt="Trail Supply — Przykładowe aplikacje z fikcyjnymi danymi. Launch Room filtruje zadania i otwiera briefy do przeglądu. Trail Supply rekomenduje produkty według przygotowanych reguł i aktualizuje koszyk demo; nie składa zamówień ani nie przedstawia działającego widgetu agenta." width="100%"></a>
+
+</details>
 
 ### Ponad 4700 serwerów MCP
 
@@ -131,6 +150,19 @@ AgenticOS jest serwerem MCP. Dodajesz go jednym poleceniem i logujesz się przez
 ## 🧩 Buduj użyteczne procesy wokół agentów
 
 Połącz typowane kroki, wywołania agentów i narzędzia MCP na wizualnej kanwie [Workflows](https://vstorm-co.github.io/agenticos/pl/workflows/). Zapisuj ustrukturyzowane wyniki w [Virtual Tables](https://vstorm-co.github.io/agenticos/pl/virtual-tables/), uruchamiaj pracę przez [Routines](https://vstorm-co.github.io/agenticos/pl/triggers/) i przeglądaj runy oraz zatwierdzenia. [Rozmowy głosowe](https://vstorm-co.github.io/agenticos/pl/voice/) i [aplikacja desktopowa](https://vstorm-co.github.io/agenticos/pl/desktop/) dają kolejne sposoby pracy z tymi samymi opublikowanymi agentami.
+
+**Wizualne workflowy: od nowego leada po przekazanie pracy po weryfikacji człowieka.**
+
+<a href="docs/assets/readme/highlight-workflows.webp"><img src="docs/assets/readme/highlight-workflows.webp" alt="Przykładowy szkic z 30 krokami: Google Workspace, Microsoft 365, HubSpot, Salesforce, Notion, Slack, agenci i zatwierdzenia. Połączenia to placeholdery demo; integracja nie została uruchomiona." width="100%"></a>
+
+Przykładowy szkic z 30 krokami: Google Workspace, Microsoft 365, HubSpot, Salesforce, Notion, Slack, agenci i zatwierdzenia. Połączenia to placeholdery demo; integracja nie została uruchomiona.
+
+**Ustrukturyzowana praca dostępna dla agentów i zespołu.**
+
+<a href="docs/assets/readme/highlight-tables.webp"><img src="docs/assets/readme/highlight-tables.webp" alt="Virtual Tables z fikcyjnymi firmami, typowanymi polami, etapami i następnymi działaniami. Te same rekordy można oglądać w tabeli lub na kanbanie." width="100%"></a>
+
+Virtual Tables z fikcyjnymi firmami, typowanymi polami, etapami i następnymi działaniami. Te same rekordy można oglądać w tabeli lub na kanbanie.
+
 
 Zacznij od konkretnego zadania: [LLM wiki w Project](https://vstorm-co.github.io/agenticos/pl/projects/), [widżetu agenta na stronie](https://vstorm-co.github.io/agenticos/pl/channels/) albo zespołu pracującego ze wspólnymi plikami i instrukcjami projektu. Widżet zapewnia rozmowę; rekomendacje i operacje na koszyku wymagają Twojego katalogu, integracji narzędzi i kontroli uprawnień.
 

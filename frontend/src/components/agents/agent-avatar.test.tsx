@@ -93,6 +93,18 @@ describe("AgentAvatar", () => {
     expect(face(other)).not.toBeNull();
   });
 
+  it("returns to the generated face when the Architect's stored avatar is cleared", () => {
+    useArchitectMarkStore.setState({ agentId: "architect-1" });
+    const { container, rerender } = render(
+      <AgentAvatar agentId="architect-1" slug="architect" hasAvatar />,
+    );
+
+    rerender(<AgentAvatar agentId="architect-1" slug="architect" hasAvatar={false} />);
+
+    expect(face(container)).not.toBeNull();
+    expect(container.querySelector('svg rect[fill="#2557d6"]')).toBeNull();
+  });
+
   it("draws the face mid-thought while the agent is answering", () => {
     // A change of pose on a face already blinking and breathing, which is what
     // makes it read as thought rather than as decoration.

@@ -3,7 +3,7 @@
 ## The captures
 
 `light/` and `dark/` hold one WebP per console screen, in both themes. The README
-shows eight of them and `docs/screens.md` shows them all. `capture.mjs` writes
+uses selected framed views and `docs/screens.md` shows the full gallery. `capture.mjs` writes
 every one of them:
 
 ```bash
@@ -21,13 +21,33 @@ title). Ids are looked up, so the script works against any deployment. Whatever
 that deployment holds is what the pictures show. The screen list is in
 `SCREENS`, ordered the way `docs/screens.md` describes them.
 
-The current set was captured on 14 October 2026 from a local deployment's
-**Northwind Labs** organization: a fictional company selling a fictional product,
-Ledgerly. Its knowledge bases, context files, agent instructions and the revenue
-CSV are synthetic. The conversations, the published revenue dashboard and the
-runs they recorded are real runs of those agents on Claude Sonnet 5.5. The
-dashboard's history and the approvals waiting there are seeded test records, not
-usage figures or benchmarks.
+The static set was refreshed on **2 November 2026** from the local
+**Northwind Labs** demo, using frontend and backend **1.35.3** plus the local
+fix that respects a cleared Architect avatar. The demo runs in an isolated copy
+of the local database. Uploaded agent-avatar references were cleared in both
+the original local database and this copy; human avatars were preserved.
+
+The company, documents and figures are fictional. Historical conversations and
+apps are retained as examples. The new 30-step sales workflow and the document
+and support workflows are **illustrative drafts**; their MCP connections are
+disabled placeholders. The six-node batch example was actually executed locally
+over three fictional company names, without models or external tools.
+
+`demos/` contains the self-contained sources of three seeded apps (Launch Room,
+Company Brain and Trail Supply) and an interactive Visuals source-trace example.
+Their controls were checked in the real app iframe, including narrow viewports.
+The wiki does not execute retrieval; the store uses deterministic recommendations
+and never places orders or represents a live agent widget. The Visuals transcript
+is an explicitly labelled fixture, not a generated-model run; saving it as an app
+used the actual Visuals publishing service.
+
+`demos/revenue-operations.json`, `document-intelligence.json` and
+`customer-support.json` are portable workflow exports from the demo. They contain
+no provider credentials. Their unresolved MCP pins require explicit connection
+setup before execution; importing the drafts does not configure those services.
+
+The video and its posters below remain historical recordings. Static screenshot
+refreshes do not make those recordings captures of the current UI.
 
 The README shows the light captures in both GitHub themes; the docs site
 switches between `light/` and `dark/` with the reader's theme.
@@ -67,7 +87,8 @@ Full-speed listening and physical mobile-device playback were not verified.
 
 ## Presentation and claims
 
-Keep **Sovereign Agentic AI Layer** verbatim in all README heroes. Lead with the actual product:
+Lead with **Open-source, self-hosted AI agent platform for your company's AI teammates.**
+Keep the README, docs and landing positioning consistent. Show the actual product:
 builder, a linked task overview, installation and the recorded example. Follow with concrete
 work in chat, knowledge, apps, operations and organization access. Keep the glass integration
 collage after that product tour. Main screenshots are linked at full width; supplementary views use expandable

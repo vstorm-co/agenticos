@@ -77,7 +77,7 @@ export function AgentAvatar({
   unframed = true,
 }: AgentAvatarProps) {
   const wearsMark = useArchitectMarkStore((state) => state.agentId === agentId);
-  if (wearsMark) return <ArchitectMark className={cn(SIZES[size], className)} />;
+  if (wearsMark && hasAvatar) return <ArchitectMark className={cn(SIZES[size], className)} />;
   return (
     <Avatar
       data-agent-avatar={agentId}

@@ -1,10 +1,12 @@
 ---
-source_sha: "66957b7e7527"
+source_sha: "239ccf2f3888"
 ---
 
 # Jeder Bildschirm in der Konsole { #every-screen-in-the-console }
 
-Jedes Modul der Konsole, beschrieben und mit einer Aufnahme. Die Bilder folgen dem Theme, in dem Sie die Seite lesen - wechseln Sie es in der Kopfzeile, wechseln sie mit. Sie zeigen eine Demo-Organisation, Northwind Labs, deren Firma, Dokumente und Zahlen erfunden sind; die Unterhaltungen und die veröffentlichte App sind echte Runs ihrer Agents.
+Die Galerie nutzt die fiktive Organisation Northwind Labs. Unternehmensdaten und Zahlen sind erfunden. Historische Agent-Gespräche stehen neben ausdrücklich gekennzeichneten vorbereiteten Demonstrationen. Die Aufnahmen folgen dem Seitentheme; wechseln Sie es in der Kopfzeile.
+
+Die statischen Konsolenaufnahmen wurden am 2. November 2026 mit AgenticOS 1.35.3 erneuert. Vertriebs-, Dokument- und Support-Workflows sind Beispielentwürfe mit Platzhalter-Verbindungen. Das Stapelbeispiel lief lokal ohne Modelle oder externe Tools. Die Pipeline-Zahlen sind fiktiv. Das Video unten ist eine historische Aufnahme.
 
 ## Produktdemo { #product-demo }
 
@@ -144,43 +146,50 @@ Derselbe Agent als Graph: was ihn erreicht und wonach er greift. Ein gestrichelt
 
 Der Katalog der Automatisierungen, eine Karte pro Workflow: sein Status, wer ihn erreichen kann, ob eine Version live ist und wann er zuletzt bearbeitet wurde, mit seinen Runs, dem Editor und einer Kopie einen Klick entfernt.
 
-> **Screenshot ausstehend — Workflows.**
+![Workflows](assets/screens/light/workflows.webp#only-light)
+![Workflows](assets/screens/dark/workflows.webp#only-dark)
 
 ### Der Workflow-Editor { #the-workflow-editor }
 
 Die Zeichenfläche hat die ganze Breite: der Graph als Karten, die sagen, wofür jeder Schritt eingerichtet ist oder zu welcher Gruppe er gehört, die Einstellungen eines Schritts in einem Dialog darüber und jeder Schritt zum Hinzufügen einen Klick - oder einen Rechtsklick - entfernt. Eine Schleife zeigt, wie viele Schritte ihr Körper enthält.
 
-> **Screenshot ausstehend — Der Workflow-Editor.**
+![Workflow editor](assets/screens/light/workflow-editor.webp#only-light)
+![Workflow editor](assets/screens/dark/workflow-editor.webp#only-dark)
 
 ### Der Körper einer Schleife { #a-loops-body }
 
-In einer Schleife, ein Schritt ausgewählt: die Tabelle, in die er schreibt, und ihre Spalten, eine Datensatz-ID aus dem aktuellen Element der Schleife, die Werte, die er schreibt, und seine Policy - drei Versuche und Fehler, die über seinen roten **Error**-Port zu einer Fehlerbehandlung gehen, statt den Run fehlschlagen zu lassen.
+Innerhalb der Schleife: das aktuelle Unternehmen, die Zuordnung für seinen Datensatz und der Schritt zum Sammeln des Ergebnisses. Das lokale Beispiel verarbeitet drei fiktive Unternehmensnamen ohne externe Zugangsdaten.
 
-> **Screenshot ausstehend — Der Körper einer Schleife.**
+![Workflow loop body](assets/screens/light/workflow-loop-body.webp#only-light)
+![Workflow loop body](assets/screens/dark/workflow-loop-body.webp#only-dark)
 
 ### Runs { #runs }
 
 Jeder Run eines Workflows, die neuesten zuerst: ob er den Draft oder die veröffentlichte Version ausgeführt hat, was ihn gestartet hat, wann, wie lange und zu welchen Kosten. **Start a run** testet den Draft mit einem eigenen Input.
 
-> **Screenshot ausstehend — Runs.**
+![Workflow runs](assets/screens/light/workflow-runs.webp#only-light)
+![Workflow runs](assets/screens/dark/workflow-runs.webp#only-dark)
 
 ### Ein Run { #a-run }
 
 Ein Run, wie er abgelaufen ist: der Graph, den er ausgeführt hat, jeder Schritt markiert mit dem, was er getan hat, die Ausgabe, mit der er geantwortet hat, und jeder Schritt, den er gemacht hat, Iteration für Iteration.
 
-> **Screenshot ausstehend — Ein Run.**
+![Workflow run](assets/screens/light/workflow-run.webp#only-light)
+![Workflow run](assets/screens/dark/workflow-run.webp#only-dark)
 
 ### Tabellen { #tables }
 
 Typisierte Datensätze, die Ihre Agenten, Workflows und Integrationen lesen und schreiben, eine Karte pro Tabelle mit dem, wer sie erreichen kann, und ihrer Schema-Version.
 
-> **Screenshot ausstehend — Tabellen.**
+![Tables](assets/screens/light/tables.webp#only-light)
+![Tables](assets/screens/dark/tables.webp#only-dark)
 
 ### Eine Tabelle { #a-table }
 
-Die Datensätze einer Tabelle, nachdem der Run oben jeden niedrigen Wert angehoben hat: Auswahlwerte als farbige Chips und dieselben Datensätze als Kanban-Board oder Liste einen Tab weiter.
+Eine Demo-Vertriebspipeline mit typisierten Feldern, farbigen Phasen und nächsten Schritten. Dieselben fiktiven Datensätze sind als Tabelle, Kanban-Board oder Liste verfügbar.
 
-> **Screenshot ausstehend — Eine Tabelle.**
+![Table detail](assets/screens/light/table-detail.webp#only-light)
+![Table detail](assets/screens/dark/table-detail.webp#only-dark)
 
 ## Knowledge { #knowledge }
 
@@ -258,10 +267,31 @@ Seiten, die Agents veröffentlicht haben - Berichte, kleine Dashboards, Zusammen
 
 ### Eine App { #one-app }
 
-Das Umsatz-Dashboard aus dem Chat oben, geöffnet. Es ist privat, bis jemand es teilt, und ein öffentlicher Link ist eine eigene Entscheidung, die sich zurücknehmen lässt.
+Company Brain, ein vorbereitetes LLM-Wiki-Beispiel, als private App. Wählen Sie eine fiktive Quellennotiz, um ihren Kontext zu lesen. Die Karte erklärt das Konzept interaktiv und führt keine echte Retrieval-Abfrage aus. Freigaben und öffentliche Links bleiben separate Entscheidungen.
 
 ![Eine App](assets/screens/light/app-detail.webp#only-light)
 ![Eine App](assets/screens/dark/app-detail.webp#only-dark)
+
+### Launch Room { #launch-room }
+
+Eine vorbereitete App zur Einführungsplanung mit vier Aufgabenphasen, funktionierenden Filtern und Prüfbriefings. Unternehmen, Daten und Aufgaben sind fiktiv; Änderungen bleiben in der Vorschau.
+
+![Launch Room](assets/screens/light/app-launch.webp#only-light)
+![Launch Room](assets/screens/dark/app-launch.webp#only-dark)
+
+### Eine interaktive Einkaufsdemo { #an-interactive-shopping-demo }
+
+Ein fiktiver Shop mit Budgetwahl, regelbasierten Empfehlungen und Demo-Warenkorb. Er löst keine Bestellungen aus und zeigt kein aktives Agent-Widget.
+
+![Eine interaktive Einkaufsdemo](assets/screens/light/app-shopping.webp#only-light)
+![Eine interaktive Einkaufsdemo](assets/screens/dark/app-shopping.webp#only-dark)
+
+### Visuals im Gespräch { #visuals-in-the-conversation }
+
+Eine vorbereitete HTML-Visualisierung verbindet eine Frage mit einem fiktiven Richtlinienauszug und einer belegten Antwort. Die Bedienelemente funktionieren im echten Gesprächsrenderer. Die Visualisierung lässt sich als App speichern; die Aufnahme belegt keinen echten Modell- oder Retrieval-Lauf.
+
+![Visuals im Gespräch](assets/screens/light/visuals.webp#only-light)
+![Visuals im Gespräch](assets/screens/dark/visuals.webp#only-dark)
 
 ## Die Organisation { #the-organization }
 

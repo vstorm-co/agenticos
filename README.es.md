@@ -1,4 +1,4 @@
-<!-- source_sha: 23e6c989580e -->
+<!-- source_sha: e411fc7fc3a1 -->
 
 <div align="center">
 
@@ -8,6 +8,10 @@
   <b>Plataforma de agentes de IA de código abierto y autoalojada para los compañeros de IA de tu empresa.</b><br>
   Crea, ejecuta y gobierna agentes en tus propios servidores y modelos: chat compartido, RAG, skills, navegador real, MCP, presupuestos, aprobaciones y registro de auditoría.<br>
   <sub>Apache-2.0 &middot; construido sobre Pydantic AI</sub>
+</p>
+
+<p>
+  🏆 <b>Desarrollado por Vstorm — galardonada con el Open Agentic AI Innovation Award 2026.</b><br>La Agentic AI Foundation reconoce el uso de AGENTS.md y la integración de MCP en su framework de código abierto.<br><a href="https://aaif.io/blog/winners-of-the-first-aaif-annual-technical-excellence-awards">Anuncio de AAIF</a> &middot; <a href="https://vstorm.co/agentic-ai/open-agentic-ai-standards-aaif-award/">El trabajo detrás del premio</a>
 </p>
 
 <p>
@@ -65,13 +69,15 @@ Responde al mensaje de una persona o de un agente, y el agente aplica el cambio 
 
 Cualquier agente puede pasar trabajo de software a Claude Code o Codex. Construyen en el ordenador propio del agente, con tu suscripción de ChatGPT o Claude, e informan de lo que cambiaron, lo que comprobaron y lo que necesitan de ti.
 
-<a href="docs/assets/readme/highlight-coding.webp"><img src="docs/assets/readme/highlight-coding.webp" alt="La respuesta del agente Coder después de que Codex construyera la página del lanzamiento: los colores y el titular que usó, lo que dejó fuera, las comprobaciones que pasaron y dos decisiones para el equipo" width="100%"></a>
+<a href="docs/assets/readme/highlight-coding.webp"><img src="docs/assets/readme/highlight-coding.webp" alt="Una entrega de programación con archivos generados, pruebas, decisiones de implementación y asuntos pendientes." width="100%"></a>
 
 ### Pregunta cómo funciona y recibe un dibujo que puedes usar
 
 Un agente dibuja mientras escribe: un diagrama a partir de tus documentos, una calculadora con controles deslizantes, un gráfico o una escena 3D, en vivo bajo su mensaje. Un clic lo guarda como una app que tu equipo abre con un enlace.
 
-<a href="docs/assets/readme/highlight-visuals.webp"><img src="docs/assets/readme/highlight-visuals.webp" alt="Una calculadora de ROI que el agente Visuals Lab dibujó en el chat: controles para facturas, minutos por factura, coste por hora y tiempo ahorrado, los dólares ahorrados al año y un gráfico de barras del coste mensual antes y después" width="100%"></a>
+<a href="docs/assets/readme/highlight-visuals.webp"><img src="docs/assets/readme/highlight-visuals.webp" alt="Un ejemplo preparado de Visuals en la conversación: una explicación interactiva que conecta pregunta, fragmento fuente y respuesta con cita. No representa una llamada real al modelo ni a recuperación." width="100%"></a>
+
+*Un ejemplo preparado de Visuals en la conversación: una explicación interactiva que conecta pregunta, fragmento fuente y respuesta con cita. No representa una llamada real al modelo ni a recuperación.*
 
 ### Escribe a un agente y vete
 
@@ -95,7 +101,7 @@ Un agente principal reparte partes de una tarea entre compañeros y redacta lo q
 
 Míralo hacer clic por los sitios, toma el control cuando un inicio de sesión te necesita, señala un punto para comentarlo.
 
-<a href="docs/assets/readme/highlight-browser.webp"><img src="docs/assets/readme/highlight-browser.webp" alt="El navegador en vivo de un Sales Researcher bajo su mensaje en el chat, abierto en la página de la misión Artemis III de la NASA, con debajo la respuesta que escribió a partir de la página" width="100%"></a>
+<a href="docs/assets/readme/highlight-browser.webp"><img src="docs/assets/readme/highlight-browser.webp" alt="Los pasos de navegador registrados del Sales Researcher y su respuesta con fuentes sobre los precios de Ramp." width="100%"></a>
 
 ### Construye, equipa y prueba en una ventana
 
@@ -107,7 +113,20 @@ Activa herramientas desde tarjetas ilustradas y dale al borrador un trabajo real
 
 Un agente publica un dashboard o un informe como página con enlace estable y versiones.
 
-<a href="docs/assets/readme/highlight-app.webp"><img src="docs/assets/readme/highlight-app.webp" alt="Una calculadora de ROI que un agente Visuals Lab dibujó en el chat, guardada como app con su propio enlace: controles de facturas, minutos y coste por hora, 69.120 $ ahorrados al año y el coste mensual antes y después" width="100%"></a>
+<a href="docs/assets/readme/highlight-app.webp"><img src="docs/assets/readme/highlight-app.webp" alt="Company Brain, una app LLM wiki preparada: mapa interactivo de seis notas ficticias con vista previa de la fuente." width="100%"></a>
+
+*Company Brain, una app LLM wiki preparada: mapa interactivo de seis notas ficticias con vista previa de la fuente.*
+
+<details>
+<summary>Más apps: planificación de lanzamiento y compras</summary>
+
+Apps ilustrativas con datos sintéticos. Launch Room filtra tareas y abre briefs de revisión. Trail Supply recomienda productos mediante reglas preparadas y actualiza una bolsa demo; no realiza pedidos ni representa un widget de agente activo.
+
+<a href="docs/assets/readme/highlight-launch-room.webp"><img src="docs/assets/readme/highlight-launch-room.webp" alt="Launch Room — Apps ilustrativas con datos sintéticos. Launch Room filtra tareas y abre briefs de revisión. Trail Supply recomienda productos mediante reglas preparadas y actualiza una bolsa demo; no realiza pedidos ni representa un widget de agente activo." width="100%"></a>
+
+<a href="docs/assets/readme/highlight-shopping.webp"><img src="docs/assets/readme/highlight-shopping.webp" alt="Trail Supply — Apps ilustrativas con datos sintéticos. Launch Room filtra tareas y abre briefs de revisión. Trail Supply recomienda productos mediante reglas preparadas y actualiza una bolsa demo; no realiza pedidos ni representa un widget de agente activo." width="100%"></a>
+
+</details>
 
 ### Más de 4.700 servidores MCP
 
@@ -131,6 +150,19 @@ AgenticOS es un servidor MCP. Añádelo con un comando e inicia sesión en el na
 ## 🧩 Crea procesos útiles con tus agentes
 
 Conecta pasos tipados, llamadas a agentes y herramientas MCP en el editor visual de [Workflows](https://vstorm-co.github.io/agenticos/es/workflows/). Guarda resultados estructurados en [Virtual Tables](https://vstorm-co.github.io/agenticos/es/virtual-tables/), inicia trabajo con [Routines](https://vstorm-co.github.io/agenticos/es/triggers/) y revisa runs y aprobaciones. Las [llamadas de voz](https://vstorm-co.github.io/agenticos/es/voice/) y la [app de escritorio](https://vstorm-co.github.io/agenticos/es/desktop/) permiten usar los mismos agentes publicados.
+
+**Workflows visuales: desde un nuevo lead hasta una entrega revisada por una persona.**
+
+<a href="docs/assets/readme/highlight-workflows.webp"><img src="docs/assets/readme/highlight-workflows.webp" alt="Borrador ilustrativo de 30 pasos con Google Workspace, Microsoft 365, HubSpot, Salesforce, Notion, Slack, agentes y aprobaciones. Las conexiones son marcadores de demo; la integración no se ha ejecutado." width="100%"></a>
+
+Borrador ilustrativo de 30 pasos con Google Workspace, Microsoft 365, HubSpot, Salesforce, Notion, Slack, agentes y aprobaciones. Las conexiones son marcadores de demo; la integración no se ha ejecutado.
+
+**Trabajo estructurado que pueden consultar tus agentes y tu equipo.**
+
+<a href="docs/assets/readme/highlight-tables.webp"><img src="docs/assets/readme/highlight-tables.webp" alt="Virtual Tables con empresas ficticias, campos tipados, etapas y próximas acciones. Los mismos registros en una tabla o un tablero kanban." width="100%"></a>
+
+Virtual Tables con empresas ficticias, campos tipados, etapas y próximas acciones. Los mismos registros en una tabla o un tablero kanban.
+
 
 Empieza por una tarea concreta: una [LLM wiki en un Project](https://vstorm-co.github.io/agenticos/es/projects/), un [widget de agente en una web](https://vstorm-co.github.io/agenticos/es/channels/) o un equipo que comparte archivos e instrucciones del proyecto. El widget ofrece la conversación; las recomendaciones y acciones del carrito necesitan tu catálogo, integración de herramientas y comprobaciones de permisos.
 

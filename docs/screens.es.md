@@ -1,10 +1,12 @@
 ---
-source_sha: "66957b7e7527"
+source_sha: "239ccf2f3888"
 ---
 
 # Todas las pantallas de la consola { #every-screen-in-the-console }
 
-Cada módulo de la consola, descrito y con su captura. Las imágenes siguen el tema en el que lees el sitio: cámbialo en la cabecera y cambian con él. Muestran una organización de demostración, Northwind Labs, cuya empresa, documentos y cifras son inventados; las conversaciones y la app publicada son runs reales de sus agents.
+La galería usa la organización ficticia Northwind Labs. Los datos y cifras de la empresa son inventados. Las conversaciones históricas con agentes aparecen junto a demostraciones preparadas y etiquetadas expresamente. Las capturas siguen el tema del sitio; cámbielo en la cabecera.
+
+Las capturas estáticas de la consola se renovaron el 2 de noviembre de 2026 con AgenticOS 1.35.3. Los workflows de ventas, documentos y soporte son borradores ilustrativos con conexiones de ejemplo. El ejemplo por lotes se ejecutó localmente sin modelos ni herramientas externas. Las cifras del pipeline son ficticias. El vídeo siguiente es una grabación histórica.
 
 ## Demo del producto { #product-demo }
 
@@ -144,43 +146,50 @@ El mismo agent como grafo: qué lo alcanza y hacia qué alcanza él. Una caja di
 
 El catálogo de automatizaciones, una tarjeta por cada una: su estado, quién puede alcanzarla, si tiene una versión en vivo y cuándo se editó por última vez, con sus runs, el editor y una copia a un clic.
 
-> **Captura pendiente — Workflows.**
+![Workflows](assets/screens/light/workflows.webp#only-light)
+![Workflows](assets/screens/dark/workflows.webp#only-dark)
 
 ### El editor de workflows { #the-workflow-editor }
 
 El lienzo tiene todo el ancho: el grafo como tarjetas que dicen para qué está configurado cada paso o a qué grupo pertenece, los ajustes de un paso en un diálogo sobre él, y cada paso por añadir a un clic - o un clic derecho - de distancia. Un bucle muestra cuántos pasos contiene su cuerpo.
 
-> **Captura pendiente — El editor de workflows.**
+![Workflow editor](assets/screens/light/workflow-editor.webp#only-light)
+![Workflow editor](assets/screens/dark/workflow-editor.webp#only-dark)
 
 ### El cuerpo de un bucle { #a-loops-body }
 
-Dentro de un bucle, con un paso seleccionado: la tabla que escribe y sus columnas, un id de registro leído del elemento actual del bucle, los valores que escribe y su política - tres intentos, y fallos encaminados por su puerto **Error** rojo hacia un gestor de errores en lugar de hacer fallar el run.
+Dentro del bucle: la empresa actual, el mapeo que forma su registro y el paso que recoge el resultado. Este ejemplo local procesa tres nombres de empresas ficticias sin credenciales externas.
 
-> **Captura pendiente — El cuerpo de un bucle.**
+![Workflow loop body](assets/screens/light/workflow-loop-body.webp#only-light)
+![Workflow loop body](assets/screens/dark/workflow-loop-body.webp#only-dark)
 
 ### Runs { #runs }
 
 Cada run de un workflow, del más reciente al más antiguo: si ejecutó el draft o la versión publicada, qué lo inició, cuándo, cuánto duró y cuánto costó. **Start a run** prueba el draft con un input propio.
 
-> **Captura pendiente — Runs.**
+![Workflow runs](assets/screens/light/workflow-runs.webp#only-light)
+![Workflow runs](assets/screens/dark/workflow-runs.webp#only-dark)
 
 ### Un run { #a-run }
 
 Un run tal como ocurrió: el grafo que ejecutó, con cada paso marcado por lo que hizo, la salida con la que respondió y cada paso que dio, iteración a iteración.
 
-> **Captura pendiente — Un run.**
+![Workflow run](assets/screens/light/workflow-run.webp#only-light)
+![Workflow run](assets/screens/dark/workflow-run.webp#only-dark)
 
 ### Tablas { #tables }
 
 Registros tipados que tus agents, workflows e integraciones leen y escriben, una tarjeta por tabla con quién puede alcanzarla y su versión de esquema.
 
-> **Captura pendiente — Tablas.**
+![Tables](assets/screens/light/tables.webp#only-light)
+![Tables](assets/screens/dark/tables.webp#only-dark)
 
 ### Una tabla { #a-table }
 
-Los registros de una tabla después de que el run de arriba subiera cada puntuación baja: los valores de selección como chips de colores, y los mismos registros como tablero kanban o lista a una pestaña.
+Un pipeline de ventas de demostración con campos tipados, etapas de colores y próximas acciones. Los mismos registros ficticios están disponibles como tabla, tablero kanban o lista.
 
-> **Captura pendiente — Una tabla.**
+![Table detail](assets/screens/light/table-detail.webp#only-light)
+![Table detail](assets/screens/dark/table-detail.webp#only-dark)
 
 ## Knowledge { #knowledge }
 
@@ -258,10 +267,31 @@ Páginas que publicaron los agents: informes, pequeños dashboards, resúmenes. 
 
 ### Una app { #one-app }
 
-El dashboard de ingresos del chat de arriba, abierto. Es privado hasta que alguien lo comparte, y un enlace público es una decisión aparte que se puede retirar.
+Company Brain, un ejemplo preparado de LLM wiki, abierto como app privada. Selecciona una nota ficticia para leer su contexto. El mapa es una explicación interactiva, no una consulta real de recuperación. Compartir y los enlaces públicos siguen siendo decisiones separadas.
 
 ![Una app](assets/screens/light/app-detail.webp#only-light)
 ![Una app](assets/screens/dark/app-detail.webp#only-dark)
+
+### Launch Room { #launch-room }
+
+Una app preparada para planificar lanzamientos con cuatro columnas de tareas, filtros funcionales y briefs de revisión. Empresas, fechas y tareas son ficticias; los cambios permanecen en la vista previa.
+
+![Launch Room](assets/screens/light/app-launch.webp#only-light)
+![Launch Room](assets/screens/dark/app-launch.webp#only-dark)
+
+### Una demo interactiva de compras { #an-interactive-shopping-demo }
+
+Una tienda ficticia con presupuesto ajustable, recomendaciones basadas en reglas y una bolsa demo. No realiza pedidos ni muestra un widget de agente activo.
+
+![Una demo interactiva de compras](assets/screens/light/app-shopping.webp#only-light)
+![Una demo interactiva de compras](assets/screens/dark/app-shopping.webp#only-dark)
+
+### Visuals en la conversación { #visuals-in-the-conversation }
+
+Un visual HTML preparado conecta una pregunta con un fragmento de una política ficticia y una respuesta con cita. Sus controles funcionan en el renderer real de la conversación. El visual se puede guardar como app; la captura no demuestra una llamada real al modelo o a recuperación.
+
+![Visuals en la conversación](assets/screens/light/visuals.webp#only-light)
+![Visuals en la conversación](assets/screens/dark/visuals.webp#only-dark)
 
 ## La organización { #the-organization }
 

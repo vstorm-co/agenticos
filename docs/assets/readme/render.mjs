@@ -21,8 +21,13 @@ const { chromium } = require("@playwright/test");
 
 const only = new Set(process.argv.slice(2));
 const scratch = mkdtempSync(join(tmpdir(), "readme-figures-"));
-const browser = await chromium.launch();
-const page = await browser.newPage({ viewport: { width: 1700, height: 1000 }, deviceScaleFactor: 2 });
+const browser = await chromium.launch({
+  channel: process.env.BROWSER_CHANNEL ?? "chrome",
+});
+const page = await browser.newPage({
+  viewport: { width: 1700, height: 1000 },
+  deviceScaleFactor: 2,
+});
 await page.goto(pathToFileURL(join(here, "figures.html")).href);
 await page.waitForSelector("body[data-ready]");
 await page.evaluate(() => document.fonts.ready);
@@ -33,7 +38,16 @@ for (const section of await page.locator("section[data-figure]").all()) {
   await section.screenshot({ path: png });
   // Down to 2400 wide: the README draws a figure about 880 px across, so a
   // high-density screen wants some 1760, and 1600 went soft on one.
-  execFileSync("magick", [png, "-filter", "Lanczos", "-resize", "2400x", "-quality", "90", join(here, `${name}.webp`)]);
+  execFileSync("magick", [
+    png,
+    "-filter",
+    "Lanczos",
+    "-resize",
+    "2400x",
+    "-quality",
+    "90",
+    join(here, `${name}.webp`),
+  ]);
   console.log(`wrote ${name}.webp`);
 }
 await browser.close();

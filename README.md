@@ -9,6 +9,10 @@
 </p>
 
 <p>
+  🏆 <b>Built by Vstorm — a recipient of the 2026 Open Agentic AI Innovation Award.</b><br>Recognized by the Agentic AI Foundation for adopting AGENTS.md and integrating MCP in its open-source framework.<br><a href="https://aaif.io/blog/winners-of-the-first-aaif-annual-technical-excellence-awards">Read the AAIF announcement</a> &middot; <a href="https://vstorm.co/agentic-ai/open-agentic-ai-standards-aaif-award/">The work behind the award</a>
+</p>
+
+<p>
   <a href="#-see-it-in-action">See it</a> &middot;
   <a href="#-highlights">Highlights</a> &middot;
   <a href="#-what-is-agenticos">What is it?</a> &middot;
@@ -63,13 +67,15 @@ Reply to a person or an agent's answer, and the agent applies the change and say
 
 Any agent can hand software work to Claude Code or Codex. They build in the agent's own computer, on your ChatGPT or Claude subscription, and report what they changed, what they checked and what they need from you.
 
-<a href="docs/assets/readme/highlight-coding.webp"><img src="docs/assets/readme/highlight-coding.webp" alt="The Coder agent's answer after Codex built the launch page: the colours and headline it used, what it left out, the checks that passed and two decisions for the team" width="100%"></a>
+<a href="docs/assets/readme/highlight-coding.webp"><img src="docs/assets/readme/highlight-coding.webp" alt="A coding handoff naming the generated files, tests, implementation choices and remaining decisions." width="100%"></a>
 
 ### Ask how it works, get a drawing you can use
 
 An agent draws while it writes: a diagram from your documents, a calculator with sliders, a chart or a 3D scene, live under its message. One click saves it as an app your team opens by link.
 
-<a href="docs/assets/readme/highlight-visuals.webp"><img src="docs/assets/readme/highlight-visuals.webp" alt="An ROI calculator the Visuals Lab agent drew in the chat: sliders for invoices, minutes per invoice, hourly cost and time saved, the dollars saved per year and a bar chart of monthly cost before and after" width="100%"></a>
+<a href="docs/assets/readme/highlight-visuals.webp"><img src="docs/assets/readme/highlight-visuals.webp" alt="A seeded Visuals example in the conversation: an interactive explanation linking a question, source excerpt and cited answer. No live model or retrieval call is represented." width="100%"></a>
+
+*A seeded Visuals example in the conversation: an interactive explanation linking a question, source excerpt and cited answer. No live model or retrieval call is represented.*
 
 ### Write to an agent and leave
 
@@ -93,7 +99,7 @@ A lead agent hands parts of a task to colleagues and writes up what they found -
 
 Watch it click through sites, take over when a sign-in needs you, point at a spot to comment.
 
-<a href="docs/assets/readme/highlight-browser.webp"><img src="docs/assets/readme/highlight-browser.webp" alt="A Sales Researcher's live browser under its message in the chat, open on NASA's Artemis III mission page, with the answer it wrote from the page below" width="100%"></a>
+<a href="docs/assets/readme/highlight-browser.webp"><img src="docs/assets/readme/highlight-browser.webp" alt="The Sales Researcher’s recorded browser steps and sourced answer about Ramp pricing." width="100%"></a>
 
 ### Build, equip and test in one window
 
@@ -105,7 +111,20 @@ Switch tools on from illustrated cards, then give the draft a real job in the te
 
 An agent publishes a dashboard or a report as a page with a stable link and versions.
 
-<a href="docs/assets/readme/highlight-app.webp"><img src="docs/assets/readme/highlight-app.webp" alt="An ROI calculator a Visuals Lab agent drew in chat, saved as an app with its own link: sliders for invoices, minutes and hourly cost, $69,120 saved per year, and monthly cost before and after" width="100%"></a>
+<a href="docs/assets/readme/highlight-app.webp"><img src="docs/assets/readme/highlight-app.webp" alt="Company Brain, a seeded LLM wiki app: an interactive map of six fictional source notes with a source preview." width="100%"></a>
+
+*Company Brain, a seeded LLM wiki app: an interactive map of six fictional source notes with a source preview.*
+
+<details>
+<summary>More app examples: launch planning and shopping</summary>
+
+Illustrative apps with synthetic data. Launch Room filters tasks and opens review briefs. Trail Supply makes scripted product recommendations and updates a demo bag; it does not place orders or represent a live agent widget.
+
+<a href="docs/assets/readme/highlight-launch-room.webp"><img src="docs/assets/readme/highlight-launch-room.webp" alt="Launch Room — Illustrative apps with synthetic data. Launch Room filters tasks and opens review briefs. Trail Supply makes scripted product recommendations and updates a demo bag; it does not place orders or represent a live agent widget." width="100%"></a>
+
+<a href="docs/assets/readme/highlight-shopping.webp"><img src="docs/assets/readme/highlight-shopping.webp" alt="Trail Supply — Illustrative apps with synthetic data. Launch Room filters tasks and opens review briefs. Trail Supply makes scripted product recommendations and updates a demo bag; it does not place orders or represent a live agent widget." width="100%"></a>
+
+</details>
 
 ### 4,700+ MCP servers
 
@@ -129,6 +148,19 @@ AgenticOS is an MCP server. Add it with one command and sign in through the brow
 ## 🧩 Build useful work around your agents
 
 Use [Workflows](https://vstorm-co.github.io/agenticos/workflows/) to connect typed steps, agent calls and MCP tools on a visual canvas. Store structured results in [Virtual Tables](https://vstorm-co.github.io/agenticos/virtual-tables/), start work with [Routines](https://vstorm-co.github.io/agenticos/triggers/), and review runs and approvals. [Voice calls](https://vstorm-co.github.io/agenticos/voice/) and the [desktop app](https://vstorm-co.github.io/agenticos/desktop/) provide other ways to work with the same published agents.
+
+**Visual workflows, from lead intake to a human-reviewed handoff.**
+
+<a href="docs/assets/readme/highlight-workflows.webp"><img src="docs/assets/readme/highlight-workflows.webp" alt="Illustrative 30-step draft with Google Workspace, Microsoft 365, HubSpot, Salesforce, Notion, Slack, agents and approvals. Connections are demo placeholders; this is not an executed integration." width="100%"></a>
+
+Illustrative 30-step draft with Google Workspace, Microsoft 365, HubSpot, Salesforce, Notion, Slack, agents and approvals. Connections are demo placeholders; this is not an executed integration.
+
+**Structured work your agents and your team can read together.**
+
+<a href="docs/assets/readme/highlight-tables.webp"><img src="docs/assets/readme/highlight-tables.webp" alt="Virtual Tables with fictional companies, typed fields, stages and next actions. Switch between a grid and a kanban board." width="100%"></a>
+
+Virtual Tables with fictional companies, typed fields, stages and next actions. Switch between a grid and a kanban board.
+
 
 Start with a recognizable task: an [LLM wiki in a Project](https://vstorm-co.github.io/agenticos/projects/), a [website agent widget](https://vstorm-co.github.io/agenticos/channels/), or a team working from shared project files and instructions. A widget supplies the conversation surface; recommendations and cart actions still need your catalog, tool integration and permission checks.
 

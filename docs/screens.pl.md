@@ -1,10 +1,12 @@
 ---
-source_sha: "66957b7e7527"
+source_sha: "239ccf2f3888"
 ---
 
 # Każdy ekran w konsoli { #every-screen-in-the-console }
 
-Każdy moduł konsoli, opisany i pokazany na zrzucie. Obrazy idą za motywem, w którym czytasz stronę - przełącz go w nagłówku, a przełączą się razem z nim. Pokazują organizację demonstracyjną Northwind Labs, której firma, dokumenty i liczby są zmyślone; rozmowy i opublikowana appka to prawdziwe runy jej agentów.
+Galeria korzysta z fikcyjnej organizacji Northwind Labs. Dane firmy i liczby są zmyślone. Historyczne rozmowy z agentami sąsiadują z wyraźnie opisanymi, seedowanymi demonstracjami. Zrzuty podążają za motywem strony; przełącz go w nagłówku, aby zmienić obrazy.
+
+Statyczne zrzuty konsoli odświeżono 2 listopada 2026 w AgenticOS 1.35.3. Workflowy sprzedaży, dokumentów i supportu to przykładowe szkice z placeholderami połączeń. Przykład przetwarzania wsadowego wykonano lokalnie, bez modeli i zewnętrznych narzędzi. Liczby w pipeline są fikcyjne. Film poniżej to nagranie historyczne.
 
 ## Demo produktu { #product-demo }
 
@@ -144,43 +146,50 @@ Ten sam agent jako graf: co do niego sięga i po co on sięga. Przerywana ramka 
 
 Katalog automatyzacji, po jednej karcie na każdą: jej status, kto może do niej dotrzeć, czy ma żywą wersję i kiedy ostatnio ją edytowano, a jej runy, edytor i kopia są jedno kliknięcie dalej.
 
-> **Miejsce na zrzut — Workflows.**
+![Workflows](assets/screens/light/workflows.webp#only-light)
+![Workflows](assets/screens/dark/workflows.webp#only-dark)
 
 ### Edytor workflow { #the-workflow-editor }
 
 Kanwa ma całą szerokość: graf jako karty mówiące, do czego ustawiony jest każdy krok albo do jakiej grupy należy, ustawienia kroku w oknie nad nią i każdy krok do dodania o jedno kliknięcie - albo jeden prawy przycisk - stąd. Pętla pokazuje, ile kroków zawiera jej ciało.
 
-> **Miejsce na zrzut — Edytor workflow.**
+![Workflow editor](assets/screens/light/workflow-editor.webp#only-light)
+![Workflow editor](assets/screens/dark/workflow-editor.webp#only-dark)
 
 ### Ciało pętli { #a-loops-body }
 
-Wewnątrz pętli, z zaznaczonym jednym krokiem: tabela, do której zapisuje, i jej kolumny, id rekordu czytane z bieżącego elementu pętli, wartości, które zapisuje, oraz jego polityka - trzy próby i błędy kierowane czerwonym portem **Error** do obsługi błędu zamiast kończenia runa błędem.
+Wewnątrz pętli: bieżąca firma, mapowanie formujące jej rekord i krok zbierający wynik. Lokalny przykład przetwarza nazwy trzech fikcyjnych firm bez zewnętrznych poświadczeń.
 
-> **Miejsce na zrzut — Ciało pętli.**
+![Workflow loop body](assets/screens/light/workflow-loop-body.webp#only-light)
+![Workflow loop body](assets/screens/dark/workflow-loop-body.webp#only-dark)
 
 ### Runy { #runs }
 
 Każdy run jednego workflow, od najnowszego: czy uruchomił draft czy opublikowaną wersję, co go uruchomiło, kiedy, jak długo trwał i ile kosztował. **Start a run** testuje draft z Twoim własnym inputem.
 
-> **Miejsce na zrzut — Runy.**
+![Workflow runs](assets/screens/light/workflow-runs.webp#only-light)
+![Workflow runs](assets/screens/dark/workflow-runs.webp#only-dark)
 
 ### Run { #a-run }
 
 Jeden run tak, jak przebiegł: graf, który wykonał, z każdym krokiem oznaczonym tym, co zrobił, wyjście, którym odpowiedział, i każdy krok, który wykonał, iteracja po iteracji.
 
-> **Miejsce na zrzut — Run.**
+![Workflow run](assets/screens/light/workflow-run.webp#only-light)
+![Workflow run](assets/screens/dark/workflow-run.webp#only-dark)
 
 ### Tabele { #tables }
 
 Typowane rekordy, które czytają i zapisują Twoi agenci, workflow i integracje, po jednej karcie na tabelę, z tym, kto może do niej dotrzeć, i wersją jej schematu.
 
-> **Miejsce na zrzut — Tabele.**
+![Tables](assets/screens/light/tables.webp#only-light)
+![Tables](assets/screens/dark/tables.webp#only-dark)
 
 ### Tabela { #a-table }
 
-Rekordy jednej tabeli po tym, jak run powyżej podniósł każdy niski wynik: wartości wyboru jako kolorowe chipy, a te same rekordy jako tablica kanban albo lista w sąsiedniej zakładce.
+Demonstracyjny pipeline sprzedaży z typowanymi polami, kolorowymi etapami i następnymi działaniami. Te same fikcyjne rekordy są dostępne jako tabela, kanban lub lista.
 
-> **Miejsce na zrzut — Tabela.**
+![Table detail](assets/screens/light/table-detail.webp#only-light)
+![Table detail](assets/screens/dark/table-detail.webp#only-dark)
 
 ## Knowledge { #knowledge }
 
@@ -258,10 +267,31 @@ Strony opublikowane przez agentów - raporty, małe dashboardy, podsumowania. Ka
 
 ### Jedna appka { #one-app }
 
-Dashboard przychodów z czatu powyżej, otwarty. Jest prywatny, dopóki ktoś go nie udostępni, a link publiczny to osobna decyzja, którą można cofnąć.
+Company Brain, seedowany przykład LLM wiki, otwarty jako prywatna aplikacja. Wybierz fikcyjną notatkę, aby przeczytać jej kontekst. Mapa to interaktywne wyjaśnienie, nie rzeczywiste wyszukiwanie. Udostępnianie i link publiczny pozostają osobnymi decyzjami.
 
 ![Jedna appka](assets/screens/light/app-detail.webp#only-light)
 ![Jedna appka](assets/screens/dark/app-detail.webp#only-dark)
+
+### Launch Room { #launch-room }
+
+Seedowana aplikacja do planowania premiery z czterema kolumnami zadań, działającymi filtrami i briefami do przeglądu. Firmy, daty i zadania są fikcyjne; zmiany pozostają w podglądzie.
+
+![Launch Room](assets/screens/light/app-launch.webp#only-light)
+![Launch Room](assets/screens/dark/app-launch.webp#only-dark)
+
+### Interaktywne demo zakupów { #an-interactive-shopping-demo }
+
+Fikcyjny sklep z wyborem budżetu, rekomendacjami według reguł i koszykiem demo. Nie składa zamówień ani nie pokazuje działającego widgetu agenta.
+
+![Interaktywne demo zakupów](assets/screens/light/app-shopping.webp#only-light)
+![Interaktywne demo zakupów](assets/screens/dark/app-shopping.webp#only-dark)
+
+### Visuals w rozmowie { #visuals-in-the-conversation }
+
+Seedowana wizualizacja HTML łączy pytanie z fragmentem fikcyjnej polityki i odpowiedzią z cytowaniem. Jej kontrolki działają w rzeczywistym rendererze rozmowy. Wizualizację można zapisać jako aplikację; zrzut nie jest dowodem rzeczywistego wywołania modelu ani wyszukiwania.
+
+![Visuals w rozmowie](assets/screens/light/visuals.webp#only-light)
+![Visuals w rozmowie](assets/screens/dark/visuals.webp#only-dark)
 
 ## Organizacja { #the-organization }
 

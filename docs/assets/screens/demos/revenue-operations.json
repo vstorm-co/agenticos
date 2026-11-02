@@ -1,0 +1,839 @@
+{
+  "format": "agenticos.workflow",
+  "format_version": 1,
+  "name": "Revenue operations · 30-step demo",
+  "description": "Illustrative draft. Synthetic data; connections and credentials not configured. Not an executed workflow.",
+  "tags": [
+    "demo",
+    "configuration-only"
+  ],
+  "settings": {
+    "timezone": "UTC",
+    "default_deadline_seconds": null,
+    "error_workflow_id": null,
+    "run_retention_days": null,
+    "keep_succeeded_runs": true,
+    "max_concurrent_runs": null,
+    "run_budget_usd": null,
+    "monthly_budget_usd": null
+  },
+  "graph": {
+    "entry_node_id": "0e38095b-250f-477d-a7a8-032a2ad5fdf4",
+    "nodes": [
+      {
+        "id": "0e38095b-250f-477d-a7a8-032a2ad5fdf4",
+        "definition_id": "trigger.webhook",
+        "definition_version": 1,
+        "config": {},
+        "policy": null,
+        "layout": {
+          "x": 0,
+          "y": 0,
+          "width": 285
+        },
+        "label": "New inbound lead",
+        "notes": null,
+        "disabled": false,
+        "pinned_output": null,
+        "quick_log": null
+      },
+      {
+        "id": "aa650a9c-53bb-44ed-8e57-ef190c1665eb",
+        "definition_id": "transform.edit_fields",
+        "definition_version": 1,
+        "config": {},
+        "policy": null,
+        "layout": {
+          "x": 315,
+          "y": 0,
+          "width": 285
+        },
+        "label": "Normalize lead fields",
+        "notes": null,
+        "disabled": false,
+        "pinned_output": null,
+        "quick_log": null
+      },
+      {
+        "id": "d1dac8f0-dc32-47df-8057-e6984a16d5c3",
+        "definition_id": "mcp.call",
+        "definition_version": 1,
+        "config": {
+          "tool": "search_contacts"
+        },
+        "policy": null,
+        "layout": {
+          "x": 630,
+          "y": 0,
+          "width": 285
+        },
+        "label": "Find existing contact",
+        "notes": null,
+        "disabled": false,
+        "pinned_output": null,
+        "quick_log": null
+      },
+      {
+        "id": "86c2c2d1-ba72-491f-bae1-9e4a3c29d06a",
+        "definition_id": "agent.run",
+        "definition_version": 1,
+        "config": {
+          "inline": {
+            "name": "Research the company"
+          }
+        },
+        "policy": null,
+        "layout": {
+          "x": 945,
+          "y": 0,
+          "width": 285
+        },
+        "label": "Research the company",
+        "notes": null,
+        "disabled": false,
+        "pinned_output": null,
+        "quick_log": null
+      },
+      {
+        "id": "935bf0ad-e1a4-4636-a60c-5309ae1934b2",
+        "definition_id": "ai.classify",
+        "definition_version": 1,
+        "config": {},
+        "policy": null,
+        "layout": {
+          "x": 1260,
+          "y": 0,
+          "width": 285
+        },
+        "label": "Score fit and intent",
+        "notes": null,
+        "disabled": false,
+        "pinned_output": null,
+        "quick_log": null
+      },
+      {
+        "id": "b26a3631-51b3-4e54-bb08-5ac02bde0316",
+        "definition_id": "logic.if",
+        "definition_version": 1,
+        "config": {
+          "expression": "value.score >= 80"
+        },
+        "policy": null,
+        "layout": {
+          "x": 1575,
+          "y": 0,
+          "width": 285
+        },
+        "label": "Route qualified leads",
+        "notes": null,
+        "disabled": false,
+        "pinned_output": null,
+        "quick_log": null
+      },
+      {
+        "id": "109ac2ec-4d7a-4012-9729-2d57a98daf19",
+        "definition_id": "mcp.call",
+        "definition_version": 1,
+        "config": {
+          "tool": "query_records"
+        },
+        "policy": null,
+        "layout": {
+          "x": 0,
+          "y": 170,
+          "width": 285
+        },
+        "label": "Read account history",
+        "notes": null,
+        "disabled": false,
+        "pinned_output": null,
+        "quick_log": null
+      },
+      {
+        "id": "707f2475-3788-4583-b9a2-2463868ae9f6",
+        "definition_id": "knowledge.search",
+        "definition_version": 1,
+        "config": {},
+        "policy": null,
+        "layout": {
+          "x": 315,
+          "y": 170,
+          "width": 285
+        },
+        "label": "Find relevant case studies",
+        "notes": null,
+        "disabled": false,
+        "pinned_output": null,
+        "quick_log": null
+      },
+      {
+        "id": "5b5aa313-e33b-4e54-b167-be05a30933b7",
+        "definition_id": "agent.run",
+        "definition_version": 1,
+        "config": {
+          "inline": {
+            "name": "Prepare account brief"
+          }
+        },
+        "policy": null,
+        "layout": {
+          "x": 630,
+          "y": 170,
+          "width": 285
+        },
+        "label": "Prepare account brief",
+        "notes": null,
+        "disabled": false,
+        "pinned_output": null,
+        "quick_log": null
+      },
+      {
+        "id": "de674607-c6a8-4ab4-be47-bd1c480bc716",
+        "definition_id": "table.record.upsert",
+        "definition_version": 1,
+        "config": {},
+        "policy": null,
+        "layout": {
+          "x": 945,
+          "y": 170,
+          "width": 285
+        },
+        "label": "Save lead intelligence",
+        "notes": null,
+        "disabled": false,
+        "pinned_output": null,
+        "quick_log": null
+      },
+      {
+        "id": "e1ace9d6-5ed1-4d1e-b779-99f2d178e9bf",
+        "definition_id": "mcp.call",
+        "definition_version": 1,
+        "config": {
+          "tool": "create_deal"
+        },
+        "policy": null,
+        "layout": {
+          "x": 1260,
+          "y": 170,
+          "width": 285
+        },
+        "label": "Create CRM opportunity",
+        "notes": null,
+        "disabled": false,
+        "pinned_output": null,
+        "quick_log": null
+      },
+      {
+        "id": "bd35d5b7-2399-4455-9629-e3dddfbc165d",
+        "definition_id": "slack.message.send",
+        "definition_version": 1,
+        "config": {},
+        "policy": null,
+        "layout": {
+          "x": 1575,
+          "y": 170,
+          "width": 285
+        },
+        "label": "Notify account owner",
+        "notes": null,
+        "disabled": false,
+        "pinned_output": null,
+        "quick_log": null
+      },
+      {
+        "id": "7724838b-2ee3-490e-8e12-fb46af12b362",
+        "definition_id": "mcp.call",
+        "definition_version": 1,
+        "config": {
+          "tool": "list_drive_files"
+        },
+        "policy": null,
+        "layout": {
+          "x": 0,
+          "y": 340,
+          "width": 285
+        },
+        "label": "Find proposal template",
+        "notes": null,
+        "disabled": false,
+        "pinned_output": null,
+        "quick_log": null
+      },
+      {
+        "id": "fcdcfa11-25f9-4848-b7b7-759291693ce2",
+        "definition_id": "agent.run",
+        "definition_version": 1,
+        "config": {
+          "inline": {
+            "name": "Draft tailored proposal"
+          }
+        },
+        "policy": null,
+        "layout": {
+          "x": 315,
+          "y": 340,
+          "width": 285
+        },
+        "label": "Draft tailored proposal",
+        "notes": null,
+        "disabled": false,
+        "pinned_output": null,
+        "quick_log": null
+      },
+      {
+        "id": "26fc8e7f-c610-4098-9c1e-2a5e1baa3267",
+        "definition_id": "mcp.call",
+        "definition_version": 1,
+        "config": {
+          "tool": "create_document"
+        },
+        "policy": null,
+        "layout": {
+          "x": 630,
+          "y": 340,
+          "width": 285
+        },
+        "label": "Create Google Doc",
+        "notes": null,
+        "disabled": false,
+        "pinned_output": null,
+        "quick_log": null
+      },
+      {
+        "id": "fd7e655b-69ba-44dd-9d0c-3dbe31855741",
+        "definition_id": "human.approval",
+        "definition_version": 1,
+        "config": {},
+        "policy": null,
+        "layout": {
+          "x": 945,
+          "y": 340,
+          "width": 285
+        },
+        "label": "Review before sending",
+        "notes": null,
+        "disabled": false,
+        "pinned_output": null,
+        "quick_log": null
+      },
+      {
+        "id": "22a788e0-a787-4685-a50f-c4701bfa8c55",
+        "definition_id": "mcp.call",
+        "definition_version": 1,
+        "config": {
+          "tool": "create-reply-draft"
+        },
+        "policy": null,
+        "layout": {
+          "x": 1260,
+          "y": 340,
+          "width": 285
+        },
+        "label": "Create Outlook draft",
+        "notes": null,
+        "disabled": false,
+        "pinned_output": null,
+        "quick_log": null
+      },
+      {
+        "id": "62b1fe89-0724-48b6-a97b-2f199dfeb00f",
+        "definition_id": "mcp.call",
+        "definition_version": 1,
+        "config": {
+          "tool": "update_deal"
+        },
+        "policy": null,
+        "layout": {
+          "x": 1575,
+          "y": 340,
+          "width": 285
+        },
+        "label": "Update opportunity stage",
+        "notes": null,
+        "disabled": false,
+        "pinned_output": null,
+        "quick_log": null
+      },
+      {
+        "id": "5946da2f-49fa-4ce5-b0a2-e89003458608",
+        "definition_id": "mcp.call",
+        "definition_version": 1,
+        "config": {
+          "tool": "list-calendar-events"
+        },
+        "policy": null,
+        "layout": {
+          "x": 0,
+          "y": 510,
+          "width": 285
+        },
+        "label": "Read team availability",
+        "notes": null,
+        "disabled": false,
+        "pinned_output": null,
+        "quick_log": null
+      },
+      {
+        "id": "8e9142c7-eca8-481b-a4a2-70e445c6c05a",
+        "definition_id": "agent.run",
+        "definition_version": 1,
+        "config": {
+          "inline": {
+            "name": "Suggest discovery slots"
+          }
+        },
+        "policy": null,
+        "layout": {
+          "x": 315,
+          "y": 510,
+          "width": 285
+        },
+        "label": "Suggest discovery slots",
+        "notes": null,
+        "disabled": false,
+        "pinned_output": null,
+        "quick_log": null
+      },
+      {
+        "id": "0f40d08c-9620-49b0-b107-d029801e4d3f",
+        "definition_id": "mcp.call",
+        "definition_version": 1,
+        "config": {
+          "tool": "create_event"
+        },
+        "policy": null,
+        "layout": {
+          "x": 630,
+          "y": 510,
+          "width": 285
+        },
+        "label": "Create calendar event",
+        "notes": null,
+        "disabled": false,
+        "pinned_output": null,
+        "quick_log": null
+      },
+      {
+        "id": "5f3a748d-ced4-4075-8a9e-bed58926f89a",
+        "definition_id": "mcp.call",
+        "definition_version": 1,
+        "config": {
+          "tool": "create_page"
+        },
+        "policy": null,
+        "layout": {
+          "x": 945,
+          "y": 510,
+          "width": 285
+        },
+        "label": "Write handoff in Notion",
+        "notes": null,
+        "disabled": false,
+        "pinned_output": null,
+        "quick_log": null
+      },
+      {
+        "id": "7a76e62d-61e1-46ff-9473-8c2b7302b958",
+        "definition_id": "slack.message.send",
+        "definition_version": 1,
+        "config": {},
+        "policy": null,
+        "layout": {
+          "x": 1260,
+          "y": 510,
+          "width": 285
+        },
+        "label": "Post team handoff",
+        "notes": null,
+        "disabled": false,
+        "pinned_output": null,
+        "quick_log": null
+      },
+      {
+        "id": "1057aad1-57cc-4282-8022-74afc76c81dc",
+        "definition_id": "table.record.create",
+        "definition_version": 1,
+        "config": {},
+        "policy": null,
+        "layout": {
+          "x": 1575,
+          "y": 510,
+          "width": 285
+        },
+        "label": "Track next action",
+        "notes": null,
+        "disabled": false,
+        "pinned_output": null,
+        "quick_log": null
+      },
+      {
+        "id": "4bd63629-03fc-4adf-9e80-ef3a80126a57",
+        "definition_id": "flow.wait",
+        "definition_version": 1,
+        "config": {},
+        "policy": null,
+        "layout": {
+          "x": 0,
+          "y": 680,
+          "width": 285
+        },
+        "label": "Wait for follow-up",
+        "notes": null,
+        "disabled": false,
+        "pinned_output": null,
+        "quick_log": null
+      },
+      {
+        "id": "c28c982e-fd57-4e74-96ea-1d29073725a7",
+        "definition_id": "mcp.call",
+        "definition_version": 1,
+        "config": {
+          "tool": "search_deals"
+        },
+        "policy": null,
+        "layout": {
+          "x": 315,
+          "y": 680,
+          "width": 285
+        },
+        "label": "Check CRM activity",
+        "notes": null,
+        "disabled": false,
+        "pinned_output": null,
+        "quick_log": null
+      },
+      {
+        "id": "e6ec43c1-6557-46f1-aa19-9ed5091577ea",
+        "definition_id": "mcp.call",
+        "definition_version": 1,
+        "config": {
+          "tool": "draft_gmail_message"
+        },
+        "policy": null,
+        "layout": {
+          "x": 630,
+          "y": 680,
+          "width": 285
+        },
+        "label": "Draft follow-up email",
+        "notes": null,
+        "disabled": false,
+        "pinned_output": null,
+        "quick_log": null
+      },
+      {
+        "id": "403a1f1b-c760-408c-9970-3cdab49b8c66",
+        "definition_id": "human.approval",
+        "definition_version": 1,
+        "config": {},
+        "policy": null,
+        "layout": {
+          "x": 945,
+          "y": 680,
+          "width": 285
+        },
+        "label": "Approve follow-up",
+        "notes": null,
+        "disabled": false,
+        "pinned_output": null,
+        "quick_log": null
+      },
+      {
+        "id": "dacbb975-7fd6-44fe-bab5-3d73dce71177",
+        "definition_id": "mcp.call",
+        "definition_version": 1,
+        "config": {
+          "tool": "update_spreadsheet"
+        },
+        "policy": null,
+        "layout": {
+          "x": 1260,
+          "y": 680,
+          "width": 285
+        },
+        "label": "Save pipeline summary",
+        "notes": null,
+        "disabled": false,
+        "pinned_output": null,
+        "quick_log": null
+      },
+      {
+        "id": "b11783f0-29d8-4670-ae21-ccbdbe7a0688",
+        "definition_id": "core.output",
+        "definition_version": 1,
+        "config": {},
+        "policy": null,
+        "layout": {
+          "x": 1575,
+          "y": 680,
+          "width": 285
+        },
+        "label": "Return sales handoff",
+        "notes": null,
+        "disabled": false,
+        "pinned_output": null,
+        "quick_log": null
+      }
+    ],
+    "edges": [
+      {
+        "id": "f8f86900-874b-485b-a0d2-05d343f46129",
+        "source_node_id": "0e38095b-250f-477d-a7a8-032a2ad5fdf4",
+        "source_port": "out",
+        "target_node_id": "aa650a9c-53bb-44ed-8e57-ef190c1665eb",
+        "target_port": "in"
+      },
+      {
+        "id": "f42d3cd7-63ed-40ea-835e-232c76be399f",
+        "source_node_id": "aa650a9c-53bb-44ed-8e57-ef190c1665eb",
+        "source_port": "out",
+        "target_node_id": "d1dac8f0-dc32-47df-8057-e6984a16d5c3",
+        "target_port": "in"
+      },
+      {
+        "id": "0465fa64-2c89-4125-8ec6-64886da48a75",
+        "source_node_id": "d1dac8f0-dc32-47df-8057-e6984a16d5c3",
+        "source_port": "out",
+        "target_node_id": "86c2c2d1-ba72-491f-bae1-9e4a3c29d06a",
+        "target_port": "in"
+      },
+      {
+        "id": "b50355fc-d8a1-44d0-a0fc-cbc7be9f9f67",
+        "source_node_id": "86c2c2d1-ba72-491f-bae1-9e4a3c29d06a",
+        "source_port": "out",
+        "target_node_id": "935bf0ad-e1a4-4636-a60c-5309ae1934b2",
+        "target_port": "in"
+      },
+      {
+        "id": "759a2ae0-4200-4cdd-8499-11f31690d140",
+        "source_node_id": "935bf0ad-e1a4-4636-a60c-5309ae1934b2",
+        "source_port": "other",
+        "target_node_id": "b26a3631-51b3-4e54-bb08-5ac02bde0316",
+        "target_port": "in"
+      },
+      {
+        "id": "01e6ca75-0a9b-42a7-aa2e-19b56561f193",
+        "source_node_id": "109ac2ec-4d7a-4012-9729-2d57a98daf19",
+        "source_port": "out",
+        "target_node_id": "707f2475-3788-4583-b9a2-2463868ae9f6",
+        "target_port": "in"
+      },
+      {
+        "id": "87926709-9af1-4479-b926-6a0b66a0763c",
+        "source_node_id": "707f2475-3788-4583-b9a2-2463868ae9f6",
+        "source_port": "out",
+        "target_node_id": "5b5aa313-e33b-4e54-b167-be05a30933b7",
+        "target_port": "in"
+      },
+      {
+        "id": "2e002d04-6569-4b19-9ce3-675a7018a96f",
+        "source_node_id": "5b5aa313-e33b-4e54-b167-be05a30933b7",
+        "source_port": "out",
+        "target_node_id": "de674607-c6a8-4ab4-be47-bd1c480bc716",
+        "target_port": "in"
+      },
+      {
+        "id": "a8fae09e-c5f2-4c89-9289-f517127f6b35",
+        "source_node_id": "de674607-c6a8-4ab4-be47-bd1c480bc716",
+        "source_port": "out",
+        "target_node_id": "e1ace9d6-5ed1-4d1e-b779-99f2d178e9bf",
+        "target_port": "in"
+      },
+      {
+        "id": "208cd18e-4aa3-434f-8195-f8912dfb71ba",
+        "source_node_id": "e1ace9d6-5ed1-4d1e-b779-99f2d178e9bf",
+        "source_port": "out",
+        "target_node_id": "bd35d5b7-2399-4455-9629-e3dddfbc165d",
+        "target_port": "in"
+      },
+      {
+        "id": "04f8034f-7e14-452a-af27-e00d4878b0d5",
+        "source_node_id": "7724838b-2ee3-490e-8e12-fb46af12b362",
+        "source_port": "out",
+        "target_node_id": "fcdcfa11-25f9-4848-b7b7-759291693ce2",
+        "target_port": "in"
+      },
+      {
+        "id": "243ffcb8-a666-454f-84ea-848e2851571c",
+        "source_node_id": "fcdcfa11-25f9-4848-b7b7-759291693ce2",
+        "source_port": "out",
+        "target_node_id": "26fc8e7f-c610-4098-9c1e-2a5e1baa3267",
+        "target_port": "in"
+      },
+      {
+        "id": "018306b8-ec7d-44c5-a514-f08f8079cd26",
+        "source_node_id": "26fc8e7f-c610-4098-9c1e-2a5e1baa3267",
+        "source_port": "out",
+        "target_node_id": "fd7e655b-69ba-44dd-9d0c-3dbe31855741",
+        "target_port": "in"
+      },
+      {
+        "id": "e825a1bf-6c84-48c1-a9b1-13faba8937ab",
+        "source_node_id": "fd7e655b-69ba-44dd-9d0c-3dbe31855741",
+        "source_port": "approved",
+        "target_node_id": "22a788e0-a787-4685-a50f-c4701bfa8c55",
+        "target_port": "in"
+      },
+      {
+        "id": "1646bb85-9fee-49df-9046-9f2ae58b5cb3",
+        "source_node_id": "22a788e0-a787-4685-a50f-c4701bfa8c55",
+        "source_port": "out",
+        "target_node_id": "62b1fe89-0724-48b6-a97b-2f199dfeb00f",
+        "target_port": "in"
+      },
+      {
+        "id": "a4f4e9df-d55f-4b5d-a371-8fc05f55ea06",
+        "source_node_id": "5946da2f-49fa-4ce5-b0a2-e89003458608",
+        "source_port": "out",
+        "target_node_id": "8e9142c7-eca8-481b-a4a2-70e445c6c05a",
+        "target_port": "in"
+      },
+      {
+        "id": "a22ee9f2-9995-492a-bc48-612f175874db",
+        "source_node_id": "8e9142c7-eca8-481b-a4a2-70e445c6c05a",
+        "source_port": "out",
+        "target_node_id": "0f40d08c-9620-49b0-b107-d029801e4d3f",
+        "target_port": "in"
+      },
+      {
+        "id": "8286095c-646a-42b5-95e4-9124fca7d068",
+        "source_node_id": "0f40d08c-9620-49b0-b107-d029801e4d3f",
+        "source_port": "out",
+        "target_node_id": "5f3a748d-ced4-4075-8a9e-bed58926f89a",
+        "target_port": "in"
+      },
+      {
+        "id": "fefb33c6-7535-4ec8-9d6d-fdda3eccc55a",
+        "source_node_id": "5f3a748d-ced4-4075-8a9e-bed58926f89a",
+        "source_port": "out",
+        "target_node_id": "7a76e62d-61e1-46ff-9473-8c2b7302b958",
+        "target_port": "in"
+      },
+      {
+        "id": "4860527c-1112-49ae-9d09-038f466363e1",
+        "source_node_id": "7a76e62d-61e1-46ff-9473-8c2b7302b958",
+        "source_port": "out",
+        "target_node_id": "1057aad1-57cc-4282-8022-74afc76c81dc",
+        "target_port": "in"
+      },
+      {
+        "id": "2729174c-ee0d-4c1a-9b1a-ccab8b90dca7",
+        "source_node_id": "4bd63629-03fc-4adf-9e80-ef3a80126a57",
+        "source_port": "out",
+        "target_node_id": "c28c982e-fd57-4e74-96ea-1d29073725a7",
+        "target_port": "in"
+      },
+      {
+        "id": "dc00346b-186c-40d2-b0c8-16df97d8fa5b",
+        "source_node_id": "c28c982e-fd57-4e74-96ea-1d29073725a7",
+        "source_port": "out",
+        "target_node_id": "e6ec43c1-6557-46f1-aa19-9ed5091577ea",
+        "target_port": "in"
+      },
+      {
+        "id": "81646d9b-0b06-4504-a42b-a6ca1e1a8d5e",
+        "source_node_id": "e6ec43c1-6557-46f1-aa19-9ed5091577ea",
+        "source_port": "out",
+        "target_node_id": "403a1f1b-c760-408c-9970-3cdab49b8c66",
+        "target_port": "in"
+      },
+      {
+        "id": "2f25bce8-d49d-4908-b8be-c32ec9a1f8d5",
+        "source_node_id": "403a1f1b-c760-408c-9970-3cdab49b8c66",
+        "source_port": "approved",
+        "target_node_id": "dacbb975-7fd6-44fe-bab5-3d73dce71177",
+        "target_port": "in"
+      },
+      {
+        "id": "50c2841f-ab05-477d-90d6-8d66ef5bef8d",
+        "source_node_id": "dacbb975-7fd6-44fe-bab5-3d73dce71177",
+        "source_port": "out",
+        "target_node_id": "b11783f0-29d8-4670-ae21-ccbdbe7a0688",
+        "target_port": "in"
+      }
+    ],
+    "bindings": [],
+    "scopes": [],
+    "notes": []
+  },
+  "unresolved": [
+    {
+      "node_id": "d1dac8f0-dc32-47df-8057-e6984a16d5c3",
+      "step": "Find existing contact",
+      "field": "connection_id",
+      "kind": "mcp_connection"
+    },
+    {
+      "node_id": "109ac2ec-4d7a-4012-9729-2d57a98daf19",
+      "step": "Read account history",
+      "field": "connection_id",
+      "kind": "mcp_connection"
+    },
+    {
+      "node_id": "e1ace9d6-5ed1-4d1e-b779-99f2d178e9bf",
+      "step": "Create CRM opportunity",
+      "field": "connection_id",
+      "kind": "mcp_connection"
+    },
+    {
+      "node_id": "7724838b-2ee3-490e-8e12-fb46af12b362",
+      "step": "Find proposal template",
+      "field": "connection_id",
+      "kind": "mcp_connection"
+    },
+    {
+      "node_id": "26fc8e7f-c610-4098-9c1e-2a5e1baa3267",
+      "step": "Create Google Doc",
+      "field": "connection_id",
+      "kind": "mcp_connection"
+    },
+    {
+      "node_id": "22a788e0-a787-4685-a50f-c4701bfa8c55",
+      "step": "Create Outlook draft",
+      "field": "connection_id",
+      "kind": "mcp_connection"
+    },
+    {
+      "node_id": "62b1fe89-0724-48b6-a97b-2f199dfeb00f",
+      "step": "Update opportunity stage",
+      "field": "connection_id",
+      "kind": "mcp_connection"
+    },
+    {
+      "node_id": "5946da2f-49fa-4ce5-b0a2-e89003458608",
+      "step": "Read team availability",
+      "field": "connection_id",
+      "kind": "mcp_connection"
+    },
+    {
+      "node_id": "0f40d08c-9620-49b0-b107-d029801e4d3f",
+      "step": "Create calendar event",
+      "field": "connection_id",
+      "kind": "mcp_connection"
+    },
+    {
+      "node_id": "5f3a748d-ced4-4075-8a9e-bed58926f89a",
+      "step": "Write handoff in Notion",
+      "field": "connection_id",
+      "kind": "mcp_connection"
+    },
+    {
+      "node_id": "c28c982e-fd57-4e74-96ea-1d29073725a7",
+      "step": "Check CRM activity",
+      "field": "connection_id",
+      "kind": "mcp_connection"
+    },
+    {
+      "node_id": "e6ec43c1-6557-46f1-aa19-9ed5091577ea",
+      "step": "Draft follow-up email",
+      "field": "connection_id",
+      "kind": "mcp_connection"
+    },
+    {
+      "node_id": "dacbb975-7fd6-44fe-bab5-3d73dce71177",
+      "step": "Save pipeline summary",
+      "field": "connection_id",
+      "kind": "mcp_connection"
+    }
+  ]
+}

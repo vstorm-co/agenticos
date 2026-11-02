@@ -19,6 +19,11 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- Clearing the Architect's uploaded avatar restores its generated face, just as
+  it does for other agents. The special mark no longer overrides an empty avatar.
+
 ## [1.35.3] - 2026-11-02
 
 ### Security

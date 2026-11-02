@@ -1,0 +1,582 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Northwind Company Brain</title>
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        font-family: ui-sans-serif, system-ui, sans-serif;
+        background: #f5f5f0;
+        color: #192b26;
+        line-height: 1.5;
+      }
+      button,
+      input,
+      select {
+        font: inherit;
+      }
+      button {
+        cursor: pointer;
+      }
+      button:focus-visible,
+      a:focus-visible,
+      input:focus-visible {
+        outline: 3px solid #1d8064;
+        outline-offset: 4px;
+      }
+      button {
+        color: inherit;
+      }
+      header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 20px;
+        border-bottom: 1px solid #d9e1da;
+        padding: 21px 4vw;
+      }
+      .brand {
+        font-weight: 700;
+        letter-spacing: -0.6px;
+        font-size: 19px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      .brandmark {
+        display: grid;
+        place-items: center;
+        background: #203c31;
+        color: #ecf4dd;
+        width: 33px;
+        height: 33px;
+        border-radius: 10px;
+      }
+      nav {
+        display: flex;
+        gap: 24px;
+        font-size: 13px;
+      }
+      nav span {
+        color: #6c7a71;
+      }
+      .label {
+        font-size: 12px;
+        color: #63736b;
+      }
+      .badge {
+        display: inline-flex;
+        gap: 7px;
+        align-items: center;
+        border: 1px solid #cfdad0;
+        border-radius: 20px;
+        padding: 5px 11px;
+        font-size: 11px;
+        background: #edf4e8;
+      }
+      .badge:before {
+        content: "";
+        height: 5px;
+        width: 5px;
+        background: #508268;
+        border-radius: 100%;
+      }
+      .wrap {
+        max-width: 1400px;
+        margin: auto;
+        padding: 34px 4vw;
+      }
+      h1 {
+        font-size: clamp(34px, 4.2vw, 56px);
+        font-weight: 550;
+        letter-spacing: -2.5px;
+        line-height: 1.07;
+        margin: 10px 0 15px;
+      }
+      h2 {
+        font-size: 19px;
+        letter-spacing: -0.5px;
+        font-weight: 600;
+        margin: 0 0 15px;
+      }
+      h3 {
+        font-size: 15px;
+        margin: 0 0 7px;
+      }
+      p {
+        margin: 0 0 13px;
+      }
+      .muted {
+        color: #6b7972;
+      }
+      .hero {
+        display: flex;
+        justify-content: space-between;
+        align-items: end;
+        gap: 30px;
+        margin-bottom: 30px;
+      }
+      .hero p {
+        font-size: 14px;
+        max-width: 600px;
+      }
+      .primary {
+        background: #203c31;
+        color: #f5f6ec;
+        border: 0;
+        border-radius: 8px;
+        padding: 11px 18px;
+        font-weight: 550;
+        font-size: 13px;
+      }
+      .quiet {
+        background: transparent;
+        border: 1px solid #cdd7cf;
+        border-radius: 7px;
+        padding: 8px 14px;
+        font-size: 13px;
+      }
+      .selected {
+        background: #203c31 !important;
+        color: #fff !important;
+      }
+      .chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 7px;
+      }
+      .chips button {
+        background: #fff;
+        border: 1px solid #d9e1da;
+        border-radius: 20px;
+        font-size: 12px;
+        padding: 6px 13px;
+      }
+      .paper {
+        background: #fff;
+        border: 1px solid #d9e1da;
+        border-radius: 12px;
+        padding: 22px;
+      }
+      .stats {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        margin: 25px 0 32px;
+        border-top: 1px solid #d6dfd6;
+        border-bottom: 1px solid #d6dfd6;
+      }
+      .stat {
+        padding: 19px 15px 18px 0;
+      }
+      .stat strong {
+        font-size: 35px;
+        font-weight: 550;
+        letter-spacing: -1.6px;
+        display: block;
+      }
+      .stat span {
+        font-size: 12px;
+        color: #6b7972;
+      }
+      .row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 18px;
+      }
+      .avatar {
+        background: #e3eddd;
+        border-radius: 50%;
+        padding: 5px 7px;
+        font-size: 10px;
+        font-weight: 600;
+      }
+      .tiny {
+        font-size: 11px;
+      }
+      .footer {
+        border-top: 1px solid #d9e1da;
+        color: #7c8981;
+        margin-top: 28px;
+        padding-top: 15px;
+        font-size: 11px;
+        display: flex;
+        justify-content: space-between;
+        gap: 15px;
+      }
+      dialog {
+        border: 1px solid #cad5cc;
+        border-radius: 16px;
+        max-width: 480px;
+        padding: 30px;
+        background: #fbfcf7;
+        color: #192b26;
+      }
+      dialog::backdrop {
+        background: #152c2455;
+      }
+      dialog h2 {
+        font-size: 27px;
+      }
+      .two {
+        display: grid;
+        grid-template-columns: 1fr 330px;
+        gap: 24px;
+      }
+      .demo {
+        font-size: 11px;
+        color: #7a817c;
+      }
+      .pill {
+        padding: 3px 8px;
+        border-radius: 5px;
+        font-size: 10px;
+        background: #e6eee0;
+        color: #3e6249;
+      }
+      button:disabled {
+        cursor: not-allowed;
+        opacity: 0.55;
+      }
+      @media (max-width: 800px) {
+        header {
+          padding: 17px 20px;
+        }
+        nav {
+          display: none;
+        }
+        .wrap {
+          padding: 25px 20px;
+        }
+        .hero {
+          display: block;
+        }
+        .hero .primary {
+          margin-top: 10px;
+        }
+        .two {
+          grid-template-columns: 1fr;
+        }
+        .stats {
+          grid-template-columns: repeat(2, 1fr);
+        }
+        h1 {
+          letter-spacing: -1.5px;
+        }
+        .footer {
+          display: block;
+        }
+      }
+      .knowledge-layout {
+        display: grid;
+        grid-template-columns: 1fr 340px;
+        gap: 24px;
+      }
+      .map {
+        height: 540px;
+        position: relative;
+        border-radius: 15px;
+        background-color: #edf1e8;
+        background-image: radial-gradient(#bccbbd 1px, transparent 1px);
+        background-size: 19px 19px;
+        overflow: hidden;
+      }
+      .links {
+        position: absolute;
+        width: 100%;
+        height: 100%;
+        fill: none;
+        stroke: #a8bda7;
+        stroke-width: 1.7;
+      }
+      .map-node {
+        position: absolute;
+        transform: translate(-50%, -50%);
+        width: 162px;
+        text-align: left;
+        border: 1px solid #cfdbcc;
+        background: #fbfcf7;
+        border-radius: 9px;
+        padding: 13px;
+        transition: opacity 0.2s;
+      }
+      .map-node[aria-pressed="true"] {
+        border: 2px solid #386849;
+      }
+      .map-node span {
+        color: #6d8e62;
+        font-size: 18px;
+      }
+      .map-node strong {
+        display: block;
+        font-size: 12px;
+        font-weight: 600;
+        margin: 7px 0 3px;
+      }
+      .map-node small {
+        font-size: 10px;
+        color: #6a796c;
+      }
+      .center-node {
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        transform: translate(-50%, -50%);
+        text-align: center;
+        background: #263e31;
+        color: #fff;
+        border-radius: 50%;
+        width: 166px;
+        height: 166px;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+      }
+      .center-node > span {
+        font-size: 32px;
+        color: #d6e8b5;
+      }
+      .center-node strong {
+        font-size: 16px;
+        margin: 6px 0;
+      }
+      .center-node small {
+        font-size: 10px;
+        color: #b9cbb9;
+      }
+      .map-note {
+        position: absolute;
+        bottom: 12px;
+        left: 17px;
+        font-size: 10px;
+        color: #768b75;
+      }
+      .source-content {
+        font-size: 16px;
+        line-height: 1.8;
+        border-top: 1px solid #e0e6dd;
+        margin-top: 24px;
+        padding-top: 21px;
+      }
+      .question {
+        background: #f0f4e9;
+        border-radius: 9px;
+        padding: 18px;
+        margin-top: 25px;
+      }
+      .source-footer {
+        font-size: 10px;
+        color: #7f8e7f;
+        margin-top: 25px;
+      }
+      @media (max-width: 850px) {
+        .knowledge-layout {
+          grid-template-columns: 1fr;
+        }
+        .map-node {
+          width: 120px;
+          padding: 9px;
+        }
+        .map {
+          height: 450px;
+        }
+        .center-node {
+          width: 128px;
+          height: 128px;
+        }
+        .center-node strong {
+          font-size: 12px;
+        }
+        .source-panel {
+          padding: 22px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div class="brand"><span class="brandmark">✳</span> Northwind / Company Brain</div>
+      <nav><b>Knowledge map</b><span>Sources</span><span>Projects</span></nav>
+      <span class="badge">Seeded knowledge</span>
+    </header>
+    <main class="wrap">
+      <div class="hero">
+        <div>
+          <div class="label">Company knowledge · connected by context</div>
+          <h1>Find the answer.<br />Keep the source in view.</h1>
+          <p class="muted">
+            Explore a small LLM wiki example: policies, product decisions and<br />project notes
+            connected to the questions your team actually asks.
+          </p>
+        </div>
+        <div class="chips" id="topics">
+          <button class="selected" data-topic="All">All knowledge</button
+          ><button data-topic="Finance">Finance</button
+          ><button data-topic="Product">Product</button>
+        </div>
+      </div>
+      <div class="knowledge-layout">
+        <section class="map" aria-label="Interactive example knowledge map">
+          <svg viewBox="0 0 850 560" aria-hidden="true" class="links">
+            <path
+              d="M425 280L140 120M425 280L425 75M425 280L710 120M425 280L155 405M425 280L425 480M425 280L700 405"
+            />
+            <path
+              d="M140 120Q270 20 425 75M710 120Q800 250 700 405M155 405Q270 510 425 480"
+              stroke-dasharray="4 6"
+            />
+          </svg>
+          <div class="center-node">
+            <span>✳</span><strong>Northwind wiki</strong><small>6 connected source notes</small>
+          </div>
+          <div id="map-nodes"></div>
+          <div class="map-note">Select a source to read the evidence →</div>
+        </section>
+        <aside class="paper source-panel">
+          <div class="row">
+            <span class="label">Source preview</span><span class="pill" id="area">Finance</span>
+          </div>
+          <h2 id="source-title" style="font-size: 27px; margin-top: 20px; line-height: 1.15">
+            Invoice approval policy
+          </h2>
+          <p class="muted tiny" id="source-meta">Example policy · reviewed Nov 2, 2026</p>
+          <div class="source-content" id="source-content"></div>
+          <div class="question">
+            <span class="label">A question this source can answer</span>
+            <p id="question" style="margin-top: 10px; font-size: 14px">
+              Who needs to approve a supplier invoice?
+            </p>
+          </div>
+          <div class="source-footer">
+            Fictional source excerpt. This map is an interactive explanation, not a
+            retrieval-quality benchmark.
+          </div>
+        </aside>
+      </div>
+      <div class="paper" style="margin-top: 24px">
+        <div class="row">
+          <div>
+            <h2 style="margin-bottom: 5px">Knowledge becomes more useful when it has a job.</h2>
+            <p class="muted" style="font-size: 13px; margin: 0">
+              An invoice question reaches a policy. A launch decision reaches its brief. A teammate
+              can see what informed the answer.
+            </p>
+          </div>
+          <span class="pill">Explain → inspect → verify</span>
+        </div>
+      </div>
+      <div class="footer">
+        <span
+          >Interactive LLM wiki concept · 6 fictional notes · no live RAG query or external
+          data</span
+        ><span>Seeded AgenticOS app</span>
+      </div>
+    </main>
+    <script>
+      "use strict";
+      const notes = [
+        {
+          title: "Invoice approval policy",
+          area: "Finance",
+          x: 16,
+          y: 21,
+          icon: "↗",
+          body: "Supplier invoices above $10,000 require finance-owner review. Payments are never sent automatically by this demo.",
+          question: "Who needs to approve a supplier invoice?",
+        },
+        {
+          title: "Pricing decisions",
+          area: "Product",
+          x: 50,
+          y: 11,
+          icon: "≡",
+          body: "Draft pricing changes need a decision log, the supporting research and an owner. This note contains fictional examples only.",
+          question: "Why did we choose this pricing approach?",
+        },
+        {
+          title: "Launch brief",
+          area: "Product",
+          x: 84,
+          y: 21,
+          icon: "◷",
+          body: "Ledgerly is a fictional product. Before release, check the product narrative, source-backed claims and the final sign-up destination.",
+          question: "What still needs a human decision before launch?",
+        },
+        {
+          title: "Supplier playbook",
+          area: "Finance",
+          x: 18,
+          y: 72,
+          icon: "▤",
+          body: "Match the supplier, invoice reference and due date. Ask a person when any required field is missing. Never invent a payment status.",
+          question: "What information do I need before preparing an invoice reply?",
+        },
+        {
+          title: "Customer questions",
+          area: "Product",
+          x: 50,
+          y: 87,
+          icon: "?",
+          body: "Example themes: deployment ownership, tool access, source freshness and approvals. These are seeded notes, not customer research findings.",
+          question: "What should our product walkthrough explain?",
+        },
+        {
+          title: "Team handbook",
+          area: "Finance",
+          x: 83,
+          y: 72,
+          icon: "☷",
+          body: "Each shared project has an owner, an up-to-date brief and access rules. Agent answers should identify what is known and what needs review.",
+          question: "Where should a new teammate start?",
+        },
+      ];
+      let selected = 0;
+      function choose(index) {
+        selected = index;
+        const n = notes[index];
+        document.getElementById("source-title").textContent = n.title;
+        document.getElementById("area").textContent = n.area;
+        document.getElementById("source-content").textContent = n.body;
+        document.getElementById("question").textContent = n.question;
+        document
+          .querySelectorAll(".map-node")
+          .forEach((b, i) => b.setAttribute("aria-pressed", String(i === index)));
+      }
+      const holder = document.getElementById("map-nodes");
+      notes.forEach((n, i) => {
+        const b = document.createElement("button");
+        b.className = "map-node";
+        b.style.left = n.x + "%";
+        b.style.top = n.y + "%";
+        b.dataset.area = n.area;
+        b.innerHTML =
+          "<span>" +
+          n.icon +
+          "</span><strong>" +
+          n.title +
+          "</strong><small>" +
+          n.area +
+          " · source note</small>";
+        b.onclick = () => choose(i);
+        holder.append(b);
+      });
+      document.getElementById("topics").onclick = (e) => {
+        const b = e.target.closest("button");
+        if (!b) return;
+        document
+          .querySelectorAll("#topics button")
+          .forEach((x) => x.classList.toggle("selected", x === b));
+        document.querySelectorAll(".map-node").forEach((n) => {
+          n.style.opacity =
+            b.dataset.topic === "All" || n.dataset.area === b.dataset.topic ? "1" : ".25";
+        });
+      };
+      choose(0);
+    </script>
+  </body>
+</html>

@@ -26,9 +26,62 @@ const { chromium } = require("@playwright/test");
  * `badges` float brand marks beside the window, from marks.json (paths copied from the landing's brand glyphs).
  */
 const FRAMES = [
-  { name: "hero", source: "dark-room-reply", background: "hero-bg", crop: [0, 0, 1600, 1000], width: 1380 },
-  { name: "projects", source: "room-codex-live", background: "hero-bg", crop: [240, 0, 1360, 1000], width: 1380 },
-  { name: "reply", source: "room-reply", background: "meadow-bg", crop: [240, 0, 1360, 1000], width: 1380 },
+  {
+    name: "launch-room",
+    source: "app-launch-room",
+    background: "meadow-bg",
+    crop: [0, 0, 1600, 1000],
+    width: 1450,
+  },
+  {
+    name: "shopping",
+    source: "app-trail-supply",
+    background: "cta",
+    crop: [0, 0, 1600, 1000],
+    width: 1450,
+  },
+  {
+    name: "workflows",
+    source: "workflows",
+    background: "hero-bg",
+    crop: [0, 0, 1600, 1000],
+    width: 1500,
+  },
+  {
+    name: "tables",
+    source: "tables",
+    background: "meadow-bg",
+    crop: [0, 0, 1600, 1000],
+    width: 1480,
+  },
+  {
+    name: "mcp-server",
+    source: "mcp-server",
+    background: "storm",
+    crop: [240, 0, 1360, 1000],
+    width: 1380,
+  },
+  {
+    name: "hero",
+    source: "dark-room-reply",
+    background: "hero-bg",
+    crop: [0, 0, 1600, 1000],
+    width: 1380,
+  },
+  {
+    name: "projects",
+    source: "room-codex-live",
+    background: "hero-bg",
+    crop: [240, 0, 1360, 1000],
+    width: 1380,
+  },
+  {
+    name: "reply",
+    source: "room-reply",
+    background: "meadow-bg",
+    crop: [240, 0, 1360, 1000],
+    width: 1380,
+  },
   {
     name: "coding",
     source: "room-codex-answer",
@@ -40,21 +93,74 @@ const FRAMES = [
       { mark: "codex", label: "Codex" },
     ],
   },
-  { name: "visuals", source: "visual-roi", background: "cta", crop: [500, 40, 1100, 900], width: 1300 },
-  { name: "research", source: "research-table", background: "meadow-bg", crop: [240, 0, 1360, 1000], width: 1380 },
-  { name: "dashboard", source: "dashboard", background: "hero-bg", crop: [0, 0, 1600, 1000], width: 1380 },
-  { name: "subagents", source: "subagents", background: "meadow-bg", crop: [0, 0, 1600, 1000], width: 1380 },
-  { name: "browser", source: "old-browser", background: "night", crop: [300, 0, 1300, 1000], width: 1380 },
-  { name: "builder-test", source: "builder-test", background: "hero-bg", crop: [0, 0, 1600, 1000], width: 1380 },
-  { name: "app", source: "app-roi", background: "cta", crop: [0, 0, 1600, 840], width: 1380 },
-  { name: "mcp-servers", source: "mcp-servers", background: "storm", crop: [0, 0, 1600, 1000], width: 1380 },
+  {
+    name: "visuals",
+    source: "visual-source-trace",
+    background: "cta",
+    crop: [500, 0, 1100, 1000],
+    width: 1380,
+  },
+  {
+    name: "research",
+    source: "research-table",
+    background: "meadow-bg",
+    crop: [240, 0, 1360, 1000],
+    width: 1380,
+  },
+  {
+    name: "dashboard",
+    source: "dashboard",
+    background: "hero-bg",
+    crop: [0, 0, 1600, 1000],
+    width: 1380,
+  },
+  {
+    name: "subagents",
+    source: "subagents",
+    background: "meadow-bg",
+    crop: [0, 0, 1600, 1000],
+    width: 1380,
+  },
+  {
+    name: "browser",
+    source: "old-browser",
+    background: "night",
+    crop: [300, 0, 1300, 1000],
+    width: 1380,
+  },
+  {
+    name: "builder-test",
+    source: "builder-test",
+    background: "hero-bg",
+    crop: [0, 0, 1600, 1000],
+    width: 1380,
+  },
+  {
+    name: "app",
+    source: "app-company-brain",
+    background: "cta",
+    crop: [0, 0, 1600, 1000],
+    width: 1380,
+  },
+  {
+    name: "mcp-servers",
+    source: "mcp-servers",
+    background: "storm",
+    crop: [0, 0, 1600, 1000],
+    width: 1380,
+  },
 ];
 
 const MARKS = JSON.parse(readFileSync(join(here, "marks.json"), "utf8"));
 const only = new Set(process.argv.slice(2));
 const scratch = mkdtempSync(join(tmpdir(), "readme-frames-"));
-const browser = await chromium.launch();
-const page = await browser.newPage({ viewport: { width: 1600, height: 1000 }, deviceScaleFactor: 2 });
+const browser = await chromium.launch({
+  channel: process.env.BROWSER_CHANNEL ?? "chrome",
+});
+const page = await browser.newPage({
+  viewport: { width: 1600, height: 1000 },
+  deviceScaleFactor: 2,
+});
 
 for (const frame of FRAMES) {
   if (only.size && !only.has(frame.name)) continue;
@@ -94,7 +200,14 @@ for (const frame of FRAMES) {
   await page.waitForTimeout(300);
   const png = join(scratch, `${frame.name}.png`);
   await page.screenshot({ path: png });
-  execFileSync("magick", [png, "-resize", "2400x", "-quality", "84", join(here, `highlight-${frame.name}.webp`)]);
+  execFileSync("magick", [
+    png,
+    "-resize",
+    "2400x",
+    "-quality",
+    "84",
+    join(here, `highlight-${frame.name}.webp`),
+  ]);
   console.log(`highlight-${frame.name}.webp`);
 }
 await browser.close();

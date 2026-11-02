@@ -1,4 +1,4 @@
-<!-- source_sha: 23e6c989580e -->
+<!-- source_sha: e411fc7fc3a1 -->
 
 <div align="center">
 
@@ -8,6 +8,10 @@
   <b>Open-Source-Plattform für die KI-Teammates deines Unternehmens, auf eigener Infrastruktur.</b><br>
   Agents mit eigenen Servern und Modellen bauen, betreiben und steuern: gemeinsamer Chat, RAG, Skills, ein echter Browser, MCP, Budgets, Freigaben und Audit-Protokoll.<br>
   <sub>Apache-2.0 &middot; gebaut auf Pydantic AI</sub>
+</p>
+
+<p>
+  🏆 <b>Entwickelt von Vstorm — ausgezeichnet mit dem Open Agentic AI Innovation Award 2026.</b><br>Die Agentic AI Foundation würdigt Vstorms Einsatz von AGENTS.md und die MCP-Integration im eigenen Open-Source-Framework.<br><a href="https://aaif.io/blog/winners-of-the-first-aaif-annual-technical-excellence-awards">Mitteilung der AAIF</a> &middot; <a href="https://vstorm.co/agentic-ai/open-agentic-ai-standards-aaif-award/">Die Arbeit hinter der Auszeichnung</a>
 </p>
 
 <p>
@@ -65,13 +69,15 @@ Antworte auf die Nachricht einer Person oder eines Agents, und der Agent überni
 
 Jeder Agent kann Softwarearbeit an Claude Code oder Codex übergeben. Sie bauen auf dem eigenen Computer des Agents, mit deinem ChatGPT- oder Claude-Abo, und berichten, was sie geändert und geprüft haben und was sie von dir brauchen.
 
-<a href="docs/assets/readme/highlight-coding.webp"><img src="docs/assets/readme/highlight-coding.webp" alt="Die Antwort des Coder-Agents, nachdem Codex die Launch-Seite gebaut hat: verwendete Farben und Überschrift, was weggelassen wurde, bestandene Prüfungen und zwei Entscheidungen für das Team" width="100%"></a>
+<a href="docs/assets/readme/highlight-coding.webp"><img src="docs/assets/readme/highlight-coding.webp" alt="Eine Entwicklungsübergabe mit erzeugten Dateien, Tests, Implementierungsentscheidungen und offenen Punkten." width="100%"></a>
 
 ### Frag, wie es funktioniert, und bekomm eine Zeichnung, die du nutzen kannst
 
 Ein Agent zeichnet, während er schreibt: ein Diagramm aus deinen Dokumenten, einen Rechner mit Schiebereglern, ein Diagramm oder eine 3D-Szene, live unter seiner Nachricht. Ein Klick speichert es als App, die dein Team per Link öffnet.
 
-<a href="docs/assets/readme/highlight-visuals.webp"><img src="docs/assets/readme/highlight-visuals.webp" alt="Ein ROI-Rechner, den der Agent Visuals Lab im Chat gezeichnet hat: Schieberegler für Rechnungen, Minuten pro Rechnung, Stundenkosten und eingesparte Zeit, die gesparten Dollar pro Jahr und ein Balkendiagramm der monatlichen Kosten vorher und nachher" width="100%"></a>
+<a href="docs/assets/readme/highlight-visuals.webp"><img src="docs/assets/readme/highlight-visuals.webp" alt="Ein vorbereitetes Visuals-Beispiel im Gespräch: eine interaktive Erklärung, die Frage, Quellenauszug und belegte Antwort verbindet. Es zeigt keinen echten Modell- oder Retrieval-Aufruf." width="100%"></a>
+
+*Ein vorbereitetes Visuals-Beispiel im Gespräch: eine interaktive Erklärung, die Frage, Quellenauszug und belegte Antwort verbindet. Es zeigt keinen echten Modell- oder Retrieval-Aufruf.*
 
 ### Schreib einem Agent und geh
 
@@ -95,7 +101,7 @@ Ein führender Agent gibt Teile einer Aufgabe an Kollegen weiter und fasst zusam
 
 Sieh zu, wie er sich durch Seiten klickt, übernimm, wenn eine Anmeldung dich braucht, zeig auf eine Stelle, um sie zu kommentieren.
 
-<a href="docs/assets/readme/highlight-browser.webp"><img src="docs/assets/readme/highlight-browser.webp" alt="Der Live-Browser eines Sales Researchers unter seiner Nachricht im Chat, geöffnet auf der Artemis-III-Missionsseite der NASA, darunter die Antwort, die er aus der Seite geschrieben hat" width="100%"></a>
+<a href="docs/assets/readme/highlight-browser.webp"><img src="docs/assets/readme/highlight-browser.webp" alt="Die aufgezeichneten Browserschritte des Sales Researcher und seine belegte Antwort zu Ramp-Preisen." width="100%"></a>
 
 ### Bauen, ausstatten und testen in einem Fenster
 
@@ -107,7 +113,20 @@ Schalte Tools über illustrierte Karten ein und gib dem Entwurf im Test-Chat dan
 
 Ein Agent veröffentlicht ein Dashboard oder einen Bericht als Seite mit festem Link und Versionen.
 
-<a href="docs/assets/readme/highlight-app.webp"><img src="docs/assets/readme/highlight-app.webp" alt="Ein ROI-Rechner, den ein Visuals-Lab-Agent im Chat gezeichnet hat, als App mit eigenem Link gespeichert: Regler für Rechnungen, Minuten und Stundensatz, 69.120 $ Ersparnis pro Jahr und die monatlichen Kosten vorher und nachher" width="100%"></a>
+<a href="docs/assets/readme/highlight-app.webp"><img src="docs/assets/readme/highlight-app.webp" alt="Company Brain, eine vorbereitete LLM-Wiki-App: interaktive Karte von sechs fiktiven Quellennotizen mit Quellenvorschau." width="100%"></a>
+
+*Company Brain, eine vorbereitete LLM-Wiki-App: interaktive Karte von sechs fiktiven Quellennotizen mit Quellenvorschau.*
+
+<details>
+<summary>Weitere Apps: Einführungsplanung und Einkauf</summary>
+
+Beispiel-Apps mit synthetischen Daten. Launch Room filtert Aufgaben und öffnet Briefings zur Prüfung. Trail Supply empfiehlt Produkte nach vorbereiteten Regeln und aktualisiert einen Demo-Warenkorb; es löst keine Bestellungen aus und zeigt kein aktives Agent-Widget.
+
+<a href="docs/assets/readme/highlight-launch-room.webp"><img src="docs/assets/readme/highlight-launch-room.webp" alt="Launch Room — Beispiel-Apps mit synthetischen Daten. Launch Room filtert Aufgaben und öffnet Briefings zur Prüfung. Trail Supply empfiehlt Produkte nach vorbereiteten Regeln und aktualisiert einen Demo-Warenkorb; es löst keine Bestellungen aus und zeigt kein aktives Agent-Widget." width="100%"></a>
+
+<a href="docs/assets/readme/highlight-shopping.webp"><img src="docs/assets/readme/highlight-shopping.webp" alt="Trail Supply — Beispiel-Apps mit synthetischen Daten. Launch Room filtert Aufgaben und öffnet Briefings zur Prüfung. Trail Supply empfiehlt Produkte nach vorbereiteten Regeln und aktualisiert einen Demo-Warenkorb; es löst keine Bestellungen aus und zeigt kein aktives Agent-Widget." width="100%"></a>
+
+</details>
 
 ### Über 4.700 MCP-Server
 
@@ -131,6 +150,19 @@ AgenticOS ist ein MCP-Server. Mit einem Befehl hinzufügen und im Browser anmeld
 ## 🧩 Nützliche Abläufe mit Agents bauen
 
 Mit [Workflows](https://vstorm-co.github.io/agenticos/de/workflows/) verbindest du typisierte Schritte, Agent-Aufrufe und MCP-Tools auf einer visuellen Arbeitsfläche. Strukturierte Ergebnisse stehen in [Virtual Tables](https://vstorm-co.github.io/agenticos/de/virtual-tables/); [Routines](https://vstorm-co.github.io/agenticos/de/triggers/) starten die Arbeit. Runs und Freigaben bleiben überprüfbar. [Sprachanrufe](https://vstorm-co.github.io/agenticos/de/voice/) und die [Desktop-App](https://vstorm-co.github.io/agenticos/de/desktop/) nutzen dieselben veröffentlichten Agents.
+
+**Visuelle Workflows: vom neuen Lead bis zur Übergabe nach menschlicher Prüfung.**
+
+<a href="docs/assets/readme/highlight-workflows.webp"><img src="docs/assets/readme/highlight-workflows.webp" alt="Beispielentwurf mit 30 Schritten: Google Workspace, Microsoft 365, HubSpot, Salesforce, Notion, Slack, Agents und Freigaben. Die Verbindungen sind Demo-Platzhalter; die Integration wurde nicht ausgeführt." width="100%"></a>
+
+Beispielentwurf mit 30 Schritten: Google Workspace, Microsoft 365, HubSpot, Salesforce, Notion, Slack, Agents und Freigaben. Die Verbindungen sind Demo-Platzhalter; die Integration wurde nicht ausgeführt.
+
+**Strukturierte Arbeit, die Agents und Team gemeinsam lesen können.**
+
+<a href="docs/assets/readme/highlight-tables.webp"><img src="docs/assets/readme/highlight-tables.webp" alt="Virtual Tables mit fiktiven Unternehmen, typisierten Feldern, Phasen und nächsten Schritten. Dieselben Datensätze als Tabelle oder Kanban-Board." width="100%"></a>
+
+Virtual Tables mit fiktiven Unternehmen, typisierten Feldern, Phasen und nächsten Schritten. Dieselben Datensätze als Tabelle oder Kanban-Board.
+
 
 Beginne mit einer konkreten Aufgabe: einem [LLM-Wiki in einem Project](https://vstorm-co.github.io/agenticos/de/projects/), einem [Agent-Widget auf einer Website](https://vstorm-co.github.io/agenticos/de/channels/) oder Teamarbeit mit gemeinsamen Projektdateien und Anweisungen. Das Widget stellt die Unterhaltung bereit; Empfehlungen und Warenkorb-Aktionen erfordern deinen Katalog, Tool-Integrationen und Berechtigungsprüfungen.
 

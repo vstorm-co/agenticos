@@ -1,0 +1,329 @@
+{
+  "format": "agenticos.workflow",
+  "format_version": 1,
+  "name": "Customer support triage · demo",
+  "description": "Illustrative draft. Synthetic data; connections and credentials not configured. Not an executed workflow.",
+  "tags": [
+    "demo",
+    "configuration-only"
+  ],
+  "settings": {
+    "timezone": "UTC",
+    "default_deadline_seconds": null,
+    "error_workflow_id": null,
+    "run_retention_days": null,
+    "keep_succeeded_runs": true,
+    "max_concurrent_runs": null,
+    "run_budget_usd": null,
+    "monthly_budget_usd": null
+  },
+  "graph": {
+    "entry_node_id": "92478c00-abcd-400d-8be3-747af7f4dcb3",
+    "nodes": [
+      {
+        "id": "92478c00-abcd-400d-8be3-747af7f4dcb3",
+        "definition_id": "trigger.webhook",
+        "definition_version": 1,
+        "config": {},
+        "policy": null,
+        "layout": {
+          "x": 0,
+          "y": 0,
+          "width": 285
+        },
+        "label": "New support request",
+        "notes": null,
+        "disabled": false,
+        "pinned_output": null,
+        "quick_log": null
+      },
+      {
+        "id": "a8c6a62d-4872-4885-a281-452bb8066f7f",
+        "definition_id": "ai.classify",
+        "definition_version": 1,
+        "config": {},
+        "policy": null,
+        "layout": {
+          "x": 315,
+          "y": 0,
+          "width": 285
+        },
+        "label": "Identify issue and urgency",
+        "notes": null,
+        "disabled": false,
+        "pinned_output": null,
+        "quick_log": null
+      },
+      {
+        "id": "eb9b024d-2ace-4328-aef5-19fb86c0ee1d",
+        "definition_id": "mcp.call",
+        "definition_version": 1,
+        "config": {
+          "tool": "search_contacts"
+        },
+        "policy": null,
+        "layout": {
+          "x": 630,
+          "y": 0,
+          "width": 285
+        },
+        "label": "Look up customer",
+        "notes": null,
+        "disabled": false,
+        "pinned_output": null,
+        "quick_log": null
+      },
+      {
+        "id": "a575c4a1-fa5e-4b60-9bb8-f41c5803b156",
+        "definition_id": "knowledge.search",
+        "definition_version": 1,
+        "config": {},
+        "policy": null,
+        "layout": {
+          "x": 945,
+          "y": 0,
+          "width": 285
+        },
+        "label": "Find product guidance",
+        "notes": null,
+        "disabled": false,
+        "pinned_output": null,
+        "quick_log": null
+      },
+      {
+        "id": "26a1770a-91fc-4457-b023-e90b8f8c1979",
+        "definition_id": "agent.run",
+        "definition_version": 1,
+        "config": {
+          "inline": {
+            "name": "Draft grounded answer"
+          }
+        },
+        "policy": null,
+        "layout": {
+          "x": 0,
+          "y": 170,
+          "width": 285
+        },
+        "label": "Draft grounded answer",
+        "notes": null,
+        "disabled": false,
+        "pinned_output": null,
+        "quick_log": null
+      },
+      {
+        "id": "b46248f4-7d47-4e93-b9fb-4889e8aa810d",
+        "definition_id": "logic.if",
+        "definition_version": 1,
+        "config": {
+          "expression": "value.score >= 80"
+        },
+        "policy": null,
+        "layout": {
+          "x": 315,
+          "y": 170,
+          "width": 285
+        },
+        "label": "Check answer confidence",
+        "notes": null,
+        "disabled": false,
+        "pinned_output": null,
+        "quick_log": null
+      },
+      {
+        "id": "9aa8d1ff-867b-44e5-b210-abcf614fc0d4",
+        "definition_id": "human.approval",
+        "definition_version": 1,
+        "config": {},
+        "policy": null,
+        "layout": {
+          "x": 630,
+          "y": 170,
+          "width": 285
+        },
+        "label": "Request human review",
+        "notes": null,
+        "disabled": false,
+        "pinned_output": null,
+        "quick_log": null
+      },
+      {
+        "id": "5f087e85-e214-49e7-bb42-67aa88a8ed50",
+        "definition_id": "mcp.call",
+        "definition_version": 1,
+        "config": {
+          "tool": "create-reply-draft"
+        },
+        "policy": null,
+        "layout": {
+          "x": 945,
+          "y": 170,
+          "width": 285
+        },
+        "label": "Create reply draft",
+        "notes": null,
+        "disabled": false,
+        "pinned_output": null,
+        "quick_log": null
+      },
+      {
+        "id": "b008a174-808c-42cd-a659-08d73d4611c0",
+        "definition_id": "mcp.call",
+        "definition_version": 1,
+        "config": {
+          "tool": "create_issue"
+        },
+        "policy": null,
+        "layout": {
+          "x": 0,
+          "y": 340,
+          "width": 285
+        },
+        "label": "Log issue in GitHub",
+        "notes": null,
+        "disabled": false,
+        "pinned_output": null,
+        "quick_log": null
+      },
+      {
+        "id": "40f6ac11-4cee-4175-8745-72f87d28dad5",
+        "definition_id": "slack.message.send",
+        "definition_version": 1,
+        "config": {},
+        "policy": null,
+        "layout": {
+          "x": 315,
+          "y": 340,
+          "width": 285
+        },
+        "label": "Alert support in Slack",
+        "notes": null,
+        "disabled": false,
+        "pinned_output": null,
+        "quick_log": null
+      },
+      {
+        "id": "fd5c099f-f617-4a1a-9c45-38e141898d0f",
+        "definition_id": "table.record.upsert",
+        "definition_version": 1,
+        "config": {},
+        "policy": null,
+        "layout": {
+          "x": 630,
+          "y": 340,
+          "width": 285
+        },
+        "label": "Save support case",
+        "notes": null,
+        "disabled": false,
+        "pinned_output": null,
+        "quick_log": null
+      },
+      {
+        "id": "57569bf3-7827-4718-bc54-acb95a912495",
+        "definition_id": "core.output",
+        "definition_version": 1,
+        "config": {},
+        "policy": null,
+        "layout": {
+          "x": 945,
+          "y": 340,
+          "width": 285
+        },
+        "label": "Return handoff",
+        "notes": null,
+        "disabled": false,
+        "pinned_output": null,
+        "quick_log": null
+      }
+    ],
+    "edges": [
+      {
+        "id": "a8d5e11e-ed81-4d56-81c9-9e3b74f3da45",
+        "source_node_id": "92478c00-abcd-400d-8be3-747af7f4dcb3",
+        "source_port": "out",
+        "target_node_id": "a8c6a62d-4872-4885-a281-452bb8066f7f",
+        "target_port": "in"
+      },
+      {
+        "id": "7c033891-0a92-4956-8af5-e97b084dae1c",
+        "source_node_id": "a8c6a62d-4872-4885-a281-452bb8066f7f",
+        "source_port": "other",
+        "target_node_id": "eb9b024d-2ace-4328-aef5-19fb86c0ee1d",
+        "target_port": "in"
+      },
+      {
+        "id": "1decbd25-0be5-4b36-83bc-dff2c0a7afaf",
+        "source_node_id": "eb9b024d-2ace-4328-aef5-19fb86c0ee1d",
+        "source_port": "out",
+        "target_node_id": "a575c4a1-fa5e-4b60-9bb8-f41c5803b156",
+        "target_port": "in"
+      },
+      {
+        "id": "da9cc2de-fea0-4b53-91d6-cf1de01fff6c",
+        "source_node_id": "26a1770a-91fc-4457-b023-e90b8f8c1979",
+        "source_port": "out",
+        "target_node_id": "b46248f4-7d47-4e93-b9fb-4889e8aa810d",
+        "target_port": "in"
+      },
+      {
+        "id": "f4db2214-a57e-46c8-b41b-3fedf89051aa",
+        "source_node_id": "b46248f4-7d47-4e93-b9fb-4889e8aa810d",
+        "source_port": "true",
+        "target_node_id": "9aa8d1ff-867b-44e5-b210-abcf614fc0d4",
+        "target_port": "in"
+      },
+      {
+        "id": "05192ca2-fdd6-4938-bdf0-2c7a380867a4",
+        "source_node_id": "9aa8d1ff-867b-44e5-b210-abcf614fc0d4",
+        "source_port": "approved",
+        "target_node_id": "5f087e85-e214-49e7-bb42-67aa88a8ed50",
+        "target_port": "in"
+      },
+      {
+        "id": "d9ffbf51-904a-443b-b1ba-58a964e2af3f",
+        "source_node_id": "b008a174-808c-42cd-a659-08d73d4611c0",
+        "source_port": "out",
+        "target_node_id": "40f6ac11-4cee-4175-8745-72f87d28dad5",
+        "target_port": "in"
+      },
+      {
+        "id": "e2892e8e-b003-4bc2-9c5b-203cb7c4728a",
+        "source_node_id": "40f6ac11-4cee-4175-8745-72f87d28dad5",
+        "source_port": "out",
+        "target_node_id": "fd5c099f-f617-4a1a-9c45-38e141898d0f",
+        "target_port": "in"
+      },
+      {
+        "id": "131cc950-da45-4c5f-8a2c-82a7e6a4b376",
+        "source_node_id": "fd5c099f-f617-4a1a-9c45-38e141898d0f",
+        "source_port": "out",
+        "target_node_id": "57569bf3-7827-4718-bc54-acb95a912495",
+        "target_port": "in"
+      }
+    ],
+    "bindings": [],
+    "scopes": [],
+    "notes": []
+  },
+  "unresolved": [
+    {
+      "node_id": "eb9b024d-2ace-4328-aef5-19fb86c0ee1d",
+      "step": "Look up customer",
+      "field": "connection_id",
+      "kind": "mcp_connection"
+    },
+    {
+      "node_id": "5f087e85-e214-49e7-bb42-67aa88a8ed50",
+      "step": "Create reply draft",
+      "field": "connection_id",
+      "kind": "mcp_connection"
+    },
+    {
+      "node_id": "b008a174-808c-42cd-a659-08d73d4611c0",
+      "step": "Log issue in GitHub",
+      "field": "connection_id",
+      "kind": "mcp_connection"
+    }
+  ]
+}

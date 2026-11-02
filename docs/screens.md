@@ -1,6 +1,8 @@
 # Every screen in the console
 
-Every module of the console, described, with a capture of each. The pictures follow the theme you read the site in - switch it in the header and they switch with it. They show a demo organization, Northwind Labs, whose company, documents and figures are made up; the conversations and the published app are real runs of its agents.
+The gallery uses the fictional Northwind Labs organization. Company data and figures are made up. Historical agent conversations appear alongside explicitly labelled seeded demonstrations. Screenshots follow the site theme; change it in the header to switch the images.
+
+Static console captures were refreshed on 2 November 2026 with AgenticOS 1.35.3. The sales, document and support workflows are illustrative drafts with placeholder connections. The batch-processing example ran locally without models or external tools. Pipeline figures are fictional. The video below is a historical recording.
 
 ## Product demo
 
@@ -140,43 +142,50 @@ The same agent as a graph: what reaches it, and what it reaches for. A dashed bo
 
 The catalog of automations, one card each: its status, who may reach it, whether a version is live and when it was last edited, with its runs, the editor and a copy a click away.
 
-> **Screenshot pending — Workflows.**
+![Workflows](assets/screens/light/workflows.webp#only-light)
+![Workflows](assets/screens/dark/workflows.webp#only-dark)
 
 ### The workflow editor
 
 The canvas has the whole width: the graph as cards that say what each step is set to do or which group it belongs to, a step's settings in a dialog over it, and every step to add one click - or one right click - away. A loop shows how many steps its body holds.
 
-> **Screenshot pending — The workflow editor.**
+![Workflow editor](assets/screens/light/workflow-editor.webp#only-light)
+![Workflow editor](assets/screens/dark/workflow-editor.webp#only-dark)
 
 ### A loop's body
 
-Inside a loop, one step selected: the table it writes and its columns, a record id read from the loop's current item, the values it writes, and its policy - three tries, and failures routed out of its red **Error** port to an error handler instead of failing the run.
+Inside a loop: the current company, the mapping that shapes its record and the step that collects the result. This local example processes three fictional company names without external credentials.
 
-> **Screenshot pending — A loop's body.**
+![Workflow loop body](assets/screens/light/workflow-loop-body.webp#only-light)
+![Workflow loop body](assets/screens/dark/workflow-loop-body.webp#only-dark)
 
 ### Runs
 
 Every run of one workflow, newest first: whether it ran the draft or the published version, what started it, when, for how long and at what cost. **Start a run** tests the draft with an input of your own.
 
-> **Screenshot pending — Runs.**
+![Workflow runs](assets/screens/light/workflow-runs.webp#only-light)
+![Workflow runs](assets/screens/dark/workflow-runs.webp#only-dark)
 
 ### A run
 
 One run, as it happened: the graph it executed with each step marked by what it did, the output it answered with, and every step it took, iteration by iteration.
 
-> **Screenshot pending — A run.**
+![Workflow run](assets/screens/light/workflow-run.webp#only-light)
+![Workflow run](assets/screens/dark/workflow-run.webp#only-dark)
 
 ### Tables
 
 Typed records your agents, workflows and integrations read and write, one card per table with who may reach it and its schema version.
 
-> **Screenshot pending — Tables.**
+![Tables](assets/screens/light/tables.webp#only-light)
+![Tables](assets/screens/dark/tables.webp#only-dark)
 
 ### A table
 
-The records of one table, after the run above raised every low score: select values as coloured chips, and the same records as a kanban board or a list a tab away.
+A demonstration sales pipeline with typed fields, coloured stages and next actions. The same fictional records are available as a table, kanban board or list.
 
-> **Screenshot pending — A table.**
+![Table detail](assets/screens/light/table-detail.webp#only-light)
+![Table detail](assets/screens/dark/table-detail.webp#only-dark)
 
 ## Knowledge
 
@@ -254,10 +263,31 @@ Pages agents published - reports, small dashboards, summaries. Each one keeps it
 
 ### One app
 
-The revenue dashboard from the chat above, opened. It is private until somebody shares it, and a public link is a separate decision that can be withdrawn.
+Company Brain, a seeded LLM wiki example, opened as a private app. Select a fictional source note to read its context. The map is an interactive explanation, not a live retrieval query. Sharing and public links remain separate choices.
 
 ![One app](assets/screens/light/app-detail.webp#only-light)
 ![One app](assets/screens/dark/app-detail.webp#only-dark)
+
+### Launch Room
+
+A seeded launch-planning app with four task lanes, working filters and review briefs. All companies, dates and tasks are fictional; changes stay in the preview.
+
+![Launch Room](assets/screens/light/app-launch.webp#only-light)
+![Launch Room](assets/screens/dark/app-launch.webp#only-dark)
+
+### An interactive shopping demo
+
+A fictional store with budget controls, deterministic recommendations and a demo bag. It does not place orders or show a live agent widget.
+
+![An interactive shopping demo](assets/screens/light/app-shopping.webp#only-light)
+![An interactive shopping demo](assets/screens/dark/app-shopping.webp#only-dark)
+
+### Visuals in the conversation
+
+A seeded HTML visual connects a question to a fictional policy excerpt and cited answer. Its controls work in the real conversation renderer. The visual can be saved as an app; the screenshot is not evidence of a live model or retrieval run.
+
+![Visuals in the conversation](assets/screens/light/visuals.webp#only-light)
+![Visuals in the conversation](assets/screens/dark/visuals.webp#only-dark)
 
 ## The organization
 
