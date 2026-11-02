@@ -1,5 +1,5 @@
 ---
-source_sha: "3a2e96da6c2b"
+source_sha: "86cf21a8e53e"
 ---
 
 # Governance { #governance }
@@ -58,6 +58,8 @@ Define `ends_at` con un desplazamiento UTC para el trabajo con duración limitad
 `monthly_budget_usd` para un límite mensual más estricto. La herramienta MCP de
 actualización permite quitar ambos ajustes. Una clave API ordinaria no puede
 autorizar a una rutina a usar las cuentas personales de quien la emitió.
+
+La política de versiones permite seguir la versión publicada predeterminada o fijar una versión inmutable. Una publicación no cambia la versión fijada. Elimina la fijación para volver a seguir la predeterminada. Un entorno con nombre y una versión fijada se excluyen mutuamente; siguen vigentes los permisos, presupuestos y aprobaciones actuales.
 
 ## Budgets { #budgets }
 

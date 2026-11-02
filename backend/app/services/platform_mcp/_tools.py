@@ -489,6 +489,7 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         delivery_conversation_id: UUID | None = None,
         answer_to: Literal["run_log", "primary", "conversation"] | None = None,
         monthly_budget_usd: str | None = None,
+        pinned_version_id: UUID | None = None,
     ) -> dict[str, Any]:
         """Make an agent run itself on a schedule - a Routine. Needs `agents:run` on it.
 
@@ -506,9 +507,13 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         created from a private chat answers there unless `answer_to` explicitly
         selects another target. `ends_at` is an ISO timestamp with its UTC offset;
         set it for time-bounded requests. `monthly_budget_usd` is a decimal USD cap.
-        The result names the routine, next activation and its management state.
+        `pinned_version_id` keeps one published version; omitted, future fires
+        follow the published version. The result names the routine, next activation
+        and its management state.
         """
         body: dict[str, Any] = {"prompt": prompt, "runs_as_creator": runs_as_me}
+        if pinned_version_id is not None:
+            body["pinned_version_id"] = str(pinned_version_id)
         if name:
             body["name"] = name
         if cron_expression is not None:
@@ -544,19 +549,28 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         answer_to: Literal["run_log", "primary", "conversation"] | None = None,
         monthly_budget_usd: str | None = None,
         clear_budget: bool = False,
+        pinned_version_id: UUID | None = None,
+        follow_latest: bool = False,
     ) -> dict[str, Any]:
         """Pause or resume a routine, or change its prompt, cadence, zone or name.
 
         Only what you pass changes; a cron is read in the routine's `time_zone`,
         as for `create_routine`, and passing only `time_zone` moves the same hour
         to another zone.
+        `pinned_version_id` selects a published version; `follow_latest` clears a
+        pin and returns to the default environment.
         Needs to be the routine's creator, or `agents:edit` on its agent.
         """
+        if pinned_version_id is not None and follow_latest:
+            raise ValueError("Choose pinned_version_id or follow_latest, not both")
         if ends_at is not None and clear_end:
             raise ValueError("Choose ends_at or clear_end, not both")
         if monthly_budget_usd is not None and clear_budget:
             raise ValueError("Choose monthly_budget_usd or clear_budget, not both")
         body: dict[str, Any] = {}
+        if pinned_version_id is not None or follow_latest:
+            body["pinned_version_id"] = None if follow_latest else str(pinned_version_id)
+            body["environment_id"] = None
         if active is not None:
             body["is_active"] = active
         if prompt is not None:

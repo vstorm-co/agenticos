@@ -1,5 +1,5 @@
 ---
-source_sha: "3a2e96da6c2b"
+source_sha: "86cf21a8e53e"
 ---
 
 # Governance { #governance }
@@ -58,6 +58,8 @@ Ustaw `ends_at` z przesunięciem UTC dla pracy ograniczonej w czasie oraz
 `monthly_budget_usd` dla niższego limitu miesięcznego. Narzędzie aktualizacji
 MCP pozwala usunąć oba ustawienia. Zwykły klucz API nie może upoważnić rutyny
 do korzystania z osobistych kont jego wystawcy.
+
+Wybór wersji pozwala śledzić domyślną opublikowaną wersję albo przypiąć jedną niezmienną wersję. Publikacja nie przesuwa pinu. Usuń go, aby ponownie śledzić wersję domyślną. Nazwane środowisko i pin wersji wzajemnie się wykluczają; nadal obowiązują bieżące uprawnienia, budżety i zatwierdzenia.
 
 ## Budżety { #budgets }
 

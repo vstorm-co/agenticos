@@ -232,6 +232,13 @@ class AgentTrigger(Base, TimestampMixin):
         nullable=True,
     )
 
+    pinned_version_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("agent_versions.id", ondelete="RESTRICT"),
+        nullable=True,
+    )
+    """An explicitly selected immutable version; null follows the chosen environment."""
+
     # Which of the two concepts this row is. `schedule` fires on the clock and
     # fills the cadence columns below; `event` fires on arrival and fills the
     # event columns instead. The CHECK keeps a row to exactly one shape.
@@ -379,6 +386,9 @@ class AgentTrigger(Base, TimestampMixin):
     # schema from the models, so a constraint stated only in the migration would
     # be absent from exactly the tests written to prove it rejects a row.
     __table_args__ = (
+        CheckConstraint(
+            "pinned_version_id IS NULL OR environment_id IS NULL", name="ck_trigger_version_target"
+        ),
         CheckConstraint("trigger_type IN ('schedule', 'event')", name="ck_trigger_type"),
         CheckConstraint("schedule_kind IN ('interval', 'cron')", name="ck_trigger_schedule_kind"),
         CheckConstraint("overlap IN ('skip', 'queue', 'allow')", name="ck_trigger_overlap"),

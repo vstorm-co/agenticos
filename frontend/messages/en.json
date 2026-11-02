@@ -8435,7 +8435,15 @@
     "routineLoadError": "The routine could not be loaded.",
     "retryRoutine": "Try again",
     "routineUnavailable": "This routine is no longer available.",
-    "nextActivation": "Next activation: {at}"
+    "nextActivation": "Next activation: {at}",
+    "versionPolicy": "Version policy",
+    "followPublishedVersion": "Follow published version",
+    "pinPublishedVersion": "Pin a published version",
+    "versionFollowHelp": "Each fire follows the default published version. Source and action permissions still apply.",
+    "versionPinHelp": "Each fire uses the same selected version until you change it.",
+    "pinnedVersion": "Pinned version",
+    "chooseVersion": "Choose a published version",
+    "selectedVersionUnavailable": "Selected version unavailable"
   },
   "portals": {
     "mailboxInterval": {

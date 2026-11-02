@@ -547,6 +547,7 @@ async def test_each_tool_is_one_public_api_call(
     [
         {"ends_at": "2027-01-01T12:00:00+00:00", "clear_end": True},
         {"monthly_budget_usd": "5.00", "clear_budget": True},
+        {"pinned_version_id": str(KB), "follow_latest": True},
     ],
 )
 async def test_routine_update_refuses_conflicting_limits(
@@ -1244,3 +1245,37 @@ async def test_unexpected_platform_failures_stay_masked():
         result = await client.call_tool("broken", {}, raise_on_error=False)
     assert result.is_error
     assert "confidential" not in str(result.content)
+
+
+@pytest.mark.parametrize("follow_latest", [False, True])
+async def test_routine_update_selects_version_policy(
+    server: FastMCP, api: MagicMock, follow_latest: bool
+) -> None:
+    arguments = {"follow_latest": True} if follow_latest else {"pinned_version_id": str(KB)}
+    await server.call_tool(
+        "update_routine",
+        {
+            "agent_id": str(AGENT),
+            "routine_id": str(RUN),
+            **arguments,
+        },
+    )
+    assert api.request.await_args.kwargs["json"] == {
+        "pinned_version_id": None if follow_latest else str(KB),
+        "environment_id": None,
+    }
+
+
+async def test_routine_creation_can_pin_a_published_version(
+    server: FastMCP, api: MagicMock
+) -> None:
+    await server.call_tool(
+        "create_routine",
+        {
+            "agent_id": str(AGENT),
+            "prompt": "Report",
+            "every_minutes": 60,
+            "pinned_version_id": str(KB),
+        },
+    )
+    assert api.request.await_args.kwargs["json"]["pinned_version_id"] == str(KB)

@@ -218,6 +218,7 @@ async def create(
     delivery_conversation_id: UUID | None = None,
     ends_at: datetime | None = None,
     monthly_budget_usd: Decimal | None = None,
+    pinned_version_id: UUID | None = None,
 ) -> AgentTrigger:
     trigger = AgentTrigger(
         organization_id=organization_id,
@@ -234,6 +235,7 @@ async def create(
         event_secret_encrypted=event_secret_encrypted,
         secret_key_version=secret_key_version,
         environment_id=environment_id,
+        pinned_version_id=pinned_version_id,
         next_fire_at=next_fire_at,
         connection_id=connection_id,
         portal_key=portal_key,
@@ -434,6 +436,7 @@ async def withdraw_creator_consent(
         .where(
             AgentTrigger.agent_id == agent_id,
             AgentTrigger.runs_as_creator.is_(True),
+            AgentTrigger.pinned_version_id.is_(None),
             AgentTrigger.created_by_user_id.is_distinct_from(kept_for),
         )
         .values(runs_as_creator=False)

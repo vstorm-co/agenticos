@@ -41,6 +41,7 @@ import {
   WORKDAYS,
   type CadenceChoice,
 } from "@/components/triggers/cadence-choices";
+import { VersionField } from "@/components/triggers/version-field";
 import { AnswerToField } from "@/components/triggers/answer-to-field";
 import { BudgetField, parseBudget } from "@/components/triggers/budget-field";
 import { OverlapField } from "@/components/triggers/overlap-field";
@@ -216,6 +217,13 @@ export function TriggerFormDialog({
   const [prompt, setPrompt] = useState(trigger?.prompt ?? "");
   const [name, setName] = useState(trigger?.name ?? "");
   const [environmentId, setEnvironmentId] = useState(trigger?.environment_id ?? DEFAULT_ENV);
+  const [pinnedVersion, setPinnedVersion] = useState(trigger?.pinned_version_id ?? null);
+  const [versionValid, setVersionValid] = useState(true);
+  const changeEnvironment = (value: string) => {
+    setEnvironmentId(value);
+    setPinnedVersion(null);
+    setVersionValid(true);
+  };
   const [runsAsCreator, setRunsAsCreator] = useState(trigger?.runs_as_creator ?? false);
   const [localTarget, setLocalTarget] = useState<LocalTarget | null>(trigger?.local_target ?? null);
   const [overlap, setOverlap] = useState<TriggerOverlap>(trigger?.overlap ?? "skip");
@@ -443,6 +451,7 @@ export function TriggerFormDialog({
       name: name.trim() || null,
       trigger_type: type,
       environment_id: environmentId === DEFAULT_ENV ? null : environmentId,
+      ...(pinnedVersion ? { pinned_version_id: pinnedVersion } : {}),
       // Only when asked for: off is the server's default, and the request then
       // says nothing about acting as anybody.
       ...(runsAsCreator ? { runs_as_creator: true } : {}),
@@ -475,6 +484,8 @@ export function TriggerFormDialog({
         if (nextName !== (trigger.name ?? null)) patch.name = nextName;
         const env = environmentId === DEFAULT_ENV ? null : environmentId;
         if (env !== (trigger.environment_id ?? null)) patch.environment_id = env;
+        if (pinnedVersion !== (trigger.pinned_version_id ?? null))
+          patch.pinned_version_id = pinnedVersion;
         if (runsAsCreator !== trigger.runs_as_creator) patch.runs_as_creator = runsAsCreator;
         // Turning acting-as-me off clears the folder on the server; say nothing then.
         const before = trigger.local_target ?? null;
@@ -547,7 +558,7 @@ export function TriggerFormDialog({
     (cronFreq !== "advanced" || cronAdvanced.trim().length > 0) &&
     (cronFreq === "everyNDays" || isTimeZone(timeZone));
   const scheduleValid = scheduleKind === "cron" ? cronValid : intervalCountValid(intervalCount);
-  const taskValid = prompt.trim().length > 0 && effectiveAgentId !== null;
+  const taskValid = prompt.trim().length > 0 && effectiveAgentId !== null && versionValid;
   // Editing a schedule can change its cadence, so the cadence is guarded then
   // too; an event edit has no cadence and only its prompt/name to check.
   const canSubmit =
@@ -736,9 +747,19 @@ export function TriggerFormDialog({
             {namedEnvironments.length > 0 && (
               <EnvironmentField
                 value={environmentId}
-                onChange={setEnvironmentId}
+                onChange={changeEnvironment}
                 environments={namedEnvironments}
                 defaultEnvironment={defaultEnvironment}
+              />
+            )}
+
+            {environmentId === DEFAULT_ENV && effectiveAgentId && (
+              <VersionField
+                key={effectiveAgentId}
+                agentId={effectiveAgentId}
+                value={pinnedVersion}
+                onChange={setPinnedVersion}
+                onValidChange={setVersionValid}
               />
             )}
 
@@ -830,7 +851,7 @@ export function TriggerFormDialog({
                       setPickedAgentId(next);
                       // A named environment belongs to one agent; carrying the
                       // previous agent's choice across would be refused on create.
-                      setEnvironmentId(DEFAULT_ENV);
+                      changeEnvironment(DEFAULT_ENV);
                     }}
                   >
                     <SelectTrigger id="trigger-agent">
@@ -861,9 +882,19 @@ export function TriggerFormDialog({
               {namedEnvironments.length > 0 && (
                 <EnvironmentField
                   value={environmentId}
-                  onChange={setEnvironmentId}
+                  onChange={changeEnvironment}
                   environments={namedEnvironments}
                   defaultEnvironment={defaultEnvironment}
+                />
+              )}
+
+              {environmentId === DEFAULT_ENV && effectiveAgentId && (
+                <VersionField
+                  key={effectiveAgentId}
+                  agentId={effectiveAgentId}
+                  value={pinnedVersion}
+                  onChange={setPinnedVersion}
+                  onValidChange={setVersionValid}
                 />
               )}
 

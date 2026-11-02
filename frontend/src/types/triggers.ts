@@ -61,6 +61,7 @@ export interface Trigger {
   can_manage: boolean;
   /** Which named environment answers here; null = the default. */
   environment_id: string | null;
+  pinned_version_id?: string | null;
   /** The Teams channel or group chat each fire's answer is also posted to (#1985). */
   teams_conversation_id?: string | null;
   /** Where each fire's answer is delivered to its person, beside the run log (#2575). */
@@ -143,6 +144,7 @@ export interface TriggerCreate {
   name?: string | null;
   trigger_type: TriggerType;
   environment_id?: string | null;
+  pinned_version_id?: string | null;
   teams_conversation_id?: string | null;
   answer_to?: TriggerAnswerTo;
   ends_at?: string | null;
@@ -205,6 +207,7 @@ export interface TriggerUpdate {
   overlap?: TriggerOverlap;
   is_active?: boolean;
   environment_id?: string | null;
+  pinned_version_id?: string | null;
   teams_conversation_id?: string | null;
   answer_to?: TriggerAnswerTo;
   ends_at?: string | null;

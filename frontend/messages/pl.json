@@ -7283,7 +7283,15 @@
     "routineLoadError": "Nie udało się wczytać rutyny.",
     "retryRoutine": "Spróbuj ponownie",
     "routineUnavailable": "Ta rutyna nie jest już dostępna.",
-    "nextActivation": "Następna aktywacja: {at}"
+    "nextActivation": "Następna aktywacja: {at}",
+    "versionPolicy": "Wersja agenta",
+    "followPublishedVersion": "Śledź opublikowaną wersję",
+    "pinPublishedVersion": "Przypnij opublikowaną wersję",
+    "versionFollowHelp": "Każde uruchomienie używa domyślnej opublikowanej wersji. Nadal obowiązują uprawnienia do źródeł i akcji.",
+    "versionPinHelp": "Każde uruchomienie używa tej samej wybranej wersji, dopóki jej nie zmienisz.",
+    "pinnedVersion": "Przypięta wersja",
+    "chooseVersion": "Wybierz opublikowaną wersję",
+    "selectedVersionUnavailable": "Wybrana wersja jest niedostępna"
   },
   "portals": {
     "mailboxInterval": {

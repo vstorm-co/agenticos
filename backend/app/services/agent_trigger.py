@@ -75,6 +75,7 @@ from app.db.session import get_db_context
 from app.db.updates import writable
 from app.repositories import (
     agent_environment_repo,
+    agent_repo,
     agent_run_repo,
     agent_trigger_repo,
     conversation_repo,
@@ -326,6 +327,7 @@ def _acts_as_themselves(ctx: AuthContext, person: UUID | None) -> bool:
 _WHAT_IT_DOES = (
     "prompt",
     "environment_id",
+    "pinned_version_id",
     "event_config",
     "teams_conversation_id",
     "answer_to",
@@ -726,6 +728,7 @@ class AgentTriggerService:
                 message="This agent has no published version to run - publish it first",
                 details={"agent_id": str(agent_id)},
             )
+        await self._version_target(ctx, agent.id, data.environment_id, data.pinned_version_id)
         if data.environment_id is not None:
             await self._environment_of(ctx, agent.id, data.environment_id)
         if data.teams_conversation_id is not None:
@@ -856,6 +859,7 @@ class AgentTriggerService:
             event_secret_encrypted=event_secret_encrypted,
             secret_key_version=secret_key_version,
             environment_id=data.environment_id,
+            pinned_version_id=data.pinned_version_id,
             next_fire_at=next_fire_at,
             connection_id=connection_id,
             portal_key=portal_key,
@@ -1135,6 +1139,13 @@ class AgentTriggerService:
                 details={"trigger_id": str(trigger.id)},
             )
 
+        if "environment_id" in changes or "pinned_version_id" in changes:
+            await self._version_target(
+                ctx,
+                agent_id,
+                changes.get("environment_id", trigger.environment_id),
+                changes.get("pinned_version_id", trigger.pinned_version_id),
+            )
         if changes.get("environment_id") is not None:
             await self._environment_of(ctx, agent_id, changes["environment_id"])
         if changes.get("teams_conversation_id") is not None:
@@ -2155,6 +2166,7 @@ class AgentTriggerService:
                 surface=RunSurface.SCHEDULE,
                 conversation_id=conversation_id,
                 environment_id=trigger.environment_id,
+                version_id=trigger.pinned_version_id,
                 # A delivery was written by whoever opened the issue or sent the
                 # email, not by the creator the run executes as, so nobody is
                 # behind it. A schedule and "Run now" fire with no event context
@@ -2358,6 +2370,26 @@ class AgentTriggerService:
             "trigger_disabled",
             extra={"trigger_id": str(trigger.id), "reason": reason},
         )
+
+    async def _version_target(
+        self,
+        ctx: AuthContext,
+        agent_id: UUID,
+        environment_id: UUID | None,
+        pinned_version_id: UUID | None,
+    ) -> None:
+        """A pin belongs to this agent and never silently falls through to an environment."""
+        if pinned_version_id is None:
+            return
+        if environment_id is not None:
+            raise BadRequestError(message="Choose a pinned version or an environment, not both")
+        version = await agent_repo.get_version(
+            self.db, pinned_version_id, organization_id=ctx.organization_id
+        )
+        if version is None or version.agent_id != agent_id:
+            raise NotFoundError(
+                message="Version not found", details={"version_id": str(pinned_version_id)}
+            )
 
     async def _environment_of(self, ctx: AuthContext, agent_id: UUID, environment_id: UUID) -> None:
         """Refuse an environment that is not this agent's.

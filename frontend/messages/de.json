@@ -8314,7 +8314,15 @@
     "routineLoadError": "Die Routine konnte nicht geladen werden.",
     "retryRoutine": "Erneut versuchen",
     "routineUnavailable": "Diese Routine ist nicht mehr verfügbar.",
-    "nextActivation": "Nächste Aktivierung: {at}"
+    "nextActivation": "Nächste Aktivierung: {at}",
+    "versionPolicy": "Agentenversion",
+    "followPublishedVersion": "Veröffentlichter Version folgen",
+    "pinPublishedVersion": "Veröffentlichte Version festlegen",
+    "versionFollowHelp": "Jeder Lauf folgt der standardmäßig veröffentlichten Version. Quellen- und Aktionsberechtigungen gelten weiterhin.",
+    "versionPinHelp": "Jeder Lauf verwendet dieselbe ausgewählte Version, bis Sie sie ändern.",
+    "pinnedVersion": "Festgelegte Version",
+    "chooseVersion": "Veröffentlichte Version auswählen",
+    "selectedVersionUnavailable": "Ausgewählte Version nicht verfügbar"
   },
   "portals": {
     "mailboxInterval": {

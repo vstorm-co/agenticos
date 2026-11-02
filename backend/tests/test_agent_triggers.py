@@ -132,6 +132,7 @@ def _trigger(**overrides: object) -> MagicMock:
         "provider_target": None,
         "runs_as_creator": False,
         "local_target": None,
+        "pinned_version_id": None,
         "overlap": "skip",
         "answer_to": "run_log",
         "delivery_conversation_id": None,
@@ -219,6 +220,53 @@ class TestScheduleMath:
 
 
 class TestCreate:
+    @pytest.mark.parametrize("kind", ["missing", "foreign_agent"])
+    async def test_pin_must_name_one_of_this_agents_versions(self, kind: str) -> None:
+        agent = _agent()
+        version_id = uuid.uuid4()
+        with patch("app.services.agent_trigger.agent_repo.get_version", new=AsyncMock()) as lookup:
+            lookup.return_value = (
+                None
+                if kind != "foreign_agent"
+                else _named(id=version_id, agent_id=uuid.uuid4(), name="Other")
+            )
+            with pytest.raises(NotFoundError, match="Version not found"):
+                await _service(agent).create(
+                    _ctx(),
+                    agent.id,
+                    _interval().model_copy(update={"pinned_version_id": version_id}),
+                )
+            assert lookup.await_args.kwargs["organization_id"] == _ORG
+
+    async def test_pin_and_environment_cannot_both_control_a_fire(self) -> None:
+        with pytest.raises(BadRequestError, match="not both"):
+            await _service().create(
+                _ctx(),
+                uuid.uuid4(),
+                _interval(environment_id=uuid.uuid4()).model_copy(
+                    update={"environment_id": uuid.uuid4(), "pinned_version_id": uuid.uuid4()}
+                ),
+            )
+
+    async def test_creation_persists_a_valid_pin(self) -> None:
+        agent = _agent()
+        version_id = uuid.uuid4()
+        with (
+            patch(
+                "app.services.agent_trigger.agent_repo.get_version",
+                new=AsyncMock(
+                    return_value=_named(id=version_id, agent_id=agent.id, name="Version")
+                ),
+            ),
+            patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+            patch("app.services.agent_trigger.record_audit", new=AsyncMock()),
+        ):
+            repo.create = AsyncMock(return_value=_trigger(conversation_id=uuid.uuid4()))
+            await _service(agent).create(
+                _ctx(), agent.id, _interval().model_copy(update={"pinned_version_id": version_id})
+            )
+        assert repo.create.await_args.kwargs["pinned_version_id"] == version_id
+
     @pytest.mark.security
     async def test_scheduling_demands_permission_to_run_the_agent(self):
         """Creating a schedule is asserting 'run this agent, repeatedly, as me'."""
@@ -3862,6 +3910,26 @@ class TestRunningAsTheCreator:
             runner.execute = AsyncMock(return_value=("done", run))
             await service.fire(trigger.id)
         return runner.execute.call_args, run, acting
+
+    async def test_a_fire_passes_the_pin_to_the_shared_runner(self) -> None:
+        pinned = uuid.uuid4()
+        call, _, _ = await self._fire(_trigger(pinned_version_id=pinned))
+        assert call.kwargs["version_id"] == pinned
+
+    async def test_clearing_a_pin_returns_to_environment_resolution(self) -> None:
+        trigger = _trigger(pinned_version_id=uuid.uuid4())
+        changes = await self._update(
+            trigger, TriggerUpdate(pinned_version_id=None), as_creator=True
+        )
+        assert changes["pinned_version_id"] is None
+
+    async def test_an_environment_edit_cannot_keep_an_existing_pin(self) -> None:
+        with pytest.raises(BadRequestError, match="not both"):
+            await self._update(
+                _trigger(pinned_version_id=uuid.uuid4()),
+                TriggerUpdate(environment_id=uuid.uuid4()),
+                as_creator=True,
+            )
 
     async def test_a_schedule_acting_as_its_creator_runs_as_them_and_says_so(self):
         trigger = _trigger(runs_as_creator=True)

@@ -2966,6 +2966,9 @@ class AgentRegistryService:
         keys, or by an administrator impersonating them, it is somebody else's
         publish: the rule `agent_trigger._acts_as_themselves` sets for granting
         the consent holds for keeping it.
+
+        An explicitly pinned routine keeps its immutable spec, so changing the
+        default or an environment does not withdraw its unchanged consent.
         """
         in_person = ctx.api_key_id is None and current_impersonator() is None
         withdrawn = await agent_trigger_repo.withdraw_creator_consent(

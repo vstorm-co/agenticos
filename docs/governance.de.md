@@ -1,5 +1,5 @@
 ---
-source_sha: "3a2e96da6c2b"
+source_sha: "86cf21a8e53e"
 ---
 
 # Governance { #governance }
@@ -60,6 +60,8 @@ Setzen Sie `ends_at` mit UTC-Offset für zeitlich begrenzte Aufgaben und
 `monthly_budget_usd` für ein engeres Monatslimit. Das MCP-Aktualisierungstool kann
 beide Einstellungen entfernen. Ein gewöhnlicher API-Schlüssel kann keine Routine
 zur Nutzung der persönlichen Konten seines Ausstellers ermächtigen.
+
+Die Versionsauswahl folgt entweder der standardmäßig veröffentlichten Version oder legt eine unveränderliche Version fest. Eine Veröffentlichung verschiebt diese Festlegung nicht. Entfernen Sie sie, um wieder der Standardversion zu folgen. Eine benannte Umgebung und eine festgelegte Version schließen sich aus; aktuelle Zugriffsrechte, Budgets und Freigaben gelten weiterhin.
 
 ## Budgets { #budgets }
 

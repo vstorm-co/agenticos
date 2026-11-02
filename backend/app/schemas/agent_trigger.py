@@ -449,6 +449,11 @@ class TriggerCreate(BaseSchema):
     name: str | None = Field(default=None, max_length=120)
     trigger_type: Literal["schedule", "event"] = "schedule"
     environment_id: UUID | None = None
+    pinned_version_id: UUID | None = Field(
+        default=None,
+        description="Run this immutable published version; null follows the environment. "
+        "A version and a named environment cannot both be selected.",
+    )
     teams_conversation_id: UUID | None = Field(
         default=None,
         description=(
@@ -685,6 +690,11 @@ class TriggerUpdate(BaseSchema):
     )
     is_active: bool | None = None
     environment_id: UUID | None = None
+    pinned_version_id: UUID | None = Field(
+        default=None,
+        description="Run this immutable published version; null follows the environment. "
+        "A version and a named environment cannot both be selected.",
+    )
     teams_conversation_id: UUID | None = Field(
         default=None,
         description=(
@@ -773,6 +783,11 @@ class TriggerRead(BaseSchema, TimestampSchema):
     created_by_user_id: UUID | None = None
     is_active: bool
     environment_id: UUID | None = None
+    pinned_version_id: UUID | None = Field(
+        default=None,
+        description="Run this immutable published version; null follows the environment. "
+        "A version and a named environment cannot both be selected.",
+    )
     teams_conversation_id: UUID | None = None
     answer_to: Literal["run_log", "primary", "conversation"] = "run_log"
     delivery_conversation_id: UUID | None = None

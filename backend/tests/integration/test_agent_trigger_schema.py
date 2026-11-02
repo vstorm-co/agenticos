@@ -12,7 +12,7 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.ext.asyncio import async_sessionmaker
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.core.exceptions import NotFoundError
 from app.core.permissions import AuthContext, OrgRoleName
@@ -133,6 +133,51 @@ def _trigger(org: Organization, agent: Agent, **overrides) -> AgentTrigger:
 async def _claim(db, *, now: datetime) -> dict[uuid.UUID, bool]:
     """What a heartbeat at `now` claims, each trigger with whether it was busy."""
     return {trigger.id: busy for trigger, busy in await agent_trigger_repo.claim_due(db, now=now)}
+
+
+async def test_a_pinned_version_cannot_disappear_into_a_latest_version_fallback(
+    db: AsyncSession,
+) -> None:
+    org = await _org(db)
+    agent = await _agent(db, org)
+    version = await db.get(AgentVersion, agent.current_version_id)
+    assert version is not None
+    trigger = _trigger(org, agent, pinned_version_id=version.id)
+    db.add(trigger)
+    await db.flush()
+    with pytest.raises(IntegrityError):
+        async with db.begin_nested():
+            await db.delete(version)
+            await db.flush()
+    # Removing the whole agent still removes its routines and versions together.
+    await db.delete(agent)
+    await db.flush()
+
+
+async def test_a_routine_cannot_be_both_pinned_and_environment_bound(db: AsyncSession) -> None:
+    from app.db.models.agent_environment import AgentEnvironment
+
+    org = await _org(db)
+    agent = await _agent(db, org)
+    environment = AgentEnvironment(
+        organization_id=org.id,
+        agent_id=agent.id,
+        name="dev",
+        version_id=agent.current_version_id,
+    )
+    db.add(environment)
+    await db.flush()
+    with pytest.raises(IntegrityError, match="ck_trigger_version_target"):
+        async with db.begin_nested():
+            db.add(
+                _trigger(
+                    org,
+                    agent,
+                    pinned_version_id=agent.current_version_id,
+                    environment_id=environment.id,
+                )
+            )
+            await db.flush()
 
 
 def _event(org: Organization, agent: Agent, **overrides) -> AgentTrigger:
@@ -718,7 +763,10 @@ class TestWithdrawingRunAsCreator:
         member = await _member(db, org)
         owners = _trigger(org, agent, runs_as_creator=True)
         members = _trigger(org, agent, runs_as_creator=True, created_by_user_id=member.id)
-        db.add_all([owners, members])
+        pinned = _trigger(
+            org, agent, runs_as_creator=True, pinned_version_id=agent.current_version_id
+        )
+        db.add_all([owners, members, pinned])
         await db.flush()
 
         withdrawn = await agent_trigger_repo.withdraw_creator_consent(
@@ -726,6 +774,8 @@ class TestWithdrawingRunAsCreator:
         )
 
         await db.refresh(owners)
+        await db.refresh(pinned)
+        assert pinned.runs_as_creator is True
         await db.refresh(members)
         assert withdrawn == 1
         assert (owners.runs_as_creator, members.runs_as_creator) == (False, True)
