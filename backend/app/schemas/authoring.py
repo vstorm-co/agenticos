@@ -61,6 +61,14 @@ class Rejection(StrEnum):
     INSUFFICIENT_EVIDENCE = "insufficient_evidence"
     SUPERSEDED = "superseded"
     """A request started later had already replaced the suggestions."""
+    COPIES_SKILL = "copies_skill"
+    """It writes one of the agent's skills into the agent: the skill reaches it already."""
+    DUPLICATES_SKILL = "duplicates_skill"
+    """A new skill with the name or the text of a skill the agent has."""
+    UNKNOWN_SKILL = "unknown_skill"
+    """A skill problem names a skill the agent does not have."""
+    SKILL_NOT_USED = "skill_not_used"
+    """No run a skill problem cites used that skill."""
 
 
 type EvidenceSource = Literal["test_question", "conversation"]
@@ -184,6 +192,14 @@ class NewSkillChange(BaseModel):
     evidence: list[EvidenceQuote] = Field(default_factory=list)
 
 
+class SkillProblem(BaseModel):
+    """A problem whose fix belongs in one of the agent's skills, not in the agent."""
+
+    skill: str = Field(description="The skill's name, exactly as listed.")
+    problem: str = Field(description="What the skill gets wrong, in terms of the evidence.")
+    evidence: list[EvidenceQuote] = Field(default_factory=list)
+
+
 class ImprovementProposal(BaseModel):
     """What the improver proposes for one agent."""
 
@@ -198,6 +214,11 @@ class ImprovementProposal(BaseModel):
     tools: list[ToolChange] = Field(default_factory=list)
     fields: list[FieldChange] = Field(default_factory=list)
     new_skills: list[NewSkillChange] = Field(default_factory=list, max_length=4)
+    skill_problems: list[SkillProblem] = Field(
+        default_factory=list,
+        max_length=4,
+        description="Problems to fix in a skill rather than in the agent; never both.",
+    )
 
 
 class SkillImprovement(BaseModel):

@@ -130,6 +130,24 @@ def mentions(text: str, passage: str) -> bool:
     return mentioned(evened(text), passage)
 
 
+COPY_SPAN = 200
+"""How many characters an agent's text may share with one of its skills before it is a copy."""
+
+
+def copies(text: str, source: str, *, already: str = "") -> bool:
+    """Whether `text` repeats a :data:`COPY_SPAN` stretch of `source` that `already` lacks.
+
+    Compared as loosely as an anchor is, and without case. `already` is what the
+    text replaces or joins, so a passage that was there before is not counted.
+    """
+    copied, held = evened(text).casefold(), evened(already).casefold()
+    body = evened(source).casefold()
+    return any(
+        (span := copied[start : start + COPY_SPAN]) in body and span not in held
+        for start in range(len(copied) - COPY_SPAN + 1)
+    )
+
+
 def _occurrences(text: str, needle: str) -> list[int]:
     found: list[int] = []
     start = text.find(needle)
