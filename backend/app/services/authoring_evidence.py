@@ -559,8 +559,8 @@ class EvidenceService:
         A run counts when its agent, or an agent it delegated to, used the skill
         - of `versions` only, when given. Only the agents the caller may see are
         read; the others are counted in `hidden_agents`. A run whose conversation
-        the caller may not open keeps its rating and outcome and loses its text,
-        the rule datasets follow. Runs from before uses were recorded, of agents
+        the caller may not open - or with none, to a caller without `runs:view` -
+        keeps its rating and outcome and loses its text, the rule datasets follow. Runs from before uses were recorded, of agents
         whose version bound the skill, are counted in `unknown_runs`.
         """
         since = self._since(window_days)
@@ -581,6 +581,8 @@ class EvidenceService:
             organization_id=ctx.organization_id,
             skill_id=skill_id,
             skill_versions=versions,
+            # A delegate the caller may not see would be named by its use of the skill.
+            skill_agent_ids=sorted(visible),
             agent_ids=sorted(visible & involved),
             since=since,
             limit=MAX_EVIDENCE_RUNS,
@@ -593,8 +595,6 @@ class EvidenceService:
             run_ids=[row.run.id for row in rows],
         ):
             uses.setdefault(use.run_id, []).append(use)
-        # A delegate the caller may not see would be named by its use of the skill.
-        rows = [row for row in rows if all(use.agent_id in visible for use in uses[row.run.id])]
         pack = await self._pack(rows)
         readable = await ConversationService(self.db).readable(
             ctx, [run.conversation_id for run in pack.runs if run.conversation_id]
@@ -603,7 +603,13 @@ class EvidenceService:
         marked: list[PackedRun] = []
         for run in pack.runs:
             run = _by_skill(run, uses[run.run_id], agent_of[run.run_id])
-            marked.append(run if run.conversation_id in readable else _masked(run))
+            # A run with no conversation is read by the lens that reads any run.
+            shown = (
+                run.conversation_id in readable
+                if run.conversation_id is not None
+                else ctx.has(Perm.RUNS_VIEW)
+            )
+            marked.append(run if shown else _masked(run))
         return EvidencePack(
             runs=marked,
             unknown_runs=sum(count for agent, count in unknown.items() if agent in visible),

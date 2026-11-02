@@ -264,6 +264,31 @@ class TestEvidence:
         assert len(every) == 6
         assert [row.run.id for row in of_v2] == [delegated.id]
 
+    async def test_a_run_a_hidden_delegate_used_the_skill_in_does_not_take_a_place(
+        self, db: AsyncSession
+    ):
+        org, user = await _org(db)
+        agent = await _agent(db, org, user)
+        hidden = await _agent(db, org, user)
+        skill = await _skill(db, org, "refunds")
+        seen = await _run(db, org, agent, user, rating=-1, started_at=_DAYS_AGO)
+        await _use(db, seen, skill)
+        # Ranked first, and used by an agent the reader may not see.
+        unseen = await _run(db, org, agent, user, rating=-1, comment="Wrong")
+        await _use(db, unseen, skill)
+        await _use(db, unseen, skill, agent=hidden)
+
+        rows = await authoring_repo.evidence_runs(
+            db,
+            organization_id=org.id,
+            skill_id=skill.id,
+            skill_agent_ids=[agent.id],
+            since=_LONG_AGO,
+            limit=1,
+        )
+
+        assert [row.run.id for row in rows] == [seen.id]
+
 
 class TestProposals:
     async def _batch(self, db: AsyncSession, org: Organization, agent: Agent):

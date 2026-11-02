@@ -336,8 +336,13 @@ async def _answered(
     status: str = "completed",
     version: AgentVersion | None = None,
     recorded: bool = True,
+    surface: RunSurface = RunSurface.WEB,
 ) -> AgentRun:
-    """A run in `asker`'s own conversation, its answer rated."""
+    """A run in `asker`'s own conversation, its answer rated.
+
+    An API run keeps its transcript in a conversation of its own as well; one
+    with none is the HTTP API's default, where only the run holds the turns.
+    """
     conversation = Conversation(id=uuid.uuid4(), organization_id=org.id, user_id=asker.id)
     db.add(conversation)
     await db.flush()
@@ -347,8 +352,8 @@ async def _answered(
         agent_id=agent.id,
         agent_version_id=None if version is None else version.id,
         user_id=asker.id,
-        conversation_id=conversation.id,
-        surface=RunSurface.WEB.value,
+        conversation_id=None if surface is RunSurface.API else conversation.id,
+        surface=surface.value,
         status=status,
         started_at=datetime.now(UTC),
         skill_uses_recorded=recorded,
@@ -449,6 +454,9 @@ class TestEvidence:
         desk = await _agent(db, org, user, "Desk")
         skill = await _skill(db, org)
         await _used(db, await _answered(db, org, desk, user), skill)
+        # An eval of another agent serves nobody, so it is not an agent hidden from them.
+        evaluated = await _agent(db, org, user, "Evaluated")
+        await _used(db, await _run(db, org, evaluated, surface=RunSurface.EVAL), skill)
         key = _builder(org, user, key_scopes=frozenset({Perm.RUNS_VIEW, Perm.SKILLS_VIEW}))
 
         pack = await EvidenceService(db).for_skill(key, skill.id, window_days=30)
@@ -503,3 +511,22 @@ class TestEvidence:
         assert by_run[theirs.id].people == frozenset()
         assert by_run[mine.id].masked is False
         assert by_run[mine.id].prompt == "Can I return opened shoes?"
+
+    async def test_a_run_with_no_conversation_is_read_with_runs_view_and_withheld_without(
+        self, db: AsyncSession
+    ):
+        org, user = await _org(db)
+        desk = await _agent(db, org, user, "Desk")
+        skill = await _skill(db, org)
+        api = await _answered(db, org, desk, user, surface=RunSurface.API)
+        await _used(db, api, skill)
+        assert api.conversation_id is None
+        member = AuthContext(user_id=user.id, organization_id=org.id, role=OrgRoleName.MEMBER)
+
+        [owned] = (
+            await EvidenceService(db).for_skill(_builder(org, user), skill.id, window_days=30)
+        ).runs
+        [withheld] = (await EvidenceService(db).for_skill(member, skill.id, window_days=30)).runs
+
+        assert (owned.masked, owned.prompt) == (False, "Can I return opened shoes?")
+        assert (withheld.masked, withheld.rating) == (True, -1)

@@ -447,6 +447,7 @@ async def evidence_runs(
     agent_ids: Sequence[UUID] | None = None,
     skill_id: UUID | None = None,
     skill_versions: Collection[UUID] | None = None,
+    skill_agent_ids: Collection[UUID] | None = None,
     excluded_message_ids: Sequence[UUID] = (),
     since: datetime,
     only_run_ids: Sequence[UUID] | None = None,
@@ -460,8 +461,9 @@ async def evidence_runs(
     one agent's, `agent_ids` to several agents' - those binding a context file -
     and `skill_id` to those that used that skill, by their own agent or by an
     agent they delegated to, as `run_skill_uses` recorded it; `skill_versions`
-    narrows that to uses of those versions. A run that only named the skill's
-    workspace folder counts here too, and its reader says it is probable.
+    narrows that to uses of those versions, and `skill_agent_ids` to runs in
+    which no other agent used it. A run that only named the skill's workspace
+    folder counts here too, and its reader says it is probable.
     `excluded_message_ids` leaves out the runs that gave those answers.
     """
     rating = (
@@ -536,6 +538,13 @@ async def evidence_runs(
         if skill_versions is not None:
             uses = uses.where(RunSkillUse.skill_version_id.in_(list(skill_versions)))
         statement = statement.where(uses.exists())
+        if skill_agent_ids is not None:
+            other = select(RunSkillUse.id).where(
+                RunSkillUse.run_id == AgentRun.id,
+                RunSkillUse.skill_id == skill_id,
+                RunSkillUse.agent_id.not_in(list(skill_agent_ids)),
+            )
+            statement = statement.where(~other.exists())
     if only_run_ids is not None:
         statement = statement.where(AgentRun.id.in_(only_run_ids))
     result = await db.execute(statement.order_by(rank, AgentRun.started_at.desc()).limit(limit))

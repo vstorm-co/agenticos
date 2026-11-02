@@ -206,15 +206,12 @@ async def unknown_runs(
 async def agents_involved(
     db: AsyncSession, *, organization_id: UUID, skill_id: UUID, since: datetime
 ) -> set[UUID]:
-    """Every agent in a run that used the skill since `since`: the run's own and any delegate."""
+    """Every agent in a served run that used the skill: the run's own and any delegate."""
     rows = await db.execute(
         select(RunSkillUse.agent_id, AgentRun.agent_id)
         .join(AgentRun, AgentRun.id == RunSkillUse.run_id)
-        .where(
-            RunSkillUse.organization_id == organization_id,
-            RunSkillUse.skill_id == skill_id,
-            RunSkillUse.created_at >= since,
-        )
+        .where(*served_runs(organization_id=organization_id, since=since))
+        .where(RunSkillUse.skill_id == skill_id)
         .distinct()
     )
     return {agent_id for row in rows.all() for agent_id in row}
