@@ -2066,12 +2066,13 @@ step, or a batch, without replacing the plan.*
 `add_subtask`, `set_dependency`, `get_available_tasks` — *dependency-aware planning,
 offered only under `enable_subtasks`.*
 
-A checklist the model keeps for itself while it works: what is done, what is in
-progress, what is left. For multi-step work a model does better when it writes the
-steps down first and keeps them in front of itself, so the current plan is surfaced
-back every turn as a **cache-safe tail reminder** — appended after a cache breakpoint,
-so the stable prompt prefix stays byte-identical and only the mutable plan is re-read
-each turn. The plan never lands in the system prompt.
+The model keeps a checklist of completed, active and remaining steps. Plan-changing
+tools return it in a `<plan_reminder>` frame. When the visible plan differs from
+the store, such as after compaction or at the start of a run, the harness records
+it as user-channel content in the run history. The plan never becomes a system prompt.
+Model settings control caching. If an existing agent used `planning.cache_ttl`,
+move its cache retention to the `cache` model setting, for example `cache: "1h"`;
+the legacy capability field is still accepted but ignored.
 
 It overlaps with [Delegation](#delegation) the way a plan overlaps with a team:
 planning decides *what* the steps are, delegation decides *who* does them. They are
@@ -2081,7 +2082,7 @@ wrapper — so an agent may bind both, one, or neither.
 | Config | Default | Values |
 |---|---|---|
 | `enable_subtasks` | `false` | adds the three subtask/dependency tools and the `blocked` status |
-| `cache_ttl` | `5m` | `5m`, `1h` — how long the prefix before the reminder may cache |
+| `cache_ttl` | `5m` | Legacy: accepted but ignored; configure `cache` in model settings |
 
 **None of the nine tools acts on the world.** Each mutates a checklist the model
 keeps for itself, so there is nothing here for a person to approve and the capability
@@ -2187,7 +2188,7 @@ There are three reminder kinds, each with its own cadence:
 | Kind | Cost | Text it injects |
 |---|---|---|
 | `reminders[]` | none | A fixed line you write |
-| `goal_reanchor` | none | The run's first user request, re-stated as the anchor |
+| `goal_reanchor` | none | A pointer to the run's first user request, without repeating user text |
 | `llm_reminder` | one model call per fire | A short nudge a model writes from the recent transcript |
 
 Each kind takes `interval` (fire every N model requests), `first_after` (the
