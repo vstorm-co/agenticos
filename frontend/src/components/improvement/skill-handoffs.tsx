@@ -40,9 +40,11 @@ function SkillCard({ skill, sessionId }: { skill: ImprovementSkill; sessionId: s
           {fork
             ? t("forkLine", { fork: fork.name, count: skill.agents_on_line })
             : t("mainLine", { count: skill.agents_on_line })}
-          {skill.hidden_agents > 0 && (
-            <span className="ml-1">{t("hidden", { count: skill.hidden_agents })}</span>
-          )}
+        </p>
+      )}
+      {skill.hidden_agents > 0 && (
+        <p className="text-muted-foreground text-sm">
+          {t("hidden", { count: skill.hidden_agents })}
         </p>
       )}
       {skill.problems.length > 0 && (

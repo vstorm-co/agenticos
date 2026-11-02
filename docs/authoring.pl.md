@@ -511,7 +511,7 @@ Szacowany koszt uwzględnia pełną proponowaną treść dla każdej odpowiedzi 
 
 Ten sam skill mogą czytać inni agenci, więc agent Improve nigdy go nie zmienia. Pomocnik czyta skille agenta: nazwę, opis i wersję każdego z nich oraz pełny tekst tych, których użyły dowody. Gdy runy pokazują, że skill jest błędny, pomocnik zgłasza problem dla tego skilla. Nie przepisuje tekstu skilla do instrukcji agenta.
 
-Zmiana, która powtarza 200-znakowy fragment przypiętego skilla, zostaje odrzucona, tak samo jak nowy skill z nazwą lub tekstem przypiętego skilla. Zgłoszony problem zostaje tylko wtedy, gdy wskazuje skill agenta i cytuje run, który go użył.
+Zmiana, która powtarza 200-znakowy fragment powiązanego skilla, zostaje odrzucona, tak samo jak nowy skill z nazwą lub tekstem powiązanego skilla. Zgłoszony problem zostaje tylko wtedy, gdy wskazuje skill agenta i cytuje run, który go użył.
 
 Krok Changes pokazuje te problemy w sekcji **Należy do skilla**. Każda karta zawiera problemy z cytatami oraz liczbę agentów czytających tę samą linię skilla. **Popraw X** otwiera Improve samego skilla z problemami z tej sesji jako dowodami startowymi. Jeśli agent korzysta z forka, ten Improve pracuje na forku; problemy przypiętego agenta trafiają do main. Bez prawa edycji skilla karta mówi, kogo poprosić. Gdy agent jest za main, karta **Zaktualizuj do vN** albo **Dogoń main w forku** otwiera stronę skilla.
 
