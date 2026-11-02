@@ -587,7 +587,9 @@ class TestAProposalGoesLiveOnlyThroughItsCheck:
         evals.install(monkeypatch)
         proposal = await self._proposal(db, lab)
         service = SkillCheckService(db)
-        check = await service.start(lab.ctx, lab.skill.id, _start())
+        other = CandidateText(description=NEW.description, content="Something else entirely.")
+        check = await service.start(lab.ctx, lab.skill.id, SkillCheckStart(candidate=other))
+        evals.outcomes = {lab.a.id: Outcome(fixed=1)}
         await _run_to_end(service, evals, lab, check.id)
 
         with pytest.raises(BadRequestError):
