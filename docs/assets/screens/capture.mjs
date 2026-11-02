@@ -40,7 +40,7 @@ const only = new Set(process.argv.slice(2));
 const ORG = process.env.ORG;
 const AGENT = process.env.AGENT ?? "Claude Code like";
 const CHAT = process.env.CHAT;
-const HERO_CHAT = process.env.HERO_CHAT ?? "Chart our 2026 MRR";
+const HERO_CHAT = process.env.HERO_CHAT ?? "Revenue Pulse — six-month";
 
 /** Open a tab of the page by its name. */
 const tab = (name) => async (page) => {
@@ -86,20 +86,8 @@ const SCREENS = [
     path: (ids) => `/chat?id=${ids.hero}`,
     height: 1100,
     then: async (page) => {
-      await page.getByText("Asked you", { exact: true }).first().click();
-      if (await framePreparedKit(page)) return;
-      await page.waitForTimeout(800);
-      // From the question down: the thread opens at its end.
-      await page
-        .getByText("You", { exact: true })
-        .first()
-        .evaluate((element) => {
-          element.scrollIntoView({ block: "start" });
-          let scroller = element.parentElement;
-          while (scroller && scroller.scrollHeight <= scroller.clientHeight)
-            scroller = scroller.parentElement;
-          scroller?.scrollBy(0, -24);
-        });
+      await page.frameLocator("iframe").first().getByRole("heading", { name: "Sales performance" }).waitFor();
+      await page.locator("[data-message-id]").first().evaluate((element) => element.scrollIntoView({ block: "start" }));
     },
   },
   { name: "agents", path: "/agents" },
@@ -219,6 +207,9 @@ const SCREENS = [
   { name: "app-detail", path: (ids) => `/apps/${ids.app}` },
   { name: "app-launch", path: (ids) => `/apps/${ids.launchApp}` },
   { name: "app-shopping", path: (ids) => `/apps/${ids.shoppingApp}` },
+  { name: "app-manufacturing", height: 1150, path: (ids) => `/apps/${ids.manufacturingApp}` },
+  { name: "app-motor", height: 1150, path: (ids) => `/apps/${ids.motorApp}` },
+  { name: "app-revenue", height: 1150, path: (ids) => `/apps/${ids.revenueApp}` },
   { name: "app-kit", path: (ids) => `/apps/${ids.kitApp}` },
   { name: "visuals", path: (ids) => `/chat?id=${ids.visualConversation}` },
   { name: "groups", path: "/groups" },
@@ -289,6 +280,9 @@ async function lookUp(page) {
     app: (apps.find((item) => item.name === "demo-company-brain") ?? apps[0])?.id,
     launchApp: apps.find((item) => item.name === "demo-launch-room")?.id,
     shoppingApp: apps.find((item) => item.name === "demo-trail-supply")?.id,
+    manufacturingApp: apps.find((item) => item.name === "demo-northline-operations")?.id,
+    motorApp: apps.find((item) => item.name === "demo-motor-atlas")?.id,
+    revenueApp: apps.find((item) => item.name === "demo-revenue-pulse")?.id,
     kitApp: apps.find((item) => item.name === "demo-trail-supply-kit")?.id,
     visualConversation: conversations.find((item) =>
       item.title?.startsWith("Seeded demo · Visuals"),
@@ -333,6 +327,7 @@ for (const theme of THEMES) {
     colorScheme: theme,
   });
   await context.addInitScript(() => {
+    if (window.top !== window) return;
     try {
       localStorage.setItem(
         "assistant-bubbles",
@@ -345,7 +340,7 @@ for (const theme of THEMES) {
       );
     } catch {}
   });
-  await context.addInitScript((chosen) => localStorage.setItem("theme", chosen), theme);
+  await context.addInitScript((chosen) => { if (window.top === window) localStorage.setItem("theme", chosen); }, theme);
   const page = await context.newPage();
   page.setDefaultTimeout(15000);
   page.setDefaultNavigationTimeout(60000);
@@ -358,6 +353,7 @@ for (const theme of THEMES) {
   const { access_token: _accessToken, ...user } = await identityResponse.json();
   await context.addInitScript(
     ({ user, org, version }) => {
+      if (window.top !== window) return;
       localStorage.setItem(
         "release-notes",
         JSON.stringify({

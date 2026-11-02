@@ -46,8 +46,8 @@ used the actual Visuals publishing service.
 no provider credentials. Their unresolved MCP pins require explicit connection
 setup before execution; importing the drafts does not configure those services.
 
-The video and its posters below remain historical recordings. Static screenshot
-refreshes do not make those recordings captures of the current UI.
+Historical recording references below are retained as provenance only. The public
+screens gallery and product tour no longer embed those recordings.
 
 The README shows the light captures in both GitHub themes; the docs site
 switches between `light/` and `dark/` with the reader's theme.
@@ -70,7 +70,7 @@ repository metrics are a dated snapshot, not a live feed or customer outcome stu
 The shortened cut retains source 00:00–00:30 and 00:39–00:46.466667: 37.466667 seconds total.
 Audio has 30 ms fades around the cut. The local `oss-launch-planner-demo.mp4` derivative is
 960 × 546, 20 fps, H.264/AAC, 1,024,008 bytes. The recording file is unchanged; the
-README no longer shows it, and the presentation tour still plays it.
+README and presentation tour no longer play it.
 
 ## README film
 
@@ -215,3 +215,48 @@ To recapture, open that coding conversation in dark mode, collapse `Asked Coder`
 scroll to the first user message and use the viewport above. Preserve the full
 console window. Render the editorial title, nature background and brand marks
 with `node docs/assets/readme/frames.mjs coding`.
+
+
+## Industrial showcase and sales hero — current selection
+
+Full application viewports are required. `../readme/frames.mjs` measures every
+source image and fits its entire bounds, including navigation. It must not crop
+sidebars or replace a mobile view with an enlarged fragment. Virtual Tables
+uses the real Kanban screenshot as its primary image.
+
+`demos/industrial-showcase/` holds the editable sources for Revenue Pulse,
+Northline Operations and Motor Atlas. Build and verify from the repository root:
+
+```bash
+node docs/assets/screens/demos/industrial-showcase/build.mjs
+node docs/assets/screens/demos/industrial-showcase/verify.mjs
+PYTHONPATH=backend backend/.venv/bin/python docs/assets/screens/demos/industrial-showcase/seed.py \
+  --org ORG_UUID --user OWNER_UUID --output /tmp/industrial-demo.json --confirm-demo
+```
+
+Run the seed only with an isolated demo database and its actual Northwind Labs
+owner. It publishes three private Apps and a prepared Revenue Pulse conversation.
+No model, provider configuration, machine command, ERP or CRM is involved. The
+conversation is a fixture, while rendering and Visuals publishing use the actual
+application services. Existing named fixture rows are reused.
+
+Revenue Pulse is the README hero: booked revenue €1,240,000 against €1,230,000
+target, with €1,290,000 unweighted pipeline. Totals derive from the selected
+fictional rows. Europe is 62% and North America 38% of that dataset; changing the
+period also changes the target and comparison baseline. The short iframe layout
+keeps the core chart and team contribution visible.
+
+Northline has eight fictional inbound shipments totaling 486 units across five
+locations. Three need review; simulating a +24h rotor delay makes four. It is a
+local scenario, not route optimization or dispatch. Country outlines come from
+Natural Earth (public domain); `map-source.json` records the source, terms and hash.
+Route and plant data are fictional and the map is not navigation.
+
+Motor Atlas is a conceptual assembly explorer, not CAD or manufacturer guidance.
+Component selection, separation and review dialogs work; the parts register and
+telemetry are invented. No diagnosis or maintenance instruction is established.
+
+Styles: Achromatic ledger (seed 1146000248) for sales; Data terminal for industrial
+monitoring. The signature elements are the revenue/target comparison, supplier map
+with assembly windows, and selectable exploded assembly. Embedded Inter and Geist
+Mono fonts are supplied with their OFL license. All generated HTML is self-contained.

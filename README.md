@@ -43,9 +43,9 @@
 
 </div>
 
-<a href="docs/assets/readme/highlight-hero.webp"><img src="docs/assets/readme/highlight-hero.webp" alt="Prepared Trail Supply conversation with a populated chat list and an interactive Kit Studio rendered by Visuals." width="100%"></a>
+<a href="docs/assets/readme/highlight-hero.webp"><img src="docs/assets/readme/highlight-hero.webp" alt="Prepared Revenue Pulse sales review in the full AgenticOS chat: revenue vs target and team contribution." width="100%"></a>
 
-*Prepared conversation and fictional catalog; the UI and interactive Visuals are real. The website widget is tested separately with a published agent.*
+*Prepared conversation with fictional sales data in the real Visuals renderer. No live CRM or new model-generation run is represented.*
 
 AgenticOS gives every team AI teammates: agents that work with files, run code, browse the web and use your company's tools and knowledge. Your colleagues and your agents work in the same live chat, and any agent can hand code to Claude Code or Codex, on the ChatGPT or Claude subscription you already pay for. It is open source (Apache-2.0) and self-hosted, a layer you run on your own infrastructure. Build and publish agents in the browser, share them with colleagues, and manage their access, cost and results in one place.
 
@@ -57,7 +57,7 @@ AgenticOS gives every team AI teammates: agents that work with files, run code, 
 
 A project gives everyone the same files, instructions and a computer for the agents. Invite colleagues and work the way a team works: see who is here, watch a teammate's agent answer as it is written, and bring in any agent, tool or document with an `@`.
 
-<a href="docs/assets/readme/highlight-projects.webp"><img src="docs/assets/readme/highlight-projects.webp" alt="A project chat for the Fall launch: two people are in the room, Jordan Reed asks the Coder agent to build the launch page with the coding agent, and Codex's steps run under the answer" width="100%"></a>
+<a href="docs/assets/readme/highlight-projects.webp"><img src="docs/assets/readme/highlight-projects.webp" alt="A shared project chat with a launch brief and channel budget, shown with the complete console navigation." width="100%"></a>
 
 ### Reply to anyone, and the agent knows who said what
 
@@ -105,31 +105,24 @@ Watch it click through sites, take over when a sign-in needs you, point at a spo
 
 ### Build, equip and test in one window
 
-Switch tools on from illustrated cards, then give the draft a real job in the test chat beside them - here it charts a quarter's revenue against costs and reads the margin, before anyone else sees the agent.
+Enable tools and try a real task in the draft test panel before publishing the agent for colleagues.
 
-<a href="docs/assets/readme/highlight-builder-test.webp"><img src="docs/assets/readme/highlight-builder-test.webp" alt="The Finance Analyst's toolbox with isometric capability cards, and its test chat drawing a chart of Q3 revenue against costs" width="100%"></a>
+<a href="docs/assets/readme/highlight-builder-test.webp"><img src="docs/assets/readme/highlight-builder-test.webp" alt="The Finance Analyst toolbox with capability cards and a draft test panel ready for a task." width="100%"></a>
 
 ### Apps, not just answers
 
 An agent publishes a dashboard or a report as a page with a stable link and versions.
 
-<a href="docs/assets/readme/highlight-app.webp"><img src="docs/assets/readme/highlight-app.webp" alt="Company Brain, a seeded LLM wiki app: an interactive map of six fictional source notes with a source preview." width="100%"></a>
+<a href="docs/assets/readme/highlight-app.webp"><img src="docs/assets/readme/highlight-app.webp" alt="Northline manufacturing App: supplier routes, delivery exceptions and an assembly plan." width="100%"></a>
 
-*Company Brain, a seeded LLM wiki app: an interactive map of six fictional source notes with a source preview.*
+*Northline: a prepared supply and production planning App with fictional shipments, local delay simulation and assembly windows.*
 
 <details>
-<summary>More prepared Apps: launch planning, storefront and kit builder</summary>
+<summary>More prepared Apps: motor assembly and sales intelligence</summary>
 
-Prepared Apps with fictional data. Launch Room filters tasks and opens review briefs. The Trail Supply storefront has product details and a local demo bag; Kit Studio compares products and updates the budget. Neither App places orders or contains a live agent widget.
+Working local demonstrations with fictional data. Motor Atlas lets you inspect a conceptual assembly and its component records; Revenue Pulse recalculates sales metrics by region and period. No equipment, ERP or CRM is connected.
 
-<a href="docs/assets/readme/highlight-launch-room.webp"><img src="docs/assets/readme/highlight-launch-room.webp" alt="Launch Room demo App with task lanes, filters and review briefs." width="100%"></a>
-
-<a href="docs/assets/readme/highlight-shopping.webp"><img src="docs/assets/readme/highlight-shopping.webp" alt="Trail Supply storefront App with product photography and a demo shopping bag." width="100%"></a>
-
-
-Kit Studio is also a saved App: select products and check the total, delivery and budget. Its calculation is deterministic.
-
-<a href="docs/assets/readme/highlight-kit.webp"><img src="docs/assets/readme/highlight-kit.webp" alt="Kit Studio App comparing three products, a €160 budget and a €157 selected kit." width="100%"></a>
+<a href="docs/assets/readme/highlight-revenue.webp"><img src="docs/assets/readme/highlight-revenue.webp" alt="Revenue Pulse App with sales targets, pipeline and team contribution." width="100%"></a>
 
 </details>
 
@@ -155,9 +148,9 @@ AgenticOS is an MCP server. Add it with one command and sign in through the brow
 
 ## 📸 See it in action
 
-<a href="https://github.com/user-attachments/assets/9d2a7923-a52e-4ee6-ab6a-734692824d5a"><img src="docs/assets/screens/agenticos-intro-play.webp" alt="The agenticos logo among the console's blob characters, with a play button: AgenticOS in two minutes" width="100%"></a>
+Browse the [current product gallery](https://vstorm-co.github.io/agenticos/screens/). Motor Atlas below is a prepared, interactive assembly explorer with fictional component records and telemetry; it is not a CAD drawing.
 
-<p align="center"><sub><b>AgenticOS in two minutes.</b> A recorded session: a chief of staff hands work to other agents, the Architect drafts a new agent for approval, a finance agent gets its tools, is tested and publishes a dashboard, another browses GitHub, and one reads Notion over MCP. Narrated with a synthetic voice. <a href="https://github.com/user-attachments/assets/9d2a7923-a52e-4ee6-ab6a-734692824d5a">Watch (2:11)</a></sub></p>
+<a href="docs/assets/readme/highlight-motor.webp"><img src="docs/assets/readme/highlight-motor.webp" alt="Motor Atlas App with an interactive exploded motor assembly and component register." width="100%"></a>
 
 
 ## 🧩 Build useful work around your agents
@@ -172,7 +165,7 @@ Illustrative 30-step draft with Google Workspace, Microsoft 365, HubSpot, Salesf
 
 **Structured work your agents and your team can read together.**
 
-<a href="docs/assets/readme/highlight-tables.webp"><img src="docs/assets/readme/highlight-tables.webp" alt="Virtual Tables with fictional companies, typed fields, stages and next actions. Switch between a grid and a kanban board." width="100%"></a>
+<a href="docs/assets/readme/highlight-tables.webp"><img src="docs/assets/readme/highlight-tables.webp" alt="The complete AgenticOS window showing a fictional sales pipeline as a Kanban board." width="100%"></a>
 
 Virtual Tables with fictional companies, typed fields, stages and next actions. Switch between a grid and a kanban board.
 

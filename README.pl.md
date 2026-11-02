@@ -1,4 +1,4 @@
-<!-- source_sha: 0b85e01dafa4 -->
+<!-- source_sha: 18a2fb03d39d -->
 
 <div align="center">
 
@@ -45,9 +45,9 @@
 
 </div>
 
-<a href="docs/assets/readme/highlight-hero.webp"><img src="docs/assets/readme/highlight-hero.webp" alt="Przygotowana rozmowa o Trail Supply, wypełniona lista czatów i interaktywne Kit Studio renderowane przez Visuals." width="100%"></a>
+<a href="docs/assets/readme/highlight-hero.webp"><img src="docs/assets/readme/highlight-hero.webp" alt="Przygotowany przegląd Revenue Pulse w pełnym oknie chatu AgenticOS: przychód względem celu i udział zespołu." width="100%"></a>
 
-*Przygotowana rozmowa i fikcyjny katalog; interfejs i interaktywne Visuals są rzeczywiste. Widget strony sprawdzono osobno z opublikowanym agentem.*
+*Przygotowana rozmowa z fikcyjnymi danymi sprzedaży w prawdziwym rendererze Visuals. Bez działającego CRM i nowego wykonania generowania przez model.*
 
 AgenticOS daje każdemu zespołowi kolegów z AI: agentów, którzy pracują z plikami, wykonują kod, przeglądają internet i korzystają z firmowych narzędzi oraz wiedzy. Twoi współpracownicy i agenci pracują na tym samym czacie na żywo, a każdy agent może przekazać kod do Claude Code albo Codexa, w ramach subskrypcji ChatGPT albo Claude, którą już opłacasz. Jest open source (Apache-2.0) i działa na Twojej infrastrukturze jako warstwa, którą uruchamiasz sam. Twórz i publikuj agentów w przeglądarce, udostępniaj ich współpracownikom oraz zarządzaj ich dostępem, kosztami i wynikami w jednym miejscu.
 
@@ -59,7 +59,7 @@ AgenticOS daje każdemu zespołowi kolegów z AI: agentów, którzy pracują z p
 
 Projekt daje wszystkim te same pliki, instrukcje i komputer dla agentów. Zaproś współpracowników i pracujcie jak zespół: widzisz, kto jest obecny, oglądasz odpowiedź agenta kolegi w trakcie pisania i wołasz dowolnego agenta, narzędzie albo dokument przez `@`.
 
-<a href="docs/assets/readme/highlight-projects.webp"><img src="docs/assets/readme/highlight-projects.webp" alt="Czat projektu Fall launch: w pokoju są dwie osoby, Jordan Reed prosi agenta Coder o zbudowanie strony premiery przez coding agent, a kroki Codexa widać pod odpowiedzią" width="100%"></a>
+<a href="docs/assets/readme/highlight-projects.webp"><img src="docs/assets/readme/highlight-projects.webp" alt="Wspólny chat projektu z briefem premiery i budżetem kanałów, pokazany z pełną nawigacją konsoli." width="100%"></a>
 
 ### Odpowiadasz komukolwiek, a agent wie, kto co powiedział
 
@@ -107,31 +107,24 @@ Patrz, jak klika po stronach, przejmij ją, gdy logowanie wymaga Ciebie, wskaż 
 
 ### Buduj, wyposażaj i testuj w jednym oknie
 
-Włączasz narzędzia z ilustrowanych kart, a potem dajesz wersji roboczej prawdziwe zadanie w czacie testowym obok - tu rysuje przychody kwartału na tle kosztów i ocenia marżę, zanim ktokolwiek inny zobaczy agenta.
+Włącz narzędzia i wypróbuj rzeczywiste zadanie w panelu testowym szkicu, zanim opublikujesz agenta dla zespołu.
 
-<a href="docs/assets/readme/highlight-builder-test.webp"><img src="docs/assets/readme/highlight-builder-test.webp" alt="Toolbox agenta Finance Analyst z izometrycznymi kartami capability i jego czat testowy rysujący wykres przychodów Q3 na tle kosztów" width="100%"></a>
+<a href="docs/assets/readme/highlight-builder-test.webp"><img src="docs/assets/readme/highlight-builder-test.webp" alt="Narzędzia Finance Analyst z kartami capabilities i panelem testowym szkicu gotowym na zadanie." width="100%"></a>
 
 ### Aplikacje, nie tylko odpowiedzi
 
 Agent publikuje dashboard albo raport jako stronę ze stałym linkiem i wersjami.
 
-<a href="docs/assets/readme/highlight-app.webp"><img src="docs/assets/readme/highlight-app.webp" alt="Company Brain, seedowana aplikacja LLM wiki: interaktywna mapa sześciu fikcyjnych notatek z podglądem źródła." width="100%"></a>
+<a href="docs/assets/readme/highlight-app.webp"><img src="docs/assets/readme/highlight-app.webp" alt="Aplikacja produkcyjna Northline: trasy dostawców, wyjątki dostaw i plan montażu." width="100%"></a>
 
-*Company Brain, seedowana aplikacja LLM wiki: interaktywna mapa sześciu fikcyjnych notatek z podglądem źródła.*
+*Northline: przygotowana aplikacja do planowania dostaw i produkcji z fikcyjnymi przesyłkami, lokalną symulacją opóźnienia i oknami montażowymi.*
 
 <details>
-<summary>Więcej przygotowanych Apps: plan premiery, sklep i dobór zestawu</summary>
+<summary>Więcej przygotowanych Apps: budowa silnika i analiza sprzedaży</summary>
 
-Przygotowane Apps z fikcyjnymi danymi. Launch Room filtruje zadania i otwiera briefy. Sklep Trail Supply ma szczegóły produktów i lokalny koszyk demo; Kit Studio porównuje produkty i przelicza budżet. Żadna z tych Apps nie składa zamówień ani nie zawiera aktywnego widgetu agenta.
+Działające lokalne demonstracje z fikcyjnymi danymi. Motor Atlas pozwala sprawdzać koncepcyjny zespół silnika i rekordy części; Revenue Pulse przelicza sprzedaż według regionu i okresu. Bez połączenia z urządzeniami, ERP i CRM.
 
-<a href="docs/assets/readme/highlight-launch-room.webp"><img src="docs/assets/readme/highlight-launch-room.webp" alt="App Launch Room z etapami zadań, filtrami i briefami do przeglądu." width="100%"></a>
-
-<a href="docs/assets/readme/highlight-shopping.webp"><img src="docs/assets/readme/highlight-shopping.webp" alt="App sklepu Trail Supply ze zdjęciami produktów i koszykiem demo." width="100%"></a>
-
-
-Kit Studio jest też zapisaną App: wybierz produkty i sprawdź sumę, dostawę oraz budżet. Obliczenia są deterministyczne.
-
-<a href="docs/assets/readme/highlight-kit.webp"><img src="docs/assets/readme/highlight-kit.webp" alt="App Kit Studio porównująca trzy produkty, budżet €160 i wybrany zestaw za €157." width="100%"></a>
+<a href="docs/assets/readme/highlight-revenue.webp"><img src="docs/assets/readme/highlight-revenue.webp" alt="Revenue Pulse z celami sprzedaży, pipeline i udziałem zespołu." width="100%"></a>
 
 </details>
 
@@ -157,9 +150,9 @@ AgenticOS jest serwerem MCP. Dodajesz go jednym poleceniem i logujesz się przez
 
 ## 📸 Zobacz, jak to działa
 
-<a href="https://github.com/user-attachments/assets/9d2a7923-a52e-4ee6-ab6a-734692824d5a"><img src="docs/assets/screens/agenticos-intro-play.webp" alt="Logo agenticos wśród blobów z konsoli, z przyciskiem odtwarzania: AgenticOS w dwie minuty" width="100%"></a>
+Zobacz [aktualną galerię produktu](https://vstorm-co.github.io/agenticos/pl/screens/). Motor Atlas poniżej to przygotowany interaktywny widok zespołu z fikcyjnymi rekordami części i telemetrią; nie jest rysunkiem CAD.
 
-<p align="center"><sub><b>AgenticOS w dwie minuty.</b> Nagrana sesja: szef sztabu rozdziela pracę między innych agentów, Architekt szkicuje nowego agenta do zatwierdzenia, agent finansowy dostaje narzędzia, przechodzi test i publikuje dashboard, inny przegląda GitHuba, a jeszcze inny czyta Notion przez MCP. Lektor syntetyczny. <a href="https://github.com/user-attachments/assets/9d2a7923-a52e-4ee6-ab6a-734692824d5a">Obejrzyj (2:11)</a></sub></p>
+<a href="docs/assets/readme/highlight-motor.webp"><img src="docs/assets/readme/highlight-motor.webp" alt="Motor Atlas z interaktywnym widokiem rozstrzelonym silnika i rejestrem komponentów." width="100%"></a>
 
 
 ## 🧩 Buduj użyteczne procesy wokół agentów
@@ -174,7 +167,7 @@ Przykładowy szkic z 30 krokami: Google Workspace, Microsoft 365, HubSpot, Sales
 
 **Ustrukturyzowana praca dostępna dla agentów i zespołu.**
 
-<a href="docs/assets/readme/highlight-tables.webp"><img src="docs/assets/readme/highlight-tables.webp" alt="Virtual Tables z fikcyjnymi firmami, typowanymi polami, etapami i następnymi działaniami. Te same rekordy można oglądać w tabeli lub na kanbanie." width="100%"></a>
+<a href="docs/assets/readme/highlight-tables.webp"><img src="docs/assets/readme/highlight-tables.webp" alt="Pełne okno AgenticOS z fikcyjnym pipeline sprzedaży w widoku Kanban." width="100%"></a>
 
 Virtual Tables z fikcyjnymi firmami, typowanymi polami, etapami i następnymi działaniami. Te same rekordy można oglądać w tabeli lub na kanbanie.
 

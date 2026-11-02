@@ -1,18 +1,10 @@
 ---
-source_sha: "1dc3d32f9888"
+source_sha: "3946000309d5"
 ---
 
 # Każdy ekran w konsoli { #every-screen-in-the-console }
 
-Galeria korzysta z fikcyjnej organizacji Northwind Labs. Dane firmy i liczby są zmyślone. Historyczne rozmowy z agentami sąsiadują z wyraźnie opisanymi, seedowanymi demonstracjami. Zrzuty podążają za motywem strony; przełącz go w nagłówku, aby zmienić obrazy.
-
-Statyczne zrzuty konsoli odświeżono 2 listopada 2026 w AgenticOS 1.35.3. Workflowy sprzedaży, dokumentów i supportu to przykładowe szkice z placeholderami połączeń. Przykład przetwarzania wsadowego wykonano lokalnie, bez modeli i zewnętrznych narzędzi. Liczby w pipeline są fikcyjne. Film poniżej to nagranie historyczne.
-
-## Demo produktu { #product-demo }
-
-Aktualne zmontowane demo pokazuje OSS Launch Planner: zadanie wykorzystujące brief z Notion i informacje z GitHuba, interaktywną aplikację oraz link do udostępnienia. Usunięto czas oczekiwania; raport zawiera dane z chwili wykonania.
-
-<video src="https://github.com/user-attachments/assets/529c8a90-501e-45c7-81d1-0f8de7829953" controls muted playsinline style="width:100%"></video>
+Aktualne screeny z organizacji demonstracyjnej Northwind Labs, wykonane 2 listopada 2026 w AgenticOS 1.35.3. Firmy, wyniki sprzedaży, dostawy i urządzenia są fikcyjne. Przygotowane Visuals są oznaczone; nie sugerują połączenia z CRM, ERP ani maszynami. Kadry zachowują pełne okno aplikacji.
 
 ## Gdzie lądujesz { #where-you-land }
 
@@ -20,21 +12,15 @@ Aktualne zmontowane demo pokazuje OSS Launch Planner: zadanie wykorzystujące br
 
 Twój własny widok, układalny widok organizacji, widok jednej grupy i - dla admina deploymentu - całego wdrożenia, wybierane na górze. Runy, wydatki, kondycja usług i jakość odpowiedzi; każda karta jest bramkowana uprawnieniem, którego wymagają jej własne dane, więc karta, której podstawowego odczytu nie możesz wykonać, to karta, której nie dostajesz do wyboru.
 
-![Dashboard](assets/screens/light/dashboard.webp#only-light)
-![Dashboard](assets/screens/dark/dashboard.webp#only-dark)
+![Dashboard](assets/screens/light/dashboard.webp?v=20261102-industrial#only-light)
+![Dashboard](assets/screens/dark/dashboard.webp?v=20261102-industrial#only-dark)
 
 ### Chat { #chat }
 
-Przygotowana rozmowa o Trail Supply, wypełniona lista czatów i działające Visuals Kit Studio. Wybierz produkty, zmień budżet i sprawdź sumę w rzeczywistym rendererze rozmowy. Wiadomości i katalog są zaseedowanymi przykładami, nie zapisem wygenerowania sklepu przez model.
+Przygotowany przegląd sprzedaży z Revenue Pulse renderowanym przez Visuals. Przychód, cele i udział zespołu zmieniają się wraz z filtrami regionu i okresu. Rozmowa i dane są seedowanym przykładem, a nie dowodem wygenerowania dashboardu przez model.
 
-![Chat](assets/screens/light/chat.webp#only-light)
-![Chat](assets/screens/dark/chat.webp#only-dark)
-
-### Rozmowa głosowa { #a-voice-call }
-
-Pole wiadomości zamienione w pasek rozmowy: co się teraz dzieje w rozmowie, jej czas na tle limitu, wykres fali dźwiękowej obu głosów, wyciszenie, „naciśnij, aby mówić” i Zakończ. Nad nim toczy się dalej konwersacja - napisy w wypowiadanej właśnie wiadomości, uruchomienia narzędzi i karta zatwierdzenia z dokładnymi argumentami i tym, co według transkrypcji powiedziałeś.
-
-> **Miejsce na zrzut — Rozmowa głosowa.**
+![Chat](assets/screens/light/chat.webp?v=20261102-industrial#only-light)
+![Chat](assets/screens/dark/chat.webp?v=20261102-industrial#only-dark)
 
 ## Budowanie agenta { #building-an-agent }
 
@@ -42,43 +28,43 @@ Pole wiadomości zamienione w pasek rozmowy: co się teraz dzieje w rozmowie, je
 
 Katalog. Każdy agent niesie wersję, która jest na żywo, informację o tym, kto może do niego sięgnąć, i o tym, czy czeka wersja robocza. Agent jest konfiguracją, a nie kodem - i dlatego tę listę może edytować ten, kto zna odpowiedź.
 
-![Agents](assets/screens/light/agents.webp#only-light)
-![Agents](assets/screens/dark/agents.webp#only-dark)
+![Agents](assets/screens/light/agents.webp?v=20261102-industrial#only-light)
+![Agents](assets/screens/dark/agents.webp?v=20261102-industrial#only-dark)
 
 ### Agent templates { #agent-templates }
 
 Szablony według branży, nad katalogiem. Zainstalowanie jednego tworzy wersję roboczą, którą kończysz i publikujesz; nic nie działa, dopóki tego nie zrobisz.
 
-![Agent templates](assets/screens/light/agent-templates.webp#only-light)
-![Agent templates](assets/screens/dark/agent-templates.webp#only-dark)
+![Agent templates](assets/screens/light/agent-templates.webp?v=20261102-industrial#only-light)
+![Agent templates](assets/screens/dark/agent-templates.webp?v=20261102-industrial#only-dark)
 
 ### Skills { #skills }
 
 Know-how spisane raz i dzielone przez każdego związanego z nim agenta - jak obsługuje się zwroty, jaki jest styl firmy. Zedytuj je tutaj, a każdy związany z nim agent jest aktualny przy swoim następnym runie.
 
-![Skills](assets/screens/light/skills.webp#only-light)
-![Skills](assets/screens/dark/skills.webp#only-dark)
+![Skills](assets/screens/light/skills.webp?v=20261102-industrial#only-light)
+![Skills](assets/screens/dark/skills.webp?v=20261102-industrial#only-dark)
 
 ### Skill gallery { #skill-gallery }
 
 Skille według branży. Instalacja kopiuje jeden do Twojej organizacji, gdzie możesz go edytować - kopia, więc źródło nie może zmienić tego, co mówią Twoi agenci.
 
-![Skill gallery](assets/screens/light/skill-gallery.webp#only-light)
-![Skill gallery](assets/screens/dark/skill-gallery.webp#only-dark)
+![Skill gallery](assets/screens/light/skill-gallery.webp?v=20261102-industrial#only-light)
+![Skill gallery](assets/screens/dark/skill-gallery.webp?v=20261102-industrial#only-dark)
 
 ### Jeden skill { #one-skill }
 
 Otwarty do edycji, ze swoją kategorią. Nazwa, którą posługuje się model, jest ustalana przy tworzeniu i nie może się zmienić; wszystko inne tutaj może.
 
-![Jeden skill](assets/screens/light/skill-detail.webp#only-light)
-![Jeden skill](assets/screens/dark/skill-detail.webp#only-dark)
+![Jeden skill](assets/screens/light/skill-detail.webp?v=20261102-industrial#only-light)
+![Jeden skill](assets/screens/dark/skill-detail.webp?v=20261102-industrial#only-dark)
 
 ### Context { #context }
 
 Stały kontekst, z którego może czerpać każdy agent - słownik pojęć, polityka, ton marki. Wstrzykiwany do promptu albo czytany na żądanie, i aktualny w chwili, w której go zedytujesz.
 
-![Context](assets/screens/light/context.webp#only-light)
-![Context](assets/screens/dark/context.webp#only-dark)
+![Context](assets/screens/light/context.webp?v=20261102-industrial#only-light)
+![Context](assets/screens/dark/context.webp?v=20261102-industrial#only-dark)
 
 ## Wewnątrz jednego agenta { #inside-one-agent }
 
@@ -88,57 +74,57 @@ Builder, zakładka po zakładce.
 
 Instrukcje, model i endpoint. Zachowanie mieszka tutaj, a nie w kodzie, w Markdownie, z którego model czyta strukturę - a nagłówek niesie `published` obok `Draft differs from v40`, i o to właśnie chodzi: edytowanie nie wydaje.
 
-![Build](assets/screens/light/agent-builder.webp#only-light)
-![Build](assets/screens/dark/agent-builder.webp#only-dark)
+![Build](assets/screens/light/agent-builder.webp?v=20261102-industrial#only-light)
+![Build](assets/screens/dark/agent-builder.webp?v=20261102-industrial#only-dark)
 
 ### Toolbox { #toolbox }
 
 Każda capability jako przełącznik - wyszukiwanie w wiedzy, przeglądarka, Python w sandboksie, wykresy, delegacja - a obok każdego bramka approvalu per narzędzie. Konfiguracja sięga wyłącznie tego, co zarejestrował kod.
 
-![Toolbox](assets/screens/light/agent-toolbox.webp#only-light)
-![Toolbox](assets/screens/dark/agent-toolbox.webp#only-dark)
+![Toolbox](assets/screens/light/agent-toolbox.webp?v=20261102-industrial#only-light)
+![Toolbox](assets/screens/dark/agent-toolbox.webp?v=20261102-industrial#only-dark)
 
 ### MCP servers { #mcp-servers }
 
 Do których połączeń ten agent może sięgnąć i do których z ich narzędzi. Lista organizacji nadal go ogranicza; agent może zawęzić się wewnątrz niej i nie może sięgnąć poza nią.
 
-![MCP servers](assets/screens/light/agent-mcp.webp#only-light)
-![MCP servers](assets/screens/dark/agent-mcp.webp#only-dark)
+![MCP servers](assets/screens/light/agent-mcp.webp?v=20261102-industrial#only-light)
+![MCP servers](assets/screens/dark/agent-mcp.webp?v=20261102-industrial#only-dark)
 
 ### Limits { #limits }
 
 Jeden limit miesięczny i sufit kroków. Limit jest sprawdzany przed każdym żądaniem do modelu, a limit kroków łapie tę drugą rozbieganą sytuację - pętlę narzędzia, która jest tania na wywołanie i nigdy się nie kończy.
 
-![Limits](assets/screens/light/agent-limits.webp#only-light)
-![Limits](assets/screens/dark/agent-limits.webp#only-dark)
+![Limits](assets/screens/light/agent-limits.webp?v=20261102-industrial#only-light)
+![Limits](assets/screens/dark/agent-limits.webp?v=20261102-industrial#only-dark)
 
 ### Availability { #availability }
 
 Gdzie ten agent odpowiada: dashboard i API zawsze, plus każdy bot czatowy tutaj z nim związany. Agenta da się wywołać przez `@handle` tylko na tych botach, z którymi jest związany.
 
-![Availability](assets/screens/light/agent-availability.webp#only-light)
-![Availability](assets/screens/dark/agent-availability.webp#only-dark)
+![Availability](assets/screens/light/agent-availability.webp?v=20261102-industrial#only-light)
+![Availability](assets/screens/dark/agent-availability.webp?v=20261102-industrial#only-dark)
 
 ### Routines, na agencie { #routines-on-the-agent }
 
 Co robi, gdy nikt nie pisze, na tej samej zakładce - harmonogram, który da się wstrzymać, albo trigger zdarzeniowy.
 
-![Routines, na agencie](assets/screens/light/agent-routines.webp#only-light)
-![Routines, na agencie](assets/screens/dark/agent-routines.webp#only-dark)
+![Routines, na agencie](assets/screens/light/agent-routines.webp?v=20261102-industrial#only-light)
+![Routines, na agencie](assets/screens/dark/agent-routines.webp?v=20261102-industrial#only-dark)
 
 ### History { #history }
 
 Każda wersja, jaką ten agent miał. Ta, która była na żywo w marcu, nadal jest czytelna, i to właśnie czyni z rollbacku wybór, a nie projekt archeologiczny.
 
-![History](assets/screens/light/agent-history.webp#only-light)
-![History](assets/screens/dark/agent-history.webp#only-dark)
+![History](assets/screens/light/agent-history.webp?v=20261102-industrial#only-light)
+![History](assets/screens/dark/agent-history.webp?v=20261102-industrial#only-dark)
 
 ### Visual map { #visual-map }
 
 Ten sam agent jako graf: co do niego sięga i po co on sięga. Przerywana ramka to coś, do czego nic nie jest podpięte - budżet bez własnego sufitu czyta się jako luka, a nie jako wartość domyślna.
 
-![Visual map](assets/screens/light/agent-map.webp#only-light)
-![Visual map](assets/screens/dark/agent-map.webp#only-dark)
+![Visual map](assets/screens/light/agent-map.webp?v=20261102-industrial#only-light)
+![Visual map](assets/screens/dark/agent-map.webp?v=20261102-industrial#only-dark)
 
 ## Workflows i tabele { #workflows-and-tables }
 
@@ -146,50 +132,43 @@ Ten sam agent jako graf: co do niego sięga i po co on sięga. Przerywana ramka 
 
 Katalog automatyzacji, po jednej karcie na każdą: jej status, kto może do niej dotrzeć, czy ma żywą wersję i kiedy ostatnio ją edytowano, a jej runy, edytor i kopia są jedno kliknięcie dalej.
 
-![Workflows](assets/screens/light/workflows.webp#only-light)
-![Workflows](assets/screens/dark/workflows.webp#only-dark)
+![Workflows](assets/screens/light/workflows.webp?v=20261102-industrial#only-light)
+![Workflows](assets/screens/dark/workflows.webp?v=20261102-industrial#only-dark)
 
 ### Edytor workflow { #the-workflow-editor }
 
 Kanwa ma całą szerokość: graf jako karty mówiące, do czego ustawiony jest każdy krok albo do jakiej grupy należy, ustawienia kroku w oknie nad nią i każdy krok do dodania o jedno kliknięcie - albo jeden prawy przycisk - stąd. Pętla pokazuje, ile kroków zawiera jej ciało.
 
-![Workflow editor](assets/screens/light/workflow-editor.webp#only-light)
-![Workflow editor](assets/screens/dark/workflow-editor.webp#only-dark)
+![Workflow editor](assets/screens/light/workflow-editor.webp?v=20261102-industrial#only-light)
+![Workflow editor](assets/screens/dark/workflow-editor.webp?v=20261102-industrial#only-dark)
 
 ### Ciało pętli { #a-loops-body }
 
 Wewnątrz pętli: bieżąca firma, mapowanie formujące jej rekord i krok zbierający wynik. Lokalny przykład przetwarza nazwy trzech fikcyjnych firm bez zewnętrznych poświadczeń.
 
-![Workflow loop body](assets/screens/light/workflow-loop-body.webp#only-light)
-![Workflow loop body](assets/screens/dark/workflow-loop-body.webp#only-dark)
+![Workflow loop body](assets/screens/light/workflow-loop-body.webp?v=20261102-industrial#only-light)
+![Workflow loop body](assets/screens/dark/workflow-loop-body.webp?v=20261102-industrial#only-dark)
 
 ### Runy { #runs }
 
 Każdy run jednego workflow, od najnowszego: czy uruchomił draft czy opublikowaną wersję, co go uruchomiło, kiedy, jak długo trwał i ile kosztował. **Start a run** testuje draft z Twoim własnym inputem.
 
-![Workflow runs](assets/screens/light/workflow-runs.webp#only-light)
-![Workflow runs](assets/screens/dark/workflow-runs.webp#only-dark)
+![Workflow runs](assets/screens/light/workflow-runs.webp?v=20261102-industrial#only-light)
+![Workflow runs](assets/screens/dark/workflow-runs.webp?v=20261102-industrial#only-dark)
 
 ### Run { #a-run }
 
 Jeden run tak, jak przebiegł: graf, który wykonał, z każdym krokiem oznaczonym tym, co zrobił, wyjście, którym odpowiedział, i każdy krok, który wykonał, iteracja po iteracji.
 
-![Workflow run](assets/screens/light/workflow-run.webp#only-light)
-![Workflow run](assets/screens/dark/workflow-run.webp#only-dark)
+![Workflow run](assets/screens/light/workflow-run.webp?v=20261102-industrial#only-light)
+![Workflow run](assets/screens/dark/workflow-run.webp?v=20261102-industrial#only-dark)
 
 ### Tabele { #tables }
 
-Typowane rekordy, które czytają i zapisują Twoi agenci, workflow i integracje, po jednej karcie na tabelę, z tym, kto może do niej dotrzeć, i wersją jej schematu.
+Fikcyjny pipeline sprzedaży w Kanbanie: jedna szansa na kartę, pogrupowane według etapu. Agenci i workflowy pracują na tych samych typowanych rekordach; tablica jest tu głównym kadrem.
 
-![Tables](assets/screens/light/tables.webp#only-light)
-![Tables](assets/screens/dark/tables.webp#only-dark)
-
-### Tabela { #a-table }
-
-Demonstracyjny pipeline sprzedaży z typowanymi polami, kolorowymi etapami i następnymi działaniami. Te same fikcyjne rekordy są dostępne jako tabela, kanban lub lista.
-
-![Table detail](assets/screens/light/table-detail.webp#only-light)
-![Table detail](assets/screens/dark/table-detail.webp#only-dark)
+![Tables](assets/screens/light/table-kanban.webp?v=20261102-industrial#only-light)
+![Tables](assets/screens/dark/table-kanban.webp?v=20261102-industrial#only-dark)
 
 ## Knowledge { #knowledge }
 
@@ -197,22 +176,22 @@ Demonstracyjny pipeline sprzedaży z typowanymi polami, kolorowymi etapami i nas
 
 Kolekcje. Zgrupuj powiązane dokumenty w jedną, a potem wybierz na czacie, które kolekcje agent może przeszukiwać.
 
-![Knowledge bases](assets/screens/light/knowledge-bases.webp#only-light)
-![Knowledge bases](assets/screens/dark/knowledge-bases.webp#only-dark)
+![Knowledge bases](assets/screens/light/knowledge-bases.webp?v=20261102-industrial#only-light)
+![Knowledge bases](assets/screens/dark/knowledge-bases.webp?v=20261102-industrial#only-dark)
 
 ### Jedna kolekcja { #a-collection }
 
 Jej dokumenty, liczby fragmentów i wszystko, czego nie udało się zaingestować, wraz z powodem. To granice fragmentów są tym, do czego dopasowuje się wyszukiwanie, więc dokument wgrany ponownie po zmianie ustawień jest dzielony na nowo.
 
-![Jedna kolekcja](assets/screens/light/knowledge-collection.webp#only-light)
-![Jedna kolekcja](assets/screens/dark/knowledge-collection.webp#only-dark)
+![Jedna kolekcja](assets/screens/light/knowledge-collection.webp?v=20261102-industrial#only-light)
+![Jedna kolekcja](assets/screens/dark/knowledge-collection.webp?v=20261102-industrial#only-dark)
 
 ### Parsowanie, per wgranie { #parsing-per-upload }
 
 Wybór, którego nikt inny nie wystawia: **PyMuPDF**, **LiteParse** albo **LlamaParse**, strategia dzielenia na fragmenty, rozmiar fragmentu i zakładka, OCR i jego język. Ustawiane na kolekcji i nadpisywalne przy następnym pliku, który dodasz - bo zeskanowany cennik i runbook w Markdownie nie chcą tego samego parsera, a zły parser jest różnicą między odpowiedzią a odmową.
 
-![Parsowanie, per wgranie](assets/screens/light/kb-parse-options.webp#only-light)
-![Parsowanie, per wgranie](assets/screens/dark/kb-parse-options.webp#only-dark)
+![Parsowanie, per wgranie](assets/screens/light/kb-parse-options.webp?v=20261102-industrial#only-light)
+![Parsowanie, per wgranie](assets/screens/dark/kb-parse-options.webp?v=20261102-industrial#only-dark)
 
 ## Co się wydarzyło i co czeka { #what-happened-and-what-is-waiting }
 
@@ -220,91 +199,78 @@ Wybór, którego nikt inny nie wystawia: **PyMuPDF**, **LiteParse** albo **Llama
 
 Każdy run, który wykonała ta organizacja, ze swoim statusem, powierzchnią, modelem, osobą i kosztem. Run jest procesem: startuje, można go zatrzymać i zostawia zapis.
 
-![Runs](assets/screens/light/activity.webp#only-light)
-![Runs](assets/screens/dark/activity.webp#only-dark)
+![Runs](assets/screens/light/activity.webp?v=20261102-industrial#only-light)
+![Runs](assets/screens/dark/activity.webp?v=20261102-industrial#only-dark)
 
 ### Jeden run, otwarty { #one-run-opened }
 
 Tokeny wejściowe i wyjściowe, koszt do czterech miejsc po przecinku, ile to trwało oraz oś czasu każdej tury i każdego wywołania narzędzia. Czat, w którym to się wydarzyło, jest o jedno kliknięcie stąd.
 
-![Jeden run, otwarty](assets/screens/light/run-detail.webp#only-light)
-![Jeden run, otwarty](assets/screens/dark/run-detail.webp#only-dark)
+![Jeden run, otwarty](assets/screens/light/run-detail.webp?v=20261102-industrial#only-light)
+![Jeden run, otwarty](assets/screens/dark/run-detail.webp?v=20261102-industrial#only-dark)
 
 ### Approvals { #approvals }
 
 Wszystko, co czeka na człowieka, razem z tym, co agent zamierza zrobić. Approval jest rozstrzygany dokładnie raz - druga decyzja na rozstrzygniętym jest odrzucana, i to ten szczegół sprawia, że warto mieć tę bramkę.
 
-![Approvals](assets/screens/light/approvals.webp#only-light)
-![Approvals](assets/screens/dark/approvals.webp#only-dark)
+![Approvals](assets/screens/light/approvals.webp?v=20261102-industrial#only-light)
+![Approvals](assets/screens/dark/approvals.webp?v=20261102-industrial#only-dark)
 
 ### Spend { #spend }
 
 Ile faktycznie wydano, w podziale na okresy. Budżet jest sprawdzany *przed* żądaniem do modelu, a nie sumowany po fakcie, więc run, który go przekroczy, zatrzymuje się w środku odpowiedzi i mimo to zapisuje swój koszt.
 
-![Spend](assets/screens/light/spend.webp#only-light)
-![Spend](assets/screens/dark/spend.webp#only-dark)
+![Spend](assets/screens/light/spend.webp?v=20261102-industrial#only-light)
+![Spend](assets/screens/dark/spend.webp?v=20261102-industrial#only-dark)
 
 ### Routines { #routines }
 
 Co agenci robią, gdy nikt nie pisze - według harmonogramu albo kiedy przyjdzie zdarzenie. Te runy są budżetowane, zatwierdzane i audytowane jak każde inne.
 
-![Routines](assets/screens/light/routines.webp#only-light)
-![Routines](assets/screens/dark/routines.webp#only-dark)
+![Routines](assets/screens/light/routines.webp?v=20261102-industrial#only-light)
+![Routines](assets/screens/dark/routines.webp?v=20261102-industrial#only-dark)
 
 ### Nowy trigger zdarzeniowy { #a-new-event-trigger }
 
 Nazwanie zdarzenia, które uruchamia run, nad listą rutyn.
 
-![Nowy trigger zdarzeniowy](assets/screens/light/routine-event-trigger.webp#only-light)
-![Nowy trigger zdarzeniowy](assets/screens/dark/routine-event-trigger.webp#only-dark)
+![Nowy trigger zdarzeniowy](assets/screens/light/routine-event-trigger.webp?v=20261102-industrial#only-light)
+![Nowy trigger zdarzeniowy](assets/screens/dark/routine-event-trigger.webp?v=20261102-industrial#only-dark)
 
 ### Apps { #apps }
 
 Strony opublikowane przez agentów - raporty, małe dashboardy, podsumowania. Każda zachowuje swój link, gdy agent publikuje ją ponownie, a jej wcześniejsze wersje można dalej czytać.
 
-![Apps](assets/screens/light/apps.webp#only-light)
-![Apps](assets/screens/dark/apps.webp#only-dark)
+![Apps](assets/screens/light/apps.webp?v=20261102-industrial#only-light)
+![Apps](assets/screens/dark/apps.webp?v=20261102-industrial#only-dark)
 
 ### Jedna appka { #one-app }
 
-Company Brain, seedowany przykład LLM wiki, otwarty jako prywatna aplikacja. Wybierz fikcyjną notatkę, aby przeczytać jej kontekst. Mapa to interaktywne wyjaśnienie, nie rzeczywiste wyszukiwanie. Udostępnianie i link publiczny pozostają osobnymi decyzjami.
+Northline łączy mapę dostawców w Europie, wyjątki dostaw i okna montażowe. Można zasymulować opóźnienie, filtrować dostawy i sprawdzić zależność. To przygotowana lokalna aplikacja planistyczna, bez połączenia z ERP i przewoźnikami.
 
-![Jedna appka](assets/screens/light/app-detail.webp#only-light)
-![Jedna appka](assets/screens/dark/app-detail.webp#only-dark)
+![Northline](assets/screens/light/app-manufacturing.webp?v=20261102-industrial#only-light)
+![Northline](assets/screens/dark/app-manufacturing.webp?v=20261102-industrial#only-dark)
 
-### Launch Room { #launch-room }
+### Motor Atlas { #motor }
 
-Seedowana aplikacja do planowania premiery z czterema kolumnami zadań, działającymi filtrami i briefami do przeglądu. Firmy, daty i zadania są fikcyjne; zmiany pozostają w podglądzie.
+Koncepcyjny widok rozstrzelony silnika z wyborem komponentów, regulacją rozsunięcia, fikcyjnym zestawieniem części i przykładową telemetrią. To interaktywne objaśnienie, a nie rysunek CAD, diagnoza lub instrukcja serwisowa.
 
-![Launch Room](assets/screens/light/app-launch.webp#only-light)
-![Launch Room](assets/screens/dark/app-launch.webp#only-dark)
+![Motor Atlas](assets/screens/light/app-motor.webp?v=20261102-industrial#only-light)
+![Motor Atlas](assets/screens/dark/app-motor.webp?v=20261102-industrial#only-dark)
 
-### Interaktywne demo zakupów { #an-interactive-shopping-demo }
+### Revenue Pulse { #revenue }
 
-Samodzielna App Trail Supply ma zdjęcia produktów, filtry katalogu, widoki szczegółów, dobór zestawu do budżetu i lokalny koszyk demo. Nie składa zamówień i nie zawiera aktywnego widgetu.
+Interaktywny przegląd sprzedaży: przychód względem celu, pipeline, udział zespołu i kolejne szanse. Sumy są liczone z fikcyjnych rekordów; filtry regionu i okresu działają lokalnie.
 
-![Interaktywne demo zakupów](assets/screens/light/app-shopping.webp#only-light)
-![Interaktywne demo zakupów](assets/screens/dark/app-shopping.webp#only-dark)
+![Revenue Pulse](assets/screens/light/app-revenue.webp?v=20261102-industrial#only-light)
+![Revenue Pulse](assets/screens/dark/app-revenue.webp?v=20261102-industrial#only-dark)
 
-### Kit Studio { #kit-studio }
+### Visuals { #visuals-in-the-conversation }
 
-Przygotowany interaktywny przykład Visuals zapisany jako App. Wybieraj produkty, zmieniaj budżet i sprawdzaj dostawę oraz sumę. Katalog jest fikcyjny, a obliczenia deterministyczne.
+Przygotowany Visuals Revenue Pulse w prawdziwym rendererze chatu. Można zapisać go jako App; screen nie przedstawia nowego wykonania przez model ani dostępu do działającego CRM.
 
-![Kit Studio](assets/screens/light/app-kit.webp#only-light)
-![Kit Studio](assets/screens/dark/app-kit.webp#only-dark)
-
-### Widget agenta na własnej stronie { #store-website-widget }
-
-Osobna lokalna strona sklepu używa prawdziwego skryptu widgetu i WebSocket AgenticOS. Opublikowany agent tylko do odczytu odpowiedział na podstawie przygotowanego katalogu w zapisanym przebiegu modelu. Nie jest to integracja z prawdziwym sklepem ani checkout.
-
-![Fikcyjny sklep Trail Supply z prawdziwym widgetem AgenticOS odpowiadającym na pytanie o plecak.](assets/screens/store-widget.webp)
-
-### Visuals w rozmowie { #visuals-in-the-conversation }
-
-Seedowana wizualizacja HTML łączy pytanie z fragmentem fikcyjnej polityki i odpowiedzią z cytowaniem. Jej kontrolki działają w rzeczywistym rendererze rozmowy. Wizualizację można zapisać jako aplikację; zrzut nie jest dowodem rzeczywistego wywołania modelu ani wyszukiwania.
-
-![Visuals w rozmowie](assets/screens/light/visuals.webp#only-light)
-![Visuals w rozmowie](assets/screens/dark/visuals.webp#only-dark)
+![Visuals](assets/screens/light/chat-hero.webp?v=20261102-industrial#only-light)
+![Visuals](assets/screens/dark/chat-hero.webp?v=20261102-industrial#only-dark)
 
 ## Organizacja { #the-organization }
 
@@ -312,71 +278,71 @@ Seedowana wizualizacja HTML łączy pytanie z fragmentem fikcyjnej polityki i od
 
 Przełączaj się między nimi, zarządzaj członkami i twórz nowe. Autorytet wewnątrz organizacji to wiersz członkostwa plus katalog uprawnień - na użytkowniku nie ma kolumny z rolą.
 
-![Organizations](assets/screens/light/organizations.webp#only-light)
-![Organizations](assets/screens/dark/organizations.webp#only-dark)
+![Organizations](assets/screens/light/organizations.webp?v=20261102-industrial#only-light)
+![Organizations](assets/screens/dark/organizations.webp?v=20261102-industrial#only-dark)
 
 ### Members { #members }
 
 Ludzie jednej organizacji i ich role, razem z miesięcznym limitem wspólnym dla wszystkich jej agentów i ustawieniem, czy rozmowa może pominąć approvals.
 
-![Members](assets/screens/light/members.webp#only-light)
-![Members](assets/screens/dark/members.webp#only-dark)
+![Members](assets/screens/light/members.webp?v=20261102-industrial#only-light)
+![Members](assets/screens/dark/members.webp?v=20261102-industrial#only-dark)
 
 ### Roles { #roles }
 
 Co może każda rola, jako macierz zdefiniowana w kodzie. Udostępnienie pojedynczego zasobu może poszerzyć dostęp ponad rolę; nigdy go nie zawęża.
 
-![Roles](assets/screens/light/roles.webp#only-light)
-![Roles](assets/screens/dark/roles.webp#only-dark)
+![Roles](assets/screens/light/roles.webp?v=20261102-industrial#only-light)
+![Roles](assets/screens/dark/roles.webp?v=20261102-industrial#only-dark)
 
 ### Groups { #groups }
 
 Działy i zespoły. Udostępnij grupie agenta, bazę wiedzy, skill albo plik kontekstu, a każdy w niej może z niego korzystać - osoby spoza grupy nie.
 
-![Groups](assets/screens/light/groups.webp#only-light)
-![Groups](assets/screens/dark/groups.webp#only-dark)
+![Groups](assets/screens/light/groups.webp?v=20261102-industrial#only-light)
+![Groups](assets/screens/dark/groups.webp?v=20261102-industrial#only-dark)
 
 ### Vault { #vault }
 
 Każdy klucz, który ta organizacja przechowała, zapieczętowany per tenant. Wymienialny, nigdy więcej odczytywalny; a rotacja jest niewidoczna dla opublikowanego agenta, który odwołuje się do sekretu, a nie do jego wartości.
 
-![Vault](assets/screens/light/vault.webp#only-light)
-![Vault](assets/screens/dark/vault.webp#only-dark)
+![Vault](assets/screens/light/vault.webp?v=20261102-industrial#only-light)
+![Vault](assets/screens/dark/vault.webp?v=20261102-industrial#only-dark)
 
 ### MCP servers { #mcp-servers_1 }
 
 Podłącz dowolny serwer MCP po URL, a jego narzędzia stają się przełącznikami w Builderze. Podłącz go dla organizacji, a może z niego korzystać każdy agent; podłącz go dla siebie, a zostaje w Twoim własnym czacie.
 
-![MCP servers](assets/screens/light/mcp-servers.webp#only-light)
-![MCP servers](assets/screens/dark/mcp-servers.webp#only-dark)
+![MCP servers](assets/screens/light/mcp-servers.webp?v=20261102-industrial#only-light)
+![MCP servers](assets/screens/dark/mcp-servers.webp?v=20261102-industrial#only-dark)
 
 ### Channels { #channels }
 
 Platformy czatowe, na których odpowiada ta organizacja - Slack, Teams, Telegram, Mattermost. Bot obsługuje każdego związanego z nim agenta, a to powiązanie tworzy się na zakładce Availability tego agenta.
 
-![Channels](assets/screens/light/channels.webp#only-light)
-![Channels](assets/screens/dark/channels.webp#only-dark)
+![Channels](assets/screens/light/channels.webp?v=20261102-industrial#only-light)
+![Channels](assets/screens/dark/channels.webp?v=20261102-industrial#only-dark)
 
 ### Sandboxes { #sandboxes }
 
 Miejsce, w którym agenci tej organizacji uruchamiają komendy powłoki i trzymają pliki. Agent nazywa połączenie po id, więc przeniesienie się na inny host to jedna edycja tutaj, a nie ponowna publikacja każdego agenta.
 
-![Sandboxes](assets/screens/light/sandboxes.webp#only-light)
-![Sandboxes](assets/screens/dark/sandboxes.webp#only-dark)
+![Sandboxes](assets/screens/light/sandboxes.webp?v=20261102-industrial#only-light)
+![Sandboxes](assets/screens/dark/sandboxes.webp?v=20261102-industrial#only-dark)
 
 ### Documents { #documents }
 
 Pliki, które agenci trzymają dla Ciebie. Workspace to przestrzeń robocza - jest kasowany razem z rozmową, do której należy, i nie jest miejscem na przechowywanie czegokolwiek trwałego.
 
-![Documents](assets/screens/light/documents.webp#only-light)
-![Documents](assets/screens/dark/documents.webp#only-dark)
+![Documents](assets/screens/light/documents.webp?v=20261102-industrial#only-light)
+![Documents](assets/screens/dark/documents.webp?v=20261102-industrial#only-dark)
 
 ### Twoje ustawienia { #your-settings }
 
 Twój profil i konto, slash commands, pamięć, logowania, które agent przeglądarki trzyma dla Ciebie, powiadomienia, klucze API, klienci MCP i Architect - każde w osobnej zakładce.
 
-![Twoje ustawienia](assets/screens/light/settings.webp#only-light)
-![Twoje ustawienia](assets/screens/dark/settings.webp#only-dark)
+![Twoje ustawienia](assets/screens/light/settings.webp?v=20261102-industrial#only-light)
+![Twoje ustawienia](assets/screens/dark/settings.webp?v=20261102-industrial#only-dark)
 
 ## Administracja wdrożeniem { #deployment-administration }
 
@@ -384,29 +350,29 @@ Twój profil i konto, slash commands, pamięć, logowania, które agent przeglą
 
 Każdy, kto może zalogować się do tego wdrożenia, oraz flaga administratora aplikacji, która jest niezależna od jakiejkolwiek roli w organizacji.
 
-![Users](assets/screens/light/admin-users.webp#only-light)
-![Users](assets/screens/dark/admin-users.webp#only-dark)
+![Users](assets/screens/light/admin-users.webp?v=20261102-industrial#only-light)
+![Users](assets/screens/dark/admin-users.webp?v=20261102-industrial#only-dark)
 
 ### All organizations { #all-organizations }
 
 Każdy tenant w tym wdrożeniu, ze swoim właścicielem, członkami i agentami.
 
-![All organizations](assets/screens/light/admin-organizations.webp#only-light)
-![All organizations](assets/screens/dark/admin-organizations.webp#only-dark)
+![All organizations](assets/screens/light/admin-organizations.webp?v=20261102-industrial#only-light)
+![All organizations](assets/screens/dark/admin-organizations.webp?v=20261102-industrial#only-dark)
 
 ### System { #system }
 
 Baza danych, Redis, magazyn wektorów, dostęp do modeli i zadania cykliczne - te same sprawdzenia, które wykonuje `agenticos cmd doctor`, na jednej stronie.
 
-![System](assets/screens/light/admin-system.webp#only-light)
-![System](assets/screens/dark/admin-system.webp#only-dark)
+![System](assets/screens/light/admin-system.webp?v=20261102-industrial#only-light)
+![System](assets/screens/dark/admin-system.webp?v=20261102-industrial#only-dark)
 
 ### Deployment { #deployment }
 
 Własna tożsamość i polityka tego wdrożenia: rejestracja, zaproszenia, komunikaty i to, co spotyka odwiedzający po raz pierwszy.
 
-![Deployment](assets/screens/light/admin-deployment.webp#only-light)
-![Deployment](assets/screens/dark/admin-deployment.webp#only-dark)
+![Deployment](assets/screens/light/admin-deployment.webp?v=20261102-industrial#only-light)
+![Deployment](assets/screens/dark/admin-deployment.webp?v=20261102-industrial#only-dark)
 
 ## Czego jeszcze tu nie ma { #what-is-not-here-yet }
 

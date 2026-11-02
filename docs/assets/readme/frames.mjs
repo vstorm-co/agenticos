@@ -5,8 +5,8 @@
  *     node docs/assets/readme/frames.mjs            # every frame below
  *     node docs/assets/readme/frames.mjs projects   # just these
  *
- * Each frame names a screenshot in `sources/`, the part of it to show (CSS
- * pixels of the 1600-wide capture) and a photograph in `backgrounds/`, and is
+ * Each frame names a complete screenshot in `sources/` and a photograph in
+ * `backgrounds/`, and is
  * written to `highlight-<name>.webp` beside this file. Playwright and
  * ImageMagick come from the developer's machine, as for render.mjs.
  */
@@ -22,86 +22,93 @@ const require = createRequire(join(here, "../../../frontend/package.json"));
 const { chromium } = require("@playwright/test");
 
 /**
- * `crop` is [x, y, width, height] in the capture's CSS pixels; it is shown at `width` px in a 1600 x 1000 frame.
+ * Each capture keeps its full bounds and is fitted into a 1600 x 1000 frame.
  * `badges` float brand marks beside the window, from marks.json (paths copied from the landing's brand glyphs).
  * `heading` adds an editorial title above the window; the screenshot itself stays unchanged.
  */
 const FRAMES = [
   {
+    name: "manufacturing",
+    source: "app-northline-operations",
+    background: "storm",
+    width: 1450,
+  },
+  {
+    name: "motor",
+    source: "app-motor-atlas",
+    background: "night",
+    width: 1450,
+  },
+  {
+    name: "revenue",
+    source: "app-revenue-pulse",
+    background: "meadow-bg",
+    width: 1450,
+  },
+  {
     name: "launch-room",
     source: "app-launch-room",
     background: "meadow-bg",
-    crop: [0, 0, 1600, 1000],
     width: 1450,
   },
   {
     name: "shopping",
     source: "app-trail-supply",
     background: "cta",
-    crop: [0, 0, 1600, 1000],
     width: 1450,
   },
   {
     name: "kit",
     source: "app-trail-kit",
     background: "meadow-bg",
-    crop: [0, 0, 1600, 700],
     width: 1450,
   },
   {
     name: "widget",
     source: "store-widget",
     background: "cta",
-    crop: [0, 0, 1600, 1100],
     width: 1450,
   },
   {
     name: "workflows",
     source: "workflows",
     background: "hero-bg",
-    crop: [0, 0, 1600, 1000],
     width: 1500,
   },
   {
     name: "tables",
-    source: "tables",
+    source: "table-kanban",
     background: "meadow-bg",
-    crop: [0, 0, 1600, 1000],
     width: 1480,
   },
   {
     name: "mcp-server",
     source: "mcp-server",
     background: "storm",
-    crop: [240, 0, 1360, 1000],
     width: 1380,
   },
   {
     name: "hero",
-    source: "chat-storefront-dark",
+    source: "chat-revenue-dark",
     background: "hero-bg",
-    crop: [0, 0, 1600, 1000],
     width: 1380,
   },
   {
     name: "projects",
     source: "room-codex-live",
     background: "hero-bg",
-    crop: [240, 0, 1360, 1000],
     width: 1380,
   },
   {
     name: "reply",
     source: "room-reply",
     background: "meadow-bg",
-    crop: [240, 0, 1360, 1000],
     width: 1380,
   },
   {
     name: "coding",
     source: "coding-context-dark",
     background: "night",
-    crop: [0, 0, 1600, 720],
     width: 1450,
     heading: "Delegate the code.<br>Keep the context.",
     badges: [
@@ -113,56 +120,48 @@ const FRAMES = [
     name: "visuals",
     source: "visual-source-trace",
     background: "cta",
-    crop: [500, 0, 1100, 1000],
     width: 1380,
   },
   {
     name: "research",
     source: "research-table",
     background: "meadow-bg",
-    crop: [240, 0, 1360, 1000],
     width: 1380,
   },
   {
     name: "dashboard",
     source: "dashboard",
     background: "hero-bg",
-    crop: [0, 0, 1600, 1000],
     width: 1380,
   },
   {
     name: "subagents",
     source: "subagents",
     background: "meadow-bg",
-    crop: [0, 0, 1600, 1000],
     width: 1380,
   },
   {
     name: "browser",
     source: "old-browser",
     background: "night",
-    crop: [300, 0, 1300, 1000],
     width: 1380,
   },
   {
     name: "builder-test",
     source: "builder-test",
     background: "hero-bg",
-    crop: [0, 0, 1600, 1000],
     width: 1380,
   },
   {
     name: "app",
-    source: "app-company-brain",
+    source: "app-northline-operations",
     background: "cta",
-    crop: [0, 0, 1600, 1000],
     width: 1380,
   },
   {
     name: "mcp-servers",
     source: "mcp-servers",
     background: "storm",
-    crop: [0, 0, 1600, 1000],
     width: 1380,
   },
 ];
@@ -180,7 +179,10 @@ const page = await browser.newPage({
 
 for (const frame of FRAMES) {
   if (only.size && !only.has(frame.name)) continue;
-  const [x, y, w, h] = frame.crop;
+  const source = join(here, "sources", `${frame.source}.webp`);
+  const [nativeWidth, nativeHeight] = execFileSync("magick", ["identify", "-format", "%w %h", source], { encoding: "utf8" }).trim().split(" ").map(Number);
+  // Every figure preserves the complete application viewport, including navigation.
+  const [x, y, w, h] = [0, 0, 1600, 1600 * nativeHeight / nativeWidth];
   // Fit the window inside the frame with room for the photograph around it.
   // Badges sit on the sky above the window, so a frame with badges leaves room for them.
   const scale = Math.min(frame.width / w, (frame.badges ? 760 : 880) / h);
