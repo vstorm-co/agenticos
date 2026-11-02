@@ -62,6 +62,10 @@ concurrency:
 permissions:
   contents: read
 
+env:
+  # CI deployments and browser sessions must not enter production analytics.
+  DIAGNOSTICS_ENABLED: "false"
+
 # **Every job carries a `timeout-minutes`, and #364 is why.** `changes` was the only
 # one that did, so the other seven inherited GitHub's default of 360 minutes: one
 # stalled job would have held a required status check for six hours with nothing in

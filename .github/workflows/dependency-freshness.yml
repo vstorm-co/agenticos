@@ -28,6 +28,9 @@ on:
 permissions:
   contents: read
 
+env:
+  DIAGNOSTICS_ENABLED: "false"
+
 jobs:
   newest:
     name: the newest release of everything

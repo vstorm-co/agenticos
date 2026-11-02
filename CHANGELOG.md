@@ -199,6 +199,7 @@ environment without a person's decision.
 
 ### Fixed
 
+- CI, load tests and dependency freshness checks disable deployment diagnostics so ephemeral test installations and browser activity do not enter the live analytics collector.
 - Price embedding models OpenRouter serves by their bare OpenAI names, so
   knowledge searches through OpenRouter are no longer booked at $0.
 - Recommend a workspace the organization can publish when creating an agent,
