@@ -220,7 +220,7 @@ or to the member. See [MCP](mcp.md#authentication).
 one shared `key_version`: the bot token, a Slack app's signing secret and app
 token, and the shared secret an inbound webhook is authenticated against —
 Telegram's `X-Telegram-Bot-Api-Secret-Token`, a Mattermost outgoing webhook's
-token. See [Channels](channels.md).
+token, and a WhatsApp bot's Meta app secret and verify token. See [Channels](channels.md).
 
 **Event triggers.** The secret an event trigger's inbound webhook is verified against -
 GitHub's HMAC key, or the signing secret a mail or API relay sends - sealed to the organization and

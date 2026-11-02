@@ -2687,6 +2687,7 @@
           "schedule": "Schedule",
           "slack": "Slack",
           "telegram": "Telegram",
+          "whatsapp": "WhatsApp",
           "web": "Web chat",
           "workflow": "Workflow",
           "follow_ups": "Follow-ups",
@@ -2772,7 +2773,8 @@
         "platforms": {
           "telegram": "Telegram",
           "slack": "Slack",
-          "mattermost": "Mattermost"
+          "mattermost": "Mattermost",
+          "whatsapp": "WhatsApp"
         },
         "webhook": "listening",
         "polling": "polling",
@@ -3093,7 +3095,7 @@
         "knowledge": "The documents it answers from.",
         "departments": "Groups decide who sees which agent.",
         "teammate": "Agents are worth more shared.",
-        "channel": "Slack, Teams, Telegram or Mattermost."
+        "channel": "Slack, Teams, Telegram, WhatsApp or Mattermost."
       },
       "left": "{count, plural, =1 {1 step left} other {# steps left}}",
       "ratio": "{done}/{total}",
@@ -3176,7 +3178,7 @@
         },
         "channels": {
           "title": "Meet your team where it chats",
-          "body": "Put an agent in Slack, Telegram or Mattermost, and people ask it right in the thread they are already in.",
+          "body": "Put an agent in Slack, Teams, Telegram, Mattermost or WhatsApp, and people ask it right in the thread they are already in.",
           "cta": "Add a chat app"
         },
         "browser": {
@@ -4305,7 +4307,7 @@
       },
       "channels-new": {
         "title": "Reach agents where people are",
-        "body": "Register a chat platform - Slack, Telegram, Mattermost - and any agent can be bound to answer there. The bot's token is sealed in the vault. Add one here."
+        "body": "Register a chat platform - Slack, Telegram, Mattermost, Teams, WhatsApp - and any agent can be bound to answer there. The bot's token is sealed in the vault. Add one here."
       },
       "chat-agent-picker": {
         "title": "Choose who answers",
@@ -5944,10 +5946,14 @@
       "connectYourChatAccount": "Connect your chat account",
       "connected": "Connected",
       "disconnectAnyTime": "You can disconnect it at any time from your profile.",
+      "finishInTheChat": "Finish in the chat",
       "goBackToTheChat": "This chat account is now yours.",
+      "nameNotVerified": "(name not verified)",
+      "notConnectedYet": "Your account is not connected until the chat has the code.",
       "nowSaySomething": "Go back to the chat and ask the agent something.",
       "runsWithYourPermissions": "The agent answers as you - your permissions, your budget, your name on the audit trail.",
       "seeConnectedAccounts": "See your connected accounts",
+      "sendThisCode": "Send this code from your {platform} chat to finish. Never give it to anyone.",
       "thatAccount": "That chat account",
       "theAgentWillRunAsYou": "The bot needs to know who you are before it will answer you."
     },
@@ -5957,7 +5963,7 @@
       "broadcastsTeamsHint": "After enabling, download the updated Teams app package and reinstall or upgrade it in the target team or chat. Its owner must consent to receiving conversation messages.",
       "broadcastsTelegramHint": "Telegram uses literal @all, @here, @channel or @everyone aliases. It does not notify the whole group. The bot must receive group messages; check privacy mode in BotFather.",
       "addChannel": "Add channel",
-      "addChannelDescription": "Register a Slack, Telegram or Mattermost bot for the organization. Every credential here is sealed at rest and never read back.",
+      "addChannelDescription": "Register a Slack, Telegram, Mattermost, Microsoft Teams or WhatsApp bot for the organization. Every credential here is sealed at rest and never read back.",
       "addOneBecomesBindable": "Register one and agents can be made available on it from their Availability tab.",
       "appLevelToken": "App-level token",
       "appLevelTokenHint": "The xapp- token, for Socket Mode in development. Optional.",
@@ -5977,6 +5983,23 @@
       "teamsEndpointHint": "Paste this into the Azure Bot's configuration, and turn on its Microsoft Teams channel.",
       "teamsPackageWhy": "Upload the app package to your tenant's Teams app catalog, then add the app to a chat or a team.",
       "teamsPackageDownload": "Download app package",
+      "botTokenHintWhatsapp": "The System User access token from Meta Business settings. Use a permanent token: a temporary one stops working within a day.",
+      "whatsappPhoneNumberId": "Phone number ID",
+      "whatsappPhoneNumberIdHint": "In the Meta app, under WhatsApp, API setup. This is the number's ID, not the phone number itself.",
+      "whatsappAccountId": "WhatsApp Business account ID",
+      "whatsappAccountIdHint": "The account that owns the number, shown beside it under API setup.",
+      "whatsappAppSecret": "App secret",
+      "whatsappAppSecretHint": "In the Meta app, under App settings, Basic. Every incoming message is checked against it.",
+      "whatsappVerifyToken": "Verify token",
+      "whatsappVerifyTokenHint": "A string you choose, at least 8 characters. Meta asks for it when you subscribe the webhook. It is stored sealed and never shown again.",
+      "whatsappCallback": "Callback URL",
+      "whatsappCallbackHint": "Meta calls this address. The verify token is the one you chose when registering the bot; it is never shown here.",
+      "whatsappSetupSteps": "In your Meta app:",
+      "whatsappStepCallback": "Under WhatsApp, Configuration, paste the callback URL and the verify token.",
+      "whatsappStepSubscribe": "Subscribe the messages field.",
+      "whatsappStepLive": "Put the app in Live mode.",
+      "whatsappSendDown": "Can't send replies",
+      "whatsappStepToken": "Use a permanent System User access token.",
       "botTokenHintTelegram": "The token @BotFather gives you when you create a bot",
       "botUpdated": "{bot} updated",
       "bots": "Bots",
@@ -6059,7 +6082,7 @@
       "transcriptionInheritsFromOrg": "{pair}, from the organization",
       "transcriptionPair": "{provider} · {model}",
       "transcriptionEngine": "Provider",
-      "transcriptionMistralFormat": "{platform, select, slack {Slack's desktop app records audio clips as WebM} other {Telegram sends voice messages as Ogg/Opus}}, which Mistral does not list as a format it accepts. They may fail to transcribe; choose another provider for this bot if they do.",
+      "transcriptionMistralFormat": "{platform, select, slack {Slack's desktop app records audio clips as WebM} whatsapp {WhatsApp sends voice notes as Ogg/Opus} other {Telegram sends voice messages as Ogg/Opus}}, which Mistral does not list as a format it accepts. They may fail to transcribe; choose another provider for this bot if they do.",
       "transcriptionProviderNoKey": "{name} (no usable key)",
       "transcriptionInheritedNoKey": "No key is chosen where this pair comes from, so voice messages are not transcribed until one is."
     },
@@ -6571,6 +6594,7 @@
       "stepApprovalNotYours": "Only the people this step names can decide it.",
       "stepApprovalEdited": "Edited",
       "surfaceTeams": "Microsoft Teams",
+      "surfaceWhatsapp": "WhatsApp",
       "surfaceFollowUps": "Follow-ups",
       "surfaceProactive": "Proactive",
       "standaloneRequest": "Model request",
@@ -6611,7 +6635,7 @@
       "chatAccountNoAgentsHere": "No agent you can see answers on this bot.",
       "chatAccountNotUsedYet": "Not used anywhere yet. Send one of your organization's bots a message.",
       "chatAccounts": "Chat accounts",
-      "chatAccountsDescription": "Slack, Telegram and Mattermost accounts connected to you. An agent reached from one of these answers as you, with your permissions and your budget.",
+      "chatAccountsDescription": "Slack, Telegram, Mattermost, Teams and WhatsApp accounts connected to you. An agent reached from one of these answers as you, with your permissions and your budget.",
       "confirmNewPassword": "Confirm new password",
       "currentPassword": "Current password",
       "customizeCommandPaletteChat": "Customize the /command palette in chat - disable built-ins, or define your own quick prompts.",

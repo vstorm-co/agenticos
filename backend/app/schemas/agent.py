@@ -185,7 +185,7 @@ class AgentRead(BaseSchema):
     channels: list[str] = Field(
         default_factory=list,
         description=(
-            "Surfaces with an active binding - 'slack', 'telegram', 'mattermost'. "
+            "Surfaces with an active binding - 'slack', 'telegram', 'mattermost', 'teams', 'whatsapp'. "
             "Filled by the listing, same bargain as shared_user_count."
         ),
     )

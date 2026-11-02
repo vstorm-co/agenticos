@@ -1,5 +1,5 @@
 ---
-source_sha: "5ceebb576717"
+source_sha: "527b6e4e5c89"
 ---
 
 # Comandos { #commands }
@@ -501,6 +501,14 @@ uv run agenticos cmd channel-add-bot \
     --platform mattermost --name "Support" --token <token> \
     --api-base-url https://mattermost.acme.internal \
     --webhook-secret <token-from-mattermost>
+
+# WhatsApp: --token es el token de acceso permanente y --webhook-secret el app
+# secret de Meta. El verify token lo eliges tú; pégalo, con la callback URL que
+# muestra el bot, en la app de Meta.
+uv run agenticos cmd channel-add-bot \
+    --platform whatsapp --name "Support" --token <access-token> \
+    --whatsapp-phone-number-id <id> --whatsapp-account-id <id> \
+    --whatsapp-verify-token <verify-token> --webhook-secret <app-secret>
 
 uv run agenticos cmd channel-list-bots
 uv run agenticos cmd channel-list-bots --platform telegram

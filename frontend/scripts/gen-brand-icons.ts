@@ -196,6 +196,7 @@ const BRANDS: Readonly<Record<string, Source>> = {
   typeform: simple("typeform"),
   vercel: logos("vercel-icon"),
   webflow: thesvg("webflow"),
+  whatsapp: simple("whatsapp"),
   wix: logos("wix"),
   wordpress: thesvg("wordpress"),
   xero: logos("xero"),

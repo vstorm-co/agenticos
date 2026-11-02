@@ -45,6 +45,8 @@ from app.services.channels.supervisor import close_inbound_stream, open_inbound_
 from app.services.channels.teams import ConversationRef
 from app.services.channels.teams_auth import TeamsCredentials
 from app.services.channels.teams_package import teams_app_package
+from app.services.channels.webhooks import SEND_HEALTH_PLATFORMS
+from app.services.channels.whatsapp_graph import WhatsAppCredentials
 from app.services.speech_to_text import is_offered as stt_is_offered
 from app.services.speech_to_text_settings import SpeechToTextSettingsService
 from app.services.transcription import TranscriptionService
@@ -67,7 +69,8 @@ def unseal_bot_token(bot: ChannelBot) -> str:
 
     A Teams bot's token is its client secret, and signing in needs the app and
     tenant beside it; the three travel as one string, so every adapter call
-    still takes one token (#1985).
+    still takes one token (#1985). A WhatsApp bot's is its access token with the
+    number it sends from, composed the same way (#2076).
     """
     token = unseal(
         bot.token_encrypted,
@@ -79,6 +82,12 @@ def unseal_bot_token(bot: ChannelBot) -> str:
             app_id=bot.teams_app_id or "",
             tenant_id=bot.teams_tenant_id or "",
             client_secret=token,
+        ).encode()
+    if bot.platform == "whatsapp":
+        return WhatsAppCredentials(
+            bot_id=str(bot.id),
+            access_token=token,
+            phone_number_id=bot.whatsapp_phone_number_id or "",
         ).encode()
     return token
 
@@ -97,6 +106,17 @@ def unseal_webhook_secret(bot: ChannelBot) -> str | None:
         return None
     return unseal(
         bot.webhook_secret_encrypted,
+        scope=VaultScope.organization(bot.organization_id),
+        key_version=bot.secret_key_version,
+    )
+
+
+def unseal_whatsapp_verify_token(bot: ChannelBot) -> str | None:
+    """The token Meta's subscription handshake is checked against, or None if unset."""
+    if bot.whatsapp_verify_token_encrypted is None:
+        return None
+    return unseal(
+        bot.whatsapp_verify_token_encrypted,
         scope=VaultScope.organization(bot.organization_id),
         key_version=bot.secret_key_version,
     )
@@ -273,6 +293,11 @@ class ChannelBotService:
             transcribe_voice_notes=data.transcribe_voice_notes,
             teams_app_id=data.teams_app_id,
             teams_tenant_id=data.teams_tenant_id,
+            whatsapp_phone_number_id=data.whatsapp_phone_number_id,
+            whatsapp_account_id=data.whatsapp_account_id,
+            whatsapp_verify_token_encrypted=self._seal_at(
+                data.whatsapp_verify_token, key_version=sealed.key_version
+            ),
             speech_to_text_provider=data.speech_to_text_provider,
             speech_to_text_model=data.speech_to_text_model,
             speech_to_text_secret_id=data.speech_to_text_secret_id,
@@ -438,6 +463,39 @@ class ChannelBotService:
             )
 
     @staticmethod
+    def _check_whatsapp_update(bot: ChannelBot, data: ChannelBotUpdate) -> None:
+        """What a WhatsApp bot may not lose, and what only it may carry.
+
+        A null, or webhooks switched off, would leave a bot that is saved and
+        cannot send, cannot be believed or cannot be subscribed - refused with the
+        field named rather than dropped as `writable` drops a null on a NOT NULL
+        column, because these columns are nullable and a null would be kept.
+        """
+        if bot.platform != "whatsapp":
+            for field in (
+                "whatsapp_phone_number_id",
+                "whatsapp_account_id",
+                "whatsapp_verify_token",
+            ):
+                if field in data.model_fields_set:
+                    raise refused_field(
+                        field, "Only a WhatsApp bot has a phone number, account or verify token"
+                    )
+            return
+        for field in (
+            "whatsapp_phone_number_id",
+            "whatsapp_account_id",
+            "whatsapp_verify_token",
+            "webhook_secret",
+        ):
+            if cleared(data, field):
+                raise refused_field(
+                    field, "A WhatsApp bot needs it - send a new value to replace it"
+                )
+        if data.webhook_mode is False:
+            raise refused_field("webhook_mode", "A WhatsApp bot is reached by webhook only")
+
+    @staticmethod
     def _check_slack_fields(
         platform: str, signing_secret: str | None, app_token: str | None
     ) -> None:
@@ -574,9 +632,11 @@ class ChannelBotService:
         # holding the socket is usually in another process, so this cannot be
         # asked of the adapter here. A webhook bot is not asked at all: it holds
         # no connection, and a `down` beside one would be a fault reported about
-        # a design (#1351).
+        # a design (#1351) - except where `down` means a refused send.
         connections = {
-            bot.id: await connection_state.read(bot.id) for bot in bots if not bot.webhook_mode
+            bot.id: await connection_state.read(bot.id)
+            for bot in bots
+            if not bot.webhook_mode or bot.platform in SEND_HEALTH_PLATFORMS
         }
         return [
             ChannelBotRead.model_validate(bot).model_copy(
@@ -621,6 +681,7 @@ class ChannelBotService:
                 "transcribe_voice_notes",
                 "Say true or false - a null pair is what inherits now",
             )
+        self._check_whatsapp_update(bot, data)
         update_data = writable(data, over=ChannelBot)
         if "api_base_url" in update_data:
             self._check_server_url(bot.platform, update_data["api_base_url"])
@@ -639,6 +700,10 @@ class ChannelBotService:
             self._check_command_token(bot.platform, update_data["command_token"])
             update_data["command_token_encrypted"] = self._seal_at(
                 update_data.pop("command_token"), key_version=bot.secret_key_version
+            )
+        if "whatsapp_verify_token" in update_data:
+            update_data["whatsapp_verify_token_encrypted"] = self._seal_at(
+                update_data.pop("whatsapp_verify_token"), key_version=bot.secret_key_version
             )
         if "slack_app_token" in update_data:
             update_data["slack_app_token_encrypted"] = self._seal_at(

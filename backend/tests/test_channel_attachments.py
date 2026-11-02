@@ -173,6 +173,8 @@ def _channel(agent_router: Any, rows: list[Any]) -> Iterator[None]:
         patch(
             f"{router}.channel_session_repo.get_by_bot_and_chat", AsyncMock(return_value=session)
         ),
+        # Nothing is waiting on a link code: the router asks before anything else.
+        patch(f"{router}.ChannelLinkService.complete_with_code", AsyncMock(return_value="none")),
         patch(f"{router}.channel_session_repo.touch", AsyncMock(return_value=session)),
         patch(
             f"{router}.conversation_repo.get_messages_by_conversation", AsyncMock(return_value=[])
@@ -356,6 +358,16 @@ class TestReceivingWhatSomebodySent:
 
         assert stored == []
         assert "cannot fetch files" in refused[0]
+        assert "from Slack yet" in refused[0]
+
+    async def test_the_refusal_names_the_platform_the_way_people_do(self):
+        service = _service()
+        adapter = _adapter(downloads=NotImplementedError("no"))
+        adapter.platform = "whatsapp"
+
+        _, refused = await service.receive(adapter, "t", [_attachment()], user_id=uuid.uuid4())
+
+        assert "from WhatsApp yet" in refused[0]
 
     async def test_a_download_that_failed_is_reported_not_raised(self):
         service = _service()
@@ -755,6 +767,8 @@ async def _route_one_file(text: str) -> tuple[MagicMock, MagicMock, AsyncMock]:
         patch(
             f"{router}.channel_session_repo.get_by_bot_and_chat", AsyncMock(return_value=session)
         ),
+        # Nothing is waiting on a link code: the router asks before anything else.
+        patch(f"{router}.ChannelLinkService.complete_with_code", AsyncMock(return_value="none")),
         patch(f"{router}.channel_session_repo.touch", AsyncMock(return_value=session)),
         patch(
             f"{router}.conversation_repo.get_messages_by_conversation", AsyncMock(return_value=[])

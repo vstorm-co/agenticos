@@ -171,6 +171,7 @@ async def _start_channel_polling(*platforms: str, bot_ids: Sequence[str] | None 
         )
 
 
+# Teams and WhatsApp are push-only: Meta and the Bot Connector post to the bot's endpoint.
 _POLLING_PLATFORMS = ("telegram", "mattermost", "slack")
 
 _DISCOVER_BOTS_EVERY_SECONDS = 60.0
@@ -313,6 +314,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[LifespanState]:
     from app.services.channels import teams as channel_teams
     from app.services.channels.teams import TeamsAdapter
     from app.services.channels.telegram import TelegramAdapter
+    from app.services.channels.whatsapp import WhatsAppAdapter
 
     # A previous lifespan in this process (a test, a reload) may have declined
     # intake on its way down; this one is serving, so permit it again (#1119).
@@ -337,6 +339,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[LifespanState]:
     channel_teams.configure(redis_client)
     _teams_adapter = TeamsAdapter()
     register_adapter(_teams_adapter)
+
+    # WhatsApp likewise: Meta posts to the bot's endpoint and nothing is polled (#2076).
+    _whatsapp_adapter = WhatsAppAdapter()
+    register_adapter(_whatsapp_adapter)
 
     _slack_adapter = SlackAdapter()
     register_adapter(_slack_adapter)
@@ -390,7 +396,13 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[LifespanState]:
     await stream_lease.leases().release()
     # Close each adapter's reused HTTP client now that no polling task or drained
     # background turn can still be mid-request on it (#952).
-    for _adapter in (_telegram_adapter, _mattermost_adapter, _slack_adapter, _teams_adapter):
+    for _adapter in (
+        _telegram_adapter,
+        _mattermost_adapter,
+        _slack_adapter,
+        _teams_adapter,
+        _whatsapp_adapter,
+    ):
         await _adapter.aclose()
     # The shared outbound clients web search and the model-catalog listings reuse,
     # closed the same way now that nothing can still be mid-request on them (#1263).

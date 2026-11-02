@@ -1,6 +1,7 @@
 """Variables in an agent's instructions (#2065)."""
 
 import uuid
+from dataclasses import replace
 from datetime import UTC, datetime
 
 import pytest
@@ -45,6 +46,11 @@ class TestRendering:
             "Hi Ada Lovelace (ada@example.com) of Acme, on Slack. I am HR leave. "
             "It is Saturday 2026-10-10 12:30 (UTC). Policy v2 {{user_name}}."
         )
+
+    def test_a_whatsapp_run_says_it_is_on_whatsapp(self) -> None:
+        facts = replace(FACTS, surface="whatsapp")
+
+        assert render(_spec("on {{channel}}"), facts).instructions == "on WhatsApp"
 
     def test_nobody_signed_in_is_a_visitor_and_an_unknown_surface_is_named_as_is(self) -> None:
         facts = RunFacts(

@@ -16,7 +16,7 @@ import pytest
 
 from app.clients.redis import RedisClient
 from app.services.channels import dedupe
-from app.services.channels.base import IncomingMessage
+from app.services.channels.base import IncomingAttachment, IncomingMessage
 from app.services.channels.router import ChannelMessageRouter
 from app.worker.background.channel import process_channel_event
 
@@ -236,3 +236,42 @@ async def test_a_redis_error_while_releasing_is_logged_not_raised(
         await dedupe.release_delivery(_message())
 
     assert "channel_dedupe_release_failed" in caplog.text
+
+
+WAMID = "wamid.HBgLMTY1MDUwNzY1MjAVAgARGBI5QTNDQTVCM0Q0Q0Q2RTY3RTcA"
+PHONE_INSIDE = "16505076520"
+
+
+def test_a_delivery_reference_is_short_stable_and_not_the_id() -> None:
+    reference = dedupe.delivery_ref(WAMID)
+
+    assert reference == dedupe.delivery_ref(WAMID)
+    assert reference is not None and len(reference) == 12
+    assert WAMID not in reference and reference != dedupe.delivery_ref(WAMID + "x")
+    assert dedupe.delivery_ref(None) is None
+
+
+async def test_no_log_line_about_a_delivery_carries_the_platforms_message_id(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A WhatsApp message id is base64 of ids that include the customer's phone number."""
+    incoming = _message(platform="whatsapp", message_id=WAMID, chat_type="private")
+    audio = IncomingAttachment("voice.ogg", "audio/ogg", 0, "media")
+    incoming.attachments = [audio]
+
+    with caplog.at_level("DEBUG"):
+        dedupe.configure(None)
+        await dedupe.claim_delivery(incoming)  # not configured: logs the id's reference
+        dedupe.configure(cast(RedisClient, _FakeRedis()))
+        ChannelMessageRouter._split_recordings(incoming)
+        inner = AsyncMock()
+        with patch.object(ChannelMessageRouter, "_route_inner", inner):
+            await ChannelMessageRouter().route(incoming, AsyncMock())
+            await ChannelMessageRouter().route(incoming, AsyncMock())  # the redelivery
+
+    logged = "\n".join(f"{r.getMessage()} {r.__dict__}" for r in caplog.records)
+    assert "Duplicate channel delivery ignored" in logged
+    assert "Voice message routed" in logged and "not configured" in logged
+    assert WAMID not in logged and WAMID.removeprefix("wamid.") not in logged
+    assert PHONE_INSIDE not in logged
+    assert str(dedupe.delivery_ref(WAMID)) in logged

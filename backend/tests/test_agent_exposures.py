@@ -635,7 +635,7 @@ class TestWhatANewBindingStartsWith:
 
         return exposures.create.call_args.kwargs
 
-    @pytest.mark.parametrize("surface", ["mattermost", "slack", "teams", "telegram"])
+    @pytest.mark.parametrize("surface", ["mattermost", "slack", "teams", "telegram", "whatsapp"])
     async def test_new_bindings_store_only_custom_additions(self, surface):
         assert (await self._created(surface))["prompt"] is None
 

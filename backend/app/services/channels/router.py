@@ -15,6 +15,7 @@ from uuid import UUID
 import httpx
 from pydantic_ai.messages import ModelMessage, ModelRequest, UserPromptPart
 
+from app.agents.prompt_variables import channel_name
 from app.agents.steering import SteeringInbox
 from app.core.config import settings
 from app.core.exceptions import AppException, AuthorizationError, BadRequestError
@@ -34,7 +35,7 @@ from app.repositories import (
 )
 from app.services import rate_limit, transcription_usage
 from app.services.channel_bot import unseal_bot_token
-from app.services.channel_link import ChannelLinkService
+from app.services.channel_link import AWAITING_CODE, LINK_CONFIRMED, ChannelLinkService
 from app.services.channels import get_adapter, membership
 from app.services.channels.attachments import ChannelAttachmentService
 from app.services.channels.base import (
@@ -49,7 +50,7 @@ from app.services.channels.base import (
     memory_room_key,
     split_thread,
 )
-from app.services.channels.dedupe import claim_delivery, release_delivery
+from app.services.channels.dedupe import claim_delivery, delivery_ref, release_delivery
 from app.services.channels.directory import BoundChannelDirectory
 from app.services.channels.exceptions import ChannelNotConfigured
 from app.services.channels.formatting import LINK_ACCOUNT_INSTRUCTION, PICTURE_DELIVERY_UNCONFIRMED
@@ -347,7 +348,7 @@ class ChannelMessageRouter:
                 "Duplicate channel delivery ignored: bot=%s platform=%s message=%s",
                 incoming.bot_id,
                 incoming.platform,
-                incoming.message_id,
+                delivery_ref(incoming.message_id),
             )
             return
         key = f"{incoming.bot_id}:{incoming.platform_chat_id}"
@@ -405,6 +406,10 @@ class ChannelMessageRouter:
             1. Load bot config from DB.
             2. Check access policy.
             3. Resolve or create ChannelIdentity.
+            3a. If this chat confirmed a link in the browser, take the message
+               as its code: a match links and answers, other text answers
+               what to do and stops, while the sender is unlinked
+               (`ChannelLinkService.complete_with_code`).
             4. Handle commands (/start, /new, /help, /link, /unlink), the
                state-changing ones gated on the same link admission as a turn.
             5. Resolve or create ChannelSession (+ Conversation).
@@ -451,6 +456,23 @@ class ChannelMessageRouter:
             identity = await self._resolve_identity(incoming, bot, db)
         except AuthorizationError as exc:
             await self._refuse_if_named(bot, incoming, exc.message)
+            return
+
+        # A chat that confirmed its link in the browser is waiting to send the
+        # code back. Decided on the request's state, before anything else reads
+        # the text: the code is not a question for an agent, and an invitation
+        # here would delete the request it is waiting on.
+        code_outcome = await ChannelLinkService(db).complete_with_code(incoming)
+        if code_outcome == "linked":
+            await self._send_reply(bot, incoming, LINK_CONFIRMED)
+            return
+        if code_outcome == "awaiting" and identity.user_id is None:
+            try:
+                await self._check_rate_limit(bot, str(identity.id))
+            except BadRequestError as exc:
+                await self._send_reply(bot, incoming, exc.message)
+                return
+            await self._send_reply(bot, incoming, AWAITING_CODE)
             return
 
         admit_unlinked = self._admits_unlinked(incoming, bot)
@@ -1070,9 +1092,9 @@ class ChannelMessageRouter:
 
         Each recording is logged with its type, because the type is the
         platform's and this is the line that says why a voice note was or was
-        not heard - and by the platform's message id and its place on the
-        message rather than its file name, which a sender chose and which can
-        be personal.
+        not heard - and by a reference to the platform's message id (not the id
+        itself) and its place on the message rather than its file name, which a
+        sender chose and which can be personal.
         """
         recordings = [a for a in incoming.attachments if a.mime_type.startswith("audio/")]
         rest = [a for a in incoming.attachments if not a.mime_type.startswith("audio/")]
@@ -1080,7 +1102,7 @@ class ChannelMessageRouter:
             logger.info(
                 "Voice message routed to transcription: bot=%s message=%s recording=%d type=%s",
                 incoming.bot_id,
-                incoming.message_id,
+                delivery_ref(incoming.message_id),
                 index,
                 recording.mime_type,
             )
@@ -1160,6 +1182,13 @@ class ChannelMessageRouter:
                 continue
             try:
                 content = await adapter.download_attachment(token, recording)
+            except NotImplementedError:
+                # The platform's adapter cannot fetch files yet: a known limit, not a failure.
+                refusals.append(
+                    f"{recording.filename}: this build cannot fetch files from "
+                    f"{channel_name(adapter.platform)} yet."
+                )
+                continue
             except Exception:
                 logger.warning("Could not fetch a voice message: bot=%s", bot.id, exc_info=True)
                 refusals.append(f"{recording.filename}: could not be downloaded.")
@@ -1578,7 +1607,7 @@ class ChannelMessageRouter:
                 # them a room that participant management can then never reach.
                 new_conv = await conversation_repo.create_conversation(
                     db,
-                    title=f"{incoming.platform.capitalize()} Chat",
+                    title=f"{channel_name(incoming.platform)} Chat",
                     user_id=issuer,
                     organization_id=bot.organization_id,
                 )
@@ -1693,7 +1722,7 @@ class ChannelMessageRouter:
             # move the conversation into their own org.
             conv = await conversation_repo.create_conversation(
                 db,
-                title=f"{incoming.platform.capitalize()} Chat",
+                title=f"{channel_name(incoming.platform)} Chat",
                 user_id=identity.user_id,
                 organization_id=bot.organization_id,
             )

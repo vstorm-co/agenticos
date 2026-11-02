@@ -131,7 +131,7 @@ def channel_list_bots(platform: str | None, org_id: str | None) -> None:
 @click.option(
     "--platform",
     required=True,
-    type=click.Choice(["telegram", "slack", "mattermost", "teams"]),
+    type=click.Choice(["telegram", "slack", "mattermost", "teams", "whatsapp"]),
     help="Platform name",
 )
 @click.option("--name", "-n", required=True, help="Bot display name")
@@ -152,7 +152,8 @@ def channel_list_bots(platform: str | None, org_id: str | None) -> None:
     default=None,
     help=(
         "The token the platform generated for its outgoing webhook. Mattermost "
-        "shows it when the integration is created; Telegram needs none here."
+        "shows it when the integration is created; Telegram needs none here. "
+        "WhatsApp: the Meta app secret."
     ),
 )
 @click.option(
@@ -165,6 +166,21 @@ def channel_list_bots(platform: str | None, org_id: str | None) -> None:
     default=None,
     help="The Entra tenant the single-tenant Azure Bot is registered in. Teams only.",
 )
+@click.option(
+    "--whatsapp-phone-number-id",
+    default=None,
+    help="The WhatsApp Business phone number's id. WhatsApp only; --token is its access token.",
+)
+@click.option(
+    "--whatsapp-account-id",
+    default=None,
+    help="The WhatsApp Business Account id the number belongs to. WhatsApp only.",
+)
+@click.option(
+    "--whatsapp-verify-token",
+    default=None,
+    help="The token Meta's webhook handshake presents; you choose it. WhatsApp only.",
+)
 @_org_option
 def channel_add_bot(
     platform: str,
@@ -176,6 +192,9 @@ def channel_add_bot(
     webhook_secret: str | None,
     teams_app_id: str | None,
     teams_tenant_id: str | None,
+    whatsapp_phone_number_id: str | None,
+    whatsapp_account_id: str | None,
+    whatsapp_verify_token: str | None,
 ) -> None:
     """Encrypt the bot token and register the bot in the database.
 
@@ -196,6 +215,9 @@ def channel_add_bot(
             webhook_mode=webhook_secret is not None,
             teams_app_id=teams_app_id,
             teams_tenant_id=teams_tenant_id,
+            whatsapp_phone_number_id=whatsapp_phone_number_id,
+            whatsapp_account_id=whatsapp_account_id,
+            whatsapp_verify_token=whatsapp_verify_token,
         )
         async with _channel_service(org_id) as svc:
             bot = await svc.create(data)
@@ -206,7 +228,7 @@ def channel_add_bot(
         info(f"  Mode     : {mode}")
         if api_base_url:
             info(f"  Server   : {api_base_url}")
-        if webhook_secret or platform == "teams":
+        if webhook_secret or platform in ("teams", "whatsapp"):
             info(f"  Webhook  : {inbound_webhook_url(platform, bot.id)}")
 
     asyncio.run(_run())

@@ -21,7 +21,7 @@ minutes, and why it is spent on first use.
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, String, UniqueConstraint
+from sqlalchemy import DateTime, ForeignKey, String, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -49,6 +49,14 @@ class ChannelLinkRequest(Base, TimestampMixin):
     platform_username: Mapped[str | None] = mapped_column(String(100), nullable=True)
     platform_display_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    # Two-way confirmation (#2076): a channel that cannot trust a browser click
+    # alone (a phone number is shared, forwarded, recycled) has the signed-in
+    # person confirm in the browser first, then repeat `confirm_code` in the chat.
+    # NULL until the browser step is done, and always NULL on one-way platforms.
+    confirmed_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=True
+    )
+    confirm_code: Mapped[str | None] = mapped_column(String(12), nullable=True)
 
     def __repr__(self) -> str:
         return (

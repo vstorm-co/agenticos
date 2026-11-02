@@ -20,6 +20,7 @@ const KNOWN_SURFACES = new Set([
   "mattermost",
   "a2a",
   "teams",
+  "whatsapp",
   "schedule",
   "workflow",
   "follow_ups",

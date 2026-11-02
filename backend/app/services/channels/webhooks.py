@@ -31,6 +31,7 @@ INBOUND_PATHS: dict[str, str] = {
     "slack": "/api/v1/slack/{bot_id}/events",
     "mattermost": "/api/v1/mattermost/{bot_id}/webhook",
     "teams": "/api/v1/teams/{bot_id}/messages",
+    "whatsapp": "/api/v1/whatsapp/{bot_id}/webhook",
 }
 
 
@@ -46,6 +47,29 @@ Minting one for those was not a harmless default: it produced a bot that looked
 configured while comparing Mattermost's token against a locally generated random
 string the operator had no way to overwrite, so the webhook path could never
 authenticate and refused every call.
+"""
+
+
+SEND_HEALTH_PLATFORMS: frozenset[str] = frozenset({"whatsapp"})
+"""Webhook platforms whose console row still shows a connection state.
+
+A webhook bot holds no socket, so a "down" beside one would be a design reported
+as a fault (#1351). For these platforms "down" means something else - the platform
+refused a send, which is a real fault an operator can fix (WhatsApp: an expired or
+revoked access token). The adapter records it on a refusal and clears it on the
+next good send; the entry lapses after `connection_state.TTL_SECONDS` of silence.
+"""
+
+
+CODE_CONFIRMED_PLATFORMS: frozenset[str] = frozenset({"whatsapp"})
+"""Platforms whose chat-account link is confirmed twice: in the browser, then in the chat.
+
+A phone number is shared, forwarded and recycled, so a signed-in click alone must
+not bind a chat to a member. Confirming in the browser issues a short code that
+only the chat itself can send back (`ChannelLinkService.confirm` and
+`complete_with_code`). It lives here, not in `channel_link.py`, because
+`schemas/channel_bot.py` already imports this module and `channel_link.py`
+imports the schemas.
 """
 
 

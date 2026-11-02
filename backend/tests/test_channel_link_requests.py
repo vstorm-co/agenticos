@@ -64,6 +64,8 @@ def _request(**overrides) -> MagicMock:
     request.platform_user_id = "u-1"
     request.platform_username = "kacper.wlodarczyk"
     request.platform_display_name = "Kacper"
+    request.confirmed_user_id = None
+    request.confirm_code = None
     for key, value in overrides.items():
         setattr(request, key, value)
     return request
@@ -442,6 +444,9 @@ class TestWhereTheInvitationIsPosted:
                 new=AsyncMock(return_value=MagicMock(user_id=None)),
             ),
             patch.object(
+                ChannelLinkService, "complete_with_code", new=AsyncMock(return_value="none")
+            ),
+            patch.object(
                 ChannelMessageRouter, "_invite_to_link", new=AsyncMock(return_value="link first")
             ),
             patch.object(ChannelMessageRouter, "_send_reply", new=sent),
@@ -489,6 +494,9 @@ class TestARefusedSenderCannotChurnTheInvitation:
                 ChannelMessageRouter,
                 "_resolve_identity",
                 new=AsyncMock(return_value=MagicMock(user_id=None)),
+            ),
+            patch.object(
+                ChannelLinkService, "complete_with_code", new=AsyncMock(return_value="none")
             ),
             patch.object(ChannelMessageRouter, "_check_rate_limit", new=check),
             patch.object(ChannelMessageRouter, "_invite_to_link", new=invite),
@@ -954,3 +962,11 @@ class TestCommandsGateOnLinkAdmission:
 
         assert "New conversation started" in reply
         assert create_conv.await_args.kwargs["user_id"] is None
+
+
+def test_the_page_view_cannot_be_built_without_deciding_whether_to_reveal_the_code():
+    """A caller that forgets the choice must fail, not fall open and show the code."""
+    from app.schemas.channel_bot import ChannelLinkRequestRead
+
+    with pytest.raises(TypeError, match="reveal_code"):
+        ChannelLinkRequestRead.for_user(MagicMock(), uuid.uuid4())  # type: ignore[call-arg]

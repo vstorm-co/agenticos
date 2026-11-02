@@ -2687,6 +2687,7 @@
           "schedule": "Zeitplan",
           "slack": "Slack",
           "telegram": "Telegram",
+          "whatsapp": "WhatsApp",
           "web": "Web-Chat",
           "workflow": "Workflow",
           "follow_ups": "Nächste Schritte",
@@ -2772,7 +2773,8 @@
         "platforms": {
           "telegram": "Telegram",
           "slack": "Slack",
-          "mattermost": "Mattermost"
+          "mattermost": "Mattermost",
+          "whatsapp": "WhatsApp"
         },
         "webhook": "hört zu",
         "polling": "fragt ab",
@@ -3093,7 +3095,7 @@
         "knowledge": "Die Dokumente, aus denen er antwortet.",
         "departments": "Gruppen entscheiden, wer welchen Agent sieht.",
         "teammate": "Agents nutzt man besser gemeinsam.",
-        "channel": "Slack, Teams, Telegram oder Mattermost."
+        "channel": "Slack, Teams, Telegram, WhatsApp oder Mattermost."
       },
       "left": "{count, plural, =1 {Noch 1 Schritt} other {Noch # Schritte}}",
       "ratio": "{done}/{total}",
@@ -3176,7 +3178,7 @@
         },
         "channels": {
           "title": "Dort sein, wo das Team schreibt",
-          "body": "Bringen Sie einen Agent in Slack, Telegram oder Mattermost, und Ihr Team fragt ihn direkt im Thread.",
+          "body": "Bringen Sie einen Agent in Slack, Teams, Telegram, Mattermost oder WhatsApp, und Ihr Team fragt ihn direkt im Thread.",
           "cta": "Chat-App hinzufügen"
         },
         "browser": {
@@ -4183,7 +4185,7 @@
       },
       "channels-new": {
         "title": "Agents dort erreichen, wo die Menschen sind",
-        "body": "Registrieren Sie eine Chat-Plattform - Slack, Telegram, Mattermost - und jeder Agent kann gebunden werden, um dort zu antworten. Das Token des Bots wird im Vault versiegelt. Fügen Sie hier eine hinzu."
+        "body": "Registrieren Sie eine Chat-Plattform - Slack, Telegram, Mattermost, Teams, WhatsApp - und jeder Agent kann gebunden werden, um dort zu antworten. Das Token des Bots wird im Vault versiegelt. Fügen Sie hier eine hinzu."
       },
       "chat-agent-picker": {
         "title": "Wählen Sie, wer antwortet",
@@ -5245,10 +5247,14 @@
       "connectYourChatAccount": "Verbinden Sie Ihr Chat-Konto",
       "connected": "Verbunden",
       "disconnectAnyTime": "Sie können es jederzeit in Ihrem Profil trennen.",
+      "finishInTheChat": "Im Chat abschließen",
       "goBackToTheChat": "Dieses Chat-Konto gehört jetzt Ihnen.",
+      "nameNotVerified": "(Name nicht verifiziert)",
+      "notConnectedYet": "Ihr Konto ist erst verbunden, wenn der Chat den Code erhalten hat.",
       "nowSaySomething": "Gehen Sie zurück in den Chat und fragen Sie den Agent etwas.",
       "runsWithYourPermissions": "Der Agent antwortet als Sie – Ihre Berechtigungen, Ihr Budget, Ihr Name im Audit-Trail.",
       "seeConnectedAccounts": "Ihre verbundenen Konten ansehen",
+      "sendThisCode": "Senden Sie diesen Code aus Ihrem {platform}-Chat, um den Vorgang abzuschließen. Geben Sie ihn niemals weiter.",
       "thatAccount": "Dieses Chat-Konto",
       "theAgentWillRunAsYou": "Der Bot muss wissen, wer Sie sind, bevor er Ihnen antwortet."
     },
@@ -5258,7 +5264,7 @@
       "broadcastsTeamsHint": "Laden Sie nach dem Aktivieren das aktualisierte Teams-App-Paket herunter und installieren oder aktualisieren Sie es im Zielteam oder Chat. Der Besitzer muss dem Empfang von Nachrichten zustimmen.",
       "broadcastsTelegramHint": "Telegram verwendet die Text-Aliase @all, @here, @channel und @everyone. Sie benachrichtigen nicht die ganze Gruppe. Der Bot muss Gruppennachrichten empfangen; prüfen Sie den Datenschutzmodus in BotFather.",
       "addChannel": "Kanal hinzufügen",
-      "addChannelDescription": "Registrieren Sie einen Slack-, Telegram- oder Mattermost-Bot für die Organisation. Jedes Credential hier wird im Ruhezustand versiegelt und nie zurückgelesen.",
+      "addChannelDescription": "Registrieren Sie einen Slack-, Telegram-, Mattermost-, Microsoft-Teams- oder WhatsApp-Bot für die Organisation. Jedes Credential hier wird im Ruhezustand versiegelt und nie zurückgelesen.",
       "addOneBecomesBindable": "Registrieren Sie einen, und Agents lassen sich über ihren Tab Verfügbarkeit darauf bereitstellen.",
       "appLevelToken": "App-Level-Token",
       "appLevelTokenHint": "Das xapp--Token, für den Socket Mode in der Entwicklung. Optional.",
@@ -5278,6 +5284,23 @@
       "teamsEndpointHint": "Fügen Sie ihn in der Konfiguration des Azure Bots ein und aktivieren Sie dort den Microsoft-Teams-Kanal.",
       "teamsPackageWhy": "Laden Sie das App-Paket in den Teams-App-Katalog Ihres Mandanten hoch und fügen Sie die App dann einem Chat oder Team hinzu.",
       "teamsPackageDownload": "App-Paket herunterladen",
+      "botTokenHintWhatsapp": "Das Zugriffstoken des Systembenutzers aus den Meta-Business-Einstellungen. Nehmen Sie ein dauerhaftes Token: Ein temporäres funktioniert nur etwa einen Tag.",
+      "whatsappPhoneNumberId": "Telefonnummern-ID",
+      "whatsappPhoneNumberIdHint": "In der Meta-App unter WhatsApp, API-Einrichtung. Das ist die ID der Nummer, nicht die Telefonnummer selbst.",
+      "whatsappAccountId": "WhatsApp-Business-Konto-ID",
+      "whatsappAccountIdHint": "Das Konto, dem die Nummer gehört; es steht in der API-Einrichtung neben der Nummer.",
+      "whatsappAppSecret": "App-Geheimnis",
+      "whatsappAppSecretHint": "In der Meta-App unter App-Einstellungen, Allgemein. Jede eingehende Nachricht wird damit geprüft.",
+      "whatsappVerifyToken": "Verifizierungstoken",
+      "whatsappVerifyTokenHint": "Eine Zeichenfolge Ihrer Wahl, mindestens 8 Zeichen. Meta verlangt sie beim Abonnieren des Webhooks. Sie wird versiegelt gespeichert und nicht mehr angezeigt.",
+      "whatsappCallback": "Callback-URL",
+      "whatsappCallbackHint": "Meta ruft diese Adresse auf. Das Verifizierungstoken ist das, das Sie bei der Registrierung des Bots gewählt haben; es wird hier nie angezeigt.",
+      "whatsappSetupSteps": "In Ihrer Meta-App:",
+      "whatsappStepCallback": "Unter WhatsApp, Konfiguration, die Callback-URL und das Verifizierungstoken einfügen.",
+      "whatsappStepSubscribe": "Das Feld messages abonnieren.",
+      "whatsappStepLive": "Die App in den Live-Modus schalten.",
+      "whatsappSendDown": "Antworten können nicht gesendet werden",
+      "whatsappStepToken": "Ein dauerhaftes Zugriffstoken des Systembenutzers verwenden.",
       "botTokenHintTelegram": "Das Token, das @BotFather Ihnen beim Anlegen eines Bots gibt",
       "botUpdated": "{bot} aktualisiert",
       "bots": "Bots",
@@ -5360,7 +5383,7 @@
       "transcriptionInheritsFromOrg": "{pair}, von der Organisation",
       "transcriptionPair": "{provider} · {model}",
       "transcriptionEngine": "Provider",
-      "transcriptionMistralFormat": "{platform, select, slack {Die Desktop-App von Slack nimmt Audioclips als WebM auf} other {Telegram sendet Sprachnachrichten als Ogg/Opus}}, und Mistral führt dieses Format nicht als unterstützt auf. Die Transkription kann fehlschlagen; wählen Sie in diesem Fall einen anderen Provider für diesen Bot.",
+      "transcriptionMistralFormat": "{platform, select, slack {Die Desktop-App von Slack nimmt Audioclips als WebM auf} whatsapp {WhatsApp sendet Sprachnachrichten als Ogg/Opus} other {Telegram sendet Sprachnachrichten als Ogg/Opus}}, und Mistral führt dieses Format nicht als unterstützt auf. Die Transkription kann fehlschlagen; wählen Sie in diesem Fall einen anderen Provider für diesen Bot.",
       "transcriptionProviderNoKey": "{name} (kein geeigneter Schlüssel)",
       "transcriptionInheritedNoKey": "Wo dieses Paar festgelegt ist, ist kein Schlüssel gewählt, daher werden Sprachnachrichten erst transkribiert, wenn einer gewählt wird."
     },
@@ -5872,6 +5895,7 @@
       "stepApprovalNotYours": "Nur die in diesem Schritt genannten Personen können darüber entscheiden.",
       "stepApprovalEdited": "Bearbeitet",
       "surfaceTeams": "Microsoft Teams",
+      "surfaceWhatsapp": "WhatsApp",
       "surfaceFollowUps": "Nächste Schritte",
       "surfaceProactive": "Proaktiv",
       "standaloneRequest": "Modellanfrage",
@@ -5912,7 +5936,7 @@
       "chatAccountNoAgentsHere": "Kein Agent, den Sie sehen können, antwortet auf diesem Bot.",
       "chatAccountNotUsedYet": "Noch nirgends verwendet. Schreiben Sie einem der Bots Ihrer Organisation eine Nachricht.",
       "chatAccounts": "Chat-Konten",
-      "chatAccountsDescription": "Slack-, Telegram- und Mattermost-Konten, die mit Ihnen verbunden sind. Ein Agent, der über eines davon erreicht wird, antwortet als Sie, mit Ihren Berechtigungen und Ihrem Budget.",
+      "chatAccountsDescription": "Slack-, Telegram-, Mattermost-, Teams- und WhatsApp-Konten, die mit Ihnen verbunden sind. Ein Agent, der über eines davon erreicht wird, antwortet als Sie, mit Ihren Berechtigungen und Ihrem Budget.",
       "confirmNewPassword": "Neues Passwort bestätigen",
       "currentPassword": "Aktuelles Passwort",
       "customizeCommandPaletteChat": "Passen Sie die /Befehlspalette im Chat an – schalten Sie eingebaute ab oder legen Sie eigene Schnell-Prompts an.",

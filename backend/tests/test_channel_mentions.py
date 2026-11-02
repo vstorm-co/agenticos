@@ -1218,7 +1218,7 @@ async def test_each_turn_keeps_author_context_separate_from_persisted_text_after
             assert recorded == "announce this"
             assert f'"username": "{author}"' in context
             assert f'"user_id": "{author}-id"' in context
-            assert f'"message_id": "{author}-post"' in context
+            assert "message_id" not in context
             assert prompt == "announce this"
             assert "@support" not in prompt
             assert router.runner.execute.await_args.args[0].user_id == person

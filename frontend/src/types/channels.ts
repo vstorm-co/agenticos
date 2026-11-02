@@ -1,6 +1,6 @@
-/** Channel bots - the organization-level bindings to Slack, Telegram, Mattermost, Teams. */
+/** Channel bots - the organization-level bindings to Slack, Telegram, Mattermost, Teams, WhatsApp. */
 
-export type ChannelPlatform = "telegram" | "slack" | "mattermost" | "teams";
+export type ChannelPlatform = "telegram" | "slack" | "mattermost" | "teams" | "whatsapp";
 
 /** How a streamed answer shows its tool calls: one row each, or one plan (#2084). */
 export type StepDisplay = "timeline" | "plan";
@@ -80,9 +80,20 @@ export interface ChannelBot extends AnswerStyle {
   /** Teams only: the messaging endpoint to paste into the Azure Bot resource. */
   messaging_endpoint?: string | null;
   /**
+   * WhatsApp only (#2076): the Cloud API registration. Identifiers, not
+   * credentials; the access token is the token, the Meta app secret the webhook
+   * secret, and the verify token is sealed and never read back.
+   */
+  whatsapp_phone_number_id?: string | null;
+  whatsapp_account_id?: string | null;
+  has_whatsapp_verify_token?: boolean;
+  /** WhatsApp only: the callback URL to paste into the Meta app's webhook setup. */
+  whatsapp_callback_url?: string | null;
+  /**
    * Whether the socket this bot receives on is actually up.
    *
-   * `null` for a webhook bot, which holds no connection, and for a polling bot
+   * `null` for a webhook bot, which holds no connection (a WhatsApp bot reports a send-health
+   * state instead), and for a polling bot
    * nothing is known about - no Redis, or no supervisor has touched it since the
    * entry expired. Unknown is its own answer: a polling bot whose stream never
    * opened used to look identical to a working one, and claiming the reverse
@@ -192,6 +203,12 @@ export interface ChannelBotCreate {
   teams_app_id?: string;
   /** Teams only, and required there: the tenant the single-tenant bot is registered in. */
   teams_tenant_id?: string;
+  /** WhatsApp only, and required there: the business phone number's Cloud API id. */
+  whatsapp_phone_number_id?: string;
+  /** WhatsApp only, and required there: the WhatsApp Business Account that owns it. */
+  whatsapp_account_id?: string;
+  /** WhatsApp only, and required there: the token entered in Meta's webhook setup. */
+  whatsapp_verify_token?: string;
   ack_reaction?: string | null;
   stream_answers?: boolean;
   step_display?: StepDisplay;
@@ -237,6 +254,13 @@ export interface ChannelBotUpdate {
   /** Slack only: which way the connection runs; see `ChannelBotCreate`. */
   webhook_mode?: boolean;
   command_token?: string;
+  /**
+   * WhatsApp only. The backend refuses these keys on any other platform, and
+   * refuses a null for them on a WhatsApp bot: send a new value or omit them.
+   */
+  whatsapp_phone_number_id?: string;
+  whatsapp_account_id?: string;
+  whatsapp_verify_token?: string;
   ack_reaction?: string | null;
   stream_answers?: boolean;
   step_display?: StepDisplay;

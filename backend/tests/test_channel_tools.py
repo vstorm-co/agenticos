@@ -38,6 +38,7 @@ from app.services.channels.directory import (
 from app.services.channels.mattermost import MattermostAdapter
 from app.services.channels.slack import SlackAdapter
 from app.services.channels.telegram import TelegramAdapter
+from app.services.channels.whatsapp import WhatsAppAdapter
 
 pytestmark = pytest.mark.anyio
 
@@ -403,6 +404,13 @@ class TestWhatEachPlatformCanActuallyAnswer:
             "list_channel_members",
             "send_channel_file",
         }
+
+    def test_whatsapp_offers_no_directory_tools_yet(self):
+        """Named, and kept out of the drift test above: `send_channel_file` maps to
+        `send_message`, which every adapter has - the WhatsApp adapter sends text only,
+        so the Builder must not offer a tool that would announce a file instead."""
+        assert PLATFORM_TOOLS["whatsapp"] == ()
+        assert supported_tools(WhatsAppAdapter) == {"send_channel_file"}
 
     def test_every_registered_tool_has_a_method_that_would_answer_it(self):
         """A fifth tool cannot be added without saying what implements it."""

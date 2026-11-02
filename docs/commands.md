@@ -480,6 +480,14 @@ uv run agenticos cmd channel-add-bot \
     --api-base-url https://mattermost.acme.internal \
     --webhook-secret <token-from-mattermost>
 
+# WhatsApp: --token is the permanent access token and --webhook-secret is the
+# Meta app secret. You choose the verify token; paste it, with the callback URL
+# the bot shows, into the Meta app.
+uv run agenticos cmd channel-add-bot \
+    --platform whatsapp --name "Support" --token <access-token> \
+    --whatsapp-phone-number-id <id> --whatsapp-account-id <id> \
+    --whatsapp-verify-token <verify-token> --webhook-secret <app-secret>
+
 uv run agenticos cmd channel-list-bots
 uv run agenticos cmd channel-list-bots --platform telegram
 

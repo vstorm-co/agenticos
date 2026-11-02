@@ -18,6 +18,9 @@ const PLATFORM_LABEL: Record<string, string> = {
   telegram: "Telegram",
   slack: "Slack",
   mattermost: "Mattermost",
+  // i18n-exempt: a product\'s own name, written the same in every language
+  teams: "Microsoft Teams",
+  whatsapp: "WhatsApp",
 };
 
 /**
@@ -63,8 +66,11 @@ export default function ChannelLinkPage({ params }: { params: Promise<{ token: s
   async function confirm() {
     setConfirming(true);
     try {
-      await confirmChannelLink(token);
-      setLinked(true);
+      const confirmed = await confirmChannelLink(token);
+      // A two-way platform is not linked yet: the page now holds the code the
+      // chat has to send, and stays on that state.
+      if (confirmed.awaiting_code) setRequest(confirmed);
+      else setLinked(true);
     } catch (cause) {
       setError(getErrorMessage(cause, tErrors));
     } finally {
@@ -72,10 +78,19 @@ export default function ChannelLinkPage({ params }: { params: Promise<{ token: s
     }
   }
 
+  const awaitingCode = request !== null && request.awaiting_code && request.confirm_code !== null;
+  const platformLabel =
+    request === null ? "" : (PLATFORM_LABEL[request.platform] ?? request.platform);
+  // Where the name is the sender's own claim, the verified handle (a masked
+  // number) is the account and the name is shown beside it, labelled.
   const account =
     request === null
       ? ""
-      : (request.platform_display_name ?? request.platform_username ?? t("thatAccount"));
+      : request.display_name_verified
+        ? (request.platform_display_name ?? request.platform_username ?? t("thatAccount"))
+        : (request.platform_username ?? t("thatAccount"));
+  const unverifiedName =
+    request !== null && !request.display_name_verified ? request.platform_display_name : null;
 
   return (
     <div className="mx-auto flex min-h-[70vh] max-w-md flex-col justify-center">
@@ -88,10 +103,18 @@ export default function ChannelLinkPage({ params }: { params: Promise<{ token: s
           {linked ? <Check className="h-6 w-6" /> : <Link2 className="h-6 w-6" />}
         </div>
         <h1 className="text-2xl font-semibold tracking-tight">
-          {linked ? t("connected") : t("connectYourChatAccount")}
+          {linked
+            ? t("connected")
+            : awaitingCode
+              ? t("finishInTheChat")
+              : t("connectYourChatAccount")}
         </h1>
         <p className="text-muted-foreground mx-auto mt-2 max-w-sm text-sm">
-          {linked ? t("goBackToTheChat") : t("theAgentWillRunAsYou")}
+          {linked
+            ? t("goBackToTheChat")
+            : awaitingCode
+              ? t("notConnectedYet")
+              : t("theAgentWillRunAsYou")}
         </p>
       </div>
 
@@ -112,7 +135,18 @@ export default function ChannelLinkPage({ params }: { params: Promise<{ token: s
         </Card>
       )}
 
-      {request !== null && !linked && (
+      {awaitingCode && !linked && (
+        <Card>
+          <CardContent className="space-y-4 p-5 text-center">
+            <p className="font-mono text-4xl font-semibold tracking-[0.3em]">
+              {request.confirm_code}
+            </p>
+            <p className="text-sm">{t("sendThisCode", { platform: platformLabel })}</p>
+          </CardContent>
+        </Card>
+      )}
+
+      {request !== null && !awaitingCode && !linked && (
         <Card>
           <CardContent className="space-y-5 p-5">
             <div className="bg-muted/40 flex items-center gap-3 rounded-lg border p-4">
@@ -121,9 +155,12 @@ export default function ChannelLinkPage({ params }: { params: Promise<{ token: s
               </div>
               <div className="min-w-0">
                 <p className="truncate text-sm font-medium">{account}</p>
-                <p className="text-muted-foreground text-xs">
-                  {PLATFORM_LABEL[request.platform] ?? request.platform}
-                </p>
+                {unverifiedName !== null && (
+                  <p className="text-muted-foreground truncate text-xs">
+                    {unverifiedName} {t("nameNotVerified")}
+                  </p>
+                )}
+                <p className="text-muted-foreground text-xs">{platformLabel}</p>
               </div>
             </div>
 

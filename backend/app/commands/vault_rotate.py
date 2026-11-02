@@ -107,6 +107,7 @@ SEALED_TABLES: tuple[SealedTable, ...] = (
             "slack_signing_secret_encrypted",
             "slack_app_token_encrypted",
             "command_token_encrypted",
+            "whatsapp_verify_token_encrypted",
         ),
         version_attr="secret_key_version",
         scope=_org_scope,

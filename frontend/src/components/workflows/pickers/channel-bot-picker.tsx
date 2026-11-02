@@ -24,7 +24,11 @@ const AddChannelDialog = dynamic(() =>
 );
 
 function channelPlatform(value: string | undefined): ChannelPlatform | undefined {
-  return value === "slack" || value === "telegram" || value === "mattermost" || value === "teams"
+  return value === "slack" ||
+    value === "telegram" ||
+    value === "mattermost" ||
+    value === "teams" ||
+    value === "whatsapp"
     ? value
     : undefined;
 }

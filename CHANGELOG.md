@@ -19,6 +19,26 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- **WhatsApp as a channel** (#2076). A published agent answers on a WhatsApp Business
+  number through Meta's Cloud API, in direct chats and in text: images, documents,
+  voice notes and other messages are refused by name until a later release. Register
+  the bot from **Channels** or `channel-add-bot --platform whatsapp`, then paste the
+  callback URL it shows into the Meta app. Every webhook POST is checked against
+  Meta's signature with the app secret before it is read. An unlinked sender
+  confirms the link in the browser and sends the 6-digit code it shows from the
+  chat within 5 minutes. Answers go as one message, split at 4096 characters and
+  converted to WhatsApp formatting, with a read receipt and a typing indicator. A
+  bot whose access token Meta refuses is shown as down. The `whitelist` policy is
+  impractical on WhatsApp, because a sender is identified by a business-scoped id
+  an operator cannot see: use linking. Outbound traffic goes to `graph.facebook.com`.
+
+### Changed
+
+- A conversation a Microsoft Teams bot starts is now titled "Microsoft Teams Chat"
+  instead of "Teams Chat". Existing conversations keep their title.
+
 ### Fixed
 
 - A document deleted while it was still being indexed no longer leaves its chunks searchable. The delete removed nothing because the document had no vector id yet: its chunks were written, or still being written, and the ingest had not recorded them. The ingest now queues a retried job that removes the chunks it wrote when it finds the document deleted, and a delete that discovers the newly recorded vector id queues the same durable removal. Recording the embedding spend of such a document no longer fails the ingest on the deleted row, which had left the chunks in place and retried the job until it died: the spend is kept against no document. A sync no longer counts such a document as ingested. Clearing a default knowledge base mid-ingest was already covered ([#2565](https://github.com/vstorm-co/agenticos/issues/2565)).

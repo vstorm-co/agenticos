@@ -41,7 +41,13 @@ import { MentionPolicyFields } from "./mention-policy-fields";
 import { useTranslations } from "next-intl";
 import { DIALOG_BODY, DIALOG_COLUMN, DIALOG_FORM } from "@/lib/dialog-sizes";
 
-const PLATFORMS: readonly ChannelPlatform[] = ["mattermost", "slack", "teams", "telegram"];
+const PLATFORMS: readonly ChannelPlatform[] = [
+  "mattermost",
+  "slack",
+  "teams",
+  "telegram",
+  "whatsapp",
+];
 
 const PLATFORM_LABEL: Record<ChannelPlatform, string> = {
   telegram: "Telegram",
@@ -49,6 +55,8 @@ const PLATFORM_LABEL: Record<ChannelPlatform, string> = {
   mattermost: "Mattermost",
   // i18n-exempt: a product\'s own name, written the same in every language
   teams: "Microsoft Teams",
+  // i18n-exempt: a product\'s own name, written the same in every language
+  whatsapp: "WhatsApp",
 };
 
 /** Where each platform's token comes from - the one thing people get stuck on. */
@@ -57,6 +65,7 @@ const TOKEN_HINT: Record<ChannelPlatform, string> = {
   slack: "botTokenHintSlack",
   mattermost: "botTokenHintMattermost",
   teams: "botTokenHintTeams",
+  whatsapp: "botTokenHintWhatsapp",
 };
 
 /** An Entra app or tenant id - what the backend accepts for either. */
@@ -66,6 +75,9 @@ const GUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const MAX_NAME = 255;
 const MAX_URL = 500;
 const MIN_TOKEN = 10;
+/** What the backend accepts as a WhatsApp id, and the shortest secret it seals. */
+const WHATSAPP_ID = /^\d{5,32}$/;
+const MIN_SECRET = 8;
 
 interface AddChannelDialogProps {
   open: boolean;
@@ -111,6 +123,9 @@ export function AddChannelDialog({
   const [slackWebhook, setSlackWebhook] = useState(true);
   const [teamsAppId, setTeamsAppId] = useState("");
   const [teamsTenantId, setTeamsTenantId] = useState("");
+  const [whatsappPhoneNumberId, setWhatsappPhoneNumberId] = useState("");
+  const [whatsappAccountId, setWhatsappAccountId] = useState("");
+  const [whatsappVerifyToken, setWhatsappVerifyToken] = useState("");
   const [respondToBroadcasts, setRespondToBroadcasts] = useState(false);
   const [answerStyle, setAnswerStyle] = useState<AnswerStyle>(DEFAULT_ANSWER_STYLE);
   const [transcription, setTranscription] = useState<TranscriptionChoice>(INHERIT);
@@ -142,6 +157,16 @@ export function AddChannelDialog({
   // A Teams bot cannot sign in, nor recognise a token meant for it, without both.
   const missingTeamsIds =
     platform === "teams" && !(GUID.test(teamsAppId.trim()) && GUID.test(teamsTenantId.trim()));
+  // A WhatsApp bot cannot send without its number, believe a webhook without the
+  // app secret, or be subscribed by Meta without the verify token.
+  const missingWhatsapp =
+    platform === "whatsapp" &&
+    !(
+      WHATSAPP_ID.test(whatsappPhoneNumberId.trim()) &&
+      WHATSAPP_ID.test(whatsappAccountId.trim()) &&
+      webhookSecret.trim().length >= MIN_SECRET &&
+      whatsappVerifyToken.trim().length >= MIN_SECRET
+    );
   const badReaction =
     answerStyle.ack_reaction !== null && !REACTION_PATTERN.test(answerStyle.ack_reaction);
   const complete =
@@ -149,6 +174,7 @@ export function AddChannelDialog({
     token.trim().length >= MIN_TOKEN &&
     !missingServerUrl &&
     !missingTeamsIds &&
+    !missingWhatsapp &&
     !badReaction;
 
   function reset() {
@@ -162,6 +188,9 @@ export function AddChannelDialog({
     setSlackWebhook(true);
     setTeamsAppId("");
     setTeamsTenantId("");
+    setWhatsappPhoneNumberId("");
+    setWhatsappAccountId("");
+    setWhatsappVerifyToken("");
     setAnswerStyle(DEFAULT_ANSWER_STYLE);
     setRespondToBroadcasts(false);
     setTranscription(INHERIT);
@@ -177,6 +206,9 @@ export function AddChannelDialog({
     setAppToken("");
     setTeamsAppId("");
     setTeamsTenantId("");
+    setWhatsappPhoneNumberId("");
+    setWhatsappAccountId("");
+    setWhatsappVerifyToken("");
     setErrors({});
   }
 
@@ -191,7 +223,7 @@ export function AddChannelDialog({
         ...(platform === "mattermost" && serverUrl.trim()
           ? { api_base_url: serverUrl.trim() }
           : {}),
-        ...(platform === "mattermost" && webhookSecret.trim()
+        ...((platform === "mattermost" || platform === "whatsapp") && webhookSecret.trim()
           ? { webhook_secret: webhookSecret.trim() }
           : {}),
         // Only the credential the chosen direction uses: Slack calling us is
@@ -206,8 +238,17 @@ export function AddChannelDialog({
         ...(platform === "teams"
           ? { teams_app_id: teamsAppId.trim(), teams_tenant_id: teamsTenantId.trim() }
           : {}),
+        ...(platform === "whatsapp"
+          ? {
+              whatsapp_phone_number_id: whatsappPhoneNumberId.trim(),
+              whatsapp_account_id: whatsappAccountId.trim(),
+              whatsapp_verify_token: whatsappVerifyToken.trim(),
+            }
+          : {}),
         ...answerStyle,
-        ...(respondToBroadcasts ? { access_policy: { respond_to_broadcasts: true } } : {}),
+        ...(respondToBroadcasts && platform !== "whatsapp"
+          ? { access_policy: { respond_to_broadcasts: true } }
+          : {}),
         // Inherit is the server's default, so it sends nothing; off is the
         // switch; choose is both halves and the key - the schema refuses one
         // half alone as a setting that cannot run, and a pair with no key.
@@ -234,6 +275,9 @@ export function AddChannelDialog({
             "speech_to_text_secret_id",
             "teams_app_id",
             "teams_tenant_id",
+            "whatsapp_phone_number_id",
+            "whatsapp_account_id",
+            "whatsapp_verify_token",
           ],
           identifiedBy: "name",
         },
@@ -397,6 +441,73 @@ export function AddChannelDialog({
             </div>
           )}
 
+          {platform === "whatsapp" && (
+            <div className="space-y-5">
+              <FormField
+                label={t("whatsappPhoneNumberId")}
+                htmlFor="channel-whatsapp-phone-number-id"
+                error={errors.whatsapp_phone_number_id}
+                description={t("whatsappPhoneNumberIdHint")}
+                required
+              >
+                <Input
+                  id="channel-whatsapp-phone-number-id"
+                  value={whatsappPhoneNumberId}
+                  onChange={(event) => setWhatsappPhoneNumberId(event.target.value)}
+                  inputMode="numeric"
+                  autoComplete="off"
+                />
+              </FormField>
+              <FormField
+                label={t("whatsappAccountId")}
+                htmlFor="channel-whatsapp-account-id"
+                error={errors.whatsapp_account_id}
+                description={t("whatsappAccountIdHint")}
+                required
+              >
+                <Input
+                  id="channel-whatsapp-account-id"
+                  value={whatsappAccountId}
+                  onChange={(event) => setWhatsappAccountId(event.target.value)}
+                  inputMode="numeric"
+                  autoComplete="off"
+                />
+              </FormField>
+              <FormField
+                label={t("whatsappAppSecret")}
+                htmlFor="channel-whatsapp-app-secret"
+                error={errors.webhook_secret}
+                description={t("whatsappAppSecretHint")}
+                required
+              >
+                <Input
+                  id="channel-whatsapp-app-secret"
+                  type="password"
+                  value={webhookSecret}
+                  onChange={(event) => setWebhookSecret(event.target.value)}
+                  autoComplete="off"
+                  maxLength={MAX_NAME}
+                />
+              </FormField>
+              <FormField
+                label={t("whatsappVerifyToken")}
+                htmlFor="channel-whatsapp-verify-token"
+                error={errors.whatsapp_verify_token}
+                description={t("whatsappVerifyTokenHint")}
+                required
+              >
+                <Input
+                  id="channel-whatsapp-verify-token"
+                  type="password"
+                  value={whatsappVerifyToken}
+                  onChange={(event) => setWhatsappVerifyToken(event.target.value)}
+                  autoComplete="off"
+                  maxLength={MAX_NAME}
+                />
+              </FormField>
+            </div>
+          )}
+
           {platform === "slack" && (
             <>
               <SlackTransport webhookMode={slackWebhook} onChange={setSlackWebhook} />
@@ -432,12 +543,16 @@ export function AddChannelDialog({
             </>
           )}
 
-          <MentionPolicyFields
-            idPrefix="channel"
-            platform={platform}
-            enabled={respondToBroadcasts}
-            onChange={setRespondToBroadcasts}
-          />
+          {/* WhatsApp groups are out of scope: every chat is private, so there is no
+              group mention to respond to. */}
+          {platform !== "whatsapp" && (
+            <MentionPolicyFields
+              idPrefix="channel"
+              platform={platform}
+              enabled={respondToBroadcasts}
+              onChange={setRespondToBroadcasts}
+            />
+          )}
           <MoreOptions label={t("moreOptions")}>
             <AnswerStyleFields
               idPrefix="channel"

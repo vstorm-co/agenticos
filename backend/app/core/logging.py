@@ -94,6 +94,9 @@ _SECRET_PATH = re.compile(
 #:   MCP OAuth return its provider's `code` and `state`, under the same names;
 #: - `invitation_handle` on `/oauth/<provider>/login` and `/auth/kerberos/login`:
 #:   the one-time handle that stands in for an invitation token and redeems it;
+#: - `hub.verify_token` on a WhatsApp bot's `/whatsapp/<bot>/webhook`: the secret
+#:   Meta's subscription handshake presents in the query string, which an access log
+#:   would otherwise record;
 #: - `token` on the console's `/reset-password`, `/auth/magic-link` and
 #:   `/auth/email-change`, the links an email carries - the API never sees those
 #:   addresses, but a proxy's log does, and `token` is already on the list.
@@ -107,9 +110,11 @@ _SECRET_PATH = re.compile(
 #: for its argument to fill, so the line still formats. `%d` counts as a
 #: placeholder only when no hex digit follows it - `%d3` is a percent-encoded byte
 #: of a value, and a value that starts with one is still a credential.
-SECRET_QUERY_PARAMS = frozenset({"code", "invitation_handle", "state", "token", "visitor"})
+SECRET_QUERY_PARAMS = frozenset(
+    {"code", "hub.verify_token", "invitation_handle", "state", "token", "visitor"}
+)
 _SECRET_QUERY = re.compile(
-    rf"((?:^|[?&])(?:{'|'.join(sorted(SECRET_QUERY_PARAMS))})=)"
+    rf"((?:^|[?&])(?:{'|'.join(re.escape(name) for name in sorted(SECRET_QUERY_PARAMS))})=)"
     r"(?!%(?:[sr(]|d(?![0-9a-fA-F])))[^&#\s\"']+"
 )
 

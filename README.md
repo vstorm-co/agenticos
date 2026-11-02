@@ -128,7 +128,7 @@ AgenticOS is an MCP server. Add it with one command and sign in through the brow
 
 ## 💡 What is AgenticOS?
 
-**AgenticOS is an open-source (Apache-2.0), self-hosted layer for building, sharing and governing AI agents across a company.** Teams configure an agent in the browser by writing its instructions, choosing a model and switching on tools. They connect it to company documents and apps, and publish it to web chat, Slack, Mattermost, Telegram, a website widget or an API. Administrators control who can use each agent, what it may spend and which actions need a person's approval. Every run is recorded.
+**AgenticOS is an open-source (Apache-2.0), self-hosted layer for building, sharing and governing AI agents across a company.** Teams configure an agent in the browser by writing its instructions, choosing a model and switching on tools. They connect it to company documents and apps, and publish it to web chat, Slack, Mattermost, Telegram, WhatsApp, a website widget or an API. Administrators control who can use each agent, what it may spend and which actions need a person's approval. Every run is recorded.
 
 Most agent frameworks give you a library, so every change to an agent's behaviour is a pull request, a review and a release. That is the wrong shape for the small agents a company actually wants, because the person who knows what the agent should say is not the person with commit access. **Code defines, configuration composes:** engineers extend what there is to assemble, and configuration can only ever reach what code registered.
 
@@ -195,7 +195,7 @@ AgenticOS connects agents to the models, chat tools, business apps and document 
 
 | Connect | How | Read |
 |---|---|---|
-| **Chat tools** | Publish an agent to Slack, Mattermost or Telegram, a website widget, a hosted page, the API or a WebSocket | [Channels](https://vstorm-co.github.io/agenticos/channels/) |
+| **Chat tools** | Publish an agent to Slack, Mattermost, Telegram or WhatsApp, a website widget, a hosted page, the API or a WebSocket | [Channels](https://vstorm-co.github.io/agenticos/channels/) |
 | **Business tools** | **4,700+ MCP servers** in the gallery (Notion, GitHub, Jira, HubSpot, Stripe…) and your own servers; choose which tools each agent may call | [MCP](https://vstorm-co.github.io/agenticos/mcp/) |
 | **Documents** | Sync Google Drive, S3/MinIO, Git repositories, websites, SharePoint and OneDrive into knowledge bases | [Sync sources](https://vstorm-co.github.io/agenticos/howto/configure-sync-sources/) |
 | **Events** | Start agents on a schedule, a new GitHub issue, a Gmail message or a signed webhook | [Routines](https://vstorm-co.github.io/agenticos/triggers/) |
@@ -213,7 +213,7 @@ Choose an agent's model, instructions and tools in the browser. Publish a versio
 
 The agent builder has four areas: **(1)** the name and publishing status, where a draft stays private until you publish a version; **(2)** tabs for the toolbox, MCP servers, limits, availability and version history; **(3)** the instructions, written in plain language like a brief for a new colleague; and **(4)** the model, chosen per agent from your configured providers.
 
-Colleagues can use a published agent in **web chat, Slack, Mattermost or Telegram** when those channels are configured, on a **website widget** or a **hosted page**, or through the **API** and **WebSocket**. [Build an agent](https://vstorm-co.github.io/agenticos/first-agent/) · [Connect a channel](https://vstorm-co.github.io/agenticos/channels/)
+Colleagues can use a published agent in **web chat, Slack, Mattermost, Telegram or WhatsApp** when those channels are configured, on a **website widget** or a **hosted page**, or through the **API** and **WebSocket**. [Build an agent](https://vstorm-co.github.io/agenticos/first-agent/) · [Connect a channel](https://vstorm-co.github.io/agenticos/channels/)
 
 ### 📂 Work with files and code
 
@@ -336,7 +336,7 @@ Plus any tool from a connected MCP server, and capabilities your engineers add i
 <img src="docs/assets/readme/eight-surfaces.webp" alt="Eight places one agent can answer." width="100%">
 <img src="docs/assets/readme/model-providers.webp" alt="28 model providers: hosted, your subscription, your cloud contract, or on your hardware." width="100%">
 
-**Where agents answer:** web chat, a website widget, a hosted page, the HTTP API, a streaming WebSocket, Slack, Mattermost and Telegram.
+**Where agents answer:** web chat, a website widget, a hosted page, the HTTP API, a streaming WebSocket, Slack, Mattermost, Telegram and WhatsApp.
 
 **Model providers:**
 - **Hosted (22):** OpenAI, Anthropic, Google Gemini, OpenRouter, Mistral, DeepSeek, xAI, Cohere, Groq, Cerebras, Together, Fireworks, Hugging Face, GitHub Models, Alibaba, Moonshot, Z.AI, Nebius, OVHcloud, SambaNova, Heroku and Vercel AI Gateway.

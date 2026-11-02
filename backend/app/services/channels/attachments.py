@@ -37,6 +37,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.agents.capabilities.channel_tools import ChannelDirectory
 from app.agents.capabilities.sandbox._permissions import workspace_ruleset
 from app.agents.capabilities.tool_output_limits import OVERFLOW_PREFIX
+from app.agents.prompt_variables import channel_name
 from app.db.models.chat_file import ChatFile
 from app.services.channels.base import (
     ChannelAdapter,
@@ -209,7 +210,7 @@ class ChannelAttachmentService:
             except NotImplementedError:
                 refusals.append(
                     f"{attachment.filename}: this build cannot fetch files from "
-                    f"{adapter.platform} yet."
+                    f"{channel_name(adapter.platform)} yet."
                 )
                 continue
             except Exception:

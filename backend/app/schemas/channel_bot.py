@@ -1,15 +1,22 @@
 """Channel bot, identity, and session schemas."""
 
 from datetime import datetime
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 from uuid import UUID
 
 from pydantic import Field, computed_field, model_validator
 
 from app.schemas.base import BaseSchema
 from app.schemas.urls import ServiceAddress
-from app.services.channels.webhooks import inbound_command_url, inbound_webhook_url
+from app.services.channels.webhooks import (
+    CODE_CONFIRMED_PLATFORMS,
+    inbound_command_url,
+    inbound_webhook_url,
+)
 from app.services.speech_to_text import is_offered
+
+if TYPE_CHECKING:
+    from app.db.models.channel_link_request import ChannelLinkRequest
 
 
 class AccessPolicy(BaseSchema):
@@ -68,6 +75,8 @@ StepDisplay = Literal["timeline", "plan"]
 """How a streamed answer shows its tool calls: one row each, or one plan."""
 
 
+WHATSAPP_ID_PATTERN = r"^\d{5,32}$"
+"""A Cloud API phone number or account id: digits only."""
 TEAMS_ID_PATTERN = r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
 """An Entra app id or tenant id: a GUID."""
 
@@ -97,7 +106,8 @@ class ChannelBotCreate(BaseSchema):
             "The shared secret an inbound webhook is authenticated against. Paste "
             "the token Mattermost shows when the outgoing webhook is created; for "
             "Telegram, leave it empty and one is generated and handed over when "
-            "the webhook is registered. Sealed in the vault, never returned."
+            "the webhook is registered; for WhatsApp, it is the Meta app secret. "
+            "Sealed in the vault, never returned."
         ),
     )
     access_policy: AccessPolicy = Field(default_factory=AccessPolicy)
@@ -137,6 +147,29 @@ class ChannelBotCreate(BaseSchema):
         default=None,
         pattern=TEAMS_ID_PATTERN,
         description="The Entra tenant the single-tenant Azure Bot is registered in. Teams only.",
+    )
+    whatsapp_phone_number_id: str | None = Field(
+        default=None,
+        pattern=WHATSAPP_ID_PATTERN,
+        description=(
+            "The Cloud API id of the business phone number the bot answers on. "
+            "WhatsApp bots only; the token is its System User access token."
+        ),
+    )
+    whatsapp_account_id: str | None = Field(
+        default=None,
+        pattern=WHATSAPP_ID_PATTERN,
+        description="The WhatsApp Business Account that owns the number. WhatsApp only.",
+    )
+    whatsapp_verify_token: str | None = Field(
+        default=None,
+        min_length=8,
+        max_length=255,
+        description=(
+            "The verify token entered in Meta's webhook setup, which Meta echoes "
+            "back once to subscribe. WhatsApp bots only; sealed, never returned. "
+            "The Meta app secret goes in `webhook_secret`."
+        ),
     )
     stream_answers: bool = Field(
         default=True,
@@ -239,6 +272,34 @@ class ChannelBotCreate(BaseSchema):
         return self
 
     @model_validator(mode="after")
+    def _a_whatsapp_bot_carries_its_number(self) -> ChannelBotCreate:
+        """A WhatsApp bot is saved with its number, account and both secrets (#2076).
+
+        Without the number it cannot send, without the app secret no webhook can
+        be believed and without the verify token Meta cannot subscribe it. And it
+        is always a webhook bot: Meta posts every message to the bot's endpoint,
+        and there is nothing to poll.
+        """
+        whatsapp = self.platform == "whatsapp"
+        given = (
+            self.whatsapp_phone_number_id,
+            self.whatsapp_account_id,
+            self.whatsapp_verify_token,
+        )
+        if whatsapp and (None in given or self.webhook_secret is None):
+            raise ValueError(
+                "A WhatsApp bot needs its phone number ID, account ID, app secret and verify token"
+            )
+        if not whatsapp and any(value is not None for value in given):
+            raise ValueError(
+                f"A phone number ID, account ID and verify token are for a WhatsApp bot, "
+                f"not a {self.platform} bot"
+            )
+        if whatsapp:
+            self.webhook_mode = True
+        return self
+
+    @model_validator(mode="after")
     def _a_self_hosted_bot_carries_its_server(self) -> ChannelBotCreate:
         """A Mattermost bot is saved with its server's URL, or not saved.
 
@@ -289,6 +350,9 @@ class ChannelBotUpdate(BaseSchema):
     slack_app_token: str | None = Field(default=None, min_length=8, max_length=500)
     transcribe_voice_notes: bool | None = None
     command_token: str | None = Field(default=None, min_length=8, max_length=255)
+    whatsapp_phone_number_id: str | None = Field(default=None, pattern=WHATSAPP_ID_PATTERN)
+    whatsapp_account_id: str | None = Field(default=None, pattern=WHATSAPP_ID_PATTERN)
+    whatsapp_verify_token: str | None = Field(default=None, min_length=8, max_length=255)
     ack_reaction: str | None = Field(default=None, pattern=ACK_REACTION_PATTERN)
     stream_answers: bool | None = None
     step_display: StepDisplay | None = None
@@ -382,6 +446,10 @@ class ChannelBotRead(BaseSchema):
     # Identifiers, not secrets: the console builds the Teams app package from them.
     teams_app_id: str | None = None
     teams_tenant_id: str | None = None
+    # The number and its account are identifiers; the verify token is a boolean.
+    whatsapp_phone_number_id: str | None = None
+    whatsapp_account_id: str | None = None
+    has_whatsapp_verify_token: bool = False
     ack_reaction: str | None = None
     stream_answers: bool = True
     step_display: StepDisplay = "timeline"
@@ -398,6 +466,12 @@ class ChannelBotRead(BaseSchema):
     def messaging_endpoint(self) -> str | None:
         """A Teams bot's messaging endpoint, to paste into its Azure Bot resource (#1985)."""
         return inbound_webhook_url("teams", self.id) if self.platform == "teams" else None
+
+    @computed_field  # type: ignore[prop-decorator]  # pydantic's documented form
+    @property
+    def whatsapp_callback_url(self) -> str | None:
+        """A WhatsApp bot's webhook callback URL, to paste into Meta's app dashboard (#2076)."""
+        return inbound_webhook_url("whatsapp", self.id) if self.platform == "whatsapp" else None
 
     speech_to_text_provider: str | None = None
     speech_to_text_model: str | None = None
@@ -423,7 +497,8 @@ class ChannelBotRead(BaseSchema):
     connection: ChannelConnectionRead | None = None
     """The state of the socket this bot receives on, for a polling bot.
 
-    A webhook bot holds no connection and reports none. A polling bot whose
+    A webhook bot holds no connection and reports none - except a WhatsApp bot,
+    whose "down" means Meta refused its access token on a send (#2076). A polling bot whose
     stream never opened used to look identical to a working one: the row showed
     `Polling`, an agent bound and nothing else, while the reason sat in a
     container log (#1351).
@@ -462,6 +537,38 @@ class ChannelLinkRequestRead(BaseSchema):
     platform_username: str | None = None
     platform_display_name: str | None = None
     expires_at: datetime
+    # Two-way confirmation (`CODE_CONFIRMED_PLATFORMS`): the browser step is
+    # done and the chat must now send `confirm_code`. The code is set only for
+    # the person who confirmed; nobody else can read the request at all.
+    awaiting_code: bool = False
+    confirm_code: str | None = None
+    # False where the platform's display name is the sender's own claim (a
+    # WhatsApp profile name) rather than something the platform vouches for.
+    display_name_verified: bool = True
+
+    @classmethod
+    def for_user(
+        cls, request: ChannelLinkRequest, user_id: UUID, *, reveal_code: bool
+    ) -> ChannelLinkRequestRead:
+        """The page's view of a request; the code goes only to the person who confirmed.
+
+        `reveal_code=False` withholds it even from them, for a session that is
+        an administrator acting as that person: the code is what binds a chat to
+        the account, and an impersonator must not read it.
+        """
+        return cls(
+            platform=request.platform,
+            platform_username=request.platform_username,
+            platform_display_name=request.platform_display_name,
+            expires_at=request.expires_at,
+            awaiting_code=request.confirmed_user_id is not None,
+            confirm_code=(
+                request.confirm_code
+                if reveal_code and request.confirmed_user_id == user_id
+                else None
+            ),
+            display_name_verified=request.platform not in CODE_CONFIRMED_PLATFORMS,
+        )
 
 
 class LinkedAgent(BaseSchema):
