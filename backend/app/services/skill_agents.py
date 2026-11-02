@@ -28,9 +28,15 @@ from app.db.models.agent import Agent, AgentStatus
 from app.db.models.agent_environment import AgentEnvironment
 from app.db.models.skill import Skill
 from app.db.models.skill_version import SkillFork, SkillVersion
-from app.repositories import agent_environment_repo, agent_repo, skill_version_repo
+from app.repositories import (
+    agent_environment_repo,
+    agent_repo,
+    skill_check_repo,
+    skill_version_repo,
+)
 from app.schemas.resource_usage import AgentUsage
 from app.schemas.skill_version import (
+    AgentCheckRef,
     AgentEnvironmentBinding,
     ForkRef,
     SkillAgentList,
@@ -300,6 +306,19 @@ class SkillAgentService:
         lines = [line for use in uses for _, _, line in use.served]
         lines += [use.draft for use in uses if use.draft is not None]
         reader = await self._reader(skill, lines)
+        checks: dict[UUID, dict[UUID, AgentCheckRef]] = {}
+        for agent_id, version_id, found, at in await skill_check_repo.checked_versions(
+            self.db,
+            organization_id=skill.organization_id,
+            skill_id=skill.id,
+            agent_ids=[agent.id for agent in agents],
+        ):
+            checks.setdefault(agent_id, {}).setdefault(
+                version_id,
+                AgentCheckRef(
+                    check_id=found.check_id, version_id=version_id, state=found.state, at=at
+                ),
+            )
         rows: list[SkillAgentUsage] = []
         for use in uses:
             if use.served:
@@ -336,6 +355,8 @@ class SkillAgentService:
                     draft_differs=use.draft != line,
                     can_change=agent.id in editable,
                     can_publish=agent.id in publishable,
+                    checked=checks.get(agent.id, {}).get(binding.version.id),
+                    checked_versions=list(checks.get(agent.id, {}).values()),
                 )
             )
         return rows

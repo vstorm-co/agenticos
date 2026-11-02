@@ -27,7 +27,7 @@ from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.agent import Agent
 from app.db.models.eval_run import EvalRun, EvalRunStatus
 from app.db.models.skill import Skill
-from app.db.models.skill_check import CheckOutcome, CheckStatus, CheckVerdict
+from app.db.models.skill_check import AgentState, CheckOutcome, CheckStatus, CheckVerdict
 from app.repositories import dataset_repo, eval_run_repo, skill_check_repo, skill_proposal_repo
 from app.schemas.resource_usage import ProposalDecision
 from app.schemas.skill_check import (
@@ -38,6 +38,7 @@ from app.schemas.skill_check import (
     SkillTestSetStart,
 )
 from app.services.eval_run import EvalRunService
+from app.services.skill_agents import SkillAgentService
 from app.services.skill_check import SkillCheckService
 from app.services.skill_proposal import SkillProposalService
 from app.services.skill_versions import SkillVersionService
@@ -440,6 +441,29 @@ class TestDeciding:
         assert [(item.skill_id, item.version) for item in bindings] == [(lab.skill.id, before)]
         with pytest.raises(AlreadyExistsError):
             await service.discard(lab.ctx, lab.skill.id, check.id)
+
+    async def test_an_agent_is_told_which_versions_were_checked_on_it(self, db, monkeypatch):
+        """Change version asks whether a version was checked on that agent; a version
+        that came out of a check says so, one written by hand does not."""
+        lab = await _lab(db)
+        evals = FakeEvals()
+        evals.install(monkeypatch)
+        service = SkillCheckService(db)
+        check = await service.start(lab.ctx, lab.skill.id, _start())
+        evals.outcomes = {lab.a.id: Outcome(fixed=2)}
+        await _run_to_end(service, evals, lab, check.id)
+
+        applied = await service.apply(lab.ctx, lab.skill.id, check.id, SkillCheckApply())
+
+        listing = await SkillAgentService(db).agents(lab.ctx, lab.skill.id)
+        rows = {row.agent.name: row for row in listing.items}
+        assert rows["A"].checked is not None
+        assert (rows["A"].checked.version_id, rows["A"].checked.state) == (
+            applied.version.id,
+            AgentState.BETTER,
+        )
+        assert [ref.check_id for ref in rows["B"].checked_versions] == [check.id]
+        assert rows["Pinned"].checked is None and rows["Pinned"].checked_versions == []
 
     async def test_fork_for_the_helped_moves_them_and_leaves_main(self, db, monkeypatch):
         lab = await _lab(db)
