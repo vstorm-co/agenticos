@@ -19,6 +19,12 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Changed
+
+- Run backend coverage once, shard frontend and E2E tests, reuse the production frontend build, and cache native builds. Build desktop release platforms in parallel and publish updater metadata only after every signed target is available.
+
+- Reuse successful checks for proven release-only cuts, prepare release train PRs from the CLI, reuse unchanged browser images, and retain scans and SBOMs when images are retagged. Offer production deployment only after a stable release is published, while keeping manual deployments and rollback.
+
 ## [1.35.1] - 2026-11-02
 
 ### Fixed
