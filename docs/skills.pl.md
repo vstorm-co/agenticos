@@ -1,5 +1,5 @@
 ---
-source_sha: "ea12c48420ef"
+source_sha: "9d067aa7eb86"
 ---
 
 # Skille { #skills }
@@ -353,8 +353,8 @@ fork. Publikuje nową wersję agenta z jego opublikowanej wersji, w której zmie
 się tylko wiązanie tego skilla, i tę samą zmianę wprowadza w drafcie agenta. Inne
 niedokończone zmiany w drafcie zostają w drafcie. Wersja, na której agenta nie ma,
 nie była na nim sprawdzona, więc najpierw to potwierdzasz. Kontrolkę widzą osoby,
-które mogą opublikować agenta. Jeśli zmiany nie da się opublikować, trafia do
-draftu, a publikujesz ją w Builderze.
+które mogą edytować agenta. Bez prawa do publikacji zmiana trafia do draftu
+agenta, a publikuje ją w Builderze ktoś, kto ma takie prawo.
 
 **Historia** wymienia wersje wybranej linii od najnowszej: skąd się wzięła każda
 (edycja, zmiana plików, biblioteka, workspace agenta, Improve albo przywrócenie),

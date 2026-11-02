@@ -1,5 +1,5 @@
 ---
-source_sha: "ea12c48420ef"
+source_sha: "9d067aa7eb86"
 ---
 
 # Skills { #skills }
@@ -378,8 +378,9 @@ veröffentlichten Version, in der sich nur die Bindung dieses Skills ändert, un
 macht dieselbe Änderung im Entwurf des Agents. Andere unfertige Änderungen im
 Entwurf bleiben im Entwurf. Eine Version, auf der der Agent nicht ist, wurde auf ihm
 nicht geprüft, deshalb bestätigen Sie das zuerst. Das Steuerelement sehen Personen,
-die den Agent veröffentlichen dürfen. Lässt sich die Änderung nicht veröffentlichen,
-wird sie im Entwurf gespeichert, und Sie veröffentlichen sie im Builder.
+die den Agent bearbeiten dürfen. Ohne das Recht zum Veröffentlichen wird die
+Änderung im Entwurf des Agents gespeichert, und wer veröffentlichen darf, tut das
+im Builder.
 
 **Verlauf** listet die Versionen der gewählten Linie, die neueste zuerst: woher jede
 kam (eine Bearbeitung, eine Dateiänderung, die Bibliothek, der Workspace eines

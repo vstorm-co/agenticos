@@ -344,8 +344,8 @@ It publishes a new version of the agent from its published version, with only th
 skill's binding changed, and makes the same change in the agent's draft. Other
 unfinished edits in the draft stay in the draft. A version the agent is not on has
 not been checked on it, so you confirm that first. The control is shown to people who
-may publish the agent. If the change cannot be published, it is saved in the
-draft for you to publish from the Builder.
+may edit the agent. Without permission to publish it, the change is saved in the
+agent's draft, for somebody who may publish to do that from the Builder.
 
 **History** lists the chosen line's versions, newest first: where each came from
 (an edit, a file change, the library, an agent's workspace, Improve or a restore),

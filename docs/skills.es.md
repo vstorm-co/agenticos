@@ -1,5 +1,5 @@
 ---
-source_sha: "ea12c48420ef"
+source_sha: "9d067aa7eb86"
 ---
 
 # Skills { #skills }
@@ -364,8 +364,9 @@ Publica una versión nueva del agent a partir de su versión publicada, cambiand
 la vinculación de este skill, y hace el mismo cambio en el borrador del agent. Los
 demás cambios sin terminar del borrador se quedan en el borrador. Una versión en la
 que el agent no está no se ha comprobado en él, así que primero lo confirmas. El
-control lo ve quien puede publicar el agent. Si el cambio no se puede publicar, se
-guarda en el borrador y lo publicas desde el Builder.
+control lo ve quien puede editar el agent. Sin permiso para publicarlo, el cambio
+se guarda en el borrador del agent, y quien puede publicar lo hace desde el
+Builder.
 
 **Historial** lista las versiones de la línea elegida, de la más nueva a la más
 antigua: de dónde vino cada una (una edición, un cambio de archivos, la biblioteca,
