@@ -163,15 +163,15 @@ So a write becomes a **proposal**, and it appears above the list on the Skills p
 for whoever may edit that skill - its owner, or anybody granted edit on it - and,
 for a skill not written yet, for anyone who may create skills. Nobody else sees it:
 
-- **Apply** rewrites the skill and bumps its version, which reaches every bound
-  agent on its next run.
+- **Apply** saves the change as the next version of the line it was written
+  for, which reaches that line's agents on their next run.
 - **Discard** keeps the record. An agent proposing the same edit repeatedly is
   telling somebody something about the skill, and a deleted row makes that
   invisible.
 
 !!! warning "A decision on a proposal is final"
 
-    Applying twice would bump a version against a body already stored, and
+    Applying twice would save a second version of a body already stored, and
     discarding something applied would tell a reader it never landed.
 
 The proposal carries the **whole body** rather than a diff, so a reviewer weeks
@@ -209,6 +209,101 @@ Workspace proposals use the same metadata limits as stored skills: a name of
 limits is skipped with a warning; its original workspace files stay intact.
 Proposal writes run in a savepoint, so a refused proposal cannot roll back the
 turn or prevent its status and spend from being recorded.
+
+## Versions and forks
+
+Every saved change to a skill makes a new version, and a version is never changed
+afterwards. Editing the text or the description makes one, and so do adding,
+changing or removing a file, a library refresh, and an applied change from an
+agent's workspace or from the [authoring assistant](authoring.md#skills). A new
+category alone does not, because no agent reads it.
+
+**History** on the skill page lists the versions, newest first. Each one says what
+made it (`backfill`, `created`, `edit`, `resources`, `library`, `workspace`,
+`improve` or `restore`) and when, and who saved it to a reader who may see the
+organization's members. A version keeps its files as they were, so changing a file
+later does not change an earlier version.
+
+A skill that existed before versions has one version, v1: the text and files it
+had when versioning began. Nothing before that was recorded.
+
+**Restore** brings an earlier version back as a new version, so the history stays
+complete, and the new version says which one it came from.
+
+An edit is saved against the version the editor read. If somebody saved a newer
+version in the meantime, the edit is refused instead of overwriting it.
+
+### Forks
+
+A fork is a named line of a skill that starts from a main version. It has its own
+versions and its own latest version, so a skill can change for some agents while
+main stays as it is. Until it has a version of its own, a fork serves the main
+version it started from.
+
+- A fork starts only from main. A fork of a fork is refused, so the tree is one
+  level deep.
+- A fork's name is unique within its skill, archived forks included.
+- A fork's files are the files of the version it was made from. Files are edited
+  on main only.
+- **Archive** stops a fork from taking new versions. It keeps its versions and is
+  never deleted. A fork that no run has read for 30 days is offered for archiving;
+  nothing is archived automatically.
+
+### Which version an agent reads
+
+Each agent reads a bound skill in one of three ways:
+
+| State | What it reads |
+|---|---|
+| Main | The newest main version. This is every agent that names no other |
+| Pinned | One main version, until somebody moves it |
+| Fork | The newest version of one fork |
+
+The choice is part of the agent's spec, in `skill_bindings`, so it is published,
+promoted between environments and exported with the rest of the agent. A spec
+without the field reads main for every skill, which is what every agent did before
+skills had versions. Publish refuses a version the skill's main line does not have,
+a fork of another skill, an archived fork and anything of another organization.
+Each run records the skill versions it served, its inline specialists' included.
+
+A new version reaches only the agents on its line. A new main version reaches the
+agents on main, and a new fork version that fork's agents: their eval suites run,
+the change lists the environments it goes live in, and their owners are told. A
+pinned agent is reached by neither.
+
+**The skill's agents** are those that run it: a version one of their environments
+serves binds it. The skill page lists each with the version it reads, how many
+main versions it is behind, and any environment that reads it differently. An
+agent that binds the skill only in its draft is listed as such. Agents you cannot
+see are counted, not named.
+
+**Change version** moves one agent to main, a main version or a fork, and it is a
+change to the agent. With permission to publish it, the published spec with only
+that binding changed goes live as the agent's next version, and environments move
+by their usual follow and promotion rules. The draft takes the same change and
+keeps its other unfinished edits, which do not go live. With permission to edit the
+agent only, the change waits in the draft. A Builder already open on the agent does
+not see the change until it is reloaded, and saving it before then puts the old
+binding back.
+
+### Deleting a skill
+
+A skill that an agent uses cannot be deleted. That is a skill bound by a live
+agent's draft, or by a version that one of its environments serves, the agent's own
+or an inline specialist's. The refusal names the agents you can see and counts the
+others. A skill that nobody uses is deleted with its versions and forks.
+
+| Route | What it does |
+|---|---|
+| `GET /api/v1/skills/{id}/versions` | The versions of main, or of a fork with `?fork_id=`, newest first |
+| `GET /api/v1/skills/{id}/versions/{version_id}` | One version, with its text and its list of files, each with its SHA-256 |
+| `GET /api/v1/skills/{id}/versions/{version_id}/resources/{name}` | One file as that version had it |
+| `POST /api/v1/skills/{id}/versions` | Saves an edit on main or on a fork, against `base_version_id` |
+| `POST /api/v1/skills/{id}/versions/{version_id}/restore` | Restores a version onto its own line |
+| `GET`, `POST /api/v1/skills/{id}/forks` | Lists forks, or starts one from a main version |
+| `PATCH /api/v1/skills/{id}/forks/{fork_id}`, `POST …/archive` | Renames a fork, or archives it |
+| `GET /api/v1/skills/{id}/agents` | The skill's agents, the version each reads, and how many are hidden |
+| `PUT /api/v1/skills/{id}/agents/{agent_id}/binding` | Moves an agent to main, a main version or a fork |
 
 ## Getting skills into an organization
 
@@ -253,7 +348,7 @@ uv run agenticos cmd seed-skills --replace          # also overwrite copies edit
 It installs what is missing and **refreshes what nobody has edited**. Every copy
 records which bundled version it was written from, so when a release improves a
 bundled skill, an organization's untouched copy is replaced with the new one —
-files and all, with its version bumped and a `skill.refreshed` audit entry.
+files and all, as a new version, with a `skill.refreshed` audit entry.
 
 A copy edited here is left exactly as it is, so an edited refund policy survives a
 reseed; `--replace` is the one way to take the bundled version over such edits,

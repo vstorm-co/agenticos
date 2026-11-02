@@ -10,7 +10,19 @@ from typing import Any, Literal
 from uuid import UUID
 
 from pydantic import TypeAdapter
-from sqlalchemy import Float, and_, bindparam, cast, false, func, literal, or_, select, text
+from sqlalchemy import (
+    Float,
+    Text,
+    and_,
+    bindparam,
+    cast,
+    false,
+    func,
+    literal,
+    or_,
+    select,
+    text,
+)
 from sqlalchemy.dialects.postgresql import JSONPATH
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -67,6 +79,23 @@ async def get_many(
         select(Agent).where(Agent.id.in_(list(agent_ids)), Agent.organization_id == organization_id)
     )
     return {agent.id: agent for agent in result.scalars().all()}
+
+
+async def drafts_mentioning(db: AsyncSession, needle: str, *, organization_id: UUID) -> list[Agent]:
+    """Live agents whose draft spec contains `needle` anywhere in its text.
+
+    A cheap first pass for a caller that then parses each draft: an id bound by an
+    inline specialist sits deep inside a capability's config, where no column or
+    JSON path the query could name reaches it.
+    """
+    result = await db.execute(
+        select(Agent).where(
+            Agent.organization_id == organization_id,
+            Agent.status != AgentStatus.ARCHIVED.value,
+            cast(Agent.draft_spec, Text).contains(needle, autoescape=True),
+        )
+    )
+    return list(result.scalars().all())
 
 
 async def existing_ids_locked(
