@@ -732,6 +732,7 @@ include = [
     "app/repositories/local_service.py",
     "app/repositories/sandbox_connection.py",
     "app/repositories/skill_proposal.py",
+    "app/repositories/skill_usage.py",
     "app/services/attachments.py",
     # The one subprocess in the chat attachment feature (#1591): a managed,
     # killable `soffice` for DOC. Every branch is a refusal or a teardown - a
@@ -1470,6 +1471,7 @@ include = [
     "app/repositories/local_service.py",
     "app/repositories/sandbox_connection.py",
     "app/repositories/skill_proposal.py",
+    "app/repositories/skill_usage.py",
     "app/services/attachments.py",
     # The one subprocess in the chat attachment feature (#1591): a managed,
     # killable `soffice` for DOC. Every branch is a refusal or a teardown - a

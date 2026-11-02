@@ -113,6 +113,7 @@ from app.db.models.virtual_table import (
 )
 from app.db.models.table_view import TableView
 from app.db.models.skill import Skill, SkillResource
+from app.db.models.skill_usage import RunSkillUse
 from app.db.models.skill_proposal import ProposalStatus, SkillProposal
 from app.db.models.resource_grant import GrantLevel, ResourceGrant, Visibility
 from app.db.models.group import Group, GroupMember
@@ -339,6 +340,7 @@ __all__ = [
     "VirtualTableRecordHistory",
     "VirtualTableSchemaVersion",
     "TableView",
+    "RunSkillUse",
     "Skill",
     "SkillProposal",
     "ProposalStatus",

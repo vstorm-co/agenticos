@@ -303,6 +303,12 @@ class AgentRun(Base, TimestampMixin):
     earlier_attachments_checked: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, server_default=text("false")
     )
+    # Whether the skills this run used were written down as it ran (`run_skill_uses`).
+    # Every run from before that existed reads false: what it used is unknown, which
+    # is not the same as using nothing.
+    skill_uses_recorded: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True, server_default=text("true")
+    )
 
     # The run this one was delegated from, and the delegation's own id inside it.
     # Both null for a run somebody started, which is every run except a
