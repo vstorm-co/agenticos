@@ -1929,7 +1929,8 @@ async def test_removing_a_source_target_never_reassigns_it_by_name(
         await service.delete_for_rag_collection(selected)
     await db.refresh(source)
     await db.refresh(other_source)
-    if operation in {"keep_default", "delete_other"}:
+    # A cleared default keeps its row but not its sources (#2551).
+    if operation == "delete_other":
         assert source.collection_name == name and source.is_active
         assert source.knowledge_base_id == selected.id
     else:

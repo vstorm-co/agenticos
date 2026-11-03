@@ -363,6 +363,44 @@ class TestADeletedBasesSourcesStop:
         assert answer["status"] == "error"
         assert await _documents(db) == before
 
+    @pytest.mark.parametrize("path", ["delete_for_rag_collection", "rag_drop"])
+    async def test_a_cleared_default_bases_sources_are_detached_too(
+        self, db: AsyncSession, monkeypatch: pytest.MonkeyPatch, path: str
+    ) -> None:
+        """A default base keeps its row when it is dropped, and its sources kept it:
+        due again on the schedule, they refilled the collection just dropped, or -
+        a connector whose remote version had not moved - ran clean over the stale
+        sync state and left it empty for good. The drop stops them like any other."""
+        seeded = await self._seed(db, "org_b")
+        kb_a, mine, theirs = seeded["kb_a"], seeded["mine"], seeded["theirs"]
+        assert isinstance(kb_a, KnowledgeBase)
+        assert isinstance(mine, SyncSource) and isinstance(theirs, SyncSource)
+        kb_a.is_default = True
+        mine.schedule_minutes = 60
+        mine.sync_state = {"version": "v1", "fingerprint": "f"}
+        await db.flush()
+        kept_id = theirs.knowledge_base_id
+
+        if path == "delete_for_rag_collection":
+            await KnowledgeBaseService(db).delete_for_rag_collection(kb_a)
+        else:
+            await KnowledgeBaseService(db).drop_collection_by_name(NAME, knowledge_base_id=kb_a.id)
+        await db.refresh(mine)
+        await db.refresh(theirs)
+
+        assert await knowledge_base_repo.get_by_id(db, kb_a.id) is not None
+        assert (mine.collection_name, mine.knowledge_base_id, mine.is_active) == (
+            None,
+            None,
+            False,
+        )
+        assert theirs.is_active and theirs.knowledge_base_id == kept_id
+        assert mine.id not in {s.id for s in await sync_source_repo.get_due_for_sync(db)}
+        monkeypatch.setattr(rag_tasks, "get_worker_db_context", _same_session(db))
+        answer = await rag_tasks._sync_source(str(mine.id), None)
+        assert answer["status"] == "error"
+        assert await _documents(db) == 0
+
     async def test_a_base_gone_without_the_teardown_leaves_a_source_that_writes_nothing(
         self, db: AsyncSession, monkeypatch: pytest.MonkeyPatch
     ) -> None:
@@ -422,10 +460,13 @@ class TestTheUpgradesBackfill:
         oldest_of_org = _source(org_1.id, kb=None)
         app_fallback = _source(org_2.id, kb=None)
         unattributable = _source(org_3.id, kb=None, name="manuals")
+        # Already off: left unattributed, but not reported as deactivated by the upgrade.
+        paused = _source(org_3.id, kb=None, name="manuals")
+        paused.is_active = False
         template = _source(org_1.id, kb=None)
         template.collection_name = None
         already = _source(org_1.id, kb=org_1_base)
-        db.add_all([oldest_of_org, app_fallback, unattributable, template, already])
+        db.add_all([oldest_of_org, app_fallback, unattributable, paused, template, already])
         await db.flush()
         expected = {}
         for source in (oldest_of_org, app_fallback, unattributable):
@@ -441,7 +482,7 @@ class TestTheUpgradesBackfill:
         on_personal = await db.run_sync(
             lambda session: migration.on_a_personal_base(session.connection())
         )
-        for source in (oldest_of_org, app_fallback, unattributable, template, already):
+        for source in (oldest_of_org, app_fallback, unattributable, paused, template, already):
             await db.refresh(source)
 
         assert expected == {
@@ -454,6 +495,7 @@ class TestTheUpgradesBackfill:
         assert oldest_of_org.is_active and app_fallback.is_active
         assert not unattributable.is_active and unattributable.collection_name == "manuals"
         assert reported == [(str(unattributable.id), str(org_3.id), "manuals")]
+        assert paused.knowledge_base_id is None and not paused.is_active
         # Kept where it synced, and reported: org 1 also has an org base of the name.
         assert on_personal == [(str(oldest_of_org.id), str(org_1.id), NAME)]
         assert template.knowledge_base_id is None and template.is_active

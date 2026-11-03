@@ -1,5 +1,5 @@
 ---
-source_sha: "638fafcd4320"
+source_sha: "5038114f28fc"
 ---
 
 # Procesamiento de archivos { #file-processing }
@@ -9,9 +9,12 @@ de archivos en el chat, que pertenecen a la persona que las hizo, y la ingesta
 de documentos RAG, que pertenece a una colección y depende de
 Al eliminar una base se desvinculan y desactivan exactamente las fuentes de sincronización
 que la registran, tenga quien tenga el nombre además. Conservan la configuración del conector, pero requieren una reasignación
-explícita antes de sincronizar de nuevo; otra base del mismo nombre no las hereda. Vaciar
-una base predeterminada conserva sus fuentes porque la fila de destino permanece. La
-ingesta por CLI rechaza un nombre reservado para un borrado pendiente hasta que se libere.
+y una reactivación explícitas antes de sincronizar de nuevo; otra base del mismo nombre no
+las hereda.
+
+Vaciar una base predeterminada también desvincula y desactiva sus fuentes: su
+fila permanece, pero una fuente que siguiera en ella volvería a sincronizar el contenido
+borrado. La ingesta por CLI rechaza un nombre reservado para un borrado pendiente hasta que se libere.
 
 [quién puede llegar a ella](#who-may-reach-a-collection).
 
@@ -664,8 +667,8 @@ arriba) y comprueba el permiso de escritura sobre esa base.
 Una fuente sin base de conocimiento no sincroniza. La actualización que añadió la
 columna dio a cada fuente existente la base en la que escribía su sincronización, y
 desactivó, registrando su id, cada fuente cuya colección no tiene ninguna base de su
-organización ni del despliegue: apúntala a una base de conocimiento para que vuelva a
-sincronizar.
+organización ni del despliegue: apúntala a una base de conocimiento y vuelve a poner
+`is_active` en true para que vuelva a sincronizar.
 También registró cada fuente que dejó en la base personal de un miembro mientras la
 organización tiene una base de organización con el mismo nombre, que es donde esa
 fuente sincronizaba antes: muévela si pertenece a la base de la organización.

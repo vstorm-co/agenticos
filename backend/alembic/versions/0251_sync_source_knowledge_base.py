@@ -77,7 +77,7 @@ _DEACTIVATE_UNATTRIBUTABLE = sa.text(
     """
     UPDATE sync_sources
     SET is_active = false
-    WHERE collection_name IS NOT NULL AND knowledge_base_id IS NULL
+    WHERE collection_name IS NOT NULL AND knowledge_base_id IS NULL AND is_active
     RETURNING id, organization_id, collection_name
     """
 )
@@ -108,7 +108,8 @@ def backfill(bind: Connection) -> list[tuple[str, str, str]]:
 
     Apart from `upgrade` so a test can run it on rows in a schema that already
     has the column. Answers `(source id, organization id, collection name)` for
-    each source that could not be attributed.
+    each active source that could not be attributed and was deactivated; one
+    already inactive stays so, unreported.
     """
     bind.execute(_BACKFILL)
     rows = bind.execute(_DEACTIVATE_UNATTRIBUTABLE).all()
@@ -147,7 +148,7 @@ def upgrade() -> None:
         logger.warning(
             "Sync source %s (organization %s) names collection '%s', which no knowledge "
             "base of its organization or of the deployment holds; it was deactivated. "
-            "Point it at a knowledge base to sync it again.",
+            "Point it at a knowledge base and set is_active back to true to sync it again.",
             source_id,
             organization_id,
             collection_name,

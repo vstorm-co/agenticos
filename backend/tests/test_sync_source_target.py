@@ -88,7 +88,7 @@ def _create(name: str | None = "handbook") -> SyncSourceCreate:
 
 
 class TestCreatingASourceOnABase:
-    async def test_it_records_the_base_under_the_names_lock(self, repos) -> None:
+    async def test_it_records_the_base_under_the_names_lock(self, repos: SimpleNamespace) -> None:
         base = _base()
 
         read = await SyncSourceService(MagicMock()).create_source(
@@ -99,7 +99,7 @@ class TestCreatingASourceOnABase:
         assert repos.create.await_args.kwargs["knowledge_base_id"] == base.id
         assert repos.held.await_args.args[2] == "handbook"
 
-    async def test_an_unassigned_integration_records_no_base(self, repos) -> None:
+    async def test_an_unassigned_integration_records_no_base(self, repos: SimpleNamespace) -> None:
         await SyncSourceService(MagicMock()).create_source(_create(None), ctx=_ctx())
 
         assert repos.create.await_args.kwargs["knowledge_base_id"] is None
@@ -111,7 +111,7 @@ class TestCreatingASourceOnABase:
         ids=["no base", "a base of another name", "another organization's personal base"],
     )
     async def test_a_name_without_its_own_organizations_base_is_refused(
-        self, repos, base: SimpleNamespace | None
+        self, repos: SimpleNamespace, base: SimpleNamespace | None
     ) -> None:
         """The last is the owner of a personal base created in org A adding a source
         to it while acting in org B: B's credential would write into A's tenant."""
@@ -122,7 +122,7 @@ class TestCreatingASourceOnABase:
 
         repos.create.assert_not_awaited()
 
-    async def test_an_app_base_belongs_to_every_organization(self, repos) -> None:
+    async def test_an_app_base_belongs_to_every_organization(self, repos: SimpleNamespace) -> None:
         base = _base(organization_id=None, scope=KBScope.APP)
 
         await SyncSourceService(MagicMock()).create_source(
@@ -131,7 +131,9 @@ class TestCreatingASourceOnABase:
 
         assert repos.create.await_args.kwargs["knowledge_base_id"] == base.id
 
-    async def test_a_base_deleted_while_waiting_for_its_name_is_not_found(self, repos) -> None:
+    async def test_a_base_deleted_while_waiting_for_its_name_is_not_found(
+        self, repos: SimpleNamespace
+    ) -> None:
         repos.still_there.return_value = False
 
         with pytest.raises(NotFoundError):
@@ -159,7 +161,9 @@ class TestPatchingASourcesCollection:
             knowledge_base=base,
         )
 
-    async def test_the_name_it_has_is_no_move(self, monkeypatch, repos) -> None:
+    async def test_the_name_it_has_is_no_move(
+        self, monkeypatch: pytest.MonkeyPatch, repos: SimpleNamespace
+    ) -> None:
         recorded = uuid.uuid4()
         existing = _row(knowledge_base_id=recorded, sync_state={"version": "v"})
 
@@ -170,8 +174,22 @@ class TestPatchingASourcesCollection:
         assert "sync_state" not in written
         assert written["schedule_minutes"] == 60
 
+    async def test_the_name_it_has_patched_from_its_own_base_is_no_move(
+        self, monkeypatch: pytest.MonkeyPatch, repos: SimpleNamespace
+    ) -> None:
+        """A base's Sync tab hands in the base the source records: neither a move
+        nor a reason to forget the last run."""
+        base = _base()
+        existing = _row(knowledge_base_id=base.id, sync_state={"version": "v"})
+
+        await self._patch(monkeypatch, existing, "handbook", base)
+
+        written = repos.update.await_args.kwargs
+        assert "knowledge_base_id" not in written and "sync_state" not in written
+        repos.held.assert_not_awaited()
+
     async def test_a_move_records_the_new_base_and_forgets_the_last_run(
-        self, monkeypatch, repos
+        self, monkeypatch: pytest.MonkeyPatch, repos: SimpleNamespace
     ) -> None:
         """The last clean run filled the other base; stopping early on it would
         leave this one empty."""
@@ -185,7 +203,9 @@ class TestPatchingASourcesCollection:
         assert written["knowledge_base_id"] == manuals.id
         assert written["sync_state"] is None
 
-    async def test_a_detach_records_no_base(self, monkeypatch, repos) -> None:
+    async def test_a_detach_records_no_base(
+        self, monkeypatch: pytest.MonkeyPatch, repos: SimpleNamespace
+    ) -> None:
         existing = _row(knowledge_base_id=uuid.uuid4())
 
         await self._patch(monkeypatch, existing, None, None)
@@ -193,7 +213,9 @@ class TestPatchingASourcesCollection:
         written = repos.update.await_args.kwargs
         assert written["collection_name"] is None and written["knowledge_base_id"] is None
 
-    async def test_a_source_with_no_base_is_pointed_at_one_again(self, monkeypatch, repos) -> None:
+    async def test_a_source_with_no_base_is_pointed_at_one_again(
+        self, monkeypatch: pytest.MonkeyPatch, repos: SimpleNamespace
+    ) -> None:
         existing = _row(knowledge_base_id=None)
         base = _base()
 

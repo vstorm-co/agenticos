@@ -1,5 +1,5 @@
 ---
-source_sha: "638fafcd4320"
+source_sha: "5038114f28fc"
 ---
 
 # Przetwarzanie plików { #file-processing }
@@ -9,9 +9,10 @@ plików w czacie, które należą do osoby, która je zrobiła, oraz ingestia
 dokumentów RAG, która należy do kolekcji i jest uzależniona od tego,
 Usunięcie bazy odłącza i dezaktywuje dokładnie te źródła synchronizacji, które ją
 zapisują, niezależnie od tego, kto jeszcze ma tę nazwę. Zachowują konfigurację
-konektora, ale przed kolejną synchronizacją wymagają jawnego przypisania; inna baza o
-tej samej nazwie ich nie przejmuje. Czyszczenie domyślnej bazy
-zachowuje jej źródła, bo wiersz celu pozostaje. Ingest z CLI odrzuca nazwę zarezerwowaną
+konektora, ale przed kolejną synchronizacją wymagają jawnego przypisania i ponownej
+aktywacji; inna baza o tej samej nazwie ich nie przejmuje. Czyszczenie domyślnej bazy też
+odłącza i dezaktywuje jej źródła: jej wiersz zostaje, ale źródło pozostawione na niej
+zsynchronizowałoby usuniętą treść z powrotem. Ingest z CLI odrzuca nazwę zarezerwowaną
 przez oczekujące usunięcie, dopóki cleanup jej nie zwolni.
 
 [kto może do niej sięgnąć](#who-may-reach-a-collection).
@@ -655,8 +656,8 @@ zapisu do tej bazy.
 Źródło bez bazy wiedzy nie synchronizuje. Aktualizacja, która dodała kolumnę, dała
 każdemu istniejącemu źródłu bazę, do której wcześniej pisała jego synchronizacja, a
 źródło, którego kolekcji nie ma żadna baza jego organizacji ani wdrożenia,
-dezaktywowała i zapisała jego id w logu: wskaż mu bazę wiedzy, aby znowu
-synchronizowało.
+dezaktywowała i zapisała jego id w logu: wskaż mu bazę wiedzy i ustaw z powrotem
+`is_active` na true, aby znowu synchronizowało.
 Zapisała w logu także każde źródło pozostawione w osobistej bazie członka, gdy
 organizacja ma bazę organizacji o tej samej nazwie - tam to źródło synchronizowało
 wcześniej: przenieś je, jeśli należy do bazy organizacji.

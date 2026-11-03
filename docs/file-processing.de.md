@@ -1,5 +1,5 @@
 ---
-source_sha: "638fafcd4320"
+source_sha: "5038114f28fc"
 ---
 
 # Dateiverarbeitung { #file-processing }
@@ -8,9 +8,13 @@ Dieses Dokument beschreibt, wie Dateien in zwei Zusammenhängen behandelt werden
 Datei-Uploads im Chat, die der Person gehören, die sie gemacht hat, und die
 Ingestion von RAG-Dokumenten, die zu einer Collection gehört und daran gebunden
 Beim Löschen einer Basis werden genau die Sync-Quellen getrennt und deaktiviert, die diese
-Basis festhalten, gleich wer den Namen sonst noch trägt. Ihre Connector-Konfiguration bleibt erhalten; vor dem nächsten Sync ist eine
-ausdrückliche Neuzuordnung nötig. Eine gleichnamige Basis übernimmt sie nicht. Beim Leeren
-der Standardbasis bleiben die Quellen erhalten, weil die Zielzeile bestehen bleibt.
+Basis festhalten, gleich wer den Namen sonst noch trägt. Ihre Connector-Konfiguration bleibt erhalten; vor dem nächsten Sync sind eine
+ausdrückliche Neuzuordnung und Reaktivierung nötig. Eine gleichnamige Basis übernimmt sie
+nicht.
+
+Auch beim Leeren der Standardbasis werden ihre Quellen getrennt und deaktiviert:
+Ihre Zeile bleibt, aber eine dort belassene Quelle würde den gelöschten Inhalt zurück
+synchronisieren.
 Der CLI-Import verweigert Namen, die bis zur Bereinigung für einen ausstehenden Drop reserviert sind.
 
 ist, [wer sie erreichen darf](#who-may-reach-a-collection).
@@ -691,8 +695,8 @@ tragen ([#2551](https://github.com/vstorm-co/agenticos/issues/2551)).
 Eine Quelle ohne Wissensbasis synchronisiert nicht. Das Upgrade, das die Spalte
 hinzufügte, gab jeder bestehenden Quelle die Basis, in die ihr Sync bisher schrieb,
 und deaktivierte eine Quelle, deren Collection keine Basis ihrer Organisation oder
-des Deployments trägt, und protokollierte ihre ID: Richte sie auf eine Wissensbasis,
-damit sie wieder synchronisiert.
+des Deployments trägt, und protokollierte ihre ID: Richte sie auf eine Wissensbasis
+und setze `is_active` wieder auf true, damit sie wieder synchronisiert.
 Es protokollierte auch jede Quelle, die es in der persönlichen Basis eines Mitglieds
 beließ, während die Organisation eine Organisationsbasis desselben Namens hat - dort
 synchronisierte die Quelle bisher: Verschiebe sie, wenn sie zur Basis der

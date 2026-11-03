@@ -362,13 +362,15 @@ class CollectionAccessService:
         return source
 
     async def detach_sources_targeting(self, kb: KnowledgeBase) -> None:
-        """Detach and deactivate exactly this base's sync sources, before it is deleted.
+        """Detach and deactivate exactly this base's sync sources, before it is deleted or cleared.
 
-        Every path deleting a base calls this - `KnowledgeBaseService.delete`,
-        `delete_for_rag_collection` and a member's personal purge - whoever else
-        holds the name: a source left pointing at the name would sync into the
-        base that keeps it, or unfiled into none (#2551). The configuration is
-        kept for an explicit reassignment.
+        `KnowledgeBaseService.delete`, `delete_for_rag_collection` (a cleared
+        default base included, whose row stays) and a member's personal purge
+        call this, whoever else holds the name: a source left pointing at the
+        name would sync into the base that keeps it, or unfiled into none, and
+        one left on a cleared default would refill it (#2551). An organization's
+        purge does not: its sources go with it. The configuration is kept for an
+        explicit reassignment.
 
         Under the name's teardown lock, which a queued sync takes and then
         re-reads its source under, so a run cannot start on a base being deleted.

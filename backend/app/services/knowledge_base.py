@@ -286,7 +286,8 @@ class KnowledgeBaseService:
         the same - so a cleared default stops returning the documents deleted with
         it, the stale-searchable-chunks bug a kept table left behind (#1361, #1364).
         A search reads an absent table as empty and the next upload recreates it
-        (`_ensure_collection`); a non-default KB's row goes too.
+        (`_ensure_collection`); a non-default KB's row goes too. Either way the
+        sync sources recording the base are detached and deactivated (#2551).
 
         Takes the row rather than the name: the caller has already resolved
         which knowledge base it is allowed to act on, and looking the name up
@@ -342,8 +343,10 @@ class KnowledgeBaseService:
             storage_paths = await rag_document_repo.delete_by_collection(self.db, collection)
             collections_to_drop = [collection]
             await collection_teardown_repo.reserve(self.db, collection)
+        # A kept default's sources stop too: due again on its kept row, they would
+        # refill what was just dropped, or run clean over stale sync state.
+        await CollectionAccessService(self.db).detach_sources_targeting(kb)
         if not kb.is_default:
-            await CollectionAccessService(self.db).detach_sources_targeting(kb)
             await knowledge_base_repo.delete(self.db, kb.id)
         # Always a job: a kept table has the base's chunks to purge, and an
         # unreferenced one is dropped.
