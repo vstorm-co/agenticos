@@ -50,6 +50,7 @@ export {
   useGroupsQuality,
 } from "./use-groups";
 export { useDirectoryMappings } from "./use-directory-mappings";
+export { useDiscordRoleMappings, useDiscordServers } from "./use-discord-role-mappings";
 export { useCanCreateTrigger } from "./use-can-create-trigger";
 export { useOnboardingTour, type OnboardingTourState } from "./use-onboarding";
 export {

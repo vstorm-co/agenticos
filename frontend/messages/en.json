@@ -4346,6 +4346,10 @@
         "title": "Connected channels",
         "body": "The platforms this organization is reachable on. A channel belongs to the organization, not one agent, so the same bot can serve every agent bound to it."
       },
+      "channels-discord-roles": {
+        "title": "Discord roles",
+        "body": "Map a role in a Discord server to a group here. Linked members who hold the role join the group, and leave it when the role is taken away."
+      },
       "channels-new": {
         "title": "Reach agents where people are",
         "body": "Register a chat platform - Slack, Telegram, Mattermost - and any agent can be bound to answer there. The bot's token is sealed in the vault. Add one here."
@@ -6074,6 +6078,7 @@
       "credentialStored": "Stored. Leave blank to keep it.",
       "credentialUnset": "Not set.",
       "editBot": "Edit {bot}",
+      "mapDiscordRoles": "Discord roles for {bot}",
       "editChannel": "Edit channel",
       "editChannelDescription": "Change what this bot is called, or replace one of its credentials. A credential is never read back, so a field left blank keeps the value already stored.",
       "mattermostServerUrl": "Server URL",
@@ -10122,6 +10127,7 @@
     "membersBody": "Who this group reaches. People marked Directory were placed by the directory sign-in sync, which removes them again when the directory stops listing them.",
     "nobodyYet": "Nobody is in this group yet.",
     "directoryMemberHint": "Placed by the directory sign-in sync, which removes them when the directory stops listing them. Removing them here lasts until their next sign-in.",
+    "discordMemberHint": "Placed by the Discord role sync, which removes them when they lose the Discord role. Removing them here lasts until their next message to a bot.",
     "addMember": "Add a member",
     "chooseMember": "Choose a member",
     "everyoneIsIn": "Everyone is already in this group",
@@ -10278,6 +10284,34 @@
     "add": "Add",
     "mappingAdded": "Mapping added",
     "mappingDeleted": "Mapping deleted"
+  },
+  "discordRoles": {
+    "badge": "Discord",
+    "memberHint": "Kept in step by the Discord role sync, which removes this membership when the person loses the Discord role that admitted them. Changing the role here takes it over, and the sync leaves it alone from then on.",
+    "title": "Discord roles for {bot}",
+    "howItWorks": "A linked member who holds a mapped role in one of this bot's servers is placed in the group before each message to the bot, and by a sync every 15 minutes. They leave the group when the role is taken away. Group memberships added by hand are never removed. Discord users who have not linked their account get nothing.",
+    "empty": "No roles mapped yet.",
+    "row": "{server} · @{role} → {group}",
+    "deleteNamed": "Delete the mapping for @{role}",
+    "addMapping": "Map a role",
+    "deleteTitle": "Delete this mapping?",
+    "deleteBody": "The people @{role} placed leave its group, and the organization if it admitted them, at their next message to a bot or the next sync.",
+    "delete": "Delete",
+    "cancel": "Cancel",
+    "add": "Add",
+    "mappingAdded": "Role mapped. People who hold it are placed at their next message to the bot.",
+    "mappingDeleted": "Mapping deleted",
+    "server": "Server",
+    "discordRole": "Discord role",
+    "group": "Group",
+    "orgRole": "Admit as",
+    "pickServer": "Choose a server",
+    "loadingServers": "Asking Discord…",
+    "pickRole": "Choose a role",
+    "pickGroup": "Choose a group",
+    "membersOnly": "Existing members only",
+    "membersOnlyHint": "Only people who are already members of this organization are placed in the group.",
+    "admitsHint": "A linked holder who is not a member yet joins this organization with the role above, and leaves it when the Discord role is taken away."
   },
   "apiKeys": {
     "title": "API keys",

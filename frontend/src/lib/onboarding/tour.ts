@@ -903,6 +903,15 @@ export const TOUR_STEPS: readonly TourStep[] = [
     target: "channels-list",
     permission: Perm.agentsView,
   },
+  // A Discord bot's role mappings (#2569): only on a Discord row, and only for
+  // somebody who may manage members, so optional - most organizations have none.
+  {
+    id: "channels-discord-roles",
+    page: ROUTES.CHANNELS,
+    target: "channels-discord-roles",
+    permission: Perm.membersManage,
+    optional: true,
+  },
 
   {
     id: "sandboxes-connections",
