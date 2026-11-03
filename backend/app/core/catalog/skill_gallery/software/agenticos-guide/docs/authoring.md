@@ -494,6 +494,11 @@ A procedure drawn from fewer than three distinct answers is not proposed as a su
 
 The estimate reserves the full proposed body for each candidate answer and its confirming reruns, in addition to the historical per-answer price.
 
+### Improving a skill { #improving-a-skill }
+
+A skill that several agents read is improved from its own page, one line at a
+time, as [Improving a skill](skills.md#improving-a-skill) describes.
+
 ### When the fault is in a skill { #when-the-fault-is-in-a-skill }
 
 Other agents may read the same skill, so agent Improve never changes one. The helper reads the agent's skills: each one's name, description and version, and the full text of those the evidence used. When the runs show that a skill is wrong, the helper reports the problem for that skill. It does not write the skill's text into the agent's instructions. The estimate counts the skill text the helper reads.

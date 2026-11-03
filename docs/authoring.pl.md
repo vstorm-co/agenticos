@@ -1,5 +1,5 @@
 ---
-source_sha: "8e4806fb4039"
+source_sha: "38e2a0c76864"
 title: "Asystent tworzenia"
 description: "Asystent tworzenia czyta, co ludzie ocenili negatywnie i jak kończyły się runy, i sugeruje zmiany w instrukcjach agenta, jego narzędziach, konfiguracji, skillach i plikach kontekstowych. O każdej decyduje człowiek."
 ---
@@ -509,6 +509,11 @@ Asystent może zaproponować **Warto utworzyć skill**, gdy procedura występuje
 Procedura z mniej niż trzech różnych odpowiedzi nie trafia do sugestii. Czeka w zakładce **Do decyzji**, w grupie Nowe skille, z pełną treścią. **Odrzuć** przenosi go do **Zdecydowane**, a Cofnij przywraca. **Create skill** otwiera podgląd: nazwę, opis i treść można edytować, a ostrzeżenie mówi, na ilu odpowiedziach się opiera. **Create skill** w podglądzie tworzy skill w bibliotece i przypina go do wersji roboczej agenta, nigdy do opublikowanej wersji. Wymaga tych samych uprawnień co Accept i nie wywołuje modelu. Drugie kliknięcie zwraca już utworzony skill.
 
 Szacowany koszt uwzględnia pełną proponowaną treść dla każdej odpowiedzi kandydata i jej powtórzeń potwierdzających, oprócz historycznego kosztu odpowiedzi.
+
+### Ulepszanie skilla { #improving-a-skill }
+
+Skill czytany przez kilku agentów ulepsza się z jego własnej strony, jedną linię
+naraz, jak opisuje [Poprawianie skilla](skills.md#improving-a-skill).
 
 ### Gdy błąd jest w skillu { #when-the-fault-is-in-a-skill }
 

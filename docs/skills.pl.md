@@ -1,5 +1,5 @@
 ---
-source_sha: "b870a3db589d"
+source_sha: "29dff3e747de"
 ---
 
 # Skille { #skills }
@@ -504,6 +504,10 @@ jego wersjami i forkami.
 | `GET /api/v1/skills/behind-main` | Przypięci agenci i forki, które main wyprzedził, w całej organizacji |
 | `POST /api/v1/skills/{id}/forks/{fork_id}/return-to-main` | Przesuwa agentów forka z powrotem na main i archiwizuje fork, gdy nikt go już nie czyta |
 | `POST /api/v1/skills/{id}/agents/{agent_id}/update-check`, `…/estimate` | Sprawdza najnowszą wersję main na jednym przypiętym agencie albo wycenia to sprawdzenie |
+| `POST /api/v1/skills/{id}/improvements/estimate`, `POST /api/v1/skills/{id}/improvements` | Wycenia i zaczyna sesję Popraw na main albo na forku |
+| `POST /api/v1/skills/{id}/improvements/{session_id}/apply`, `…/fork`, `…/discard` | Stosuje wynik sesji, z przypięciem gorszych agentów albo bez, robi z niego fork dla agentów, którym pomógł, albo go odrzuca |
+| `POST /api/v1/skills/{id}/improvements/{session_id}/recheck` | Sprawdza wynik ponownie na linii w obecnym stanie |
+| `GET /api/v1/skill-improvements/awaiting` | Sesje skilli czekające na człowieka |
 
 ## Jak skille trafiają do organizacji { #getting-skills-into-an-organization }
 
@@ -728,6 +732,11 @@ same wybrane zmiany, zmierzone na linii w obecnym stanie, w cenie pokazanej
 najpierw. Dalsze poprawianie i odrzucenie zostają dostępne. Gdy linia zmieni się,
 kiedy sesja czeka na Changes, krok jest wyceniany ponownie: Następny krok sprawdza
 zmiany na najnowszej wersji.
+
+[Architekt](console.md#the-assistant) czyta agentów skilla, jego wersje i sesje.
+Zaczyna sesję, uruchamia albo ponawia krok, akceptuje wynik, kończy sesję albo
+przesuwa agenta na inną wersję tylko na Twoją prośbę, każde przez kartę
+akceptacji.
 
 ## Skille czy wiedza? { #skills-or-knowledge }
 
