@@ -222,6 +222,7 @@ TENANT_REQUIRED = [
     (skill_improvement_repo, "list_iterations"),
     (skill_improvement_repo, "spent"),
     (skill_improvement_repo, "iteration_for_check"),
+    (skill_improvement_repo, "sessions_of_checks"),
     (skill_improvement_repo, "check_cost"),
     (skill_improvement_repo, "timeline"),
     (skill_usage_repo, "record_uses"),

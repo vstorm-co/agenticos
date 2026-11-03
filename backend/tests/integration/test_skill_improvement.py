@@ -1726,26 +1726,54 @@ class TestReviewFixes:
         kept = await SkillImprovementService(db).read(ctx, changes.skill_id, changes.id)
         assert (kept.status, kept.stale) == ("waiting", True)
 
-    async def test_continuing_on_a_moved_line_is_refused_and_checked_again_from_changes(
+    async def test_a_step_quoted_before_the_line_moved_is_refused_and_priced_again(
         self, db, evidence, monkeypatch
     ):
         fake = _checked(db, monkeypatch)
         ctx = await _owner(db)
         run = await _at_changes(db, ctx)
-        await SkillService(db).update(ctx, run.skill_id, SkillUpdate(content=f"{_BODY}\nNew."))
         service = SkillImprovementService(db)
+        old = await service.estimate_continuation(ctx, run.skill_id, run.id, SkillContinue())
+        await SkillService(db).update(ctx, run.skill_id, SkillUpdate(content=f"{_BODY}\nNew."))
 
-        with pytest.raises(ConcurrentChangeError):
-            await service.estimate_continuation(ctx, run.skill_id, run.id, SkillContinue())
-        rechecked = await _recheck(db, ctx, run)
+        read = await service.read(ctx, run.skill_id, run.id)
+        with pytest.raises(ConcurrentChangeError) as refused:
+            await service.continue_run(
+                ctx,
+                run.skill_id,
+                run.id,
+                SkillContinuationConsent(
+                    confirmed=True,
+                    estimate_usd=old.total_usd,
+                    candidate_hash=old.candidate_hash,
+                    budget_usd=run.budget_usd,
+                ),
+            )
+        with pytest.raises(BadRequestError):
+            await service.estimate_recheck(ctx, run.skill_id, run.id, SkillContinue())
+        started = await _check_now(db, ctx, run)
 
-        assert [name for name, _ in fake.calls if name == "start"] == ["start"]
-        assert (rechecked.status, rechecked.stage, rechecked.stale) == (
-            "running",
-            "evaluating",
-            False,
-        )
-        assert rechecked.check is not None
+        assert read.stale and refused.value.code == "LINE_MOVED"
+        assert (started.status, started.stage, started.stale) == ("running", "evaluating", False)
+        [(_, (checked, _))] = [call for call in fake.calls if call[0] == "start"]
+        assert checked.candidate.content.endswith("New.")
+        assert started.base_version is not None and read.base_version is not None
+        assert started.base_version.number == read.base_version.number + 1
+
+    async def test_changes_that_do_not_apply_to_the_moved_line_are_refused_when_priced(
+        self, db, evidence, monkeypatch
+    ):
+        _checked(db, monkeypatch)
+        ctx = await _owner(db)
+        run = await _at_changes(db, ctx)
+        await SkillService(db).update(ctx, run.skill_id, SkillUpdate(content="Rewritten."))
+
+        with pytest.raises(BadRequestError) as refused:
+            await SkillImprovementService(db).estimate_continuation(
+                ctx, run.skill_id, run.id, SkillContinue()
+            )
+
+        assert refused.value.details["fields"][0]["field"] == "hunk_ids"
 
     async def test_a_session_that_goes_stale_mid_check_stops_the_check_and_keeps_its_cost(
         self, db, evidence, monkeypatch
@@ -1991,9 +2019,8 @@ class TestASessionsCheck:
         ):
             with pytest.raises(ConcurrentChangeError) as raised:
                 await refused
-            assert raised.value.details == {"check_id": done.id} or raised.value.details == {
-                "check_id": running.id
-            }
+            assert raised.value.code == "DECIDE_IN_SESSION"
+            assert raised.value.details["check_id"] in (done.id, running.id)
         stopped = await checks.cancel(ctx, skill.id, running.id, from_session=True)
         discarded = await checks.discard(ctx, skill.id, done.id, from_session=True)
         still_running = await owned(CheckStatus.RUNNING)
@@ -2075,3 +2102,64 @@ class TestReviewEdges:
         listed = await SkillImprovementService(db).awaiting(ctx)
 
         assert {item.id for item in listed} == {on_main.id, on_fork.id}
+
+
+class TestTheSessionOfACheck:
+    async def test_a_sessions_check_names_its_session_when_read_and_when_refused(
+        self, db, evidence, monkeypatch
+    ):
+        _checked(db, monkeypatch)
+        ctx = await _owner(db)
+        run = await _at_changes(db, ctx)
+        await _check_now(db, ctx, run)
+        run = await _settle(db, run, status="done", verdict="passed")
+        iteration = await skill_improvement_repo.get_iteration(
+            db, organization_id=ctx.organization_id, run_id=run.id, number=1
+        )
+        assert iteration is not None and iteration.skill_check_id is not None
+        checks = SkillCheckService(db)
+
+        read = await checks.read(ctx, run.skill_id, iteration.skill_check_id)
+        with pytest.raises(ConcurrentChangeError) as refused:
+            await checks.discard(ctx, run.skill_id, iteration.skill_check_id)
+
+        assert read.session_id == run.id
+        assert refused.value.code == "DECIDE_IN_SESSION"
+        assert refused.value.details == {
+            "check_id": iteration.skill_check_id,
+            "session_id": run.id,
+        }
+
+
+class TestArchivedLines:
+    async def test_the_next_step_on_a_fork_archived_since_changes_is_refused(
+        self, db, evidence, monkeypatch
+    ):
+        _checked(db, monkeypatch)
+        ctx = await _owner(db)
+        skill = await _skill_on_main(db, ctx)
+        fork = await _fork(db, ctx, skill)
+        service = SkillImprovementService(db)
+        read = await service.start(ctx, skill.id, _start(fork_id=fork.id))
+        await service.advance(read.id, ctx.organization_id)
+        run = await _row(db, read)
+        assert run.analysis_request_id is not None
+        await _finish(
+            db,
+            run.analysis_request_id,
+            {"problems": [{"title": "t", "summary": "", "cause": "skill", "run_ids": []}]},
+        )
+        await service.advance(read.id, ctx.organization_id)
+        await _propose(db, ctx, await _row(db, read), [_body_edit("Be polite.", "Be kind.")])
+        await SkillVersionService(db).archive_fork(ctx, skill.id, fork.id)
+
+        with pytest.raises(ConcurrentChangeError) as refused:
+            await service.estimate_continuation(ctx, skill.id, read.id, SkillContinue())
+
+        assert refused.value.code == "LINE_MOVED"
+        assert (
+            await skill_improvement_repo.sessions_of_checks(
+                db, [], organization_id=ctx.organization_id
+            )
+            == {}
+        )

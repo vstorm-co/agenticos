@@ -125,6 +125,11 @@ class SkillCheckRead(SkillCheckEstimate):
     )
     outcome: CheckOutcome | None = None
     proposal_id: UUID | None = None
+    session_id: UUID | None = Field(
+        default=None,
+        description="The improvement session that started this check; it is decided there, "
+        "and the check's own decisions answer 409 DECIDE_IN_SESSION",
+    )
     applied_version_id: UUID | None = None
     created_at: datetime
     finished_at: datetime | None = None

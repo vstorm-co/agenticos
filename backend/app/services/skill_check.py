@@ -71,6 +71,7 @@ from app.repositories import (
     dataset_repo,
     eval_run_repo,
     skill_check_repo,
+    skill_improvement_repo,
     skill_proposal_repo,
     skill_repo,
     skill_version_repo,
@@ -912,8 +913,25 @@ class SkillCheckService:
             )
         return await self.versions.skill_for(ctx, skill_id, Perm.SKILLS_VIEW)
 
+    async def _refuse_session_owned(self, check: SkillCheck, *, from_session: bool) -> None:
+        """Refuse deciding or stopping a check a skill session started, except from that
+        session, so the session and its check cannot end in two different decisions."""
+        if check.source != CheckSource.SESSION.value or from_session:
+            return
+        sessions = await skill_improvement_repo.sessions_of_checks(
+            self.db, [check.id], organization_id=check.organization_id
+        )
+        raise ConcurrentChangeError(
+            message="This check belongs to an improvement session; decide it in the session",
+            code="DECIDE_IN_SESSION",
+            details={"check_id": check.id, "session_id": sessions.get(check.id)},
+        )
+
     async def _reads(self, ctx: AuthContext, checks: Sequence[SkillCheck]) -> list[SkillCheckRead]:
         rows = await skill_check_repo.list_agents(
+            self.db, [check.id for check in checks], organization_id=ctx.organization_id
+        )
+        sessions = await skill_improvement_repo.sessions_of_checks(
             self.db, [check.id for check in checks], organization_id=ctx.organization_id
         )
         by_check: dict[UUID, list[SkillCheckAgent]] = {}
@@ -957,6 +975,7 @@ class SkillCheckService:
                     else [],
                     outcome=None if check.outcome is None else CheckOutcome(check.outcome),
                     proposal_id=check.proposal_id,
+                    session_id=sessions.get(check.id),
                     applied_version_id=check.applied_version_id,
                     created_at=check.created_at,
                     finished_at=check.finished_at,
@@ -1078,7 +1097,7 @@ class SkillCheckService:
         """
         await self.versions.skill_for(ctx, skill_id, Perm.SKILLS_EDIT)
         check = await self._check(ctx, skill_id, check_id, lock=True)
-        _refuse_session_owned(check, from_session=from_session)
+        await self._refuse_session_owned(check, from_session=from_session)
         if check.status != CheckStatus.RUNNING.value:
             raise AlreadyExistsError(
                 message="The check is not running", details={"check_id": check.id}
@@ -1149,7 +1168,7 @@ class SkillCheckService:
                 lock=True,
             )
         check = await self._check(ctx, skill_id, check_id, lock=True)
-        _refuse_session_owned(check, from_session=from_session)
+        await self._refuse_session_owned(check, from_session=from_session)
         status = CheckStatus(check.status)
         if status.decided:
             raise AlreadyExistsError(
@@ -1477,7 +1496,7 @@ class SkillCheckService:
         """Refuse the change; a pending proposal it checked is discarded with it."""
         await self.versions.skill_for(ctx, skill_id, Perm.SKILLS_EDIT)
         check = await self._check(ctx, skill_id, check_id, lock=True)
-        _refuse_session_owned(check, from_session=from_session)
+        await self._refuse_session_owned(check, from_session=from_session)
         if CheckStatus(check.status).decided:
             raise AlreadyExistsError(
                 message="This check was already decided", details={"check_id": check.id}
@@ -1714,16 +1733,6 @@ def _line_ref(fork: SkillFork | None) -> LineRef:
         if fork is None
         else LineRef(fork_id=fork.id, name=fork.name)
     )
-
-
-def _refuse_session_owned(check: SkillCheck, *, from_session: bool) -> None:
-    """Refuse deciding or stopping a check a skill session started, except from that session,
-    so the session and its check cannot end in two different decisions."""
-    if check.source == CheckSource.SESSION.value and not from_session:
-        raise ConcurrentChangeError(
-            message="This check belongs to an improvement session; decide it in the session",
-            details={"check_id": check.id},
-        )
 
 
 def _source_of(check: SkillCheck) -> SkillVersionSource:

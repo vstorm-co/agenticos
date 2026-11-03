@@ -235,6 +235,21 @@ async def iteration_for_check(
     return result.scalar_one_or_none()
 
 
+async def sessions_of_checks(
+    db: AsyncSession, check_ids: Sequence[UUID], *, organization_id: UUID
+) -> dict[UUID, UUID]:
+    """The session each of these skill checks measured an attempt of; others are absent."""
+    if not check_ids:
+        return {}
+    result = await db.execute(
+        select(SkillImprovementIteration.skill_check_id, SkillImprovementIteration.run_id).where(
+            SkillImprovementIteration.organization_id == organization_id,
+            SkillImprovementIteration.skill_check_id.in_(list(check_ids)),
+        )
+    )
+    return {row.skill_check_id: row.run_id for row in result.all()}
+
+
 async def spent(db: AsyncSession, run_id: UUID, *, organization_id: UUID) -> Decimal:
     """What the session has cost: its analysis and proposals, and its attempts' checks."""
     requests = await db.scalar(

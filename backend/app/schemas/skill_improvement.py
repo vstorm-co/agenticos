@@ -180,10 +180,10 @@ class SkillImprovementRead(BaseSchema):
     )
     stale: bool = Field(
         default=False,
-        description="The line moved on since the result was checked, or since the changes "
-        "waiting at Changes were proposed: Check again (`POST …/recheck`) measures the same "
-        "changes on the line as it is now. A decision refused with 409 because the line's "
-        "agents changed since the check means the same",
+        description="The line moved on since the session read it. At Changes, price the "
+        "next step again: it measures the chosen changes on the line as it is now. At "
+        "Result, Check again (`POST …/recheck`) does. A decision refused with 409 because "
+        "the line's agents changed since the check means the same",
     )
     outcomes: list[CheckOutcome] = Field(
         default_factory=list,

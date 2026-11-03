@@ -597,6 +597,9 @@ class SkillImprovementService:
         if Status(run.status).active:
             return await self._read(ctx, run, line)
         quote = await self._continuation(ctx, line, run, mode=consent.mode)
+        moved = line.latest != run.base_version_id
+        if consent.candidate_hash != quote.candidate_hash and moved:
+            self._refuse_moved(run, line)
         if consent.candidate_hash != quote.candidate_hash or consent.estimate_usd < quote.total_usd:
             raise ConcurrentChangeError(
                 message="The step's price changed since it was quoted; review it again",
@@ -630,7 +633,17 @@ class SkillImprovementService:
             raise refused_field("note", "A note goes with Try again only")
         await skill_improvement_repo.update_run(self.db, run=run, values=values)
         if quote.check_estimate is not None:
-            await self._start_check(ctx, run, line, consent.mode)
+            base = await self._base(line)
+            if moved:
+                await skill_improvement_repo.update_run(
+                    self.db, run=run, values={"base_version_id": base.id}
+                )
+                await skill_improvement_repo.update_iteration(
+                    self.db,
+                    iteration=await self._iteration(run),
+                    values={"candidate_hash": quote.candidate_hash},
+                )
+            await self._start_check(ctx, run, line, consent.mode, base=base)
         else:
             await self._move(
                 run, rules.Transition(Status.RUNNING, Stage.PROPOSING), actor_user_id=ctx.subject_id
@@ -733,7 +746,8 @@ class SkillImprovementService:
                 details={"estimate_usd": str(quote.total_usd), "budget_usd": str(budget)},
             )
         previous = await self._check(run)
-        if previous is not None and previous.status == CheckStatus.DONE.value:
+        assert previous is not None, "a result is the outcome of its check"
+        if previous.status == CheckStatus.DONE.value:
             await self.checks.discard(ctx, skill_id, previous.id, from_session=True)
         base = await self._base(line)
         iteration = await self._iteration(run)
@@ -763,11 +777,9 @@ class SkillImprovementService:
     async def _recheck_quote(
         self, ctx: AuthContext, line: SessionLine, run: SkillImprovementRun, mode: CheckMode | None
     ) -> SkillContinuationEstimate:
-        at_changes = run.status == Status.WAITING and run.stage == Stage.FILTERING
-        if run.status != Status.READY and not (at_changes and line.latest != run.base_version_id):
+        if run.status != Status.READY:
             raise BadRequestError(
-                message="Only a result, or changes whose line moved, are checked again",
-                details={"status": run.status},
+                message="Only a result is checked again", details={"status": run.status}
             )
         await AiAssistanceService(self.db).require_enabled(organization_id=ctx.organization_id)
         base = await self._base(line)
@@ -1185,7 +1197,8 @@ class SkillImprovementService:
         text = candidate_text(base or await self.base_of(run), await self._chosen(ctx, iteration))
         if text is None:
             raise refused_field(
-                "hunk_ids", "The chosen changes no longer apply together; choose them again"
+                "hunk_ids",
+                "The chosen changes no longer apply to the skill as it is now; try again",
             )
         description, content = text
         return SkillCheckStart(
@@ -1293,9 +1306,10 @@ class SkillImprovementService:
         if line.archived or line.latest != run.base_version_id:
             raise ConcurrentChangeError(
                 message=(
-                    "The skill changed since this session read it. Check the changes again "
-                    "on the line as it is now, or start over"
+                    "The skill changed since this session read it: price the step again "
+                    "on the skill as it is now"
                 ),
+                code="LINE_MOVED",
                 details={"base_version_id": run.base_version_id, "latest": line.latest},
             )
 
@@ -1370,20 +1384,26 @@ class SkillImprovementService:
         *,
         mode: CheckMode | None,
     ) -> SkillContinuationEstimate:
-        self._refuse_moved(run, line)
         spent = await skill_improvement_repo.spent(
             self.db, run.id, organization_id=ctx.organization_id
         )
         if run.status == Status.WAITING and run.stage == Stage.FILTERING:
+            # A line that moved since Changes is priced on its newest version: the same
+            # chosen edits, applied to what the line serves now.
+            if line.archived:
+                self._refuse_moved(run, line)
             await AiAssistanceService(self.db).require_enabled(organization_id=ctx.organization_id)
             iteration = await self._iteration(run)
+            start = await self._check_start(
+                ctx, run, line, iteration, mode, base=await self._base(line)
+            )
+            assert start.candidate is not None, "a session checks a text it wrote"
             check = await self.checks.estimate(
                 ctx,
                 run.skill_id,
-                await self._check_start(ctx, run, line, iteration, mode),
+                start,
                 exclude_conversations=await self._evidence_conversations(iteration),
             )
-            assert iteration.candidate_hash is not None, "a candidate that applies has a hash"
             return SkillContinuationEstimate(
                 mode="next_step",
                 number=run.iteration,
@@ -1394,9 +1414,10 @@ class SkillImprovementService:
                 and rules.affordable(
                     spent=spent, step_estimate=check.at_most_usd, budget=run.budget_usd
                 ),
-                candidate_hash=iteration.candidate_hash,
+                candidate_hash=candidate_hash(start.candidate.description, start.candidate.content),
                 check_estimate=check,
             )
+        self._refuse_moved(run, line)
         step: Literal["next_step", "next_round"]
         if run.status == Status.WAITING and run.stage == Stage.CLASSIFYING:
             step, number = "next_step", run.iteration
