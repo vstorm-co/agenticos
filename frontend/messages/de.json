@@ -239,7 +239,7 @@
     "disabled": "deaktiviert",
     "documentCount": "{count, plural, =1 {1 Dokument} other {# Dokumente}}",
     "draft": "Entwurf",
-    "draftDiffersFromPublished": "Entwurf weicht von v{version} ab",
+    "draftDiffersFromPublished": "Entwurf weicht von Agent-Version v{version} ab",
     "draftDiffersHint": "Der Entwurf ist gespeichert und weicht von v{version} ab, der neuesten veröffentlichten Version. Veröffentlichen macht daraus eine neue Version.",
     "duplicate": "Duplizieren",
     "editSurface": "{name} bearbeiten",
@@ -624,7 +624,7 @@
     "unchangedLines": "{count, plural, =1 {1 unveränderte Zeile} other {# unveränderte Zeilen}}",
     "unknownAuthor": "unbekannter Autor",
     "unnamedSpecialist": "Spezialist ohne Namen",
-    "upToDateWithPublished": "Auf dem Stand von v{version}",
+    "upToDateWithPublished": "Auf dem Stand von Agent-Version v{version}",
     "productionOn": "Produktion auf v{version}",
     "productionWaiting": "Produktion auf v{version} (wartet auf Evals)",
     "productionHint": "Kanäle, Widgets und die API antworten mit v{version}: Die Produktion läuft darauf, bis eine neuere Version befördert wird.",
@@ -1097,7 +1097,8 @@
     "backendComputerLabel": "Computer",
     "backendComputerDetail": "Den Computer der Person nutzen, separat im Desktop-Chat erlaubt.",
     "backendComputerConsent": "Jede Person wählt einen Ordner oder Gesamter Computer in den Chat-Einstellungen. Diese Einstellung gewährt keinen Zugriff und speichert keinen persönlichen Pfad. Dieser Workspace benötigt die Desktop-App.",
-    "workflowTablesViaMcp": "Workflows und Tables sind Werkzeuge des AgenticOS-MCP-Servers. Füge ihn unter MCP-Server hinzu und wähle die benötigten Werkzeuge. Bestehende Capability-Bindungen behalten ihre gespeicherten Freigaben."
+    "workflowTablesViaMcp": "Workflows und Tables sind Werkzeuge des AgenticOS-MCP-Servers. Füge ihn unter MCP-Server hinzu und wähle die benötigten Werkzeuge. Bestehende Capability-Bindungen behalten ihre gespeicherten Freigaben.",
+    "alreadyHasIt": "Hat ihn schon"
   },
   "auth": {
     "agreeToTerms": "Mit dem Anlegen eines Kontos stimmen Sie unseren <terms>AGB</terms> und der <privacy>Datenschutzerklärung</privacy> zu.",
@@ -8393,7 +8394,8 @@
         "hidden": "{count, plural, =1 {1 Agent, den Sie nicht sehen, hat ihn} other {# Agents, die Sie nicht sehen, haben ihn}} {loads, plural, =1 {einmal} other {# Mal}} geöffnet."
       }
     },
-    "savedMainVersion": "Als neue Main-Version gespeichert. Agents auf main lesen sie ab ihrem nächsten Run; festgesetzte Agents und Forks behalten ihre."
+    "savedMainVersion": "Als neue Main-Version gespeichert. Agents auf main lesen sie ab ihrem nächsten Run; festgesetzte Agents und Forks behalten ihre.",
+    "instructions": "Anweisungen"
   },
   "states": {
     "loading": "Wird geladen"

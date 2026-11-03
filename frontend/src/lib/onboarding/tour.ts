@@ -585,7 +585,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
     optional: true,
     agentKind: "ordinary",
   },
-  // Beside "Draft differs from vN", which only a changed draft shows. Gated as
+  // Beside "Draft differs from agent vN", which only a changed draft shows. Gated as
   // the Evals tab is: the run it starts is read there.
   {
     id: "agent-test-draft",

@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useState } from "react";
+import { use, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Bot, GitBranch, History } from "lucide-react";
 import { useTranslations } from "next-intl";
@@ -46,6 +46,8 @@ export default function SkillPage({ params }: { params: Promise<{ id: string }> 
   const tab = tabParam !== null && TABS.includes(tabParam) ? tabParam : "agents";
   const [showParam, setShowParam] = useUrlState("show");
   const [editing, setEditing] = useState(false);
+  // The editor is heavy to draw, so the button says it is opening until it is.
+  const [opening, startOpening] = useTransition();
   const [deleting, setDeleting] = useState(false);
   const [forkFrom, setForkFrom] = useState<string | null>(null);
   const { skill, error, remove } = useSkill(id);
@@ -79,7 +81,8 @@ export default function SkillPage({ params }: { params: Promise<{ id: string }> 
       <SkillPageHeader
         skill={skill}
         line={fork?.name ?? null}
-        onEdit={() => setEditing(true)}
+        onEdit={() => startOpening(() => setEditing(true))}
+        opening={opening}
         onFork={skill.can_edit && base !== null ? () => setForkFrom(base) : null}
       />
       <Tabs

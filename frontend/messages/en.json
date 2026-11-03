@@ -239,7 +239,7 @@
     "disabled": "disabled",
     "documentCount": "{count, plural, =1 {1 document} other {# documents}}",
     "draft": "Draft",
-    "draftDiffersFromPublished": "Draft differs from v{version}",
+    "draftDiffersFromPublished": "Draft differs from agent v{version}",
     "draftDiffersHint": "The draft is saved and differs from v{version}, the latest published version. Publishing makes it a new version.",
     "duplicate": "Duplicate",
     "editSurface": "Edit {name}",
@@ -624,7 +624,7 @@
     "unchangedLines": "{count, plural, =1 {1 unchanged line} other {# unchanged lines}}",
     "unknownAuthor": "unknown author",
     "unnamedSpecialist": "Unnamed specialist",
-    "upToDateWithPublished": "Up to date with v{version}",
+    "upToDateWithPublished": "Up to date with agent v{version}",
     "productionOn": "production on v{version}",
     "productionWaiting": "production on v{version} (waiting for evals)",
     "productionHint": "Channels, widgets and the API answer with v{version}: production runs it until a newer version is promoted.",
@@ -1097,7 +1097,8 @@
     "backendComputerLabel": "Computer",
     "backendComputerDetail": "Use the person’s computer, approved separately in each desktop chat.",
     "backendComputerConsent": "Each person chooses a folder or Whole computer in chat settings. This setting grants no access and stores no personal path. A hosted chat must use the desktop app for this workspace.",
-    "workflowTablesViaMcp": "Workflows and Tables are tools in the AgenticOS MCP server. Add it under MCP servers and select the tools this agent needs. Existing capability bindings keep their saved grants."
+    "workflowTablesViaMcp": "Workflows and Tables are tools in the AgenticOS MCP server. Add it under MCP servers and select the tools this agent needs. Existing capability bindings keep their saved grants.",
+    "alreadyHasIt": "Has it"
   },
   "auth": {
     "agreeToTerms": "By creating an account, you agree to our <terms>Terms</terms> and <privacy>Privacy Policy</privacy>.",
@@ -8515,7 +8516,8 @@
         "hidden": "{count, plural, =1 {1 agent you can't see} other {# agents you can't see}} opened it {loads, plural, =1 {once} other {# times}}."
       }
     },
-    "savedMainVersion": "Saved as a new main version. Agents on main read it from their next run; pinned agents and forks keep theirs."
+    "savedMainVersion": "Saved as a new main version. Agents on main read it from their next run; pinned agents and forks keep theirs.",
+    "instructions": "Instructions"
   },
   "states": {
     "loading": "Loading"

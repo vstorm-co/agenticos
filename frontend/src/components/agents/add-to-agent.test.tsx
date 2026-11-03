@@ -74,6 +74,19 @@ describe("AddToAgent", () => {
     expect(toast.info).toHaveBeenCalledWith("Support already has refunds.", expect.anything());
   });
 
+  it("marks the agents that already have it, and offers only the rest", async () => {
+    agents.mockReturnValue({
+      agents: [SUPPORT, { ...SUPPORT, id: "a2", slug: "sales", name: "Sales" }],
+      isLoading: false,
+    });
+    render(<AddToAgent resource={{ kind: "skill", id: "s1" }} name="refunds" has={["a1"]} />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Add to an agent" }));
+
+    expect(screen.getByRole("button", { name: /Support.*Has it/ })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Sales" })).toBeEnabled();
+  });
+
   it("keeps the list open after a refusal, which the mutation has already said", async () => {
     mutateAsync.mockRejectedValue(new Error("refused"));
     renderIt();

@@ -20,12 +20,15 @@ export function SkillPageHeader({
   skill,
   line,
   onEdit,
+  opening = false,
   onFork,
 }: {
   skill: Skill;
   /** The fork the page is showing, by name; null for main. */
   line: string | null;
   onEdit: () => void;
+  /** The editor is on its way after a press of Edit. */
+  opening?: boolean;
   /** Offered to an editor once main has a version to start from. */
   onFork: (() => void) | null;
 }) {
@@ -53,7 +56,7 @@ export function SkillPageHeader({
               {t("newFork.button")}
             </Button>
           )}
-          <Button data-tour="skill-edit" onClick={onEdit}>
+          <Button data-tour="skill-edit" loading={opening} onClick={onEdit}>
             <Pencil className="h-4 w-4" aria-hidden />
             {skill.can_edit
               ? line === null

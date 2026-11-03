@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import { ChevronDown, GitBranch, RotateCcw } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { toast } from "sonner";
@@ -44,6 +44,7 @@ export function SkillHistory({
   const [page, setPage] = useState(0);
   const [open, setOpen] = useState<string | null>(null);
   const [restoring, setRestoring] = useState<SkillVersionSummary | null>(null);
+  const [asking, startAsking] = useTransition();
   const { versions, total, isLoading, error } = useSkillVersions(skillId, forkId, page);
   const { restore } = useSkillVersionWrites(skillId);
   const line = forkName === null ? t("main") : t("fork", { name: forkName });
@@ -115,7 +116,8 @@ export function SkillHistory({
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => setRestoring(version)}
+                      loading={asking && restoring === null}
+                      onClick={() => startAsking(() => setRestoring(version))}
                       aria-label={t("restoreVersion", { version: label(version.number) })}
                     >
                       <RotateCcw className="h-4 w-4" aria-hidden />
