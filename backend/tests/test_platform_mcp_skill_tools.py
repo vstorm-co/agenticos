@@ -1360,6 +1360,40 @@ class TestCatchingUp:
         assert sentence in read["summary"]
         assert read["main_alone_check"]["verdict"] == "passed"
 
+    @pytest.mark.parametrize(
+        ("purpose", "action"),
+        [
+            ("catch_up", "End the session, then start the catch-up again"),
+            ("to_main", "End the session, then start the move to main again"),
+        ],
+    )
+    async def test_a_stale_merge_is_started_again_not_checked_again(
+        self, server: FastMCP, api: MagicMock, purpose: str, action: str
+    ) -> None:
+        """A merge is checked once, so a line that moved under it is no case for Check again."""
+        check = {**BLOCKED, "verdict": "passed", "outcomes": ["discard"]}
+        api.request = _responder(
+            {
+                ("GET", SESSION_PATH): _session(
+                    purpose=purpose,
+                    fork_id=FORK,
+                    line_name="Wholesale",
+                    check=check,
+                    outcomes=["discard"],
+                    stale=True,
+                    main_alone="checked",
+                ),
+                ("GET", f"{SESSION_PATH}/evidence"): EVIDENCE,
+            }
+        )
+
+        read = await _call(server, "get_skill_improvement", skill_id=SKILL, session_id=SESSION)
+
+        assert read["next_actions"] == [action]
+        assert "has to be started again" in read["summary"]
+        assert "next check" not in read["summary"]
+        assert "Main alone" not in read["summary"]
+
     async def test_a_move_to_main_applies_to_main(self, server: FastMCP, api: MagicMock) -> None:
         check = {**BLOCKED, "verdict": "passed", "outcomes": ["apply"]}
         api.request = _responder(

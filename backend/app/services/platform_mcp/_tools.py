@@ -759,6 +759,11 @@ def _skill_next_actions(session: dict[str, Any]) -> list[str]:
             f"Try again (attempt {session['iteration'] + 1} of {session['max_iterations']})"
         )
     if status == "ready" and session.get("stale"):
+        # A merge is checked once; a line that moved since needs a new one.
+        if session.get("purpose") == "catch_up":
+            return ["End the session, then start the catch-up again"]
+        if session.get("purpose") == "to_main":
+            return ["End the session, then start the move to main again"]
         return ["Check again on the line as it is now", "End the session"]
     outcomes = (session.get("outcomes") or []) if status == "ready" else []
     fork = session.get("line_name")
@@ -888,7 +893,9 @@ def _skill_summary(session: dict[str, Any]) -> str:
         sentences.append(reason)
     if session.get("stale") and session["status"] not in _CLOSED:
         sentences.append(
-            "The skill line moved on since this session read it, so its next check "
+            "The skill line moved on since this merge was read, so it has to be started again."
+            if session.get("purpose") in {"catch_up", "to_main"}
+            else "The skill line moved on since this session read it, so its next check "
             "measures the changes on the line as it is now."
         )
     check = session.get("check")
@@ -906,9 +913,10 @@ def _skill_summary(session: dict[str, Any]) -> str:
             sentences.append(verdict)
         if "within_noise" in check.get("warnings", []):
             sentences.append("Some results are within noise: a warning, not a block.")
-        if main_alone := _MAIN_ALONE.get(
+        main_alone = _MAIN_ALONE.get(
             (session.get("main_alone") or "", "return_to_main" in session.get("outcomes", []))
-        ):
+        )
+        if main_alone and not session.get("stale"):
             sentences.append(main_alone)
     return " ".join(sentences)
 
