@@ -82,7 +82,8 @@ class FakeEvals:
     org_left: Decimal | None = None
     refuse_start: set[uuid.UUID] = field(default_factory=set)
     held_out: int = 5
-    """The gradable held-out questions each stage's run compares."""
+    """The gradable held-out questions a stage's run compares when it asks a whole
+    dataset; one asking named questions compares those."""
     started: list[tuple[uuid.UUID, Any]] = field(default_factory=list)
 
     def install(self, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -130,14 +131,18 @@ class FakeEvals:
             await _self.db.flush()
             run_id = row.id
             fake.runs[run_id] = SimpleNamespace(
-                id=run_id, agent_id=agent_id, status=EvalRunStatus.RUNNING.value
+                id=run_id,
+                agent_id=agent_id,
+                status=EvalRunStatus.RUNNING.value,
+                held_out=len(request.case_ids) if request.case_ids else fake.held_out,
             )
             fake.started.append((agent_id, request))
             return SimpleNamespace(id=run_id)
 
         async def compare(_self, _ctx, run_id, *, holdout_minimum=True, **_):
             outcome = fake.outcomes.get(fake.runs[run_id].agent_id, Outcome())
-            too_few = holdout_minimum and fake.held_out < MIN_HOLDOUT_CASES
+            held_out = fake.runs[run_id].held_out
+            too_few = holdout_minimum and held_out < MIN_HOLDOUT_CASES
             summary = SimpleNamespace(
                 incomplete=outcome.incomplete, ungraded=0, crashed=0, pass_rate=0.5
             )
@@ -153,8 +158,8 @@ class FakeEvals:
                 fixed_confirmed=outcome.fixed,
                 fixed_unconfirmed=0,
                 regressions_unconfirmed=outcome.unconfirmed_broken,
-                compared=fake.held_out,
-                gradable_holdout=fake.held_out,
+                compared=held_out,
+                gradable_holdout=held_out,
             )
 
         async def cancel(_self, _ctx, run_id):
@@ -316,7 +321,7 @@ class TestWhoIsChecked:
         dataset = await _run_against(db, lab, lab.c)
         picked = [uuid.uuid4()]
 
-        async def sample(_self, _ctx, _skill, agent_id, asked, _words, _allowed=None):
+        async def sample(_self, _ctx, _skill, agent_id, asked, _words, _allowed=None, **_):
             return picked if asked.id == dataset.id else []
 
         monkeypatch.setattr(SkillCheckService, "_sample", sample)
@@ -386,7 +391,7 @@ class TestWhoIsChecked:
         FakeEvals().install(monkeypatch)
         picked = [uuid.uuid4(), uuid.uuid4()]
 
-        async def sample(_self, _ctx, _skill, agent_id, _dataset, _words, _allowed=None):
+        async def sample(_self, _ctx, _skill, agent_id, _dataset, _words, _allowed=None, **_):
             return picked if agent_id == lab.a.id else []
 
         monkeypatch.setattr(SkillCheckService, "_sample", sample)
@@ -586,7 +591,7 @@ class TestTheRule:
         evals = FakeEvals()
         evals.install(monkeypatch)
 
-        async def sample(_self, _ctx, _skill, _agent_id, _dataset, _words, _allowed=None):
+        async def sample(_self, _ctx, _skill, _agent_id, _dataset, _words, _allowed=None, **_):
             return [uuid.uuid4()]
 
         monkeypatch.setattr(SkillCheckService, "_sample", sample)

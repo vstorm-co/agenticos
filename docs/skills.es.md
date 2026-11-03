@@ -1,5 +1,5 @@
 ---
-source_sha: "b72e798b22b1"
+source_sha: "48dfd5de4902"
 ---
 
 # Skills { #skills }
@@ -277,7 +277,9 @@ cargaron el skill - o con **Añadir preguntas de prueba** junto a un agent que
 [dataset](datasets.md).
 Después, las preguntas del propio agent:
 
-- **Quick**, por defecto: como mucho cuatro preguntas del dataset del agent cuya
+- **Quick**, por defecto: cuatro preguntas del dataset del agent - más cuando las
+  preguntas held-out del propio skill no llegan a las cinco que necesita un
+  resultado - cuya
   respuesta más reciente cargó el skill - las que comparten más palabras con las
   líneas que toca el cambio. Un agent sin ninguna se comprueba solo con el
   conjunto del skill, y su fila lo dice. A un agent que las preguntas del skill

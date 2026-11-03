@@ -256,7 +256,8 @@ or from recent answers that loaded the skill - or with **Add test questions** be
 an agent [Improve](#improving-a-skill) could not check, and edited like any other
 [dataset](datasets.md). Then the agent's own questions:
 
-- **Quick**, the default: at most four questions of the agent's dataset whose
+- **Quick**, the default: four questions of the agent's dataset - more when the
+  skill's own held-out questions are too few for the five a result needs - whose
   newest answer loaded the skill - the ones sharing most words with the lines the
   change touches. An agent with none is checked on the skill's set alone, and its
   row says so. An agent the skill's questions show worse is not asked its own.

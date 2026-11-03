@@ -1,5 +1,5 @@
 ---
-source_sha: "b72e798b22b1"
+source_sha: "48dfd5de4902"
 ---
 
 # Skills { #skills }
@@ -288,7 +288,9 @@ leer oder aus jüngsten Antworten, die den Skill geladen haben - oder mit
 **Testfragen hinzufügen** neben einem Agent, den [Verbessern](#improving-a-skill)
 nicht prüfen konnte, und bearbeitet wie jedes andere [Dataset](datasets.md). Dann die eigenen Fragen des Agents:
 
-- **Quick**, der Standard: höchstens vier Fragen aus dem Dataset des Agents,
+- **Quick**, der Standard: vier Fragen aus dem Dataset des Agents - mehr, wenn die
+  eigenen Held-out-Fragen des Skills für die fünf, die ein Ergebnis braucht, nicht
+  reichen -
   deren neueste Antwort den Skill geladen hat - die, die die meisten Wörter mit
   den geänderten Zeilen teilen. Ein Agent ohne solche Fragen wird nur mit dem
   Satz des Skills geprüft, und seine Zeile sagt das. Ein Agent, den die Fragen

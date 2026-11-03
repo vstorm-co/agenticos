@@ -40,7 +40,7 @@ from app.db.models.skill_check import AgentState, CheckOutcome, CheckVerdict
 from app.services.improvement_states import CheckResult, judge
 
 SAMPLE_SIZE = 4
-"""How many of an agent's own questions a quick check asks."""
+"""How many of an agent's own questions a quick check asks at least."""
 
 EXPECTED_RERUN_SHARE = Decimal("0.4")
 """The share of its re-ask ceiling a check expects to spend. The ceiling re-asks every
@@ -239,6 +239,12 @@ def sample(
         ),
     )
     return [case.case_id for case in ranked[:size]]
+
+
+def sample_size(skill_set_held_out: int, *, minimum: int) -> int:
+    """How many of an agent's own questions a quick check asks: four, or as many as the
+    agent's result needs beside the skill's held-out questions to reach the minimum."""
+    return max(SAMPLE_SIZE, minimum - skill_set_held_out)
 
 
 def total(amounts: Iterable[Decimal]) -> Decimal:

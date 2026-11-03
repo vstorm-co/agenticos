@@ -1,5 +1,5 @@
 ---
-source_sha: "b72e798b22b1"
+source_sha: "48dfd5de4902"
 ---
 
 # Skille { #skills }
@@ -268,7 +268,8 @@ pusty albo z ostatnich odpowiedzi, które otworzyły skill - albo przyciskiem
 **Dodaj pytania testowe** przy agencie, którego [Popraw](#improving-a-skill) nie
 mogło sprawdzić, i edytowany jak każdy inny [dataset](datasets.md). Potem o pytania samego agenta:
 
-- **Quick**, domyślnie: najwyżej cztery pytania z datasetu agenta, których
+- **Quick**, domyślnie: cztery pytania z datasetu agenta - więcej, gdy pytań
+  held-out samego skilla jest za mało do pięciu, których wymaga wynik - których
   najnowsza odpowiedź otworzyła skill - te, które mają najwięcej wspólnych słów
   ze zmienianymi liniami. Agent bez takich pytań jest sprawdzany tylko na
   zestawie skilla, a jego wiersz to mówi. Agent, którego pytania skilla pokazały

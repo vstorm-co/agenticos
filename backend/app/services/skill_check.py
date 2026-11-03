@@ -292,6 +292,24 @@ class SkillCheckService:
         names = {item.name for item in candidate.resources} if candidate.replaces else files
         return tuple(files[name] for name in sorted(names))
 
+    async def _held_out(
+        self,
+        ctx: AuthContext,
+        test_set: Dataset | None,
+        holdout: Mapping[UUID, Collection[UUID]],
+    ) -> int:
+        """How many of the skill's questions a check compares: its held-out ones, or those
+        a session keeps aside."""
+        if test_set is None or not test_set.case_count:
+            return 0
+        kept = _kept(test_set, holdout)
+        if kept is not None:
+            return len(kept)
+        stats = await dataset_repo.case_stats_at(
+            self.db, {test_set.id: test_set.latest_version}, organization_id=ctx.organization_id
+        )
+        return stats[test_set.id].holdout_cases if test_set.id in stats else 0
+
     async def _test_set(self, ctx: AuthContext, skill: Skill) -> Dataset | None:
         return await dataset_repo.for_skill(self.db, skill.id, organization_id=ctx.organization_id)
 
@@ -345,6 +363,9 @@ class SkillCheckService:
             self.db, ctx, [user.agent for user in users], Perm.AGENTS_RUN, resource_type=AGENT
         )
         test_set = await self._test_set(ctx, skill)
+        size = rules.sample_size(
+            await self._held_out(ctx, test_set, holdout or {}), minimum=MIN_HOLDOUT_CASES
+        )
         served = await self._served(candidate, base)
         before = {} if served is None else await self.versions.files_of(base)
         changed_words = rules.changed_words(
@@ -370,7 +391,7 @@ class SkillCheckService:
                 row.unknown = UnknownReason.NO_ACCESS
                 continue
             row.stages = await self._stages(
-                ctx, skill, user, test_set, mode, changed_words, row, holdout or {}
+                ctx, skill, user, test_set, mode, changed_words, row, holdout or {}, size
             )
             if not row.stages:
                 row.unknown = UnknownReason.NO_QUESTIONS
@@ -420,6 +441,7 @@ class SkillCheckService:
         changed_words: set[str],
         row: Planned,
         holdout: Mapping[UUID, Collection[UUID]],
+        size: int,
     ) -> list[Stage]:
         """The skill's questions, then the agent's own, as far as each exists."""
         stages: list[Stage] = []
@@ -447,7 +469,7 @@ class SkillCheckService:
                 stages.append(Stage("dataset", dataset, own_kept, dataset.latest_version or None))
             return stages
         picked = await self._sample(
-            ctx, skill, user.agent.id, dataset, changed_words, holdout.get(dataset.id)
+            ctx, skill, user.agent.id, dataset, changed_words, holdout.get(dataset.id), size=size
         )
         if picked:
             row.sample = SampleKind.OWN_QUESTIONS
@@ -464,6 +486,8 @@ class SkillCheckService:
         dataset: Dataset,
         changed_words: set[str],
         allowed: Collection[UUID] | None = None,
+        *,
+        size: int = rules.SAMPLE_SIZE,
     ) -> list[UUID]:
         loaded = await skill_check_repo.loaded_cases(
             self.db,
@@ -495,6 +519,7 @@ class SkillCheckService:
                 if item.case_id in texts and (allowed is None or item.case_id in allowed)
             ],
             changed_words,
+            size=size,
         )
 
     async def _estimate(self, ctx: AuthContext, plan: Plan) -> SkillCheckEstimate:

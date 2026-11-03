@@ -22,6 +22,7 @@ from app.services.skill_check_rules import (
     outcomes,
     pooled,
     sample,
+    sample_size,
     stage_state,
     total,
     verdict,
@@ -223,6 +224,11 @@ def test_a_stage_most_likely_costs_its_answers_and_some_of_its_re_asks() -> None
 
     assert Decimal("1.00") < expected < Decimal("3.00")
     assert expected == Decimal("1.00") + Decimal("2.00") * EXPECTED_RERUN_SHARE
+
+
+@pytest.mark.parametrize(("skill_set", "size"), [(10, 4), (2, 4), (1, 4), (0, 5)])
+def test_a_quick_sample_reaches_the_minimum_beside_the_skill_set(skill_set: int, size: int):
+    assert sample_size(skill_set, minimum=5) == size
 
 
 class TestOutcomes:
