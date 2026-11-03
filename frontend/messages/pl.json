@@ -7269,7 +7269,19 @@
       "elsewhereHint": "Każde uruchomienie pracuje w tym folderze na twoim komputerze. Zmienisz go w aplikacji desktopowej na tym komputerze.",
       "sandbox": "Piaskownica agenta",
       "pick": "Wybierz folder…",
-      "useSandbox": "Użyj piaskownicy"
+      "useSandbox": "Użyj piaskownicy",
+      "routineHint": "Wybierz folder i operacje. Zapis poprosi ten komputer o zgodę wyłącznie dla tej rutyny.",
+      "read": "Odczyt",
+      "write": "Zapis",
+      "execute": "Uruchamianie poleceń",
+      "reviewRequired": "Folder wymaga zgody w aplikacji komputerowej przed uruchomieniem rutyny.",
+      "permissionFailed": "Nie udało się zmienić zgody. Sprawdź połączenie tego komputera.",
+      "savedPaused": "Rutyna zapisana jako wstrzymana. Zatwierdź jej folder na tym komputerze, aby zakończyć konfigurację.",
+      "permissionsTitle": "Uprawnienia rutyn",
+      "permissionsDescription": "Tylko te rutyny mogą używać zatwierdzonych folderów na tym komputerze. Cofnięcie zgody zatrzyma kolejne operacje.",
+      "noPermissions": "Żadna rutyna w tej organizacji nie ma dostępu do folderów.",
+      "revoke": "Cofnij zgodę",
+      "waitingDevice": "Oczekiwanie na komputer ({count})"
     },
     "answerToLabel": "Odpowiadaj też w",
     "answerTo": {

@@ -8421,7 +8421,19 @@
       "elsewhereHint": "Each fire works in this folder on your computer. Change it from the desktop app on that computer.",
       "sandbox": "The agent's sandbox",
       "pick": "Choose a folder…",
-      "useSandbox": "Use the sandbox"
+      "useSandbox": "Use the sandbox",
+      "routineHint": "Choose a folder and operations. Saving asks this computer to approve this routine only.",
+      "read": "Read",
+      "write": "Write",
+      "execute": "Run commands",
+      "reviewRequired": "This folder needs native approval before the routine can run.",
+      "permissionFailed": "Could not change the routine permission. Check this computer’s connection.",
+      "savedPaused": "Routine saved paused. Approve its folder on this computer to finish setup.",
+      "permissionsTitle": "Routine permissions",
+      "permissionsDescription": "Only these routines may use their approved folders on this computer. Revoking stops future operations.",
+      "noPermissions": "No routine has folder access in this organization.",
+      "revoke": "Revoke",
+      "waitingDevice": "Waiting for computer ({count})"
     },
     "answerToLabel": "Also answer in",
     "answerTo": {

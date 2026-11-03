@@ -20,6 +20,21 @@ class RoutineAnswerExport(BaseModel):
     updated_at: datetime | None
 
 
+class RoutineDeviceWaitExport(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    organization_id: UUID
+    trigger_id: UUID
+    device_id: UUID
+    status: Literal["waiting", "started", "cancelled", "expired", "failed"]
+    event_context: str | None
+    reason: str | None
+    admission_failures: int
+    created_at: datetime
+    finished_at: datetime | None
+
+
 class PersonalDataExport(BaseModel):
     """Everything this deployment holds about one person, as one document.
 
@@ -36,6 +51,10 @@ class PersonalDataExport(BaseModel):
     the inventory.
     """
 
+    routine_device_waits: list[RoutineDeviceWaitExport] = Field(
+        default_factory=list,
+        description="Their durable device activations, including unconsumed event context.",
+    )
     routine_deliveries: list[RoutineAnswerExport] = Field(
         default_factory=list,
         description="The person's canonical resumed routine answers and their console handoff status.",

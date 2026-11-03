@@ -8,7 +8,7 @@ assembled under the previous role cannot retain its authority.
 
 import hashlib
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from typing import Literal, Self
 from uuid import UUID
@@ -35,8 +35,10 @@ from app.repositories import (
     mcp_connection_repo,
     member_repo,
     organization_repo,
+    session_repo,
     watch_repo,
 )
+from app.schemas.local_target import LocalTarget, target_fingerprint
 from app.schemas.routine_actions import (
     RoutineAction,
     RoutineActionKey,
@@ -81,6 +83,7 @@ class RoutineAuthority:
     action_consents: tuple[RoutineConsent, ...] = ()
     root_version_id: UUID | None = None
     mcp_sources: dict[UUID, McpSourceIdentity] | None = None
+    local_target_hash: str | None = None
 
     @classmethod
     async def capture(
@@ -121,6 +124,7 @@ class RoutineAuthority:
                 raise _refused() from None
         action_consents: tuple[RoutineConsent, ...] = ()
         mcp_sources: dict[UUID, McpSourceIdentity] | None = None
+        local_target_hash: str | None = None
         if kind == "trigger":
             trigger = await agent_trigger_repo.get(db, origin, organization_id=ctx.organization_id)
             if trigger is None:
@@ -137,6 +141,19 @@ class RoutineAuthority:
                 )
                 if source_policy is not None:
                     mcp_sources = MCP_SOURCES.validate_python(source_policy)
+                local_policy = (
+                    target_fingerprint(trigger.local_target)
+                    if run is None
+                    else (run.routine_policy or {}).get("local_target_hash")
+                )
+                if local_policy is not None:
+                    if (
+                        not isinstance(local_policy, str)
+                        or len(local_policy) != 64
+                        or any(char not in "0123456789abcdef" for char in local_policy)
+                    ):
+                        raise _refused()
+                    local_target_hash = local_policy
             except PydanticValidationError:
                 raise _refused() from None
         member = await member_repo.get_active(
@@ -159,6 +176,7 @@ class RoutineAuthority:
             sources=sources,
             action_consents=action_consents,
             mcp_sources=mcp_sources,
+            local_target_hash=local_target_hash,
             root_version_id=version_id if run is None else run.agent_version_id,
         )
         await authority.check_in(db, agent_id)
@@ -180,7 +198,38 @@ class RoutineAuthority:
         trigger = await agent_trigger_repo.get(
             db, self.routine_id, organization_id=self.organization_id
         )
-        self._require_trigger(trigger)
+        trigger = self._require_trigger(trigger)
+        if self.local_target_hash is not None:
+            target = LocalTarget.model_validate(trigger.local_target)
+            if (
+                target.routine_grant is None
+                or target.device_id is None
+                or await session_repo.active_device(
+                    db, session_id=target.device_id, user_id=self.user_id, now=datetime.now(UTC)
+                )
+                is None
+            ):
+                raise _refused()
+
+    def local_context(self, ctx: AuthContext, *, public_origin: bool) -> AuthContext:
+        """A resumed workspace belongs to the original routine owner, never its approver."""
+        if not self.acts_as_creator or ctx.organization_id != self.organization_id:
+            raise _refused()
+        return replace(
+            ctx,
+            user_id=self.user_id,
+            role=self.role,
+            api_key_id=None,
+            source_conversation_id=None,
+            subject_is_publisher_fallback=False,
+            routine_id=self.routine_id,
+            routine_kind=self.routine_kind,
+            fired_as_creator="event" if public_origin else "schedule",
+        )
+
+    def require_local_target(self, local: LocalTarget | None) -> None:
+        if target_fingerprint(local) != self.local_target_hash:
+            raise _refused()
 
     def _require_trigger(self, trigger: AgentTrigger | None) -> AgentTrigger:
         if (
@@ -193,6 +242,11 @@ class RoutineAuthority:
             or (self.acts_as_creator and not trigger.runs_as_creator)
         ):
             raise _refused()
+        try:
+            if target_fingerprint(trigger.local_target) != self.local_target_hash:
+                raise _refused()
+        except PydanticValidationError:
+            raise _refused() from None
         return trigger
 
     async def _watch_in(self, db: AsyncSession) -> None:

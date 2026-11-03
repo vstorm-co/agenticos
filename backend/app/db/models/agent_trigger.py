@@ -51,13 +51,16 @@ from sqlalchemy import (
     Numeric,
     String,
     Text,
+    func,
+    select,
     text,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, column_property, declared_attr, mapped_column
 
 from app.db.base import Base, TimestampMixin
+from app.db.models.routine_device_wait import RoutineDeviceWait
 
 # The floor a trigger's interval cannot go below. The heartbeat ticks once a
 # minute, so a shorter interval could not be honoured anyway - and it bounds the
@@ -354,6 +357,25 @@ class AgentTrigger(Base, TimestampMixin):
         String(16), nullable=False, default="run_log", server_default="run_log"
     )
     notification_channels: Mapped[list[str] | None] = mapped_column(JSONB, nullable=True)
+
+    @declared_attr
+    def waiting_device_count(cls) -> Mapped[int]:
+        return column_property(
+            select(func.count(RoutineDeviceWait.id))
+            .where(RoutineDeviceWait.trigger_id == cls.id, RoutineDeviceWait.status == "waiting")
+            .correlate_except(RoutineDeviceWait)
+            .scalar_subquery()
+        )
+
+    @declared_attr
+    def waiting_device_since(cls) -> Mapped[datetime | None]:
+        return column_property(
+            select(func.min(RoutineDeviceWait.created_at))
+            .where(RoutineDeviceWait.trigger_id == cls.id, RoutineDeviceWait.status == "waiting")
+            .correlate_except(RoutineDeviceWait)
+            .scalar_subquery()
+        )
+
     delivery_conversation_id: Mapped[uuid.UUID | None] = mapped_column(
         PG_UUID(as_uuid=True),
         ForeignKey("conversations.id", ondelete="SET NULL"),

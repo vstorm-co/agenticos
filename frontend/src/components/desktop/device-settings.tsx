@@ -1,5 +1,7 @@
 "use client";
 
+import { RoutinePermissions } from "./routine-permissions";
+
 import { LocalServiceSettings } from "./local-service-settings";
 
 import { Laptop, Link2, Unlink } from "lucide-react";
@@ -54,6 +56,7 @@ export function DeviceSettings() {
               )}
             </div>
           </SectionCard>
+          <RoutinePermissions />
           <LocalServiceSettings />
         </>
       )}

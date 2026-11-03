@@ -16,6 +16,24 @@ async def get_by_id(db: AsyncSession, session_id: UUID) -> Session | None:
     return await db.get(Session, session_id)
 
 
+async def active_device(
+    db: AsyncSession, *, session_id: UUID, user_id: UUID, now: datetime
+) -> Session | None:
+    """Recheck device revocation at admission/tool time, independently of presence TTL."""
+    result = await db.execute(
+        select(Session)
+        .where(
+            Session.id == session_id,
+            Session.user_id == user_id,
+            Session.is_active.is_(True),
+            Session.expires_at > now,
+            Session.app_platform.in_(("macos", "windows", "linux")),
+        )
+        .execution_options(populate_existing=True)
+    )
+    return result.scalar_one_or_none()
+
+
 async def get_by_refresh_token_hash(
     db: AsyncSession, token_hash: str, *, for_update: bool = False
 ) -> Session | None:

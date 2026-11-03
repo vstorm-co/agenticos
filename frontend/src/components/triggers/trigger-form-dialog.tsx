@@ -2,7 +2,12 @@
 
 import { EventOptions, eventOptionsValid } from "./event-options";
 import { FILTER_COPY } from "./portal-trigger-dialog";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
+
+import { useRoutineLocalWork } from "@/hooks/use-routine-local-work";
+import { useOrgStore } from "@/stores/org-store";
+import { ShellError } from "@/lib/desktop/shell";
 import { useTranslations } from "next-intl";
 
 import {
@@ -181,6 +186,26 @@ export function TriggerFormDialog({
   const t = useTranslations("triggers");
   const tp = useTranslations("portals");
   const editing = trigger !== null;
+  const localWork = useRoutineLocalWork();
+  const [preparedLocal, setPreparedLocal] = useState<TriggerCreated | null>(null);
+  const [approvedLocal, setApprovedLocal] = useState<LocalTarget | null>(null);
+  const [savingLocal, setSavingLocal] = useState(false);
+  const saving = useRef(false);
+  const preparedOwner = useRef<{
+    org: string | null;
+    user: string | undefined;
+    agent: string | null;
+  } | null>(null);
+  const mounted = useRef(false);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
+  const changeOpen = (next: boolean) => {
+    if (!saving.current) onOpenChange(next);
+  };
 
   // The registry list backs the picker when the caller brought no agent. It is
   // the same cached query every agent surface reads, so on the surfaces that
@@ -325,7 +350,7 @@ export function TriggerFormDialog({
   // losing it here is losing it forever (no read ever returns it).
   const [created, setCreated] = useState<TriggerCreated | null>(null);
 
-  const pending = create.isPending || update.isPending;
+  const pending = create.isPending || update.isPending || savingLocal;
 
   /** The cron expression the builder's current choices compile to. `everyNDays`
    *  is deliberately absent: it is fired as an interval, not cron (see
@@ -473,7 +498,7 @@ export function TriggerFormDialog({
       // Only when asked for: off is the server's default, and the request then
       // says nothing about acting as anybody.
       ...(runsAsCreator ? { runs_as_creator: true } : {}),
-      ...(runsAsCreator && localTarget ? { local_target: localTarget } : {}),
+      ...(runsAsCreator && localTarget ? { is_active: false } : {}),
       ...(teamsPost !== NO_TEAMS_POST ? { teams_conversation_id: teamsPost } : {}),
       // Only when it is not the server's default, so a plain create says nothing new.
       ...(answerTo !== "primary" ? { answer_to: answerTo } : {}),
@@ -490,11 +515,60 @@ export function TriggerFormDialog({
     };
   }
 
+  async function approveTarget(routineId: string): Promise<LocalTarget | null> {
+    if (!localTarget) return null;
+    const { org, user, identity, available } = localWork;
+    if (
+      !available ||
+      !org ||
+      !user ||
+      !identity ||
+      identity.device_id !== localTarget.device_id ||
+      !localTarget.operations
+    ) {
+      // i18n-exempt: diagnostic only; submit renders local.permissionFailed from the catalog.
+      throw new ShellError("refused", "Review the folder on its paired computer");
+    }
+    return localWork.allow.mutateAsync({
+      organization_id: org,
+      user_id: user,
+      device_id: identity.device_id,
+      routine_id: routineId,
+      name: name.trim() || prompt.slice(0, 120),
+      root: localTarget.folder,
+      operations: {
+        read: true,
+        write: localTarget.operations.write,
+        execute: localTarget.operations.execute,
+      },
+    });
+  }
+
   async function submit() {
     if (endTouched && (end === undefined || (end !== null && Date.parse(end) <= Date.now()))) {
       setInvalidEnd(true);
       return;
     }
+    if (saving.current) return;
+    saving.current = true;
+    setSavingLocal(true);
+    const org = useOrgStore.getState().activeOrgId;
+    const user = useAuthStore.getState().user?.id;
+    if (
+      preparedOwner.current &&
+      (preparedOwner.current.org !== org ||
+        preparedOwner.current.user !== user ||
+        preparedOwner.current.agent !== effectiveAgentId)
+    ) {
+      saving.current = false;
+      setSavingLocal(false);
+      toast.error(t("local.permissionFailed"));
+      return;
+    }
+    const stillHere = () =>
+      mounted.current &&
+      useOrgStore.getState().activeOrgId === org &&
+      useAuthStore.getState().user?.id === user;
     try {
       if (editing) {
         // Only the fields that actually changed: the server applies exactly what
@@ -511,11 +585,14 @@ export function TriggerFormDialog({
         if (runsAsCreator !== trigger.runs_as_creator) patch.runs_as_creator = runsAsCreator;
         // Turning acting-as-me off clears the folder on the server; say nothing then.
         const before = trigger.local_target ?? null;
-        if (
-          runsAsCreator &&
-          (localTarget?.folder !== before?.folder || localTarget?.mode !== before?.mode)
-        ) {
-          patch.local_target = localTarget;
+        if (runsAsCreator && JSON.stringify(localTarget) !== JSON.stringify(before)) {
+          const approved = localTarget
+            ? (approvedLocal ?? (await approveTarget(trigger.id)))
+            : null;
+          if (!stillHere()) return;
+          if (localTarget && !approved) return;
+          setApprovedLocal(approved);
+          patch.local_target = approved;
         }
         if (trigger.trigger_type === "schedule" && overlap !== trigger.overlap) {
           patch.overlap = overlap;
@@ -564,7 +641,25 @@ export function TriggerFormDialog({
         await update.mutateAsync({ triggerId: trigger.id, patch });
         onOpenChange(false);
       } else {
-        const result = await create.mutateAsync(buildCreate());
+        let result = preparedLocal ?? (await create.mutateAsync(buildCreate()));
+        if (runsAsCreator && localTarget) {
+          preparedOwner.current = { org, user, agent: effectiveAgentId };
+          setPreparedLocal(result);
+          if (!stillHere()) return;
+          const approved = approvedLocal ?? (await approveTarget(result.id));
+          if (!stillHere()) return;
+          if (!approved) {
+            toast.info(t("local.savedPaused"));
+            return;
+          }
+          setApprovedLocal(approved);
+          const updated = await update.mutateAsync({
+            triggerId: result.id,
+            patch: { local_target: approved, is_active: true },
+          });
+          result = { ...result, ...updated };
+        }
+        if (!stillHere()) return;
         onCreated?.(result);
         // A new event trigger stays open on its webhook URL - the caller has to
         // paste it into the provider or nothing will ever fire it. A schedule
@@ -572,9 +667,13 @@ export function TriggerFormDialog({
         if (result.trigger_type === "event") setCreated(result);
         else onOpenChange(false);
       }
-    } catch {
+    } catch (error) {
+      if (error instanceof ShellError) toast.error(t("local.permissionFailed"));
       // The hook toasts the server's refusal; the dialog stays open so nothing
       // typed is lost - the usual reason to be here is a value one edit away.
+    } finally {
+      saving.current = false;
+      if (mounted.current) setSavingLocal(false);
     }
   }
 
@@ -637,7 +736,7 @@ export function TriggerFormDialog({
 
   if (created !== null) {
     return (
-      <Dialog open={open} onOpenChange={onOpenChange}>
+      <Dialog open={open} onOpenChange={changeOpen}>
         <DialogContent className={DIALOG_CONFIRM}>
           <DialogHeader>
             <DialogTitle>{t("createdTitle")}</DialogTitle>
@@ -659,7 +758,7 @@ export function TriggerFormDialog({
             />
           )}
           <DialogFooter>
-            <Button onClick={() => onOpenChange(false)}>{t("done")}</Button>
+            <Button onClick={() => changeOpen(false)}>{t("done")}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -699,7 +798,7 @@ export function TriggerFormDialog({
 
   if (editing) {
     return (
-      <Dialog open={open} onOpenChange={onOpenChange}>
+      <Dialog open={open} onOpenChange={changeOpen}>
         <DialogContent className={cn(DIALOG_SCROLL, DIALOG_FORM)}>
           <DialogHeader>
             <DialogTitle>
@@ -812,7 +911,10 @@ export function TriggerFormDialog({
             />
             <LocalTargetField
               value={localTarget}
-              onChange={setLocalTarget}
+              onChange={(target) => {
+                setLocalTarget(target);
+                setApprovedLocal(null);
+              }}
               visible={runsAsCreator && isCreator}
             />
           </div>
@@ -826,7 +928,7 @@ export function TriggerFormDialog({
               {t("runNow")}
             </Button>
             <div className="flex gap-2">
-              <Button variant="outline" onClick={() => onOpenChange(false)}>
+              <Button variant="outline" onClick={() => changeOpen(false)}>
                 {t("cancel")}
               </Button>
               <Button onClick={submit} disabled={!canSubmit}>
@@ -840,7 +942,7 @@ export function TriggerFormDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={changeOpen}>
       {/* A ceiling, not a height. The message step's editor asks for eighteen
           rows and so fills a page on its own; the configure step holds three
           fields, and `h-[90vh]` gave it the same page with six hundred pixels of
@@ -860,7 +962,11 @@ export function TriggerFormDialog({
 
         {/* Keyed on the step, so each one slides in rather than swapping in place -
             the eye follows the wizard forward instead of re-reading the frame. */}
-        <div key={step} className="wizard-step-in min-h-0 scrollbar-thin overflow-y-auto px-6 py-4">
+        <fieldset
+          disabled={preparedLocal !== null || pending}
+          key={step}
+          className="wizard-step-in min-h-0 scrollbar-thin overflow-y-auto px-6 py-4"
+        >
           {step === "event" && (
             <EventFields
               eventSource={eventSource}
@@ -953,7 +1059,10 @@ export function TriggerFormDialog({
               />
               <LocalTargetField
                 value={localTarget}
-                onChange={setLocalTarget}
+                onChange={(target) => {
+                  setLocalTarget(target);
+                  setApprovedLocal(null);
+                }}
                 visible={runsAsCreator && isCreator}
               />
             </div>
@@ -976,12 +1085,12 @@ export function TriggerFormDialog({
           )}
 
           {step === "schedule" && scheduleFields}
-        </div>
+        </fieldset>
 
         <WizardNav
           backIsStep={!onFirstStep}
           backLabel={onFirstStep ? t("cancel") : t("back")}
-          onBack={onFirstStep ? () => onOpenChange(false) : handleBack}
+          onBack={onFirstStep ? () => changeOpen(false) : handleBack}
           nextLabel={isLastStep ? t("create") : t("continue")}
           onNext={handleNext}
           nextDisabled={!canAdvance}

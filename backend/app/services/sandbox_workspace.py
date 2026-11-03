@@ -740,7 +740,14 @@ class SandboxWorkspaceService:
                 message="Only your own chats can work on your computer",
                 details={"target": "local"},
             )
-        device = await device_hub.wait_for(ctx.user_id, local.device_id, timeout=0)
+        from app.services.routine_devices import local_scope, ready
+
+        routine_scope = local_scope(ctx, local)
+        device = (
+            await ready(self.db, ctx, local)
+            if routine_scope is not None
+            else await device_hub.wait_for(ctx.user_id, local.device_id, timeout=0)
+        )
         if device is None:
             if on_wait is not None:
                 await on_wait(True)
@@ -759,7 +766,11 @@ class SandboxWorkspaceService:
         return OpenWorkspace(
             workspace=Workspace(
                 DeviceWorkspace(
-                    device.session_id, ctx.user_id, local, conversation_id=conversation_id
+                    device.session_id,
+                    ctx.user_id,
+                    local,
+                    conversation_id=conversation_id,
+                    routine_scope=routine_scope,
                 )
             ),
             kind="service",

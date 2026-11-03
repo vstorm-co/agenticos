@@ -477,3 +477,84 @@ async def test_parked_watch_policy_from_before_report_modes_keeps_its_original_i
     await db.flush()
     with pytest.raises(AuthorizationError):
         await authority.check_in(db, world.agent.id)
+
+
+@pytest.mark.parametrize("change", ["folder", "operations", "replacement", "cleared", "session"])
+async def test_live_routine_native_authority_is_revoked_before_another_tool(
+    db: AsyncSession, change: str
+) -> None:
+    from app.db.models.session import Session
+    from app.schemas.local_target import LocalTarget
+
+    world = await _world(db)
+    device = Session(
+        user_id=world.user.id,
+        refresh_token_hash=str(uuid4()),
+        app_platform="macos",
+        expires_at=datetime.now(UTC) + timedelta(days=1),
+    )
+    db.add(device)
+    await db.flush()
+    local = LocalTarget(
+        folder="/work",
+        mode="read_only",
+        device_id=device.id,
+        routine_grant=uuid4(),
+        operations={"read": True, "write": False, "execute": False},
+    )
+    world.trigger.local_target = local.model_dump(mode="json")
+    await db.flush()
+    authority = await RoutineAuthority.capture(db, world.ctx, agent_id=world.agent.id, run=None)
+    assert authority is not None
+    authority.require_local_target(local)
+    await authority.check_in(db, world.delegate.id)
+    if change == "folder":
+        world.trigger.local_target = world.trigger.local_target | {"folder": "/elsewhere"}
+    elif change == "operations":
+        world.trigger.local_target = world.trigger.local_target | {
+            "mode": "workspace_write",
+            "operations": {"read": True, "write": True, "execute": False},
+        }
+    elif change == "replacement":
+        world.trigger.local_target = world.trigger.local_target | {"routine_grant": str(uuid4())}
+    elif change == "cleared":
+        world.trigger.local_target = None
+    else:
+        device.is_active = False
+    await db.flush()
+    with pytest.raises(AuthorizationError):
+        await authority.check_in(db, world.delegate.id)
+    with pytest.raises(AuthorizationError):
+        authority.require_local_target(LocalTarget(folder="/elsewhere"))
+
+
+@pytest.mark.parametrize("public_origin", [False, True])
+async def test_resumed_native_workspace_restores_the_original_routine_owner(
+    db: AsyncSession, public_origin: bool
+) -> None:
+    world = await _world(db)
+    authority = await RoutineAuthority.capture(db, world.ctx, agent_id=world.agent.id, run=None)
+    assert authority is not None
+    approver = replace(
+        world.ctx,
+        user_id=world.owner.id,
+        role="owner",
+        routine_id=None,
+        fired_as_creator=None,
+        source_conversation_id=uuid4(),
+    )
+    restored = authority.local_context(approver, public_origin=public_origin)
+    assert restored.user_id == world.user.id
+    assert restored.role == "viewer"
+    assert restored.routine_id == world.trigger.id
+    assert restored.source_conversation_id is None
+    assert restored.fired_as_creator == ("event" if public_origin else "schedule")
+    assert approver.user_id == world.owner.id
+    with pytest.raises(AuthorizationError):
+        authority.local_context(
+            replace(approver, organization_id=uuid4()), public_origin=public_origin
+        )
+    with pytest.raises(AuthorizationError):
+        replace(authority, acts_as_creator=False).local_context(
+            approver, public_origin=public_origin
+        )

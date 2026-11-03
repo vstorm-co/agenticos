@@ -8300,7 +8300,19 @@
       "elsewhereHint": "Jeder Lauf arbeitet in diesem Ordner auf Ihrem Computer. Ändern Sie ihn in der Desktop-App auf diesem Computer.",
       "sandbox": "Die Sandbox des Agenten",
       "pick": "Ordner wählen…",
-      "useSandbox": "Sandbox verwenden"
+      "useSandbox": "Sandbox verwenden",
+      "routineHint": "Ordner und Vorgänge wählen. Beim Speichern bestätigt dieser Computer nur diese Routine.",
+      "read": "Lesen",
+      "write": "Schreiben",
+      "execute": "Befehle ausführen",
+      "reviewRequired": "Der Ordner benötigt eine Bestätigung in der Desktop-App, bevor die Routine starten kann.",
+      "permissionFailed": "Die Berechtigung konnte nicht geändert werden. Verbindung dieses Computers prüfen.",
+      "savedPaused": "Routine pausiert gespeichert. Ordner auf diesem Computer bestätigen, um die Einrichtung abzuschließen.",
+      "permissionsTitle": "Routine-Berechtigungen",
+      "permissionsDescription": "Nur diese Routinen dürfen ihre bestätigten Ordner auf diesem Computer nutzen. Widerruf stoppt weitere Vorgänge.",
+      "noPermissions": "Keine Routine dieser Organisation hat Ordnerzugriff.",
+      "revoke": "Widerrufen",
+      "waitingDevice": "Wartet auf Computer ({count})"
     },
     "answerToLabel": "Auch antworten in",
     "answerTo": {

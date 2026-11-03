@@ -1820,9 +1820,23 @@ def _with_execution_environment(spec: AgentSpec, local: LocalTarget | None) -> A
     return spec.model_copy(update={"instructions": f"{spec.instructions}\n\n{briefing}"})
 
 
-def _with_local_capabilities(spec: AgentSpec, local: LocalTarget | None) -> AgentSpec:
+def _with_local_capabilities(
+    spec: AgentSpec, local: LocalTarget | None, *, routine: bool = False
+) -> AgentSpec:
     """Opt-in tools for this run, retaining the author's limits and approval gates."""
     if local is None:
+        return spec
+    if routine:
+        if local.browser or local.computer or local.model_service or local.mcp_services:
+            raise AuthorizationError(
+                message="Routine folder consent does not authorize local browser, screen or services"
+            )
+        if not any(
+            binding.id == SANDBOX_CAPABILITY_ID and binding.enabled for binding in spec.capabilities
+        ):
+            raise BadRequestError(
+                message="Publish the agent with its sandbox capability before using a routine folder"
+            )
         return spec
     requested: dict[str, dict[str, object]] = {}
     if local.folder is not None:
@@ -3421,8 +3435,12 @@ class AgentRunnerService:
             self.db, ctx, agent_id=agent.id, run=existing_run, version_id=version_id
         )
         routine_check = None if routine is None else routine.check
+        if routine is not None:
+            routine.require_local_target(local)
         spec = _with_local_capabilities(
-            await self.registry.with_assistant_guidance(agent, spec), local
+            await self.registry.with_assistant_guidance(agent, spec),
+            local,
+            routine=routine is not None,
         )
         watch_sources = None if routine is None else routine.sources
         if watch_sources is not None:
@@ -3709,6 +3727,7 @@ class AgentRunnerService:
                     else None
                     if routine is None
                     else {
+                        "local_target_hash": routine.local_target_hash,
                         "mcp_sources": MCP_SOURCES.dump_python(
                             routine.mcp_sources or {}, mode="json"
                         ),
@@ -3828,6 +3847,8 @@ class AgentRunnerService:
         # client opens its session on the first tool call, so an agent granted a
         # workspace it never touches costs nothing.
         workspace_ctx = models_ctx if local is not None else ctx
+        if routine is not None and local is not None:
+            workspace_ctx = routine.local_context(workspace_ctx, public_origin=public_origin)
         workspace = await self.workspaces.open(
             spec,
             ctx=workspace_ctx,
@@ -3867,6 +3888,16 @@ class AgentRunnerService:
             on_wait=on_sandbox_wait,
             local=local,
         )
+        if existing_run is None and ctx.routine_activation_id is not None:
+            from app.services.routine_devices import admit_activation
+
+            # Workspace opening performs the final effect-free device check. Its
+            # offline result must leave the activation waiting. This marker then
+            # commits with the new run at _run's opening boundary, before model
+            # calls; delegates inherit authority without re-admitting the parent.
+            await admit_activation(self.db, ctx)
+            ctx = replace(ctx, routine_activation_id=None)
+            models_ctx = replace(models_ctx, routine_activation_id=None)
         if local is not None and (local.browser or local.computer) and local.folder is None:
             session_id = await self._browser_session(workspace_ctx, local)
             if local.browser:

@@ -47,7 +47,7 @@ Provider tests use deterministic fakes unless a dedicated test account is availa
 | Review defects | Claim scope/erasure guards, effective dates, atomic numbered replies, one-time verified private-thread backfill; bounded inbound/outbound MMS, media-only messages, explicit file/chart delivery with expiring copies; operator upgrade/rollback guidance | Wider channel approval coverage |
 | Selected agent | Selected-agent watches through the shared runner, immutable pins/environments, approved account/tool/knowledge/context ceilings, in-flight revocation, authorization-generation fencing across OAuth re-consent and explicit source re-review for old policies | Routine-wide approved source ceilings beyond read-only watches |
 | Chat management | Trusted private-chat provenance, routine/watch source delivery, live destination authorization, durable source-chat delivery after approval/question resume, explicit unavailable-delivery status and management cards, shared global/agent watch forms, MCP end/budget controls and end-time form control | Complete responsibility flow and remaining external-channel continuation |
-| Standing authority | Version/intent-bound capability and account-specific MCP action consent, per-call audit, default action approvals including local writes and delegation; admitted MCP accounts and aliases retained across resume/delegation; immutable-pin consent and live routine/actor/run-grant checks before root, delegate and resumed tools | Persistent device/folder/operation grants and bounded source authority |
+| Standing authority | Version/intent-bound capability and account-specific MCP action consent, per-call audit, default action approvals including local writes and delegation; admitted MCP accounts and aliases retained across resume/delegation; immutable-pin consent and live routine/actor/run-grant checks before root, delegate and resumed tools; persistent native routine/device/folder/operation grants and durable offline admission | Bounded source authority beyond read-only watches |
 | Follow-through | Existing workflow engine retained as the durability owner; independent minute-based end cleanup, including paused routines/watches and long cadences | Event/deadline presets, matching replies, restart/cancellation/idempotency acceptance |
 | Outcomes | Runtime/source/delivery incidents, resumed terminal callbacks, ordering/retry guards and automatic recovery; monthly budget-pause notices and automatic case recovery; shared finding/Inbox/chat settlement, explicit restore without resending, acknowledged findings excluded from briefings; live per-routine e-mail/push limits inherited from personal preferences, quiet monitoring versus requested no-change reports, retry-safe report activations | Automatic-stop escalation policy and remaining channel integration (private Slack/Telegram/Mattermost/Teams/SMS notification routes now implemented; iMessage and external continuation remain) |
 | Memory | Admitted audience retained in jobs, scoped channel/routine capture, erasure serialization, no false starter-version attribution | Decision episodes and Improve evidence integration with #2172 |
@@ -58,3 +58,53 @@ Completed increments are not acceptance of the whole area. The PR closing refere
 ## Current continuation — 2026-11-03
 
 The user requested all six remaining feature blocks and notification delivery through every supported channel. Explicit per-organization private Slack/Telegram/Mattermost/Teams/SMS routes now use existing transports and the shared notification queue, current preferences/outcomes/access checks, immutable route/account/bot grants and one durable chat send attempt. E-mail/push retain existing setup and retry semantics. Other unchecked acceptance work above remains required in PR #2606.
+
+## Native routine grants and durable offline admission — implemented
+
+Native consent now binds server origin, paired owner/session, organization,
+routine, canonical folder and read/write/execute operations. General chat folder
+grants never authorize a routine; execute requires write. Account changes clear
+grants, and desktop settings list and revoke them. The form creates paused,
+confirms the actual UUID natively, attaches its grant and activates; cancellation
+and HTTP failures retry the same prepared row. Organization/account changes or
+unmounting cannot activate a setup after its native dialog returns.
+
+Public device identity comes from the paired server's access JWT (refresh tokens
+have no session ID), in separate keychain metadata fingerprint-bound to the raw
+refresh credential. Native operations require an explicit work context and check
+the exact current grant on every operation. Old clients/workers fail closed.
+Published Sandbox authority is retained rather than auto-enabled. Folder grants
+exclude full-computer, browser, screen, local model and MCP-service authority.
+
+Migration `0272_routine_device_waits.py` adds canonical pre-model activations.
+Distinct incoming events keep their body and activation ID; scheduled/manual
+waits coalesce. The existing minute sweep and Postgres queue wake the same
+activation, with active job deduplication and parent-first locking. Admission is
+marked after final workspace readiness and commits with the run before the model.
+An offline race rolls back its empty uncommitted run. Started work is never
+replayed as another run. Task/grant/owner/pause/end changes cancel and redact old
+waits; an old refusal cannot disable a newly repaired routine. Three dead/missing
+pre-admission dispatches stop the routine and retain the failed event for review.
+
+Run policy captures the native-target hash for resume and delegation. Local
+workspace identity is restored from the original routine owner, never the
+approver. Live routine checks re-read target authority and device revocation.
+The routine list and dashboard show pending counts and refresh local routine
+state. Owner export includes bounded wait data; finished rows follow run-history
+retention, while active offline work remains pending. User/org/routine erasure
+cascades. Desktop and data-protection documentation is updated in four languages.
+
+Verification includes real Postgres queue/offline/reconnect/cancel/failure-bound
+and rollback-race cases, live/delegated authority revocation, two-phase console
+creation, cross-organization/unmount refusal, native persistence and finite IPC
+allowlists, migration downgrade/upgrade and model-drift checks. The four new
+backend modules and new native bridge/hook have 100% statement/branch coverage
+in focused runs. Full suites and CI polling are deliberately not run locally.
+
+After this vertical feature, continue all remaining blocks, including workflow
+reply/deadline follow-through, stop escalation, decision episodes with the actual
+Improve PR #2172 contract, Twilio PSTN voice, iMessage and Slack notification
+acceptance. The current Slack notification transport is plain text with a link;
+#2236 still requests blocks, shared outcome actions/links, channel docs and safe
+retry behavior for confirmed pre-acceptance rejection. One-attempt handling for
+unconfirmed sends must remain; never blindly replay an uncertain send.

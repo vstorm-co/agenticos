@@ -1,5 +1,5 @@
 ---
-source_sha: "8d5ef23b70de"
+source_sha: "7439c9b53d03"
 ---
 
 # La app de escritorio { #the-desktop-app }
@@ -333,7 +333,7 @@ nunca una clave de API, un visitante del widget o el chat de otra persona - y un
 [trigger](triggers.md) solo cuando actúa como su creador, que le asigna una carpeta
 de su ordenador en el campo **Trabajar en** del trigger.
 
-**Cuando el ordenador no está.** Un run que pidió este ordenador y encuentra la app
+**En el chat interactivo: cuando el ordenador no está.** Un run que pidió este ordenador y encuentra la app
 sin conectar la espera hasta diez minutos, y el chat lo dice. Una operación que
 encuentra la app desconectada a mitad del run - tapa cerrada, red cambiada -
 espera hasta cinco minutos a que vuelva en la misma sesión y luego sigue. Mientras
@@ -575,3 +575,15 @@ cuentas del operador; no pueden verificarse con un build local sin firma.
 Quick Ask admite hasta ocho pestañas independientes por ventana. Cada una conserva su borrador, adjuntos, agente y respuestas en curso. Conversaciones recientes abre una lista con búsqueda y reutiliza una pestaña ya abierta; los chats guardados recuperan mensajes e historial anterior. Las pestañas inactivas no capturan archivos, atajos de dictado ni el foco. Conversaciones recientes muestra avatares de agentes en una sección desplegable que ocupa solo el espacio necesario. Nuevo chat es la única acción para abrir una pestaña nueva. La barra lateral del navegador ofrece la descarga de escritorio; cerrar el aviso lo silencia durante 14 días para esa cuenta en ese navegador.
 
 Quick Ask tiene un botón de micrófono para iniciar el dictado con un clic, además del atajo de mantener pulsado. Las llamadas usan los mismos controles que el chat, con el transporte configurado del agente seleccionado, subtítulos, aprobaciones y preguntas. Los turnos hablados se guardan en la conversación. El envío de texto y el dictado esperan durante una llamada. Cambiar de pestaña o agente finaliza la llamada y libera el micrófono.
+
+## Rutinas locales { #local-routines }
+
+Crea una rutina local con **Ejecutar como yo**, elige una carpeta y selecciona por separado lectura, escritura y ejecución de comandos. Los comandos requieren escritura. Al guardar se crea primero una rutina pausada; después la aplicación de escritorio pide confirmación nativa para su ID, organización, servidor, carpeta y operaciones. Cancelar mantiene la misma rutina pausada; reintentar completa su configuración sin duplicarla. Un permiso general de carpeta del chat no autoriza una rutina.
+
+**Ajustes → Escritorio → Permisos de rutinas** muestra los permisos de la cuenta y organización actuales en este ordenador. Revocar uno detiene operaciones posteriores. Volver a vincular, desvincular, cerrar sesión o cambiar de servidor elimina estos permisos. Cambiar de carpeta o ampliar operaciones requiere nueva confirmación nativa. Quedan fuera navegador, pantalla, modelos locales, servicios MCP locales y acceso a todo el ordenador. El agente publicado ya debe tener Sandbox habilitado; un destino local no habilita capacidades.
+
+Si el ordenador concreto autorizado está desconectado antes de ejecutar, una activación duradera espera en PostgreSQL. La fila de la rutina muestra cuántas esperan. Las activaciones programadas y manuales se agrupan mientras esperan; los eventos entrantes distintos conservan su contexto e ID de activación. El worker existente comprueba la reconexión cada minuto. Las comprobaciones de disponibilidad no llaman al modelo ni consumen intentos de inicio fallidos. La admisión se confirma con la ejecución antes de la primera llamada al modelo. Una activación iniciada no se repite automáticamente tras una caída del worker; una operación de archivo o comando incierta no genera otra ejecución.
+
+Pausar, cambiar la tarea o el permiso local, eliminar la rutina o alcanzar su fin cancela el trabajo pendiente anterior en lugar de redirigirlo a otra carpeta. Una sesión de dispositivo revocada requiere revisión. Tres trabajos muertos o perdidos antes de la admisión detienen la rutina y crean un incidente para su propietario. El contexto del evento fallido sigue disponible en su exportación de datos. Los contextos iniciados y cancelados se borran de inmediato. Los metadatos terminados y contextos fallidos siguen la retención del historial de ejecuciones de la organización; el trabajo desconectado activo permanece hasta su admisión, cancelación o eliminación.
+
+Actualiza API, workers y escritorio juntos y drena los workers antiguos antes de habilitar el contrato. Las aplicaciones antiguas no confirman permisos de rutinas; las rutinas locales existentes requieren revisión explícita. La migración `0272_routine_device_waits.py` añade esperas sin cambiar la identidad de la rutina. Antes de revertirla, pausa las rutinas locales y drena sus trabajos: la reversión elimina el contexto pendiente y no lo ejecuta. Las ejecuciones locales antiguas suspendidas sin instantánea del destino necesitan una ejecución nueva.

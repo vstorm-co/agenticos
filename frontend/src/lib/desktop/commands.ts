@@ -7,6 +7,8 @@
  * `ShellError`, not a settings page drawn from `undefined`.
  */
 
+import { deviceIdentitySchema, type DeviceIdentity } from "@/lib/desktop/routine-work";
+
 import { isLook, type Look } from "@/lib/appearance";
 import { invokeShell, ShellError } from "@/lib/desktop/shell";
 import type { Theme } from "@/stores/theme-store";
@@ -311,6 +313,7 @@ export async function hideQuickAsk(): Promise<void> {
 
 /** This computer's own connection to the server, as the shell reports it (#2305). */
 export interface DeviceStatus {
+  identity?: DeviceIdentity | null;
   /** The app holds a session of its own for this server. */
   linked: boolean;
   /** Its socket is open right now: the person's runs can reach this computer. */
@@ -322,7 +325,10 @@ export const DEVICE_STATUS_EVENT = "device-status";
 
 export function parseDeviceStatus(value: unknown): DeviceStatus {
   const fields = record(value, "a device status");
+  const identity = fields.identity == null ? null : deviceIdentitySchema.safeParse(fields.identity);
+  if (identity !== null && !identity.success) throw new ShellError("malformed", "device identity");
   return {
+    ...(identity === null ? {} : { identity: identity.data }),
     linked: field(fields, "linked", isBoolean),
     connected: field(fields, "connected", isBoolean),
   };
@@ -350,6 +356,9 @@ const isLocalMode = (value: unknown): value is LocalMode =>
 
 /** Where a run works on the person's own computer: a granted folder and a mode within it. */
 export interface LocalTarget {
+  device_id?: string;
+  routine_grant?: string;
+  operations?: { read: boolean; write: boolean; execute: boolean };
   folder: string;
   mode: LocalMode;
   computer_grant?: string;

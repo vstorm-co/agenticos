@@ -232,8 +232,10 @@ async def create(
     notification_channels: Sequence[str] | None = None,
     monthly_budget_usd: Decimal | None = None,
     pinned_version_id: UUID | None = None,
+    is_active: bool = True,
 ) -> AgentTrigger:
     trigger = AgentTrigger(
+        is_active=is_active,
         organization_id=organization_id,
         agent_id=agent_id,
         created_by_user_id=created_by_user_id,
@@ -431,6 +433,7 @@ async def claim_due(
         .where(
             AgentTrigger.is_active.is_(True),
             AgentTrigger.next_fire_at <= now,
+            AgentTrigger.waiting_device_count == 0,
             (AgentTrigger.overlap != TriggerOverlap.QUEUE.value) | ~busy,
         )
         .order_by(AgentTrigger.next_fire_at.asc())

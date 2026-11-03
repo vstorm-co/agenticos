@@ -71,6 +71,7 @@ async def test_file_and_shell_operations_keep_the_native_root_and_mode(
     assert call.call_args.args[2] == {
         "root": "/work",
         "mode": "read_only",
+        "work_context": {"kind": "interactive"},
         "path": "a",
         "data": "bmV3",
     }

@@ -58,6 +58,15 @@ def action_intent(trigger: AgentTrigger) -> str:
     return hashlib.sha256(json.dumps(content, sort_keys=True, default=str).encode()).hexdigest()
 
 
+def activation_intent(trigger: AgentTrigger) -> str:
+    """A waiting activation cannot borrow exceptions granted after it was queued."""
+    return hashlib.sha256(
+        json.dumps(
+            [action_intent(trigger), trigger.action_consents], sort_keys=True, default=str
+        ).encode()
+    ).hexdigest()
+
+
 def action_key(action: RoutineAction) -> RoutineAction:
     if isinstance(action, RoutineActionKey):
         return RoutineActionKey(capability_id=action.capability_id, tool_id=action.tool_id)

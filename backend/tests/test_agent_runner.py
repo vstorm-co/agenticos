@@ -7836,3 +7836,55 @@ async def test_only_resumed_runs_queue_the_canonical_answer_before_the_terminal_
         assert order[-3:] == ["transcript", "handoff", "commit"]
     else:
         queue.assert_not_awaited()
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("offline", [False, True])
+async def test_device_activation_is_admitted_only_after_workspace_readiness(offline: bool) -> None:
+    from app.services.routine_devices import RoutineDeviceOffline
+
+    ctx = replace(_ctx(), routine_activation_id=uuid.uuid4())
+    service = AgentRunnerService(_db())
+    agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4())
+    spec = AgentSpec(name="Routine")
+    order: list[str] = []
+
+    async def open_workspace(*args: object, **kwargs: object) -> None:
+        order.append("workspace-ready")
+        if offline:
+            raise RoutineDeviceOffline(message="offline")
+
+    async def admit(*args: object) -> None:
+        order.append("admit")
+
+    with (
+        patch.object(
+            service.registry,
+            "get_runnable_spec",
+            new=AsyncMock(return_value=(agent, spec, agent.current_version_id)),
+        ),
+        patch.object(
+            service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
+        ),
+        patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
+        patch.object(service.workspaces, "open", side_effect=open_workspace),
+        patch(
+            "app.services.agent_runner.agent_run_repo.create_run",
+            new=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
+        ),
+        patch("app.services.agent_runner.build_agent", return_value=MagicMock()),
+        patch(
+            "app.services.routine_devices.admit_activation", new=AsyncMock(side_effect=admit)
+        ) as admission,
+    ):
+        if offline:
+            with pytest.raises(RoutineDeviceOffline):
+                await service.prepare(ctx, agent.id)
+            admission.assert_not_awaited()
+            assert order == ["workspace-ready"]
+        else:
+            prepared = await service.prepare(ctx, agent.id)
+            assert order == ["workspace-ready", "admit"]
+            assert prepared.ctx.routine_activation_id is None
+            admission.assert_awaited_once_with(service.db, ctx)
+    service.db.commit.assert_not_awaited()

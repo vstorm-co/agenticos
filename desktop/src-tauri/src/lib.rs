@@ -35,6 +35,7 @@ mod onboarding_permissions;
 mod pinned;
 mod quick_ask;
 mod readiness;
+mod routine_access;
 mod screen;
 mod settings;
 mod shortcuts;
@@ -1404,6 +1405,10 @@ pub fn run() {
             local_work::local_grants,
             local_work::local_pick_folder,
             local_work::local_revoke,
+            routine_access::routine_choose_folder,
+            routine_access::routine_allow,
+            routine_access::routine_grants,
+            routine_access::routine_revoke,
             local_work::local_files,
             local_work::local_file,
             local_services::local_services,
@@ -1422,6 +1427,7 @@ pub fn run() {
         .manage(dropped::Dropped::default())
         .manage(device::Device::default())
         .manage(computer_access::Access::default())
+        .manage(routine_access::Access::default())
         .setup(|app| {
             let handle = app.handle();
             let (mut settings, unreadable) = settings::load_or_quarantine(handle);

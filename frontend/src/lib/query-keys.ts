@@ -756,6 +756,8 @@ export const qk = {
     state: () => ["desktop", "state"] as const,
     /** This computer's own connection, which the shell reports and pushes. */
     device: () => ["desktop", "device"] as const,
+    routineGrants: (org: string | null, user: string | null, device: string | null) =>
+      ["desktop", "routine-grants", org, user, device] as const,
     local: () => ["desktop", "local"] as const,
     services: () => ["desktop", "services"] as const,
     localFiles: (root: string) => ["desktop", "local", "files", root] as const,

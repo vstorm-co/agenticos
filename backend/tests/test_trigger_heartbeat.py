@@ -31,6 +31,7 @@ async def test_the_heartbeat_claims_on_one_session_at_the_ticks_own_time() -> No
 
     service = MagicMock()
     service.expire_due = AsyncMock(return_value=0)
+    service.resume_device_waits = AsyncMock(return_value=0)
     service.claim_and_advance = AsyncMock(return_value=[MagicMock(id=uuid.uuid4())])
     before = datetime.now(UTC)
     with (
@@ -42,6 +43,24 @@ async def test_the_heartbeat_claims_on_one_session_at_the_ticks_own_time() -> No
     service.expire_due.assert_awaited_once_with(
         now=service.claim_and_advance.call_args.kwargs["now"]
     )
+    service.resume_device_waits.assert_awaited_once_with()
     assert len(opened) == 1, "the claim and its fires share one transaction"
     built.assert_called_once_with(opened[0])
     assert before <= service.claim_and_advance.call_args.kwargs["now"] <= datetime.now(UTC)
+
+
+async def test_fire_job_forwards_the_stable_device_activation() -> None:
+    from app.worker.jobs import FireTrigger
+
+    @contextlib.asynccontextmanager
+    async def context() -> AsyncGenerator[MagicMock]:
+        yield MagicMock()
+
+    payload = FireTrigger(trigger_id=uuid.uuid4(), activation_id=uuid.uuid4())
+    with (
+        patch.object(trigger_tasks, "get_worker_db_context", context),
+        patch("app.services.agent_trigger.AgentTriggerService") as service,
+    ):
+        service.return_value.fire = AsyncMock()
+        await trigger_tasks.fire_trigger(payload)
+        assert service.return_value.fire.call_args.kwargs["activation_id"] == payload.activation_id

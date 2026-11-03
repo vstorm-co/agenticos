@@ -445,6 +445,9 @@ class TriggerCreate(BaseSchema):
     stored or returned in the clear.
     """
 
+    is_active: bool = Field(
+        default=True, description="Create paused while configuring device consent."
+    )
     prompt: str = Field(min_length=1, max_length=10000)
     # An optional human title; null lists the trigger by its agent's name instead.
     name: str | None = Field(default=None, max_length=120)
@@ -809,6 +812,8 @@ class TriggerRead(BaseSchema, TimestampSchema):
     """Its month's budget is spent, so fires are skipped until the first."""
     runs_as_creator: bool = False
     local_target: LocalTarget | None = None
+    waiting_device_count: int = 0
+    waiting_device_since: datetime | None = None
     trigger_type: Literal["schedule", "event"]
     schedule_kind: Literal["interval", "cron"]
     interval_seconds: int | None = None

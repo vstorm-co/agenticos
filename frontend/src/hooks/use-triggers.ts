@@ -35,6 +35,10 @@ export function useTriggers(agentId: string | null) {
     queryKey: qk.triggers.list(agentId ?? ""),
     queryFn: () => apiClient.get<TriggerList>(base),
     enabled: !!agentId,
+    refetchInterval: (query) =>
+      query.state.data?.items.some((trigger) => trigger.is_active && trigger.local_target != null)
+        ? 30_000
+        : false,
   });
 
   const invalidate = useCallback(

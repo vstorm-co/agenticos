@@ -35,11 +35,11 @@ import json
 import logging
 import secrets
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any, Literal, cast
-from uuid import UUID
+from uuid import UUID, uuid4
 from zoneinfo import ZoneInfo
 
 from croniter import croniter
@@ -84,10 +84,13 @@ from app.repositories import (
     mcp_connection_repo,
     member_repo,
     organization_secret_repo,
+    session_repo,
     teams_conversation_repo,
     user_repo,
 )
+from app.repositories import background_job as background_job_repo
 from app.repositories import routine_delivery as routine_delivery_repo
+from app.repositories import routine_device_wait as device_wait_repo
 from app.schemas.agent_trigger import (
     _EVENT_CONFIG_MODELS,
     GithubTriggerConfig,
@@ -103,6 +106,7 @@ from app.schemas.portal import PortalPresetRead, PortalRead
 from app.schemas.routine_actions import RoutineActionOptions, RoutineActions
 from app.services import (
     change_feed,
+    device_hub,
     portal_catalog,
     portals,
     rate_limit,
@@ -120,7 +124,14 @@ from app.services.outcome import OutcomeService
 from app.services.portal_catalog import DeliveryMode
 from app.services.portals.github_app import GitHubAppPortalAdapter
 from app.services.primary_conversation import PrimaryConversationService
-from app.services.routine_actions import RoutineActionService
+from app.services.routine_actions import RoutineActionService, activation_intent
+from app.services.routine_devices import (
+    RoutineActivationObsolete,
+    RoutineDeviceOffline,
+    RoutineLocalConsentRequired,
+    local_scope,
+)
+from app.services.routine_devices import ready as local_device_ready
 from app.services.spend import month_start
 from app.worker.jobs import FIRE_TRIGGER, FireTrigger
 
@@ -769,6 +780,11 @@ class AgentTriggerService:
                 message="A trigger works on your computer only when it acts as you",
                 details={"agent_id": str(agent_id)},
             )
+        if data.local_target is not None:
+            raise BadRequestError(
+                message="Create the routine paused, then approve its actual ID and folder on the desktop app",
+                details={"agent_id": agent_id},
+            )
 
         now = datetime.now(UTC)
         event_source: str | None = None
@@ -868,6 +884,7 @@ class AgentTriggerService:
 
         trigger = await agent_trigger_repo.create(
             self.db,
+            is_active=data.is_active,
             organization_id=ctx.organization_id,
             agent_id=agent.id,
             created_by_user_id=ctx.subject_id,
@@ -1132,7 +1149,7 @@ class AgentTriggerService:
         source and the secret stay immutable (repointing an event is a different
         trigger, made by deleting this one and creating that).
         """
-        trigger = await self._owned(ctx, agent_id, trigger_id)
+        trigger = await self._owned(ctx, agent_id, trigger_id, for_update=True)
         changes = writable(data, over=AgentTrigger)
         self._guard_acting_as_creator(ctx, trigger, changes)
         self._guard_local_target(ctx, trigger, changes, data.local_target)
@@ -1201,6 +1218,12 @@ class AgentTriggerService:
                 cron_expression=changes.get("cron_expression", trigger.cron_expression),
                 now=datetime.now(UTC),
                 time_zone=changes.get("time_zone", trigger.time_zone),
+            )
+        if changes.get("is_active") is False or any(
+            field in changes for field in (*_WHAT_IT_DOES, "local_target", "runs_as_creator")
+        ):
+            await device_wait_repo.cancel_for_trigger(
+                self.db, trigger_id=trigger.id, reason="routine_changed"
             )
         updated = await agent_trigger_repo.update(self.db, trigger=trigger, update_data=changes)
         await record_audit(
@@ -1271,6 +1294,17 @@ class AgentTriggerService:
                     details={"trigger_id": str(trigger.id)},
                 )
             changes["local_target"] = local_target.model_dump(mode="json")
+            try:
+                local_target.routine_scope(
+                    organization_id=ctx.organization_id,
+                    routine_id=trigger.id,
+                    user_id=ctx.subject_id,
+                )
+            except ValueError as exc:
+                raise RoutineLocalConsentRequired(
+                    message="Review this routine's device, folder and operations on the desktop app",
+                    details={"trigger_id": trigger.id},
+                ) from exc
         if not acting and trigger.local_target is not None:
             changes["local_target"] = None
 
@@ -1915,6 +1949,89 @@ class AgentTriggerService:
             key_version=cast(int, trigger.secret_key_version),
         )
 
+    async def resume_device_waits(self, *, limit: int = 100) -> int:
+        """Wake committed pre-model activations without replaying started work.
+
+        Readiness checks may wait indefinitely without spending a job retry.
+        Three dead/missing pre-admission dispatches stop the responsibility;
+        successful offline checks do not reset or consume that failure bound.
+        """
+        queued = 0
+        for wait, trigger in await device_wait_repo.pending(self.db, limit=limit):
+            if (
+                wait.organization_id != trigger.organization_id
+                or wait.user_id != trigger.created_by_user_id
+                or not trigger.is_active
+                or (trigger.ends_at is not None and trigger.ends_at <= datetime.now(UTC))
+                or trigger.local_target is None
+                or activation_intent(trigger) != wait.intent_hash
+            ):
+                await device_wait_repo.settle(
+                    self.db, activation_id=wait.id, status="cancelled", reason="routine_changed"
+                )
+                continue
+            ctx = await self._creator_context(trigger)
+            if ctx is None:
+                await self._disable(trigger, reason="creator_not_active")
+                continue
+            try:
+                agent = await self.agents.get(ctx, trigger.agent_id, perm=Perm.AGENTS_RUN)
+            except NotFoundError, AuthorizationError:
+                await self._disable(trigger, reason="creator_cannot_run_agent")
+                continue
+            if (
+                await session_repo.active_device(
+                    self.db, session_id=wait.device_id, user_id=wait.user_id, now=datetime.now(UTC)
+                )
+                is None
+            ):
+                await self._disable(trigger, reason="local_device_disconnected")
+                await NotificationService(self.db).routine_blocked(
+                    organization_id=trigger.organization_id,
+                    owner_user_id=wait.user_id,
+                    routine_id=trigger.id,
+                    routine_kind="trigger",
+                    reason="run",
+                    name=trigger.name or agent.name,
+                    detail="Its device session was disconnected. Link the computer and review its folder permission again.",
+                    observed_at=datetime.now(UTC),
+                )
+                continue
+            if wait.last_job_id is not None:
+                job = await background_job_repo.get(self.db, wait.last_job_id)
+                if job is not None and job.status in ("queued", "running"):
+                    continue
+                if job is not None and job.status == "cancelled":
+                    await device_wait_repo.settle(
+                        self.db, activation_id=wait.id, status="cancelled", reason="job_cancelled"
+                    )
+                    continue
+                if job is None or job.status == "dead":
+                    await device_wait_repo.record_admission_failure(self.db, wait=wait)
+            if wait.admission_failures >= 3:
+                await device_wait_repo.fail(self.db, wait=wait)
+                await self._disable(trigger, reason="local_admission_failed")
+                await NotificationService(self.db).routine_blocked(
+                    organization_id=trigger.organization_id,
+                    owner_user_id=wait.user_id,
+                    routine_id=trigger.id,
+                    routine_kind="trigger",
+                    reason="run",
+                    name=trigger.name or agent.name,
+                    detail="Three attempts to start on its computer failed before model admission. Review the failure before resuming.",
+                    observed_at=datetime.now(UTC),
+                )
+                continue
+            if await self._stop_for_monthly_budget(trigger):
+                continue
+            if await device_hub.wait_for(wait.user_id, wait.device_id, timeout=0) is None:
+                continue
+            job_id = await self.queue_fire(
+                trigger.id, organization_id=trigger.organization_id, activation_id=wait.id
+            )
+            queued += job_id is not None
+        return queued
+
     async def queue_fire(
         self,
         trigger_id: UUID,
@@ -1922,7 +2039,8 @@ class AgentTriggerService:
         organization_id: UUID | None,
         event_context: str | None = None,
         claimed_at: datetime | None = None,
-    ) -> None:
+        activation_id: UUID | None = None,
+    ) -> UUID | None:
         """Queue one fired run of `trigger_id`, in this unit of work's transaction.
 
         Every door reaches the fire through here - the scheduled check, a polled
@@ -1932,12 +2050,70 @@ class AgentTriggerService:
         API's loop. `claimed_at` is the scheduled claim's ticket (see `fire`);
         only `claim_and_advance` has one.
         """
-        await enqueue(
+        activation_id = activation_id or uuid4()
+        trigger = await agent_trigger_repo.get_by_id(
+            self.db, trigger_id, fresh=True, for_update=True
+        )
+        native: LocalTarget | None = None
+        if trigger is not None and trigger.local_target is not None:
+            try:
+                candidate = LocalTarget.model_validate(trigger.local_target)
+                if candidate.routine_grant is not None and candidate.device_id is not None:
+                    native = candidate
+            except PydanticValidationError:
+                # A stored legacy target is refused by fire, without breaking the sweep.
+                pass
+        dedupe_key: str | None = None
+        if (
+            native is not None
+            and trigger is not None
+            and trigger.runs_as_creator
+            and trigger.created_by_user_id is not None
+        ):
+            if organization_id is not None and trigger.organization_id != organization_id:
+                raise AuthorizationError(message="The routine belongs to another organization")
+            existing = await device_wait_repo.get(self.db, activation_id)
+            if existing is not None:
+                if (
+                    existing.trigger_id != trigger.id
+                    or existing.organization_id != trigger.organization_id
+                ):
+                    raise AuthorizationError(message="The activation belongs to another routine")
+                if existing.status != "waiting":
+                    return None
+            else:
+                assert native.device_id is not None
+                inserted = await device_wait_repo.park(
+                    self.db,
+                    activation_id=activation_id,
+                    trigger=trigger,
+                    user_id=trigger.created_by_user_id,
+                    device_id=native.device_id,
+                    intent_hash=activation_intent(trigger),
+                    event_context=event_context,
+                )
+                if not inserted:
+                    return None  # One offline scheduled/manual activation is already waiting.
+            dedupe_key = f"routine-device:{activation_id}"
+            event_context = None  # The owner-bound wait, not a second job copy, holds it.
+        job_id = await enqueue(
             self.db,
             FIRE_TRIGGER,
-            FireTrigger(trigger_id=trigger_id, event_context=event_context, claimed_at=claimed_at),
+            FireTrigger(
+                trigger_id=trigger_id,
+                activation_id=activation_id,
+                event_context=event_context,
+                claimed_at=claimed_at,
+            ),
             organization_id=organization_id,
+            dedupe_key=dedupe_key,
+            dedupe_active=dedupe_key is not None,
         )
+        if dedupe_key is not None and job_id is not None:
+            wait = await device_wait_repo.get(self.db, activation_id)
+            if wait is not None:
+                await device_wait_repo.record_job(self.db, wait=wait, job_id=job_id)
+        return job_id
 
     async def queue_event_fire(
         self, source: str, trigger_id: UUID, *, body: bytes, headers: Mapping[str, str]
@@ -2032,6 +2208,7 @@ class AgentTriggerService:
         *,
         event_context: str | None = None,
         claimed_at: datetime | None = None,
+        activation_id: UUID | None = None,
     ) -> None:
         """Run the agent this trigger fires, as the member who created it.
 
@@ -2102,7 +2279,9 @@ class AgentTriggerService:
             logger.info("trigger_fire_skipped", extra={"trigger_id": str(trigger_id)})
             return
         if claimed_at is None:
-            await self._fire_loaded(trigger, event_context=event_context)
+            await self._fire_loaded(
+                trigger, event_context=event_context, activation_id=activation_id or uuid4()
+            )
             return
         # The ticket the marker currently holds, renewed in place while the run
         # executes: a run longer than the lease would otherwise look dead to the
@@ -2110,9 +2289,11 @@ class AgentTriggerService:
         # schedule's liveness signal, not the run row (#12). A list, because
         # the renewer moves it and the `finally` must clear the *latest*.
         ticket = [claimed_at]
-        renewer = asyncio.create_task(self._keep_lease_alive(trigger.id, ticket))
+        renewer = asyncio.create_task(self._keep_lease_alive(trigger_id, ticket))
         try:
-            await self._fire_loaded(trigger, event_context=event_context)
+            await self._fire_loaded(
+                trigger, event_context=event_context, activation_id=activation_id or uuid4()
+            )
         finally:
             renewer.cancel()
             with contextlib.suppress(asyncio.CancelledError):
@@ -2122,7 +2303,7 @@ class AgentTriggerService:
             # the lease may find a newer claim's marker there, and only the
             # database can judge that freshly (`clear_fire_marker`).
             await agent_trigger_repo.clear_fire_marker(
-                self.db, trigger_id=trigger.id, claimed_at=ticket[-1]
+                self.db, trigger_id=trigger_id, claimed_at=ticket[-1]
             )
 
     async def _keep_lease_alive(self, trigger_id: UUID, ticket: list[datetime]) -> None:
@@ -2149,8 +2330,34 @@ class AgentTriggerService:
                 return
             ticket.append(renewed_at)
 
+    async def _block_local_activation(
+        self, trigger_id: UUID, *, activation_id: UUID, intent: str, name: str
+    ) -> None:
+        """A stale native refusal must not disable a subsequently repaired routine."""
+        current = await agent_trigger_repo.get_by_id(
+            self.db, trigger_id, fresh=True, for_update=True
+        )
+        if current is None:
+            return
+        if activation_intent(current) != intent or not current.is_active:
+            await device_wait_repo.settle(
+                self.db, activation_id=activation_id, status="cancelled", reason="routine_changed"
+            )
+            return
+        await self._disable(current, reason="local_permission_missing")
+        await NotificationService(self.db).routine_blocked(
+            organization_id=current.organization_id,
+            owner_user_id=current.created_by_user_id,
+            routine_id=current.id,
+            routine_kind="trigger",
+            reason="run",
+            name=name,
+            detail="Review its device, folder and operations in the desktop app, then resume it.",
+            observed_at=datetime.now(UTC),
+        )
+
     async def _fire_loaded(
-        self, trigger: AgentTrigger, *, event_context: str | None = None
+        self, trigger: AgentTrigger, *, activation_id: UUID, event_context: str | None = None
     ) -> None:
         """The fire itself, once the row is loaded - split out so `fire` can clear the
         scheduled path's in-flight marker in a `finally` around every path through it."""
@@ -2185,6 +2392,71 @@ class AgentTriggerService:
             await self._disable(trigger, reason="creator_cannot_run_agent")
             return
 
+        waiting = await device_wait_repo.get(self.db, activation_id)
+        intent = activation_intent(trigger)
+        if waiting is not None:
+            if (
+                waiting.trigger_id != trigger.id
+                or waiting.organization_id != trigger.organization_id
+                or waiting.user_id != ctx.user_id
+            ):
+                raise AuthorizationError(message="The device activation belongs to another routine")
+            if waiting.status != "waiting":
+                return
+            if waiting.intent_hash != intent:
+                await device_wait_repo.settle(
+                    self.db,
+                    activation_id=activation_id,
+                    status="cancelled",
+                    reason="routine_changed",
+                )
+                return
+            event_context = waiting.event_context
+        if trigger.local_target is not None:
+            try:
+                local = LocalTarget.model_validate(trigger.local_target)
+                local_scope(ctx, local)
+                if waiting is None:
+                    # Upgrade-era jobs acquire durable local admission before doing work.
+                    await self.queue_fire(
+                        trigger.id,
+                        organization_id=trigger.organization_id,
+                        event_context=event_context,
+                    )
+                    return
+                await local_device_ready(self.db, ctx, local)
+            except RoutineDeviceOffline:
+                return  # The committed activation is woken by the minute sweep.
+            except RoutineLocalConsentRequired, PydanticValidationError, AuthorizationError:
+                await self._block_local_activation(
+                    trigger.id,
+                    activation_id=activation_id,
+                    intent=intent,
+                    name=trigger.name or agent.name,
+                )
+                return
+            current = await agent_trigger_repo.get_by_id(self.db, trigger.id, fresh=True)
+            if (
+                current is None
+                or not current.is_active
+                or activation_intent(current) != intent
+                or (current.ends_at is not None and current.ends_at <= datetime.now(UTC))
+            ):
+                await device_wait_repo.settle(
+                    self.db,
+                    activation_id=activation_id,
+                    status="cancelled",
+                    reason="routine_changed",
+                )
+                return
+            trigger = current
+            ctx = replace(ctx, routine_activation_id=activation_id)
+        elif waiting is not None:
+            await device_wait_repo.settle(
+                self.db, activation_id=activation_id, status="cancelled", reason="routine_changed"
+            )
+            return
+
         conversation_id = await self._run_log(trigger, agent_name=agent.name)
 
         from app.services.agent_runner import AgentRunnerService
@@ -2200,6 +2472,8 @@ class AgentTriggerService:
         # leaves the tail unchanged, and stamping `last_run_id` against it would name
         # the wrong fire - the trigger appends every fire to one conversation (#589).
         previous_run_id = trigger.last_run_id
+        local_trigger_id = trigger.id
+        local_trigger_name = trigger.name or agent.name
         runner = AgentRunnerService(self.db)
         answer: str | None = None
         if ctx.fired_as_creator is not None:
@@ -2232,6 +2506,29 @@ class AgentTriggerService:
                     else None
                 ),
             )
+        except RoutineDeviceOffline:
+            # Preparation creates its uncommitted run before opening the workspace.
+            # Roll it back so an offline race leaves no empty failed run in history.
+            await self.db.rollback()
+            return
+        except RoutineActivationObsolete:
+            await self.db.rollback()
+            await agent_trigger_repo.get_by_id(
+                self.db, local_trigger_id, fresh=True, for_update=True
+            )
+            await device_wait_repo.settle(
+                self.db, activation_id=activation_id, status="cancelled", reason="routine_changed"
+            )
+            return
+        except RoutineLocalConsentRequired:
+            await self.db.rollback()
+            await self._block_local_activation(
+                local_trigger_id,
+                activation_id=activation_id,
+                intent=intent,
+                name=local_trigger_name,
+            )
+            return
         except NotFoundError, AuthorizationError:
             # Access was withdrawn between the pre-check and the run. Same verdict:
             # disable, do not raise into a retry.
@@ -2580,6 +2877,7 @@ class AgentTriggerService:
         """
         trigger.is_active = False
         await self.db.flush()
+        await device_wait_repo.cancel_for_trigger(self.db, trigger_id=trigger.id, reason=reason)
         if reason == "ended":
             await OutcomeService(self.db).resolve_routine_attention(
                 organization_id=trigger.organization_id,
@@ -2868,7 +3166,9 @@ class AgentTriggerService:
                 details={"teams_conversation_id": str(conversation_id)},
             )
 
-    async def _owned(self, ctx: AuthContext, agent_id: UUID, trigger_id: UUID) -> AgentTrigger:
+    async def _owned(
+        self, ctx: AuthContext, agent_id: UUID, trigger_id: UUID, *, for_update: bool = False
+    ) -> AgentTrigger:
         """The trigger, if it is this agent's and this caller may manage it.
 
         Three halves, and the third is a privilege boundary, not a lookup. The
@@ -2896,7 +3196,7 @@ class AgentTriggerService:
         """
         agent = await self.agents.get(ctx, agent_id, perm=Perm.AGENTS_RUN)
         trigger = await agent_trigger_repo.get(
-            self.db, trigger_id, organization_id=ctx.organization_id
+            self.db, trigger_id, organization_id=ctx.organization_id, for_update=for_update
         )
         if trigger is None or trigger.agent_id != agent.id:
             raise NotFoundError(

@@ -138,6 +138,11 @@ export function TriggerRow({ trigger, showAgent = false }: TriggerRowProps) {
         <Badge variant="secondary">{t("deliveryUnavailable")}</Badge>
       )}
       {trigger.runs_as_creator && <Badge variant="outline">{t("actsAsCreator")}</Badge>}
+      {(trigger.waiting_device_count ?? 0) > 0 && (
+        <Badge variant="secondary">
+          {t("local.waitingDevice", { count: trigger.waiting_device_count ?? 0 })}
+        </Badge>
+      )}
       {!trigger.is_active && <Badge variant="secondary">{t("paused")}</Badge>}
       {trigger.is_active && trigger.paused_for_budget && (
         <Badge variant="secondary">{t("pausedBudget")}</Badge>
@@ -160,7 +165,9 @@ export function TriggerRow({ trigger, showAgent = false }: TriggerRowProps) {
             size="icon"
             className="h-8 w-8"
             aria-label={t("runNow")}
-            disabled={!trigger.is_active || runNow.isPending}
+            disabled={
+              !trigger.is_active || runNow.isPending || (trigger.waiting_device_count ?? 0) > 0
+            }
             onClick={fireAndWatch}
             data-tour="routine-run-now"
           >

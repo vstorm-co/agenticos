@@ -43,6 +43,7 @@ async def check_agent_triggers() -> None:
         service = AgentTriggerService(db)
         now = datetime.now(UTC)
         await service.expire_due(now=now)
+        await service.resume_device_waits()
         triggers = await service.claim_and_advance(now=now)
     logger.info("agent_triggers_check", extra={"queued": len(triggers)})
 
@@ -270,7 +271,10 @@ async def fire_trigger(fire: FireTrigger) -> None:
 
     async with get_worker_db_context() as db:
         await AgentTriggerService(db).fire(
-            fire.trigger_id, event_context=fire.event_context, claimed_at=fire.claimed_at
+            fire.trigger_id,
+            event_context=fire.event_context,
+            claimed_at=fire.claimed_at,
+            activation_id=fire.activation_id,
         )
 
 

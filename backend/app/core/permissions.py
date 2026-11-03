@@ -544,6 +544,9 @@ class AuthContext:
     routine_id: UUID | None = None
     """Trusted origin set by the trigger worker, never accepted from a public API request."""
 
+    routine_activation_id: UUID | None = None
+    """A durable device activation, set only by its trigger worker before run admission."""
+
     routine_kind: Literal["trigger", "watch"] = "trigger"
 
     @classmethod

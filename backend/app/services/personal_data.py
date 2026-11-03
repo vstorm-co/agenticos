@@ -33,7 +33,12 @@ from app.core.exceptions import BadRequestError
 from app.core.memory_keys import person_owner_key
 from app.db.locks import LockScope, hold_subject
 from app.repositories import personal_data_repo, user_repo
-from app.schemas.personal_data import PersonalDataExport, PersonalDataPurge, RoutineAnswerExport
+from app.schemas.personal_data import (
+    PersonalDataExport,
+    PersonalDataPurge,
+    RoutineAnswerExport,
+    RoutineDeviceWaitExport,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -192,6 +197,10 @@ class PersonalDataService:
         profile = personal_data_repo.as_rows([user], _PROFILE_FIELDS)[0]
         profile["id"] = str(user.id)
         export = PersonalDataExport(
+            routine_device_waits=[
+                RoutineDeviceWaitExport.model_validate(wait)
+                for wait in await personal_data_repo.routine_device_waits_of(self.db, user_id)
+            ],
             routine_deliveries=[
                 RoutineAnswerExport.model_validate(receipt)
                 for receipt in await personal_data_repo.routine_deliveries_of(self.db, user_id)
@@ -300,6 +309,7 @@ class PersonalDataService:
         """
         size = await personal_data_repo.export_size(self.db, conversation_ids)
         size += await personal_data_repo.routine_answer_export_size(self.db, user_id)
+        size += await personal_data_repo.routine_device_wait_export_size(self.db, user_id)
         ceiling = settings.PERSONAL_DATA_EXPORT_MAX_CHARS
         if size > ceiling:
             raise BadRequestError(

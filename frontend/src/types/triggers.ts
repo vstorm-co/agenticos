@@ -76,6 +76,8 @@ export interface Trigger {
   spent_this_month?: number | string | null;
   /** Its month's limit is spent, so fires are skipped until the first. */
   paused_for_budget?: boolean;
+  waiting_device_count?: number;
+  waiting_device_since?: string | null;
   /**
    * Whether a fire acts as the person who made it - their memory and their own
    * MCP connections (#2027). Only they may turn it on.
@@ -144,6 +146,7 @@ export interface TriggerList {
 export type TriggerAnswerTo = "run_log" | "primary" | "conversation";
 
 export interface TriggerCreate {
+  is_active?: boolean;
   notification_channels?: RoutineNotificationChannel[] | null;
   prompt: string;
   /** An optional title; omit to list the trigger by its agent's name. */

@@ -36,6 +36,7 @@ from app.db.models.notification_route import NotificationRoute
 from app.db.models.oauth import OAuthGrant
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.routine_delivery import RoutineDelivery
+from app.db.models.routine_device_wait import RoutineDeviceWait
 from app.db.models.session import Session
 from app.db.models.suggestion import Suggestion
 from app.db.models.user_slash_command import UserSlashCommand
@@ -487,5 +488,25 @@ async def routine_answer_export_size(db: AsyncSession, user_id: UUID) -> int:
             func.coalesce(func.sum(func.length(RoutineDelivery.answer)), 0)
             + func.count(RoutineDelivery.run_id) * 1024
         ).where(RoutineDelivery.owner_user_id == user_id)
+    )
+    return int(size or 0)
+
+
+async def routine_device_waits_of(db: AsyncSession, user_id: UUID) -> list[RoutineDeviceWait]:
+    return list(
+        await db.scalars(
+            select(RoutineDeviceWait)
+            .where(RoutineDeviceWait.user_id == user_id)
+            .order_by(RoutineDeviceWait.created_at, RoutineDeviceWait.id)
+        )
+    )
+
+
+async def routine_device_wait_export_size(db: AsyncSession, user_id: UUID) -> int:
+    size = await db.scalar(
+        select(
+            func.coalesce(func.sum(func.length(RoutineDeviceWait.event_context)), 0)
+            + func.count(RoutineDeviceWait.id) * 1024
+        ).where(RoutineDeviceWait.user_id == user_id)
     )
     return int(size or 0)

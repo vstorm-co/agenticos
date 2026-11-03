@@ -967,6 +967,7 @@ class TestRunningNow:
         service = _service(agent)
         trigger = _trigger(agent_id=agent.id)
         with patch("app.services.agent_trigger.agent_trigger_repo") as repo:
+            repo.get_by_id = AsyncMock(return_value=None)
             repo.get = AsyncMock(return_value=trigger)
             await service.run_now(_ctx(), agent.id, trigger.id)
         assert service.agents.get.call_args.kwargs["perm"].value == "agents:run"
@@ -985,6 +986,7 @@ class TestRunningNow:
             patch("app.services.agent_trigger.agent_trigger_repo") as repo,
             patch("app.services.agent_trigger.record_audit", new=AsyncMock()),
         ):
+            repo.get_by_id = AsyncMock(return_value=None)
             repo.get = AsyncMock(return_value=trigger)
             await service.run_now(_ctx(), agent.id, trigger.id)
             service.fire.assert_not_awaited()
@@ -997,6 +999,7 @@ class TestRunningNow:
         original_next = datetime(2026, 1, 1, tzinfo=UTC)
         trigger = _trigger(agent_id=agent.id, next_fire_at=original_next)
         with patch("app.services.agent_trigger.agent_trigger_repo") as repo:
+            repo.get_by_id = AsyncMock(return_value=None)
             repo.get = AsyncMock(return_value=trigger)
             result = await service.run_now(_ctx(), agent.id, trigger.id)
         assert trigger.next_fire_at == original_next
@@ -1013,6 +1016,7 @@ class TestRunningNow:
             patch("app.services.agent_trigger.agent_trigger_repo") as repo,
             patch("app.services.agent_trigger.record_audit", new=audit),
         ):
+            repo.get_by_id = AsyncMock(return_value=None)
             repo.get = AsyncMock(return_value=trigger)
             await service.run_now(_ctx(), agent.id, trigger.id)
         assert audit.call_args.kwargs["action"] == "agent.trigger_run_now"
@@ -1022,6 +1026,7 @@ class TestRunningNow:
         agent = _agent()
         service = _service(agent)
         with patch("app.services.agent_trigger.agent_trigger_repo") as repo:
+            repo.get_by_id = AsyncMock(return_value=None)
             repo.get = AsyncMock(return_value=_trigger(agent_id=uuid.uuid4()))
             with pytest.raises(NotFoundError):
                 await service.run_now(_ctx(), agent.id, uuid.uuid4())
@@ -1040,6 +1045,7 @@ class TestRunningNow:
             patch("app.services.agent_trigger.agent_trigger_repo") as repo,
             patch("app.services.agent_trigger.record_audit", new=AsyncMock()),
         ):
+            repo.get_by_id = AsyncMock(return_value=None)
             repo.get = AsyncMock(return_value=trigger)
             await service.run_now(_ctx(), agent.id, trigger.id)
         assert [(fire.trigger_id, fire.event_context) for fire in queued_fires] == [
@@ -1053,6 +1059,7 @@ class TestClaiming:
         now = datetime(2026, 6, 1, tzinfo=UTC)
         trigger = _trigger(interval_seconds=300)
         with patch("app.services.agent_trigger.agent_trigger_repo") as repo:
+            repo.get_by_id = AsyncMock(return_value=None)
             repo.claim_due = AsyncMock(return_value=[(trigger, False)])
             claimed = await service.claim_and_advance(now=now)
         assert trigger.next_fire_at == now + timedelta(seconds=300)
@@ -1064,6 +1071,7 @@ class TestClaiming:
     async def test_a_quiet_tick_claims_nothing_and_advances_nothing(self):
         service = _service()
         with patch("app.services.agent_trigger.agent_trigger_repo") as repo:
+            repo.get_by_id = AsyncMock(return_value=None)
             repo.claim_due = AsyncMock(return_value=[])
             claimed = await service.claim_and_advance(now=datetime(2026, 6, 1, tzinfo=UTC))
         assert claimed == []
@@ -1075,6 +1083,7 @@ class TestClaiming:
         now = datetime(2026, 6, 1, tzinfo=UTC)
         trigger = _trigger(interval_seconds=300, fire_in_flight_since=None)
         with patch("app.services.agent_trigger.agent_trigger_repo") as repo:
+            repo.get_by_id = AsyncMock(return_value=None)
             repo.claim_due = AsyncMock(return_value=[(trigger, False)])
             await service.claim_and_advance(now=now)
         assert trigger.fire_in_flight_since == now
@@ -1090,6 +1099,7 @@ class TestClaiming:
             patch("app.services.agent_trigger.agent_trigger_repo") as repo,
             patch("app.services.agent_trigger.record_audit", new=audit),
         ):
+            repo.get_by_id = AsyncMock(return_value=None)
             repo.claim_due = AsyncMock(return_value=[(orphan, False)])
             claimed = await service.claim_and_advance(now=datetime(2026, 6, 1, tzinfo=UTC))
         assert orphan.is_active is False
@@ -1110,14 +1120,20 @@ class TestClaiming:
             patch("app.services.agent_trigger.agent_trigger_repo") as repo,
             patch("app.services.agent_trigger.record_audit", new=AsyncMock()),
         ):
+            repo.get_by_id = AsyncMock(return_value=None)
             repo.claim_due = AsyncMock(
                 return_value=[(live[0], False), (orphan, False), (live[1], False)]
             )
             await service.claim_and_advance(now=now)
 
         assert queued_fires == [
-            FireTrigger(trigger_id=trigger.id, event_context=None, claimed_at=now)
-            for trigger in live
+            FireTrigger(
+                trigger_id=trigger.id,
+                activation_id=fire.activation_id,
+                event_context=None,
+                claimed_at=now,
+            )
+            for trigger, fire in zip(live, queued_fires, strict=True)
         ]
 
     async def test_a_skipping_trigger_that_is_busy_lets_the_occurrence_pass(
@@ -1130,6 +1146,7 @@ class TestClaiming:
         earlier = now - timedelta(minutes=2)
         busy = _trigger(interval_seconds=300, overlap="skip", fire_in_flight_since=earlier)
         with patch("app.services.agent_trigger.agent_trigger_repo") as repo:
+            repo.get_by_id = AsyncMock(return_value=None)
             repo.claim_due = AsyncMock(return_value=[(busy, True)])
             claimed = await service.claim_and_advance(now=now)
 
@@ -1148,12 +1165,18 @@ class TestClaiming:
         earlier = now - timedelta(minutes=2)
         busy = _trigger(interval_seconds=300, overlap="allow", fire_in_flight_since=earlier)
         with patch("app.services.agent_trigger.agent_trigger_repo") as repo:
+            repo.get_by_id = AsyncMock(return_value=None)
             repo.claim_due = AsyncMock(return_value=[(busy, True)])
             claimed = await service.claim_and_advance(now=now)
 
         assert claimed == [busy]
         assert queued_fires == [
-            FireTrigger(trigger_id=busy.id, event_context=None, claimed_at=None)
+            FireTrigger(
+                trigger_id=busy.id,
+                activation_id=queued_fires[0].activation_id,
+                event_context=None,
+                claimed_at=None,
+            )
         ]
         assert busy.fire_in_flight_since == earlier
 
@@ -1170,7 +1193,11 @@ class TestQueueingDeliveredFires:
 
         assert await service.queue_event_fire("github", decision.trigger_id, body=b"{}", headers={})
         assert queued_fires == [
-            FireTrigger(trigger_id=decision.trigger_id, event_context="ISSUE #7")
+            FireTrigger(
+                trigger_id=decision.trigger_id,
+                activation_id=queued_fires[0].activation_id,
+                event_context="ISSUE #7",
+            )
         ]
         # Under the trigger's organization: a deployment-wide job that kept killing
         # its worker would pause every tenant's fires.
@@ -4970,3 +4997,32 @@ async def test_delivery_does_not_hide_a_failure_before_its_savepoint_opens():
         await service._deliver(
             _trigger(answer_to="primary"), agent=_agent(), run=MagicMock(), answer="Done"
         )
+
+
+@pytest.fixture(autouse=True)
+def device_waits_are_separate_from_existing_trigger_unit_contracts(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "app.services.agent_trigger.agent_trigger_repo.get_by_id", AsyncMock(return_value=None)
+    )
+    monkeypatch.setattr(
+        "app.services.agent_trigger.device_wait_repo.get", AsyncMock(return_value=None)
+    )
+    monkeypatch.setattr(
+        "app.services.agent_trigger.device_wait_repo.cancel_for_trigger", AsyncMock()
+    )
+
+
+@pytest.mark.parametrize("active", [False, True])
+async def test_create_can_remain_paused_until_native_routine_consent(active: bool) -> None:
+    service = _service()
+    with (
+        patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+        patch("app.services.agent_trigger.record_audit", new=AsyncMock()),
+    ):
+        repo.create = AsyncMock(return_value=_trigger(conversation_id=uuid.uuid4()))
+        await service.create(
+            _ctx(), uuid.uuid4(), _interval().model_copy(update={"is_active": active})
+        )
+    assert repo.create.await_args.kwargs["is_active"] is active
