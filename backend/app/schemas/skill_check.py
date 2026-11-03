@@ -51,6 +51,15 @@ class SkillCheckStart(BaseSchema):
         return self
 
 
+class SkillUpdateCheck(BaseSchema):
+    """How thoroughly to check main's newest version on one pinned agent."""
+
+    mode: CheckMode = Field(
+        default=CheckMode.QUICK,
+        description="As for a change; a newer description is always checked thoroughly",
+    )
+
+
 class AgentRef(BaseSchema):
     id: UUID
     name: str

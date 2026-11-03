@@ -93,6 +93,7 @@ from app.schemas.skill_check import (
     SkillCheckRead,
     SkillCheckStart,
     SkillTestSetStart,
+    SkillUpdateCheck,
     StageKind,
 )
 from app.schemas.skill_version import (
@@ -183,6 +184,8 @@ class Plan:
     excluded: tuple[UUID, ...] = ()
     skill_set_case_ids: list[UUID] | None = None
     served: tuple[SkillBodyFile, ...] | None = None
+    agent_id: UUID | None = None
+    candidate_version_id: UUID | None = None
 
 
 def _proposal_candidate(proposal: SkillProposal) -> Candidate:
@@ -290,8 +293,12 @@ class SkillCheckService:
         only: Sequence[UUID] | None = None,
         holdout: Mapping[UUID, Collection[UUID]] | None = None,
         exclude_conversations: Sequence[UUID] = (),
+        pinned: UUID | None = None,
     ) -> Plan:
         """What a check would run, refusing what could not; nothing is written.
+
+        `pinned` checks main's newest version on that one agent, against the version
+        it is pinned to, in place of a change to a line; `data` gives only the mode.
 
         `only` narrows the agents to those named, for a caller checking one pinned
         agent's update rather than a line. `holdout` limits a dataset, by its id, to
@@ -304,26 +311,34 @@ class SkillCheckService:
                 details={"permission": "runs:view"},
             )
         skill = await self.versions.skill_for(ctx, skill_id, Perm.SKILLS_EDIT)
-        candidate, proposal, fork_id = await self._candidate(ctx, skill, data)
-        fork, base = await self._line(ctx, skill, fork_id)
-        if proposal is not None and proposal.base_version_id != base.id:
-            raise ConcurrentChangeError(
-                message=(
-                    f"'{skill.name}' changed since this was proposed. Compare the two and edit "
-                    "the skill by hand, or ask again."
-                ),
-                details={"proposal_id": proposal.id, "version": base.number},
-            )
+        proposal: SkillProposal | None = None
+        fork: SkillFork | None = None
+        target: SkillVersion | None = None
+        if pinned is None:
+            candidate, proposal, fork_id = await self._candidate(ctx, skill, data)
+            fork, base = await self._line(ctx, skill, fork_id)
+            if proposal is not None and proposal.base_version_id != base.id:
+                raise ConcurrentChangeError(
+                    message=(
+                        f"'{skill.name}' changed since this was proposed. Compare the two and "
+                        "edit the skill by hand, or ask again."
+                    ),
+                    details={"proposal_id": proposal.id, "version": base.number},
+                )
+            users = await self.agents.line_agents(skill, None if fork is None else fork.id)
+            if only is not None:
+                users = [user for user in users if user.agent.id in set(only)]
+            served = await self._served(candidate, base)
+        else:
+            user, base, target = await self._pinned(ctx, skill, pinned)
+            candidate = await self._version_candidate(target)
+            users, served = [user], candidate.resources
         changed = candidate.description != base.description
         mode = CheckMode.THOROUGH if changed else data.mode
-        users = await self.agents.line_agents(skill, None if fork is None else fork.id)
-        if only is not None:
-            users = [user for user in users if user.agent.id in set(only)]
         runnable = await accessible_ids(
             self.db, ctx, [user.agent for user in users], Perm.AGENTS_RUN, resource_type=AGENT
         )
         test_set = await self._test_set(ctx, skill)
-        served = await self._served(candidate, base)
         body = {
             skill.id: SkillBody(
                 description=candidate.description, content=candidate.content, resources=served
@@ -379,6 +394,64 @@ class SkillCheckService:
             excluded=tuple(exclude_conversations),
             skill_set_case_ids=_kept(test_set, holdout or {}),
             served=served,
+            agent_id=pinned,
+            candidate_version_id=None if target is None else target.id,
+        )
+
+    async def _pinned(
+        self, ctx: AuthContext, skill: Skill, agent_id: UUID
+    ) -> tuple[LineAgent, SkillVersion, SkillVersion]:
+        """The pinned agent as it runs, the version it stays on, and main's newest.
+
+        Raises:
+            NotFoundError: The caller may not see the agent.
+            BadRequestError: The agent's served version does not stay on a main version.
+            AlreadyExistsError: It stays on main's newest version already.
+        """
+        agent = await self.agents.registry.get(ctx, agent_id)
+        found = await self.agents.pinned_agent(skill, agent.id)
+        if found is None:
+            raise BadRequestError(
+                message=f"'{agent.name}' is not pinned to a version of '{skill.name}'",
+                details={"agent_id": agent.id, "skill_id": skill.id},
+            )
+        user, number = found
+        pinned = (
+            await skill_version_repo.get_by_numbers(
+                self.db,
+                organization_id=ctx.organization_id,
+                skill_id=skill.id,
+                fork_id=None,
+                numbers={number},
+            )
+        ).get(number)
+        assert pinned is not None, "a published binding names a version the skill has"
+        assert skill.latest_version_id is not None, "every skill has a main version"
+        if pinned.id == skill.latest_version_id:
+            raise AlreadyExistsError(
+                message=f"'{agent.name}' reads the newest version of '{skill.name}' already",
+                details={"agent_id": agent.id, "version": pinned.number},
+            )
+        newest = await skill_version_repo.get_version(
+            self.db, skill.latest_version_id, organization_id=ctx.organization_id, skill_id=skill.id
+        )
+        assert newest is not None, "a skill's newest version exists"
+        return user, pinned, newest
+
+    async def _version_candidate(self, version: SkillVersion) -> Candidate:
+        """A stored version as a check serves it: its text and every one of its files."""
+        bodies = await self.versions.files_of(version)
+        return Candidate(
+            version.description,
+            version.content,
+            tuple(
+                SkillBodyFile(
+                    name=name,
+                    description=version.resources[name]["description"],
+                    content=bodies[name],
+                )
+                for name in sorted(bodies)
+            ),
         )
 
     async def _stages(
@@ -514,6 +587,25 @@ class SkillCheckService:
         )
         return await self._estimate(ctx, plan)
 
+    async def estimate_update(
+        self, ctx: AuthContext, skill_id: UUID, agent_id: UUID, data: SkillUpdateCheck
+    ) -> SkillCheckEstimate:
+        """What checking main's newest version on one pinned agent would run and cost."""
+        plan = await self._plan(ctx, skill_id, _update_start(data), pinned=agent_id)
+        return await self._estimate(ctx, plan)
+
+    async def start_update(
+        self, ctx: AuthContext, skill_id: UUID, agent_id: UUID, data: SkillUpdateCheck
+    ) -> SkillCheckRead:
+        """Check main's newest version on one agent pinned to an older one.
+
+        Its result is accepted by moving the agent to main - see `checked_update` -
+        never by changing the skill. Raises as :meth:`start` does, and as `_pinned`.
+        """
+        return await self.start(
+            ctx, skill_id, _update_start(data), source=CheckSource.CATCH_UP, pinned=agent_id
+        )
+
     async def start(
         self,
         ctx: AuthContext,
@@ -524,6 +616,7 @@ class SkillCheckService:
         only: Sequence[UUID] | None = None,
         holdout: Mapping[UUID, Collection[UUID]] | None = None,
         exclude_conversations: Sequence[UUID] = (),
+        pinned: UUID | None = None,
     ) -> SkillCheckRead:
         """Write a check and start each agent's first stage.
 
@@ -540,6 +633,7 @@ class SkillCheckService:
             only=only,
             holdout=holdout,
             exclude_conversations=exclude_conversations,
+            pinned=pinned,
         )
         expected, at_most = _priced(plan.agents)
         if plan.org_remaining is not None and at_most > plan.org_remaining:
@@ -577,6 +671,8 @@ class SkillCheckService:
                 skill_id=plan.skill.id,
                 fork_id=None if plan.fork is None else plan.fork.id,
                 base_version_id=plan.base.id,
+                agent_id=plan.agent_id,
+                candidate_version_id=plan.candidate_version_id,
                 candidate_description=plan.candidate.description,
                 candidate_content=plan.candidate.content,
                 candidate_resources=_resources_json(plan.served),
@@ -932,7 +1028,11 @@ class SkillCheckService:
                     warnings=["within_noise"]
                     if any(row.state == AgentState.WITHIN_NOISE.value or row.noisy for row in mine)
                     else [],
-                    outcomes=rules.outcomes(verdict, fork=check.fork_id is not None)
+                    outcomes=(
+                        rules.update_outcomes(verdict)
+                        if check.agent_id is not None
+                        else rules.outcomes(verdict, fork=check.fork_id is not None)
+                    )
                     if status is CheckStatus.DONE and verdict is not None
                     else [],
                     outcome=None if check.outcome is None else CheckOutcome(check.outcome),
@@ -1126,8 +1226,10 @@ class SkillCheckService:
             raise ConcurrentChangeError(
                 message="The check has not finished", details={"check_id": check.id}
             )
-        if outcome is not None and outcome not in rules.outcomes(
-            CheckVerdict(check.verdict), fork=check.fork_id is not None
+        if outcome is not None and outcome not in (
+            rules.update_outcomes(CheckVerdict(check.verdict))
+            if check.agent_id is not None
+            else rules.outcomes(CheckVerdict(check.verdict), fork=check.fork_id is not None)
         ):
             raise BadRequestError(
                 message="This check's result does not offer that",
@@ -1148,6 +1250,8 @@ class SkillCheckService:
         """Why the line is no longer the one a check measured, or `None` when it still is:
         a newer version, or agents that started or stopped following it or were published
         again since."""
+        if check.agent_id is not None:
+            return await self._update_drift(ctx, skill, check)
         fork, base = await self._line(ctx, skill, check.fork_id)
         if base.id != check.base_version_id:
             return ConcurrentChangeError(
@@ -1187,6 +1291,71 @@ class SkillCheckService:
                 "hidden": sum(agent.id not in visible for agent in changed),
             },
         )
+
+    async def _update_drift(
+        self, ctx: AuthContext, skill: Skill, check: SkillCheck
+    ) -> ConcurrentChangeError | None:
+        """Why a pinned agent's update no longer measures what it would do, or `None`."""
+        assert check.agent_id is not None
+        found = await self.agents.pinned_agent(skill, check.agent_id)
+        rows = await skill_check_repo.list_agents(
+            self.db, [check.id], organization_id=ctx.organization_id
+        )
+        measured = {row.agent_id: row.agent_version for row in rows}
+        if found is not None:
+            user, number = found
+            pinned = await skill_version_repo.get_by_numbers(
+                self.db,
+                organization_id=ctx.organization_id,
+                skill_id=skill.id,
+                fork_id=None,
+                numbers={number},
+            )
+            if (
+                pinned.get(number) is not None
+                and pinned[number].id == check.base_version_id
+                and measured.get(user.agent.id) == user.agent_version
+                and skill.latest_version_id == check.candidate_version_id
+            ):
+                return None
+        return ConcurrentChangeError(
+            message=(
+                f"The agent or '{skill.name}' changed since this was checked: it was published "
+                "or moved again, or main has a newer version. Check the update again."
+            ),
+            details={"check_id": check.id},
+        )
+
+    async def checked_update(
+        self,
+        ctx: AuthContext,
+        skill_id: UUID,
+        agent_id: UUID,
+        check_id: UUID,
+        *,
+        acknowledged: bool,
+    ) -> SkillCheck:
+        """The finished check that lets this pinned agent move to main's newest version.
+
+        Locks as :meth:`_decidable` does; the caller moves the agent and then records
+        the decision with :meth:`record_decision`.
+
+        Raises:
+            NotFoundError: The skill or the check is not the caller's to change.
+            BadRequestError: The check is of another agent or of a line's change, the
+                update made the agent worse, or an unknown result was not acknowledged.
+            ConcurrentChangeError: It is running, or the agent or main moved since.
+            AlreadyExistsError: It was decided already.
+        """
+        _, check, rows = await self._decidable(ctx, skill_id, check_id, None)
+        if check.agent_id is None or check.agent_id != agent_id:
+            raise refused_field("check_id", "This check is not of this agent's update")
+        if any(row.state == AgentState.WORSE.value for row in rows):
+            raise refused_field(
+                "check_id", "Main's newest version made this agent worse, so it stays pinned"
+            )
+        self._refuse_unacknowledged(check, rows, acknowledged)
+        return check
 
     async def _refuse_rewritten(self, ctx: AuthContext, check: SkillCheck) -> None:
         """Refuse a check whose proposal says something else now than what it measured."""
@@ -1231,6 +1400,7 @@ class SkillCheckService:
                 or a worse agent reads the skill through a specialist.
         """
         skill, check, rows = await self._decidable(ctx, skill_id, check_id, None)
+        _refuse_update(check)
         blocked = check.verdict == CheckVerdict.BLOCKED.value
         if blocked and not data.pin_worse:
             raise refused_field(
@@ -1275,7 +1445,9 @@ class SkillCheckService:
                 self.db, created.id, organization_id=ctx.organization_id, skill_id=skill.id
             )
             assert version is not None
-        await self._decide(ctx, check, outcome, version.id, acknowledged=data.acknowledge_unknown)
+        await self.record_decision(
+            ctx, check, outcome, version.id, acknowledged=data.acknowledge_unknown
+        )
         return SkillCheckApplied(
             version=await self.versions.read_version(ctx, skill.id, version.id), pinned=pinned
         )
@@ -1411,7 +1583,7 @@ class SkillCheckService:
             (moved if changed.published else draft_only).append(ref)
         if check.proposal_id is not None:
             await self._close_proposal(ctx, check.proposal_id, applied=True)
-        await self._decide(
+        await self.record_decision(
             ctx,
             check,
             CheckOutcome.FORK_FOR_HELPED,
@@ -1460,7 +1632,7 @@ class SkillCheckService:
         else:
             await proposals.discard(ctx, proposal.id, decision)
 
-    async def _decide(
+    async def record_decision(
         self,
         ctx: AuthContext,
         check: SkillCheck,
@@ -1469,6 +1641,7 @@ class SkillCheckService:
         *,
         acknowledged: bool,
     ) -> None:
+        """Close a check with what was done with it, and the version it left in place."""
         status = (
             CheckStatus.FORKED if outcome is CheckOutcome.FORK_FOR_HELPED else CheckStatus.APPLIED
         )
@@ -1568,6 +1741,21 @@ class SkillCheckService:
             await self._add_evidence(ctx, skill, created.id, window_days=data.window_days)
             return await self.datasets.read(ctx, created.id)
         return created
+
+
+def _update_start(data: SkillUpdateCheck) -> SkillCheckStart:
+    """The start `_plan` reads for a pinned update: only its mode; the text is main's."""
+    return SkillCheckStart.model_construct(
+        fork_id=None, candidate=None, proposal_id=None, mode=data.mode
+    )
+
+
+def _refuse_update(check: SkillCheck) -> None:
+    if check.agent_id is not None:
+        raise BadRequestError(
+            message="A pinned agent's update is accepted by moving the agent to main",
+            details={"check_id": check.id, "agent_id": check.agent_id},
+        )
 
 
 def _from_text(text: CandidateText) -> Candidate:

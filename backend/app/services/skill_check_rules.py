@@ -123,6 +123,13 @@ def outcomes(result: CheckVerdict, *, fork: bool) -> list[CheckOutcome]:
     return [CheckOutcome.APPLY, CheckOutcome.IMPROVE_FURTHER, CheckOutcome.DISCARD]
 
 
+def update_outcomes(result: CheckVerdict) -> list[CheckOutcome]:
+    """What a pinned agent's update offers: moving it unless main's newest made it worse."""
+    if result is CheckVerdict.BLOCKED:
+        return [CheckOutcome.DISCARD]
+    return [CheckOutcome.APPLY, CheckOutcome.DISCARD]
+
+
 def _words(text: str) -> set[str]:
     return {word for word in _WORD.findall(text.lower()) if word not in _STOP_WORDS}
 

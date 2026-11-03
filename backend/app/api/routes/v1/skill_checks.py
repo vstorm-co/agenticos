@@ -22,6 +22,7 @@ from app.schemas.skill_check import (
     SkillCheckRead,
     SkillCheckStart,
     SkillTestSetStart,
+    SkillUpdateCheck,
 )
 
 router = APIRouter()
@@ -55,6 +56,39 @@ async def start_check(
     the change, its published version otherwise unchanged. Each agent's share is billed
     to that agent."""
     return await service.start(ctx, skill_id, data)
+
+
+@router.post(
+    "/{skill_id}/agents/{agent_id}/update-check/estimate",
+    response_model=SkillCheckEstimate,
+    dependencies=[ASSISTANT],
+)
+async def estimate_update_check(
+    skill_id: UUID, agent_id: UUID, data: SkillUpdateCheck, service: SkillCheckSvc, ctx: Auth
+) -> Any:
+    """What checking main's newest version on one pinned agent would run and cost.
+
+    400 when the agent is not pinned to a version of this skill, 409 when it reads
+    main's newest version already.
+    """
+    return await service.estimate_update(ctx, skill_id, agent_id, data)
+
+
+@router.post(
+    "/{skill_id}/agents/{agent_id}/update-check",
+    response_model=SkillCheckRead,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[ASSISTANT],
+)
+async def start_update_check(
+    skill_id: UUID, agent_id: UUID, data: SkillUpdateCheck, service: SkillCheckSvc, ctx: Auth
+) -> Any:
+    """Check main's newest version on one pinned agent, against the version it stays on.
+
+    Billed to that agent. Accepted with `PUT .../agents/{agent_id}/binding` naming this
+    check, which moves the agent to main unless the newer version made it worse.
+    """
+    return await service.start_update(ctx, skill_id, agent_id, data)
 
 
 @router.get("/{skill_id}/checks", response_model=SkillCheckList, dependencies=[ASSISTANT])

@@ -29,6 +29,7 @@ from app.core.permissions import AuthContext, Perm
 from app.db.models.agent import Agent, AgentStatus
 from app.db.models.agent_environment import AgentEnvironment
 from app.db.models.skill import Skill
+from app.db.models.skill_check import CheckOutcome
 from app.db.models.skill_version import SkillFork, SkillVersion
 from app.repositories import (
     agent_environment_repo,
@@ -266,6 +267,18 @@ class SkillAgentService:
             found += [LineAgent(use.agent, number, via) for via, (_, number) in readers.items()]
         return found
 
+    async def pinned_agent(self, skill: Skill, agent_id: UUID) -> tuple[LineAgent, int] | None:
+        """The agent, as its served version reads the skill itself, and the main version
+        it stays on - or `None` when that version follows a line instead."""
+        for use in await self._uses(skill):
+            if use.agent.id != agent_id or not use.served:
+                continue
+            _, number, lines = _default(use)
+            own = _by_reader(lines, None)
+            if own is not None and own.state == "pinned" and own.version is not None:
+                return LineAgent(use.agent, number, None), own.version
+        return None
+
     async def fork_users(self, skill: Skill, fork_id: UUID) -> list[Agent]:
         """The agents that read a fork, themselves or through a specialist, in a served
         version or their draft."""
@@ -381,14 +394,39 @@ class SkillAgentService:
         skill not published yet - only the draft changes, and only the new binding is
         checked, since a draft is allowed to be unfinished.
 
+        A pinned agent moving to main may name the finished check of main's newest
+        version on it (`check_id`): the move is then refused when that version made
+        the agent worse, or the agent or main changed since, and the check is closed
+        with it, which marks the agent checked on that version.
+
         Raises:
             NotFoundError: The skill, or the agent, is not one the caller may reach.
             BadRequestError: The draft does not bind the skill itself - only through an
                 inline specialist, which is changed in the Builder, or not at all - or
                 the version or fork cannot be bound, or the new spec does not publish,
-                with the reasons.
+                with the reasons; or `check_id` refuses the move, as
+                :meth:`SkillCheckService.checked_update` says.
+            ConcurrentChangeError: `check_id` measured an agent or a main that moved since.
         """
         skill = await self.versions.skill_for(ctx, skill_id, Perm.SKILLS_VIEW)
+        if data.check_id is not None:
+            # Imported here: the check service reads the agents of a skill through this one.
+            from app.services.skill_check import SkillCheckService
+
+            # Before the agent's lock: a decision takes the skill's first, as every
+            # write to a skill's versions does.
+            checks = SkillCheckService(self.db)
+            check = await checks.checked_update(
+                ctx, skill.id, agent_id, data.check_id, acknowledged=data.acknowledge_unknown
+            )
+            assert check.candidate_version_id is not None, "an update names main's version"
+            await checks.record_decision(
+                ctx,
+                check,
+                CheckOutcome.APPLY,
+                check.candidate_version_id,
+                acknowledged=data.acknowledge_unknown,
+            )
         agent = await self.registry.get(ctx, agent_id, perm=Perm.AGENTS_EDIT, for_update=True)
         draft = AgentSpec.model_validate(agent.draft_spec)
         if skill.id not in draft.skill_ids:

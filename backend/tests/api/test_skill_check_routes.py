@@ -18,7 +18,7 @@ from httpx import ASGITransport, AsyncClient
 
 from app.api import deps
 from app.core.config import settings
-from app.core.exceptions import AlreadyExistsError, NotFoundError
+from app.core.exceptions import AlreadyExistsError, BadRequestError, NotFoundError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.main import app
 from app.schemas.skill_check import (
@@ -93,6 +93,10 @@ def service() -> MagicMock:
     stub = MagicMock()
     stub.estimate = AsyncMock(return_value=_estimate())
     stub.start = AsyncMock(return_value=_check(status="running", verdict=None, outcomes=[]))
+    stub.estimate_update = AsyncMock(return_value=_estimate())
+    stub.start_update = AsyncMock(
+        side_effect=BadRequestError(message="Not pinned", details={"agent_id": "a"})
+    )
     stub.list_checks = AsyncMock(return_value=SkillCheckList(items=[_check()], total=1))
     stub.read = AsyncMock(return_value=_check())
     stub.cancel = AsyncMock(return_value=_check(status="cancelled"))
@@ -170,6 +174,24 @@ class TestStarting:
             )
 
         assert response.status_code == 422
+
+
+class TestAPinnedAgentsUpdate:
+    async def test_its_estimate_names_the_skill_and_the_agent(self, client, service):
+        agent = uuid.uuid4()
+        async with client() as opened:
+            response = await opened.post(
+                _url(f"/agents/{agent}/update-check/estimate"), json={"mode": "thorough"}
+            )
+        assert response.status_code == 200
+        assert service.estimate_update.await_args.args[1:3] == (SKILL, agent)
+        assert service.estimate_update.await_args.args[3].mode == "thorough"
+
+    async def test_an_agent_that_is_not_pinned_is_refused_with_400(self, client, service):
+        async with client() as opened:
+            response = await opened.post(_url(f"/agents/{uuid.uuid4()}/update-check"), json={})
+        assert response.status_code == 400
+        assert service.start_update.await_args.args[3].mode == "quick"
 
 
 class TestReading:
