@@ -8,8 +8,9 @@ secret. Nothing in the body is read before that holds, and a bot with no app
 secret refuses every POST - an HMAC under an empty key is computable by anyone.
 
 A batch is answered at once and run in the background, as on every other
-platform. Each customer's messages and taps run one after another in the order Meta
-stamped them; different customers run side by side.
+platform. Each customer's latest message time is recorded first, in the request's
+transaction (`WhatsAppInbound`). Each customer's messages and taps then run one
+after another in the order Meta stamped them; different customers run side by side.
 """
 
 import json
@@ -22,18 +23,11 @@ from uuid import UUID
 from fastapi import APIRouter, HTTPException, Request, Response
 from fastapi.responses import PlainTextResponse
 
-from app.api.deps import ChannelBotSvc
-from app.core.background import spawn
+from app.api.deps import ChannelBotSvc, WhatsAppInboundSvc
 from app.services.channel_bot import unseal_webhook_secret, unseal_whatsapp_verify_token
-from app.services.channels.whatsapp_payload import (
-    group_by_customer,
-    parse_webhook,
-    to_event,
-    verify_signature,
-)
+from app.services.channels.whatsapp_payload import parse_webhook, verify_signature
 from app.services.workflow_execution.exceptions import WorkflowRunInputTooLargeError
 from app.services.workflow_execution.resume import read_workflow_body
-from app.worker.background.channel import process_channel_events_in_order
 
 logger = logging.getLogger(__name__)
 
@@ -66,7 +60,9 @@ async def whatsapp_verify(bot_id: UUID, request: Request, bot_service: ChannelBo
 
 
 @router.post("/{bot_id}/webhook", status_code=200, response_model=None)
-async def whatsapp_events(bot_id: UUID, request: Request, bot_service: ChannelBotSvc) -> Any:
+async def whatsapp_events(
+    bot_id: UUID, request: Request, bot_service: ChannelBotSvc, inbound: WhatsAppInboundSvc
+) -> Any:
     """Receive one batch from Meta."""
     declared = request.headers.get("content-length")
     if declared is not None and declared.isdigit() and int(declared) > MAX_BODY_BYTES:
@@ -136,10 +132,5 @@ async def whatsapp_events(bot_id: UUID, request: Request, bot_service: ChannelBo
                 },
             )
 
-    for group in group_by_customer(parsed.messages):
-        events = [
-            to_event(message, bot_id=str(bot_id), organization_id=bot.organization_id)
-            for message in group
-        ]
-        spawn(process_channel_events_in_order(events), name=f"whatsapp_events:{bot_id}")
+    await inbound.receive(bot, parsed)
     return Response(status_code=200)

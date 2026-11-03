@@ -230,6 +230,17 @@ def get_channel_bot_service(db: DBSession) -> ChannelBotService:
 ChannelBotSvc = Annotated[ChannelBotService, Depends(get_channel_bot_service)]
 
 
+from app.services.channels.whatsapp_inbound import WhatsAppInbound
+
+
+def get_whatsapp_inbound_service(db: DBSession) -> WhatsAppInbound:
+    """Record a verified WhatsApp batch's customers in the webhook request's transaction."""
+    return WhatsAppInbound(db)
+
+
+WhatsAppInboundSvc = Annotated[WhatsAppInbound, Depends(get_whatsapp_inbound_service)]
+
+
 from app.services.channels.feedback import ChannelFeedback
 
 

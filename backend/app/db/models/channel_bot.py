@@ -3,7 +3,7 @@
 import uuid
 
 from sqlalchemy import JSON, Boolean, CheckConstraint, ForeignKey, Integer, String, true
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base, TimestampMixin
@@ -73,6 +73,10 @@ class ChannelBot(Base, TimestampMixin):
     whatsapp_phone_number_id: Mapped[str | None] = mapped_column(String(32), nullable=True)
     whatsapp_account_id: Mapped[str | None] = mapped_column(String(32), nullable=True)
     whatsapp_verify_token_encrypted: Mapped[str | None] = mapped_column(String(1000), nullable=True)
+    # The utility template a WhatsApp bot answers in once the customer's 24-hour
+    # window has closed: `{name, language, body}` (`whatsapp_templates.to_stored`).
+    # Read back through `stored_template`, so a malformed value reads as none.
+    whatsapp_late_template: Mapped[dict[str, str] | None] = mapped_column(JSONB, nullable=True)
 
     # The emoji the bot reacts to a question with the moment it arrives (#2084),
     # by the platform's own name for it - `eyes`. Null reacts with nothing.

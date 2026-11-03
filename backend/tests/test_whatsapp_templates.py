@@ -1,0 +1,116 @@
+"""Which templates a bot may use for a late answer (#2076)."""
+
+from typing import Any
+
+import pytest
+
+from app.services.channels.whatsapp_format import utf16_units
+from app.services.channels.whatsapp_templates import (
+    LateTemplate,
+    stored_template,
+    to_stored,
+    usable_templates,
+)
+from app.services.channels.whatsapp_window import MAX_FIXED_UNITS
+
+BODY = "Update from Acme: {{1}} Open the chat to continue."
+
+
+def entry(
+    body: str = BODY,
+    *,
+    status: str = "APPROVED",
+    category: str = "UTILITY",
+    extra: list[dict[str, Any]] | None = None,
+    name: str = "late_answer",
+) -> dict[str, Any]:
+    return {
+        "name": name,
+        "language": "en_US",
+        "status": status,
+        "category": category,
+        "components": [{"type": "BODY", "text": body}, *(extra or [])],
+    }
+
+
+def test_an_approved_utility_template_with_one_variable_is_usable() -> None:
+    [template] = usable_templates([entry()])
+    assert template == LateTemplate(name="late_answer", language="en_US", body=BODY)
+    assert template.parameter_name is None
+    assert template.fixed_length == utf16_units(BODY.replace("{{1}}", ""))
+
+
+def test_a_named_variable_is_sent_by_name() -> None:
+    [template] = usable_templates([entry("Hello: {{answer}} Bye.")])
+    assert template.parameter_name == "answer"
+    assert template.fixed_length == utf16_units("Hello:  Bye.")
+
+
+@pytest.mark.parametrize(
+    "listing",
+    [
+        entry(category="MARKETING"),
+        entry(status="PENDING"),
+        entry("A {{1}} and {{2}} b."),
+        entry("No variable here."),
+        entry("A {{2}} b."),
+        entry("A {{Bad Name}} b."),
+        entry("A {{1} b {{"),
+    ],
+)
+def test_only_approved_utility_templates_with_one_body_variable_are_usable(
+    listing: dict[str, Any],
+) -> None:
+    assert usable_templates([listing]) == []
+
+
+@pytest.mark.parametrize(
+    "extra",
+    [
+        [{"type": "FOOTER", "text": "Reply {{1}}"}],
+        [{"type": "HEADER", "format": "TEXT", "text": "Hi {{1}}"}],
+        [{"type": "HEADER", "format": "IMAGE"}],
+        [{"type": "BUTTONS", "buttons": [{"type": "URL", "url": "https://x/{{1}}"}]}],
+    ],
+)
+def test_a_variable_outside_the_body_or_a_media_header_makes_it_unusable(
+    extra: list[dict[str, Any]],
+) -> None:
+    assert usable_templates([entry(extra=extra)]) == []
+
+
+def test_a_text_header_without_a_variable_is_fine() -> None:
+    extra = [{"type": "HEADER", "format": "TEXT", "text": "Acme"}]
+    assert len(usable_templates([entry(extra=extra)])) == 1
+
+
+def test_a_body_too_long_for_a_preview_is_not_usable() -> None:
+    # The trailing "z" counts as fixed text too.
+    assert usable_templates([entry("a" * MAX_FIXED_UNITS + "{{1}}z")]) == []
+    assert len(usable_templates([entry("a" * (MAX_FIXED_UNITS - 1) + "{{1}}z")])) == 1
+
+
+def test_two_bodies_are_not_usable() -> None:
+    both = entry(extra=[{"type": "BODY", "text": "again {{1}}"}])
+    assert usable_templates([both]) == []
+
+
+def test_malformed_entries_are_skipped_not_raised() -> None:
+    listing: list[object] = [
+        "nope",
+        None,
+        {"status": "APPROVED", "category": "UTILITY"},
+        entry() | {"components": "x"},
+        entry() | {"components": ["x", {"type": "BODY", "text": 5}]},
+        entry() | {"name": 5},
+        entry(),
+    ]
+    assert len(usable_templates(listing)) == 1
+
+
+def test_a_stored_template_reads_back_and_garbage_reads_as_none() -> None:
+    [template] = usable_templates([entry()])
+    assert stored_template(to_stored(template)) == template
+    assert stored_template(None) is None
+    assert stored_template({"name": 1}) is None
+    assert stored_template({"name": "n", "language": "en", "body": "{{1}} and {{2}}"}) is None

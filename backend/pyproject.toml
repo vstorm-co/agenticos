@@ -764,6 +764,8 @@ include = [
     "app/services/channels/whatsapp_format.py",
     "app/services/channels/whatsapp_interactive.py",
     "app/services/channels/whatsapp_payload.py",
+    "app/services/channels/whatsapp_templates.py",
+    "app/services/channels/whatsapp_window.py",
     # What the Discord adapter says and reads, without the I/O (#2079).
     "app/services/channels/discord_protocol.py",
     "app/repositories/channel_prompt.py",
@@ -1419,6 +1421,8 @@ include = [
     "app/services/channels/whatsapp_format.py",
     "app/services/channels/whatsapp_interactive.py",
     "app/services/channels/whatsapp_payload.py",
+    "app/services/channels/whatsapp_templates.py",
+    "app/services/channels/whatsapp_window.py",
     # What the Discord adapter says and reads, without the I/O (#2079).
     "app/services/channels/discord_protocol.py",
     "app/repositories/channel_prompt.py",

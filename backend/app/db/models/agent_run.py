@@ -389,6 +389,12 @@ class AgentRun(Base, TimestampMixin):
     # from a slow one in minutes rather than hours. A raw UPDATE, not the ORM,
     # so it leaves `updated_at` - the run's last transition - alone.
     heartbeat_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Why a run's answer has not reached its chat, when the platform refused it
+    # for a reason the run page can explain (WhatsApp's 24-hour window:
+    # `window_no_template`, `window_template_failed`). Set only while nothing of
+    # the answer was delivered, together with a held run; cleared when it is. A
+    # raw UPDATE (`agent_run_repo.mark_undelivered`), so `updated_at` is left alone.
+    undelivered_reason: Mapped[str | None] = mapped_column(String(32), nullable=True)
 
     __table_args__ = (
         # Monthly spend, per organization. Read before *every* model request to

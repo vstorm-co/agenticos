@@ -251,6 +251,21 @@ async def get_run(db: AsyncSession, run_id: UUID, *, organization_id: UUID) -> A
     return result.scalar_one_or_none()
 
 
+async def mark_undelivered(
+    db: AsyncSession, *, run_id: UUID, organization_id: UUID, reason: str | None
+) -> None:
+    """Say why a run's answer has not reached its chat, or clear the reason with `None`.
+
+    Scoped to the organization, and `updated_at` is set to itself so the column's
+    `onupdate` does not fire: the reason is not a transition of the run.
+    """
+    await db.execute(
+        sql_update(AgentRun)
+        .where(AgentRun.id == run_id, AgentRun.organization_id == organization_id)
+        .values(undelivered_reason=reason, updated_at=AgentRun.updated_at)
+    )
+
+
 async def latest_run_for_conversation(
     db: AsyncSession, conversation_id: UUID, *, organization_id: UUID
 ) -> AgentRun | None:

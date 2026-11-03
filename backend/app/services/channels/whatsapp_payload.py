@@ -129,6 +129,11 @@ def _message(raw: object, contacts: Mapping[str, Mapping[str, Any]]) -> WhatsApp
             return None
         mime_type = _str(media.get("mime_type"))
         filename = _str(media.get("filename"))
+    elif kind == "button":
+        # A tap on a template's quick-reply button: its text is what the customer
+        # chose, read as an ordinary message. With none, it stays a named message.
+        button = _mapping(item.get("button"))
+        text = _str(button.get("text")) or _str(button.get("payload")) or ""
     elif kind == "interactive":
         interactive = _mapping(item.get("interactive"))
         reply_type = _str(interactive.get("type"))
@@ -263,7 +268,7 @@ def _attachment(message: WhatsAppMessage) -> IncomingAttachment | None:
             size=0,  # Meta states no size in the webhook; the fetch re-checks the bytes.
             handle=message.media_id,
         )
-    if message.kind in {"text", "location"}:
+    if message.kind in {"text", "location"} or (message.kind == "button" and message.text):
         return None
     # Something the adapter cannot read yet still reaches the router as a named file, so
     # the access, dedupe and rate-limit gates answer it - it never vanishes.

@@ -83,6 +83,7 @@ from app.db.models.external_agent import ExternalAgent
 from app.db.models.project import Project
 from app.db.models.suggestion import Suggestion
 from app.db.models.watch import Watch
+from app.db.models.whatsapp_customer import WhatsAppCustomer, WhatsAppHeldRun
 from app.db.models.teams_conversation import TeamsConversation
 from app.db.models.oauth import (
     OAuthAuthorizationCode,
@@ -150,6 +151,8 @@ __all__ = [
     "ExternalAgent",
     "Suggestion",
     "Watch",
+    "WhatsAppCustomer",
+    "WhatsAppHeldRun",
     "TeamsConversation",
     "OAuthAuthorizationCode",
     "OAuthAuthorizationRequest",

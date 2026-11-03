@@ -419,3 +419,25 @@ def test_a_text_message_is_an_incoming_message_either_way():
     assert to_event(message, bot_id="b", organization_id=ORG) == to_incoming(
         message, bot_id="b", organization_id=ORG
     )
+
+
+def test_a_template_button_tap_is_read_as_its_text():
+    [message] = _parse("template_button").messages
+    assert message.kind == "button"
+    assert message.text == "Show me"
+    assert message.reply_id is None
+    incoming = to_incoming(message, bot_id="b", organization_id=ORG)
+    assert incoming.text == "Show me"
+    assert incoming.attachments == []
+    assert isinstance(to_event(message, bot_id="b", organization_id=ORG), IncomingMessage)
+
+
+def test_a_button_tap_with_no_text_stays_a_named_message():
+    payload = _load("template_button")
+    payload["entry"][0]["changes"][0]["value"]["messages"][0]["button"] = {}
+    [message] = parse_webhook(
+        payload, phone_number_id="PNID1", account_id="WABA1", now=NOW
+    ).messages
+    assert message.text == ""
+    [attachment] = to_incoming(message, bot_id="b", organization_id=ORG).attachments
+    assert attachment.filename == "button message"

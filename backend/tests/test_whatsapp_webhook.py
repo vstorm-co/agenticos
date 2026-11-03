@@ -1,8 +1,9 @@
 """The WhatsApp webhook: Meta's handshake, the signature, and what reaches the router (#2076).
 
-The route functions are called directly, with `spawn` patched and the bot service
+The route functions are called directly, with the inbound service and the bot service
 stubbed, as `test_teams_channel.py` does; what the signature check itself accepts is
-`test_whatsapp_payload.py`.
+`test_whatsapp_payload.py`, and what the inbound service does with a batch is
+`test_whatsapp_inbound.py`.
 """
 
 import asyncio
@@ -13,6 +14,7 @@ import json
 import time
 import uuid
 from collections.abc import AsyncIterator
+from datetime import UTC, datetime
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -22,11 +24,12 @@ from fastapi import HTTPException
 from app.api.routes.v1.whatsapp_webhook import MAX_BODY_BYTES, whatsapp_events, whatsapp_verify
 from app.services.channels import dedupe
 from app.services.channels.attachments import ChannelAttachmentService
-from app.services.channels.base import IncomingMessage, IncomingPress
+from app.services.channels.base import IncomingMessage
 from app.services.channels.mentions import AnsweredTurn, UnaddressedMessage
 from app.services.channels.router import ChannelMessageRouter
 from app.services.channels.whatsapp import WhatsAppAdapter
 from app.services.channels.whatsapp_graph import WhatsAppCredentials, WhatsAppGraphError
+from app.services.channels.whatsapp_payload import parse_webhook, to_event
 from app.worker.background.channel import process_channel_events_in_order
 from tests.test_whatsapp_payload import FIXTURES
 
@@ -99,7 +102,7 @@ async def _post(
     signature: str | _Sentinel | None = _SIGNED,
     secret: str | None = APP_SECRET,
     headers: dict[str, str] | None = None,
-    spawn: MagicMock | None = None,
+    inbound: MagicMock | None = None,
 ) -> tuple[Any, MagicMock]:
     """Call the route as Meta would; `signature` defaults to a valid one, `None` sends none."""
     raw = body if isinstance(body, bytes) else json.dumps(body).encode()
@@ -109,15 +112,26 @@ async def _post(
         else {"x-hub-signature-256": _sign(raw) if signature is _Sentinel.SIGNED else signature}
     )
     request = _request(raw, {**sent, **(headers or {})})
-    with (
-        patch(f"{ROUTE}.unseal_webhook_secret", return_value=secret),
-        patch(f"{ROUTE}.spawn", spawn if spawn is not None else MagicMock()) as spawn,
-    ):
-        answered = await whatsapp_events(bot.id if bot else uuid.uuid4(), request, _service(bot))
-    # `spawn` is patched, so the coroutines it was handed never run: close them unawaited.
-    for call in spawn.call_args_list:
-        call.args[0].close()
-    return answered, spawn
+    inbound = inbound if inbound is not None else _inbound()
+    with patch(f"{ROUTE}.unseal_webhook_secret", return_value=secret):
+        answered = await whatsapp_events(
+            bot.id if bot else uuid.uuid4(), request, _service(bot), inbound
+        )
+    return answered, inbound
+
+
+def _inbound() -> MagicMock:
+    return MagicMock(receive=AsyncMock())
+
+
+def _incoming(payload: dict[str, Any], bot: MagicMock, index: int = 0) -> IncomingMessage:
+    """What the router is handed for the payload's message `index`."""
+    parsed = parse_webhook(
+        payload, phone_number_id="PNID1", account_id="WABA1", now=datetime.now(UTC)
+    )
+    event = to_event(parsed.messages[index], bot_id=str(bot.id), organization_id=ORG)
+    assert isinstance(event, IncomingMessage)
+    return event
 
 
 class TestTheHandshake:
@@ -177,10 +191,10 @@ class TestTheHandshake:
 
 class TestRefusals:
     async def test_an_unknown_or_inactive_bot_gets_200_and_nothing_runs(self):
-        answered, spawn = await _post(_payload(), bot=None)
+        answered, inbound = await _post(_payload(), bot=None)
 
         assert answered.status_code == 200
-        spawn.assert_not_called()
+        inbound.receive.assert_not_awaited()
 
     async def test_a_bot_of_another_platform_or_without_its_number_is_refused(self):
         for bot in (
@@ -198,17 +212,17 @@ class TestRefusals:
         self, signature, caplog
     ):
         bot = _bot()
-        spawn = MagicMock()
+        inbound = _inbound()
         with (
             caplog.at_level("WARNING"),
             patch(f"{ROUTE}.parse_webhook") as parse,
             pytest.raises(HTTPException) as refused,
         ):
-            await _post(_payload(), bot=bot, signature=signature, spawn=spawn)
+            await _post(_payload(), bot=bot, signature=signature, inbound=inbound)
 
         assert refused.value.status_code == 401
         parse.assert_not_called()
-        spawn.assert_not_called()
+        inbound.receive.assert_not_awaited()
         assert [r.message for r in caplog.records] == ["whatsapp_signature_refused"]
         assert caplog.records[0].bot_id == str(bot.id)
 
@@ -240,17 +254,17 @@ class TestRefusals:
         ):
             service = _service(_bot())
             request = _request(body, headers)
+            inbound = _inbound()
             with (
                 patch(f"{ROUTE}.verify_signature") as verify,
-                patch(f"{ROUTE}.spawn") as spawn,
                 pytest.raises(HTTPException) as refused,
             ):
-                await whatsapp_events(uuid.uuid4(), request, service)
+                await whatsapp_events(uuid.uuid4(), request, service, inbound)
 
             assert refused.value.status_code == 413
             verify.assert_not_called()
             service.find_active.assert_not_awaited()
-            spawn.assert_not_called()
+            inbound.receive.assert_not_awaited()
 
     @pytest.mark.security
     async def test_a_chunked_body_is_never_buffered_past_the_limit(self):
@@ -265,16 +279,16 @@ class TestRefusals:
         request = MagicMock(headers={})
         request.stream = endless
         with pytest.raises(HTTPException) as refused:
-            await whatsapp_events(uuid.uuid4(), request, _service(_bot()))
+            await whatsapp_events(uuid.uuid4(), request, _service(_bot()), _inbound())
 
         assert refused.value.status_code == 413
         assert read <= MAX_BODY_BYTES // 1_000_000 + 1
 
     async def test_a_content_length_that_is_not_a_number_is_read_and_measured(self):
-        answered, spawn = await _post(_payload(), bot=_bot(), headers={"content-length": "lots"})
+        answered, inbound = await _post(_payload(), bot=_bot(), headers={"content-length": "lots"})
 
         assert answered.status_code == 200
-        spawn.assert_called_once()
+        inbound.receive.assert_awaited_once()
 
     @pytest.mark.parametrize("body", [b"not json", b"[1, 2]", b'"text"'])
     async def test_a_signed_body_that_is_not_an_object_is_a_400(self, body):
@@ -285,68 +299,24 @@ class TestRefusals:
 
 
 class TestMessages:
-    async def test_a_text_message_is_spawned_as_an_incoming_message(self):
+    async def test_the_route_hands_the_parsed_batch_to_the_customer_record(self):
         bot = _bot()
-        with patch(f"{ROUTE}.process_channel_events_in_order") as process:
-            answered, spawn = await _post(_payload(), bot=bot)
+        answered, inbound = await _post(_payload(), bot=bot)
 
         assert answered.status_code == 200
-        (events,) = [call.args[0] for call in process.call_args_list]
-        (incoming,) = events
-        assert incoming.platform == "whatsapp"
-        assert incoming.bot_id == str(bot.id)
-        assert incoming.platform_user_id == f"{ORG}:US.111"
-        assert incoming.platform_chat_id == "US.111"
-        assert incoming.chat_type == "private"
-        assert incoming.message_id == "wamid.A1"
-        assert incoming.text == "hello bot"
-        assert spawn.call_args.kwargs["name"] == f"whatsapp_events:{bot.id}"
+        inbound.receive.assert_awaited_once()
+        received_bot, parsed = inbound.receive.await_args.args
+        assert received_bot is bot
+        assert parsed.messages[0].wamid == "wamid.A1"
 
-    async def test_a_batch_is_handled_in_the_order_it_was_sent(self):
-        """Two from one customer arrive newest-first: one task, oldest first. A second
-        customer gets a task of their own, so they do not wait behind the first."""
-        payload = _payload()
-        first = payload["entry"][0]["changes"][0]["value"]
-        template = first["messages"][0]
-        now = int(time.time())
+    @pytest.mark.security
+    async def test_a_bad_signature_records_no_customer(self):
+        inbound = _inbound()
+        with pytest.raises(HTTPException) as refused:
+            await _post(_payload(), bot=_bot(), signature="sha256=" + "0" * 64, inbound=inbound)
 
-        def message(wamid: str, user: str, age: int, text: str) -> dict[str, Any]:
-            return {
-                **template,
-                "id": wamid,
-                "from_user_id": user,
-                "timestamp": str(now - age),
-                "text": {"body": text},
-            }
-
-        first["messages"] = [
-            message("wamid.2", "US.111", 10, "second"),
-            message("wamid.9", "US.222", 15, "other"),
-            message("wamid.1", "US.111", 30, "first"),
-        ]
-        with patch(f"{ROUTE}.process_channel_events_in_order") as process:
-            _, spawn = await _post(payload, bot=_bot())
-
-        assert spawn.call_count == 2
-        groups = [[e.text for e in call.args[0]] for call in process.call_args_list]
-        assert groups == [["first", "second"], ["other"]]
-
-    async def test_a_tap_and_a_message_keep_their_order(self):
-        """The tap answers the question the text before it left open: one task, in Meta's order."""
-        payload = _payload()
-        value = payload["entry"][0]["changes"][0]["value"]
-        tap = json.loads((FIXTURES / "button_reply.json").read_text())
-        tap_message = tap["entry"][0]["changes"][0]["value"]["messages"][0]
-        tap_message["timestamp"] = str(int(time.time()) - 2)
-        value["messages"].append(tap_message)
-        with patch(f"{ROUTE}.process_channel_events_in_order") as process:
-            _, spawn = await _post(payload, bot=_bot())
-
-        spawn.assert_called_once()
-        (events,) = [call.args[0] for call in process.call_args_list]
-        assert [type(e) for e in events] == [IncomingMessage, IncomingPress]
-        assert events[1].value == "aos:0123456789abcdef0123456789abcdef:0"
-        assert events[1].platform_user_id == f"{ORG}:US.111"
+        assert refused.value.status_code == 401
+        inbound.receive.assert_not_awaited()
 
     async def test_events_are_awaited_one_after_another(self):
         order: list[str] = []
@@ -368,9 +338,7 @@ class TestMessages:
     async def test_an_image_that_cannot_be_fetched_is_answered_by_name(self):
         """Meta refuses the media lookup: the image still reaches the router, which says so."""
         bot = _bot()
-        with patch(f"{ROUTE}.process_channel_events_in_order") as process:
-            await _post(_payload("image"), bot=bot)
-        (incoming,) = process.call_args_list[0].args[0]
+        incoming = _incoming(_payload("image"), bot)
         assert [a.filename for a in incoming.attachments] == ["image.jpg"]
 
         graph = MagicMock(
@@ -452,9 +420,7 @@ class TestMessages:
                 self.store.discard(key)
                 return 1
 
-        with patch(f"{ROUTE}.process_channel_events_in_order") as process:
-            await _post(_payload(), bot=_bot())
-        (incoming,) = process.call_args_list[0].args[0]
+        incoming = _incoming(_payload(), _bot())
 
         inner = AsyncMock()
         dedupe.configure(Redis())  # type: ignore[arg-type]
@@ -470,10 +436,11 @@ class TestMessages:
     async def test_statuses_are_acknowledged_and_never_run(self, caplog):
         bot = _bot()
         with caplog.at_level("INFO"):
-            answered, spawn = await _post(_payload("statuses"), bot=bot)
+            answered, inbound = await _post(_payload("statuses"), bot=bot)
 
         assert answered.status_code == 200
-        spawn.assert_not_called()
+        inbound.receive.assert_awaited_once()
+        assert inbound.receive.await_args.args[1].messages == ()
         failed = [r for r in caplog.records if r.message == "whatsapp_status_failed"]
         assert [(r.bot_id, r.status, r.codes) for r in failed] == [
             (str(bot.id), "failed", [131047])
@@ -482,22 +449,22 @@ class TestMessages:
 
     async def test_another_numbers_changes_are_ignored(self, caplog):
         with caplog.at_level("INFO"):
-            answered, spawn = await _post(
+            answered, inbound = await _post(
                 _payload("text"), bot=_bot(whatsapp_phone_number_id="OTHER")
             )
 
         assert answered.status_code == 200
-        spawn.assert_not_called()
+        assert inbound.receive.await_args.args[1].messages == ()
         dropped = [r for r in caplog.records if r.message == "whatsapp_webhook_dropped"]
         assert dropped[0].levelname == "WARNING" and dropped[0].foreign == 1
 
     async def test_stale_and_ignored_messages_are_counted_at_info(self, caplog):
         payload = _payload("text", ages=[8 * 24 * 3600])
         with caplog.at_level("INFO"):
-            answered, spawn = await _post(payload, bot=_bot())
+            answered, inbound = await _post(payload, bot=_bot())
 
         assert answered.status_code == 200
-        spawn.assert_not_called()
+        assert inbound.receive.await_args.args[1].messages == ()
         (dropped,) = [r for r in caplog.records if r.message == "whatsapp_webhook_dropped"]
         assert dropped.levelname == "INFO" and dropped.stale == 1
 
@@ -523,12 +490,12 @@ class TestHygiene:
         payload["entry"][0]["changes"].append(
             {**payload["entry"][0]["changes"][0], "value": {"metadata": {"phone_number_id": "X"}}}
         )
-        with caplog.at_level("DEBUG"), patch(f"{ROUTE}.process_channel_events_in_order") as process:
+        incoming = _incoming(payload, _bot())
+        with caplog.at_level("DEBUG"):
             await _post(payload, bot=_bot())
             await _post(payload, bot=_bot(whatsapp_phone_number_id="OTHER"))
             with pytest.raises(HTTPException):
                 await _post(payload, bot=_bot(), signature=None)
-        (incoming,) = process.call_args_list[0].args[0]
 
         logged = "\n".join(f"{r.getMessage()} {r.__dict__}" for r in caplog.records)
         assert PHONE not in logged
