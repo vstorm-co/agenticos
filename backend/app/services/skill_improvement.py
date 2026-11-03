@@ -27,6 +27,7 @@ from decimal import Decimal
 from typing import Literal
 from uuid import UUID
 
+from pydantic.main import IncEx
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -84,7 +85,13 @@ from app.schemas.improvement import (
     ImprovementEvent,
     ImprovementSelection,
 )
-from app.schemas.skill_check import CandidateText, SkillCheckApply, SkillCheckFork, SkillCheckStart
+from app.schemas.skill_check import (
+    CandidateText,
+    SkillCheckApply,
+    SkillCheckEstimate,
+    SkillCheckFork,
+    SkillCheckStart,
+)
 from app.schemas.skill_improvement import (
     ProblemAgent,
     SkillContinuationConsent,
@@ -177,6 +184,26 @@ class SessionLine:
 def candidate_hash(description: str, content: str) -> str:
     """What a check of this exact skill text is keyed on."""
     payload = json.dumps({"description": description, "content": content}, sort_keys=True)
+    return hashlib.sha256(payload.encode()).hexdigest()
+
+
+_UNPRICED: IncEx = {
+    "expected_usd": True,
+    "at_most_usd": True,
+    "org_remaining_usd": True,
+    "affordable": True,
+    "agents": {"__all__": {"expected_usd", "at_most_usd"}},
+}
+
+
+def plan_hash(description: str, content: str, check: SkillCheckEstimate) -> str:
+    """What a consent to a check is keyed on: the text and what the check runs on each
+    agent, so an agent that joins, leaves or republishes, or a dataset that changes,
+    asks again even when the price does not rise."""
+    plan = check.model_dump(mode="json", exclude=_UNPRICED)
+    payload = json.dumps(
+        {"description": description, "content": content, "plan": plan}, sort_keys=True
+    )
     return hashlib.sha256(payload.encode()).hexdigest()
 
 
@@ -638,11 +665,7 @@ class SkillImprovementService:
                 await skill_improvement_repo.update_run(
                     self.db, run=run, values={"base_version_id": base.id}
                 )
-                await skill_improvement_repo.update_iteration(
-                    self.db,
-                    iteration=await self._iteration(run),
-                    values={"candidate_hash": quote.candidate_hash},
-                )
+                await self._remeasure(ctx, run, await self._iteration(run))
             await self._start_check(ctx, run, line, consent.mode, base=base)
         else:
             await self._move(
@@ -751,17 +774,6 @@ class SkillImprovementService:
         if previous.status == CheckStatus.DONE.value:
             await self.checks.discard(ctx, skill_id, previous.id, from_session=True)
         base = await self._base(line)
-        iteration = await self._iteration(run)
-        await skill_improvement_repo.update_iteration(
-            self.db,
-            iteration=iteration,
-            values={
-                "candidate_hash": quote.candidate_hash,
-                "check_verdict": None,
-                "verdict": None,
-                "ended_at": None,
-            },
-        )
         await skill_improvement_repo.update_run(
             self.db,
             run=run,
@@ -772,6 +784,13 @@ class SkillImprovementService:
                 "actor_api_key_id": ctx.api_key_id,
             },
         )
+        iteration = await self._iteration(run)
+        await skill_improvement_repo.update_iteration(
+            self.db,
+            iteration=iteration,
+            values={"check_verdict": None, "verdict": None, "ended_at": None},
+        )
+        await self._remeasure(ctx, run, iteration)
         await self._start_check(ctx, run, line, mode, base=base)
         return await self._read(ctx, run, line)
 
@@ -806,7 +825,7 @@ class SkillImprovementService:
             and rules.affordable(
                 spent=spent, step_estimate=check.at_most_usd, budget=run.budget_usd
             ),
-            candidate_hash=candidate_hash(start.candidate.description, start.candidate.content),
+            candidate_hash=plan_hash(start.candidate.description, start.candidate.content, check),
             check_estimate=check,
         )
 
@@ -1419,7 +1438,9 @@ class SkillImprovementService:
                 and rules.affordable(
                     spent=spent, step_estimate=check.at_most_usd, budget=run.budget_usd
                 ),
-                candidate_hash=candidate_hash(start.candidate.description, start.candidate.content),
+                candidate_hash=plan_hash(
+                    start.candidate.description, start.candidate.content, check
+                ),
                 check_estimate=check,
             )
         self._refuse_moved(run, line)

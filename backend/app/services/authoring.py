@@ -75,9 +75,12 @@ from app.repositories import (
     improvement_repo,
     organization_repo,
     skill_proposal_repo,
+    skill_repo,
 )
 from app.repositories.personal_data import REPORT_EVIDENCE
 from app.schemas.authoring import (
+    SKILL_DERIVED,
+    SKILL_PROBLEM,
     AgentAuthoringRead,
     AgentWaiting,
     AuthoringEstimate,
@@ -767,28 +770,74 @@ class AuthoringService:
         return AgentAuthoringRead(
             has_evidence=has_evidence,
             batch=None if batch is None else await self._batch(ctx, agent, batch),
-            latest=None if not requests else self._request(requests[0], quotes=quotes),
-            verify=None if verify is None else self._request(verify, quotes=quotes),
+            latest=(
+                None
+                if not requests
+                else await self._request(ctx, agent, requests[0], quotes=quotes)
+            ),
+            verify=None
+            if verify is None
+            else await self._request(ctx, agent, verify, quotes=quotes),
         )
 
-    @staticmethod
-    def _request(request: AuthoringRequest, *, quotes: bool) -> AuthoringRequestRead:
-        """A request as a reader sees it - the runs' quotes only for a reader of runs."""
+    async def _request(
+        self, ctx: AuthContext, agent: Agent, request: AuthoringRequest, *, quotes: bool
+    ) -> AuthoringRequestRead:
+        """A request as a reader sees it - the runs' quotes only for a reader of runs, and
+        nothing drawn from one of the agent's skills the reader may not see."""
         read = AuthoringRequestRead.model_validate(request)
-        if quotes or read.report is None:
+        if read.report is None:
             return read
-        redacted = {
-            key: [
-                {
-                    **item,
-                    "evidence": [{"run_id": quote["run_id"]} for quote in item.get("evidence", [])],
-                }
-                for item in items
+        report = await self._without_hidden_skills(ctx, agent, read.report)
+        if not quotes:
+            report |= {
+                key: [
+                    {
+                        **item,
+                        "evidence": [
+                            {"run_id": quote["run_id"]} for quote in item.get("evidence", [])
+                        ],
+                    }
+                    for item in items
+                ]
+                for key in REPORT_EVIDENCE
+                if isinstance(items := report.get(key), list)
+            }
+        return read.model_copy(update={"report": report})
+
+    async def _without_hidden_skills(
+        self, ctx: AuthContext, agent: Agent, report: dict[str, Any]
+    ) -> dict[str, Any]:
+        """The report less what the improver drew from a skill the reader may not see.
+
+        The improver reads the agent's skills as the agent does, so its problems name
+        them and a rejected change may repeat their text. A rejection keeps no skill
+        id, so with any skill hidden every rejection drawn from a skill loses its
+        change, in place: an idea is decided by its position in the list.
+        """
+        problems = report.get("skill_problems")
+        named = [UUID(item["skill_id"]) for item in problems] if isinstance(problems, list) else []
+        spec = AgentSpec.model_validate(agent.draft_spec)
+        ids = list(dict.fromkeys([*spec.skill_ids, *named]))
+        rows = await skill_repo.get_many(self.db, ids, organization_id=ctx.organization_id)
+        visible = await accessible_ids(
+            self.db, ctx, list(rows.values()), Perm.SKILLS_VIEW, resource_type=SKILL
+        )
+        if all(skill_id in visible for skill_id in ids):
+            return dict(report)
+        shown = dict(report)
+        if isinstance(problems, list):
+            shown["skill_problems"] = [
+                item for item in problems if UUID(item["skill_id"]) in visible
             ]
-            for key in REPORT_EVIDENCE
-            if isinstance(items := read.report.get(key), list)
-        }
-        return read.model_copy(update={"report": {**read.report, **redacted}})
+        if isinstance(rejected := report.get("rejected"), list):
+            shown["rejected"] = [
+                {**item, "change": {}}
+                if item.get("kind") == SKILL_PROBLEM or item.get("reason") in SKILL_DERIVED
+                else item
+                for item in rejected
+            ]
+        return shown
 
     async def _batch(self, ctx: AuthContext, agent: Agent, batch: SpecProposalBatch) -> BatchRead:
         spec = AgentSpec.model_validate(agent.draft_spec)
@@ -1196,7 +1245,10 @@ class AuthoringService:
     async def _idea(
         self, ctx: AuthContext, agent: Agent, request_id: UUID, index: int
     ) -> tuple[AuthoringRequest, dict[str, Any], list[dict[str, Any]], dict[str, Any]]:
-        """A request's new-skill idea at `index`, with the report and list it sits in."""
+        """A request's new-skill idea at `index`, with the report and list it sits in.
+
+        An idea drawn from a skill the caller may not see is not there for them.
+        """
         request = await authoring_repo.get_request(
             self.db, request_id, organization_id=ctx.organization_id
         )
@@ -1207,7 +1259,8 @@ class AuthoringService:
         report = dict(request.report or {})
         ideas = list(report.get("rejected") or [])
         idea = ideas[index] if 0 <= index < len(ideas) else None
-        if idea is None or idea.get("kind") != HunkKind.CREATE_SKILL.value:
+        shown = (await self._without_hidden_skills(ctx, agent, report)).get("rejected") or []
+        if idea is None or idea.get("kind") != HunkKind.CREATE_SKILL.value or shown[index] != idea:
             raise NotFoundError(message="No new skill was proposed there", details={"index": index})
         return request, report, ideas, idea
 

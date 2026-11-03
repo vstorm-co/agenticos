@@ -258,6 +258,7 @@ TENANT_REQUIRED = [
     (skill_version_repo, "latest_number"),
     (skill_version_repo, "get_by_numbers"),
     (skill_version_repo, "list_versions"),
+    (skill_version_repo, "main_digests"),
     (skill_version_repo, "put_files"),
     (skill_version_repo, "get_files"),
     (skill_version_repo, "create_fork"),

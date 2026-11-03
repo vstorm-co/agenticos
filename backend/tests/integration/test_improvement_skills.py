@@ -5,11 +5,13 @@ from dataclasses import replace
 from decimal import Decimal
 
 import pytest
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
 from app.core.permissions import AuthContext, OrgRoleName, Perm
-from app.db.models.agent import Agent
+from app.db.models.agent import Agent, AgentVersion
+from app.db.models.agent_environment import AgentEnvironment
 from app.db.models.agent_run import AgentRun, RunSurface
 from app.db.models.dataset import Dataset
 from app.db.models.improvement import ImprovementRun
@@ -238,6 +240,31 @@ class TestTheSeed:
         assert (seed.agent_id, seed.fork_id, seed.run_ids) == (agent.id, fork.id, [cited])
         assert seed.problems == ["It says ninety days"]
         assert seed.quotes == ["Quoted for It says ninety days"]
+
+    async def test_the_line_is_the_one_the_sessions_version_read_after_a_republish(self, db):
+        ctx = await _owner(db)
+        skill = await _skill(db, ctx)
+        fork = await _fork(db, ctx, skill, "fork text")
+        agent = await _serving(db, ctx, "Forked", _spec(skill, fork_id=str(fork.id)))
+        run = await _session(db, ctx, agent)
+        run.base_version_id = agent.current_version_id
+        onto_main = AgentVersion(
+            agent_id=agent.id, organization_id=ctx.organization_id, version=2, spec=_spec(skill)
+        )
+        db.add(onto_main)
+        await db.flush()
+        environment = await db.scalar(
+            select(AgentEnvironment).where(AgentEnvironment.agent_id == agent.id)
+        )
+        assert environment is not None
+        agent.current_version_id = environment.version_id = onto_main.id
+        agent.draft_spec = _spec(skill)
+        await db.flush()
+        await _found(db, ctx, run, skill, "It says ninety days")
+
+        seed = await ImprovementPipelineService(db).skill_seed(ctx, run.id, skill.id)
+
+        assert seed.fork_id == fork.id
 
     async def test_a_pinned_agent_hands_its_problems_to_main(self, db):
         ctx = await _owner(db)

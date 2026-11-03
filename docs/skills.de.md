@@ -1,5 +1,5 @@
 ---
-source_sha: "5add4838a817"
+source_sha: "15641a925373"
 ---
 
 # Skills { #skills }
@@ -424,7 +424,10 @@ Ein Agent und jeder seiner Spezialisten lesen den Skill auf ihre eigene Art, dah
 ist jeder eine eigene Zeile: Die Skill-Seite listet ihn mit der Version, die er
 liest, wie viele Main-Versionen er zurückliegt und jeder Umgebung, die ihn anders
 liest. Ein Agent, der den Skill nur im Entwurf bindet, ist als solcher
-gekennzeichnet. Agents, die Sie nicht sehen, werden gezählt, nicht genannt.
+gekennzeichnet. Agents, die Sie nicht sehen, werden gezählt, nicht genannt. „Hinter
+main“ zählt die Main-Versionen danach, die geändert haben, was der Skill sagt:
+Denselben Text erneut wiederherzustellen ist keine Änderung, und ist main zu dem
+Text zurückgekehrt, den er liest, liegt er gar nicht zurück.
 
 **Change version** verschiebt einen Agent auf main, eine Main-Version oder einen
 Fork, und das ist eine Änderung am Agent. Ob der Agent den Skill selbst nutzt,
