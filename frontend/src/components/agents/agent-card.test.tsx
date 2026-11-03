@@ -119,7 +119,7 @@ describe("AgentCard", () => {
     );
   });
 
-  it("leads an editor from the attention badge to the Improve wizard", () => {
+  it("keeps an agent with attention on the normal builder route", () => {
     render(
       <AgentCard
         agent={agent({ id: "a9", name: "Refund desk" })}
@@ -135,10 +135,12 @@ describe("AgentCard", () => {
       />,
     );
 
-    expect(screen.getByText("Needs attention").closest("a")).toHaveAttribute(
+    expect(screen.getByText("Needs attention").closest("a")).toBeNull();
+    expect(screen.getByRole("link", { name: "Open Refund desk" })).toHaveAttribute(
       "href",
-      "/agents/a9/improve/new?resume=1",
+      "/agents/a9",
     );
+    expect(screen.queryByRole("link", { name: /Improve/ })).toBeNull();
   });
 
   it("only describes the attention to a reader who may not improve the agent", () => {

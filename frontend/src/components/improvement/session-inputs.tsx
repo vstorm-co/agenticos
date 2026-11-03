@@ -13,7 +13,7 @@ import type { Improvement } from "@/types/improvement";
 import type { Dataset, DatasetCase } from "@/types/datasets";
 import { WriteQuestions } from "./write-questions";
 import { StepError } from "./step-error";
-import { Details, Proportion, StateBadge, Tiles } from "./widgets";
+import { Details, Proportion, StateBadge } from "./widgets";
 import { useReadOnly } from "./read-only";
 
 export function StartSignals({ agentId, datasetId }: { agentId: string; datasetId: string }) {
@@ -37,18 +37,16 @@ export function StartSignals({ agentId, datasetId }: { agentId: string; datasetI
         <p role="status">{t("loading")}</p>
       ) : (
         <>
-          <Tiles
-            tiles={[
+          <dl className="bg-card divide-y rounded-xl border px-4">
+            {[
               {
                 label: t("ratedSignals"),
                 value: counts?.rated_down ?? 0,
-                tone: "rose",
                 icon: ThumbsDown,
               },
               {
                 label: t("failedSignals"),
                 value: counts?.failed_runs ?? 0,
-                tone: "amber",
                 icon: AlertTriangle,
               },
               ...(evidence.training_failures > 0
@@ -56,13 +54,18 @@ export function StartSignals({ agentId, datasetId }: { agentId: string; datasetI
                     {
                       label: t("trainSignals"),
                       value: evidence.training_failures,
-                      tone: "violet" as const,
                       icon: ListX,
                     },
                   ]
                 : []),
-            ]}
-          />
+            ].map(({ label, value, icon: Icon }) => (
+              <div key={label} className="flex items-center gap-3 py-4">
+                <Icon className="text-muted-foreground size-4 shrink-0" aria-hidden />
+                <dt className="min-w-0 flex-1 text-sm">{label}</dt>
+                <dd className="text-lg font-semibold tabular-nums">{value}</dd>
+              </div>
+            ))}
+          </dl>
           <p className="text-muted-foreground text-xs">{t("signalWindow")}</p>
           {evidence.items.length === 0 && (
             <p className="text-muted-foreground text-sm">{t("noLearningExamples")}</p>

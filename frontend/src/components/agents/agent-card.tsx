@@ -37,7 +37,6 @@ import { useLocale, useTranslations } from "next-intl";
 
 import { groupsLabel } from "@/components/sharing/audience-chip";
 import { attentionParts } from "@/lib/attention";
-import { ImproveLink } from "@/components/agents/improve-link";
 import type { AgentAttention } from "@/types/stats";
 
 /** Chip labels for the surfaces an agent answers on. Unknown values pass through. */
@@ -161,7 +160,7 @@ export function AgentCard({
               </p>
               <div className="col-span-2 flex flex-wrap items-center gap-1.5 sm:mt-2">
                 <AccessChip agent={agent} />
-                {attention && <AttentionBadge agentId={agent.id} attention={attention} />}
+                {attention && <AttentionBadge attention={attention} />}
                 {isSystemAgent(agent.kind) &&
                   (agent.system_key ? (
                     <Badge
@@ -296,10 +295,10 @@ function IconAction({
   );
 }
 
-/** Leads to the Improve wizard for a reader who may run it, and only describes otherwise. */
-function AttentionBadge({ agentId, attention }: { agentId: string; attention: AgentAttention }) {
+/** Describes the signal; opening any part of the card still opens the builder. */
+function AttentionBadge({ attention }: { attention: AgentAttention }) {
   const tAttention = useTranslations("attention");
-  const badge = (
+  return (
     <Badge
       variant="warning"
       className="font-normal"
@@ -307,17 +306,5 @@ function AttentionBadge({ agentId, attention }: { agentId: string; attention: Ag
     >
       {tAttention("badge")}
     </Badge>
-  );
-  if (!attention.can_edit) return badge;
-  return (
-    <ImproveLink
-      agentId={agentId}
-      aria-label={tAttention("improveLabel", {
-        reasons: attentionParts(attention, tAttention).join(", "),
-      })}
-      className="focus-visible:ring-ring pointer-events-auto relative rounded-md outline-none focus-visible:ring-2"
-    >
-      {badge}
-    </ImproveLink>
   );
 }

@@ -49,8 +49,8 @@ export function KnowledgeGapDraftMeta({ draft }: { draft: KnowledgeGapDraft }) {
           {draft.sources.map((source) => {
             const Icon = SOURCE_ICON[source.kind];
             return (
-              <li key={`${source.kind}:${source.id}`}>
-                <Badge variant="secondary" className="max-w-xs">
+              <li key={`${source.kind}:${source.id}`} className="max-w-full min-w-0">
+                <Badge variant="secondary" className="max-w-full sm:max-w-xs">
                   <Icon className="h-3 w-3" aria-hidden />
                   <span className="truncate">{source.label}</span>
                 </Badge>

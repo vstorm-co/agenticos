@@ -68,7 +68,7 @@ export function DatasetCard({ dataset, onDelete }: DatasetCardProps) {
             </p>
           </div>
         </div>
-        <div className="text-muted-foreground relative mt-auto flex items-center gap-2 border-t pt-3 text-xs">
+        <div className="text-muted-foreground relative mt-auto flex min-w-0 flex-wrap items-center gap-2 border-t pt-3 text-xs">
           <span
             role="img"
             aria-label={t(`visibility.${dataset.visibility}`)}
@@ -78,7 +78,7 @@ export function DatasetCard({ dataset, onDelete }: DatasetCardProps) {
             <VisibilityIcon className="h-3.5 w-3.5" aria-hidden />
             <span>{t(`visibility.${dataset.visibility}`)}</span>
           </span>
-          <span className="pointer-events-none">
+          <span className="pointer-events-none min-w-0 flex-1 break-words">
             {t("editedWhen", { when: timeAgo(edited, tt, locale) })}
           </span>
           {dataset.can_edit && (

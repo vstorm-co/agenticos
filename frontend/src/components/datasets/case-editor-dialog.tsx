@@ -23,7 +23,7 @@ import {
 } from "@/components/ui";
 import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
 import { submitFailure } from "@/lib/api-error";
-import { DIALOG_COLUMN, DIALOG_WIDE } from "@/lib/dialog-sizes";
+import { DIALOG_BODY, DIALOG_CANVAS, DIALOG_FILL } from "@/lib/dialog-sizes";
 import { cn } from "@/lib/utils";
 import { useUnsavedChangesStore } from "@/stores/unsaved-changes-store";
 import type { DatasetCase, DatasetCaseContent, ToolOrderMode } from "@/types/datasets";
@@ -292,7 +292,7 @@ export function CaseEditorDialog({
 
   return (
     <Dialog open={open} onOpenChange={close}>
-      <DialogContent className={cn(DIALOG_COLUMN, DIALOG_WIDE)}>
+      <DialogContent className={cn(DIALOG_CANVAS, DIALOG_FILL)}>
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>
@@ -306,10 +306,15 @@ export function CaseEditorDialog({
                     : t("caseSavesVersionN", { number: nextVersion }))}
           </DialogDescription>
         </DialogHeader>
-        <div className="-mx-1.5 min-h-0 flex-1 space-y-4 overflow-y-auto px-1.5 py-1">
-          {!editing && viewing !== undefined && <CaseView content={viewing} />}
+        <div className={cn(DIALOG_BODY, "grid content-start items-start gap-4 lg:grid-cols-2")}>
+          {!editing && viewing !== undefined && (
+            <div className="lg:col-span-2">
+              <CaseView content={viewing} />
+            </div>
+          )}
           {editing && json !== null && (
             <FormField
+              className="lg:col-span-2"
               htmlFor="case-json"
               label={t("caseJson")}
               description={t("caseJsonHint")}
@@ -317,7 +322,7 @@ export function CaseEditorDialog({
             >
               <Textarea
                 rows={18}
-                className="font-mono text-xs"
+                className="font-mono text-base md:text-xs"
                 value={json}
                 onChange={(event) => {
                   setJson(event.target.value);
@@ -329,7 +334,14 @@ export function CaseEditorDialog({
           {editing &&
             json === null &&
             GROUPS.map(({ group, slots }) => (
-              <div key={group} data-tour={`case-group-${group}`} className="space-y-4">
+              <div
+                key={group}
+                data-tour={`case-group-${group}`}
+                className={cn(
+                  "min-w-0 space-y-4 rounded-xl border p-4",
+                  group === "labels" && "lg:col-span-2",
+                )}
+              >
                 {slots.map((slot) => {
                   if (slot === "tags") {
                     return (
@@ -427,18 +439,18 @@ export function CaseEditorDialog({
                 })}
               </div>
             ))}
+          {editing && json === null && scoring !== undefined && (
+            <CaseGradedBy scoring={scoring} draft={draft} />
+          )}
+          {twin !== null && (
+            <CaseTwinNotice
+              twin={twin.found}
+              busy={saving}
+              onOpen={twin.open}
+              onAddAnyway={twin.addAnyway}
+            />
+          )}
         </div>
-        {editing && json === null && scoring !== undefined && (
-          <CaseGradedBy scoring={scoring} draft={draft} />
-        )}
-        {twin !== null && (
-          <CaseTwinNotice
-            twin={twin.found}
-            busy={saving}
-            onOpen={twin.open}
-            onAddAnyway={twin.addAnyway}
-          />
-        )}
         <DialogFooter className="items-center">
           {!readOnly && (
             <Button variant="link" size="sm" className="mr-auto px-0" onClick={toggleJson}>

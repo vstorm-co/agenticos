@@ -147,6 +147,7 @@ function TodayStart({
       )}
       <Button
         variant="outline"
+        className="h-auto max-w-full text-left whitespace-normal"
         disabled={!priced?.affordable || runs.start.isPending}
         onClick={() =>
           void (async () => {

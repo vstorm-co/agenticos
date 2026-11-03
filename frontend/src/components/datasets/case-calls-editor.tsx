@@ -34,21 +34,23 @@ function ArgRows({
   const change = (index: number, patch: Partial<ArgDraft>) =>
     onChange(call.args.map((arg, at) => (at === index ? { ...arg, ...patch } : arg)));
   return (
-    <div className="space-y-1.5 pl-4">
+    <div className="min-w-0 space-y-1.5 sm:pl-4">
       {call.args.map((arg, index) => (
-        <div key={index} className="flex items-center gap-2">
+        <div key={index} className="flex min-w-0 flex-wrap items-center gap-2 sm:flex-nowrap">
           <Input
             value={arg.key}
-            className="w-40 shrink-0 font-mono text-xs"
+            className="w-full min-w-0 font-mono text-base sm:w-40 sm:shrink-0 md:text-xs"
             aria-label={t("argKey", { number, arg: index + 1 })}
             placeholder={KEY_EXAMPLE}
+            spellCheck={false}
             onChange={(event) => change(index, { key: event.target.value })}
           />
           <Input
             value={arg.value}
-            className="font-mono text-xs"
+            className="min-w-0 flex-1 font-mono text-base md:text-xs"
             aria-label={t("argValue", { number, arg: index + 1 })}
             placeholder={VALUE_EXAMPLE}
+            spellCheck={false}
             onChange={(event) => change(index, { value: event.target.value })}
           />
           <Button
@@ -103,13 +105,14 @@ export function CaseCallsEditor({ calls, onChange, knownTools = [] }: CaseCallsE
       </datalist>
       {calls.map((call, index) => (
         <div key={index} className="space-y-1.5">
-          <div className="flex items-center gap-2">
+          <div className="flex min-w-0 items-center gap-2">
             <Input
               list={listId}
               value={call.tool}
-              className="w-56 font-mono text-xs"
+              className="min-w-0 flex-1 font-mono text-base sm:w-56 sm:flex-none md:text-xs"
               aria-label={t("callTool", { number: index + 1 })}
               placeholder={TOOL_EXAMPLE}
+              spellCheck={false}
               onChange={(event) => change(index, { tool: event.target.value })}
             />
             <Button

@@ -71,6 +71,25 @@ describe("KnowledgeGapsPanel", () => {
     answer();
   });
 
+  it("expands in place and keeps its status filter when Escape closes full screen", async () => {
+    answer();
+    render(
+      <KnowledgeGapsPanel
+        scope={{ kind: "agent", id: "a1" }}
+        status="covered"
+        onStatusChange={vi.fn()}
+      />,
+    );
+    const filter = screen.getByRole("combobox", { name: "Show topics" });
+    await userEvent.click(screen.getByRole("button", { name: "Full screen" }));
+    expect(screen.getByRole("dialog")).toContainElement(filter);
+    expect(filter).toHaveTextContent("Covered");
+    await userEvent.keyboard("{Escape}");
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(screen.getByRole("combobox", { name: "Show topics" })).toBe(filter);
+    expect(filter).toHaveTextContent("Covered");
+  });
+
   it("lists a collection's open topics, with how often and by which agents", () => {
     answer({ topics: [TOPIC], total: 1 });
     render(<KnowledgeGapsPanel scope={{ kind: "collection", id: "kb1" }} />);

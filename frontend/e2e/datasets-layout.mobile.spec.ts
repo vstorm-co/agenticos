@@ -1,0 +1,138 @@
+import type { Page } from "@playwright/test";
+
+import { expect, test } from "./fixtures";
+import { AUTH_STATE } from "./helpers";
+
+test.use({ storageState: AUTH_STATE });
+
+async function fitsPage(page: Page) {
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
+    await page.evaluate(() => innerWidth),
+  );
+}
+
+test("case editing keeps fields and save reachable on narrow and short screens", async ({
+  page,
+}, info) => {
+  test.setTimeout(120_000);
+  const name = `Responsive dataset ${Date.now().toString(36)} ${"long-name-".repeat(7)}`;
+  const question = `Responsive question ${Date.now().toString(36)}`;
+  const longAnswer = `https://example.com/${"unbroken-answer-".repeat(40)}`;
+  await page.goto("/datasets");
+  await page.getByRole("button", { name: "New dataset", exact: true }).click();
+  let dialog = page.getByRole("dialog");
+  await dialog.getByRole("textbox", { name: /^Name/ }).fill(name);
+  await dialog.getByRole("button", { name: "Create", exact: true }).click();
+  await expect(page.getByRole("heading", { name, exact: true })).toBeVisible();
+  await page
+    .getByRole("tabpanel", { name: "Cases", exact: true })
+    .getByRole("button", { name: "Add case", exact: true })
+    .click();
+  dialog = page.getByRole("dialog");
+  await dialog.getByRole("textbox", { name: /^Input/ }).fill(question);
+  await dialog.getByRole("textbox", { name: "Reference answer", exact: true }).fill(longAnswer);
+  await dialog.getByRole("button", { name: "Add a turn", exact: true }).click();
+  await dialog
+    .getByRole("textbox", { name: "Turn 1: what was said", exact: true })
+    .fill(longAnswer);
+  await dialog.getByRole("button", { name: "Add a tool call", exact: true }).click();
+  await dialog.getByRole("combobox", { name: "Call 1: tool", exact: true }).fill("search_kb");
+  await dialog.getByRole("button", { name: "Add an argument", exact: true }).click();
+  await dialog
+    .getByRole("textbox", { name: "Call 1, argument 1: name", exact: true })
+    .fill("query");
+  await dialog
+    .getByRole("textbox", { name: "Call 1, argument 1: value", exact: true })
+    .fill(longAnswer);
+
+  for (const width of [320, 390, 1440]) {
+    for (const height of [360, 844]) {
+      await page.setViewportSize({ width, height });
+      await page.screenshot({
+        path: info.outputPath(`case-${width}-${height}.png`),
+        animations: "disabled",
+      });
+      await expect
+        .poll(async () => (await dialog.boundingBox())?.y ?? -1)
+        .toBeGreaterThanOrEqual(0);
+      await expect
+        .poll(async () => {
+          const bounds = await dialog.boundingBox();
+          return bounds ? bounds.y + bounds.height : Infinity;
+        })
+        .toBeLessThanOrEqual(height + 1);
+      await expect
+        .poll(async () => (await dialog.boundingBox())?.height ?? 0)
+        .toBeGreaterThanOrEqual(height - 50);
+      await fitsPage(page);
+      const bounds = await dialog.boundingBox();
+      expect(bounds).not.toBeNull();
+      if (!bounds) throw new Error("The case editor has no visible bounds");
+      expect(bounds.height).toBeGreaterThanOrEqual(height - 50);
+      expect(bounds.y + bounds.height).toBeLessThanOrEqual(height + 1);
+      const speaker = await dialog
+        .getByRole("combobox", { name: "Turn 1: who speaks", exact: true })
+        .boundingBox();
+      const turn = await dialog
+        .getByRole("textbox", { name: "Turn 1: what was said", exact: true })
+        .boundingBox();
+      if (!speaker || !turn) throw new Error("The conversation turn is missing");
+      expect(turn.y).toBeGreaterThanOrEqual(speaker.y + speaker.height);
+      expect(turn.width).toBeGreaterThan(speaker.width);
+      for (const field of await dialog.locator("input, textarea, [role=combobox]").all()) {
+        const fieldBounds = await field.boundingBox();
+        if (!fieldBounds) continue;
+        expect(fieldBounds.x).toBeGreaterThanOrEqual(bounds.x);
+        expect(fieldBounds.x + fieldBounds.width).toBeLessThanOrEqual(bounds.x + bounds.width + 1);
+        if (width < 768 && (await field.getAttribute("role")) !== "combobox") {
+          expect(
+            await field.evaluate((element) => parseFloat(getComputedStyle(element).fontSize)),
+          ).toBeGreaterThanOrEqual(16);
+        }
+      }
+      const save = dialog.getByRole("button", { name: "Save case", exact: true });
+      const saveBounds = await save.boundingBox();
+      expect(saveBounds).not.toBeNull();
+      if (!saveBounds) throw new Error("The save action has no visible bounds");
+      expect(saveBounds.y + saveBounds.height).toBeLessThanOrEqual(height);
+      await save.scrollIntoViewIfNeeded();
+      await expect(save).toBeInViewport();
+    }
+  }
+  await page.setViewportSize({ width: 320, height: 844 });
+  await dialog.getByRole("button", { name: "Save case", exact: true }).click();
+  await expect(dialog).toHaveCount(0);
+  await page.getByRole("button", { name: new RegExp(`^${question}`) }).click();
+  await expect(
+    page.getByRole("dialog").getByText(longAnswer, { exact: true }).first(),
+  ).toBeVisible();
+  await fitsPage(page);
+  await page.screenshot({ path: info.outputPath("saved-case-320.png"), animations: "disabled" });
+  await page.keyboard.press("Escape");
+  for (const width of [320, 1440]) {
+    await page.setViewportSize({ width, height: 844 });
+    for (const tab of ["Cases", "Generated", "Grading", "Evals", "Review"]) {
+      await page.getByRole("tab", { name: new RegExp(`^${tab}`) }).click();
+      await page.getByRole("button", { name: "Full screen", exact: true }).click();
+      const workspace = page.getByRole("dialog", { name, exact: true });
+      await expect(workspace).toBeVisible();
+      const bounds = await workspace.boundingBox();
+      if (!bounds) throw new Error("The dataset workspace has no bounds");
+      expect(bounds.x).toBe(0);
+      expect(bounds.y).toBe(0);
+      expect(bounds.width).toBe(width);
+      expect(bounds.height).toBe(844);
+      await fitsPage(page);
+      await page.screenshot({
+        path: info.outputPath(`workspace-${tab}-${width}.png`),
+        animations: "disabled",
+      });
+      await page.keyboard.press("Escape");
+      await expect(workspace).toHaveCount(0);
+      await expect(page.getByRole("tab", { name: new RegExp(`^${tab}`) })).toHaveAttribute(
+        "data-state",
+        "active",
+      );
+    }
+  }
+});

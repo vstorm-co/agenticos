@@ -38,7 +38,7 @@ function Attempt({ attempt }: { attempt: EvalAttempt }) {
   const why = attempt.outcome === null ? (attempt.score?.unscored_reason ?? null) : null;
   const known = reasonKeyOf(why);
   return (
-    <div className="overflow-hidden rounded-md border">
+    <div className="min-w-0 overflow-hidden rounded-md border wrap-anywhere">
       <div className="bg-muted/40 flex flex-wrap items-center gap-x-3 gap-y-1 border-b px-3 py-2">
         <p className="text-sm font-semibold">
           {attempt.attempt === 0 ? t("firstAnswer") : t("rerun", { n: attempt.attempt })}

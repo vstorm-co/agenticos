@@ -70,7 +70,7 @@ function CheckValue({
         rows={2}
         value={check.value}
         aria-label={label}
-        className={as === "json" ? "font-mono text-xs" : undefined}
+        className={as === "json" ? "font-mono text-base md:text-xs" : undefined}
         placeholder={placeholder}
         onChange={(event) => onChange({ value: event.target.value })}
       />

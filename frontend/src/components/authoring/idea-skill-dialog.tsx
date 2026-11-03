@@ -16,7 +16,7 @@ import {
   Textarea,
 } from "@/components/ui";
 import { getErrorMessage } from "@/lib/api-error";
-import { DIALOG_BODY, DIALOG_BROAD, DIALOG_COLUMN } from "@/lib/dialog-sizes";
+import { DIALOG_BODY, DIALOG_CANVAS, DIALOG_FILL } from "@/lib/dialog-sizes";
 import type { ProposedSkill, RejectedChange } from "@/types/authoring";
 
 /** Below this many distinct answers the assistant does not add a new skill on its own. */
@@ -71,7 +71,7 @@ export function IdeaSkillDialog({
 
   return (
     <Dialog open onOpenChange={onOpenChange}>
-      <DialogContent className={`${DIALOG_BROAD} ${DIALOG_COLUMN}`}>
+      <DialogContent className={`${DIALOG_CANVAS} ${DIALOG_FILL}`}>
         <DialogHeader>
           <DialogTitle>{t("title")}</DialogTitle>
           <DialogDescription>{t("description")}</DialogDescription>

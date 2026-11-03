@@ -29,7 +29,7 @@ import { useGenerateCases } from "@/hooks/use-case-generation";
 import { usePermissions } from "@/hooks/use-permissions";
 import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
 import { submitFailure } from "@/lib/api-error";
-import { DIALOG_COLUMN, DIALOG_FORM } from "@/lib/dialog-sizes";
+import { DIALOG_BODY, DIALOG_COLUMN, DIALOG_FORM } from "@/lib/dialog-sizes";
 import { cn } from "@/lib/utils";
 import { useUnsavedChangesStore } from "@/stores/unsaved-changes-store";
 import {
@@ -129,7 +129,7 @@ export function GenerateCasesDialog({
           <DialogTitle>{t("generateCases")}</DialogTitle>
           <DialogDescription>{t("generateCasesBody")}</DialogDescription>
         </DialogHeader>
-        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-0.5 py-1">
+        <div className={cn(DIALOG_BODY, "space-y-4")}>
           <SystemAgentChoice
             kind="generator"
             value={generatorId}

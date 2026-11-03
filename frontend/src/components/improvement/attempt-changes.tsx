@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
-import { Button, Checkbox, Textarea } from "@/components/ui";
+import { Button, Checkbox, MarkdownEditor } from "@/components/ui";
 import { ChangePreview } from "@/components/authoring/result-dialog";
 import {
   useAttemptChanges,
@@ -173,11 +173,12 @@ function Rewording({
     );
   return (
     <div className="space-y-2">
-      <Textarea
-        aria-label={t("wording", { number })}
-        className="min-h-32 font-mono text-xs"
+      <MarkdownEditor
+        label={t("wording", { number })}
         value={draft}
-        onChange={(event) => setDraft(event.target.value)}
+        onChange={setDraft}
+        rows={6}
+        inertImages
       />
       <div className="flex flex-wrap gap-2">
         <Button

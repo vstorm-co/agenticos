@@ -6,6 +6,10 @@ import { ClipboardCheck, FlaskConical, ListChecks, Scale, Sparkles } from "lucid
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
+import { useWorkspaceFullscreen } from "@/hooks/use-workspace-fullscreen";
+import { WorkspaceFullscreenButton } from "@/components/ui/workspace-fullscreen-button";
+import { cn } from "@/lib/utils";
+
 import { CaseEditorDialog, type CaseCopy } from "@/components/datasets/case-editor-dialog";
 import { draftOf, EMPTY_DRAFT, type CaseDraft } from "@/components/datasets/case-form";
 import { CaseRow } from "@/components/datasets/case-row";
@@ -76,6 +80,7 @@ export default function DatasetPage({ params }: PageProps) {
   const tErrors = useTranslations("errors");
   const tUnsaved = useTranslations("unsaved");
   const router = useRouter();
+  const { ref: workspaceRef, expanded, toggle } = useWorkspaceFullscreen();
   const [tabParam, setTabParam] = useUrlState("tab");
   const tab = tabParam !== null && TABS.includes(tabParam) ? tabParam : "cases";
   const setTab = (next: string) => setTabParam(next === "cases" ? null : next);
@@ -212,130 +217,145 @@ export default function DatasetPage({ params }: PageProps) {
           }}
         />
       )}
-      <Tabs value={shown} onValueChange={showTab} className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="cases">
-            <ListChecks className="mr-1.5 size-4 shrink-0" aria-hidden />
-            {t("cases")}
-          </TabsTrigger>
-          {dataset.can_edit && (
-            <TabsTrigger value="generated" data-tour="datasets-generated-tab">
-              <Sparkles className="mr-1.5 size-4 shrink-0" aria-hidden />
-              {t("generatedTab", { count: dataset.pending_proposals })}
-            </TabsTrigger>
-          )}
-          <TabsTrigger value="grading" data-tour="datasets-grading-tab">
-            <Scale className="mr-1.5 size-4 shrink-0" aria-hidden />
-            {t("scoring.title")}
-            {gradingUnsaved && (
-              <span
-                className="bg-primary ml-1.5 size-1.5 rounded-full"
-                role="img"
-                aria-label={t("scoring.unsaved")}
-              />
-            )}
-          </TabsTrigger>
-          {canViewRuns && (
-            <TabsTrigger value="evals" data-tour="datasets-evals-tab">
-              <FlaskConical className="mr-1.5 size-4 shrink-0" aria-hidden />
-              {t("evals")}
-            </TabsTrigger>
-          )}
-          <TabsTrigger value="review" data-tour="datasets-review-tab">
-            <ClipboardCheck className="mr-1.5 size-4 shrink-0" aria-hidden />
-            {t("scoring.scores")}
-          </TabsTrigger>
-        </TabsList>
-        <TabsContent value="cases">
-          <ListCard
-            namedByPage
-            title={t("cases")}
-            counted={t("caseCount", { count: cases.total })}
-            controls={
-              versions.length > 0 && (
-                <VersionSelect
-                  versions={versions}
-                  latest={dataset.latest_version}
-                  value={version}
-                  onChange={(next) =>
-                    leave(() => {
-                      setVersionParam(next === null ? null : String(next));
-                      setPage(0);
-                    })
+      <div
+        ref={workspaceRef}
+        role={expanded ? "dialog" : undefined}
+        aria-modal={expanded || undefined}
+        aria-label={dataset.name}
+        className={cn(
+          "min-w-0",
+          expanded && "bg-background fixed inset-0 z-40 overflow-y-auto p-4 sm:p-6",
+        )}
+      >
+        <Tabs value={shown} onValueChange={showTab} className="space-y-4">
+          {expanded && <h2 className="mb-4 text-lg font-semibold break-words">{dataset.name}</h2>}
+          <div className="flex min-w-0 items-center gap-2">
+            <TabsList className="min-w-0 flex-1">
+              <TabsTrigger value="cases">
+                <ListChecks className="mr-1.5 size-4 shrink-0" aria-hidden />
+                {t("cases")}
+              </TabsTrigger>
+              {dataset.can_edit && (
+                <TabsTrigger value="generated" data-tour="datasets-generated-tab">
+                  <Sparkles className="mr-1.5 size-4 shrink-0" aria-hidden />
+                  {t("generatedTab", { count: dataset.pending_proposals })}
+                </TabsTrigger>
+              )}
+              <TabsTrigger value="grading" data-tour="datasets-grading-tab">
+                <Scale className="mr-1.5 size-4 shrink-0" aria-hidden />
+                {t("scoring.title")}
+                {gradingUnsaved && (
+                  <span
+                    className="bg-primary ml-1.5 size-1.5 rounded-full"
+                    role="img"
+                    aria-label={t("scoring.unsaved")}
+                  />
+                )}
+              </TabsTrigger>
+              {canViewRuns && (
+                <TabsTrigger value="evals" data-tour="datasets-evals-tab">
+                  <FlaskConical className="mr-1.5 size-4 shrink-0" aria-hidden />
+                  {t("evals")}
+                </TabsTrigger>
+              )}
+              <TabsTrigger value="review" data-tour="datasets-review-tab">
+                <ClipboardCheck className="mr-1.5 size-4 shrink-0" aria-hidden />
+                {t("scoring.scores")}
+              </TabsTrigger>
+            </TabsList>
+            <WorkspaceFullscreenButton expanded={expanded} onToggle={toggle} />
+          </div>
+          <TabsContent value="cases">
+            <ListCard
+              namedByPage
+              title={t("cases")}
+              counted={t("caseCount", { count: cases.total })}
+              controls={
+                versions.length > 0 && (
+                  <VersionSelect
+                    versions={versions}
+                    latest={dataset.latest_version}
+                    value={version}
+                    onChange={(next) =>
+                      leave(() => {
+                        setVersionParam(next === null ? null : String(next));
+                        setPage(0);
+                      })
+                    }
+                  />
+                )
+              }
+            >
+              {linkedCase.error && (
+                <p role="alert" className="text-muted-foreground mb-3 text-sm">
+                  {t("linkedCaseGone")}
+                </p>
+              )}
+              {cases.isLoading ? (
+                <LoadingState variant="skeleton-cards" rows={2} />
+              ) : cases.error ? (
+                <ErrorState
+                  description={getErrorMessage(cases.error, tErrors)}
+                  cta={{ label: tc("retry"), onClick: () => void cases.refetch() }}
+                />
+              ) : cases.cases.length === 0 ? (
+                <EmptyCases
+                  datasetId={id}
+                  onAddCase={
+                    editable ? () => setEditing({ draft: EMPTY_DRAFT, item: null }) : undefined
                   }
+                  onImport={editable ? (file) => cases.importFile.mutateAsync(file) : undefined}
+                  onGenerate={editable ? () => showTab("generated") : undefined}
                 />
-              )
-            }
-          >
-            {linkedCase.error && (
-              <p role="alert" className="text-muted-foreground mb-3 text-sm">
-                {t("linkedCaseGone")}
-              </p>
-            )}
-            {cases.isLoading ? (
-              <LoadingState variant="skeleton-cards" rows={2} />
-            ) : cases.error ? (
-              <ErrorState
-                description={getErrorMessage(cases.error, tErrors)}
-                cta={{ label: tc("retry"), onClick: () => void cases.refetch() }}
-              />
-            ) : cases.cases.length === 0 ? (
-              <EmptyCases
-                datasetId={id}
-                onAddCase={
-                  editable ? () => setEditing({ draft: EMPTY_DRAFT, item: null }) : undefined
-                }
-                onImport={editable ? (file) => cases.importFile.mutateAsync(file) : undefined}
-                onGenerate={editable ? () => showTab("generated") : undefined}
-              />
-            ) : (
-              <div className="space-y-4">
-                <ul>
-                  {cases.cases.map((item) => (
-                    <CaseRow
-                      key={item.id}
-                      item={item}
-                      onOpen={() => openCase(item)}
-                      onRemove={editable ? () => cases.remove.mutate(item.case_id) : undefined}
-                    />
-                  ))}
-                </ul>
-                <Pager
-                  page={page}
-                  pageCount={pageCount}
-                  matched={cases.total}
-                  total={cases.total}
-                  onPage={setPage}
-                  counted={t("caseCount", { count: cases.total })}
-                />
-              </div>
-            )}
-          </ListCard>
-        </TabsContent>
-        {dataset.can_edit && (
-          <TabsContent value="generated">
-            <GeneratePanel datasetId={id} />
+              ) : (
+                <div className="space-y-4">
+                  <ul>
+                    {cases.cases.map((item) => (
+                      <CaseRow
+                        key={item.id}
+                        item={item}
+                        onOpen={() => openCase(item)}
+                        onRemove={editable ? () => cases.remove.mutate(item.case_id) : undefined}
+                      />
+                    ))}
+                  </ul>
+                  <Pager
+                    page={page}
+                    pageCount={pageCount}
+                    matched={cases.total}
+                    total={cases.total}
+                    onPage={setPage}
+                    counted={t("caseCount", { count: cases.total })}
+                  />
+                </div>
+              )}
+            </ListCard>
           </TabsContent>
-        )}
-        {/* Kept mounted while another tab is open, so a card's unsaved change
+          {dataset.can_edit && (
+            <TabsContent value="generated">
+              <GeneratePanel datasetId={id} />
+            </TabsContent>
+          )}
+          {/* Kept mounted while another tab is open, so a card's unsaved change
             survives looking at the cases it is about. */}
-        <TabsContent value="grading" forceMount className="data-[state=inactive]:hidden">
-          <GradingPanel
-            dataset={dataset}
-            onDirtyChange={setGradingUnsaved}
-            localCopy={dataset.can_edit ? keep("grading") : undefined}
-            restore={gradingRestore}
-          />
-        </TabsContent>
-        {canViewRuns && (
-          <TabsContent value="evals">
-            <DatasetEvalsPanel datasetId={id} title={t("evals")} />
+          <TabsContent value="grading" forceMount className="data-[state=inactive]:hidden">
+            <GradingPanel
+              dataset={dataset}
+              onDirtyChange={setGradingUnsaved}
+              localCopy={dataset.can_edit ? keep("grading") : undefined}
+              restore={gradingRestore}
+            />
           </TabsContent>
-        )}
-        <TabsContent value="review">
-          <ReviewPanel dataset={dataset} />
-        </TabsContent>
-      </Tabs>
+          {canViewRuns && (
+            <TabsContent value="evals">
+              <DatasetEvalsPanel datasetId={id} title={t("evals")} />
+            </TabsContent>
+          )}
+          <TabsContent value="review">
+            <ReviewPanel dataset={dataset} />
+          </TabsContent>
+        </Tabs>
+      </div>
 
       {dialog === "details" && (
         <EditDatasetDialog dataset={dataset} onOpenChange={() => setDialog(null)} update={update} />

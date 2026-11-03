@@ -44,7 +44,11 @@ export function JudgePicker({ value, onChange, disabled, onCreate }: JudgePicker
 
   return (
     <div className="flex flex-wrap items-end gap-2">
-      <FormField htmlFor="grading-judge" label={t("judgePick")} className="min-w-64 flex-1">
+      <FormField
+        htmlFor="grading-judge"
+        label={t("judgePick")}
+        className="min-w-0 flex-1 sm:min-w-64"
+      >
         <Select
           value={value ?? DEFAULT}
           onValueChange={(next) => onChange(next === DEFAULT ? null : next)}

@@ -87,6 +87,7 @@ vi.mock("@/components/datasets/grading-panel", () => ({
   ),
 }));
 vi.mock("@/components/datasets/review-panel", () => ({ ReviewPanel: () => <p>review</p> }));
+vi.mock("@/components/datasets/generate-panel", () => ({ GeneratePanel: () => <p>generated</p> }));
 
 const CASE = {
   id: "r1",
@@ -141,6 +142,21 @@ describe("the dataset page", () => {
     state.push.mockReset();
     state.remove.mockReset();
   });
+
+  it.each(["cases", "generated", "grading", "evals", "review"])(
+    "expands the %s workspace in place and keeps its selected tab on Escape",
+    async (tab) => {
+      state.tab = tab;
+      await mount();
+      const tabs = screen.getByRole("tablist");
+      await userEvent.click(screen.getByRole("button", { name: "Full screen" }));
+      expect(screen.getByRole("dialog", { name: "refunds" })).toContainElement(tabs);
+      await userEvent.keyboard("{Escape}");
+      expect(screen.queryByRole("dialog")).toBeNull();
+      expect(screen.getByRole("tablist")).toBe(tabs);
+      expect(state.tab).toBe(tab);
+    },
+  );
 
   it("steps back to the last page that still exists once its cases are gone", async () => {
     state.total = 51;

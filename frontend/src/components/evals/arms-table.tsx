@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import type { ReactNode } from "react";
 import { useLocale, useTranslations } from "next-intl";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui";
@@ -49,27 +50,38 @@ function SideLabel({
 }
 
 /** One side's numbers, a dash where it has none under the tag read. */
-function SummaryCells({ summary }: { summary: ArmSummary | undefined }) {
+function SummaryCell({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <td className="flex min-w-0 items-start justify-between gap-4 py-1.5 md:table-cell md:py-2 md:pr-3">
+      <span className="text-muted-foreground text-xs md:hidden">{label}</span>
+      <span className="min-w-0 text-right break-words md:text-left">{children}</span>
+    </td>
+  );
+}
+
+function SummaryCells({ summary, live }: { summary: ArmSummary | undefined; live: boolean }) {
   const t = useTranslations("evals.arms");
   const locale = useLocale();
   return (
     <>
-      <td className="py-2 pr-3">{percent(summary?.pass_rate ?? null, locale)}</td>
-      <td className="py-2 pr-3">
+      <SummaryCell label={t("passRate")}>{percent(summary?.pass_rate ?? null, locale)}</SummaryCell>
+      <SummaryCell label={live ? t("pending") : t("undecided")}>
         {summary === undefined ? "—" : summary.incomplete + summary.ungraded}
-      </td>
-      <td className="py-2 pr-3">{usd(summary?.cost_per_pass_usd ?? null, locale)}</td>
-      <td className="py-2 pr-3">
+      </SummaryCell>
+      <SummaryCell label={t("costPerPass")}>
+        {usd(summary?.cost_per_pass_usd ?? null, locale)}
+      </SummaryCell>
+      <SummaryCell label={t("tokens")}>
         {summary === undefined || summary.avg_tokens === null
           ? "—"
           : Math.round(summary.avg_tokens)}
-      </td>
-      <td className="py-2 pr-3">
+      </SummaryCell>
+      <SummaryCell label={t("latency")}>
         {t("p50p95", {
           p50: seconds(summary?.p50_ms ?? null, locale),
           p95: seconds(summary?.p95_ms ?? null, locale),
         })}
-      </td>
+      </SummaryCell>
     </>
   );
 }
@@ -114,9 +126,9 @@ export function ArmsTable({
       <CardHeader>
         <CardTitle>{tag === null ? t("title") : t("titleTag", { tag })}</CardTitle>
       </CardHeader>
-      <CardContent className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead className="text-muted-foreground text-left text-xs">
+      <CardContent className="min-w-0 overflow-x-auto">
+        <table className="block w-full text-sm md:table">
+          <thead className="text-muted-foreground hidden text-left text-xs md:table-header-group">
             <tr>
               <th className="py-1 pr-3 font-normal">{t("side")}</th>
               <th className="py-1 pr-3 font-normal">{t("passRate")}</th>
@@ -126,19 +138,22 @@ export function ArmsTable({
               <th className="py-1 pr-3 font-normal">{t("latency")}</th>
             </tr>
           </thead>
-          <tbody className="tabular-nums">
+          <tbody className="block tabular-nums md:table-row-group">
             {arms.map((arm) => (
-              <tr key={arm.id} className="border-t">
-                <td className="py-2 pr-3">
+              <tr
+                key={arm.id}
+                className="block border-b py-3 last:border-b-0 md:table-row md:border-t md:border-b-0 md:py-0"
+              >
+                <td className="block py-2 font-medium break-words md:table-cell md:pr-3 md:font-normal">
                   <SideLabel agentId={agentId} arm={arm} baseline={baseline} check={check} />
                 </td>
                 {/* An arm with no case under the tag has no entry for it. */}
-                <SummaryCells summary={tag === null ? arm.summary : arm.by_tag[tag]} />
+                <SummaryCells summary={tag === null ? arm.summary : arm.by_tag[tag]} live={live} />
               </tr>
             ))}
             {earlier !== null && (
-              <tr className="border-t">
-                <td className="py-2 pr-3">
+              <tr className="block border-b py-3 last:border-b-0 md:table-row md:border-t md:border-b-0 md:py-0">
+                <td className="block py-2 font-medium break-words md:table-cell md:pr-3 md:font-normal">
                   {tSide("sideModel", {
                     name: sideName(earlier, tSide),
                     model: earlier.model_label,
@@ -155,7 +170,10 @@ export function ArmsTable({
                       : tSide("arms.reused")}
                   </Link>
                 </td>
-                <SummaryCells summary={tag === null ? (baselineSummary ?? undefined) : undefined} />
+                <SummaryCells
+                  summary={tag === null ? (baselineSummary ?? undefined) : undefined}
+                  live={live}
+                />
               </tr>
             )}
           </tbody>

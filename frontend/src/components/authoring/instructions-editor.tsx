@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 
-import { Textarea } from "@/components/ui";
+import { MarkdownEditor } from "@/components/ui";
 import { useWideScreen } from "@/hooks/use-wide-screen";
 import { cn } from "@/lib/utils";
 import { DiffView } from "./diff-view";
@@ -45,7 +45,7 @@ export function InstructionsEditor({
       <h4 className="text-muted-foreground text-xs font-medium">{t("current")}</h4>
       <pre
         aria-label={t("current")}
-        className="bg-muted/40 max-h-96 overflow-auto rounded-md p-3 font-mono text-xs break-words whitespace-pre-wrap"
+        className="bg-muted/40 overflow-auto rounded-md p-3 font-mono text-sm break-words whitespace-pre-wrap md:max-h-96 md:text-xs"
       >
         {current}
       </pre>
@@ -54,11 +54,12 @@ export function InstructionsEditor({
   const proposedPane = (
     <div className="min-w-0 space-y-1">
       <h4 className="text-muted-foreground text-xs font-medium">{t("proposed")}</h4>
-      <Textarea
-        aria-label={t("proposed")}
-        className="max-h-96 min-h-48 font-mono text-xs"
+      <MarkdownEditor
+        label={t("proposed")}
         value={value}
-        onChange={(event) => onChange(event.target.value)}
+        onChange={onChange}
+        rows={8}
+        inertImages
       />
     </div>
   );

@@ -46,7 +46,7 @@ export function CaseView({ content }: { content: DatasetCaseContent & { masked?:
   if (content.masked)
     return <p className="text-muted-foreground text-sm">{t("maskedConversation")}</p>;
   return (
-    <div className="space-y-5">
+    <div className="min-w-0 space-y-5 wrap-anywhere">
       <Section label={t("field.input")}>
         <div className="space-y-2">
           {content.history.map((turn, index) => (

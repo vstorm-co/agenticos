@@ -4,6 +4,9 @@ import { useState } from "react";
 import { SearchX } from "lucide-react";
 import { useTranslations } from "next-intl";
 
+import { useWorkspaceFullscreen } from "@/hooks/use-workspace-fullscreen";
+import { WorkspaceFullscreenButton } from "@/components/ui/workspace-fullscreen-button";
+
 import { ErrorState, LoadingState } from "@/components/states";
 import {
   ListCard,
@@ -46,6 +49,7 @@ export function KnowledgeGapsPanel({
   status?: KnowledgeGapStatus;
   onStatusChange?: (status: KnowledgeGapStatus) => void;
 }) {
+  const { ref, expanded, toggle } = useWorkspaceFullscreen();
   const t = useTranslations("knowledgeGaps");
   const [ownStatus, setOwnStatus] = useState<KnowledgeGapStatus>("open");
   const status = onStatusChange ? (heldStatus ?? "open") : ownStatus;
@@ -64,19 +68,27 @@ export function KnowledgeGapsPanel({
   return (
     <>
       <ListCard
+        ref={ref}
+        role={expanded ? "dialog" : undefined}
+        aria-modal={expanded || undefined}
+        aria-label={t("title")}
+        className={expanded ? "fixed inset-0 z-40 overflow-y-auto rounded-none" : undefined}
         title={t("title")}
         counted={isLoading ? null : t("topicCount", { count: total })}
         controls={
-          <KnowledgeGapsToolbar
-            scope={scope}
-            canRegroup={canRegroup}
-            unchecked={unchecked}
-            status={status}
-            onStatus={(next) => {
-              setStatus(next);
-              setPage(0);
-            }}
-          />
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
+            <WorkspaceFullscreenButton expanded={expanded} onToggle={toggle} />
+            <KnowledgeGapsToolbar
+              scope={scope}
+              canRegroup={canRegroup}
+              unchecked={unchecked}
+              status={status}
+              onStatus={(next) => {
+                setStatus(next);
+                setPage(0);
+              }}
+            />
+          </div>
         }
         contentClassName="p-0"
       >

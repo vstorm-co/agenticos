@@ -64,7 +64,7 @@ export function ImprovementPage({ agentId, sessionId }: { agentId: string; sessi
   // one, needs edit access too, and without it the session is only read.
   if (!can(Perm.runsView) || (!agent.can_edit && sessionId === "new"))
     return (
-      <div className="mx-auto w-full max-w-5xl space-y-6 pb-16">
+      <div className="w-full min-w-0 space-y-4 pb-8 sm:space-y-6 sm:pb-12">
         <PageHeader
           title={t("title", { name: agent.name })}
           breadcrumbs={[{ label: agent.name, href: `/agents/${agentId}` }, { label: t("heading") }]}
@@ -76,7 +76,7 @@ export function ImprovementPage({ agentId, sessionId }: { agentId: string; sessi
       </div>
     );
   return (
-    <div className="mx-auto w-full max-w-5xl space-y-6 pb-16">
+    <div className="w-full min-w-0 space-y-4 pb-8 sm:space-y-6 sm:pb-12">
       <PageHeader
         title={t("title", { name: agent.name })}
         breadcrumbs={[{ label: agent.name, href: `/agents/${agentId}` }, { label: t("heading") }]}

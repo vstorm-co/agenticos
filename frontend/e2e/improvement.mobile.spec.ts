@@ -244,6 +244,18 @@ test("test questions, review and improvement publish keep a guarded environment 
       .evaluate((el) => parseFloat(getComputedStyle(el).fontSize)),
   ).toBeGreaterThanOrEqual(16);
   await capture(page, info, "case-editor");
+  await editor.getByRole("button", { name: "Add a tool call", exact: true }).click();
+  await editor.getByRole("button", { name: "Add an argument", exact: true }).click();
+  await editor.getByRole("combobox", { name: "Call 1: tool", exact: true }).fill("search_kb");
+  await editor
+    .getByRole("textbox", { name: "Call 1, argument 1: name", exact: true })
+    .fill("query");
+  await editor
+    .getByRole("textbox", { name: "Call 1, argument 1: value", exact: true })
+    .fill("refund");
+  await capture(page, info, "case-tools");
+  // Leave the measured question unchanged; this is an unsaved layout check.
+  await editor.getByRole("button", { name: "Remove call 1", exact: true }).click();
   await editor.getByRole("button", { name: "Close", exact: true }).click();
   await page.getByRole("tab", { name: /Generated/ }).click();
   await capture(page, info, "dataset-generated");
@@ -523,7 +535,7 @@ async function capture(page: Page, info: TestInfo, name: string) {
     await page.evaluate((value) => {
       document.documentElement.classList.toggle("dark", value === "dark");
     }, theme);
-    for (const width of [390, 1440]) {
+    for (const width of [320, 390, 1440]) {
       await page.setViewportSize({ width, height: 1000 });
       expect(
         await page.evaluate(
@@ -531,6 +543,34 @@ async function capture(page: Page, info: TestInfo, name: string) {
         ),
         `${name} ${theme} ${width}: horizontal overflow`,
       ).toBeLessThanOrEqual(0);
+      for (const dialog of await page.getByRole("dialog").all()) {
+        const bounds = await dialog.boundingBox();
+        expect(bounds, `${name}: the editor must have visible bounds`).not.toBeNull();
+        if (bounds) {
+          expect(bounds.x, `${name}: editor left edge`).toBeGreaterThanOrEqual(0);
+          expect(bounds.x + bounds.width, `${name}: editor right edge`).toBeLessThanOrEqual(width);
+          expect(bounds.y, `${name}: editor top edge`).toBeGreaterThanOrEqual(0);
+          expect(bounds.y + bounds.height, `${name}: editor bottom edge`).toBeLessThanOrEqual(1001);
+        }
+        if (width < 768) {
+          for (const field of await dialog
+            .locator("input:not([type=checkbox]):not([type=radio]), textarea")
+            .all()) {
+            if (!(await field.isVisible())) continue;
+            expect(
+              await field.evaluate((element) => parseFloat(getComputedStyle(element).fontSize)),
+              `${name}: typing must not zoom the phone`,
+            ).toBeGreaterThanOrEqual(16);
+            const fieldBounds = await field.boundingBox();
+            if (fieldBounds && bounds) {
+              expect(fieldBounds.x).toBeGreaterThanOrEqual(bounds.x);
+              expect(fieldBounds.x + fieldBounds.width).toBeLessThanOrEqual(
+                bounds.x + bounds.width + 1,
+              );
+            }
+          }
+        }
+      }
       await page.screenshot({
         path: info.outputPath(`${name}-${theme}-${width}.png`),
         fullPage: true,

@@ -12,7 +12,7 @@ import {
   DialogTitle,
 } from "@/components/ui";
 import { useKnowledgeGap } from "@/hooks/use-knowledge-gaps";
-import { DIALOG_COLUMN, DIALOG_WIDE } from "@/lib/dialog-sizes";
+import { DIALOG_BODY, DIALOG_FILL, DIALOG_WIDE } from "@/lib/dialog-sizes";
 import { cn } from "@/lib/utils";
 import { KnowledgeGapActions } from "./knowledge-gap-actions";
 import { KnowledgeGapDraftPanel } from "./knowledge-gap-draft";
@@ -33,8 +33,8 @@ export function KnowledgeGapDialog({ topicId, onClose, wizard = false }: Knowled
   return (
     <InImproveWizard.Provider value={wizard}>
       <Dialog open onOpenChange={(open) => !open && onClose()}>
-        <DialogContent className={cn(DIALOG_WIDE, DIALOG_COLUMN)}>
-          <DialogHeader className="pr-8">
+        <DialogContent className={cn(DIALOG_WIDE, DIALOG_FILL)}>
+          <DialogHeader>
             <div className="flex items-start justify-between gap-2">
               <DialogTitle className="break-words">{topic?.label ?? t("topic")}</DialogTitle>
               {topic && <KnowledgeGapActions topic={topic} />}
@@ -49,7 +49,7 @@ export function KnowledgeGapDialog({ topicId, onClose, wizard = false }: Knowled
                 : t("nothingAutomatic")}
             </DialogDescription>
           </DialogHeader>
-          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto">
+          <div className={cn(DIALOG_BODY, "space-y-4")}>
             {isLoading ? (
               <LoadingState variant="skeleton-list" rows={3} />
             ) : error || !topic ? (

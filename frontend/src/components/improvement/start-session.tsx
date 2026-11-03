@@ -6,6 +6,11 @@ import { Clock } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import {
   Button,
+  Card,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+  CardContent,
   ConfirmDialog,
   Input,
   Label,
@@ -122,143 +127,161 @@ export function StartSession({ agentId }: { agentId: string }) {
     </div>
   );
   return (
-    <div className="space-y-6" data-tour="improvement-start">
-      <p className="text-muted-foreground max-w-2xl text-sm">{t("intro")}</p>
-      <StartSignals agentId={agentId} datasetId={target} />
-      {sessions.error && <p role="alert">{getErrorMessage(sessions.error, tErrors)}</p>}
-      {open && open.id !== startedId && (
-        <div className="space-y-2 rounded-lg border p-3">
-          <Link
-            className="block text-sm underline underline-offset-4"
-            href={`/agents/${agentId}/improve/${open.id}`}
-          >
-            {t("resumeOpen", {
-              date: new Date(open.created_at).toLocaleString(locale),
-              status: t(`status.${open.status}`),
-            })}
-          </Link>
-          <EndOpen session={open} />
-        </div>
-      )}
-      <div className="max-w-xl space-y-3">
-        {baselineFirst && <p className="font-medium">{t("baselineFirst")}</p>}
-        {loading ? (
-          <p role="status">{t("loading")}</p>
-        ) : !target && choices.length > 0 ? (
-          <>
-            {picker}
-            <details className="rounded-xl border p-3">
-              <summary className="cursor-pointer text-sm font-medium">
-                {t("writeOwnInstead")}
-              </summary>
-              <div className="mt-3">
-                <WriteQuestions agentId={agentId} onReady={questionsReady} />
-              </div>
-            </details>
-          </>
-        ) : !target ? (
-          <WriteQuestions agentId={agentId} onReady={questionsReady} />
-        ) : (
-          baselineFirst && <TodayCheck agentId={agentId} datasetId={target} />
-        )}
-        {refused !== null && (
-          <p role="alert" className="text-destructive text-sm">
-            {refused}
-          </p>
-        )}
-        {target && <StartQuestionSet datasetId={target} heldOut={quote?.held_out ?? undefined} />}
-        {target && !quote && refused === null && <p role="status">{t("estimating")}</p>}
-        {quote && (
-          <section
-            className="border-primary/30 bg-primary/5 space-y-3 rounded-xl border p-4"
-            data-tour="improvement-quote"
-          >
-            <p className="flex items-start gap-2">
-              <Clock className="text-primary mt-0.5 size-4 shrink-0" aria-hidden />
-              {t("sessionQuote", {
-                cost: usd(quote.total_usd, locale),
-                answers: quote.evidence_runs,
-                minutes: Math.max(1, Math.round(quote.estimated_minutes / quote.max_iterations)),
-                perRound: usd(quote.per_round_usd, locale),
-                limit: usd(limit, locale),
-              })}
-            </p>
-            {quote.reason && <p role="status">{tr(`reason.${quote.reason}`)}</p>}
-            <Button
-              disabled={
-                !quote.affordable ||
-                quote.reason !== null ||
-                !Number.isFinite(Number(limit)) ||
-                Number(limit) <= 0 ||
-                sessions.start.isPending ||
-                startedId !== null
-              }
-              onClick={() =>
-                void (async () => {
-                  setError(null);
-                  try {
-                    const started = await sessions.start.mutateAsync({
-                      ...body,
-                      budget_usd: limit,
-                    });
-                    setStartedId(started.id);
-                    if (useOrgStore.getState().activeOrgId === organizationId)
-                      router.push(`/agents/${agentId}/improve/${started.id}`);
-                  } catch (failure) {
-                    setError(getErrorMessage(failure, tErrors));
-                  }
-                })()
-              }
-            >
-              {t("start")}
-            </Button>
-          </section>
-        )}
-        {error && (
-          <p role="alert" className="text-destructive text-sm">
-            {error}
-          </p>
-        )}
-        <details
-          className="rounded-xl border p-3"
-          data-tour="improvement-details"
-          onToggle={(event) => setDetails(event.currentTarget.open)}
-        >
-          <summary className="cursor-pointer text-sm font-medium">{t("showDetails")}</summary>
-          <div className="mt-3 space-y-4">
-            {quote && (
-              <div className="text-muted-foreground space-y-1 text-sm">
-                <p>{t("evidence", { count: quote.evidence_runs })}</p>
-                {quote.knowledge_usd && Number(quote.knowledge_usd) > 0 && (
-                  <p>{t("knowledgeEstimate", { cost: usd(quote.knowledge_usd, locale) })}</p>
-                )}
-              </div>
+    <div
+      className="grid items-start gap-6 xl:grid-cols-[minmax(0,2fr)_minmax(18rem,1fr)]"
+      data-tour="improvement-start"
+    >
+      <Card>
+        <CardHeader>
+          <CardTitle>{t("testSet")}</CardTitle>
+          <CardDescription>{t("intro")}</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {sessions.error && <p role="alert">{getErrorMessage(sessions.error, tErrors)}</p>}
+          {open && open.id !== startedId && (
+            <div className="space-y-2 rounded-lg border p-3">
+              <Link
+                className="block text-sm underline underline-offset-4"
+                href={`/agents/${agentId}/improve/${open.id}`}
+              >
+                {t("resumeOpen", {
+                  date: new Date(open.created_at).toLocaleString(locale),
+                  status: t(`status.${open.status}`),
+                })}
+              </Link>
+              <EndOpen session={open} />
+            </div>
+          )}
+          <div className="min-w-0 space-y-4">
+            {baselineFirst && <p className="font-medium">{t("baselineFirst")}</p>}
+            {loading ? (
+              <p role="status">{t("loading")}</p>
+            ) : !target && choices.length > 0 ? (
+              <>
+                {picker}
+                <details className="rounded-xl border p-3">
+                  <summary className="cursor-pointer text-sm font-medium">
+                    {t("writeOwnInstead")}
+                  </summary>
+                  <div className="mt-3">
+                    <WriteQuestions agentId={agentId} onReady={questionsReady} />
+                  </div>
+                </details>
+              </>
+            ) : !target ? (
+              <WriteQuestions agentId={agentId} onReady={questionsReady} />
+            ) : (
+              baselineFirst && <TodayCheck agentId={agentId} datasetId={target} />
             )}
-            {target && picker}
+            {refused !== null && (
+              <p role="alert" className="text-destructive text-sm">
+                {refused}
+              </p>
+            )}
+            {target && (
+              <StartQuestionSet datasetId={target} heldOut={quote?.held_out ?? undefined} />
+            )}
+            {target && !quote && refused === null && <p role="status">{t("estimating")}</p>}
             {quote && (
-              <div className="space-y-2">
-                <Label htmlFor="improvement-budget">{t("budget")}</Label>
-                <Input
-                  id="improvement-budget"
-                  inputMode="decimal"
-                  value={budget ?? limitText(sessionLimit(quote), locale)}
-                  onChange={(e) => setBudget(e.target.value)}
-                />
-                <p className="text-muted-foreground text-xs">
-                  {t("limitHint", {
-                    analysis: usd(quote.total_usd, locale),
+              <section
+                className="border-primary/30 bg-primary/5 space-y-3 rounded-xl border p-4"
+                data-tour="improvement-quote"
+              >
+                <p className="flex items-start gap-2">
+                  <Clock className="text-primary mt-0.5 size-4 shrink-0" aria-hidden />
+                  {t("sessionQuote", {
+                    cost: usd(quote.total_usd, locale),
+                    answers: quote.evidence_runs,
+                    minutes: Math.max(
+                      1,
+                      Math.round(quote.estimated_minutes / quote.max_iterations),
+                    ),
                     perRound: usd(quote.per_round_usd, locale),
+                    limit: usd(limit, locale),
                   })}
                 </p>
+                {quote.reason && <p role="status">{tr(`reason.${quote.reason}`)}</p>}
+                <Button
+                  disabled={
+                    !quote.affordable ||
+                    quote.reason !== null ||
+                    !Number.isFinite(Number(limit)) ||
+                    Number(limit) <= 0 ||
+                    sessions.start.isPending ||
+                    startedId !== null
+                  }
+                  onClick={() =>
+                    void (async () => {
+                      setError(null);
+                      try {
+                        const started = await sessions.start.mutateAsync({
+                          ...body,
+                          budget_usd: limit,
+                        });
+                        setStartedId(started.id);
+                        if (useOrgStore.getState().activeOrgId === organizationId)
+                          router.push(`/agents/${agentId}/improve/${started.id}`);
+                      } catch (failure) {
+                        setError(getErrorMessage(failure, tErrors));
+                      }
+                    })()
+                  }
+                >
+                  {t("start")}
+                </Button>
+              </section>
+            )}
+            {error && (
+              <p role="alert" className="text-destructive text-sm">
+                {error}
+              </p>
+            )}
+            <details
+              className="rounded-xl border p-3"
+              data-tour="improvement-details"
+              onToggle={(event) => setDetails(event.currentTarget.open)}
+            >
+              <summary className="cursor-pointer text-sm font-medium">{t("showDetails")}</summary>
+              <div className="mt-3 grid min-w-0 gap-4 lg:grid-cols-2">
+                {quote && (
+                  <div className="text-muted-foreground space-y-1 text-sm lg:col-span-2">
+                    <p>{t("evidence", { count: quote.evidence_runs })}</p>
+                    {quote.knowledge_usd && Number(quote.knowledge_usd) > 0 && (
+                      <p>{t("knowledgeEstimate", { cost: usd(quote.knowledge_usd, locale) })}</p>
+                    )}
+                  </div>
+                )}
+                {target && picker}
+                {quote && (
+                  <div className="space-y-2">
+                    <Label htmlFor="improvement-budget">{t("budget")}</Label>
+                    <Input
+                      id="improvement-budget"
+                      inputMode="decimal"
+                      value={budget ?? limitText(sessionLimit(quote), locale)}
+                      onChange={(e) => setBudget(e.target.value)}
+                    />
+                    <p className="text-muted-foreground text-xs">
+                      {t("limitHint", {
+                        analysis: usd(quote.total_usd, locale),
+                        perRound: usd(quote.per_round_usd, locale),
+                      })}
+                    </p>
+                  </div>
+                )}
+                {details && target && !baselineFirst && (
+                  <TodayCheck agentId={agentId} datasetId={target} />
+                )}
+                <SystemAgentChoice kind="improver" value={helper} onChange={setHelper} wizard />
               </div>
-            )}
-            {details && target && !baselineFirst && (
-              <TodayCheck agentId={agentId} datasetId={target} />
-            )}
-            <SystemAgentChoice kind="improver" value={helper} onChange={setHelper} wizard />
+            </details>
           </div>
-        </details>
-      </div>
+        </CardContent>
+      </Card>
+      <aside className="min-w-0 space-y-3">
+        <h2 className="text-sm font-semibold">{t("sourceSignals")}</h2>
+        <StartSignals agentId={agentId} datasetId={target} />
+      </aside>
     </div>
   );
 }
