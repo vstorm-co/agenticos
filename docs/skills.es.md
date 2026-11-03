@@ -1,5 +1,5 @@
 ---
-source_sha: "3763083ab20a"
+source_sha: "f80ef0f7b76d"
 ---
 
 # Skills { #skills }
@@ -303,7 +303,9 @@ Después, las preguntas del propio agent:
   reconoce antes de aplicar.
 
 Un agent se juzga una vez, sobre las preguntas held-out de todas sus etapas
-juntas: un resultado necesita cinco para el agent, no cinco por etapa. Todas las
+juntas: un resultado necesita cinco para el agent, no cinco por etapa, y una
+regresión que una etapa confirmó por sí sola cuenta, sea lo que sea que halló la
+otra. Todas las
 preguntas del conjunto del skill son held-out, y una comprobación rápida solo
 toma preguntas held-out del agent.
 

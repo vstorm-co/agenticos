@@ -836,15 +836,13 @@ class SkillCheckService:
 
     async def _judge(self, ctx: AuthContext, row: SkillCheckAgent) -> None:
         """An agent's result from every stage it ran, their held-out questions pooled."""
-        result = rules.pooled(
-            [
-                await self._stage_comparison(ctx, run_id)
-                for run_id in (row.skill_set_run_id, row.dataset_run_id)
-                if run_id is not None
-            ],
-            minimum=MIN_HOLDOUT_CASES,
-        )
-        state = rules.stage_state(result)
+        stages = [
+            await self._stage_comparison(ctx, run_id)
+            for run_id in (row.skill_set_run_id, row.dataset_run_id)
+            if run_id is not None
+        ]
+        result = rules.pooled(stages, minimum=MIN_HOLDOUT_CASES)
+        state = rules.agent_state(stages, minimum=MIN_HOLDOUT_CASES)
         await skill_check_repo.update_agent(
             self.db,
             row=row,

@@ -2,6 +2,7 @@
 person may do next, and which of an agent's own questions a quick check asks."""
 
 import uuid
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
@@ -13,6 +14,7 @@ from app.services.skill_check_rules import (
     SampleCandidate,
     StageComparison,
     StageResult,
+    agent_state,
     changed_words,
     noisy,
     outcomes,
@@ -140,6 +142,38 @@ class TestPooled:
         )
 
         assert stage_state(result) is AgentState.UNKNOWN
+
+    @pytest.mark.parametrize(
+        "unmeasured",
+        [
+            {"comparable": False},
+            {"incomplete": 1},
+            {"ungraded": 1},
+        ],
+    )
+    def test_a_regression_one_stage_confirmed_is_not_hidden_by_an_unmeasured_one(
+        self, unmeasured: dict[str, int | bool]
+    ) -> None:
+        """Unknown can be applied once acknowledged and worse cannot, so a regression a
+        stage measured completely blocks whatever the stage beside it could not tell."""
+        found = _compared(held_out=6, broken=2)
+        beside = replace(_compared(held_out=4), **unmeasured)
+
+        assert agent_state([found, beside], minimum=5) is AgentState.WORSE
+        assert stage_state(pooled([found, beside], minimum=5)) is AgentState.UNKNOWN
+
+    def test_a_regression_in_a_stage_not_measured_completely_waits_for_the_pool(self) -> None:
+        partial = replace(_compared(held_out=6, broken=2), incomplete=1)
+
+        assert agent_state([partial, _compared(held_out=4)], minimum=5) is AgentState.UNKNOWN
+
+    def test_without_a_regression_the_pool_decides(self) -> None:
+        assert (
+            agent_state(
+                [_compared(held_out=3, fixed=1, candidate=0.75), _compared(held_out=3)], minimum=5
+            )
+            is AgentState.BETTER
+        )
 
     def test_unconfirmed_flips_anywhere_make_the_agent_noisy(self) -> None:
         result = pooled(

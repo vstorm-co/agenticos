@@ -1,5 +1,5 @@
 ---
-source_sha: "3763083ab20a"
+source_sha: "f80ef0f7b76d"
 ---
 
 # Skille { #skills }
@@ -294,7 +294,8 @@ inny [dataset](datasets.md). Potem o pytania samego agenta:
   osoba potwierdza to przed zastosowaniem.
 
 Agent jest oceniany raz, na pytaniach held-out ze wszystkich swoich etapów
-razem: wynik wymaga pięciu takich pytań na agenta, a nie pięciu na etap. Każde
+razem: wynik wymaga pięciu takich pytań na agenta, a nie pięciu na etap, a
+regresja potwierdzona przez jeden etap sam się liczy, cokolwiek pokazał drugi. Każde
 pytanie zestawu skilla jest held-out, a szybkie sprawdzenie losuje tylko pytania
 held-out agenta.
 

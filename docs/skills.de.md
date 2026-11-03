@@ -1,5 +1,5 @@
 ---
-source_sha: "3763083ab20a"
+source_sha: "f80ef0f7b76d"
 ---
 
 # Skills { #skills }
@@ -315,7 +315,9 @@ jedes andere [Dataset](datasets.md). Dann die eigenen Fragen des Agents:
   **unbekannt**, und eine Person bestätigt das vor dem Anwenden.
 
 Ein Agent wird einmal beurteilt, auf den Held-out-Fragen aller seiner Stufen
-zusammen: Ein Ergebnis braucht fünf davon für den Agent, nicht fünf pro Stufe.
+zusammen: Ein Ergebnis braucht fünf davon für den Agent, nicht fünf pro Stufe,
+und eine Regression, die eine Stufe allein bestätigt, zählt, was immer die andere
+fand.
 Jede Frage des Skill-Sets ist held-out, und eine schnelle Prüfung zieht nur die
 Held-out-Fragen des Agents.
 

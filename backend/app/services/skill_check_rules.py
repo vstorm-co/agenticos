@@ -3,8 +3,10 @@
 **One agent.** Each stage of an agent's check is a paired eval run, the stored
 text against the candidate, compared on its held-out questions. The agent is
 judged once, on its stages' held-out questions taken together, so the minimum a
-result needs applies to the agent rather than to each stage. The agent
-improvement verdict reads that the same way here: a confirmed regression is
+result needs applies to the agent rather than to each stage, though a
+regression one stage confirmed completely on its own decides beside a stage
+that measured nothing. The agent improvement verdict reads that the same way
+here: a confirmed regression is
 `worse`; confirmed fixes and a pass rate that did not drop are `better`; anything
 not measured is `unknown`. Flips its re-asks could not confirm make it
 `within_noise` - the check saw a difference it cannot tell from the grading
@@ -134,6 +136,24 @@ def pooled(stages: Sequence[StageComparison], *, minimum: int) -> StageResult:
         regressions_unconfirmed=sum(stage.regressions_unconfirmed for stage in stages),
         compared=sum(stage.compared for stage in stages),
     )
+
+
+def agent_state(stages: Sequence[StageComparison], *, minimum: int) -> AgentState:
+    """What an agent's stages say about it.
+
+    A stage measured completely on its own that confirmed a regression makes the agent
+    worse whatever the others say - one unmeasured beside it hides nothing it found.
+    Otherwise the stages' held-out questions are judged together.
+    """
+    if any(
+        stage.comparable
+        and not stage.incomplete
+        and not stage.ungraded
+        and stage.regressions_confirmed
+        for stage in stages
+    ):
+        return AgentState.WORSE
+    return stage_state(pooled(stages, minimum=minimum))
 
 
 def verdict(states: Iterable[AgentState]) -> CheckVerdict:
