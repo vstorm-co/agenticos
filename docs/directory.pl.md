@@ -1,5 +1,5 @@
 ---
-source_sha: "0e00e8d61666"
+source_sha: "8c879a4f5e7d"
 ---
 
 # Logowanie katalogowe i grupy { #directory-sign-in-and-groups }
@@ -122,6 +122,11 @@ cztery reguły:
 
 Do organizacji osobistej nigdy nie dołącza się przez mapowanie i nie można dla
 niej utworzyć mapowania.
+
+Członkostwo utworzone przez [mapowanie roli Discorda](channels.md#discord-roles) jest
+oznaczone **Discord**, a nie **directory**. Każda synchronizacja zmienia tylko własne
+wiersze, więc logowanie nigdy nie usuwa kogoś, kogo dodała rola Discorda, a
+synchronizacja Discorda nigdy nie usuwa kogoś, kogo dodał katalog.
 
 !!! warning "Usunięcie mapowania usuwa ludzi, których ono umieściło"
 

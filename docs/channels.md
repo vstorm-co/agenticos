@@ -1530,10 +1530,50 @@ agent before it answers, as on Slack and Mattermost; files the bot posted itself
 are left out. It needs **Read Message History**, and `read_channel_history` reads
 a thread or a channel the same way where the binding allows it.
 
+### A server's roles as groups { #discord-roles }
+
+An administrator can map a role in one of the bot's servers to a group of the
+organization (#2569). Open **Channels**, then the **Discord roles** action on the bot's
+row. The server and the role are chosen from what the bot itself reads from Discord,
+so `@everyone` and the roles Discord manages for a bot are not offered. Mapping one
+takes `members:manage`, and the routes take `channels:manage` as well.
+
+A linked member who holds the role is placed in the group before each message they
+send to any of the organization's Discord bots, and again by the `sync-discord-roles` job
+every 15 minutes. They leave the group when the role is taken away, and the job is
+what notices that for somebody who has stopped writing to the bot. The bot asks
+Discord for one member's roles at a time, so it needs no privileged intent, and a
+new mapping places people at their next message rather than at once.
+
+A mapping can also name an organization role. A linked holder who is not a member
+yet then joins the organization with that role, which spares inviting everybody in
+a community server one at a time. Naming a role takes `roles:manage`, and only a
+role the caller's own strictly outranks. The order between several matching roles,
+and the rules about what the sync never touches, are the ones the
+[directory sync](directory.md#what-the-sync-never-touches) follows:
+
+- Only a linked account counts. A Discord user who never ran `/link` is placed
+  nowhere, whatever roles they hold.
+- A role matches only in the server the mapping names, read by the bot that holds
+  the mapping. The same role ID in another bot's server matches nothing.
+- The sync changes only rows it made, marked **Discord** on the members page and
+  in a group. A group membership added by hand stays when the role is taken away,
+  a membership an administrator made keeps its role, and an owner is never
+  demoted or removed.
+- When Discord cannot be asked, nothing changes. Only Discord's own answer that
+  the member is not in the server, or no longer holds the role, takes anything
+  away.
+
+Unlinking the Discord account takes back what its roles gave, unless another linked
+Discord account still earns it. Deleting a mapping takes back what it gave at each
+person's next message or the next job run. Every change is in the audit log as
+`discord.member_added`, `discord.role_changed`, `discord.member_removed`,
+`discord.group_joined` or `discord.group_left`, and making or deleting a mapping
+as `discord.mapping_created` or `discord.mapping_deleted`.
+
 Not yet: one connection serves a bot in at most 2,500 servers, past which Discord
 asks for sharding and the bot stops with that reason. The channel members, details
-and search tools are not offered on Discord, and a server's roles are not mapped
-to organization groups.
+and search tools are not offered on Discord.
 
 ## A bot that cannot start stops, rather than retrying
 

@@ -115,6 +115,11 @@ The sync only changes rows it made itself. Four rules follow from that:
 A personal organization is never joined through a mapping, and a mapping cannot
 be created for one.
 
+A membership a [Discord role mapping](channels.md#discord-roles) made is marked
+**Discord** rather than **directory**. Each sync changes only its own rows, so a
+sign-in never removes somebody a Discord role placed, and the Discord sync never
+removes somebody the directory placed.
+
 !!! warning "Deleting a mapping removes the people it placed"
 
     Removal happens at each person's **next sign-in**, not at once. To keep

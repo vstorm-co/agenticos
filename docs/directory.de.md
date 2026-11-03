@@ -1,5 +1,5 @@
 ---
-source_sha: "0e00e8d61666"
+source_sha: "8c879a4f5e7d"
 ---
 
 # Verzeichnisanmeldung und Gruppen { #directory-sign-in-and-groups }
@@ -133,6 +133,12 @@ folgen vier Regeln:
 
 Einer persönlichen Organisation wird nie über eine Zuordnung beigetreten, und für
 eine solche kann keine Zuordnung angelegt werden.
+
+Eine Mitgliedschaft, die eine [Discord-Rollenzuordnung](channels.md#discord-roles)
+angelegt hat, ist mit **Discord** markiert statt mit **directory**. Jede
+Synchronisierung ändert nur ihre eigenen Zeilen, daher entfernt eine Anmeldung nie
+jemanden, den eine Discord-Rolle aufgenommen hat, und die Discord-Synchronisierung
+nie jemanden, den das Verzeichnis aufgenommen hat.
 
 !!! warning "Eine Zuordnung zu löschen entfernt die Menschen, die sie eingeordnet hat"
 

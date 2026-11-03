@@ -1,5 +1,5 @@
 ---
-source_sha: "f5e02e3af94a"
+source_sha: "065755ced3dc"
 ---
 
 # Einen Agent dorthin bringen, wo die Menschen schon sind { #putting-an-agent-where-people-already-are }
@@ -1695,10 +1695,56 @@ Mattermost; Dateien, die der Bot selbst gepostet hat, bleiben außen vor. Nötig
 ist **Read Message History**, und `read_channel_history` liest einen Thread oder
 einen Kanal genauso, wo die Anbindung es erlaubt.
 
+### Die Rollen eines Servers als Gruppen { #discord-roles }
+
+Ein Administrator kann eine Rolle auf einem der Server des Bots einer Gruppe der
+Organisation zuordnen (#2569). Öffne **Kanäle** und dann die Aktion
+**Discord-Rollen** in der Zeile des Bots. Server und Rolle werden aus dem gewählt,
+was der Bot selbst von Discord liest, daher werden `@everyone` und die Rollen, die
+Discord für einen Bot verwaltet, nicht angeboten. Eine Zuordnung anzulegen verlangt
+`members:manage`, und die Routen verlangen zusätzlich `channels:manage`.
+
+Ein verknüpftes Mitglied mit der Rolle kommt vor jeder Nachricht an einen der
+Discord-Bots der Organisation in die Gruppe, und erneut durch den Job
+`sync-discord-roles` alle 15 Minuten. Wird ihm die Rolle entzogen, verlässt es die
+Gruppe, und der Job bemerkt das auch bei jemandem, der dem Bot nicht mehr schreibt.
+Der Bot fragt Discord jeweils nach den Rollen eines Mitglieds, braucht also keinen
+privilegierten Intent, und eine neue Zuordnung erfasst Personen bei ihrer nächsten
+Nachricht statt sofort.
+
+Eine Zuordnung kann auch eine Rolle in der Organisation nennen. Eine verknüpfte
+Person mit der Discord-Rolle, die noch kein Mitglied ist, tritt der Organisation dann
+mit dieser Rolle bei. Das erspart es, jeden in einem Community-Server einzeln
+einzuladen. Eine Rolle zu nennen verlangt `roles:manage`, und nur eine Rolle, die die
+eigene Rolle des Aufrufers strikt übertrifft. Die Reihenfolge zwischen mehreren
+passenden Rollen und die Regeln dazu, was die Synchronisierung nie anfasst, sind die
+der [Verzeichnissynchronisierung](directory.md#what-the-sync-never-touches):
+
+- Nur ein verknüpftes Konto zählt. Ein Discord-Nutzer, der nie `/link` ausgeführt
+  hat, kommt nirgendwohin, welche Rollen er auch hat.
+- Eine Rolle passt nur auf dem Server, den die Zuordnung nennt, gelesen von dem Bot,
+  dem die Zuordnung gehört. Dieselbe Rollen-ID auf dem Server eines anderen Bots
+  passt auf nichts.
+- Die Synchronisierung ändert nur Zeilen, die sie selbst angelegt hat, auf der
+  Mitgliederseite und in einer Gruppe mit **Discord** markiert. Eine von Hand
+  hinzugefügte Gruppenmitgliedschaft bleibt, wenn die Rolle entzogen wird, eine
+  Mitgliedschaft, die ein Administrator angelegt hat, behält ihre Rolle, und ein
+  Eigentümer wird nie herabgestuft oder entfernt.
+- Kann Discord nicht gefragt werden, ändert sich nichts. Nur Discords eigene
+  Antwort, dass das Mitglied nicht auf dem Server ist oder die Rolle nicht mehr
+  hat, nimmt etwas weg.
+
+Wer die Verknüpfung des Discord-Kontos löst, verliert, was dessen Rollen gegeben
+haben, es sei denn, ein anderes verknüpftes Discord-Konto verdient es noch. Eine
+gelöschte Zuordnung nimmt zurück, was sie gegeben hat, bei der nächsten Nachricht
+der Person oder beim nächsten Lauf des Jobs. Jede Änderung steht im Audit-Log als
+`discord.member_added`, `discord.role_changed`, `discord.member_removed`,
+`discord.group_joined` oder `discord.group_left`, und das Anlegen oder Löschen einer
+Zuordnung als `discord.mapping_created` oder `discord.mapping_deleted`.
+
 Noch nicht: eine Verbindung bedient einen Bot auf höchstens 2.500 Servern, darüber
 verlangt Discord Sharding und der Bot hält mit diesem Grund an. Die Tools für
-Kanalmitglieder, Kanaldetails und Kanalsuche werden auf Discord nicht angeboten,
-und die Rollen eines Servers werden nicht auf Gruppen der Organisation abgebildet.
+Kanalmitglieder, Kanaldetails und Kanalsuche werden auf Discord nicht angeboten.
 
 ## Ein Bot, der nicht starten kann, hört auf, statt es erneut zu versuchen { #a-bot-that-cannot-start-stops-rather-than-retrying }
 

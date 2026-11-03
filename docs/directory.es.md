@@ -1,5 +1,5 @@
 ---
-source_sha: "0e00e8d61666"
+source_sha: "8c879a4f5e7d"
 ---
 
 # Inicio de sesión con el directorio y grupos { #directory-sign-in-and-groups }
@@ -125,6 +125,12 @@ cuatro reglas:
 
 A una organización personal nunca se entra a través de un mapeo, y no se puede
 crear un mapeo para una.
+
+Una pertenencia que creó una [asignación de rol de Discord](channels.md#discord-roles)
+se marca **Discord** en lugar de **directory**. Cada sincronización cambia solo sus
+propias filas, así que un inicio de sesión nunca quita a alguien que colocó un rol de
+Discord, y la sincronización de Discord nunca quita a alguien que colocó el
+directorio.
 
 !!! warning "Borrar un mapeo elimina a las personas que colocó"
 

@@ -19,6 +19,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- Map a role in a Discord bot's server to a group of the organization, from the bot's row on **Channels** (#2569). A linked member who holds the role joins the group before each message to the bot and by a `sync-discord-roles` job every 15 minutes, and leaves it when the role is taken away. A mapping can also name an organization role, which admits linked holders who are not members yet. The sync changes only memberships it made, marked **Discord**: group memberships added by hand, directory memberships and owners are left alone, and Discord users who have not linked an account get nothing. Migration `0251_discord_role_mappings` adds the `discord_role_mappings` table and the `discord` membership source.
+
 ## [1.38.1] - 2026-11-03
 
 ### Fixed

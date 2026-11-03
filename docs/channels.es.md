@@ -1,5 +1,5 @@
 ---
-source_sha: "f5e02e3af94a"
+source_sha: "065755ced3dc"
 ---
 
 # Poner un agent donde la gente ya está { #putting-an-agent-where-people-already-are }
@@ -1606,10 +1606,56 @@ los archivos que publicó el propio bot se dejan fuera. Hace falta **Read Messag
 History**, y `read_channel_history` lee un hilo o un canal igual donde la
 vinculación lo permite.
 
+### Los roles de un servidor como grupos { #discord-roles }
+
+Un administrador puede asignar un rol de uno de los servidores del bot a un grupo de
+la organización (#2569). Abre **Canales** y luego la acción **Roles de Discord** en
+la fila del bot. El servidor y el rol se eligen entre lo que el propio bot lee de
+Discord, así que no se ofrecen `@everyone` ni los roles que Discord gestiona para un
+bot. Crear una asignación requiere `members:manage`, y las rutas requieren además
+`channels:manage`.
+
+Un miembro vinculado que tiene el rol entra en el grupo antes de cada mensaje que
+envía a cualquiera de los bots de Discord de la organización, y de nuevo con el
+trabajo `sync-discord-roles` cada 15 minutos. Sale del grupo cuando se le quita el
+rol, y el trabajo es lo que lo detecta en alguien que ha dejado de escribir al bot.
+El bot pregunta a Discord por los roles de un miembro cada vez, así que no necesita
+ningún intent privilegiado, y una asignación nueva coloca a las personas en su
+siguiente mensaje y no de inmediato.
+
+Una asignación también puede nombrar un rol de la organización. Una persona
+vinculada con el rol que todavía no es miembro entra entonces en la organización con
+ese rol, lo que ahorra invitar uno a uno a todos los de un servidor de comunidad.
+Nombrar un rol requiere `roles:manage`, y solo un rol que el propio rol de quien
+llama supera estrictamente. El orden entre varios roles que coinciden y las reglas
+sobre lo que la sincronización nunca toca son las de la
+[sincronización del directorio](directory.md#what-the-sync-never-touches):
+
+- Solo cuenta una cuenta vinculada. Un usuario de Discord que nunca ejecutó `/link`
+  no se coloca en ningún sitio, tenga los roles que tenga.
+- Un rol coincide solo en el servidor que nombra la asignación, leído por el bot al
+  que pertenece la asignación. El mismo ID de rol en el servidor de otro bot no
+  coincide con nada.
+- La sincronización cambia solo las filas que ella misma creó, marcadas **Discord**
+  en la página de miembros y en un grupo. Una pertenencia a un grupo añadida a mano
+  se queda cuando se quita el rol, una pertenencia que creó un administrador
+  conserva su rol, y a un propietario nunca se le degrada ni se le quita.
+- Cuando no se puede preguntar a Discord, nada cambia. Solo la propia respuesta de
+  Discord de que el miembro no está en el servidor, o ya no tiene el rol, quita
+  algo.
+
+Desvincular la cuenta de Discord retira lo que dieron sus roles, salvo que otra
+cuenta de Discord vinculada lo siga ganando. Borrar una asignación retira lo que dio
+en el siguiente mensaje de cada persona o en la siguiente ejecución del trabajo.
+Cada cambio queda en el registro de auditoría como `discord.member_added`,
+`discord.role_changed`, `discord.member_removed`, `discord.group_joined` o
+`discord.group_left`, y crear o borrar una asignación como
+`discord.mapping_created` o `discord.mapping_deleted`.
+
 Todavía no: una conexión sirve a un bot en como mucho 2500 servidores, por encima
 de los cuales Discord exige sharding y el bot se detiene con ese motivo. Las
 herramientas de miembros del canal, detalles y búsqueda de canales no se ofrecen en
-Discord, y los roles de un servidor no se asignan a grupos de la organización.
+Discord.
 
 ## Un bot que no puede arrancar se detiene, en vez de reintentar { #a-bot-that-cannot-start-stops-rather-than-retrying }
 
