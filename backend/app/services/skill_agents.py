@@ -51,7 +51,7 @@ from app.schemas.skill_version import (
 )
 from app.services.access import AGENT, accessible_ids
 from app.services.agent_registry import AgentRegistryService, delegation_binding
-from app.services.skill_versions import SkillVersionService
+from app.services.skill_versions import SkillVersionService, changes_since
 
 
 @dataclass(frozen=True)
@@ -129,6 +129,12 @@ class _Resolver:
     forks: dict[UUID, SkillFork]
     changes: dict[UUID, int]
     versions: dict[UUID, SkillVersion]
+    behind_main: dict[int, int]
+    """How many main versions after each one changed what the skill says, from the
+    oldest any line here is on."""
+
+    def behind(self, number: int) -> int:
+        return self.behind_main.get(number, 0)
 
     def read(self, line: Line) -> SkillBindingRead | None:
         """The binding as the page shows it, or `None` for a version or fork that is gone."""
@@ -148,7 +154,7 @@ class _Resolver:
             return SkillBindingRead(
                 state="pinned",
                 version=VersionRef(id=version.id, number=version.number, fork_id=None),
-                behind_main=skill.version - version.number,
+                behind_main=self.behind(version.number),
             )
         assert line.fork_id is not None, "a fork line names its fork"
         fork = self.forks.get(line.fork_id)
@@ -165,7 +171,7 @@ class _Resolver:
                 base_number=base.number,
                 changes=self.changes.get(fork.id, 0),
             ),
-            behind_main=skill.version - base.number,
+            behind_main=self.behind(base.number),
         )
 
 
@@ -229,7 +235,20 @@ class SkillAgentService:
             | {fork.latest_version_id for fork in forks.values() if fork.latest_version_id},
             organization_id=skill.organization_id,
         )
-        return _Resolver(skill, pinned, forks, changes, versions)
+        oldest = [version.number for version in pinned.values()]
+        oldest += [versions[fork.base_version_id].number for fork in forks.values()]
+        behind = changes_since(
+            await skill_version_repo.main_digests(
+                self.db,
+                organization_id=skill.organization_id,
+                skill_id=skill.id,
+                first=min(oldest),
+                last=skill.version,
+            )
+            if oldest
+            else []
+        )
+        return _Resolver(skill, pinned, forks, changes, versions, behind)
 
     async def counts(self, skill: Skill) -> tuple[Counter[UUID], Counter[UUID]]:
         """How many agents' served versions read each skill version, and each fork.

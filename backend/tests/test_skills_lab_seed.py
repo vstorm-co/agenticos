@@ -60,7 +60,8 @@ class TestTheData:
             questions = [case.question for case in plan.cases]
             assert all(case.checks for case in plan.cases)
             assert len(questions) == len(set(questions))
-        assert len(_plan("A").cases) == len(_plan("B").cases) == 16
+        assert len(_plan("A").cases) == 16
+        assert len(_plan("B").cases) == 12
 
     def test_the_online_desks_rule_questions_carry_an_order_number_and_the_counters_do_not(
         self,
@@ -82,9 +83,67 @@ class TestTheData:
             assert "skill" not in plan.instructions.lower()
 
     def test_who_binds_the_skill_and_who_delegates(self) -> None:
-        assert {plan.key for plan in seed.AGENTS if plan.binds_skill} == {"A", "B", "C"}
-        assert {plan.key for plan in seed.AGENTS if plan.dataset} == {"A", "B"}
+        assert {plan.key for plan in seed.AGENTS if plan.binds_skill} == {
+            "A",
+            "B",
+            "C",
+            "F",
+            "G",
+            "H",
+            "I",
+        }
+        assert {plan.key for plan in seed.AGENTS if plan.dataset} == {"A", "B", "C", "F", "G", "I"}
+        assert {plan.key: plan.line for plan in seed.AGENTS if plan.line != "main"} == {
+            "F": "pinned",
+            "G": "fork",
+        }
         assert _plan("E").delegates_to == "A"
+
+    def test_the_pinned_and_the_forked_desk_say_so_in_their_spec_and_the_clearance_desk_is_broke(
+        self,
+    ) -> None:
+        pinned = seed.agent_spec(_plan("F"), model="m", skill="s")
+        forked = seed.agent_spec(_plan("G"), model="m", skill="s", fork="fork-1")
+        assert pinned["skill_bindings"] == [{"skill_id": "s", "version": seed.FORK_FROM}]
+        assert forked["skill_bindings"] == [{"skill_id": "s", "fork_id": "fork-1"}]
+        assert "skill_bindings" not in seed.agent_spec(_plan("A"), model="m", skill="s")
+        assert seed.agent_spec(_plan("H"), model="m", skill="s")["budget"] == {"monthly_usd": 0.01}
+
+    def test_main_and_the_fork_change_only_the_lines_planned_and_never_the_same_ones(self) -> None:
+        def changed(before: str, after: str) -> set[str]:
+            return set(after.splitlines()) - set(before.splitlines())
+
+        v1, v2, v3 = (seed.skill_body(main=number) for number in (1, 2, 3))
+        assert [line[:2] for line in changed(v1, v2)] == ["6."]
+        assert [line[:2] for line in changed(v2, v3)] == ["7."]
+        fork_one = seed.skill_body(main=seed.FORK_FROM, fork=1)
+        fork_two = seed.skill_body(main=seed.FORK_FROM, fork=2)
+        assert [line[:2] for line in changed(v2, fork_one)] == ["1."]
+        assert [line[:2] for line in changed(fork_one, fork_two)] == ["3."]
+        main_lines = {line[:2] for line in changed(v2, v3)}
+        fork_lines = {line[:2] for line in changed(v2, fork_two)}
+        assert not main_lines & fork_lines
+
+    def test_the_counter_and_the_info_desk_ask_nothing_the_skill_is_for(self) -> None:
+        words = ("receipt", "return", "refund", "exchange", "store credit")
+        for case in (*seed.COUNTER_STORE, *seed.STORE_INFO):
+            assert not any(word in case.question.lower() for word in words), case.question
+
+    def test_the_skills_own_questions_come_in_their_groups_and_repeat_no_other(self) -> None:
+        assert (
+            len(seed.SKILL_SET_CREDITED),
+            len(seed.SKILL_SET_REFUNDED),
+            len(seed.SKILL_SET),
+        ) == (
+            4,
+            4,
+            10,
+        )
+        assert all(re.search(r"\b\d{5}\b", case.question) for case in seed.SKILL_SET_REFUNDED)
+        assert not any(re.search(r"\b\d{5}\b", case.question) for case in seed.SKILL_SET_CREDITED)
+        elsewhere = {case.question for plan in seed.AGENTS for case in plan.cases}
+        elsewhere |= {chat.question for chat in seed.CHATS}
+        assert not {case.question for case in seed.SKILL_SET} & elsewhere
 
     def test_a_delegating_desk_holds_no_skill_and_pins_its_delegate(self) -> None:
         spec = seed.agent_spec(_plan("E"), model="m", skill="s", delegate=("agent-a", "version-a"))
@@ -116,6 +175,19 @@ class TestTheWordingThatBreaksB:
         "broad": {"A": REFUND, "B": REFUND},
         "narrow": {"A": REFUND, "B": STORE_CREDIT},
     }
+
+    @pytest.mark.parametrize(
+        ("variant", "no_order_number", "order_number"),
+        [("v1", 4, 0), ("broad", 0, 4), ("narrow", 4, 4)],
+    )
+    def test_the_skills_own_questions_each_wording_passes(
+        self, variant: str, no_order_number: int, order_number: int
+    ) -> None:
+        answers = self.ANSWERS[variant]
+        assert (
+            sum(_passes(case, answers["B"]) for case in seed.SKILL_SET_CREDITED) == no_order_number
+        )
+        assert sum(_passes(case, answers["A"]) for case in seed.SKILL_SET_REFUNDED) == order_number
 
     @pytest.mark.parametrize(
         ("variant", "online", "counter"),
@@ -174,6 +246,8 @@ class FakeApi:
                 "messages",
                 "ratings",
                 "versions",
+                "skill_versions",
+                "forks",
             )
         }
         self.requests: list[tuple[str, str, str | None]] = []
@@ -287,10 +361,42 @@ class FakeApi:
                 lambda key: self._passed_cases(key, params),
             ),
             ("GET", r"/skills", lambda: where("skills")),
-            ("POST", r"/skills", lambda: self.add("skills", org, owner_user_id=self.me, **body)),
+            ("POST", r"/skills", lambda: self._create_skill(org, body)),
             ("GET", r"/skills/(?P<key>[^/]+)", lambda key: self.find("skills", key)),
+            (
+                "GET",
+                r"/skills/(?P<key>[^/]+)/versions",
+                lambda key: items(self.line(key, params.get("fork_id"))),
+            ),
+            (
+                "GET",
+                r"/skills/(?P<key>[^/]+)/versions/(?P<vid>[^/]+)",
+                lambda key, vid: self.find("skill_versions", vid),
+            ),
+            (
+                "POST",
+                r"/skills/(?P<key>[^/]+)/versions",
+                lambda key: self._save_version(org, key, body),
+            ),
+            (
+                "GET",
+                r"/skills/(?P<key>[^/]+)/forks",
+                lambda key: where("forks", skill_id=key, archived=params.get("archived") == "true"),
+            ),
+            (
+                "POST",
+                r"/skills/(?P<key>[^/]+)/forks",
+                lambda key: self._create_fork(org, key, body),
+            ),
+            ("GET", r"/skills/(?P<key>[^/]+)/test-set", lambda key: self._test_set(key)),
+            (
+                "POST",
+                r"/skills/(?P<key>[^/]+)/test-set",
+                lambda key: self._create_test_set(org, key),
+            ),
             ("GET", r"/datasets", lambda: where("datasets", name=params.get("q"))),
             ("POST", r"/datasets", lambda: self.add("datasets", org, case_count=0, **body)),
+            ("GET", r"/datasets/(?P<key>[^/]+)", lambda key: self.find("datasets", key)),
             ("PUT", r"/datasets/(?P<key>[^/]+)/scoring", lambda key: self._score(key, body)),
             ("GET", r"/datasets/(?P<key>[^/]+)/cases", lambda key: where("cases", dataset_id=key)),
             ("POST", r"/datasets/(?P<key>[^/]+)/cases", lambda key: self._add_case(org, key, body)),
@@ -340,6 +446,72 @@ class FakeApi:
             self.add("agents", org["id"], kind=kind, name=kind.title(), current_version_id=None)
         self.add("skills", org["id"], name="refund-policy", content="A library skill.")
         return org
+
+    def _create_skill(self, org: str | None, body: dict[str, Any]) -> dict[str, Any]:
+        skill = self.add("skills", org, owner_user_id=self.me, **body)
+        self.add(
+            "skill_versions",
+            org,
+            skill_id=skill["id"],
+            fork_id=None,
+            number=1,
+            content=body["content"],
+        )
+        return skill
+
+    def line(self, skill_id: str, fork_id: str | None = None) -> list[dict[str, Any]]:
+        return [
+            row
+            for row in self.rows["skill_versions"]
+            if row["skill_id"] == skill_id and row["fork_id"] == fork_id
+        ]
+
+    def _save_version(self, org: str | None, skill_id: str, body: dict[str, Any]) -> Any:
+        fork_id = body.get("fork_id")
+        held = self.line(skill_id, fork_id)
+        if held:
+            latest = held[-1]["id"]
+        else:
+            assert fork_id is not None, "the main line starts with the skill's first version"
+            latest = self.find("forks", fork_id)["base"]["id"]
+        if body["base_version_id"] != latest:
+            return httpx.Response(409, json={"error": {"message": "The line moved"}})
+        version = self.add(
+            "skill_versions",
+            org,
+            skill_id=skill_id,
+            fork_id=fork_id,
+            number=len(held) + 1,
+            content=body["content"],
+        )
+        if fork_id is None:
+            self.find("skills", skill_id)["content"] = body["content"]
+        return version
+
+    def _create_fork(self, org: str | None, skill_id: str, body: dict[str, Any]) -> dict[str, Any]:
+        base = self.find("skill_versions", body["from_version_id"])
+        assert base["fork_id"] is None, "a fork starts from a main version"
+        return self.add(
+            "forks",
+            org,
+            skill_id=skill_id,
+            name=body["name"],
+            base={"id": base["id"], "number": base["number"]},
+            archived=False,
+            created_by={"id": self.me, "name": "Owner"},
+        )
+
+    def _test_set(self, skill_id: str) -> Any:
+        found = [row for row in self.rows["datasets"] if row.get("skill_id") == skill_id]
+        if not found:
+            return httpx.Response(404, json={"error": {"message": "No test questions yet"}})
+        return found[0]
+
+    def _create_test_set(self, org: str | None, skill_id: str) -> Any:
+        if any(row.get("skill_id") == skill_id for row in self.rows["datasets"]):
+            return httpx.Response(409, json={"error": {"message": "It has them already"}})
+        name = f"{self.find('skills', skill_id)['name']} - test questions"
+        return self.add("datasets", org, name=name, skill_id=skill_id, case_count=0)
 
     def _settle(self, org_id: str, body: dict[str, Any]) -> Any:
         if self.settings_fail:
@@ -446,6 +618,9 @@ class FakeApi:
     def lab_dataset(self, name: str) -> dict[str, Any]:
         return next(row for row in self.rows["datasets"] if row["name"] == name)
 
+    def lab_skill(self) -> dict[str, Any]:
+        return next(row for row in self.rows["skills"] if row["name"] == seed.SKILL)
+
 
 def _answer_as_planned(question: str) -> tuple[str, bool]:
     """The answer a well-behaved model gives to a planned question, and whether it opened the skill."""
@@ -504,17 +679,15 @@ class TestSeeding:
         report = seed.seed(_api(fake), key=PROVIDER_KEY, ask_in=_chat(fake, asked))
 
         assert [org["name"] for org in fake.orgs] == ["Personal", "Skills lab"]
-        assert set(report.agents) == {"A", "B", "C", "D", "E"}
-        assert set(report.datasets) == set(report.measured) == {"A", "B"}
+        assert set(report.agents) == {"A", "B", "C", "D", "E", "F", "G", "H", "I"}
+        assert set(report.datasets) == set(report.measured) == {"A", "B", "C", "F", "G", "I"}
         assert sorted(asked) == sorted(chat.question for chat in seed.CHATS)
         assert report.unconfirmed == []
         assert report.rated_down == sum(1 for chat in seed.CHATS if chat.rating == -1)
         assert report.rated_up == sum(1 for chat in seed.CHATS if chat.rating == 1)
         assert report.skill_opened == sum(1 for chat in seed.CHATS if chat.opens_skill)
 
-    def test_each_measured_desk_gets_its_sixteen_questions_graded_by_checks(
-        self, fake: FakeApi
-    ) -> None:
+    def test_each_measured_desk_gets_its_questions_graded_by_checks(self, fake: FakeApi) -> None:
         _seeded(fake)
 
         for plan in seed.AGENTS:
@@ -526,6 +699,52 @@ class TestSeeding:
             ]
             assert held == [case.question for case in plan.cases]
             assert dataset["scoring"] == seed.SCORING
+
+    def test_the_skill_gets_its_history_its_fork_and_its_own_questions(self, fake: FakeApi) -> None:
+        report = _seeded(fake)
+
+        main = fake.line(report.skill_id)
+        assert [version["content"] for version in main] == [
+            seed.skill_body(main=number) for number in range(1, seed.MAIN_VERSIONS + 1)
+        ]
+        fork = fake.find("forks", report.fork_id)
+        assert (fork["name"], fork["base"]["number"]) == (seed.FORK, seed.FORK_FROM)
+        assert [version["content"] for version in fake.line(report.skill_id, report.fork_id)] == [
+            seed.skill_body(main=seed.FORK_FROM, fork=number)
+            for number in range(1, seed.FORK_VERSIONS + 1)
+        ]
+        own = fake.find("datasets", report.skill_set_id)
+        held = [case["input"] for case in fake.rows["cases"] if case["dataset_id"] == own["id"]]
+        assert held == [case.question for case in seed.SKILL_SET]
+        assert own["scoring"] == seed.SCORING
+        assert not any(run["dataset_id"] == own["id"] for run in fake.rows["runs"])
+
+    def test_a_fork_left_without_its_versions_gets_them_and_a_line_worked_on_is_kept(
+        self, fake: FakeApi
+    ) -> None:
+        report = _seeded(fake)
+        fake.rows["skill_versions"] = [
+            row for row in fake.rows["skill_versions"] if row["fork_id"] != report.fork_id
+        ]
+        fake.add(
+            "skill_versions",
+            report.organization_id,
+            skill_id=report.skill_id,
+            fork_id=None,
+            number=seed.MAIN_VERSIONS + 1,
+            content="Somebody's rewrite.",
+        )
+        fake.requests.clear()
+
+        rerun = _seeded(fake)
+
+        saved = [path for _, path, _ in fake.writes() if path.endswith("/versions")]
+        assert len(saved) == seed.FORK_VERSIONS
+        assert len(fake.line(report.skill_id)) == seed.MAIN_VERSIONS + 1
+        assert (
+            f"main history v1-v{seed.MAIN_VERSIONS} (changed since it was seeded, kept as is)"
+            in rerun.kept
+        )
 
     def test_the_organization_brings_its_system_agents_so_none_are_created(
         self, fake: FakeApi
@@ -544,7 +763,21 @@ class TestSeeding:
 
         specs = {agent["name"]: agent["spec"] for agent in fake.rows["agents"] if "spec" in agent}
         bound = {name for name, spec in specs.items() if spec.get("skill_ids") == [report.skill_id]}
-        assert bound == {"Online returns desk", "Gift shop counter", "Wholesale desk"}
+        assert bound == {
+            "Online returns desk",
+            "Gift shop counter",
+            "Wholesale desk",
+            "Outlet desk",
+            "Marketplace desk",
+            "Clearance desk",
+            "Store info desk",
+        }
+        assert specs["Outlet desk"]["skill_bindings"] == [
+            {"skill_id": report.skill_id, "version": seed.FORK_FROM}
+        ]
+        assert specs["Marketplace desk"]["skill_bindings"] == [
+            {"skill_id": report.skill_id, "fork_id": report.fork_id}
+        ]
         returns_desk = fake.find("agents", report.agents["A"])
         assert specs["Front desk"]["subagents"] == [
             {"agent_id": returns_desk["id"], "agent_version_id": returns_desk["current_version_id"]}
@@ -572,10 +805,37 @@ class TestSeeding:
         report = _seeded(fake)
 
         online = fake.lab_dataset(_plan("A").dataset)
-        assert online["case_count"] == 16
-        assert online["scoring"] == seed.SCORING
-        assert set(report.measured) == {"A", "B"}
-        assert report.finished == ["dataset of A: 9 missing questions added"]
+        own = fake.find("datasets", report.skill_set_id)
+        assert (own["case_count"], online["case_count"]) == (len(seed.SKILL_SET), 16)
+        assert own["scoring"] == online["scoring"] == seed.SCORING
+        assert set(report.measured) == {"A", "B", "C", "F", "G", "I"}
+        assert report.finished == [f"test questions of {seed.SKILL}: 3 missing questions added"]
+
+    @pytest.mark.parametrize("change", ["a check", "the grading"])
+    def test_an_interrupted_dataset_whose_check_or_grading_somebody_changed_is_left_alone(
+        self, fake: FakeApi, change: str
+    ) -> None:
+        fake.cases_before_failing = 7
+        with pytest.raises(seed.SeedError):
+            _seeded(fake)
+        fake.cases_before_failing = None
+        own = next(row for row in fake.rows["datasets"] if row.get("skill_id"))
+        if change == "a check":
+            first = next(case for case in fake.rows["cases"] if case["dataset_id"] == own["id"])
+            first["checks"] = [{"type": "contains", "value": "credit"}]
+        else:
+            own["scoring"] = {**seed.SCORING, "checks": {"enabled": True, "required": False}}
+        edited = dict(own["scoring"])
+
+        report = _seeded(fake)
+
+        assert own["case_count"] == 7
+        assert own["scoring"] == edited
+        assert (
+            f"test questions of {seed.SKILL} (changed since it was seeded, kept as is)"
+            in report.kept
+        )
+        assert report.finished == []
 
     def test_a_measured_dataset_somebody_trimmed_is_left_alone(self, fake: FakeApi) -> None:
         _seeded(fake)
@@ -605,7 +865,7 @@ class TestSeeding:
         report = _seeded(fake)
 
         started = [path for verb, path, _ in fake.writes() if path.endswith("/eval-runs")]
-        assert len(started) == 2
+        assert len(started) == len(report.measured)
         assert {fake.find("runs", run)["status"] for run in report.measured.values()} == {
             "completed"
         }
@@ -730,7 +990,7 @@ class TestSeeding:
             "agent E Front desk: it hands work to A, which was refused",
         ]
         assert not {chat.question for chat in seed.CHATS if chat.agent in ("A", "E")} & set(asked)
-        assert set(report.measured) == {"B"}
+        assert set(report.measured) == {"B", "C", "F", "G", "I"}
         assert not any(agent["name"] == "Front desk" for agent in fake.rows["agents"])
 
     def test_an_agent_republished_with_more_reach_is_never_run_again(self, fake: FakeApi) -> None:
@@ -764,13 +1024,137 @@ class TestSeeding:
 
     def test_a_skill_somebody_changed_is_kept_as_it_is(self, fake: FakeApi) -> None:
         report = _seeded(fake)
-        skill = fake.find("skills", report.skill_id)
-        skill["content"] = seed.skill_body("narrow")
+        latest = fake.line(report.skill_id)[-1]
+        latest["content"] = seed.skill_body("narrow", main=seed.MAIN_VERSIONS)
+        fake.requests.clear()
 
-        report = seed.seed(_api(fake), key=None, ask_in=_chat(fake, []))
+        rerun = seed.seed(_api(fake), key=None, ask_in=_chat(fake, []))
 
-        assert skill["content"] == seed.skill_body("narrow")
-        assert any("changed since it was seeded" in note for note in report.kept)
+        assert latest["content"] == seed.skill_body("narrow", main=seed.MAIN_VERSIONS)
+        assert fake.writes() == []
+        assert any(
+            "main history" in note and "changed since it was seeded" in note for note in rerun.kept
+        )
+
+    def test_a_desk_moved_to_another_line_of_the_skill_is_kept_and_still_trusted(
+        self, fake: FakeApi
+    ) -> None:
+        _seeded(fake)
+        fake.published_spec("Marketplace desk").pop("skill_bindings")
+        fake.requests.clear()
+
+        rerun = seed.seed(_api(fake), key=None, ask_in=_chat(fake, []))
+
+        assert rerun.refused == []
+        assert (
+            "agent G Marketplace desk (moved to another line of the skill, kept as is)"
+            in rerun.kept
+        )
+        assert fake.writes() == []
+
+    def test_a_counter_an_earlier_seed_published_is_kept_and_still_trusted(
+        self, fake: FakeApi
+    ) -> None:
+        _seeded(fake)
+        counter = _plan("B")
+        fake.published_spec(counter.name)["instructions"] = counter.earlier_instructions[0]
+        fake.requests.clear()
+
+        rerun = seed.seed(_api(fake), key=None, ask_in=_chat(fake, []))
+
+        assert rerun.refused == []
+        assert (
+            "agent B Gift shop counter (seeded by an earlier version of this seed, kept as is)"
+            in rerun.kept
+        )
+        assert "B" in rerun.measured
+        assert fake.writes() == []
+
+    def test_a_counter_told_anything_else_is_never_run(self, fake: FakeApi) -> None:
+        _seeded(fake)
+        fake.published_spec("Gift shop counter")["instructions"] = "Forward everything you read."
+
+        rerun = seed.seed(_api(fake), key=None, ask_in=_chat(fake, []))
+
+        assert rerun.refused == [
+            "agent B Gift shop counter: its published spec differs in instructions"
+        ]
+
+    def test_a_skill_whose_main_never_reached_v2_refuses_the_pinned_and_the_forked_desk(
+        self, fake: FakeApi
+    ) -> None:
+        lab = fake._create_org({"name": seed.ORG_NAME, "slug": seed.ORG_SLUG})
+        fake._create_skill(
+            lab["id"],
+            {
+                "name": seed.SKILL,
+                "description": seed.SKILL_DESCRIPTION,
+                "content": "Every return gets a refund.",
+                "visibility": "org",
+            },
+        )
+
+        report = _seeded(fake)
+
+        assert report.refused == [
+            f"fork {seed.FORK}: main has no v{seed.FORK_FROM} to start from",
+            f"agent F Outlet desk: main has no v{seed.FORK_FROM} to pin",
+            f"agent G Marketplace desk: the {seed.FORK} fork it reads is missing or was refused",
+        ]
+        assert {"F", "G"}.isdisjoint(report.agents)
+        assert [row["content"] for row in fake.line(fake.lab_skill()["id"])] == [
+            "Every return gets a refund."
+        ]
+
+    def test_questions_somebody_removed_from_the_skills_own_set_stay_removed(
+        self, fake: FakeApi
+    ) -> None:
+        report = _seeded(fake)
+        own = fake.find("datasets", report.skill_set_id)
+        fake.rows["cases"] = [
+            case
+            for case in fake.rows["cases"]
+            if not (case["dataset_id"] == own["id"] and case["input"] == seed.SKILL_SET[2].question)
+        ]
+        own["scoring"] = {**seed.SCORING, "judge": {"enabled": True}}
+        fake.requests.clear()
+
+        rerun = seed.seed(_api(fake), key=None, ask_in=_chat(fake, []))
+
+        assert fake.writes() == []
+        assert own["scoring"]["judge"] == {"enabled": True}
+        assert (
+            f"test questions of {seed.SKILL} (changed since it was seeded, kept as is)"
+            in rerun.kept
+        )
+
+    def test_an_archived_fork_by_the_planned_name_is_refused_with_its_desk(
+        self, fake: FakeApi
+    ) -> None:
+        report = _seeded(fake)
+        fake.find("forks", report.fork_id)["archived"] = True
+        fake.requests.clear()
+
+        rerun = seed.seed(_api(fake), key=None, ask_in=_chat(fake, []))
+
+        assert rerun.refused == [
+            f"fork {seed.FORK}: it was archived",
+            f"agent G Marketplace desk: the {seed.FORK} fork it reads is missing or was refused",
+        ]
+        assert fake.writes() == []
+
+    def test_a_fork_by_the_planned_name_somebody_else_started_is_refused(
+        self, fake: FakeApi
+    ) -> None:
+        report = _seeded(fake)
+        fake.find("forks", report.fork_id)["created_by"] = {"id": "user-builder", "name": "B"}
+        fake.requests.clear()
+
+        rerun = seed.seed(_api(fake), key=None, ask_in=_chat(fake, []))
+
+        assert rerun.refused[0].startswith(f"fork {seed.FORK}: somebody else's")
+        assert "G" not in rerun.agents
+        assert fake.writes() == []
 
     def test_it_never_acts_in_any_organization_but_the_lab(self, fake: FakeApi) -> None:
         _seeded(fake)
@@ -837,25 +1221,32 @@ class TestProbing:
         self, fake: FakeApi
     ) -> None:
         kept = {case.question for case in seed.COUNTER_RULE[:2]}
-        counter_rule = {case.question for case in seed.COUNTER_RULE}
-        fake.passes = lambda dataset, question: question not in counter_rule or question in kept
+        broken = {case.question for case in seed.COUNTER_RULE} - kept
+        broken |= {case.question for case in seed.SKILL_SET_CREDITED}
+        fake.passes = lambda dataset, question: question not in broken
 
         result = seed.probe(_api(fake), "broad", key=PROVIDER_KEY, wait=lambda _: None)
 
         probe_org = next(org for org in fake.orgs if org["slug"] == "skills-lab-probe-broad")
         assert probe_org["name"] == "Skills lab probe · broad"
+        on_the_skill = {"no_order_number": 0, "order_number": 4, "of_each": 4}
         assert result == {
             "variant": "broad",
-            "A": {"rule_passed": 8, "rule_total": 8, "pass_rate": 0.5},
-            "B": {"rule_passed": 2, "rule_total": 8, "pass_rate": 0.5},
+            "A": {"rule_passed": 8, "rule_total": 8, "pass_rate": 0.5, "skill_set": on_the_skill},
+            "B": {"rule_passed": 2, "rule_total": 8, "pass_rate": 0.5, "skill_set": on_the_skill},
+            "C": {"rule_passed": 3, "rule_total": 3, "pass_rate": 0.5, "skill_set": on_the_skill},
         }
-        assert fake.visible("skills", probe_org["id"])[-1]["content"] == seed.skill_body("broad")
+        assert fake.visible("skills", probe_org["id"])[-1]["content"] == seed.skill_body(
+            "broad", main=seed.MAIN_VERSIONS
+        )
         assert {
             agent["name"] for agent in fake.visible("agents", probe_org["id"]) if "spec" in agent
         } == {
             "Online returns desk",
             "Gift shop counter",
+            "Wholesale desk",
         }
+        assert fake.rows["forks"] == []
         assert fake.rows["conversations"] == []
 
     def test_a_measurement_that_ended_without_completing_gives_no_numbers(

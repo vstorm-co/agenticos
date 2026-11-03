@@ -24,7 +24,8 @@ the version the skill is at now is re-pointed at v1; any other pending proposal 
 written against a text that is gone, keeps its old number and no `base_version_id`,
 and is refused on apply as written against a skill that has moved. Re-numbering it
 instead would let an old proposal with `base_version = 1` overwrite the backfilled
-v1 as if nothing had changed.
+v1 as if nothing had changed. A skill whose organization is gone - a row written
+past its keys - is left without a version rather than failing the upgrade.
 
 **Downgrade** drops the history: the skills keep the text of their newest main
 version and its number. Specs written by the binding that comes with versions
@@ -335,7 +336,9 @@ def _backfill() -> None:
         f"""
         INSERT INTO skill_files (skill_id, sha256, organization_id, content)
         SELECT DISTINCT ON (r.skill_id, {_SHA}) r.skill_id, {_SHA}, s.organization_id, r.content
-        FROM skill_resources r JOIN skills s ON s.id = r.skill_id
+        FROM skill_resources r
+        JOIN skills s ON s.id = r.skill_id
+        JOIN organizations o ON o.id = s.organization_id
         """
     )
     op.execute(
@@ -361,7 +364,7 @@ def _backfill() -> None:
                 '{{}}'::jsonb
             ),
             'backfill', s.library_fingerprint, COALESCE(s.updated_at, s.created_at)
-        FROM skills s
+        FROM skills s JOIN organizations o ON o.id = s.organization_id
         """
     )
     # Before `skills.version` restarts: the comparison is with the number it has now.

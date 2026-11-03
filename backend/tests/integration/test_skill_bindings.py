@@ -23,7 +23,12 @@ from app.db.models.skill import Skill
 from app.db.models.skill_version import SkillVersion
 from app.schemas.agent_environment import EnvironmentUpdate
 from app.schemas.skill import SkillUpdate
-from app.schemas.skill_version import SkillBindingChange, SkillForkCreate, SkillVersionCreate
+from app.schemas.skill_version import (
+    SkillBindingChange,
+    SkillForkCreate,
+    SkillVersionCreate,
+    SkillVersionRestore,
+)
 from app.services import proposal_reach
 from app.services.agent_environment import AgentEnvironmentService
 from app.services.agent_registry import AgentRegistryService
@@ -304,6 +309,24 @@ class TestAChangeReachesItsLine:
 
 
 class TestTheSkillsAgents:
+    async def test_a_pinned_agent_is_behind_by_changes_not_by_versions(self, db):
+        ctx = await _owner(db)
+        skill = await _skill(db, ctx)
+        await _serving(db, ctx, "Clerk", _spec(skill, version=3))
+        versions = SkillVersionService(db)
+        for _ in range(2):
+            assert skill.latest_version_id is not None
+            await versions.restore(
+                ctx,
+                skill.id,
+                skill.latest_version_id,
+                SkillVersionRestore(base_version_id=skill.latest_version_id),
+            )
+
+        [row] = (await SkillAgentService(db).agents(ctx, skill.id)).items
+
+        assert (skill.version, row.binding.state, row.binding.behind_main) == (5, "pinned", 0)
+
     async def test_each_agent_shows_the_version_it_reads_and_how_far_behind(self, db):
         ctx = await _owner(db)
         skill = await _skill(db, ctx)
