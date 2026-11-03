@@ -123,12 +123,9 @@ The body names the dataset (`dataset_id`, `dataset_version`), the candidate
 the `environment_id`, the `model_profile_ids` to compare, and
 `paired_baseline`. The estimate is the agent's average cost per run on each
 model, over its recent completed runs, times the number of cases, plus a judge
-call per case when a judge scores the dataset and AI assistance is on.
+call per case when a judge scores the dataset .
 
-AI assistance is off for an organization until someone with `org:settings`
-turns it on. While it is off the judge does not run: a case is decided by its
-checks and its expected tool calls, the judge's criteria are recorded as
-skipped, and the estimate counts no judge.
+The estimate includes model-backed grading whenever the dataset requires it, priced on the model selected in Grading. No organization switch disables that scorer.
 
 An agent with no history on a model is estimated as a typical case -
 `EVAL_FALLBACK_INPUT_TOKENS` in, `EVAL_FALLBACK_OUTPUT_TOKENS` out - at the
@@ -163,11 +160,7 @@ increase from a zero baseline.
 A run that could not tell anybody anything is refused before it is estimated:
 
 - a dataset version with no cases;
-- scoring with no required scorer that can decide any case of the version -
-  no check to apply, no expected tool call, and no judge. When the judge is the
-  only scorer and AI assistance is off, the refusal says so: the judge needs AI
-  assistance, which is off for this organization, so turn it on in the
-  organization's settings or add a check;
+- scoring with no required scorer applicable to any case: add a check, an expected tool call or grading criteria;
 - an agent that was never published, asked for a version - run its draft
   instead;
 - a baseline for a first version, which has nothing before it.
@@ -288,8 +281,7 @@ Every attempt comes out one of four ways (`state` on the attempt):
 - **incomplete** when the provider failed after its retries (an error 5xx, 408
   or 429, or no answer at all), a scorer raised, the run was cancelled or ran
   out of budget, or its tries tied;
-- **ungraded** when nothing grades the answer - no required scorer applies, or
-  only the judge could and AI assistance is off.
+- **ungraded** when no required scorer applies to the answer.
 
 Neither of the last two is ever a pass; the summary counts them apart
 (`incomplete`, `ungraded`).
@@ -425,11 +417,7 @@ both ways on re-asking within an attempt, or today's version moved between
 attempts on the held-out questions they shared - fewer than five shared are too
 few to judge.
 
-What steadies grading: criteria answered yes or no instead of on a scale, a
-deterministic check for length and format rather than a judge's opinion of them,
-more cases - about 30 kept aside for an Improve session - and a stronger judge
-model, which the organization's [Grading model](governance.md#ai-assistance)
-sets for new judges.
+Use clear yes/no criteria, deterministic checks for format and length, and enough representative cases. Choose an appropriate independent grading model explicitly in the dataset’s **Grading** tab; model price does not establish grading quality.
 
 ### How steady the answers are { #how-steady-the-answers-are }
 
@@ -568,9 +556,7 @@ rate below the minimum fails a result whatever its comparison: the minimum
 needs no baseline. A result whose eval run was cancelled is inconclusive too,
 and says so; one whose run failed is an error.
 
-A result **did not run** when it would cost more than a budget has left or more than the suite's own ceiling, when only
-the judge could grade it and AI assistance is off, or when there is no
-published version to check.
+A suite does not run when its estimate exceeds the remaining budget or its own ceiling, when it has no published version to check, or when no required scorer can decide a case.
 
 Scheduled and dependency runs are compared with
 the suite's last passing run of the same version - the last state known to be

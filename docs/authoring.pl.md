@@ -1,5 +1,5 @@
 ---
-source_sha: "e2344fe1861a"
+source_sha: "3f99d694cd76"
 title: "Asystent tworzenia"
 description: "Asystent tworzenia czyta, co ludzie ocenili negatywnie i jak kończyły się runy, i sugeruje zmiany w instrukcjach agenta, jego narzędziach, konfiguracji, skillach i plikach kontekstowych. O każdej decyduje człowiek."
 ---
@@ -25,21 +25,9 @@ Robi trzy rzeczy:
 - **Ulepsza skill** albo **plik kontekstowy**: sugeruje nową treść na podstawie
   runów, które go czytały.
 
-Asystent jest osobnym [agentem systemowym](concepts.md#system-agents), widocznym
-razem z pozostałymi agentami systemowymi organizacji. Administrator edytuje jego
-instrukcje jak instrukcje każdego agenta - zmiana agenta systemowego wymaga
-`org:settings` - a jego runy są zwykłymi runami: objęte budżetem, wycenione i
-widoczne w **Aktywności** (Activity). Nigdy nie jest agentem, którego dotyczy
-Improve albo Verify. Ustawiony na
-[przeszukiwanie bazy wiedzy](concepts.md#system-agent-spec) czyta bazy wiedzy
-agenta, którego ulepsza.
+W Agent Builderze **Verify my edits** zapisuje wersję roboczą i otwiera standardowy proces ewaluacji, porównujący go z opublikowaną wersją na datasecie. Pokazuje koszt przed startem i zapisuje porównanie w zakładce Ewaluacje. To osobny proces od dawnego endpointu sprawdzania na podstawie dowodów, zachowanego dla zgodności API.
 
-Rozwiń **Asystent poprawiania** podczas poprawiania lub weryfikacji, aby
-wybrać opublikowanego asystenta. Zmiana usuwa poprzedni szacunek, więc zgoda
-dotyczy ceny i budżetu wybranego asystenta. Zadanie zachowuje `improver_agent_id`;
-sesja poprawiania w tle przyjmuje ten sam wybór. Worker ponownie sprawdza rodzaj,
-publikację i aktualne uprawnienia użytkownika. Usunięty wybór powoduje odmowę,
-zamiast powrotu do domyślnego agenta.
+**Improve** otwiera sesję ulepszania. Model i instrukcje ulepszania należą do **Ustawień** wybranego datasetu; pomocnicy mają domyślne instrukcje w kodzie i nie mają strony edycji w katalogu agentów. Dialogi ulepszania skilli i kontekstu wybierają model bezpośrednio. Nadal obowiązują budżety i zapisy runów w Aktywności.
 
 ## Co czyta { #what-it-reads }
 
@@ -315,14 +303,9 @@ Retencja aktywności zachowuje łączny koszt usuniętych płatnych runów sesji
 Granty się liczą: członek z grantem edycji na jednym agencie może ulepszać tego
 agenta.
 
-## Gdy wsparcie AI jest wyłączone { #when-ai-assistance-is-off }
+## Dostępność i koszt { #when-ai-assistance-is-off }
 
-Gdy przełącznik **wsparcia AI** organizacji jest wyłączony, asystent nie działa:
-Ulepsz, Sprawdź i ulepszanie skilla albo pliku kontekstowego są odrzucane przez
-serwer, a konsola
-pokazuje je jako wyłączone z linkiem do przełącznika. Sugestie, które już
-czekają, nadal można przyjmować, odrzucać i cofać, a run ewaluacji, który nie
-potrzebuje sędziego, nadal działa.
+Dostępność wynika z dostępu do zasobów, gotowości modelu i budżetów. Nie ma organizacyjnego przełącznika wsparcia AI. Płatna praca wymaga jawnego startu; przyjęcie lub odrzucenie istniejącej propozycji nie wywołuje modelu.
 
 ## Sesje poprawiania w tle { #background-improvement-sessions }
 
@@ -362,8 +345,7 @@ ramach budżetu. Dwa wyniki z rzędu bez zmiany albo nierozstrzygnięty wynik i
 jego powtórzenie pokazują się na wyniku jako podpowiedź, że kolejna próba raczej
 nie pomoże, a nie jako zatrzymanie.
 
-Kto może rozpocząć sesję dla agenta - prawo edycji, `runs:view` i włączone
-wsparcie AI - może też wykonać jej następny krok albo spróbować ponownie. Sesja
+Kto może rozpocząć sesję dla agenta - prawo edycji, `runs:view` i  - może też wykonać jej następny krok albo spróbować ponownie. Sesja
 zapisuje, kto to zrobił, a dalsze kroki idą z aktualnymi uprawnieniami i
 poświadczeniem tej osoby, więc sesję rozpoczętą przez Architekta można
 poprowadzić dalej w konsoli.

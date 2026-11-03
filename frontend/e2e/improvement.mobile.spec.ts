@@ -64,7 +64,6 @@ async function seedImprovableAgent(page: Page) {
     .poll(async () => (await api.get(`/api/orgs/${organizationId}`, { headers })).status())
     .toBe(200);
   const stamp = Date.now().toString(36);
-  await write(api, "patch", `/orgs/${organizationId}`, headers, { ai_assistance_enabled: true });
   const secret = await write(api, "post", "/secrets", headers, {
     name: `improvement-${stamp}`,
     purpose: "openai",
@@ -86,14 +85,14 @@ async function seedImprovableAgent(page: Page) {
     },
   });
   await write(api, "post", `/agents/${id(agent)}/publish`, headers, {});
-  const helper = await write(api, "post", "/agents/system", headers, {
-    kind: "improver",
-    name: `E2E Improver ${stamp}`,
-    model_profile_id: id(model),
-  });
-  expect(helper.current_version_id).toBeTruthy();
   const dataset = await write(api, "post", "/datasets", headers, {
     name: `Return policy ${stamp}`,
+  });
+  await write(api, "patch", `/datasets/${id(dataset)}`, headers, {
+    helper_settings: {
+      improver: { model_profile_id: id(model), instructions: null },
+      generator: { model_profile_id: id(model), instructions: null },
+    },
   });
   await write(api, "put", `/datasets/${id(dataset)}/scoring`, headers, {
     checks: { enabled: true, required: true },
@@ -134,7 +133,7 @@ async function seedImprovableAgent(page: Page) {
       timeout: 90_000,
     })
     .toBe("completed");
-  return { api, headers, stamp, model, agent, helper, dataset, initial };
+  return { api, headers, stamp, model, agent, dataset, initial };
 }
 
 /**
@@ -188,8 +187,7 @@ test("test questions, review and improvement publish keep a guarded environment 
   page,
 }, info) => {
   test.setTimeout(600_000);
-  const { api, headers, stamp, model, agent, helper, dataset, initial } =
-    await seedImprovableAgent(page);
+  const { api, headers, stamp, agent, dataset, initial } = await seedImprovableAgent(page);
   await page.goto("/datasets");
   await expect(page.getByText(String(dataset.name), { exact: true })).toBeVisible();
   await capture(page, info, "datasets");
@@ -216,14 +214,6 @@ test("test questions, review and improvement publish keep a guarded environment 
   });
   expect(clipped, "model labels and prices must fit inside the phone's run card").toEqual([]);
   await capture(page, info, "agent-evals");
-  const judge = await write(api, "post", "/agents/system", headers, {
-    kind: "judge",
-    name: `Policy grader ${stamp}`,
-    model_profile_id: id(model),
-  });
-  await page.goto(`/agents/${id(judge)}`);
-  await expect(page.getByRole("heading", { name: String(judge.name), exact: false })).toBeVisible();
-  await capture(page, info, "judge");
   await page.goto(`/datasets/${id(dataset)}`);
   await expect(
     page.getByRole("heading", { name: String(dataset.name), exact: true }),
@@ -244,6 +234,7 @@ test("test questions, review and improvement publish keep a guarded environment 
       .evaluate((el) => parseFloat(getComputedStyle(el).fontSize)),
   ).toBeGreaterThanOrEqual(16);
   await capture(page, info, "case-editor");
+  await editor.locator("summary").filter({ hasText: "Tool expectations" }).click();
   await editor.getByRole("button", { name: "Add a tool call", exact: true }).click();
   await editor.getByRole("button", { name: "Add an argument", exact: true }).click();
   await editor.getByRole("combobox", { name: "Call 1: tool", exact: true }).fill("search_kb");
@@ -331,26 +322,9 @@ test("test questions, review and improvement publish keep a guarded environment 
     await expect(testQuestions).toContainText(String(dataset.name), { timeout: 2_000 });
   }).toPass({ timeout: 30_000 });
   const estimate = page.getByText(/^Up to .+ \(estimate\) to sort the \d+ answers? with feedback/);
-  // Opened before the estimate lands, which redraws the box above it.
-  await page.getByText("Helper that writes the changes", { exact: true }).click();
-  const runWith = page.getByRole("combobox", { name: "Run with" });
-  await runWith.click();
-  await expect(estimate).toBeVisible();
-  const choice = page.getByRole("option", { name: String(helper.name), exact: true });
-  // The page keeps settling after the estimate; the open list stays on screen
-  // through it rather than closing or drifting off a phone's viewport.
-  await expect(choice).toBeInViewport();
-  await page.waitForTimeout(1_500);
-  await expect(choice).toBeInViewport();
-  await expect(async () => {
-    if (await choice.isVisible()) await expect(choice).toBeInViewport();
-    else {
-      await runWith.scrollIntoViewIfNeeded();
-      await runWith.click();
-    }
-    await choice.click({ timeout: 2_000 });
-    await expect(runWith).toHaveText(String(helper.name), { timeout: 2_000 });
-  }).toPass({ timeout: 30_000 });
+  await expect(
+    page.getByRole("link", { name: "Configure model and instructions in the dataset" }),
+  ).toHaveAttribute("href", `/datasets/${id(dataset)}?tab=settings`);
   await expect(estimate).toBeVisible();
   const budget = page.getByLabel("Session spending limit (USD)");
   await expect(budget).toBeVisible();
@@ -449,11 +423,10 @@ test("a first improvement offers the automatic check, and ticking it creates the
   page,
 }) => {
   test.setTimeout(420_000);
-  const { api, headers, agent, helper, dataset } = await seedImprovableAgent(page);
+  const { api, headers, agent, dataset } = await seedImprovableAgent(page);
   expect(items(await read(api, `/agents/${id(agent)}/eval-suites`, headers))).toEqual([]);
   const session = await write(api, "post", `/agents/${id(agent)}/improvements`, headers, {
     dataset_id: id(dataset),
-    improver_agent_id: id(helper),
     max_iterations: 3,
     budget_usd: "5",
   });
@@ -484,10 +457,9 @@ test("a session kept as a draft is history: Improve starts the next, and the his
   page,
 }) => {
   test.setTimeout(420_000);
-  const { api, headers, agent, helper, dataset } = await seedImprovableAgent(page);
+  const { api, headers, agent, dataset } = await seedImprovableAgent(page);
   const session = await write(api, "post", `/agents/${id(agent)}/improvements`, headers, {
     dataset_id: id(dataset),
-    improver_agent_id: id(helper),
     max_iterations: 3,
     budget_usd: "5",
   });

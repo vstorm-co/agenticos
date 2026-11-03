@@ -1,13 +1,14 @@
 "use client";
 
-import { useState } from "react";
-import { TriangleAlert } from "lucide-react";
 import { useTranslations } from "next-intl";
 
-import { Button, ConfirmDialog, Input } from "@/components/ui";
+import { Button, FormField, Input, MarkdownEditor } from "@/components/ui";
+import { ModelProfilePicker } from "@/components/agents/model-profile-picker";
+import { useModelProviders } from "@/hooks/use-model-providers";
+import { usePermissions } from "@/hooks/use-permissions";
+import { Perm } from "@/types/permissions";
 import type { DatasetScoring } from "@/types/scoring";
 import type { RuleChecks } from "./criterion-rule";
-import { JudgePicker } from "./judge-picker";
 import { RubricEditor } from "./rubric-editor";
 import { ScorerRow } from "./scorer-row";
 
@@ -17,11 +18,11 @@ interface JudgeSettingsProps {
   totalCases?: number;
   /** The judge as saved, against which a change of judge is noticed. */
   stored: DatasetScoring["judge"];
+  defaultInstructions?: string;
   reference: DatasetScoring["reference"];
   onJudge: (judge: DatasetScoring["judge"]) => void;
   onReference: (reference: DatasetScoring["reference"]) => void;
   disabled: boolean;
-  onCreate?: () => void;
   /** How many of the dataset's cases have a reference answer, as a sentence. */
   referenceCoverage: string;
   /** How many have a counter-example, which the judge checks while it or the reference is on. */
@@ -32,23 +33,15 @@ interface JudgeSettingsProps {
   rules?: RuleChecks;
 }
 
-/**
- * Which judge grades the dataset, on which criteria and from which mark, and
- * whether it compares answers with the reference answer. The counter-example is
- * no switch of its own: it is checked whenever either is on. The judge's model is
- * shown with it and changed on the judge's own page, the one place it is set.
- *
- * Changing the judge is allowed and said: scores graded before name another
- * judge, so they no longer compare with the ones graded after.
- */
+/** The dataset owns its grading model, instructions, criteria and reference comparison. */
 export function JudgeSettings({
   judge,
+  defaultInstructions,
   stored,
   reference,
   onJudge,
   onReference,
   disabled,
-  onCreate,
   referenceCoverage,
   counterExampleCoverage,
   focusRubric,
@@ -57,36 +50,37 @@ export function JudgeSettings({
   rules,
 }: JudgeSettingsProps) {
   const t = useTranslations("datasets.scoring");
-  const [switching, setSwitching] = useState<string | null | undefined>(undefined);
-  const changed = judge.agent_id !== stored.agent_id;
+  const { profiles, profilesStatus } = useModelProviders();
+  const { can } = usePermissions();
+  const tAgent = useTranslations("pages.agents");
   const yesNo = judge.scale_max === 2 && judge.pass_at === 2;
-  // Moving away from the judge the scores were graded by is asked once; coming
-  // back to it is not, since the scores compare again.
-  const pick = (agentId: string | null) =>
-    agentId === stored.agent_id ? onJudge({ ...judge, agent_id: agentId }) : setSwitching(agentId);
-
   return (
     <>
-      <JudgePicker value={judge.agent_id} onChange={pick} disabled={disabled} onCreate={onCreate} />
-      {switching !== undefined && (
-        <ConfirmDialog
-          open
-          onOpenChange={() => setSwitching(undefined)}
-          title={t("switchJudgeTitle")}
-          description={t("switchJudgeBody")}
-          confirmLabel={t("switchJudge")}
-          onConfirm={() => {
-            onJudge({ ...judge, agent_id: switching });
-            setSwitching(undefined);
-          }}
-        />
-      )}
-      {changed && (
-        <p role="status" className="text-muted-foreground flex items-start gap-2 text-xs">
-          <TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+      {(judge.model_profile_id !== stored.model_profile_id ||
+        judge.instructions !== stored.instructions) && (
+        <p role="status" className="text-muted-foreground text-sm">
           {t("judgeChanged")}
         </p>
       )}
+      <div className="space-y-6">
+        <ModelProfilePicker
+          profiles={profiles}
+          profilesStatus={profilesStatus}
+          value={judge.model_profile_id}
+          onChange={(model_profile_id) => onJudge({ ...judge, model_profile_id })}
+          allowAdd={can(Perm.connectionsManage)}
+          disabled={disabled}
+        />
+        <MarkdownEditor
+          label={tAgent("instructions")}
+          toolbar={<h3 className="text-sm font-medium">{tAgent("instructions")}</h3>}
+          value={judge.instructions ?? defaultInstructions ?? ""}
+          onChange={(instructions) => onJudge({ ...judge, instructions })}
+          rows={8}
+          disabled={disabled}
+          inertImages
+        />
+      </div>
       <ScorerRow
         label={t("scorer.criteria")}
         hint={t("judgeHint")}
@@ -94,34 +88,28 @@ export function JudgeSettings({
         onChange={({ enabled }) => onJudge({ ...judge, enabled })}
         disabled={disabled}
       >
-        <p className="flex flex-wrap items-center gap-1.5 text-sm">
-          {t.rich("scaleSentence", {
-            top: () => (
-              <Input
-                type="number"
-                min={2}
-                max={10}
-                aria-label={t("scaleMax")}
-                className="h-8 w-16"
-                value={judge.scale_max}
-                onChange={(event) => onJudge({ ...judge, scale_max: Number(event.target.value) })}
-                disabled={disabled}
-              />
-            ),
-            mark: () => (
-              <Input
-                type="number"
-                min={1}
-                max={judge.scale_max}
-                aria-label={t("passAt")}
-                className="h-8 w-16"
-                value={judge.pass_at}
-                onChange={(event) => onJudge({ ...judge, pass_at: Number(event.target.value) })}
-                disabled={disabled}
-              />
-            ),
-          })}
-        </p>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <FormField htmlFor="grading-scale" label={t("scaleMax")} description={t("scaleHelp")}>
+            <Input
+              type="number"
+              min={2}
+              max={10}
+              value={judge.scale_max}
+              onChange={(event) => onJudge({ ...judge, scale_max: Number(event.target.value) })}
+              disabled={disabled}
+            />
+          </FormField>
+          <FormField htmlFor="grading-pass" label={t("passAt")} description={t("passHelp")}>
+            <Input
+              type="number"
+              min={1}
+              max={judge.scale_max}
+              value={judge.pass_at}
+              onChange={(event) => onJudge({ ...judge, pass_at: Number(event.target.value) })}
+              disabled={disabled}
+            />
+          </FormField>
+        </div>
         {!yesNo && (
           <Button
             size="sm"

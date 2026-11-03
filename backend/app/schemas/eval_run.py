@@ -202,7 +202,7 @@ class EvalRunEstimate(BaseSchema):
         default=0,
         description=(
             "How many of the cases nothing in the dataset's scoring would grade - "
-            "with AI assistance off, the judge grades none. Any makes the result "
+            "a missing required judgment leaves its case ungraded. Any makes the result "
             "inconclusive"
         ),
     )

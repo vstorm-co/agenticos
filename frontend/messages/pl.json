@@ -2134,13 +2134,11 @@
       "identityHelp": "Zapisywane razem z wersją roboczą. Zmiana nazwy zachowuje handle @{slug}, więc delegacje i wzmianki, które na niego wskazują, działają dalej.",
       "draftAsTested": "Wersja robocza z chwili testu",
       "evals": "Ewaluacje",
-      "agentsCount": "{count, plural, one {Agenci (#)} few {Agenci (#)} many {Agenci (#)} other {Agenci (#)}}",
       "judgeDatasets": "Datasety",
       "improveSession": "Popraw",
       "setBaseline": "Wyznacz punkt odniesienia",
       "improveFromGaps": "Popraw tego agenta na podstawie tych braków",
-      "systemAgentReadOnly": "Agenta systemowego może zmienić tylko administrator organizacji. Tutaj możesz sprawdzić, jak działa.",
-      "systemAgentEnvironments": "Agent systemowy działa w swoim domyślnym środowisku, które idzie za każdą publikacją. Żeby wrócić, przywróć wcześniejszą wersję poniżej."
+      "systemAgentReadOnly": "Agenta systemowego może zmienić tylko administrator organizacji. Tutaj możesz sprawdzić, jak działa."
     },
     "auth": {
       "backSign": "Wróć do logowania",
@@ -5341,12 +5339,6 @@
   },
   "teams": {
     "acmeCom": "acme.com",
-    "aiAssistance": "Wsparcie AI",
-    "aiAssistanceDescription": "Wyłączone, dopóki ktoś go nie włączy. Pozwala modelom oceniać odpowiedzi w ewaluacjach, przygotowywać przypadki testowe, proponować zmiany w agentach i przygotowywać treści dla luk w wiedzy; każde użycie to rozliczany run w ramach budżetów agenta i organizacji.",
-    "aiAssistanceHint": "Gdy jest wyłączone, nic tutaj nie wywołuje modelu, żeby ocenić, wygenerować albo zaproponować: sędzia ewaluacji, generator przypadków i asystent tworzenia są odrzucane. Kontrole deterministyczne i werdykty ludzi działają dalej.",
-    "aiAssistanceOn": "Wsparcie AI jest włączone",
-    "aiAssistanceOff": "Wsparcie AI jest wyłączone",
-    "aiAssistanceFailed": "Nie udało się zmienić wsparcia AI",
     "approvalWaiver": "Pomijanie zatwierdzeń w czacie",
     "approvalWaiverDescription": "Czy rozmowa może działać bez zatrzymywania się na zatwierdzenia.",
     "approvalWaiverHint": "Gdy to jest włączone, ktoś, kto może decydować o zatwierdzeniach, może pozwolić jednej rozmowie wykonywać każde zabramkowane wywołanie narzędzia bez pytania. Każde pominięte wywołanie jest nadal zapisywane na jego koncie.",
@@ -5497,12 +5489,7 @@
       "switchOrganizationHint": "Przełącz się na tę organizację przed konfiguracją proaktywności, aby korzystać z jej profili modeli i kluczy.",
       "switchOrganization": "Przełącz na {name}",
       "runAttribution": "Sprawdzenia w tle są widoczne w Activity pod opublikowanym agentem startowym AgenticOS. To przypisanie jest stałe w platformie. Korzystają z wybranego poniżej modelu proaktywności, niezależnie od modelu samego agenta."
-    },
-    "gradingModel": "Model oceniający",
-    "gradingModelAutomatic": "Automatycznie - model droższy niż model agenta",
-    "gradingModelHint": "Nowi sędziowie oceniają na tym modelu. Sędziowie, którzy już istnieją, zachowują swój.",
-    "gradingModelSaved": "Zapisano model oceniający",
-    "gradingModelFailed": "Nie udało się zmienić modelu oceniającego"
+    }
   },
   "theme": {
     "darkMode": "Tryb ciemny",
@@ -6882,6 +6869,10 @@
       "flow-improvement-steps": {
         "title": "Kroki",
         "body": "Pięć kroków. Sesja zatrzymuje się po Zrozumieniu i po Zmianach, żebyś je obejrzał i nacisnął Następny krok; krok otwiera się, gdy ma coś do pokazania."
+      },
+      "datasets-helper-settings": {
+        "title": "Skonfiguruj ewaluację",
+        "body": "W Ustawieniach wybierzesz model i instrukcje generowania przypadków oraz ulepszania agenta. Ocenianie ma osobny model, instrukcje i kryteria. Trwające zadanie zachowuje ustawienia z chwili startu."
       }
     },
     "chooseLanguage": "Język",
@@ -8728,24 +8719,14 @@
     "backendComputerConsent": "Każda osoba wybiera folder lub Cały komputer w ustawieniach czatu. To ustawienie nie przyznaje dostępu i nie zapisuje prywatnej ścieżki. Ten obszar roboczy wymaga aplikacji desktopowej.",
     "workflowTablesViaMcp": "Workflows i Tables są narzędziami serwera AgenticOS MCP. Dodaj go w sekcji serwerów MCP i wybierz narzędzia potrzebne agentowi. Istniejące capabilities zachowują zapisane uprawnienia.",
     "newKindLabel": "Co utworzyć",
-    "newKindAgent": "Agent",
-    "newKindSystem": "Agent systemowy",
     "systemKindLabel": "Rodzaj agenta systemowego",
     "systemKind": {
       "judge": "Sędzia",
-      "judgeBody": "Ocenia odpowiedzi w ewaluacjach według kryteriów datasetu; dataset może wybrać go jako własnego.",
       "drafter": "Autor szkiców luk",
-      "drafterBody": "Pisze fragment, którego brakuje w bazie wiedzy, do przejrzenia przez człowieka.",
       "generator": "Generator przypadków",
-      "generatorBody": "Pisze przypadki testowe dla datasetu z instrukcji, wiedzy i czatów agenta.",
       "classifier": "Klasyfikator luk",
-      "classifierBody": "Czyta odpowiedzi i komentarze, żeby odróżnić brak wiedzy od innych pomyłek.",
-      "improver": "Asystent tworzenia",
-      "improverBody": "Proponuje zmiany w agencie na podstawie ocen i wyników runów."
+      "improver": "Asystent tworzenia"
     },
-    "systemRunsOn": "Działa na pierwszym modelu organizacji, który zmienisz na jego stronie. Dopóki nie ma żadnego modelu, czeka jako wersja robocza.",
-    "systemNamePlaceholder": "Druga opinia",
-    "systemStartsAs": "Publikowany od razu, jeśli możesz publikować agentów; w przeciwnym razie zostaje wersją roboczą, dopóki ktoś uprawniony go nie opublikuje. Agent systemowy w wersji roboczej nie może działać.",
     "productionOn": "produkcja na v{version}",
     "productionWaiting": "produkcja na v{version} (czeka na ewaluacje)",
     "productionHint": "Kanały, widgety i API odpowiadają wersją v{version}: produkcja działa na niej, dopóki nowsza wersja nie zostanie wypromowana.",
@@ -8762,18 +8743,6 @@
     "testConnectionsSaved": "Połączenia testowe zapisane",
     "failedTestConnections": "Nie udało się zapisać połączeń testowych",
     "testDraft": "Przetestuj wersję roboczą",
-    "systemAgentsCount": "{count, plural, one {Agenci systemowi (#)} few {Agenci systemowi (#)} many {Agenci systemowi (#)} other {Agenci systemowi (#)}}",
-    "systemAgentsHint": "Tych agentów uruchamia sama platforma, więc nie da się z nimi rozmawiać, podpiąć ich do kanału, zaplanować ani zrobić z nich delegata. Otwórz agenta, żeby zmienić jego instrukcje, model albo budżet.",
-    "judgeKind": "{count, plural, one {Sędziowie (#)} few {Sędziowie (#)} many {Sędziowie (#)} other {Sędziowie (#)}}",
-    "judgeKindHint": "Oceniają odpowiedzi w ewaluacjach: domyślny sędzia i każdy własny sędzia datasetu.",
-    "drafterKind": "{count, plural, one {Autor szkiców luk (#)} few {Autorzy szkiców luk (#)} many {Autorzy szkiców luk (#)} other {Autorzy szkiców luk (#)}}",
-    "drafterKindHint": "Pisze szkic treści, której brakuje przy luce w wiedzy, gdy ktoś o niego poprosi.",
-    "classifierKind": "{count, plural, one {Klasyfikator luk (#)} few {Klasyfikatory luk (#)} many {Klasyfikatorów luk (#)} other {Klasyfikatora luk (#)}}",
-    "classifierKindHint": "Czyta odpowiedzi i komentarze do ocen negatywnych w poszukiwaniu luk w wiedzy, gdy ktoś poprosi o sprawdzenie.",
-    "generatorKind": "{count, plural, one {Generator przypadków (#)} few {Generatory przypadków (#)} many {Generatorów przypadków (#)} other {Generatory przypadków (#)}}",
-    "generatorKindHint": "Przygotowuje przypadki testowe do datasetu z agenta, jego bazy wiedzy, prawdziwych czatów i red teamingu; każdą propozycję człowiek akceptuje albo odrzuca.",
-    "improverKind": "{count, plural, one {Asystent tworzenia (#)} few {Asystenci tworzenia (#)} many {Asystentów tworzenia (#)} other {Asystenci tworzenia (#)}}",
-    "improverKindHint": "Czyta źle ocenione odpowiedzi i nieudane runy i sugeruje zmiany w agentach i skillach, gdy ktoś poprosi o ulepszenie.",
     "defaultBadge": {
       "judge": "Domyślny sędzia",
       "judgeHint": "Ocenia każdy dataset, który nie ma własnego sędziego.",
@@ -8786,7 +8755,6 @@
       "improver": "Domyślny asystent tworzenia",
       "improverHint": "Proponuje ulepszenia oferowane każdemu agentowi."
     },
-    "judgeUsedBy": "{more, plural, =0 {Używają go: {names}} one {Używają go: {names} i # inny} few {Używają go: {names} i # inne} many {Używają go: {names} i # innych} other {Używają go: {names} i # innych}}",
     "judgeUnused": "Żaden dataset jeszcze nie używa tego sędziego.",
     "judgeDatasets": "Datasety",
     "judgeDatasetOpen": "Pokaż, co ten sędzia ocenił w {name}",
@@ -8797,7 +8765,6 @@
     "judgeDatasetAnswer": "Odpowiedź ↗",
     "judgeDatasetSeeAll": "Zobacz wszystkie na zakładce Przegląd",
     "judgeDatasetsHint": "Datasety, które wybrały tego sędziego, z włączonym ocenianiem albo bez. Dataset wybiera sędziego na zakładce Ocenianie; rozwiń go, żeby zobaczyć, co sędzia tam ocenił.",
-    "judgeNoModel": "Jeszcze bez modelu",
     "judgeAgreement": "Ludzie zgodzili się z tym sędzią w {agreed} z {decided, plural, one {# rozstrzygniętego wyniku} few {# rozstrzygniętych wyników} many {# rozstrzygniętych wyników} other {# rozstrzygniętego wyniku}}.",
     "judgeAgreementNone": "Nikt jeszcze nie rozstrzygnął wyniku ocenionego przez tego sędziego, więc nie ma zgodności do pokazania.",
     "guardsSaved": "Strażnicy zapisani",
@@ -8811,14 +8778,10 @@
     "systemChoice": {
       "label": "Uruchamiaj przez",
       "default": "Domyślny agent organizacji",
-      "defaultNamed": "{helper} (domyślny)",
       "only": "Działa na {helper}, domyślnym agencie organizacji. <link>Zmień go na jego stronie</link>.",
-      "unpublished": "Nieopublikowany",
       "missing": "Wybrany agent jest niedostępny",
       "loadFailed": "Nie udało się wczytać agentów. Spróbuj ponownie.",
       "hint": "Opublikowany model i instrukcje konfigurujesz na stronie wybranego agenta.",
-      "helpers": "Pomocnicy AI",
-      "helpersBody": "Wybierz agentów klasyfikujących odpowiedzi i piszących brakującą wiedzę dla {name}.",
       "saved": "Zapisano pomocników AI",
       "save": "Zapisz",
       "cancel": "Anuluj"
@@ -12845,7 +12808,6 @@
       "defaults": "Sprawdzenia dla każdego przypadku",
       "trajectoryHint": "Narzędzia wywołane przez agenta w porównaniu z oczekiwanymi wywołaniami przypadku, w trybie kolejności przypadku.",
       "judgeHint": "Sędzia ocenia każdą odpowiedź według poniższych kryteriów. Każda ocena to run w Aktywności.",
-      "judgeModel": "Model sędziego",
       "scaleMax": "Górna granica skali",
       "passAt": "Zalicza od",
       "criterionName": "Nazwa kryterium",
@@ -12938,7 +12900,7 @@
       },
       "judgeCard": {
         "title": "Sędzia",
-        "description": "Agent, który ocenia każdą odpowiedź według twoich kryteriów i porównuje ją z odpowiedzią wzorcową, jeśli przypadek ją ma. Każda ocena to run na modelu, z budżetu sędziego."
+        "description": "Oceń jakość odpowiedzi modelem, według poniższych instrukcji i kryteriów. Wywołania są płatne i zapisywane w Aktywności."
       },
       "reviewCard": {
         "title": "Przegląd przez człowieka",
@@ -12946,21 +12908,8 @@
       },
       "suggestReference": "{count, plural, one {# przypadek ma odpowiedź wzorcową, ale nic jeszcze nie porównuje z nią odpowiedzi.} few {# przypadki mają odpowiedź wzorcową, ale nic jeszcze nie porównuje z nią odpowiedzi.} many {# przypadków ma odpowiedź wzorcową, ale nic jeszcze nie porównuje z nią odpowiedzi.} other {# przypadku ma odpowiedź wzorcową, ale nic jeszcze nie porównuje z nią odpowiedzi.}}",
       "suggestReferenceAction": "Porównuj z wzorcem",
-      "judgePick": "Który sędzia",
-      "judgeDefault": "Domyślny sędzia",
-      "judgeDefaultNamed": "Domyślny sędzia - {name}",
-      "judgeGone": "Sędzia, który już nie istnieje",
-      "judgeOpen": "Otwórz sędziego",
-      "createJudgeForDataset": "Utwórz sędziego dla tego datasetu",
       "judgeChanged": "Wyniki ocenione przez poprzedniego sędziego albo model nie będą porównywalne z ocenianymi od teraz.",
-      "createJudgeTitle": "Sędzia dla {name}",
-      "createJudgeBody": "Sędzia to agent: to, co tu napiszesz, jest jego promptem, który potem zmienisz na jego stronie. Kryteria zostają na tym datasecie.",
-      "judgeName": "Nazwa",
-      "judgeInstructions": "Instrukcje",
-      "createJudge": "Utwórz sędziego",
-      "judgeCreated": "{name} ocenia teraz ten dataset",
       "cancel": "Anuluj",
-      "judgeNameFor": "Sędzia {name}",
       "reviewFilter": "Pokaż",
       "filterPending": "Czeka na decyzję ({count})",
       "filterAll": "Wszystkie wyniki ({count})",
@@ -12997,11 +12946,6 @@
       "unsaved": "Niezapisane",
       "ungraded": "{count, plural, one {# przypadek nie ma niczego, co by go oceniło. Włącz porównanie z wzorcem, daj sędziemu kryteria albo dodaj reguły.} few {# przypadki nie mają niczego, co by je oceniło. Włącz porównanie z wzorcem, daj sędziemu kryteria albo dodaj reguły.} many {# przypadków nie ma niczego, co by je oceniło. Włącz porównanie z wzorcem, daj sędziemu kryteria albo dodaj reguły.} other {# przypadku nie ma niczego, co by je oceniło. Włącz porównanie z wzorcem, daj sędziemu kryteria albo dodaj reguły.}}",
       "mustPassRule": "Przypadek przechodzi, gdy przejdzie wszystko, co oznaczono jako Musi przejść.",
-      "switchJudgeTitle": "Oceniać innym sędzią?",
-      "switchJudgeBody": "Wyniki ocenione przez obecnego sędziego nie będą porównywalne z ocenianymi od teraz. Nic, co już ocenione, się nie zmienia.",
-      "switchJudge": "Zmień sędziego",
-      "scaleSentence": "Każde kryterium jest oceniane od 1 do <top></top> i przechodzi od <mark></mark> wzwyż.",
-      "judgeUnpublished": "Nieopublikowany",
       "gradedBy": "Tu ocenia: {graders}.",
       "gradedByJudge": "sędzia ({criteria})",
       "gradedByNothing": "Nic z zakładki Ocenianie nie oceni tego przypadku w tej postaci.",
@@ -13012,20 +12956,14 @@
       "rescoreGroup": "Oceń ponownie {count, plural, one {# nieocenioną odpowiedź} few {# nieocenione odpowiedzi} many {# nieocenionych odpowiedzi} other {# nieocenionej odpowiedzi}}",
       "rescored": "{count, plural, one {Oceniono ponownie # odpowiedź} few {Oceniono ponownie # odpowiedzi} many {Oceniono ponownie # odpowiedzi} other {Oceniono ponownie # odpowiedzi}}",
       "rescoreNothing": "Każdy scorer wydał już werdykt, więc nic nie zostało ocenione ponownie.",
-      "judgeKnowledge": "Co sędzia musi wiedzieć?",
-      "judgeKnowledgeHint": "Wszystko, względem czego ocenia, a czego przypadki nie mówią - polityka, cennik, zasady firmy. Zostanie dodane do instrukcji sędziego.",
-      "judgeKnowledgePlaceholder": "Zamówienie można zwrócić w ciągu 30 dni od dostawy. Otwarte oprogramowanie nie podlega zwrotowi.",
       "unsavedChanges": "Niezapisane zmiany",
       "discard": "Odrzuć",
-      "judgeGradesOn": "Ocenia na <model></model>",
       "willBeGradedBy": "Oceni {judge}.",
       "willBeGradedByOn": "Oceni {judge} na modelu {model}.",
       "willBeGradedByUnpublished": "Oceni {judge}, który nie jest jeszcze opublikowany na żadnym modelu.",
       "changeDatasetJudge": "Zmień sędziego datasetu",
       "changeJudgeModel": "Zmień model sędziego",
       "willBeGradedByHint": "Każda z tych zmian dotyczy wszystkich odpowiedzi ocenianych później, nie tylko tej.",
-      "judgeModelOnItsPage": "Jego model zmienia się na jego własnej stronie.",
-      "judgeNoModelYet": "Organizacja nie ma jeszcze modelu, więc sędzia zostanie utworzony jako wersja robocza. Dodaj model, a potem opublikuj sędziego na jego stronie.",
       "judgeSameModel": "Sędzia oceniał na {model}, tym samym modelu, który odpowiadał, i może faworyzować odpowiedzi podobne do własnych. Daj sędziemu inny model na jego stronie.",
       "noteToCriterion": "Zamień tę notatkę w kryterium sędziego:",
       "noteForCase": "dla tego przypadku",
@@ -13070,7 +13008,10 @@
         "startsWith": "Zaczyna się od „{text}”",
         "bullets": "Ma listę punktowaną",
         "json": "Jest obiektem JSON"
-      }
+      },
+      "criterionHelp": "Opisz jedną rzecz, którą odpowiedź musi zawierać. Podaj oczekiwany fakt lub jasny warunek zaliczenia.",
+      "scaleHelp": "Najwyższa ocena każdego kryterium, od 2 do 10.",
+      "passHelp": "Minimalna ocena wymagana do zaliczenia kryterium."
     },
     "title": "Datasety",
     "pageDescription": "Pytania, na których testujesz agentów. Każda zmiana przypadków w datasecie tworzy nową wersję, więc dwa runy ewaluacji na jednej wersji widziały te same pytania.",
@@ -13160,12 +13101,12 @@
       "order_mode": "Jak dopasować oczekiwane wywołania"
     },
     "hint": {
-      "input": "Wiadomość, na którą odpowiada agent.",
-      "reference_answer": "Co mówi dobra odpowiedź. Sędzia porównuje z nią odpowiedź agenta.",
-      "counter_example": "Znana zła odpowiedź na to pytanie - często ta, którą ktoś ocenił łapką w dół. Gdy sędzia ocenia dataset, każda odpowiedź jest oceniana pod kątem tego, czy nie powtarza jej błędu, i musi to zaliczyć.",
-      "note": "Po co ten przypadek - co poszło źle albo czego pilnuje.",
+      "input": "Wpisz wiadomość użytkownika, na którą agent ma odpowiedzieć.",
+      "reference_answer": "Poprawna odpowiedź lub fakty, które musi zawierać.",
+      "counter_example": "Błędna odpowiedź, której agent nie powinien powtarzać.",
+      "note": "Dodaj kontekst dla osoby sprawdzającej ten przypadek.",
       "history": "Wcześniejsze tury, od najstarszej. Zostaw puste dla jednej wiadomości.",
-      "expected_tool_calls": "Narzędzia, które agent powinien wywołać, każde z argumentami, które muszą się zgadzać. Wartość to tekst albo liczba, true, false lub lista, gdy zapisano je jako JSON. Niewymienione argumenty są pomijane.",
+      "expected_tool_calls": "Dodaj narzędzia, które agent powinien wywołać. Sprawdzane będą tylko wymienione argumenty.",
       "checks": "Reguły, według których sprawdzana jest odpowiedź - że zawiera frazę, pasuje do wzorca, nie przekracza kosztu.",
       "tags": "Oddzielone przecinkami, do grupowania wyników."
     },
@@ -13252,10 +13193,6 @@
     "findDataset": "Znajdź dataset",
     "generatedTab": "{count, plural, =0 {Wygenerowane} other {Wygenerowane · #}}",
     "generateIntro": "Generator przygotowuje przypadki do tego datasetu z wybranych źródeł. Najpierw widzisz szacowany koszt, a każda propozycja czeka tu, aż ją zaakceptujesz, edytujesz albo odrzucisz.",
-    "generateAiOff": "Generowanie przypadków wymaga wsparcia AI, które jest wyłączone w tej organizacji.",
-    "editGenerator": "Edytuj instrukcje generatora",
-    "generatorNotRunnable": "Nie możesz uruchamiać generatora przypadków. Poproś administratora o udostępnienie go.",
-    "generateMore": "{count, plural, one {Więcej opcji · 1 przypadek} few {Więcej opcji · # przypadki} many {Więcej opcji · # przypadków} other {Więcej opcji · # przypadku}}",
     "moreActions": "Więcej akcji",
     "share": "Udostępnij",
     "delete": "Usuń",
@@ -13360,7 +13297,44 @@
       "team": "Zespół",
       "org": "Organizacja"
     },
-    "editedWhen": "edytowano {when}"
+    "editedWhen": "edytowano {when}",
+    "table": {
+      "question": "Pytanie",
+      "source": "Źródło",
+      "expectations": "Oczekiwany wynik",
+      "tags": "Etykiety",
+      "actions": "Akcje"
+    },
+    "helpers": {
+      "generatorTitle": "Generowanie przypadków",
+      "generatorDescription": "Wybierz model i instrukcje do tworzenia przypadków dla tego datasetu. Wygenerowane przypadki czekają na Twoją akceptację.",
+      "improverTitle": "Ulepszanie agenta",
+      "improverDescription": "Wybierz model i instrukcje używane do ulepszania agenta na tym datasecie. Zmiany pozostają propozycjami do Twojej akceptacji.",
+      "saved": "Zapisano ustawienia",
+      "generationUsesSettings": "Korzysta z modelu i instrukcji zapisanych w Ustawieniach tego datasetu. Przed uruchomieniem sprawdź źródła i szacowany koszt.",
+      "modelFallback": "Bez wybranego modelu pomocnik używa modelu testowanego agenta. Wybierz zapisany model poniżej albo dodaj nowy, aby wszystkie runy korzystały z tego samego modelu."
+    },
+    "importFormat": "Format pliku",
+    "importRequired": "Każdy wiersz to jeden przypadek. input jest wymagany; dodaj odpowiedź wzorcową, oczekiwane wywołanie narzędzia lub regułę, aby ocenić przypadek. Pozostałe kolumny są opcjonalne.",
+    "importCsvHint": "CSV: pierwszy wiersz zawiera nazwy kolumn. history, expected_tool_calls i checks zapisz jako JSON w komórkach; tagi oddziel przecinkami. Szablon zawiera działające przykłady.",
+    "importJsonlHint": "JSONL: jeden obiekt JSON w każdym wierszu. history, expected_tool_calls, checks i tags to tablice. Wgraj plik .jsonl, a nie tablicę JSON.",
+    "settingsTab": "Ustawienia",
+    "caseSection": {
+      "tools": "Oczekiwane narzędzia",
+      "checks": "Dodatkowe reguły",
+      "labels": "Tagi i notatki"
+    },
+    "optionalField": "Opcjonalne",
+    "historyMessagePlaceholder": "Wcześniejsza wiadomość, w oryginalnym brzmieniu…",
+    "placeholder": {
+      "input": "Kiedy otrzymam zwrot pieniędzy?",
+      "reference_answer": "Pieniądze wracają na kartę w ciągu 5 dni roboczych.",
+      "counter_example": "Zwrot pieniędzy zawsze trwa 30 dni.",
+      "note": "Np. chroni przed podawaniem starego terminu zwrotu."
+    },
+    "tagsPlaceholder": "zwroty, płatności",
+    "argumentName": "Nazwa argumentu",
+    "argumentValue": "Oczekiwana wartość"
   },
   "knowledgeGaps": {
     "tab": "Luki w wiedzy",
@@ -13378,7 +13352,6 @@
     "checkAnswers": "{count, plural, one {Sprawdź 1 odpowiedź} few {Sprawdź # odpowiedzi} many {Sprawdź # odpowiedzi} other {Sprawdź # odpowiedzi}}",
     "checkAnswersHint": "Model czyta ostatnie odpowiedzi i komentarze do ocen negatywnych w poszukiwaniu pytań, na które ta baza wiedzy nie umiała odpowiedzieć.",
     "checkStarted": "Sprawdzanie odpowiedzi rozpoczęte. Nowe tematy pojawią się, gdy się skończy. Jego runy są w Aktywności, z ewaluacjami włącznie.",
-    "uncheckedAiOff": "{count, plural, one {1 ostatnią odpowiedź} few {# ostatnie odpowiedzi} many {# ostatnich odpowiedzi} other {# ostatniej odpowiedzi}} można by też sprawdzić pod kątem luk w wiedzy, gdy wsparcie AI jest włączone.",
     "ungrouped": "{count, plural, one {1 pytanie czeka} few {# pytania czekają} many {# pytań czeka} other {# pytania czeka}} na pogrupowanie. Grupowanie działa co 15 minut.",
     "questionCount": "{count, plural, one {Zadane raz} few {Zadane # razy} many {Zadane # razy} other {Zadane # razy}}",
     "lastAsked": "Ostatnio {ago}",
@@ -13422,7 +13395,6 @@
     "draftNotice": "Napisany przez model na podstawie pytań powyżej. Osoba, która może zmieniać tę bazę wiedzy, sprawdza każdy fakt, uzupełnia brakujące dane i go dodaje.",
     "draftSources": "Na czym się opiera",
     "openDraftRun": "Otwórz run",
-    "editDrafter": "Edytuj instrukcje autora szkiców luk",
     "hasDraft": "Szkic",
     "draftLabel": "Szkic — sprawdź przed dodaniem",
     "draftUnverified": "{count, plural, one {Jednego wskazanego źródła nie udało się zweryfikować i zostało pominięte.} few {# wskazanych źródeł nie udało się zweryfikować i zostały pominięte.} many {# wskazanych źródeł nie udało się zweryfikować i zostały pominięte.} other {# wskazanego źródła nie udało się zweryfikować i zostały pominięte.}}",
@@ -13995,6 +13967,13 @@
       "by": "Przeliczono po przeglądzie: {name} · {date}",
       "undone": "Przeliczono po wycofaniu decyzji: {name} · {date}",
       "reviewer": "osoba przeglądająca"
+    },
+    "table": {
+      "run": "Uruchomienie",
+      "status": "Status",
+      "result": "Wynik",
+      "passRate": "Zdawalność",
+      "cost": "Koszt"
     }
   },
   "authoring": {
@@ -14942,7 +14921,8 @@
     "freshAttempt": "Każda próba zaczyna od bieżącej wersji; zmiany z wcześniejszych prób nie są przenoszone.",
     "trainSignals": "Nieudane odpowiedzi testowe",
     "tryAgainNothingToLearn": "Ostatnia próba naprawiła każde pytanie, z którego się uczy, więc kolejna próba nie ma się z czego uczyć. Zaakceptuj ją albo zakończ sesję.",
-    "tryAgainUnmeasurable": "Kolejna próba miałaby za mało pytań do zmierzenia: potrzeba jeszcze {count, plural, one {# pytania} few {# pytań} many {# pytań} other {# pytania}}, a pytania tej sesji są ustalone. Zakończ ją, dodaj pytania i zacznij nową."
+    "tryAgainUnmeasurable": "Kolejna próba miałaby za mało pytań do zmierzenia: potrzeba jeszcze {count, plural, one {# pytania} few {# pytań} many {# pytań} other {# pytania}}, a pytania tej sesji są ustalone. Zakończ ją, dodaj pytania i zacznij nową.",
+    "pipelineSettings": "Ustaw model i instrukcje w datasecie"
   },
   "unsaved": {
     "title": "Masz niezapisane zmiany",

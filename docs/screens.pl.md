@@ -1,5 +1,5 @@
 ---
-source_sha: "141d29d9cb14"
+source_sha: "da5acf79cbbe"
 ---
 
 # Każdy ekran w konsoli { #every-screen-in-the-console }
@@ -286,12 +286,6 @@ Pytania, dla których agent przeszukał bazy wiedzy i nie znalazł nic trafnego,
 ![Luki w wiedzy](assets/screens/light/knowledge-gaps.webp#only-light)
 ![Luki w wiedzy](assets/screens/dark/knowledge-gaps.webp#only-dark)
 
-### Wsparcie AI { #ai-assistance }
-
-Przełącznik organizacji dla wszystkiego, co samo wywołuje model: sędziego ewaluacji, generatora przypadków, pomocnika piszącego zmiany i szkiców dla luk w wiedzy. Wyłączony, dopóki ktoś go nie włączy; każde użycie to opomiarowany run.
-
-![Wsparcie AI](assets/screens/light/ai-assistance.webp#only-light)
-![Wsparcie AI](assets/screens/dark/ai-assistance.webp#only-dark)
 
 ## Co się wydarzyło i co czeka { #what-happened-and-what-is-waiting }
 

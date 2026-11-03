@@ -1,5 +1,5 @@
 ---
-source_sha: "dec34f708397"
+source_sha: "1593e9f6da94"
 title: "Runy ewaluacji"
 description: "Run ewaluacji odpowiada na każdy przypadek datasetu wersją agenta albo jego wersją roboczą, ocenia każdą odpowiedź i porównuje wynik z baseline'em."
 ---
@@ -140,12 +140,9 @@ Body wskazuje dataset (`dataset_id`, `dataset_version`), kandydata
 `environment_id`, `model_profile_ids` do porównania oraz `paired_baseline`.
 Szacunek to średni koszt runa agenta na każdym modelu, liczony z jego ostatnich
 zakończonych runów, razy liczba przypadków, plus jedno wywołanie sędziego na
-przypadek, gdy dataset ocenia sędzia, a wsparcie AI jest włączone.
+przypadek, gdy dataset wymaga oceniania modelem.
 
-Wsparcie AI jest wyłączone w organizacji, dopóki ktoś z `org:settings` je
-nie włączy. Gdy jest wyłączone, sędzia nie działa: przypadek rozstrzygają jego
-checki i oczekiwane wywołania narzędzi, kryteria sędziego są zapisywane jako
-pominięte, a szacunek nie liczy sędziego.
+Szacunek uwzględnia ocenianie modelem zawsze, gdy wymaga go dataset, według modelu wybranego w Ocenianiu. Nie wyłącza go przełącznik organizacji.
 
 Agent bez historii na danym modelu jest szacowany jako typowy przypadek -
 `EVAL_FALLBACK_INPUT_TOKENS` na wejściu, `EVAL_FALLBACK_OUTPUT_TOKENS` na
@@ -181,12 +178,7 @@ Run, który nikomu niczego by nie powiedział, jest odrzucany, zanim zostanie
 oszacowany:
 
 - wersja datasetu bez przypadków;
-- ocenianie bez wymaganego oceniającego, który mógłby rozstrzygnąć którykolwiek
-  przypadek wersji - bez checku do zastosowania, bez oczekiwanego wywołania
-  narzędzia i bez sędziego. Gdy sędzia jest jedynym oceniającym, a wsparcie AI
-  jest wyłączone, odmowa to mówi: sędzia potrzebuje wsparcia AI, które jest w
-  tej organizacji wyłączone, więc włącz je w ustawieniach organizacji albo dodaj
-  check;
+- ocenianie bez wymaganego mechanizmu, który może rozstrzygnąć choć jeden przypadek: dodaj regułę, oczekiwane narzędzie albo kryteria;
 - agent, który nigdy nie został opublikowany, a poproszono o wersję - uruchom
   zamiast tego jego wersję roboczą;
 - baseline dla pierwszej wersji, przed którą nic nie ma.
@@ -313,8 +305,7 @@ Każda próba kończy się na jeden z czterech sposobów (`state` w próbie):
 - **niekompletna**, gdy provider zawiódł mimo ponowień (błąd 5xx, 408 albo 429,
   albo brak odpowiedzi), oceniający rzucił wyjątek, run anulowano albo skończył
   się budżet, albo próby wyszły na remis;
-- **nieoceniona**, gdy nic nie ocenia odpowiedzi - nie pasuje żaden wymagany
-  oceniający albo mógłby tylko sędzia, a wsparcie AI jest wyłączone.
+- ocenianie bez wymaganego mechanizmu, który może rozstrzygnąć choć jeden przypadek: dodaj regułę, oczekiwane narzędzie albo kryteria;
 
 Żaden z dwóch ostatnich stanów nie jest zaliczeniem; podsumowanie liczy je
 osobno (`incomplete`, `ungraded`).
@@ -456,11 +447,7 @@ odpowiedzi dostały obie oceny przy ponownym zadaniu w obrębie próby albo
 dzisiejsza wersja przesunęła się między próbami na wspólnych dla nich odłożonych
 pytaniach - mniej niż pięć wspólnych to za mało, by to ocenić.
 
-Co stabilizuje ocenę: kryteria z odpowiedzią tak albo nie zamiast skali,
-deterministyczny check długości i formatu zamiast opinii sędziego, więcej
-przypadków - około 30 odłożonych dla sesji Popraw - i mocniejszy model sędziego,
-który dla nowych sędziów ustawia [Model oceniający](governance.md#ai-assistance)
-organizacji.
+Używaj jasnych kryteriów tak/nie, reguł formatu i długości oraz reprezentatywnego zestawu przypadków. Odpowiedni niezależny model oceniający wybierz jawnie w zakładce **Ocenianie** datasetu; cena modelu nie świadczy o jakości ocen.
 
 ### Jak stabilne są odpowiedzi { #how-steady-the-answers-are }
 
@@ -612,10 +599,7 @@ wynik niezależnie od porównania: minimum nie potrzebuje baseline'u. Wynik, kt�
 run ewaluacji anulowano, też jest bez rozstrzygnięcia i mówi o tym; wynik runu, który
 skończył się błędem, jest błędem.
 
-Wynik **nie został uruchomiony**, gdy
-kosztowałby więcej, niż zostało w budżecie albo niż własny limit suity, gdy
-ocenić go mógłby tylko sędzia, a wsparcie AI jest wyłączone, albo gdy nie ma
-opublikowanej wersji do sprawdzenia.
+Szacunek uwzględnia ocenianie modelem zawsze, gdy wymaga go dataset, według modelu wybranego w Ocenianiu. Nie wyłącza go przełącznik organizacji.
 
 Runy z harmonogramu i po zmianie
 zależności porównuje się z ostatnim zaliczonym runem suity na tej samej

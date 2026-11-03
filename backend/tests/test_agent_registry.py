@@ -3682,7 +3682,8 @@ class TestGetRunnableSpec:
 
 class TestGetCandidateSpec:
     @pytest.mark.anyio
-    async def test_a_published_candidate_runs_its_version_not_the_environments(self):
+    @pytest.mark.parametrize("instructions", [None, "Dataset-owned grading instructions"])
+    async def test_a_published_candidate_runs_its_version_not_the_environments(self, instructions):
         """An eval names the version it measures; the environment only lends
         its connections, so a staging pin must not swap the spec under it."""
         ctx = _ctx()
@@ -3701,11 +3702,15 @@ class TestGetCandidateSpec:
             ) as versions,
         ):
             _, spec, version_id = await AgentRegistryService(_db()).get_candidate_spec(
-                ctx, agent.id, PublishedCandidate(older.id), environment_id=environment.id
+                ctx,
+                agent.id,
+                PublishedCandidate(older.id, instructions=instructions),
+                environment_id=environment.id,
             )
 
         assert versions.call_args.args[1] == older.id
-        assert spec.instructions == "v6 wording"
+        assert spec.instructions == (instructions or "v6 wording")
+        assert older.spec["instructions"] == "v6 wording"
         assert version_id == older.id
 
     @pytest.mark.anyio

@@ -1,5 +1,5 @@
 ---
-source_sha: "95817abb3ea3"
+source_sha: "faf9a13ba4f9"
 ---
 
 # Słownik { #glossary }
@@ -64,7 +64,7 @@ skrypt napisany pod nie nie przestał działać po zmianie nazwy.
 | Budget | Limit wydatków, który zatrzymuje runy po osiągnięciu | `budget` |
 | Zabezpieczenia | Kontrole, które redagują albo blokują to, co przepływa przez run | `guardrails` |
 | Vault | Miejsce na klucze i tokeny, zapieczętowane i nigdy więcej niepokazywane | `secret` |
-| Wsparcie AI | Przełącznik organizacji dla modeli, które oceniają odpowiedzi, przygotowują przypadki, proponują zmiany i szkicują brakującą wiedzę, także w Popraw; wyłączone, dopóki ktoś go nie włączy | `ai_assistance_enabled` |
+| Pomocnicy ewaluacji | Procesy oceniania, generowania i ulepszania zdefiniowane w kodzie i konfigurowane na datasecie | `scoring.judge`, `helper_settings` |
 
 ## Jak to jest testowane { #how-it-is-tested }
 

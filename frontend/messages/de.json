@@ -989,24 +989,14 @@
     "backendComputerConsent": "Jede Person wählt einen Ordner oder Gesamter Computer in den Chat-Einstellungen. Diese Einstellung gewährt keinen Zugriff und speichert keinen persönlichen Pfad. Dieser Workspace benötigt die Desktop-App.",
     "workflowTablesViaMcp": "Workflows und Tables sind Werkzeuge des AgenticOS-MCP-Servers. Füge ihn unter MCP-Server hinzu und wähle die benötigten Werkzeuge. Bestehende Capability-Bindungen behalten ihre gespeicherten Freigaben.",
     "newKindLabel": "Was erstellt wird",
-    "newKindAgent": "Agent",
-    "newKindSystem": "Systemagent",
     "systemKindLabel": "Art des Systemagents",
     "systemKind": {
       "judge": "Bewerter",
-      "judgeBody": "Bewertet Antworten in Evals nach den Kriterien eines Datasets; ein Dataset kann ihn als eigenen wählen.",
       "drafter": "Lücken-Entwerfer",
-      "drafterBody": "Entwirft den Abschnitt, der einer Wissensdatenbank fehlt, zur Prüfung durch einen Menschen.",
       "generator": "Fallgenerator",
-      "generatorBody": "Entwirft Testfälle für ein Dataset aus den Anweisungen, dem Wissen und den Chats eines Agents.",
       "classifier": "Lücken-Klassifizierer",
-      "classifierBody": "Liest Antworten und Kommentare, um fehlendes Wissen von anderen Fehlern zu unterscheiden.",
-      "improver": "Authoring-Assistent",
-      "improverBody": "Schlägt Änderungen an einem Agent aus seinen Bewertungen und Run-Ergebnissen vor."
+      "improver": "Authoring-Assistent"
     },
-    "systemRunsOn": "Er läuft auf dem ersten Modell der Organisation, das Sie auf seiner Seite ändern. Solange kein Modell eingerichtet ist, wartet er als Entwurf.",
-    "systemNamePlaceholder": "Zweitmeinung",
-    "systemStartsAs": "Sofort veröffentlicht, wenn Sie Agents veröffentlichen dürfen; sonst ein Entwurf, bis jemand mit diesem Recht ihn veröffentlicht. Ein Systemagent im Entwurf kann nicht ausgeführt werden.",
     "productionOn": "Produktion auf v{version}",
     "productionWaiting": "Produktion auf v{version} (wartet auf Evals)",
     "productionHint": "Kanäle, Widgets und die API antworten mit v{version}: Die Produktion läuft darauf, bis eine neuere Version befördert wird.",
@@ -1023,18 +1013,6 @@
     "testConnectionsSaved": "Testverbindungen gespeichert",
     "failedTestConnections": "Die Testverbindungen konnten nicht gespeichert werden",
     "testDraft": "Entwurf testen",
-    "systemAgentsCount": "{count, plural, =1 {System-Agents (1)} other {System-Agents (#)}}",
-    "systemAgentsHint": "Diese Agents führt die Plattform selbst aus, also lässt sich mit ihnen nicht chatten, sie lassen sich keinem Kanal zuweisen, nicht planen und nicht als Delegate nutzen. Öffnen Sie einen, um Anweisungen, Modell oder Budget zu ändern.",
-    "judgeKind": "{count, plural, =1 {Bewerter (1)} other {Bewerter (#)}}",
-    "judgeKindHint": "Sie bewerten Eval-Antworten: der Standard-Bewerter und der eigene jedes Datasets.",
-    "drafterKind": "{count, plural, =1 {Lücken-Entwerfer (1)} other {Lücken-Entwerfer (#)}}",
-    "drafterKindHint": "Er entwirft den Inhalt, der einer Wissenslücke fehlt, wenn jemand um einen Entwurf bittet.",
-    "classifierKind": "{count, plural, =1 {Lücken-Klassifizierer (1)} other {Lücken-Klassifizierer (#)}}",
-    "classifierKindHint": "Er liest Antworten und Kommentare zu negativen Bewertungen auf Wissenslücken, wenn jemand um eine Prüfung bittet.",
-    "generatorKind": "{count, plural, =1 {Fallgenerator (1)} other {Fallgeneratoren (#)}}",
-    "generatorKindHint": "Er entwirft Testfälle für ein Dataset aus einem Agent, seiner Wissensbasis, echten Chats und Red Teaming; jeden Entwurf nimmt ein Mensch an oder verwirft ihn.",
-    "improverKind": "{count, plural, =1 {Authoring-Assistent (1)} other {Authoring-Assistenten (#)}}",
-    "improverKindHint": "Er liest schlecht bewertete Antworten und fehlgeschlagene Runs und schlägt Änderungen an Agents und Skills vor, wenn jemand um eine Verbesserung bittet.",
     "defaultBadge": {
       "judge": "Standardbewerter",
       "judgeHint": "Bewertet jedes Dataset, das keinen eigenen Bewerter hat.",
@@ -1047,7 +1025,6 @@
       "improver": "Standard-Authoring-Assistent",
       "improverHint": "Schlägt die Verbesserungen vor, die jedem Agent angeboten werden."
     },
-    "judgeUsedBy": "{more, plural, =0 {Genutzt von {names}} other {Genutzt von {names} und # weiteren}}",
     "judgeUnused": "Noch kein Dataset nutzt diesen Bewerter.",
     "judgeDatasets": "Datasets",
     "judgeDatasetOpen": "Zeigen, was dieser Bewerter in {name} bewertet hat",
@@ -1058,7 +1035,6 @@
     "judgeDatasetAnswer": "Antwort ↗",
     "judgeDatasetSeeAll": "Alle im Tab Prüfung ansehen",
     "judgeDatasetsHint": "Die Datasets, die diesen Bewerter gewählt haben, mit Bewertung oder ohne. Ein Dataset wählt seinen Bewerter im Tab Bewertung; öffnen Sie eines, um zu sehen, was der Bewerter dort bewertet hat.",
-    "judgeNoModel": "Noch kein Modell",
     "judgeAgreement": "Menschen stimmten diesem Bewerter bei {agreed} von {decided, plural, =1 {1 entschiedenen Ergebnis} other {# entschiedenen Ergebnissen}} zu.",
     "judgeAgreementNone": "Noch niemand hat ein Ergebnis entschieden, das dieser Bewerter bewertet hat, daher gibt es keine Übereinstimmung zu zeigen.",
     "guardsSaved": "Wächter gespeichert",
@@ -1072,14 +1048,10 @@
     "systemChoice": {
       "label": "Ausführen mit",
       "default": "Standard der Organisation",
-      "defaultNamed": "{helper} (Standard)",
       "only": "Läuft mit {helper}, dem Standard der Organisation. <link>Auf seiner Seite ändern</link>.",
-      "unpublished": "Nicht veröffentlicht",
       "missing": "Ausgewählter Agent ist nicht verfügbar",
       "loadFailed": "Agenten konnten nicht geladen werden. Versuchen Sie es erneut.",
       "hint": "Das veröffentlichte Modell und die Anweisungen werden auf der Seite des Hilfsagents konfiguriert.",
-      "helpers": "KI-Helfer",
-      "helpersBody": "Wählen Sie Helfer zur Klassifizierung von Antworten und zum Entwerfen fehlenden Wissens für {name}.",
       "saved": "KI-Helfer gespeichert",
       "save": "Speichern",
       "cancel": "Abbrechen"
@@ -5407,6 +5379,10 @@
       "flow-improvement-steps": {
         "title": "Schritte",
         "body": "Fünf Schritte. Die Sitzung hält nach Verstehen und nach Änderungen an, damit Sie sie ansehen und Nächster Schritt drücken; ein Schritt öffnet sich, sobald er etwas zu zeigen hat."
+      },
+      "datasets-helper-settings": {
+        "title": "Evaluierungshelfer konfigurieren",
+        "body": "In den Einstellungen wählst du Modell und Anweisungen für die Testfallgenerierung und Agentenverbesserung. Die Bewertung hat eigene Modelle, Anweisungen und Kriterien. Laufende Aufgaben behalten ihre Startkonfiguration."
       }
     },
     "chooseLanguage": "Sprache",
@@ -5785,7 +5761,6 @@
       "knowledge": "Wissen",
       "skills": "Skills",
       "evals": "Evals",
-      "agentsCount": "{count, plural, =1 {Agents (1)} other {Agents (#)}}",
       "judgeDatasets": "Datasets",
       "categoriesHint": "Grobe Gruppen - Support, Finanzen, intern. Der Katalog filtert danach.",
       "tagsHint": "Alles Feinere, wonach Sie später suchen möchten.",
@@ -5810,8 +5785,7 @@
       "improveSession": "Verbessern",
       "setBaseline": "Ausgangswert festlegen",
       "improveFromGaps": "Diesen Agent anhand dieser Lücken verbessern",
-      "systemAgentReadOnly": "Nur ein Administrator der Organisation kann einen Systemagent ändern. Hier können Sie nachlesen, wie er arbeitet.",
-      "systemAgentEnvironments": "Ein Systemagent läuft in seiner Standardumgebung, die jeder Veröffentlichung folgt. Um zurückzugehen, stellen Sie unten eine frühere Version wieder her."
+      "systemAgentReadOnly": "Nur ein Administrator der Organisation kann einen Systemagent ändern. Hier können Sie nachlesen, wie er arbeitet."
     },
     "auth": {
       "backSign": "Zurück zur Anmeldung",
@@ -8243,12 +8217,6 @@
   },
   "teams": {
     "acmeCom": "acme.com",
-    "aiAssistance": "KI-Unterstützung",
-    "aiAssistanceDescription": "Aus, bis jemand sie einschaltet. Sie lässt Modelle Eval-Antworten bewerten, Testfälle entwerfen, Änderungen an Agenten vorschlagen und Inhalte für Wissenslücken entwerfen; jede Nutzung ist ein abgerechneter Run innerhalb der Budgets des Agents und der Organisation.",
-    "aiAssistanceHint": "Ist sie aus, ruft hier nichts ein Modell zum Bewerten, Erzeugen oder Vorschlagen auf: der Eval-Bewerter, der Fallgenerator und der Authoring-Assistent werden abgelehnt. Deterministische Prüfungen und Urteile von Menschen funktionieren weiter.",
-    "aiAssistanceOn": "KI-Unterstützung ist an",
-    "aiAssistanceOff": "KI-Unterstützung ist aus",
-    "aiAssistanceFailed": "KI-Unterstützung konnte nicht geändert werden",
     "approvalWaiver": "Freigaben im Chat übergehen",
     "approvalWaiverDescription": "Ob eine Unterhaltung laufen darf, ohne für Freigaben anzuhalten.",
     "approvalWaiverHint": "Ist dies aktiv, kann jemand, der über Freigaben entscheiden darf, eine Unterhaltung jeden gebremsten Tool-Aufruf ungefragt ausführen lassen. Jeder übergangene Aufruf wird weiterhin auf sein Konto protokolliert.",
@@ -8400,12 +8368,7 @@
       "switchOrganizationHint": "Wechsle vor dem Konfigurieren der Proaktivität zu dieser Organisation, damit ihre Modellprofile und Schlüssel verwendet werden.",
       "switchOrganization": "Zu {name} wechseln",
       "runAttribution": "Hintergrundprüfungen erscheinen in Activity unter dem veröffentlichten AgenticOS-Startagenten. Diese Zuordnung ist in der Plattform festgelegt. Sie verwenden das unten gewählte Proaktivitätsmodell, unabhängig vom eigenen Modell des Agenten."
-    },
-    "gradingModel": "Bewertungsmodell",
-    "gradingModelAutomatic": "Automatisch - ein Modell, das mehr kostet als das des Agents",
-    "gradingModelHint": "Neue Bewerter benoten mit diesem Modell. Bestehende Bewerter behalten ihres.",
-    "gradingModelSaved": "Bewertungsmodell gespeichert",
-    "gradingModelFailed": "Das Bewertungsmodell konnte nicht geändert werden"
+    }
   },
   "theme": {
     "darkMode": "Dunkler Modus",
@@ -12744,7 +12707,6 @@
       "defaults": "Prüfungen für jeden Fall",
       "trajectoryHint": "Die Tools, die der Agent aufgerufen hat, gegen die erwarteten Aufrufe des Falls, im Reihenfolgemodus des Falls.",
       "judgeHint": "Der Bewerter benotet jede Antwort nach den folgenden Kriterien. Jede Benotung ist ein Run unter Aktivität.",
-      "judgeModel": "Modell des Bewerters",
       "scaleMax": "Oberes Ende der Skala",
       "passAt": "Bestanden ab",
       "criterionName": "Name des Kriteriums",
@@ -12837,7 +12799,7 @@
       },
       "judgeCard": {
         "title": "Bewerter",
-        "description": "Ein Agent, der jede Antwort nach Ihren Kriterien benotet und mit der Referenzantwort vergleicht, wo ein Fall eine hat. Jede Benotung ist ein Run auf einem Modell, aus dem Budget des Bewerters."
+        "description": "Bewerte die Antwortqualität mit einem Modell anhand der folgenden Anweisungen und Kriterien. Aufrufe sind kostenpflichtig und werden in Activity erfasst."
       },
       "reviewCard": {
         "title": "Prüfung durch eine Person",
@@ -12845,21 +12807,8 @@
       },
       "suggestReference": "{count, plural, =1 {1 Fall hat eine Referenzantwort, und noch vergleicht nichts Antworten damit.} other {# Fälle haben eine Referenzantwort, und noch vergleicht nichts Antworten damit.}}",
       "suggestReferenceAction": "Mit der Referenz vergleichen",
-      "judgePick": "Welcher Bewerter",
-      "judgeDefault": "Standard-Bewerter",
-      "judgeDefaultNamed": "Standard-Bewerter - {name}",
-      "judgeGone": "Ein Bewerter, den es nicht mehr gibt",
-      "judgeOpen": "Bewerter öffnen",
-      "createJudgeForDataset": "Bewerter für dieses Dataset anlegen",
       "judgeChanged": "Ergebnisse des vorigen Bewerters oder Modells sind nicht mit den ab jetzt benoteten vergleichbar.",
-      "createJudgeTitle": "Ein Bewerter für {name}",
-      "createJudgeBody": "Ein Bewerter ist ein Agent: Was Sie hier schreiben, ist sein Prompt, den seine Seite später bearbeitet. Die Kriterien bleiben bei diesem Dataset.",
-      "judgeName": "Name",
-      "judgeInstructions": "Anweisungen",
-      "createJudge": "Bewerter anlegen",
-      "judgeCreated": "{name} bewertet jetzt dieses Dataset",
       "cancel": "Abbrechen",
-      "judgeNameFor": "Bewerter {name}",
       "reviewFilter": "Anzeigen",
       "filterPending": "Wartet auf Entscheidung ({count})",
       "filterAll": "Alle Ergebnisse ({count})",
@@ -12896,11 +12845,6 @@
       "unsaved": "Nicht gespeichert",
       "ungraded": "{count, plural, =1 {1 Fall hat nichts, was ihn bewertet. Schalten Sie den Referenzvergleich ein, geben Sie dem Bewerter Kriterien oder fügen Sie Regeln hinzu.} other {# Fälle haben nichts, was sie bewertet. Schalten Sie den Referenzvergleich ein, geben Sie dem Bewerter Kriterien oder fügen Sie Regeln hinzu.}}",
       "mustPassRule": "Ein Fall besteht, wenn alles besteht, was mit Muss bestehen markiert ist.",
-      "switchJudgeTitle": "Mit einem anderen Bewerter bewerten?",
-      "switchJudgeBody": "Ergebnisse des aktuellen Bewerters sind nicht mit den ab jetzt benoteten vergleichbar. Bereits Bewertetes ändert sich nicht.",
-      "switchJudge": "Bewerter wechseln",
-      "scaleSentence": "Jedes Kriterium wird von 1 bis <top></top> benotet und besteht ab <mark></mark>.",
-      "judgeUnpublished": "Nicht veröffentlicht",
       "gradedBy": "Hier bewertet von: {graders}.",
       "gradedByJudge": "dem Bewerter ({criteria})",
       "gradedByNothing": "Nichts im Tab Bewertung des Datasets würde diesen Fall so bewerten.",
@@ -12911,20 +12855,14 @@
       "rescoreGroup": "{count, plural, =1 {1 unbewertete Antwort} other {# unbewertete Antworten}} erneut bewerten",
       "rescored": "{count, plural, =1 {1 Antwort erneut bewertet} other {# Antworten erneut bewertet}}",
       "rescoreNothing": "Jeder Scorer war bereits zu einem Urteil gekommen, daher wurde nichts erneut bewertet.",
-      "judgeKnowledge": "Was muss der Bewerter wissen?",
-      "judgeKnowledgeHint": "Alles, woran er bewertet und was die Fälle nicht sagen - eine Richtlinie, eine Preisliste, Hausregeln. Es wird den Anweisungen des Bewerters hinzugefügt.",
-      "judgeKnowledgePlaceholder": "Bestellungen können innerhalb von 30 Tagen nach Lieferung zurückgegeben werden. Geöffnete Software wird nicht erstattet.",
       "unsavedChanges": "Nicht gespeicherte Änderungen",
       "discard": "Verwerfen",
-      "judgeGradesOn": "Bewertet auf <model></model>",
       "willBeGradedBy": "Bewertet von {judge}.",
       "willBeGradedByOn": "Bewertet von {judge} auf {model}.",
       "willBeGradedByUnpublished": "Bewertet von {judge}, der noch auf keinem Modell veröffentlicht ist.",
       "changeDatasetJudge": "Bewerter des Datasets ändern",
       "changeJudgeModel": "Modell des Bewerters ändern",
       "willBeGradedByHint": "Beides gilt für jede danach bewertete Antwort, nicht nur für diese.",
-      "judgeModelOnItsPage": "Sein Modell wird auf seiner eigenen Seite geändert.",
-      "judgeNoModelYet": "Die Organisation hat noch kein Modell, daher wird der Bewerter als Entwurf angelegt. Fügen Sie ein Modell hinzu und veröffentlichen Sie den Bewerter dann auf seiner Seite.",
       "judgeSameModel": "Der Bewerter hat auf {model} bewertet, dem Modell, das geantwortet hat, und bevorzugt womöglich Antworten wie seine eigenen. Geben Sie dem Bewerter auf seiner Seite ein anderes Modell.",
       "noteToCriterion": "Diese Notiz zu einem Kriterium des Bewerters machen:",
       "noteForCase": "für diesen Fall",
@@ -12969,7 +12907,10 @@
         "startsWith": "Beginnt mit „{text}“",
         "bullets": "Hat eine Aufzählung",
         "json": "Ist ein JSON-Objekt"
-      }
+      },
+      "criterionHelp": "Beschreibe eine konkrete Anforderung. Nenne den erwarteten Fakt oder eine klare Bestehensbedingung.",
+      "scaleHelp": "Die Höchstbewertung je Kriterium, von 2 bis 10.",
+      "passHelp": "Die Mindestbewertung zum Bestehen eines Kriteriums."
     },
     "title": "Datasets",
     "pageDescription": "Die Fragen, an denen Ihre Agents getestet werden. Jede Änderung an den Fällen eines Datasets erzeugt eine neue Version, sodass zwei Eval-Runs auf einer Version dieselben Fragen gesehen haben.",
@@ -13059,12 +13000,12 @@
       "order_mode": "Wie erwartete Aufrufe abgeglichen werden"
     },
     "hint": {
-      "input": "Die Nachricht, die der Agent beantwortet.",
-      "reference_answer": "Was eine gute Antwort sagt. Ein Bewerter vergleicht die Antwort des Agents damit.",
-      "counter_example": "Eine bekannte schlechte Antwort auf diese Frage - oft eine, die jemand mit Daumen nach unten bewertet hat. Sobald ein Bewerter das Dataset bewertet, wird jede Antwort darauf bewertet, dass sie deren Fehler nicht wiederholt, und muss das bestehen.",
-      "note": "Warum es den Fall gibt - was schiefging oder was er absichert.",
+      "input": "Gib die Nutzernachricht ein, die der Agent beantworten soll.",
+      "reference_answer": "Die richtige Antwort oder die Fakten, die enthalten sein müssen.",
+      "counter_example": "Eine falsche Antwort, die der Agent nicht wiederholen soll.",
+      "note": "Ergänze Kontext für die Person, die diesen Testfall prüft.",
       "history": "Frühere Züge, älteste zuerst. Für eine einzelne Nachricht leer lassen.",
-      "expected_tool_calls": "Tools, die der Agent aufrufen soll, jeweils mit den Argumenten, die passen müssen. Ein Wert ist Text, oder eine Zahl, true, false oder eine Liste, wenn als JSON geschrieben. Nicht genannte Argumente werden ignoriert.",
+      "expected_tool_calls": "Füge die erwarteten Werkzeugaufrufe hinzu. Nur die angegebenen Argumente werden geprüft.",
       "checks": "Regeln, gegen die die Antwort geprüft wird - dass sie eine Phrase enthält, einem Muster entspricht, unter einem Kostenrahmen bleibt.",
       "tags": "Durch Kommas getrennt, zum Gruppieren von Ergebnissen."
     },
@@ -13151,10 +13092,6 @@
     "findDataset": "Dataset suchen",
     "generatedTab": "{count, plural, =0 {Generiert} other {Generiert · #}}",
     "generateIntro": "Der Fallgenerator entwirft Fälle für dieses Dataset aus den gewählten Quellen. Zuerst sehen Sie die geschätzten Kosten, und jeder Entwurf wartet hier, bis Sie ihn annehmen, bearbeiten oder verwerfen.",
-    "generateAiOff": "Fälle zu generieren braucht die KI-Unterstützung, die in dieser Organisation ausgeschaltet ist.",
-    "editGenerator": "Anweisungen des Generators bearbeiten",
-    "generatorNotRunnable": "Sie dürfen den Fallgenerator nicht ausführen. Bitten Sie einen Admin, ihn mit Ihnen zu teilen.",
-    "generateMore": "{count, plural, =1 {Weitere Optionen · 1 Fall} other {Weitere Optionen · # Fälle}}",
     "moreActions": "Weitere Aktionen",
     "share": "Teilen",
     "delete": "Löschen",
@@ -13259,7 +13196,44 @@
       "team": "Team",
       "org": "Organisation"
     },
-    "editedWhen": "bearbeitet {when}"
+    "editedWhen": "bearbeitet {when}",
+    "table": {
+      "question": "Frage",
+      "source": "Quelle",
+      "expectations": "Erwartetes Ergebnis",
+      "tags": "Schlagwörter",
+      "actions": "Aktionen"
+    },
+    "helpers": {
+      "generatorTitle": "Testfälle generieren",
+      "generatorDescription": "Wähle das Modell und die Anweisungen für Testfälle dieses Datensatzes. Generierte Fälle warten auf deine Freigabe.",
+      "improverTitle": "Agent verbessern",
+      "improverDescription": "Wähle das Modell und die Anweisungen zum Verbessern eines Agenten anhand dieses Datensatzes. Änderungen bleiben bis zur Annahme Vorschläge.",
+      "saved": "Einstellungen gespeichert",
+      "generationUsesSettings": "Verwendet das Modell und die Anweisungen in den Einstellungen dieses Datensatzes. Prüfe vor dem Start die Quellen und geschätzten Kosten.",
+      "modelFallback": "Ohne gewähltes Modell nutzt dieser Helfer das Modell des getesteten Agenten. Wähle unten ein gespeichertes Modell oder füge eines hinzu, damit alle Runs dasselbe Modell verwenden."
+    },
+    "importFormat": "Dateiformat",
+    "importRequired": "Jede Zeile ist ein Testfall. input ist erforderlich; ergänze eine Referenzantwort, erwartete Werkzeugaufrufe oder eine Regel zur Bewertung. Alle anderen Spalten sind optional.",
+    "importCsvHint": "CSV: Die erste Zeile enthält Spaltennamen. history, expected_tool_calls und checks stehen als JSON in Zellen; Tags werden durch Kommas getrennt. Die Vorlage enthält gültige Beispiele.",
+    "importJsonlHint": "JSONL: ein JSON-Objekt pro Zeile. history, expected_tool_calls, checks und tags sind Arrays. Lade eine .jsonl-Datei hoch, kein JSON-Array.",
+    "settingsTab": "Einstellungen",
+    "caseSection": {
+      "tools": "Erwartete Werkzeugaufrufe",
+      "checks": "Zusätzliche Prüfungen",
+      "labels": "Tags und Notizen"
+    },
+    "optionalField": "Optional",
+    "historyMessagePlaceholder": "Die frühere Nachricht im ursprünglichen Wortlaut…",
+    "placeholder": {
+      "input": "Wann erhalte ich meine Rückerstattung?",
+      "reference_answer": "Die Rückerstattung erreicht deine Karte innerhalb von 5 Werktagen.",
+      "counter_example": "Rückerstattungen dauern immer 30 Tage.",
+      "note": "Zum Beispiel: verhindert die Angabe der alten Rückerstattungsfrist."
+    },
+    "tagsPlaceholder": "Rückerstattung, Zahlung",
+    "argumentName": "Argumentname",
+    "argumentValue": "Erwarteter Wert"
   },
   "knowledgeGaps": {
     "tab": "Wissenslücken",
@@ -13277,7 +13251,6 @@
     "checkAnswers": "{count, plural, =1 {1 Antwort prüfen} other {# Antworten prüfen}}",
     "checkAnswersHint": "Ein Modell liest die letzten Antworten und die Kommentare zu negativen Bewertungen auf Fragen, die diese Wissensbasis nicht beantworten konnte.",
     "checkStarted": "Antworten werden geprüft. Neue Themen erscheinen, sobald es fertig ist. Die Runs stehen in der Aktivität, Evals eingeschlossen.",
-    "uncheckedAiOff": "{count, plural, =1 {1 aktuelle Antwort könnte} other {# aktuelle Antworten könnten}} bei eingeschalteter KI-Unterstützung ebenfalls auf Wissenslücken geprüft werden.",
     "ungrouped": "{count, plural, =1 {1 Frage wartet} other {# Fragen warten}} auf die Gruppierung. Sie läuft alle 15 Minuten.",
     "questionCount": "{count, plural, =1 {Einmal gefragt} other {# Mal gefragt}}",
     "lastAsked": "Zuletzt {ago}",
@@ -13321,7 +13294,6 @@
     "draftNotice": "Von einem Modell aus den Fragen oben geschrieben. Wer diese Wissensdatenbank ändern darf, prüft jede Angabe, ergänzt, was fehlt, und fügt ihn hinzu.",
     "draftSources": "Worauf er sich stützt",
     "openDraftRun": "Run öffnen",
-    "editDrafter": "Anweisungen des Lücken-Entwerfers bearbeiten",
     "hasDraft": "Entwurf",
     "draftLabel": "Entwurf — vor dem Hinzufügen prüfen",
     "draftUnverified": "{count, plural, =1 {Eine genannte Quelle ließ sich nicht prüfen und wurde weggelassen.} other {# genannte Quellen ließen sich nicht prüfen und wurden weggelassen.}}",
@@ -13894,6 +13866,13 @@
       "by": "Nach Prüfung durch {name} neu bewertet · {date}",
       "undone": "Nach Rücknahme der Prüfung durch {name} neu bewertet · {date}",
       "reviewer": "eine prüfende Person"
+    },
+    "table": {
+      "run": "Durchlauf",
+      "status": "Status",
+      "result": "Ergebnis",
+      "passRate": "Erfolgsquote",
+      "cost": "Kosten"
     }
   },
   "authoring": {
@@ -14841,7 +14820,8 @@
     "freshAttempt": "Jeder Versuch beginnt bei der aktuellen Version; Änderungen aus früheren Versuchen werden nicht übernommen.",
     "trainSignals": "Fehlgeschlagene Testantworten",
     "tryAgainNothingToLearn": "Der letzte Versuch hat jede Frage behoben, aus der er lernt, daher hat ein weiterer Versuch nichts mehr zu lernen. Übernehmen Sie ihn oder beenden Sie die Sitzung.",
-    "tryAgainUnmeasurable": "Ein weiterer Versuch hätte zu wenige Fragen zum Messen: {count, plural, one {# weitere ist} other {# weitere sind}} nötig, und die Fragen dieser Sitzung stehen fest. Beenden Sie sie, fügen Sie Fragen hinzu und starten Sie eine neue."
+    "tryAgainUnmeasurable": "Ein weiterer Versuch hätte zu wenige Fragen zum Messen: {count, plural, one {# weitere ist} other {# weitere sind}} nötig, und die Fragen dieser Sitzung stehen fest. Beenden Sie sie, fügen Sie Fragen hinzu und starten Sie eine neue.",
+    "pipelineSettings": "Modell und Anweisungen im Datensatz konfigurieren"
   },
   "unsaved": {
     "title": "Du hast ungespeicherte Änderungen",

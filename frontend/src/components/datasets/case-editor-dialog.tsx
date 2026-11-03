@@ -19,6 +19,11 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetClose,
   Textarea,
 } from "@/components/ui";
 import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
@@ -34,6 +39,7 @@ import { CaseGradedBy } from "./case-graded-by";
 import { CaseTwinNotice } from "./case-twin-notice";
 import {
   CASE_FIELDS,
+  caseContentFromJson,
   contentOf,
   draftOf,
   expectsSomething,
@@ -85,19 +91,6 @@ export interface CaseCopy {
 
 const ORDER_MODES: ToolOrderMode[] = ["any", "in_order", "exact"];
 
-/** What a case written as JSON holds when it leaves a field out. */
-const EMPTY_CONTENT: DatasetCaseContent = {
-  input: "",
-  history: [],
-  reference_answer: null,
-  counter_example: null,
-  expected_tool_calls: [],
-  order_mode: "any",
-  checks: [],
-  tags: [],
-  note: null,
-};
-
 type TextField = "input" | "reference_answer" | "counter_example" | "note";
 type Slot =
   | { field: TextField; rows: number }
@@ -147,6 +140,39 @@ function ListField({
       {children}
       {error && <p className="text-destructive text-xs">{error}</p>}
     </fieldset>
+  );
+}
+
+function CaseGroup({
+  group,
+  children,
+  expanded,
+}: {
+  group: string;
+  children: ReactNode;
+  expanded: boolean;
+}) {
+  const t = useTranslations("datasets");
+  if (group === "question" || group === "answers")
+    return (
+      <section
+        data-tour={`case-group-${group}`}
+        className="min-w-0 space-y-4 rounded-xl border p-4"
+      >
+        {children}
+      </section>
+    );
+  return (
+    <details
+      data-tour={`case-group-${group}`}
+      open={expanded || undefined}
+      className="min-w-0 rounded-xl border lg:col-span-2"
+    >
+      <summary className="cursor-pointer px-4 py-3 text-sm font-medium">
+        {t(`caseSection.${group}`)}
+      </summary>
+      <div className="space-y-4 border-t p-4">{children}</div>
+    </details>
   );
 }
 
@@ -211,7 +237,10 @@ export function CaseEditorDialog({
 
   function parsed(): DatasetCaseContent | null {
     try {
-      return JSON.parse(json ?? "") as DatasetCaseContent;
+      const decoded: unknown = JSON.parse(json ?? "");
+      const content = caseContentFromJson(decoded);
+      if (content === null) setJsonProblem(true);
+      return content;
     } catch {
       setJsonProblem(true);
       return null;
@@ -222,7 +251,7 @@ export function CaseEditorDialog({
     if (json !== null) {
       const content = parsed();
       if (content === null) return;
-      setDraft(draftOf({ ...EMPTY_CONTENT, ...content }));
+      setDraft(draftOf(content));
       setJson(null);
       return;
     }
@@ -290,6 +319,38 @@ export function CaseEditorDialog({
     }
   }
 
+  if (!editing && viewing !== undefined) {
+    return (
+      <Sheet
+        open={open}
+        onOpenChange={(next) => {
+          if (!next) close();
+        }}
+      >
+        <SheetContent side="right" className="bg-background w-full sm:max-w-3xl">
+          <SheetHeader className="shrink-0 py-4">
+            <div className="min-w-0">
+              <SheetTitle className="break-words">{title}</SheetTitle>
+              {onSave === undefined && (
+                <p className="text-muted-foreground text-xs">{t("caseReadOnly")}</p>
+              )}
+            </div>
+            <SheetClose onClick={close} />
+          </SheetHeader>
+          <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6">
+            <CaseView content={viewing} />
+          </div>
+          <div className="flex shrink-0 items-center justify-end gap-2 border-t p-4">
+            {onSave !== undefined && (
+              <Button data-tour="case-edit" onClick={() => setEditing(true)}>
+                {t("editCase")}
+              </Button>
+            )}
+          </div>
+        </SheetContent>
+      </Sheet>
+    );
+  }
   return (
     <Dialog open={open} onOpenChange={close}>
       <DialogContent className={cn(DIALOG_CANVAS, DIALOG_FILL)}>
@@ -334,13 +395,21 @@ export function CaseEditorDialog({
           {editing &&
             json === null &&
             GROUPS.map(({ group, slots }) => (
-              <div
+              <CaseGroup
                 key={group}
-                data-tour={`case-group-${group}`}
-                className={cn(
-                  "min-w-0 space-y-4 rounded-xl border p-4",
-                  group === "labels" && "lg:col-span-2",
-                )}
+                group={group}
+                expanded={
+                  group === "tools"
+                    ? draft.expected_tool_calls.length > 0 ||
+                      errors.expected_tool_calls !== undefined
+                    : group === "checks"
+                      ? draft.checks.length > 0 || errors.checks !== undefined
+                      : group === "labels"
+                        ? draft.tags.length > 0 ||
+                          draft.note.length > 0 ||
+                          errors.tags !== undefined
+                        : false
+                }
               >
                 {slots.map((slot) => {
                   if (slot === "tags") {
@@ -354,6 +423,7 @@ export function CaseEditorDialog({
                       >
                         <Input
                           readOnly={readOnly}
+                          placeholder={t("tagsPlaceholder")}
                           value={draft.tags}
                           onChange={(event) => edit("tags", event.target.value)}
                         />
@@ -423,13 +493,24 @@ export function CaseEditorDialog({
                     <FormField
                       key={field}
                       htmlFor={`case-${field}`}
-                      label={t(`field.${field}`)}
+                      label={
+                        <span className="inline-flex flex-wrap items-center gap-2">
+                          {t(`field.${field}`)}
+                          {field !== "input" && (
+                            <span aria-hidden className="text-muted-foreground text-xs font-normal">
+                              {t("optionalField")}
+                            </span>
+                          )}
+                        </span>
+                      }
                       description={t(`hint.${field}`)}
                       error={errors[field]}
                       required={field === "input"}
                     >
                       <Textarea
                         rows={rows}
+                        placeholder={t(`placeholder.${field}`)}
+                        aria-label={t(`field.${field}`)}
                         readOnly={readOnly}
                         value={draft[field]}
                         onChange={(event) => edit(field, event.target.value)}
@@ -437,7 +518,7 @@ export function CaseEditorDialog({
                     </FormField>
                   );
                 })}
-              </div>
+              </CaseGroup>
             ))}
           {editing && json === null && scoring !== undefined && (
             <CaseGradedBy scoring={scoring} draft={draft} />

@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -42,7 +42,7 @@ beforeEach(() => {
 });
 
 describe("DatasetEvalsPanel", () => {
-  it("folds the runs by agent, each with its trend and verdicts", () => {
+  it("shows every run in one table with its agent, pass rate and result", () => {
     state.runs = {
       ...state.runs,
       runs: [
@@ -55,17 +55,15 @@ describe("DatasetEvalsPanel", () => {
     render(<DatasetEvalsPanel datasetId="ds-1" title="Evals" />);
 
     expect(screen.getByText("3 runs of 2 agents")).toBeInTheDocument();
-    const desk = screen.getByText("Refund desk · 2 runs").closest("details")!;
-    expect(desk).toHaveAttribute("open");
-    expect(within(desk).getByRole("group", { name: "Pass rate by run" })).toBeInTheDocument();
-    expect(within(desk).getByRole("link", { name: /^Draft/ })).toHaveAttribute(
-      "href",
-      "/agents/agent-1/evals/run-2",
-    );
-    expect(desk.querySelector("summary .rounded-full")).not.toBeNull();
-    const other = screen.getByText("An agent you cannot see · 1 run").closest("details")!;
-    expect(other).not.toHaveAttribute("open");
-    expect(other.querySelector("summary .rounded-full")).toBeNull();
+    expect(screen.getByRole("table")).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Pass rate" })).toBeInTheDocument();
+    expect(
+      screen
+        .getAllByRole("link")
+        .some((link) => link.getAttribute("href") === "/agents/agent-1/evals/run-2"),
+    ).toBe(true);
+    expect(screen.getAllByText("An agent you cannot see").length).toBeGreaterThan(0);
+    expect(document.querySelector("details")).toBeNull();
   });
 
   it("pages through a history longer than one page, counting every run", async () => {

@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useId } from "react";
 import { Plus, Trash2 } from "lucide-react";
 import { useTranslations } from "next-intl";
 
-import { Button, IconButton, Input, Switch, Textarea } from "@/components/ui";
+import { Button, IconButton, Input, Checkbox, FormField, Textarea } from "@/components/ui";
 import type { RubricCriterion } from "@/types/scoring";
 import { CriterionRule, type RuleChecks } from "./criterion-rule";
 import { CriterionScope } from "./criterion-scope";
@@ -32,6 +32,7 @@ export function RubricEditor({
   rules,
 }: RubricEditorProps) {
   const t = useTranslations("datasets.scoring");
+  const prefix = useId();
   const first = useRef<HTMLTextAreaElement>(null);
   useEffect(() => {
     if (focusKey === 0) return;
@@ -46,19 +47,25 @@ export function RubricEditor({
       <p className="text-muted-foreground text-xs">{t("yesNoHint")}</p>
       {criteria.map((criterion, index) => (
         <div key={index} className="space-y-2 rounded-md border p-3">
-          <div className="flex items-center gap-2">
-            <Input
-              value={criterion.name}
-              onChange={(event) => change(index, { name: event.target.value })}
-              placeholder={t("criterionNamePlaceholder")}
-              aria-label={t("criterionName")}
-              disabled={disabled}
-              maxLength={80}
-            />
+          <div className="flex flex-wrap items-end gap-3">
+            <FormField
+              htmlFor={`${prefix}-${index}-name`}
+              label={t("criterionName")}
+              className="min-w-0 flex-1 basis-full sm:basis-0"
+            >
+              <Input
+                value={criterion.name}
+                onChange={(event) => change(index, { name: event.target.value })}
+                placeholder={t("criterionNamePlaceholder")}
+                aria-label={t("criterionName")}
+                disabled={disabled}
+                maxLength={80}
+              />
+            </FormField>
             <label className="flex shrink-0 items-center gap-2 text-xs">
-              <Switch
+              <Checkbox
                 checked={criterion.required}
-                onCheckedChange={(required) => change(index, { required })}
+                onCheckedChange={(required) => change(index, { required: required === true })}
                 aria-label={t("mustPass")}
                 disabled={disabled}
               />
@@ -79,15 +86,22 @@ export function RubricEditor({
             disabled={disabled}
             onChange={(tags) => change(index, { tags })}
           />
-          <Textarea
-            ref={index === 0 ? first : undefined}
-            value={criterion.description}
-            onChange={(event) => change(index, { description: event.target.value })}
-            placeholder={t("criterionDescriptionPlaceholder")}
-            aria-label={t("criterionDescription")}
-            disabled={disabled}
-            rows={2}
-          />
+          <FormField
+            htmlFor={`${prefix}-${index}-description`}
+            label={t("criterionDescription")}
+            description={t("criterionHelp")}
+          >
+            <Textarea
+              ref={index === 0 ? first : undefined}
+              value={criterion.description}
+              onChange={(event) => change(index, { description: event.target.value })}
+              placeholder={t("criterionDescriptionPlaceholder")}
+              aria-label={t("criterionDescription")}
+              disabled={disabled}
+              rows={3}
+            />{" "}
+          </FormField>
+
           {rules && <CriterionRule criterion={criterion} rules={rules} />}
         </div>
       ))}

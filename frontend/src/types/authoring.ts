@@ -5,6 +5,7 @@ export type AuthoringStatus = "queued" | "running" | "completed" | "failed";
 export type HunkStatus = "pending" | "accepted" | "dismissed";
 
 export interface AuthoringStart {
+  helper_settings?: { model_profile_id: string | null; instructions: string | null };
   improver_agent_id?: string | null;
   kind: AuthoringKind;
   window_days: number;

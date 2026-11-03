@@ -31,7 +31,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.system_agents import IMPROVER
 from app.core.exceptions import (
-    AiAssistanceDisabledError,
     AuthorizationError,
     BadRequestError,
     ConcurrentChangeError,
@@ -975,7 +974,7 @@ class TestSkills:
 
 class TestRefusals:
     @pytest.mark.security
-    async def test_ai_assistance_off_refuses_every_start_but_not_a_decision(self, db):
+    async def test_legacy_ai_flag_does_not_block_requests_or_decisions(self, db):
         ctx, agent, _ = await _setup(db)
         await _improve(db, ctx, agent, Improver(db))
         org = await db.get(Organization, ctx.organization_id)
@@ -984,10 +983,10 @@ class TestRefusals:
         await db.flush()
         service = AuthoringService(db)
 
-        with pytest.raises(AiAssistanceDisabledError):
-            await service.start_agent(ctx, agent.id, AuthoringStart())
-        with pytest.raises(AiAssistanceDisabledError):
-            await service.estimate_agent(ctx, agent.id, AuthoringStart(kind="verify"))
+        started = await service.start_agent(ctx, agent.id, AuthoringStart())
+        assert started.status == "queued"
+        estimate = await service.estimate_agent(ctx, agent.id, AuthoringStart(kind="verify"))
+        assert estimate.reason == "no_draft_change"
         batch = (await service.for_agent(ctx, agent.id)).batch
         assert batch is not None
         decided = await service.decide(

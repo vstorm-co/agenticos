@@ -6,7 +6,6 @@ import { useTranslations } from "next-intl";
 
 import { Button, Label, Textarea } from "@/components/ui";
 import { useAssistant } from "@/hooks/use-assistant";
-import { useAiAssistance } from "@/hooks/use-organizations";
 import { useArchitectAskStore } from "@/stores/architect-ask-store";
 
 /**
@@ -19,16 +18,10 @@ import { useArchitectAskStore } from "@/stores/architect-ask-store";
 export function DescribeWithArchitect({ onAsked }: { onAsked: () => void }) {
   const t = useTranslations("authoring.describe");
   const { assistant } = useAssistant();
-  const { enabled } = useAiAssistance();
   const ask = useArchitectAskStore((state) => state.ask);
   const [text, setText] = useState("");
   // Only a ready Architect answers; one still waiting for a model would drop the description.
-  if (
-    !assistant?.can_use ||
-    assistant.status !== "ready" ||
-    assistant.agent_id === null ||
-    enabled !== true
-  ) {
+  if (!assistant?.can_use || assistant.status !== "ready" || assistant.agent_id === null) {
     return null;
   }
 

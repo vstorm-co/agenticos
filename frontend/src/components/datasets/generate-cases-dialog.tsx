@@ -22,8 +22,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui";
-import { MoreOptions } from "@/components/ui/more-options";
-import { SystemAgentChoice } from "@/components/agents/system-agent-choice";
 import { useAgents } from "@/hooks/use-agents";
 import { useGenerateCases } from "@/hooks/use-case-generation";
 import { usePermissions } from "@/hooks/use-permissions";
@@ -74,7 +72,6 @@ export function GenerateCasesDialog({
   const { can } = usePermissions();
   const { agents } = useAgents();
   const { estimate, start } = useGenerateCases(datasetId);
-  const [generatorId, setGeneratorId] = useState<string | null>(null);
   const [agentId, setAgentId] = useState(initial?.agentId ?? "");
   const [sources, setSources] = useState<CaseOrigin[]>(DEFAULT_SOURCES);
   const [count, setCount] = useState(initial?.count ?? DEFAULT_COUNT);
@@ -85,7 +82,6 @@ export function GenerateCasesDialog({
     agent_id: agentId,
     sources,
     count,
-    ...(generatorId ? { generator_agent_id: generatorId } : {}),
   };
   const valid = agentId !== "" && sources.length > 0 && count >= 1 && count <= MAX_GENERATED;
   const changed = () => {
@@ -97,8 +93,7 @@ export function GenerateCasesDialog({
   useUnsavedChanges(source, {
     dirty:
       open &&
-      (generatorId !== null ||
-        agentId !== (initial?.agentId ?? "") ||
+      (agentId !== (initial?.agentId ?? "") ||
         sources.join() !== DEFAULT_SOURCES.join() ||
         count !== (initial?.count ?? DEFAULT_COUNT)),
     discard: () => onOpenChange(false),
@@ -130,15 +125,9 @@ export function GenerateCasesDialog({
           <DialogDescription>{t("generateCasesBody")}</DialogDescription>
         </DialogHeader>
         <div className={cn(DIALOG_BODY, "space-y-4")}>
-          <SystemAgentChoice
-            kind="generator"
-            value={generatorId}
-            onChange={(value) => {
-              setGeneratorId(value);
-              changed();
-            }}
-            disabled={start.isPending || estimate.isPending}
-          />
+          <p className="text-muted-foreground bg-muted/30 rounded-lg border p-3 text-sm">
+            {t("helpers.generationUsesSettings")}
+          </p>
           <FormField
             htmlFor="generate-agent"
             label={t("agent")}
@@ -166,11 +155,11 @@ export function GenerateCasesDialog({
             </Select>
           </FormField>
           <FormField htmlFor="generate-sources" label={t("sources")} error={errors.sources}>
-            <div id="generate-sources" className="space-y-2">
+            <div id="generate-sources" className="grid gap-3 sm:grid-cols-2">
               {CASE_ORIGINS.map((origin) => {
                 const locked = origin === "conversation" && !can(Perm.runsView);
                 return (
-                  <div key={origin} className="flex items-start gap-2">
+                  <div key={origin} className="flex items-start gap-3 rounded-lg border p-3">
                     <Checkbox
                       id={`source-${origin}`}
                       disabled={locked}
@@ -195,30 +184,24 @@ export function GenerateCasesDialog({
               })}
             </div>
           </FormField>
-          {/* Opened by a refusal of the count, so the field it names is in view. */}
-          <MoreOptions
-            label={t("generateMore", { count })}
-            open={errors.count !== undefined ? true : undefined}
+          <FormField
+            htmlFor="generate-count"
+            label={t("caseNumber")}
+            description={t("caseNumberHint", { max: MAX_GENERATED })}
+            error={errors.count}
           >
-            <FormField
-              htmlFor="generate-count"
-              label={t("caseNumber")}
-              description={t("caseNumberHint", { max: MAX_GENERATED })}
-              error={errors.count}
-            >
-              <Input
-                id="generate-count"
-                type="number"
-                min={1}
-                max={MAX_GENERATED}
-                value={count}
-                onChange={(event) => {
-                  setCount(Number(event.target.value));
-                  changed();
-                }}
-              />
-            </FormField>
-          </MoreOptions>
+            <Input
+              id="generate-count"
+              type="number"
+              min={1}
+              max={MAX_GENERATED}
+              value={count}
+              onChange={(event) => {
+                setCount(Number(event.target.value));
+                changed();
+              }}
+            />
+          </FormField>
           {estimated !== null && <GenerationEstimate estimate={estimated} />}
         </div>
         <DialogFooter>

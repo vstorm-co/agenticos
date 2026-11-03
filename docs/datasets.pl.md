@@ -1,5 +1,5 @@
 ---
-source_sha: "e05612aec339"
+source_sha: "7b8699b33ffc"
 title: "Datasety"
 description: "Datasety trzymają pytania, na których testujesz agenta: wersjonowane przypadki pisane ręcznie, importowane z CSV lub JSONL albo wzięte z ocenionej odpowiedzi."
 ---
@@ -19,12 +19,9 @@ przypadków i akceptowane przez człowieka. To ostatnie źródło jest zwykle na
 bo to pytanie, które ktoś naprawdę zadał, i odpowiedź, która go naprawdę
 zawiodła.
 
-Rozwiń **Generator przypadków** podczas generowania, aby wybrać opublikowanego
-generatora zamiast domyślnego agenta organizacji. Na jego stronie zmienisz
-opublikowany model i instrukcje. Żądanie zachowuje `generator_agent_id` oddzielnie
-od testowanego agenta, także po zakolejkowaniu zadania. Agent nieopublikowany,
-usunięty, niedostępny lub niewłaściwego rodzaju jest odrzucany przed płatnym
-wywołaniem.
+**Przypadki**, **Wygenerowane**, **Ocenianie**, **Ewaluacje**, **Przegląd** i **Ustawienia** współdzielą obszar z kontrolką pełnego ekranu. Dodanie przypadku, import, generowanie i przejście do Aktywności znajdują się przy tabeli przypadków. Przypadek otwiera się w panelu bocznym, a Edytuj otwiera formularz. Najpierw są pytanie i odpowiedzi; narzędzia, reguły oraz etykiety mają rozwijane sekcje.
+
+Model i instrukcje oceniającego wybiera się w **Ocenianiu**, a generowania i ulepszania w **Ustawieniach**. Używają selektora modeli i edytora Markdown z Agent Buildera. Pomocnicy są zdefiniowani w kodzie i nie wymagają tworzenia ani publikowania agenta. Zadanie w kolejce zachowuje konfigurację z chwili startu.
 
 ## Co zawiera przypadek { #what-a-case-holds }
 
@@ -283,11 +280,7 @@ odrzucane z nazwy, a nie pomijane po cichu:
 - wiedza czyta tylko bazy wiedzy, które możesz czytać; okno mówi, ile baz
   agenta pominięto;
 - rozmowy wymagają `runs:view`, uprawnienia, z którym Aktywność czyta każdy run;
-- wsparcie AI jest wyłączone w każdej organizacji, dopóki Owner albo Admin nie
-  włączy go w ustawieniach organizacji, a póki jest wyłączone, żadne generowanie
-  się nie zaczyna - zakładka mówi o tym i o tym, kto może to zmienić. Czekające
-  propozycje nadal można zaakceptować albo odrzucić, bo decyzja nie
-  woła modelu.
+
 
 Propozycje widzą tylko członkowie, którzy mogą edytować dataset. Propozycja
 wzięta z rozmowy to tekst, którego pozostali czytelnicy datasetu nie widzieli;
@@ -303,35 +296,11 @@ Generowanie rozpoczęte kluczem API zachowuje identyfikator tego klucza. Przed o
 
 ### Zestaw testowy agenta { #agent-test-set }
 
-Ulepszenie da się zmierzyć tylko na pytaniach testowych. `POST
-/agents/{id}/test-set` buduje je dla agenta jednym wywołaniem, a kreator
-ulepszania woła go, gdy agent żadnych nie ma:
+`POST /agents/{id}/test-set` tworzy prywatny dataset agenta albo dodaje nowe ocenione odpowiedzi do istniejącego zestawu, który osoba może edytować. Ocena pozytywna staje się odpowiedzią wzorcową, negatywna kontrprzykładem z komentarzem jako notatką. Odczytywane są tylko dostępne rozmowy. Dotychczasowe przypadki i konfiguracja oceniania zostają zachowane.
 
-- pierwsze wywołanie tworzy "<agent> - test questions", prywatny dataset
-  wskazujący agenta, więc skopiowane pytania nie trafiają do nikogo innego, dopóki
-  nie zostanie udostępniony (**⋯ → Udostępnij** na jego stronie); kolejne dodają do niego najnowsze ocenione odpowiedzi jako nową wersję
-  i zachowują to, co już zawierał (`since` bierze tylko odpowiedzi ocenione od
-  tej chwili);
-- odpowiedź oceniona łapką w górę staje się pytaniem z tą odpowiedzią jako
-  odpowiedzią wzorcową, a oceniona łapką w dół - pytaniem z nią jako
-  kontrprzykładem i komentarzem zostawionym z łapką w dół jako notatką. Każde
-  pytanie przychodzi samo, bez rozmowy, która je poprzedzała, i tylko z rozmów,
-  które wywołujący może otworzyć; wynik podaje, ile pochodzi z rozmów innych
-  osób;
-- generator przypadków jest proszony o kolejne pytania, aż pięć da się ocenić,
-  albo o `more` z nich. Dołączają do zestawu testowego jako nowa wersja, gdy
-  tylko zostaną napisane - tylko to generowanie jest akceptowane bez człowieka -
-  a wynik podaje, o ile poproszono, żeby ktoś mógł je potem przejrzeć;
-- ocenianie porównuje odpowiedzi z odpowiedzią wzorcową i oblewa tę, która
-  powtarza kontrprzykład, sędzią działającym na innym modelu niż model agenta.
-  Gdy skonfigurowany jest tylko jeden model, wsparcie AI jest wyłączone albo
-  wywołujący nie może opublikować sędziego, wynik mówi o tym wprost. Ocenianie,
-  które ktoś już ustawił w zestawie testowym, zostaje bez zmian; wynik mówi, gdy
-  działa na tym samym modelu co agent.
+Nowy zestaw używa modelu agenta do oceniania, generowania i ulepszania. Wynik jawnie mówi, gdy oceniający współdzieli model z agentem. Niezależny model wybiera się w Ocenianiu datasetu; nie wybiera go cena ani ustawienie organizacji. Nie powstaje dodatkowy agent użytkownika.
 
-Mniej niż trzy pytania, które da się ocenić, to za mało, by zmierzyć zmianę, i
-wynik o tym mówi. `POST /agents/{id}/test-set/estimate` wycenia pytania, które
-zostałyby napisane. Oba wymagają `datasets:edit` i dostępu do agenta.
+Generator prosi o tyle pytań, by osiągnąć pięć ocenialnych przypadków, albo o wskazane `more`. Te przypadki startowe są automatycznie przyjmowane jako nowa wersja datasetu. Mniej niż trzy ocenialne przypadki jest zgłaszane jako niewystarczające. `/test-set/estimate` wycenia generowanie; obie operacje wymagają `datasets:edit` i dostępu do agenta.
 
 ## Poświadczenia są redagowane { #credentials }
 
@@ -443,35 +412,9 @@ nazwie po ewentualnym nadpisaniu w specu. Przypadek napisany przed zmianą nazwy
 narzędzia oczekuje starej nazwy.
 
 ### Sędzia { #judge }
+Oceniający jest pomocnikiem ewaluacji zdefiniowanym w kodzie. Model, instrukcje, kryteria, skala i próg należą do zakładki **Ocenianie** tego datasetu. Model wybiera się tym samym selektorem providera, modelu i klucza oraz edytorem Markdown co w Agent Builderze. Edycja wymaga `datasets:edit`, a dodanie modelu `connections:manage`. Nie trzeba tworzyć ani publikować osobnego agenta.
 
-Sędzia to agent rodzaju `judge` (zobacz [Sędziowie](concepts.md#system-agents)).
-Dataset ocenia za pomocą **Eval judge**, którego platforma dodaje do każdej
-organizacji, albo za pomocą własnego sędziego: **Utwórz sędziego dla tego
-datasetu** na karcie Sędzia tworzy sędziego, którego prompt to prompt Eval judge
-z jego zasadami oceniania, a po nim nazwa i opis datasetu oraz to, co według
-ciebie sędzia musi wiedzieć, żeby oceniać - polityka, cennik - na pierwszym
-modelu organizacji albo na wybranym przez ciebie. Prompt można edytować przed
-utworzeniem (`GET /datasets/{id}/judge-template`). Utworzenie go wymaga
-`agents:edit` oraz `datasets:edit`.
-
-Sędzia jest widoczny tak szeroko jak dataset, bo jego prompt zawiera nazwę i
-opis datasetu, a gdy jego twórca nie może go opublikować, pozostaje wersją roboczą dla
-kogoś, kto może (`agents:publish`).
-
-Model wybiera się w tym samym panelu co dla agenta: provider, pełna lista jego
-modeli i klucz dla kogoś, kto może dodać model (`connections:manage`), a
-zapisane modele dla pozostałych.
-
-Gdy wsparcie AI jest włączone, utworzenie go od razu włącza też ocenianie:
-sędziego, z kryterium startowym do zastąpienia, gdy dataset nie ma żadnego,
-oraz porównanie z odpowiedzią wzorcową, gdy któryś przypadek ją ma. Kryteria,
-skala i próg zaliczenia zostają na datasecie; prompt, model i budżet sędziego
-edytuje się na jego własnej stronie, jedynym miejscu, gdzie ustawia się jego
-model; karta Sędzia go pokazuje.
-
-Sędzia działa jako osoba, która poprosiła o ocenę: sprawdzany jest jej dostęp do
-niego, przed wywołaniem modelu sprawdzany jest jego własny budżet i budżet
-organizacji, a jego run pojawia się w Aktywności pod powierzchnią `eval`.
+Każda ocena zachowuje model, identyfikator opublikowanego pomocnika, hash kryteriów, wersję zadania i hash instrukcji. Model i instrukcje datasetu można zmieniać; ocen z różnych konfiguracji nie traktuje się jako bezpośrednio porównywalnych.
 
 Sędzia dostaje notatkę przypadku jako powód, dla którego przypadek istnieje,
 jego wcześniejsze tury i pytanie, odpowiedź wzorcową, gdy jest oceniana,
@@ -497,14 +440,6 @@ Sędziowie startują z temperaturą 0, więc ta sama odpowiedź jest oceniana dw
 razy tak samo; model, który nie przyjmuje temperatury, na przykład model
 rozumujący, ocenia bez niej.
 
-Sędzia działa tylko tam, gdzie włączone jest [wsparcie AI](governance.md#ai-assistance),
-a jest ono wyłączone, dopóki administrator nie włączy go dla organizacji. Do
-tego czasu kryteria sędziego i odpowiedzi wzorcowej są zapisywane jako
-pominięte, oceniają tylko oceniacze oparte na regułach, a zakładka Ocenianie
-mówi o tym i podaje link do przełącznika temu, kto może go zmienić. W tym czasie nie da
-się włączyć sędziego ani porównania z odpowiedzią wzorcową; już włączony zostaje
-włączony i jest pomijany.
-
 Każde kryterium jest oceniane od 1 do górnej granicy skali i zalicza na progu
 zaliczenia lub wyżej. Przy każdym kryterium sędzia cytuje fragment odpowiedzi,
 na którym opiera ocenę, i podaje regułę, z której ocena wynika. Ocena, której
@@ -522,8 +457,7 @@ dostaje każdy przypadek: nic nie kosztują i za każdym razem oceniają tak sam
 Podpowiedź czyta słowa samego kryterium i nie wywołuje żadnego modelu.
 
 Gdy sędzia nie może ocenić, jego kryteria są zapisywane jako pominięte albo
-jako błędy, z uzasadnieniem podającym przyczynę: wsparcie AI jest wyłączone,
-sędzia wybrany przez dataset już nie istnieje, nie ma opublikowanej wersji,
+jako błędy, z uzasadnieniem podającym przyczynę: sędzia wybrany przez dataset już nie istnieje, nie ma opublikowanej wersji,
 jest zarchiwizowany, jego model został usunięty albo nie ma klucza, osoba nie
 może go uruchomić, jego budżet się wyczerpał, jego run się nie powiódł albo
 jego odpowiedzi nie dało się odczytać - wtedy jej pierwsze 2000 znaków zostaje
@@ -537,7 +471,7 @@ nie uruchamia się ponownie, a wynik zachowuje swój run ewaluacji i decyzję,
 którą ktoś na nim podjął; wynik, na którym każdy oceniacz wydał werdykt,
 zostaje bez zmian.
 
-Przyczyna, która nadal trwa - wyłączone wsparcie AI, nieopublikowany sędzia -
+Przyczyna, która nadal trwa - nieopublikowany sędzia -
 jest odrzucana tak, jak jest, podobnie jak sędzia runu ewaluacji opublikowany na
 nowo od czasu, gdy zawiódł, albo wynik takiego runu przypięty do wcześniejszego
 promptu sędziego, bo jego ocena nie byłaby porównywalna z resztą runu; wtedy nic
@@ -562,16 +496,10 @@ ostatnia. Run sędziego w Aktywności mówi, których pól nie dało się odczyt
 samą odpowiedź, która może powtarzać przypadek datasetu, którego czytający nie
 widzi.
 
-Każdy wynik zapisuje sędziego, który go ocenił - agenta sędziego, jego profil
-modelu, wersję spec, hash rubryki i wersję zadania, które platforma przekazuje
-każdemu sędziemu - więc wyniki od różnych sędziów nie są porównywane jak równe z
-równym. Zmiana sędziego albo jego modelu na jego stronie jest dozwolona;
-przełączenie sędziego wymaga najpierw potwierdzenia, a karta Sędzia mówi, że
-wyniki ocenione wcześniej nie będą porównywalne z ocenianymi później.
+Każda ocena zachowuje model, identyfikator opublikowanego pomocnika, hash kryteriów, wersję zadania i hash instrukcji. Model i instrukcje datasetu można zmieniać; ocen z różnych konfiguracji nie traktuje się jako bezpośrednio porównywalnych.
 
 ### Przegląd { #review }
-
-Przegląd otwiera zwięzłą listę; rozwiń odpowiedź, aby obejrzeć materiał źródłowy i oceny. Decyzje to **Odpowiedź jest poprawna (sędzia się pomylił)** oraz **Odpowiedź jest błędna**. Po zapisie wiersz pozostaje na miejscu, zwinięty, z obowiązującą oceną i przeliczonym wynikiem runu lub suity, jeśli można je odczytać. Notatkę można zmienić w kryterium bez przechodzenia do wszystkich wyników, a decyzję wycofać w tym samym miejscu.
+Przegląd pokazuje zwartą kolejkę z filtrami. Wybrana odpowiedź otwiera dowody, ocenę i decyzję w panelu bocznym. Zapis zachowuje otwarty panel oraz pozycję wiersza; decyzję można wycofać lub cofnąć. Tutaj ustawia się kierowanie do przeglądu. Zmiana maski prywatności z serwera zamyka panel i usuwa niezapisaną notatkę.
 
 Wynik czeka w **kolejce przeglądu**, gdy ktoś go tam wyśle albo zrobi to run
 ewaluacji. Po ponownym uruchomieniu tego, co się zmieniło, run ewaluacji wysyła

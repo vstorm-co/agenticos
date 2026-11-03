@@ -77,8 +77,8 @@ async def classify_collection_answers(
 ) -> None:
     """Have a model read the knowledge base's recent answers for questions it could not answer.
 
-    Refused while the organization has AI assistance switched off. The reading
-    runs after the response, as the caller, in metered runs of the knowledge
+    The reading runs after the response with current access, model readiness
+    and budget checks, as the caller, in metered runs of the knowledge
     gap classifier that Activity lists; what it finds joins the topics.
     """
     await service.classify(ctx, knowledge_base_id)
@@ -136,7 +136,7 @@ async def draft_gap(topic_id: UUID, service: KnowledgeGapSvc, ctx: Auth) -> Any:
     """Queue a draft of the passage this topic is missing; the topic says while it is written.
 
     A run of the organization's drafting agent, as the caller, metered and in
-    Activity, refused up front while the organization has AI assistance off. It
+    Activity, with current access, model readiness and budget checks. It
     reads the knowledge base as it is when it runs. The draft is kept on the
     topic for a person to check; nothing is added to the collection. Asking
     again while one is being written queues nothing more.

@@ -27,8 +27,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.agents.spec import AgentSpec
 from app.agents.system_agents import JUDGE
 from app.core.exceptions import (
-    AiAssistanceDisabledError,
-    AlreadyExistsError,
     AuthorizationError,
     BadRequestError,
     SystemAgentUnavailableError,
@@ -47,15 +45,14 @@ from app.schemas.agent_test_set import (
     JudgeReason,
 )
 from app.schemas.case_generation import MAX_GENERATED, CaseGenerationRequest, CaseOriginLiteral
-from app.schemas.dataset import AnswerAs, DatasetCreate
+from app.schemas.dataset import AnswerAs, DatasetCreate, DatasetUpdate
+from app.schemas.dataset_helpers import DatasetHelper, DatasetHelpers
 from app.schemas.resource_grant import as_visibility
-from app.schemas.scoring import DatasetScoring, DatasetScoringUpdate, JudgeCreate
+from app.schemas.scoring import DatasetScoring, DatasetScoringUpdate
 from app.services.access import DATASET, resolve_access
 from app.services.agent_registry import AgentRegistryService
-from app.services.ai_assistance import AiAssistanceService
 from app.services.case_generation import CaseGenerationService
 from app.services.dataset import DatasetService
-from app.services.grading_model import grading_profile
 from app.services.rag.vectorstore import BaseVectorStore
 from app.services.scoring import STARTING_CRITERION, ScoringService
 from app.services.system_agent_runner import SystemAgentRunner
@@ -85,7 +82,7 @@ REASONS: dict[JudgeReason, str] = {
     ),
     "shares_model": (
         "The test set's judge runs on the same model as the agent, or on one that cannot "
-        "be told apart. Its grading was left as it is; pick another judge in its Grading tab."
+        "be told apart. Choose another model in the dataset's Grading tab for an independent assessment."
     ),
     "one_model": (
         "Only one model is set up, so the grader runs on the same model as the agent. "
@@ -229,9 +226,12 @@ class AgentTestSetService:
             return False
         try:
             await SystemAgentRunner(self.db).require_runnable(
-                ctx, key=JUDGE.key, agent_id=scoring.judge.agent_id
+                ctx,
+                key=JUDGE.key,
+                agent_id=scoring.judge.agent_id,
+                model_profile_id=scoring.judge.model_profile_id,
             )
-        except AiAssistanceDisabledError, SystemAgentUnavailableError:
+        except SystemAgentUnavailableError:
             return False
         return True
 
@@ -257,7 +257,7 @@ class AgentTestSetService:
         request = await self._request(ctx, agent, count)
         try:
             cost = await self.generation.price_for_agent(ctx, request)
-        except AiAssistanceDisabledError, BadRequestError:
+        except BadRequestError:
             return AgentTestSetEstimate(cost_usd=Decimal(0), priced=True, generate=0)
         return AgentTestSetEstimate(
             cost_usd=cost or Decimal(0), priced=cost is not None, generate=request.count
@@ -284,6 +284,18 @@ class AgentTestSetService:
                 ),
                 agent_id=agent.id,
             )
+            profile = await self._profile(ctx, agent)
+            if profile is not None:
+                await self.datasets.update(
+                    ctx,
+                    read.id,
+                    DatasetUpdate(
+                        helper_settings=DatasetHelpers(
+                            generator=DatasetHelper(model_profile_id=profile.id),
+                            improver=DatasetHelper(model_profile_id=profile.id),
+                        )
+                    ),
+                )
             return await self.datasets.get(ctx, read.id, perm=Perm.DATASETS_EDIT), True
         raise BadRequestError(
             message="Every name for this agent's test set is taken. Rename one of them.",
@@ -366,8 +378,6 @@ class AgentTestSetService:
         graded as it was - its judge, its rubric, its reference switch - and only
         said to share the agent's model when it does.
         """
-        if not await AiAssistanceService(self.db).is_enabled(organization_id=ctx.organization_id):
-            return _not_independent("ai_off", kept=not created)
         answers_on = await self._profile(ctx, agent)
         if not created:
             return await self._report(
@@ -376,37 +386,14 @@ class AgentTestSetService:
         if answers_on is None:
             await self._switch_on(ctx, dataset, None)
             return _not_independent("unknown_model")
-        # A draft not yet valid as a spec still names the model it will run on.
-        drafted = (agent.draft_spec or {}).get("model_profile_id")
-        graded = [
-            answers_on,
-            None
-            if not drafted
-            else await credential_repo.get_profile(
-                self.db, UUID(str(drafted)), organization_id=ctx.organization_id
-            ),
-        ]
-        chosen = await grading_profile(self.db, organization_id=ctx.organization_id, graded=graded)
-        other = (
-            chosen
-            if chosen is not None and not _same_model(chosen, answers_on)
-            else next(
-                (
-                    profile
-                    for profile in await credential_repo.list_profiles(
-                        self.db, organization_id=ctx.organization_id
-                    )
-                    if not _same_model(profile, answers_on)
-                ),
-                None,
-            )
+        await self._switch_on(ctx, dataset, None)
+        scoring = DatasetScoring.model_validate(dataset.scoring)
+        scoring.judge.model_profile_id = answers_on.id
+        scoring.judge.instructions = JUDGE.instructions
+        await self.scoring.set_scoring(
+            ctx, dataset.id, DatasetScoringUpdate.model_validate(scoring.model_dump())
         )
-        if other is None or not ctx.has(Perm.AGENTS_PUBLISH):
-            # A judge the caller may not publish stays a draft, and a draft grades nothing.
-            await self._switch_on(ctx, dataset, None)
-            return _not_independent("one_model" if other is None else "cannot_publish")
-        judge = await self._create_judge(ctx, dataset, agent, other)
-        return AgentTestSetJudge(agent_id=judge, independent=True)
+        return _not_independent("shares_model")
 
     async def _report(
         self, ctx: AuthContext, scoring: DatasetScoring, answers_on: ModelProfile | None
@@ -423,7 +410,13 @@ class AgentTestSetService:
                 self.db, organization_id=ctx.organization_id, key=JUDGE.key
             )
         )
-        judged_on = await self._profile(ctx, judge)
+        judged_on = (
+            await credential_repo.get_profile(
+                self.db, scoring.judge.model_profile_id, organization_id=ctx.organization_id
+            )
+            if scoring.judge.model_profile_id is not None
+            else await self._profile(ctx, judge)
+        )
         if judged_on is None or answers_on is None or _same_model(judged_on, answers_on):
             return AgentTestSetJudge(
                 agent_id=scoring.judge.agent_id,
@@ -433,26 +426,6 @@ class AgentTestSetService:
                 kept=True,
             )
         return AgentTestSetJudge(agent_id=scoring.judge.agent_id, independent=True, kept=True)
-
-    async def _create_judge(
-        self, ctx: AuthContext, dataset: Dataset, agent: Agent, profile: ModelProfile
-    ) -> UUID | None:
-        base = f"{agent.name} - grader"
-        for attempt in range(1, _NAME_TRIES + 1):
-            name = base if attempt == 1 else f"{base} ({attempt})"
-            try:
-                async with self.db.begin_nested():
-                    read = await self.scoring.create_judge(
-                        ctx, dataset.id, JudgeCreate(name=name, model_profile_id=profile.id)
-                    )
-            except AlreadyExistsError:
-                continue
-            await self._switch_on(ctx, dataset, read.scoring.judge.agent_id)
-            return read.scoring.judge.agent_id
-        raise BadRequestError(
-            message="Every name for this agent's grader is taken. Rename one of them.",
-            details={"agent_id": agent.id},
-        )
 
     async def _switch_on(self, ctx: AuthContext, dataset: Dataset, judge_id: UUID | None) -> None:
         """The judge on, with a starting criterion, and the reference compared."""
@@ -502,8 +475,6 @@ class AgentTestSetService:
         try:
             async with self.db.begin_nested():
                 started = await self.generation.start(ctx, dataset_id, request, auto_accept=True)
-        except AiAssistanceDisabledError:
-            return None, 0, "ai_off"
         except SystemAgentUnavailableError:
             return None, 0, "unavailable"
         except BadRequestError:

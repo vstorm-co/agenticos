@@ -1,5 +1,5 @@
 ---
-source_sha: "e2344fe1861a"
+source_sha: "3f99d694cd76"
 title: "Authoring-Assistent"
 description: "Der Authoring-Assistent liest, was Leute negativ bewertet haben und wie Runs endeten, und schlägt Änderungen an Anweisungen, Tools, Konfiguration, Skills und Context-Dateien eines Agents vor. Über jede entscheidet ein Mensch."
 ---
@@ -25,21 +25,9 @@ Er tut drei Dinge:
 - **Einen Skill** oder **eine Context-Datei verbessern**: einen neuen Inhalt aus
   den Runs vorschlagen, die sie gelesen haben.
 
-Der Assistent ist ein eigener [System-Agent](concepts.md#system-agents),
-aufgeführt mit den übrigen System-Agents der Organisation. Ein Administrator
-bearbeitet seine Anweisungen wie die jedes Agents - einen System-Agent zu ändern
-braucht `org:settings` -, und seine Runs sind gewöhnliche Runs: budgetiert,
-bepreist und in **Aktivität** (Activity) aufgeführt. Er ist nie der Agent, um
-den es bei einem Improve oder Verify geht. Wenn er die
-[Wissensbasis durchsucht](concepts.md#system-agent-spec), liest er die
-Wissensbasen des Agents, den er verbessert.
+In Agent Builder speichert **Verify my edits** den Entwurf und öffnet den normalen Eval-Ablauf zum Vergleich mit der veröffentlichten Version auf einem Dataset. Vor dem Start wird der Preis gezeigt; das Ergebnis steht in Evals. Der ältere evidenzbasierte Verify-Endpunkt bleibt separat für API-Kompatibilität erhalten.
 
-Öffnen Sie **Verbesserungsassistent** beim Verbessern oder Verifizieren und
-wählen Sie einen veröffentlichten Assistenten. Eine neue Auswahl löscht die alte
-Schätzung; die Zustimmung gilt damit für Preis und Budget des gewählten Agents.
-`improver_agent_id` bleibt in der Aufgabe gespeichert, auch für Hintergrundsitzungen.
-Der Worker prüft Typ, Veröffentlichung und aktuelle Zugriffsrechte erneut.
-Eine gelöschte Auswahl führt zur Ablehnung statt zum Rückfall auf den Standard.
+**Improve** öffnet eine Verbesserungssitzung. Modell und Anweisungen stehen in den **Einstellungen** des gewählten Datasets; Helfer haben Code-Vorgaben und keine bearbeitbare Katalogseite. Skill- und Kontextdialoge wählen ein Modell direkt. Budgetprüfungen und Aktivität-Aufzeichnungen bleiben bestehen.
 
 ## Was er liest { #what-it-reads }
 
@@ -331,14 +319,9 @@ Die Aufbewahrung der Aktivität erhält die Gesamtkosten gelöschter bezahlter R
 Grants zählen: Ein Mitglied mit einem Bearbeitungs-Grant an einem Agent darf
 diesen Agent verbessern.
 
-## Wenn KI-Unterstützung ausgeschaltet ist { #when-ai-assistance-is-off }
+## Verfügbarkeit und Kosten { #when-ai-assistance-is-off }
 
-Ist der Schalter **KI-Unterstützung** der Organisation aus, läuft der Assistent
-nicht: Verbessern, Prüfen und das Verbessern eines Skills oder einer
-Context-Datei lehnt der Server ab,
-und die Konsole zeigt sie deaktiviert mit einem Link zum Schalter. Bereits
-wartende Vorschläge lassen sich weiterhin annehmen, verwerfen und rückgängig
-machen, und ein Eval Run, der keinen Bewerter braucht, läuft weiterhin.
+Verfügbarkeit hängt von Ressourcenzugriff, Modellbereitschaft und Budgets ab. Es gibt keinen organisationsweiten KI-Schalter. Bezahlte Arbeit benötigt einen ausdrücklichen Start; das Annehmen oder Verwerfen vorhandener Vorschläge ruft kein Modell auf.
 
 ## Verbesserungssitzungen im Hintergrund { #background-improvement-sessions }
 
@@ -383,7 +366,7 @@ oder ein unentschiedenes samt Wiederholung erscheinen im Ergebnis als Hinweis,
 dass ein weiterer Versuch kaum hilft, nicht als Halt.
 
 Wer eine Sitzung für den Agent starten darf - Bearbeitungsrechte, `runs:view` und
-eingeschaltete KI-Unterstützung -, darf auch ihren nächsten Schritt ausführen oder
+ -, darf auch ihren nächsten Schritt ausführen oder
 es erneut versuchen. Die Sitzung hält fest, wer das tat, und die folgenden
 Schritte laufen mit den aktuellen Rechten und Zugangsdaten dieser Person; eine
 vom Architekten gestartete Sitzung lässt sich daher in der Konsole weiterführen.

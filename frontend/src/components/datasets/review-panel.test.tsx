@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -26,6 +26,7 @@ const state = vi.hoisted(() => ({
   agents: [] as { id: string; name: string }[],
 }));
 vi.mock("@/hooks/use-scoring", () => ({
+  useSetScoring: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useNoteToCriterion: () => ({ mutateAsync: state.toCriterion, isPending: false }),
   useScores: (datasetId: string, query: Query) => {
     state.calls.push([datasetId, query]);
@@ -182,8 +183,6 @@ describe("ReviewPanel", () => {
       total: 3,
     };
     render(<ReviewPanel dataset={dataset({ can_edit: false })} />);
-    for (const summary of document.querySelectorAll("details > summary"))
-      await userEvent.click(summary);
 
     const headings = screen.getAllByRole("heading", { level: 3 }).map((h) => h.textContent);
     expect(headings).toEqual([
@@ -194,7 +193,7 @@ describe("ReviewPanel", () => {
       "href",
       "/agents/x/evals/e1",
     );
-    const questions = screen.getAllByRole("link", { name: /^(First|Second)$/ });
+    const questions = screen.getAllByRole("button", { name: /^(First|Second)$/ });
     expect(questions.map((link) => link.textContent)).toEqual(["First", "Second"]);
     expect(screen.queryByRole("button", { name: /from the queue/ })).toBeNull();
   });
@@ -302,6 +301,14 @@ describe("ReviewPanel", () => {
     await userEvent.click(
       screen.getByRole("button", { name: "Answer is fine (the judge was wrong)" }),
     );
+    if (!screen.queryByRole("dialog"))
+      await userEvent.click(
+        screen.getByRole("button", {
+          name: state.answer.scores
+            ? (state.answer.scores as CaseScore[])[0]!.question
+            : SCORE.question,
+        }),
+      );
     await userEvent.click(screen.getByRole("button", { name: "Send to review" }));
 
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Gone"));
@@ -312,9 +319,15 @@ describe("ReviewPanel", () => {
     state.answer = { scores: [SCORE], total: 1 };
     state.review.mockResolvedValue({ ...SCORE, review_state: "pending" });
     render(<ReviewPanel dataset={dataset()} />);
-    for (const summary of document.querySelectorAll("details > summary"))
-      await userEvent.click(summary);
 
+    if (!screen.queryByRole("dialog"))
+      await userEvent.click(
+        screen.getByRole("button", {
+          name: state.answer.scores
+            ? (state.answer.scores as CaseScore[])[0]!.question
+            : SCORE.question,
+        }),
+      );
     await userEvent.click(screen.getByRole("button", { name: "Send to review" }));
 
     await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Sent to the review queue"));
@@ -325,9 +338,15 @@ describe("ReviewPanel", () => {
     state.answer = { scores: [SCORE], total: 1 };
     state.review.mockResolvedValue({ ...SCORE, review_state: "none" });
     render(<ReviewPanel dataset={dataset()} />);
-    for (const summary of document.querySelectorAll("details > summary"))
-      await userEvent.click(summary);
 
+    if (!screen.queryByRole("dialog"))
+      await userEvent.click(
+        screen.getByRole("button", {
+          name: state.answer.scores
+            ? (state.answer.scores as CaseScore[])[0]!.question
+            : SCORE.question,
+        }),
+      );
     await userEvent.click(screen.getByRole("button", { name: "Send to review" }));
 
     await waitFor(() =>
@@ -370,17 +389,13 @@ describe("ReviewPanel", () => {
       .mockResolvedValueOnce({ rescored: [], kept: ["a"] })
       .mockRejectedValueOnce(new Error("Gone"));
     render(<ReviewPanel dataset={dataset()} />);
-    for (const summary of document.querySelectorAll("details > summary"))
-      await userEvent.click(summary);
 
-    expect(
-      screen.getAllByText(/The judge answered in a form that could not be read\./),
-    ).toHaveLength(2);
     await userEvent.click(screen.getByRole("button", { name: "Score 2 ungraded answers again" }));
     await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Scored 2 answers again"));
     expect(state.rescore).toHaveBeenCalledWith(["a", "b"]);
 
-    await userEvent.click(screen.getAllByRole("button", { name: "Score again" })[0]!);
+    await userEvent.click(screen.getAllByRole("button", { name: SCORE.question })[0]!);
+    await userEvent.click(screen.getByRole("button", { name: "Score again" }));
     await waitFor(() =>
       expect(toast.success).toHaveBeenCalledWith(
         "Every scorer had already reached a verdict, so nothing was scored again.",
@@ -388,7 +403,7 @@ describe("ReviewPanel", () => {
     );
     expect(state.rescore).toHaveBeenLastCalledWith(["a"]);
 
-    await userEvent.click(screen.getAllByRole("button", { name: "Score again" })[1]!);
+    await userEvent.click(screen.getByRole("button", { name: "Score again" }));
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Gone"));
   });
 
@@ -410,10 +425,9 @@ describe("ReviewPanel", () => {
       total: 2,
     };
     render(<ReviewPanel dataset={dataset({ can_run: canRunIt })} />);
-    for (const summary of document.querySelectorAll("details > summary"))
-      await userEvent.click(summary);
 
-    expect(screen.getAllByText(/budget is spent/)).toHaveLength(2);
+    await userEvent.click(screen.getAllByRole("button", { name: SCORE.question })[0]!);
+    expect(screen.getByText(/budget is spent/)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /again/ })).toBeNull();
     expect(screen.queryByText(/Fix the cause/)).toBeNull();
   });
@@ -425,9 +439,8 @@ describe("ReviewPanel", () => {
       total: 1,
     };
     render(<ReviewPanel dataset={dataset({ can_run: true })} />);
-    for (const summary of document.querySelectorAll("details > summary"))
-      await userEvent.click(summary);
 
+    await userEvent.click(screen.getAllByRole("button", { name: SCORE.question })[0]!);
     expect(screen.getByRole("button", { name: "Score again" })).toBeInTheDocument();
   });
 
@@ -440,6 +453,14 @@ describe("ReviewPanel", () => {
       .mockRejectedValueOnce(new Error("AI assistance is off"));
     render(<ReviewPanel dataset={dataset()} />);
 
+    if (!screen.queryByRole("dialog"))
+      await userEvent.click(
+        screen.getByRole("button", {
+          name: state.answer.scores
+            ? (state.answer.scores as CaseScore[])[0]!.question
+            : SCORE.question,
+        }),
+      );
     await userEvent.click(screen.getByRole("button", { name: "for this case" }));
     await waitFor(() =>
       expect(toast.success).toHaveBeenCalledWith(
@@ -480,6 +501,14 @@ it("turns a reviewed note into a criterion limited to the case's tag", async () 
   state.answer = { scores: [decided], total: 1 };
   state.toCriterion.mockResolvedValue(undefined);
   render(<ReviewPanel dataset={dataset()} />);
+  if (!screen.queryByRole("dialog"))
+    await userEvent.click(
+      screen.getByRole("button", {
+        name: state.answer.scores
+          ? (state.answer.scores as CaseScore[])[0]!.question
+          : SCORE.question,
+      }),
+    );
   await userEvent.click(screen.getByRole("button", { name: "for cases tagged refund" }));
   await waitFor(() =>
     expect(state.toCriterion).toHaveBeenCalledWith({
@@ -515,7 +544,7 @@ it("retains a newly decided answer in place, collapsed with its effect and crite
   expect(await screen.findByRole("status")).toHaveTextContent("Counts as passed.");
   state.answer = { scores: [], total: 0 };
   rerender(<ReviewPanel dataset={dataset()} />);
-  expect(screen.getByText(waiting.question)).toBeInTheDocument();
+  expect(within(screen.getByRole("dialog")).getByText(waiting.question)).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "for this case" })).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "for every case" })).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Withdraw decision" })).toBeInTheDocument();

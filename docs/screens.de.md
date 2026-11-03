@@ -1,5 +1,5 @@
 ---
-source_sha: "141d29d9cb14"
+source_sha: "da5acf79cbbe"
 ---
 
 # Jeder Bildschirm in der Konsole { #every-screen-in-the-console }
@@ -286,12 +286,6 @@ Fragen, für die ein Agent seine Wissensbasen durchsucht und nichts Passendes ge
 ![Wissenslücken](assets/screens/light/knowledge-gaps.webp#only-light)
 ![Wissenslücken](assets/screens/dark/knowledge-gaps.webp#only-dark)
 
-### KI-Unterstützung { #ai-assistance }
-
-Der Schalter der Organisation für alles, was von sich aus ein Modell aufruft: den Eval-Judge, den Fallgenerator, den Helfer, der Änderungen schreibt, und die Entwürfe für Wissenslücken. Aus, bis jemand ihn einschaltet; jede Nutzung ist ein gemessener Run.
-
-![KI-Unterstützung](assets/screens/light/ai-assistance.webp#only-light)
-![KI-Unterstützung](assets/screens/dark/ai-assistance.webp#only-dark)
 
 ## Was passiert ist, und was wartet { #what-happened-and-what-is-waiting }
 

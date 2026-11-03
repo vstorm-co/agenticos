@@ -41,6 +41,11 @@ const input = () => screen.getByLabelText(/^Input/);
 const save = () => screen.getByRole("button", { name: "Save case" });
 const answer = () => screen.getByLabelText("Reference answer");
 
+async function openSection(name: string) {
+  const summary = screen.getByText(name, { selector: "summary" });
+  if (!summary.closest("details")?.open) await userEvent.click(summary);
+}
+
 function mount(onSave?: (content: unknown) => Promise<unknown>, onOpenChange = vi.fn()) {
   render(
     <CaseEditorDialog
@@ -88,6 +93,7 @@ describe("CaseEditorDialog", () => {
     expect(save()).toBeDisabled();
     await userEvent.type(answer(), "30 days");
     expect(screen.queryByRole("status")).toBeNull();
+    await openSection("Tags and notes");
     await userEvent.type(screen.getByLabelText("Tags"), "returns");
     expect(screen.getByText(/order and other calls do not matter/)).toBeInTheDocument();
     await userEvent.click(screen.getByRole("combobox", { name: "How expected calls are matched" }));
@@ -120,6 +126,8 @@ describe("CaseEditorDialog", () => {
     await userEvent.click(screen.getByRole("button", { name: "Add a turn" }));
     await userEvent.click(screen.getByRole("button", { name: "Remove turn 3" }));
 
+    await openSection("Tool expectations");
+    await openSection("Tool expectations");
     await userEvent.click(screen.getByRole("button", { name: "Add a tool call" }));
     const tool = screen.getByLabelText("Call 1: tool");
     expect(document.getElementById(tool.getAttribute("list")!)?.children).toHaveLength(2);
@@ -132,19 +140,29 @@ describe("CaseEditorDialog", () => {
     await userEvent.type(screen.getByLabelText("Call 1, argument 2: value"), "5");
     await userEvent.click(screen.getByRole("button", { name: "Add an argument" }));
     await userEvent.click(screen.getByRole("button", { name: "Remove argument 3 of call 1" }));
+    await openSection("Tool expectations");
+    await openSection("Tool expectations");
     await userEvent.click(screen.getByRole("button", { name: "Add a tool call" }));
     await userEvent.click(screen.getByRole("button", { name: "Remove call 2" }));
 
+    await openSection("Additional checks");
+    await openSection("Additional checks");
     await userEvent.click(screen.getByRole("button", { name: "Add a check" }));
     await userEvent.type(screen.getByLabelText("Check 1: what it checks"), "30 days");
+    await openSection("Additional checks");
+    await openSection("Additional checks");
     await userEvent.click(screen.getByRole("button", { name: "Add a check" }));
     await userEvent.click(screen.getByRole("combobox", { name: "Check 2: type" }));
     await userEvent.click(screen.getByRole("option", { name: "Costs at most (USD)" }));
     await userEvent.type(screen.getByLabelText("Check 2: what it checks"), "0.05");
+    await openSection("Additional checks");
+    await openSection("Additional checks");
     await userEvent.click(screen.getByRole("button", { name: "Add a check" }));
     await userEvent.click(screen.getByRole("combobox", { name: "Check 3: type" }));
     await userEvent.click(screen.getByRole("option", { name: "Judge criterion" }));
     await userEvent.type(screen.getByLabelText("Check 3: what it checks"), "Polite");
+    await openSection("Additional checks");
+    await openSection("Additional checks");
     await userEvent.click(screen.getByRole("button", { name: "Add a check" }));
     await userEvent.click(screen.getByRole("combobox", { name: "Check 4: type" }));
     await userEvent.click(screen.getByRole("option", { name: "Matches a JSON schema" }));
@@ -173,6 +191,8 @@ describe("CaseEditorDialog", () => {
     const onSave = vi.fn();
     mount(onSave);
     await userEvent.type(input(), "q");
+    await openSection("Additional checks");
+    await openSection("Additional checks");
     await userEvent.click(screen.getByRole("button", { name: "Add a check" }));
     await userEvent.click(save());
 
@@ -327,6 +347,8 @@ describe("CaseEditorDialog", () => {
     expect(
       screen.getByText("Graded here by the judge (Tone) and Reference answer."),
     ).toBeInTheDocument();
+    await openSection("Tool expectations");
+    await openSection("Tool expectations");
     await userEvent.click(screen.getByRole("button", { name: "Add a tool call" }));
     const tool = screen.getByLabelText("Call 1: tool");
     const options = document.getElementById(tool.getAttribute("list")!)!.children;
@@ -350,8 +372,12 @@ describe("CaseEditorDialog", () => {
     );
 
     expect(screen.getByText(/Nothing on the dataset's Grading tab/)).toBeInTheDocument();
+    await openSection("Additional checks");
+    await openSection("Additional checks");
     await userEvent.click(screen.getByRole("button", { name: "Add a check" }));
     expect(screen.getByText("Graded here by Checks.")).toBeInTheDocument();
+    await openSection("Tool expectations");
+    await openSection("Tool expectations");
     await userEvent.click(screen.getByRole("button", { name: "Add a tool call" }));
     await userEvent.type(screen.getByLabelText("Call 1: tool"), "search_kb");
     expect(screen.getByText("Graded here by Checks and Expected tool calls.")).toBeInTheDocument();
@@ -399,6 +425,8 @@ describe("CaseEditorDialog", () => {
   it("refuses to show as JSON a form it cannot read", async () => {
     mount(vi.fn());
     await userEvent.type(input(), "q");
+    await openSection("Additional checks");
+    await openSection("Additional checks");
     await userEvent.click(screen.getByRole("button", { name: "Add a check" }));
     await userEvent.click(screen.getByRole("button", { name: "Edit as JSON" }));
 

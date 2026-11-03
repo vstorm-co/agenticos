@@ -1,5 +1,5 @@
 ---
-source_sha: "6e6d51ad6ea9"
+source_sha: "e094c405e615"
 ---
 
 # Governance { #governance }
@@ -1762,54 +1762,13 @@ Wysyłka nigdy nie blokuje i nigdy nie podnosi wyjątku do wołającego: run, kt
 już się skończył, nie może przewrócić się ponownie dlatego, że SMTP był
 niedostępny.
 
-## Wsparcie AI { #ai-assistance }
+## Płatna ewaluacja { #ai-assistance }
 
-Jeden przełącznik, na zakładce **Budżet i zgody** strony organizacji, decyduje,
-czy modele wspierają ewaluacje i tworzenie treści w organizacji: sędziego evali,
-który ocenia [wyniki datasetów](datasets.md#judge), agenta piszącego szkic
-treści, której brakuje przy [luce w
-wiedzy](knowledge-gaps.md#drafting-the-missing-content), oraz generator
-przypadków i asystenta tworzenia, które pojawią się po nich. Domyślnie jest
-wyłączony, zarówno w organizacji, która istniała przed przełącznikiem, jak i w
-nowej: to, czy modele oceniają i piszą szkice, jest decyzją organizacji, a
-włącza go ten, kto ma `org:settings`. Każda zmiana jest zapisywana w [dzienniku
-audytu](#audit) jako `organization.ai_assistance`, z autorem zmiany.
+Ocenianie, generowanie przypadków i ulepszanie są jawnymi płatnymi działaniami. Model i instrukcje należą do datasetu: **Ocenianie** konfiguruje oceniającego, a **Ustawienia** generowanie i ulepszanie. Konsola pokazuje szacunek przed uruchomieniem płatnej pracy.
 
-Gdy jest wyłączony, usługa, która uruchomiłaby taki run, odmawia go, niezależnie
-od tego, który klient o niego prosi - ukryta kontrolka nie jest granicą.
-Ocenianie nadal wykonuje sprawdzenia oparte na regułach i dopasowanie wywołań
-narzędzi, zapisuje kryteria sędziego jako pominięte z podaniem przyczyny i
-zostawia przypadek, którego sędzia był wymagany, jako nieoceniony, a nie
-zaliczony. Werdykty ludzi pozostają dostępne.
+Nie ma organizacyjnego przełącznika wsparcia AI ani organizacyjnego nadpisania modelu oceniającego. Cena nie wybiera rzekomo silniejszego modelu. Automatycznie utworzony zestaw testowy zaczyna od modelu danego agenta; niezależnego oceniającego wybiera się jawnie na datasecie.
 
-**Model oceniający**, obok przełącznika, to model, na którym oceniają nowi
-sędziowie. Sędzia słabszy od agenta, którego ocenia, źle odczytuje odpowiedzi,
-które agent podał dobrze, więc gdy żaden nie jest wybrany, nowy sędzia dostaje
-najtańszy z modeli czatu organizacji, którego pisanie kosztuje więcej niż model
-agenta - wersji roboczej albo opublikowanej, tej, która kosztuje więcej - a gdy
-takiego modelu nie ma albo brak cen do porównania, jak dotąd pierwszy inny model
-organizacji. Dotyczy to sędziów tworzonych od tej chwili, np. tego, którego
-dostaje pierwszy zestaw testowy agenta; istniejący sędzia zachowuje swój model,
-bo zapisana ocena znaczy to, co ocenił ten model. Każda zmiana jest zapisywana
-jako `organization.grading_model`.
-
-Te funkcje działają jako [sędziowie](concepts.md#system-agents). Każdy run jest
-zwykłym runem: przed każdym wywołaniem modelu jest sprawdzany względem własnego
-miesięcznego budżetu sędziego i budżetu organizacji, jego koszt jest zapisywany,
-a on sam jest widoczny w Aktywności pod powierzchnią `eval`. Sędzia startuje z
-własnym budżetem - $5 miesięcznie - który można zmienić jak budżet każdego
-agenta.
-
-[Asystent tworzenia](authoring.md) jest agentem systemowym w ten sam sposób, z
-własnym budżetem $5. Na dashboardzie jego koszt jest podawany osobno od evali,
-jako wydany na ulepszenia. Tak samo koszt klasyfikatora i autora szkiców
-[luk w wiedzy](knowledge-gaps.md): uzupełniają to, czego brakuje bazie wiedzy, a
-nie mierzą agenta. Sędzia i generator przypadków zostają przy evalach.
-
-Sędzia nigdy nie jest wystawiany: nie da się podpiąć do niego kanału,
-embedu, publicznej strony ani harmonogramu, żaden agent nie może do niego
-delegować, a run na jakiejkolwiek powierzchni poza `eval` jest odrzucany. Jego
-wydatki pochodzą więc tylko z funkcji opisanych wyżej.
+Nadal obowiązują uprawnienia osoby, poświadczenia modelu, budżety organizacji i limity runów. Każde wywołanie jest mierzone i zapisywane w Aktywności. Zadanie w kolejce zachowuje model oraz instrukcje z chwili startu; zmiany ustawień dotyczą kolejnych zadań. Historyczne wiersze pomocników pozostają dla atrybucji i egzekwowania budżetów.
 
 ## Pominięcia promocji { #promotion-overrides }
 

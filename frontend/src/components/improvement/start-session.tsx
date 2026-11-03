@@ -20,7 +20,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui";
-import { SystemAgentChoice } from "@/components/agents/system-agent-choice";
 import { StartQuestionSet, StartSignals } from "./session-inputs";
 import { TodayCheck } from "./today-check";
 import { WriteQuestions } from "./write-questions";
@@ -55,7 +54,6 @@ export function StartSession({ agentId }: { agentId: string }) {
   const [startedId, setStartedId] = useState<string | null>(null);
   const [chosen, setChosen] = useState<string | null>(params.get("dataset"));
   const [written, setWritten] = useState(0);
-  const [helper, setHelper] = useState<string | null>(null);
   const [budget, setBudget] = useState<string | null>(null);
   const [quoted, setQuote] = useState<{ key: string; value: ImprovementEstimate } | null>(null);
   const [refusal, setRefusal] = useState<{ key: string; message: string } | null>(null);
@@ -67,7 +65,6 @@ export function StartSession({ agentId }: { agentId: string }) {
     chosen ?? (runnable.find((dataset) => dataset.agent_id === agentId) ?? runnable[0])?.id ?? "";
   const body = {
     dataset_id: target,
-    ...(helper ? { improver_agent_id: helper } : {}),
     max_iterations: 3,
   };
   const asked = JSON.stringify(body);
@@ -272,7 +269,11 @@ export function StartSession({ agentId }: { agentId: string }) {
                 {details && target && !baselineFirst && (
                   <TodayCheck agentId={agentId} datasetId={target} />
                 )}
-                <SystemAgentChoice kind="improver" value={helper} onChange={setHelper} wizard />
+                {target && (
+                  <Link className="text-sm underline" href={`/datasets/${target}?tab=settings`}>
+                    {t("pipelineSettings")}
+                  </Link>
+                )}
               </div>
             </details>
           </div>

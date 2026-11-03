@@ -26,7 +26,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.isolation import capability_tools
 from app.agents.spec import AgentSpec
-from app.agents.system_agents import JUDGE
+from app.agents.system_agents import CASE_GENERATOR, IMPROVER, JUDGE
 from app.core.audit import record_audit
 from app.core.config import settings
 from app.core.exceptions import (
@@ -49,6 +49,7 @@ from app.repositories import (
     agent_run_repo,
     case_generation_repo,
     conversation_repo,
+    credential_repo,
     dataset_repo,
     message_rating_repo,
     personal_data_repo,
@@ -77,12 +78,14 @@ from app.schemas.dataset import (
     DatasetVersionRead,
     EditedCaseContent,
 )
+from app.schemas.dataset_helpers import DatasetHelperDefaults, DatasetHelpers
 from app.schemas.resource_grant import as_visibility
 from app.schemas.scoring import DatasetScoring, ExpectedToolCall
 from app.services import dataset_files
 from app.services.access import DATASET, accessible_ids, resolve_access, visible_resource_ids
 from app.services.conversation import ConversationService
 from app.services.exporting import MAX_EXPORT_ROWS, ExportResult, stamp
+from app.services.model_outputs import model_outputs
 
 logger = logging.getLogger(__name__)
 
@@ -319,6 +322,12 @@ def _dataset_read(
         run_needs=run_needs,
         pending_proposals=pending if can_edit else 0,
         scoring=DatasetScoring.model_validate(dataset.scoring),
+        helper_settings=DatasetHelpers.model_validate(dataset.helper_settings or {}),
+        helper_defaults=DatasetHelperDefaults(
+            judge=JUDGE.instructions,
+            generator=CASE_GENERATOR.instructions,
+            improver=IMPROVER.instructions,
+        ),
         created_at=dataset.created_at,
         updated_at=dataset.updated_at,
     )
@@ -591,9 +600,52 @@ class DatasetService:
         return await self.read(ctx, dataset.id)
 
     async def update(self, ctx: AuthContext, dataset_id: UUID, data: DatasetUpdate) -> DatasetRead:
-        """Rename or redescribe a dataset. Its cases, and so its version, do not change."""
-        dataset = await self.get(ctx, dataset_id, perm=Perm.DATASETS_EDIT)
+        """Update dataset metadata and helper settings without changing its case version."""
+        changes_helpers = "helper_settings" in data.model_fields_set
+        dataset = (
+            await self._locked(ctx, dataset_id)
+            if changes_helpers
+            else await self.get(ctx, dataset_id, perm=Perm.DATASETS_EDIT)
+        )
         update_data = writable(data, over=Dataset)
+        if changes_helpers:
+            kept = DatasetHelpers.model_validate(dataset.helper_settings or {})
+            if data.helper_settings is None:
+                kept = DatasetHelpers()
+            else:
+                for name, helper, current in (
+                    ("generator", data.helper_settings.generator, kept.generator),
+                    ("improver", data.helper_settings.improver, kept.improver),
+                ):
+                    if name in data.helper_settings.model_fields_set:
+                        setattr(
+                            kept,
+                            name,
+                            current.model_copy(update=helper.model_dump(exclude_unset=True)),
+                        )
+            update_data["helper_settings"] = kept.model_dump(mode="json")
+        if data.helper_settings is not None:
+            for name, helper in (
+                ("generator", data.helper_settings.generator),
+                ("improver", data.helper_settings.improver),
+            ):
+                if helper.model_profile_id is None:
+                    continue
+                profile = await credential_repo.get_profile(
+                    self.db, helper.model_profile_id, organization_id=ctx.organization_id
+                )
+                if profile is None:
+                    raise refused_field(
+                        f"helper_settings.{name}.model_profile_id",
+                        "Choose a model from this organization",
+                    )
+                if not model_outputs(
+                    profile.provider, profile.model, base_url=profile.base_url
+                ).chat:
+                    raise refused_field(
+                        f"helper_settings.{name}.model_profile_id",
+                        "Choose a model that answers messages",
+                    )
         if "name" in update_data and update_data["name"] != dataset.name:
             await self._refuse_taken_name(ctx, update_data["name"])
         try:

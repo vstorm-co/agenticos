@@ -9,9 +9,8 @@ publishes and nothing changes an agent without that decision.
 
 **Who may do what.** Starting one needs `runs:view` - the evidence is runs -
 edit access to the target through its own grants, and use of the organization's
-improver, which also refuses while AI assistance is switched off. Deciding needs
-edit access to the agent and nothing more: a decision is not a model call, so it
-stays possible with the switch off.
+improver with a runnable model and available budget. Deciding needs edit access
+to the agent and nothing more: accepting a proposal calls no model.
 
 **A decision is one transaction with what it writes.** It locks the agent row
 and reads its draft afresh, so two decisions on one draft serialize instead of
@@ -95,6 +94,7 @@ from app.schemas.authoring import (
     ProposedSkill,
     ProposedSkillCreated,
 )
+from app.schemas.dataset_helpers import DatasetHelper
 from app.schemas.eval_run import (
     EvalRunEstimate,
     EvalRunRead,
@@ -238,14 +238,20 @@ class AuthoringService:
         self.evidence = EvidenceService(db)
         self.models = ModelProfileService(db)
 
-    async def _improver(self, ctx: AuthContext, agent_id: UUID | None = None) -> Agent:
+    async def _improver(
+        self, ctx: AuthContext, agent_id: UUID | None = None, helper: DatasetHelper | None = None
+    ) -> Agent:
         """The improver, once it is known the caller may run it now.
 
         Raises:
-            AiAssistanceDisabledError: The organization switched AI assistance off.
             SystemAgentUnavailableError: It cannot run for this caller.
         """
-        return await self.runner.require_runnable(ctx, key=IMPROVER.key, agent_id=agent_id)
+        return await self.runner.require_runnable(
+            ctx,
+            key=IMPROVER.key,
+            agent_id=agent_id,
+            model_profile_id=None if helper is None else helper.model_profile_id,
+        )
 
     @staticmethod
     def _require_runs_view(ctx: AuthContext) -> None:
@@ -292,7 +298,7 @@ class AuthoringService:
         """
         self._require_runs_view(ctx)
         agent = await self._editable(ctx, agent_id)
-        improver = await self._improver(ctx, body.improver_agent_id)
+        improver = await self._improver(ctx, body.improver_agent_id, body.helper_settings)
         if body.kind == AuthoringKind.VERIFY.value:
             base = await agent_repo.newest_version(
                 self.db, agent_id=agent.id, organization_id=ctx.organization_id
@@ -300,7 +306,9 @@ class AuthoringService:
             if base is None or AgentSpec.model_validate(base.spec) == AgentSpec.model_validate(
                 agent.draft_spec
             ):
-                return await self._estimate(ctx, improver, EvidencePack(), "no_draft_change")
+                return await self._estimate(
+                    ctx, improver, EvidencePack(), "no_draft_change", helper=body.helper_settings
+                )
         if evidence is not None:
             pack = evidence
         elif improvement_run_id is None:
@@ -317,7 +325,9 @@ class AuthoringService:
                 excluded_message_ids=excluded_message_ids,
                 train_case_ids=train_case_ids,
             )
-        return await self._estimate(ctx, improver, pack, None if pack.runs else "no_evidence")
+        return await self._estimate(
+            ctx, improver, pack, None if pack.runs else "no_evidence", helper=body.helper_settings
+        )
 
     async def estimate_skill(
         self, ctx: AuthContext, skill_id: UUID, body: AuthoringStart
@@ -330,9 +340,11 @@ class AuthoringService:
                 message="A skill has no draft to verify; review its pending change instead",
                 details={"kind": body.kind},
             )
-        improver = await self._improver(ctx, body.improver_agent_id)
+        improver = await self._improver(ctx, body.improver_agent_id, body.helper_settings)
         pack = await self.evidence.for_skill(ctx, skill.name, window_days=body.window_days)
-        return await self._estimate(ctx, improver, pack, None if pack.runs else "no_evidence")
+        return await self._estimate(
+            ctx, improver, pack, None if pack.runs else "no_evidence", helper=body.helper_settings
+        )
 
     async def estimate_context(
         self, ctx: AuthContext, context_id: UUID, body: AuthoringStart
@@ -345,17 +357,26 @@ class AuthoringService:
                 message="A context file has no draft to verify; review its pending change instead",
                 details={"kind": body.kind},
             )
-        improver = await self._improver(ctx, body.improver_agent_id)
+        improver = await self._improver(ctx, body.improver_agent_id, body.helper_settings)
         pack = await self.evidence.for_context(ctx, file.id, window_days=body.window_days)
-        return await self._estimate(ctx, improver, pack, None if pack.runs else "no_evidence")
+        return await self._estimate(
+            ctx, improver, pack, None if pack.runs else "no_evidence", helper=body.helper_settings
+        )
 
     async def _estimate(
-        self, ctx: AuthContext, improver: Agent, pack: EvidencePack, reason: str | None
+        self,
+        ctx: AuthContext,
+        improver: Agent,
+        pack: EvidencePack,
+        reason: str | None,
+        helper: DatasetHelper | None = None,
     ) -> AuthoringEstimate:
         groups = pack.groups()
         calls = 0 if not groups else (1 if len(groups) == 1 else len(groups) + 1)
         evidence_chars = sum(len(run.render()) for run in pack.runs) + len(pack.training_feedback)
-        per_call = await self._per_call(ctx, improver, evidence_chars // max(1, len(groups)))
+        per_call = await self._per_call(
+            ctx, improver, evidence_chars // max(1, len(groups)), helper=helper
+        )
         total = (per_call * calls).quantize(_CENT)
         improver_left = await self._improver_left(ctx, improver)
         org_left = await self._org_left(ctx)
@@ -369,7 +390,9 @@ class AuthoringService:
             reason=reason,
         )
 
-    async def _per_call(self, ctx: AuthContext, improver: Agent, chars: int) -> Decimal:
+    async def _per_call(
+        self, ctx: AuthContext, improver: Agent, chars: int, *, helper: DatasetHelper | None = None
+    ) -> Decimal:
         """One improver call: its recent average, which holds the searches it made, or a
         call this size at its model's price, once per request it may make."""
         average = await agent_run_repo.average_cost(
@@ -378,9 +401,12 @@ class AuthoringService:
             agent_id=improver.id,
             sample=settings.EVAL_ESTIMATE_SAMPLE,
         )
-        if average is not None:
+        if average is not None and (helper is None or helper.model_profile_id is None):
             return average
         published = await self._improver_spec(ctx, improver)
+        if helper is not None and helper.model_profile_id is not None:
+            published = published.model_copy(update={"model_profile_id": helper.model_profile_id})
+            chars += len(helper.instructions or IMPROVER.instructions)
         if published.model_profile_id is not None:
             model = await self.models.resolve(ctx, profile_id=published.model_profile_id)
             usage = RunUsage(
@@ -509,6 +535,24 @@ class AuthoringService:
                 ),
                 details={"estimate_usd": str(estimate.estimate_usd)},
             )
+        improver = await self._improver(ctx, body.improver_agent_id, body.helper_settings)
+        helper = body.helper_settings or DatasetHelper()
+        version = (
+            await agent_repo.get_version(
+                self.db, improver.current_version_id, organization_id=ctx.organization_id
+            )
+            if improver.current_version_id is not None
+            else None
+        )
+        if version is None:
+            raise NotFoundError(message="The improvement helper has no published version")
+        spec = AgentSpec.model_validate(version.spec)
+        helper = helper.model_copy(
+            update={
+                "model_profile_id": helper.model_profile_id or spec.model_profile_id,
+                "instructions": helper.instructions or IMPROVER.instructions,
+            }
+        )
         request = await authoring_repo.create_request(
             self.db,
             organization_id=ctx.organization_id,
@@ -524,6 +568,7 @@ class AuthoringService:
             excluded_message_ids=excluded_message_ids,
             improvement_run_id=improvement_run_id,
             improver_agent_id=body.improver_agent_id,
+            helper_settings=helper.model_dump(mode="json"),
         )
         await record_audit(
             self.db,

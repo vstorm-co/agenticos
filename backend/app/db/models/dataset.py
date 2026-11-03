@@ -35,6 +35,7 @@ from decimal import Decimal
 from enum import StrEnum
 from typing import Any, Literal
 
+from pydantic import JsonValue
 from sqlalchemy import (
     CheckConstraint,
     DateTime,
@@ -142,6 +143,10 @@ class Dataset(Base, TimestampMixin):
     # Not versioned with the cases - how a team grades is not what it asks - so
     # each score keeps a copy of the configuration it was computed with.
     scoring: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, default=dict, server_default="{}"
+    )
+
+    helper_settings: Mapped[dict[str, JsonValue]] = mapped_column(
         JSONB, nullable=False, default=dict, server_default="{}"
     )
 

@@ -38,6 +38,7 @@ OpenClient = Callable[[], AbstractAsyncContextManager[AsyncClient]]
 
 _NOW = datetime(2026, 10, 13, tzinfo=UTC)
 _DATASET = DatasetRead(
+    helper_defaults={"judge": "Grade", "generator": "Generate", "improver": "Improve"},
     id=uuid.uuid4(),
     name="refunds",
     visibility="private",

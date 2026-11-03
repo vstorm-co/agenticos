@@ -128,7 +128,7 @@ it("shows the newest test of the draft on this dataset after a refresh, a stabil
   ).toBeInTheDocument();
   expect(within(warning).getByRole("link", { name: "Choose the grading model" })).toHaveAttribute(
     "href",
-    "/orgs/o1/members?tab=governance#org-grading-model",
+    "/datasets/d1?tab=grading",
   );
 });
 
@@ -144,12 +144,12 @@ it("falls back to the newest plain test, and offers testing again", async () => 
   expect(state.estimate).toHaveBeenCalledWith(TWICE);
 });
 
-it("leaves out the grading model's link where no organization is active", () => {
+it("keeps the grading link scoped to its dataset without requiring an organization selector", () => {
   state.kept = [evalRun({ id: "steady", dataset_id: "d1", purpose: "stability" })];
   state.run = finished({ stability: { asked: 4, unstable: 2, noisy: true } });
   useOrgStore.setState({ activeOrgId: null });
   render(<TodayCheck agentId="a1" datasetId="d1" />);
-  expect(within(screen.getByRole("alert")).getAllByRole("link")).toHaveLength(1);
+  expect(within(screen.getByRole("alert")).getAllByRole("link")).toHaveLength(2);
 });
 
 it("says it is looking for an earlier test while the list loads", () => {

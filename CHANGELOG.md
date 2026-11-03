@@ -31,22 +31,13 @@ environment without a person's decision.
   `eval` to one worker, or eval runs stay queued until they fail a day later.
   `WORKER_EVAL_CONCURRENCY` (default `4`) sizes that pool, and
   `agenticos cmd doctor` names a pool no live worker serves.
-- **AI assistance is off until an organization turns it on.** The judge, the
-  case generator, the authoring assistant and the knowledge gap classifier and
-  drafter run only after someone with `org:settings` switches **AI assistance**
-  on in the organization's settings; every change of the switch is audited.
-  While it is off, grading uses checks and expected tool calls only and the
-  model-assisted actions are refused with a link to the switch.
-- **Every organization gets system agents.** The Eval judge, Case generator,
-  Knowledge gap classifier, Knowledge gap drafter and Authoring assistant are
-  created with a new organization, and in an existing one the first time
-  something needs them. An untouched one publishes itself on the organization's
-  first model, each with a $5 monthly budget. They are listed under
-  **System agents** on the Agents page, are left out of agent pickers and of
-  `GET /agents`, and count toward the deployment's agents-per-organization
-  limit: an organization at that limit cannot get them until it is raised.
-  Changing one - its draft, publication, rollback, archive, deletion or
-  environments - takes `org:settings`.
+- **Evaluation settings belong to datasets.** Choose the grading model and
+  instructions in **Grading**, and generation/improvement models and instructions
+  in **Settings**, using the Agent Builder's model picker and Markdown editor.
+  Code-defined helpers keep internal run identities, budgets and historical pins
+  without appearing in the agent catalog or consuming the user-agent allowance.
+  There is no organization-wide AI-assistance switch or grading-model override.
+  Queued tasks keep their admitted model and instructions.
 - **`GET /runs` lists every run.** Activity and the runs API now include eval
   runs and the platform's own agents at work beside conversations. A client
   that wants people's runs only passes `source=conversation`; the export takes
@@ -60,11 +51,11 @@ environment without a person's decision.
 - **New permissions.** `datasets:view`, `datasets:edit`, `datasets:run` and
   `promotions:override` join the catalog with defaults for every built-in role.
   Starting or estimating an eval also needs `runs:view`.
-- **Migrations `0160_datasets.py` to `0251_merge_improvement_discord.py`** add
+- **Migrations `0160_datasets.py` to `0253_freeze_dataset_helper_settings.py`** add
   the dataset, eval, suite, knowledge gap and improvement tables and new
   columns on agents, agent runs, MCP connections, knowledge-base documents, API
   keys and background jobs, and extend the agent kind and notification event
-  checks. No existing data is rewritten; a downgrade drops these tables with
+  checks. Existing grader and queued-task settings are preserved; a downgrade drops these tables with
   everything in them.
 - **New settings**, all optional: the `EVAL_*` settings in
   [Eval runs](docs/evals.md#settings), `KNOWLEDGE_GAP_MIN_SIMILARITY`,
@@ -159,21 +150,14 @@ environment without a person's decision.
   what was decided, by whom, with which changes and knowledge documents. A
   first improvement has a guided tour. Background sessions and a one-off Improve request are
   also available through the API.
-- **System agents** can be created from **New agent** → **System agent**, and
-  each place that uses one (dataset grading, Generate cases, a knowledge base's
-  gaps tab, Improve) can choose a published one instead of the default. A
-  system agent is held to its job: it may use only thinking, context, skills
-  and knowledge search, needs instructions and a large enough `max_tokens` to publish, runs
-  on its default environment only, and is refused as the subject of evals,
-  Improve and A2A. The seeded default of each kind cannot be archived or
-  deleted, and its page shows what kind it is, with an agent's tabs but only
-  Build, Toolbox, Limits, History and, for a judge, Datasets. **Knowledge
-  search** on its Toolbox tab lets it search the knowledge bases its run is about - the
-  graded agent's for a judge, the gap's for the drafter and classifier, the
-  sources for the case generator, the improved agent's for the assistant -
-  and only those the person the run is for may read, within its step limit (3
-  by default, 5 at most). A judge or classifier warns when its temperature is
-  above 0.
+- **Evaluation workspace.** All dataset tabs share full-screen controls and
+  console tables. Case and review details open in side panels; case forms put
+  input and answers first and optional checks behind expandable sections.
+  Import explains CSV and JSONL and downloads ready-to-use examples. Creation,
+  import, generation and Activity actions sit beside the cases table.
+- **Verify my edits** saves the draft and opens the standard eval comparison
+  against the published version, with an estimate before starting.
+
 - **Activity shows whose work a run was.** A **Source** filter narrows to
   conversations, Improve and evals, or system agents, and each platform run
   names its agent and links the eval run, Improve session, gap topic or

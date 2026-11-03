@@ -39,7 +39,7 @@ from app.schemas.case_generation import (
     SourcePlan,
 )
 from app.schemas.dataset import DatasetCaseContent, DatasetVersionRead
-from app.services.ai_assistance import AiAssistanceService
+from app.schemas.dataset_helpers import DatasetHelper, DatasetHelpers
 from app.services.background_jobs import enqueue
 from app.services.case_generation.drafts import split
 from app.services.case_generation.estimate import estimate_cost
@@ -100,7 +100,6 @@ class CaseGenerationService:
         Raises:
             NotFoundError: For a dataset the caller may not edit, or an agent they
                 may not view.
-            AiAssistanceDisabledError: When the organization switched AI assistance off.
             BadRequestError: Naming `sources` or `agent_id`, for a source the caller
                 may not use or that has nothing to draft from.
         """
@@ -111,7 +110,6 @@ class CaseGenerationService:
     async def _draft(
         self, ctx: AuthContext, data: CaseGenerationRequest
     ) -> tuple[Material, dict[CaseOrigin, int], str]:
-        await AiAssistanceService(self.db).require_enabled(organization_id=ctx.organization_id)
         sources = [CaseOrigin(source) for source in data.sources]
         quotas = split(data.count, sources)
         material = await self.sources.gather(ctx, data.agent_id, sources)
@@ -127,53 +125,72 @@ class CaseGenerationService:
         generator's model with no price.
 
         Raises:
-            NotFoundError, AiAssistanceDisabledError, BadRequestError: As
+            NotFoundError, BadRequestError: As
                 :meth:`plan` does, but for the dataset.
         """
         _, _, prompt = await self._draft(ctx, data)
-        return await self._price(ctx, prompt, data.count, data.generator_agent_id)
+        return await self._price(
+            ctx, prompt, data.count, data.generator_agent_id, helper=await self._helper(ctx, data)
+        )
+
+    async def _helper(
+        self, ctx: AuthContext, data: CaseGenerationRequest, dataset_id: UUID | None = None
+    ) -> DatasetHelper:
+        helper = DatasetHelper()
+        if dataset_id is not None:
+            dataset = await self.datasets.get(ctx, dataset_id, perm=Perm.DATASETS_EDIT)
+            helper = DatasetHelpers.model_validate(dataset.helper_settings or {}).generator
+        if helper.model_profile_id is None:
+            agent = await agent_repo.get(
+                self.db, data.agent_id, organization_id=ctx.organization_id
+            )
+            if agent is None:
+                raise NotFoundError(message="Agent not found")
+            helper = helper.model_copy(
+                update={"model_profile_id": (await self.sources._spec(ctx, agent)).model_profile_id}
+            )
+        return helper.model_copy(
+            update={"instructions": helper.instructions or CASE_GENERATOR.instructions}
+        )
 
     async def _price(
-        self, ctx: AuthContext, prompt: str, count: int, generator_agent_id: UUID | None = None
+        self,
+        ctx: AuthContext,
+        prompt: str,
+        count: int,
+        generator_agent_id: UUID | None = None,
+        *,
+        helper: DatasetHelper,
     ) -> Decimal | None:
-        """The estimated cost on the generator's model, or `None` when it has no price.
-
-        Read without seeding: an organization whose generator is not created yet is
-        priced on the profile it would be published on, the oldest one.
-        """
+        """Price the selected dataset model, without choosing a model by price."""
+        if helper.model_profile_id is None:
+            return None
+        profile = await credential_repo.get_profile(
+            self.db, helper.model_profile_id, organization_id=ctx.organization_id
+        )
+        if profile is None:
+            return None
+        cost = estimate_cost(
+            prompt + (helper.instructions or ""),
+            count,
+            model_name=profile.model,
+            provider=profile.provider,
+        )
         agent = (
-            await SystemAgentRunner(self.db).require_runnable(
-                ctx, key=CASE_GENERATOR.key, agent_id=generator_agent_id
-            )
+            await agent_repo.get(self.db, generator_agent_id, organization_id=ctx.organization_id)
             if generator_agent_id is not None
             else await agent_repo.get_system(
                 self.db, organization_id=ctx.organization_id, key=CASE_GENERATOR.key
             )
         )
-        profile_id: UUID | None = None
-        requests = 1
-        if agent is None:
-            oldest = await credential_repo.oldest_profile(
-                self.db, organization_id=ctx.organization_id
-            )
-            profile_id = oldest.id if oldest is not None else None
-        elif agent.current_version_id is not None:
-            version = await agent_repo.get_version(
+        version = (
+            await agent_repo.get_version(
                 self.db, agent.current_version_id, organization_id=ctx.organization_id
             )
-            spec = None if version is None else AgentSpec.model_validate(version.spec)
-            profile_id = None if spec is None else spec.model_profile_id
-            requests = 1 if spec is None else steps(spec)
-        profile = (
-            await credential_repo.get_profile(
-                self.db, profile_id, organization_id=ctx.organization_id
-            )
-            if profile_id is not None
+            if agent is not None and agent.current_version_id is not None
             else None
         )
-        if profile is None:
-            return None
-        cost = estimate_cost(prompt, count, model_name=profile.model, provider=profile.provider)
+        requests = steps(AgentSpec.model_validate(version.spec)) if version is not None else 1
         return None if cost is None else cost * requests
 
     async def estimate(
@@ -192,7 +209,13 @@ class CaseGenerationService:
                 for origin, cases in quotas.items()
             ],
             excluded_collections=material.excluded_collections,
-            estimated_cost_usd=await self._price(ctx, prompt, data.count, data.generator_agent_id),
+            estimated_cost_usd=await self._price(
+                ctx,
+                prompt,
+                data.count,
+                data.generator_agent_id,
+                helper=await self._helper(ctx, data, dataset_id),
+            ),
         )
 
     async def start(
@@ -211,15 +234,19 @@ class CaseGenerationService:
         set, whose drafts become a version once ready rather than wait for a person.
 
         Raises:
-            NotFoundError, AiAssistanceDisabledError, BadRequestError: As
+            NotFoundError, BadRequestError: As
                 :meth:`estimate` does.
             SystemAgentUnavailableError: When the generator cannot run for this caller.
         """
         dataset_id, _, _, _ = await self.plan(ctx, dataset_id, data)
         # Refused here with the reason, rather than queued to fail at once; the run
         # checks the same again when it starts.
+        helper = await self._helper(ctx, data, dataset_id)
         await SystemAgentRunner(self.db).require_runnable(
-            ctx, key=CASE_GENERATOR.key, agent_id=data.generator_agent_id
+            ctx,
+            key=CASE_GENERATOR.key,
+            agent_id=data.generator_agent_id,
+            model_profile_id=helper.model_profile_id,
         )
         generation = await case_generation_repo.create_generation(
             self.db,
@@ -232,6 +259,7 @@ class CaseGenerationService:
             sources=list(data.sources),
             requested_count=data.count,
             auto_accept=auto_accept,
+            helper_settings=helper.model_dump(mode="json"),
         )
         await record_audit(
             self.db,

@@ -1641,50 +1641,13 @@ than no report, because both numbers look authoritative.
 Sending never blocks and never raises into the caller: a run that has already
 ended must not fail again because SMTP was down.
 
-## AI assistance { #ai-assistance }
+## Paid evaluation work { #ai-assistance }
 
-One switch, on the organization page's **Budget and approvals** tab, decides whether
-models assist the organization's evals and authoring: the eval judge that
-grades [dataset scores](datasets.md#judge), the drafter that writes the content
-a [knowledge gap](knowledge-gaps.md#drafting-the-missing-content) is missing,
-and the case generator and authoring assistant that come after them. It is off
-by default, for an organization that existed before the switch as for a new one:
-whether models judge and draft is the organization's decision, and whoever holds
-`org:settings` turns it on. Each change is recorded in the [audit trail](#audit)
-as `organization.ai_assistance`, with who made it.
+Grading, case generation and improvement are explicit paid actions. The dataset owns their model and instructions: **Grading** configures the grader; **Settings** configures generation and improvement. The console shows an estimate before starting paid work.
 
-When it is off, the service that would start such a run refuses it, whichever
-client asks - a hidden control is not the boundary. Scoring still runs its
-rule-based checks and tool-call matching, records the judge's criteria as
-skipped with the reason, and leaves a case whose judge was required unscored
-rather than passed. People's verdicts stay available.
+There is no organization-wide AI-assistance switch and no organization-wide grading-model override. Price does not select a supposedly stronger model. An automatically created agent test set starts on that agent's model; choosing an independent grader is an explicit dataset setting.
 
-**Grading model**, beside the switch, is the model new judges grade on. A
-judge weaker than the agent it grades misreads answers the agent got right, so
-with none chosen, a new judge takes the cheapest of the organization's chat
-models that costs more to write with than the agent's - the draft's or the
-published version's, whichever costs more - and, with no such model or no
-price to compare, the organization's first other model, as before. It applies
-to judges created from then on, such as the one an agent's first test set
-gets; an existing judge keeps its model, since a stored grade means what that
-model graded. Each change is recorded as `organization.grading_model`.
-
-These features run as [judges](concepts.md#system-agents). Each run is an
-ordinary run: it is budget-checked against the judge's own monthly budget and
-the organization's before every model call, its cost is recorded, and it is
-listed in Activity under the `eval` surface. A judge starts with a budget of its
-own - $5 a month - which can be changed like any agent's.
-
-The [authoring assistant](authoring.md) is a system agent in the same way, with
-its own $5 budget. On the dashboard, what it costs is named apart from evals, as
-spent on improvements. So is what the [knowledge gap](knowledge-gaps.md)
-classifier and drafter cost: they fill what a knowledge base lacks rather than
-measure an agent. The judge and the case generator stay with evals.
-
-A judge is never exposed: no channel, embed, public page or schedule can be
-attached to it, no agent can delegate to it, and a run of it on any surface but
-`eval` is refused. Its spend therefore stays the platform's own, started only by
-the features above.
+The existing caller permissions, model credentials, organization budgets and run limits still apply. Each call is metered and recorded in Activity. Queued work keeps the model and instructions admitted at its start; later settings changes affect later work. Existing historical helper rows remain for attribution and budget enforcement.
 
 ## Promotion overrides { #promotion-overrides }
 

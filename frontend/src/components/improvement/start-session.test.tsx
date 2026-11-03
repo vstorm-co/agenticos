@@ -73,15 +73,6 @@ vi.mock("./session-inputs", () => ({
     </>
   ),
 }));
-vi.mock("@/components/agents/system-agent-choice", () => ({
-  SystemAgentChoice: ({
-    onChange,
-    wizard,
-  }: {
-    onChange: (value: string) => void;
-    wizard?: boolean;
-  }) => <button onClick={() => onChange("h1")}>{wizard ? "Use custom helper" : "Wrong"}</button>,
-}));
 
 const QUOTE = {
   total_usd: "0.12",
@@ -163,17 +154,18 @@ it("keeps the question set, the limit, the helper and today's test under Show de
   expect(await screen.findByText("Today on own")).toBeInTheDocument();
 });
 
-it("prices another question set, a lower limit and another helper when they are chosen", async () => {
+it("prices another question set, a lower limit and dataset configuration when they are chosen", async () => {
   render(<StartSession agentId="a1" />);
   await screen.findByRole("button", { name: "Start improving" });
   await userEvent.click(screen.getByText("Show details"));
   await userEvent.click(screen.getByRole("combobox", { name: "Test questions" }));
   expect(screen.queryByRole("option", { name: "Cannot run" })).not.toBeInTheDocument();
   await userEvent.click(screen.getByRole("option", { name: "Refund questions" }));
-  await userEvent.click(screen.getByRole("button", { name: "Use custom helper" }));
+  expect(
+    screen.getByRole("link", { name: "Configure model and instructions in the dataset" }),
+  ).toHaveAttribute("href", "/datasets/d1?tab=settings");
   expect(state.estimate).toHaveBeenLastCalledWith({
     dataset_id: "d1",
-    improver_agent_id: "h1",
     max_iterations: 3,
   });
   const limit = await screen.findByLabelText("Session spending limit (USD)");

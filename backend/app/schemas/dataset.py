@@ -9,6 +9,7 @@ from pydantic import Field, ValidationError, field_validator, model_validator
 from pydantic_core import InitErrorDetails, PydanticCustomError
 
 from app.schemas.base import BaseSchema
+from app.schemas.dataset_helpers import DatasetHelperDefaults, DatasetHelpers
 from app.schemas.resource_grant import VisibilityLiteral
 from app.schemas.scoring import (
     CHECK,
@@ -252,11 +253,16 @@ class DatasetCreate(BaseSchema):
 
 
 class DatasetUpdate(BaseSchema):
-    """What the dataset is called and for. Not versioned: no case changes."""
+    """Metadata and helper settings, without changing the case version.
+
+    Helper settings merge only explicitly supplied helpers and fields. Null resets
+    both helpers to inherited models and code-defined instructions.
+    """
 
     improvement_holdout_share: Decimal | None = Field(
         default=None, ge=0, le=1, max_digits=4, decimal_places=3
     )
+    helper_settings: DatasetHelpers | None = None
     name: str | None = Field(default=None, min_length=1, max_length=120)
     description: str | None = Field(default=None, max_length=500)
 
@@ -319,6 +325,9 @@ class DatasetStats(BaseSchema):
 
 class DatasetRead(BaseSchema):
     improvement_holdout_share: Decimal = Decimal("0.5")
+
+    helper_settings: DatasetHelpers = Field(default_factory=DatasetHelpers)
+    helper_defaults: DatasetHelperDefaults
 
     id: UUID
     name: str

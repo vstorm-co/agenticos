@@ -58,6 +58,7 @@ export function CaseHistoryEditor({ turns, onChange }: CaseHistoryEditorProps) {
           <Textarea
             className="min-h-24 w-full min-w-0"
             rows={3}
+            placeholder={t("historyMessagePlaceholder")}
             value={turn.content}
             aria-label={t("turnContent", { number: index + 1 })}
             onChange={(event) => change(index, { content: event.target.value })}

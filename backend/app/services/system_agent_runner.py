@@ -48,7 +48,6 @@ from app.repositories import agent_repo, agent_run_repo
 from app.services.access import AGENT, resolve_access
 from app.services.agent_registry import PublishedCandidate
 from app.services.agent_runner import AgentRunnerService
-from app.services.ai_assistance import AiAssistanceService
 from app.services.model_profile import ModelProfileService
 from app.services.system_agents import SystemAgentService
 
@@ -118,6 +117,7 @@ class SystemAgentRunner:
         output_type: type[T],
         agent_id: UUID | None = None,
         model_profile_id: UUID | None = None,
+        instructions: str | None = None,
         version_id: UUID | None = None,
         improvement_run_id: UUID | None = None,
         knowledge_base_ids: Sequence[UUID] = (),
@@ -126,8 +126,7 @@ class SystemAgentRunner:
 
         The caller's own access applies: the run is attributed to them, charged to
         the agent's and the organization's budgets, and refused if they may not
-        run the agent. The AI assistance switch is checked first, so no system
-        agent runs in an organization that switched it off.
+        run the agent. Model readiness and budgets are checked before execution.
 
         Args:
             ctx: Who is asking; the run is theirs.
@@ -143,7 +142,6 @@ class SystemAgentRunner:
                 searches searches these alone, as far as the caller may read them.
 
         Raises:
-            AiAssistanceDisabledError: The organization switched AI assistance off.
             SystemAgentUnavailableError: The agent cannot run - `not_seeded`,
                 `missing` when `agent_id` names no agent of its kind,
                 `unpublished`, `archived`, `no_access` for this caller, or
@@ -162,6 +160,8 @@ class SystemAgentRunner:
             version_id=version_id,
         )
 
+        selected_version = version_id or agent.current_version_id
+        assert selected_version is not None
         knowledge = RunKnowledge(tuple(knowledge_base_ids))
         try:
             text, run = await AgentRunnerService(self.db).execute(
@@ -171,7 +171,14 @@ class SystemAgentRunner:
                 surface=RunSurface.EVAL,
                 model_profile_id=model_profile_id,
                 isolation=RunIsolation(improvement_run_id=improvement_run_id, knowledge=knowledge),
-                candidate=None if version_id is None else PublishedCandidate(version_id=version_id),
+                candidate=(
+                    PublishedCandidate(
+                        version_id=selected_version,
+                        instructions=instructions,
+                    )
+                    if version_id is not None or instructions is not None
+                    else None
+                ),
                 reports_failure=True,
             )
         except RunFailedError as failure:
@@ -223,11 +230,9 @@ class SystemAgentRunner:
         work to the background.
 
         Raises:
-            AiAssistanceDisabledError: The organization switched AI assistance off.
             SystemAgentUnavailableError: `not_seeded`, `missing`, `unpublished`,
                 `archived`, `no_access` for this caller, or `no_model`.
         """
-        await AiAssistanceService(self.db).require_enabled(organization_id=ctx.organization_id)
         agent = (
             await self.agents.ensure(organization_id=ctx.organization_id, key=key)
             if agent_id is None

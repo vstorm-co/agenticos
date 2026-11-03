@@ -1655,7 +1655,7 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
 
     async def draft_knowledge_topic(topic_id: UUID) -> dict[str, Any]:
         """Draft a document for a question the knowledge base could not answer, only when asked.
-        Needs `runs:view`, edit access to the topic's knowledge base and AI assistance.
+        Needs `runs:view`, edit access to the topic's knowledge base, a model and budget.
 
         It is written in the background and kept on the topic for a person to
         review; nothing is added to the knowledge base. Asking again while one is

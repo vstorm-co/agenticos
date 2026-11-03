@@ -1,5 +1,5 @@
 ---
-source_sha: "e2344fe1861a"
+source_sha: "3f99d694cd76"
 title: "Asistente de autoría"
 description: "El asistente de autoría lee lo que la gente valoró negativamente y cómo acabaron los runs, y sugiere cambios a las instrucciones, las herramientas, la configuración, los skills y los archivos de contexto de un agent. Una persona decide cada uno."
 ---
@@ -25,21 +25,9 @@ Hace tres cosas:
 - **Mejorar un skill** o un **archivo de contexto**: sugerir un cuerpo nuevo a
   partir de los runs que lo leyeron.
 
-El asistente es un [agent de sistema](concepts.md#system-agents) propio, que
-aparece con los demás agents de sistema de la organización. Un administrador
-edita sus instrucciones como las de cualquier agent - cambiar un agent de
-sistema requiere `org:settings` -, y sus runs son runs normales: con budget, con
-precio y visibles en Activity. Nunca es el agent del que trata un Improve o un
-Verify. Configurado para
-[buscar en la base de conocimiento](concepts.md#system-agent-spec), lee las
-bases de conocimiento del agent que mejora.
+En Agent Builder, **Verify my edits** guarda el borrador y abre el flujo normal de evals para compararlo con la versión publicada en un dataset. Muestra el coste antes de comenzar y registra el resultado en Evals. El antiguo endpoint de verificación basada en evidencias se conserva por separado para compatibilidad de API.
 
-Expande **Asistente de mejora** al mejorar o verificar para elegir un
-asistente publicado. Cambiar la selección borra la estimación anterior, de modo
-que el consentimiento corresponde al precio y presupuesto elegidos.
-`improver_agent_id` se conserva en la tarea; las sesiones en segundo plano aceptan
-la misma selección. El worker vuelve a comprobar tipo, publicación y acceso
-actual. Una selección eliminada falla en lugar de volver al valor predeterminado.
+**Improve** abre una sesión de mejora. El modelo y las instrucciones pertenecen a **Settings** del dataset elegido; los ayudantes tienen valores definidos en código y no tienen página editable en el catálogo. Los diálogos de skills y contexto eligen un modelo directamente. Se conservan controles de budget y registros en Activity.
 
 ## Qué lee { #what-it-reads }
 
@@ -320,13 +308,9 @@ La retención de actividad conserva el coste total de los runs pagados eliminado
 Los grants cuentan: un miembro con un grant de edición sobre un agent puede
 mejorar ese agent.
 
-## Cuando la asistencia de IA está desactivada { #when-ai-assistance-is-off }
+## Disponibilidad y coste { #when-ai-assistance-is-off }
 
-Con el interruptor de **asistencia de IA** de la organización desactivado, el
-asistente no se ejecuta: el servidor rechaza Mejorar, Verificar y mejorar un
-skill o un archivo de contexto, y la consola los muestra desactivados con un enlace al interruptor. Las
-sugerencias que ya esperan se pueden seguir aceptando, descartando y deshaciendo,
-y un eval run que no necesita juez sigue ejecutándose.
+La disponibilidad depende del acceso a recursos, la preparación del modelo y los budgets. No hay interruptor organizacional de asistencia de IA. El trabajo de pago requiere un inicio explícito; aceptar o descartar propuestas existentes no llama a ningún modelo.
 
 ## Sesiones de mejora en segundo plano { #background-improvement-sessions }
 
@@ -368,7 +352,7 @@ resultado como una pista de que otro intento probablemente no ayudará, no como
 una parada.
 
 Quien puede empezar una sesión del agente - permiso de edición, `runs:view` y la
-asistencia de IA activada - puede también dar su siguiente paso o volver a
+ - puede también dar su siguiente paso o volver a
 intentarlo. La sesión registra quién lo hizo, y los pasos siguientes se ejecutan
 con los permisos y la credencial actuales de esa persona, así que una sesión que
 empezó el Architect se puede continuar en la consola.

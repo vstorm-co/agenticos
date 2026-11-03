@@ -9,10 +9,10 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
+from app.core.exceptions import AuthorizationError, BadRequestError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.case_score import CaseScore
-from app.repositories import agent_repo, organization_repo
+from app.repositories import agent_repo
 from app.schemas.scoring import (
     ChecksScorer,
     DatasetScoring,
@@ -22,7 +22,6 @@ from app.schemas.scoring import (
     TrajectoryScorer,
 )
 from app.services import scoring
-from app.services.ai_assistance import AiAssistanceService
 from app.services.scorers import (
     JUDGE_PROMPT_VERSION,
     CaseView,
@@ -68,13 +67,6 @@ async def test_a_case_with_no_expected_calls_has_no_trajectory_to_score() -> Non
     ) == Evaluation([])
 
 
-async def test_the_switch_of_an_organization_that_does_not_exist_is_not_found(monkeypatch) -> None:
-    monkeypatch.setattr(organization_repo, "get_by_id", AsyncMock(return_value=None))
-
-    with pytest.raises(NotFoundError):
-        await AiAssistanceService(AsyncMock()).is_enabled(organization_id=uuid.uuid4())
-
-
 def test_a_score_names_its_case_and_run() -> None:
     case_id, run_id = uuid.uuid4(), uuid.uuid4()
 
@@ -96,17 +88,21 @@ class TestJudgePin:
         criteria = judge_criteria(CASE, scoring, [])
         return await ScoringService(AsyncMock())._pin(_ctx(), run, criteria, scoring)
 
-    async def test_a_run_with_no_version_pins_no_model_whatever_the_dataset_held(self) -> None:
-        """A model the dataset once named for its judge is not the one the judge ran on."""
+    async def test_a_dataset_model_is_pinned_when_its_run_version_was_removed(self) -> None:
+        """The explicit model override belongs to the score, even without its base version."""
         scoring = self.SCORING.model_copy(
             update={
                 "judge": self.SCORING.judge.model_copy(update={"model_profile_id": uuid.uuid4()})
             }
         )
 
-        pin = await self._pin(MagicMock(agent_id=None, agent_version_id=None), scoring)
+        pin = await self._pin(MagicMock(agent_id=uuid.uuid4(), agent_version_id=None), scoring)
 
-        assert (pin.model_profile_id, pin.agent_version_id, pin.spec_version) == (None, None, None)
+        assert (pin.model_profile_id, pin.agent_version_id, pin.spec_version) == (
+            scoring.judge.model_profile_id,
+            None,
+            None,
+        )
         assert len(pin.rubric_hash) == 64
 
     async def test_a_version_no_longer_readable_pins_only_its_id(self, monkeypatch) -> None:

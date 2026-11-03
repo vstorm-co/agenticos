@@ -1,5 +1,5 @@
 ---
-source_sha: "95817abb3ea3"
+source_sha: "faf9a13ba4f9"
 ---
 
 # Glosario { #glossary }
@@ -66,7 +66,7 @@ tal como se ven en pantalla.
 | Budget | Un límite de gasto que detiene los runs al alcanzarse | `budget` |
 | Guardrails | Comprobaciones que redactan o bloquean lo que pasa por un run | `guardrails` |
 | Vault | Donde se guardan claves y tokens, sellados y nunca más mostrados | `secret` |
-| AI assistance | El interruptor de la organización para los modelos que califican respuestas, redactan casos, proponen cambios y redactan el conocimiento que falta, Improve incluido; desactivado hasta que alguien lo activa | `ai_assistance_enabled` |
+| Ayudantes de evaluación | Procesos de calificación, generación y mejora definidos en código y configurados en el dataset | `scoring.judge`, `helper_settings` |
 
 ## Cómo se prueba { #how-it-is-tested }
 

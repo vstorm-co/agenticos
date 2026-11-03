@@ -16,7 +16,6 @@ from app.core.exceptions import (
 from app.db.models.authoring import AuthoringRequest
 from app.db.models.eval_run import EvalRun
 from app.db.models.improvement import ImprovementRun
-from app.db.models.organization import Organization
 from app.services.improvement_pipeline import ImprovementPipelineService
 from tests.integration.test_authoring import _environment as _environment
 from tests.integration.test_improvement_evidence import _serial_worker as _serial_worker
@@ -33,7 +32,6 @@ pytestmark = [pytest.mark.anyio, pytest.mark.usefixtures("_environment")]
         "authorization",
         "missing_grant",
         "bad_request",
-        "ai_disabled",
         "budget",
         "provider",
     ],
@@ -47,13 +45,7 @@ async def test_boundary_failure_is_recorded_before_a_paid_child_can_start(
     assert row is not None
     row.stage = "proposing"
     await db.flush()
-    if boundary == "ai_disabled":
-        org = await db.get(Organization, ctx.organization_id)
-        assert org is not None
-        org.ai_assistance_enabled = False
-        await db.flush()
-        await service.advance(session.id, ctx.organization_id)
-    elif boundary in {"budget", "provider"}:
+    if boundary in {"budget", "provider"}:
         error = (
             PaymentRequiredError(message="No remaining funds")
             if boundary == "budget"

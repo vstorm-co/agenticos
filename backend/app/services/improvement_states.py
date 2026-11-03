@@ -188,17 +188,10 @@ class Standing:
     edits_agent: bool
     views_runs: bool
     runs_dataset: bool
-    ai_assistance: bool
 
     @property
     def allowed(self) -> bool:
-        return (
-            self.member
-            and self.edits_agent
-            and self.views_runs
-            and self.runs_dataset
-            and self.ai_assistance
-        )
+        return self.member and self.edits_agent and self.views_runs and self.runs_dataset
 
 
 def checked(

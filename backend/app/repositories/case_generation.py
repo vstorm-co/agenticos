@@ -10,6 +10,7 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
+from pydantic import JsonValue
 from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -28,8 +29,10 @@ async def create_generation(
     auto_accept: bool = False,
     created_by_api_key_id: UUID | None = None,
     generator_agent_id: UUID | None = None,
+    helper_settings: dict[str, JsonValue] | None = None,
 ) -> CaseGeneration:
     generation = CaseGeneration(
+        helper_settings=helper_settings or {},
         organization_id=organization_id,
         dataset_id=dataset_id,
         agent_id=agent_id,

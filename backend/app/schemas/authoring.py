@@ -14,6 +14,7 @@ from uuid import UUID
 from pydantic import BaseModel, Field, JsonValue, field_validator, model_validator
 
 from app.schemas.base import BaseSchema
+from app.schemas.dataset_helpers import DatasetHelper
 from app.schemas.skill import skill_name_refusal
 
 MAX_QUOTE_CHARS = 600
@@ -258,6 +259,8 @@ class VerifyReport(BaseModel):
 
 
 class AuthoringStart(BaseSchema):
+    helper_settings: DatasetHelper | None = None
+
     """What a person asks for, the same body estimating and starting.
 
     Attributes:

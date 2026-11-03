@@ -101,7 +101,7 @@ function GradedBy({ dataset }: { dataset: Dataset }) {
           {t("changeDatasetJudge")}
         </Link>
         {judge !== undefined && (
-          <Link href={ROUTES.AGENT_DETAIL(judge.id)} className="underline">
+          <Link href={`${ROUTES.DATASET_DETAIL(dataset.id)}?tab=grading`} className="underline">
             {t("changeJudgeModel")}
           </Link>
         )}

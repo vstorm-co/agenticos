@@ -1,5 +1,5 @@
 ---
-source_sha: "6e6d51ad6ea9"
+source_sha: "e094c405e615"
 ---
 
 # Governance { #governance }
@@ -1754,56 +1754,13 @@ que ningún informe, porque los dos números parecen autoritativos.
 El envío nunca bloquea y nunca lanza hacia quien llama: un run que ya ha terminado no
 debe fallar otra vez porque SMTP estuviera caído.
 
-## Asistencia de IA { #ai-assistance }
+## Evaluación de pago { #ai-assistance }
 
-Un interruptor, en la pestaña **Budget and approvals** de la página de la organización,
-decide si los modelos asisten en las evals y la autoría de la organización: el
-juez de evals que califica las [puntuaciones de datasets](datasets.md#judge), el
-redactor que escribe el contenido que le falta a una [laguna de
-conocimiento](knowledge-gaps.md#drafting-the-missing-content), y el generador de
-casos y el asistente de autoría que vienen después. Está desactivado por
-defecto, tanto en una organización que existía antes del interruptor como en una
-nueva: si los modelos califican y redactan es una decisión de la organización, y
-lo activa quien tenga `org:settings`. Cada cambio queda registrado en el
-[registro de auditoría](#audit) como `organization.ai_assistance`, con quién lo
-hizo.
+Calificar, generar casos y mejorar son acciones de pago explícitas. El dataset posee sus modelos e instrucciones: **Grading** configura el calificador; **Settings**, la generación y mejora. La consola muestra una estimación antes del inicio.
 
-Cuando está desactivado, el servicio que iniciaría un run así lo rechaza, sea
-cual sea el cliente que lo pida: un control oculto no es la frontera. La
-puntuación sigue ejecutando sus comprobaciones basadas en reglas y la
-comparación de llamadas a herramientas, registra los criterios del juez como
-omitidos con el motivo, y deja sin puntuar, en lugar de aprobado, un caso cuyo
-juez era obligatorio. Los veredictos de las personas siguen disponibles.
+No hay interruptor organizacional de asistencia de IA ni modelo organizacional que sustituya al del dataset. El precio no elige un modelo supuestamente más capaz. Un test set creado automáticamente empieza con el modelo del agent; elegir un calificador independiente es una decisión explícita del dataset.
 
-**Grading model**, junto al interruptor, es el modelo con el que califican los
-jueces nuevos. Un juez más débil que el agent que califica malinterpreta
-respuestas que el agent acertó, así que, sin ninguno elegido, un juez nuevo toma
-el más barato de los modelos de chat de la organización que cueste más al
-escribir que el del agent (el del borrador o el de la versión publicada, el que
-cueste más) y, sin tal modelo o sin precio que comparar, el primer otro modelo
-de la organización, como hasta ahora. Se aplica a los jueces creados desde
-entonces, como el que recibe el primer conjunto de prueba de un agent; un juez
-existente conserva su modelo, porque una calificación guardada significa lo que
-calificó ese modelo. Cada cambio queda registrado como
-`organization.grading_model`.
-
-Estas funciones se ejecutan como [jueces](concepts.md#system-agents). Cada run
-es un run normal: se comprueba contra el budget mensual propio del juez y el de
-la organización antes de cada llamada al modelo, su coste se registra y aparece
-en Activity bajo la superficie `eval`. Un juez empieza con un budget propio
-($5 al mes), que se puede cambiar como el de cualquier agent.
-
-El [asistente de autoría](authoring.md) es un agent de sistema de la misma
-manera, con su propio budget de $5. En el dashboard, lo que cuesta aparece
-aparte de los evals, como gastado en mejoras. Lo mismo ocurre con lo que cuestan
-el clasificador y el redactor de [lagunas de conocimiento](knowledge-gaps.md):
-completan lo que le falta a una base de conocimiento en lugar de medir un agent.
-El juez y el generador de casos siguen con los evals.
-
-Un juez nunca se expone: no se le puede conectar un canal, un
-embed, una página pública ni una programación, ningún agent puede delegar en
-él, y un run suyo en cualquier superficie que no sea `eval` se rechaza. Su gasto
-solo lo inician las funciones descritas arriba.
+Se mantienen los permisos, credenciales, budgets de la organización y límites de runs. Cada llamada se mide y registra en Activity. Los trabajos en cola conservan su configuración inicial; los cambios afectan a trabajo posterior. Las filas históricas de ayudantes se conservan para atribución y control de budgets.
 
 ## Excepciones de promoción { #promotion-overrides }
 

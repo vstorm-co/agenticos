@@ -282,12 +282,6 @@ Questions an agent searched its knowledge bases for and found nothing relevant t
 ![Knowledge gaps](assets/screens/light/knowledge-gaps.webp#only-light)
 ![Knowledge gaps](assets/screens/dark/knowledge-gaps.webp#only-dark)
 
-### AI assistance
-
-The organization's switch for everything that calls a model on its own behalf: the eval judge, the case generator, the helper that writes changes and the knowledge-gap drafts. Off until somebody turns it on; every use is a metered run.
-
-![AI assistance](assets/screens/light/ai-assistance.webp#only-light)
-![AI assistance](assets/screens/dark/ai-assistance.webp#only-dark)
 
 ## What happened, and what is waiting
 

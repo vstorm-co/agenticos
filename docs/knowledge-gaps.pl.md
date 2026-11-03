@@ -1,5 +1,5 @@
 ---
-source_sha: "248c67b73df6"
+source_sha: "c428b004a390"
 title: "Luki w wiedzy"
 description: "Luki w wiedzy pokazują pytania, dla których agent nie znalazł w bazie wiedzy nic trafnego albo odpowiedział, że nie wie, pogrupowane w tematy, żeby było widać, jakiego dokumentu brakuje."
 ---
@@ -18,13 +18,7 @@ bazy wiedzy jako dokument. Wcześniej może zamienić pytania z tematu na przypa
 [datasetu](datasets.md), żeby ewaluacja pokazała, czy nowy dokument zmienił
 odpowiedzi.
 
-Edytor wybiera **Pomocników AI** na zakładce luk bazy wiedzy: własny
-opublikowany klasyfikator i autor szkiców albo domyślnych agentów organizacji.
-Pola to `gap_classifier_agent_id` i `gap_drafter_agent_id`; null przywraca domyślny
-wybór, a pominięcie pola zachowuje dotychczasowy. Płatne wywołanie ponownie
-sprawdza dostęp i rodzaj; usunięty wybór powoduje jawną odmowę. Bazy całego
-wdrożenia korzystają z domyślnych agentów danej organizacji: ustawienie wspólne
-nie może odwoływać się do prywatnego pomocnika jednej organizacji.
+Klasyfikacja luk i pisanie szkiców korzystają z pomocników zdefiniowanych w kodzie. Zachowują wewnętrzne identyfikatory dla kontroli dostępu, budżetów i Aktywności; konsola nie udostępnia osobnego katalogu ani edytora agentów pomocniczych. Historyczne wybory pomocników przez API pozostają odczytywalne dla istniejących baz wiedzy.
 
 ## Jak pytanie staje się luką { #how-a-question-becomes-a-gap }
 
@@ -55,14 +49,7 @@ wyszukiwanie z testu wersji roboczej w Builderze nie są zapisywane. Z zapytania
 
 ## Odpowiedzi i komentarze { #answers-and-comments }
 
-Wyszukiwanie może znaleźć fragment, a agent i tak nie znać odpowiedzi, a
-czytelnik może ocenić odpowiedź łapką w dół, bo czegoś zabrakło. Samo
-wyszukiwanie nie widzi żadnego z tych przypadków. **Sprawdź N odpowiedzi** na
-zakładce Luki w wiedzy bazy wiedzy prosi model, żeby przeczytał pod tym kątem
-jej ostatnie odpowiedzi. Przycisk jest dostępny, gdy
-[wsparcie AI](governance.md#ai-assistance) jest włączone, i liczy odpowiedzi
-jeszcze nieprzeczytane. Gdy przełącznik jest wyłączony, zakładka mówi, ile
-odpowiedzi czeka, z linkiem do przełącznika dla tego, kto może go zmienić.
+Sprawdzenie ostatnich odpowiedzi i napisanie brakującej treści wymagają jawnego działania osoby, dostępu do zasobów, gotowego modelu i budżetu. Wywołania są rozliczane w Aktywności. Grupowanie pytań bez wywołania modelu pozostaje dostępne.
 
 Model to **Knowledge gap classifier**, [agent systemowy](concepts.md#system-agents),
 którego ma każda organizacja. Czyta każdą odpowiedź razem z pytaniem,
@@ -232,7 +219,7 @@ Szkic powstaje w tle, jako ty, z twoim dostępem takim, jaki jest w chwili jego
 pisania. Temat mówi **Piszę szkic…** (Drafting…), dopóki szkic nie jest gotowy,
 a otwarta strona pokazuje go bez przeładowania; ponowna prośba w tym czasie nic
 więcej nie uruchamia. Szkic, którego nie udało się napisać, bo budżet się
-wyczerpał albo w międzyczasie wyłączono wsparcie AI, mówi o tym, z przyciskiem
+wyczerpał albo model stał się niedostępny, mówi o tym, z przyciskiem
 **Spróbuj ponownie** (Try again). Szkic napisany z pytań jednej osoby też to
 mówi: sprawdź go, wiedząc, że opiera się na tym, o co pytała jedna osoba.
 
@@ -247,8 +234,7 @@ mówi, a temat podaje to źródło: zamiast dodawać treść, odrzuć temat.
 **Napisz szkic od nowa** (Redraft) zastępuje szkic. Gdy po napisaniu szkicu do
 bazy wiedzy zostanie dodany dokument, szkic mówi, że baza wiedzy zmieniła się
 po nim: może powtarzać nowy dokument albo mu przeczyć, więc **Napisz szkic od
-nowa** pisze go ponownie według tego, co baza wiedzy zawiera teraz. Kto może edytować autora szkiców luk, znajdzie przy szkicu **Edytuj instrukcje
-autora szkiców luk**, a samego autora szkiców luk w sekcji **Agenci systemowi** na stronie Agents.
+nowa** pisze go ponownie według tego, co baza wiedzy zawiera teraz.
 
 Szkic podaje swoje źródła: dokumenty bazy wiedzy, na których się opiera,
 pliki kontekstowe, których się trzyma, i pytania tematu, na które odpowiada.
@@ -261,13 +247,7 @@ pokazywane, i liczone przy szkicu. Zachowywanych jest najwyżej 12 źródeł.
 Zmieniony w edytorze szkic staje się twoją treścią: jego run i źródła przestają
 być pokazywane, bo to, na co powołał się model, już za nim nie przemawia.
 
-Szkic to run modelu jak każdy inny. Jest odrzucany, gdy organizacja wyłączyła
-[wsparcie AI](governance.md#ai-assistance), a jest ono wyłączone, dopóki nie
-włączy je ktoś z `org:settings`; do tego czasu temat to mówi, z odnośnikiem do
-przełącznika dla tego, kto może go zmienić. Przed wywołaniem modelu sprawdzany
-jest budżet agenta i organizacji, a jego koszt widać w Aktywności. Grupowanie
-pytań w tematy nie prosi modelu o pisanie, więc działa niezależnie od
-przełącznika.
+Sprawdzenie ostatnich odpowiedzi i napisanie brakującej treści wymagają jawnego działania osoby, dostępu do zasobów, gotowego modelu i budżetu. Wywołania są rozliczane w Aktywności. Grupowanie pytań bez wywołania modelu pozostaje dostępne.
 
 ## Dostęp { #access }
 

@@ -1,4 +1,30 @@
+import { z } from "zod";
+
 import type { CaseCheck, DatasetCaseContent, ToolOrderMode } from "@/types/datasets";
+
+const importedCase = z
+  .object({
+    input: z.string(),
+    history: z
+      .array(z.object({ role: z.enum(["user", "assistant"]), content: z.string() }))
+      .default([]),
+    reference_answer: z.string().nullable().default(null),
+    counter_example: z.string().nullable().default(null),
+    expected_tool_calls: z
+      .array(z.object({ tool: z.string(), args: z.record(z.string(), z.unknown()) }))
+      .default([]),
+    order_mode: z.enum(["any", "in_order", "exact"]).default("any"),
+    checks: z.array(z.object({ type: z.string() }).catchall(z.unknown())).default([]),
+    tags: z.array(z.string()).default([]),
+    note: z.string().nullable().default(null),
+  })
+  .strict();
+
+/** Validate pasted JSON before the visual editor reads its nested fields. */
+export function caseContentFromJson(value: unknown): DatasetCaseContent | null {
+  const parsed = importedCase.safeParse(value);
+  return parsed.success ? parsed.data : null;
+}
 
 /** One earlier turn of the conversation the case continues. */
 export interface TurnDraft {

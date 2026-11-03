@@ -2,7 +2,7 @@
 
 A draft check is paid for with the starter's authority and pinned to the draft
 and the collection it was quoted on. Whatever moved since - the draft, the
-collection, the starter's access, the organization's consent to AI assistance or
+collection, the starter's access or
 the key it was started with - stops the check, and an answer already given keeps
 nothing the withdrawn draft could have shaped.
 """
@@ -141,7 +141,7 @@ async def test_a_starter_who_may_no_longer_edit_the_knowledge_base_does_not_star
     assert (run.status, run.error) == ("failed", _NO_LONGER_RUNS)
 
 
-async def test_a_check_queued_before_ai_assistance_was_turned_off_is_not_started(
+async def test_a_queued_check_ignores_the_legacy_organization_ai_flag(
     db: AsyncSession,
 ) -> None:
     ctx, _, _, _, child = await _start(db)
@@ -150,10 +150,10 @@ async def test_a_check_queued_before_ai_assistance_was_turned_off_is_not_started
     organization.ai_assistance_enabled = False
     await db.flush()
 
-    assert await _work(db, ctx, child.id) == []
+    assert await _work(db, ctx, child.id)
 
     run = await _stored(db, child.id)
-    assert (run.status, run.error) == ("failed", _NO_LONGER_RUNS)
+    assert (run.status, run.error) == ("completed", None)
 
 
 async def test_a_retrieval_check_stored_without_its_embedding_fails_unanswered(

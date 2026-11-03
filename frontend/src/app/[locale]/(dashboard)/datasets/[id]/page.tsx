@@ -12,11 +12,13 @@ import { cn } from "@/lib/utils";
 
 import { CaseEditorDialog, type CaseCopy } from "@/components/datasets/case-editor-dialog";
 import { draftOf, EMPTY_DRAFT, type CaseDraft } from "@/components/datasets/case-form";
-import { CaseRow } from "@/components/datasets/case-row";
+import { CasesTable } from "@/components/datasets/cases-table";
+import { CasesToolbar } from "@/components/datasets/cases-toolbar";
 import { DatasetHeader } from "@/components/datasets/dataset-header";
 import { DatasetShareDialog } from "@/components/datasets/dataset-share-dialog";
 import { EditDatasetDialog } from "@/components/datasets/edit-dataset-dialog";
 import { EmptyCases } from "@/components/datasets/empty-cases";
+import { HelperSettings } from "@/components/datasets/helper-settings";
 import { GeneratePanel } from "@/components/datasets/generate-panel";
 import { ReviewPanel } from "@/components/datasets/review-panel";
 import { GradingPanel, type GradingCopy } from "@/components/datasets/grading-panel";
@@ -56,7 +58,7 @@ interface PageProps {
 }
 
 /** The tabs `?tab=` may open, in the order they are drawn. */
-const TABS = ["cases", "generated", "grading", "evals", "review"];
+const TABS = ["cases", "generated", "grading", "evals", "review", "settings"];
 
 /**
  * What the case dialog is showing: a new case, or one from the list - picked up
@@ -157,7 +159,10 @@ export default function DatasetPage({ params }: PageProps) {
   const editable = dataset.can_edit && version === null;
   // A link reaches a reader too, who may have no such tab.
   const shown =
-    (tab === "generated" && !dataset.can_edit) || (tab === "evals" && !canViewRuns) ? "cases" : tab;
+    ((tab === "generated" || tab === "settings") && !dataset.can_edit) ||
+    (tab === "evals" && !canViewRuns)
+      ? "cases"
+      : tab;
   const keep = (place: string) => ({
     key: copyKey(organization, id, place),
     base: dataset.latest_version,
@@ -184,7 +189,6 @@ export default function DatasetPage({ params }: PageProps) {
       <DatasetHeader
         dataset={dataset}
         version={version}
-        onAddCase={editable ? () => setEditing({ draft: EMPTY_DRAFT, item: null }) : undefined}
         onImport={editable ? (file) => cases.importFile.mutateAsync(file) : undefined}
         onEditDetails={() => setDialog("details")}
         onShare={() => setDialog("share")}
@@ -198,7 +202,8 @@ export default function DatasetPage({ params }: PageProps) {
 
       {(version === null || version === dataset.latest_version) &&
         dataset.stats?.train_cases !== undefined &&
-        dataset.stats.holdout_cases !== undefined && (
+        dataset.stats.holdout_cases !== undefined &&
+        (dataset.stats.train_cases > 0 || dataset.stats.holdout_cases > 0) && (
           <p className="text-muted-foreground text-sm">
             {t("improvementSplit.counts", {
               train: dataset.stats.train_cases,
@@ -262,6 +267,11 @@ export default function DatasetPage({ params }: PageProps) {
                 <ClipboardCheck className="mr-1.5 size-4 shrink-0" aria-hidden />
                 {t("scoring.scores")}
               </TabsTrigger>
+              {dataset.can_edit && (
+                <TabsTrigger value="settings" data-tour="datasets-settings-tab">
+                  {t("settingsTab")}
+                </TabsTrigger>
+              )}
             </TabsList>
             <WorkspaceFullscreenButton expanded={expanded} onToggle={toggle} />
           </div>
@@ -271,19 +281,29 @@ export default function DatasetPage({ params }: PageProps) {
               title={t("cases")}
               counted={t("caseCount", { count: cases.total })}
               controls={
-                versions.length > 0 && (
-                  <VersionSelect
-                    versions={versions}
-                    latest={dataset.latest_version}
-                    value={version}
-                    onChange={(next) =>
-                      leave(() => {
-                        setVersionParam(next === null ? null : String(next));
-                        setPage(0);
-                      })
-                    }
-                  />
-                )
+                <div className="flex min-w-0 flex-wrap items-center gap-2">
+                  {versions.length > 0 && (
+                    <VersionSelect
+                      versions={versions}
+                      latest={dataset.latest_version}
+                      value={version}
+                      onChange={(next) =>
+                        leave(() => {
+                          setVersionParam(next === null ? null : String(next));
+                          setPage(0);
+                        })
+                      }
+                    />
+                  )}
+                  {editable && (
+                    <CasesToolbar
+                      datasetId={id}
+                      onAdd={() => setEditing({ draft: EMPTY_DRAFT, item: null })}
+                      onImport={(file) => cases.importFile.mutateAsync(file)}
+                      onGenerate={() => showTab("generated")}
+                    />
+                  )}
+                </div>
               }
             >
               {linkedCase.error && (
@@ -299,26 +319,14 @@ export default function DatasetPage({ params }: PageProps) {
                   cta={{ label: tc("retry"), onClick: () => void cases.refetch() }}
                 />
               ) : cases.cases.length === 0 ? (
-                <EmptyCases
-                  datasetId={id}
-                  onAddCase={
-                    editable ? () => setEditing({ draft: EMPTY_DRAFT, item: null }) : undefined
-                  }
-                  onImport={editable ? (file) => cases.importFile.mutateAsync(file) : undefined}
-                  onGenerate={editable ? () => showTab("generated") : undefined}
-                />
+                <EmptyCases datasetId={id} />
               ) : (
                 <div className="space-y-4">
-                  <ul>
-                    {cases.cases.map((item) => (
-                      <CaseRow
-                        key={item.id}
-                        item={item}
-                        onOpen={() => openCase(item)}
-                        onRemove={editable ? () => cases.remove.mutate(item.case_id) : undefined}
-                      />
-                    ))}
-                  </ul>
+                  <CasesTable
+                    cases={cases.cases}
+                    onOpen={openCase}
+                    onRemove={editable ? (item) => cases.remove.mutate(item.case_id) : undefined}
+                  />
                   <Pager
                     page={page}
                     pageCount={pageCount}
@@ -349,6 +357,12 @@ export default function DatasetPage({ params }: PageProps) {
           {canViewRuns && (
             <TabsContent value="evals">
               <DatasetEvalsPanel datasetId={id} title={t("evals")} />
+            </TabsContent>
+          )}
+          {dataset.can_edit && (
+            <TabsContent value="settings" className="space-y-4">
+              <HelperSettings dataset={dataset} kind="generator" />
+              <HelperSettings dataset={dataset} kind="improver" />
             </TabsContent>
           )}
           <TabsContent value="review">

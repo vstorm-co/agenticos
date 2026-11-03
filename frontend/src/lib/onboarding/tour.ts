@@ -734,6 +734,13 @@ export const TOUR_STEPS: readonly TourStep[] = [
     permission: Perm.datasetsEdit,
     optional: true,
   },
+  {
+    id: "datasets-helper-settings",
+    page: DATASET_DETAIL,
+    target: "datasets-generator-settings",
+    activate: "datasets-settings-tab",
+    permission: Perm.datasetsEdit,
+  },
   // Workflows — the visual editor's list. Same shape as Agents: a create button
   // the launch pass points at (create-gated), and the status list the "?" adds
   // (view-gated). The create control opens the blank/template dialog.

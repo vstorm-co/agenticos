@@ -22,6 +22,7 @@ from app.db.models.case_generation import CaseGeneration, CaseOrigin, Generation
 from app.db.session import get_worker_db_context
 from app.repositories import case_generation_repo
 from app.schemas.case_generation import CaseGenerationRequest
+from app.schemas.dataset_helpers import DatasetHelper
 from app.services import change_feed
 from app.services.api_key import job_context
 from app.services.case_generation.facade import CaseGenerationService
@@ -123,6 +124,7 @@ class CaseGenerationWorker:
             db,
             generation_id=generation.id,
             generator_agent_id=generation.generator_agent_id,
+            helper_settings=DatasetHelper.model_validate(generation.helper_settings or {}),
             ctx=ctx,
             prompt=prompt,
             material=material,

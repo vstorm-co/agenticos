@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronRight, FlaskConical, Play } from "lucide-react";
+import { FlaskConical, Play } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 
 import { EmptyState, ErrorState, LoadingState } from "@/components/states";
@@ -20,7 +20,7 @@ import { getErrorMessage } from "@/lib/api-error";
 import { ROUTES } from "@/lib/constants";
 import type { EvalRun } from "@/types/eval-runs";
 import { PassRateChart, passRateLines } from "./pass-rate-chart";
-import { EvalRunRow } from "./run-row";
+import { RunsTable } from "./runs-table";
 import { StartEvalDialog } from "./start-eval-dialog";
 
 /** As many runs as the trend reads back at once - the API's own ceiling - a page of them. */
@@ -60,7 +60,6 @@ export function EvalsPanel({ agentId, canStart }: { agentId: string; canStart: b
   });
   const anyDataset = useDatasets({ sort: "updated", limit: 1 });
   const start = canStart ? { label: t("start"), onClick: () => setStarting(true) } : undefined;
-  const groups = byDataset(runs);
   // With no runs, which empty state is right depends on whether a dataset exists,
   // so the datasets' read decides as much as the runs'.
   const waiting = isLoading || (runs.length === 0 && anyDataset.isLoading);
@@ -117,22 +116,7 @@ export function EvalsPanel({ agentId, canStart }: { agentId: string; canStart: b
                 locale,
               )}
             />
-            {groups.map((group, index) => (
-              <details key={group.id} open={index === 0} className="group">
-                <summary className="flex cursor-pointer list-none items-center gap-1.5 text-sm font-medium">
-                  <ChevronRight
-                    className="h-3.5 w-3.5 transition-transform group-open:rotate-90"
-                    aria-hidden
-                  />
-                  {t("group", { name: group.name, count: group.runs.length })}
-                </summary>
-                <ul className="divide-border mt-2 divide-y">
-                  {group.runs.map((run) => (
-                    <EvalRunRow key={run.id} run={run} />
-                  ))}
-                </ul>
-              </details>
-            ))}
+            <RunsTable runs={runs} />
             <Pager
               page={page}
               pageCount={Math.ceil(total / TREND_RUNS)}

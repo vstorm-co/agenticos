@@ -14,6 +14,7 @@ import { groupScores } from "@/lib/scoring";
 import type { Dataset } from "@/types/datasets";
 import { Perm } from "@/types/permissions";
 import type { CaseScore } from "@/types/scoring";
+import { ReviewPolicy } from "./review-policy";
 import { ReviewFilters, type ReviewFilter } from "./review-filters";
 import { ReviewGroupHeading } from "./review-group";
 import type { Verdict } from "./score-card";
@@ -149,81 +150,86 @@ export function ReviewPanel({ dataset }: { dataset: Dataset }) {
   };
 
   return (
-    <ListCard
-      title={t("scores")}
-      counted={t("scoreCount", { count: scores.total })}
-      controls={
-        <ReviewFilters
-          filter={filter}
-          onChange={(next) => {
-            setFilter(next);
-            setPage(0);
-          }}
-          waiting={pending ? scores.total : other.total}
-          all={pending ? other.total : scores.total}
-          tags={dataset.stats.top_tags.map((entry) => entry.tag)}
-        />
-      }
-    >
-      {scores.isLoading ? (
-        <LoadingState variant="skeleton-cards" rows={2} />
-      ) : scores.error ? (
-        <ErrorState
-          description={getErrorMessage(scores.error, tErrors)}
-          cta={{ label: tc("retry"), onClick: () => void scores.refetch() }}
-        />
-      ) : visibleScores.length === 0 ? (
-        <ListCardEmpty
-          icon={ClipboardCheck}
-          title={pending ? t("nothingAwaitingReview") : t("noScores")}
-          description={pending ? t("nothingAwaitingReviewBody") : t("noScoresBody")}
-        />
-      ) : (
-        <div className="space-y-6">
-          {groupScores(visibleScores).map((group, index) => (
-            <section key={`${group.key}:${index}`} className="space-y-3">
-              <ReviewGroupHeading
-                group={group}
-                busy={busy}
-                linksRuns={linksRuns}
-                onWithdraw={
-                  canDecide && pending && group.scores.some((score) => score.human_passed === null)
-                    ? () =>
-                        void withdraw(
-                          group.scores
-                            .filter((score) => score.human_passed === null)
-                            .map((score) => score.id),
-                        )
-                    : undefined
-                }
-                onRescore={canRescore ? (ids) => void rescore(ids) : undefined}
-              />
-              {group.scores.map((score) => (
-                <ReviewQueueRow
-                  key={`${score.id}:${score.reviewed_at ?? "undecided"}`}
-                  score={score}
+    <div className="space-y-4">
+      <ReviewPolicy dataset={dataset} />
+      <ListCard
+        title={t("scores")}
+        counted={t("scoreCount", { count: scores.total })}
+        controls={
+          <ReviewFilters
+            filter={filter}
+            onChange={(next) => {
+              setFilter(next);
+              setPage(0);
+            }}
+            waiting={pending ? scores.total : other.total}
+            all={pending ? other.total : scores.total}
+            tags={dataset.stats.top_tags.map((entry) => entry.tag)}
+          />
+        }
+      >
+        {scores.isLoading ? (
+          <LoadingState variant="skeleton-cards" rows={2} />
+        ) : scores.error ? (
+          <ErrorState
+            description={getErrorMessage(scores.error, tErrors)}
+            cta={{ label: tc("retry"), onClick: () => void scores.refetch() }}
+          />
+        ) : visibleScores.length === 0 ? (
+          <ListCardEmpty
+            icon={ClipboardCheck}
+            title={pending ? t("nothingAwaitingReview") : t("noScores")}
+            description={pending ? t("nothingAwaitingReviewBody") : t("noScoresBody")}
+          />
+        ) : (
+          <div className="space-y-6">
+            {groupScores(visibleScores).map((group, index) => (
+              <section key={`${group.key}:${index}`} className="space-y-3">
+                <ReviewGroupHeading
+                  group={group}
                   busy={busy}
                   linksRuns={linksRuns}
-                  onVerdict={canDecide ? (verdict) => void decide(score, verdict) : undefined}
-                  onReview={canDecide ? () => void queue(score.id) : undefined}
-                  onRescore={canRescore ? () => void rescore([score.id]) : undefined}
-                  onNoteToCriterion={
-                    canDecide ? (target) => void noteToCriterion(score, target) : undefined
+                  onWithdraw={
+                    canDecide &&
+                    pending &&
+                    group.scores.some((score) => score.human_passed === null)
+                      ? () =>
+                          void withdraw(
+                            group.scores
+                              .filter((score) => score.human_passed === null)
+                              .map((score) => score.id),
+                          )
+                      : undefined
                   }
+                  onRescore={canRescore ? (ids) => void rescore(ids) : undefined}
                 />
-              ))}
-            </section>
-          ))}
-          <Pager
-            page={page}
-            pageCount={pageCount}
-            matched={scores.total}
-            total={scores.total}
-            onPage={setPage}
-            counted={t("scoreCount", { count: scores.total })}
-          />
-        </div>
-      )}
-    </ListCard>
+                {group.scores.map((score) => (
+                  <ReviewQueueRow
+                    key={`${score.id}:${score.case_masked ?? false}:${score.answer_hidden}`}
+                    score={score}
+                    busy={busy}
+                    linksRuns={linksRuns}
+                    onVerdict={canDecide ? (verdict) => void decide(score, verdict) : undefined}
+                    onReview={canDecide ? () => void queue(score.id) : undefined}
+                    onRescore={canRescore ? () => void rescore([score.id]) : undefined}
+                    onNoteToCriterion={
+                      canDecide ? (target) => void noteToCriterion(score, target) : undefined
+                    }
+                  />
+                ))}
+              </section>
+            ))}
+            <Pager
+              page={page}
+              pageCount={pageCount}
+              matched={scores.total}
+              total={scores.total}
+              onPage={setPage}
+              counted={t("scoreCount", { count: scores.total })}
+            />
+          </div>
+        )}
+      </ListCard>
+    </div>
   );
 }

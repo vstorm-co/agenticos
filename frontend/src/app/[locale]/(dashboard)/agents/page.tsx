@@ -11,8 +11,6 @@ import {
   AgentLimitNotice,
   isAtAgentLimit,
 } from "@/components/agents/agent-limit-notice";
-import { CatalogSection } from "@/components/agents/catalog-section";
-import { SystemAgentsSection } from "@/components/agents/system-agents-section";
 import { AgentTemplateDialog } from "@/components/agents/agent-template-dialog";
 import { CreateAgentDialog } from "@/components/agents/create-agent-dialog";
 import { LabelFilter } from "@/components/agents/label-filter";
@@ -246,11 +244,7 @@ export default function AgentsPage() {
         <AgentLimitNotice ceiling={ceiling} id={AGENT_LIMIT_NOTICE_ID} />
       ) : null}
 
-      <CatalogSection
-        title={t("agentsCount", { count: total })}
-        defaultOpen
-        storageKey="agents.catalog.agents"
-      >
+      <div>
         {/* The header and the controls are static, so they stay put while the
             list loads rather than being replaced by a placeholder of themselves.
             The panel below is equally static - loading, empty and populated all
@@ -332,9 +326,7 @@ export default function AgentsPage() {
             )}
           </AgentsCard>
         )}
-      </CatalogSection>
-
-      <SystemAgentsSection query={query} agentsMatched={visible.length > 0} />
+      </div>
 
       <AgentTemplateDialog open={templatesOpen} onOpenChange={setTemplatesOpen} ceiling={ceiling} />
       <CreateAgentDialog

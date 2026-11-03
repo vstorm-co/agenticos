@@ -145,15 +145,13 @@ describe("generated cases on the dataset page", () => {
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
   });
 
-  it("says why nothing can be generated while AI assistance is off", async () => {
+  it("allows generation despite a stored legacy organization flag", async () => {
     orgs.current = [{ id: "o1", name: "Acme", ai_assistance_enabled: false }];
     answer({ ...DATASET, can_edit: true });
     await mount();
     await userEvent.click(await screen.findByRole("tab", { name: "Generated" }));
-    expect(
-      await screen.findByText(/Generating cases needs AI assistance, which is off/),
-    ).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Generate cases" })).toBeDisabled();
+    await userEvent.click(screen.getByRole("button", { name: "Generate cases" }));
+    expect(await screen.findByRole("dialog")).toHaveTextContent("estimated cost");
   });
 
   it("leads an empty dataset to the generator", async () => {
@@ -173,38 +171,12 @@ describe("generated cases on the dataset page", () => {
     search.current = null;
   });
 
-  it("points whoever may edit the generator at its instructions", async () => {
-    generators.current = [{ id: "g9", system_key: "case_generator", can_edit: true }];
+  it("configures helpers on the dataset without fetching catalog generators", async () => {
     answer({ ...DATASET, can_edit: true });
     await mount();
-    await userEvent.click(await screen.findByRole("tab", { name: "Generated" }));
-    expect(
-      await screen.findByRole("link", { name: "Edit the generator's instructions" }),
-    ).toHaveAttribute("href", "/agents/g9");
-  });
-
-  it("leaves the generator's instructions to whoever may edit them", async () => {
-    generators.current = [{ id: "g9", system_key: "case_generator", can_edit: false }];
-    answer({ ...DATASET, can_edit: true });
-    await mount();
-    await userEvent.click(await screen.findByRole("tab", { name: "Generated" }));
-    await screen.findByRole("button", { name: "Generate cases" });
-    await waitFor(() =>
-      expect(get.mock.calls.some(([, o]) => o?.params?.kind === "generator")).toBe(true),
-    );
+    expect(await screen.findByRole("tab", { name: "Settings" })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("tab", { name: "Generated" }));
     expect(screen.queryByRole("link", { name: "Edit the generator's instructions" })).toBeNull();
-  });
-
-  it("tells whoever may not run the generator so, before they fill in a request", async () => {
-    generators.current = [{ id: "g9", system_key: "case_generator", can_run: false }];
-    answer({ ...DATASET, can_edit: true });
-    await mount();
-    await userEvent.click(await screen.findByRole("tab", { name: "Generated" }));
-    expect(
-      await screen.findByText(
-        "You may not run the case generator. Ask an admin to share it with you.",
-      ),
-    ).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Generate cases" })).toBeDisabled();
+    expect(get.mock.calls.some(([, o]) => o?.params?.kind === "generator")).toBe(false);
   });
 });

@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 
-import { SystemAgentChoice } from "@/components/agents/system-agent-choice";
+import { ModelProfilePicker } from "@/components/agents/model-profile-picker";
+import { useModelProviders } from "@/hooks/use-model-providers";
 import { usd } from "@/components/evals/format";
 import {
   Button,
@@ -15,7 +16,7 @@ import {
   DialogTitle,
 } from "@/components/ui";
 import { getErrorMessage } from "@/lib/api-error";
-import { DIALOG_CONFIRM } from "@/lib/dialog-sizes";
+import { DIALOG_COLUMN, DIALOG_BODY, DIALOG_FORM } from "@/lib/dialog-sizes";
 import type { AuthoringEstimate, AuthoringKind, AuthoringStart } from "@/types/authoring";
 
 /**
@@ -38,20 +39,25 @@ export function ImproveDialog({
   const t = useTranslations("authoring.improve");
   const tErrors = useTranslations("errors");
   const locale = useLocale();
-  const [improverId, setImproverId] = useState<string | null>(null);
+  const [modelId, setModelId] = useState<string | null>(null);
+  const { profiles, profilesStatus } = useModelProviders();
   const [quote, setQuote] = useState<AuthoringEstimate | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [starting, setStarting] = useState(false);
 
   useEffect(() => {
     let current = true;
-    estimate({ kind, window_days: 30, ...(improverId ? { improver_agent_id: improverId } : {}) })
+    estimate({
+      kind,
+      window_days: 30,
+      helper_settings: { model_profile_id: modelId, instructions: null },
+    })
       .then((priced) => current && setQuote(priced))
       .catch((failure: unknown) => current && setError(getErrorMessage(failure, tErrors)));
     return () => {
       current = false;
     };
-  }, [kind, estimate, tErrors, improverId]);
+  }, [kind, estimate, tErrors, modelId]);
 
   async function go() {
     setStarting(true);
@@ -59,7 +65,7 @@ export function ImproveDialog({
       await start({
         kind,
         window_days: 30,
-        ...(improverId ? { improver_agent_id: improverId } : {}),
+        helper_settings: { model_profile_id: modelId, instructions: null },
       });
       onOpenChange(false);
     } catch (failure) {
@@ -71,40 +77,43 @@ export function ImproveDialog({
   const blocked = quote === null || quote.reason !== null || !quote.affordable;
   return (
     <Dialog open onOpenChange={onOpenChange}>
-      <DialogContent className={DIALOG_CONFIRM}>
+      <DialogContent className={`${DIALOG_COLUMN} ${DIALOG_FORM}`}>
         <DialogHeader>
           <DialogTitle>{t(`${kind}.title`)}</DialogTitle>
           <DialogDescription>{t(`${kind}.body`)}</DialogDescription>
         </DialogHeader>
-        {quote !== null && quote.reason === null && (
-          <p className="text-sm">
-            {t("quote", {
-              runs: quote.runs,
-              ratedDown: quote.rated_down,
-              calls: quote.calls,
-              cost: usd(quote.estimate_usd, locale),
-            })}
-          </p>
-        )}
-        {quote?.reason != null && <p className="text-sm">{t(`reason.${quote.reason}`)}</p>}
-        {quote !== null && quote.reason === null && !quote.affordable && (
-          <p className="text-destructive text-sm">{t("overBudget")}</p>
-        )}
-        {error !== null && (
-          <p role="alert" className="text-destructive text-sm">
-            {error}
-          </p>
-        )}
-        <SystemAgentChoice
-          kind="improver"
-          value={improverId}
-          onChange={(value) => {
-            setQuote(null);
-            setError(null);
-            setImproverId(value);
-          }}
-          disabled={starting}
-        />
+        <div className={`${DIALOG_BODY} space-y-4`}>
+          {quote !== null && quote.reason === null && (
+            <p className="text-sm">
+              {t("quote", {
+                runs: quote.runs,
+                ratedDown: quote.rated_down,
+                calls: quote.calls,
+                cost: usd(quote.estimate_usd, locale),
+              })}
+            </p>
+          )}
+          {quote?.reason != null && <p className="text-sm">{t(`reason.${quote.reason}`)}</p>}
+          {quote !== null && quote.reason === null && !quote.affordable && (
+            <p className="text-destructive text-sm">{t("overBudget")}</p>
+          )}
+          {error !== null && (
+            <p role="alert" className="text-destructive text-sm">
+              {error}
+            </p>
+          )}
+          <ModelProfilePicker
+            profiles={profiles}
+            profilesStatus={profilesStatus}
+            value={modelId}
+            onChange={(value) => {
+              setQuote(null);
+              setError(null);
+              setModelId(value);
+            }}
+            disabled={starting}
+          />
+        </div>
         <DialogFooter>
           <Button variant="ghost" onClick={() => onOpenChange(false)}>
             {t("cancel")}

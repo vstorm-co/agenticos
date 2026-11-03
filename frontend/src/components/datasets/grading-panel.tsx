@@ -5,28 +5,15 @@ import { Lightbulb, TriangleAlert } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
-import {
-  Button,
-  FormField,
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui";
-import { useAiAssistance } from "@/hooks/use-organizations";
-import { usePermissions } from "@/hooks/use-permissions";
+import { Button } from "@/components/ui";
 import { useSetScoring } from "@/hooks/use-scoring";
 import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
 import { getErrorMessage } from "@/lib/api-error";
 import { scoringProblem, ungradedCases } from "@/lib/scoring";
 import type { CaseCheck, Dataset } from "@/types/datasets";
-import { Perm } from "@/types/permissions";
-import type { DatasetScoring, ReviewSelect } from "@/types/scoring";
-import { AiAssistanceNotice } from "./ai-assistance-notice";
+import type { DatasetScoring } from "@/types/scoring";
 import { CaseChecksEditor } from "./case-checks-editor";
 import { checkDraft, checksOf, sameCheck, type CheckDraft } from "./case-form";
-import { CreateJudgeDialog } from "./create-judge-dialog";
 import { GradingCard } from "./grading-card";
 import { GradingSaveBar } from "./grading-save-bar";
 import { JudgeSettings } from "./judge-settings";
@@ -35,7 +22,6 @@ import { ScorerRow } from "./scorer-row";
 type Part = keyof DatasetScoring;
 const PASSES: Part[] = ["checks", "trajectory"];
 const JUDGING: Part[] = ["judge", "reference"];
-const REVIEW: Part[] = ["review"];
 
 /** What a kept copy of the panel's unsaved change holds. */
 export interface GradingCopy {
@@ -43,15 +29,7 @@ export interface GradingCopy {
   defaults: CheckDraft[];
 }
 
-/**
- * How a dataset's cases are graded, in three cards - when a case passes, which
- * judge grades it and how, and what waits for a person - saved together from one
- * bar that holds while any of them has a change.
- *
- * The rules and the expected tool calls cost nothing; the judge and the reference
- * comparison are runs of the judge, refused while AI assistance is off. Scores
- * already kept keep the configuration they were graded with.
- */
+/** Dataset grading: deterministic rules and model-backed criteria, saved together. */
 export function GradingPanel({
   dataset,
   onDirtyChange,
@@ -70,14 +48,10 @@ export function GradingPanel({
   const tDatasets = useTranslations("datasets");
   const tErrors = useTranslations("errors");
   const save = useSetScoring(dataset.id);
-  const { can } = usePermissions();
-  const { enabled: aiEnabled } = useAiAssistance();
   const stored = dataset.scoring;
   const [draft, setDraft] = useState<DatasetScoring>(stored);
   const [defaults, setDefaults] = useState<CheckDraft[]>(stored.checks.defaults.map(checkDraft));
   const [defaultsProblem, setDefaultsProblem] = useState<string | null>(null);
-  const [creating, setCreating] = useState(false);
-  const [focusRubric, setFocusRubric] = useState(0);
   const [restored, setRestored] = useState<number | null>(null);
   if (restore !== undefined && restore.at !== restored) {
     setRestored(restore.at);
@@ -86,9 +60,7 @@ export function GradingPanel({
   }
   const canEdit = dataset.can_edit;
   const disabled = !canEdit || save.isPending;
-  // The judge and the reference comparison are model runs, so they stay as stored
-  // and cannot be changed while the organization has AI assistance off.
-  const modelBacked = disabled || aiEnabled === false;
+  const modelBacked = disabled;
   const set = <K extends Part>(key: K, value: DatasetScoring[K]) =>
     setDraft((current) => ({ ...current, [key]: value }));
   const dirty = (parts: Part[]) =>
@@ -96,7 +68,7 @@ export function GradingPanel({
     (parts.includes("checks") &&
       JSON.stringify(defaults) !== JSON.stringify(stored.checks.defaults.map(checkDraft)));
   const problem = scoringProblem(draft);
-  const unsaved = dirty(PASSES) || dirty(JUDGING) || dirty(REVIEW);
+  const unsaved = dirty(PASSES) || dirty(JUDGING);
   const ungraded = ungradedCases(draft, dataset.stats, defaults.length);
   const of = (count: number) => t("coverage", { count, total: dataset.case_count });
   // A rule suggested under a criterion joins the checks every case gets, and turns them on.
@@ -145,14 +117,12 @@ export function GradingPanel({
 
   const unreferenced =
     canEdit &&
-    aiEnabled !== false &&
     dataset.stats.with_reference > 0 &&
     !draft.reference.enabled &&
     !stored.reference.enabled;
 
   return (
     <div className="space-y-4" data-tour="datasets-grading">
-      <AiAssistanceNotice />
       {canEdit && problem === null && ungraded > 0 && (
         <p
           role="status"
@@ -221,38 +191,14 @@ export function GradingPanel({
           referenceCoverage={of(dataset.stats.with_reference)}
           counterExampleCoverage={of(dataset.stats.with_counter_example)}
           judge={draft.judge}
+          defaultInstructions={dataset.helper_defaults?.judge}
           stored={stored.judge}
           reference={draft.reference}
           onJudge={(judge) => set("judge", judge)}
           onReference={(reference) => set("reference", reference)}
           disabled={modelBacked}
-          onCreate={canEdit && can(Perm.agentsEdit) ? () => setCreating(true) : undefined}
-          focusRubric={focusRubric}
           rules={rules}
         />
-      </GradingCard>
-
-      <GradingCard
-        title={t("reviewCard.title")}
-        description={t("reviewCard.description")}
-        dirty={dirty(REVIEW)}
-      >
-        <FormField htmlFor="scoring-review" label={t("reviewSelect")}>
-          <Select
-            value={draft.review.select}
-            onValueChange={(select) => set("review", { select: select as ReviewSelect })}
-            disabled={disabled}
-          >
-            <SelectTrigger id="scoring-review">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="none">{t("review.none")}</SelectItem>
-              <SelectItem value="failed">{t("review.failed")}</SelectItem>
-              <SelectItem value="all">{t("review.all")}</SelectItem>
-            </SelectContent>
-          </Select>
-        </FormField>
       </GradingCard>
 
       <p className="text-muted-foreground text-xs">{t("mustPassRule")}</p>
@@ -263,27 +209,6 @@ export function GradingPanel({
           saving={save.isPending}
           onSave={() => void submit()}
           onDiscard={discard}
-        />
-      )}
-
-      {creating && (
-        <CreateJudgeDialog
-          dataset={dataset}
-          onOpenChange={setCreating}
-          onCreated={(updated) => {
-            // The server switched grading on as it stored it; criteria typed here
-            // and not saved yet stay in the draft rather than being replaced.
-            const { judge, reference } = updated.scoring;
-            setDraft((current) => ({
-              ...current,
-              reference,
-              judge:
-                current.judge.criteria.length > 0
-                  ? { ...judge, criteria: current.judge.criteria }
-                  : judge,
-            }));
-            if (judge.enabled) setFocusRubric((count) => count + 1);
-          }}
         />
       )}
     </div>

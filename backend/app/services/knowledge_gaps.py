@@ -1014,7 +1014,6 @@ class KnowledgeGapService:
                 organization, or one impersonating somebody.
             NotFoundError: For a topic in a knowledge base the caller may not
                 change, or one with no questions left.
-            AiAssistanceDisabledError: The organization switched AI assistance off.
             SystemAgentUnavailableError: The drafter cannot run for this caller.
         """
         _require_runs_view(ctx)
@@ -1054,7 +1053,6 @@ class KnowledgeGapService:
         Raises:
             AuthorizationError: For a caller without `runs:view` across the organization.
             NotFoundError: For a topic in a knowledge base the caller may not change.
-            AiAssistanceDisabledError: The organization switched AI assistance off.
             SystemAgentUnavailableError: The drafter cannot run for this caller.
         """
         _require_runs_view(ctx)
@@ -1089,8 +1087,8 @@ class KnowledgeGapService:
         """Ask the drafting agent for the passage a topic's questions need, and keep it.
 
         One run of the organization's seeded knowledge-gap drafter, as the caller:
-        refused while the organization has AI assistance switched off, metered
-        against the drafter's and the organization's budgets, and listed in
+        checked for model readiness and metered against the drafter's and the
+        organization's budgets, and listed in
         Activity. It is shown the topic's newest questions, the answers they got,
         what each search returned then and what searching for them returns now,
         what readers said - with what identifies people taken out - and the
@@ -1102,7 +1100,6 @@ class KnowledgeGapService:
 
         Raises:
             AuthorizationError: For a caller without `runs:view` across the organization.
-            AiAssistanceDisabledError: The organization switched AI assistance off.
             NotFoundError: For a topic in a knowledge base the caller may not
                 change, or one with no questions left.
             BadRequestError: Somebody whose question the draft read was erased,
@@ -1629,7 +1626,6 @@ class KnowledgeGapService:
             AuthorizationError: For a caller without `runs:view` across the
                 organization, or one asking through an API key or impersonation.
             NotFoundError: For a knowledge base the caller may not change.
-            AiAssistanceDisabledError: The organization switched AI assistance off.
             SystemAgentUnavailableError: The classifier cannot run for this caller.
         """
         _require_runs_view(ctx)
@@ -1783,7 +1779,6 @@ class KnowledgeGapService:
         Raises:
             AuthorizationError: For a caller without `runs:view` across the organization.
             NotFoundError: For a knowledge base the caller may no longer change.
-            AiAssistanceDisabledError: The organization switched AI assistance off.
             SystemAgentUnavailableError: The classifier cannot run for this caller.
             SystemAgentRunError: The run ended without an answer, as a budget
                 refusal does; it is recorded.

@@ -35,6 +35,14 @@ vi.mock("@/hooks/use-agents", () => ({
   }),
 }));
 
+vi.mock("@/hooks/use-model-providers", () => ({
+  useModelProviders: () => ({ profiles: [], profilesStatus: "ready" }),
+}));
+vi.mock("@/components/agents/model-profile-picker", () => ({
+  ModelProfilePicker: ({ onChange }: { onChange: (id: string) => void }) => (
+    <button onClick={() => onChange("chosen-model")}>Choose model</button>
+  ),
+}));
 function quote(overrides: Partial<AuthoringEstimate> = {}): AuthoringEstimate {
   return {
     runs: 22,
@@ -64,11 +72,19 @@ describe("ImproveDialog", () => {
         onOpenChange={onOpenChange}
       />,
     );
-    expect(estimate).toHaveBeenCalledWith({ kind: "improve", window_days: 30 });
+    expect(estimate).toHaveBeenCalledWith({
+      kind: "improve",
+      window_days: 30,
+      helper_settings: { model_profile_id: null, instructions: null },
+    });
     expect(await screen.findByText(/It will read 22 runs, 6 rated down/)).toBeInTheDocument();
     expect(start).not.toHaveBeenCalled();
     await userEvent.click(screen.getByRole("button", { name: "Start" }));
-    expect(start).toHaveBeenCalledWith({ kind: "improve", window_days: 30 });
+    expect(start).toHaveBeenCalledWith({
+      kind: "improve",
+      window_days: 30,
+      helper_settings: { model_profile_id: null, instructions: null },
+    });
     await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
   });
 
@@ -150,41 +166,23 @@ describe("ImproveDialog", () => {
   });
 });
 
-it("re-estimates after changing the improver and starts with the selected helper", async () => {
+it("re-estimates after changing the model and starts with exactly that model", async () => {
   const estimate = vi.fn().mockResolvedValue(quote());
   const start = vi.fn().mockResolvedValue({});
   render(<ImproveDialog kind="improve" estimate={estimate} start={start} onOpenChange={vi.fn()} />);
   await screen.findByText(/It will read/);
-  await userEvent.click(screen.getByText("Authoring assistant"));
-  await userEvent.click(screen.getByRole("combobox", { name: "Run with" }));
-  await userEvent.click(screen.getByRole("option", { name: "Selected helper" }));
+  await userEvent.click(screen.getByRole("button", { name: "Choose model" }));
   await waitFor(() =>
     expect(estimate).toHaveBeenLastCalledWith({
       kind: "improve",
       window_days: 30,
-      improver_agent_id: "helper",
+      helper_settings: { model_profile_id: "chosen-model", instructions: null },
     }),
   );
   await userEvent.click(screen.getByRole("button", { name: "Start" }));
   expect(start).toHaveBeenCalledWith({
     kind: "improve",
     window_days: 30,
-    improver_agent_id: "helper",
+    helper_settings: { model_profile_id: "chosen-model", instructions: null },
   });
-});
-
-it("names the default helper and offers no choice when it is the only one", async () => {
-  helpers.alternatives = false;
-  render(
-    <ImproveDialog
-      kind="improve"
-      estimate={vi.fn().mockResolvedValue(quote())}
-      start={vi.fn()}
-      onOpenChange={vi.fn()}
-    />,
-  );
-  await screen.findByText(/It will read/);
-  await userEvent.click(screen.getByText("Authoring assistant"));
-  expect(screen.queryByRole("combobox", { name: "Run with" })).toBeNull();
-  expect(screen.getByText(/Runs with Authoring assistant · gpt-4\.1-mini/)).toBeInTheDocument();
 });

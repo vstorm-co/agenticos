@@ -10,8 +10,7 @@ What the issue promises, checked where only a database shows it:
   does not;
 
 and the refusals: another organization, the grants, a script or an
-administrator acting as somebody, the budget, the cost ceiling, AI assistance
-off, and an owner who has left.
+administrator acting as somebody, the budget, the cost ceiling, model readiness, and an owner who has left.
 """
 
 import uuid
@@ -895,7 +894,7 @@ async def test_a_run_over_the_suites_ceiling_is_skipped_and_refused_by_hand(db) 
     assert (result.status, result.reason) == ("skipped", "over_cost_cap")
 
 
-async def test_with_ai_assistance_off_a_judged_suite_is_skipped_and_a_checked_one_runs(db) -> None:
+async def test_a_legacy_ai_flag_does_not_skip_a_judged_suite(db) -> None:
     ctx = await _owner(db)
     agent, _ = await _agent(db, ctx)
     judged = await _dataset(db, ctx, checks=[{"type": "judge", "criterion": "Cites the policy"}])
@@ -909,7 +908,9 @@ async def test_with_ai_assistance_off_a_judged_suite_is_skipped_and_a_checked_on
 
     [skipped] = await _results(db, one.id)
     [ran] = await _results(db, two.id)
-    assert (skipped.status, skipped.reason) == ("skipped", "ai_assistance_off")
+    assert skipped.status != "skipped"
+    assert skipped.reason != "ai_assistance_off"
+    assert skipped.eval_run_id is not None
     assert ran.status == "passed"
 
 

@@ -252,6 +252,9 @@ class PublishedCandidate:
     context_bodies: Mapping[UUID, ContextBody] = field(default_factory=dict)
     """Proposed skill bodies served in place of the stored ones, by skill id."""
 
+    instructions: str | None = None
+    """Dataset-owned pipeline instructions; the published identity remains auditable."""
+
 
 @dataclass(frozen=True)
 class UnpublishedCandidate:
@@ -1697,6 +1700,7 @@ class AgentRegistryService:
         user_ids: list[UUID] | None = None,
         from_starter: bool = False,
         choose_model: bool = True,
+        pipeline_kind: AgentKind | None = None,
     ) -> Agent:
         """Create an agent in draft.
 
@@ -1723,7 +1727,10 @@ class AgentRegistryService:
                 deployment that has never set one has - see
                 `DeploymentSettings.max_agents_per_organization`.
         """
-        await self._refuse_past_the_ceiling(ctx)
+        if pipeline_kind is None:
+            await self._refuse_past_the_ceiling(ctx)
+        elif pipeline_kind == AgentKind.AGENT:
+            raise ValueError("A pipeline identity must have a helper kind")
         if from_starter:
             spec = await self._from_the_starter(ctx, spec)
         elif not spec.instructions.strip():
@@ -1760,6 +1767,10 @@ class AgentRegistryService:
             categories=categories or [],
             tags=tags or [],
         )
+        if pipeline_kind is not None:
+            agent = await agent_repo.update(
+                self.db, agent=agent, update_data={"kind": pipeline_kind.value}
+            )
         await record_audit(
             self.db,
             actor_user_id=ctx.subject_id,
@@ -4255,7 +4266,10 @@ class AgentRegistryService:
                 message=f"That version is not one of agent '{agent.name}'s",
                 details={"agent_id": agent.id, "version_id": candidate.version_id},
             )
-        return agent, AgentSpec.model_validate(version.spec), version.id
+        spec = AgentSpec.model_validate(version.spec)
+        if candidate.instructions is not None:
+            spec = spec.model_copy(update={"instructions": candidate.instructions})
+        return agent, spec, version.id
 
     async def _runnable(self, ctx: AuthContext, agent_id: UUID) -> Agent:
         agent = await self.get(ctx, agent_id, perm=Perm.AGENTS_RUN)

@@ -1653,14 +1653,14 @@ async def test_a_cached_baseline_must_have_been_graded_by_the_judge_that_grades_
     await _pin(db, first.id, None)
     assert await baseline_basis() == "history"
 
-    # With AI assistance off no judge grades now, so only an ungraded arm stands in.
+    # The legacy organization flag does not change whether the dataset is judged.
     await _assist(db, ctx, on=False)
-    assert await baseline_basis() == "cached"
+    assert await baseline_basis() == "history"
     await _pin(db, first.id, {"agent_version_id": None, "rubric_hash": "a"})
     assert await baseline_basis() == "history"
 
 
-async def test_with_ai_assistance_off_the_estimate_has_no_judge(db) -> None:
+async def test_legacy_ai_flag_does_not_remove_grading_from_the_estimate(db) -> None:
     ctx = await _owner(db)
     agent, _ = await _agent(db, ctx)
     dataset = await _dataset(db, ctx, cases=4)
@@ -1673,8 +1673,8 @@ async def test_with_ai_assistance_off_the_estimate_has_no_judge(db) -> None:
         ctx, agent.id, EvalRunRequest(dataset_id=dataset.id)
     )
 
-    assert estimate.judge_usd == Decimal(0)
-    assert estimate.total_usd == Decimal("0.20")
+    assert estimate.judge_usd == Decimal("0.20")
+    assert estimate.total_usd == Decimal("0.40")
 
 
 async def test_what_cannot_run_is_refused_before_anything_is_estimated(db) -> None:

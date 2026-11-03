@@ -118,7 +118,6 @@ from app.services.agent_registry import (
     PublishedCandidate,
     UnpublishedCandidate,
 )
-from app.services.ai_assistance import AiAssistanceService
 from app.services.background_jobs import enqueue
 from app.services.dataset import DatasetService
 from app.services.eval_comparison import (
@@ -230,7 +229,7 @@ def _check_type(check: object) -> str | None:
     return check.get("type") if isinstance(check, dict) else None
 
 
-def decidable(case: DatasetCase, scoring: DatasetScoring, *, ai_enabled: bool) -> bool:
+def decidable(case: DatasetCase, scoring: DatasetScoring) -> bool:
     """Whether a required scorer has something to decide this case on.
 
     A check needs a check to apply, the trajectory an expected call, and the
@@ -246,11 +245,11 @@ def decidable(case: DatasetCase, scoring: DatasetScoring, *, ai_enabled: bool) -
     if checks.enabled and checks.required:
         if any(kind != "judge" for kind in kinds):
             return True
-        if "judge" in kinds and ai_enabled:
+        if "judge" in kinds:
             return True
     if trajectory.enabled and trajectory.required and case.expected_tool_calls:
         return True
-    judged = (
+    return (
         (reference.enabled and reference.required and bool(case.reference_answer))
         or (
             judge.enabled
@@ -263,27 +262,17 @@ def decidable(case: DatasetCase, scoring: DatasetScoring, *, ai_enabled: bool) -
         # A counter-example is always a required criterion of whichever judges it.
         or (bool(case.counter_example) and (judge.enabled or reference.enabled))
     )
-    return judged and ai_enabled
 
 
 def scoring_refusal(
-    scoring: DatasetScoring, cases: Sequence[DatasetCase], *, ai_enabled: bool
+    scoring: DatasetScoring, cases: Sequence[DatasetCase]
 ) -> BadRequestError | None:
     """Why no case of this version could be decided, or `None` when one can.
 
     A run whose every case ends undecided spends money to say nothing.
     """
-    if any(decidable(case, scoring, ai_enabled=ai_enabled) for case in cases):
+    if any(decidable(case, scoring) for case in cases):
         return None
-    if any(decidable(case, scoring, ai_enabled=True) for case in cases):
-        return BadRequestError(
-            message=(
-                "The judge needs AI assistance, which is off for this organization, and "
-                "nothing else in this dataset's scoring can decide a case. Turn AI "
-                "assistance on in the organization's settings, or add a check."
-            ),
-            details={"reason": "ai_assistance_off"},
-        )
     return BadRequestError(
         message=(
             "Nothing in this dataset's scoring can decide a case. Add a check, an "
@@ -505,10 +494,10 @@ class EvalRunService:
                     details={"dataset_id": dataset.id, "excluded": len(excluded)},
                 )
         config = scoring or DatasetScoring.model_validate(dataset.scoring)
-        ai_enabled = await AiAssistanceService(self.db).is_enabled(
-            organization_id=ctx.organization_id
-        )
-        refusal = scoring_refusal(config, cases, ai_enabled=ai_enabled)
+        if not judge_pinned and config.judge.instructions is None:
+            config = config.model_copy(deep=True)
+            config.judge.instructions = JUDGE.instructions
+        refusal = scoring_refusal(config, cases)
         if refusal is not None:
             raise refusal
 
@@ -609,7 +598,7 @@ class EvalRunService:
                         from_recordings=request.from_recordings,
                         live_reads=request.live_reads,
                     ),
-                    judged=ai_enabled and (config.judge.enabled or config.reference.enabled),
+                    judged=(config.judge.enabled or config.reference.enabled),
                     judge_id=config.judge.agent_id,
                     judge_version_id=judge_version_id,
                     judge_pinned=judge_pinned,
@@ -634,7 +623,7 @@ class EvalRunService:
                     version,
                     scoring_hash=hashed,
                     execution=execution,
-                    judged=ai_enabled and (config.judge.enabled or config.reference.enabled),
+                    judged=(config.judge.enabled or config.reference.enabled),
                     judge_id=config.judge.agent_id,
                     judge_version_id=judge_version_id,
                     judge_pinned=judge_pinned,
@@ -673,11 +662,11 @@ class EvalRunService:
             reruns=reruns,
             from_recordings=request.from_recordings,
             live_reads=request.live_reads,
-            judged=ai_enabled and (config.judge.enabled or config.reference.enabled),
+            judged=(config.judge.enabled or config.reference.enabled),
             judge_version_id=judge_version_id,
             judge_pinned=judge_pinned,
             missing_baseline=missing,
-            ungraded=sum(1 for case in cases if not decidable(case, config, ai_enabled=ai_enabled)),
+            ungraded=sum(1 for case in cases if not decidable(case, config)),
             excluded_case_ids=excluded,
         )
 
@@ -1233,9 +1222,6 @@ class EvalRunService:
                 message="The proposal's evidence is too large to isolate its test safely. Request a new proposal.",
                 details={"reason": "evidence_too_large"},
             )
-        ai_enabled = await AiAssistanceService(self.db).is_enabled(
-            organization_id=ctx.organization_id
-        )
         cases = [
             CaseIdentity(
                 case.case_id,
@@ -1244,7 +1230,7 @@ class EvalRunService:
                 else ("holdout" if case.case_id in holdout else "train"),
                 case.input,
                 case.source_run_id,
-                decidable(case, plan.scoring, ai_enabled=ai_enabled),
+                decidable(case, plan.scoring),
             )
             for case in plan.cases
         ]
@@ -1361,11 +1347,9 @@ class EvalRunService:
         judge_model: UUID | None = None
         if plan.judged:
             judge = await self._judge_agent(ctx, plan.scoring.judge.agent_id)
-            judge_model = (
-                await self._judge_model(ctx, judge, version_id=plan.judge_version_id)
-                if judge is not None
-                else None
-            )
+            judge_model = plan.scoring.judge.model_profile_id
+            if judge_model is None and judge is not None:
+                judge_model = await self._judge_model(ctx, judge, version_id=plan.judge_version_id)
             # Its history on the model it is published on, as a side's is: one
             # republished on a dearer model must not be priced at the old one.
             judge_label = (
@@ -2194,7 +2178,7 @@ class EvalRunService:
         Each candidate's first answer to a case its comparison confirmed it broke
         - unless the two sides cannot be compared - then every answer the judge
         failed to grade and no person has decided. A judge that was skipped -
-        AI assistance off, its budget spent - is a state to fix and grade again,
+        its model unavailable, its budget spent - is a state to fix and grade again,
         not work for a person.
         """
         org = ctx.organization_id

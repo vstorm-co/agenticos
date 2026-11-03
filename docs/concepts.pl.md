@@ -1,5 +1,5 @@
 ---
-source_sha: "ee6d4d1266f8"
+source_sha: "74b903bad6eb"
 ---
 
 # Koncepcje { #concepts }
@@ -610,141 +610,21 @@ dowiedzieć się, kto komu może delegować.
 
 ---
 
-## Agenci systemowi { #system-agents }
+## Pomocnicy ewaluacji { #system-agents }
 
-Niektórych agentów uruchamia platforma, a nie człowiek: **sędziów**, którzy
-oceniają odpowiedzi na potrzeby [oceniania datasetów](datasets.md#judge),
-**Knowledge gap drafter**, który pisze szkic fragmentu, którego brakuje przy
-[luce w wiedzy](knowledge-gaps.md#drafting-the-missing-content), oraz
-**Knowledge gap classifier**, który czyta odpowiedzi w poszukiwaniu
-[pytań, na które baza wiedzy nie umiała odpowiedzieć](knowledge-gaps.md#answers-and-comments).
-To są **agenci systemowi**. Rodzaj agenta mówi, którym jest - `agent` dla tych,
-których używają ludzie, `judge`, `drafter` i `classifier` dla tych. Każda
-organizacja dostaje domyślnego **Eval judge**, draftera i klasyfikator przy
-utworzeniu, organizacja utworzona
-wcześniej dostaje każdego z nich wtedy, gdy coś po raz pierwszy go potrzebuje,
-a dataset może dostać własnego sędziego.
+Ocenianie, generowanie przypadków i proponowanie ulepszeń korzystają z pomocników zdefiniowanych w kodzie. Konfiguruje się ich na datasecie; nie występują w katalogu jako agenci do tworzenia i edycji. Architect i asystenci AgenticOS pozostają zwykłymi agentami produktu.
 
-Agent systemowy należy do platformy, która go uruchamia, a nie jest agentem,
-którego używają ludzie. Agents pokazuje ich osobno, w zwiniętym pasie **Agenci
-systemowi** pod **Agenci**, pogrupowanych według rodzaju: najpierw **Sędziowie**
+Zakładka **Ocenianie** datasetu wybiera model oceniający, instrukcje, kryteria i próg. **Ustawienia** wybierają model i instrukcje generowania przypadków oraz ulepszania agenta, używając tego samego selektora modeli i edytora Markdown co Agent Builder. Początkowe instrukcje pochodzą z kodu. Zmiany wymagają `datasets:edit`, a dodanie modelu także `connections:manage`.
 
-- każda karta mówi, które datasety ocenia dany sędzia - potem **Autor szkiców
-  luk**, a na końcu **Klasyfikator luk**. Agent każdego rodzaju utworzony przez
-  platformę jest oznaczony jako domyślny dla tego rodzaju - **Domyślny sędzia**,
-  **Domyślny generator przypadków** i tak dalej.
-  Wybory agenta ich pomijają.
+Zadania generowania, żądania asystenta i sesje ulepszania zachowują model i instrukcje z chwili startu. Zmiana ustawień dotyczy kolejnych zadań. Historyczne identyfikatory pomocników i opublikowane wersje pozostają w bazie dla historii runów, budżetów i starych przypięć; nie zajmują limitu agentów użytkownika.
 
-Zmiana takiego agenta to ustawienie organizacji. Edycja jego instrukcji,
-modelu albo budżetu, publikacja, przywrócenie wersji, archiwizacja i usunięcie
-wymagają `org:settings` - uprawnienia, które włącza
-[AI assistance](governance.md#ai-assistance) - niezależnie od tego, czyj jest
-wiersz; pozostali, którzy widzą agentów, mogą go tylko czytać, a jego strona
-mówi, dlaczego kontrolki są zablokowane. Otwiera się go z pasa albo, w przypadku
-draftera, przez **Edytuj instrukcje draftera** przy szkicu, a jego nagłówek
-mówi **Agent systemowy** i podaje rodzaj.
+### Izolacja { #system-agent-spec }
 
-Jego strona ma zakładki zwykłego agenta, tylko mniej: **Budowa** z
-instrukcjami i modelem, **Narzędzia** z tym, co może wiązać - Knowledge search,
-Context i Skills - **Limity** z budżetem i **Historia**. Strona sędziego ma też
-zakładkę **Datasety** z datasetami, które go wybrały, z włączonym ocenianiem
-albo bez - każdy rozwija się na jego ostatnie oceny i runy ewaluacji, z których
-pochodzą - wraz z tym, jak często ludzie zgodzili się z nim w wynikach, które
-ocenił, a oni rozstrzygnęli. Zakładka Narzędzia klasyfikatora nie ma Skills,
-chyba że jego szkic wciąż jakieś ma - wtedy można je tylko zdjąć.
+Pomocnicy działają przez dotychczasowy runner na powierzchni `eval`. Przed płatnym wywołaniem sprawdzane są dostęp osoby, poświadczenia modelu i budżety; koszty i błędy widać w Aktywności. Izolacja blokuje zapisy do produkcyjnych połączeń i ogranicza odczyty wiedzy do dostępu zlecającej osoby. Pomocnika nie można wystawić przez chat, kanał, harmonogram ani delegację.
 
-**Nowy agent** → **Agent systemowy** tworzy dowolny z pięciu rodzajów: sędziego,
-generator przypadków, autora szkiców luk, klasyfikator luk lub asystenta
-poprawiania (`POST /agents/system`). Zaczyna od instrukcji, temperatury i budżetu
-danego rodzaju, na pierwszym modelu organizacji; publikacja wymaga odpowiednich
-uprawnień, a każda późniejsza zmiana - `org:settings`. Sędziego wybierasz w ocenianiu datasetu, generator przy generowaniu
-przypadków, pomocników wiedzy na zakładce luk bazy wiedzy, a asystenta przy
-poprawianiu. Domyślnie działa agent organizacji, nazwany w wyborze razem ze
-swoim opublikowanym modelem; gdy organizacja nie ma innego agenta tego rodzaju,
-nie ma z czego wybierać i wybór tylko go nazywa, z linkiem do jego strony.
-Wybrany pomocnik musi mieć
-odpowiedni rodzaj, być opublikowany i dostępny do uruchomienia przez użytkownika.
-Usunięty wybór nigdy nie jest automatycznie zastępowany domyślnym.
+### Istniejące zadania { #retiring-a-system-agent }
 
-Jego runy są sprawdzane względem budżetu i zapisywane jak każde inne, i nie
-wysyłają powiadomienia o runie. Agent systemowy startuje z niewielkim własnym
-miesięcznym budżetem, żeby nowa organizacja nie mogła przypadkiem wydać całego
-swojego budżetu na ewaluację, szkice albo sprawdzanie odpowiedzi.
-
-Agentem systemowym jest też **generator przypadków**, rodzaju `generator`:
-przygotowuje [przypadki do datasetów](datasets.md#generating-cases) i jest
-tworzony tak samo, z własnym budżetem. Jest w tym samym pasie, po drafterze, i
-otwiera się go i edytuje tak jak sędziego; zakładka Generated datasetu prowadzi
-do niego każdego, kto może go edytować.
-
-Uruchamia go tylko platforma. Czat, API, A2A, embed albo publiczna strona,
-kanał, harmonogram i delegowanie z innego agenta odmawiają go w usłudze, która
-uruchomiłaby run, a nie tylko w konsoli. Ani eval, ani sesja ulepszania go nie
-testuje ani nie poprawia: odpowiada temu, kto go wywołuje, w JSON, nigdy na
-pytanie człowieka, więc pytania datasetu nic o nim nie mówią.
-
-Każdy run agenta systemowego jest [izolowany](environments.md#in-an-eval) tak
-jak run evala. Agent systemowy czyta tekst, którego nikt nie sprawdził -
-odpowiedź do oceny, dokument, rozmowę - a jego odpowiedź trafia do ludzi, którzy
-mogą nie widzieć tego, co przeczytał, więc jedynym narzędziem, jakie może mieć,
-jest wyszukiwanie w bazach wiedzy, których dotyczy jego run, a niczyja pamięć
-do niego nie trafia.
-
-### Co może zawierać jego spec { #system-agent-spec }
-
-Agent systemowy nie sięga dalej niż to, czego dotyczy jego run. Jego spec może
-wiązać **Thinking**, **Context**, **Skills** i **Knowledge search** - sposób
-rozumowania, stały tekst, który czyta, i wyszukiwanie - i nic więcej. Zapis
-draftu albo import YAML, który dodaje inną capability, przypiętą bazę wiedzy,
-serwer MCP, delegata, głos albo dyktowanie, startery, code mode albo
-recenzenta, jest odrzucany pole po polu, podobnie jak approval na czterech
-dozwolonych: nikt nie udzieli go w trakcie runu.
-
-**Knowledge search** nie przypina żadnej bazy wiedzy. Platforma wybiera te,
-których dotyczy dany run - bazy ocenianego agenta dla sędziego, bazę luki dla
-autora szkiców i klasyfikatora, bazy, z których generowanie pisze przypadki,
-dla generatora, bazy ulepszanego agenta dla asystenta - a run przeszukuje tylko
-te, które jego osoba może czytać. Wyszukiwanie kończy się w `max_steps`: 3,
-jeśli nie ustawiono, najwyżej 5, a każdy krok to płatne żądanie, które liczą
-wyceny. Pliki kontekstu i skille, które czyta, muszą być udostępnione całej
-organizacji, a niczyja pamięć nie trafia do jego runa, cokolwiek zawiera jego
-wersja.
-
-Publikacja wymaga też instrukcji i miejsca na odpowiedź. Odpowiedź to jeden
-obiekt JSON, więc `max_tokens` poniżej progu danego rodzaju ucinałby każdą
-odpowiedź, a nie jedną; brak ustawienia zostawia limit samego modelu.
-
-| Rodzaj               | Próg   | Miejsce na                                                                                                      |
-| -------------------- | ------ | --------------------------------------------------------------------------------------------------------------- |
-| Sędzia               | 4 096  | Ocenę każdego kryterium - do 20 kryteriów rubryki, wzorzec i kontrprzykład - z uzasadnieniem, regułą i cytatami |
-| Generator przypadków | 20 000 | Do 50 przypadków, po 400 tokenów, które wycena generowania przyjmuje na każdy                                   |
-| Autor szkiców luk    | 6 144  | Jeden fragment o limicie 20 000 znaków, z tytułem i odwołaniami                                                 |
-| Klasyfikator luk     | 2 048  | Paczkę 20 odpowiedzi, każda z etykietą i uzasadnieniem do 300 znaków                                            |
-| Asystent poprawiania | 8 192  | Nowy skill o limicie 20 000 znaków obok zmian instrukcji z tej samej propozycji                                 |
-
-### Jego środowisko i wycofanie { #retiring-a-system-agent }
-
-Agent systemowy działa w swoim domyślnym środowisku, które idzie za każdą
-publikacją. Dodanie środowiska, przypięcie go, guard albo promocja wersji są
-odrzucane - zamiast tego przywróć wersję - a publikacja przesuwa domyślne
-środowisko przypięte, zanim zaczęto to odrzucać.
-
-Domyślnego agenta danego rodzaju w organizacji nie da się zarchiwizować ani
-usunąć: działa na nim wszystko, co nie wybrało innego. Agenta utworzonego przez
-organizację można zarchiwizować albo usunąć, gdy żaden dataset nie ocenia nim
-odpowiedzi, żadna baza wiedzy nie szkicuje ani nie klasyfikuje nim luk, a żadne
-żądanie asystenta, generowanie przypadków, sesja ulepszania ani eval nie jest z
-nim w toku; odmowa mówi, co go jeszcze używa.
-
-Gdy organizacja ma już profil modelu, agent systemowy jest publikowany na
-najstarszym z nich albo na tym, który wybrano przy jego tworzeniu. Bez profilu
-jest tworzony jako draft. Seedowani Eval judge, drafter i klasyfikator są publikowani na
-pierwszym modelu organizacji, gdy tylko zostanie on dodany; własny sędzia
-datasetu czeka, aż człowiek wybierze mu model i go opublikuje, a do tego czasu
-mówią o tym funkcje, które z niego korzystają.
-
-[Przełącznik wsparcia AI](governance.md#ai-assistance) organizacji decyduje, czy
-agenci systemowi w ogóle działają.
+Migracja zachowuje modele i instrukcje istniejących oceniających oraz zadań w kolejce. Historyczne runy i przypięcia zestawów zachowują swoje identyfikatory. Nie ma organizacyjnego przełącznika wsparcia AI ani organizacyjnego modelu oceniania; konfiguruje się dataset i korzysta z dotychczasowych uprawnień oraz budżetów.
 
 ## Profile modeli { #model-profiles }
 

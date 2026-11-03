@@ -1,5 +1,5 @@
 ---
-source_sha: "248c67b73df6"
+source_sha: "c428b004a390"
 title: "Wissenslücken"
 description: "Wissenslücken zeigen die Fragen, zu denen ein Agent in seiner Wissensbasis nichts Passendes gefunden oder ohne Wissen geantwortet hat, nach Thema gruppiert, damit klar ist, welches Dokument fehlt."
 ---
@@ -20,14 +20,7 @@ lassen sich die Fragen des Themas in Fälle eines [Datasets](datasets.md)
 umwandeln, damit ein Eval zeigt, ob das neue Dokument die Antworten verändert
 hat.
 
-Editoren wählen **KI-Helfer** im Lücken-Tab der Wissensbasis: einen eigenen
-veröffentlichten Klassifizierer und Entwurfsautor oder die Organisationsstandards.
-Die Felder heißen `gap_classifier_agent_id` und `gap_drafter_agent_id`; null stellt
-den Standard wieder her, ein ausgelassenes Feld behält seine Auswahl.
-Bezahlte Aufrufe prüfen Zugriff und Typ erneut; gelöschte Auswahlen werden
-explizit abgelehnt. Deploymentweite Wissensbasen nutzen die Standards der
-jeweiligen Organisation, da eine gemeinsame Einstellung keinen privaten Helfer
-einer einzelnen Organisation referenzieren darf.
+Die Klassifizierung von Wissenslücken und das Schreiben von Entwürfen nutzen im Code definierte Helfer. Interne Identitäten bleiben für Zugriffskontrollen, Budgets und Aktivität erhalten; die Konsole zeigt keinen eigenen Helferkatalog oder Anweisungseditor. Frühere API-Helferauswahlen bestehender Wissensbasen bleiben lesbar.
 
 ## Wie eine Frage zur Lücke wird { #how-a-question-becomes-a-gap }
 
@@ -59,14 +52,7 @@ behalten.
 
 ## Antworten und Kommentare { #answers-and-comments }
 
-Eine Suche kann eine Passage finden, und der Agent kennt die Antwort trotzdem
-nicht; ein Leser kann eine Antwort negativ bewerten, weil etwas fehlte. Die
-Suche allein sieht beides nicht. **N Antworten prüfen** auf dem Tab
-Wissenslücken der Wissensbasis lässt ein Modell ihre letzten Antworten darauf
-lesen. Die Schaltfläche erscheint, solange die
-[KI-Unterstützung](governance.md#ai-assistance) eingeschaltet ist, und zählt
-die noch ungelesenen Antworten. Ist der Schalter aus, sagt der Tab, wie viele
-Antworten warten, mit einem Link zum Schalter für alle, die ihn ändern dürfen.
+Das Prüfen aktueller Antworten und Entwerfen fehlender Inhalte benötigt einen ausdrücklichen Auftrag, Ressourcenzugriff, ein lauffähiges Modell und Budget. Aktivität erfasst die Aufrufe. Das Gruppieren ohne Modellaufruf bleibt verfügbar.
 
 Das Modell ist der **Knowledge gap classifier**, ein
 [System-Agent](concepts.md#system-agents), den jede Organisation hat. Er liest
@@ -245,8 +231,8 @@ Ein Entwurf wird im Hintergrund geschrieben, als du, mit deinem Zugriff, wie er
 beim Ausführen ist. Das Thema zeigt **Wird entworfen…** (Drafting…), bis der
 Entwurf fertig ist, und eine geöffnete Seite zeigt ihn ohne Neuladen; eine
 erneute Bitte startet in der Zwischenzeit nichts weiter. Ein Entwurf, der nicht
-geschrieben werden konnte, weil ein Budget aufgebraucht oder die
-KI-Unterstützung inzwischen ausgeschaltet wurde, sagt das, mit **Erneut
+geschrieben werden konnte, weil ein Budget aufgebraucht oder das
+Modell inzwischen nicht verfügbar war, sagt das, mit **Erneut
 versuchen** (Try again). Ein Entwurf aus den Fragen einer einzigen Person sagt
 das ebenfalls: Prüfe ihn im Wissen, dass er auf dem beruht, was eine Person
 gefragt hat.
@@ -264,9 +250,7 @@ Inhalt hinzuzufügen. **Neu entwerfen** (Redraft) ersetzt den Entwurf. Wird
 nach einem Entwurf ein Dokument zur Wissensbasis hinzugefügt, sagt der Entwurf,
 dass sich die Wissensbasis danach geändert hat: Er kann das neue Dokument
 wiederholen oder ihm widersprechen, also schreibt **Neu entwerfen** ihn erneut
-gegen das, was die Wissensbasis jetzt enthält. Wer den Lücken-Entwerfer bearbeiten darf, findet am Entwurf **Anweisungen des
-Lücken-Entwerfers bearbeiten** und den Lücken-Entwerfer selbst unter **System-Agents** auf der
-Seite Agents.
+gegen das, was die Wissensbasis jetzt enthält.
 
 Ein Entwurf nennt seine Quellen: die Dokumente der Wissensbasis, auf die er
 sich stützt, die Kontextdateien, denen er folgt, und die Fragen des Themas, die
@@ -280,14 +264,7 @@ werden behalten. Eine später gelöschte Quelle wird nicht mehr angezeigt.
 Quellen werden nicht mehr gezeigt, weil das, worauf sich das Modell berief, nicht
 mehr für ihn spricht.
 
-Ein Entwurf ist ein Modell-Run wie jeder andere. Er wird verweigert, solange die
-Organisation die [KI-Unterstützung](governance.md#ai-assistance) ausgeschaltet
-hat, und das ist sie, bis jemand mit `org:settings` sie einschaltet; bis dahin
-sagt das Thema es, mit einem Link zum Schalter für den, der ihn ändern darf. Vor
-dem Modellaufruf werden das Budget des Entwerfers und das der
-Organisation geprüft, und seine Kosten erscheinen in **Aktivität** (Activity). Das Gruppieren
-von Fragen zu Themen lässt kein Modell etwas schreiben und läuft deshalb
-unabhängig vom Schalter.
+Das Prüfen aktueller Antworten und Entwerfen fehlender Inhalte benötigt einen ausdrücklichen Auftrag, Ressourcenzugriff, ein lauffähiges Modell und Budget. Aktivität erfasst die Aufrufe. Das Gruppieren ohne Modellaufruf bleibt verfügbar.
 
 ## Zugriff { #access }
 

@@ -1,10 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronRight, FlaskConical, Play } from "lucide-react";
+import { FlaskConical, Play } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 
-import { AgentAvatar } from "@/components/agents/agent-avatar";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states";
 import { Button, ListCard, Pager } from "@/components/ui";
 import { useDataset } from "@/hooks/use-datasets";
@@ -14,7 +13,7 @@ import type { Agent } from "@/types/agents";
 import type { EvalRun } from "@/types/eval-runs";
 import { NeedsRunsView } from "./needs-runs-view";
 import { PassRateChart, passRateLines } from "./pass-rate-chart";
-import { EvalRunRow } from "./run-row";
+import { RunsTable } from "./runs-table";
 import { StartEvalDialog } from "./start-eval-dialog";
 
 /**
@@ -152,42 +151,25 @@ function Groups({
   }
   return (
     <div className="space-y-4" data-tour="dataset-evals">
-      {groups.map((group, index) => {
-        const agent = known.get(group.id);
-        const name = agent?.name ?? t("dataset.unnamedAgent");
-        return (
-          <details key={group.id} open={index === 0} className="group rounded-lg border p-3">
-            <summary className="flex cursor-pointer list-none items-center gap-1.5 text-sm font-medium">
-              <ChevronRight
-                className="h-3.5 w-3.5 transition-transform group-open:rotate-90"
-                aria-hidden
-              />
-              {agent && (
-                <AgentAvatar
-                  agentId={agent.id}
-                  slug={agent.slug}
-                  hasAvatar={agent.has_avatar}
-                  colorSlot={agent.avatar_color}
-                  size="sm"
-                />
-              )}
-              {t("group", { name, count: group.runs.length })}
-            </summary>
-            <div className="mt-3 space-y-3">
-              <PassRateChart
-                compact
-                rangeKey={`runs-${group.id.slice(0, 8)}`}
-                lines={passRateLines(group.runs, () => ({ key: group.id, name }), t, locale)}
-              />
-              <ul className="divide-border divide-y">
-                {group.runs.map((run) => (
-                  <EvalRunRow key={run.id} run={run} />
-                ))}
-              </ul>
-            </div>
-          </details>
-        );
-      })}
+      <PassRateChart
+        compact
+        rangeKey={`dataset-${datasetId}`}
+        lines={passRateLines(
+          groups.flatMap((group) => group.runs),
+          (run) => ({
+            key: run.agent_id,
+            name: known.get(run.agent_id)?.name ?? t("dataset.unnamedAgent"),
+          }),
+          t,
+          locale,
+        )}
+      />
+      <RunsTable
+        runs={groups
+          .flatMap((group) => group.runs)
+          .sort((a, b) => b.created_at.localeCompare(a.created_at))}
+        agentName={(id) => known.get(id)?.name ?? t("dataset.unnamedAgent")}
+      />
     </div>
   );
 }

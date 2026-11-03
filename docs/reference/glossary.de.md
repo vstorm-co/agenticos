@@ -1,5 +1,5 @@
 ---
-source_sha: "95817abb3ea3"
+source_sha: "faf9a13ba4f9"
 ---
 
 # Glossar { #glossary }
@@ -65,7 +65,7 @@ nicht bricht.
 | Budget | Ein Ausgabenlimit, das Runs stoppt, sobald es erreicht ist | `budget` |
 | Schutzregeln | Prüfungen, die schwärzen oder blockieren, was durch einen Run fließt | `guardrails` |
 | Vault | Wo Schlüssel und Tokens liegen, versiegelt und nie wieder angezeigt | `secret` |
-| KI-Unterstützung | Der Schalter der Organisation für die Modelle, die Antworten bewerten, Fälle entwerfen, Änderungen vorschlagen und fehlendes Wissen entwerfen, auch in Verbessern; aus, bis jemand sie einschaltet | `ai_assistance_enabled` |
+| Evaluierungshelfer | Im Code definierte Bewertungs-, Generierungs- und Verbesserungsprozesse mit Dataset-Konfiguration | `scoring.judge`, `helper_settings` |
 
 ## Wie getestet wird { #how-it-is-tested }
 

@@ -65,7 +65,6 @@ import { ReviewersCard } from "@/components/agents/reviewers-card";
 import { CodeModeField } from "@/components/agents/code-mode-field";
 import { CapabilityWorkbench } from "@/components/agents/capability-workbench";
 import type { AgentResources } from "@/components/agents/capability-resources";
-import { SystemAgentBadge } from "@/components/agents/system-agent-badge";
 import { A2aPanel } from "@/components/agents/a2a-panel";
 import { EmbedsPanel } from "@/components/agents/embeds-panel";
 import { ExposuresPanel } from "@/components/agents/exposures-panel";
@@ -175,7 +174,6 @@ import {
   readSubagentsConfig,
   PERSONAL_CAPABILITIES,
   SANDBOX_ID,
-  SKILLS_ID,
   SUBAGENTS_ID,
   THINKING_ID,
   withCapability,
@@ -194,16 +192,7 @@ import { useAgentSelectionStore, useConversationStore } from "@/stores";
 import { cn } from "@/lib/utils";
 import type { AgentSpec, CapabilityBindingSpec, McpServerRef } from "@/types/agents";
 import type { OrgMcpConnectionRecord } from "@/lib/org-mcp-connections-api";
-import {
-  chosenOnly,
-  forSystemAgent,
-  holdsSkills,
-  isSystemAgent,
-  sharedWithOrganization,
-  systemAgentOffers,
-  takesSkillsOffOnly,
-  verdictKind,
-} from "@/lib/system-agents";
+import { forSystemAgent, isSystemAgent, verdictKind } from "@/lib/system-agents";
 // The module, not the `@/stores` barrel, which this page's tests stub in part.
 import { useOnboardingStore } from "@/stores/onboarding-store";
 import { Perm } from "@/types/permissions";
@@ -906,21 +895,9 @@ export default function AgentBuilderPage({ params }: PageProps) {
   // panel, so switching it off is exactly what unpicking every skill already did,
   // and there was no way to grant the tools without picking one first.
   //
-  // A system agent's save refuses every capability but the few it may bind, so
-  // its Toolbox offers only those - and skills it may only take off, while it
-  // still holds some.
-  const kind = agent?.kind;
-  const skillsHeld = spec !== null && holdsSkills(spec);
   const grantable = useMemo(
-    () =>
-      capabilities.filter(
-        (entry) =>
-          entry.id !== THINKING_ID &&
-          (!isSystemAgent(kind) ||
-            systemAgentOffers(kind, entry.id) ||
-            (entry.id === SKILLS_ID && takesSkillsOffOnly(kind) && skillsHeld)),
-      ),
-    [capabilities, kind, skillsHeld],
+    () => capabilities.filter((entry) => entry.id !== THINKING_ID),
+    [capabilities],
   );
 
   // A failed read leaves `agent` undefined with `isLoading` false - the skeleton guard
@@ -939,6 +916,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
   }
 
   if (isLoading || !spec || !agent) return <BuilderSkeleton />;
+  if (isSystem) return <ResourceUnavailable back={ROUTES.AGENTS} label={t("backToAgents")} />;
 
   const isPublished = agent.status === "published";
 
@@ -954,10 +932,6 @@ export default function AgentBuilderPage({ params }: PageProps) {
   };
 
   const toggleCapability = (capabilityId: string) => {
-    if (capabilityId === SKILLS_ID && isSystemAgent(agent.kind) && takesSkillsOffOnly(agent.kind)) {
-      update(withSkills(spec, []));
-      return;
-    }
     const on = spec.capabilities.some((binding) => binding.id === capabilityId);
     if (capabilityId === VISUALS_ID && !on) {
       update(withVisuals(spec, skills));
@@ -981,14 +955,8 @@ export default function AgentBuilderPage({ params }: PageProps) {
   // What the agent is *given*, picked in the panel of the capability that reads
   // it. Each setter switches that capability on with the first pick, because bound
   // without it the resources are resolved and then discarded.
-  const offeredContext = isSystem
-    ? sharedWithOrganization(contextFiles, contextCount, spec.context_ids)
-    : { items: contextFiles, total: contextCount };
-  const offeredSkills = !isSystemAgent(agent.kind)
-    ? { items: skills, total: skillCount }
-    : takesSkillsOffOnly(agent.kind)
-      ? chosenOnly(skills, skillCount, spec.skill_ids)
-      : sharedWithOrganization(skills, skillCount, spec.skill_ids);
+  const offeredContext = { items: contextFiles, total: contextCount };
+  const offeredSkills = { items: skills, total: skillCount };
   const resources: AgentResources = {
     contextFiles: mergeResourceChoices(offeredContext.items, resourceCreation.context),
     onCreateContext: resourceCreation.createContext,
@@ -1128,7 +1096,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
           badges={
             <>
               <AgentStatusBadge status={agent.status} />
-              {isSystemAgent(agent.kind) && <SystemAgentBadge kind={agent.kind} />}
+              {false}
               {/* Two badges, two different questions. This one: is the stored
                 draft a published version, and which one production runs -
                 computed from the server's copies, so the autosave settling
@@ -1166,7 +1134,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
           breadcrumbs={[{ label: t("agents"), href: ROUTES.AGENTS }, { label: agent.name }]}
           secondaryActions={
             <>
-              {canEdit && canViewRuns && !isSystem && (
+              {canEdit && canViewRuns && (
                 <ImproveButton agentId={id} persist={persist} tour="agent-improve" />
               )}
               {/* Trying the agent happens in the chat, which streams, keeps the
@@ -1176,7 +1144,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
                 instead of opening a chat that would answer as somebody else. */}
               {/* Trying it here, beside the Builder, needs nothing published: the
                 draft answers as a test (#2074). */}
-              {canEdit && !isSystem && (
+              {canEdit && (
                 <Button
                   variant={testing ? "secondary" : "outline"}
                   onClick={() => toggleTesting(!testing)}
@@ -1189,7 +1157,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
                   {t("testPanelOpen")}
                 </Button>
               )}
-              {!isSystem && (
+              {
                 <>
                   <Button
                     variant="outline"
@@ -1212,16 +1180,16 @@ export default function AgentBuilderPage({ params }: PageProps) {
                     disabled={!isPublished}
                   />
                 </>
-              )}
+              }
               {/* Beside the chat button rather than in the overflow menu: the
                 map answers "what is this agent" and that question comes up
                 before publishing, not after somebody goes looking for it. */}
-              {!isSystem && (
+              {
                 <Button variant="outline" onClick={() => setMapOpen(true)}>
                   <Network className="h-4 w-4" />
                   {t("visualMap")}
                 </Button>
-              )}
+              }
               {/* For whoever cannot open the overflow menu, which is where an
                   editor finds the export - a header of six buttons asked for
                   every decision at once. */}
@@ -1233,7 +1201,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
                   </a>
                 </Button>
               )}
-              {!canEdit && canDuplicate && !isSystem && (
+              {!canEdit && canDuplicate && (
                 <Button variant="outline" onClick={duplicate} disabled={clone.isPending}>
                   <Copy className="h-4 w-4" />
                   {t("duplicate")}
@@ -1263,7 +1231,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
                         />
                       </a>
                     </DropdownMenuItem>
-                    {canDuplicate && !isSystem && (
+                    {canDuplicate && (
                       <DropdownMenuItem className={DESCRIBED_ITEM} onSelect={duplicate}>
                         <Copy className="h-4 w-4" />
                         <DropdownMenuItemText
@@ -1475,7 +1443,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
           open={publishOpen}
           onOpenChange={setPublishOpen}
           version={nextVersion}
-          environments={isSystem ? null : environments}
+          environments={environments}
           publishing={publish.isPending}
           draftBreaks={(publishTests[0]?.outcome?.regressions_confirmed ?? 0) > 0}
           guardNames={Object.fromEntries(publishSuites.map((suite) => [suite.id, suite.name]))}
@@ -1498,7 +1466,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
             }
           }}
         >
-          {canViewRuns && !isSystem && (
+          {canViewRuns && (
             <DraftEvalNote
               agentId={id}
               onTest={() => {
@@ -1592,7 +1560,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
           disabled={!canEdit}
         />
 
-        {firstPublished && !isSystem && (
+        {firstPublished && (
           <div className="border-border bg-muted/40 mb-6 flex flex-wrap items-center gap-3 rounded-xl border px-4 py-3">
             <Radio className="text-muted-foreground size-4 shrink-0" aria-hidden />
             <p className="min-w-0 flex-1 text-sm">{t("firstPublishNext")}</p>
@@ -1621,29 +1589,29 @@ export default function AgentBuilderPage({ params }: PageProps) {
               <Wrench className="mr-1.5 size-4 shrink-0" aria-hidden />
               {t("toolbox")}
             </TabsTrigger>
-            {!isSystem && (
+            {
               <TabsTrigger value="mcp" data-tour="agent-tab-mcp">
                 <Plug className="mr-1.5 size-4 shrink-0" aria-hidden />
                 {t("mcpServers")}
               </TabsTrigger>
-            )}
+            }
             <TabsTrigger value="limits" data-tour="agent-tab-limits">
               <ShieldCheck className="mr-1.5 size-4 shrink-0" aria-hidden />
               {t("limits")}
             </TabsTrigger>
-            {!isSystem && (
+            {
               <TabsTrigger value="availability" data-tour="agent-tab-availability">
                 <Radio className="mr-1.5 size-4 shrink-0" aria-hidden />
                 {t("availability")}
               </TabsTrigger>
-            )}
-            {!isSystem && (canViewRuns || tab === "evals") && (
+            }
+            {(canViewRuns || tab === "evals") && (
               <TabsTrigger value="evals" data-tour="agent-tab-evals">
                 <FlaskConical className="mr-1.5 size-4 shrink-0" aria-hidden />
                 {t("evals")}
               </TabsTrigger>
             )}
-            {canViewRuns && !isSystem && (
+            {canViewRuns && (
               <TabsTrigger value="gaps" data-tour="agent-tab-gaps">
                 <SearchX className="mr-1.5 size-4 shrink-0" aria-hidden />
                 {tGaps("tab")}
@@ -1662,7 +1630,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
           </TabsList>
 
           <TabsContent value="build" className="mt-4 space-y-4">
-            {canEdit && !isSystem && (
+            {canEdit && (
               <AssistantStrip
                 agentId={id}
                 storedDraft={agent.draft_spec}
@@ -1720,13 +1688,13 @@ export default function AgentBuilderPage({ params }: PageProps) {
               onTimeZoneChange={(time_zone) => update({ time_zone })}
             />
 
-            {!isSystem && (
+            {
               <StartersPanel
                 starters={spec.starters ?? []}
                 disabled={!canEdit}
                 onChange={(starters) => update({ starters })}
               />
-            )}
+            }
 
             {/* The model, then how it is asked: one card, apart from the
                 instructions, which are a thing to read rather than to set. */}
@@ -1776,7 +1744,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
               </CardContent>
             </Card>
 
-            {!isSystem && (
+            {
               <>
                 <Card data-tour="agent-answer-format">
                   <CardHeader>
@@ -1806,12 +1774,12 @@ export default function AgentBuilderPage({ params }: PageProps) {
                   disabled={!canEdit}
                 />
               </>
-            )}
+            }
 
             {/* Discovery metadata, not the spec: it autosaves at once like the
               avatar, so it hangs off the same `canEdit` every other editing
               control on this page does. */}
-            {canEdit && !isSystem && (
+            {canEdit && (
               <Card>
                 <CardHeader>
                   <CardTitle>{t("discovery")}</CardTitle>
@@ -1896,15 +1864,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
                   modelProfileId={spec.model_profile_id ?? null}
                   disabled={!canEdit}
                   configProblems={configProblems}
-                  system={
-                    isSystemAgent(agent.kind)
-                      ? {
-                          kind: agent.kind,
-                          maxSteps: spec.max_steps,
-                          onMaxSteps: (max_steps) => update({ max_steps }),
-                        }
-                      : undefined
-                  }
+                  system={undefined}
                 />
               </CardContent>
             </Card>
@@ -1915,7 +1875,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
             outside the deployment for - and the picker embeds the whole server
             catalog, so it pushed the capability workbench off the top of the
             screen on any organization with more than a handful of servers. */}
-          <TabsContent value="mcp" className="mt-4 space-y-4" hidden={isSystem}>
+          <TabsContent value="mcp" className="mt-4 space-y-4">
             <Card data-tour="agent-mcp">
               {/* The passive tour points here rather than at the card: the picker
                 below embeds the whole server catalog, so the card runs well past
@@ -2054,7 +2014,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
                 {/* A system agent calls no tool but its knowledge search, whose
                   steps are set in that capability's panel, so loops and scripts
                   are not limits it can reach. */}
-                {!isSystem && (
+                {
                   <>
                     <div className="space-y-2">
                       <Label htmlFor="max-steps">{t("maxStepsPerRun")}</Label>
@@ -2089,25 +2049,25 @@ export default function AgentBuilderPage({ params }: PageProps) {
                       disabled={!canEdit}
                     />
                   </>
-                )}
+                }
               </CardContent>
             </Card>
             {/* Beside the budget rather than in a settings page of its own: the two
               questions are "how much may this agent spend" and "who is told when
               it stops", and answering the first without the second is how a run
               stops quietly. */}
-            {!isSystem && (
+            {
               <ReviewersCard
                 value={spec.reviewers}
                 onChange={(reviewers) => update({ reviewers })}
                 disabled={!canEdit}
               />
-            )}
+            }
             <AlertsPanel
               value={spec.notifications}
               onChange={(notifications) => update({ notifications })}
               disabled={!canEdit}
-              approvals={!isSystem}
+              approvals
             />
             <ObservabilityCard
               value={spec.observability}
@@ -2117,7 +2077,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
             />
           </TabsContent>
 
-          <TabsContent value="availability" className="mt-4 space-y-4" hidden={isSystem}>
+          <TabsContent value="availability" className="mt-4 space-y-4">
             {/* Where people reach it first - a website, a page, the API - then the
                 chat apps, then what runs it on its own. Two cards here were both
                 called "where", and the one most people came for was last. */}
@@ -2154,12 +2114,10 @@ export default function AgentBuilderPage({ params }: PageProps) {
               <Card>
                 <CardHeader>
                   <CardTitle>{t("environments")}</CardTitle>
-                  <CardDescription>
-                    {isSystem ? t("systemAgentEnvironments") : t("namedPointersAtPublished")}
-                  </CardDescription>
+                  <CardDescription>{t("namedPointersAtPublished")}</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <EnvironmentsPanel agentId={id} canManage={canPublish} system={isSystem} />
+                  <EnvironmentsPanel agentId={id} canManage={canPublish} system={false} />
                 </CardContent>
               </Card>
             )}
@@ -2186,7 +2144,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
                   }
                   restoring={rollback.isPending}
                   environments={environments}
-                  onPromote={isSystem ? undefined : promotion.request}
+                  onPromote={promotion.request}
                   promoting={promotion.promoting}
                   compareFrom={compareFrom}
                   compareTo={compareTo}
@@ -2197,7 +2155,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
             {canViewRuns && <ImprovementHistory agentId={id} />}
           </TabsContent>
 
-          {!isSystem && (
+          {
             <TabsContent value="evals" className="mt-6 space-y-6">
               {canViewRuns ? (
                 <>
@@ -2208,13 +2166,13 @@ export default function AgentBuilderPage({ params }: PageProps) {
                 <RunsPermissionNotice />
               )}
             </TabsContent>
-          )}
+          }
           {isJudge && (
             <TabsContent value="datasets" className="mt-6 space-y-6">
               <JudgeDatasetsCard judgeId={id} />
             </TabsContent>
           )}
-          {canViewRuns && !isSystem && (
+          {canViewRuns && (
             <TabsContent value="gaps" className="mt-6">
               <div data-tour="agent-gaps" className="space-y-4">
                 {canEdit && (
@@ -2241,7 +2199,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
         </Tabs>
       </div>
       {resourceCreation.dialogs}
-      {testing && canEdit && !isSystem && (
+      {testing && canEdit && (
         <TestPanel
           agentId={id}
           currentVersionId={agent.current_version_id}

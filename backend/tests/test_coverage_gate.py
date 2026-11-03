@@ -121,7 +121,6 @@ PLATFORM_MODULES = (
     "app/repositories/knowledge_gap.py",
     "app/services/knowledge_gaps.py",
     "app/api/routes/v1/knowledge_gaps.py",
-    "app/services/ai_assistance.py",
     "app/services/scorers.py",
     "app/services/scoring.py",
     "app/repositories/case_score.py",

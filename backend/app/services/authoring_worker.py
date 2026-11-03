@@ -78,6 +78,7 @@ from app.schemas.authoring import (
     VerifyFinding,
     VerifyReport,
 )
+from app.schemas.dataset_helpers import DatasetHelper
 from app.schemas.skill import SkillCreate, skill_name_refusal
 from app.services import authoring_hunks
 from app.services.access import AGENT, CONTEXT, SKILL, resolve_access
@@ -432,11 +433,14 @@ class AuthoringRun:
         self.knowledge_base_ids: list[UUID] = []
 
     async def _ask[T: BaseModel](self, prompt: str, output_type: type[T]) -> T:
+        helper = DatasetHelper.model_validate(self.request.helper_settings or {})
         try:
             result = await self.runner.run(
                 self.ctx,
                 key=IMPROVER.key,
                 agent_id=self.request.improver_agent_id,
+                model_profile_id=helper.model_profile_id,
+                instructions=helper.instructions,
                 prompt=prompt,
                 output_type=output_type,
                 improvement_run_id=self.request.improvement_run_id,

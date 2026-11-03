@@ -20,7 +20,7 @@ import pytest
 from sqlalchemy import select
 
 from app.core.audit import set_impersonator
-from app.core.exceptions import AiAssistanceDisabledError, AuthorizationError, NotFoundError
+from app.core.exceptions import AuthorizationError, NotFoundError, SystemAgentUnavailableError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.agent import Agent, AgentVersion
 from app.db.models.agent_run import AgentRun
@@ -582,7 +582,7 @@ async def test_checking_answers_starts_after_the_commit_as_the_caller(db) -> Non
 
 
 @pytest.mark.security
-async def test_with_ai_assistance_off_no_check_starts(db) -> None:
+async def test_model_readiness_is_required_independently_of_the_legacy_ai_flag(db) -> None:
     ctx = await _owner(db)
     kb = await _knowledge_base(db, ctx)
     organization = await db.get(Organization, ctx.organization_id)
@@ -590,7 +590,7 @@ async def test_with_ai_assistance_off_no_check_starts(db) -> None:
     organization.ai_assistance_enabled = False
     await db.flush()
 
-    with pytest.raises(AiAssistanceDisabledError):
+    with pytest.raises(SystemAgentUnavailableError):
         await KnowledgeGapService(db).classify(ctx, kb.id)
 
     assert await _queued(db) == []

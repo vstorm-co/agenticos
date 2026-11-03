@@ -4,7 +4,7 @@ import { useId } from "react";
 import { Plus, X } from "lucide-react";
 import { useTranslations } from "next-intl";
 
-import { Button, Input } from "@/components/ui";
+import { Button, FormField, Input } from "@/components/ui";
 import { useCapabilityCatalog } from "@/hooks/use-agents";
 import type { ArgDraft, CallDraft } from "./case-form";
 
@@ -31,28 +31,41 @@ function ArgRows({
   onChange: (args: ArgDraft[]) => void;
 }) {
   const t = useTranslations("datasets");
+  const prefix = useId();
   const change = (index: number, patch: Partial<ArgDraft>) =>
     onChange(call.args.map((arg, at) => (at === index ? { ...arg, ...patch } : arg)));
   return (
     <div className="min-w-0 space-y-1.5 sm:pl-4">
       {call.args.map((arg, index) => (
-        <div key={index} className="flex min-w-0 flex-wrap items-center gap-2 sm:flex-nowrap">
-          <Input
-            value={arg.key}
-            className="w-full min-w-0 font-mono text-base sm:w-40 sm:shrink-0 md:text-xs"
-            aria-label={t("argKey", { number, arg: index + 1 })}
-            placeholder={KEY_EXAMPLE}
-            spellCheck={false}
-            onChange={(event) => change(index, { key: event.target.value })}
-          />
-          <Input
-            value={arg.value}
-            className="min-w-0 flex-1 font-mono text-base md:text-xs"
-            aria-label={t("argValue", { number, arg: index + 1 })}
-            placeholder={VALUE_EXAMPLE}
-            spellCheck={false}
-            onChange={(event) => change(index, { value: event.target.value })}
-          />
+        <div key={index} className="flex min-w-0 flex-wrap items-end gap-3 sm:flex-nowrap">
+          <FormField
+            htmlFor={`${prefix}-${index}-key`}
+            label={t("argumentName")}
+            className="min-w-0 basis-full sm:w-40 sm:shrink-0 sm:basis-auto"
+          >
+            <Input
+              value={arg.key}
+              className="w-full min-w-0 font-mono text-base md:text-sm"
+              aria-label={t("argKey", { number, arg: index + 1 })}
+              placeholder={KEY_EXAMPLE}
+              spellCheck={false}
+              onChange={(event) => change(index, { key: event.target.value })}
+            />
+          </FormField>
+          <FormField
+            htmlFor={`${prefix}-${index}-value`}
+            label={t("argumentValue")}
+            className="min-w-0 flex-1"
+          >
+            <Input
+              value={arg.value}
+              className="w-full min-w-0 font-mono text-base md:text-sm"
+              aria-label={t("argValue", { number, arg: index + 1 })}
+              placeholder={VALUE_EXAMPLE}
+              spellCheck={false}
+              onChange={(event) => change(index, { value: event.target.value })}
+            />
+          </FormField>
           <Button
             variant="ghost"
             size="icon"

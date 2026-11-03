@@ -28,8 +28,9 @@ export interface DatasetScoring {
     enabled: boolean;
     /** The dataset's own judge; null is the default eval judge. */
     agent_id: string | null;
-    /** Withdrawn and always null: a judge grades on the model its own page sets. */
+    /** The model chosen for this dataset. */
     model_profile_id: string | null;
+    instructions?: string | null;
     scale_max: number;
     pass_at: number;
     criteria: RubricCriterion[];
@@ -82,6 +83,7 @@ export interface JudgePin {
   agent_version_id: string | null;
   spec_version: number | null;
   rubric_hash: string;
+  instructions_hash?: string | null;
   /** The version of the task every judge is handed; null on a score graded before it was kept. */
   prompt_version: number | null;
 }

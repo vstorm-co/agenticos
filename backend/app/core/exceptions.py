@@ -275,19 +275,6 @@ class InternalError(AppException):
     status_code = 500
 
 
-class AiAssistanceDisabledError(AuthorizationError):
-    """The organization has switched AI assistance off (403).
-
-    Raised by the service that would start a model-backed eval or authoring run -
-    the judge, the case generator, the authoring assistant - so the switch holds
-    whichever client asks. Its own `code`, so a caller that degrades rather than
-    refuses tells it apart from a missing permission.
-    """
-
-    message = "AI assistance is switched off for this organization"
-    code = "AI_ASSISTANCE_OFF"
-
-
 class SystemAgentUnavailableError(BadRequestError):
     """A system agent cannot run for this caller (400).
 

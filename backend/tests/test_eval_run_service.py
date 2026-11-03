@@ -41,55 +41,41 @@ class TestScoringRefusal:
     def test_a_check_on_a_case_decides_it(self):
         scoring = _scoring()
         cases = [_case(checks=[{"type": "contains", "value": "30 days"}])]
-        assert scoring_refusal(scoring, cases, ai_enabled=False) is None
+        assert scoring_refusal(scoring, cases) is None
 
     def test_a_default_check_decides_every_case(self):
         scoring = _scoring(checks={"defaults": [{"type": "contains", "value": "x"}]})
-        assert scoring_refusal(scoring, [_case()], ai_enabled=False) is None
+        assert scoring_refusal(scoring, [_case()]) is None
 
     def test_an_expected_call_decides_it(self):
         cases = [_case(expected=[{"tool": "lookup", "args": {}}])]
-        assert scoring_refusal(_scoring(), cases, ai_enabled=False) is None
+        assert scoring_refusal(_scoring(), cases) is None
 
     def test_nothing_to_check_is_refused_with_what_to_add(self):
-        refusal = scoring_refusal(_scoring(), [_case(reference="yes")], ai_enabled=True)
+        refusal = scoring_refusal(_scoring(), [_case(reference="yes")])
         assert refusal is not None
         assert refusal.details == {"reason": "no_scorer"}
         assert "Add a check" in refusal.message
 
-    def test_only_a_judge_with_ai_assistance_off_says_the_judge_cannot_run(self):
-        scoring = _scoring(
-            checks={"enabled": False},
-            trajectory={"enabled": False},
-            judge={"enabled": True, "criteria": [{"name": "Tone", "description": "Polite"}]},
-        )
-        refusal = scoring_refusal(scoring, [_case()], ai_enabled=False)
-        assert refusal is not None
-        assert refusal.details == {"reason": "ai_assistance_off"}
-        assert "The judge needs AI assistance, which is off" in refusal.message
-
-    def test_a_judge_runs_when_ai_assistance_is_on(self):
+    def test_enabled_criteria_can_decide_a_case(self):
         scoring = _scoring(
             judge={"enabled": True, "criteria": [{"name": "Tone", "description": "Polite"}]}
         )
-        assert scoring_refusal(scoring, [_case()], ai_enabled=True) is None
+        assert scoring_refusal(scoring, [_case()]) is None
 
     def test_a_reference_answer_needs_the_judge(self):
         scoring = _scoring(reference={"enabled": True})
         cases = [_case(reference="30 days")]
-        assert scoring_refusal(scoring, cases, ai_enabled=True) is None
-        assert scoring_refusal(scoring, cases, ai_enabled=False) is not None
+        assert scoring_refusal(scoring, cases) is None
 
     def test_a_judge_check_on_a_case_needs_the_judge(self):
         cases = [_case(checks=[{"type": "judge", "criterion": "Cites a source"}])]
-        assert scoring_refusal(_scoring(), cases, ai_enabled=True) is None
-        refusal = scoring_refusal(_scoring(), cases, ai_enabled=False)
-        assert refusal is not None and refusal.details == {"reason": "ai_assistance_off"}
+        assert scoring_refusal(_scoring(), cases) is None
 
     def test_an_optional_scorer_decides_nothing(self):
         scoring = _scoring(checks={"required": False}, trajectory={"required": False})
         cases = [_case(checks=[{"type": "contains", "value": "x"}], expected=[{"tool": "t"}])]
-        assert scoring_refusal(scoring, cases, ai_enabled=True) is not None
+        assert scoring_refusal(scoring, cases) is not None
 
 
 class TestDecidable:
@@ -97,27 +83,17 @@ class TestDecidable:
 
     def test_a_case_with_a_check_is_decided_and_one_with_only_a_reference_is_not(self):
         scoring = _scoring()
-        assert decidable(
-            _case(checks=[{"type": "contains", "value": "4"}]), scoring, ai_enabled=True
-        )
-        assert not decidable(_case(reference="Red, blue or yellow."), scoring, ai_enabled=True)
+        assert decidable(_case(checks=[{"type": "contains", "value": "4"}]), scoring)
+        assert not decidable(_case(reference="Red, blue or yellow."), scoring)
 
-    def test_a_default_judge_check_needs_ai_assistance(self):
+    def test_a_default_judge_check_can_decide_a_case(self):
         scoring = _scoring(checks={"defaults": [{"type": "judge", "criterion": "Polite"}]})
-        assert decidable(_case(), scoring, ai_enabled=True)
-        assert not decidable(_case(), scoring, ai_enabled=False)
+        assert decidable(_case(), scoring)
 
     def test_a_counter_example_is_decided_by_whichever_judges_it(self):
         case = _case(counter_example="Yes, any time.")
-        assert decidable(case, _scoring(reference={"enabled": True}), ai_enabled=True)
-        assert not decidable(case, _scoring(), ai_enabled=True)
-
-    def test_with_ai_assistance_off_the_judge_decides_nothing(self):
-        scoring = _scoring(
-            judge={"enabled": True, "criteria": [{"name": "Tone", "description": "Polite"}]}
-        )
-        assert decidable(_case(), scoring, ai_enabled=True)
-        assert not decidable(_case(), scoring, ai_enabled=False)
+        assert decidable(case, _scoring(reference={"enabled": True}))
+        assert not decidable(case, _scoring())
 
 
 def _score(passed=None, human=None, results=()):

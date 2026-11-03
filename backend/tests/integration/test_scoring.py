@@ -24,7 +24,6 @@ from app.agents.model_resolver import ModelRequestSpec
 from app.agents.spec import AgentSpec
 from app.agents.system_agents import JUDGE
 from app.core.exceptions import (
-    AiAssistanceDisabledError,
     AuthorizationError,
     BadRequestError,
     NotFoundError,
@@ -796,7 +795,9 @@ class TestADatasetsOwnJudge:
 
         assert [c.name for c in made.scoring.judge.criteria] == ["correctness", "tone"]
 
-    async def test_with_ai_assistance_off_creating_it_only_picks_it(self, db, judge) -> None:
+    async def test_a_legacy_ai_flag_does_not_disable_a_legacy_judge_creation(
+        self, db, judge
+    ) -> None:
         tenant = await _tenant(db)
         await _model(db, tenant)
         dataset, _ = await _dataset(db, tenant, scoring=DatasetScoring())
@@ -808,8 +809,8 @@ class TestADatasetsOwnJudge:
         )
 
         assert made.scoring.judge.agent_id is not None
-        assert (made.scoring.judge.enabled, made.scoring.judge.criteria) == (False, [])
-        assert made.scoring.reference.enabled is False
+        assert made.scoring.judge.enabled and made.scoring.judge.criteria
+        assert made.scoring.reference.enabled is True
 
     async def test_creating_it_and_changing_grading_are_audited_by_section(self, db, judge) -> None:
         """A guard reads what grades a dataset, so who changed it is on record - and only
@@ -985,9 +986,7 @@ class TestADatasetsOwnJudge:
 
 
 class TestWhenTheJudgeCannotRun:
-    async def test_switched_off_the_judge_is_skipped_and_the_checks_still_score(
-        self, db, judge
-    ) -> None:
+    async def test_legacy_ai_flag_does_not_skip_required_grading(self, db, judge) -> None:
         tenant = await _tenant(db)
         await _model(db, tenant)
         dataset, case = await _dataset(db, tenant, scoring=_rubric())
@@ -1003,11 +1002,9 @@ class TestWhenTheJudgeCannotRun:
         assert by_scorer["check"].status == "pass"
         assert by_scorer["trajectory"].status == "pass"
         judged = [r for r in score.results if r.scorer == "judge"]
-        assert {(r.status, r.reason_code) for r in judged} == {("skipped", "ai_assistance_off")}
-        assert score.passed is None
-        assert (score.judge, score.judge_model) == (None, None)
-        assert judge.calls == 0
-        assert await _eval_runs(db, tenant) == []
+        assert judged and all(r.reason_code != "ai_assistance_off" for r in judged)
+        assert judge.calls > 0
+        assert await _eval_runs(db, tenant)
 
     async def test_a_deleted_judge_model_skips_the_judge_and_the_checks_still_score(
         self, db, judge
@@ -1405,9 +1402,6 @@ class TestGradingAgain:
         before = len(await _eval_runs(db, tenant))
         tenant.organization.ai_assistance_enabled = False
         await db.flush()
-
-        with pytest.raises(AiAssistanceDisabledError):
-            await scoring.rescore(tenant.ctx, dataset.id, RescoreRequest(score_ids=[failed.id]))
 
         tenant.organization.ai_assistance_enabled = True
         await db.flush()
@@ -2350,7 +2344,7 @@ class TestRefusals:
             (DatasetScoring(reference=ReferenceScorer(enabled=True)), "reference.enabled"),
         ],
     )
-    async def test_the_judge_cannot_be_turned_on_while_ai_assistance_is_off(
+    async def test_a_legacy_ai_flag_does_not_lock_grading_settings(
         self, db, judge, scoring, field
     ) -> None:
         tenant = await _tenant(db)
@@ -2358,11 +2352,8 @@ class TestRefusals:
         tenant.organization.ai_assistance_enabled = False
         await db.flush()
 
-        with pytest.raises(BadRequestError) as refused:
-            await ScoringService(db).set_scoring(tenant.ctx, dataset.id, _change(scoring))
-
-        assert [problem["field"] for problem in refused.value.details["fields"]] == [field]
-        assert "AI assistance is off" in refused.value.message
+        saved = await ScoringService(db).set_scoring(tenant.ctx, dataset.id, _change(scoring))
+        assert saved.scoring.model_dump()[field.split(".")[0]]["enabled"] is True
 
     async def test_a_judge_already_on_stays_while_the_rules_change_with_ai_off(
         self, db, judge

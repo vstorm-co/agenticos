@@ -5,15 +5,10 @@ import Link from "next/link";
 import { TriangleAlert } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { usd } from "@/components/evals/format";
-import {
-  EnableAiAssistanceLink,
-  GRADING_MODEL_ANCHOR,
-} from "@/components/teams/enable-ai-assistance-link";
 import { Button, Checkbox } from "@/components/ui";
 import { useDraftEvalRuns, useEvalRun, useEvalRuns } from "@/hooks/use-eval-runs";
 import { getErrorMessage } from "@/lib/api-error";
 import { ROUTES } from "@/lib/constants";
-import { useOrgStore } from "@/stores";
 import type { EvalRun, EvalRunEstimate, EvalRunRequest, EvalStability } from "@/types/eval-runs";
 
 /** Below this many questions each is asked twice unless switched off; at it and above, once. */
@@ -215,7 +210,6 @@ function TodayResult({
 /** How many questions were graded differently when asked again, and what to fix when too many were. */
 function Stability({ stability, datasetId }: { stability: EvalStability; datasetId: string }) {
   const t = useTranslations("improvement");
-  const orgId = useOrgStore((state) => state.activeOrgId);
   return (
     <>
       {stability.noisy && (
@@ -242,13 +236,14 @@ function Stability({ stability, datasetId }: { stability: EvalStability; dataset
                 {t("todayNoisyCriteriaHint")}
               </span>
             </li>
-            {orgId && (
-              <li>
-                <EnableAiAssistanceLink orgId={orgId} anchor={GRADING_MODEL_ANCHOR}>
-                  {t("todayNoisyModel")}
-                </EnableAiAssistanceLink>
-              </li>
-            )}
+            <li>
+              <Link
+                className="underline underline-offset-4"
+                href={`${ROUTES.DATASET_DETAIL(datasetId)}?tab=grading`}
+              >
+                {t("todayNoisyModel")}
+              </Link>
+            </li>
           </ul>
         </div>
       )}

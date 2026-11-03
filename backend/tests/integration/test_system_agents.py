@@ -16,10 +16,7 @@ from sqlalchemy.exc import IntegrityError
 from app.agents.spec import AgentSpec
 from app.agents.system_agents import IMPROVER, JUDGE
 from app.core.exceptions import (
-    AiAssistanceDisabledError,
     AlreadyExistsError,
-    AuthorizationError,
-    BadRequestError,
     NotFoundError,
     SystemAgentUnavailableError,
 )
@@ -35,9 +32,8 @@ from app.db.models.resource_grant import Visibility
 from app.db.models.user import User
 from app.repositories import agent_repo
 from app.schemas.agent import SystemAgentCreate
-from app.schemas.organization import OrganizationCreate, OrganizationUpdate
+from app.schemas.organization import OrganizationCreate
 from app.services.agent_registry import AgentRegistryService
-from app.services.ai_assistance import AiAssistanceService
 from app.services.model_profile import ModelProfileService
 from app.services.organization import OrganizationService
 from app.services.system_agents import SystemAgentService
@@ -345,65 +341,6 @@ class TestSeeding:
         ]
 
 
-class TestTheGradingModel:
-    async def test_it_is_set_audited_and_cleared_by_whoever_holds_the_settings(self, db) -> None:
-        organization, owner = await _organization(db)
-        grading = await _profile(db, organization, label="Grading", created_at=datetime.now(UTC))
-        service = OrganizationService(db)
-
-        await service.update(
-            organization.id, OrganizationUpdate(grading_model_profile_id=grading.id), owner.id
-        )
-        assert organization.grading_model_profile_id == grading.id
-        await service.update(
-            organization.id, OrganizationUpdate(grading_model_profile_id=grading.id), owner.id
-        )
-        await service.update(organization.id, OrganizationUpdate(name="Renamed"), owner.id)
-        assert organization.grading_model_profile_id == grading.id
-        await service.update(
-            organization.id, OrganizationUpdate(grading_model_profile_id=None), owner.id
-        )
-
-        assert organization.grading_model_profile_id is None
-        audited = await db.scalars(
-            select(AppAdminAuditLog.details).where(
-                AppAdminAuditLog.action == "organization.grading_model"
-            )
-        )
-        assert [entry["model_profile_id"] for entry in audited] == [str(grading.id), None]
-
-    async def test_a_model_of_another_organization_or_one_that_cannot_chat_is_refused(
-        self, db
-    ) -> None:
-        organization, owner = await _organization(db)
-        other, _ = await _organization(db)
-        theirs = await _profile(db, other, label="Theirs", created_at=datetime.now(UTC))
-        speech = await _profile(db, organization, label="Speech", created_at=datetime.now(UTC))
-        speech.model = "tts-1"
-        await db.flush()
-        service = OrganizationService(db)
-
-        for profile, message in ((theirs, "not one of this organization's"), (speech, "")):
-            with pytest.raises(BadRequestError, match=message):
-                await service.update(
-                    organization.id,
-                    OrganizationUpdate(grading_model_profile_id=profile.id),
-                    owner.id,
-                )
-        assert organization.grading_model_profile_id is None
-
-    async def test_a_member_without_the_settings_cannot_set_it(self, db) -> None:
-        organization, _ = await _organization(db)
-        member = await _user(db)
-        await _member(db, organization, member, OrgRoleName.MEMBER)
-        grading = await _profile(db, organization, label="Grading", created_at=datetime.now(UTC))
-
-        with pytest.raises(AuthorizationError):
-            await OrganizationService(db).update(
-                organization.id, OrganizationUpdate(grading_model_profile_id=grading.id), member.id
-            )
-
-
 class TestADatasetsOwnJudge:
     async def test_it_is_a_judge_without_the_key_published_on_the_oldest_model(self, db) -> None:
         organization, owner = await _organization(db)
@@ -429,10 +366,12 @@ class TestADatasetsOwnJudge:
         assert version.spec["instructions"] == "Be strict."
         assert version.spec["budget"]["monthly_usd"] == JUDGE.monthly_usd
 
-    async def test_unpicked_it_runs_on_the_organization_s_grading_model(self, db) -> None:
+    async def test_legacy_organization_grading_model_does_not_override_pipeline_defaults(
+        self, db
+    ) -> None:
         organization, owner = await _organization(db)
         now = datetime.now(UTC)
-        await _profile(db, organization, label="Oldest", created_at=now - timedelta(1))
+        oldest = await _profile(db, organization, label="Oldest", created_at=now - timedelta(1))
         grading = await _profile(db, organization, label="Grading", created_at=now)
         organization.grading_model_profile_id = grading.id
         await db.flush()
@@ -448,7 +387,7 @@ class TestADatasetsOwnJudge:
 
         version = await db.get(AgentVersion, judge.current_version_id)
         assert version is not None
-        assert version.spec["model_profile_id"] == str(grading.id)
+        assert version.spec["model_profile_id"] == str(oldest.id)
 
     async def test_it_runs_on_the_model_picked_for_it(self, db) -> None:
         organization, owner = await _organization(db)
@@ -567,95 +506,3 @@ class TestASystemAgentFromNewAgent:
             await service.create_from_console(
                 ctx, SystemAgentCreate(kind="judge", name="Other", model_profile_id=theirs.id)
             )
-
-
-class TestTheSwitch:
-    async def test_an_organization_starts_with_ai_assistance_off(self, db) -> None:
-        organization, _ = await _organization(db)
-
-        assert not await AiAssistanceService(db).is_enabled(organization_id=organization.id)
-
-    async def test_an_organization_the_migration_finds_has_it_off(self, db) -> None:
-        """The column's own default, as a row written without it gets it."""
-        user = await _user(db)
-        organization_id = uuid.uuid4()
-        await db.execute(
-            text(
-                "INSERT INTO organizations (id, name, slug, created_by_user_id, is_personal) "
-                "VALUES (:id, 'Old', :slug, :user, false)"
-            ),
-            {"id": organization_id, "slug": f"old-{organization_id.hex[:8]}", "user": user.id},
-        )
-
-        assert not await AiAssistanceService(db).is_enabled(organization_id=organization_id)
-
-    async def test_switched_off_the_service_refuses(self, db) -> None:
-        organization, owner = await _organization(db)
-        await OrganizationService(db).update(
-            organization.id, OrganizationUpdate(ai_assistance_enabled=False), owner.id
-        )
-
-        with pytest.raises(AiAssistanceDisabledError):
-            await AiAssistanceService(db).require_enabled(organization_id=organization.id)
-
-    async def test_switching_it_is_audited_and_a_repeat_is_not(self, db) -> None:
-        organization, owner = await _organization(db)
-        service = OrganizationService(db)
-
-        await service.update(
-            organization.id, OrganizationUpdate(ai_assistance_enabled=True), owner.id
-        )
-        await service.update(
-            organization.id, OrganizationUpdate(ai_assistance_enabled=True), owner.id
-        )
-        await service.update(
-            organization.id, OrganizationUpdate(ai_assistance_enabled=False), owner.id
-        )
-
-        entries = (
-            await db.scalars(
-                select(AppAdminAuditLog)
-                .where(
-                    AppAdminAuditLog.organization_id == organization.id,
-                    AppAdminAuditLog.action == "organization.ai_assistance",
-                )
-                .order_by(AppAdminAuditLog.created_at, AppAdminAuditLog.id)
-            )
-        ).all()
-        assert sorted(entry.details["enabled"] for entry in entries) == [False, True]
-        assert {entry.actor_user_id for entry in entries} == {owner.id}
-
-    async def test_an_admin_switches_it_on(self, db) -> None:
-        organization, _ = await _organization(db)
-        admin = await _user(db)
-        await _member(db, organization, admin, OrgRoleName.ADMIN)
-
-        updated = await OrganizationService(db).update(
-            organization.id, OrganizationUpdate(ai_assistance_enabled=True), admin.id
-        )
-
-        assert updated.ai_assistance_enabled is True
-
-    async def test_a_member_without_org_settings_cannot_switch_it(self, db) -> None:
-        organization, _ = await _organization(db)
-        member = await _user(db)
-        await _member(db, organization, member, OrgRoleName.MEMBER)
-
-        with pytest.raises(AuthorizationError):
-            await OrganizationService(db).update(
-                organization.id, OrganizationUpdate(ai_assistance_enabled=True), member.id
-            )
-
-        await db.refresh(organization)
-        assert organization.ai_assistance_enabled is False
-
-    async def test_renaming_the_organization_leaves_the_switch_alone(self, db) -> None:
-        organization, owner = await _organization(db)
-        organization.ai_assistance_enabled = True
-        await db.flush()
-
-        updated = await OrganizationService(db).update(
-            organization.id, OrganizationUpdate(name="Renamed"), owner.id
-        )
-
-        assert updated.ai_assistance_enabled is True

@@ -830,6 +830,7 @@ async def count_for_organization(db: AsyncSession, *, organization_id: UUID) -> 
             Agent.status != AgentStatus.ARCHIVED.value,
             # A workflow step's own agent is part of its workflow, not a seat.
             Agent.workflow_id.is_(None),
+            Agent.kind == AgentKind.AGENT.value,
         )
     )
     return int(result.scalar_one())

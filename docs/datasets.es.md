@@ -1,5 +1,5 @@
 ---
-source_sha: "e05612aec339"
+source_sha: "7b8699b33ffc"
 title: "Datasets"
 description: "Los datasets guardan las preguntas con las que se prueba un agent: casos versionados escritos a mano, importados de CSV o JSONL o tomados de una respuesta valorada."
 ---
@@ -18,11 +18,9 @@ y aceptados por una persona. Este último suele ser el más útil,
 porque es una pregunta que una persona hizo de verdad y una respuesta que de
 verdad la decepcionó.
 
-Expande **Generador de casos** al generar para elegir un generador publicado
-en lugar del predeterminado. Su página muestra el modelo y las instrucciones.
-La petición conserva `generator_agent_id` separado del agente evaluado, incluso
-tras pasar por la cola. Una selección sin publicar, ausente, inaccesible o de
-otro tipo se rechaza antes de una llamada de pago.
+**Cases**, **Generated**, **Grading**, **Evals**, **Review** y **Settings** comparten un espacio con control de pantalla completa. Añadir, importar, generar y abrir Activity están junto a la tabla de casos. Un caso se abre en un panel lateral; Edit abre el formulario. La pregunta y las respuestas van primero, con herramientas, comprobaciones y etiquetas en secciones desplegables.
+
+El modelo y las instrucciones del calificador se eligen en **Grading**; los de generación y mejora, en **Settings**. Utilizan los controles de Agent Builder. Los ayudantes se definen en código y no requieren crear ni publicar un agent. Un trabajo en cola conserva su configuración inicial.
 
 ## Qué contiene un caso { #what-a-case-holds }
 
@@ -285,11 +283,7 @@ rechaza por su nombre en lugar de omitirse en silencio:
   dice cuántas de las del agent se dejaron fuera;
 - las conversaciones necesitan `runs:view`, el permiso con el que Actividad lee
   cada run;
-- la asistencia de IA está desactivada en cada organización hasta que un Owner
-  o un Admin la activa en los ajustes de la organización, y mientras está
-  desactivada no empieza ninguna generación; la pestaña lo dice y dice quién
-  puede cambiarlo. Los borradores que ya esperan se pueden seguir aceptando o
-  descartando, porque decidirlos no llama a ningún modelo.
+
 
 Solo los miembros que pueden editar el dataset ven sus borradores. Un borrador
 tomado de una conversación es texto que los demás lectores del dataset no han
@@ -305,37 +299,11 @@ Una generación iniciada con una clave API conserva su identificador. Antes de l
 
 ### El conjunto de prueba de un agent { #agent-test-set }
 
-Una mejora solo se puede medir con preguntas de prueba. `POST
-/agents/{id}/test-set` las construye para un agent en una sola llamada, y el
-asistente de mejora lo llama cuando el agent no tiene ninguna:
+`POST /agents/{id}/test-set` crea un dataset privado del agent o añade respuestas recién valoradas al conjunto editable existente. Una valoración positiva crea una referencia; una negativa, un contraejemplo con el comentario como nota. Solo se leen conversaciones accesibles. Se conservan casos y configuración de calificación existentes.
 
-- la primera llamada crea "<agent> - test questions", un dataset privado que
-  nombra al agent, para que las preguntas que copia no lleguen a nadie más hasta
-  que se comparta (**⋯ → Share** en su página); las llamadas siguientes le añaden las respuestas valoradas más
-  recientes como una versión nueva y conservan lo que ya tenía (`since` toma
-  solo las respuestas valoradas desde ese momento);
-- una respuesta con un pulgar arriba se convierte en una pregunta con esa
-  respuesta como respuesta de referencia, y una con un pulgar abajo en una
-  pregunta con ella como contraejemplo y el comentario del pulgar abajo como
-  nota. Cada pregunta llega sola, sin la conversación que la precedía, y solo de
-  conversaciones que quien llama puede abrir; el resultado cuenta las que vienen
-  de conversaciones de otras personas;
-- al generador de casos se le piden más preguntas hasta que cinco se puedan
-  calificar, o `more` de ellas. Se suman al conjunto de prueba como una versión
-  nueva en cuanto se escriben - solo esta generación se acepta sin una persona -
-  y el resultado dice cuántas se pidieron, para que alguien las revise después;
-- la calificación compara las respuestas con la respuesta de referencia y
-  suspende la que repite el contraejemplo, con un juez que funciona sobre un
-  modelo distinto del del agent. Con un solo modelo configurado, con la
-  asistencia de IA desactivada o si quien llama no puede publicar el juez, el
-  resultado lo dice con palabras. La calificación que alguien ya configuró en el
-  conjunto de prueba se deja como está; el resultado dice cuándo usa el mismo
-  modelo que el agent.
+Un conjunto nuevo utiliza el modelo del agent para calificación, generación y mejora. El resultado indica expresamente si calificador y agent comparten modelo. Se elige otro modelo en Grading para una evaluación independiente; ni el precio ni una preferencia organizacional lo seleccionan. No se crea otro agent de usuario.
 
-Menos de tres preguntas que se puedan calificar son demasiado pocas para medir
-un cambio, y el resultado lo dice. `POST /agents/{id}/test-set/estimate` pone
-precio a las preguntas que escribiría. Ambas necesitan `datasets:edit` y acceso
-al agent.
+El generador solicita preguntas hasta alcanzar cinco casos calificables o la cantidad `more`. Estos casos iniciales se aceptan automáticamente en una nueva versión. Menos de tres casos calificables se informa como insuficiente. `/test-set/estimate` estima la generación; ambas operaciones requieren `datasets:edit` y acceso al agent.
 
 ## Las credenciales se ocultan { #credentials }
 
@@ -450,36 +418,9 @@ el nombre después de cualquier sustitución en el spec. Un caso escrito antes d
 que se renombrara una herramienta espera el nombre antiguo.
 
 ### El juez { #judge }
+El calificador es un ayudante de evaluación definido en código. Su modelo, instrucciones, criterios, escala y umbral pertenecen a **Grading** de este dataset. El selector de provider, modelo y clave y el editor Markdown son los mismos que en Agent Builder. Editar requiere `datasets:edit`; añadir modelos, `connections:manage`. No hace falta crear ni publicar otro agent.
 
-Un juez es un agent de tipo `judge` (consulta
-[Jueces](concepts.md#system-agents)). Un dataset califica con el **Eval judge**
-que la plataforma añade a cada organización, o con un juez propio: **Create a
-judge for this dataset**, en la tarjeta Judge, crea uno cuyo prompt es el del
-Eval judge, con sus reglas de calificación, seguido del nombre y la descripción
-del dataset y de lo que indiques que el juez debe saber para calificar (una
-política, una lista de precios), sobre el primer modelo de la organización o uno
-que elijas. El prompt se puede editar antes de crearlo (`GET
-/datasets/{id}/judge-template`). Crearlo requiere `agents:edit` además de
-`datasets:edit`.
-
-El juez es tan visible como el dataset, porque su prompt contiene el nombre y la
-descripción del dataset, y queda como borrador para quien pueda publicarlo
-(`agents:publish`) cuando su creador no puede.
-
-El modelo se elige en el mismo panel que el de un agent: un provider, su lista
-completa de modelos y una clave para quien puede añadir un modelo
-(`connections:manage`), y los modelos guardados para los demás.
-
-Donde la asistencia de IA está activada, crearlo también activa la
-calificación: el juez, con un criterio inicial para sustituir cuando el dataset
-no tiene ninguno, y la comparación con la respuesta de referencia cuando algún
-caso la tiene. Los criterios, la escala y la nota de aprobado se quedan en el
-dataset; el prompt, el modelo y el budget del juez se editan en su propia
-página, el único lugar donde se fija su modelo; la tarjeta Judge lo muestra.
-
-Un juez se ejecuta como la persona que pidió la puntuación: se comprueba su
-acceso a él, se comprueba contra su propio budget y el de la organización antes
-de llamar al modelo, y su run aparece en Activity bajo la superficie `eval`.
+Cada puntuación conserva modelo, identidad publicada del ayudante, hash de criterios, versión de tarea y hash de instrucciones. Se pueden cambiar modelo e instrucciones del dataset; las calificaciones de configuraciones distintas no son directamente comparables.
 
 El juez recibe la nota del caso, como el motivo por el que existe, sus turnos
 anteriores y la pregunta, la respuesta de referencia cuando se califica, el
@@ -504,14 +445,6 @@ Los jueces empiezan con temperatura 0, para que la misma respuesta se califique
 igual dos veces; un modelo que no acepta temperatura, como un modelo de
 razonamiento, califica sin ella.
 
-El juez solo se ejecuta donde la [asistencia de IA](governance.md#ai-assistance)
-está activada, y está desactivada hasta que un administrador la activa para la
-organización. Hasta entonces, los criterios del juez y de la respuesta de
-referencia se registran como omitidos, solo puntúan los evaluadores basados en
-reglas, y la pestaña Grading lo indica con un enlace al interruptor para quien
-pueda cambiarlo. Mientras tanto no se pueden activar el juez ni la comparación
-con la respuesta de referencia; uno ya activado sigue activado y se omite.
-
 Cada criterio se califica de 1 al máximo de la escala y aprueba en la nota de
 aprobado o por encima. En cada criterio el juez cita el fragmento de la
 respuesta en que se basa su calificación y nombra la regla de la que se sigue.
@@ -529,8 +462,7 @@ recibe cada caso, que no cuestan nada y califican igual cada vez. La sugerencia
 lee las propias palabras del criterio y no llama a ningún modelo.
 
 Cuando el juez no puede calificar, sus criterios se registran como omitidos o
-como errores, con un motivo que nombra la causa: la asistencia de IA está
-desactivada, el juez que eligió el dataset ya no existe, no tiene una versión
+como errores, con un motivo que nombra la causa: el juez que eligió el dataset ya no existe, no tiene una versión
 publicada, está archivado, su modelo ya no existe o no tiene clave, la persona
 no puede ejecutarlo, su budget se ha agotado, su run falló o su respuesta no se
 pudo leer, de la que se guardan los primeros 2.000 caracteres junto al motivo.
@@ -544,7 +476,7 @@ El agent no se vuelve a ejecutar, y la puntuación conserva su eval run y
 cualquier decisión que una persona tomara sobre ella; una en la que cada
 evaluador llegó a un veredicto se queda como está.
 
-Una causa que sigue ahí (la asistencia de IA desactivada, el juez sin publicar)
+Una causa que sigue ahí (el juez sin publicar)
 se rechaza tal cual, igual que el juez de un run de evaluación publicado de
 nuevo desde que falló, o una puntuación de ese run fijada a un prompt de juez
 anterior, cuya calificación no sería comparable con el resto del run; entonces
@@ -571,17 +503,10 @@ error, en lugar de la nota que llegó la última. El run del juez en Activity
 indica qué campos no se pudieron leer, nunca la respuesta, que puede repetir un
 caso de un dataset que quien lo lee no puede ver.
 
-Cada puntuación registra el juez que la calificó - el agent juez, su perfil de
-modelo, la versión de su spec, un hash de la rúbrica y la versión de la tarea
-que la plataforma entrega a cada juez - para que las puntuaciones de jueces
-distintos no se comparen como equivalentes. Cambiar el juez, o su modelo en su
-página, está permitido; cambiar de juez pide confirmación antes, y la tarjeta
-Judge avisa de que las puntuaciones calificadas antes no serán comparables con
-las calificadas después.
+Cada puntuación conserva modelo, identidad publicada del ayudante, hash de criterios, versión de tarea y hash de instrucciones. Se pueden cambiar modelo e instrucciones del dataset; las calificaciones de configuraciones distintas no son directamente comparables.
 
 ### Revisión { #review }
-
-La revisión empieza como lista compacta; expanda una respuesta para leer evidencia y evaluación. Las decisiones distinguen una respuesta correcta de una incorrecta. Tras guardar, la fila permanece contraída en su lugar, con el resultado efectivo y los resultados actualizados del run o suite cuando son accesibles. La nota puede convertirse en criterio sin cambiar a todos los resultados, y la decisión puede retirarse allí.
+Review presenta una cola compacta con filtros. Seleccionar una respuesta abre evidencia, calificación y decisión en un panel lateral. Guardar mantiene el panel abierto y la fila en su lugar; se puede retirar o deshacer una decisión. La política de envío a review se configura aquí. Si cambia una máscara de privacidad del servidor, se descartan el panel y la nota sin guardar.
 
 Una puntuación espera en la **cola de revisión** cuando alguien la envía allí, o
 lo hace un run de eval. Tras volver a ejecutar lo que cambió, un run de eval

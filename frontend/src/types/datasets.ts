@@ -114,7 +114,14 @@ export interface DatasetStats {
 
 export type RunNeed = "runs:view" | "datasets:run";
 
+export interface DatasetHelperSettings {
+  generator: { model_profile_id: string | null; instructions: string | null };
+  improver: { model_profile_id: string | null; instructions: string | null };
+}
+
 export interface Dataset {
+  helper_settings?: DatasetHelperSettings;
+  helper_defaults?: { judge: string; generator: string; improver: string };
   improvement_holdout_share?: string;
   id: string;
   name: string;

@@ -6,16 +6,10 @@ import { useLocale, useTranslations } from "next-intl";
 import { useInImproveWizard } from "./wizard-mode";
 
 import { CopyButton } from "@/components/chat/copy-button";
-import { useAgentsOfKind } from "@/hooks/use-agents";
-import { usePermissions } from "@/hooks/use-permissions";
 import { Badge } from "@/components/ui";
 import { ROUTES } from "@/lib/constants";
 import { timeAgo } from "@/lib/utils";
 import type { KnowledgeGapDraft, KnowledgeGapSource } from "@/types/knowledge-gaps";
-import { Perm } from "@/types/permissions";
-
-/** The `system_key` of the drafter the platform seeds. */
-const DRAFTER_KEY = "knowledge_gap_drafter";
 
 const SOURCE_ICON: Record<KnowledgeGapSource["kind"], typeof FileText> = {
   document: FileText,
@@ -29,8 +23,7 @@ function asMarkdown(title: string, content: string): string {
 
 /**
  * What a draft rests on and where it came from: its verified sources, when and by
- * which run it was written, and copying it. Somebody who may edit
- * the drafter is pointed at its instructions, which decide how the next draft reads.
+ * which run it was written, and copying it.
  */
 export function KnowledgeGapDraftMeta({ draft }: { draft: KnowledgeGapDraft }) {
   const wizard = useInImproveWizard();
@@ -38,9 +31,6 @@ export function KnowledgeGapDraftMeta({ draft }: { draft: KnowledgeGapDraft }) {
   const tTime = useTranslations("time");
   const locale = useLocale();
   const markdown = asMarkdown(draft.title, draft.content);
-  const { can } = usePermissions();
-  const { agents } = useAgentsOfKind("drafter", { enabled: can(Perm.agentsView) });
-  const drafter = agents.find((agent) => agent.system_key === DRAFTER_KEY);
 
   return (
     <div className="space-y-2">
@@ -67,11 +57,6 @@ export function KnowledgeGapDraftMeta({ draft }: { draft: KnowledgeGapDraft }) {
         {draft.run_id && !wizard && (
           <Link href={`${ROUTES.RUNS}?run=${draft.run_id}`} className="underline">
             {t("openDraftRun")}
-          </Link>
-        )}
-        {drafter?.can_edit && !wizard && (
-          <Link href={ROUTES.AGENT_DETAIL(drafter.id)} className="underline">
-            {t("editDrafter")}
           </Link>
         )}
         <CopyButton text={markdown} className="opacity-100" />

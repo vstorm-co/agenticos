@@ -64,9 +64,7 @@ _PINS = Pins(
     suite_hash="h" * 64,
 )
 _BUDGET = {"spent": Decimal("0.01"), "rerun_estimate": Decimal("0.01"), "budget": Decimal("0.04")}
-_ALLOWED = Standing(
-    member=True, edits_agent=True, views_runs=True, runs_dataset=True, ai_assistance=True
-)
+_ALLOWED = Standing(member=True, edits_agent=True, views_runs=True, runs_dataset=True)
 
 
 def test_a_measured_improvement_is_better() -> None:
@@ -335,9 +333,8 @@ def test_a_session_in_good_standing_carries_on() -> None:
         replace(_ALLOWED, edits_agent=False),
         replace(_ALLOWED, views_runs=False),
         replace(_ALLOWED, runs_dataset=False),
-        replace(_ALLOWED, ai_assistance=False),
     ],
-    ids=["left", "no-edit", "no-runs-view", "no-dataset-run", "ai-off"],
+    ids=["left", "no-edit", "no-runs-view", "no-dataset-run"],
 )
 @pytest.mark.security
 def test_losing_access_stops_the_session_with_permission(standing: Standing) -> None:

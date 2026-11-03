@@ -121,8 +121,6 @@ describe("GenerateCasesDialog", () => {
     await userEvent.click(screen.getByRole("button", { name: "Estimate cost" }));
     await screen.findByText("20 cases, estimated $0.12");
 
-    expect(screen.queryByLabelText("Number of cases")).toBeNull();
-    await userEvent.click(screen.getByRole("button", { name: "More options · 20 cases" }));
     const count = screen.getByLabelText("Number of cases");
     await userEvent.clear(count);
     await userEvent.type(count, "8");
@@ -208,17 +206,8 @@ describe("GenerateCasesDialog", () => {
   });
 });
 
-it("discards the old quote when its generator changes", async () => {
-  estimate.mutateAsync.mockResolvedValue(ESTIMATE);
+it("uses dataset settings instead of choosing an agent for generation", () => {
   mount();
-  await chooseAgent();
-  await userEvent.click(screen.getByRole("button", { name: "Estimate cost" }));
-  await userEvent.click(screen.getByText("Case generator"));
-  await userEvent.click(screen.getByRole("combobox", { name: "Run with" }));
-  await userEvent.click(screen.getByRole("option", { name: "Selected generator" }));
-  expect(screen.queryByRole("button", { name: "Generate" })).not.toBeInTheDocument();
-  await userEvent.click(screen.getByRole("button", { name: "Estimate cost" }));
-  expect(estimate.mutateAsync).toHaveBeenLastCalledWith(
-    expect.objectContaining({ generator_agent_id: "generator" }),
-  );
+  expect(screen.getByText(/Uses the model and instructions saved/)).toBeInTheDocument();
+  expect(screen.queryByRole("combobox", { name: "Run with" })).toBeNull();
 });

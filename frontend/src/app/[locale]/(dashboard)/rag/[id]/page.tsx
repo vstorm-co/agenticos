@@ -30,7 +30,6 @@ import { EmbeddingDialog } from "@/components/kb/embedding-dialog";
 import { IngestionDialog } from "@/components/kb/ingestion-dialog";
 import { IngestionPanel } from "@/components/kb/ingestion-panel";
 import { UploadOverrideDialog } from "@/components/kb/upload-override-dialog";
-import { KnowledgeGapHelpers } from "@/components/knowledge-gaps/knowledge-gap-helpers";
 import { KnowledgeGapsPanel } from "@/components/knowledge-gaps/knowledge-gaps-panel";
 import { gapStatus } from "@/lib/knowledge-gap-status";
 import { useKBDetail, usePermissions, usePollWhileIngesting, useUrlState } from "@/hooks";
@@ -99,7 +98,6 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
     refreshIngestion,
     loadMoreDocuments,
     updateIngestion,
-    updateGapHelpers,
     updateEmbeddings,
     uploadDocument,
     deleteDocument,
@@ -396,11 +394,6 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
 
         {maySeeGaps && (
           <TabsContent value="gaps">
-            {mayEdit && kb.scope !== "app" && (
-              <div className="mb-3 flex justify-end">
-                <KnowledgeGapHelpers kb={kb} onSave={updateGapHelpers} />
-              </div>
-            )}
             <div className="mb-8" data-tour="kb-gaps">
               <KnowledgeGapsPanel
                 scope={{ kind: "collection", id }}

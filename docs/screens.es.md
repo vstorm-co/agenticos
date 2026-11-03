@@ -1,5 +1,5 @@
 ---
-source_sha: "141d29d9cb14"
+source_sha: "da5acf79cbbe"
 ---
 
 # Todas las pantallas de la consola { #every-screen-in-the-console }
@@ -286,12 +286,6 @@ Preguntas para las que un agente buscó en sus bases de conocimiento y no encont
 ![Knowledge gaps](assets/screens/light/knowledge-gaps.webp#only-light)
 ![Knowledge gaps](assets/screens/dark/knowledge-gaps.webp#only-dark)
 
-### AI assistance { #ai-assistance }
-
-El interruptor de la organización para todo lo que llama a un modelo por su cuenta: el juez de evals, el generador de casos, el asistente que escribe cambios y los borradores de knowledge gaps. Apagado hasta que alguien lo enciende; cada uso es un run medido.
-
-![AI assistance](assets/screens/light/ai-assistance.webp#only-light)
-![AI assistance](assets/screens/dark/ai-assistance.webp#only-dark)
 
 ## Qué ha pasado, y qué está esperando { #what-happened-and-what-is-waiting }
 

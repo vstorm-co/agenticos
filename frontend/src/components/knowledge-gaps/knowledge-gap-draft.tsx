@@ -5,9 +5,7 @@ import { BookCheck } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useInImproveWizard } from "./wizard-mode";
 
-import { EnableAiAssistanceLink } from "@/components/teams/enable-ai-assistance-link";
 import { Alert, AlertDescription } from "@/components/ui";
-import { useOrganizations } from "@/hooks/use-organizations";
 import { usePermissions } from "@/hooks/use-permissions";
 import { ROUTES } from "@/lib/constants";
 import { Perm } from "@/types/permissions";
@@ -33,24 +31,12 @@ import { KnowledgeGapEditor } from "./knowledge-gap-editor";
  */
 export function KnowledgeGapDraftPanel({ topic }: { topic: KnowledgeGapTopicDetail }) {
   const t = useTranslations("knowledgeGaps");
-  const { activeOrg } = useOrganizations();
   const { can } = usePermissions();
-  const aiOn = activeOrg?.ai_assistance_enabled === true;
   const wizard = useInImproveWizard();
-  const mayDraft = aiOn && topic.can_edit && can(Perm.agentsRun);
+  const mayDraft = topic.can_edit && can(Perm.agentsRun);
 
   return (
     <section className="space-y-3">
-      {!aiOn && activeOrg && (
-        <p className="bg-muted rounded-md px-3 py-2 text-xs">
-          {t("aiOff")}{" "}
-          {can(Perm.orgSettings) ? (
-            <EnableAiAssistanceLink orgId={activeOrg.id}>{t("enableAi")}</EnableAiAssistanceLink>
-          ) : (
-            t("askAdmin")
-          )}
-        </p>
-      )}
       <KnowledgeGapDraftStatus topic={topic} editable={mayDraft} offerRedraft />
       {wizard && mayDraft && topic.draft && !topic.drafting && (
         <p className="text-muted-foreground text-xs">{t("draftAgainInSession")}</p>

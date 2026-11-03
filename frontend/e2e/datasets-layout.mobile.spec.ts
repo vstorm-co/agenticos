@@ -35,6 +35,7 @@ test("case editing keeps fields and save reachable on narrow and short screens",
   await dialog
     .getByRole("textbox", { name: "Turn 1: what was said", exact: true })
     .fill(longAnswer);
+  await dialog.locator("summary").filter({ hasText: "Tool expectations" }).click();
   await dialog.getByRole("button", { name: "Add a tool call", exact: true }).click();
   await dialog.getByRole("combobox", { name: "Call 1: tool", exact: true }).fill("search_kb");
   await dialog.getByRole("button", { name: "Add an argument", exact: true }).click();
@@ -111,7 +112,7 @@ test("case editing keeps fields and save reachable on narrow and short screens",
   await page.keyboard.press("Escape");
   for (const width of [320, 1440]) {
     await page.setViewportSize({ width, height: 844 });
-    for (const tab of ["Cases", "Generated", "Grading", "Evals", "Review"]) {
+    for (const tab of ["Cases", "Generated", "Grading", "Evals", "Review", "Settings"]) {
       await page.getByRole("tab", { name: new RegExp(`^${tab}`) }).click();
       await page.getByRole("button", { name: "Full screen", exact: true }).click();
       const workspace = page.getByRole("dialog", { name, exact: true });

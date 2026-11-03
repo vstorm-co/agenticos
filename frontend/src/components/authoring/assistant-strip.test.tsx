@@ -5,6 +5,25 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("@/components/agents/improve-link", () => ({
   ImproveButton: ({ agentId }: { agentId: string }) => <button>Improve {agentId}</button>,
 }));
+vi.mock("@/components/evals/start-eval-dialog", () => ({
+  StartEvalDialog: ({
+    agentId,
+    target,
+    onOpenChange,
+  }: {
+    agentId: string;
+    target: string;
+    onOpenChange: (open: boolean) => void;
+  }) => (
+    <div role="dialog">
+      <h2>Test saved draft</h2>
+      <p>
+        {agentId}:{target}
+      </p>
+      <button onClick={() => onOpenChange(false)}>Cancel</button>
+    </div>
+  ),
+}));
 import { agentAuthoring, authoringRequest, batch, hunk } from "@/test-utils/authoring";
 import { evalRun } from "@/test-utils/eval-runs";
 import type { AgentAuthoring } from "@/types/authoring";
@@ -180,7 +199,7 @@ describe("AssistantStrip", () => {
     state.published = { spec: { ...DRAFT, instructions: "Old." } };
     strip();
     await userEvent.click(screen.getByRole("button", { name: "Verify my edits" }));
-    expect(await screen.findByRole("heading", { name: "Verify your edits" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Test saved draft" })).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
     expect(screen.getByRole("button", { name: "Improve agent-1" })).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Improve this agent" })).toBeNull();
@@ -249,12 +268,12 @@ describe("AssistantStrip", () => {
     expect(screen.getByRole("button", { name: "Verify my edits" })).toBeDisabled();
   });
 
-  it("is visibly off, with the way to turn it on, while AI assistance is", () => {
+  it("does not gate verification on a legacy organization switch", () => {
     state.enabled = false;
     state.published = { spec: { ...DRAFT, instructions: "Old." } };
     strip();
-    expect(screen.getByRole("button", { name: "Verify my edits" })).toBeDisabled();
-    expect(screen.getByRole("link", { name: "Turn it on" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Verify my edits" })).toBeEnabled();
+    expect(screen.queryByRole("link", { name: "Turn it on" })).toBeNull();
   });
 
   it("shows a request at work, a failed one, and the verify report", () => {

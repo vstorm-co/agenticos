@@ -12,7 +12,7 @@ import { NeedsRunsView } from "@/components/evals/needs-runs-view";
 import { specText } from "@/components/agents/version-history";
 import { useDraftBase } from "@/hooks";
 import { useAgentAuthoring } from "@/hooks/use-authoring";
-import { useAiAssistance } from "@/hooks/use-organizations";
+import { useOrgStore } from "@/stores/org-store";
 import { usePermissions } from "@/hooks/use-permissions";
 import { getErrorMessage } from "@/lib/api-error";
 import { ROUTES } from "@/lib/constants";
@@ -20,9 +20,8 @@ import type { AgentSpec } from "@/types/agents";
 import { ideaState } from "@/lib/authoring-groups";
 import type { AuthoringRequest, Hunk, HunkDecision, ProposedSkill } from "@/types/authoring";
 import { Perm } from "@/types/permissions";
-import { AiOffNotice } from "./ai-off-notice";
 import { CheckDialog } from "./check-dialog";
-import { ImproveDialog } from "./improve-dialog";
+import { StartEvalDialog } from "@/components/evals/start-eval-dialog";
 import { SuggestionList } from "./suggestion-list";
 import { RejectedChanges } from "./rejected-changes";
 import { VerifyReport } from "./verify-report";
@@ -59,7 +58,7 @@ export function AssistantStrip({
   const t = useTranslations("authoring.strip");
   const tErrors = useTranslations("errors");
   const router = useRouter();
-  const { orgId, enabled } = useAiAssistance();
+  const orgId = useOrgStore((state) => state.activeOrgId);
   // The assistant reads runs, and checking runs an eval whose results are runs:
   // without runs:view, a person decides what waits but cannot ask for more.
   const { can } = usePermissions();
@@ -80,7 +79,6 @@ export function AssistantStrip({
   const working = latest?.status === "queued" || latest?.status === "running";
   // Until the latest request is known, a click could start a second one beside it.
   const unknown = assistant.isLoading || assistant.error !== null;
-  const off = enabled === false;
   const compact = authoring?.has_evidence === false && batch === null && latest === null;
 
   async function onDecide(hunk: Hunk, decision: HunkDecision) {
@@ -130,8 +128,12 @@ export function AssistantStrip({
             <Button
               size="sm"
               variant="outline"
-              disabled={off || working || unknown}
-              onClick={() => setVerifying(true)}
+              disabled={working || unknown}
+              onClick={() =>
+                void persist().then((saved) => {
+                  if (saved) setVerifying(true);
+                })
+              }
             >
               {t("verify")}
             </Button>
@@ -162,7 +164,6 @@ export function AssistantStrip({
       </CardHeader>
       {!compact && (
         <CardContent className="space-y-4">
-          {off && orgId !== null && <AiOffNotice orgId={orgId} />}
           {latest?.status === "failed" && (
             <p role="alert" className="text-destructive text-sm">
               {latest.error}
@@ -209,13 +210,9 @@ export function AssistantStrip({
         </CardContent>
       )}
       {verifying && (
-        <ImproveDialog
-          kind="verify"
-          estimate={assistant.estimate.mutateAsync}
-          start={assistant.start.mutateAsync}
-          onOpenChange={(open) => !open && setVerifying(false)}
-        />
+        <StartEvalDialog agentId={agentId} target="compare" onOpenChange={setVerifying} />
       )}
+
       {checking && (
         <CheckDialog
           agentId={agentId}
