@@ -418,6 +418,10 @@ class HunkRead(BaseSchema):
     expected_effect: str = ""
     evidence: list[EvidenceItemRead]
     evidence_dropped: int
+    evidence_hidden: int = Field(
+        default=0,
+        description="Evidence from agents the reader may not see, counted rather than shown",
+    )
     applies: bool
     decided_at: datetime | None
 

@@ -32,6 +32,7 @@ from tests.integration.test_authoring import (
     _owner,
     _sessions,
 )
+from tests.integration.test_skill_bindings import _fork
 from tests.integration.test_skill_improvement import (
     _BODY,
     _continue,
@@ -257,3 +258,26 @@ async def test_the_analysis_reads_what_a_handing_agents_improve_found(db, eviden
     [analysis] = [prompt for prompt in model.prompts if prompt.startswith("Group the bad answers")]
     assert "# What an agent's own Improve found in this skill" in analysis
     assert "- The window is wrong" in analysis and "(none)" in analysis
+
+
+async def test_a_fork_sessions_analysis_reads_the_forks_own_text(db, evidence):
+    ctx = await _owner(db)
+    await _improver(db, ctx)
+    evidence["runs"] = [_packed(_RUN_ID)]
+    skill = await _skill_on_main(db, ctx)
+    fork = await _fork(db, ctx, skill, "Returns are free within 60 days.")
+    service = SkillImprovementService(db)
+    read = await service.start(ctx, skill.id, _start(fork_id=fork.id))
+    await service.advance(read.id, ctx.organization_id)
+    run = await db.get(SkillImprovementRun, read.id)
+    assert run is not None and run.analysis_request_id is not None
+    model = SkillImprover(db)
+
+    with _answering(model):
+        await AuthoringWorker(
+            run.analysis_request_id, ctx.organization_id, sessions=_sessions(db)
+        ).run()
+
+    [analysis] = [prompt for prompt in model.prompts if prompt.startswith("Group the bad answers")]
+    assert "Returns are free within 60 days." in analysis and _BODY not in analysis
+    assert "(returns)" in analysis

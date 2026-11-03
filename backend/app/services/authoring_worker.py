@@ -310,19 +310,21 @@ def _seed_section(seed: Mapping[str, Any] | None) -> str:
 
 
 def _skill_problems_prompt(
-    skill: Skill,
+    name: str,
     line: str,
+    description: str,
+    content: str,
     pack: EvidencePack,
     digests: Sequence[RunFindings] | None,
     seed: Mapping[str, Any] | None,
 ) -> str:
     return (
-        f'Group the bad answers of agents that opened the skill "{skill.name}" ({line}) '
+        f'Group the bad answers of agents that opened the skill "{name}" ({line}) '
         "into problems. For each, say whether the skill's text leads to it, whether the "
         "agent's own instructions or knowledge do, or whether the answer was fine. Propose "
         "no change.\n\n"
-        f"# Its description\n{skill.description}\n\n"
-        f"# Its body\n<skill>\n{skill.content}\n</skill>\n\n"
+        f"# Its description\n{description}\n\n"
+        f"# Its body\n<skill>\n{content}\n</skill>\n\n"
         f"# Runs that opened it\n{_evidence_section(pack, digests)}"
         f"{_seed_section(seed)}"
     )
@@ -834,7 +836,15 @@ class AuthoringRun:
         digests = await self._digests(pack, f'agents using the skill "{skill.name}"')
         if self.request.kind == AuthoringKind.ANALYZE.value:
             found = await self._ask(
-                _skill_problems_prompt(skill, line.name, pack, digests, session.seed),
+                _skill_problems_prompt(
+                    skill.name,
+                    line.name,
+                    base.description,
+                    base.content,
+                    pack,
+                    digests,
+                    session.seed,
+                ),
                 SkillProblems,
             )
             pack = await self.evidence.forget_erased(pack)

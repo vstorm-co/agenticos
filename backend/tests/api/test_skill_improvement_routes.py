@@ -10,7 +10,12 @@ from pydantic import BaseModel
 
 from app.api import deps
 from app.core.config import settings
-from app.core.exceptions import NotFoundError
+from app.core.exceptions import (
+    BadRequestError,
+    ConcurrentChangeError,
+    NotFoundError,
+    PaymentRequiredError,
+)
 from app.core.permissions import AuthContext, OrgRoleName, Perm
 from app.main import app
 from app.services.skill_improvement import SkillImprovementService
@@ -153,3 +158,44 @@ def test_the_platforms_own_tools_reach_every_skill_session_route() -> None:
 
     assert len(routes) == 18
     assert all(is_assistant_route(route) for route in routes)
+
+
+@pytest.mark.parametrize(
+    ("refusal", "code"),
+    [
+        (BadRequestError(message="Only a result is checked again"), 400),
+        (PaymentRequiredError(message="The spending limit does not cover this check"), 402),
+        (ConcurrentChangeError(message="The check's price changed since it was quoted"), 409),
+    ],
+)
+async def test_check_again_answers_each_refusal_with_its_status(
+    client: AsyncClient, mock_db_session: MagicMock, refusal: Exception, code: int
+) -> None:
+    ctx = AuthContext(user_id=uuid4(), organization_id=uuid4(), role=OrgRoleName.OWNER)
+    service = SkillImprovementService(mock_db_session)
+    app.dependency_overrides[deps.get_auth_context] = lambda: ctx
+    app.dependency_overrides[deps.get_skill_improvement_service] = lambda: service
+    body = {"confirmed": True, "estimate_usd": "0.3", "candidate_hash": _HASH, "budget_usd": "5"}
+    with patch.object(service, "recheck", AsyncMock(side_effect=refusal)):
+        response = await client.post(f"{settings.API_V1_STR}{_ONE}/recheck", json=body)
+
+    assert response.status_code == code
+
+
+@pytest.mark.parametrize("confirmed", [None, False])
+@pytest.mark.parametrize("path", ["apply", "fork"])
+async def test_a_decision_without_confirmation_is_refused_before_the_service(
+    client: AsyncClient, mock_db_session: MagicMock, path: str, confirmed: bool | None
+) -> None:
+    ctx = AuthContext(user_id=uuid4(), organization_id=uuid4(), role=OrgRoleName.OWNER)
+    service = SkillImprovementService(mock_db_session)
+    app.dependency_overrides[deps.get_auth_context] = lambda: ctx
+    app.dependency_overrides[deps.get_skill_improvement_service] = lambda: service
+    body: dict[str, object] = {"name": "Returns"}
+    if confirmed is not None:
+        body["confirmed"] = confirmed
+    with patch.object(service, path, AsyncMock()) as decided:
+        response = await client.post(f"{settings.API_V1_STR}{_ONE}/{path}", json=body)
+
+    assert response.status_code == 422
+    decided.assert_not_awaited()

@@ -180,8 +180,10 @@ class SkillImprovementRead(BaseSchema):
     )
     stale: bool = Field(
         default=False,
-        description="The result's line moved on since its check: decide after Check again "
-        "(`POST …/recheck`), which measures the same changes on the line as it is now",
+        description="The line moved on since the result was checked, or since the changes "
+        "waiting at Changes were proposed: Check again (`POST …/recheck`) measures the same "
+        "changes on the line as it is now. A decision refused with 409 because the line's "
+        "agents changed since the check means the same",
     )
     outcomes: list[CheckOutcome] = Field(
         default_factory=list,
@@ -230,6 +232,9 @@ class SkillProblemRead(BaseSchema):
     agents: list[ProblemAgent]
     hidden_agents: int = Field(description="Agents with this problem the caller may not see")
     examples: list[SkillProblemExample] = Field(default_factory=list)
+    hidden_examples: int = Field(
+        default=0, description="Examples from agents the caller may not see, counted, not shown"
+    )
 
 
 class SkillImprovementProblems(BaseSchema):

@@ -12,12 +12,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.models.audit_log import AppAdminAuditLog
 from app.db.models.authoring import AuthoringRequest
 from app.db.models.eval_run import EvalRunCase
-from app.db.models.improvement import ACTIVE_STATUSES, ImprovementStatus
+from app.db.models.improvement import ACTIVE_STATUSES, OPEN_STATUSES
 from app.db.models.skill_check import SkillCheckAgent
 from app.db.models.skill_improvement import SkillImprovementIteration, SkillImprovementRun
 
 _ACTIVE = tuple(status.value for status in ACTIVE_STATUSES)
-_RESTING = (ImprovementStatus.WAITING.value, ImprovementStatus.READY.value)
+_RESTING = tuple(status.value for status in OPEN_STATUSES if status not in ACTIVE_STATUSES)
+"""Open but still: waiting for a person, with a result, stopped or failed - each ends in time."""
 
 TIMELINE_TARGET = "skill_improvement"
 """The audit target type a session's steps are recorded under, and read back as its timeline."""
@@ -106,7 +107,12 @@ async def list_runs(
 
 
 async def list_for_person(
-    db: AsyncSession, *, organization_id: UUID, statuses: Sequence[str], limit: int = 20
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    statuses: Sequence[str],
+    skip: int = 0,
+    limit: int = 20,
 ) -> list[SkillImprovementRun]:
     """The organization's sessions in these statuses, newest first."""
     result = await db.execute(
@@ -115,7 +121,8 @@ async def list_for_person(
             SkillImprovementRun.organization_id == organization_id,
             SkillImprovementRun.status.in_(statuses),
         )
-        .order_by(SkillImprovementRun.created_at.desc())
+        .order_by(SkillImprovementRun.created_at.desc(), SkillImprovementRun.id)
+        .offset(skip)
         .limit(limit)
     )
     return list(result.scalars().all())
@@ -136,7 +143,7 @@ async def list_active(
 async def list_resting(
     db: AsyncSession, *, after: UUID | None = None, limit: int = 200
 ) -> list[tuple[UUID, UUID]]:
-    """`(run id, organization id)` of sessions waiting for a person, a page at a time by id.
+    """`(run id, organization id)` of open sessions not working on their own, a page at a time by id.
 
     Unscoped, for the deployment's sweep, which ends the ones nobody took on in
     time; each is then read under its own organization.
@@ -213,6 +220,19 @@ async def update_iteration(
     await db.flush()
     await db.refresh(iteration)
     return iteration
+
+
+async def iteration_for_check(
+    db: AsyncSession, check_id: UUID, *, organization_id: UUID
+) -> SkillImprovementIteration | None:
+    """The attempt a skill check measured, when a session started it."""
+    result = await db.execute(
+        select(SkillImprovementIteration).where(
+            SkillImprovementIteration.organization_id == organization_id,
+            SkillImprovementIteration.skill_check_id == check_id,
+        )
+    )
+    return result.scalar_one_or_none()
 
 
 async def spent(db: AsyncSession, run_id: UUID, *, organization_id: UUID) -> Decimal:
