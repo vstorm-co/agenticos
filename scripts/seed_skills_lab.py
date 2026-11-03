@@ -5,15 +5,22 @@ more than one agent, those agents have test questions and rated answers, and
 the answers show the model opening the skill. No deployment has that by
 accident, so this builds it:
 
-- `returns-policy`, Acme's return rules, as a skill.
-- **A**, an online returns desk, and **B**, a gift-shop counter, both bind it.
-  Each has sixteen test questions graded by checks, measured once.
-- **C**, a wholesale desk, binds it with no test questions: the agent a check
-  can only report as unknown.
+- `returns-policy`, Acme's return rules, as a skill with a short history: main
+  v1 to v3, and a fork, Marketplace, from v2 with two versions of its own that
+  touch lines main never does. It also has ten test questions of its own.
+- **A**, an online returns desk, **B**, a gift-shop counter, and **C**, a
+  wholesale desk, follow main. Each has test questions graded by checks,
+  measured once, so the skill-loading ones are a check's sample. B opens the
+  skill only on its eight rule questions; its other four are about the shop.
 - **D**, an onboarding helper, does not bind it, so nothing it answers is the
   skill's evidence.
 - **E**, a front desk, binds nothing and hands return questions to A, so the
   skill is opened by the agent it delegated to.
+- **F**, an outlet desk, is pinned on main v2; **G**, a marketplace desk, reads
+  the fork. A check on main runs neither, and one on the fork runs only G.
+- **H**, a clearance desk, follows main on a monthly budget too small to check.
+- **I**, a store info desk, follows main with questions that never open the
+  skill, so a check samples it from the skill's own questions only.
 
 No agent's instructions mention the skill. The model opens it from its
 description, as it would in any organization.
@@ -23,8 +30,9 @@ no receipt, so v1's "store credit only" is what A's people rate down, and A
 fails half its questions. The obvious fix, `broad`, drops the receipt rule: it
 fixes A and breaks B, whose shop has no order numbers. `narrow` counts an order
 number as a receipt and fixes A without touching B. `--probe` measures one
-wording on A's and B's questions in an organization of its own, so that claim
-is checked on a real model before a phase relies on it.
+wording on A's, B's and C's questions and the skill's own, in an organization
+of its own, so that claim is checked on a real model before a phase relies on
+it.
 
 Built through the HTTP API and the console's own chat socket, never by writing
 rows, for the reason `loadtest/seed.py` gives: a fixture assembled behind the
@@ -32,8 +40,9 @@ product's validation could show a state the product cannot produce. It creates
 only what is missing, and leaves alone every row somebody may have worked on,
 so running it again after a click-through keeps their changes. What it does
 finish is a step an interrupted run left half done: a dataset that was never
-measured gets its missing questions and its grading, and an agent that was
-never published is published, and a lab whose settings were never applied gets
+measured gets its missing questions and its grading, a line of the skill still
+holding only the plan's first versions gets the rest, an agent that was never
+published is published, and a lab whose settings were never applied gets
 them. A conversation it could not confirm is asked again on the next run, at most
 twice. It never enters a Personal organization, and never asks or measures an
 agent found under a planned name that somebody else owns or whose spec reaches
@@ -42,7 +51,7 @@ further than the plan - those are reported as refused.
 The owner's login and the provider key come from the environment and are never
 printed: `SKILLS_LAB_EMAIL`, `SKILLS_LAB_PASSWORD`, and
 `SKILLS_LAB_OPENROUTER_KEY`, which is needed only while the organization has
-no key. A first run costs about twenty cents on GPT-4.1 mini.
+no key. A first run costs about thirty cents on GPT-4.1 mini.
 
 `make seed-skills-lab SKILLS_LAB_URL=<the stack's API>` seeds, `PROBE=<variant>`
 measures a wording instead, and `DROP_PROBES=1` deletes the probe organizations
@@ -55,7 +64,7 @@ import os
 import re
 import sys
 import time
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Collection, Mapping, Sequence
 from dataclasses import asdict, dataclass, field
 from typing import Any, Literal, TypedDict
 
@@ -66,7 +75,7 @@ from websockets.typing import Subprotocol
 
 Variant = Literal["v1", "broad", "narrow"]
 VARIANTS: tuple[Variant, ...] = ("v1", "broad", "narrow")
-AgentKey = Literal["A", "B", "C", "D", "E"]
+AgentKey = Literal["A", "B", "C", "D", "E", "F", "G", "H", "I"]
 
 ORG_NAME = "Skills lab"
 ORG_SLUG = "skills-lab"
@@ -109,20 +118,45 @@ RULE_TWO: dict[Variant, str] = {
 }
 
 
-def skill_body(variant: Variant) -> str:
-    """The skill's text with rule 2 worded as `variant` words it."""
+MAIN_VERSIONS = 3
+"""Main's planned history: v2 dates the card refund, v3 adds the size exchange."""
+
+FORK = "Marketplace"
+FORK_FROM = 2
+FORK_VERSIONS = 2
+"""The fork starts from main v2; its two versions change rules 1 and 3, lines main never
+touches, so catching it up with main's v3 merges without a conflict."""
+
+
+def skill_body(variant: Variant = "v1", *, main: int = 1, fork: int = 0) -> str:
+    """The skill's text: rule 2 worded as `variant`, as main version `main` and fork version
+    `fork` of the Marketplace fork (0 for main itself) have it."""
     return "\n".join(
         (
             "# Returns and refunds at Acme",
             "",
-            "1. Physical items can be returned within 30 days of delivery or purchase.",
+            "1. Physical items can be returned within 30 days of delivery or purchase"
+            + (
+                "; items sold by a marketplace seller are returned to that seller."
+                if fork >= 1
+                else "."
+            ),
             RULE_TWO[variant],
             "3. Digital goods (e-books, software, gift codes) are not refundable once "
-            "downloaded or redeemed.",
+            "downloaded or redeemed"
+            + ("; marketplace gift codes follow the seller's rules." if fork >= 2 else "."),
             "4. An item damaged on arrival is refundable at any time with a photo of the damage.",
             "5. Refunds above $500 need a manager's approval: log the request and say a manager "
             "replies within 2 business days.",
-            "6. Card refunds take 5-7 business days.",
+            "6. Card refunds take 5-7 business days"
+            + (" after we receive the item." if main >= 2 else "."),
+            *(
+                (
+                    "7. Clothing can be exchanged once for another size within 30 days, with a receipt.",
+                )
+                if main >= 3
+                else ()
+            ),
             "",
             "Answer in at most three sentences, and say no plainly when the answer is no.",
         )
@@ -209,6 +243,90 @@ COUNTER_RULE = tuple(
 )
 
 
+WHOLESALE_RULE = tuple(
+    Case(question, REFUNDED)
+    for question in (
+        "Our order 4410-W came 8 days ago and the receipt is missing. Can we return two office chairs for a refund?",
+        "Order 9032-W was delivered last week with no receipt on the pallet. We want a refund for the printer.",
+        "We lost the receipt for order 6178-W from 12 days ago. Refund for the monitors, please.",
+    )
+)
+
+OUTLET_RULE = tuple(
+    Case(question, REFUNDED)
+    for question in (
+        "Order 51207 from the outlet shop came 6 days ago and I lost the receipt. Can I get a refund for the jacket?",
+        "No receipt for outlet order 38854, bought 10 days ago. I want my money back for the boots.",
+        "Outlet order 27631 arrived 3 days ago without a receipt. Refund the backpack, please.",
+    )
+)
+
+TO_THE_SELLER = (_regex(r"(?i)(returned|return it|send it back|goes back) to (that|the) seller"),)
+
+MARKETPLACE_RULE = tuple(
+    Case(question, TO_THE_SELLER)
+    for question in (
+        "I bought a lamp from a marketplace seller on Acme's site 5 days ago. Can I return it to you?",
+        "A marketplace seller sent me the wrong phone case. Who takes the return?",
+        "Can I bring a rug I bought from a marketplace seller back to an Acme store?",
+    )
+)
+
+COUNTER_STORE = (
+    Case("Do you take online orders?", (_regex(r"(?i)(no|not|don't|do not)"),)),
+    Case("How do I pay for what I buy here?", (_regex(r"(?i)(till|counter|checkout)"),)),
+    Case("Where in the mall is the shop?", (_regex(r"(?i)(ground floor|entrance)"),)),
+    Case("Do you sell gift cards?", (_regex(r"(?i)(yes|we do|counter)"),)),
+)
+"""Questions the counter answers from its own instructions, none of which the skill is for."""
+
+STORE_INFO = (
+    Case("When are you open on Sunday?", (_regex(r"10"),)),
+    Case("Is parking free at the mall?", (_regex(r"(?i)(two hours|2 hours|free)"),)),
+    Case("Do you wrap presents?", (_regex(r"(?i)free"),)),
+    Case("Where do I find the store in the mall?", (_regex(r"(?i)(ground floor|entrance)"),)),
+    Case("Can I buy a gift card in the store?", (_regex(r"(?i)(yes|counter)"),)),
+)
+
+SKILL_SET_CREDITED = tuple(
+    Case(question, CREDITED)
+    for question in (
+        "I have no receipt for a picture frame I bought in a shop 9 days ago. What can you offer?",
+        "I bought a desk lamp in store 2 weeks ago and lost the receipt. Can I bring it back?",
+        "I paid cash for a toaster 6 days ago and threw the receipt away. What are my options?",
+        "I have no receipt and no order number for a kettle from last week. Can I return it?",
+    )
+)
+
+SKILL_SET_REFUNDED = tuple(
+    Case(question, REFUNDED)
+    for question in (
+        "Order 73310 arrived 7 days ago and I never got a receipt. Can I return the blender for a refund?",
+        "I lost the receipt for order 26475 from 10 days ago. Can I get a refund to my card?",
+        "I want to return the shelf from order 84021, bought 3 weeks ago, with no receipt. What happens?",
+        "Order 39186: the headphones were delivered 5 days ago and the receipt is gone. Refund please.",
+    )
+)
+
+SKILL_SET = (
+    *SKILL_SET_CREDITED,
+    *SKILL_SET_REFUNDED,
+    Case(
+        "I bought an e-book yesterday and already downloaded it. Can I get a refund?",
+        (_regex(r"(?i)(not|cannot|can't)"),),
+    ),
+    Case(
+        "Can you refund a $780 camera I bought 4 days ago? I have the receipt.",
+        (_regex(r"(?i)manager"),),
+    ),
+)
+"""The skill's own test questions, graded the same on every agent that binds it: no receipt
+and no order number keeps store credit, an order number counts as a receipt."""
+
+
+Line = Literal["main", "pinned", "fork"]
+
+
 @dataclass(frozen=True)
 class AgentPlan:
     key: AgentKey
@@ -220,11 +338,19 @@ class AgentPlan:
     dataset: str | None = None
     rule: tuple[Case, ...] = ()
     """The questions on rule 2, the ones a wording of it decides."""
+    other: tuple[Case, ...] = GENERAL
+    """The rest of its test questions."""
+    line: Line = "main"
+    """Main, latest; main version `FORK_FROM`, pinned; or the Marketplace fork, latest."""
+    budget_usd: float = AGENT_BUDGET_USD
+    earlier_instructions: tuple[str, ...] = ()
+    """Instructions an earlier version of this seed published. An agent still holding them
+    is the seed's, kept as it is: its measured questions are never rewritten, so only a
+    fresh lab gets the current ones."""
 
     @property
     def cases(self) -> tuple[Case, ...]:
-        """Every test question: the rule's, and the general ones each measured desk shares."""
-        return self.rule + GENERAL if self.dataset else ()
+        return self.rule + self.other if self.dataset else ()
 
 
 AGENTS = (
@@ -246,13 +372,20 @@ AGENTS = (
         name="Gift shop counter",
         description="Answers questions at the counter of Acme's gift shop in the city mall.",
         instructions=(
-            "You are the counter of Acme's gift shop in the city mall. Customers pay at the till "
-            "and get a paper receipt; there are no online orders and no order numbers. Never "
+            "You are the counter of Acme's gift shop in the city mall, on the ground floor next "
+            "to the main entrance. Customers pay at the till and get a paper receipt; there are "
+            "no online orders and no order numbers. Gift cards are sold at the counter. Never "
             "guess a store rule. Answer in at most three sentences."
         ),
         binds_skill=True,
         dataset="Gift shop counter - test questions",
         rule=COUNTER_RULE,
+        other=COUNTER_STORE,
+        earlier_instructions=(
+            "You are the counter of Acme's gift shop in the city mall. Customers pay at the "
+            "till and get a paper receipt; there are no online orders and no order numbers. "
+            "Never guess a store rule. Answer in at most three sentences.",
+        ),
     ),
     AgentPlan(
         key="C",
@@ -264,6 +397,9 @@ AGENTS = (
             "Answer in at most three sentences."
         ),
         binds_skill=True,
+        dataset="Wholesale desk - test questions",
+        rule=WHOLESALE_RULE,
+        other=GENERAL[:3],
     ),
     AgentPlan(
         key="D",
@@ -283,7 +419,63 @@ AGENTS = (
         binds_skill=False,
         delegates_to="A",
     ),
+    AgentPlan(
+        key="F",
+        name="Outlet desk",
+        description="Answers return questions for Acme's outlet web shop.",
+        instructions=(
+            "You answer customers of Acme's outlet web shop. Every outlet order has an order "
+            "number. Never guess a store rule. Answer in at most three sentences."
+        ),
+        binds_skill=True,
+        dataset="Outlet desk - test questions",
+        rule=OUTLET_RULE,
+        other=GENERAL[3:6],
+        line="pinned",
+    ),
+    AgentPlan(
+        key="G",
+        name="Marketplace desk",
+        description="Answers questions about items sold on Acme's marketplace.",
+        instructions=(
+            "You answer customers who bought from sellers on Acme's marketplace as well as from "
+            "Acme itself. Never guess a store rule. Answer in at most three sentences."
+        ),
+        binds_skill=True,
+        dataset="Marketplace desk - test questions",
+        rule=MARKETPLACE_RULE,
+        other=GENERAL[5:8],
+        line="fork",
+    ),
+    AgentPlan(
+        key="H",
+        name="Clearance desk",
+        description="Answers questions about Acme's clearance sale.",
+        instructions=(
+            "You answer customers of Acme's clearance sale. Never guess a store rule. Answer in "
+            "at most three sentences."
+        ),
+        binds_skill=True,
+        budget_usd=0.01,
+    ),
+    AgentPlan(
+        key="I",
+        name="Store info desk",
+        description="Answers practical questions about Acme's mall store.",
+        instructions=(
+            "You answer practical questions about Acme's store in the city mall. It is open "
+            "9:00-21:00 Monday to Saturday and 10:00-18:00 on Sunday, on the ground floor next to "
+            "the main entrance. The mall garage is free for two hours, presents are wrapped for "
+            "free, and gift cards are sold at the counter. Answer in at most two sentences."
+        ),
+        binds_skill=True,
+        dataset="Store info desk - test questions",
+        other=STORE_INFO,
+    ),
 )
+
+PROBED: tuple[AgentKey, ...] = ("A", "B", "C")
+"""The main line's measured desks, the ones a wording of rule 2 is probed on."""
 
 ORDER_NUMBER_IS_A_RECEIPT = (
     "My order number is my receipt - offering only store credit is wrong for an online order."
@@ -390,6 +582,10 @@ CHATS = (
 class SeedError(Exception):
     """A call the seed depends on was refused, or the deployment never answered."""
 
+    def __init__(self, message: str, *, status: int | None = None) -> None:
+        super().__init__(message)
+        self.status = status
+
 
 class Api:
     """The HTTP API as the signed-in owner, signing in again when the access token lapses."""
@@ -435,7 +631,10 @@ class Api:
                 self.token = self._sign_in()
                 continue
             if response.status_code >= 300:
-                raise SeedError(f"{method} {path}: {response.status_code} {response.text[:300]}")
+                raise SeedError(
+                    f"{method} {path}: {response.status_code} {response.text[:300]}",
+                    status=response.status_code,
+                )
             return response.json() if response.content else {}
         raise SeedError(f"{method} {path}: still unauthorized after signing in again")
 
@@ -448,6 +647,15 @@ class Api:
     ) -> list[JsonObject]:
         """The `items` of a list the API answers with."""
         return list(self.call("GET", path, org=org, params=params)["items"])
+
+    def find(self, path: str, *, org: str | None = None) -> JsonObject | None:
+        """The object at `path`, or None when the API answers that there is none."""
+        try:
+            return self.call("GET", path, org=org)
+        except SeedError as exc:
+            if exc.status == 404:
+                return None
+            raise
 
 
 Ask = Callable[[str, str], str]
@@ -494,6 +702,8 @@ class Report:
     skill_opened: int = 0
     unconfirmed: list[str] = field(default_factory=list)
     refused: list[str] = field(default_factory=list)
+    fork_id: str = ""
+    skill_set_id: str = ""
 
     def note(self, what: str, *, made: bool) -> None:
         (self.created if made else self.kept).append(what)
@@ -562,20 +772,19 @@ def ensure_model(api: Api, org: str, *, key: str | None, report: Report) -> str:
     return str(profile["id"])
 
 
-def ensure_skill(api: Api, org: str, *, variant: Variant, me: str, report: Report) -> str:
-    """The skill, ours: one by that name somebody else created is refused rather than bound,
-    since every planned agent would read its text."""
+def ensure_skill(api: Api, org: str, *, body: str, me: str, report: Report) -> str:
+    """The skill, ours, created with `body` as its first version when there is none.
+
+    One by that name somebody else created is refused rather than bound, since every
+    planned agent would read its text.
+    """
     for row in api.items("/skills", org=org, params={"q": SKILL}):
         if row.get("name") != SKILL:
             continue
         found = api.call("GET", f"/skills/{row['id']}", org=org)
         if str(found.get("owner_user_id")) != me:
             raise SeedError(f"A skill named {SKILL} in this organization is somebody else's")
-        changed = found.get("content") != skill_body(variant)
-        report.note(
-            f"skill {SKILL}{' (changed since it was seeded, kept as is)' if changed else ''}",
-            made=False,
-        )
+        report.note(f"skill {SKILL}", made=False)
         return str(row["id"])
     skill = api.call(
         "POST",
@@ -584,7 +793,7 @@ def ensure_skill(api: Api, org: str, *, variant: Variant, me: str, report: Repor
         body={
             "name": SKILL,
             "description": SKILL_DESCRIPTION,
-            "content": skill_body(variant),
+            "content": body,
             "visibility": "org",
         },
     )
@@ -592,22 +801,146 @@ def ensure_skill(api: Api, org: str, *, variant: Variant, me: str, report: Repor
     return str(skill["id"])
 
 
+def _line_versions(api: Api, org: str, skill: str, fork: str | None = None) -> list[JsonObject]:
+    params: dict[str, str | int] = {"limit": 100}
+    if fork is not None:
+        params["fork_id"] = fork
+    rows = api.items(f"/skills/{skill}/versions", org=org, params=params)
+    return sorted(rows, key=lambda row: int(row["number"]))
+
+
+def _extend_line(
+    api: Api,
+    org: str,
+    skill: str,
+    *,
+    held: Sequence[JsonObject],
+    planned: Sequence[str],
+    base: str | None,
+    fork: str | None,
+    label: str,
+    report: Report,
+) -> list[str]:
+    """Save the planned versions a line lacks, after checking the ones it holds are the plan's.
+
+    A line whose versions are not the plan's, or that has more of them, was worked on
+    since it was seeded and is left as it is. Answers the line's version ids, oldest first.
+    """
+    ids = [str(row["id"]) for row in held]
+    contents = [
+        api.call("GET", f"/skills/{skill}/versions/{vid}", org=org).get("content") for vid in ids
+    ]
+    if len(held) > len(planned) or contents != list(planned[: len(held)]):
+        report.note(f"{label} (changed since it was seeded, kept as is)", made=False)
+        return ids
+    if len(held) == len(planned):
+        report.note(label, made=False)
+        return ids
+    for content in planned[len(held) :]:
+        body: JsonObject = {
+            "base_version_id": ids[-1] if ids else base,
+            "description": SKILL_DESCRIPTION,
+            "content": content,
+        }
+        if fork is not None:
+            body["fork_id"] = fork
+        ids.append(str(api.call("POST", f"/skills/{skill}/versions", org=org, body=body)["id"]))
+    report.note(label, made=True)
+    return ids
+
+
+def ensure_history(api: Api, org: str, skill: str, *, report: Report) -> list[str]:
+    """Main's planned versions, v1 to `MAIN_VERSIONS`; answers their ids, oldest first."""
+    planned = [skill_body(main=number) for number in range(1, MAIN_VERSIONS + 1)]
+    return _extend_line(
+        api,
+        org,
+        skill,
+        held=_line_versions(api, org, skill),
+        planned=planned,
+        base=None,
+        fork=None,
+        label=f"main history v1-v{MAIN_VERSIONS}",
+        report=report,
+    )
+
+
+def ensure_fork(
+    api: Api, org: str, skill: str, main: Sequence[str], *, me: str, report: Report
+) -> str | None:
+    """The Marketplace fork from main v`FORK_FROM`, with its own planned versions.
+
+    A fork by that name is the seed's only when the signed-in owner made it from that
+    version; an archived one, or one somebody else started, is refused, and so is every
+    agent that would read it.
+    """
+    archived = api.items(f"/skills/{skill}/forks", org=org, params={"archived": "true"})
+    if any(row.get("name") == FORK for row in archived):
+        report.refuse(f"fork {FORK}: it was archived")
+        return None
+    found = next(
+        (row for row in api.items(f"/skills/{skill}/forks", org=org) if row.get("name") == FORK),
+        None,
+    )
+    if found is None:
+        if len(main) < FORK_FROM:
+            report.refuse(f"fork {FORK}: main has no v{FORK_FROM} to start from")
+            return None
+        found = api.call(
+            "POST",
+            f"/skills/{skill}/forks",
+            org=org,
+            body={"name": FORK, "from_version_id": main[FORK_FROM - 1]},
+        )
+        report.note(f"fork {FORK}", made=True)
+    else:
+        made_by = str((found.get("created_by") or {}).get("id"))
+        if made_by != me or (found.get("base") or {}).get("number") != FORK_FROM:
+            report.refuse(f"fork {FORK}: somebody else's, or not started from main v{FORK_FROM}")
+            return None
+        report.note(f"fork {FORK}", made=False)
+    fork = str(found["id"])
+    planned = [skill_body(main=FORK_FROM, fork=number) for number in range(1, FORK_VERSIONS + 1)]
+    _extend_line(
+        api,
+        org,
+        skill,
+        held=_line_versions(api, org, skill, fork),
+        planned=planned,
+        base=str((found.get("base") or {}).get("id")),
+        fork=fork,
+        label=f"versions of fork {FORK}",
+        report=report,
+    )
+    return fork
+
+
 def agent_spec(
-    plan: AgentPlan, *, model: str, skill: str, delegate: tuple[str, str] | None = None
+    plan: AgentPlan,
+    *,
+    model: str,
+    skill: str,
+    delegate: tuple[str, str] | None = None,
+    fork: str | None = None,
 ) -> JsonObject:
-    """The spec `plan` publishes. `delegate` is the (agent, version) it may hand work to."""
+    """The spec `plan` publishes. `delegate` is the (agent, version) it may hand work to, and
+    `fork` the fork a plan on the fork line reads."""
     capabilities: list[dict[str, str]] = []
     spec: JsonObject = {
         "name": plan.name,
         "description": plan.description,
         "instructions": plan.instructions,
         "model_profile_id": model,
-        "budget": {"monthly_usd": AGENT_BUDGET_USD},
+        "budget": {"monthly_usd": plan.budget_usd},
         "capabilities": capabilities,
     }
     if plan.binds_skill:
         capabilities.append({"id": "skills"})
         spec["skill_ids"] = [skill]
+        if plan.line == "pinned":
+            spec["skill_bindings"] = [{"skill_id": skill, "version": FORK_FROM}]
+        elif plan.line == "fork":
+            spec["skill_bindings"] = [{"skill_id": skill, "fork_id": fork}]
     if delegate is not None:
         capabilities.append({"id": "subagents"})
         spec["subagents"] = [{"agent_id": delegate[0], "agent_version_id": delegate[1]}]
@@ -618,8 +951,19 @@ REACH = ("collection_ids", "context_ids", "mcp_servers", "external_agents", "rev
 """Spec fields that let an agent read or call something; the seed's agents use none of them."""
 
 
+def _bindings(spec: JsonObject) -> list[tuple[str, str, str]]:
+    return sorted(
+        (str(row.get("skill_id")), str(row.get("version")), str(row.get("fork_id")))
+        for row in spec.get("skill_bindings") or ()
+    )
+
+
 def differences(spec: JsonObject, planned: JsonObject) -> list[str]:
-    """The fields in which `spec` reaches or says more than `planned`, the spec the seed publishes."""
+    """The fields in which `spec` reaches or says more than `planned`, the spec the seed publishes.
+
+    Which line of a bound skill it reads is not one: another version or fork of the same
+    skill reaches nothing more, and moving an agent there is what the skill page is for.
+    """
     found = [
         name
         for name in ("instructions", "model_profile_id")
@@ -641,17 +985,27 @@ def differences(spec: JsonObject, planned: JsonObject) -> list[str]:
     return found
 
 
-def distrust(api: Api, org: str, agent_id: str, planned: JsonObject, *, me: str) -> str | None:
-    """Why an agent found under a planned name must not be run as the seed's, if it must not.
+def distrust(
+    api: Api,
+    org: str,
+    agent_id: str,
+    planned: JsonObject,
+    *,
+    me: str,
+    earlier: Collection[str] = (),
+) -> tuple[str | None, JsonObject]:
+    """Why an agent found under a planned name must not be run as the seed's, if it must not,
+    and the spec that would run.
 
     The seed asks and measures as the signed-in owner, so an agent somebody else owns, or
     one whose spec gained a model, a capability or a reach the plan does not give it, could
     read what the owner may read. Its published version is what would run; an agent never
-    published is judged by its draft, which publishing would freeze.
+    published is judged by its draft, which publishing would freeze. Instructions in
+    `earlier`, an earlier seed's, are the seed's own too.
     """
     agent = api.call("GET", f"/agents/{agent_id}", org=org)
     if str(agent.get("owner_user_id")) != me:
-        return "somebody else owns it"
+        return "somebody else owns it", {}
     version = agent.get("current_version_id")
     spec = (
         api.call("GET", f"/agents/{agent_id}/versions/{version}", org=org).get("spec") or {}
@@ -659,9 +1013,11 @@ def distrust(api: Api, org: str, agent_id: str, planned: JsonObject, *, me: str)
         else agent.get("draft_spec") or {}
     )
     changed = differences(spec, planned)
+    if changed == ["instructions"] and str(spec.get("instructions")) in earlier:
+        changed = []
     if not changed:
-        return None
-    return f"its {'published' if version else 'draft'} spec differs in {', '.join(changed)}"
+        return None, spec
+    return f"its {'published' if version else 'draft'} spec differs in {', '.join(changed)}", spec
 
 
 def ensure_agents(
@@ -671,6 +1027,8 @@ def ensure_agents(
     *,
     model: str,
     skill: str,
+    main: Sequence[str],
+    fork: str | None,
     me: str,
     report: Report,
 ) -> dict[AgentKey, str]:
@@ -678,8 +1036,10 @@ def ensure_agents(
 
     One found under a planned name is used only when `distrust` finds nothing, and an agent
     that hands work to a refused one is refused with it; a refused agent is reported, never
-    changed, and never asked or measured. One an interrupted run created and never published
-    is published now; a published one is left exactly as it is.
+    changed, and never asked or measured. A plan on the fork line waits for the fork, and a
+    pinned one for main's v`FORK_FROM`, which a line somebody changed may not have. One an
+    interrupted run created and never published is published now; a published one is left
+    exactly as it is.
     """
     existing = {
         row["name"]: str(row["id"]) for row in api.items("/agents", org=org, params={"limit": 100})
@@ -690,6 +1050,12 @@ def ensure_agents(
         if plan.delegates_to is not None and plan.delegates_to not in ids:
             report.refuse(f"{label}: it hands work to {plan.delegates_to}, which was refused")
             continue
+        if plan.line == "fork" and fork is None:
+            report.refuse(f"{label}: the {FORK} fork it reads is missing or was refused")
+            continue
+        if plan.line == "pinned" and len(main) < FORK_FROM:
+            report.refuse(f"{label}: main has no v{FORK_FROM} to pin")
+            continue
         delegate = None
         if plan.delegates_to is not None:
             target = ids[plan.delegates_to]
@@ -697,17 +1063,24 @@ def ensure_agents(
                 target,
                 str(api.call("GET", f"/agents/{target}", org=org)["current_version_id"]),
             )
-        planned = agent_spec(plan, model=model, skill=skill, delegate=delegate)
+        planned = agent_spec(plan, model=model, skill=skill, delegate=delegate, fork=fork)
         agent_id = existing.get(plan.name)
         if agent_id is None:
             agent_id = str(api.call("POST", "/agents", org=org, body={"spec": planned})["id"])
             report.note(label, made=True)
         else:
-            reason = distrust(api, org, agent_id, planned, me=me)
+            reason, spec = distrust(
+                api, org, agent_id, planned, me=me, earlier=plan.earlier_instructions
+            )
             if reason is not None:
                 report.refuse(f"{label}: {reason}")
                 continue
-            report.note(label, made=False)
+            kept = ""
+            if str(spec.get("instructions")) in plan.earlier_instructions:
+                kept = " (seeded by an earlier version of this seed, kept as is)"
+            elif _bindings(spec) != _bindings(planned):
+                kept = " (moved to another line of the skill, kept as is)"
+            report.note(f"{label}{kept}", made=False)
         if api.call("GET", f"/agents/{agent_id}", org=org).get("current_version_id") is None:
             api.call(
                 "POST",
@@ -723,10 +1096,11 @@ def ensure_agents(
 
 
 SCORING = {
-    "checks": {"enabled": True, "required": True},
+    "checks": {"enabled": True, "required": True, "defaults": []},
     "trajectory": {"enabled": False},
     "judge": {"enabled": False},
     "reference": {"enabled": False},
+    "review": {"select": "none"},
 }
 
 
@@ -746,19 +1120,53 @@ def ensure_dataset(api: Api, org: str, plan: AgentPlan, name: str, *, report: Re
     return str(created["id"])
 
 
-def complete_dataset(api: Api, org: str, plan: AgentPlan, dataset: str, *, report: Report) -> None:
-    """Give a dataset nothing has measured yet its grading and every question it lacks.
+def started_runs(api: Api, org: str, dataset: str) -> list[JsonObject]:
+    """The runs on `dataset`, any agent's, that are under way or have answered a question.
 
-    Only ever called before the first measurement, so a dataset a person has worked on
-    since - a question removed, the grading changed - is never touched: once measured,
-    it is theirs.
+    One that ended before answering anything measured nothing and does not count.
     """
-    api.call("PUT", f"/datasets/{dataset}/scoring", org=org, body=SCORING)
-    held = {
-        row.get("input")
+    return [
+        run
+        for run in api.items(f"/datasets/{dataset}/eval-runs", org=org, params={"limit": 100})
+        if run.get("status") in UNFINISHED or run.get("attempts_done", 0) > 0
+    ]
+
+
+def _graded_as_planned(api: Api, org: str, dataset: str) -> bool:
+    scoring = api.call("GET", f"/datasets/{dataset}", org=org).get("scoring") or {}
+    return all(
+        (scoring.get(scorer) or {}).get(name) == value
+        for scorer, settings in SCORING.items()
+        for name, value in settings.items()
+    )
+
+
+def complete_dataset(
+    api: Api, org: str, dataset: str, cases: Sequence[Case], *, label: str, report: Report
+) -> None:
+    """Give a dataset the seed began, and nothing has measured, its grading and the rest of
+    its questions.
+
+    It is the seed's own only while it holds the plan's first questions, in order and with
+    their checks, graded as `SCORING` grades them - what an interrupted run leaves. A
+    question removed, added or reworded since, a check or the grading changed, makes it
+    somebody's, and it is left as it is. The grading is set before the first question, so
+    an empty dataset is still the seed's to grade.
+    """
+    held = [
+        (row.get("input"), row.get("checks"))
         for row in api.items(f"/datasets/{dataset}/cases", org=org, params={"limit": 100})
-    }
-    missing = [case for case in plan.cases if case.question not in held]
+    ]
+    planned = [(case.question, list(case.checks)) for case in cases]
+    missing = cases[len(held) :]
+    if held != planned[: len(held)] or (
+        held and missing and not _graded_as_planned(api, org, dataset)
+    ):
+        report.note(f"{label} (changed since it was seeded, kept as is)", made=False)
+        return
+    if not missing:
+        return
+    api.call("PUT", f"/datasets/{dataset}/scoring", org=org, body=SCORING)
     for case in missing:
         api.call(
             "POST",
@@ -766,8 +1174,39 @@ def complete_dataset(api: Api, org: str, plan: AgentPlan, dataset: str, *, repor
             org=org,
             body={"input": case.question, "checks": list(case.checks)},
         )
-    if held and missing:
-        report.finish(f"dataset of {plan.key}: {len(missing)} missing questions added")
+    if held:
+        report.finish(f"{label}: {len(missing)} missing questions added")
+
+
+def ensure_skill_set(api: Api, org: str, skill: str, *, report: Report) -> str:
+    """The skill's own test questions, created empty and completed while nothing has run them."""
+    found = api.find(f"/skills/{skill}/test-set", org=org)
+    if found is None:
+        found = api.call(
+            "POST", f"/skills/{skill}/test-set", org=org, body={"from_evidence": False}
+        )
+        report.note(f"test questions of {SKILL}", made=True)
+    else:
+        report.note(f"test questions of {SKILL}", made=False)
+    dataset = str(found["id"])
+    if not started_runs(api, org, dataset):
+        complete_dataset(
+            api, org, dataset, SKILL_SET, label=f"test questions of {SKILL}", report=report
+        )
+    return dataset
+
+
+def measure_on(api: Api, org: str, *, agent: str, dataset: str, label: str, report: Report) -> str:
+    """The run measuring `agent` on `dataset`: its own that counts, or one started now."""
+    mine = [run for run in started_runs(api, org, dataset) if str(run.get("agent_id")) == agent]
+    if mine:
+        report.note(f"measurement of {label}", made=False)
+        return str(mine[0]["id"])
+    started = api.call(
+        "POST", f"/agents/{agent}/eval-runs", org=org, body={"dataset_id": dataset, "reruns": 0}
+    )
+    report.note(f"measurement of {label}", made=True)
+    return str(started["id"])
 
 
 def measure(
@@ -775,40 +1214,24 @@ def measure(
 ) -> dict[AgentKey, str]:
     """Each agent with test questions: its dataset, and the run measuring the agent on it.
 
-    A run counts once it is under way or has answered a question, whatever it ended in. From
-    the first such run on any agent, the dataset is somebody's measurement and is never
-    completed again; the seed's own agent is still measured on it when it has no run of its
-    own. Runs that ended before answering anything measured nothing, so a dataset with only
-    those is completed first. Running a dataset on an agent is also what makes it that
-    agent's test set, since a plain dataset names no agent.
+    From the first run that counts on any agent, the dataset is somebody's measurement and
+    is never completed again; the seed's own agent is still measured on it when it has no
+    run of its own. Running a dataset on an agent is also what makes it that agent's test
+    set, since a plain dataset names no agent.
     """
     runs: dict[AgentKey, str] = {}
     for plan in AGENTS:
         if plan.dataset is None or plan.key not in agents:
             continue
-        agent = agents[plan.key]
         dataset = ensure_dataset(api, org, plan, plan.dataset, report=report)
         report.datasets[plan.key] = dataset
-        started = [
-            run
-            for run in api.items(f"/datasets/{dataset}/eval-runs", org=org, params={"limit": 100})
-            if run.get("status") in UNFINISHED or run.get("attempts_done", 0) > 0
-        ]
-        mine = [run for run in started if str(run.get("agent_id")) == agent]
-        if mine:
-            report.note(f"measurement of {plan.key}", made=False)
-            runs[plan.key] = str(mine[0]["id"])
-        else:
-            if not started:
-                complete_dataset(api, org, plan, dataset, report=report)
-            started = api.call(
-                "POST",
-                f"/agents/{agent}/eval-runs",
-                org=org,
-                body={"dataset_id": dataset, "reruns": 0},
+        if not started_runs(api, org, dataset):
+            complete_dataset(
+                api, org, dataset, plan.cases, label=f"dataset of {plan.key}", report=report
             )
-            report.note(f"measurement of {plan.key}", made=True)
-            runs[plan.key] = str(started["id"])
+        runs[plan.key] = measure_on(
+            api, org, agent=agents[plan.key], dataset=dataset, label=plan.key, report=report
+        )
         report.measured[plan.key] = runs[plan.key]
     return runs
 
@@ -918,26 +1341,38 @@ def _rate(api: Api, org: str, plan: ChatPlan, transcript: Transcript, report: Re
         report.rated_up += 1
 
 
+def _settle(api: Api, org: str, *, made: bool, row: JsonObject, report: Report) -> None:
+    """AI assistance on and a budget set, on an organization made now or never set up."""
+    untouched = not row.get("ai_assistance_enabled") and row.get("monthly_budget_usd") is None
+    if not (made or untouched):
+        return
+    api.call(
+        "PATCH",
+        f"/orgs/{org}",
+        org=org,
+        body={"ai_assistance_enabled": True, "monthly_budget_usd": ORG_BUDGET_USD},
+    )
+    if not made:
+        report.finish("organization settings: AI assistance on, a monthly budget set")
+
+
 def seed(api: Api, *, key: str | None, ask_in: Callable[[str], Ask]) -> Report:
     """Build Skills lab, or finish building it; `ask_in` opens the chat for an organization."""
     report = Report()
     me = str(api.call("GET", "/users/me")["id"])
     org, made, row = ensure_org(api, name=ORG_NAME, slug=ORG_SLUG, report=report)
     report.organization_id = org
-    untouched = not row.get("ai_assistance_enabled") and row.get("monthly_budget_usd") is None
-    if made or untouched:
-        api.call(
-            "PATCH",
-            f"/orgs/{org}",
-            org=org,
-            body={"ai_assistance_enabled": True, "monthly_budget_usd": ORG_BUDGET_USD},
-        )
-        if not made:
-            report.finish("organization settings: AI assistance on, a monthly budget set")
+    _settle(api, org, made=made, row=row, report=report)
     model = ensure_model(api, org, key=key, report=report)
-    skill = ensure_skill(api, org, variant="v1", me=me, report=report)
+    skill = ensure_skill(api, org, body=skill_body(), me=me, report=report)
     report.skill_id = skill
-    agents = ensure_agents(api, org, AGENTS, model=model, skill=skill, me=me, report=report)
+    main = ensure_history(api, org, skill, report=report)
+    fork = ensure_fork(api, org, skill, main, me=me, report=report)
+    report.fork_id = fork or ""
+    report.skill_set_id = ensure_skill_set(api, org, skill, report=report)
+    agents = ensure_agents(
+        api, org, AGENTS, model=model, skill=skill, main=main, fork=fork, me=me, report=report
+    )
     measure(api, org, agents, report=report)
     ask = ask_in(org)
     held = {agent_key: held_chats(api, org, agent) for agent_key, agent in agents.items()}
@@ -950,18 +1385,39 @@ def seed(api: Api, *, key: str | None, ask_in: Callable[[str], Ask]) -> Report:
     return report
 
 
-def rule_passed(api: Api, org: str, run: JsonObject, plan: AgentPlan) -> int:
-    """How many of `plan`'s rule questions the measured answers passed."""
+def passed_questions(api: Api, org: str, run: JsonObject, *, label: str) -> set[str]:
+    """The questions the measured answers passed."""
     arm = (run.get("outcome") or {}).get("candidate_arm_id")
     if arm is None:
-        raise SeedError(f"The measurement of {plan.key} has no result to read")
+        raise SeedError(f"The measurement of {label} has no result to read")
     passed = api.items(
         f"/eval-runs/{run['id']}/cases",
         org=org,
         params={"arm_id": str(arm), "outcome": "passed", "limit": 100},
     )
-    rule = {case.question for case in plan.rule}
-    return sum(1 for case in passed if case.get("input") in rule)
+    return {str(case.get("input")) for case in passed}
+
+
+def finished(
+    api: Api, org: str, run_id: str, *, label: str, wait: Callable[[float], None], deadline: float
+) -> JsonObject:
+    """The run once it completed; one that ended any other way says nothing about a wording."""
+    run = api.call("GET", f"/eval-runs/{run_id}", org=org)
+    while run["status"] in UNFINISHED:
+        if time.monotonic() > deadline:
+            raise SeedError(f"The measurement of {label} did not finish in time")
+        wait(5)
+        run = api.call("GET", f"/eval-runs/{run_id}", org=org)
+    if run["status"] != "completed":
+        raise SeedError(
+            f"The measurement of {label} ended {run['status']}, so it says nothing "
+            "about the wording: drop the probes and measure again"
+        )
+    return run
+
+
+def _count(passed: set[str], cases: Sequence[Case]) -> int:
+    return sum(1 for case in cases if case.question in passed)
 
 
 def probe(
@@ -972,50 +1428,72 @@ def probe(
     wait: Callable[[float], None] = time.sleep,
     patience: float = EVAL_PATIENCE_SECONDS,
 ) -> JsonObject:
-    """Measure A and B with rule 2 worded as `variant`, in an organization of its own.
+    """Measure the main line's desks with rule 2 worded as `variant`, in an organization of its own.
 
-    No conversations: only the skill, the two agents, their questions and one measurement
-    each. Against `v1`, `broad` should cost B at least five of its eight rule questions and
-    `narrow` at most one, while both win A its eight back - which is why the answer counts
-    the rule questions passed rather than the pass rate over all sixteen.
+    The skill is main's newest text with that wording, and each desk in `PROBED` answers its
+    own questions and the skill's. Against `v1`, `broad` should cost B at least five of its
+    eight rule questions and `narrow` at most one, while both win A its eight back; on the
+    skill's questions `broad` fails the ones with no order number and `narrow` passes both
+    groups. So the answer counts questions passed per group, not a pass rate over all of
+    them. Fork and version labels are not read: the probe has neither.
     """
     report = Report()
     me = str(api.call("GET", "/users/me")["id"])
-    org, _, _ = ensure_org(
+    org, made, row = ensure_org(
         api,
         name=PROBE_NAME.format(variant=variant),
         slug=PROBE_SLUG.format(variant=variant),
         report=report,
     )
+    _settle(api, org, made=made, row=row, report=report)
     model = ensure_model(api, org, key=key, report=report)
-    skill = ensure_skill(api, org, variant=variant, me=me, report=report)
-    measured = [plan for plan in AGENTS if plan.dataset is not None]
-    agents = ensure_agents(api, org, measured, model=model, skill=skill, me=me, report=report)
+    skill = ensure_skill(
+        api, org, body=skill_body(variant, main=MAIN_VERSIONS), me=me, report=report
+    )
+    skill_set = ensure_skill_set(api, org, skill, report=report)
+    probed = [plan for plan in AGENTS if plan.key in PROBED]
+    agents = ensure_agents(
+        api, org, probed, model=model, skill=skill, main=(), fork=None, me=me, report=report
+    )
     if report.refused:
         raise SeedError(
             f"The probe organization holds agents the seed did not make: {report.refused}"
         )
-    runs = measure(api, org, agents, report=report)
+    own = measure(api, org, agents, report=report)
+    on_skill_set = {
+        plan.key: measure_on(
+            api,
+            org,
+            agent=agents[plan.key],
+            dataset=skill_set,
+            label=f"{plan.key} on the skill's questions",
+            report=report,
+        )
+        for plan in probed
+    }
     result: JsonObject = {"variant": variant}
     deadline = time.monotonic() + patience
-    for plan in measured:
-        run = api.call("GET", f"/eval-runs/{runs[plan.key]}", org=org)
-        while run["status"] in UNFINISHED:
-            if time.monotonic() > deadline:
-                raise SeedError(
-                    f"The measurement of {plan.key} did not finish in {patience:.0f} seconds"
-                )
-            wait(5)
-            run = api.call("GET", f"/eval-runs/{runs[plan.key]}", org=org)
-        if run["status"] != "completed":
-            raise SeedError(
-                f"The measurement of {plan.key} ended {run['status']}, so it says nothing "
-                "about the wording: drop the probes and measure again"
-            )
+    for plan in probed:
+        mine = finished(api, org, own[plan.key], label=plan.key, wait=wait, deadline=deadline)
+        theirs = finished(
+            api,
+            org,
+            on_skill_set[plan.key],
+            label=f"{plan.key} on the skill's questions",
+            wait=wait,
+            deadline=deadline,
+        )
+        passed = passed_questions(api, org, mine, label=plan.key)
+        on_set = passed_questions(api, org, theirs, label=f"{plan.key} on the skill's questions")
         result[plan.key] = {
-            "rule_passed": rule_passed(api, org, run, plan),
+            "rule_passed": _count(passed, plan.rule),
             "rule_total": len(plan.rule),
-            "pass_rate": (run.get("outcome") or {}).get("candidate_pass_rate"),
+            "pass_rate": (mine.get("outcome") or {}).get("candidate_pass_rate"),
+            "skill_set": {
+                "no_order_number": _count(on_set, SKILL_SET_CREDITED),
+                "order_number": _count(on_set, SKILL_SET_REFUNDED),
+                "of_each": len(SKILL_SET_CREDITED),
+            },
         }
     return result
 
