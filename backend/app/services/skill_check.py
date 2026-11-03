@@ -842,8 +842,16 @@ class SkillCheckService:
             )
             if not AgentState(row.state).settled
         ]
-        now = datetime.now(UTC)
+        await self._end_runs(check, unsettled, now=datetime.now(UTC))
         for row in unsettled:
+            await self._unknown(row, UnknownReason.FAILED)
+        await self._settle(check)
+
+    async def _end_runs(
+        self, check: SkillCheck, rows: list[SkillCheckAgent], *, now: datetime
+    ) -> None:
+        """Cancel the live eval runs of these agents and tell their starters they ended."""
+        for row in rows:
             for run_id in (row.skill_set_run_id, row.dataset_run_id):
                 if run_id is not None and await eval_run_repo.cancel_live(
                     self.db, run_id, organization_id=check.organization_id, now=now
@@ -853,9 +861,6 @@ class SkillCheckService:
                     )
                     assert run is not None, "a run just closed is there"
                     await NotificationService(self.db).eval_run_finished(run)
-        for row in unsettled:
-            await self._unknown(row, UnknownReason.FAILED)
-        await self._settle(check)
 
     async def stop_for_session(self, check: SkillCheck) -> None:
         """Stop a running check because the session that started it stopped.
@@ -865,14 +870,10 @@ class SkillCheckService:
         when a check expires.
         """
         now = datetime.now(UTC)
-        for row in await skill_check_repo.list_agents(
+        rows = await skill_check_repo.list_agents(
             self.db, [check.id], organization_id=check.organization_id
-        ):
-            for run_id in (row.skill_set_run_id, row.dataset_run_id):
-                if run_id is not None:
-                    await eval_run_repo.cancel_live(
-                        self.db, run_id, organization_id=check.organization_id, now=now
-                    )
+        )
+        await self._end_runs(check, rows, now=now)
         await skill_check_repo.update(
             self.db,
             row=check,
