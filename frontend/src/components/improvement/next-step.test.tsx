@@ -276,4 +276,8 @@ it("leaves trying again when the edits no longer apply to the moved line", async
 
   expect(await screen.findByRole("alert")).toHaveTextContent("The edits no longer apply");
   expect(screen.getByText("try again")).toBeInTheDocument();
+  state.start.mockRejectedValueOnce(new ApiError(409, "The price changed"));
+  await userEvent.click(screen.getByRole("button", { name: /test the selected changes/ }));
+  expect(await screen.findByText(/The price changed to up to/)).toBeInTheDocument();
+  expect(screen.queryByText("try again")).not.toBeInTheDocument();
 });

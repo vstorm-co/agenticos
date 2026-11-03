@@ -89,6 +89,7 @@ export function NextStep({
     try {
       await actions.continueSession.mutateAsync(value);
       setMoved(null);
+      setStuck(false);
       onStarted();
     } catch (failure) {
       if (!(failure instanceof ApiError && failure.status === 409)) {
@@ -99,6 +100,7 @@ export function NextStep({
       try {
         setQuote({ key, value: await estimate(asked) });
         setMoved(line ? "line" : "price");
+        setStuck(false);
       } catch (again) {
         setError(refusal(again));
         setStuck(line);
