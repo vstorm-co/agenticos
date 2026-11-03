@@ -233,7 +233,7 @@ async def test_a_base_created_while_the_organization_lock_waits_is_torn_down_wit
 
     # The source's own insert, refused by the organization's foreign key - not a
     # deadlock breaking the cycle.
-    assert "deadlock" not in str(refused.value)
+    assert getattr(refused.value.orig, "sqlstate", None) == "23503"
     assert "sync_sources" in str(refused.value)
     assert await account.gone()
 

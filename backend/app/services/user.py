@@ -694,6 +694,14 @@ class UserService:
         The one thing that cannot be inside it is the files: the bytes under
         `MEDIA_DIR` are unlinked after the commit, because an unlink a rollback
         undoes leaves a restored row pointing at nothing.
+
+        Raises:
+            NotFoundError: No such user.
+            BadRequestError: The user is the sole owner of a shared organization,
+                or its ownership changed while the deletion was being prepared.
+            ConcurrentChangeError: A knowledge collection created during the
+                deletion is being worked on by something else. Nothing was
+                deleted; the caller retries.
         """
         user, locked_heirs = await self._lock_for_delete(user_id)
         await self._release_owned_rows(user_id, locked_heirs=locked_heirs)
@@ -911,7 +919,8 @@ class UserService:
             await hold_name(self.db, LockScope.COLLECTION_TEARDOWN, collection)
         for org in sorted(personal_orgs, key=lambda org: org.id):
             await organization_repo.get_by_id_for_update(self.db, org.id)
-        for collection in sorted(await self._teardown_names(user_id, personal_orgs) - names):
+        late = await self._teardown_names(user_id, personal_orgs) - names
+        for collection in sorted(late):
             if not await try_hold_name(self.db, LockScope.COLLECTION_TEARDOWN, collection):
                 raise ConcurrentChangeError(
                     message=(
