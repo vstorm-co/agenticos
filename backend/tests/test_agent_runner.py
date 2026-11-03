@@ -2313,6 +2313,27 @@ class TestAThreadsEarlierAttachmentsAreBroughtBack:
         assert "if it is still not there, say it could not be put back" in instructions
 
     @pytest.mark.anyio
+    async def test_a_resumed_run_keeps_the_skill_versions_it_served_and_adds_the_new(self):
+        ctx = _ctx()
+        before, now = uuid.uuid4(), uuid.uuid4()
+        resumed = MagicMock(
+            environment_id=None,
+            user_id=ctx.user_id,
+            key_scopes=None,
+            initiated_by_publisher_fallback=False,
+            skill_version_ids=[before],
+        )
+
+        with patch.object(
+            AgentRunnerService, "_served_skill_versions", new=AsyncMock(return_value=[before, now])
+        ):
+            prepared, *_ = await self._prepare(
+                _sandbox(StateBackend()), earlier=None, ctx=ctx, resumed=resumed
+            )
+
+        assert prepared.run.skill_version_ids == [before, now]
+
+    @pytest.mark.anyio
     async def test_a_run_its_own_person_resumes_looks_again(self):
         """Its sandbox may first be used after the park, when the fresh half's
         first-use set-up never ran - and the run then completes, closing the window
@@ -2463,6 +2484,30 @@ class TestSkillChangesARunProposed:
             await service.finish(prepared, status=RunStatus.COMPLETED)
 
         assert finish.call_args.kwargs["status"] == RunStatus.COMPLETED.value
+
+    @pytest.mark.anyio
+    async def test_a_change_is_proposed_for_the_fork_the_run_was_bound_to(self):
+        """A fork with no versions of its own serves a main version; the binding says
+        which line the change is for."""
+        service = AgentRunnerService(_db())
+        prepared = _prepared()
+        skill_id, fork_id = uuid.uuid4(), uuid.uuid4()
+        prepared.spec = AgentSpec.model_validate(
+            {
+                "name": "Books",
+                "skill_ids": [str(skill_id)],
+                "skill_bindings": [{"skill_id": str(skill_id), "fork_id": str(fork_id)}],
+            }
+        )
+        prepared.ctx = MagicMock(organization_id=uuid.uuid4())
+        prepared.workspace = MagicMock()
+        prepared.materialised_skills = MagicMock()
+        service.proposals = MagicMock(record=AsyncMock())
+
+        with patch("app.services.agent_runner.collect_changes", return_value=[MagicMock()]):
+            await service._propose_skill_changes(prepared)
+
+        assert service.proposals.record.await_args.kwargs["forks"] == {skill_id: fork_id}
 
     @pytest.mark.anyio
     async def test_a_run_that_left_its_skills_alone_proposes_nothing(self):

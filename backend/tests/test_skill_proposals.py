@@ -174,6 +174,32 @@ class TestRecordingWhatARunWrote:
 
         assert created.call_args.kwargs["fork_id"] == fork_id
 
+    async def test_a_change_from_a_fork_with_no_versions_yet_is_for_that_fork(self, monkeypatch):
+        """Such a fork serves the main version it started from: the binding names the fork."""
+        service = _service(monkeypatch)
+        fork_id = uuid.uuid4()
+        change = _change()
+        monkeypatch.setattr(
+            skill_version_repo,
+            "get_versions",
+            AsyncMock(return_value={_V3: MagicMock(id=_V3, fork_id=None)}),
+        )
+        monkeypatch.setattr(
+            skill_proposal_repo, "get_pending_for_skill", AsyncMock(return_value=None)
+        )
+        created = AsyncMock(return_value=_proposal())
+        monkeypatch.setattr(skill_proposal_repo, "create", created)
+
+        await service.record(
+            _ctx(),
+            [change],
+            agent_id=uuid.uuid4(),
+            conversation_id=None,
+            forks={change.skill_id: fork_id},
+        )
+
+        assert created.call_args.kwargs["fork_id"] == fork_id
+
     async def test_a_second_turn_replaces_the_pending_proposal(self, monkeypatch):
         """A reviewer asked the same question three times has been given more
         work, not more information."""
