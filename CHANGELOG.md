@@ -184,7 +184,7 @@ environment without a person's decision.
 
 ### Fixed
 
-- Simplify Agent Builder by keeping Improve and suggestions in Evals, and make dataset cases and eval histories easier to scan with grouped creation actions, separate model and result columns, case counts and an optional trend.
+- Simplify Agent Builder by keeping Improve and suggestions in Evals, and make dataset cases and eval histories easier to scan with grouped creation actions, separate model and result columns, case counts and an optional trend. Keep creation buttons visible but disabled on historical dataset versions so switching snapshots preserves the toolbar layout.
 
 - Join the eval-helper and RAG-index migration histories so installations on
   either branch upgrade to one head without rewriting applied revisions.

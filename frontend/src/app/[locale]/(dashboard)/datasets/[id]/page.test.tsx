@@ -14,6 +14,7 @@ const state = vi.hoisted(() => ({
   skips: [] as number[],
   canEdit: true,
   tab: null as string | null,
+  version: null as string | null,
   linked: null as string | null,
   linkedCase: undefined as unknown,
   linkedError: null as Error | null,
@@ -28,6 +29,7 @@ vi.mock("next/navigation", async (original) => ({
   useSearchParams: () =>
     new URLSearchParams({
       ...(state.tab === null ? {} : { tab: state.tab }),
+      ...(state.version === null ? {} : { version: state.version }),
       ...(state.linked === null ? {} : { case: state.linked }),
     }),
   usePathname: () => "/datasets/d1",
@@ -136,11 +138,36 @@ describe("the dataset page", () => {
     state.skips = [];
     state.canEdit = true;
     state.tab = null;
+    state.version = null;
     state.linked = null;
     state.linkedCase = undefined;
     state.linkedError = null;
     state.push.mockReset();
     state.remove.mockReset();
+  });
+
+  it("keeps both creation buttons mounted and disabled while reading a pinned version", async () => {
+    state.cases = [CASE];
+    state.total = 1;
+    const refresh = await mount();
+    const add = screen.getByRole("button", { name: "Add case" });
+    const more = screen.getByRole("button", { name: "More ways to add" });
+    expect(add).toBeEnabled();
+    expect(more).toBeEnabled();
+    state.version = "2";
+    refresh();
+    expect(screen.getByRole("button", { name: "Add case" })).toBe(add);
+    expect(screen.getByRole("button", { name: "More ways to add" })).toBe(more);
+    expect(add).toBeDisabled();
+    expect(more).toBeDisabled();
+    await userEvent.click(add);
+    await userEvent.click(more);
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(screen.queryByRole("menu")).toBeNull();
+    state.version = null;
+    refresh();
+    expect(add).toBeEnabled();
+    expect(more).toBeEnabled();
   });
 
   it.each(["cases", "generated", "grading", "evals", "review"])(

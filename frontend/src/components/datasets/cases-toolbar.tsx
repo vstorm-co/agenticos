@@ -19,11 +19,13 @@ import { useDatasetFiles } from "./use-dataset-files";
 /** Case creation belongs with the table, and stays discoverable after its first row. */
 export function CasesToolbar({
   datasetId,
+  disabled = false,
   onAdd,
   onImport,
   onGenerate,
 }: {
   datasetId: string;
+  disabled?: boolean;
   onAdd: () => void;
   onImport: (file: File) => Promise<unknown>;
   onGenerate: () => void;
@@ -34,13 +36,13 @@ export function CasesToolbar({
   const { upload } = useDatasetFiles(datasetId, null);
   return (
     <div className="flex min-w-0 flex-wrap items-center gap-2">
-      <Button data-tour="datasets-add-case" size="sm" onClick={onAdd}>
+      <Button data-tour="datasets-add-case" size="sm" disabled={disabled} onClick={onAdd}>
         <Plus className="size-4" />
         {t("addCase")}
       </Button>
       <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button size="sm" variant="outline">
+        <DropdownMenuTrigger asChild disabled={disabled}>
+          <Button size="sm" variant="outline" disabled={disabled}>
             {t("moreSources")}
             <ChevronDown className="size-4" />
           </Button>

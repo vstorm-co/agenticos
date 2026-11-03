@@ -286,9 +286,10 @@ export default function DatasetPage({ params }: PageProps) {
                       }
                     />
                   )}
-                  {editable && (
+                  {dataset.can_edit && (
                     <CasesToolbar
                       datasetId={id}
+                      disabled={!editable}
                       onAdd={() => setEditing({ draft: EMPTY_DRAFT, item: null })}
                       onImport={(file) => cases.importFile.mutateAsync(file)}
                       onGenerate={() => showTab("generated")}
