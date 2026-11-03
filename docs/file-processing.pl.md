@@ -1,5 +1,5 @@
 ---
-source_sha: "c87169b283af"
+source_sha: "638fafcd4320"
 ---
 
 # Przetwarzanie plików { #file-processing }
@@ -657,6 +657,9 @@ każdemu istniejącemu źródłu bazę, do której wcześniej pisała jego synch
 źródło, którego kolekcji nie ma żadna baza jego organizacji ani wdrożenia,
 dezaktywowała i zapisała jego id w logu: wskaż mu bazę wiedzy, aby znowu
 synchronizowało.
+Zapisała w logu także każde źródło pozostawione w osobistej bazie członka, gdy
+organizacja ma bazę organizacji o tej samej nazwie - tam to źródło synchronizowało
+wcześniej: przenieś je, jeśli należy do bazy organizacji.
 
 !!! warning "Jedna nazwa kolekcji to jedna przestrzeń embeddingów"
 

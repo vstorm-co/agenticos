@@ -189,7 +189,9 @@ class TestTheCredentialIsReferencedNotCarried:
                 str(source.id),
                 SyncSourceClone(collection_name="mine"),
                 ctx=_ctx(_ORG),
-                knowledge_base=MagicMock(id=uuid.uuid4(), collection_name="mine"),
+                knowledge_base=MagicMock(
+                    id=uuid.uuid4(), collection_name="mine", scope="org", organization_id=_ORG
+                ),
             )
 
         sync_source_module.sync_source_repo.create.assert_not_awaited()

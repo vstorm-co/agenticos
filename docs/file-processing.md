@@ -619,7 +619,10 @@ names one when several of the organization's bases hold the name
 A source with no knowledge base does not sync. The upgrade that added the column
 gave each existing source the base its sync wrote into before, and deactivated a
 source whose collection no base of its organization or of the deployment holds,
-logging its id: point it at a knowledge base to sync it again.
+logging its id: point it at a knowledge base to sync it again. It also logged each
+source it left on a member's personal base while the organization has an org base
+of the same name, which is where such a source synced before: move it if it
+belongs to the organization's base.
 
 !!! warning "One collection name is one embedding space"
 
@@ -831,9 +834,9 @@ building the vector index on a table with no `embedding` column fails.
 
 Deleting a base detaches and deactivates exactly the sync sources that record it, whoever
 else holds the name. They keep their connector configuration, but require an explicit
-reassignment before syncing again; another base with the same name does not inherit them. Clearing a default base keeps
-its sources because its target row remains. CLI ingestion refuses a name reserved for a
-queued drop until cleanup releases it.
+reassignment before syncing again; another base with the same name does not inherit
+them. Clearing a default base keeps its sources because its target row remains. CLI
+ingestion refuses a name reserved for a queued drop until cleanup releases it.
 
 ### Who may reach a collection
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "c87169b283af"
+source_sha: "638fafcd4320"
 ---
 
 # Dateiverarbeitung { #file-processing }
@@ -693,6 +693,10 @@ hinzufügte, gab jeder bestehenden Quelle die Basis, in die ihr Sync bisher schr
 und deaktivierte eine Quelle, deren Collection keine Basis ihrer Organisation oder
 des Deployments trägt, und protokollierte ihre ID: Richte sie auf eine Wissensbasis,
 damit sie wieder synchronisiert.
+Es protokollierte auch jede Quelle, die es in der persönlichen Basis eines Mitglieds
+beließ, während die Organisation eine Organisationsbasis desselben Namens hat - dort
+synchronisierte die Quelle bisher: Verschiebe sie, wenn sie zur Basis der
+Organisation gehört.
 
 !!! warning "Ein Collection-Name ist ein Embedding-Raum"
 

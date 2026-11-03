@@ -1,5 +1,5 @@
 ---
-source_sha: "c87169b283af"
+source_sha: "638fafcd4320"
 ---
 
 # Procesamiento de archivos { #file-processing }
@@ -666,6 +666,9 @@ columna dio a cada fuente existente la base en la que escribía su sincronizaci�
 desactivó, registrando su id, cada fuente cuya colección no tiene ninguna base de su
 organización ni del despliegue: apúntala a una base de conocimiento para que vuelva a
 sincronizar.
+También registró cada fuente que dejó en la base personal de un miembro mientras la
+organización tiene una base de organización con el mismo nombre, que es donde esa
+fuente sincronizaba antes: muévela si pertenece a la base de la organización.
 
 !!! warning "Un nombre de colección es un espacio de embeddings"
 

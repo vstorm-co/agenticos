@@ -107,6 +107,11 @@ def _service(monkeypatch: pytest.MonkeyPatch, *, stored=None, updated=None) -> A
         sync_source_module.sync_source_repo, "update", AsyncMock(return_value=updated)
     )
     monkeypatch.setattr(sync_source_module.sync_source_repo, "delete", AsyncMock())
+    # The base a source records is held and read again (`SyncSourceService._target`).
+    monkeypatch.setattr(sync_source_module, "hold_name", AsyncMock())
+    monkeypatch.setattr(
+        sync_source_module.knowledge_base_repo, "get_by_id", AsyncMock(return_value=MagicMock())
+    )
     audit = AsyncMock()
     monkeypatch.setattr(sync_source_module, "record_audit", audit)
     return audit
@@ -114,7 +119,9 @@ def _service(monkeypatch: pytest.MonkeyPatch, *, stored=None, updated=None) -> A
 
 def _base(collection_name: str) -> MagicMock:
     """The knowledge base the caller resolved a collection name to (#2551)."""
-    return MagicMock(id=uuid.uuid4(), collection_name=collection_name)
+    return MagicMock(
+        id=uuid.uuid4(), collection_name=collection_name, scope="org", organization_id=_ORG
+    )
 
 
 def _create(**overrides) -> SyncSourceCreate:

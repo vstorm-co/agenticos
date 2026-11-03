@@ -403,15 +403,35 @@ class CollectionAccessService:
             raise _no_collection(name)
         return target
 
+    async def repoint_target(
+        self, ctx: AuthContext, source: SyncSource, name: str | None
+    ) -> KnowledgeBase | None:
+        """The base a source patched by name moves to, or `None` when it does not move.
+
+        A new name is resolved and authorized as :meth:`source_target` does one.
+        `None` for a detach (`name` is `None`), and for the name the source
+        already has while it records a base: resolving that again would move the
+        source to whichever base of the name the caller's organization resolves
+        to first, away from the one it was added to - or refuse a caller who may
+        not write that other base (#2551). A source with the name but no base -
+        detached, or one the upgrade could not attribute - is resolved, which is
+        how it is pointed at a base again.
+        """
+        if name is None or (
+            name == source.collection_name and source.knowledge_base_id is not None
+        ):
+            return None
+        return await self.source_target(ctx, name)
+
     async def kb_sync_sources(self, ctx: AuthContext, kb: KnowledgeBase) -> list[SyncSource]:
         """The caller organization's sync sources feeding this knowledge base, newest first.
 
         For a route that has already authorized the base. The sources recording
         this base (:func:`_feeds`, asked in the query), as :meth:`kb_sync_source`
-        decides one: on the collection name and the caller's organization alone,
-        a member who reads only an app-scoped base listed the sources -
-        configuration, credential id, last error - of a private base of their
-        organization sharing its name (#2486).
+        decides one. Deciding by the collection name and the caller's
+        organization alone let a member who reads only an app-scoped base list
+        the sources - configuration, credential id, last error - of a private
+        base of their organization sharing its name (#2486).
         """
         return await sync_source_repo.get_all(
             self.db, organization_id=ctx.organization_id, knowledge_base_id=kb.id

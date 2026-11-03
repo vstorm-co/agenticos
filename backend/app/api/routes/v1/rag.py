@@ -696,16 +696,13 @@ async def update_sync_source(
 ) -> Any:
     """Update an existing sync source configuration.
 
-    A `collection_name` repoints the source at the base that name resolves to,
-    which the caller must be able to write (`CollectionAccessService.source_target`);
-    `null` detaches it from any base.
+    A new `collection_name` repoints the source at the base that name resolves
+    to, which the caller must be able to write
+    (`CollectionAccessService.repoint_target`); the name it already has keeps the
+    base it records, and `null` detaches it from any base.
     """
     source = await access.sync_source(ctx, source_id)
-    target = (
-        None
-        if data.collection_name is None
-        else await access.source_target(ctx, data.collection_name)
-    )
+    target = await access.repoint_target(ctx, source, data.collection_name)
     return await sync_source_svc.update_source(str(source.id), data, ctx=ctx, knowledge_base=target)
 
 

@@ -147,19 +147,22 @@ async def test_a_source_pointed_at_a_name_records_the_base_it_was_authorized_for
     assert getattr(wired["sources"], method).await_args.kwargs["knowledge_base"] is wired["target"]
 
 
-@pytest.mark.parametrize(
-    ("body", "resolved"),
-    [({"collection_name": "handbook"}, True), ({"collection_name": None}, False)],
-    ids=["repointed", "detached"],
-)
-async def test_a_patch_by_name_records_the_resolved_base_or_none(
-    wired, body: dict[str, object], resolved: bool
+@pytest.mark.parametrize("name", ["handbook", None], ids=["named", "detached"])
+async def test_a_patch_by_name_records_the_base_the_repoint_resolved(
+    wired, name: str | None
 ) -> None:
+    """`repoint_target` decides whether the source moves and where; the route passes
+    on what it answered - the resolved base, or `None` for no move or a detach."""
+    wired["access"].repoint_target = AsyncMock(
+        return_value=None if name is None else wired["target"]
+    )
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.patch(
-            f"{settings.API_V1_STR}/rag/sync/sources/{uuid.uuid4()}", json=body
+            f"{settings.API_V1_STR}/rag/sync/sources/{uuid.uuid4()}",
+            json={"collection_name": name},
         )
 
     assert response.status_code == 200
-    expected = wired["target"] if resolved else None
+    assert wired["access"].repoint_target.await_args.args[2] == name
+    expected = None if name is None else wired["target"]
     assert wired["sources"].update_source.await_args.kwargs["knowledge_base"] is expected

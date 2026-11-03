@@ -221,7 +221,10 @@ class TestASourceOnlyGoesWhereItsCallerMayWrite:
             # Named, with no base resolved for it, the service refuses too.
             await SyncSourceService(db).create_source(
                 SyncSourceCreate(
-                    name="Drive", connector_type="gdrive", collection_name=NAME, config={}
+                    name="Drive",
+                    connector_type="gdrive",
+                    collection_name=NAME,
+                    config={"folder_id": "a"},
                 ),
                 ctx=ctx,
             )
@@ -433,7 +436,11 @@ class TestTheUpgradesBackfill:
             )
             expected[source.id] = None if chosen is None else chosen.id
 
-        reported = await db.run_sync(lambda session: _migration().backfill(session.connection()))
+        migration = _migration()
+        reported = await db.run_sync(lambda session: migration.backfill(session.connection()))
+        on_personal = await db.run_sync(
+            lambda session: migration.on_a_personal_base(session.connection())
+        )
         for source in (oldest_of_org, app_fallback, unattributable, template, already):
             await db.refresh(source)
 
@@ -447,5 +454,7 @@ class TestTheUpgradesBackfill:
         assert oldest_of_org.is_active and app_fallback.is_active
         assert not unattributable.is_active and unattributable.collection_name == "manuals"
         assert reported == [(str(unattributable.id), str(org_3.id), "manuals")]
+        # Kept where it synced, and reported: org 1 also has an org base of the name.
+        assert on_personal == [(str(oldest_of_org.id), str(org_1.id), NAME)]
         assert template.knowledge_base_id is None and template.is_active
         assert already.knowledge_base_id == org_1_base.id

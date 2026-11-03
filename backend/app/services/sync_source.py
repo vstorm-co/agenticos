@@ -15,7 +15,8 @@ from app.core.exceptions import BadRequestError, NotFoundError
 from app.core.field_errors import refused_field
 from app.core.permissions import AuthContext, Perm
 from app.db.base import Base
-from app.db.models.knowledge_base import KnowledgeBase
+from app.db.locks import LockScope, hold_name
+from app.db.models.knowledge_base import KBScope, KnowledgeBase
 from app.db.models.sync_log import SyncLog
 from app.db.models.sync_source import SyncSource
 from app.db.vector_tables import validate_collection_name
@@ -23,6 +24,7 @@ from app.services.access import SECRET, resolve_access
 from app.services.background_jobs import enqueue
 from app.services.rag.connectors import CONNECTOR_REGISTRY
 from app.repositories import background_job as background_job_repo
+from app.repositories import knowledge_base_repo
 from app.repositories import organization_secret_repo
 from app.repositories import sync_log as sync_log_repo
 from app.repositories import sync_source as sync_source_repo
@@ -132,29 +134,6 @@ def _raw_config(source: SyncSource) -> dict:
     if c:
         return json.loads(c)
     return {}
-
-
-def _target_id(collection_name: str | None, knowledge_base: KnowledgeBase | None) -> UUID | None:
-    """The base a source naming `collection_name` records: the one its caller resolved.
-
-    Every caller pointing a source at a collection has already decided which base
-    that is and that it may write it - a KB route from its path, a name route
-    through `CollectionAccessService.source_target`, `rag-source-add` from the
-    organization it was given - so the base travels with the name rather than
-    being looked up by it again here (#2551). A name without its base, or with a
-    base of another name, is a caller that skipped that decision.
-
-    Raises:
-        BadRequestError: A collection was named without its knowledge base.
-    """
-    if collection_name is None:
-        return None
-    if knowledge_base is None or knowledge_base.collection_name != collection_name:
-        raise BadRequestError(
-            message="A sync source has to be pointed at a knowledge base, not only a name.",
-            details={"collection": collection_name},
-        )
-    return knowledge_base.id
 
 
 class SyncSourceService:
@@ -267,7 +246,7 @@ class SyncSourceService:
         `collection_name` is optional - omit to create an org-level integration
         not yet linked to a knowledge base. When it is given, `knowledge_base` is
         the base the caller resolved it to and checked, and the source records it
-        (:func:`_target_id`). Whatever it names decides who can
+        (:meth:`_target`). Whatever it names decides who can
         read what this source ingests, because access is decided at the
         collection and the credential's reach is the source's reach
         (`docs/file-processing.md#who-ends-up-able-to-read-what-a-source-ingested`).
@@ -288,7 +267,8 @@ class SyncSourceService:
         Raises:
             BadRequestError: unknown connector, invalid config, a collection
                 name that cannot safely become an identifier, or one named
-                without its knowledge base.
+                without its knowledge base or with another organization's.
+            NotFoundError: The knowledge base was deleted meanwhile.
         """
         if data.connector_type not in CONNECTOR_REGISTRY:
             raise BadRequestError(
@@ -298,11 +278,11 @@ class SyncSourceService:
 
         if data.collection_name is not None:
             validate_collection_name(data.collection_name, metadata=Base.metadata)
-        knowledge_base_id = _target_id(data.collection_name, knowledge_base)
 
         await _refuse_a_credential_in_the_config(data.config, data.connector_type)
         await _refuse_an_invalid_config(data.config, data.connector_type)
         hint = await self._checked_secret(data.secret_id, data.connector_type, ctx)
+        knowledge_base_id = await self._target(data.collection_name, knowledge_base, ctx)
 
         source = await sync_source_repo.create(
             self.db,
@@ -319,6 +299,61 @@ class SyncSourceService:
         )
         await self._record(source, "created", ctx=ctx)
         return self._to_read(source, secret_hint=hint)
+
+    async def _target(
+        self, collection_name: str | None, knowledge_base: KnowledgeBase | None, ctx: AuthContext
+    ) -> UUID | None:
+        """The base a source naming `collection_name` records: the one its caller resolved.
+
+        Every caller pointing a source at a collection has already decided which
+        base that is and that it may write it - a KB route from its path, a name
+        route through `CollectionAccessService.source_target`, `rag-source-add`
+        from the organization it was given - so the base travels with the name
+        rather than being looked up by it again here (#2551). A name without its
+        base, or with a base of another name, is a caller that skipped that
+        decision.
+
+        The base must also be the source's organization's, or the deployment's:
+        a personal base carries the organization it was created in, and its
+        owner reaches it from any organization they belong to. A source records
+        the caller's organization, whose credential and budget it syncs with, so
+        pointing it at a base of another one would write that organization's
+        documents into this one's tenant - which `writable_kb` alone does not
+        refuse.
+
+        Held under the name's teardown lock, as a deletion takes it, and the base
+        read again inside it: a base deleted meanwhile is a miss rather than a
+        source left pointing at nothing.
+
+        Raises:
+            BadRequestError: A collection was named without its knowledge base,
+                or with one of another organization.
+            NotFoundError: The knowledge base was deleted meanwhile.
+        """
+        if collection_name is None:
+            return None
+        if knowledge_base is None or knowledge_base.collection_name != collection_name:
+            raise BadRequestError(
+                message="A sync source has to be pointed at a knowledge base, not only a name.",
+                details={"collection": collection_name},
+            )
+        if (
+            knowledge_base.scope != KBScope.APP.value
+            and knowledge_base.organization_id != ctx.organization_id
+        ):
+            raise BadRequestError(
+                message=(
+                    "This knowledge base belongs to another organization. Switch to it "
+                    "to add a sync source here."
+                ),
+                details={"kb_id": knowledge_base.id},
+            )
+        await hold_name(self.db, LockScope.COLLECTION_TEARDOWN, collection_name)
+        if await knowledge_base_repo.get_by_id(self.db, knowledge_base.id) is None:
+            raise NotFoundError(
+                message="Knowledge base not found", details={"kb_id": knowledge_base.id}
+            )
+        return knowledge_base.id
 
     async def _record(
         self,
@@ -438,7 +473,7 @@ class SyncSourceService:
         """Clone an existing integration into a different knowledge base.
 
         `knowledge_base` is the base the caller resolved `data.collection_name`
-        to and checked; the clone records it (:func:`_target_id`).
+        to and checked; the clone records it (:meth:`_target`).
 
         The clone *references the same vault secret* rather than copying a
         credential. That is the point of the id: one Drive credential feeding
@@ -450,7 +485,6 @@ class SyncSourceService:
         *different* collection, so its audience changes while nothing about the
         credential does. The entry says which row it was cloned from.
         """
-        knowledge_base_id = _target_id(data.collection_name, knowledge_base)
         existing = await self.get_source(source_id)
         raw = _raw_config(existing)
         # A clone copies a config somebody else's row already holds, and rows
@@ -460,6 +494,7 @@ class SyncSourceService:
         # caller must be one who may bind it, as on create - a member's private
         # secret behind somebody else's source is not theirs to lend.
         await self._checked_secret(existing.secret_id, existing.connector_type, ctx)
+        knowledge_base_id = await self._target(data.collection_name, knowledge_base, ctx)
 
         source = await sync_source_repo.create(
             self.db,
@@ -489,7 +524,7 @@ class SyncSourceService:
 
         A patch carrying `collection_name` repoints the source: `knowledge_base`
         is the base the caller resolved the new name to and checked, and the
-        source records it; `null` detaches it from any base (:func:`_target_id`).
+        source records it; `null` detaches it from any base (:meth:`_target`).
 
         No `••••••` round-trip any more: the config holds no credential, so a
         patch has nothing to send back masked and nothing to skip on the way in
@@ -506,7 +541,7 @@ class SyncSourceService:
         updates = writable(data, over=SyncSource)
         hint: str | None = None
         if "collection_name" in updates:
-            updates["knowledge_base_id"] = _target_id(updates["collection_name"], knowledge_base)
+            await self._repoint(existing, updates, knowledge_base, ctx)
 
         if "secret_id" in updates:
             hint = await self._checked_secret(updates["secret_id"], existing.connector_type, ctx)
@@ -547,6 +582,38 @@ class SyncSourceService:
             source, "updated", ctx=ctx, extra={"fields": sorted(updates), **repointed}
         )
         return self._to_read(source, secret_hint=hint)
+
+    async def _repoint(
+        self,
+        existing: SyncSource,
+        updates: dict[str, object],
+        knowledge_base: KnowledgeBase | None,
+        ctx: AuthContext,
+    ) -> None:
+        """Turn a patched `collection_name` into the base the source records, in `updates`.
+
+        The name it already has, resent while it records a base, is no change:
+        resolving it again would move the source to whichever base of the name
+        the caller's organization resolves to first - a member's older personal
+        base, say - away from the one it was added to (#2551). Otherwise the
+        source records `knowledge_base` (:meth:`_target`), and a source that
+        changes base forgets its last clean run: that run filled the other base,
+        and stopping early on it would leave this one empty.
+        """
+        name = updates["collection_name"]
+        if (
+            name == existing.collection_name
+            and existing.knowledge_base_id is not None
+            and (knowledge_base is None or knowledge_base.id == existing.knowledge_base_id)
+        ):
+            del updates["collection_name"]
+            return
+        knowledge_base_id = await self._target(
+            name if isinstance(name, str) else None, knowledge_base, ctx
+        )
+        updates["knowledge_base_id"] = knowledge_base_id
+        if knowledge_base_id != existing.knowledge_base_id:
+            updates["sync_state"] = None
 
     async def delete_source(self, source_id: str, *, ctx: AuthContext) -> None:
         """Delete a sync source.

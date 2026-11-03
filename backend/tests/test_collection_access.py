@@ -188,15 +188,6 @@ def service(rows: Rows, monkeypatch: pytest.MonkeyPatch) -> CollectionAccessServ
 
         return get
 
-    async def list_by_collection_names(
-        _db: object, collection_names: list[str]
-    ) -> dict[str, list[KnowledgeBase]]:
-        by_name: dict[str, list[KnowledgeBase]] = {}
-        for kb in rows.collections:
-            if kb.collection_name in collection_names:
-                by_name.setdefault(kb.collection_name, []).append(kb)
-        return by_name
-
     async def sources_by(
         _db: object,
         *,
@@ -237,7 +228,6 @@ def service(rows: Rows, monkeypatch: pytest.MonkeyPatch) -> CollectionAccessServ
         return doc.collection_name == scope.collection_name and owned
 
     monkeypatch.setattr(knowledge_base_repo, "list_by_collection_name", list_by_collection_name)
-    monkeypatch.setattr(knowledge_base_repo, "list_by_collection_names", list_by_collection_names)
     monkeypatch.setattr(sync_source_repo, "get_all", sources_by)
     monkeypatch.setattr(sync_source_repo, "list_for_knowledge_bases", list_for_knowledge_bases)
     monkeypatch.setattr(sync_source_repo, "update", update_source)
@@ -870,6 +860,45 @@ class TestPointingASyncSourceAtACollectionByName:
     ) -> None:
         with pytest.raises(NotFoundError):
             await service.source_target(_ctx(), "handbook")
+
+
+class TestRepointingASyncSourceByName:
+    """`repoint_target`: a PATCH naming a collection moves a source only when the
+    name changes, or when the source has no base to keep (#2551)."""
+
+    async def test_a_detach_resolves_nothing(
+        self, service: CollectionAccessService, rows: Rows
+    ) -> None:
+        rows.collections = [_kb("handbook")]
+        source = _source(organization_id=HOME_ORG, knowledge_base=rows.collections[0])
+
+        assert await service.repoint_target(_ctx(), source, None) is None
+
+    @pytest.mark.security
+    async def test_the_name_it_has_keeps_the_base_it_records(
+        self, service: CollectionAccessService, rows: Rows
+    ) -> None:
+        """Resolved again, the name would go to the member's older personal base."""
+        personal = _kb("handbook", scope=KBScope.PERSONAL, owner_user_id=CALLER)
+        org_kb = _kb("handbook")
+        rows.collections = [personal, org_kb]
+        source = _source(organization_id=HOME_ORG, knowledge_base=org_kb)
+
+        assert await service.repoint_target(_ctx(), source, "handbook") is None
+
+    async def test_a_new_name_or_a_source_with_no_base_is_resolved(
+        self, service: CollectionAccessService, rows: Rows
+    ) -> None:
+        handbook, manuals = _kb("handbook"), _kb("manuals")
+        rows.collections = [handbook, manuals]
+        attached = _source(organization_id=HOME_ORG, knowledge_base=handbook)
+        orphan = _source(organization_id=HOME_ORG)
+
+        moved = await service.repoint_target(_ctx(), attached, "manuals")
+        reattached = await service.repoint_target(_ctx(), orphan, "handbook")
+
+        assert moved is not None and moved.id == manuals.id
+        assert reattached is not None and reattached.id == handbook.id
 
 
 class TestDetachingADeletedBasesSources:

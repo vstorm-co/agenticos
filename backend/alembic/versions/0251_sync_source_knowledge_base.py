@@ -20,6 +20,11 @@ are logged. Inventing a base for it would be filing one tenant's documents
 under a base somebody else chose; refusing the whole upgrade would hold a
 deployment back for a row whose fix is a reassignment in the console.
 
+A source that resolves to a member's personal base while its organization
+also has an org-scoped base of the name keeps the personal base - where it
+synced before - and is logged too: the upgrade cannot tell a member's own
+source from an organization's source that was misfiled there.
+
 `ON DELETE SET NULL` rather than `CASCADE`: a source carries its run history
 and its document claims, and a deleted base's sources are detached and
 deactivated by the teardown so they can be reassigned (as since #2574). The
@@ -78,6 +83,26 @@ _DEACTIVATE_UNATTRIBUTABLE = sa.text(
 )
 
 
+# A source the backfill filed under a member's personal base while its
+# organization also has an org-scoped base of the name: the choice the sync made
+# before, kept, but likely the misfiling #2551 describes.
+_ON_A_PERSONAL_BASE = sa.text(
+    """
+    SELECT s.id, s.organization_id, s.collection_name
+    FROM sync_sources AS s
+    JOIN knowledge_bases AS chosen ON chosen.id = s.knowledge_base_id
+    WHERE chosen.scope = 'personal'
+      AND EXISTS (
+          SELECT 1 FROM knowledge_bases AS org_base
+          WHERE org_base.collection_name = s.collection_name
+            AND org_base.organization_id = s.organization_id
+            AND org_base.scope = 'org'
+      )
+    ORDER BY s.id
+    """
+)
+
+
 def backfill(bind: Connection) -> list[tuple[str, str, str]]:
     """Attribute every source naming a collection; deactivate and answer the rest.
 
@@ -87,6 +112,17 @@ def backfill(bind: Connection) -> list[tuple[str, str, str]]:
     """
     bind.execute(_BACKFILL)
     rows = bind.execute(_DEACTIVATE_UNATTRIBUTABLE).all()
+    return [(str(row.id), str(row.organization_id), row.collection_name) for row in rows]
+
+
+def on_a_personal_base(bind: Connection) -> list[tuple[str, str, str]]:
+    """Sources the backfill filed under a personal base beside an org base of the name.
+
+    Kept where the sync wrote before, and reported for an operator to move: the
+    upgrade cannot tell a member's own source from an organization's source that
+    was being misfiled into the member's older base.
+    """
+    rows = bind.execute(_ON_A_PERSONAL_BASE).all()
     return [(str(row.id), str(row.organization_id), row.collection_name) for row in rows]
 
 
@@ -106,11 +142,21 @@ def upgrade() -> None:
         ["id"],
         ondelete="SET NULL",
     )
-    for source_id, organization_id, collection_name in backfill(op.get_bind()):
+    bind = op.get_bind()
+    for source_id, organization_id, collection_name in backfill(bind):
         logger.warning(
             "Sync source %s (organization %s) names collection '%s', which no knowledge "
             "base of its organization or of the deployment holds; it was deactivated. "
             "Point it at a knowledge base to sync it again.",
+            source_id,
+            organization_id,
+            collection_name,
+        )
+    for source_id, organization_id, collection_name in on_a_personal_base(bind):
+        logger.warning(
+            "Sync source %s (organization %s) syncs '%s' into a member's personal "
+            "knowledge base, while the organization has a base of that name too. It was "
+            "kept where it synced before; move it if it belongs to the organization's base.",
             source_id,
             organization_id,
             collection_name,
