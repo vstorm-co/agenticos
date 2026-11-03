@@ -779,7 +779,7 @@ async def delete_unfiled_with_vectors(db: AsyncSession, scope: CollectionScope) 
 
 UNINDEXED_BY_DROP = (
     "The collection's search index was dropped with the last knowledge base on its "
-    "name. Retry the document, or sync its source, to index it again."
+    "name. Upload the document again, or sync its source, to index it again."
 )
 
 
@@ -790,9 +790,10 @@ async def mark_unindexed(db: AsyncSession, collection_name: str) -> None:
     tenant's unfiled ones: what is left is another tenant's, kept because the
     caller holds no authority over it, but its chunks go with the dropped table.
     Left `DONE`, its tenant's next base on the name would list it as indexed with
-    nothing behind it. As `ERROR` with no vector id it lists as failed, an upload
-    can be retried from its stored file, and a sync retires it with
-    `discard_failed` (#2568).
+    nothing behind it. As `ERROR` with no vector id it lists as failed, saying an
+    upload has to be made again, and a sync retires it with `discard_failed`
+    (#2568). `retry_ingestion` refuses it, being filed under no base, which also
+    keeps it from returning to `PROCESSING` under a stale attempt's write.
 
     A row still being ingested is failed too, under `FOR UPDATE` first: that waits
     out a chunk write holding the row `FOR KEY SHARE` (`hold_for_vector_write`),

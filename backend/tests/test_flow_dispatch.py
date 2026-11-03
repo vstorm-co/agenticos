@@ -318,6 +318,7 @@ def _failed_document() -> SimpleNamespace:
         filename="policy.txt",
         ingestion_attempt=1,
         organization_id=uuid4(),
+        knowledge_base_id=uuid4(),
     )
 
 
@@ -387,6 +388,24 @@ async def test_retrying_a_document_with_no_stored_file_is_refused(session, monke
 
     # The row keeps the error that explains it: a refusal must not clear the
     # diagnosis on the way out, which is what made #441 one-way.
+    update.assert_not_awaited()
+
+
+async def test_retrying_a_document_filed_under_no_base_is_refused(session, monkeypatch) -> None:
+    """A row filed under no base is listed by its tenant's bases, but its chunks
+    are written, read and deleted as deployment-wide (`vector_scope`), so a retry
+    would index it where the base listing it never looks. A last holder's
+    teardown fails another tenant's rows this way; they are uploaded again
+    (#2568)."""
+    document = _failed_document()
+    document.knowledge_base_id = None
+    update = AsyncMock()
+    monkeypatch.setattr(rag_document_repo, "get_by_id", AsyncMock(return_value=document))
+    monkeypatch.setattr(rag_document_repo, "update_status", update)
+
+    with pytest.raises(BadRequestError, match="upload it again"):
+        await RAGDocumentService(session).retry_ingestion(str(document.id))
+
     update.assert_not_awaited()
 
 

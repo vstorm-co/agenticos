@@ -1,5 +1,5 @@
 ---
-source_sha: "380a2d85bed6"
+source_sha: "07d7286f9ac9"
 ---
 
 # Procesamiento de archivos { #file-processing }
@@ -1016,8 +1016,8 @@ organización ninguna.
 Las filas sin asignar de otro tenant bajo ese nombre se quedan, con sus archivos,
 porque quien llama no tiene autoridad sobre ellas. Sus fragmentos se van con la
 tabla, así que se marcan como fallidas: la siguiente base de ese tenant con ese
-nombre las lista como fallidas, un documento subido se puede reintentar desde su
-archivo guardado y una sincronización vuelve a indexar un documento sincronizado.
+nombre las lista como fallidas, un documento subido hay que subirlo de nuevo y una
+sincronización vuelve a indexar un documento sincronizado.
 
 Antes, `DELETE /kb/{id}` dejaba las filas sin asignar del tenant detrás de la tabla
 eliminada, todavía listadas como indexadas, y eliminar una colección borraba todas
@@ -1201,7 +1201,10 @@ Vuelve a leer `storage_path` — la copia que la subida guardó exactamente para
 Un documento que no falló, o que no tiene archivo guardado — uno anterior a que
 las subidas guardaran el suyo, o uno que ingirió una sincronización — se rechaza
 con un 400 en vez de pasar a `processing`
-([#441](https://github.com/vstorm-co/agenticos/issues/441)).
+([#441](https://github.com/vstorm-co/agenticos/issues/441)). También un documento
+sin asignar a ninguna base de conocimiento: sus fragmentos se escribirían para todo
+el deployment, donde la base que lo lista no lee, así que hay que subirlo de nuevo
+([#2568](https://github.com/vstorm-co/agenticos/issues/2568)).
 
 ### Qué dice una ingesta fallida { #what-a-failed-ingest-says }
 

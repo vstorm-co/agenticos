@@ -939,8 +939,8 @@ app-scoped base, and none for a personal base outside an organization.
 
 Another tenant's unfiled rows under the name stay, with their files, because the
 caller has no authority over them. Their chunks go with the table, so they are marked
-as failed: that tenant's next base on the name lists them as failed, an upload can be
-retried from its stored file, and a sync indexes a synced document again.
+as failed: that tenant's next base on the name lists them as failed, an uploaded
+document has to be uploaded again, and a sync indexes a synced document again.
 
 Before, `DELETE /kb/{id}` left the tenant's unfiled rows behind the dropped table,
 still listed as indexed, and the collection drop deleted every row under the name,
@@ -1109,7 +1109,10 @@ dispatches the parse again, replacing whatever the failed attempt indexed. A
 document that did not fail, or that has no stored file — one that predates
 uploads keeping theirs, or one a sync ingested — is refused with a 400 rather
 than moved to `processing`
-([#441](https://github.com/vstorm-co/agenticos/issues/441)).
+([#441](https://github.com/vstorm-co/agenticos/issues/441)). So is a document filed
+under no knowledge base: its chunks would be written deployment-wide, where the base
+that lists it does not read, so it has to be uploaded again
+([#2568](https://github.com/vstorm-co/agenticos/issues/2568)).
 
 ### What a failed ingest says
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "380a2d85bed6"
+source_sha: "07d7286f9ac9"
 ---
 
 # Przetwarzanie plików { #file-processing }
@@ -994,8 +994,8 @@ zapisuje `rag-ingest`), a dla bazy osobistej poza organizacją żadne.
 Nieprzypisane wiersze innego tenanta pod tą nazwą zostają, razem z plikami, bo
 wywołujący nie ma do nich uprawnień. Ich chunki znikają razem z tabelą, więc zostają
 oznaczone jako nieudane: następna baza tego tenanta o tej nazwie listuje je jako
-nieudane, przesłany dokument można ponowić z zapisanego pliku, a synchronizacja
-ponownie indeksuje zsynchronizowany dokument.
+nieudane, przesłany dokument trzeba przesłać jeszcze raz, a synchronizacja ponownie
+indeksuje zsynchronizowany dokument.
 
 Wcześniej `DELETE /kb/{id}` zostawiało nieprzypisane wiersze tenanta za usuniętą
 tabelą, nadal listowane jako zaindeksowane, a usunięcie kolekcji kasowało każdy
@@ -1177,7 +1177,10 @@ nieudana próba. Dokument, który nie zawiódł, albo taki, który nie ma zapisa
 pliku — sprzed czasu, gdy uploady zaczęły zachowywać swoje, albo wciągnięty
 przez synchronizację — jest odrzucany z 400, zamiast być przestawiony na
 `processing`
-([#441](https://github.com/vstorm-co/agenticos/issues/441)).
+([#441](https://github.com/vstorm-co/agenticos/issues/441)). Tak samo dokument
+nieprzypisany do żadnej bazy wiedzy: jego chunki zostałyby zapisane dla całego
+wdrożenia, gdzie baza, która go listuje, nie czyta, więc trzeba go przesłać jeszcze
+raz ([#2568](https://github.com/vstorm-co/agenticos/issues/2568)).
 
 ### Co mówi nieudana ingestia { #what-a-failed-ingest-says }
 

@@ -1294,7 +1294,7 @@ class TestADeletedBasesChunksOnAKeptTable:
         tenant-less ones `rag-ingest` writes for an app-scoped one. Another
         tenant's unfiled rows stay with their files, since the caller has no
         authority over them, but their chunks went with the table: they are marked
-        failed, so their next base lists them as needing a retry rather than as
+        failed, so their next base lists them as failed rather than as
         indexed, and one still being ingested has its attempt superseded. `DELETE /kb/{id}` left the tenant's unfiled rows behind the
         dropped table, and the collection drop deleted every row under the name,
         in every organization (#2568)."""

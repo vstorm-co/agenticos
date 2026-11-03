@@ -407,15 +407,13 @@ async def _run_ingestion(
         # tracked under: the base itself (#2537) and its tenant - its organization
         # for an org base, None for an app-scoped one every organization reads.
         # Distinct from `organization_id`, which pays for the embeddings even when
-        # the rows are deployment-wide (#1684). A row filed under no base is
-        # attributed by its organization (`_unfiled_of`), so its chunks carry
-        # that tenant, or the bases listing it would never find them (#2568).
+        # the rows are deployment-wide (#1684).
         kb = (
             await knowledge_base_repo.get_by_id(db, record.knowledge_base_id)
             if record.knowledge_base_id is not None
             else None
         )
-        scope = kb.vector_scope if kb is not None else VectorScope(tenant=organization_id)
+        scope = kb.vector_scope if kb is not None else VectorScope(tenant=None)
 
     ledger = SpendLedger(organization_id=organization_id)
     file_path = Path(filepath)

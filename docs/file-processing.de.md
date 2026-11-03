@@ -1,5 +1,5 @@
 ---
-source_sha: "380a2d85bed6"
+source_sha: "07d7286f9ac9"
 ---
 
 # Dateiverarbeitung { #file-processing }
@@ -1060,9 +1060,9 @@ persönliche Basis außerhalb einer Organisation keine.
 Nicht zugeordnete Zeilen eines anderen Tenants unter dem Namen bleiben mit ihren
 Dateien, denn der Aufrufer hat keine Befugnis über sie. Ihre Chunks gehen mit der
 Tabelle, deshalb werden sie als fehlgeschlagen markiert: Die nächste Basis dieses
-Tenants mit dem Namen listet sie als fehlgeschlagen, ein hochgeladenes Dokument lässt
-sich aus seiner gespeicherten Datei erneut versuchen, und eine Synchronisierung
-indexiert ein synchronisiertes Dokument neu.
+Tenants mit dem Namen listet sie als fehlgeschlagen, ein hochgeladenes Dokument muss
+erneut hochgeladen werden, und eine Synchronisierung indexiert ein synchronisiertes
+Dokument neu.
 
 Vorher ließ `DELETE /kb/{id}` die nicht zugeordneten Zeilen des Tenants hinter der
 gelöschten Tabelle zurück, weiter als indexiert gelistet, und das Löschen einer
@@ -1255,7 +1255,10 @@ gescheiterte Versuch indexiert hat. Ein Dokument, das nicht gescheitert ist oder
 das keine gespeicherte Datei hat — eines, das älter ist als das Aufbewahren durch
 Uploads, oder eines, das ein Sync eingelesen hat — wird mit einer 400 abgelehnt,
 statt nach `processing` versetzt zu werden
-([#441](https://github.com/vstorm-co/agenticos/issues/441)).
+([#441](https://github.com/vstorm-co/agenticos/issues/441)). Ebenso ein Dokument,
+das keiner Wissensbasis zugeordnet ist: Seine Chunks würden deploymentweit
+geschrieben, wo die Basis, die es listet, nicht liest, also muss es erneut
+hochgeladen werden ([#2568](https://github.com/vstorm-co/agenticos/issues/2568)).
 
 ### Was eine gescheiterte Ingestion sagt { #what-a-failed-ingest-says }
 

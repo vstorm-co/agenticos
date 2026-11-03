@@ -5,7 +5,7 @@ The lock itself, against a real delete, is `TestAnIngestRacingItsBasesDelete` in
 """
 
 import logging
-from collections.abc import AsyncGenerator, AsyncIterator, Iterator
+from collections.abc import AsyncIterator, Iterator
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
@@ -400,42 +400,6 @@ async def test_marking_rows_unindexed_waits_for_writes_and_supersedes_their_atte
     assert "ingestion_attempt=(rag_documents.ingestion_attempt + " in str(updated)
     assert "vector_document_id=" in str(updated)
     assert DocumentStatus.ERROR in updated.params.values()
-
-
-async def test_an_unfiled_rows_chunks_carry_its_organization() -> None:
-    """A row filed under no base is attributed by its organization (`_unfiled_of`),
-    so a retry writes its chunks with that tenant: written as deployment-wide, the
-    organization's base that lists the row would never find them (#2568)."""
-    org = uuid4()
-    record = MagicMock(
-        organization_id=org,
-        ingestion_config={},
-        knowledge_base_id=None,
-        status=DocumentStatus.PROCESSING,
-    )
-    documents = MagicMock(get_document=AsyncMock(return_value=record))
-    scopes: list[VectorScope] = []
-    ingester = MagicMock(ingest_file=AsyncMock(side_effect=RuntimeError("stop here")))
-
-    @asynccontextmanager
-    async def ingestion_service(*, scope: VectorScope, **_: object) -> AsyncGenerator[MagicMock]:
-        scopes.append(scope)
-        yield ingester
-
-    with (
-        patch.object(rag_tasks, "get_worker_db_context", new=_session),
-        patch.object(rag_tasks, "_ingestion_service", new=ingestion_service),
-        patch.object(rag_tasks, "_record_embedding_spend", new=AsyncMock()),
-        patch.object(rag_tasks, "_fail_document", new=AsyncMock()),
-        patch.object(rag_tasks, "assert_organization_within_budget", new=AsyncMock()),
-        patch.object(rag_tasks, "IngestionConfigService") as config_service,
-        patch("app.services.rag_document.RAGDocumentService", return_value=documents),
-        pytest.raises(RuntimeError),
-    ):
-        config_service.return_value.build_processor = AsyncMock(return_value=MagicMock())
-        await rag_tasks._run_ingestion(str(uuid4()), "docs", "queued/a.md", "a.md", True, 2)
-
-    assert scopes == [VectorScope(tenant=org)]
 
 
 @pytest.mark.security

@@ -325,8 +325,8 @@ class KnowledgeBaseService:
         tenant's unfiled rows under the name stay with their files - the caller
         holds no authority over them, so what happens to them is their tenant's
         call - but their chunks go with the table, so they are marked as failed
-        (`mark_unindexed`): an upload can be retried from its stored file, and a
-        sync indexes a synced one again. The two routes had drifted here:
+        (`mark_unindexed`): an upload has to be made again, and a sync indexes a
+        synced one again. The two routes had drifted here:
         `delete` left the tenant's unfiled rows behind the dropped table, still
         listed as indexed, and the collection drop deleted every row under the
         name, whichever tenant it belonged to (#2568).
