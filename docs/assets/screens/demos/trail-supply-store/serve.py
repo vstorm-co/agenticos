@@ -41,6 +41,7 @@ def main() -> None:
         try:
             server.serve_forever()
         except KeyboardInterrupt:
+            # Ctrl-C ends the preview; finally closes its listening socket.
             pass
         finally:
             server.server_close()

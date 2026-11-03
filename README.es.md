@@ -1,4 +1,4 @@
-<!-- source_sha: f6ac414308b0 -->
+<!-- source_sha: f4e52fce1ab3 -->
 
 <div align="center">
 
@@ -19,6 +19,7 @@
   <a href="#-lo-más-destacado">Lo más destacado</a> &middot;
   <a href="#-qué-es-agenticos">¿Qué es?</a> &middot;
   <a href="#-inicio-rápido">Inicio rápido</a> &middot;
+  <a href="#en-tu-servidor-en-cualquier-dispositivo">Server · Desktop · Mobile</a> &middot;
   <a href="#-conecta-las-aplicaciones-que-tu-equipo-ya-usa">Integraciones</a> &middot;
   <a href="#-crea-comparte-y-opera">Recorrido por el producto</a> &middot;
   <a href="#-encuentra-tu-camino">Encuentra tu camino</a> &middot;
@@ -52,6 +53,15 @@
 AgenticOS da a cada equipo compañeros de IA: agentes que trabajan con archivos, ejecutan código, navegan por la web y usan las herramientas y el conocimiento de tu empresa. Tus compañeros y tus agentes trabajan en el mismo chat en vivo, y cualquier agente puede pasar código a Claude Code o Codex, con la suscripción de ChatGPT o Claude que ya pagas. Es de código abierto (Apache-2.0) y autoalojado, una capa que ejecutas en tu propia infraestructura. Crea y publica agentes en el navegador, compártelos con tus compañeros y gestiona su acceso, coste y resultados en un solo lugar.
 
 **¿Primera vez aquí?** Recorre la [introducción en 17 diapositivas](https://vstorm-co.github.io/agenticos/presentation/) (en inglés): el problema, la idea, el producto en pantallas reales, sus controles y sus límites, y cómo empezar. Para ver cada pantalla en detalle, abre el [recorrido del producto en 47 diapositivas](https://vstorm-co.github.io/agenticos/presentation/tour/). Las flechas avanzan paso a paso en ambas; `O` muestra todas las diapositivas.
+
+## Novedades de las últimas versiones
+
+- **Claude Code o Codex local en el chat de escritorio.** Elige un agente por conversación, autoriza una carpeta local, reanuda sesiones y corrige la tarea mientras trabaja. Inicia sesión mediante el terminal del propio agente.
+- **Tus skills e instrucciones del proyecto.** Comparte opcionalmente skills locales y `AGENTS.md` / `CLAUDE.md` con una conversación. Los chats nuevos empiezan con esta opción desactivada.
+- **Discord se suma a Slack, Teams, Telegram y Mattermost.** Responde a menciones, mensajes directos y `/ask`, con aprobaciones y preguntas en el canal. [Configurar un canal](https://vstorm-co.github.io/agenticos/es/channels/).
+- **Más posibilidades para Visuals y Apps.** Países, puntos y rutas con `AOWorldMap`, presentaciones como App con los skills incluidos y seguimiento de la salida de comandos de larga duración, como pruebas o logs.
+
+[Notas de versiones](https://github.com/vstorm-co/agenticos/releases) · [Guía de escritorio](https://vstorm-co.github.io/agenticos/es/desktop/)
 
 ## ⚡ Lo más destacado
 
@@ -156,7 +166,6 @@ Consulta la [galería actual del producto](https://vstorm-co.github.io/agenticos
 
 <a href="docs/assets/readme/highlight-motor.webp"><img src="docs/assets/readme/highlight-motor.webp" alt="Motor Atlas con despiece interactivo de un motor y registro de componentes." width="100%"></a>
 
-
 ## 🧩 Crea procesos útiles con tus agentes
 
 Conecta pasos tipados, llamadas a agentes y herramientas MCP en el editor visual de [Workflows](https://vstorm-co.github.io/agenticos/es/workflows/). Guarda resultados estructurados en [Virtual Tables](https://vstorm-co.github.io/agenticos/es/virtual-tables/), inicia trabajo con [Routines](https://vstorm-co.github.io/agenticos/es/triggers/) y revisa runs y aprobaciones. Las [llamadas de voz](https://vstorm-co.github.io/agenticos/es/voice/) y la [app de escritorio](https://vstorm-co.github.io/agenticos/es/desktop/) permiten usar los mismos agentes publicados.
@@ -172,7 +181,6 @@ Borrador ilustrativo de 30 pasos con Google Workspace, Microsoft 365, HubSpot, S
 <a href="docs/assets/readme/highlight-tables.webp"><img src="docs/assets/readme/highlight-tables.webp" alt="Ventana completa de AgenticOS con un pipeline comercial ficticio en Kanban." width="100%"></a>
 
 Virtual Tables con empresas ficticias, campos tipados, etapas y próximas acciones. Los mismos registros en una tabla o un tablero kanban.
-
 
 Empieza por una tarea concreta: una [LLM wiki en un Project](https://vstorm-co.github.io/agenticos/es/projects/), un [widget de agente en una web](https://vstorm-co.github.io/agenticos/es/channels/) o un equipo que comparte archivos e instrucciones del proyecto. El widget ofrece la conversación; las recomendaciones y acciones del carrito necesitan tu catálogo, integración de herramientas y comprobaciones de permisos.
 
@@ -212,6 +220,21 @@ Funciona en tu propia infraestructura con Docker Compose y es compatible con 28 
 
 ## 🚀 Inicio rápido
 
+### Elige cómo empezar
+
+**Un workspace de empresa, varias formas de acceder.** El servidor ejecuta AgenticOS; la aplicación de escritorio se conecta a él. Para acceder a un workspace existente no necesitas Docker ni herramientas de desarrollo.
+
+| Tu situación | Siguiente paso |
+|---|---|
+| Tu empresa ya utiliza AgenticOS | Pide la URL del workspace y entra desde el navegador o [instala la aplicación](#instalar-la-aplicación-de-escritorio). |
+| Tu empresa necesita un workspace | Pide a TI que [despliegue un servidor](#desplegar-un-servidor-de-empresa) o [habla con Vstorm](https://vstorm.co/contact-us/). |
+| Eres desarrollador y quieres probar en local | [Ejecuta el quickstart con Docker](#pruébalo-en-local). |
+
+### Pruébalo en local
+
+<details id="local-quickstart">
+<summary>Para desarrolladores: probar AgenticOS en local con Docker</summary>
+
 Necesitas Docker Compose y acceso a un provider de modelos. En macOS o Linux, ejecuta:
 
 ```bash
@@ -234,6 +257,97 @@ curl -fsSL https://raw.githubusercontent.com/vstorm-co/agenticos/main/scripts/qu
 La [guía de instalación](https://vstorm-co.github.io/agenticos/es/install/) explica la configuración manual con Docker Compose, las versiones fijas y la resolución de problemas. Para desarrollar a partir del código fuente, consulta [Contribuir](https://vstorm-co.github.io/agenticos/es/help/).
 
 </details>
+
+</details>
+
+## En tu servidor. En cualquier dispositivo.
+
+El servidor conserva el workspace. El navegador, la aplicación de escritorio y el teléfono se conectan al mismo despliegue, con sus cuentas, agentes y permisos.
+
+<a id="server-setup"></a>
+
+### Desplegar un servidor de empresa
+
+TI configura el workspace una vez y te facilita una dirección HTTPS y una cuenta. Usa esa dirección en el navegador o en la aplicación de escritorio. Si necesitas ayuda con el despliegue, [habla con Vstorm](https://vstorm.co/contact-us/).
+
+<details>
+<summary>Configuración del servidor para TI y desarrolladores</summary>
+
+Usa un host Linux con **4 vCPU y 8 GB de RAM**, Docker Engine 24+, Compose 2.24+ y `make`. Apunta dos nombres DNS, como `app.example.com` y `api.example.com`, al host y configura HTTPS mediante un proxy inverso. La opción soportada es Docker Compose en un solo host.
+
+```bash
+# On the server. Start from a released version so code and images stay aligned.
+git clone --branch v1.38.2 --depth 1 https://github.com/vstorm-co/agenticos.git
+cd agenticos
+bash scripts/server-init.sh
+```
+
+El asistente pide los nombres del sitio y la API y el correo del certificado, y genera `backend/.env`. Establece `AGENTICOS_VERSION=1.38.2` para fijar esta versión. En un host nuevo con el Traefik incluido:
+
+```bash
+docker network create traefik_webgateway
+docker compose --env-file backend/.env -f docker-compose-traefik.yml up -d
+make prod PROXY=traefik
+make prod-frontend PROXY=traefik
+```
+
+Después [crea la primera organización, el propietario y el agente](https://vstorm-co.github.io/agenticos/es/deploy/#start-it-and-create-the-first-account), abre la dirección HTTPS y añade las credenciales del proveedor de modelos. La guía cubre un proxy existente, Nginx, actualizaciones y copias de seguridad. Conserva la base de datos **y la clave del vault de `backend/.env`**.
+
+```bash
+docker compose --env-file backend/.env -f docker-compose-prod.yml \
+  exec -T app agenticos cmd bootstrap \
+  --email you@example.com --password '<your-password>' \
+  --org 'Your Company' --provider anthropic --api-key '<your-api-key>'
+```
+
+[Guía completa del servidor](https://vstorm-co.github.io/agenticos/es/deploy/) · [Lista de producción](https://vstorm-co.github.io/agenticos/es/configuration/#production-checklist)
+
+</details>
+
+<a id="desktop-install"></a>
+
+### Instalar la aplicación de escritorio
+
+Descarga el instalador de [la última versión](https://github.com/vstorm-co/agenticos/releases/tag/v1.38.2):
+
+| Sistema | Descargar v1.38.2 | Instalación |
+|---|---|---|
+| <img src="docs/assets/readme/platforms/apple.svg" width="18" height="18" alt="" /> **macOS** | [Apple silicon · DMG](https://github.com/vstorm-co/agenticos/releases/download/v1.38.2/AgenticOS_1.38.2_aarch64.dmg) · [Intel · DMG](https://github.com/vstorm-co/agenticos/releases/download/v1.38.2/AgenticOS_1.38.2_x64.dmg) | Abre el DMG y arrastra AgenticOS a Applications. |
+| <img src="docs/assets/readme/platforms/windows.svg" width="18" height="18" alt="" /> **Windows x64** | [EXE](https://github.com/vstorm-co/agenticos/releases/download/v1.38.2/AgenticOS_1.38.2_x64-setup.exe) · [MSI](https://github.com/vstorm-co/agenticos/releases/download/v1.38.2/AgenticOS_1.38.2_x64_en-US.msi) | Abre el EXE y sigue el instalador. MSI es para despliegues gestionados por TI. |
+| <img src="docs/assets/readme/platforms/linux.svg" width="18" height="18" alt="" /> **Linux x64** | [DEB](https://github.com/vstorm-co/agenticos/releases/download/v1.38.2/AgenticOS_1.38.2_amd64.deb) · [RPM](https://github.com/vstorm-co/agenticos/releases/download/v1.38.2/AgenticOS-1.38.2-1.x86_64.rpm) · [AppImage](https://github.com/vstorm-co/agenticos/releases/download/v1.38.2/AgenticOS_1.38.2_amd64.AppImage) | Abre DEB/RPM en el instalador de software. Para AppImage, permite su ejecución en las propiedades del archivo. |
+
+En Mac: **menú Apple → Acerca de este Mac**. «Chip» indica Apple silicon; «Procesador: Intel» indica un Mac Intel.
+
+**¿Prefieres Homebrew en macOS?**
+
+El [tap Homebrew del proyecto](https://github.com/vstorm-co/homebrew-agenticos) elige el instalador adecuado para tu Mac. El cask elimina la marca de cuarentena de AgenticOS; esto no sustituye la notarización de Apple:
+
+```bash
+brew install --cask vstorm-co/agenticos/agenticos
+```
+
+**Después de instalar:** abre AgenticOS, introduce la dirección HTTPS del workspace de tu empresa e inicia sesión. Conectarte a un servidor existente no requiere Docker local. Para crear una instancia local, usa el asistente; esa opción sí necesita Docker.
+
+Los builds de macOS no están notarizados por Apple. Un DMG descargado en el navegador puede requerir **System Settings → Privacy & Security → Open Anyway**. Consulta la [guía de instalación](https://vstorm-co.github.io/agenticos/es/desktop/#installing-the-app).
+
+Escritorio añade Quick Ask, archivos locales y acceso al ordenador con tu consentimiento, además de Claude Code / Codex local. En **Settings → Desktop app**, revisa los agentes detectados e inicia sesión en su terminal. Elige uno en **Chat controls**, concede acceso completo a una carpeta de trabajo y confirma la tarea en el diálogo nativo. **My skills and instructions** es una opción independiente por chat.
+
+[Configurar escritorio y agentes locales](https://vstorm-co.github.io/agenticos/es/desktop/)
+
+### AgenticOS en el teléfono
+
+**Disponible ahora sin compilar:** abre la dirección HTTPS en el navegador móvil e inicia sesión. Usa la opción de instalación; en iPhone, **Compartir → Añadir a la pantalla de inicio**. Chat, archivos y aprobaciones se adaptan al teléfono.
+
+**iOS y Android nativos:** el código de `mobile/` incluye bloqueo biométrico, compartir, widgets e integración con notificaciones nativas. Son **builds de desarrollo**, sin distribución pública en App Store, Google Play o TestFlight ni descarga de una versión soportada. Instala Rust y Xcode en macOS (iOS), o Android SDK/NDK y JDK (Android), y después:
+
+```bash
+cd mobile
+bun install --frozen-lockfile
+bun run ios        # iOS development on macOS
+# or: bun run android
+```
+
+La instalación en un dispositivo puede requerir firma y aprovisionamiento propios. Introduce un servidor accesible desde el teléfono o escanea el QR de un solo uso en **Settings → Mobile app** y confirma la cuenta. `localhost` se refiere al teléfono. El push nativo requiere configuración del despliegue; la [guía móvil](https://vstorm-co.github.io/agenticos/es/mobile/) cubre compilación, emparejamiento y notificaciones.
 
 ## 🔌 Conecta las aplicaciones que tu equipo ya usa
 
@@ -437,7 +551,7 @@ Llama a un agente publicado con `POST /api/v1/agents/{id}/run` como miembro aute
 
 [Arquitectura](https://vstorm-co.github.io/agenticos/es/architecture/) · [API](https://vstorm-co.github.io/agenticos/es/api/) · [Añadir una capability](https://vstorm-co.github.io/agenticos/es/howto/add-capability/) · [Referencia de capabilities](https://vstorm-co.github.io/agenticos/es/reference/capabilities/) · [Contribuir](https://vstorm-co.github.io/agenticos/es/help/)
 
-La [analogía del sistema operativo](https://vstorm-co.github.io/agenticos/es/about/) explica la arquitectura. La [aplicación de escritorio](https://vstorm-co.github.io/agenticos/es/desktop/) opcional añade una ventana propia, una mascota y un atajo de captura de pantalla en macOS.
+La [analogía del sistema operativo](https://vstorm-co.github.io/agenticos/es/about/) explica la arquitectura. La [aplicación de escritorio](https://vstorm-co.github.io/agenticos/es/desktop/) opcional añade una ventana propia, una mascota y un atajo de captura de pantalla en macOS. [Mobile](https://vstorm-co.github.io/agenticos/es/mobile/): consola en la pantalla de inicio y builds nativos de desarrollo.
 
 ## ❓ Preguntas frecuentes
 
