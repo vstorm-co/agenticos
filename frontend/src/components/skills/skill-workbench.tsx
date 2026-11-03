@@ -49,10 +49,10 @@ interface SkillWorkbenchProps {
  * dialog and left the files looking like an afterthought bolted below it -
  * they are not, they are the same skill.
  *
- * So the body sits in the tree as `SKILL.md`, where a reader who has seen a
- * skill on disk expects it, and it gets the same pane every other file gets:
- * Markdown with a preview, because that is what it is. Everything below it is a
- * file. One footer, at the bottom, saving the skill.
+ * So the body sits at the top of the tree as Instructions - the name History and
+ * the diff give it too - and it gets the same pane every other file gets:
+ * Markdown with a preview, because `SKILL.md` is what it is on disk. Everything
+ * below it is a file. One footer, at the bottom, saving the skill.
  *
  * The body's own state is seeded once, so mount this keyed by skill id: the
  * unsaved diff is what decides whether to warn about the blast radius, and
@@ -164,7 +164,7 @@ export function SkillWorkbench({
               )}
             >
               <BookOpen className="text-muted-foreground h-3.5 w-3.5 shrink-0" />
-              <span className="truncate font-mono text-xs">{BODY}</span>
+              <span className="truncate text-xs">{t("instructions")}</span>
             </button>
             <FileTree
               nodes={tree}
@@ -212,6 +212,7 @@ export function SkillWorkbench({
           ) : (
             <FileEditor
               name={BODY}
+              label={t("instructions")}
               content={content}
               canEdit={canEdit}
               onChange={setContent}

@@ -173,7 +173,7 @@ describe("EditSkillDialog", () => {
       description: "Fork words.",
       content: "Refund within 60 days.",
     });
-    expect(toast.success).toHaveBeenCalledWith("Saved as v3.");
+    expect(toast.success).toHaveBeenCalledWith("Saved as Returns v3.");
   });
 
   it("says when a fork's text cannot be loaded, and loads it again on request", async () => {

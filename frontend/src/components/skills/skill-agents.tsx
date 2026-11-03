@@ -40,6 +40,12 @@ export function SkillAgents({
   const [changing, setChanging] = useState<SkillAgentUsage | null>(null);
   const items = agents?.items ?? [];
   const rows = items.filter((usage) => isShown(usage, shown));
+  const shownFork = forks.find((fork) => shown === `fork:${fork.id}`);
+  const empty = shownFork
+    ? t("agentsTable.emptyFork", { name: shownFork.name })
+    : shown === "all"
+      ? t("agentsTable.empty")
+      : t("agentsTable.emptyShown");
 
   const columns: Column<SkillAgentUsage>[] = [
     {
@@ -112,7 +118,7 @@ export function SkillAgents({
         getRowKey={readerKey}
         loading={agents === undefined && !error}
         error={error ? getErrorMessage(error, tErrors) : undefined}
-        empty={<p className="text-muted-foreground p-4 text-sm">{t("agentsTable.empty")}</p>}
+        empty={<p className="text-muted-foreground p-4 text-sm">{empty}</p>}
       />
       {(agents?.hidden ?? 0) > 0 && (
         <p className="text-muted-foreground px-4 py-3 text-xs">

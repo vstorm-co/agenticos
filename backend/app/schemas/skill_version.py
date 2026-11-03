@@ -129,7 +129,12 @@ class SkillForkRead(BaseSchema):
         description="Its newest own version; null while it has none and serves its base"
     )
     changes: int = Field(description="How many versions of its own it has")
-    behind_main: int = Field(description="How many main versions came after its base")
+    behind_main: int = Field(
+        description=(
+            "How many main versions after its base changed what the skill says; 0 when main "
+            "says what its base says"
+        )
+    )
     agents: int = Field(
         description="How many agents read it in an environment that serves it, hidden ones included"
     )
@@ -173,7 +178,12 @@ class SkillBindingRead(BaseSchema):
     )
     version: VersionRef = Field(description="The version it serves now")
     fork: ForkRef | None = None
-    behind_main: int = Field(description="How many main versions it is behind; 0 on main")
+    behind_main: int = Field(
+        description=(
+            "How many main versions after the one it reads changed what the skill says; 0 on "
+            "main, and when main says what it reads"
+        )
+    )
 
 
 class AgentEnvironmentBinding(BaseSchema):

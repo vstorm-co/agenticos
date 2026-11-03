@@ -10,7 +10,9 @@ import type {
   SkillAgentList,
   SkillAgentUsage,
   SkillBindingState,
+  SkillFork,
   SkillForkList,
+  SkillUsage,
   SkillVersionList,
   SkillVersionRead,
 } from "@/types/skill-versions";
@@ -61,6 +63,32 @@ export function restoreSkillVersion(
 
 export function listSkillForks(skillId: string): Promise<SkillForkList> {
   return apiClient.get<SkillForkList>(`/skills/${skillId}/forks?archived=false`);
+}
+
+/** Start a fork from a main version; it serves that version until it saves one of its own. */
+export function createSkillFork(
+  skillId: string,
+  fork: { name: string; fromVersionId: string },
+): Promise<SkillFork> {
+  return apiClient.post<SkillFork>(`/skills/${skillId}/forks`, {
+    name: fork.name,
+    from_version_id: fork.fromVersionId,
+  });
+}
+
+/** How often each agent used the skill over the last `days` days; needs `runs:view`. */
+export function getSkillUsage(skillId: string, days: number): Promise<SkillUsage> {
+  return apiClient.get<SkillUsage>(`/skills/${skillId}/usage?days=${days}`);
+}
+
+/** Main's newest version as the server has it now: what a fork started now starts from. */
+export async function getMainLatest(
+  skillId: string,
+): Promise<{ id: string | null; number: number }> {
+  const skill = await apiClient.get<{ latest_version_id: string | null; version: number }>(
+    `/skills/${skillId}`,
+  );
+  return { id: skill.latest_version_id, number: skill.version };
 }
 
 export function listSkillAgents(skillId: string): Promise<SkillAgentList> {

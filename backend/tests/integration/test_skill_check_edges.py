@@ -54,9 +54,11 @@ from app.schemas.api_key import ApiKeyCreate
 from app.schemas.authoring import ProposalCheck
 from app.schemas.dataset import DatasetCaseCreate, DatasetCreate
 from app.schemas.resource_usage import ProposalDecision
+from app.schemas.skill import SkillUpdate
 from app.schemas.skill_check import (
     SkillCheckApply,
     SkillCheckFork,
+    SkillCheckList,
     SkillCheckStart,
     SkillTestSetStart,
 )
@@ -71,6 +73,7 @@ from app.services.skill_agents import SkillAgentService
 from app.services.skill_check import SkillCheckService
 from app.services.skill_proposal import SkillProposalService
 from app.services.skill_versions import SkillVersionService
+from app.services.skills import SkillService
 from tests.integration.test_authoring import _owner
 from tests.integration.test_skill_bindings import _serving, _with_specialist
 from tests.integration.test_skill_checks import (
@@ -1214,6 +1217,53 @@ def _deny_datasets(monkeypatch: pytest.MonkeyPatch) -> None:
         )
 
     monkeypatch.setattr(skill_check_module, "accessible_ids", accessible)
+
+
+class TestATextWrittenAgainstAVersion:
+    """The editor's text was written against the version it opened; a save made since must
+    never be written over by applying a check of the older text."""
+
+    async def test_a_text_written_against_an_older_version_is_not_checked(self, db, monkeypatch):
+        lab = await _lab(db)
+        FakeEvals().install(monkeypatch)
+        opened = lab.skill.latest_version_id
+        await SkillService(db).update(
+            lab.ctx, lab.skill.id, SkillUpdate(content="Saved meanwhile.")
+        )
+
+        with pytest.raises(ConcurrentChangeError) as refused:
+            await SkillCheckService(db).start(
+                lab.ctx, lab.skill.id, SkillCheckStart(candidate=NEW, base_version_id=opened)
+            )
+
+        assert refused.value.details == {"version": lab.skill.version}
+        assert await SkillCheckService(db).list_checks(
+            lab.ctx, lab.skill.id, fork_id=None, skip=0, limit=10
+        ) == SkillCheckList(items=[], total=0)
+
+    async def test_a_save_after_the_check_started_refuses_applying_it(self, db, monkeypatch):
+        lab = await _lab(db)
+        evals = FakeEvals()
+        evals.install(monkeypatch)
+        service = SkillCheckService(db)
+        check = await service.start(
+            lab.ctx,
+            lab.skill.id,
+            SkillCheckStart(candidate=NEW, base_version_id=lab.skill.latest_version_id),
+        )
+        evals.outcomes = {lab.a.id: Outcome(fixed=1)}
+        await _run_to_end(service, evals, lab, check.id)
+        await SkillService(db).update(
+            lab.ctx, lab.skill.id, SkillUpdate(content="Saved meanwhile.")
+        )
+        saved = lab.skill.version
+
+        with pytest.raises(ConcurrentChangeError) as refused:
+            await service.apply(lab.ctx, lab.skill.id, check.id, SkillCheckApply())
+
+        assert refused.value.details["version"] == saved
+        await db.refresh(lab.skill)
+        assert (lab.skill.version, lab.skill.content) == (saved, "Saved meanwhile.")
 
 
 class TestSampleAndTestSet:

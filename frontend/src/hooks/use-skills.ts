@@ -178,13 +178,13 @@ export function useSkill(skillId: string | null) {
     onSuccess: invalidate,
   });
 
+  /** The delete dialog says why a delete was refused, so a refusal is not toasted. */
   const remove = useMutation({
     mutationFn: () => apiClient.delete<void>(`/skills/${skillId}`),
     onSuccess: async () => {
       await invalidate();
       toast.success(t("deleted"));
     },
-    onError: (error) => toast.error(getErrorMessage(error, tErrors)),
   });
 
   /**

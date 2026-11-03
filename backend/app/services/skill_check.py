@@ -331,6 +331,14 @@ class SkillCheckService:
         if pinned is None:
             candidate, proposal, fork_id = await self._candidate(ctx, skill, data)
             fork, base = await self._line(ctx, skill, fork_id)
+            if data.base_version_id is not None and data.base_version_id != base.id:
+                raise ConcurrentChangeError(
+                    message=(
+                        f"'{skill.name}' changed since you opened it (now v{base.number}). Copy "
+                        "your text, open the newest version and check it again."
+                    ),
+                    details={"version": base.number},
+                )
             if proposal is not None and proposal.base_version_id != base.id:
                 raise ConcurrentChangeError(
                     message=(
@@ -502,10 +510,17 @@ class SkillCheckService:
         kept = _kept(test_set, holdout)
         if test_set is not None and test_set.case_count and kept != []:
             stages.append(Stage("skill_set", test_set, kept, test_set.latest_version or None))
-        own = await dataset_repo.for_agent(
-            self.db, user.agent.id, organization_id=ctx.organization_id
+        own = [
+            item
+            for item in await dataset_repo.testing_agent(
+                self.db, user.agent.id, organization_id=ctx.organization_id
+            )
+            if item.case_count and item.skill_id is None
+        ]
+        readable = await accessible_ids(
+            self.db, ctx, own, Perm.DATASETS_VIEW, resource_type=DATASET
         )
-        dataset = next((item for item in own if item.case_count and item.skill_id is None), None)
+        dataset = next((item for item in own if item.id in readable), None)
         if dataset is None:
             if mode is CheckMode.QUICK:
                 row.sample = SampleKind.SKILL_SET_ONLY

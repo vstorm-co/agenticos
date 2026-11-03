@@ -14,7 +14,7 @@ from types import ModuleType
 import pytest
 from alembic.migration import MigrationContext
 from alembic.operations import Operations
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
 
@@ -185,3 +185,36 @@ async def test_a_downgrade_past_catching_up_reads_every_merge_as_an_edit(db: Asy
 
     stored = await db.execute(select(SkillVersion.source).order_by(SkillVersion.number))
     assert stored.scalars().all() == ["edit", "edit", "edit"]
+
+
+async def test_a_skill_whose_organization_is_gone_gets_no_version_and_stops_nothing(
+    db: AsyncSession,
+):
+    """Only a row written past its keys can be such a skill; the upgrade goes on without it."""
+    ctx = await _owner(db)
+    orphan = uuid.uuid4()
+    await db.execute(text("SET LOCAL session_replication_role = replica"))
+    await db.execute(
+        text(
+            "INSERT INTO skills (id, organization_id, name, description, content, version, "
+            "visibility) VALUES (:id, :org, 'orphan', 'd', 'c', 1, 'org')"
+        ),
+        {"id": orphan, "org": uuid.uuid4()},
+    )
+    await db.execute(
+        text(
+            "INSERT INTO skill_resources (id, skill_id, name, content) "
+            "VALUES (:id, :skill, 'a.md', 'text')"
+        ),
+        {"id": uuid.uuid4(), "skill": orphan},
+    )
+    await db.execute(text("SET LOCAL session_replication_role = DEFAULT"))
+    kept = Skill(organization_id=ctx.organization_id, name="refunds", description="d", content="c")
+    db.add(kept)
+    await db.flush()
+
+    await db.run_sync(_run, "_backfill")
+
+    versions = (await db.execute(select(SkillVersion.skill_id))).scalars().all()
+    assert versions == [kept.id]
+    assert (await db.execute(select(SkillFile.skill_id))).scalars().all() == []

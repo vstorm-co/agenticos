@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { ChevronDown, RotateCcw } from "lucide-react";
+import { useState, useTransition } from "react";
+import { ChevronDown, GitBranch, RotateCcw } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { toast } from "sonner";
 
@@ -44,9 +44,15 @@ export function SkillHistory({
   const [page, setPage] = useState(0);
   const [open, setOpen] = useState<string | null>(null);
   const [restoring, setRestoring] = useState<SkillVersionSummary | null>(null);
+  const [asking, startAsking] = useTransition();
+  const [pressed, setPressed] = useState<string | null>(null);
   const { versions, total, isLoading, error } = useSkillVersions(skillId, forkId, page);
   const { restore } = useSkillVersionWrites(skillId);
   const line = forkName === null ? t("main") : t("fork", { name: forkName });
+  // A fork numbers its versions from 1 too, so its own say whose they are.
+  const label = (number: number) =>
+    t("versionLabel", { number, name: forkName ?? "", fork: forkName === null ? "no" : "yes" });
+  const base = forks.find((fork) => fork.id === forkId)?.base.number;
 
   return (
     <ListCard
@@ -83,12 +89,20 @@ export function SkillHistory({
         <ErrorState description={getErrorMessage(error, tErrors)} />
       ) : isLoading ? (
         <Skeleton className="m-4 h-32" />
+      ) : versions.length === 0 && base !== undefined ? (
+        <p className="text-muted-foreground px-4 py-6 text-sm">
+          {t("forkEmpty", { number: base })}
+        </p>
       ) : (
         <ol className="divide-border divide-y">
           {versions.map((version) => (
             <li key={version.id} className="space-y-3 px-4 py-3">
               <div className="flex flex-wrap items-start justify-between gap-2">
-                <VersionLine version={version} />
+                <VersionLine
+                  version={version}
+                  label={label}
+                  starts={forks.filter((fork) => fork.base.id === version.id)}
+                />
                 <div className="flex shrink-0 items-center gap-1">
                   <Button
                     variant="ghost"
@@ -103,8 +117,12 @@ export function SkillHistory({
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => setRestoring(version)}
-                      aria-label={t("restoreVersion", { number: version.number })}
+                      loading={asking && pressed === version.id}
+                      onClick={() => {
+                        setPressed(version.id);
+                        startAsking(() => setRestoring(version));
+                      }}
+                      aria-label={t("restoreVersion", { version: label(version.number) })}
                     >
                       <RotateCcw className="h-4 w-4" aria-hidden />
                       {t("restore")}
@@ -137,11 +155,11 @@ export function SkillHistory({
         <ConfirmDialog
           open
           onOpenChange={() => setRestoring(null)}
-          title={t("restoreTitle", { number: restoring.number })}
+          title={t("restoreTitle", { version: label(restoring.number) })}
           description={
             forkName === null
-              ? t("restoreMain", { number: restoring.number })
-              : t("restoreFork", { number: restoring.number, name: forkName })
+              ? t("restoreMain", { version: label(restoring.number) })
+              : t("restoreFork", { version: label(restoring.number), name: forkName })
           }
           confirmLabel={t("restore")}
           loading={restore.isPending}
@@ -151,7 +169,9 @@ export function SkillHistory({
                 versionId: restoring.id,
                 baseVersionId: latestId,
               });
-              toast.success(t("restored", { number: restoring.number, made: made.number }));
+              toast.success(
+                t("restored", { version: label(restoring.number), made: label(made.number) }),
+              );
             } catch (refusal) {
               toast.error(getErrorMessage(refusal, tErrors));
             }
@@ -163,17 +183,25 @@ export function SkillHistory({
   );
 }
 
-/** `v12 · Improve · Anna · 1 Nov 14:05 · used by 2 agents` */
-function VersionLine({ version }: { version: SkillVersionSummary }) {
+/** `v12 · Improve · Anna · 1 Nov 14:05 · used by 2 agents`, and the forks started from it. */
+function VersionLine({
+  version,
+  label,
+  starts,
+}: {
+  version: SkillVersionSummary;
+  label: (number: number) => string;
+  starts: SkillFork[];
+}) {
   const t = useTranslations("skills.page.history");
   const locale = useLocale();
   return (
     <div className="min-w-0 space-y-0.5">
       <p className="text-sm">
-        <span className="font-mono font-medium">{t("number", { number: version.number })}</span>{" "}
+        <span className="font-mono font-medium">{label(version.number)}</span>{" "}
         <span className="text-muted-foreground">
           {version.restored_from !== null
-            ? t("restoredFrom", { number: version.restored_from.number })
+            ? t("restoredFrom", { version: label(version.restored_from.number) })
             : t(`source.${version.source}`)}
         </span>
       </p>
@@ -184,6 +212,12 @@ function VersionLine({ version }: { version: SkillVersionSummary }) {
           agents: version.agents,
         })}
       </p>
+      {starts.map((fork) => (
+        <p key={fork.id} className="text-xs">
+          <GitBranch className="text-muted-foreground mr-1 inline size-3" aria-hidden />
+          {t("forkStarts", { name: fork.name })}
+        </p>
+      ))}
     </div>
   );
 }

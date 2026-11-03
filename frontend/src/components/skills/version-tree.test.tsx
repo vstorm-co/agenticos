@@ -80,8 +80,9 @@ describe("VersionTree's forks", () => {
 
     expect(screen.getByText("Fork “Returns”")).toBeInTheDocument();
     expect(screen.getByText("2 changes · 22 behind main")).toBeInTheDocument();
-    // Main's own v2 and the fork's v2, each on its line.
-    expect(screen.getAllByText("v2")).toHaveLength(2);
+    // Main's v2 and the fork's own v2, told apart by the fork's name.
+    expect(screen.getByText("v2")).toBeInTheDocument();
+    expect(screen.getByText("Returns v2")).toBeInTheDocument();
     expect(screen.getByText("Refunds")).toBeInTheDocument();
   });
 

@@ -55,6 +55,7 @@ from app.schemas.skill_version import (
     VersionResourceSummary,
 )
 from app.services.access import AGENT, SKILL, accessible_ids, resolve_access
+from app.services.resource_usage import in_use_by
 
 ARCHIVE_AFTER = timedelta(days=30)
 """How long a fork goes unread before it is offered for archiving. Never archived by itself."""
@@ -78,6 +79,24 @@ def manifest_of(
         )
         bodies[sha256] = content
     return manifest, bodies
+
+
+def changes_since(main: Sequence[tuple[int, str]]) -> dict[int, int]:
+    """For each of main's versions, how many after it changed what the skill says.
+
+    `main` is main's versions with the hash of what each says, oldest first, up to the
+    newest. A version saying what the one before it said - a restore of the same text -
+    is no change, and a version saying what the newest says is behind by none.
+    """
+    behind: dict[int, int] = {}
+    changes = 0
+    later: str | None = None
+    for number, said in reversed(main):
+        if later is not None and said != later:
+            changes += 1
+        later = said
+        behind[number] = 0 if said == main[-1][1] else changes
+    return behind
 
 
 def _ref(version: SkillVersion | None) -> VersionRef | None:
@@ -516,6 +535,17 @@ class SkillVersionService:
         )
         people = await self._people(ctx, [fork.created_by_user_id for fork in forks])
         _, by_fork = await self._counts(skill)
+        behind = changes_since(
+            await skill_version_repo.main_digests(
+                self.db,
+                organization_id=ctx.organization_id,
+                skill_id=skill.id,
+                first=min(versions[fork.base_version_id].number for fork in forks),
+                last=skill.version,
+            )
+            if forks
+            else []
+        )
         reads = []
         for fork in forks:
             base, started = versions[fork.base_version_id], versions[fork.started_from_id]
@@ -531,7 +561,7 @@ class SkillVersionService:
                     if latest is None
                     else VersionNumberRef(id=latest.id, number=latest.number),
                     changes=changes[fork.id],
-                    behind_main=skill.version - base.number,
+                    behind_main=behind.get(base.number, 0),
                     agents=by_fork[fork.id],
                     archive_candidate=(
                         fork.archived_at is None
@@ -608,18 +638,15 @@ class SkillVersionService:
             visible = await accessible_ids(
                 self.db, ctx, using, Perm.AGENTS_VIEW, resource_type=AGENT
             )
+            named = [agent for agent in using if agent.id in visible]
             raise InUseError(
                 message=(
-                    f"'{fork.name}' is read by {len(using)} agent(s). Move them to another "
-                    "version before archiving it."
+                    f"'{fork.name}' is read by {in_use_by(named, len(using) - len(named))}. "
+                    "Move them to another version before archiving it."
                 ),
                 details={
-                    "agents": [
-                        {"id": agent.id, "name": agent.name}
-                        for agent in using
-                        if agent.id in visible
-                    ],
-                    "hidden": len(using) - len(visible),
+                    "agents": [{"id": agent.id, "name": agent.name} for agent in named],
+                    "hidden": len(using) - len(named),
                 },
             )
         if fork.archived_at is None:

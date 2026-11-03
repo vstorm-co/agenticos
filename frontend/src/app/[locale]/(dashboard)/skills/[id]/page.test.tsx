@@ -13,6 +13,13 @@ const state = vi.hoisted(() => ({
   tab: null as string | null,
   show: null as string | null,
   push: vi.fn(),
+  runsView: false,
+}));
+vi.mock("@/hooks/use-permissions", () => ({
+  usePermissions: () => ({
+    can: (permission: string) => permission === "runs:view" && state.runsView,
+    isLoading: false,
+  }),
 }));
 vi.mock("next/navigation", async (original) => ({
   ...(await original<typeof import("next/navigation")>()),
@@ -172,6 +179,7 @@ async function mount() {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  state.runsView = false;
   state.tab = null;
   state.show = null;
   skill.canEdit = true;
@@ -345,8 +353,11 @@ describe("SkillPage's lines and writes", () => {
     expect(screen.queryByRole("dialog")).toBeNull();
   });
 
-  it("deletes the skill from the editor and returns to the list", async () => {
+  it("deletes a skill nobody uses from the editor and returns to the list", async () => {
     vi.mocked(apiClient.delete).mockResolvedValue(undefined);
+    vi.mocked(apiClient.get).mockImplementation(async (path: string) =>
+      path === "/skills/s1/agents" ? { ...AGENTS, items: [], hidden: 0 } : serveOnce(path),
+    );
     await mount();
 
     await userEvent.click(await screen.findByRole("button", { name: "Edit" }));
@@ -384,7 +395,7 @@ describe("SkillPage's lines and writes", () => {
     expect(screen.getByRole("alert")).toHaveTextContent("Its 1 agent gets it at once");
   });
 
-  it("asks again before deleting, and keeps the skill on cancel", async () => {
+  it("offers no delete while agents use the skill, and names them", async () => {
     await mount();
 
     await userEvent.click(await screen.findByRole("button", { name: "Edit" }));
@@ -392,8 +403,56 @@ describe("SkillPage's lines and writes", () => {
       await screen.findByRole("button", { name: "More actions for returns-policy" }),
     );
     await userEvent.click(screen.getByRole("menuitem", { name: /Delete/ }));
-    await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
 
+    expect(
+      await screen.findByText(
+        /Used by 6 agents: Support, HR, Refunds,? and Drafty, and 2 you can.t see/,
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Delete" })).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "OK" }));
     expect(apiClient.delete).not.toHaveBeenCalled();
+  });
+
+  it("starts a fork from main's newest version and shows it", async () => {
+    vi.mocked(apiClient.post).mockResolvedValue({ id: "f2", name: "Marketplace" });
+    await mount();
+
+    await userEvent.click(await screen.findByRole("button", { name: "New fork" }));
+    await userEvent.type(screen.getByLabelText("Name"), "Marketplace");
+    await userEvent.click(screen.getByRole("button", { name: "Create fork" }));
+
+    expect(apiClient.post).toHaveBeenCalledWith("/skills/s1/forks", {
+      name: "Marketplace",
+      from_version_id: "m12",
+    });
+  });
+
+  it("offers no fork to a reader", async () => {
+    skill.canEdit = false;
+    await mount();
+    await screen.findByText("v12 · main");
+    expect(screen.queryByRole("button", { name: "New fork" })).toBeNull();
+  });
+
+  it("shows how much the skill is used to a reader of runs", async () => {
+    state.runsView = true;
+    vi.mocked(apiClient.get).mockImplementation(async (path: string) =>
+      path === "/skills/s1/usage?days=30"
+        ? { days: 30, since: "", loads: 0, agents: [], hidden_agents: 0, hidden_loads: 0 }
+        : serveOnce(path),
+    );
+    await mount();
+
+    expect(await screen.findByText("Use in the last 30 days")).toBeInTheDocument();
+  });
+
+  it("names the agents bound only in a draft, and an empty fork", async () => {
+    await mount();
+
+    await userEvent.click(await screen.findByRole("button", { name: "Only in the draft (1)" }));
+    expect(screen.getByText("Drafty")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Pinned (1)" }));
+    expect(screen.getByText("HR")).toBeInTheDocument();
   });
 });

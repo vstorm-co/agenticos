@@ -10,7 +10,7 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import and_, any_, func, select
+from sqlalchemy import Text, and_, any_, cast, func, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -120,6 +120,34 @@ async def get_by_numbers(
         )
     )
     return {version.number: version for version in result.scalars().all()}
+
+
+async def main_digests(
+    db: AsyncSession, *, organization_id: UUID, skill_id: UUID, first: int, last: int
+) -> list[tuple[int, str]]:
+    """Main's versions `first` to `last` by number, oldest first, each with a hash of what
+    it says: its description, its text and its files.
+
+    Hashed by the database, so no version's text is read to tell two versions apart.
+    """
+    said = (
+        SkillVersion.description
+        + "\x1e"
+        + SkillVersion.content
+        + "\x1e"
+        + cast(SkillVersion.resources, Text)
+    )
+    result = await db.execute(
+        select(SkillVersion.number, func.encode(func.sha256(func.convert_to(said, "UTF8")), "hex"))
+        .where(
+            SkillVersion.organization_id == organization_id,
+            SkillVersion.skill_id == skill_id,
+            SkillVersion.fork_id.is_(None),
+            SkillVersion.number.between(first, last),
+        )
+        .order_by(SkillVersion.number)
+    )
+    return [(number, digest) for number, digest in result.all()]
 
 
 async def list_versions(
