@@ -10,7 +10,12 @@ import { EditSkillDialog } from "@/components/skills/edit-skill-dialog";
 import { NewForkDialog } from "@/components/skills/new-fork-dialog";
 import { SkillAgents } from "@/components/skills/skill-agents";
 import { SkillHistory } from "@/components/skills/skill-history";
-import { lineOf, shownAgents, type ShownAgents } from "@/components/skills/skill-lines";
+import {
+  eachAgentOnce,
+  lineOf,
+  shownAgents,
+  type ShownAgents,
+} from "@/components/skills/skill-lines";
 import { SkillPageHeader } from "@/components/skills/skill-page-header";
 import { SkillUsageCard } from "@/components/skills/skill-usage";
 import { VersionTree } from "@/components/skills/version-tree";
@@ -81,6 +86,7 @@ export default function SkillPage({ params }: { params: Promise<{ id: string }> 
       <SkillPageHeader
         skill={skill}
         line={fork?.name ?? null}
+        improveHref={`${ROUTES.SKILL_DETAIL(id)}/improve/new${fork === null ? "" : `?fork=${fork.id}`}`}
         onEdit={() => startOpening(() => setEditing(true))}
         opening={opening}
         onFork={skill.can_edit && base !== null ? () => setForkFrom(base) : null}
@@ -109,6 +115,7 @@ export default function SkillPage({ params }: { params: Promise<{ id: string }> 
             skillId={id}
             skillName={skill.name}
             mainLatest={skill.version}
+            seesChecks={can(Perm.runsView)}
             agents={agents.agents}
             error={agents.error}
             forks={forks}
@@ -143,6 +150,16 @@ export default function SkillPage({ params }: { params: Promise<{ id: string }> 
           skill={skill}
           fork={fork}
           followers={followers}
+          readers={eachAgentOnce(
+            (agents.agents?.items ?? []).filter(
+              (usage) =>
+                !usage.draft_only &&
+                (fork === null
+                  ? usage.binding.state === "main"
+                  : usage.binding.fork?.id === fork.id),
+            ),
+          ).map((usage) => usage.agent.name)}
+          canCheck={can(Perm.runsView)}
           onClose={() => setEditing(false)}
           onDelete={() => setDeleting(true)}
         />

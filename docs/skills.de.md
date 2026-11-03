@@ -1,5 +1,5 @@
 ---
-source_sha: "af90d2cc0eb6"
+source_sha: "144c85bc0b50"
 ---
 
 # Skills { #skills }
@@ -284,8 +284,9 @@ geprüft.
 
 Zuerst die eigenen **Testfragen** des Skills, auf jedem Agent dieselben. Jeder
 Skill hat einen Satz, angelegt über die API - `POST /api/v1/skills/{id}/test-set`,
-leer oder aus jüngsten Antworten, die den Skill geladen haben - und bearbeitet wie
-jedes andere [Dataset](datasets.md). Dann die eigenen Fragen des Agents:
+leer oder aus jüngsten Antworten, die den Skill geladen haben - oder mit
+**Testfragen hinzufügen** neben einem Agent, den [Verbessern](#improving-a-skill)
+nicht prüfen konnte, und bearbeitet wie jedes andere [Dataset](datasets.md). Dann die eigenen Fragen des Agents:
 
 - **Quick**, der Standard: höchstens vier Fragen aus dem Dataset des Agents,
   deren neueste Antwort den Skill geladen hat - die, die die meisten Wörter mit
@@ -331,8 +332,10 @@ ein Name.
 ### Wenn ein Agent schlechter wurde { #when-an-agent-got-worse }
 
 **Check on agents** unter Skills schätzt die Prüfung, führt sie aus, zeigt das
-Ergebnis jedes Agents und wendet die Änderung dann an oder verwirft sie. Auf main
-kann eine Person dennoch:
+Ergebnis jedes Agents und wendet die Änderung dann an oder verwirft sie. Eine
+Prüfung, die eine [Verbessern-Sitzung](#improving-a-skill) gestartet hat, wird in
+dieser Sitzung entschieden, und Check on agents verweist dorthin. Auf main kann
+eine Person dennoch:
 
 - **die Änderung anwenden und die schlechteren Agents lassen, wo sie sind** -
   jeder wird, als neue veröffentlichte Version, auf die Version festgesetzt, die
@@ -341,7 +344,8 @@ kann eine Person dennoch:
   und eine Umgebung, die auf Beförderung wartet, muss zuerst die festgesetzte
   Version übernehmen;
 - **einen Fork für die Agents anlegen, denen sie geholfen hat**, und main lassen,
-  wie es ist - über die API, `POST /api/v1/skills/{id}/checks/{check_id}/fork`;
+  wie es ist - im Schritt Annehmen von [Verbessern](#improving-a-skill) oder über
+  die API, `POST /api/v1/skills/{id}/checks/{check_id}/fork`;
 - sie **verwerfen**.
 
 Auf einem Fork bleiben nur Weiterverbessern und Verwerfen: Ein Festsetzen nennt
@@ -625,18 +629,24 @@ die Agents nur im Entwurf, sodass ihre Zahlen zusammen alle ergeben. Ein dort
 gewählter Fork ist auch die Linie, die der Verlauf zeigt und in die Bearbeiten
 speichert.
 
+Jede Zeile sagt, ob eine [Prüfung](#checking-a-change-on-every-agent) die
+Version gemessen hat, die der Agent ausliefert, und mit welchem Ergebnis; eine nie auf
+ihm geprüfte Version ist **unbekannt**.
+
 Unter der Tabelle sieht, wer Runs ansehen darf, wie oft jeder Agent den Skill in den
 letzten 30 Tagen geöffnet und wie viele seiner Dateien er gelesen hat. Runs von Evals
 und vom Testbereich des Builders zählen nicht.
 
-**Version ändern** setzt einen Agent auf main, auf eine festgesetzte main-Version oder
-auf einen Fork, wie [Welche Version ein Agent liest](#which-version-an-agent-reads)
-beschreibt: was live geht, was im Entwurf wartet und was im Builder geändert wird.
-Eine andere Version als die, die der Agent gerade ausliefert, wurde auf ihm nicht
-geprüft, deshalb bestätigen Sie das zuerst. Der Dialog sagt auch, wann der Agent keine
-neuen main-Versionen mehr bekäme, und datiert jede main-Version, die er zum Festsetzen
-anbietet, mit einem Link zu ihren Änderungen. Das Steuerelement sehen Personen, die
-den Agent bearbeiten dürfen.
+**Version ändern** setzt einen Agent auf main, auf eine festgesetzte main-Version
+oder auf einen Fork, wie [Welche Version ein Agent
+liest](#which-version-an-agent-reads) beschreibt: was live geht, was im Entwurf
+wartet und was im Builder geändert wird. Eine andere Version als die, die der Agent
+gerade ausliefert, und die keine Prüfung auf ihm gemessen hat, wurde dort nicht
+geprüft, deshalb bestätigen Sie das zuerst; bei einer gemessenen nennt der Dialog
+das Ergebnis. Der Dialog sagt auch, wann der Agent keine neuen main-Versionen mehr
+bekäme, und datiert jede main-Version, die er zum Festsetzen anbietet, mit einem
+Link zu ihren Änderungen. Das Steuerelement sehen Personen, die den Agent bearbeiten
+dürfen.
 
 **Verlauf** listet die Versionen der gewählten Linie, die neueste zuerst: woher jede
 kam (eine Bearbeitung, eine Dateiänderung, die Bibliothek, der Workspace eines
@@ -655,11 +665,17 @@ Linie mit acht oder mehr Versionen werden Abschnitte, die kein Agent nutzt, zu e
 Zeile zusammengefaltet.
 
 **Bearbeiten** speichert eine neue Version auf der angezeigten Linie. Auf main
-bekommen die Agents, die main folgen, sie sofort; festgesetzte Agents und Forks behalten
-ihre Version. Dateien und Kategorie gehören zu main, deshalb ändert das Bearbeiten
-eines Forks nur seine Beschreibung und Anweisungen. Wiederherstellen und Version ändern
-sehen nur Personen, die diese Änderung vornehmen dürfen; alle anderen öffnen den
-Skill nur lesend.
+bekommen die Agents, die main folgen, sie sofort; festgesetzte Agents und Forks
+behalten ihre Version. Ein geänderter Text wird nicht beim ersten Klick gespeichert:
+Der Dialog nennt die Agents, die er bei ihrem nächsten Run erreicht, und bietet
+neben dem sofortigen Speichern **Zuerst an Agents prüfen** an, das den
+ungespeicherten Text auf ihnen prüft und anhand des Ergebnisses übernimmt. Speichert
+jemand die Linie inzwischen, wird die Prüfung abgelehnt und Ihr Text bleibt im Editor.
+Dateien
+und Kategorie gehören zu main, deshalb ändert das Bearbeiten eines Forks nur seine
+Beschreibung und Anweisungen. Wiederherstellen und Version ändern sehen nur
+Personen, die diese Änderung vornehmen dürfen; alle anderen öffnen den Skill nur
+lesend.
 
 **Neuer Fork** beginnt einen Fork ab der neuesten Version von main, unter einem Namen,
 den Sie vergeben, und kann sofort Agents auf ihn verschieben, jeden als Version ändern.
@@ -669,6 +685,47 @@ Der Fork liest sich wie seine Basis, bis er bearbeitet wird.
 seinen Versionen und Forks. Solange Agents ihn verwenden, nennt der Dialog sie und
 bietet kein Löschen an: Verschieben Sie zuerst jeden auf einen anderen Skill oder
 entfernen Sie den Skill im Builder.
+
+### Einen Skill verbessern { #improving-a-skill }
+
+**Verbessern** auf der Seite eines Skills öffnet eine Sitzung für die angezeigte
+Linie - main oder den in den Chips gewählten Fork - in denselben fünf Schritten wie
+das [Verbessern eines Agents](authoring.md#the-improve-wizard): Verstehen, Änderungen, Prüfung,
+Ergebnis und Annehmen. Sie hält nach Verstehen, nach Änderungen und beim Ergebnis
+für Sie an und ändert nichts, bevor Sie annehmen.
+
+Der Start sagt, wie viele Antworten sie liest und von wie vielen Agents. Bevor die
+Änderungen geprüft werden, nennt der nächste Schritt jeden Agent der Linie, auf dem
+die Prüfung läuft, und die, bei denen das nicht geht, mit Grund - keine Testfragen,
+kein Recht zum Ausführen, kein Budget mehr, keine veröffentlichte Version oder ein
+Run, der nicht jede Antwort bewerten konnte. Agents, die Sie nicht sehen, werden
+gezählt.
+
+Das Ergebnis hat eine Zeile pro Agent: besser, unverändert, im Rauschen, schlechter
+oder unbekannt, die wichtigsten zuerst, mit den behobenen und verschlechterten
+Fragen und einem Link zu seinem Run. Ein Agent, der nur auf den eigenen Fragen des
+Skills geprüft wurde, weil er keine eigenen hatte, bei denen er den Skill geladen
+hat, sagt das.
+
+Was Annehmen anbietet, folgt aus dem Ergebnis:
+
+- **Niemand schlechter** und jemand besser: als nächste Version der Linie anwenden.
+- **Jemand schlechter:** anwenden und diese Agents auf ihrer Version festsetzen,
+  einen Fork mit der Änderung für die Agents anlegen, denen sie half, weiter
+  verbessern oder verwerfen. Auf einem Fork bleiben nur Weiterverbessern und
+  Verwerfen, weil ein Fork weder festgesetzt noch erneut geforkt werden kann.
+- **Unbekannte Agents** müssen bestätigt werden, bevor etwas angewendet wird.
+  **Testfragen hinzufügen** daneben schreibt die eigenen Fragen des Skills aus
+  Antworten, in denen Agents ihn geladen haben, damit sie beim nächsten Mal
+  geprüft werden können.
+
+Bekommt die Linie nach der Prüfung eine neue Version oder ändern sich ihre
+Agents, gilt das Ergebnis nicht mehr und bietet statt des Anwendens **Erneut
+prüfen** an: dieselben gewählten Änderungen, gemessen an der Linie, wie sie
+jetzt ist, zu einem Preis, der zuerst angezeigt wird. Weiterverbessern und
+Verwerfen bleiben möglich. Ändert sich die Linie, während die Sitzung bei Changes
+wartet, wird neu bepreist: Der nächste Schritt prüft die Änderungen auf der
+neuesten Version.
 
 ## Skills oder Knowledge? { #skills-or-knowledge }
 

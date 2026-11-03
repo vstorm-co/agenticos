@@ -13,7 +13,7 @@ const state = vi.hoisted(() => ({
   tab: null as string | null,
   show: null as string | null,
   push: vi.fn(),
-  runsView: false,
+  runsView: true,
 }));
 vi.mock("@/hooks/use-permissions", () => ({
   usePermissions: () => ({
@@ -38,9 +38,6 @@ vi.mock("@/lib/api-client", async (original) => ({
 vi.mock("@/hooks/use-organizations", async (original) => ({
   ...(await original<typeof import("@/hooks/use-organizations")>()),
   useOrganizationList: () => ({ data: [] }),
-}));
-vi.mock("@/components/authoring/improve-skill-button", () => ({
-  ImproveSkillButton: () => <button>Improve skill</button>,
 }));
 
 const RETURNS: SkillFork = {
@@ -149,6 +146,9 @@ async function serveOnce(path: string): Promise<unknown> {
   }
   if (path.startsWith("/skills/s1/forks")) return { items: [RETURNS], total: 1 };
   if (path === "/skills/s1/agents") return AGENTS;
+  if (path.startsWith("/skills/s1/usage")) {
+    return { days: 30, since: "", loads: 0, agents: [], hidden_agents: 0, hidden_loads: 0 };
+  }
   if (path.startsWith("/skills/s1/versions?")) {
     return {
       items: [
@@ -179,7 +179,7 @@ async function mount() {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  state.runsView = false;
+  state.runsView = true;
   state.tab = null;
   state.show = null;
   skill.canEdit = true;
@@ -281,7 +281,7 @@ describe("SkillPage", () => {
     await screen.findByText("Restored from v4");
     expect(screen.queryByRole("button", { name: /^Restore/ })).toBeNull();
     expect(screen.getByRole("button", { name: "Open" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Improve skill" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Improve" })).toBeNull();
   });
 
   it("draws the version tree with the fork off its base", async () => {
@@ -454,5 +454,31 @@ describe("SkillPage's lines and writes", () => {
     expect(screen.getByText("Drafty")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Pinned (1)" }));
     expect(screen.getByText("HR")).toBeInTheDocument();
+  });
+});
+
+describe("SkillPage's Improve", () => {
+  it("opens the wizard for main, or for the fork on screen", async () => {
+    await mount();
+    expect(await screen.findByRole("link", { name: "Improve" })).toHaveAttribute(
+      "href",
+      "/skills/s1/improve/new",
+    );
+
+    cleanup();
+    state.show = "fork:f1";
+    await mount();
+    expect(await screen.findByRole("link", { name: "Improve fork “Returns”" })).toHaveAttribute(
+      "href",
+      "/skills/s1/improve/new?fork=f1",
+    );
+  });
+
+  it("leaves Improve out for an editor who may not read runs", async () => {
+    state.runsView = false;
+    await mount();
+
+    expect(await screen.findByText("v12 · main")).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Improve" })).toBeNull();
   });
 });

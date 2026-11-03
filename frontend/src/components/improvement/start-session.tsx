@@ -23,6 +23,7 @@ import { limitText, limitValue, usd } from "@/components/evals/format";
 import { useDatasets } from "@/hooks/use-datasets";
 import { useAgentEvalSuites } from "@/hooks/use-eval-suites";
 import { useImprovement, useImprovements } from "@/hooks/use-improvements";
+import { subjectOf } from "@/lib/improvement-subject";
 import { getErrorMessage } from "@/lib/api-error";
 import { isActive, openImprovement } from "@/lib/improvement-steps";
 import { useOrgStore } from "@/stores/org-store";
@@ -280,7 +281,7 @@ function sessionLimit(quote: ImprovementEstimate): string {
 function EndOpen({ session }: { session: Improvement }) {
   const t = useTranslations("improvement.endOpen");
   const tErrors = useTranslations("errors");
-  const actions = useImprovement(session.agent_id, session.id);
+  const actions = useImprovement(subjectOf(session), session.id);
   const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const ending =

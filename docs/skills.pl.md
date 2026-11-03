@@ -1,5 +1,5 @@
 ---
-source_sha: "af90d2cc0eb6"
+source_sha: "144c85bc0b50"
 ---
 
 # Skille { #skills }
@@ -264,8 +264,9 @@ skill ręcznie od razu zapisuje nową wersję, a ta edycja nie jest sprawdzana.
 
 Najpierw o własne **pytania testowe** skilla, ten sam zestaw na każdym agencie.
 Każdy skill ma jeden zestaw, tworzony przez API - `POST /api/v1/skills/{id}/test-set`,
-pusty albo z ostatnich odpowiedzi, które otworzyły skill - i edytowany jak każdy
-inny [dataset](datasets.md). Potem o pytania samego agenta:
+pusty albo z ostatnich odpowiedzi, które otworzyły skill - albo przyciskiem
+**Dodaj pytania testowe** przy agencie, którego [Popraw](#improving-a-skill) nie
+mogło sprawdzić, i edytowany jak każdy inny [dataset](datasets.md). Potem o pytania samego agenta:
 
 - **Quick**, domyślnie: najwyżej cztery pytania z datasetu agenta, których
   najnowsza odpowiedź otworzyła skill - te, które mają najwięcej wspólnych słów
@@ -308,16 +309,18 @@ nie widzisz, jest liczbą, nigdy nazwą.
 ### Gdy agent wypadł gorzej { #when-an-agent-got-worse }
 
 **Check on agents** w zakładce Skille wycenia sprawdzenie, uruchamia je, pokazuje
-wynik każdego agenta, a potem stosuje albo odrzuca zmianę. Na main osoba może
-nadal:
+wynik każdego agenta, a potem stosuje albo odrzuca zmianę. Sprawdzenie, które
+uruchomiła [sesja Popraw](#improving-a-skill), rozstrzyga się w tej sesji, a Check
+on agents prowadzi do niej. Na main osoba może nadal:
 
 - **zastosować zmianę i zostawić gorszych agentów tam, gdzie są** - każdy jest
   przypinany, jako nowa opublikowana wersja, do wersji, którą czyta teraz, zanim
   zmiana trafi na żywo, więc żaden z nich nie obsłuży jej ani razu. Przypięcie
   wymaga prawa publikacji każdego z nich, a środowisko czekające na promocję musi
   najpierw dostać przypiętą wersję;
-- **zrobić fork dla agentów, którym pomogła**, zostawiając main bez zmian - przez
-  API, `POST /api/v1/skills/{id}/checks/{check_id}/fork`;
+- **zrobić fork dla agentów, którym pomogła**, zostawiając main bez zmian - w
+  kroku Akceptacja w [Popraw](#improving-a-skill) albo przez API,
+  `POST /api/v1/skills/{id}/checks/{check_id}/fork`;
 - **odrzucić** ją.
 
 Na forku zostają tylko dalsze ulepszanie i odrzucenie: przypięcie wskazuje
@@ -576,6 +579,10 @@ pokazują wszystkich, agentów na main, przypiętych, jeden fork albo agentów t
 drafcie, więc ich liczby sumują się do wszystkich. Fork wybrany tam jest też linią,
 którą pokazuje Historia i do której zapisuje Edycja.
 
+Każdy wiersz mówi, czy
+[sprawdzenie](#checking-a-change-on-every-agent) zmierzyło wersję, którą agent
+serwuje, i z jakim wynikiem; wersja nigdy na nim niesprawdzona jest **nieznana**.
+
 Pod tabelą osoba, która może przeglądać runy, widzi, jak często każdy agent
 otwierał skill w ostatnich 30 dniach i ile jego plików przeczytał. Runy ewaluacji i
 panelu testowego Buildera się nie liczą.
@@ -583,8 +590,9 @@ panelu testowego Buildera się nie liczą.
 **Zmień wersję** przenosi jednego agenta na main, na przypiętą wersję main albo na
 fork, tak jak opisuje [Którą wersję czyta agent](#which-version-an-agent-reads): co
 trafia na produkcję, co czeka w drafcie, a co zmienia się w Builderze. Wersja inna
-niż ta, którą agent serwuje teraz, nie była na nim sprawdzona, więc najpierw to
-potwierdzasz. Okno mówi też, kiedy agent przestałby dostawać nowe wersje main, i
+niż ta, którą agent serwuje teraz, i której żadne sprawdzenie na nim nie zmierzyło,
+nie była tam sprawdzona, więc najpierw to potwierdzasz; przy wersji zmierzonej okno
+podaje wynik. Okno mówi też, kiedy agent przestałby dostawać nowe wersje main, i
 podaje datę każdej wersji main do przypięcia, z linkiem do jej zmian. Kontrolkę
 widzą osoby, które mogą edytować agenta.
 
@@ -603,10 +611,14 @@ co najmniej ośmioma wersjami odcinki, których nie używa żaden agent, zwijaj�
 jednego wiersza.
 
 **Edytuj** zapisuje nową wersję na widocznej linii. Na main agenci podążający za
-main dostają ją od razu; przypięci agenci i forki zostają przy swojej wersji. Pliki
-i kategoria należą do main, więc edycja forka zmienia tylko jego opis i instrukcje.
-Przywróć i Zmień wersję widzą tylko osoby, które mogą tę zmianę zrobić; pozostali
-otwierają skill tylko do odczytu.
+main dostają ją od razu; przypięci agenci i forki zostają przy swojej wersji.
+Zmieniony tekst nie zapisuje się przy pierwszym kliknięciu: okno wymienia agentów,
+do których trafi przy ich następnym runie, i obok zapisu teraz proponuje **Najpierw
+sprawdź na agentach**, które sprawdza niezapisany tekst na nich i stosuje go na
+podstawie wyniku. Jeśli ktoś w międzyczasie zapisze linię, sprawdzenie zostaje
+odrzucone, a twój tekst zostaje w edytorze. Pliki i kategoria należą do main, więc edycja forka zmienia tylko
+jego opis i instrukcje. Przywróć i Zmień wersję widzą tylko osoby, które mogą tę
+zmianę zrobić; pozostali otwierają skill tylko do odczytu.
 
 **Nowy fork** zaczyna fork od najnowszej wersji main, pod nadaną przez ciebie
 nazwą, i może od razu przenieść na niego agentów, każdego przez Zmień wersję. Fork
@@ -616,6 +628,45 @@ czyta się tak samo jak jego baza, dopóki ktoś go nie edytuje.
 wersjami i forkami. Dopóki agenci go używają, okno ich wymienia i nie oferuje
 usunięcia: najpierw przenieś każdego na inny skill albo usuń z niego skill w
 Builderze.
+
+### Poprawianie skilla { #improving-a-skill }
+
+**Popraw** na stronie skilla otwiera sesję dla widocznej linii - main albo forka
+wybranego w chipach - w tych samych pięciu krokach co [poprawianie
+agenta](authoring.md#the-improve-wizard): Zrozumienie, Zmiany, Sprawdzenie, Wynik i Akceptacja. Zatrzymuje
+się dla Ciebie po Zrozumieniu, po Zmianach i przy wyniku, a niczego nie zmienia, dopóki
+nie zaakceptujesz.
+
+Start mówi, ile odpowiedzi przeczyta i od ilu agentów. Zanim zmiany zostaną
+sprawdzone, następny krok wymienia każdego agenta linii, na którym ruszy
+sprawdzenie, i tych, których nie da się sprawdzić, z powodem - brak pytań
+testowych, brak prawa do uruchomienia, wyczerpany budget, brak opublikowanej wersji
+albo run, który nie ocenił wszystkich odpowiedzi. Agentów, których nie widzisz,
+liczy.
+
+Wynik ma wiersz dla każdego agenta: lepiej, bez zmian, w granicach szumu, gorzej
+albo nie wiadomo, z agentami do obejrzenia na górze, z pytaniami, które naprawił i
+zepsuł, i linkiem do runu. Agent sprawdzony tylko na własnych pytaniach skilla, bo
+nie miał swoich tam, gdzie wczytał skill, mówi o tym.
+
+To, co proponuje Akceptacja, wynika z wyniku:
+
+- **Nikt gorzej**, a ktoś lepiej: zastosuj jako następną wersję linii.
+- **Ktoś gorzej:** zastosuj i zostaw tych agentów przypiętych do ich wersji, zrób
+  fork ze zmianą dla agentów, którym pomogła, popraw dalej albo odrzuć. Na forku
+  zostają tylko poprawianie dalej i odrzucenie, bo forka nie da się przypiąć ani
+  rozwidlić ponownie.
+- **Agentów „nie wiadomo”** trzeba potwierdzić, zanim cokolwiek zostanie
+  zastosowane. **Dodaj pytania testowe** obok zapisuje własne pytania skilla z
+  odpowiedzi, w których agenci go wczytali, żeby następnym razem dało się ich
+  sprawdzić.
+
+Gdy po sprawdzeniu linia dostanie nową wersję albo zmienią się jej agenci, wynik
+przestaje obowiązywać i zamiast zastosowania proponuje **Sprawdź ponownie**: te
+same wybrane zmiany, zmierzone na linii w obecnym stanie, w cenie pokazanej
+najpierw. Dalsze poprawianie i odrzucenie zostają dostępne. Gdy linia zmieni się,
+kiedy sesja czeka na Changes, krok jest wyceniany ponownie: Następny krok sprawdza
+zmiany na najnowszej wersji.
 
 ## Skille czy wiedza? { #skills-or-knowledge }
 
