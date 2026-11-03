@@ -79,6 +79,7 @@ class FakeEvals:
     org_left: Decimal | None = None
     refuse_start: set[uuid.UUID] = field(default_factory=set)
     started: list[tuple[uuid.UUID, Any]] = field(default_factory=list)
+    served: list[Any] = field(default_factory=list)
 
     def install(self, monkeypatch: pytest.MonkeyPatch) -> None:
         fake = self
@@ -93,7 +94,7 @@ class FakeEvals:
                 org_remaining_usd=fake.org_left,
             )
 
-        async def start(_self, ctx, agent_id, request, **_):
+        async def start(_self, ctx, agent_id, request, *, candidate_skills=None, **_):
             if agent_id in fake.refuse_start:
                 raise BadRequestError(message="Cannot start")
             dataset = await dataset_repo.get(
@@ -128,6 +129,7 @@ class FakeEvals:
                 id=run_id, agent_id=agent_id, status=EvalRunStatus.RUNNING.value
             )
             fake.started.append((agent_id, request))
+            fake.served.append(candidate_skills)
             return SimpleNamespace(id=run_id)
 
         async def compare(_self, _ctx, run_id, **_):

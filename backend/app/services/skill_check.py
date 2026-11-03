@@ -136,12 +136,13 @@ class Candidate:
     replaces: bool = False
     """`resources` is the whole set of files, so the line's others are dropped."""
 
-    def body(self, fork_id: UUID | None = None) -> SkillBody:
+    def body(self, fork_id: UUID | None = None, *, over_pin: bool = False) -> SkillBody:
         return SkillBody(
             description=self.description,
             content=self.content,
             resources=self.resources,
             fork_id=fork_id,
+            over_pin=over_pin,
         )
 
     def digest(self) -> str:
@@ -367,6 +368,7 @@ class SkillCheckService:
                 content=candidate.content,
                 resources=served,
                 fork_id=None if fork is None else fork.id,
+                over_pin=pinned is not None,
             )
         }
         planned: list[Planned] = []
@@ -765,7 +767,11 @@ class SkillCheckService:
                 row.agent_id,
                 _request(stage, row.agent_version),
                 purpose=EvalRunPurpose.GATE,
-                candidate_skills={check.skill_id: _candidate_of(check).body(check.fork_id)},
+                candidate_skills={
+                    check.skill_id: _candidate_of(check).body(
+                        check.fork_id, over_pin=check.agent_id is not None
+                    )
+                },
                 exclude_conversations=check.excluded_conversation_ids,
                 proposal_check=ProposalCheckRecord(
                     kind="skill",
