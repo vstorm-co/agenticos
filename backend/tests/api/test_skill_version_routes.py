@@ -61,6 +61,7 @@ def _fork() -> SkillForkRead:
         skill_id=SKILL,
         name="returns",
         base=VersionNumberRef(id=VERSION, number=2),
+        started_from=VersionNumberRef(id=VERSION, number=2),
         latest=None,
         changes=0,
         behind_main=0,

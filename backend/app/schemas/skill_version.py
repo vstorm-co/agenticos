@@ -39,6 +39,13 @@ class SkillVersionSummary(BaseSchema):
         )
     )
     restored_from: VersionRef | None = None
+    merged_from: VersionRef | None = Field(
+        default=None,
+        description=(
+            "The other line's version it took in: main's for a fork catching up, the "
+            "fork's for its changes moved to main"
+        ),
+    )
     proposal_id: UUID | None = Field(
         default=None, description="The skill change it applied, when it came from one"
     )
@@ -113,7 +120,10 @@ class SkillForkRead(BaseSchema):
     id: UUID
     skill_id: UUID
     name: str
-    base: VersionNumberRef = Field(description="The main version the fork started from")
+    base: VersionNumberRef = Field(
+        description="The main version the fork is based on: where it started, or last caught up"
+    )
+    started_from: VersionNumberRef = Field(description="The main version the fork started from")
     latest: VersionNumberRef | None = Field(
         description="Its newest own version; null while it has none and serves its base"
     )

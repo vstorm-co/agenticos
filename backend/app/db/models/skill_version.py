@@ -62,6 +62,10 @@ class SkillVersionSource(StrEnum):
     IMPROVE = "improve"
     """The assistant's proposal, accepted by a person."""
     RESTORE = "restore"
+    CATCH_UP = "catch_up"
+    """A fork took main's changes in, and is based on main's newest version since."""
+    FROM_FORK = "from_fork"
+    """Main took a fork's changes in."""
 
 
 class ManifestEntry(TypedDict):
@@ -98,8 +102,17 @@ class SkillFork(Base, TimestampMixin):
         nullable=False,
         index=True,
     )
-    """The main version the fork started from. Never a fork's own version: the service
-    refuses a fork of a fork, so the tree stays one level deep."""
+    """The main version the fork is based on now: the one it started from, or the one
+    it last caught up with. Never a fork's own version: the service refuses a fork of
+    a fork, so the tree stays one level deep."""
+
+    started_from_id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("skill_versions.id", ondelete="CASCADE", use_alter=True),
+        nullable=False,
+        index=True,
+    )
+    """The main version the fork was started from, which catching up never moves."""
 
     latest_version_id: Mapped[uuid.UUID | None] = mapped_column(
         PG_UUID(as_uuid=True),
@@ -159,6 +172,14 @@ class SkillVersion(Base):
     )
     source: Mapped[str] = mapped_column(String(16), nullable=False)
     restored_from_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("skill_versions.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    # The other line's version this one took in: main's for a fork catching up, the
+    # fork's for its changes moved to main.
+    merged_from_id: Mapped[uuid.UUID | None] = mapped_column(
         PG_UUID(as_uuid=True),
         ForeignKey("skill_versions.id", ondelete="SET NULL"),
         nullable=True,

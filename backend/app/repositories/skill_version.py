@@ -33,6 +33,7 @@ async def create_version(
     proposal_id: UUID | None,
     library_fingerprint: str | None,
     created_by_user_id: UUID | None,
+    merged_from_id: UUID | None = None,
 ) -> SkillVersion:
     version = SkillVersion(
         organization_id=organization_id,
@@ -44,6 +45,7 @@ async def create_version(
         resources=resources,
         source=source,
         restored_from_id=restored_from_id,
+        merged_from_id=merged_from_id,
         proposal_id=proposal_id,
         library_fingerprint=library_fingerprint,
         created_by_user_id=created_by_user_id,
@@ -200,6 +202,7 @@ async def create_fork(
         skill_id=skill_id,
         name=name,
         base_version_id=base_version_id,
+        started_from_id=base_version_id,
         created_for_agent_id=created_for_agent_id,
         created_by_user_id=created_by_user_id,
     )

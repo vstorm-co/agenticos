@@ -100,6 +100,7 @@ class SkillVersionService:
         source: SkillVersionSource,
         proposal_id: UUID | None = None,
         restored_from_id: UUID | None = None,
+        merged_from_id: UUID | None = None,
     ) -> SkillVersion:
         """Record the `skills` row as it stands now as the next main version.
 
@@ -132,6 +133,7 @@ class SkillVersionService:
             resources=manifest,
             source=source.value,
             restored_from_id=restored_from_id,
+            merged_from_id=merged_from_id,
             proposal_id=proposal_id,
             library_fingerprint=(
                 locked.library_fingerprint if source is SkillVersionSource.LIBRARY else None
@@ -156,6 +158,7 @@ class SkillVersionService:
         source: SkillVersionSource,
         proposal_id: UUID | None = None,
         restored_from_id: UUID | None = None,
+        merged_from_id: UUID | None = None,
     ) -> SkillVersion:
         """Record the next version of a fork, whose row the caller holds locked."""
         number = (
@@ -178,6 +181,7 @@ class SkillVersionService:
             resources=resources,
             source=source.value,
             restored_from_id=restored_from_id,
+            merged_from_id=merged_from_id,
             proposal_id=proposal_id,
             library_fingerprint=None,
             created_by_user_id=ctx.user_id,
@@ -269,10 +273,11 @@ class SkillVersionService:
         fork_base = None
         if fork_id is not None and any(version.number == 1 for version in versions):
             fork = await self._fork(ctx, skill, fork_id)
-            fork_base = await self._version(ctx, skill, fork.base_version_id)
-        restored = await skill_version_repo.get_versions(
+            fork_base = await self._version(ctx, skill, fork.started_from_id)
+        others = await skill_version_repo.get_versions(
             self.db,
-            {version.restored_from_id for version in versions if version.restored_from_id},
+            {version.restored_from_id for version in versions if version.restored_from_id}
+            | {version.merged_from_id for version in versions if version.merged_from_id},
             organization_id=ctx.organization_id,
         )
         people = await self._people(ctx, [version.created_by_user_id for version in versions])
@@ -286,7 +291,10 @@ class SkillVersionService:
                 source=SkillVersionSource(version.source),
                 previous=_ref(fork_base if version.number == 1 else before.get(version.number - 1)),
                 restored_from=_ref(
-                    restored.get(version.restored_from_id) if version.restored_from_id else None
+                    others.get(version.restored_from_id) if version.restored_from_id else None
+                ),
+                merged_from=_ref(
+                    others.get(version.merged_from_id) if version.merged_from_id else None
                 ),
                 proposal_id=version.proposal_id,
                 created_by=(
@@ -498,6 +506,7 @@ class SkillVersionService:
         versions = await skill_version_repo.get_versions(
             self.db,
             {fork.base_version_id for fork in forks}
+            | {fork.started_from_id for fork in forks}
             | {fork.latest_version_id for fork in forks if fork.latest_version_id},
             organization_id=ctx.organization_id,
         )
@@ -509,7 +518,7 @@ class SkillVersionService:
         _, by_fork = await self._counts(skill)
         reads = []
         for fork in forks:
-            base = versions[fork.base_version_id]
+            base, started = versions[fork.base_version_id], versions[fork.started_from_id]
             latest = versions.get(fork.latest_version_id) if fork.latest_version_id else None
             reads.append(
                 SkillForkRead(
@@ -517,6 +526,7 @@ class SkillVersionService:
                     skill_id=fork.skill_id,
                     name=fork.name,
                     base=VersionNumberRef(id=base.id, number=base.number),
+                    started_from=VersionNumberRef(id=started.id, number=started.number),
                     latest=None
                     if latest is None
                     else VersionNumberRef(id=latest.id, number=latest.number),

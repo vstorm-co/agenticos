@@ -1,4 +1,5 @@
-"""`0250_skill_versions`: what each skill said becomes v1, and pending changes follow it.
+"""`0250_skill_versions`: what each skill said becomes v1, and pending changes follow it;
+`0253_skill_catch_up`: merges read as edits on the way down.
 
 The schema half is cycled with the whole chain by `test_migrations.py`. What only a
 seeded database shows is the data: the backfill's versions and the proposals it
@@ -127,3 +128,42 @@ async def test_the_downgrade_takes_the_binding_out_of_every_stored_spec(db: Asyn
     assert agent.draft_spec["skill_ids"] == [skill_id]
     await db.refresh(untouched)
     assert untouched.draft_spec == {"name": "Plain"}
+
+
+def _catch_up_migration() -> ModuleType:
+    path = Path(__file__).parents[2] / "alembic/versions/0253_skill_catch_up.py"
+    spec = importlib.util.spec_from_file_location("skill_catch_up_migration", path)
+    assert spec is not None and spec.loader is not None
+    migration = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(migration)
+    return migration
+
+
+async def test_a_downgrade_past_catching_up_reads_every_merge_as_an_edit(db: AsyncSession):
+    """The older schema's check allows neither merge source, so they become edits first."""
+    ctx = await _owner(db)
+    skill = Skill(organization_id=ctx.organization_id, name="refunds", description="d", content="c")
+    db.add(skill)
+    await db.flush()
+    sources = ["edit", "catch_up", "from_fork"]
+    db.add_all(
+        SkillVersion(
+            organization_id=ctx.organization_id,
+            skill_id=skill.id,
+            number=number,
+            description="d",
+            content="c",
+            source=source,
+        )
+        for number, source in enumerate(sources, start=1)
+    )
+    await db.flush()
+
+    def forget(session: Session) -> None:
+        with Operations.context(MigrationContext.configure(session.connection())):
+            _catch_up_migration()._forget_merges()
+
+    await db.run_sync(forget)
+
+    stored = await db.execute(select(SkillVersion.source).order_by(SkillVersion.number))
+    assert stored.scalars().all() == ["edit", "edit", "edit"]

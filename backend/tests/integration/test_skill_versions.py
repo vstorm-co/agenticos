@@ -476,6 +476,33 @@ class TestForks:
                     with contextlib.suppress(asyncio.CancelledError):
                         await task
 
+    async def test_a_version_that_took_main_in_names_it_and_the_fork_keeps_its_start(self, db):
+        ctx = await _owner(db)
+        skill = await _skill(db, ctx)
+        versions = SkillVersionService(db)
+        read = await self._fork(db, ctx, skill)
+        await SkillService(db).update(ctx, skill.id, SkillUpdate(content="Main moved."))
+        fork = await db.get(SkillFork, read.id)
+        assert fork is not None and skill.latest_version_id is not None
+
+        await versions.record_fork(
+            ctx,
+            fork,
+            description=skill.description,
+            content="Main moved, and returns only.",
+            resources={},
+            source=SkillVersionSource.CATCH_UP,
+            merged_from_id=skill.latest_version_id,
+        )
+        fork.base_version_id = skill.latest_version_id
+        await db.flush()
+
+        [merged] = (await versions.list_versions(ctx, skill.id, fork_id=fork.id)).items
+        [after] = (await versions.list_forks(ctx, skill.id)).items
+        assert merged.merged_from is not None and merged.merged_from.number == 2
+        assert merged.previous is not None and merged.previous.id == read.base.id
+        assert (after.base.number, after.started_from.number, after.behind_main) == (2, 1, 0)
+
     async def test_restoring_a_fork_version_stays_on_the_fork(self, db):
         ctx = await _owner(db)
         skill = await _skill(db, ctx)
