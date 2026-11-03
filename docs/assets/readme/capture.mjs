@@ -27,8 +27,14 @@ const VIEW = { width: 1440, height: 900 };
 const out = join(here, "shots");
 mkdirSync(out, { recursive: true });
 
-const browser = await chromium.launch();
-const context = await browser.newContext({ viewport: VIEW, deviceScaleFactor: 2, colorScheme: "light" });
+const browser = await chromium.launch({
+  channel: process.env.BROWSER_CHANNEL ?? "chrome",
+});
+const context = await browser.newContext({
+  viewport: VIEW,
+  deviceScaleFactor: 2,
+  colorScheme: "light",
+});
 // The Architect's corner bubble would sit over the dashboard's last widget.
 await context.addInitScript(() => {
   try {
@@ -39,6 +45,7 @@ await context.addInitScript(() => {
   } catch {}
 });
 const page = await context.newPage();
+page.setDefaultTimeout(20000);
 await page.request.post(`${BASE}/api/auth/login`, {
   data: { email: "admin@example.com", password: "admin123" },
 });
@@ -58,8 +65,13 @@ function frac(box, pad = 8) {
 
 /** Nothing of the console's own chrome that is not the page: the Architect's corner button. */
 async function tidy() {
+  for (const label of ["Got it", "Reject optional"]) {
+    const button = page.getByRole("button", { name: label, exact: true });
+    if (await button.isVisible()) await button.click();
+  }
   await page.addStyleTag({
-    content: '[data-tour="assistant-launcher"], [aria-label="Open Architect"] { display: none !important; }',
+    content:
+      '[data-tour="assistant-launcher"], [aria-label="Open Architect"] { display: none !important; }',
   });
 }
 
@@ -75,10 +87,17 @@ async function shoot(name, areas) {
   console.log(`wrote shots/${name}.webp`);
 }
 
-// The agent builder, on the template a new deployment installs.
-const agents = await (await page.request.get(`${BASE}/api/agents?limit=100`)).json();
-const agent = agents.items.find((item) => item.name === "Claude Code like") ?? agents.items[0];
-await page.goto(`${BASE}/agents/${agent.id}`);
+// Pick the same demo organization used by the console gallery.
+const orgs = (await (await page.request.get(`${BASE}/api/orgs`)).json()).items;
+const org = orgs.find((item) => item.name === (process.env.ORG ?? "Northwind Labs"));
+if (!org) throw new Error("The requested demo organization does not exist");
+const headers = { "X-Organization-Id": org.id };
+// The agent builder, on the selected demo agent.
+const agents = await (await page.request.get(`${BASE}/api/agents?limit=100`, { headers })).json();
+const agent =
+  agents.items.find((item) => item.name === (process.env.AGENT ?? "Finance Analyst")) ??
+  agents.items[0];
+await page.goto(`${BASE}/agents/${agent.id}?org=${org.id}`);
 await page.waitForSelector('[data-tour="agent-instructions"]');
 await page.waitForTimeout(1500);
 await tidy();
@@ -95,7 +114,12 @@ const tabs = await page.locator('[data-tour="agent-tab-build"]').locator("..").b
 const instructions = await page.locator('[data-tour="agent-instructions"]').boundingBox();
 const model = await page.locator('[data-tour="agent-model"]').boundingBox();
 await shoot("builder", [
-  frac({ x: title.x, y: title.y, width: publish.x + publish.width - title.x, height: tabs.y - 12 - title.y }),
+  frac({
+    x: title.x,
+    y: title.y,
+    width: publish.x + publish.width - title.x,
+    height: tabs.y - 12 - title.y,
+  }),
   frac(tabs),
   frac(instructions),
   frac({ ...model, height: MODEL_SHOWN - 30 }),
@@ -104,13 +128,16 @@ await shoot("builder", [
 // The dashboard, on the organization view, in a window of the usual size again.
 height = VIEW.height;
 await page.setViewportSize(VIEW);
-await page.goto(`${BASE}/dashboard?view=organization`);
+await page.goto(`${BASE}/dashboard?view=org&org=${org.id}`);
 await page.waitForSelector('[data-tour="dashboard-filters"]');
 await page.waitForTimeout(6000);
 await tidy();
 // The setup checklist is for a new deployment, not the picture of one in use.
-const dismiss = page.getByText("Get started", { exact: true }).locator("xpath=ancestor::*[contains(@class,'rounded')][1]").getByRole("button").last();
-if (await dismiss.count()) await dismiss.click().catch(() => {});
+const dismiss = page.getByRole("button", {
+  name: "Hide the checklist",
+  exact: true,
+});
+if (await dismiss.isVisible()) await dismiss.click();
 height = 1150;
 await page.setViewportSize({ width: VIEW.width, height });
 await page.waitForTimeout(2500);
@@ -121,7 +148,9 @@ const titled = async (text) => {
     .first()
     .locator("xpath=ancestor::*[contains(@class,'rounded')][1]");
   const box = await card.boundingBox();
-  return box && box.y < height ? frac({ ...box, height: Math.min(box.height, height - box.y - 12) }) : null;
+  return box && box.y < height
+    ? frac({ ...box, height: Math.min(box.height, height - box.y - 12) })
+    : null;
 };
 await shoot(
   "dashboard",
