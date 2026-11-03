@@ -186,6 +186,11 @@ environment without a person's decision.
 - Clearing the Architect's uploaded avatar restores its generated face, just as
   it does for other agents. The special mark no longer overrides an empty avatar.
 
+- Recognize OpenRouter's dated Mistral embedding identifier when pricing RAG
+  searches and improvement sessions, using the existing upstream price snapshot.
+- Serialize grading edits, source erasure and promotion guard changes, and refuse
+  queue-level retries of an eval that has already ended.
+
 - Match the new dataset, evaluation, authoring and Improve views to the console:
   use the available page width, keep editor actions reachable, stack comparison
   metrics and case fields on phones, and offer the shared full-window editor

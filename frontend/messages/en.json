@@ -14712,7 +14712,6 @@
       "not_a_problem": "Not a problem to fix",
       "knowledge_added": "Already in the knowledge base"
     },
-    "noExamplesInGroup": "No selected examples in this group.",
     "trainExample": "Test question",
     "chatExample": "Conversation example",
     "whyCause": "Why we think so",
