@@ -39,6 +39,16 @@ export interface SkillBindingSpec {
  * would be passed over for. An absent key means the value the capability
  * declared in code.
  */
+/**
+ * A bound skill that does not read its main line's newest version: a main version
+ * it stays on (`version`), or a fork it follows (`fork_id`). Exactly one is set.
+ */
+export interface SkillBindingSpec {
+  skill_id: string;
+  version?: number | null;
+  fork_id?: string | null;
+}
+
 export interface ToolOverride {
   name?: string;
   description?: string;

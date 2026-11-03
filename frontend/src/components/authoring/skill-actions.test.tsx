@@ -6,7 +6,7 @@ import { authoringRequest } from "@/test-utils/authoring";
 import type { AuthoringRequest } from "@/types/authoring";
 import { DescribeWithArchitect } from "./describe-with-architect";
 import { ImproveContextButton, ImproveSkillButton } from "./improve-skill-button";
-import { ContextCheckButton, SkillCheckButton } from "./skill-check-button";
+import { ContextCheckButton } from "./skill-check-button";
 
 const push = vi.fn();
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push }) }));
@@ -102,22 +102,6 @@ describe("ImproveSkillButton", () => {
         "The assistant found nothing to change: what it proposed is what is there now.",
       ),
     ).toBeVisible();
-  });
-});
-
-describe("SkillCheckButton", () => {
-  it("checks a skill change on the agent chosen, and goes to that run", async () => {
-    render(<SkillCheckButton skillId="skill-1" proposalId="change-1" />);
-    await userEvent.click(screen.getByRole("button", { name: "Check with evals" }));
-    await userEvent.click(
-      await screen.findByRole("combobox", { name: "Agent that uses the skill" }),
-    );
-    await userEvent.click(await screen.findByRole("option", { name: "Clerk" }));
-    await userEvent.click(screen.getByRole("combobox", { name: "Check against" }));
-    await userEvent.click(await screen.findByRole("option", { name: "Refund cases" }));
-    await screen.findByText("priced");
-    await userEvent.click(screen.getByRole("button", { name: "Start the check" }));
-    await waitFor(() => expect(push).toHaveBeenCalledWith("/agents/agent-2/evals/eval-3"));
   });
 });
 

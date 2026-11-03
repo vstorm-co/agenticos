@@ -1,0 +1,60 @@
+"use client";
+
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+
+import { qk } from "@/lib/query-keys";
+import {
+  applySkillCheck,
+  cancelSkillCheck,
+  discardSkillCheck,
+  estimateSkillCheck,
+  getSkillCheck,
+  startSkillCheck,
+} from "@/lib/skill-checks-api";
+import type { SkillCheckApply, SkillCheckStart } from "@/types/skill-checks";
+
+/** How often a running check is read again: its stages are eval runs, minutes long. */
+export const SKILL_CHECK_POLL_MS = 5000;
+
+/**
+ * One skill change's check: estimate and start it, read it until it finishes,
+ * then apply or discard it. Deciding changes the skill and the waiting changes,
+ * so both are read again afterwards.
+ */
+export function useSkillCheck(skillId: string, checkId: string | null) {
+  const queryClient = useQueryClient();
+  const key = qk.skillChecks.detail(skillId, checkId ?? "");
+  const check = useQuery({
+    queryKey: key,
+    queryFn: () => getSkillCheck(skillId, checkId as string),
+    enabled: checkId !== null,
+    refetchInterval: (current) =>
+      current.state.data?.status === "running" ? SKILL_CHECK_POLL_MS : false,
+  });
+  const decided = async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: qk.skillChanges.all() }),
+      queryClient.invalidateQueries({ queryKey: qk.skills.all() }),
+      queryClient.invalidateQueries({ queryKey: key }),
+    ]);
+  };
+  return {
+    check: check.data ?? null,
+    estimate: useMutation({
+      mutationFn: (body: SkillCheckStart) => estimateSkillCheck(skillId, body),
+    }),
+    start: useMutation({ mutationFn: (body: SkillCheckStart) => startSkillCheck(skillId, body) }),
+    apply: useMutation({
+      mutationFn: (body: SkillCheckApply) => applySkillCheck(skillId, checkId as string, body),
+      onSuccess: decided,
+    }),
+    discard: useMutation({
+      mutationFn: () => discardSkillCheck(skillId, checkId as string),
+      onSuccess: decided,
+    }),
+    cancel: useMutation({
+      mutationFn: () => cancelSkillCheck(skillId, checkId as string),
+      onSuccess: decided,
+    }),
+  };
+}

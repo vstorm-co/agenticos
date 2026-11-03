@@ -687,6 +687,7 @@ class AuthoringRun:
                 "evidence_dropped": dropped,
                 "expected_effect": proposal.expected_effect,
                 "authoring_request_id": self.request.id,
+                "source": "improve",
             },
         )
         await self._finish(
