@@ -24,7 +24,8 @@ async def for_run(
         SkillMerge.run_id == run_id, SkillMerge.organization_id == organization_id
     )
     if lock:
-        statement = statement.with_for_update()
+        # A locked read is taken to write on, so it replaces what the session holds.
+        statement = statement.with_for_update().execution_options(populate_existing=True)
     return (await db.execute(statement)).scalar_one_or_none()
 
 
