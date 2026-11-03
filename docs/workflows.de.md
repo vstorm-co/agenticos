@@ -1,5 +1,5 @@
 ---
-source_sha: "102f4da698e8"
+source_sha: "9cca435f6ea9"
 ---
 
 # Workflows { #workflows }
@@ -42,7 +42,23 @@ Kopie einer veröffentlichten Version.
 
 ### Vorlagen, Export und Import { #templates-exporting-and-importing }
 
-Die sofort ausführbaren Automationen heißen **Öffentliche API → Tabelle** und **Markdown-Notizbuch**. Der Server erstellt eine Tabelle und einen vollständig konfigurierten Entwurf in einer Transaktion. Standardmäßig bleiben beide privat; eine ausdrücklich gewählte Zielgruppe gilt für Workflow und Tabelle. Konto, API-Schlüssel oder Tabellenauswahl sind nicht nötig. Das erste Beispiel lädt einen Beitrag von [JSONPlaceholder](https://jsonplaceholder.typicode.com/) und speichert Titel und Inhalt; das zweite schreibt eine Markdown-Notiz. Weitere Runs verwenden dieselbe Tabelle und aktualisieren denselben Beispieldatensatz. Die Erstellung benötigt Rechte zum Erstellen und Bearbeiten von Tabellen. **Starter** und **Two-step sequence** bleiben kleine lokale Beispiele.
+Die Vorlagen mit Tabellen sind **Public API → table** und **Markdown notebook**. Der Server erstellt eine Tabelle und einen vollständig konfigurierten Entwurf in einer Transaktion. Standardmäßig bleiben beide privat; eine ausdrücklich gewählte Zielgruppe gilt für Workflow und Tabelle. Konto, API-Schlüssel oder Tabellenauswahl sind nicht nötig. Das erste Beispiel lädt einen Beitrag von [JSONPlaceholder](https://jsonplaceholder.typicode.com/) und speichert Titel und Inhalt; das zweite schreibt eine Markdown-Notiz. Weitere Runs verwenden dieselbe Tabelle und aktualisieren denselben Beispieldatensatz. Die Erstellung benötigt Rechte zum Erstellen und Bearbeiten von Tabellen. **Starter** und **Two-step sequence** bleiben kleine lokale Beispiele.
+
+**Auf Antwort warten** erstellt einen privaten manuellen Workflow für das bei der
+Erstellung ausdrücklich ausgewählte Gmail- oder Outlook-Postfach. Er benötigt weder
+Tabellenrechte noch ein Modell oder Sendeberechtigungen, nur die vorhandene
+Lesezustimmung. Den Entwurf veröffentlichen; **Run** fragt nach Thread-ID, genauem
+Absender, Anfangszeit und Frist (ISO 8601 mit Zeitzone). Eine verifizierte Antwort
+beendet den Antwortzweig. Andernfalls erstellt die erfolgreiche letzte Postfachprüfung
+eine Erinnerung für den Ersteller, den Thread zu prüfen und eine Folgeantwort
+vorzubereiten. Der Workflow sendet keine Folgeantwort automatisch.
+
+Bei Outlook kann das Erstellungsformular auch ein freigegebenes Postfach angeben, das das verbundene Konto lesen darf.
+
+Standard ist die Benachrichtigung in der App. **Notify members** bietet weitere
+Kanäle unter Beachtung persönlicher Einstellungen und privater Kanalzustimmung.
+Der [Warteschritt](reference/workflow-nodes.md#flow-await-reply) behält Abgleich,
+Pause, Korrektur, Abbruch und Fristregeln bei.
 
 Die Run-Historie füllt den verfügbaren Seitenbereich automatisch, ohne zusätzlichen Vergrößerungsknopf. Der Katalog füllt den verfügbaren Seitenbereich und bietet einen eigenen Vollbildknopf. Seitennavigation erscheint nur bei weiteren Seiten. Der Dateiimport bietet einen beschrifteten Bereich zum Auswählen oder Ablegen einer JSON-Datei.
 

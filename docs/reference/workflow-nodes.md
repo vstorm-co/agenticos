@@ -963,9 +963,12 @@ its timer and prevents downstream work. The expectation lasts at most thirty day
 the workflow's own deadline can end the run earlier. Prepare follow-ups on the
 `deadline` branch with the normal notification/approval nodes; this node sends no mail.
 
+If the deadline passes while checks are paused, the step fails without reading the
+mailbox or asserting that no reply arrived. Resume or correct it before that time.
+
 ::: app.workflows.nodes.flow_await_reply._handler.AwaitReplyConfig
 
-::: app.schemas.reply_expectation.ReplyExpectationInput
+::: app.workflows.nodes.flow_await_reply._handler.AwaitReplyInput
 
 ::: app.schemas.reply_expectation.ReplyExpectationOutput
 

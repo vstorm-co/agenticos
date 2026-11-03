@@ -1,5 +1,5 @@
 ---
-source_sha: "d3a44254be39"
+source_sha: "67908fe0c638"
 ---
 
 # Workflow-Knoten { #workflow-nodes }
@@ -1039,9 +1039,12 @@ Abbrechen schließt den Timer und verhindert Folgeschritte. Maximal dreißig Tag
 die Workflow-Frist kann früher enden. Folgemaßnahmen im Zweig `deadline` verwenden
 die üblichen Benachrichtigungs- und Freigabeschritte; dieser Schritt sendet keine E-Mail.
 
+Verstreicht die Frist während der Pause, endet der Schritt mit einem Fehler,
+ohne das Postfach zu lesen oder eine fehlende Antwort zu behaupten. Vorher fortsetzen oder korrigieren.
+
 ::: app.workflows.nodes.flow_await_reply._handler.AwaitReplyConfig
 
-::: app.schemas.reply_expectation.ReplyExpectationInput
+::: app.workflows.nodes.flow_await_reply._handler.AwaitReplyInput
 
 ::: app.schemas.reply_expectation.ReplyExpectationOutput
 

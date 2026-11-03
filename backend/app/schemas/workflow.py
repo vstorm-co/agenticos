@@ -15,6 +15,7 @@ from pydantic import ConfigDict, Field, StringConstraints, field_validator, mode
 
 from app.db.models.resource_grant import Visibility
 from app.schemas.base import BaseSchema
+from app.schemas.reply_expectation import ReplyMailboxSelection
 from app.schemas.resource_grant import AudienceChoice
 from app.schemas.virtual_table import TableCreate, TableRead
 from app.schemas.workflow_exposure import WorkflowExposureRead
@@ -183,11 +184,12 @@ WorkflowTag = Annotated[
 
 
 class WorkflowCreate(AudienceChoice):
-    """Create a named draft and audience, optionally provisioning a template table."""
+    """Create a named draft and audience, optionally preparing a selected template."""
 
     name: str = Field(min_length=1, max_length=128)
     tags: list[WorkflowTag] = Field(default_factory=list, max_length=MAX_TAGS)
-    template_id: Literal["publicApi", "markdownNotes"] | None = None
+    template_id: Literal["publicApi", "markdownNotes", "awaitReply"] | None = None
+    reply_mailbox: ReplyMailboxSelection | None = None
     description: str | None = Field(default=None, max_length=2000)
     visibility: Visibility = Field(
         default=Visibility.ORG,
@@ -197,6 +199,12 @@ class WorkflowCreate(AudienceChoice):
             "draft cannot run either way, so this decides who sees it, not what it does."
         ),
     )
+
+    @model_validator(mode="after")
+    def reply_template_has_a_mailbox(self) -> WorkflowCreate:
+        if (self.template_id == "awaitReply") != (self.reply_mailbox is not None):
+            raise ValueError("Select a mailbox for the Await reply template only")
+        return self
 
 
 class WorkflowUpdate(BaseSchema):

@@ -6511,6 +6511,10 @@
         "markdownNotes": {
           "name": "Markdown-Notizbuch",
           "description": "Erstelle eine Tabelle mit einer Markdown-Notiz. Eigenschaften gehören in Tabellenspalten. Sofort ausführbar, ohne Kontoverbindung."
+        },
+        "awaitReply": {
+          "name": "Auf Antwort warten",
+          "description": "Ein verbundenes Gmail- oder Outlook-Postfach auswählen. Auf eine verifizierte Antwort im Thread warten und bei Fristablauf benachrichtigt werden, um den Vorgang zu prüfen und nachzufassen. Kein automatischer Folgeversand."
         }
       },
       "notFound": "Workflow nicht gefunden",
@@ -7085,7 +7089,8 @@
       "replyMailboxChoose": "Verbundenes Postfach auswählen",
       "replyMailboxFailed": "Postfächer konnten nicht geladen werden",
       "replyMailboxUnavailable": "Ausgewähltes Postfach nicht verfügbar",
-      "replyMailboxConnect": "Zuerst Gmail oder Outlook unter Integrationen verbinden."
+      "replyMailboxConnect": "Zuerst Gmail oder Outlook unter Integrationen verbinden.",
+      "replySharedMailbox": "Freigegebenes Outlook-Postfach (optional)"
     },
     "adminApns": {
       "title": "iPhone-Benachrichtigungen",

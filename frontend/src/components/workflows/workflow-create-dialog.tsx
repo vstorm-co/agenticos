@@ -29,7 +29,8 @@ import {
 } from "@/components/ui";
 import { DIALOG_BODY, DIALOG_COLUMN, DIALOG_FORM } from "@/lib/dialog-sizes";
 import { cn } from "@/lib/utils";
-import type { WorkflowCreate, WorkflowGraph } from "@/lib/workflows/types";
+import { ReplyMailboxPicker } from "@/components/workflows/property-panel/reply-mailbox-picker";
+import type { ReplyMailboxSelection, WorkflowCreate, WorkflowGraph } from "@/lib/workflows/types";
 import {
   API_TRIGGER,
   CHANNEL_MESSAGE_TRIGGER,
@@ -111,6 +112,10 @@ export function WorkflowCreateDialog({
   const [audience, setAudience] = useState<Audience>(
     initial?.template_id ? { ...EVERYONE, mode: "private" } : EVERYONE,
   );
+  const [replyMailbox, setReplyMailbox] = useState<ReplyMailboxSelection | undefined>(
+    initial?.reply_mailbox,
+  );
+  const needsReplyMailbox = initial?.template_id === "awaitReply";
   const [start, setStart] = useState<string>(MANUAL_TRIGGER);
   const chosen = STARTS.find((entry) => entry.id === start)!;
   const emptyAudience =
@@ -131,9 +136,11 @@ export function WorkflowCreateDialog({
           className="flex min-h-0 flex-1 flex-col gap-6"
           onSubmit={(event) => {
             event.preventDefault();
-            if (!name.trim() || busy || emptyAudience) return;
+            if (!name.trim() || busy || emptyAudience || (needsReplyMailbox && !replyMailbox))
+              return;
             onChoose({
               ...initial,
+              ...(needsReplyMailbox && replyMailbox ? { reply_mailbox: replyMailbox } : {}),
               name: name.trim(),
               description: description.trim() || null,
               tags,
@@ -159,6 +166,30 @@ export function WorkflowCreateDialog({
               <Label>{audienceText("label")}</Label>
               <AudiencePicker value={audience} onChange={setAudience} disabled={busy} />
             </div>
+            {needsReplyMailbox && (
+              <ReplyMailboxPicker
+                value={replyMailbox?.connection_id}
+                onChange={setReplyMailbox}
+                disabled={busy}
+              />
+            )}
+            {needsReplyMailbox && replyMailbox?.provider === "outlook" && (
+              <div className="space-y-2">
+                <Label htmlFor="workflow-reply-shared-mailbox">{t("replySharedMailbox")}</Label>
+                <Input
+                  id="workflow-reply-shared-mailbox"
+                  type="email"
+                  maxLength={320}
+                  value={replyMailbox.mailbox ?? ""}
+                  disabled={busy}
+                  onChange={(event) =>
+                    setReplyMailbox((current) =>
+                      current ? { ...current, mailbox: event.target.value || null } : current,
+                    )
+                  }
+                />
+              </div>
+            )}
             {!initial && (
               <div className="space-y-2">
                 <Label htmlFor="workflow-create-start">{t("startHeading")}</Label>
@@ -220,7 +251,12 @@ export function WorkflowCreateDialog({
             >
               {common("cancel")}
             </Button>
-            <Button type="submit" disabled={!name.trim() || busy || emptyAudience}>
+            <Button
+              type="submit"
+              disabled={
+                !name.trim() || busy || emptyAudience || (needsReplyMailbox && !replyMailbox)
+              }
+            >
               {common("create")}
             </Button>
           </DialogFooter>

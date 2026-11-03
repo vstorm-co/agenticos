@@ -1,10 +1,11 @@
 """Await a verified reply in one selected mailbox thread."""
 
-from app.schemas.reply_expectation import ReplyExpectationInput, ReplyExpectationOutput
+from app.schemas.reply_expectation import ReplyExpectationOutput
 from app.workflows._registry import register
 from app.workflows.contracts.definition import NodeDefinition, Port
 from app.workflows.nodes.flow_await_reply._handler import (
     AwaitReplyConfig,
+    AwaitReplyInput,
     handle,
     resource_check,
     routes,
@@ -16,10 +17,10 @@ register(
         version=1,
         name="Await email reply",
         category="control",
-        kind="waiting",
+        kind="control",
         description="Wait for an authenticated reply from one sender in one mail thread, or its deadline.",
         config_schema=AwaitReplyConfig,
-        input_schema=ReplyExpectationInput,
+        input_schema=AwaitReplyInput,
         output_schema=ReplyExpectationOutput,
         ports=(
             Port(id="in", label="In", kind="input"),

@@ -10,6 +10,7 @@ import {
   SelectValue,
   Skeleton,
 } from "@/components/ui";
+import type { ReplyMailboxSelection } from "@/lib/workflows/types";
 import { usePortals } from "@/hooks/use-portals";
 
 /** Only the connected organization's mailboxes are choices; never the default account by inference. */
@@ -20,7 +21,7 @@ export function ReplyMailboxPicker({
 }: {
   value: unknown;
   disabled?: boolean;
-  onChange: (config: Record<string, unknown>) => void;
+  onChange: (config: ReplyMailboxSelection) => void;
 }) {
   const t = useTranslations("pages.workflows");
   const { items, isLoading, error } = usePortals();

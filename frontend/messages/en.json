@@ -5047,6 +5047,10 @@
         "markdownNotes": {
           "name": "Markdown notebook",
           "description": "Create a table with a Markdown note. Store its properties in table columns. Ready to run, with no accounts to connect."
+        },
+        "awaitReply": {
+          "name": "Await a reply",
+          "description": "Choose a connected Gmail or Outlook mailbox. Wait for a verified reply in one thread, then notify you at its deadline so you can review and prepare a follow-up. Sends no follow-up automatically."
         }
       },
       "notFound": "Workflow not found",
@@ -5594,7 +5598,8 @@
       "replyMailboxChoose": "Choose a connected mailbox",
       "replyMailboxFailed": "Could not load mailboxes",
       "replyMailboxUnavailable": "Selected mailbox unavailable",
-      "replyMailboxConnect": "Connect Gmail or Outlook in Integrations first."
+      "replyMailboxConnect": "Connect Gmail or Outlook in Integrations first.",
+      "replySharedMailbox": "Shared Outlook mailbox (optional)"
     },
     "retention": {
       "title": "Data retention",

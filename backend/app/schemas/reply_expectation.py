@@ -35,6 +35,15 @@ class ReplyExpectationInput(BaseModel):
         return self
 
 
+class ReplyMailboxSelection(BaseModel):
+    """The existing organization mailbox a reply workflow may read."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+    provider: Literal["google", "outlook"]
+    connection_id: UUID
+    mailbox: EmailStr | None = None
+
+
 class ReplyExpectation(ReplyExpectationInput):
     kind: Literal["mail_reply"] = "mail_reply"
     provider: Literal["google", "outlook"]

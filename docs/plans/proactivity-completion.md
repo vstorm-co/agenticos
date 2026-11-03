@@ -206,3 +206,13 @@ workflow chooses channel ceilings, never another person's opt-in or destination.
 Current membership/workflow access, preferences, private route consent and delivery
 checks remain required; six real-database refusal tests verify that selecting a
 private channel alone queues no delivery. Existing graph configurations still load.
+
+## Await-reply creation preset — implemented
+
+The workflow template library creates a private validated five-step graph against
+an explicitly selected existing mailbox. The Run form collects thread, sender and
+ISO timestamps; the two exclusive branches either finish with the verified reply
+or create one review/follow-up reminder. No table, model, outbound mail or new
+provider authorization is provisioned. Project task-table/routine presets remain
+required. Full-graph validation also corrected the await node's branching kind and
+introduced a validated adapter for text inputs from the form.

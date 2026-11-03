@@ -39,6 +39,7 @@ from app.repositories import resource_grant_repo, virtual_table_repo
 from app.repositories import workflow as workflow_repo
 from app.repositories import workflow_file as workflow_file_repo
 from app.repositories import workflow_run as workflow_run_repo
+from app.schemas.reply_expectation import ReplyMailboxSelection
 from app.schemas.resource_grant import as_visibility
 from app.schemas.virtual_table import ColumnInput, TableCreate
 from app.schemas.workflow import (
@@ -74,7 +75,13 @@ from app.services.workflow_authority import require_human_publisher
 from app.services.workflow_execution.exceptions import WorkflowArchivedError
 from app.services.workflow_triggers import WorkflowTriggerSync
 from app.workflows._registry import all_node_definitions
-from app.workflows.contracts.io import Binding, LiteralValue, NodeOutputRef, TableIORef
+from app.workflows.contracts.io import (
+    Binding,
+    LiteralValue,
+    NodeOutputRef,
+    TableIORef,
+    TemplateValue,
+)
 from app.workflows.graph.errors import GraphValidationError
 from app.workflows.graph.model import (
     Edge,
@@ -418,7 +425,7 @@ class WorkflowRegistryService:
         return NodeCatalog(items=items, total=len(items))
 
     async def create(self, ctx: AuthContext, data: WorkflowCreate) -> WorkflowRead:
-        """Create a workflow in draft, with an empty graph.
+        """Create a named draft, optionally preparing its selected template.
 
         The caller chooses a name and audience. Repeated names are numbered so
         another installation of a template remains creatable. Audience grants
@@ -433,7 +440,7 @@ class WorkflowRegistryService:
                 message="You cannot create workflows",
                 details={"required": [Perm.WORKFLOWS_CREATE.value]},
             )
-        if data.template_id is not None:
+        if data.template_id in ("publicApi", "markdownNotes"):
             required = {Perm.TABLES_CREATE, Perm.TABLES_VIEW, Perm.TABLES_EDIT}
             if not all(ctx.has(permission) for permission in required):
                 raise AuthorizationError(
@@ -575,11 +582,13 @@ class WorkflowRegistryService:
         workflow: Workflow,
         data: WorkflowCreate,
     ) -> WorkflowGraph:
-        """Provision a table with the chosen audience and a runnable draft atomically.
+        """Prepare the selected template and its resources atomically.
 
         Runs reuse this pinned table and upsert the same external record, so trying
         the example twice never creates another table or duplicate demonstration row.
         """
+        if data.reply_mailbox is not None:
+            return await self._reply_template(ctx, data.reply_mailbox)
         public_api = data.template_id == "publicApi"
         table = await VirtualTableService(self.db).create_table(
             ctx,
@@ -706,6 +715,133 @@ class WorkflowRegistryService:
             bindings=bindings,
         )
         return await validate_graph(self.db, ctx, graph)
+
+    async def _reply_template(
+        self, ctx: AuthContext, mailbox: ReplyMailboxSelection
+    ) -> WorkflowGraph:
+        """An explicit mailbox and a bounded wait, with a human follow-up reminder.
+
+        No scheduler, sender or model is added. The deadline route asks the
+        creator to review the original thread, without claiming a follow-up sent.
+        """
+        start, wait, received, notify, expired = (uuid4() for _ in range(5))
+        fields = [
+            ("thread_id", "Provider thread ID"),
+            ("expected_sender", "Expected sender email"),
+            ("not_before", "Received after (ISO 8601 with timezone)"),
+            ("deadline", "Deadline (ISO 8601 with timezone)"),
+        ]
+        nodes = [
+            NodeInstance(
+                id=start,
+                definition_id="trigger.manual",
+                definition_version=1,
+                config={
+                    "fields": [
+                        {"name": key, "label": label, "type": "text", "required": True}
+                        for key, label in fields
+                    ]
+                },
+                layout=NodePosition(x=0, y=0),
+            ),
+            NodeInstance(
+                id=wait,
+                definition_id="flow.await_reply",
+                definition_version=1,
+                config=mailbox.model_dump(mode="json"),
+                layout=NodePosition(x=300, y=0),
+            ),
+            NodeInstance(
+                id=received,
+                definition_id="core.output",
+                definition_version=1,
+                layout=NodePosition(x=600, y=-160),
+            ),
+            NodeInstance(
+                id=notify,
+                definition_id="notification.send",
+                definition_version=1,
+                config={
+                    "recipients": [str(ctx.subject_id)],
+                    "subject": "Reply deadline reached",
+                    "channels": ["in_app"],
+                },
+                layout=NodePosition(x=600, y=160),
+            ),
+            NodeInstance(
+                id=expired,
+                definition_id="core.output",
+                definition_version=1,
+                layout=NodePosition(x=900, y=160),
+            ),
+        ]
+        edges = [
+            Edge(
+                id=uuid4(),
+                source_node_id=before,
+                source_port=port,
+                target_node_id=after,
+                target_port="in",
+            )
+            for before, port, after in [
+                (start, "out", wait),
+                (wait, "reply", received),
+                (wait, "deadline", notify),
+                (notify, "out", expired),
+            ]
+        ]
+        bindings = [
+            Binding(
+                target_node_id=wait,
+                target_field=key,
+                source=NodeOutputRef(node_id=start, port="out", field_path=("payload", key)),
+            )
+            for key, _ in fields
+        ]
+        for target, port, text in [
+            (received, "reply", "A verified matching reply was received."),
+            (
+                expired,
+                "deadline",
+                "No verified matching reply before the deadline. Review the thread before preparing a follow-up.",
+            ),
+        ]:
+            bindings.extend(
+                [
+                    Binding(
+                        target_node_id=target, target_field="text", source=LiteralValue(value=text)
+                    ),
+                    Binding(
+                        target_node_id=target,
+                        target_field="structured",
+                        source=NodeOutputRef(node_id=wait, port=port),
+                    ),
+                ]
+            )
+        bindings.append(
+            Binding(
+                target_node_id=notify,
+                target_field="message",
+                source=TemplateValue(
+                    parts=(
+                        "No verified matching reply before the deadline. Review thread ",
+                        NodeOutputRef(
+                            node_id=start, port="out", field_path=("payload", "thread_id")
+                        ),
+                        " and prepare a follow-up for ",
+                        NodeOutputRef(
+                            node_id=start, port="out", field_path=("payload", "expected_sender")
+                        ),
+                        ". No follow-up has been sent by this workflow.",
+                    )
+                ),
+            )
+        )
+        return await validate_graph(
+            self.db,
+            ctx,
+            WorkflowGraph(entry_node_id=start, nodes=nodes, edges=edges, bindings=bindings),
+        )
 
     async def _available_name(self, ctx: AuthContext, base_name: str) -> tuple[str, str]:
         """A `(name, slug)` whose handle nobody in the org has taken yet.

@@ -1,5 +1,5 @@
 ---
-source_sha: "d3a44254be39"
+source_sha: "67908fe0c638"
 ---
 
 # Nodos de workflow { #workflow-nodes }
@@ -1007,9 +1007,12 @@ temporizador e impide pasos posteriores. Dura como máximo treinta días; el pla
 general puede finalizar antes. Prepara seguimientos en `deadline` con los nodos
 habituales de notificación y aprobación; este nodo no envía correo.
 
+Si el plazo vence durante la pausa, el paso falla sin consultar el buzón ni afirmar
+que no llegó respuesta. Reanúdalo o corrígelo antes del plazo.
+
 ::: app.workflows.nodes.flow_await_reply._handler.AwaitReplyConfig
 
-::: app.schemas.reply_expectation.ReplyExpectationInput
+::: app.workflows.nodes.flow_await_reply._handler.AwaitReplyInput
 
 ::: app.schemas.reply_expectation.ReplyExpectationOutput
 

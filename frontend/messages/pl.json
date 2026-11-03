@@ -3410,6 +3410,10 @@
         "markdownNotes": {
           "name": "Notatnik Markdown",
           "description": "Utwórz tabelę z notatką Markdown. Jej właściwości przechowuj w kolumnach tabeli. Gotowe do uruchomienia, bez podłączania kont."
+        },
+        "awaitReply": {
+          "name": "Oczekuj odpowiedzi",
+          "description": "Wybierz połączoną skrzynkę Gmail lub Outlook. Oczekuj zweryfikowanej odpowiedzi w wątku i otrzymaj powiadomienie po upływie terminu, aby przejrzeć sprawę i przygotować follow-up. Bez automatycznej wysyłki."
         }
       },
       "notFound": "Nie znaleziono workflow",
@@ -3984,7 +3988,8 @@
       "replyMailboxChoose": "Wybierz połączoną skrzynkę",
       "replyMailboxFailed": "Nie udało się wczytać skrzynek",
       "replyMailboxUnavailable": "Wybrana skrzynka niedostępna",
-      "replyMailboxConnect": "Najpierw połącz Gmail lub Outlook w Integracjach."
+      "replyMailboxConnect": "Najpierw połącz Gmail lub Outlook w Integracjach.",
+      "replySharedMailbox": "Współdzielona skrzynka Outlook (opcjonalnie)"
     },
     "adminApns": {
       "title": "Powiadomienia na iPhone'a",

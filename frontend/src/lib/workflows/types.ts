@@ -444,8 +444,15 @@ export interface WorkflowVersionList {
 }
 
 /** Create a workflow. Mirrors `WorkflowCreate`. */
+export interface ReplyMailboxSelection {
+  provider: "google" | "outlook";
+  connection_id: string;
+  mailbox?: string | null;
+}
+
 export interface WorkflowCreate {
-  template_id?: "publicApi" | "markdownNotes";
+  template_id?: "publicApi" | "markdownNotes" | "awaitReply";
+  reply_mailbox?: ReplyMailboxSelection;
   name: string;
   description?: string | null;
   visibility?: "org" | "private" | "team";

@@ -21,6 +21,7 @@ from app.services.workflow_execution.exceptions import WorkflowInlineStorageLimi
 from app.workflows.contracts.results import Failed
 from app.workflows.nodes.flow_await_reply._handler import (
     AwaitReplyConfig,
+    AwaitReplyInput,
     handle,
     resource_check,
     routes,
@@ -84,6 +85,7 @@ async def test_publish_checks_the_selected_mailbox(variant: str):
         ("no_token", "REPLY_MAILBOX_UNAVAILABLE"),
         ("not_found", "REPLY_MAILBOX_UNAVAILABLE"),
         ("read_failure", "REPLY_CHECK_FAILED"),
+        ("paused_expired", "REPLY_PAUSED_DEADLINE_REACHED"),
     ],
 )
 async def test_handler_refusals_are_failures(variant: str, code: str):
@@ -115,6 +117,16 @@ async def test_handler_refusals_are_failures(variant: str, code: str):
         not_before=now - timedelta(hours=1),
         deadline=now + timedelta(days=31 if variant == "too_long" else 1),
     )
+    if variant == "paused_expired":
+        step.resume_payload = ReplyExpectation(
+            **body.model_dump(exclude={"deadline", "not_before"}),
+            deadline=now - timedelta(seconds=1),
+            not_before=now - timedelta(hours=2),
+            provider="outlook",
+            connection_id=uuid4(),
+            authorization_generation=uuid4(),
+            paused=True,
+        ).model_dump(mode="json")
     config = AwaitReplyConfig(
         provider="outlook", connection_id=uuid4(), mailbox="shared@example.com"
     )
@@ -149,7 +161,7 @@ async def test_handler_refusals_are_failures(variant: str, code: str):
             AsyncMock(side_effect=ExternalServiceError(message="provider failure")),
         ),
     ):
-        result = await handle(config, body)
+        result = await handle(config, AwaitReplyInput.model_validate(body.model_dump(mode="json")))
     assert isinstance(result, Failed) and result.error.code == code
 
 

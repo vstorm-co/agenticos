@@ -34,7 +34,7 @@ export function WorkflowTemplateDialog({
   const [category, setCategory] = useState<Category | null>(null);
   const templates =
     category === "automations"
-      ? (["publicApi", "markdownNotes"] as const).map((id) => ({
+      ? (["publicApi", "markdownNotes", "awaitReply"] as const).map((id) => ({
           id,
           graph: null,
           template_id: id,
@@ -72,9 +72,13 @@ export function WorkflowTemplateDialog({
                     </div>
                     <Button
                       variant="outline"
-                      disabled={!!template.template_id && !canProvisionTables}
+                      disabled={
+                        !!template.template_id &&
+                        template.id !== "awaitReply" &&
+                        !canProvisionTables
+                      }
                       title={
-                        template.template_id && !canProvisionTables
+                        template.template_id && template.id !== "awaitReply" && !canProvisionTables
                           ? t("templatesNeedTables")
                           : undefined
                       }
@@ -110,7 +114,7 @@ export function WorkflowTemplateDialog({
                     </span>
                     <span className="text-muted-foreground text-sm">
                       {t("templateCount", {
-                        count: id === "automations" ? 2 : WORKFLOW_TEMPLATES.length,
+                        count: id === "automations" ? 3 : WORKFLOW_TEMPLATES.length,
                       })}
                     </span>
                     <span className="text-muted-foreground text-sm">

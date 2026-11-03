@@ -1,5 +1,5 @@
 ---
-source_sha: "d3a44254be39"
+source_sha: "67908fe0c638"
 ---
 
 # Węzły workflow { #workflow-nodes }
@@ -992,9 +992,12 @@ timer i blokuje dalsze kroki. Maksymalny czas to 30 dni; termin całego workflow
 może zakończyć uruchomienie wcześniej. Follow-up przygotuj na gałęzi `deadline`
 standardowymi węzłami powiadomień i akceptacji; ten krok nie wysyła poczty.
 
+Jeśli termin minie podczas pauzy, krok kończy się błędem bez odczytu skrzynki
+i bez twierdzenia, że odpowiedź nie przyszła. Wznów lub popraw go przed terminem.
+
 ::: app.workflows.nodes.flow_await_reply._handler.AwaitReplyConfig
 
-::: app.schemas.reply_expectation.ReplyExpectationInput
+::: app.workflows.nodes.flow_await_reply._handler.AwaitReplyInput
 
 ::: app.schemas.reply_expectation.ReplyExpectationOutput
 

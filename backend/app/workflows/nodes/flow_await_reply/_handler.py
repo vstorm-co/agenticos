@@ -38,6 +38,30 @@ class AwaitReplyConfig(BaseModel):
         return self
 
 
+class AwaitReplyInput(BaseModel):
+    """Text fields from a workflow form, parsed into canonical mail criteria.
+
+    Workflow text fields do not advertise email/date-time JSON Schema formats.
+    This boundary accepts their strings and validates the complete criteria
+    with the same model the private expectation API uses.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+    thread_id: str = Field(min_length=1, max_length=2048)
+    expected_sender: str = Field(min_length=1, max_length=320)
+    not_before: str = Field(min_length=1, max_length=80)
+    deadline: str = Field(min_length=1, max_length=80)
+    anchor_message_id: str | None = Field(default=None, max_length=998)
+
+    def criteria(self) -> ReplyExpectationInput:
+        return ReplyExpectationInput.model_validate(self.model_dump())
+
+    @model_validator(mode="after")
+    def valid_criteria(self) -> Self:
+        self.criteria()
+        return self
+
+
 async def resource_check(
     db: AsyncSession, ctx: AuthContext, config: BaseModel
 ) -> list[tuple[str, str]]:
@@ -70,11 +94,10 @@ def _failed(code: str, message: str) -> Failed:
 
 
 async def handle(config: BaseModel | None, node_input: BaseModel | None) -> NodeResult:
-    if not isinstance(config, AwaitReplyConfig) or not isinstance(
-        node_input, ReplyExpectationInput
-    ):
+    if not isinstance(config, AwaitReplyConfig) or not isinstance(node_input, AwaitReplyInput):
         return _failed("REPLY_NOT_CONFIGURED", "Choose a mailbox, thread, sender and deadline")
     current = context.current()
+    criteria = node_input.criteria()
     now = datetime.now(UTC)
     async with get_worker_db_context() as db:
         await hold_subject(db, LockScope.WORKFLOW_FILE_BYTES, current.organization_id)
@@ -99,11 +122,18 @@ async def handle(config: BaseModel | None, node_input: BaseModel | None) -> Node
         except ValidationError:
             return _failed("REPLY_STATE_INVALID", "The saved expectation needs review")
         if expectation is not None and expectation.paused:
+            if now >= expectation.deadline:
+                return _failed(
+                    "REPLY_PAUSED_DEADLINE_REACHED",
+                    "The deadline passed while checks were paused; no reply verdict was recorded",
+                )
             return Waiting(
-                reason="timer", resume_token=str(step.id), resume_at=now + timedelta(hours=1)
+                reason="timer",
+                resume_token=str(step.id),
+                resume_at=min(expectation.deadline, now + timedelta(hours=1)),
             )
         if (
-            expectation.deadline if expectation else node_input.deadline
+            expectation.deadline if expectation else criteria.deadline
         ) > step.created_at + MAX_WAIT:
             return _failed(
                 "REPLY_DEADLINE_TOO_LONG", "A reply expectation lasts at most thirty days"
@@ -129,7 +159,7 @@ async def handle(config: BaseModel | None, node_input: BaseModel | None) -> Node
         generation, token = access
         if expectation is None:
             expectation = ReplyExpectation(
-                **node_input.model_dump(),
+                **criteria.model_dump(),
                 provider=config.provider,
                 connection_id=config.connection_id,
                 authorization_generation=generation,

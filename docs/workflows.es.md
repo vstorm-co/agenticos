@@ -1,5 +1,5 @@
 ---
-source_sha: "102f4da698e8"
+source_sha: "9cca435f6ea9"
 ---
 
 # Workflows { #workflows }
@@ -41,7 +41,22 @@ versión publicada.
 
 ### Plantillas, exportar e importar { #templates-exporting-and-importing }
 
-Las automatizaciones listas para ejecutar son **Public API → table** y **Markdown notebook**. El servidor prepara una tabla y un borrador completamente configurado en una transacción. Ambos son privados por defecto; una audiencia elegida explícitamente se aplica al flujo y a su tabla. No hace falta elegir cuenta, clave API ni tabla. El primer ejemplo obtiene una publicación de [JSONPlaceholder](https://jsonplaceholder.typicode.com/) y guarda su título y contenido; el segundo escribe una nota Markdown. Los runs siguientes reutilizan la tabla y actualizan el mismo registro de ejemplo. Crearlos requiere permisos para crear y editar tablas. **Starter** y **Two-step sequence** siguen siendo pequeños ejemplos locales.
+Las plantillas con tabla son **Public API → table** y **Markdown notebook**. El servidor prepara una tabla y un borrador completamente configurado en una transacción. Ambos son privados por defecto; una audiencia elegida explícitamente se aplica al flujo y a su tabla. No hace falta elegir cuenta, clave API ni tabla. El primer ejemplo obtiene una publicación de [JSONPlaceholder](https://jsonplaceholder.typicode.com/) y guarda su título y contenido; el segundo escribe una nota Markdown. Los runs siguientes reutilizan la tabla y actualizan el mismo registro de ejemplo. Crearlos requiere permisos para crear y editar tablas. **Starter** y **Two-step sequence** siguen siendo pequeños ejemplos locales.
+
+**Esperar respuesta** crea un workflow manual privado para el buzón Gmail u Outlook
+seleccionado explícitamente al crearlo. No necesita permisos de tablas, un modelo
+ni credenciales de envío, solo el consentimiento de lectura existente. Publica el
+borrador; **Run** solicita el ID del hilo, remitente exacto, fecha inicial y plazo
+(ISO 8601 con zona horaria). Una respuesta verificada termina por su rama. En caso
+contrario, una última consulta correcta crea un recordatorio para que el creador
+revise el hilo y prepare un seguimiento. No envía ningún seguimiento automáticamente.
+
+Para Outlook, el formulario permite indicar un buzón compartido que la cuenta conectada pueda leer.
+
+Por defecto notifica en la aplicación. **Notify members** permite otros canales,
+respetando las preferencias y el consentimiento privado de cada destinatario.
+El [paso de espera](reference/workflow-nodes.md#flow-await-reply) mantiene las reglas
+de coincidencia, pausa, corrección, cancelación y plazo.
 
 El historial ocupa automáticamente el espacio disponible de la página, sin un control para ampliarlo. El catálogo ocupa el espacio disponible y ofrece su propio botón de pantalla completa. Solo muestra paginación si hay más páginas. La importación ofrece una zona etiquetada para seleccionar o soltar un archivo JSON.
 
