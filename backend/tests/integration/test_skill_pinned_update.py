@@ -113,6 +113,11 @@ class TestTheCheck:
             await service.start_update(lab.ctx, lab.skill.id, lab.on_fork.id, QUICK)
         with pytest.raises(AlreadyExistsError):
             await service.start_update(lab.ctx, lab.skill.id, newest.id, QUICK)
+        unbound = await _serving(
+            db, lab.ctx, "Unbound", {**lab.a.draft_spec, "skill_ids": [], "skill_bindings": []}
+        )
+        with pytest.raises(BadRequestError, match="is not pinned"):
+            await service.start_update(lab.ctx, lab.skill.id, unbound.id, QUICK)
 
     async def test_another_organization_or_no_skill_edit_finds_nothing(self, db, monkeypatch):
         lab = await _lab(db)
@@ -366,3 +371,15 @@ async def test_an_agent_reading_a_line_itself_and_through_a_specialist_is_checke
 
     assert (reached.agent.id, reached.via_specialist) == (both.id, None)
     assert [row.agent.id for row in started.agents] == [both.id]
+
+
+async def test_a_skill_pinned_only_in_a_specialist_names_it_and_the_builder(db, monkeypatch):
+    ctx = await _owner(db)
+    skill = await _skill(db, ctx)
+    agent = await _serving(
+        db, ctx, "Desk", _with_specialist(await _runnable(db, ctx, skill), skill, version=1)
+    )
+    FakeEvals().install(monkeypatch)
+
+    with pytest.raises(BadRequestError, match="pinned in the specialist 'billing' of 'Desk'"):
+        await SkillCheckService(db).start_update(ctx, skill.id, agent.id, QUICK)

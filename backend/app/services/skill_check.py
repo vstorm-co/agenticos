@@ -410,6 +410,14 @@ class SkillCheckService:
         """
         agent = await self.agents.registry.get(ctx, agent_id)
         found = await self.agents.pinned_agent(skill, agent.id)
+        if isinstance(found, str):
+            raise BadRequestError(
+                message=(
+                    f"'{skill.name}' is pinned in the specialist '{found}' of '{agent.name}'. "
+                    "Change its version in the agent's Builder."
+                ),
+                details={"agent_id": agent.id, "skill_id": skill.id, "specialist": found},
+            )
         if found is None:
             raise BadRequestError(
                 message=f"'{agent.name}' is not pinned to a version of '{skill.name}'",
@@ -1317,7 +1325,7 @@ class SkillCheckService:
         )
         measured = {row.agent_id: row.agent_version for row in rows}
         if (
-            found is not None
+            isinstance(found, tuple)
             and newest is not None
             and newest.version == measured.get(check.agent_id)
         ):

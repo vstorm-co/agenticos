@@ -274,9 +274,16 @@ class SkillAgentService:
             found.append(LineAgent(use.agent, number, line.via_specialist))
         return found
 
-    async def pinned_agent(self, skill: Skill, agent_id: UUID) -> tuple[LineAgent, int] | None:
+    async def pinned_agent(
+        self, skill: Skill, agent_id: UUID
+    ) -> tuple[LineAgent, int] | str | None:
         """The agent, as its served version reads the skill itself, and the main version
-        it stays on - or `None` when that version follows a line instead."""
+        it stays on.
+
+        The name of the inline specialist that pins it instead, when only one of the
+        agent's specialists stays on a main version - that is changed in the Builder -
+        and `None` when no reader of the agent's served version does.
+        """
         for use in await self._uses(skill):
             if use.agent.id != agent_id or not use.served:
                 continue
@@ -284,6 +291,14 @@ class SkillAgentService:
             own = _by_reader(lines, None)
             if own is not None and own.state == "pinned" and own.version is not None:
                 return LineAgent(use.agent, number, None), own.version
+            return next(
+                (
+                    line.via_specialist
+                    for line in lines
+                    if line.state == "pinned" and line.via_specialist is not None
+                ),
+                None,
+            )
         return None
 
     async def fork_users(self, skill: Skill, fork_id: UUID) -> list[Agent]:
