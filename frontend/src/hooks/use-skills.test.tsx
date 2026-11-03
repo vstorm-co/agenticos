@@ -257,13 +257,13 @@ describe("useSkills failures", () => {
     expect(toastError).toHaveBeenCalledWith("conflict");
   });
 
-  it("reports a failed delete", async () => {
+  it("leaves a refused delete to the dialog that asked for it", async () => {
     vi.mocked(apiClient.delete).mockRejectedValue(new Error("in use by an agent"));
     const { result } = renderHook(() => useSkill("s1"), { wrapper });
 
-    await expect(result.current.remove.mutateAsync()).rejects.toThrow();
+    await expect(result.current.remove.mutateAsync()).rejects.toThrow("in use by an agent");
 
-    expect(toastError).toHaveBeenCalledWith("in use by an agent");
+    expect(toastError).not.toHaveBeenCalled();
   });
 });
 

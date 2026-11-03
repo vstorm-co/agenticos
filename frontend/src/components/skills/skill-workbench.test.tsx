@@ -73,14 +73,14 @@ const description = () => screen.getByLabelText("Description");
 /**
  * The body's editor, which lives behind the Source toggle.
  *
- * `SKILL.md` is Markdown and opens rendered, like every other Markdown file in
+ * The instructions are Markdown and open rendered, like every other Markdown file in
  * the skill - reading it as raw asterisks was the odd one out. Editing it is a
  * deliberate second step.
  */
 async function content() {
   const source = screen.getByRole("button", { name: "Source" });
   if (source.getAttribute("aria-pressed") !== "true") await userEvent.click(source);
-  return screen.getByLabelText("SKILL.md source");
+  return screen.getByLabelText("Instructions source");
 }
 const save = () => screen.getByRole("button", { name: "Save" });
 
@@ -211,7 +211,7 @@ describe("SkillWorkbench", () => {
 /**
  * The files beside the body.
  *
- * A skill is a folder, so `SKILL.md` sits in the tree with everything else and
+ * A skill is a folder, so its instructions sit in the tree with everything else and
  * the pane shows whichever one is open. The rules that are easy to break: the
  * body is what an unselected tree shows (not a blank pane), opening a file
  * leaves the unsaved body alone, and deleting the open file has to return the
@@ -230,7 +230,7 @@ describe("the skill's files", () => {
   it("shows the body when nothing in the tree is selected", () => {
     renderWorkbench({ skill: withFile });
 
-    expect(screen.getByRole("button", { name: /SKILL\.md/ })).toHaveAttribute(
+    expect(screen.getByRole("button", { name: "Instructions" })).toHaveAttribute(
       "aria-current",
       "true",
     );
@@ -257,7 +257,7 @@ describe("the skill's files", () => {
     await userEvent.type(await content(), "\n\nExcept gift cards.");
 
     await userEvent.click(screen.getByRole("button", { name: "workflows.md" }));
-    await userEvent.click(screen.getByRole("button", { name: /SKILL\.md/ }));
+    await userEvent.click(screen.getByRole("button", { name: "Instructions" }));
 
     expect(await content()).toHaveValue(`${SKILL.content}\n\nExcept gift cards.`);
   });
@@ -287,7 +287,7 @@ describe("the skill's files", () => {
 
     expect(skillHooks.removeResource.mutateAsync).toHaveBeenCalledWith("r-1");
     expect(onFilesWritten).toHaveBeenCalledOnce();
-    expect(screen.getByRole("button", { name: /SKILL\.md/ })).toHaveAttribute(
+    expect(screen.getByRole("button", { name: "Instructions" })).toHaveAttribute(
       "aria-current",
       "true",
     );
@@ -326,7 +326,7 @@ describe("the skill's files", () => {
     renderWorkbench({ skill: withFile });
     await userEvent.click(screen.getByRole("button", { name: "New" }));
 
-    await userEvent.click(screen.getByRole("button", { name: /SKILL\.md/ }));
+    await userEvent.click(screen.getByRole("button", { name: "Instructions" }));
 
     expect(screen.queryByLabelText("Path")).toBeNull();
   });
@@ -371,7 +371,7 @@ describe("the skill's files", () => {
       new File(["a"], "huge.md", { type: "text/markdown" }),
     );
 
-    expect(screen.getByRole("button", { name: /SKILL\.md/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Instructions" })).toBeInTheDocument();
     expect(onFilesWritten).not.toHaveBeenCalled();
   });
 
@@ -386,7 +386,7 @@ describe("the skill's files", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "Remove references/workflows.md" }));
 
-    expect(screen.getByRole("button", { name: /SKILL\.md/ })).toHaveAttribute(
+    expect(screen.getByRole("button", { name: "Instructions" })).toHaveAttribute(
       "aria-current",
       "true",
     );

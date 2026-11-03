@@ -61,12 +61,12 @@ test.describe("Skills", () => {
       SEEDED_SKILL_DESCRIPTION,
     );
 
-    // The body is `SKILL.md` in a file tree now rather than a "Content" box, and
+    // The body is Instructions in a file tree now rather than a "Content" box, and
     // the dialog opens on Source - the model's own copy, which is what this
     // asserts. The click is kept so the spec still passes whichever half a
     // future default opens on.
     await dialog.getByRole("button", { name: "Source" }).click();
-    await expect(dialog.getByLabel(/SKILL\.md source/)).toHaveValue(SEEDED_SKILL_CONTENT);
+    await expect(dialog.getByLabel(/Instructions source/)).toHaveValue(SEEDED_SKILL_CONTENT);
   });
 
   test("editing a skill warns how far the save reaches", async ({ page }) => {

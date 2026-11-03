@@ -1,5 +1,5 @@
 ---
-source_sha: "c7785377d985"
+source_sha: "17b4b17a4f40"
 ---
 
 # Skills { #skills }
@@ -570,17 +570,23 @@ Abre un skill desde la lista para ver su página. Tiene tres pestañas.
 Un entorno que sirve una versión distinta aparece debajo del agent, y un
 especialista inline que vincula el skill tiene una fila propia - ver
 [Qué versión lee un agent](#which-version-an-agent-reads). Un agent que vincula el
-skill solo en su borrador lleva la marca **Solo en el borrador** y no
-cuenta en ninguna línea. Los agents que no puedes ver se cuentan, sin nombrarlos.
-Los chips sobre la tabla muestran a todos, los agents en main, los fijados o un
-fork. El fork que elijas ahí es también la línea que muestra el Historial y en la
-que guarda Editar.
+skill solo en su borrador lleva la marca **Solo en el borrador** y no sigue ninguna
+línea. Los agents que no puedes ver se cuentan, sin nombrarlos. Los chips sobre la
+tabla muestran a todos, los agents en main, los fijados, un fork o los agents solo en
+borrador, así que sus cuentas suman a todos. El fork que elijas ahí es también la
+línea que muestra el Historial y en la que guarda Editar.
+
+Debajo de la tabla, quien puede ver runs ve con qué frecuencia cada agent abrió el
+skill en los últimos 30 días y cuántos de sus archivos leyó. Los runs de evals y del
+panel de pruebas del Builder no cuentan.
 
 **Cambiar versión** mueve un agent a main, a una versión fijada de main o a un fork,
 como describe [Qué versión lee un agent](#which-version-an-agent-reads): qué se
-publica, qué espera en el borrador y qué se cambia en el Builder. Una versión en la
-que el agent no está no se ha comprobado en él, así que primero lo confirmas. El
-control lo ve quien puede editar el agent.
+publica, qué espera en el borrador y qué se cambia en el Builder. Una versión distinta
+de la que el agent sirve ahora no se ha comprobado en él, así que primero lo
+confirmas. El diálogo también dice cuándo el agent dejaría de recibir versiones nuevas
+de main, y fecha cada versión de main que ofrece fijar, con un enlace a sus cambios.
+El control lo ve quien puede editar el agent.
 
 **Historial** lista las versiones de la línea elegida, de la más nueva a la más
 antigua: de dónde vino cada una (una edición, un cambio de archivos, la biblioteca,
@@ -589,17 +595,27 @@ el workspace de un agent, Improve o una restauración), quién la hizo y cuándo
 anterior - para la primera versión de un fork, con su base en main - y nombra los
 archivos añadidos, eliminados o cambiados. **Restaurar** devuelve una versión
 anterior como la más nueva de su propia línea, y los agents que siguen esa línea la
-reciben de inmediato.
+reciben de inmediato. Un fork numera sus versiones desde 1 como main, así que llevan
+su nombre - "Returns v2" - y el historial de main marca la versión desde la que
+empieza cada fork.
 
 **Árbol de versiones** dibuja main desde su versión más nueva hacia abajo, cada fork
-desde la versión en que empezó y los agents junto a la versión que usan. Los tramos
-que ningún agent usa se pliegan en una sola fila.
+desde la versión en que empezó y los agents junto a la versión que usan. En una línea
+de ocho versiones o más, los tramos que ningún agent usa se pliegan en una sola fila.
 
 **Editar** guarda una versión nueva en la línea en pantalla. En main, los agents que
 siguen main la reciben de inmediato; los agents fijados y los forks conservan su
 versión. Los archivos y la categoría son de main, así que editar un fork cambia solo
 su descripción e instrucciones. Restaurar y Cambiar versión solo se muestran a
 quien puede hacer ese cambio; los demás abren el skill en modo de solo lectura.
+
+**Nuevo fork** empieza un fork desde la versión más nueva de main, con el nombre que le
+des, y puede mover agents a él de inmediato, cada uno como un Cambiar versión. El fork
+se lee igual que su base hasta que se edita.
+
+**Eliminar**, en el menú del editor, elimina un skill que nadie usa, con sus versiones
+y forks. Mientras haya agents que lo usan, el diálogo los nombra y no ofrece eliminar:
+primero mueve cada uno a otro skill o quita el skill en el Builder.
 
 ### Mejorar un skill { #improving-a-skill }
 

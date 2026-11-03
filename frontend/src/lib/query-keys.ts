@@ -435,6 +435,7 @@ export const qk = {
       ["skills", skillId, "problems", sessionId] as const,
     awaiting: () => ["skills", "improvements-awaiting"] as const,
     testSet: (skillId: string) => ["skills", skillId, "test-set"] as const,
+    usage: (skillId: string, days: number) => ["skills", skillId, "usage", days] as const,
   },
   mcpOauth: {
     request: (orgId: string, requestId: string) =>

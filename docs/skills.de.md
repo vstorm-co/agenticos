@@ -1,5 +1,5 @@
 ---
-source_sha: "c7785377d985"
+source_sha: "17b4b17a4f40"
 ---
 
 # Skills { #skills }
@@ -599,18 +599,25 @@ hat es sich angesehen.
 Eine Umgebung, die eine andere Version ausliefert, steht unter dem Agent, und ein
 Inline-Spezialist, der den Skill bindet, hat eine eigene Zeile - siehe
 [Welche Version ein Agent liest](#which-version-an-agent-reads). Ein Agent, der den
-Skill nur in seinem Entwurf bindet, ist mit **Nur im Entwurf** markiert und
-zählt zu keiner Linie. Agents, die Sie nicht sehen, werden gezählt, nicht genannt.
-Die Chips über der Tabelle zeigen alle, die Agents auf main, die festgesetzten oder
-einen Fork. Ein dort gewählter Fork ist auch die Linie, die der Verlauf zeigt und in
-die Bearbeiten speichert.
+Skill nur in seinem Entwurf bindet, ist mit **Nur im Entwurf** markiert und folgt
+keiner Linie. Agents, die Sie nicht sehen, werden gezählt, nicht genannt. Die Chips
+über der Tabelle zeigen alle, die Agents auf main, die festgesetzten, einen Fork oder
+die Agents nur im Entwurf, sodass ihre Zahlen zusammen alle ergeben. Ein dort
+gewählter Fork ist auch die Linie, die der Verlauf zeigt und in die Bearbeiten
+speichert.
+
+Unter der Tabelle sieht, wer Runs ansehen darf, wie oft jeder Agent den Skill in den
+letzten 30 Tagen geöffnet und wie viele seiner Dateien er gelesen hat. Runs von Evals
+und vom Testbereich des Builders zählen nicht.
 
 **Version ändern** setzt einen Agent auf main, auf eine festgesetzte main-Version oder
 auf einen Fork, wie [Welche Version ein Agent liest](#which-version-an-agent-reads)
 beschreibt: was live geht, was im Entwurf wartet und was im Builder geändert wird.
-Eine Version, auf der der Agent nicht ist, wurde auf ihm nicht geprüft, deshalb
-bestätigen Sie das zuerst. Das Steuerelement sehen Personen, die den Agent
-bearbeiten dürfen.
+Eine andere Version als die, die der Agent gerade ausliefert, wurde auf ihm nicht
+geprüft, deshalb bestätigen Sie das zuerst. Der Dialog sagt auch, wann der Agent keine
+neuen main-Versionen mehr bekäme, und datiert jede main-Version, die er zum Festsetzen
+anbietet, mit einem Link zu ihren Änderungen. Das Steuerelement sehen Personen, die
+den Agent bearbeiten dürfen.
 
 **Verlauf** listet die Versionen der gewählten Linie, die neueste zuerst: woher jede
 kam (eine Bearbeitung, eine Dateiänderung, die Bibliothek, der Workspace eines
@@ -619,11 +626,14 @@ Agents, Improve oder eine Wiederherstellung), wer sie gemacht hat und wann.
 bei der ersten Version eines Forks mit seiner Basis auf main - und nennt die
 hinzugefügten, entfernten oder geänderten Dateien. **Wiederherstellen** holt eine
 frühere Version als neueste auf ihre eigene Linie zurück, und die Agents, die dieser
-Linie folgen, bekommen sie sofort.
+Linie folgen, bekommen sie sofort. Ein Fork nummeriert seine Versionen ab 1 wie
+main, deshalb tragen sie seinen Namen - „Returns v2“ -, und der Verlauf von main
+markiert die Version, bei der jeder Fork beginnt.
 
 **Versionsbaum** zeichnet main von der neuesten Version abwärts, jeden Fork von der
-Version, bei der er begann, und die Agents bei der Version, die sie nutzen.
-Abschnitte, die kein Agent nutzt, werden zu einer Zeile zusammengefaltet.
+Version, bei der er begann, und die Agents bei der Version, die sie nutzen. Auf einer
+Linie mit acht oder mehr Versionen werden Abschnitte, die kein Agent nutzt, zu einer
+Zeile zusammengefaltet.
 
 **Bearbeiten** speichert eine neue Version auf der angezeigten Linie. Auf main
 bekommen die Agents, die main folgen, sie sofort; festgesetzte Agents und Forks behalten
@@ -631,6 +641,15 @@ ihre Version. Dateien und Kategorie gehören zu main, deshalb ändert das Bearbe
 eines Forks nur seine Beschreibung und Anweisungen. Wiederherstellen und Version ändern
 sehen nur Personen, die diese Änderung vornehmen dürfen; alle anderen öffnen den
 Skill nur lesend.
+
+**Neuer Fork** beginnt einen Fork ab der neuesten Version von main, unter einem Namen,
+den Sie vergeben, und kann sofort Agents auf ihn verschieben, jeden als Version ändern.
+Der Fork liest sich wie seine Basis, bis er bearbeitet wird.
+
+**Löschen**, im Menü des Editors, löscht einen Skill, den niemand verwendet, mit
+seinen Versionen und Forks. Solange Agents ihn verwenden, nennt der Dialog sie und
+bietet kein Löschen an: Verschieben Sie zuerst jeden auf einen anderen Skill oder
+entfernen Sie den Skill im Builder.
 
 ### Einen Skill verbessern { #improving-a-skill }
 
