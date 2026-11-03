@@ -13003,7 +13003,7 @@
     "title": "Datasets",
     "pageDescription": "Die Fragen, an denen Ihre Agents getestet werden. Jede Änderung an den Fällen eines Datasets erzeugt eine neue Version, sodass zwei Eval-Runs auf einer Version dieselben Fragen gesehen haben.",
     "newDataset": "Neues Dataset",
-    "newDatasetBody": "Ein leeres Dataset. Fügen Sie Fälle von Hand hinzu, importieren Sie eine CSV- oder JSONL-Datei oder übernehmen Sie eine Antwort aus einem Gespräch.",
+    "newDatasetBody": "Erstellen Sie Testfälle, um Ihre Agenten zu prüfen.",
     "noAccess": "Sie können die Datasets dieser Organisation nicht sehen",
     "noAccessBody": "Bitten Sie einen Administrator um Zugriff auf Datasets.",
     "datasetCount": "{count, plural, =1 {1 Dataset} other {# Datasets}}",
@@ -13236,10 +13236,6 @@
     "editAsJson": "Als JSON bearbeiten",
     "editAsForm": "Zurück zum Formular",
     "addFromActivity": "Aus der Aktivität hinzufügen",
-    "createVisibleToOrg": "Für die ganze Organisation sichtbar.",
-    "createPrivate": "Privat für Sie, bis Sie es teilen.",
-    "createMakePrivate": "Privat machen",
-    "createShareWithOrg": "Der Organisation zeigen",
     "caseTwin": "Ein Fall stellt diese Frage bereits:",
     "caseTwinOpen": "Öffnen",
     "caseTwinAddAnyway": "Trotzdem hinzufügen",
@@ -13323,7 +13319,10 @@
     "tagsPlaceholder": "Rückerstattung, Zahlung",
     "argumentName": "Argumentname",
     "argumentValue": "Erwarteter Wert",
-    "generatedEmpty": "Noch keine generierten Testfälle"
+    "generatedEmpty": "Noch keine generierten Testfälle",
+    "namePlaceholder": "Rückerstattungsrichtlinie",
+    "descriptionPlaceholder": "Fragen zu Rückerstattungen, Retouren und Stornierungen.",
+    "moreOptions": "Weitere Optionen"
   },
   "knowledgeGaps": {
     "tab": "Wissenslücken",

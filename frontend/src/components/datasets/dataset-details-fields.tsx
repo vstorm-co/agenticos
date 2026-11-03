@@ -14,7 +14,7 @@ interface DatasetDetailsFieldsProps {
   nameTour?: string;
 }
 
-/** What a dataset is called and what it is for - the same two fields to create or to edit. */
+/** The editable name and description of an existing dataset. */
 export function DatasetDetailsFields({
   name,
   onNameChange,

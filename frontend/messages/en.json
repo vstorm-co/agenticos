@@ -13331,7 +13331,7 @@
     "title": "Datasets",
     "pageDescription": "The questions your agents are tested on. Every change to a dataset's cases makes a new version, so two eval runs on one version saw the same questions.",
     "newDataset": "New dataset",
-    "newDatasetBody": "An empty dataset. Add cases by hand, import a CSV or JSONL file, or add an answer from a conversation.",
+    "newDatasetBody": "Create a set of cases to test your agents.",
     "noAccess": "You cannot see this organization's datasets",
     "noAccessBody": "Ask an administrator for access to datasets.",
     "datasetCount": "{count, plural, =1 {1 dataset} other {# datasets}}",
@@ -13564,10 +13564,6 @@
     "editAsJson": "Edit as JSON",
     "editAsForm": "Back to the form",
     "addFromActivity": "Add from Activity",
-    "createVisibleToOrg": "Visible to the whole organization.",
-    "createPrivate": "Private to you until you share it.",
-    "createMakePrivate": "Make it private",
-    "createShareWithOrg": "Show it to the organization",
     "caseTwin": "A case already asks this question:",
     "caseTwinOpen": "Open it",
     "caseTwinAddAnyway": "Add anyway",
@@ -13651,7 +13647,10 @@
     "tagsPlaceholder": "refunds, billing",
     "argumentName": "Argument name",
     "argumentValue": "Expected value",
-    "generatedEmpty": "No generated cases yet"
+    "generatedEmpty": "No generated cases yet",
+    "namePlaceholder": "Refund policy",
+    "descriptionPlaceholder": "Questions about refunds, returns, and cancellations.",
+    "moreOptions": "More options"
   },
   "knowledgeGaps": {
     "tab": "Knowledge gaps",

@@ -13104,7 +13104,7 @@
     "title": "Datasety",
     "pageDescription": "Pytania, na których testujesz agentów. Każda zmiana przypadków w datasecie tworzy nową wersję, więc dwa runy ewaluacji na jednej wersji widziały te same pytania.",
     "newDataset": "Nowy dataset",
-    "newDatasetBody": "Pusty dataset. Dodaj przypadki ręcznie, zaimportuj plik CSV lub JSONL albo dodaj odpowiedź z rozmowy.",
+    "newDatasetBody": "Utwórz zestaw przypadków do testowania agentów.",
     "noAccess": "Nie widzisz datasetów tej organizacji",
     "noAccessBody": "Poproś administratora o dostęp do datasetów.",
     "datasetCount": "{count, plural, one {1 dataset} few {# datasety} many {# datasetów} other {# datasetu}}",
@@ -13337,10 +13337,6 @@
     "editAsJson": "Edytuj jako JSON",
     "editAsForm": "Wróć do formularza",
     "addFromActivity": "Dodaj z Aktywności",
-    "createVisibleToOrg": "Widoczny dla całej organizacji.",
-    "createPrivate": "Prywatny dla ciebie, dopóki go nie udostępnisz.",
-    "createMakePrivate": "Ustaw jako prywatny",
-    "createShareWithOrg": "Pokaż organizacji",
     "caseTwin": "Przypadek z tym pytaniem już istnieje:",
     "caseTwinOpen": "Otwórz go",
     "caseTwinAddAnyway": "Dodaj mimo to",
@@ -13424,7 +13420,10 @@
     "tagsPlaceholder": "zwroty, płatności",
     "argumentName": "Nazwa argumentu",
     "argumentValue": "Oczekiwana wartość",
-    "generatedEmpty": "Nie ma jeszcze wygenerowanych przypadków"
+    "generatedEmpty": "Nie ma jeszcze wygenerowanych przypadków",
+    "namePlaceholder": "Zasady zwrotów",
+    "descriptionPlaceholder": "Pytania dotyczące zwrotów, reklamacji i anulowania zamówień.",
+    "moreOptions": "Więcej opcji"
   },
   "knowledgeGaps": {
     "tab": "Luki w wiedzy",

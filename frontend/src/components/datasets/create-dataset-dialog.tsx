@@ -13,12 +13,18 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  FormField,
+  Input,
+  Label,
+  MoreOptions,
+  Textarea,
 } from "@/components/ui";
 import { useDatasets } from "@/hooks/use-datasets";
 import { submitFailure } from "@/lib/api-error";
 import { ROUTES } from "@/lib/constants";
-import { DIALOG_FORM } from "@/lib/dialog-sizes";
-import { DatasetDetailsFields } from "./dataset-details-fields";
+import { DIALOG_BODY, DIALOG_COLUMN, DIALOG_FORM } from "@/lib/dialog-sizes";
+import { cn } from "@/lib/utils";
+import { AudiencePicker, EVERYONE, type Audience } from "@/components/sharing/audience-picker";
 
 interface CreateDatasetDialogProps {
   open: boolean;
@@ -31,24 +37,34 @@ interface CreateDatasetDialogProps {
  */
 export function CreateDatasetDialog({ open, onOpenChange }: CreateDatasetDialogProps) {
   const t = useTranslations("datasets");
+  const ta = useTranslations("audience");
   const router = useRouter();
   const tErrors = useTranslations("errors");
   const { create } = useDatasets();
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
-  const [shared, setShared] = useState(true);
+  const [audience, setAudience] = useState<Audience>(EVERYONE);
+  const [moreOpen, setMoreOpen] = useState(false);
   const [errors, setErrors] = useState<Readonly<Record<string, string>>>({});
+
+  function edit(field: "name" | "description", value: string) {
+    if (field === "name") setName(value);
+    else setDescription(value);
+    if (errors[field]) setErrors(({ [field]: _removed, ...rest }) => rest);
+  }
 
   async function handleCreate() {
     try {
       const dataset = await create.mutateAsync({
         name: name.trim(),
         description: description.trim() === "" ? null : description.trim(),
-        visibility: shared ? "org" : "private",
+        visibility: audience.mode === "private" ? "private" : "org",
       });
       setName("");
       setDescription("");
       setErrors({});
+      setAudience(EVERYONE);
+      setMoreOpen(false);
       onOpenChange(false);
       router.push(ROUTES.DATASET_DETAIL(dataset.id));
     } catch (error) {
@@ -58,43 +74,61 @@ export function CreateDatasetDialog({ open, onOpenChange }: CreateDatasetDialogP
         tErrors,
       );
       setErrors(failure.fields);
+      if (failure.fields.description) setMoreOpen(true);
       if (failure.toast) toast.error(failure.toast);
     }
   }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className={DIALOG_FORM}>
+      <DialogContent className={cn(DIALOG_FORM, DIALOG_COLUMN)}>
         <DialogHeader>
           <DialogTitle>{t("newDataset")}</DialogTitle>
           <DialogDescription>{t("newDatasetBody")}</DialogDescription>
         </DialogHeader>
-        <DatasetDetailsFields
-          name={name}
-          onNameChange={setName}
-          description={description}
-          onDescriptionChange={setDescription}
-          errors={errors}
-          nameTour="datasets-dialog-name"
-        />
-        <p className="text-muted-foreground flex flex-wrap items-center gap-1 text-sm">
-          {shared ? t("createVisibleToOrg") : t("createPrivate")}
-          <Button
-            variant="link"
-            size="sm"
-            className="h-auto px-0"
-            onClick={() => setShared((current) => !current)}
-          >
-            {shared ? t("createMakePrivate") : t("createShareWithOrg")}
-          </Button>
-        </p>
+        <div className={cn(DIALOG_BODY, "space-y-4")}>
+          <FormField htmlFor="dataset-name" label={t("name")} error={errors.name} required>
+            <Input
+              data-tour="datasets-dialog-name"
+              maxLength={120}
+              value={name}
+              placeholder={t("namePlaceholder")}
+              onChange={(event) => edit("name", event.target.value)}
+            />
+          </FormField>
+          <div className="space-y-1.5">
+            <Label>{ta("label")}</Label>
+            <AudiencePicker
+              value={audience}
+              onChange={setAudience}
+              withChosen={false}
+              disabled={create.isPending}
+            />
+          </div>
+          <MoreOptions label={t("moreOptions")} open={moreOpen} onOpenChange={setMoreOpen}>
+            <FormField
+              htmlFor="dataset-description"
+              label={t("description")}
+              error={errors.description}
+            >
+              <Textarea
+                rows={2}
+                maxLength={500}
+                value={description}
+                placeholder={t("descriptionPlaceholder")}
+                onChange={(event) => edit("description", event.target.value)}
+              />
+            </FormField>
+          </MoreOptions>
+        </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             {t("cancel")}
           </Button>
           <Button
             data-tour="datasets-create-submit"
-            disabled={create.isPending || name.trim() === ""}
+            loading={create.isPending}
+            disabled={name.trim() === ""}
             onClick={() => void handleCreate()}
           >
             {t("create")}
