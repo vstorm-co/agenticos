@@ -1,5 +1,5 @@
 ---
-source_sha: "82257867b08d"
+source_sha: "48dfd5de4902"
 ---
 
 # Skills { #skills }
@@ -288,11 +288,16 @@ leer oder aus jüngsten Antworten, die den Skill geladen haben - oder mit
 **Testfragen hinzufügen** neben einem Agent, den [Verbessern](#improving-a-skill)
 nicht prüfen konnte, und bearbeitet wie jedes andere [Dataset](datasets.md). Dann die eigenen Fragen des Agents:
 
-- **Quick**, der Standard: höchstens vier Fragen aus dem Dataset des Agents,
+- **Quick**, der Standard: vier Fragen aus dem Dataset des Agents - mehr, wenn die
+  eigenen Held-out-Fragen des Skills für die fünf, die ein Ergebnis braucht, nicht
+  reichen -
   deren neueste Antwort den Skill geladen hat - die, die die meisten Wörter mit
   den geänderten Zeilen teilen. Ein Agent ohne solche Fragen wird nur mit dem
-  Satz des Skills geprüft, und seine Zeile sagt das.
-- **Thorough**: das ganze Dataset des Agents. Eine Änderung der Beschreibung
+  Satz des Skills geprüft, und seine Zeile sagt das. Ein Agent, den die Fragen
+  des Skills als schlechter zeigen, wird nicht nach seinen eigenen gefragt.
+- **Thorough**: das ganze Dataset des Agents, gefragt auch dann, wenn die Fragen
+  des Skills den Agent als schlechter zeigten, damit seine Zeile sagt, wo die
+  Änderung ihn gebrochen hat. Eine Änderung der Beschreibung
   des Skills wird immer so geprüft, denn die Beschreibung entscheidet, wann ein
   Agent den Skill überhaupt öffnet.
 
@@ -343,9 +348,10 @@ eine Person dennoch:
   ausliefert. Das Festsetzen erfordert, jeden von ihnen veröffentlichen zu dürfen,
   und eine Umgebung, die auf Beförderung wartet, muss zuerst die festgesetzte
   Version übernehmen;
-- **einen Fork für die Agents anlegen, denen sie geholfen hat**, und main lassen,
-  wie es ist - im Schritt Annehmen von [Verbessern](#improving-a-skill) oder über
-  die API, `POST /api/v1/skills/{id}/checks/{check_id}/fork`;
+- **einen Fork für die Agents anlegen, denen sie geholfen hat**, wenn einer
+  besser wurde, und main lassen, wie es ist - im Schritt Annehmen von
+  [Verbessern](#improving-a-skill) oder über die API,
+  `POST /api/v1/skills/{id}/checks/{check_id}/fork`;
 - sie **verwerfen**.
 
 Auf einem Fork bleiben nur Weiterverbessern und Verwerfen: Ein Festsetzen nennt
