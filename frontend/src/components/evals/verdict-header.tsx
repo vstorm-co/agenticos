@@ -10,7 +10,7 @@ import { formatDateTime } from "@/lib/utils";
 import type { EvalComparison, EvalRun, EvalRunArm } from "@/types/eval-runs";
 import { SuiteCheckVerdict } from "./suite-check-verdict";
 import { EvalStatusBadge } from "./eval-status-badge";
-import { usd } from "./format";
+import { percent, usd } from "./format";
 import { sideName } from "./names";
 import { SendToReviewButton } from "./send-to-review-button";
 import { JudgeNotes } from "./judge-notes";
@@ -67,8 +67,8 @@ export function VerdictHeader({
   return (
     <Card data-tour="eval-verdict">
       <CardContent className="space-y-4 pt-6">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="min-w-0 flex-1 space-y-1 break-words">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0 flex-1 space-y-3 break-words">
             <p className="text-muted-foreground text-sm">
               {t("runTitle", {
                 dataset: run.dataset_name,
@@ -79,17 +79,27 @@ export function VerdictHeader({
             {!live && candidate && comparison && candidate.failed_alike !== null && (
               <>
                 <Badge variant="destructive">{t("comparison.verdict.failedAlike")}</Badge>
-                <h1 className="text-lg font-semibold">
+                <h1 className="text-lg font-semibold">{t("resultTitle")}</h1>
+                <p className="text-sm leading-relaxed">
                   {t("headline.failedAlike", { error: candidate.failed_alike })}
-                </h1>
+                </p>
               </>
             )}
             {!live && candidate && comparison && candidate.failed_alike === null && (
               <>
-                <VerdictBadge comparison={comparison} undecided={undecided} />
-                <h1 className="space-y-1 text-lg font-semibold">
+                <h1 className="text-lg font-semibold">{t("resultTitle")}</h1>
+                <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
+                  <div>
+                    <p className="text-muted-foreground text-xs">{t("arms.passRate")}</p>
+                    <p className="text-3xl font-semibold tracking-tight tabular-nums">
+                      {percent(comparison.candidate_summary.pass_rate, locale)}
+                    </p>
+                  </div>
+                  <VerdictBadge comparison={comparison} undecided={undecided} />
+                </div>
+                <div className="max-w-3xl space-y-2 text-sm leading-relaxed">
                   <VerdictHeadline run={run} candidate={candidate} comparison={comparison} />
-                </h1>
+                </div>
               </>
             )}
             {onRetryComparison && (
@@ -112,7 +122,7 @@ export function VerdictHeader({
               <p className="text-muted-foreground text-sm">{t("baselineNotRerun")}</p>
             )}
           </div>
-          <div className="flex items-center gap-2">
+          <div className="order-first flex items-center justify-end gap-2 sm:order-last">
             <EvalStatusBadge status={run.status} />
             {onCancel && (
               <Button size="sm" variant="outline" onClick={onCancel}>

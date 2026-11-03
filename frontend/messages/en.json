@@ -14291,7 +14291,8 @@
       "result": "Result",
       "passRate": "Pass rate",
       "cost": "Cost"
-    }
+    },
+    "resultTitle": "Evaluation result"
   },
   "authoring": {
     "strip": {

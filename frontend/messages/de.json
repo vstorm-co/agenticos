@@ -13963,7 +13963,8 @@
       "result": "Ergebnis",
       "passRate": "Erfolgsquote",
       "cost": "Kosten"
-    }
+    },
+    "resultTitle": "Evaluierungsergebnis"
   },
   "authoring": {
     "strip": {

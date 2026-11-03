@@ -161,10 +161,11 @@ describe("EvalRunView", () => {
     render(<EvalRunView agentId="agent-1" runId="run-1" />);
 
     expect(screen.getByText("refunds v3 · v7")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Evaluation result" })).toBeVisible();
     expect(
-      screen.getByRole("heading", {
-        name: /v7 breaks 1 case that passed on Draft, every time it was asked: “How long do I have to return it\?” \(3 of 3\)\./,
-      }),
+      screen.getByText(
+        /v7 breaks 1 case that passed on Draft, every time it was asked: “How long do I have to return it\?” \(3 of 3\)\./,
+      ),
     ).toBeInTheDocument();
     expect(screen.getByText("Breaks cases")).toBeInTheDocument();
     // Each case as it settled, the first answers alone on hover.
@@ -207,10 +208,11 @@ describe("EvalRunView", () => {
     render(<EvalRunView agentId="agent-1" runId="run-1" />);
 
     expect(
-      screen.getByRole("heading", {
-        name: /Draft breaks 4 cases that passed on v6, every time it was asked: “How long do I have to return it\?” \(3 of 3\) and 3 more\..*Pass rate 67% → 22%/,
-      }),
+      screen.getByText(
+        /Draft breaks 4 cases that passed on v6, every time it was asked: “How long do I have to return it\?” \(3 of 3\) and 3 more\./,
+      ),
     ).toBeInTheDocument();
+    expect(screen.getByText("22%", { selector: "[data-tour=eval-verdict] p" })).toBeVisible();
     expect(screen.getByText(/4 answers \+ 2 confirming reruns/)).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "See what changed" })).toHaveAttribute(
       "href",
@@ -263,9 +265,9 @@ describe("EvalRunView", () => {
     loaded.agent = { can_run: true, can_edit: true, can_publish: true };
     const { unmount } = render(<EvalRunView agentId="agent-1" runId="run-1" />);
     expect(
-      screen.getByRole("heading", {
-        name: /Draft fixes 1 case that failed on v6, every time it was asked: “How long do I have to return it\?” \(2 of 2\)/,
-      }),
+      screen.getByText(
+        /Draft fixes 1 case that failed on v6, every time it was asked: “How long do I have to return it\?” \(2 of 2\)/,
+      ),
     ).toBeVisible();
     expect(screen.getByRole("link", { name: "Publish" }).className).toContain("bg-action");
     unmount();
@@ -289,9 +291,7 @@ describe("EvalRunView", () => {
     };
     render(<EvalRunView agentId="agent-1" runId="run-1" />);
     expect(screen.getByText("Mixed")).toBeInTheDocument();
-    expect(
-      screen.getByRole("heading", { name: /Mixed: Draft breaks 3 cases and fixes 1 against v6/ }),
-    ).toBeVisible();
+    expect(screen.getByText(/Mixed: Draft breaks 3 cases and fixes 1 against v6/)).toBeVisible();
     expect(screen.getByRole("link", { name: "Publish" }).className).not.toContain("bg-action");
   });
 
@@ -359,9 +359,7 @@ describe("EvalRunView", () => {
     expect(screen.getByText("Breaks cases").className).toContain("destructive");
     expect(screen.getByText("Worse overall")).toBeInTheDocument();
     expect(
-      screen.getByRole("heading", {
-        name: /Worse overall: across every confirmed change, Draft does worse than v6\./,
-      }),
+      screen.getByText(/Worse overall: across every confirmed change, Draft does worse than v6\./),
     ).toBeVisible();
   });
 
@@ -476,9 +474,9 @@ describe("EvalRunView", () => {
     const { unmount } = render(<EvalRunView agentId="agent-1" runId="run-1" />);
     expect(screen.getByText("No reproducible change")).toBeInTheDocument();
     expect(
-      screen.getByRole("heading", {
-        name: /No change held: 2 cases changed once and came out differently when asked again, so any difference in pass rate between v7 and Draft on refunds is not a reproducible change\./,
-      }),
+      screen.getByText(
+        /No change held: 2 cases changed once and came out differently when asked again, so any difference in pass rate between v7 and Draft on refunds is not a reproducible change\./,
+      ),
     ).toBeVisible();
     expect(screen.queryByText(/test on a steadier model/)).toBeNull();
     unmount();
@@ -491,11 +489,7 @@ describe("EvalRunView", () => {
       cases: [],
     });
     render(<EvalRunView agentId="agent-1" runId="run-1" />);
-    expect(
-      screen.getByRole("heading", {
-        name: /No change held: v7 does as well as Draft on refunds\./,
-      }),
-    ).toBeVisible();
+    expect(screen.getByText(/No change held: v7 does as well as Draft on refunds\./)).toBeVisible();
   });
 
   it("suggests a steadier model when much changed and nothing held", () => {
@@ -787,9 +781,9 @@ describe("EvalRunView", () => {
     render(<EvalRunView agentId="agent-1" runId="run-1" />);
 
     expect(
-      screen.getByRole("heading", {
-        name: "This is the first result of v7 on refunds: 75% of the decided cases pass. Later versions are compared with it.",
-      }),
+      screen.getByText(
+        "This is the first result of v7 on refunds: 75% of the decided cases pass. Later versions are compared with it.",
+      ),
     ).toBeInTheDocument();
     expect(screen.queryByText("How the two compare")).toBeNull();
     expect(screen.queryByRole("button", { name: /that broke/ })).toBeNull();
@@ -802,7 +796,7 @@ describe("EvalRunView", () => {
       baseline_summary: null,
     });
     render(<EvalRunView agentId="agent-1" runId="run-1" />);
-    expect(screen.getByRole("heading", { name: /v7 and Draft cannot be compared/ })).toBeVisible();
+    expect(screen.getByText(/v7 and Draft cannot be compared/)).toBeVisible();
     expect(screen.getByText(/graded by a different judge, model or rubric/)).toBeVisible();
   });
 
@@ -1004,9 +998,12 @@ describe("EvalRunView", () => {
     state.run = { ...state.run, run: evalRun({ arms: [arm({ failed_alike: error })] }) };
     render(<EvalRunView agentId="agent-1" runId="run-1" />);
     expect(screen.getByText("Could not run")).toBeInTheDocument();
-    expect(screen.getByRole("heading").textContent).toBe(
-      `Every case failed the same way, so this result says nothing about the agent's answers. Fix the setup and run it again: ${error}`,
-    );
+    expect(screen.getByRole("heading", { name: "Evaluation result" })).toBeVisible();
+    expect(
+      screen.getByText(
+        `Every case failed the same way, so this result says nothing about the agent's answers. Fix the setup and run it again: ${error}`,
+      ),
+    ).toBeVisible();
     expect(screen.queryByText("Breaks cases")).toBeNull();
   });
 

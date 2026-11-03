@@ -14064,7 +14064,8 @@
       "result": "Wynik",
       "passRate": "Zdawalność",
       "cost": "Koszt"
-    }
+    },
+    "resultTitle": "Wynik ewaluacji"
   },
   "authoring": {
     "strip": {
