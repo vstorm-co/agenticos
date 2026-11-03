@@ -84,6 +84,9 @@ it("keeps the corrected run and suite results beside the decided answer", async 
   expect(screen.getByText("Run: better")).toBeInTheDocument();
   expect(screen.getByText("Refund smoke: Passed after review")).toBeInTheDocument();
   expect(screen.queryByText(/Other run/)).not.toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: "Close" }));
+  expect(screen.queryByRole("dialog")).toBeNull();
+  expect(screen.getByRole("button", { name: score.question })).toBeInTheDocument();
 });
 it("explains a missing run and never replaces a failure with a successful result", async () => {
   state.error = true;

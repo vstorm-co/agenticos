@@ -40,6 +40,11 @@ export function HelperSettings({
   const tErrors = useTranslations("errors");
   const stored = dataset.helper_settings ?? EMPTY;
   const [draft, setDraft] = useState(stored[kind]);
+  const [base, setBase] = useState(stored[kind]);
+  if (JSON.stringify(base) !== JSON.stringify(stored[kind])) {
+    setBase(stored[kind]);
+    if (JSON.stringify(draft) === JSON.stringify(base)) setDraft(stored[kind]);
+  }
   const { update } = useDataset(dataset.id);
   const { profiles, profilesStatus } = useModelProviders();
   const { can } = usePermissions();
@@ -47,7 +52,8 @@ export function HelperSettings({
   const disabled = !dataset.can_edit || update.isPending;
   async function save() {
     try {
-      await update.mutateAsync({ helper_settings: { [kind]: draft } });
+      const updated = await update.mutateAsync({ helper_settings: { [kind]: draft } });
+      setDraft(updated.helper_settings?.[kind] ?? draft);
       toast.success(t("saved"));
       return true;
     } catch (error) {

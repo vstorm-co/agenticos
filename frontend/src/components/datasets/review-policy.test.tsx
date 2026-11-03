@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, it, vi } from "vitest";
 import type { Dataset } from "@/types/datasets";
@@ -62,7 +62,26 @@ it("retains an unsaved selection after refusal and prevents reader edits", async
   await userEvent.click(screen.getByRole("button", { name: "Save" }));
   await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Access changed"));
   expect(screen.getByRole("combobox")).toHaveTextContent("Every result");
+  const proceed = vi.fn();
+  act(() => useUnsavedChangesStore.getState().leave(proceed));
+  await act(() => useUnsavedChangesStore.getState().answer("discard"));
+  expect(proceed).toHaveBeenCalledOnce();
+  expect(screen.getByRole("combobox")).not.toHaveTextContent("Every result");
   rerender(<ReviewPolicy key="reader" dataset={dataset({ can_edit: false })} />);
   expect(screen.getByRole("combobox")).toBeDisabled();
   expect(screen.queryByRole("button", { name: "Save" })).toBeNull();
+});
+
+it("takes refreshed routing unless the reader has an unsaved choice", async () => {
+  const initial = dataset();
+  const { rerender } = render(<ReviewPolicy dataset={initial} />);
+  const updated = dataset({ scoring: { ...initial.scoring, review: { select: "all" } } });
+  rerender(<ReviewPolicy dataset={updated} />);
+  expect(screen.getByRole("combobox")).toHaveTextContent("Every result");
+  expect(screen.queryByRole("button", { name: "Save" })).toBeNull();
+  await userEvent.click(screen.getByRole("combobox"));
+  await userEvent.click(screen.getByRole("option", { name: "Results that did not pass" }));
+  rerender(<ReviewPolicy dataset={initial} />);
+  expect(screen.getByRole("combobox")).toHaveTextContent("Results that did not pass");
+  expect(screen.getByRole("button", { name: "Save" })).toBeEnabled();
 });

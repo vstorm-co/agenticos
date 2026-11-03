@@ -1,8 +1,8 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, it, vi } from "vitest";
 import { HelperSettings } from "./helper-settings";
-import type { Dataset } from "@/types/datasets";
+import type { Dataset, DatasetHelperSettings } from "@/types/datasets";
 import { DEFAULT_SCORING } from "@/lib/scoring";
 function dataset(overrides: Partial<Dataset> = {}): Dataset {
   return {
@@ -78,6 +78,12 @@ const configured = () =>
   });
 beforeEach(() => {
   vi.clearAllMocks();
+  state.save.mockImplementation(
+    async ({ helper_settings }: { helper_settings: Partial<DatasetHelperSettings> }) => ({
+      ...configured(),
+      helper_settings: { ...configured().helper_settings!, ...helper_settings },
+    }),
+  );
   state.allowAdd = false;
   useUnsavedChangesStore.setState({ sources: {}, prompt: null, saving: false });
 });
@@ -105,6 +111,12 @@ it("discards changes and preserves the draft when saving is refused", async () =
   expect(screen.getByRole("button", { name: "new-model" })).toBeInTheDocument();
   await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
   expect(screen.getByRole("button", { name: "improve-model" })).toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: "improve-model" }));
+  const proceed = vi.fn();
+  act(() => useUnsavedChangesStore.getState().leave(proceed));
+  await act(() => useUnsavedChangesStore.getState().answer("discard"));
+  expect(proceed).toHaveBeenCalledOnce();
+  expect(screen.getByRole("button", { name: "improve-model" })).toBeInTheDocument();
 });
 it("shows code defaults to readers without offering edits", () => {
   render(
@@ -118,5 +130,54 @@ it("shows code defaults to readers without offering edits", () => {
   );
   expect(screen.getByRole("textbox", { name: "Instructions" })).toBeDisabled();
   expect(screen.getByRole("button", { name: "Choose model" })).toBeDisabled();
+  expect(screen.queryByRole("button", { name: "Save" })).toBeNull();
+});
+
+it("refreshes untouched settings and keeps actual unsaved instructions during a server update", async () => {
+  const initial = configured();
+  const { rerender } = render(<HelperSettings dataset={initial} kind="generator" />);
+  const updated = {
+    ...initial,
+    helper_settings: {
+      ...initial.helper_settings!,
+      generator: { model_profile_id: "server-model", instructions: "New server instructions." },
+    },
+  };
+  rerender(<HelperSettings dataset={updated} kind="generator" />);
+  expect(screen.getByRole("button", { name: "server-model" })).toBeInTheDocument();
+  const instructions = screen.getByRole("textbox", { name: "Instructions" });
+  expect(instructions).toHaveValue("New server instructions.");
+  expect(screen.queryByRole("button", { name: "Save" })).toBeNull();
+  await userEvent.clear(instructions);
+  await userEvent.type(instructions, "My unsaved instructions.");
+  const next = {
+    ...updated,
+    helper_settings: {
+      ...updated.helper_settings,
+      generator: { ...updated.helper_settings.generator, instructions: "Another remote change." },
+    },
+  };
+  rerender(<HelperSettings dataset={next} kind="generator" />);
+  expect(instructions).toHaveValue("My unsaved instructions.");
+  expect(screen.getByRole("button", { name: "Save" })).toBeEnabled();
+});
+
+it("shows the instructions normalized by the server after saving", async () => {
+  const initial = configured();
+  const saved = {
+    ...initial,
+    helper_settings: {
+      ...initial.helper_settings!,
+      generator: { model_profile_id: "old-model", instructions: "Normalized instructions." },
+    },
+  };
+  state.save.mockResolvedValue(saved);
+  const { rerender } = render(<HelperSettings dataset={initial} kind="generator" />);
+  const instructions = screen.getByRole("textbox", { name: "Instructions" });
+  await userEvent.clear(instructions);
+  await userEvent.type(instructions, "  Normalized instructions.  ");
+  await userEvent.click(screen.getByRole("button", { name: "Save" }));
+  await waitFor(() => expect(instructions).toHaveValue("Normalized instructions."));
+  rerender(<HelperSettings dataset={saved} kind="generator" />);
   expect(screen.queryByRole("button", { name: "Save" })).toBeNull();
 });

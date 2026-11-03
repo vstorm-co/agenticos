@@ -24,6 +24,11 @@ export function ReviewPolicy({ dataset }: { dataset: Dataset }) {
   const tErrors = useTranslations("errors");
   const stored = dataset.scoring.review.select;
   const [select, setSelect] = useState<ReviewSelect>(stored);
+  const [base, setBase] = useState(stored);
+  if (base !== stored) {
+    setBase(stored);
+    if (select === base) setSelect(stored);
+  }
   const mutation = useSetScoring(dataset.id);
   const dirty = select !== stored;
   async function save() {
