@@ -5320,11 +5320,11 @@
       },
       "flow-dataset-case-question": {
         "title": "What the agent is asked",
-        "body": "The input is the message the agent answers. Add the conversation before it only when the question depends on earlier turns. Then choose Next."
+        "body": "Write the message the agent should answer, as a real user would phrase it."
       },
       "flow-dataset-case-answers": {
-        "title": "A good answer, and a bad one",
-        "body": "The reference answer says what a good answer contains; a judge compares the agent's answer with it. The counter-example is an answer known to be wrong - often the one somebody rated down. One of them is usually enough."
+        "title": "What a correct answer contains",
+        "body": "Write a reference answer or the key facts the response should include. You can use tool expectations or checks instead."
       },
       "flow-dataset-case-tools": {
         "title": "The tools it should call",
@@ -5558,6 +5558,14 @@
       "chat-local-coding": {
         "title": "Coding agent",
         "body": "Choose Claude Code or Codex on this computer for this conversation, even when the agent has no Coding agent capability. Its existing approval and read-only rules still apply. Each task asks for native confirmation."
+      },
+      "flow-dataset-case-history": {
+        "title": "Conversation context",
+        "body": "Expand this section if the message depends on an earlier conversation. Add its messages in order, oldest first."
+      },
+      "flow-dataset-case-counter": {
+        "title": "An answer to avoid",
+        "body": "Expand this section to add an answer known to be wrong, such as one rated down in a conversation."
       }
     },
     "chooseLanguage": "Language",
@@ -13397,7 +13405,7 @@
     "alsoAddAsCounterExample": "The answer is saved as a counter-example: an answer the agent should not give.",
     "addAfterRatingFailed": "The rating was saved, but the answer was not added to a dataset: {reason}",
     "field": {
-      "input": "Input",
+      "input": "User message",
       "reference_answer": "Reference answer",
       "counter_example": "Counter-example",
       "note": "Note",
@@ -13549,7 +13557,7 @@
     "argValue": "Call {number}, argument {arg}: value",
     "removeArg": "Remove argument {arg} of call {number}",
     "addArg": "Add an argument",
-    "caseSavesVersionN": "Saving makes version v{number}. The version before it keeps this case as it was.",
+    "caseSavesVersionN": "Saving creates dataset version v{number}.",
     "caseJson": "The case as JSON",
     "caseJsonHint": "The same fields an import or an export holds. Back to the form to check it reads right.",
     "caseJsonInvalid": "This is not valid case JSON. Check the field names and value types.",
@@ -13628,19 +13636,22 @@
     "caseSection": {
       "tools": "Tool expectations",
       "checks": "Additional checks",
-      "labels": "Tags and notes"
+      "labels": "Tags and notes",
+      "history": "Conversation context",
+      "counter": "Counter-example"
     },
     "optionalField": "Optional",
     "historyMessagePlaceholder": "The earlier message, exactly as it was sent…",
     "placeholder": {
-      "input": "When will my refund arrive?",
-      "reference_answer": "Refunds reach your card within 5 working days.",
-      "counter_example": "Refunds always take 30 days.",
+      "input": "e.g. When will my refund arrive?",
+      "reference_answer": "e.g. Refunds reach your card within 5 working days.",
+      "counter_example": "e.g. Refunds always take 30 days.",
       "note": "For example: guards against giving the old refund window."
     },
     "tagsPlaceholder": "refunds, billing",
     "argumentName": "Argument name",
-    "argumentValue": "Expected value"
+    "argumentValue": "Expected value",
+    "generatedEmpty": "No generated cases yet"
   },
   "knowledgeGaps": {
     "tab": "Knowledge gaps",

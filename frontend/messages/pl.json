@@ -6687,12 +6687,12 @@
         "body": "Wybierz Dodaj przypadek. Przypadek to jedno pytanie i opis tego, jak wygląda dobra odpowiedź."
       },
       "flow-dataset-case-question": {
-        "title": "O co pytany jest agent",
-        "body": "Wejście to wiadomość, na którą odpowiada agent. Rozmowę przed nim dodaj tylko wtedy, gdy pytanie zależy od wcześniejszych tur. Potem wybierz Dalej."
+        "title": "Na co odpowiada agent",
+        "body": "Wpisz wiadomość, na którą agent ma odpowiedzieć, tak jak napisałby ją użytkownik."
       },
       "flow-dataset-case-answers": {
-        "title": "Dobra odpowiedź i zła",
-        "body": "Odpowiedź wzorcowa mówi, co zawiera dobra odpowiedź; sędzia porównuje z nią odpowiedź agenta. Kontrprzykład to odpowiedź, o której wiadomo, że jest błędna - często ta oceniona łapką w dół. Zwykle wystarczy jedna z nich."
+        "title": "Co zawiera poprawna odpowiedź",
+        "body": "Wpisz odpowiedź wzorcową lub najważniejsze fakty. Zamiast niej możesz określić oczekiwane narzędzia lub reguły sprawdzania."
       },
       "flow-dataset-case-tools": {
         "title": "Narzędzia, które powinien wywołać",
@@ -6926,6 +6926,14 @@
       "chat-local-coding": {
         "title": "Agent programistyczny",
         "body": "Wybierz Claude Code lub Codex na tym komputerze dla tej rozmowy, również gdy agent nie ma capability Coding agent. Istniejące reguły zatwierdzania i trybu tylko do odczytu nadal obowiązują. Każde zadanie wymaga natywnego potwierdzenia."
+      },
+      "flow-dataset-case-history": {
+        "title": "Kontekst rozmowy",
+        "body": "Rozwiń tę sekcję, jeśli wiadomość zależy od wcześniejszej rozmowy. Dodaj wiadomości w kolejności od najstarszej."
+      },
+      "flow-dataset-case-counter": {
+        "title": "Odpowiedź, której należy unikać",
+        "body": "Rozwiń tę sekcję, aby podać błędną odpowiedź, na przykład ocenioną negatywnie w rozmowie."
       }
     },
     "chooseLanguage": "Język",
@@ -13170,7 +13178,7 @@
     "alsoAddAsCounterExample": "Odpowiedź zostanie zapisana jako kontrprzykład: odpowiedź, której agent nie powinien udzielać.",
     "addAfterRatingFailed": "Ocena została zapisana, ale odpowiedź nie trafiła do datasetu: {reason}",
     "field": {
-      "input": "Wejście",
+      "input": "Wiadomość użytkownika",
       "reference_answer": "Odpowiedź wzorcowa",
       "counter_example": "Kontrprzykład",
       "note": "Notatka",
@@ -13322,7 +13330,7 @@
     "argValue": "Wywołanie {number}, argument {arg}: wartość",
     "removeArg": "Usuń argument {arg} wywołania {number}",
     "addArg": "Dodaj argument",
-    "caseSavesVersionN": "Zapis utworzy wersję v{number}. Wersja przed nią zachowa ten przypadek takim, jaki był.",
+    "caseSavesVersionN": "Zapis utworzy wersję v{number} datasetu.",
     "caseJson": "Przypadek jako JSON",
     "caseJsonHint": "Te same pola, które zawiera import i eksport. Wróć do formularza, żeby sprawdzić, czy się poprawnie czyta.",
     "caseJsonInvalid": "To nie jest poprawny JSON przypadku. Sprawdź nazwy i typy pól.",
@@ -13401,19 +13409,22 @@
     "caseSection": {
       "tools": "Oczekiwane narzędzia",
       "checks": "Dodatkowe reguły",
-      "labels": "Tagi i notatki"
+      "labels": "Tagi i notatki",
+      "history": "Kontekst rozmowy",
+      "counter": "Kontrprzykład"
     },
     "optionalField": "Opcjonalne",
     "historyMessagePlaceholder": "Wcześniejsza wiadomość, w oryginalnym brzmieniu…",
     "placeholder": {
-      "input": "Kiedy otrzymam zwrot pieniędzy?",
-      "reference_answer": "Pieniądze wracają na kartę w ciągu 5 dni roboczych.",
-      "counter_example": "Zwrot pieniędzy zawsze trwa 30 dni.",
+      "input": "Np. Kiedy otrzymam zwrot pieniędzy?",
+      "reference_answer": "Np. Pieniądze wracają na kartę w ciągu 5 dni roboczych.",
+      "counter_example": "Np. Zwrot pieniędzy zawsze trwa 30 dni.",
       "note": "Np. chroni przed podawaniem starego terminu zwrotu."
     },
     "tagsPlaceholder": "zwroty, płatności",
     "argumentName": "Nazwa argumentu",
-    "argumentValue": "Oczekiwana wartość"
+    "argumentValue": "Oczekiwana wartość",
+    "generatedEmpty": "Nie ma jeszcze wygenerowanych przypadków"
   },
   "knowledgeGaps": {
     "tab": "Luki w wiedzy",

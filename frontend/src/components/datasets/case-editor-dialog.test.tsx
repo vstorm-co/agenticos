@@ -37,7 +37,7 @@ const STORED = {
   note: "Asked weekly",
 };
 
-const input = () => screen.getByLabelText(/^Input/);
+const input = () => screen.getByLabelText(/^User message/);
 const save = () => screen.getByRole("button", { name: "Save case" });
 const answer = () => screen.getByLabelText("Reference answer");
 
@@ -117,6 +117,7 @@ describe("CaseEditorDialog", () => {
     mount(onSave);
     await userEvent.type(input(), "And for a kettle?");
 
+    await openSection("Conversation context");
     await userEvent.click(screen.getByRole("button", { name: "Add a turn" }));
     await userEvent.type(screen.getByLabelText("Turn 1: what was said"), "I bought a kettle");
     await userEvent.click(screen.getByRole("button", { name: "Add a turn" }));
@@ -292,6 +293,34 @@ describe("CaseEditorDialog", () => {
     expect(onOpenChange).not.toHaveBeenCalledWith(false);
   });
 
+  it("opens optional sections when the server refuses their fields", async () => {
+    const refusal = new ApiError(400, "invalid", {
+      error: {
+        code: "BAD_REQUEST",
+        message: "invalid",
+        details: {
+          fields: [
+            { field: "history", message: "Invalid conversation context" },
+            { field: "counter_example", message: "Invalid counter-example" },
+            { field: "note", message: "Invalid note" },
+          ],
+        },
+      },
+    });
+    mount(vi.fn().mockRejectedValue(refusal));
+    await userEvent.type(input(), "q");
+    await userEvent.type(answer(), "a");
+    await userEvent.click(save());
+    for (const message of [
+      "Invalid conversation context",
+      "Invalid counter-example",
+      "Invalid note",
+    ]) {
+      const error = await screen.findByText(message);
+      expect(error.closest("details")).toHaveProperty("open", true);
+    }
+  });
+
   it("needs no toast when every refusal has a field to stand under", async () => {
     const refusal = new ApiError(400, "invalid", {
       error: {
@@ -341,8 +370,9 @@ describe("CaseEditorDialog", () => {
       />,
     );
 
-    expect(screen.getByText(/Saving makes version v4/)).toBeInTheDocument();
-    expect(screen.getByText("Graded here by the judge (Tone).")).toBeInTheDocument();
+    expect(screen.getByText(/Saving creates dataset version v4/)).toBeInTheDocument();
+    expect(screen.queryByText("Graded here by the judge (Tone).")).toBeNull();
+    await userEvent.type(input(), "How long?");
     await userEvent.type(answer(), "30 days");
     expect(
       screen.getByText("Graded here by the judge (Tone) and Reference answer."),
@@ -371,6 +401,9 @@ describe("CaseEditorDialog", () => {
       />,
     );
 
+    expect(screen.queryByText(/Nothing on the dataset's Grading tab/)).toBeNull();
+    await userEvent.type(input(), "How long?");
+    await userEvent.type(answer(), "30 days");
     expect(screen.getByText(/Nothing on the dataset's Grading tab/)).toBeInTheDocument();
     await openSection("Additional checks");
     await openSection("Additional checks");

@@ -3,6 +3,7 @@
 import { useId, useState, type ReactNode } from "react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
+import { ChevronRight } from "lucide-react";
 
 import {
   Button,
@@ -28,7 +29,7 @@ import {
 } from "@/components/ui";
 import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
 import { submitFailure } from "@/lib/api-error";
-import { DIALOG_BODY, DIALOG_CANVAS, DIALOG_FILL } from "@/lib/dialog-sizes";
+import { DIALOG_BODY, DIALOG_COLUMN, DIALOG_FORM } from "@/lib/dialog-sizes";
 import { cn } from "@/lib/utils";
 import { useUnsavedChangesStore } from "@/stores/unsaved-changes-store";
 import type { DatasetCase, DatasetCaseContent, ToolOrderMode } from "@/types/datasets";
@@ -108,15 +109,14 @@ type Slot =
 const GROUPS: { group: string; slots: Slot[] }[] = [
   {
     group: "question",
-    slots: [{ field: "input", rows: 3 }, "history"],
+    slots: [{ field: "input", rows: 4 }],
   },
   {
     group: "answers",
-    slots: [
-      { field: "reference_answer", rows: 3 },
-      { field: "counter_example", rows: 3 },
-    ],
+    slots: [{ field: "reference_answer", rows: 3 }],
   },
+  { group: "history", slots: ["history"] },
+  { group: "counter", slots: [{ field: "counter_example", rows: 3 }] },
   { group: "tools", slots: ["expected_tool_calls", "order_mode"] },
   { group: "checks", slots: ["checks"] },
   { group: "labels", slots: ["tags", { field: "note", rows: 2 }] },
@@ -155,10 +155,7 @@ function CaseGroup({
   const t = useTranslations("datasets");
   if (group === "question" || group === "answers")
     return (
-      <section
-        data-tour={`case-group-${group}`}
-        className="min-w-0 space-y-4 rounded-xl border p-4"
-      >
+      <section data-tour={`case-group-${group}`} className="min-w-0 space-y-4 pb-5">
         {children}
       </section>
     );
@@ -166,12 +163,16 @@ function CaseGroup({
     <details
       data-tour={`case-group-${group}`}
       open={expanded || undefined}
-      className="min-w-0 rounded-xl border lg:col-span-2"
+      className="group min-w-0 border-t"
     >
-      <summary className="cursor-pointer px-4 py-3 text-sm font-medium">
+      <summary className="text-muted-foreground hover:text-foreground flex cursor-pointer list-none items-center gap-2 py-3 text-sm font-medium [&::-webkit-details-marker]:hidden">
+        <ChevronRight
+          aria-hidden
+          className="size-4 shrink-0 transition-transform group-open:rotate-90"
+        />
         {t(`caseSection.${group}`)}
       </summary>
-      <div className="space-y-4 border-t p-4">{children}</div>
+      <div className="space-y-4 pb-4">{children}</div>
     </details>
   );
 }
@@ -353,7 +354,9 @@ export function CaseEditorDialog({
   }
   return (
     <Dialog open={open} onOpenChange={close}>
-      <DialogContent className={cn(DIALOG_CANVAS, DIALOG_FILL)}>
+      <DialogContent
+        className={cn(DIALOG_FORM, DIALOG_COLUMN, "max-sm:h-[var(--dialog-available-height)]")}
+      >
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>
@@ -365,10 +368,9 @@ export function CaseEditorDialog({
                   : t("caseSavesVersionN", { number: nextVersion }))}
           </DialogDescription>
         </DialogHeader>
-        <div className={cn(DIALOG_BODY, "grid content-start items-start gap-4 lg:grid-cols-2")}>
+        <div className={DIALOG_BODY}>
           {editing && json !== null && (
             <FormField
-              className="lg:col-span-2"
               htmlFor="case-json"
               label={t("caseJson")}
               description={t("caseJsonHint")}
@@ -392,16 +394,21 @@ export function CaseEditorDialog({
                 key={group}
                 group={group}
                 expanded={
-                  group === "tools"
-                    ? draft.expected_tool_calls.length > 0 ||
-                      errors.expected_tool_calls !== undefined
-                    : group === "checks"
-                      ? draft.checks.length > 0 || errors.checks !== undefined
-                      : group === "labels"
-                        ? draft.tags.length > 0 ||
-                          draft.note.length > 0 ||
-                          errors.tags !== undefined
-                        : false
+                  group === "history"
+                    ? draft.history.length > 0 || errors.history !== undefined
+                    : group === "counter"
+                      ? draft.counter_example.length > 0 || errors.counter_example !== undefined
+                      : group === "tools"
+                        ? draft.expected_tool_calls.length > 0 ||
+                          errors.expected_tool_calls !== undefined
+                        : group === "checks"
+                          ? draft.checks.length > 0 || errors.checks !== undefined
+                          : group === "labels"
+                            ? draft.tags.length > 0 ||
+                              draft.note.length > 0 ||
+                              errors.tags !== undefined ||
+                              errors.note !== undefined
+                            : false
                 }
               >
                 {slots.map((slot) => {
@@ -513,9 +520,15 @@ export function CaseEditorDialog({
                 })}
               </CaseGroup>
             ))}
-          {editing && json === null && scoring !== undefined && (
-            <CaseGradedBy scoring={scoring} draft={draft} />
-          )}
+          {editing &&
+            json === null &&
+            scoring !== undefined &&
+            draft.input.trim() !== "" &&
+            expectsSomething(draft) && (
+              <div className="mt-4">
+                <CaseGradedBy scoring={scoring} draft={draft} />
+              </div>
+            )}
           {twin !== null && (
             <CaseTwinNotice
               twin={twin.found}

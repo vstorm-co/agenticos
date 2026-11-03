@@ -262,14 +262,16 @@ export interface CreationFlow {
  * a case has to expect something before the button that enforces it.
  */
 function caseEditorSteps(): FlowStep[] {
-  return ["question", "answers", "tools", "checks", "labels"].map((group) => ({
-    id: `flow-dataset-case-${group}`,
-    page: DATASET_DETAIL,
-    target: `case-group-${group}`,
-    permission: Perm.datasetsEdit,
-    inOverlay: true,
-    blockSubmit: "case-save",
-  }));
+  return ["question", "answers", "history", "counter", "tools", "checks", "labels"].map(
+    (group) => ({
+      id: `flow-dataset-case-${group}`,
+      page: DATASET_DETAIL,
+      target: `case-group-${group}`,
+      permission: Perm.datasetsEdit,
+      inOverlay: true,
+      blockSubmit: "case-save",
+    }),
+  );
 }
 
 /**

@@ -205,7 +205,7 @@ describe("the dataset page", () => {
     });
     await mount();
     await userEvent.click(screen.getAllByRole("button", { name: "Add case" }).at(-1)!);
-    await userEvent.type(screen.getByLabelText(/^Input/), "how long is the return window?");
+    await userEvent.type(screen.getByLabelText(/^User message/), "how long is the return window?");
     await userEvent.type(screen.getByLabelText("Reference answer"), "30 days");
     await userEvent.click(screen.getByRole("button", { name: "Save case" }));
 

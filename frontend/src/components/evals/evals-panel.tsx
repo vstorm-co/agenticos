@@ -71,6 +71,7 @@ export function EvalsPanel({ agentId, canStart }: { agentId: string; canStart: b
         ) : runs.length === 0 ? (
           anyDataset.datasets.length === 0 ? (
             <EmptyState
+              className="flex-1 border-0 bg-transparent"
               icon={FlaskConical}
               title={t("empty.noDatasetTitle")}
               description={t("empty.noDatasetBody")}
@@ -78,6 +79,7 @@ export function EvalsPanel({ agentId, canStart }: { agentId: string; canStart: b
             />
           ) : (
             <EmptyState
+              className="flex-1 border-0 bg-transparent"
               icon={FlaskConical}
               title={t("empty.title")}
               description={t("empty.body")}

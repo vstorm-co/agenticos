@@ -5197,12 +5197,12 @@
         "body": "Wählen Sie Fall hinzufügen. Ein Fall ist eine Frage und die Beschreibung einer guten Antwort darauf."
       },
       "flow-dataset-case-question": {
-        "title": "Was der Agent gefragt wird",
-        "body": "Die Eingabe ist die Nachricht, auf die der Agent antwortet. Fügen Sie das Gespräch davor nur hinzu, wenn die Frage von früheren Zügen abhängt. Dann wählen Sie Weiter."
+        "title": "Was der Agent beantworten soll",
+        "body": "Schreiben Sie die Nachricht so, wie ein Nutzer sie formulieren würde."
       },
       "flow-dataset-case-answers": {
-        "title": "Eine gute Antwort und eine schlechte",
-        "body": "Die Referenzantwort sagt, was eine gute Antwort enthält; ein Bewerter vergleicht die Antwort des Agents damit. Das Gegenbeispiel ist eine Antwort, die bekanntermaßen falsch ist - oft die negativ bewertete. Meist genügt eines von beiden."
+        "title": "Was eine richtige Antwort enthält",
+        "body": "Geben Sie eine Referenzantwort oder die wichtigsten Fakten an. Alternativ können Sie erwartete Tools oder Prüfregeln festlegen."
       },
       "flow-dataset-case-tools": {
         "title": "Die Tools, die er aufrufen soll",
@@ -5436,6 +5436,14 @@
       "chat-local-coding": {
         "title": "Programmieragent",
         "body": "Wählen Sie Claude Code oder Codex auf diesem Computer für diese Unterhaltung, auch wenn der Agent keine Coding-agent-Fähigkeit hat. Bestehende Freigabe- und Nur-Lesen-Regeln gelten weiterhin. Jede Aufgabe erfordert eine native Bestätigung."
+      },
+      "flow-dataset-case-history": {
+        "title": "Gesprächskontext",
+        "body": "Öffnen Sie diesen Abschnitt, wenn die Nachricht auf einem früheren Gespräch beruht. Fügen Sie die Nachrichten in zeitlicher Reihenfolge hinzu."
+      },
+      "flow-dataset-case-counter": {
+        "title": "Eine Antwort, die zu vermeiden ist",
+        "body": "Öffnen Sie diesen Abschnitt für eine bekannte falsche Antwort, etwa eine negativ bewertete Antwort aus einem Gespräch."
       }
     },
     "chooseLanguage": "Sprache",
@@ -13069,7 +13077,7 @@
     "alsoAddAsCounterExample": "Die Antwort wird als Gegenbeispiel gespeichert: eine Antwort, die der Agent nicht geben soll.",
     "addAfterRatingFailed": "Die Bewertung wurde gespeichert, aber die Antwort wurde keinem Dataset hinzugefügt: {reason}",
     "field": {
-      "input": "Eingabe",
+      "input": "Nutzernachricht",
       "reference_answer": "Referenzantwort",
       "counter_example": "Gegenbeispiel",
       "note": "Notiz",
@@ -13221,7 +13229,7 @@
     "argValue": "Aufruf {number}, Argument {arg}: Wert",
     "removeArg": "Argument {arg} von Aufruf {number} entfernen",
     "addArg": "Argument hinzufügen",
-    "caseSavesVersionN": "Speichern erzeugt Version v{number}. Die Version davor behält diesen Fall, wie er war.",
+    "caseSavesVersionN": "Beim Speichern entsteht Dataset-Version v{number}.",
     "caseJson": "Der Fall als JSON",
     "caseJsonHint": "Dieselben Felder, die ein Import oder Export enthält. Zurück zum Formular, um zu prüfen, dass er richtig gelesen wird.",
     "caseJsonInvalid": "Dies ist kein gültiges Fall-JSON. Prüfe Feldnamen und Werttypen.",
@@ -13300,19 +13308,22 @@
     "caseSection": {
       "tools": "Erwartete Werkzeugaufrufe",
       "checks": "Zusätzliche Prüfungen",
-      "labels": "Tags und Notizen"
+      "labels": "Tags und Notizen",
+      "history": "Gesprächskontext",
+      "counter": "Gegenbeispiel"
     },
     "optionalField": "Optional",
     "historyMessagePlaceholder": "Die frühere Nachricht im ursprünglichen Wortlaut…",
     "placeholder": {
-      "input": "Wann erhalte ich meine Rückerstattung?",
-      "reference_answer": "Die Rückerstattung erreicht deine Karte innerhalb von 5 Werktagen.",
-      "counter_example": "Rückerstattungen dauern immer 30 Tage.",
+      "input": "Z. B. Wann erhalte ich meine Rückerstattung?",
+      "reference_answer": "Z. B. Die Rückerstattung erreicht deine Karte innerhalb von 5 Werktagen.",
+      "counter_example": "Z. B. Rückerstattungen dauern immer 30 Tage.",
       "note": "Zum Beispiel: verhindert die Angabe der alten Rückerstattungsfrist."
     },
     "tagsPlaceholder": "Rückerstattung, Zahlung",
     "argumentName": "Argumentname",
-    "argumentValue": "Erwarteter Wert"
+    "argumentValue": "Erwarteter Wert",
+    "generatedEmpty": "Noch keine generierten Testfälle"
   },
   "knowledgeGaps": {
     "tab": "Wissenslücken",

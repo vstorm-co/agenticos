@@ -29,8 +29,22 @@ test("case editing keeps fields and save reachable on narrow and short screens",
     .getByRole("button", { name: "Add case", exact: true })
     .click();
   dialog = page.getByRole("dialog");
-  await dialog.getByRole("textbox", { name: /^Input/ }).fill(question);
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  const initialBounds = await dialog.boundingBox();
+  if (!initialBounds) throw new Error("The case form has no bounds");
+  expect(initialBounds.width).toBeLessThanOrEqual(700);
+  expect(initialBounds.height).toBeLessThan(900);
+  await expect(
+    dialog.getByRole("textbox", { name: "Reference answer", exact: true }),
+  ).toBeVisible();
+  await expect(dialog.getByRole("textbox", { name: "Counter-example", exact: true })).toBeHidden();
+  await page.screenshot({
+    path: info.outputPath("compact-case-desktop.png"),
+    animations: "disabled",
+  });
+  await dialog.getByRole("textbox", { name: /^User message/ }).fill(question);
   await dialog.getByRole("textbox", { name: "Reference answer", exact: true }).fill(longAnswer);
+  await dialog.locator("summary").filter({ hasText: "Conversation context" }).click();
   await dialog.getByRole("button", { name: "Add a turn", exact: true }).click();
   await dialog
     .getByRole("textbox", { name: "Turn 1: what was said", exact: true })
@@ -62,14 +76,17 @@ test("case editing keeps fields and save reachable on narrow and short screens",
           return bounds ? bounds.y + bounds.height : Infinity;
         })
         .toBeLessThanOrEqual(height + 1);
-      await expect
-        .poll(async () => (await dialog.boundingBox())?.height ?? 0)
-        .toBeGreaterThanOrEqual(height - 50);
+      if (width < 640) {
+        await expect
+          .poll(async () => (await dialog.boundingBox())?.height ?? 0)
+          .toBeGreaterThanOrEqual(height - 50);
+      }
       await fitsPage(page);
       const bounds = await dialog.boundingBox();
       expect(bounds).not.toBeNull();
       if (!bounds) throw new Error("The case editor has no visible bounds");
-      expect(bounds.height).toBeGreaterThanOrEqual(height - 50);
+      if (width < 640) expect(bounds.height).toBeGreaterThanOrEqual(height - 50);
+      else expect(bounds.width).toBeLessThanOrEqual(700);
       expect(bounds.y + bounds.height).toBeLessThanOrEqual(height + 1);
       const speaker = await dialog
         .getByRole("combobox", { name: "Turn 1: who speaks", exact: true })

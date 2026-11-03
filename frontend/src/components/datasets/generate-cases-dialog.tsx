@@ -125,9 +125,7 @@ export function GenerateCasesDialog({
           <DialogDescription>{t("generateCasesBody")}</DialogDescription>
         </DialogHeader>
         <div className={cn(DIALOG_BODY, "space-y-4")}>
-          <p className="text-muted-foreground bg-muted/30 rounded-lg border p-3 text-sm">
-            {t("helpers.generationUsesSettings")}
-          </p>
+          <p className="text-muted-foreground text-sm">{t("helpers.generationUsesSettings")}</p>
           <FormField
             htmlFor="generate-agent"
             label={t("agent")}

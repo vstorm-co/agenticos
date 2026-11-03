@@ -241,6 +241,8 @@ describe("create-dataset", () => {
     expect(groups.map((step) => step.target)).toEqual([
       "case-group-question",
       "case-group-answers",
+      "case-group-history",
+      "case-group-counter",
       "case-group-tools",
       "case-group-checks",
       "case-group-labels",

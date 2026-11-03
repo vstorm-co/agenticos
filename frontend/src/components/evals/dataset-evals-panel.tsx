@@ -139,6 +139,7 @@ function Groups({
     return (
       <div className="flex flex-1 flex-col justify-center gap-3">
         <EmptyState
+          className="border-0 bg-transparent"
           icon={FlaskConical}
           title={t("dataset.emptyTitle")}
           description={t("dataset.emptyBody")}

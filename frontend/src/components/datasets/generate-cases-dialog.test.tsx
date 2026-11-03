@@ -7,6 +7,7 @@ import { Perm } from "@/types/permissions";
 import { UnsavedChangesGuard } from "@/components/layout/unsaved-changes-guard";
 import { useUnsavedChangesStore } from "@/stores/unsaved-changes-store";
 import { GenerateCasesDialog } from "./generate-cases-dialog";
+import { GeneratePanel } from "./generate-panel";
 
 const { estimate, start, granted } = vi.hoisted(() => ({
   estimate: { mutateAsync: vi.fn(), isPending: false },
@@ -15,6 +16,18 @@ const { estimate, start, granted } = vi.hoisted(() => ({
 }));
 vi.mock("@/hooks/use-case-generation", () => ({
   useGenerateCases: () => ({ estimate, start }),
+  useCaseGenerations: () => ({ generations: [] }),
+  useCaseProposals: () => ({
+    proposals: [],
+    total: 0,
+    hidden: 0,
+    isLoading: false,
+    error: null,
+    isDeciding: false,
+    refetch: vi.fn(),
+    accept: { mutate: vi.fn(), mutateAsync: vi.fn() },
+    dismiss: { mutate: vi.fn() },
+  }),
 }));
 vi.mock("@/hooks/use-agents", () => ({
   useAgents: () => ({ agents: [{ id: "a1", name: "Support clerk" }] }),
@@ -67,6 +80,26 @@ beforeEach(() => {
 });
 
 describe("GenerateCasesDialog", () => {
+  it("starts from the empty queue and returns there after the confirmed generation", async () => {
+    estimate.mutateAsync.mockResolvedValue(ESTIMATE);
+    start.mutateAsync.mockResolvedValue({ id: "g1" });
+    render(<GeneratePanel datasetId="d1" />);
+    expect(screen.getByText("No generated cases yet")).toBeVisible();
+    await userEvent.click(screen.getByRole("button", { name: "Generate cases" }));
+    await chooseAgent();
+    await userEvent.click(screen.getByRole("button", { name: "Estimate cost" }));
+    await screen.findByText("20 cases, estimated $0.12");
+    expect(start.mutateAsync).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByRole("button", { name: "Generate" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(start.mutateAsync).toHaveBeenCalledWith({
+      agent_id: "a1",
+      sources: ["agent", "red_team"],
+      count: 20,
+    });
+    expect(screen.getByRole("button", { name: "Generate cases" })).toBeVisible();
+  });
+
   it("estimates first, then starts exactly what was estimated", async () => {
     estimate.mutateAsync.mockResolvedValue(ESTIMATE);
     start.mutateAsync.mockResolvedValue({ id: "g1" });
