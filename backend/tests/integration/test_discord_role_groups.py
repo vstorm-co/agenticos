@@ -718,6 +718,41 @@ class TestMappings:
             with pytest.raises(AlreadyExistsError):
                 await service.create(self._ctx(org, owner), bot.id, self._create(finance))
 
+    @pytest.mark.parametrize("parent", ["group", "bot"])
+    async def test_a_mapping_whose_parent_is_deleted_meanwhile_is_not_found(
+        self, db, engine, discord, parent
+    ):
+        """It waits on the delete's lock and then fails its foreign key, which
+        is not the duplicate the constraint error otherwise means."""
+        org, owner = await _org(db)
+        bot = await _bot(db, org)
+        finance = await _group(db, org)
+        await db.commit()
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+
+        async def create() -> None:
+            async with factory() as session:
+                await DiscordRoleMappingService(session).create(
+                    self._ctx(org, owner), bot.id, self._create(finance)
+                )
+
+        # The bot's connection has nothing behind it to close here.
+        with patch("app.services.channel_bot.close_inbound_stream", AsyncMock()):
+            async with factory() as deleting:
+                if parent == "group":
+                    await GroupService(deleting).delete(self._ctx(org, owner), finance.id)
+                else:
+                    await ChannelBotService(deleting, organization_id=org.id).delete(
+                        bot.id, self._ctx(org, owner)
+                    )
+                creating = asyncio.create_task(create())
+                done, _ = await asyncio.wait({creating}, timeout=0.2)
+                assert not done
+                await deleting.commit()
+                async with asyncio.timeout(15):
+                    with pytest.raises(NotFoundError):
+                        await creating
+
     @pytest.mark.parametrize(
         ("overrides", "field"),
         [

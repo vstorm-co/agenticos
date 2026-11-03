@@ -135,6 +135,7 @@ class DiscordRoleMappingService:
                 of its own, or the bot cannot see that server or role.
             ExternalServiceError: Discord could not be asked.
             AlreadyExistsError: The role is already mapped for this bot.
+            NotFoundError: The bot or the group was deleted while this ran.
         """
         bot = await self._bot(ctx, bot_id)
         self._may_assign(ctx, data.role, removing=False)
@@ -181,6 +182,19 @@ class DiscordRoleMappingService:
                     created_by_user_id=ctx.user_id,
                 )
         except IntegrityError as exc:
+            # The insert also fails when the bot or the group was deleted while
+            # it waited on the lock that delete holds; that is not a duplicate.
+            await self._bot(ctx, bot_id)
+            if (
+                await group_repo.get(
+                    self.db, organization_id=ctx.organization_id, group_id=data.group_id
+                )
+                is None
+            ):
+                raise NotFoundError(
+                    message="The group was deleted while the mapping was being made",
+                    details={"group_id": data.group_id},
+                ) from exc
             raise AlreadyExistsError(
                 message="That Discord role is already mapped for this bot",
                 details={"guild_id": data.guild_id, "discord_role_id": data.discord_role_id},
