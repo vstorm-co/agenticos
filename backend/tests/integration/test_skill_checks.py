@@ -29,7 +29,13 @@ from app.db.models.agent import Agent
 from app.db.models.agent_environment import AgentEnvironment
 from app.db.models.eval_run import EvalRun, EvalRunStatus
 from app.db.models.skill import Skill
-from app.db.models.skill_check import AgentState, CheckOutcome, CheckStatus, CheckVerdict
+from app.db.models.skill_check import (
+    AgentState,
+    CheckOutcome,
+    CheckSource,
+    CheckStatus,
+    CheckVerdict,
+)
 from app.repositories import dataset_repo, eval_run_repo, skill_check_repo, skill_proposal_repo
 from app.schemas.resource_usage import ProposalDecision
 from app.schemas.skill_check import (
@@ -826,3 +832,30 @@ class TestTestSet:
         assert (await service.test_set(ctx, skill.id)).id == created.id
         with pytest.raises(AlreadyExistsError):
             await service.create_test_set(ctx, skill.id, SkillTestSetStart())
+
+
+class TestASessionsCheckStops:
+    async def test_the_session_stops_its_check_and_every_run_it_started(self, db, monkeypatch):
+        lab = await _lab(db)
+        FakeEvals().install(monkeypatch)
+        service = SkillCheckService(db)
+        read = await service.start(lab.ctx, lab.skill.id, _start(), source=CheckSource.SESSION)
+        check = await skill_check_repo.get(db, read.id, organization_id=lab.ctx.organization_id)
+        assert check is not None
+        runs = [
+            run_id
+            for row in await skill_check_repo.list_agents(
+                db, [check.id], organization_id=lab.ctx.organization_id
+            )
+            for run_id in (row.skill_set_run_id, row.dataset_run_id)
+            if run_id is not None
+        ]
+
+        await service.stop_for_session(check)
+
+        assert runs and check.status == "cancelled"
+        for run_id in runs:
+            run = await db.get(EvalRun, run_id)
+            assert run is not None
+            await db.refresh(run)
+            assert run.status == "cancelled"

@@ -80,6 +80,11 @@ def production() -> Handlers:
             Handler(jobs.RUN_AUTHORING, authoring_tasks.run_authoring),
             Handler(jobs.ADVANCE_IMPROVEMENT, improvement_tasks.advance_improvement),
             Handler(jobs.SWEEP_IMPROVEMENTS, _each_tick(improvement_tasks.sweep_improvements)),
+            Handler(jobs.ADVANCE_SKILL_IMPROVEMENT, improvement_tasks.advance_skill_improvement),
+            Handler(
+                jobs.SWEEP_SKILL_IMPROVEMENTS,
+                _each_tick(improvement_tasks.sweep_skill_improvements),
+            ),
             Handler(jobs.ADVANCE_SKILL_CHECK, skill_check_tasks.advance_skill_check),
             Handler(jobs.SWEEP_SKILL_CHECKS, _each_tick(skill_check_tasks.sweep_skill_checks)),
             Handler(jobs.CLASSIFY_GAPS, knowledge_gap_tasks.classify_knowledge_gaps),

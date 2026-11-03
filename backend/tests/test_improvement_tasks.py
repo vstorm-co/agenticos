@@ -124,3 +124,27 @@ async def test_the_recovery_tick_returns_the_count_after_committing() -> None:
     ):
         assert await improvement_tasks.sweep_improvements() == 3
     assert events == ["commit"]
+
+
+async def test_a_skill_session_step_and_its_sweep_run_in_one_worker_transaction() -> None:
+    from app.worker.jobs import AdvanceSkillImprovement
+
+    job = AdvanceSkillImprovement(run_id=uuid4(), organization_id=uuid4())
+    events: list[str] = []
+    service = MagicMock(advance=AsyncMock(), sweep=AsyncMock(return_value=3))
+
+    @asynccontextmanager
+    async def session() -> AsyncGenerator[MagicMock]:
+        events.append("begin")
+        yield MagicMock()
+        events.append("commit")
+
+    with (
+        patch.object(improvement_tasks, "get_worker_db_context", session),
+        patch("app.services.skill_improvement.SkillImprovementService", return_value=service),
+    ):
+        await improvement_tasks.advance_skill_improvement(job)
+        swept = await improvement_tasks.sweep_skill_improvements()
+
+    service.advance.assert_awaited_once_with(job.run_id, job.organization_id)
+    assert swept == 3 and events == ["begin", "commit", "begin", "commit"]
