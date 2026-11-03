@@ -5427,6 +5427,10 @@
       "skill-improvement-test-set": {
         "title": "Eigene Fragen des Skills",
         "body": "Agents ohne Testfragen sind unbekannt. Die eigenen Fragen des Skills, aus Antworten geschrieben, in denen er geladen wurde, lassen sie beim nächsten Mal prüfen."
+      },
+      "improvement-skill-handoffs": {
+        "title": "Gehört zu einem Skill",
+        "body": "Probleme, die der Helfer in einem Skill des Agents gefunden hat. Ein Skill wird geteilt, deshalb wird er für sich verbessert und an jedem Agent geprüft, der ihn liest."
       }
     },
     "chooseLanguage": "Sprache",
@@ -8416,7 +8420,8 @@
       "cancel": "Prüfung anhalten",
       "inSession": "Diese Prüfung gehört zu einer Verbesserungssitzung und wird dort entschieden.",
       "openSession": "Sitzung öffnen"
-    }
+    },
+    "savedMainVersion": "Als neue Main-Version gespeichert. Agents auf main lesen sie ab ihrem nächsten Run; festgesetzte Agents und Forks behalten ihre."
   },
   "states": {
     "loading": "Wird geladen"
@@ -15015,7 +15020,21 @@
     "freshAttempt": "Jeder Versuch beginnt bei der aktuellen Version; Änderungen aus früheren Versuchen werden nicht übernommen.",
     "trainSignals": "Fehlgeschlagene Testantworten",
     "tryAgainNothingToLearn": "Der letzte Versuch hat jede Frage behoben, aus der er lernt, daher hat ein weiterer Versuch nichts mehr zu lernen. Übernehmen Sie ihn oder beenden Sie die Sitzung.",
-    "tryAgainUnmeasurable": "Ein weiterer Versuch hätte zu wenige Fragen zum Messen: {count, plural, one {# weitere ist} other {# weitere sind}} nötig, und die Fragen dieser Sitzung stehen fest. Beenden Sie sie, fügen Sie Fragen hinzu und starten Sie eine neue."
+    "tryAgainUnmeasurable": "Ein weiterer Versuch hätte zu wenige Fragen zum Messen: {count, plural, one {# weitere ist} other {# weitere sind}} nötig, und die Fragen dieser Sitzung stehen fest. Beenden Sie sie, fügen Sie Fragen hinzu und starten Sie eine neue.",
+    "skills": {
+      "title": "Gehört zu einem Skill",
+      "intro": "Andere Agents nutzen den Skill auch, deshalb wird er hier nicht geändert. Verbessern Sie den Skill selbst: Die Änderung wird an jedem Agent geprüft, der ihn liest.",
+      "mainLine": "Main · {count, plural, =1 {1 Agent} other {# Agents}}",
+      "forkLine": "Fork „{fork}“ · {count, plural, =1 {1 Agent} other {# Agents}}",
+      "hidden": "{count, plural, =1 {1 weiterer Agent, den Sie nicht sehen, nutzt diesen Skill.} other {# weitere Agents, die Sie nicht sehen, nutzen diesen Skill.}}",
+      "improve": "{name} verbessern",
+      "improveFork": "{name} verbessern, Fork „{fork}“",
+      "askEditor": "Bitten Sie jemanden, der {name} bearbeiten darf, ihn zu verbessern.",
+      "behind": "Dieser Agent liegt {count, plural, =1 {1 Version} other {# Versionen}} hinter Main.",
+      "updatePinned": "Auf v{version} aktualisieren",
+      "catchUp": "Fork auf Main bringen"
+    },
+    "usedSkill": "Hat Skill {name} genutzt"
   },
   "unsaved": {
     "title": "Du hast ungespeicherte Änderungen",

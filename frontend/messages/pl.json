@@ -5317,6 +5317,10 @@
       "skill-improvement-test-set": {
         "title": "Własne pytania skilla",
         "body": "Agenci bez pytań testowych wychodzą jako nie wiadomo. Własne pytania skilla, zapisane z odpowiedzi, w których był wczytany, pozwolą ich sprawdzić następnym razem."
+      },
+      "improvement-skill-handoffs": {
+        "title": "Należy do skilla",
+        "body": "Problemy, które pomocnik znalazł w jednym ze skilli agenta. Skill jest współdzielony, więc poprawia się go osobno i sprawdza na każdym agencie, który go czyta."
       }
     },
     "chooseLanguage": "Język",
@@ -8298,7 +8302,8 @@
       "cancel": "Zatrzymaj sprawdzenie",
       "inSession": "To sprawdzenie należy do sesji poprawiania, więc decyzja zapada w niej.",
       "openSession": "Otwórz sesję"
-    }
+    },
+    "savedMainVersion": "Zapisano jako nową wersję main. Agenci na main czytają ją od następnego uruchomienia; przypięci agenci i forki zostają przy swoich."
   },
   "states": {
     "loading": "Wczytywanie"
@@ -15117,7 +15122,21 @@
     "freshAttempt": "Każda próba zaczyna od bieżącej wersji; zmiany z wcześniejszych prób nie są przenoszone.",
     "trainSignals": "Nieudane odpowiedzi testowe",
     "tryAgainNothingToLearn": "Ostatnia próba naprawiła każde pytanie, z którego się uczy, więc kolejna próba nie ma się z czego uczyć. Zaakceptuj ją albo zakończ sesję.",
-    "tryAgainUnmeasurable": "Kolejna próba miałaby za mało pytań do zmierzenia: potrzeba jeszcze {count, plural, one {# pytania} few {# pytań} many {# pytań} other {# pytania}}, a pytania tej sesji są ustalone. Zakończ ją, dodaj pytania i zacznij nową."
+    "tryAgainUnmeasurable": "Kolejna próba miałaby za mało pytań do zmierzenia: potrzeba jeszcze {count, plural, one {# pytania} few {# pytań} many {# pytań} other {# pytania}}, a pytania tej sesji są ustalone. Zakończ ją, dodaj pytania i zacznij nową.",
+    "skills": {
+      "title": "Należy do skilla",
+      "intro": "Skilla używają też inni agenci, więc tu go nie zmieniamy. Popraw sam skill: zmiana zostanie sprawdzona na każdym agencie, który go czyta.",
+      "mainLine": "Main · {count, plural, one {1 agent} few {# agenty} many {# agentów} other {# agenta}}",
+      "forkLine": "Fork „{fork}” · {count, plural, one {1 agent} few {# agenty} many {# agentów} other {# agenta}}",
+      "hidden": "{count, plural, one {Tego skilla używa jeszcze 1 agent, którego nie widzisz.} few {Tego skilla używa jeszcze # agentów, których nie widzisz.} many {Tego skilla używa jeszcze # agentów, których nie widzisz.} other {Tego skilla używa jeszcze # agenta, których nie widzisz.}}",
+      "improve": "Popraw {name}",
+      "improveFork": "Popraw {name}, fork „{fork}”",
+      "askEditor": "Poproś osobę, która może edytować {name}, o poprawienie go.",
+      "behind": "Ten agent jest {count, plural, one {1 wersję} few {# wersje} many {# wersji} other {# wersji}} za main.",
+      "updatePinned": "Zaktualizuj do v{version}",
+      "catchUp": "Dogoń main w forku"
+    },
+    "usedSkill": "Użył skilla {name}"
   },
   "unsaved": {
     "title": "Masz niezapisane zmiany",

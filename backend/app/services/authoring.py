@@ -349,6 +349,44 @@ class AuthoringService:
         pack = await self.evidence.for_context(ctx, file.id, window_days=body.window_days)
         return await self._estimate(ctx, improver, pack, None if pack.runs else "no_evidence")
 
+    async def estimate_pack(self, ctx: AuthContext, pack: EvidencePack) -> AuthoringEstimate:
+        """What the improver would cost to read this pack, for a caller with its own evidence."""
+        self._require_runs_view(ctx)
+        improver = await self._improver(ctx)
+        return await self._estimate(ctx, improver, pack, None if pack.runs else "no_evidence")
+
+    async def start_for_skill_session(
+        self,
+        ctx: AuthContext,
+        *,
+        kind: AuthoringKind,
+        skill_id: UUID,
+        session_id: UUID,
+        estimate_usd: Decimal,
+        window_days: int,
+    ) -> AuthoringRequest:
+        """Queue a skill session's analysis or proposal, priced and consented to by the session."""
+        request = await authoring_repo.create_request(
+            self.db,
+            organization_id=ctx.organization_id,
+            kind=kind.value,
+            target=AuthoringTarget.SKILL.value,
+            agent_id=None,
+            skill_id=skill_id,
+            created_by_user_id=ctx.user_id,
+            created_by_api_key_id=ctx.api_key_id,
+            estimate_usd=estimate_usd,
+            window_days=window_days,
+            skill_improvement_run_id=session_id,
+        )
+        await enqueue(
+            self.db,
+            RUN_AUTHORING,
+            RunAuthoring(request_id=request.id, organization_id=ctx.organization_id),
+            organization_id=ctx.organization_id,
+        )
+        return request
+
     async def _estimate(
         self, ctx: AuthContext, improver: Agent, pack: EvidencePack, reason: str | None
     ) -> AuthoringEstimate:
@@ -542,7 +580,7 @@ class AuthoringService:
         )
         return AuthoringRequestRead.model_validate(request)
 
-    async def _settled(self, request: AuthoringRequest) -> AuthoringRequest:
+    async def settled(self, request: AuthoringRequest) -> AuthoringRequest:
         """The request, marked failed when the worker stopped without saying so."""
         if request.status not in (AuthoringStatus.QUEUED.value, AuthoringStatus.RUNNING.value):
             return request
@@ -637,7 +675,7 @@ class AuthoringService:
         """The newest requests on one skill, for its page."""
         skill = await self.skills.get(ctx, skill_id)
         return [
-            AuthoringRequestRead.model_validate(await self._settled(request))
+            AuthoringRequestRead.model_validate(await self.settled(request))
             for request in await authoring_repo.list_requests(
                 self.db, organization_id=ctx.organization_id, skill_id=skill.id
             )
@@ -647,7 +685,7 @@ class AuthoringService:
         """The newest requests on one context file, for its page."""
         file = await self.contexts.get(ctx, context_id)
         return [
-            AuthoringRequestRead.model_validate(await self._settled(request))
+            AuthoringRequestRead.model_validate(await self.settled(request))
             for request in await authoring_repo.list_requests(
                 self.db, organization_id=ctx.organization_id, context_id=file.id
             )
@@ -669,7 +707,7 @@ class AuthoringService:
         requests = [
             request
             for request in [
-                await self._settled(request)
+                await self.settled(request)
                 for request in await authoring_repo.list_requests(
                     self.db, organization_id=ctx.organization_id, agent_id=agent.id
                 )
@@ -768,7 +806,7 @@ class AuthoringService:
             )
         return BatchRead(
             id=batch.id,
-            agent_id=batch.agent_id,
+            agent_id=agent.id,
             status=batch.status,
             expected_effect=batch.expected_effect,
             request_id=batch.request_id,

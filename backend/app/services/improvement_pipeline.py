@@ -76,6 +76,8 @@ from app.repositories import (
     knowledge_base_repo,
     knowledge_gap_repo,
     organization_repo,
+    skill_repo,
+    skill_usage_repo,
     user_repo,
 )
 from app.repositories import (
@@ -102,6 +104,7 @@ from app.schemas.improvement import (
     ContinuationConsent,
     ContinuationEstimate,
     EvidenceGrade,
+    EvidenceSkill,
     ImprovementAwaiting,
     ImprovementContinue,
     ImprovementDiscard,
@@ -114,6 +117,7 @@ from app.schemas.improvement import (
     ImprovementIterationRead,
     ImprovementRead,
     ImprovementSelection,
+    ImprovementSkills,
     ImprovementStart,
     ImprovementTarget,
     KnowledgeAdded,
@@ -129,6 +133,7 @@ from app.schemas.improvement import (
 from app.schemas.scoring import DatasetScoring
 from app.services import authoring_fields, authoring_hunks, change_feed
 from app.services import improvement_states as rules
+from app.services.access import SKILL, accessible_ids
 from app.services.agent_registry import AgentRegistryService
 from app.services.ai_assistance import AiAssistanceService
 from app.services.api_key import job_context
@@ -147,6 +152,7 @@ from app.services.improvement_data import (
     input_hash,
     split_seed,
 )
+from app.services.improvement_skills import ImprovementSkillService, SkillSeed
 from app.services.knowledge_gaps import KnowledgeGapService, draft_fingerprint
 from app.services.notifications import NotificationService
 from app.worker.jobs import (
@@ -742,6 +748,7 @@ class ImprovementPipelineService:
         covering = await knowledge_gap_repo.covering_documents(
             self.db, list(set(topics.values())), organization_id=ctx.organization_id
         )
+        skills_of = await self._skills_of_runs(ctx, agent.id, [item.run_id for item in pack.runs])
         items: list[ImprovementEvidenceItem] = []
         for item in pack.runs:
             cause = causes.get(messages[item.run_id]) if item.run_id in messages else None
@@ -791,6 +798,7 @@ class ImprovementPipelineService:
                     and cause.branch == "missing_knowledge"
                     and added.document.knowledge_base_id is not None
                     else None,
+                    skills=skills_of.get(item.run_id, []),
                 )
             )
         return ImprovementEvidence(
@@ -829,6 +837,61 @@ class ImprovementPipelineService:
     async def read(self, ctx: AuthContext, agent_id: UUID, run_id: UUID) -> ImprovementRead:
         await self.registry.get(ctx, agent_id)
         return await self._read(ctx, await self._row(ctx, agent_id, run_id))
+
+    async def skills(self, ctx: AuthContext, agent_id: UUID, run_id: UUID) -> ImprovementSkills:
+        """The agent's skills, with what this session found in each and its line's state.
+
+        Raises:
+            AuthorizationError: The caller may not read runs, which the problems quote.
+        """
+        agent = await self.registry.get(ctx, agent_id)
+        self._require_runs(ctx)
+        run = await self._row(ctx, agent_id, run_id)
+        return await ImprovementSkillService(self.db).read(ctx, agent, run.id)
+
+    async def skill_seed(self, ctx: AuthContext, run_id: UUID, skill_id: UUID) -> SkillSeed:
+        """What a skill's Improve starts from when this session hands the skill over.
+
+        Raises:
+            NotFoundError: No such session, or not on an agent the caller may see.
+            AuthorizationError: The caller may not read runs.
+            BadRequestError: The session found no problem in that skill.
+        """
+        self._require_runs(ctx)
+        row = await improvement_repo.get_run(self.db, run_id, organization_id=ctx.organization_id)
+        if row is None:
+            raise NotFoundError(message="Improvement session not found")
+        agent = await self.registry.get(ctx, row.agent_id)
+        return await ImprovementSkillService(self.db).seed(ctx, agent, row.id, skill_id)
+
+    async def _skills_of_runs(
+        self, ctx: AuthContext, agent_id: UUID, run_ids: list[UUID]
+    ) -> dict[UUID, list[EvidenceSkill]]:
+        """The skills the agent itself used in each run, named where the caller may see them."""
+        used = await skill_usage_repo.skills_in_runs(
+            self.db, organization_id=ctx.organization_id, agent_id=agent_id, run_ids=run_ids
+        )
+        named = await skill_repo.get_many(self.db, list(used), organization_id=ctx.organization_id)
+        visible = await accessible_ids(
+            self.db, ctx, list(named.values()), Perm.SKILLS_VIEW, resource_type=SKILL
+        )
+        found: dict[UUID, list[EvidenceSkill]] = {}
+        for skill in sorted(named.values(), key=lambda skill: skill.name):
+            if skill.id not in visible:
+                continue
+            for run_id in used[skill.id]:
+                found.setdefault(run_id, []).append(
+                    EvidenceSkill(skill_id=skill.id, name=skill.name)
+                )
+        return found
+
+    @staticmethod
+    def _require_runs(ctx: AuthContext) -> None:
+        if not ctx.has(Perm.RUNS_VIEW):
+            raise AuthorizationError(
+                message="Reading what an improvement found needs runs:view",
+                details={"permission": Perm.RUNS_VIEW.value},
+            )
 
     async def awaiting(
         self, ctx: AuthContext, *, open_sessions: bool = False

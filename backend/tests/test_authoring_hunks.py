@@ -444,3 +444,48 @@ def test_an_accepted_draft_fingerprints_as_its_measured_candidate():
     ]
     assert spec_hash(*hunks.as_measured(draft, [*others, accepted])) == candidate
     assert hunks.as_measured(draft, others) == (draft, {})
+
+
+_SKILL_TEXT = (
+    "When a customer asks to return an item, ask for the order number first. Explain that "
+    "returns are accepted for ninety days from delivery, that the item must be unused, and "
+    "that the refund reaches the original payment method within five working days."
+)
+
+
+def test_text_repeating_a_long_stretch_of_a_skill_copies_it_however_it_is_cased():
+    assert hunks.copies(f"Always:\n{_SKILL_TEXT.upper()}", _SKILL_TEXT)
+    assert not hunks.copies(_SKILL_TEXT[: hunks.COPY_SPAN - 1], _SKILL_TEXT)
+
+
+def test_a_stretch_the_instructions_already_hold_is_not_a_copy():
+    assert not hunks.copies(f"{_SKILL_TEXT} Be brief.", _SKILL_TEXT, already=_SKILL_TEXT)
+
+
+def test_the_improver_reads_each_skill_by_its_line_and_only_used_bodies():
+    import uuid
+
+    from app.db.models.skill import Skill
+    from app.services.authoring_worker import _skills_section
+
+    main, pinned, forked = (
+        Skill(id=uuid.uuid4(), name=name, description=name, content=f"Body of {name}")
+        for name in ("returns", "shipping", "billing")
+    )
+    spec = AgentSpec.model_validate(
+        {
+            "name": "Clerk",
+            "skill_ids": [str(main.id), str(pinned.id), str(forked.id)],
+            "skill_bindings": [
+                {"skill_id": str(pinned.id), "version": 3},
+                {"skill_id": str(forked.id), "fork_id": str(uuid.uuid4())},
+            ],
+        }
+    )
+
+    section = _skills_section(spec, [main, pinned, forked], {main.id})
+
+    assert "- returns (main)" in section and "- shipping (pinned to v3)" in section
+    assert "- billing (a fork)" in section
+    assert "Body of returns" in section and "Body of shipping" not in section
+    assert _skills_section(spec, [], set()) == ""

@@ -9,10 +9,13 @@ runner itself, on every way a run ends, by skill id.
 `agent_runs.skill_uses_recorded` is added false - every existing run is "usage
 unknown" - and only then given its default of true, so the boundary is this
 deployment's own upgrade rather than a date somebody guessed. Both steps change
-the catalogue only; neither rewrites the table.
+the catalogue only; neither rewrites the table. It is nullable: the runner
+inserts a run null, "not written yet", and a run stays false once any of its
+segments could not be written.
 
-The backfill copies what the transcripts prove: `load_capability` and
-`read_skill_resource` calls, and the `load_skill` calls made before skills became
+The backfill copies what the transcripts prove: completed `load_capability` and
+`read_skill_resource` calls - one that failed, waits for approval or was
+rejected never opened the skill - and the `load_skill` calls made before skills became
 deferred capabilities, whose argument was the name under either of two keys. A
 name is matched to the skill of that name in the run's organization that already
 existed when the run started, so a name taken again later is not credited to the
@@ -48,7 +51,7 @@ def upgrade() -> None:
     op.add_column(
         "agent_runs",
         sa.Column(
-            "skill_uses_recorded", sa.Boolean(), nullable=False, server_default=sa.text("false")
+            "skill_uses_recorded", sa.Boolean(), nullable=True, server_default=sa.text("false")
         ),
     )
     op.alter_column("agent_runs", "skill_uses_recorded", server_default=sa.text("true"))
@@ -126,6 +129,7 @@ def upgrade() -> None:
                 ELSE c.args->>'skill_name'
              END
         WHERE c.tool_name IN ('load_capability', 'load_skill', 'read_skill_resource')
+          AND c.status = 'completed'
         GROUP BY r.organization_id, r.id, r.agent_id, s.id
         """
     )

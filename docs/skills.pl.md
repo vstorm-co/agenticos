@@ -1,5 +1,5 @@
 ---
-source_sha: "bcb4edd305ed"
+source_sha: "a4909f791e35"
 ---
 
 # Skille { #skills }
@@ -357,7 +357,9 @@ wystartował.
 - Pliki forka to pliki wersji, z której powstał. Pliki edytuje się tylko na main.
 - **Archive** sprawia, że fork nie przyjmuje nowych wersji. Zachowuje swoje wersje
   i nigdy nie jest usuwany. Fork, którego żaden run nie czytał od 30 dni, jest
-  proponowany do archiwizacji; nic nie archiwizuje się samo.
+  proponowany do archiwizacji; nic nie archiwizuje się samo. Starsza wersja agenta,
+  która wciąż czyta zarchiwizowany fork, nie zostanie promowana do środowiska:
+  przesuń agenta na inną wersję i promuj wersję, która się opublikuje.
 
 ### Którą wersję czyta agent { #which-version-an-agent-reads }
 
@@ -382,18 +384,23 @@ suite'y evali, zmiana wymienia środowiska, w których wchodzi, a właściciele
 dostają powiadomienie. Przypięty agent nie dostaje żadnej z nich.
 
 **Agenci skilla** to ci, którzy go uruchamiają: wiąże go wersja serwowana przez
-jedno z ich środowisk. Strona skilla pokazuje każdego z nich z wersją, którą
-czyta, liczbą wersji main, o które jest w tyle, i środowiskami, które czytają go
-inaczej. Agent, który wiąże skill tylko w wersji roboczej, jest oznaczony osobno.
-Agentów, których nie widzisz, strona tylko liczy.
+jedno z ich środowisk, sam agent albo jego specjalista inline. Agent i każdy z jego
+specjalistów czytają skill po swojemu, więc każdy jest osobnym wierszem: strona
+skilla pokazuje go z wersją, którą czyta, liczbą wersji main, o które jest w tyle, i
+środowiskami, które czytają go inaczej. Agent, który wiąże skill tylko w wersji
+roboczej, jest oznaczony osobno. Agentów, których nie widzisz, strona tylko liczy.
 
 **Change version** przesuwa jednego agenta na main, wersję main albo fork, i jest to
-zmiana agenta. Z prawem publikacji opublikowany spec, w którym zmienia się tylko to
-wiązanie, wchodzi jako następna wersja agenta, a środowiska przesuwają się według
-zwykłych reguł follow i promocji. Wersja robocza dostaje tę samą zmianę i zachowuje
-pozostałe niedokończone edycje, które nie wchodzą. Z samym prawem edycji agenta
-zmiana czeka w wersji roboczej. Builder otwarty już na tym agencie nie widzi zmiany
-do odświeżenia, a zapis przed odświeżeniem przywraca stare wiązanie.
+zmiana agenta. To, czy agent używa skilla sam, wynika z jego wersji roboczej, tak
+jak pokazuje ją Builder; skill, który wiąże tylko jeden z jego specjalistów, zmienia
+się w Builderze. Z prawem publikacji najnowszy opublikowany spec agenta, w którym
+zmienia się tylko to wiązanie, wchodzi jako jego następna wersja, a środowiska
+przesuwają się według zwykłych reguł follow i promocji. Wersja robocza dostaje tę
+samą zmianę i zachowuje pozostałe niedokończone edycje, które nie wchodzą. Z samym
+prawem edycji agenta, dla agenta nigdy nieopublikowanego albo takiego, którego
+opublikowana wersja jeszcze nie wiąże skilla, zmiana czeka w wersji roboczej i
+sprawdzane jest tylko nowe wiązanie. Builder otwarty już na tym agencie nie widzi
+zmiany do odświeżenia, a zapis przed odświeżeniem przywraca stare wiązanie.
 
 ### Usuwanie skilla { #deleting-a-skill }
 

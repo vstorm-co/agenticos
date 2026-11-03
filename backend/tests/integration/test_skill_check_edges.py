@@ -3,6 +3,7 @@ person may not run or see, a run that has not settled, a line that gained an
 agent, a pin nobody may publish, and the skill's questions taken from evidence."""
 
 import uuid
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from types import SimpleNamespace
@@ -19,7 +20,7 @@ from app.core.exceptions import (
     ConcurrentChangeError,
     NotFoundError,
 )
-from app.core.permissions import Perm
+from app.core.permissions import OrgRoleName, Perm
 from app.db.models.agent_run import AgentRun
 from app.db.models.background_job import BackgroundJob
 from app.db.models.eval_run import (
@@ -30,10 +31,12 @@ from app.db.models.eval_run import (
     EvalRunCase,
     EvalRunStatus,
 )
+from app.db.models.organization import OrganizationMember
 from app.db.models.skill_check import (
     AgentState,
     CheckSource,
     CheckStatus,
+    CheckVerdict,
     SkillCheck,
     SkillCheckAgent,
 )
@@ -56,6 +59,8 @@ from app.schemas.skill_usage import SkillUseRecord
 from app.schemas.skill_version import SkillVersionCreate
 from app.services import skill_check as skill_check_module
 from app.services.dataset import DatasetService
+from app.services.notifications import NotificationService
+from app.services.skill_agents import SkillAgentService
 from app.services.skill_check import SkillCheckService
 from app.services.skill_proposal import SkillProposalService
 from app.services.skill_versions import SkillVersionService
@@ -219,6 +224,58 @@ class TestWhatCannotBeChecked:
         FakeEvals(agent_left=Decimal("0.01")).install(monkeypatch)
         with pytest.raises(BadRequestError, match="No agent"):
             await service.start(lab.ctx, lab.skill.id, _start())
+
+    async def test_an_agent_and_its_specialist_on_one_line_are_one_agent_to_check(
+        self, db, monkeypatch
+    ):
+        """An agent's eval answers through the agent and its specialists at once, so two
+        readers of one line in one agent are checked, judged and decided as one."""
+        lab = await _lab(db)
+        evals = FakeEvals()
+        evals.install(monkeypatch)
+        real = SkillAgentService.line_agents
+
+        async def per_reader(self, skill, fork_id):
+            found = await real(self, skill, fork_id)
+            twice = [user for user in found if user.agent.id == lab.a.id]
+            specialist = [replace(user, via_specialist="reader") for user in twice]
+            return [*specialist, *found]
+
+        monkeypatch.setattr(SkillAgentService, "line_agents", per_reader)
+        service = SkillCheckService(db)
+
+        check = await service.start(lab.ctx, lab.skill.id, _start())
+
+        assert [row.agent.name for row in check.agents].count("A") == 1
+        a = next(row for row in check.agents if row.agent.name == "A")
+        assert a.via_specialist is None
+        evals.outcomes = {lab.a.id: Outcome(fixed=1)}
+        read = await _run_to_end(service, evals, lab, check.id)
+        assert read.verdict is CheckVerdict.PASSED
+        await service.apply(lab.ctx, lab.skill.id, check.id, SkillCheckApply())
+
+    async def test_an_agent_only_a_specialist_of_reads_the_skill_through_is_checked_once(
+        self, db, monkeypatch
+    ):
+        lab = await _lab(db)
+        FakeEvals().install(monkeypatch)
+        real = SkillAgentService.line_agents
+
+        async def specialists_only(self, skill, fork_id):
+            found = await real(self, skill, fork_id)
+            return [
+                replace(user, via_specialist=name)
+                for user in found
+                for name in ("reader", "writer")
+            ]
+
+        monkeypatch.setattr(SkillAgentService, "line_agents", specialists_only)
+
+        estimate = await SkillCheckService(db).estimate(lab.ctx, lab.skill.id, _start())
+
+        names = [row.agent.name for row in estimate.agents]
+        assert sorted(names) == ["A", "B", "C"]
+        assert {row.via_specialist for row in estimate.agents} == {"reader"}
 
     async def test_only_the_agents_named_are_checked(self, db, monkeypatch):
         lab = await _lab(db)
@@ -412,6 +469,30 @@ class TestRunning:
 
         assert listed.total == 2
         assert {item.id for item in listed.items} == {first.id, second.id}
+
+
+def _record(into: list[object]):
+    async def record(_self, run):
+        into.append(run)
+
+    return record
+
+
+async def _live_runs(db: AsyncSession, check_id: uuid.UUID) -> list[str]:
+    """The statuses of a check's eval runs that are still going, read from the table."""
+    rows = await db.execute(
+        select(EvalRun.status)
+        .join(
+            SkillCheckAgent,
+            (SkillCheckAgent.skill_set_run_id == EvalRun.id)
+            | (SkillCheckAgent.dataset_run_id == EvalRun.id),
+        )
+        .where(
+            SkillCheckAgent.check_id == check_id,
+            EvalRun.status.in_([EvalRunStatus.QUEUED.value, EvalRunStatus.RUNNING.value]),
+        )
+    )
+    return list(rows.scalars())
 
 
 def _without(get, gone: uuid.UUID):
@@ -673,11 +754,43 @@ class TestWhatTheCheckMeasuredIsWhatShips:
         with pytest.raises(ConcurrentChangeError, match="decided elsewhere"):
             await service.fork(lab.ctx, lab.skill.id, check.id, SkillCheckFork(name="x"))
 
+    async def test_a_stale_check_whose_starter_lost_sight_of_the_runs_still_ends(
+        self, db, monkeypatch
+    ):
+        """Ending a stale check is the platform stopping its own runs; a starter who may
+        no longer read them cannot keep the check running."""
+        lab = await _lab(db)
+        FakeEvals().install(monkeypatch)
+        finished: list[object] = []
+        monkeypatch.setattr(NotificationService, "eval_run_finished", _record(finished))
+        service = SkillCheckService(db)
+        check = await service.start(lab.ctx, lab.skill.id, _start())
+        row = await skill_check_repo.get(db, check.id, organization_id=lab.ctx.organization_id)
+        assert row is not None
+        row.created_at = row.created_at - timedelta(days=2)
+        member = await db.scalar(
+            select(OrganizationMember).where(
+                OrganizationMember.organization_id == lab.ctx.organization_id,
+                OrganizationMember.user_id == lab.ctx.user_id,
+            )
+        )
+        assert member is not None
+        member.role = OrgRoleName.VIEWER.value
+        await db.flush()
+
+        await service.advance(check.id, lab.ctx.organization_id)
+
+        read = await service.read(lab.ctx, lab.skill.id, check.id)
+        assert read.status is CheckStatus.DONE
+        assert await _live_runs(db, check.id) == []
+        assert len(finished) == 3
+
     async def test_a_check_running_for_a_day_is_ended_when_it_is_next_advanced(
         self, db, monkeypatch
     ):
         lab = await _lab(db)
-        FakeEvals(refuse_start={lab.c.id}).install(monkeypatch)
+        evals = FakeEvals(refuse_start={lab.c.id})
+        evals.install(monkeypatch)
         service = SkillCheckService(db)
         check = await service.start(lab.ctx, lab.skill.id, _start())
         row = await skill_check_repo.get(db, check.id, organization_id=lab.ctx.organization_id)
@@ -691,6 +804,7 @@ class TestWhatTheCheckMeasuredIsWhatShips:
         assert read.status is CheckStatus.DONE
         reasons = {item.agent.name: item.unknown_reason for item in read.agents}
         assert reasons == {"A": "failed", "B": "failed", "C": "failed"}
+        assert await _live_runs(db, check.id) == []
 
     async def test_a_file_replaced_on_main_keeps_its_description_as_it_would_ship(
         self, db, monkeypatch

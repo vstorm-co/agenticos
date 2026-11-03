@@ -21,15 +21,6 @@ export type AgentStatus = "draft" | "published" | "archived";
 export type ApprovalMode = "default" | "required" | "never";
 
 /**
- * What one tool is called and how it is described *for this agent*.
- *
- * Both are prompt, not labelling: the description is what the model reads
- * before deciding whether to call the tool, and the name steers it just as
- * hard - `search_refund_policy` gets chosen for questions `search_documents`
- * would be passed over for. An absent key means the value the capability
- * declared in code.
- */
-/**
  * A bound skill that does not read its main line's newest version: a main version
  * it stays on (`version`), or a fork it follows (`fork_id`). Exactly one is set.
  */
@@ -39,6 +30,15 @@ export interface SkillBindingSpec {
   fork_id?: string | null;
 }
 
+/**
+ * What one tool is called and how it is described *for this agent*.
+ *
+ * Both are prompt, not labelling: the description is what the model reads
+ * before deciding whether to call the tool, and the name steers it just as
+ * hard - `search_refund_policy` gets chosen for questions `search_documents`
+ * would be passed over for. An absent key means the value the capability
+ * declared in code.
+ */
 export interface ToolOverride {
   name?: string;
   description?: string;

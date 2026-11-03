@@ -10,6 +10,7 @@ import {
   useImprovements,
   useImprovementsAwaiting,
   useImprovementEvidence,
+  useImprovementSkills,
 } from "./use-improvements";
 vi.mock("@/lib/api-client", () => ({ apiClient: { get: vi.fn(), post: vi.fn(), put: vi.fn() } }));
 let client: QueryClient;
@@ -229,4 +230,11 @@ it("reaches a skill's session under the skill, and refreshes the skill after a s
     hunk_ids: ["h1"],
   });
   expect(invalidation).toHaveBeenCalledWith({ queryKey: ["skills"] });
+});
+
+it("reads what a session found in the agent's skills", async () => {
+  vi.mocked(apiClient.get).mockResolvedValue({ items: [] });
+  const { result } = renderHook(() => useImprovementSkills("a1", "s1"), { wrapper });
+  await waitFor(() => expect(result.current.skills).toEqual({ items: [] }));
+  expect(apiClient.get).toHaveBeenCalledWith("/agents/a1/improvements/s1/skills");
 });

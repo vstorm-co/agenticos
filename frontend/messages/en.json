@@ -5549,6 +5549,10 @@
       "skill-improvement-test-set": {
         "title": "Questions of the skill's own",
         "body": "Agents without test questions come out unknown. The skill's own questions, written from answers where it was loaded, let them be checked next time."
+      },
+      "improvement-skill-handoffs": {
+        "title": "Belongs to a skill",
+        "body": "Problems the helper found in one of the agent's skills. A skill is shared, so it is improved on its own, and checked on every agent that reads it."
       }
     },
     "chooseLanguage": "Language",
@@ -8538,7 +8542,8 @@
       "cancel": "Stop the check",
       "inSession": "This check belongs to an improvement session, so it is decided there.",
       "openSession": "Open the session"
-    }
+    },
+    "savedMainVersion": "Saved as a new main version. Agents on main read it from their next run; pinned agents and forks keep theirs."
   },
   "states": {
     "loading": "Loading"
@@ -15343,7 +15348,21 @@
     "freshAttempt": "Each attempt starts from the current version; changes from earlier attempts aren't carried over.",
     "trainSignals": "Test answers failing",
     "tryAgainNothingToLearn": "The last attempt fixed every question it learns from, so another attempt has nothing to learn from. Accept it or end the session.",
-    "tryAgainUnmeasurable": "Another attempt would have too few questions to measure: {count, plural, one {# more is} other {# more are}} needed, and this session's questions are fixed. End it, add questions and start a new one."
+    "tryAgainUnmeasurable": "Another attempt would have too few questions to measure: {count, plural, one {# more is} other {# more are}} needed, and this session's questions are fixed. End it, add questions and start a new one.",
+    "skills": {
+      "title": "Belongs to a skill",
+      "intro": "A skill is shared by other agents, so these are not changed here. Improve the skill itself, where the change is checked on every agent that reads it.",
+      "mainLine": "Main · {count, plural, =1 {1 agent} other {# agents}}",
+      "forkLine": "Fork \"{fork}\" · {count, plural, =1 {1 agent} other {# agents}}",
+      "hidden": "{count, plural, =1 {1 more agent you cannot see uses this skill.} other {# more agents you cannot see use this skill.}}",
+      "improve": "Improve {name}",
+      "improveFork": "Improve {name}, fork \"{fork}\"",
+      "askEditor": "Ask someone who can edit {name} to improve it.",
+      "behind": "This agent is {count, plural, =1 {1 version} other {# versions}} behind main.",
+      "updatePinned": "Update to v{version}",
+      "catchUp": "Catch up the fork"
+    },
+    "usedSkill": "Used skill {name}"
   },
   "unsaved": {
     "title": "You have unsaved changes",

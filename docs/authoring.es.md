@@ -1,5 +1,5 @@
 ---
-source_sha: "b9fd4129c2f5"
+source_sha: "6094acc78aa9"
 title: "Asistente de autoría"
 description: "El asistente de autoría lee lo que la gente valoró negativamente y cómo acabaron los runs, y sugiere cambios a las instrucciones, las herramientas, la configuración, los skills y los archivos de contexto de un agent. Una persona decide cada uno."
 ---
@@ -522,6 +522,14 @@ El asistente puede proponer **Worth creating a skill** cuando un procedimiento r
 Un procedimiento que procede de menos de tres respuestas distintas no se propone como sugerencia. Espera en **To review**, en el grupo New skills, con su texto completo. **Dismiss** lo pasa a **Decided** y Deshacer lo devuelve. **Create skill** abre una vista previa: el nombre, la descripción y el contenido se pueden editar, y un aviso indica en cuántas respuestas se basa. **Create skill** en la vista previa crea el skill en la biblioteca y lo vincula al borrador del agente, nunca a una versión publicada. Requiere los mismos permisos que Accept y no llama a ningún modelo. Un segundo clic devuelve el skill ya creado.
 
 La estimación reserva el contenido completo propuesto para cada respuesta candidata y sus repeticiones de confirmación, además del precio histórico por respuesta.
+
+### Cuando el fallo está en un skill { #when-the-fault-is-in-a-skill }
+
+Otros agentes pueden leer el mismo skill, así que el Improve del agente nunca cambia uno. El asistente lee los skills del agente: el nombre, la descripción y la versión de cada uno, y el texto completo de los que usaron las evidencias. Cuando los runs muestran que un skill es incorrecto, el asistente informa del problema para ese skill. No copia el texto del skill en las instrucciones del agente.
+
+Se rechaza un cambio que repite un pasaje de 200 caracteres de un skill vinculado, y también un skill nuevo con el nombre o el texto de un skill vinculado. Un problema informado solo se conserva si nombra un skill del agente y cita un run que lo usó.
+
+El paso Changes muestra estos problemas en **Belongs to a skill**. Cada tarjeta muestra los problemas con sus citas y cuántos agentes leen la misma línea del skill. **Improve X** abre el Improve del propio skill, con los problemas de esta sesión como evidencia inicial. Si el agente sigue un fork, ese Improve trabaja sobre el fork; los problemas de un agente fijado van a main. Sin permiso de edición sobre el skill, la tarjeta indica a quién pedírselo. Cuando el agente va por detrás de main, una tarjeta **Update to vN** o **Catch up the fork** abre la página del skill.
 
 ### Comprobar un borrador de conocimiento { #checking-a-knowledge-draft }
 

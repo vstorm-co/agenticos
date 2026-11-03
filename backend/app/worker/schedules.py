@@ -84,6 +84,7 @@ SCHEDULES: tuple[Schedule, ...] = (
     # Schedule, start and settle the eval suites.
     Schedule("check-eval-suites", jobs.CHECK_EVAL_SUITES, _MINUTE),
     Schedule("sweep-improvements", jobs.SWEEP_IMPROVEMENTS, _MINUTE),
+    Schedule("sweep-skill-improvements", jobs.SWEEP_SKILL_IMPROVEMENTS, _MINUTE),
     # Carry a skill check on when a stage's eval run settled without waking it.
     Schedule("sweep-skill-checks", jobs.SWEEP_SKILL_CHECKS, _MINUTE),
     # Fail the eval runs whose worker went silent, freeing the eval slots they hold.

@@ -6,11 +6,13 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
+from app.agents.capabilities._registry import REGISTRY, load_builtins
 from app.db.models.skill import Skill
 from app.schemas.skill_usage import SkillUseRecord
 
 if TYPE_CHECKING:
     from app.agents.capabilities.skills._capability import SkillBody
+    from app.agents.spec import CapabilityBindingSpec
 
 SKILL_USE_LOG_RESOURCE = "skill_use_log"
 
@@ -55,11 +57,14 @@ class SkillUseLog:
     Attributes:
         agent_id: The agent the uses are attributed to.
         served: The agent's skills by the name the model calls them.
+        tools: The agent's tools by the name the model calls them, to their stable
+            ids - what a binding's rename leaves alone. Empty reads every name as its id.
         tallies: What has been used so far, shared by every view.
     """
 
     agent_id: UUID
     served: Mapping[str, ServedSkill]
+    tools: Mapping[str, str] = field(default_factory=dict)
     tallies: dict[tuple[UUID, UUID], _Tally] = field(default_factory=dict)
     _paths: dict[str, re.Pattern[str]] = field(init=False, repr=False)
 
@@ -73,23 +78,35 @@ class SkillUseLog:
             for name in self.served
         }
 
-    def for_agent(self, agent_id: UUID | None, served: Mapping[str, ServedSkill]) -> SkillUseLog:
+    def for_agent(
+        self,
+        agent_id: UUID | None,
+        served: Mapping[str, ServedSkill],
+        tools: Mapping[str, str],
+    ) -> SkillUseLog:
         """A view for a delegate; one with no agent of its own uses skills as this one."""
-        return SkillUseLog(agent_id=agent_id or self.agent_id, served=served, tallies=self.tallies)
+        return SkillUseLog(
+            agent_id=agent_id or self.agent_id, served=served, tools=tools, tallies=self.tallies
+        )
 
     def observe(self, tool_name: str, args: Mapping[str, Any]) -> None:
-        """Count one finished tool call against the skills it used, if any."""
+        """Count one finished tool call against the skills it used, if any.
+
+        `load_capability` is the framework's own and is never renamed; the other
+        two are compared by stable id, so a binding that renames them is still read.
+        """
         if tool_name == LOAD_TOOL:
             name = args.get("id")
             if isinstance(name, str) and name in self.served:
                 self._tally(name).loaded = True
             return
-        if tool_name == RESOURCE_TOOL:
+        tool_id = self.tools.get(tool_name, tool_name)
+        if tool_id == RESOURCE_TOOL:
             name = args.get("skill_name")
             if isinstance(name, str) and name in self.served:
                 self._tally(name).resource_reads += 1
             return
-        if tool_name == LISTING_TOOL or not self._paths:
+        if tool_id == LISTING_TOOL or not self._paths:
             return
         texts = [part for text in _strings(args.values()) for part in _unlisted(text)]
         for name, path in self._paths.items():
@@ -118,16 +135,33 @@ class SkillUseLog:
         return self.tallies.setdefault((self.agent_id, served.skill_id), _Tally(served))
 
 
+def tool_identities(bindings: Iterable[CapabilityBindingSpec]) -> dict[str, str]:
+    """Each bound capability's tools by the name the model calls them, to their stable ids."""
+    load_builtins()
+    return {
+        tool.name: tool.id
+        for binding in bindings
+        if (definition := REGISTRY.get(binding.id)) is not None
+        for tool in definition.effective_tools(binding.tool_overrides)
+    }
+
+
 def served_skills(
     skills: Iterable[Skill], bodies: Mapping[UUID, SkillBody]
 ) -> dict[str, ServedSkill]:
-    """The run's stored skills by name, each marked where an eval serves another body.
+    """The run's stored skills by name, each with the version it serves.
+
+    A skill an eval serves another body for is marked and has no version.
 
     A skill a proposal would create exists only for the run, with no row to
     attribute a use to, so it is left out.
     """
     return {
-        skill.name: ServedSkill(skill_id=skill.id, projected=skill.id in bodies)
+        skill.name: ServedSkill(
+            skill_id=skill.id,
+            projected=skill.id in bodies,
+            version_id=None if skill.id in bodies else skill.latest_version_id,
+        )
         for skill in skills
         if (body := bodies.get(skill.id)) is None or body.name is None
     }

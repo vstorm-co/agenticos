@@ -16,6 +16,7 @@ import type {
   KnowledgeCheckEstimate,
   KnowledgeCheckTarget,
   Improvement,
+  ImprovementSkills,
   ImprovementAwaiting,
   ImprovementEstimate,
   ImprovementEvidence,
@@ -247,6 +248,16 @@ export function useImprovement(subject: ImprovementSubject, runId: string) {
     estimateAttribution,
     attribute,
   };
+}
+
+/** The agent's skills as the session found them: problems to hand over, versions to move. */
+export function useImprovementSkills(agentId: string, sessionId: string) {
+  const query = useQuery({
+    queryKey: qk.improvements.skills(agentId, sessionId),
+    queryFn: () =>
+      apiClient.get<ImprovementSkills>(`/agents/${agentId}/improvements/${sessionId}/skills`),
+  });
+  return { skills: query.data, error: query.error };
 }
 
 export function useImprovementEvidence(
