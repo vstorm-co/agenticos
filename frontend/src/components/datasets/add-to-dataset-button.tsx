@@ -6,11 +6,14 @@ import { useTranslations } from "next-intl";
 
 import { Button } from "@/components/ui";
 import { AddToDatasetDialog } from "./add-to-dataset-dialog";
+import type { AskedBefore } from "./follows-on";
 import { useCanAddToDataset } from "./use-dataset-target";
 
 interface AddToDatasetButtonProps {
   messageId: string;
   ratedDown: boolean;
+  asked?: AskedBefore;
+  answer?: string;
 }
 
 /**
@@ -21,20 +24,20 @@ interface AddToDatasetButtonProps {
  *
  * Not rendered for somebody with no dataset to add to - by role, or by a grant.
  */
-export function AddToDatasetButton({ messageId, ratedDown }: AddToDatasetButtonProps) {
+export function AddToDatasetButton({
+  messageId,
+  ratedDown,
+  asked,
+  answer,
+}: AddToDatasetButtonProps) {
   const t = useTranslations("datasets");
   const canAdd = useCanAddToDataset();
   const [open, setOpen] = useState(false);
   if (!canAdd) return null;
   return (
     <>
-      <Button
-        variant="ghost"
-        size="sm"
-        onClick={() => setOpen(true)}
-        className="h-7 gap-1.5 px-2 text-xs"
-      >
-        <FlaskConical className="h-3.5 w-3.5" aria-hidden />
+      <Button variant="outline" size="sm" onClick={() => setOpen(true)} className="gap-2">
+        <FlaskConical className="h-4 w-4" aria-hidden />
         {t("addToDataset")}
       </Button>
       {open && (
@@ -45,6 +48,8 @@ export function AddToDatasetButton({ messageId, ratedDown }: AddToDatasetButtonP
           answerAs={ratedDown ? "counter_example" : "reference_answer"}
           askAnswerAs
           ratedDown={ratedDown}
+          asked={asked}
+          answer={answer}
         />
       )}
     </>

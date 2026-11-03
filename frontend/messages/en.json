@@ -13650,7 +13650,15 @@
     "generatedEmpty": "No generated cases yet",
     "namePlaceholder": "Refund policy",
     "descriptionPlaceholder": "Questions about refunds, returns, and cancellations.",
-    "moreOptions": "More options"
+    "moreOptions": "More options",
+    "referencePurpose": "A good answer to compare future responses against.",
+    "counterPurpose": "An incorrect answer the agent should avoid repeating.",
+    "loadingDatasets": "Loading datasets…",
+    "chooseDataset": "Choose a dataset",
+    "noMatchingDatasets": "No datasets match your search.",
+    "viewSourceMessages": "View source messages",
+    "sourceUserMessage": "User message",
+    "sourceAgentAnswer": "Agent answer"
   },
   "knowledgeGaps": {
     "tab": "Knowledge gaps",

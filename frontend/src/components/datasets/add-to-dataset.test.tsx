@@ -12,6 +12,10 @@ const state = vi.hoisted(() => ({
   isLoading: false,
   total: 0,
   lastQuery: undefined as unknown,
+  listingError: null as Error | null,
+  refetch: vi.fn(),
+  sourceLoading: false,
+  sourceError: null as Error | null,
   add: vi.fn(),
   create: vi.fn(),
   asked: null as string | null,
@@ -28,20 +32,29 @@ vi.mock("@/hooks/use-permissions", () => ({
 }));
 vi.mock("@/hooks/use-datasets", () => ({
   // The server's `editable` filter, as the listing applies it.
-  useDatasets: (query: { editable?: boolean }) => {
+  useDatasets: (query: { editable?: boolean; search?: string }) => {
     state.lastQuery = query;
     const rows = query.editable
       ? state.datasets.filter((dataset) => dataset.can_edit)
       : state.datasets;
     return {
-      datasets: rows,
+      datasets: query.search ? rows.filter((item) => item.name.includes(query.search ?? "")) : rows,
       total: state.total || rows.length,
       isLoading: state.isLoading,
+      error: state.listingError,
+      refetch: state.refetch,
       create: { mutateAsync: state.create, isPending: false },
     };
   },
   useAddToDataset: () => ({ mutateAsync: state.add, isPending: false }),
-  useDatasetSource: () => ({ data: state.source, error: null, isLoading: false }),
+  useDatasetSource: () => ({
+    data: state.sourceLoading ? undefined : state.source,
+    error: state.sourceError,
+    isLoading: state.sourceLoading,
+  }),
+}));
+vi.mock("@/components/chat/markdown-content", () => ({
+  MarkdownContent: ({ content }: { content: string }) => <div>{content}</div>,
 }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 import { toast } from "sonner";
@@ -58,6 +71,10 @@ describe("Add to dataset", () => {
       { id: "d3", name: "returns", can_edit: true },
     ];
     state.isLoading = false;
+    state.listingError = null;
+    state.sourceLoading = false;
+    state.sourceError = null;
+    localStorage.clear();
     state.source = { private_to_other: false, owner_name: null };
     state.total = 0;
     state.asked = null;
@@ -133,10 +150,9 @@ describe("Add to dataset", () => {
     expect(screen.getByText("The question comes with the answer.")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("combobox", { name: "Dataset" }));
     await userEvent.click(screen.getByRole("option", { name: "returns" }));
-    await userEvent.click(screen.getByRole("combobox", { name: "Keep the answer as" }));
-    await userEvent.click(screen.getByRole("option", { name: "Counter-example" }));
-    await userEvent.click(screen.getByRole("combobox", { name: "Keep the answer as" }));
-    await userEvent.click(screen.getByRole("option", { name: "Reference answer" }));
+    await userEvent.click(screen.getByRole("radio", { name: /Counter-example/ }));
+    expect(screen.getByRole("radio", { name: /Counter-example/ })).toBeChecked();
+    await userEvent.click(screen.getByRole("radio", { name: /Reference answer/ }));
     await userEvent.click(screen.getByRole("button", { name: "Add" }));
 
     await waitFor(() =>
@@ -154,7 +170,9 @@ describe("Add to dataset", () => {
     render(<AddToDatasetButton messageId="m1" ratedDown />);
     await open();
     await userEvent.click(screen.getByRole("button", { name: "Add" }));
-    await waitFor(() => expect(toast.error).toHaveBeenCalled());
+    await waitFor(() =>
+      expect(screen.getByRole("alert")).toHaveTextContent("Conversation not found"),
+    );
     expect(screen.getByRole("dialog")).toBeInTheDocument();
   });
 
@@ -185,6 +203,111 @@ describe("Add to dataset", () => {
       description: null,
       visibility: "org",
     });
+  });
+
+  it("keeps the newly created dataset when adding fails, and reuses it on retry", async () => {
+    state.datasets = [];
+    state.create.mockResolvedValue({ id: "new", name: "Answers from Activity" });
+    state.add.mockRejectedValueOnce(new Error("Add refused")).mockResolvedValueOnce({});
+    render(<AddToDatasetButton messageId="m1" ratedDown={false} />);
+    await open();
+    await userEvent.click(screen.getByRole("button", { name: "Add" }));
+    await screen.findByRole("alert");
+    expect(screen.getByRole("combobox", { name: "Dataset" })).toHaveTextContent(
+      "Answers from Activity",
+    );
+    state.datasets = [
+      { id: "other", name: "Other", can_edit: true },
+      { id: "new", name: "Answers from Activity", can_edit: true },
+    ];
+    await userEvent.click(screen.getByRole("radio", { name: /Counter-example/ }));
+    await userEvent.click(screen.getByRole("button", { name: "Add" }));
+    await waitFor(() => expect(state.add).toHaveBeenCalledTimes(2));
+    expect(state.create).toHaveBeenCalledTimes(1);
+    expect(state.add.mock.calls[1]?.[0]).toEqual(expect.objectContaining({ datasetId: "new" }));
+  });
+
+  it("never creates a dataset or silently changes destination for an unmatched search", async () => {
+    state.total = 250;
+    render(<AddToDatasetButton messageId="m1" ratedDown={false} />);
+    await open();
+    await userEvent.type(screen.getByPlaceholderText("Find a dataset"), "unknown");
+    await screen.findByText("No datasets match your search.");
+    expect(screen.queryByRole("textbox", { name: "New dataset" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Add" })).toBeDisabled();
+    expect(state.create).not.toHaveBeenCalled();
+    await userEvent.clear(screen.getByPlaceholderText("Find a dataset"));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Add" })).toBeEnabled());
+  });
+
+  it("requires an explicit destination when searching instead of picking the first match", async () => {
+    state.total = 250;
+    render(<AddToDatasetButton messageId="m1" ratedDown={false} />);
+    await open();
+    await userEvent.type(screen.getByPlaceholderText("Find a dataset"), "ret");
+    await waitFor(() =>
+      expect(state.lastQuery).toEqual(expect.objectContaining({ search: "ret" })),
+    );
+    expect(screen.getByRole("button", { name: "Add" })).toBeDisabled();
+    await userEvent.click(screen.getByRole("combobox", { name: "Dataset" }));
+    await userEvent.click(screen.getByRole("option", { name: "returns" }));
+    expect(screen.getByRole("button", { name: "Add" })).toBeEnabled();
+  });
+
+  it("shows a listing failure, blocks creation and lets the reader retry", async () => {
+    state.datasets = [];
+    state.listingError = new Error("Listing failed");
+    render(<AddToDatasetButton messageId="m1" ratedDown={false} />);
+    await open();
+    expect(screen.getByRole("alert")).toHaveTextContent("Listing failed");
+    expect(screen.getByRole("button", { name: "Add" })).toBeDisabled();
+    expect(screen.queryByRole("textbox", { name: "New dataset" })).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+    expect(state.refetch).toHaveBeenCalled();
+  });
+
+  it("previews the selected source and omits history when the question starts the conversation", async () => {
+    render(
+      <AddToDatasetButton
+        messageId="m1"
+        ratedDown={false}
+        asked={{ question: "Refund?", earlier: false }}
+        answer="Five days."
+      />,
+    );
+    await open();
+    expect(
+      screen.queryByRole("combobox", { name: "The conversation before the question" }),
+    ).toBeNull();
+    await userEvent.click(screen.getByText("View source messages"));
+    expect(screen.getByText("Refund?")).toBeVisible();
+    expect(screen.getByText("Five days.")).toBeVisible();
+  });
+
+  it("does not submit while datasets are loading", async () => {
+    state.datasets = [];
+    state.isLoading = true;
+    render(<AddToDatasetButton messageId="m1" ratedDown />);
+    await open();
+    expect(screen.getByRole("combobox", { name: "Dataset" })).toBeDisabled();
+    expect(screen.getByText("Loading datasets…")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Add" })).toBeDisabled();
+  });
+
+  it("waits for the source privacy check before allowing an add", async () => {
+    state.sourceLoading = true;
+    render(<AddToDatasetButton messageId="m1" ratedDown />);
+    await open();
+    expect(screen.getByText("Checking source privacy…")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Add" })).toBeDisabled();
+  });
+
+  it("shows the source refusal without allowing an add", async () => {
+    state.sourceError = new Error("Source unavailable");
+    render(<AddToDatasetButton messageId="m1" ratedDown />);
+    await open();
+    expect(screen.getByRole("alert")).toHaveTextContent("Source unavailable");
+    expect(screen.getByRole("button", { name: "Add" })).toBeDisabled();
   });
 
   it("closes on Cancel without adding anything", async () => {

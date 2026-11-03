@@ -13423,7 +13423,15 @@
     "generatedEmpty": "Nie ma jeszcze wygenerowanych przypadków",
     "namePlaceholder": "Zasady zwrotów",
     "descriptionPlaceholder": "Pytania dotyczące zwrotów, reklamacji i anulowania zamówień.",
-    "moreOptions": "Więcej opcji"
+    "moreOptions": "Więcej opcji",
+    "referencePurpose": "Dobra odpowiedź, z którą porównamy kolejne odpowiedzi agenta.",
+    "counterPurpose": "Błędna odpowiedź, której agent nie powinien powtarzać.",
+    "loadingDatasets": "Ładowanie datasetów…",
+    "chooseDataset": "Wybierz dataset",
+    "noMatchingDatasets": "Żaden dataset nie pasuje do wyszukiwania.",
+    "viewSourceMessages": "Pokaż wiadomości źródłowe",
+    "sourceUserMessage": "Wiadomość użytkownika",
+    "sourceAgentAnswer": "Odpowiedź agenta"
   },
   "knowledgeGaps": {
     "tab": "Luki w wiedzy",

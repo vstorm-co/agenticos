@@ -1,5 +1,5 @@
 import { expect, test } from "./fixtures";
-import { AUTH_STATE } from "./helpers";
+import { AUTH_STATE, submitDialog } from "./helpers";
 
 test.use({ storageState: AUTH_STATE });
 
@@ -7,10 +7,15 @@ test("pipeline models and instructions belong to the dataset", async ({ page }) 
   await page.goto("/agents");
   await expect(page.getByText("System agents", { exact: true })).toHaveCount(0);
   await page.goto("/datasets");
-  await page.getByRole("button", { name: "New dataset", exact: true }).click();
+  await page.getByRole("button", { name: "New dataset", exact: true }).first().click();
   const dialog = page.getByRole("dialog");
   await dialog.getByRole("textbox", { name: /^Name/ }).fill(`Pipeline settings ${Date.now()}`);
-  await dialog.getByRole("button", { name: "Create", exact: true }).click();
+  await submitDialog(page, {
+    dialog,
+    submit: dialog.getByRole("button", { name: "Create", exact: true }),
+    method: "POST",
+    path: "/api/datasets",
+  });
   await page.waitForURL(/\/datasets\/[^/?]+$/);
   await page.getByRole("tab", { name: "Settings", exact: true }).click();
   const generator = page.locator('[data-tour="datasets-generator-settings"]');

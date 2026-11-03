@@ -54,15 +54,21 @@ export function useDatasetTarget({ enabled = true }: { enabled?: boolean } = {})
     datasets: editable,
     total,
     isLoading,
+    isFetching,
+    error,
+    refetch,
     create,
   } = useDatasets({ search: query, sort: "updated", limit: PICKER_SIZE, editable: true, enabled });
   const [chosen, setChosen] = useState<string | null>(null);
   const preferred = chosen ?? asked ?? rememberedDataset(userId);
   const target: Dataset | undefined =
-    editable.find((dataset) => dataset.id === preferred) ?? editable[0];
+    editable.find((dataset) => dataset.id === preferred) ??
+    (search === "" && query === "" && !isFetching ? editable[0] : undefined);
   return {
     editable,
     isLoading,
+    error,
+    refetch,
     // Offered only once the listing stops short, so a short list stays a plain choice.
     search:
       total > editable.length || search !== "" ? { value: search, onChange: setSearch } : null,

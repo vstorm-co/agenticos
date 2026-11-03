@@ -13322,7 +13322,15 @@
     "generatedEmpty": "Noch keine generierten Testfälle",
     "namePlaceholder": "Rückerstattungsrichtlinie",
     "descriptionPlaceholder": "Fragen zu Rückerstattungen, Retouren und Stornierungen.",
-    "moreOptions": "Weitere Optionen"
+    "moreOptions": "Weitere Optionen",
+    "referencePurpose": "Eine gute Antwort zum Vergleich mit zukünftigen Antworten.",
+    "counterPurpose": "Eine falsche Antwort, die der Agent nicht wiederholen soll.",
+    "loadingDatasets": "Datasets werden geladen…",
+    "chooseDataset": "Dataset auswählen",
+    "noMatchingDatasets": "Keine Datasets entsprechen Ihrer Suche.",
+    "viewSourceMessages": "Quellnachrichten anzeigen",
+    "sourceUserMessage": "Nutzernachricht",
+    "sourceAgentAnswer": "Agentenantwort"
   },
   "knowledgeGaps": {
     "tab": "Wissenslücken",
