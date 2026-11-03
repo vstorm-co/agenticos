@@ -1158,7 +1158,7 @@ class SkillService:
         skill = await self.get(ctx, skill_id, perm=Perm.SKILLS_EDIT)
         # Locked before the in-use check: an agent binding the skill holds it shared
         # (`skill_repo.hold`), so a binding is either seen here or written after it is gone.
-        await skill_repo.lock(self.db, skill.id)
+        await skill_repo.lock_for_delete(self.db, skill.id)
         using = await agents_using_skill(
             self.db, organization_id=ctx.organization_id, skill_id=skill.id
         )

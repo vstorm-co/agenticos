@@ -795,6 +795,30 @@ class TestTheSkillPage:
         )
         assert theirs.can_edit is False
 
+    async def test_an_edit_in_progress_does_not_hold_up_an_agent_binding_the_skill(
+        self, db: AsyncSession, engine: AsyncEngine
+    ):
+        """An edit or a decision locks the skill and then the agents it moves; an agent's
+        save holds the agent and then the skill. The two locks must not wait for each
+        other, or the pair deadlocks."""
+        ctx = await _owner(db)
+        skill = await _skill(db, ctx)
+        agent = await _published(db, ctx, name="Clerk", spec={"name": "Clerk"})
+        await db.commit()
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+        bound = AgentSpec.model_validate({"name": "Clerk", "skill_ids": [str(skill.id)]})
+
+        async with factory() as editing, factory() as binding:
+            try:
+                await skill_repo.lock(editing, skill.id)
+
+                await asyncio.wait_for(
+                    AgentRegistryService(binding).save_draft(ctx, agent.id, bound), timeout=3
+                )
+                await binding.commit()
+            finally:
+                await editing.rollback()
+
     async def test_a_binding_saved_while_a_delete_waits_stops_the_delete(
         self, db: AsyncSession, engine: AsyncEngine
     ):
