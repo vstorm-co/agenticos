@@ -643,3 +643,39 @@ def test_signed_discord_download_queries_do_not_escape_through_exception_logs(
     assert "query-signature" not in emitted
     assert redact_secret_paths(url) == path + "?[REDACTED]"
     assert redact_secret_paths(path + "?[REDACTED]") == path + "?[REDACTED]"
+
+
+@pytest.mark.security
+def test_signed_whatsapp_media_queries_do_not_escape_through_exception_logs(
+    root_stream: io.StringIO,
+) -> None:
+    setup_logging()
+    path = "https://lookaside.fbsbx.com/whatsapp_business/attachments/"
+    url = path + "?mid=media-id-secret&ext=query-expiry&hash=query-signature"
+    try:
+        httpx.Response(403, request=httpx.Request("GET", url)).raise_for_status()
+    except httpx.HTTPStatusError:
+        logging.getLogger("app.services.channels.whatsapp_graph").exception("Media failed")
+    emitted = root_stream.getvalue()
+    assert path + "?[REDACTED]" in emitted
+    for secret in ("media-id-secret", "query-expiry", "query-signature"):
+        assert secret not in emitted
+    assert redact_secret_paths(url) == path + "?[REDACTED]"
+
+
+@pytest.mark.security
+def test_a_graph_media_id_is_redacted_but_a_send_path_is_not(root_stream: io.StringIO) -> None:
+    setup_logging()
+    logging.getLogger("httpx").warning(
+        'HTTP Request: GET https://graph.facebook.com/v26.0/987654321 "HTTP/1.1 200 OK"'
+    )
+    logging.getLogger("httpx").warning(
+        'HTTP Request: POST https://graph.facebook.com/v26.0/555000111/messages "HTTP/1.1 200 OK"'
+    )
+    emitted = root_stream.getvalue()
+    assert "987654321" not in emitted
+    assert "graph.facebook.com/v26.0/[REDACTED] " in emitted
+    assert "555000111/messages" in emitted
+    assert redact_secret_paths("https://graph.facebook.com/v26.0/987654321") == (
+        "https://graph.facebook.com/v26.0/[REDACTED]"
+    )

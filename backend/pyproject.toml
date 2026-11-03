@@ -762,6 +762,7 @@ include = [
     "app/services/channels/telegram_format.py",
     "app/services/channels/telegram_press.py",
     "app/services/channels/whatsapp_format.py",
+    "app/services/channels/whatsapp_interactive.py",
     "app/services/channels/whatsapp_payload.py",
     # What the Discord adapter says and reads, without the I/O (#2079).
     "app/services/channels/discord_protocol.py",
@@ -1416,6 +1417,7 @@ include = [
     "app/services/channels/telegram_format.py",
     "app/services/channels/telegram_press.py",
     "app/services/channels/whatsapp_format.py",
+    "app/services/channels/whatsapp_interactive.py",
     "app/services/channels/whatsapp_payload.py",
     # What the Discord adapter says and reads, without the I/O (#2079).
     "app/services/channels/discord_protocol.py",

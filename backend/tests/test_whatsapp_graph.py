@@ -17,10 +17,12 @@ from app.services.channels.whatsapp_graph import (
     GRAPH_BASE,
     GRAPH_VERSION,
     MAX_ATTEMPTS,
+    MEDIA_HOSTS,
     TOKEN_REFUSED,
     WhatsAppCredentials,
     WhatsAppGraph,
     WhatsAppGraphError,
+    WhatsAppMediaTooLarge,
     WhatsAppTokenRefused,
 )
 
@@ -205,3 +207,269 @@ async def test_errors_carry_no_token_phone_or_graph_text(
 def test_the_access_token_stays_out_of_a_credentials_repr():
     assert CREDS.access_token == TOKEN
     assert TOKEN not in repr(CREDS)
+
+
+MEDIA_URL = "https://lookaside.fbsbx.com/whatsapp_business/attachments/?mid=1&ext=2&hash=3"
+
+
+async def test_media_info_reads_url_type_and_size():
+    body = {"url": MEDIA_URL, "mime_type": "image/jpeg", "file_size": 1234, "id": "123"}
+    graph, seen = _graph(httpx.Response(200, json=body))
+    info = await graph.media_info(CREDS, media_id="123")
+    assert (info.url, info.mime_type, info.file_size) == (MEDIA_URL, "image/jpeg", 1234)
+    assert seen[0].method == "GET"
+    assert str(seen[0].url) == f"{GRAPH_BASE}/{GRAPH_VERSION}/123"
+
+
+async def test_media_info_without_a_url_is_refused():
+    graph, _ = _graph(httpx.Response(200, json={"mime_type": "image/png"}))
+    with pytest.raises(WhatsAppGraphError):
+        await graph.media_info(CREDS, media_id="123")
+
+
+async def test_media_info_tolerates_missing_type_and_size():
+    graph, _ = _graph(httpx.Response(200, json={"url": MEDIA_URL, "file_size": "twelve"}))
+    info = await graph.media_info(CREDS, media_id="123")
+    assert (info.mime_type, info.file_size) == (None, None)
+
+
+async def test_a_digit_string_file_size_is_read_as_an_int():
+    graph, _ = _graph(httpx.Response(200, json={"url": MEDIA_URL, "file_size": "1234"}))
+    assert (await graph.media_info(CREDS, media_id="123")).file_size == 1234
+
+
+async def test_the_media_info_url_is_not_in_the_repr():
+    graph, _ = _graph(httpx.Response(200, json={"url": MEDIA_URL}))
+    info = await graph.media_info(CREDS, media_id="123")
+    assert "lookaside" not in repr(info)
+
+
+async def test_media_requests_ask_for_an_unencoded_body():
+    graph, seen = _graph(
+        httpx.Response(200, json={"url": MEDIA_URL}), httpx.Response(200, content=b"x")
+    )
+    await graph.media_info(CREDS, media_id="123")
+    await graph.download_media(CREDS, url=MEDIA_URL, limit=10)
+    assert [r.headers["Accept-Encoding"] for r in seen] == ["identity", "identity"]
+
+
+async def test_media_info_is_not_traced():
+    graph, _ = _graph(httpx.Response(200, json={"url": MEDIA_URL}))
+    with patch("app.services.channels.whatsapp_graph.logfire.suppress_instrumentation") as quiet:
+        await graph.media_info(CREDS, media_id="123")
+    quiet.assert_called_once_with()
+
+
+async def test_a_post_never_retries_a_read_timeout():
+    graph, seen = _graph(httpx.ReadTimeout("slow"))
+    with patch(SLEEP, new=AsyncMock()), pytest.raises(WhatsAppGraphError):
+        await graph.send_text(CREDS, recipient="US.111", body="hi")
+    assert len(seen) == 1
+
+
+async def test_media_info_retries_a_read_timeout_and_a_retryable_code():
+    graph, seen = _graph(
+        httpx.ReadTimeout("slow"),
+        _refused(131056, 400),
+        httpx.Response(200, json={"url": MEDIA_URL}),
+    )
+    with patch(SLEEP, new=AsyncMock()):
+        info = await graph.media_info(CREDS, media_id="123")
+    assert info.url == MEDIA_URL
+    assert len(seen) == 3
+
+
+@pytest.mark.parametrize("media_id", ["../me", "wamid.X", "", "12/3", "\u00b2"])
+async def test_a_media_id_that_is_not_digits_is_refused_without_a_request(media_id: str):
+    graph, seen = _graph()
+    with pytest.raises(WhatsAppGraphError) as caught:
+        await graph.media_info(CREDS, media_id=media_id)
+    assert caught.value.details == {"code": None}
+    assert seen == []
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "https://evil.example/x",
+        "http://lookaside.fbsbx.com/x",
+        "https://lookaside.fbsbx.com.evil.example/x",
+    ],
+)
+async def test_a_foreign_media_host_is_refused(url: str):
+    graph, seen = _graph()
+    with pytest.raises(WhatsAppGraphError):
+        await graph.download_media(CREDS, url=url, limit=1000)
+    assert seen == []
+    assert "lookaside.fbsbx.com" in MEDIA_HOSTS
+
+
+async def test_download_returns_the_bytes():
+    graph, seen = _graph(httpx.Response(200, content=b"file-bytes"))
+    assert await graph.download_media(CREDS, url=MEDIA_URL, limit=1000) == b"file-bytes"
+    assert seen[0].headers["Authorization"] == f"Bearer {TOKEN}"
+
+
+async def test_a_redirect_is_not_followed():
+    graph, seen = _graph(
+        httpx.Response(302, headers={"Location": "https://evil.example/x"}),
+        httpx.Response(200, content=b"nope"),
+    )
+    with pytest.raises(WhatsAppGraphError):
+        await graph.download_media(CREDS, url=MEDIA_URL, limit=1000)
+    assert len(seen) == 1
+
+
+async def test_a_download_refusal_names_no_url_or_token(caplog: pytest.LogCaptureFixture):
+    logging_name = "app.services.channels.whatsapp_graph"
+    graph, _ = _graph(httpx.Response(404, json={"error": {"code": 100}}))
+    with caplog.at_level(logging.DEBUG), pytest.raises(WhatsAppGraphError) as caught:
+        await graph.download_media(CREDS, url=MEDIA_URL, limit=1000)
+    assert caught.value.details == {"code": None}
+    ours = "\n".join(
+        r.getMessage() + repr(r.__dict__) for r in caplog.records if r.name == logging_name
+    )
+    assert TOKEN not in ours
+    assert "lookaside" not in ours
+    assert "mid=1" not in ours
+
+
+async def test_a_download_transport_failure_is_a_graph_error():
+    graph, _ = _graph(httpx.ConnectError("boom for " + MEDIA_URL))
+    with pytest.raises(WhatsAppGraphError) as caught:
+        await graph.download_media(CREDS, url=MEDIA_URL, limit=1000)
+    assert caught.value.__cause__ is None
+    assert MEDIA_URL not in str(caught.value)
+
+
+async def test_the_download_stops_past_the_limit():
+    class Body(httpx.AsyncByteStream):
+        def __init__(self) -> None:
+            self.sent = 0
+
+        async def __aiter__(self):
+            for _ in range(3):
+                self.sent += 1
+                yield b"x" * 1_000_000
+
+    body = Body()
+    graph, _ = _graph(httpx.Response(200, stream=body))
+    with pytest.raises(WhatsAppMediaTooLarge) as caught:
+        await graph.download_media(CREDS, url=MEDIA_URL, limit=1_000_000 - 1)
+    assert caught.value.details == {"code": None}
+    assert isinstance(caught.value, WhatsAppGraphError)
+    assert body.sent == 1
+
+
+async def test_the_token_goes_only_in_the_header():
+    graph, seen = _graph(
+        httpx.Response(200, json={"url": MEDIA_URL}),
+        httpx.Response(200, content=b"x"),
+        httpx.Response(200, json={"id": "999"}),
+    )
+    await graph.media_info(CREDS, media_id="123")
+    await graph.download_media(CREDS, url=MEDIA_URL, limit=10)
+    await graph.upload_media(CREDS, content=b"x", mime_type="image/png", filename="c.png")
+    assert len(seen) == 3
+    for request in seen:
+        assert TOKEN not in str(request.url)
+        assert request.headers["Authorization"] == f"Bearer {TOKEN}"
+        assert TOKEN.encode() not in request.content
+
+
+async def test_upload_sends_multipart_and_returns_the_id():
+    graph, seen = _graph(httpx.Response(200, json={"id": "777"}))
+    media_id = await graph.upload_media(
+        CREDS, content=b"PNGDATA", mime_type="image/png", filename="chart.png"
+    )
+    assert media_id == "777"
+    request = seen[0]
+    assert request.method == "POST"
+    assert str(request.url) == f"{GRAPH_BASE}/{GRAPH_VERSION}/PNID1/media"
+    assert request.headers["Content-Type"].startswith("multipart/form-data")
+    body = request.content
+    assert b'name="messaging_product"' in body and b"whatsapp" in body
+    assert b'name="type"' in body and b"image/png" in body
+    assert b'name="file"; filename="chart.png"' in body
+    assert b"PNGDATA" in body
+
+
+async def test_upload_without_an_id_is_refused():
+    graph, _ = _graph(httpx.Response(200, json={}))
+    with pytest.raises(WhatsAppGraphError):
+        await graph.upload_media(CREDS, content=b"x", mime_type="image/png", filename="c.png")
+
+
+async def test_an_upload_read_timeout_is_not_retried():
+    graph, seen = _graph(httpx.ReadTimeout("slow"))
+    with patch(SLEEP, new=AsyncMock()), pytest.raises(WhatsAppGraphError):
+        await graph.upload_media(CREDS, content=b"x", mime_type="image/png", filename="c.png")
+    assert len(seen) == 1
+
+
+async def test_an_upload_retries_a_connect_error():
+    graph, seen = _graph(httpx.ConnectError("x"), httpx.Response(200, json={"id": "5"}))
+    with patch(SLEEP, new=AsyncMock()):
+        assert (
+            await graph.upload_media(CREDS, content=b"x", mime_type="image/png", filename="c.png")
+            == "5"
+        )
+    assert len(seen) == 2
+
+
+async def test_send_media_puts_the_caption_and_filename_in_the_document():
+    graph, seen = _graph(_accepted("wamid.DOC"))
+    wamid = await graph.send_media(
+        CREDS,
+        recipient="US.111",
+        kind="document",
+        media_id="55",
+        caption="Q3",
+        filename="q3.pdf",
+        reply_to="wamid.IN",
+    )
+    assert wamid == "wamid.DOC"
+    assert json.loads(seen[0].content) == {
+        "messaging_product": "whatsapp",
+        "recipient_type": "individual",
+        "recipient": "US.111",
+        "type": "document",
+        "document": {"id": "55", "caption": "Q3", "filename": "q3.pdf"},
+        "context": {"message_id": "wamid.IN"},
+    }
+
+
+async def test_send_media_image_omits_what_is_not_given():
+    graph, seen = _graph(_accepted())
+    await graph.send_media(
+        CREDS,
+        recipient="US.111",
+        kind="image",
+        media_id="55",
+        caption=None,
+        filename=None,
+        reply_to=None,
+    )
+    sent = json.loads(seen[0].content)
+    assert sent["image"] == {"id": "55"}
+    assert "context" not in sent
+
+
+async def test_send_interactive_posts_the_interactive_object():
+    interactive = {"type": "button", "body": {"text": "Run?"}, "action": {"buttons": []}}
+    graph, seen = _graph(_accepted("wamid.BTN"))
+    wamid = await graph.send_interactive(
+        CREDS, recipient="US.111", interactive=interactive, reply_to="wamid.IN"
+    )
+    assert wamid == "wamid.BTN"
+    sent = json.loads(seen[0].content)
+    assert sent["type"] == "interactive"
+    assert sent["interactive"] == interactive
+    assert sent["recipient"] == "US.111"
+    assert sent["context"] == {"message_id": "wamid.IN"}
+
+
+async def test_a_send_without_a_message_id_is_refused():
+    graph, _ = _graph(httpx.Response(200, json={"messages": []}))
+    with pytest.raises(WhatsAppGraphError):
+        await graph.send_interactive(CREDS, recipient="US.111", interactive={})

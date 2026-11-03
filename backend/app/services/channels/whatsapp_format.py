@@ -73,7 +73,7 @@ def to_whatsapp(markdown: str) -> str:
     return text
 
 
-def _cluster_ends(text: str) -> list[int]:
+def cluster_ends(text: str) -> list[int]:
     """Offsets where a user-perceived character ends, so a cut never lands inside one.
 
     The cases that matter in an answer: combining marks and variation selectors,
@@ -132,7 +132,7 @@ def split_message(text: str, limit: int = MAX_TEXT_UNITS) -> list[str]:
         return []
     if utf16_units(text) <= limit:
         return [text]
-    ends = _cluster_ends(text)
+    ends = cluster_ends(text)
     prefix = [0, *accumulate(utf16_units(char) for char in text)]
     chunks: list[str] = []
     start = 0

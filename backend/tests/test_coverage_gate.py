@@ -58,6 +58,7 @@ PLATFORM_MODULES = (
     "app/worker/child.py",
     "app/repositories/background_job.py",
     "app/services/background_jobs.py",
+    "app/services/channels/whatsapp_interactive.py",
     "app/services/api_runs.py",
     "app/db/vector_tables.py",
     "app/services/access.py",

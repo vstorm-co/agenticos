@@ -117,11 +117,12 @@ _SECRET_QUERY = re.compile(
     rf"((?:^|[?&])(?:{'|'.join(re.escape(name) for name in sorted(SECRET_QUERY_PARAMS))})=)"
     r"(?!%(?:[sr(]|d(?![0-9a-fA-F])))[^&#\s\"']+"
 )
-_DISCORD_CDN_QUERY = re.compile(
-    r"(https?://(?:cdn\.discordapp\.com|media\.discordapp\.net)(?::[0-9]+)?/[^?\s\"'<>]*)"
-    r"\?[^\s\"'<>]+",
+_SIGNED_MEDIA_QUERY = re.compile(
+    r"(https?://(?:cdn\.discordapp\.com|media\.discordapp\.net|lookaside\.fbsbx\.com)"
+    r"(?::[0-9]+)?/[^?\s\"'<>]*)\?[^\s\"'<>]+",
     re.IGNORECASE,
 )
+_GRAPH_MEDIA_ID = re.compile(r"(graph\.facebook\.com/v[0-9.]+/)[0-9]+(?![0-9/])")
 
 
 def redact_secret_paths(value: str) -> str:
@@ -129,13 +130,15 @@ def redact_secret_paths(value: str) -> str:
 
     That is the credential segment of a secret-bearing path (`_SECRET_PATH`) and
     the value of a credential query parameter (`_SECRET_QUERY`), and the entire
-    query of a signed Discord attachment address (`_DISCORD_CDN_QUERY`). One helper for
+    query of a signed Discord or WhatsApp media address (`_SIGNED_MEDIA_QUERY`) and the
+    media id in a Graph lookup (`_GRAPH_MEDIA_ID`). One helper for
     every place an address is recorded - the log filter below and the Logfire
     request spans (`app/core/logfire_setup.py`) - so the two cannot disagree about
     which part is the secret.
     """
     value = _SECRET_PATH.sub(rf"\1{SECRET_PATH_MARKER}", value)
-    value = _DISCORD_CDN_QUERY.sub(rf"\1?{SECRET_PATH_MARKER}", value)
+    value = _SIGNED_MEDIA_QUERY.sub(rf"\1?{SECRET_PATH_MARKER}", value)
+    value = _GRAPH_MEDIA_ID.sub(rf"\1{SECRET_PATH_MARKER}", value)
     return _SECRET_QUERY.sub(rf"\1{SECRET_PATH_MARKER}", value)
 
 
@@ -166,7 +169,8 @@ class PiiRedactionFilter(logging.Filter):
     PATTERNS: ClassVar[list[tuple[re.Pattern[str], str]]] = [
         # First, so a secret-bearing address reads the same whatever its token looks like.
         (_SECRET_PATH, rf"\1{SECRET_PATH_MARKER}"),
-        (_DISCORD_CDN_QUERY, rf"\1?{SECRET_PATH_MARKER}"),
+        (_SIGNED_MEDIA_QUERY, rf"\1?{SECRET_PATH_MARKER}"),
+        (_GRAPH_MEDIA_ID, rf"\1{SECRET_PATH_MARKER}"),
         (_SECRET_QUERY, rf"\1{SECRET_PATH_MARKER}"),
         (re.compile(r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}"), "[EMAIL_REDACTED]"),
         # JWT tokens (header.payload.signature)
