@@ -153,6 +153,10 @@ class SkillProposal(Base, TimestampMixin):
     )
     """The fork the change is for, or `None` for main: the line its agent read from."""
 
+    source: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    """What wrote it: `workspace`, `improve` or `library`. `None` for a proposal recorded
+    before the source was kept, read by whether it has an authoring request."""
+
     rationale: Mapped[str] = mapped_column(Text, nullable=False, default="")
     evidence: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, nullable=False, default=list)
     """Checked against the runs the proposal was derived from; see `spec_proposal_hunks`."""

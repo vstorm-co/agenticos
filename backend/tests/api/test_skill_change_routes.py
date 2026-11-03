@@ -44,6 +44,8 @@ def _row(**overrides: Any) -> MagicMock:
     row.decided_by_user_id = None
     row.decided_at = None
     row.base_version = None
+    row.fork_id = None
+    row.source = None
     row.authoring_request_id = None
     row.rationale = ""
     row.evidence = []

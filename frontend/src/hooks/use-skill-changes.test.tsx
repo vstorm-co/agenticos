@@ -37,6 +37,7 @@ function change(overrides: Partial<SkillChangeRecord> = {}): SkillChangeRecord {
     revision: 1,
     reaches: [],
     reaches_hidden: 0,
+    fork_id: null,
     ...overrides,
   };
 }

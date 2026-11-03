@@ -8115,6 +8115,49 @@
     "bodyPlaceholder": "# Zwroty\n\nUżyj tego, gdy klient prosi o zwrot pieniędzy.\n\n## Kroki\n\n1. Sprawdź datę zamówienia.\n2. W ciągu 14 dni zwróć bez pytania.\n3. Później poproś człowieka o zatwierdzenie.",
     "whoCanUseIt": "Kto może z tego korzystać",
     "expectedEffect": "Oczekiwany efekt:",
+    "checkOnAgents": "Sprawdź na agentach",
+    "checkChangeTo": "Sprawdź zmianę w {name} na agentach, które go używają",
+    "check": {
+      "title": "Sprawdź tę zmianę na każdym agencie, który używa skilla",
+      "description": "Każdy agent odpowiada na swoje pytania ze skillem w obecnej wersji i z tą zmianą. Nic się nie zmienia, dopóki nie zdecydujesz.",
+      "price": "Najpewniej ${expected}, najwyżej ${most}. Część każdego agenta idzie z jego budżetu.",
+      "start": "Uruchom sprawdzenie",
+      "running": "Trwa sprawdzanie. To zajmie kilka minut; możesz zamknąć okno i wrócić później.",
+      "asked": "{count, plural, one {Zadano 1 pytanie} few {Zadano # pytania} many {Zadano # pytań} other {Zadano # pytania}}",
+      "skillSetOnly": "Sprawdzono tylko na pytaniach skilla: żadne pytanie tego agenta nie otworzyło skilla.",
+      "hidden": "{count, plural, one {Tego skilla używa jeszcze 1 agent, którego nie widzisz.} few {Tego skilla używa jeszcze # agentów, których nie widzisz.} many {Tego skilla używa jeszcze # agentów, których nie widzisz.} other {Tego skilla używa jeszcze # agenta, którego nie widzisz.}}",
+      "noisy": "Część wyników mieści się w szumie: sprawdzenie zobaczyło różnicę, której nie mogło potwierdzić.",
+      "forkLine": "Ta zmiana dotyczy forka, którego nie da się przypiąć ani znowu sforkować. Popraw ją dalej albo odrzuć.",
+      "acknowledge": "Rozumiem, że części agentów nie dało się sprawdzić.",
+      "discard": "Odrzuć",
+      "apply": "Zastosuj",
+      "applyAndPin": "Zastosuj i zostaw gorszych agentów na ich wersji",
+      "reason": {
+        "no_questions": "Nie sprawdzono: nie ma pytań do zadania.",
+        "no_access": "Nie sprawdzono: nie możesz uruchomić tego agenta.",
+        "no_budget": "Nie sprawdzono: jego budżet nie pokryje sprawdzenia.",
+        "no_published_version": "Nie sprawdzono: nie ma opublikowanej wersji.",
+        "inconclusive": "Nie sprawdzono: nie udało się ocenić każdej odpowiedzi.",
+        "failed": "Nie sprawdzono: jego run się nie powiódł."
+      },
+      "state": {
+        "queued": "Czeka",
+        "running": "W toku",
+        "better": "Lepiej",
+        "no_change": "Bez zmian",
+        "within_noise": "W granicach szumu",
+        "worse": "Gorzej",
+        "unknown": "Nie wiadomo"
+      },
+      "verdict": {
+        "passed": "Żaden agent nie jest gorszy, a co najmniej jeden jest lepszy.",
+        "needs_ack": "Żaden sprawdzony agent nie jest gorszy, ale części nie dało się sprawdzić.",
+        "blocked": "Któryś agent jest gorszy. Nadal możesz zastosować zmianę i zostawić go na wersji, której używa teraz.",
+        "no_better": "Żaden agent nie jest lepszy, więc nie ma czego zastosować."
+      },
+      "unaffordable": "Budżet organizacji na ten miesiąc nie pokryje tego sprawdzenia.",
+      "cancel": "Zatrzymaj sprawdzenie"
+    },
     "page": {
       "skills": "Skille",
       "mainVersion": "v{number} na main",
