@@ -720,6 +720,58 @@ class TestMessageClientCorrelation:
             engine.dispose()
 
 
+class TestChatNoticeColumn:
+    def test_parked_runs_survive_upgrade_and_downgrade_and_the_models_match_head(self):
+        reset = _alembic("downgrade", "base")
+        assert reset.returncode == 0, reset.stderr
+        up = _alembic("upgrade", "0250_discord_channel")
+        assert up.returncode == 0, up.stderr
+        engine = create_engine(_url(MIGRATION_DATABASE))
+        run_id = uuid4()
+        try:
+            with engine.begin() as connection:
+                connection.execute(text("SET LOCAL session_replication_role = replica"))
+                connection.execute(
+                    text(
+                        "INSERT INTO agent_runs (id, organization_id, agent_id, status, surface, modality, "
+                        "started_at, input_tokens, output_tokens, cache_read_tokens, "
+                        "cache_write_tokens, cost_usd, cost_is_partial, tool_args_repaired) "
+                        "VALUES (:id, :org, :agent, 'awaiting_approval', 'slack', 'text', now(), "
+                        "0, 0, 0, 0, 0, false, 0)"
+                    ),
+                    {"id": run_id, "org": uuid4(), "agent": uuid4()},
+                )
+            up = _alembic("upgrade", "head")
+            assert up.returncode == 0, up.stderr
+            with engine.connect() as connection:
+                assert (
+                    connection.scalar(
+                        text("SELECT chat_notice_sent_at FROM agent_runs WHERE id=:id"),
+                        {"id": run_id},
+                    )
+                    is None
+                )
+            check = _alembic("check")
+            assert check.returncode == 0, check.stderr
+            down = _alembic("downgrade", "0250_discord_channel")
+            assert down.returncode == 0, down.stderr
+            with engine.connect() as connection:
+                assert (
+                    connection.scalar(
+                        text("SELECT status FROM agent_runs WHERE id=:id"), {"id": run_id}
+                    )
+                    == "awaiting_approval"
+                )
+                assert not connection.execute(
+                    text(
+                        "SELECT 1 FROM information_schema.columns "
+                        "WHERE table_name='agent_runs' AND column_name='chat_notice_sent_at'"
+                    )
+                ).first()
+        finally:
+            engine.dispose()
+
+
 class TestChannelRatingAuthors:
     def test_account_votes_survive_and_channel_authors_are_constrained(self):
         reset = _alembic("downgrade", "base")

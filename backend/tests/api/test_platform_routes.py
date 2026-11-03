@@ -1444,6 +1444,34 @@ class TestResumeAnswersWithWhatTheContinuationDid:
         )
 
 
+class TestAContinuationSaysWhereItsAnswerGoes:
+    async def test_a_continuation_result_says_whether_its_answer_goes_to_the_chat(self) -> None:
+        from app.api.routes.v1._run_results import run_result
+
+        run = MagicMock(
+            id=uuid4(),
+            conversation_id=None,
+            status="completed",
+            cost_usd=Decimal("0"),
+            cost_is_partial=False,
+            input_tokens=0,
+            output_tokens=0,
+            cache_read_tokens=0,
+            cache_write_tokens=0,
+        )
+        segment = RunSegment(output="done", run=run, tool_calls=[], settled={})
+        service = MagicMock(
+            parked_calls=AsyncMock(return_value=[]), parked_questions=AsyncMock(return_value=[])
+        )
+        ctx = AuthContext(user_id=uuid4(), organization_id=uuid4(), role=OrgRoleName.OWNER)
+
+        told = await run_result(service, ctx, segment, continues_in_chat=True)
+        plain = await run_result(service, ctx, segment)
+
+        assert told.continues_in_chat is True
+        assert plain.continues_in_chat is False
+
+
 # -- the stats routes, whose gate is the scope parameter ----------------------
 
 

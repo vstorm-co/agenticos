@@ -126,6 +126,36 @@ async def is_still_member(bot: ChannelBot, platform_chat_id: str, platform_user_
     return member
 
 
+async def platform_says_member(
+    bot: ChannelBot, platform_chat_id: str, platform_user_id: str
+) -> bool | None:
+    """What the platform says right now: in the room, out of it, or nothing.
+
+    The other half of `is_still_member`. That one fails closed - it cannot tell
+    "removed" from "could not ask" - and a listing wants that. A decision a person
+    made must not be undone by a platform that did not answer, so this one says
+    `None` for every way of not answering (no adapter, no directory, an error)
+    and leaves the choice to the caller. It asks the platform rather than the
+    cache, and remembers a definite answer. Logs the bot only.
+    """
+    try:
+        adapter = get_adapter(bot.platform)
+        member = await adapter.is_channel_member(
+            unseal_bot_token(bot),
+            platform_chat_id,
+            platform_user_id,
+            api_base_url=bot.api_base_url,
+        )
+    except ChannelDirectoryUnsupported, KeyError:
+        logger.info("Channel membership not answerable: bot=%s", bot.id)
+        return None
+    except Exception:
+        logger.warning("Channel membership check failed: bot=%s", bot.id)
+        return None
+    await _remember(_key(bot.id, platform_chat_id, platform_user_id), member)
+    return member
+
+
 async def _confirmed(
     db: AsyncSession, claims: list[conversation_repo.ParticipationClaim]
 ) -> set[UUID]:

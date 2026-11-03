@@ -12,6 +12,7 @@ the model cannot change its mind between asking and acting.
 """
 
 import logging
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import UUID
@@ -28,6 +29,7 @@ from app.db.models.agent_run import AgentRun, ApprovalStatus, RunStatus, ToolApp
 from app.repositories import agent_run_repo, voice_call_repo
 from app.repositories import workflow_run as workflow_run_repo
 from app.repositories.agent_run import ApprovalFilters, ApprovalRow
+from app.services.channels.handback import decided_by_a_person
 from app.services.transcript import TranscriptService
 from app.services.workflow_execution.approval_wake import wake_after_approval_decision
 
@@ -148,7 +150,7 @@ class ApprovalService:
         trail - which is why it comes back with the decider's name and no way to
         decide again.
         """
-        return await agent_run_repo.list_approvals(
+        rows, total = await agent_run_repo.list_approvals(
             self.db,
             organization_id=ctx.organization_id,
             filters=filters,
@@ -156,6 +158,11 @@ class ApprovalService:
             skip=skip,
             limit=limit,
         )
+        person = decided_by_a_person(ctx)
+        return [
+            replace(row, continues_in_chat=True) if person and row.parked_in_chat else row
+            for row in rows
+        ], total
 
     async def decide(
         self,

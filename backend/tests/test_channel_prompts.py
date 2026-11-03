@@ -18,6 +18,7 @@ from app.core.exceptions import BadRequestError
 from app.db.models.agent_run import ApprovalStatus
 from app.db.models.channel_prompt import APPROVAL, FOLLOW_UP, QUESTION
 from app.schemas.agent import ParkedCall, ParkedQuestion
+from app.services.agent_runner import RunSegment
 from app.services.channels.base import (
     ChannelAdapter,
     IncomingPress,
@@ -904,3 +905,78 @@ async def test_a_continuation_without_a_channel_identity_never_schedules_buttons
     run = SimpleNamespace(id=RUN, status="completed", channel_identity_id=None)
     ChannelPrompts(_session())._follow_ups(_bot(), SimpleNamespace(run=run), "C1")
     queue.assert_not_called()
+
+
+class TestDelivering:
+    async def test_a_press_that_continues_the_run_posts_its_answer_once(self):
+        """(pinning) The press's delivery today: one answer, then what the run waits on."""
+        env, _decide, _resume, offered = await TestPressingAnApproval()._press(choice=0)
+
+        assert env.said() == ["Sent."]
+        env.adapter.send_message.assert_awaited_once()
+        offered.assert_awaited_once()
+
+    async def test_deliver_posts_the_answer_then_the_prompts_then_the_next_steps(self):
+        service = ChannelPrompts(_session())
+        order: list[str] = []
+        bot, segment = _bot(), _segment()
+        with (
+            patch.object(
+                service, "_send_segment", new=AsyncMock(side_effect=lambda *a: order.append("send"))
+            ) as send,
+            patch.object(
+                service, "offer", new=AsyncMock(side_effect=lambda *a, **k: order.append("offer"))
+            ) as offer,
+            patch.object(service, "_follow_ups", side_effect=lambda *a: order.append("steps")),
+        ):
+            await service.deliver(bot, platform="slack", platform_chat_id="C1", segment=segment)
+
+        assert order == ["send", "offer", "steps"]
+        send.assert_awaited_once_with(bot, "slack", "C1", segment)
+        offer.assert_awaited_once_with(
+            bot, platform="slack", platform_chat_id="C1", run_id=segment.run.id
+        )
+
+    def test_inherited_calls_are_the_parked_calls_named_from_the_paused_transcript(self):
+        from pydantic_ai.messages import ModelMessagesTypeAdapter, ModelResponse, ToolCallPart
+
+        from app.services.transcript import RecordedToolCall
+
+        messages = ModelMessagesTypeAdapter.dump_python(
+            [
+                ModelResponse(
+                    parts=[
+                        ToolCallPart("generate_image", {"prompt": "a cat"}, tool_call_id="c1"),
+                        ToolCallPart("other", {}, tool_call_id="c2"),
+                    ]
+                )
+            ],
+            mode="json",
+        )
+        run = SimpleNamespace(
+            paused_state={"messages": messages, "tool_call_ids": {"a1": "c1"}, "questions": []}
+        )
+
+        assert ChannelPrompts.inherited_calls(run) == [  # type: ignore[arg-type]
+            RecordedToolCall("c1", "generate_image", {"prompt": "a cat"})
+        ]
+        assert ChannelPrompts.inherited_calls(None) == []
+        assert ChannelPrompts.inherited_calls(SimpleNamespace(paused_state=None)) == []  # type: ignore[arg-type]
+
+    def test_with_inherited_puts_the_approved_calls_return_first(self):
+        from dataclasses import replace
+
+        from app.services.transcript import RecordedToolCall
+
+        c1 = RecordedToolCall("c1", "generate_image", {})
+        later = RecordedToolCall("x", "later", {})
+        run = MagicMock()
+        segment = RunSegment(output="", run=run, tool_calls=[later], settled={"c1": "ok"})
+
+        merged = ChannelPrompts.with_inherited(segment, [c1])
+        untouched = ChannelPrompts.with_inherited(
+            RunSegment(output="", run=run, tool_calls=[later], settled={}), [c1]
+        )
+
+        assert merged.tool_calls == [replace(c1, result="ok"), later]
+        assert untouched.tool_calls == [later]

@@ -112,6 +112,14 @@ class AgentRunRead(BaseSchema):
         default=None,
         description="The run after this one in its own conversation. See `prev_run_id`",
     )
+    continues_in_chat: bool = Field(
+        default=False,
+        description=(
+            "Whether the run is parked on a chat platform with its chat recorded and "
+            "the caller is a person, so that its continuation is posted to that chat "
+            "and a client should not resume it itself. Never true for an API key"
+        ),
+    )
     error: str | None = None
     conversation_id: UUID | None = Field(
         default=None,
@@ -356,6 +364,14 @@ class ApprovalRead(BaseSchema):
     )
     note: str | None = None
     created_at: datetime | None = None
+    continues_in_chat: bool = Field(
+        default=False,
+        description=(
+            "Whether the run is parked on a chat platform with its chat recorded and "
+            "the caller is a person, so that its continuation is posted to that chat "
+            "and a client should not resume it itself. Never true for an API key"
+        ),
+    )
 
 
 class ApprovalList(BaseSchema):

@@ -168,6 +168,40 @@ class TestWhatTheQueueSays:
 
         assert ([row.id for row in rows], total) == ([ours.id], 1)
 
+    async def test_the_queue_and_the_run_agree_on_which_runs_continue_in_chat(self, db) -> None:
+        from app.services.channels.handback import continues_in_chat
+
+        org, owner = await _org(db)
+        agent = await _agent(db, org)
+        destination = {"bot_id": str(uuid.uuid4()), "platform_chat_id": "C1", "private_chat": True}
+        runs = []
+        for surface, paused_state in (
+            ("slack", {"channel_destination": destination}),
+            ("slack", {"channel_destination": None}),
+            ("slack", {}),
+            ("web", {"channel_destination": destination}),
+            ("slack", {"channel_destination": {"bot_id": str(uuid.uuid4())}}),
+        ):
+            run = await _run(db, org, agent, started_by=owner)
+            run.surface = surface
+            run.paused_state = paused_state
+            await db.flush()
+            await _approval(db, org, run)
+            runs.append(run)
+        person = _ctx(org, owner)
+        key = AuthContext(
+            user_id=owner.id,
+            organization_id=org.id,
+            role=OrgRoleName.OWNER,
+            api_key_id=uuid.uuid4(),
+        )
+
+        for ctx, expected in ((person, [True, False, False, False, False]), (key, [False] * 5)):
+            rows, _ = await ApprovalService(db).list_approvals(ctx)
+            by_run = {row.run_id: row.continues_in_chat for row in rows}
+            assert [by_run[run.id] for run in runs] == expected
+            assert all(by_run[run.id] == continues_in_chat(run, ctx) for run in runs)
+
 
 class TestTheQueueAndTheRecordAreTheSameRows:
     async def test_pending_only_by_default(self, db) -> None:

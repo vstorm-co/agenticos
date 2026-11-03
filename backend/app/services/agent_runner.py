@@ -230,7 +230,14 @@ from app.core.secret_kinds import ApiKeySecret, StorableSecret
 from app.core.update_gate import require_admission
 from app.db.models.agent import Agent, AgentStatus
 from app.db.models.agent_exposure import AgentExposure
-from app.db.models.agent_run import AgentRun, ApprovalStatus, RunOrder, RunStatus, RunSurface
+from app.db.models.agent_run import (
+    CHANNEL_SURFACES,
+    AgentRun,
+    ApprovalStatus,
+    RunOrder,
+    RunStatus,
+    RunSurface,
+)
 from app.db.models.chat_file import ChatFile
 from app.db.models.conversation import Message
 from app.db.models.credential import ModelProfile
@@ -1923,15 +1930,7 @@ def _with_workspace_briefing(spec: AgentSpec, workspace: OpenWorkspace) -> Agent
     return spec.model_copy(update={"instructions": f"{spec.instructions}\n\n{workspace.briefing}"})
 
 
-_CHANNEL_SURFACES = frozenset(
-    {
-        RunSurface.SLACK,
-        RunSurface.TELEGRAM,
-        RunSurface.MATTERMOST,
-        RunSurface.TEAMS,
-        RunSurface.DISCORD,
-    }
-)
+_CHANNEL_SURFACES = CHANNEL_SURFACES
 
 _INTERRUPTED = frozenset(
     {

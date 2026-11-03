@@ -21,12 +21,14 @@ from sqlalchemy import (
 )
 from sqlalchemy import update as sql_update
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
+from sqlalchemy.dialects.postgresql import array
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 from sqlalchemy.orm.attributes import flag_modified
 
 from app.db.models.agent import Agent, AgentVersion
 from app.db.models.agent_run import (
+    CHANNEL_SURFACES,
     AgentRun,
     ApprovalDecidedVia,
     ApprovalStatus,
@@ -368,6 +370,17 @@ async def mark_running(db: AsyncSession, *, run: AgentRun) -> AgentRun:
     """
     run.status = RunStatus.RUNNING.value
     run.ended_at = None
+    # The next park starts unannounced.
+    run.chat_notice_sent_at = None
+    db.add(run)
+    await db.flush()
+    await db.refresh(run)
+    return run
+
+
+async def record_chat_notice(db: AsyncSession, *, run: AgentRun, at: datetime) -> AgentRun:
+    """Remember that the run's chat was told this park could not continue."""
+    run.chat_notice_sent_at = at
     db.add(run)
     await db.flush()
     await db.refresh(run)
@@ -1992,6 +2005,11 @@ class ApprovalRow:
     decided_via: str
     note: str | None
     created_at: datetime | None
+    parked_in_chat: bool = False
+    """The run is on a chat platform with its chat recorded: the run half of
+    `handback.continues_in_chat`, as SQL sees it."""
+    continues_in_chat: bool = False
+    """Set by the service, which knows who is asking."""
 
 
 @dataclass(frozen=True)
@@ -2067,6 +2085,12 @@ async def list_approvals(
             AgentRun.user_id,
             triggered_by.email,
             decided_by.email,
+            AgentRun.surface.in_([surface.value for surface in CHANNEL_SURFACES])
+            # A destination that lacks a required key reads as absent, as
+            # `handback.chat_destination` reads it (it logs and returns None).
+            & AgentRun.paused_state["channel_destination"].has_all(
+                array(["bot_id", "platform_chat_id", "private_chat"])
+            ),
         )
         # Inner for the agent and the run, outer for the two people. Both those
         # foreign keys are `ON DELETE CASCADE`, so an approval cannot outlive
@@ -2105,8 +2129,16 @@ async def list_approvals(
             decided_via=approval.decided_via,
             note=approval.note,
             created_at=approval.created_at,
+            parked_in_chat=bool(parked_in_chat),
         )
-        for approval, agent_name, run_user_id, triggered_email, decided_email in rows.all()
+        for (
+            approval,
+            agent_name,
+            run_user_id,
+            triggered_email,
+            decided_email,
+            parked_in_chat,
+        ) in rows.all()
     ]
     count_query = (
         select(func.count(ToolApproval.id))

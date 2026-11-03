@@ -49,6 +49,7 @@ from app.schemas.agent_run import (
 )
 from app.schemas.conversation import MessageList
 from app.schemas.run_manifest import RunManifestRead
+from app.services.channels.handback import continues_in_chat
 
 router = APIRouter(dependencies=[PUBLIC])
 
@@ -261,6 +262,7 @@ async def get_run(run_id: UUID, service: AgentRunnerSvc, ctx: Auth) -> Any:
             "down_rated": run.id in down_rated,
             "prev_run_id": prev_run_id,
             "next_run_id": next_run_id,
+            "continues_in_chat": continues_in_chat(run, ctx),
         }
     )
 
