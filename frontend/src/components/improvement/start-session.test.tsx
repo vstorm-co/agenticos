@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, it, vi } from "vitest";
 import { useOrgStore } from "@/stores/org-store";
@@ -393,4 +393,19 @@ it("forwards a link to Improve to the session still open, and only a link", () =
   state.params = new URLSearchParams("resume=1");
   render(<StartSession agentId="a1" onClose={vi.fn()} />);
   expect(state.replace).toHaveBeenCalledWith("/agents/a1/improve/open");
+});
+
+it("drops a stale refusal after a dataset is successfully priced again", async () => {
+  state.estimate.mockRejectedValueOnce(new Error("Old refusal"));
+  render(<StartSession agentId="a1" onClose={vi.fn()} />);
+  await screen.findByText("Old refusal");
+  await userEvent.click(screen.getByRole("combobox", { name: "Dataset" }));
+  await userEvent.click(screen.getByRole("option", { name: "Refund questions" }));
+  await waitFor(() =>
+    expect(screen.getByRole("button", { name: "Start improving" })).toBeEnabled(),
+  );
+  await userEvent.click(screen.getByRole("combobox", { name: "Dataset" }));
+  await userEvent.click(screen.getByRole("option", { name: "Refund desk - test questions" }));
+  await waitFor(() => expect(state.estimate).toHaveBeenCalledTimes(3));
+  await waitFor(() => expect(screen.queryByText("Old refusal")).toBeNull());
 });

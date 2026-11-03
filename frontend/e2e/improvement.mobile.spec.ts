@@ -475,7 +475,7 @@ test("a session kept as a draft is history: Improve starts the next, and the his
   // Every Improve entry lands here; with nothing open it stays on a new session.
   await page.goto(`/agents/${id(agent)}/improve/new?resume=1`);
   await expect(page.getByRole("button", { name: "Start improving" })).toBeVisible();
-  await expect(page).toHaveURL(/\/improve\/new\?resume=1$/);
+  await expect(page).toHaveURL(/[?]improve=resume$/);
 
   await page.goto(`/agents/${id(agent)}?tab=history`);
   await page.getByRole("link", { name: /Kept as draft/ }).click();

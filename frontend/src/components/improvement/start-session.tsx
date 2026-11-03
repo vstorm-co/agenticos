@@ -84,7 +84,10 @@ export function StartSession({ agentId, onClose }: { agentId: string; onClose: (
     let current = true;
     estimateSession(JSON.parse(asked)).then(
       (priced) => {
-        if (current) setQuote({ key, value: priced });
+        if (current) {
+          setQuote({ key, value: priced });
+          setRefusal(null);
+        }
       },
       (failure: unknown) => {
         if (current) setRefusal({ key, message: getErrorMessage(failure, tErrors) });

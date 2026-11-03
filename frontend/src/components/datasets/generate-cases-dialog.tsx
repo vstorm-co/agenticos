@@ -72,7 +72,7 @@ export function GenerateCasesDialog({
   const [agentId, setAgentId] = useState(initial?.agentId ?? "");
   const [sources, setSources] = useState<CaseOrigin[]>(DEFAULT_SOURCES);
   const [count, setCount] = useState(initial?.count ?? DEFAULT_COUNT);
-  const [estimated, setEstimated] = useState<CaseGenerationEstimate | null>(null);
+  const [quote, setQuote] = useState<{ key: string; value: CaseGenerationEstimate } | null>(null);
   const [errors, setErrors] = useState<Partial<Record<Field, string>>>({});
 
   const request: CaseGenerationRequest = {
@@ -80,6 +80,8 @@ export function GenerateCasesDialog({
     sources,
     count,
   };
+  const requestKey = `${datasetId}:${JSON.stringify(request)}`;
+  const estimated = quote?.key === requestKey ? quote.value : null;
   const valid =
     !agentsError &&
     !agentsLoading &&
@@ -88,7 +90,7 @@ export function GenerateCasesDialog({
     count >= 1 &&
     count <= MAX_GENERATED;
   const changed = () => {
-    setEstimated(null);
+    setQuote(null);
     setErrors({});
   };
   // Starting spends, so leaving offers no Save: only discarding the choices or staying.
@@ -107,7 +109,7 @@ export function GenerateCasesDialog({
   async function submit(step: "estimate" | "start") {
     try {
       if (step === "estimate") {
-        setEstimated(await estimate.mutateAsync(request));
+        setQuote({ key: requestKey, value: await estimate.mutateAsync(request) });
         return;
       }
       await start.mutateAsync(request);

@@ -301,7 +301,7 @@ describe("the detail page's way into Improve", () => {
     page.params = "tab=gaps";
     await mount();
     const link = await screen.findByRole("link", { name: "Improve this agent from these gaps" });
-    expect(link).toHaveAttribute("href", "/agents/a1/improve/new?resume=1");
+    expect(link).toHaveAttribute("href", "/agents/a1?improve=resume");
     expect(link.querySelector("svg.lucide-trending-up")).toHaveAttribute("aria-hidden", "true");
   });
 });

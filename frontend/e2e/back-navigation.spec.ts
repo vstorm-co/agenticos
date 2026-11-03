@@ -138,11 +138,12 @@ test("a case opened from its dataset is a step Back closes", async ({ page }) =>
   await expect(page.getByRole("tab", { name: "Cases" })).toHaveAttribute("aria-selected", "true");
 });
 
-test("Back from the Improve wizard returns to the agent", async ({ page }) => {
+test("Back closes Improve over the agent’s Evals tab", async ({ page }) => {
   const { agent } = seeded;
   await page.goto(`/agents/${agent}?tab=evals`);
   await page.getByRole("button", { name: "Improve", exact: true }).first().click();
-  await expect(page).toHaveURL(new RegExp(`/agents/${agent}/improve/`));
+  await expect(page).toHaveURL(new RegExp(`/agents/${agent}[?]tab=evals&improve=new$`));
+  await expect(page.getByRole("dialog")).toBeVisible();
 
   await page.goBack();
   await expect(page).toHaveURL(new RegExp(`/agents/${agent}\\?tab=evals$`));

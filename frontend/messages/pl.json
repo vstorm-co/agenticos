@@ -13620,7 +13620,7 @@
       "noChanges": "Brak zmian — wersja robocza jest taka sama jak opublikowana.",
       "loadingDatasets": "Ładowanie datasetów…",
       "noDatasets": "Brak datasetów, które możesz uruchomić.",
-      "emptyDataset": "Ten dataset nie ma jeszcze przypadków. Dodaj przynajmniej jeden, aby uruchomić evals.",
+      "emptyDataset": "Ten dataset nie ma jeszcze przypadków. Dodaj przynajmniej jeden, aby uruchomić ewaluację.",
       "openCases": "Otwórz przypadki"
     },
     "comparison": {

@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -141,6 +141,38 @@ describe("GenerateCasesDialog", () => {
     });
     await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
     expect(toast.success).toHaveBeenCalled();
+  });
+
+  it("ignores a quote that arrives after the generation request changes", async () => {
+    let resolveQuote: (value: typeof ESTIMATE) => void = () => {
+      throw new Error("Estimate has not started");
+    };
+    estimate.mutateAsync.mockReturnValueOnce(
+      new Promise<typeof ESTIMATE>((resolve) => {
+        resolveQuote = resolve;
+      }),
+    );
+    mount();
+    await chooseAgent();
+    await userEvent.click(screen.getByRole("button", { name: "Estimate cost" }));
+    const count = screen.getByLabelText("Number of cases");
+    await userEvent.clear(count);
+    await userEvent.type(count, "50");
+    await act(async () => resolveQuote(ESTIMATE));
+
+    expect(screen.queryByRole("button", { name: "Generate" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Estimate cost" })).toBeEnabled();
+    expect(start.mutateAsync).not.toHaveBeenCalled();
+
+    estimate.mutateAsync.mockResolvedValueOnce({ ...ESTIMATE, count: 50 });
+    start.mutateAsync.mockResolvedValueOnce({ id: "g1" });
+    await userEvent.click(screen.getByRole("button", { name: "Estimate cost" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Generate" }));
+    expect(start.mutateAsync).toHaveBeenCalledWith({
+      agent_id: "a1",
+      sources: ["agent", "red_team"],
+      count: 50,
+    });
   });
 
   it("opens on the agent and count it was given, and estimates those", async () => {
