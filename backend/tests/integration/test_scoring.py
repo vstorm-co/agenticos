@@ -17,8 +17,8 @@ from decimal import Decimal
 import pytest
 from pydantic_ai.messages import ModelMessage, ModelResponse, TextPart
 from pydantic_ai.models.function import AgentInfo, FunctionModel
-from sqlalchemy import select, update
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+from sqlalchemy import select, text, update
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from app.agents.model_resolver import ModelRequestSpec
 from app.agents.spec import AgentSpec
@@ -2591,3 +2591,58 @@ async def test_dataset_grading_keeps_an_explicit_chat_model_and_refuses_embeddin
     await db.flush()
     with pytest.raises(BadRequestError, match="answers messages"):
         await service.set_scoring(tenant.ctx, dataset.id, changed)
+
+
+async def test_concurrent_scoring_patches_keep_both_sections(engine: AsyncEngine) -> None:
+    sessions = async_sessionmaker(engine, expire_on_commit=False)
+    async with sessions() as setup:
+        tenant = await _tenant(setup)
+        dataset, _ = await _dataset(
+            setup, tenant, scoring=DatasetScoring(checks=ChecksScorer(enabled=True))
+        )
+        dataset_id = dataset.id
+        await setup.commit()
+    ready = asyncio.Barrier(2)
+    processes: asyncio.Queue[int] = asyncio.Queue()
+
+    async def save(changes: DatasetScoringUpdate) -> None:
+        async with sessions() as session:
+            process = await session.scalar(text("SELECT pg_backend_pid()"))
+            assert isinstance(process, int)
+            await processes.put(process)
+            service = ScoringService(session)
+            stale = await service.datasets.get(tenant.ctx, dataset_id)
+            await ready.wait()
+            await service.set_scoring(tenant.ctx, dataset_id, changes)
+            assert stale.id == dataset_id
+            await session.commit()
+
+    async with sessions() as blocker:
+        await dataset_repo.lock(blocker, dataset_id, organization_id=tenant.ctx.organization_id)
+        async with asyncio.TaskGroup() as group:
+            group.create_task(
+                save(DatasetScoringUpdate.model_validate({"checks": {"required": False}}))
+            )
+            group.create_task(
+                save(DatasetScoringUpdate.model_validate({"review": {"select": "all"}}))
+            )
+            pids = [await processes.get(), await processes.get()]
+            async with asyncio.timeout(5):
+                while True:
+                    waiting = [
+                        bool(
+                            await blocker.scalar(
+                                text("SELECT pg_blocking_pids(:pid) <> '{}'::int[]"), {"pid": pid}
+                            )
+                        )
+                        for pid in pids
+                    ]
+                    if all(waiting):
+                        break
+                    await asyncio.sleep(0.01)
+            await blocker.commit()
+    async with sessions() as session:
+        stored = await DatasetService(session).get(tenant.ctx, dataset_id)
+        scoring = DatasetScoring.model_validate(stored.scoring)
+        assert scoring.checks.required is False
+        assert scoring.review.select == "all"

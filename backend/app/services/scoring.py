@@ -282,7 +282,7 @@ class ScoringService:
                 the organization's judges, or the selected model is not a
                 usable chat profile of this organization.
         """
-        dataset = await self.datasets.get(ctx, dataset_id, perm=Perm.DATASETS_EDIT)
+        dataset = await self.datasets.lock_for_edit(ctx, dataset_id)
         stored = DatasetScoring.model_validate(dataset.scoring)
         kept = stored.model_dump(mode="json", by_alias=True)
         changed = changes.model_dump(mode="json", by_alias=True, exclude_unset=True)
