@@ -1,5 +1,5 @@
 ---
-source_sha: "1b6f6314aaea"
+source_sha: "a0dffce17e83"
 ---
 
 # Sandbox { #the-sandbox }
@@ -21,9 +21,9 @@ oraz jak długo cokolwiek z tego przeżywa.
 [Konfiguracja](configuration.md#the-services-own-settings) to referencja zmienna
 po zmiennej.
 
-Podman nie jest obecnie wspierany, także z `--no-sandbox`. Użyj Docker
-Engine z Docker Compose 2.24+; [obsługa Podmana](deploy.md#podman-support)
-opisuje ograniczenia Compose i sandboxa.
+Wdrożenia Podmana korzystają z [ręcznej ścieżki z Docker Compose](deploy.md#podman-support)
+i dodatkowego override dla socketu sandboxa i uprawnień workspace. Quickstart
+obsługuje Dockera; `podman-compose` 1.6.0 nie jest wspierany.
 
 ## Co gdzie działa { #what-runs-where }
 

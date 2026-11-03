@@ -1,5 +1,5 @@
 ---
-source_sha: "07880e21d799"
+source_sha: "5586ac2f392a"
 ---
 
 <div class="agenticos-hero" markdown>
@@ -145,9 +145,9 @@ um ihn herum.
 
 ## Voraussetzungen { #requirements }
 
-Podman wird derzeit nicht unterstützt, auch mit `--no-sandbox`. Verwenden Sie
-Docker Engine mit Docker Compose 2.24+; [Podman-Unterstützung](deploy.md#podman-support)
-beschreibt die Grenzen von Compose und Sandbox.
+Podman-Installationen verwenden den [manuellen Docker-Compose-Weg](deploy.md#podman-support)
+mit zusätzlichem Override für Sandbox-Socket und Workspace-Berechtigungen. Der
+Quickstart unterstützt Docker; `podman-compose` 1.6.0 wird nicht unterstützt.
 
 Docker und Docker Compose. Das ist die ganze Liste — Postgres (mit pgvector),
 Redis, die API, der Worker und die Konsole starten gemeinsam.

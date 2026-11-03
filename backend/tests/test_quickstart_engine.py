@@ -13,15 +13,37 @@ ROOT = Path(__file__).resolve().parents[2]
 @pytest.mark.parametrize(
     "cli,server,compose,has_docker,has_podman,expected",
     [
-        ("podman version 5.6.2", "", "1.6.0", True, True, "Podman is not supported"),
-        ("podman version 5.6.2", "", "2.30.0", True, True, "Podman is not supported"),
+        (
+            "docker version 6.1.4",
+            "",
+            "2.40.3",
+            True,
+            True,
+            "Podman deployments use the manual setup",
+        ),
+        (
+            "podman version 5.6.2",
+            "",
+            "1.6.0",
+            True,
+            True,
+            "Podman deployments use the manual setup",
+        ),
+        (
+            "podman version 5.6.2",
+            "",
+            "2.30.0",
+            True,
+            True,
+            "Podman deployments use the manual setup",
+        ),
         (
             "Docker version 28.0.0",
             "Podman Engine",
             "2.30.0",
             True,
             False,
-            "Podman is not supported",
+            "Podman deployments use the manual setup",
         ),
         (
             "Docker version 28.0.0",
@@ -29,10 +51,17 @@ ROOT = Path(__file__).resolve().parents[2]
             "podman-compose version 1.6.0",
             True,
             True,
-            "Podman is not supported",
+            "Podman deployments use the manual setup",
         ),
-        ("", "", "", False, True, "Podman is not supported"),
-        ("Docker version 28.0.0", "Docker Engine - Community", "2.24.0", True, True, "Everything"),
+        ("", "", "", False, True, "Podman deployments use the manual setup"),
+        (
+            "Docker version 28.0.0",
+            "Engine\ncontainerd\nrunc\ndocker-init",
+            "2.24.0",
+            True,
+            True,
+            "Everything",
+        ),
         ("Docker version 28.0.0", "Docker Desktop", "v2.30.0", True, False, "Everything"),
         ("Docker version 28.0.0", "Docker Engine - Community", "2.23.0", True, False, "is too old"),
         ("Docker version 28.0.0", "", "2.30.0", True, False, "Docker is installed but not running"),
@@ -67,7 +96,9 @@ def test_quickstart_reports_the_engine_before_compose_compatibility(
             'printf "%s\\n" "$*" >> "$CALLS"\n'
             'case "$*" in\n'
             '  --version) printf "%s\\n" "$CLI" ;;\n'
-            '  "version --format "*) printf "%s\\n" "$SERVER" ;;\n'
+            '  "system connection list --format "*) case "$CLI" in "docker version "*) exit 0 ;; *) exit 1 ;; esac ;;\n'
+            '  "version --format "*".Server.Components"*) printf "%s\\n" "$SERVER" ;;\n'
+            '  "version --format "*) printf "%s\\n" "linux/arm64/fedora-44" ;;\n'
             '  "compose version"*) printf "%s\\n" "$COMPOSE" ;;\n'
             '  info) [ -n "$SERVER" ] ;;\n'
             "  *) exit 99 ;;\n"
@@ -100,11 +131,11 @@ def test_quickstart_reports_the_engine_before_compose_compatibility(
     output = result.stdout + result.stderr
     assert expected in output
     assert result.returncode == (0 if expected == "Everything" else 1)
-    if expected == "Podman is not supported":
+    if expected == "Podman deployments use the manual setup":
         assert "Docker Engine with Docker Compose 2.24+" in output
         assert "deploy/#podman-support" in output
         assert "is too old" not in output
-    if "podman" in cli or server == "Podman Engine":
+    if "podman" in cli or cli.startswith("docker version ") or server == "Podman Engine":
         assert "compose" not in calls.read_text()
     assert not (tmp_path / "agenticos").exists()
     assert not (tmp_path / ".env").exists()

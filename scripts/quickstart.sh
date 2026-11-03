@@ -156,8 +156,10 @@ hint_for() {
 MISSING=0
 
 refuse_podman() {
-  die "Podman is not supported by the AgenticOS quickstart, including with --no-sandbox.
-  Use Docker Engine with Docker Compose ${COMPOSE_MIN_MAJOR}.${COMPOSE_MIN_MINOR}+ (Docker Desktop or OrbStack on macOS).
+  die "Podman deployments use the manual setup; this quickstart supports Docker only, including with --no-sandbox.
+  For Podman, use Docker Compose ${COMPOSE_MIN_MAJOR}.${COMPOSE_MIN_MINOR}+ as the provider for 'podman compose'.
+  podman-compose 1.6.0 does not enforce successful migrations before starting the application.
+  For this quickstart, use Docker Engine with Docker Compose ${COMPOSE_MIN_MAJOR}.${COMPOSE_MIN_MINOR}+ (Docker Desktop or OrbStack on macOS).
   If Docker is also installed, make sure 'docker' invokes Docker's CLI and targets the Docker daemon,
   rather than podman-docker or a Podman socket/context.
   See https://vstorm-co.github.io/agenticos/deploy/#podman-support"
@@ -171,7 +173,12 @@ check_container_engine() {
   if printf '%s' "$identity" | grep -qi podman; then
     refuse_podman
   fi
-  identity="$(docker version --format '{{.Server.Platform.Name}}' 2>/dev/null || true)"
+  # A symlink named `docker` makes Podman use that name in --version too.
+  # This native Podman command needs no running engine.
+  if docker system connection list --format '{{.Name}}' >/dev/null 2>&1; then
+    refuse_podman
+  fi
+  identity="$(docker version --format '{{range .Server.Components}}{{println .Name}}{{end}}' 2>/dev/null || true)"
   if printf '%s' "$identity" | grep -qi podman; then
     refuse_podman
   fi

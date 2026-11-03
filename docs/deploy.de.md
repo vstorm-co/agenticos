@@ -1,5 +1,5 @@
 ---
-source_sha: "c3a0127a69c7"
+source_sha: "7972364d6328"
 ---
 
 # Auf einem Server deployen { #deploy-to-a-server }
@@ -31,7 +31,7 @@ Deployments - führt [Über einen Host hinaus skalieren](scaling.md).
 | | |
 |---|---|
 | **Einen Host** | 4 vCPU und 8 GB RAM genügen. Siehe [Dimensionierung](#sizing-the-host) |
-| **Docker** | Engine 24+ mit dem Compose-Plugin (2.24 oder neuer), und Ihr Benutzer in der Gruppe `docker`. Auf dem Host wird nichts gebaut: die Images werden von GHCR geholt |
+| **Container-Engine** | Engine 24+ mit dem Compose-Plugin (2.24 oder neuer), und Ihr Benutzer in der Gruppe `docker`. Auf dem Host wird nichts gebaut: die Images werden von GHCR geholt. Alternativ nutzen Sie den [manuellen Podman-Weg](#podman-support). |
 | **Zwei Hostnamen** | einen für die Website, einen für die API — siehe [warum zwei](#why-two-hostnames) |
 | **Einen Reverse Proxy** | [Traefik](#option-a-traefik) oder [Nginx](#option-b-nginx). Er terminiert TLS |
 | **Keinen Provider-Key** | Chat-Modelle und Embeds werden beide pro Organisation im Vault des Produkts hinterlegt. Die Umgebung hält für keines von beiden Zugangsdaten — siehe [Datenschutz](data-protection.md#nothing-leaves-by-default) |
@@ -53,37 +53,95 @@ die Cookies der API und die der Website sind auf den Host begrenzt.
 
 ### Podman-Unterstützung { #podman-support }
 
-**Podman wird derzeit nicht unterstützt**, mit oder ohne Sandbox. Verwenden Sie
-Docker Engine 24+ und Docker Compose 2.24+. Der Quickstart weist erkanntes
-Podman vor der Compose-Versionsprüfung zurück, auch wenn `docker` auf
-`podman-docker` verweist oder die Docker-CLI einen Server mit Podman-Kennung nutzt.
+**Podman wird über die manuelle Installation mit Docker Compose als Provider
+unterstützt.** Getestet wurden Podman 6.1.4 und Docker Compose v2.40.3 auf
+Fedora CoreOS 44 (Podman-VM unter macOS, ARM64, cgroups v2, SELinux enforcing).
+Die gelieferte Datei benötigt Compose 2.24 oder neuer.
 
-`podman compose` verwendet einen externen Provider: Docker Compose und
-`podman-compose` haben getrennte Versionsnummern. `podman-compose` 1.6.0 bedeutet
-nicht Docker Compose 1.6.0. Unsere Dateien benötigen optionale `env_file`-Einträge
-und Abhängigkeitsbedingungen für gesunde Dienste und abgeschlossene Migrationen.
-Eine geänderte Versionsprüfung allein belegt keine Kompatibilität.
+**Verwenden Sie nicht `podman-compose` 1.6.0.** Der Stack startete und ein Agent
+antwortete, aber eine gezielt fehlgeschlagene Migration verhinderte den Start
+der abhängigen App nicht. Docker Compose verweigerte diesen Start korrekt.
+Die Versionsnummern der Provider sind unabhängig; `podman-compose` 1.6.0 ist
+nicht Docker Compose 1.6.0.
 
-Die Sandbox hat eine eigene Kompatibilitätsgrenze. `sandboxd` aus
-`pydantic-ai-backend` 0.2.39 verwendet Docker SDK `from_env()`, Container-Erstellung,
-exec, Ressourcenlimits und Image-Builds. Ein Podman-API-Socket kann Docker-Aufrufe
-annehmen; das bestätigt weder diese Operationen noch deren Isolation. Runtime-Builds
-nutzen Docker Buildx, falls verfügbar, andernfalls den SDK-Builder.
+Der Quickstart bleibt auf Docker beschränkt und verweist erkanntes Podman auf
+diesen manuellen Weg, auch mit `--no-sandbox`. Wählen Sie im konfigurierten
+Repository-Hauptverzeichnis die echte Docker-Compose-Datei (eigenständiges
+Programm oder CLI-Plugin):
 
-Die gelieferten Dateien mounten `/var/run/docker.sock`. Podman verwendet üblicherweise
-`/run/podman/podman.sock` (rootful) oder `$XDG_RUNTIME_DIR/podman/podman.sock`
-(rootless). Socket-Zugriff, SELinux-Labels, UID-Zuordnung, Bind-Mounts der
-Host-Arbeitsverzeichnisse und cgroup-Limits benötigen Tests auf dem Host.
-`DOCKER_HOST` allein ändert den gelieferten Socket-Mount nicht.
+```bash
+export PODMAN_COMPOSE_PROVIDER=/absolute/path/to/docker-compose
+podman compose version
+podman compose -f docker-compose.yml up -d
+```
 
-Weder Docker Compose gegen Podman noch `podman-compose` haben einen verifizierten
-AgenticOS-Start mit Agent-Antwort. Auch rootful und rootless `sandboxd` gegen
-Podman sind nicht verifiziert. Dies ist eine Supportentscheidung anhand der
-bestehenden Verträge, kein Bericht über getestete und fehlgeschlagene Kombinationen.
-`--no-sandbox` belegt keine Unterstützung des übrigen Compose-Stacks.
+Prüfen Sie, dass `podman compose version` Docker Compose identifiziert. Das
+explizite `-f` schließt den lokalen Quellcode-Build-Override aus; diese
+Installation verwendet veröffentlichte Images. Folgen Sie nach dem Start
+[Installation](install.md), um Organisation und Modell einzurichten.
 
-Siehe die [Compose-Provider-Dokumentation](https://docs.podman.io/en/latest/markdown/podman-compose.1.html)
-und die [API-Socket-Dokumentation](https://docs.podman.io/en/latest/markdown/podman-system-service.1.html).
+**Optionale Sandbox.** `pydantic-ai-backend` 0.2.39 funktionierte mit rootful
+und rootless Podman-Sockets. Ein neues Backend oder Release ist nicht nötig.
+Verwenden Sie `docker-compose-podman.yml` für die Socket- und Workspace-Mounts;
+bereiten Sie deren Berechtigungen vor dem Aktivieren des Profils vor.
+
+Auf nativem Linux mit rootless Podman:
+
+```bash
+systemctl --user enable --now podman.socket
+export SANDBOX_DOCKER_SOCKET="$XDG_RUNTIME_DIR/podman/podman.sock"
+export SANDBOX_WORKSPACE_ROOT="$HOME/.local/share/agenticos/sandbox-workspaces"
+mkdir -p "$SANDBOX_WORKSPACE_ROOT"
+podman unshare chown 10001:10001 "$SANDBOX_WORKSPACE_ROOT"
+export DOCKER_GID=0
+```
+
+Aktivieren Sie für rootful Linux stattdessen den systemweiten `podman.socket`,
+setzen Sie `SANDBOX_DOCKER_SOCKET=/run/podman/podman.sock` und erstellen Sie den
+Workspace mit `sudo install -d -o 10001 -g 10001 "$SANDBOX_WORKSPACE_ROOT"`.
+Richten Sie Compose auf diese rootful Engine. Die Socket-Gruppe ist gewöhnlich
+0; bei einem angepassten rootful Socket gehört seine tatsächliche Gruppe in
+`DOCKER_GID`.
+
+Bei einer rootless Podman-VM unter macOS liegen beide Bind-Quellen in der
+Linux-VM, nicht auf macOS. Bereiten Sie sie innerhalb der VM vor:
+
+```bash
+export SANDBOX_DOCKER_SOCKET="$(podman machine ssh 'printf "%s/podman/podman.sock" "$XDG_RUNTIME_DIR"')"
+export SANDBOX_WORKSPACE_ROOT=/tmp/agenticos-sandbox-workspaces
+podman machine ssh 'mkdir -p /tmp/agenticos-sandbox-workspaces && podman unshare chown 10001:10001 /tmp/agenticos-sandbox-workspaces'
+export DOCKER_GID=0
+```
+
+Behalten Sie bestehende Deployment-Schlüssel. Setzen Sie ein nichtleeres
+`SANDBOXD_TOKEN` und `SANDBOX_URL=http://sandboxd:8080` in der vom Stack gelesenen
+Env-Datei, wie unter [Sandbox-Konfiguration](sandbox.md) beschrieben. Starten Sie
+dann mit beiden Dateien:
+
+```bash
+podman compose -f docker-compose.yml -f docker-compose-podman.yml \
+  --profile sandbox up -d
+```
+
+Der Override deaktiviert SELinux-Labeling nur für `sandboxd`, das bereits den
+Engine-Socket hält. Der Workspace erhält mit `:z` ein gemeinsames Label, da ihn
+auch benachbarte Sandboxes mounten. Sandbox-Container behalten eigene Labels und
+`no-new-privileges`; ändern Sie nicht das Socket-Label und deaktivieren Sie
+SELinux nicht global. Rootless Socket-Eigentum wird im User-Namespace auf
+Gruppe 0 abgebildet.
+
+Verwenden Sie auf Servern einen dauerhaften Workspace-Pfad: `/tmp` ist nur ein
+lokales Beispiel. Behalten Sie Socket-, Workspace- und Gruppenwerte für spätere
+Compose-Aufrufe in der Operator-Umgebung. `DOCKER_HOST` auf dem Host ändert nicht
+den Socket-Mount in `sandboxd`.
+
+Verifiziert wurden ein HTTP-Agent-Run mit gespeicherter Fertigstellung,
+Workspace-Dateien, Fehlercodes, Timeouts, wirksame RAM/CPU/PID-Limits und
+Runtime-Builds. Das gelieferte Workbench-Image las/schrieb XLSX, zeichnete einen
+Plot und startete Node und LibreOffice. Das Modell war ein deterministischer
+OpenAI-kompatibler Testserver; Desktop-Runtime und sämtliche Linux-Distributionen
+wurden nicht getestet. Der [Testbericht](https://github.com/vstorm-co/agenticos/blob/main/docs/audits/podman-2026-11-03.md)
+nennt Versionen, Umfang und die Reproduktion des Migrationsfehlers.
 
 ## Den Host dimensionieren { #sizing-the-host }
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "1b6f6314aaea"
+source_sha: "a0dffce17e83"
 ---
 
 # La sandbox { #the-sandbox }
@@ -21,9 +21,9 @@ otra, y cuánto sobrevive cada cosa.
 [Configuración](configuration.md#the-services-own-settings) es la referencia
 variable por variable.
 
-Podman no está soportado actualmente, tampoco con `--no-sandbox`. Usa Docker
-Engine con Docker Compose 2.24+; [compatibilidad con Podman](deploy.md#podman-support)
-describe las limitaciones de Compose y sandbox.
+Los despliegues Podman usan la [ruta manual con Docker Compose](deploy.md#podman-support)
+y un override adicional para el socket sandbox y los permisos del workspace.
+El inicio rápido admite Docker; `podman-compose` 1.6.0 no está soportado.
 
 ## Qué se ejecuta dónde { #what-runs-where }
 

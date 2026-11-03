@@ -1,0 +1,25 @@
+# Optional sandbox settings for Podman. Use explicitly with docker-compose.yml
+# and Docker Compose as the provider; see docs/deploy.md#podman-support.
+# Provision the workspace owner before starting this profile. The daemon, not
+# the Compose client, resolves both source paths (inside the VM on macOS).
+services:
+  sandboxd:
+    environment:
+      DOCKER_HOST: unix:///var/run/docker.sock
+    # The service already holds the engine socket. Disable its SELinux label
+    # so it can open that socket; sibling sandboxes retain their own labels.
+    security_opt:
+      - label=disable
+    volumes:
+      - type: bind
+        source: ${SANDBOX_DOCKER_SOCKET:-/run/podman/podman.sock}
+        target: /var/run/docker.sock
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${SANDBOX_WORKSPACE_ROOT:-/tmp/agenticos-sandbox-workspaces}
+        target: ${SANDBOX_WORKSPACE_ROOT:-/tmp/agenticos-sandbox-workspaces}
+        bind:
+          create_host_path: false
+          # A workspace is shared by sandboxd and its sibling containers.
+          selinux: z

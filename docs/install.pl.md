@@ -1,5 +1,5 @@
 ---
-source_sha: "9bd4be8e9550"
+source_sha: "3e5746cd74c2"
 ---
 
 # Instalacja { #install }
@@ -38,9 +38,9 @@ ma kroku, który on wykonuje, a którego ty nie możesz.
 
 ## Wymagania { #requirements }
 
-Podman nie jest obecnie wspierany, także z `--no-sandbox`. Użyj Docker
-Engine z Docker Compose 2.24+; [obsługa Podmana](deploy.md#podman-support)
-opisuje ograniczenia Compose i sandboxa.
+Wdrożenia Podmana korzystają z [ręcznej ścieżki z Docker Compose](deploy.md#podman-support)
+i dodatkowego override dla socketu sandboxa i uprawnień workspace. Quickstart
+obsługuje Dockera; `podman-compose` 1.6.0 nie jest wspierany.
 
 | Żeby | Potrzebujesz |
 |---|---|

@@ -17,9 +17,9 @@ organization from another, and how long any of it survives.
 [Configuration](configuration.md#the-services-own-settings) is the
 variable-by-variable reference.
 
-Podman is currently unsupported, including with `--no-sandbox`. Use Docker
-Engine with Docker Compose 2.24+; see [Podman support](deploy.md#podman-support)
-for the Compose and sandbox limitations.
+Podman deployments use the [manual Docker Compose provider path](deploy.md#podman-support),
+with an additional override for sandbox socket and workspace permissions. The
+quickstart supports Docker; `podman-compose` 1.6.0 is unsupported.
 
 ## What runs where
 
