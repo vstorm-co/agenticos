@@ -48,19 +48,23 @@ vi.mock("@/stores/org-store", () => ({
 
 const DRAFT = { instructions: "Answer refunds kindly." };
 const AGENTS = [
-  { id: "agent-1", name: "Refund desk", can_run: true, kind: "agent" },
-  { id: "agent-2", name: "Shipping desk", can_run: true, kind: "agent" },
-  { id: "judge", name: "Eval judge", can_run: true, kind: "judge" },
-  { id: "locked", name: "Payroll", can_run: false, kind: "agent" },
+  { id: "agent-1", slug: "refund-desk", name: "Refund desk", can_run: true, kind: "agent" },
+  { id: "agent-2", slug: "shipping-desk", name: "Shipping desk", can_run: true, kind: "agent" },
+  { id: "judge", slug: "judge", name: "Eval judge", can_run: true, kind: "judge" },
+  { id: "locked", slug: "payroll", name: "Payroll", can_run: false, kind: "agent" },
 ];
-const agentList = vi.hoisted(() => ({ items: [] as unknown[] }));
+const agentList = vi.hoisted(() => ({ items: [] as unknown[], error: null as Error | null }));
 const agentState = vi.hoisted(() => ({
   currentVersionId: "v7" as string | null,
   liveSpec: {} as Record<string, unknown>,
   canEdit: true,
+  loading: false,
+  error: null as Error | null,
 }));
 vi.mock("@/hooks", () => ({
   useAgent: (id: string | null) => ({
+    isLoading: agentState.loading,
+    error: agentState.error,
     agent:
       id === null
         ? undefined
@@ -76,7 +80,11 @@ vi.mock("@/hooks", () => ({
   }),
 }));
 
-const datasets = vi.hoisted(() => ({ items: [] as unknown[] }));
+const datasets = vi.hoisted(() => ({
+  items: [] as unknown[],
+  error: null as Error | null,
+  loading: false,
+}));
 const hooks = vi.hoisted(() => ({
   estimate: undefined as unknown,
   start: undefined as unknown,
@@ -86,8 +94,12 @@ const hooks = vi.hoisted(() => ({
 vi.mock("@/hooks/use-eval-runs", () => ({
   useEvalRuns: () => ({ runs: hooks.runs, estimate: hooks.estimate, start: hooks.start }),
   useDatasetEvalRuns: () => ({ runs: hooks.datasetRuns }),
-  useEveryAgent: () => ({ agents: agentList.items }),
-  useEveryDataset: () => ({ datasets: datasets.items }),
+  useEveryAgent: () => ({ agents: agentList.items, error: agentList.error }),
+  useEveryDataset: () => ({
+    datasets: datasets.items,
+    error: datasets.error,
+    isLoading: datasets.loading,
+  }),
 }));
 vi.mock("@/hooks/use-agent-environments", () => ({
   useAgentEnvironments: () => ({ environments: [{ id: "env-1", name: "staging" }] }),
@@ -147,7 +159,12 @@ beforeEach(() => {
   access.org = "org-1";
   agentState.currentVersionId = "v7";
   agentState.canEdit = true;
+  agentState.loading = false;
+  agentState.error = null;
   agentState.liveSpec = { instructions: "Answer refunds." };
+  datasets.error = null;
+  datasets.loading = false;
+  agentList.error = null;
   datasets.items = [
     REFUNDS,
     { id: "ds-2", name: "empty", case_count: 0, latest_version: 0, can_run: true },
@@ -160,6 +177,40 @@ beforeEach(() => {
 });
 
 describe("StartEvalDialog", () => {
+  it.each(["agents", "datasets"])(
+    "blocks an incomplete %s listing and reports the failure",
+    (kind) => {
+      agentList.items = [AGENTS[0]];
+      if (kind === "agents") agentList.error = new Error("Listing unavailable");
+      else datasets.error = new Error("Listing unavailable");
+      open({ agentId: null });
+      expect(screen.getByRole("alert")).toHaveTextContent("Listing unavailable");
+      expect(screen.getByRole("button", { name: "Run evals" })).toBeDisabled();
+      expect(estimated()).not.toHaveBeenCalled();
+    },
+  );
+  it("keeps dataset loading separate from having no datasets", () => {
+    datasets.loading = true;
+    open();
+    expect(screen.getByRole("combobox", { name: "Dataset" })).toBeDisabled();
+    expect(screen.queryByText("There are no datasets you can run.")).toBeNull();
+    expect(screen.getByRole("button", { name: "Run evals" })).toBeDisabled();
+  });
+
+  it("shows loading rather than a missing-version refusal while reading the selected agent", () => {
+    agentState.loading = true;
+    open();
+    expect(screen.getByRole("status")).toHaveTextContent(/Loading/);
+    expect(screen.queryByText(/This agent has no published version/)).toBeNull();
+  });
+
+  it("shows a failed agent read rather than offering unavailable targets", () => {
+    agentState.error = new Error("Agent unavailable");
+    open();
+    expect(screen.getByRole("alert")).toHaveTextContent("Agent unavailable");
+    expect(screen.queryByRole("radio")).toBeNull();
+  });
+
   it("tests a changed draft against what is live, on the only dataset, priced as it settles", async () => {
     open();
 
@@ -263,6 +314,39 @@ describe("StartEvalDialog", () => {
     expect(screen.getByRole("button", { name: "Run evals" })).toBeDisabled();
     await new Promise((resolve) => setTimeout(resolve, 450));
     expect(estimated()).not.toHaveBeenCalled();
+  });
+
+  it("keeps an empty dataset named, explains the missing cases and never estimates it", async () => {
+    const close = open({ datasetId: "ds-2" });
+    expect(screen.getByRole("combobox", { name: "Dataset" })).toHaveTextContent("empty");
+    expect(screen.getByText(/This dataset has no cases yet/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Open cases" })).toHaveAttribute(
+      "href",
+      "/datasets/ds-2?tab=cases",
+    );
+    expect(screen.getByRole("button", { name: "Run evals" })).toBeDisabled();
+    await userEvent.click(screen.getByRole("link", { name: "Open cases" }));
+    expect(close).toHaveBeenCalledWith(false);
+    await choose("Dataset", "refunds · 20 cases · v3");
+    await waitFor(() => expect(estimated()).toHaveBeenCalledWith(COMPARE));
+  });
+
+  it("explains when no dataset can be run instead of opening an empty menu", () => {
+    datasets.items = [];
+    open();
+    expect(screen.getByRole("combobox", { name: "Dataset" })).toBeDisabled();
+    expect(screen.getByText("There are no datasets you can run.")).toBeInTheDocument();
+  });
+
+  it("asks for a fresh price when the agent changes but the eval choices stay identical", async () => {
+    open({ agentId: null, datasetId: "ds-1" });
+    await userEvent.click(screen.getByRole("combobox", { name: "Agent" }));
+    await userEvent.click(screen.getByRole("option", { name: "Refund desk" }));
+    await waitFor(() => expect(estimated()).toHaveBeenCalledWith(COMPARE));
+    estimated().mockClear();
+    await userEvent.click(screen.getByRole("combobox", { name: "Agent" }));
+    await userEvent.click(screen.getByRole("option", { name: "Shipping desk" }));
+    await waitFor(() => expect(estimated()).toHaveBeenCalledWith(COMPARE));
   });
 
   it("offers the dataset this agent was last measured on", async () => {

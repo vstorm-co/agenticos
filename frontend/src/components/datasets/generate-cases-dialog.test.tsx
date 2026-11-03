@@ -12,7 +12,7 @@ import { GeneratePanel } from "./generate-panel";
 const { estimate, start, granted } = vi.hoisted(() => ({
   estimate: { mutateAsync: vi.fn(), isPending: false },
   start: { mutateAsync: vi.fn(), isPending: false },
-  granted: { perms: [] as string[] },
+  granted: { perms: [] as string[], agentsError: null as Error | null, refetch: vi.fn() },
 }));
 vi.mock("@/hooks/use-case-generation", () => ({
   useGenerateCases: () => ({ estimate, start }),
@@ -30,7 +30,11 @@ vi.mock("@/hooks/use-case-generation", () => ({
   }),
 }));
 vi.mock("@/hooks/use-agents", () => ({
-  useAgents: () => ({ agents: [{ id: "a1", name: "Support clerk" }] }),
+  useAgents: () => ({
+    agents: [{ id: "a1", slug: "support-clerk", name: "Support clerk" }],
+    error: granted.agentsError,
+    refetch: granted.refetch,
+  }),
   useAgentsOfKind: () => ({
     agents: [
       {
@@ -76,10 +80,20 @@ async function chooseAgent() {
 beforeEach(() => {
   vi.clearAllMocks();
   granted.perms = [Perm.runsView];
+  granted.agentsError = null;
   useUnsavedChangesStore.setState({ sources: {}, prompt: null, saving: false });
 });
 
 describe("GenerateCasesDialog", () => {
+  it("shows an agent-list error and lets the reader retry", async () => {
+    granted.agentsError = new Error("Agents unavailable");
+    mount();
+    expect(screen.getByRole("alert")).toHaveTextContent("Agents unavailable");
+    await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+    expect(granted.refetch).toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "Estimate cost" })).toBeDisabled();
+  });
+
   it("starts from the empty queue and returns there after the confirmed generation", async () => {
     estimate.mutateAsync.mockResolvedValue(ESTIMATE);
     start.mutateAsync.mockResolvedValue({ id: "g1" });

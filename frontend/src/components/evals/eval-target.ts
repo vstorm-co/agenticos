@@ -27,8 +27,12 @@ export const TARGET_REQUEST: Record<
  * may run the draft at all - the editors' work in progress.
  */
 export function useEvalTarget(agentId: string | null) {
-  const { agent } = useAgent(agentId);
-  const { version } = useAgentVersion(agentId, agent?.current_version_id ?? null);
+  const { agent, isLoading: agentLoading, error: agentError } = useAgent(agentId);
+  const {
+    version,
+    isLoading: versionLoading,
+    error: versionError,
+  } = useAgentVersion(agentId, agent?.current_version_id ?? null);
   const canRunDraft = agent?.can_edit === true;
   const draftDiffers = useMemo(
     () => (agent && version ? specText(agent.draft_spec) !== specText(version.spec) : false),
@@ -53,5 +57,13 @@ export function useEvalTarget(agentId: string | null) {
       : "version"
     : (targets[0] ?? null);
   const ready = agent !== undefined && (agent.current_version_id === null || version !== undefined);
-  return { agent, currentVersion, draftDiffers, targets, preferred: ready ? preferred : null };
+  return {
+    agent,
+    currentVersion,
+    draftDiffers,
+    targets,
+    preferred: ready ? preferred : null,
+    isLoading: Boolean(agentLoading || versionLoading),
+    error: agentError ?? versionError ?? null,
+  };
 }

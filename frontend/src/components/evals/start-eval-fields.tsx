@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+import { ROUTES } from "@/lib/constants";
 import { useId } from "react";
 import { useTranslations } from "next-intl";
 
@@ -102,17 +104,21 @@ export function Toggle({
 export function StartEvalFields({
   agentId,
   datasets,
+  loading,
   datasetId,
   request,
   onChange,
+  onOpenCases,
 }: {
   agentId: string | null;
   /** The datasets with a case to run. */
   datasets: Dataset[];
+  loading?: boolean;
   /** The dataset chosen or offered; empty while there is none to offer. */
   datasetId: string;
   request: EvalRunRequest;
   onChange: (next: EvalRunRequest) => void;
+  onOpenCases: () => void;
 }) {
   const t = useTranslations("evals.fields");
   const { environments } = useAgentEnvironments(agentId);
@@ -122,13 +128,17 @@ export function StartEvalFields({
     <div className="space-y-4">
       <div className="space-y-1.5">
         <Label>{t("dataset")}</Label>
-        <Select value={datasetId} onValueChange={(id) => set({ dataset_id: id })}>
+        <Select
+          value={datasetId}
+          onValueChange={(id) => set({ dataset_id: id })}
+          disabled={loading || datasets.length === 0}
+        >
           <SelectTrigger aria-label={t("dataset")}>
-            <SelectValue placeholder={t("datasetPlaceholder")} />
+            <SelectValue placeholder={loading ? t("loadingDatasets") : t("datasetPlaceholder")} />
           </SelectTrigger>
           <SelectContent>
             {datasets.map((dataset) => (
-              <SelectItem key={dataset.id} value={dataset.id}>
+              <SelectItem key={dataset.id} value={dataset.id} disabled={dataset.case_count === 0}>
                 {t("datasetOption", {
                   name: dataset.name,
                   count: dataset.case_count,
@@ -138,6 +148,21 @@ export function StartEvalFields({
             ))}
           </SelectContent>
         </Select>
+        {!loading && datasets.length === 0 && (
+          <p className="text-muted-foreground text-sm">{t("noDatasets")}</p>
+        )}
+        {datasets.some((item) => item.id === datasetId && item.case_count === 0) && (
+          <p className="text-muted-foreground text-sm">
+            {t("emptyDataset")}{" "}
+            <Link
+              className="text-foreground underline underline-offset-4"
+              href={`${ROUTES.DATASET_DETAIL(datasetId)}?tab=cases`}
+              onClick={onOpenCases}
+            >
+              {t("openCases")}
+            </Link>
+          </p>
+        )}
       </div>
 
       <MoreOptions label={t("advanced")}>

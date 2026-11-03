@@ -16,17 +16,13 @@ import {
   FormField,
   Input,
   Label,
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
 } from "@/components/ui";
+import { AgentSelect } from "@/components/agents/agent-select";
 import { useAgents } from "@/hooks/use-agents";
 import { useGenerateCases } from "@/hooks/use-case-generation";
 import { usePermissions } from "@/hooks/use-permissions";
 import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
-import { submitFailure } from "@/lib/api-error";
+import { getErrorMessage, submitFailure } from "@/lib/api-error";
 import { DIALOG_BODY, DIALOG_COLUMN, DIALOG_FORM } from "@/lib/dialog-sizes";
 import { cn } from "@/lib/utils";
 import { useUnsavedChangesStore } from "@/stores/unsaved-changes-store";
@@ -70,7 +66,8 @@ export function GenerateCasesDialog({
   const t = useTranslations("datasets");
   const tErrors = useTranslations("errors");
   const { can } = usePermissions();
-  const { agents } = useAgents();
+  const { agents, isLoading: agentsLoading, error: agentsError, refetch } = useAgents();
+  const tc = useTranslations("common");
   const { estimate, start } = useGenerateCases(datasetId);
   const [agentId, setAgentId] = useState(initial?.agentId ?? "");
   const [sources, setSources] = useState<CaseOrigin[]>(DEFAULT_SOURCES);
@@ -83,7 +80,13 @@ export function GenerateCasesDialog({
     sources,
     count,
   };
-  const valid = agentId !== "" && sources.length > 0 && count >= 1 && count <= MAX_GENERATED;
+  const valid =
+    !agentsError &&
+    !agentsLoading &&
+    agentId !== "" &&
+    sources.length > 0 &&
+    count >= 1 &&
+    count <= MAX_GENERATED;
   const changed = () => {
     setEstimated(null);
     setErrors({});
@@ -126,6 +129,14 @@ export function GenerateCasesDialog({
         </DialogHeader>
         <div className={cn(DIALOG_BODY, "space-y-4")}>
           <p className="text-muted-foreground text-sm">{t("helpers.generationUsesSettings")}</p>
+          {agentsError && (
+            <div role="alert" className="space-y-2 text-sm">
+              <p className="text-destructive">{getErrorMessage(agentsError, tErrors)}</p>
+              <Button variant="outline" size="sm" onClick={() => void refetch()}>
+                {tc("retry")}
+              </Button>
+            </div>
+          )}
           <FormField
             htmlFor="generate-agent"
             label={t("agent")}
@@ -133,24 +144,17 @@ export function GenerateCasesDialog({
             error={errors.agent_id}
             required
           >
-            <Select
+            <AgentSelect
+              id="generate-agent"
+              agents={agents}
               value={agentId}
-              onValueChange={(next) => {
+              loading={agentsLoading}
+              placeholder={t("chooseAgent")}
+              onChange={(next) => {
                 setAgentId(next);
                 changed();
               }}
-            >
-              <SelectTrigger id="generate-agent">
-                <SelectValue placeholder={t("chooseAgent")} />
-              </SelectTrigger>
-              <SelectContent>
-                {agents.map((agent) => (
-                  <SelectItem key={agent.id} value={agent.id}>
-                    {agent.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            />
           </FormField>
           <FormField htmlFor="generate-sources" label={t("sources")} error={errors.sources}>
             <div id="generate-sources" className="grid gap-3 sm:grid-cols-2">

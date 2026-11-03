@@ -13844,7 +13844,11 @@
       "rerunsDefault": "Default",
       "rerunsCount": "{count, plural, =0 {None} =1 {1 rerun} other {# reruns}}",
       "rerunsHint": "A case whose result changes is answered again this many times, and the change counts as confirmed only if it holds every time. More reruns make a change harder to confirm, not easier: a model that answers differently each time rarely confirms anything. None skips the check.",
-      "noChanges": "No changes — the draft matches the published version."
+      "noChanges": "No changes — the draft matches the published version.",
+      "loadingDatasets": "Loading datasets…",
+      "noDatasets": "There are no datasets you can run.",
+      "emptyDataset": "This dataset has no cases yet. Add at least one case before running evals.",
+      "openCases": "Open cases"
     },
     "comparison": {
       "title": "How the two compare",
@@ -15264,5 +15268,10 @@
     "movedOn": "These changes were made on version {base}; the dataset has moved on to version {latest}.",
     "showChanges": "Show the changes",
     "caseGone": "That case is no longer in the dataset, so its unsaved changes were discarded."
+  },
+  "agentSelect": {
+    "search": "Search agents",
+    "empty": "No agents match your search.",
+    "loading": "Loading agents…"
   }
 }

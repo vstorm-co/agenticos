@@ -13617,7 +13617,11 @@
       "rerunsDefault": "Domyślnie",
       "rerunsCount": "{count, plural, =0 {Brak} one {# powtórka} few {# powtórki} many {# powtórek} other {# powtórki}}",
       "rerunsHint": "Przypadek, którego wynik się zmienił, dostaje tyle powtórek, a zmiana liczy się jako potwierdzona tylko wtedy, gdy powtórzy się za każdym razem. Więcej powtórek utrudnia potwierdzenie zmiany, a nie ułatwia: model, który za każdym razem odpowiada inaczej, rzadko cokolwiek potwierdzi. „Brak” pomija to sprawdzenie.",
-      "noChanges": "Brak zmian — wersja robocza jest taka sama jak opublikowana."
+      "noChanges": "Brak zmian — wersja robocza jest taka sama jak opublikowana.",
+      "loadingDatasets": "Ładowanie datasetów…",
+      "noDatasets": "Brak datasetów, które możesz uruchomić.",
+      "emptyDataset": "Ten dataset nie ma jeszcze przypadków. Dodaj przynajmniej jeden, aby uruchomić evals.",
+      "openCases": "Otwórz przypadki"
     },
     "comparison": {
       "title": "Jak wypadają obie strony",
@@ -15037,5 +15041,10 @@
     "movedOn": "Te zmiany powstały na wersji {base}; dataset ma już wersję {latest}.",
     "showChanges": "Pokaż zmiany",
     "caseGone": "Tego przypadku nie ma już w datasecie, więc jego niezapisane zmiany odrzucono."
+  },
+  "agentSelect": {
+    "search": "Szukaj agentów",
+    "empty": "Żaden agent nie pasuje do wyszukiwania.",
+    "loading": "Ładowanie agentów…"
   }
 }

@@ -13516,7 +13516,11 @@
       "rerunsDefault": "Standard",
       "rerunsCount": "{count, plural, =0 {Keine} =1 {1 Wiederholung} other {# Wiederholungen}}",
       "rerunsHint": "Ein Fall, dessen Ergebnis sich ändert, wird so oft erneut beantwortet, und die Änderung gilt nur als bestätigt, wenn sie jedes Mal hält. Mehr Wiederholungen machen eine Änderung schwerer zu bestätigen, nicht leichter: Ein Modell, das jedes Mal anders antwortet, bestätigt selten etwas. „Keine“ überspringt die Prüfung.",
-      "noChanges": "Keine Änderungen — der Entwurf entspricht der veröffentlichten Version."
+      "noChanges": "Keine Änderungen — der Entwurf entspricht der veröffentlichten Version.",
+      "loadingDatasets": "Datasets werden geladen…",
+      "noDatasets": "Es gibt keine Datasets, die Sie ausführen dürfen.",
+      "emptyDataset": "Dieses Dataset enthält noch keine Fälle. Fügen Sie mindestens einen Fall hinzu, bevor Sie Evals starten.",
+      "openCases": "Fälle öffnen"
     },
     "comparison": {
       "title": "Wie die beiden abschneiden",
@@ -14936,5 +14940,10 @@
     "movedOn": "Diese Änderungen wurden an Version {base} gemacht; das Dataset ist inzwischen bei Version {latest}.",
     "showChanges": "Änderungen zeigen",
     "caseGone": "Dieser Fall ist nicht mehr im Dataset, daher wurden seine ungespeicherten Änderungen verworfen."
+  },
+  "agentSelect": {
+    "search": "Agents suchen",
+    "empty": "Keine Agents entsprechen Ihrer Suche.",
+    "loading": "Agents werden geladen…"
   }
 }
