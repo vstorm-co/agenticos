@@ -265,10 +265,6 @@ def _improve_prompt(
     )
 
 
-_DESCRIPTION_CHARS = 500
-"""As long as a skill's description may be."""
-
-
 def _skills_section(spec: AgentSpec, skills: Sequence[Skill], used: Collection[UUID]) -> str:
     """The agent's skills, with the bodies of those the runs used, and what not to do with them."""
     if not skills:
@@ -841,14 +837,6 @@ class AuthoringRun:
             ImprovementStage.PROPOSING.value,
         ):
             raise Stopped("The improvement session moved on.")
-        if (
-            merge.description["state"] == "conflict"
-            and answer.texts
-            and not (1 <= len(answer.texts[0].strip()) <= _DESCRIPTION_CHARS)
-        ):
-            raise Stopped(
-                "The assistant's description is not 1 to 500 characters; settle it at Changes."
-            )
         try:
             await merges.fill_conflicts(merge, answer.texts)
         except ValueError as exc:

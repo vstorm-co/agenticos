@@ -18,12 +18,16 @@ from app.db.models.background_job import BackgroundJob
 from app.db.models.resource_grant import Visibility
 from app.db.models.skill import Skill
 from app.db.models.skill_improvement import SkillImprovementRun
-from app.repositories import skill_improvement_repo
+from app.repositories import skill_improvement_repo, skill_version_repo
+from app.schemas.skill import SkillUpdate
+from app.schemas.skill_version import SkillVersionCreate
 from app.services.authoring import AuthoringService
 from app.services.authoring_evidence import EvidencePack
 from app.services.authoring_worker import AuthoringWorker
 from app.services.skill_catch_up import SkillCatchUpService
 from app.services.skill_improvement import SkillImprovementService
+from app.services.skill_versions import SkillVersionService
+from app.services.skills import SkillService
 from tests.integration.test_authoring import (
     Improver,
     _answering,
@@ -295,6 +299,14 @@ async def test_a_fork_sessions_analysis_reads_the_forks_own_text(db, evidence):
     assert "(returns)" in analysis
 
 
+async def _fork_latest(db: AsyncSession, ctx: AuthContext, skill: Skill, fork_id: uuid.UUID):
+    fork = await skill_version_repo.get_fork(
+        db, fork_id, organization_id=ctx.organization_id, skill_id=skill.id
+    )
+    assert fork is not None and fork.latest_version_id is not None
+    return fork.latest_version_id
+
+
 async def _merging(db: AsyncSession) -> tuple[AuthContext, SkillImprovementRun]:
     """A catch-up whose one conflict waits for the model's text."""
     ctx = await _owner(db)
@@ -359,18 +371,36 @@ async def test_a_session_a_person_took_over_keeps_their_conflicts(db):
 
 
 @pytest.mark.usefixtures("call_price")
-async def test_a_description_past_its_limit_is_left_to_a_person(db):
+async def test_a_description_past_its_limit_is_left_to_a_person_and_the_rest_is_kept(db):
     ctx = await _owner(db)
     await _improver(db, ctx)
     skill, fork = await _described(db, ctx)
+    await SkillVersionService(db).edit(
+        ctx,
+        skill.id,
+        SkillVersionCreate(
+            fork_id=fork.id,
+            base_version_id=(await _fork_latest(db, ctx, skill, fork.id)),
+            description="How refunds and returns work.",
+            content=_BODY.replace("14 days", "30 days"),
+        ),
+    )
+    await SkillService(db).update(
+        ctx, skill.id, SkillUpdate(content=_BODY.replace("14 days", "21 days"))
+    )
     run = await _merge_started(db, ctx, skill, fork)
     await _merge_advance(db, run)
     await _merge_advance(db, run)
 
     with pytest.MonkeyPatch.context() as patch:
-        patch.setattr(SkillImprover, "merged", ("x" * 700,))
+        patch.setattr(SkillImprover, "merged", ("x" * 600, "Refunds take 30 days.\n"))
         request = await _work(db, ctx, await _merge_request(db, run))
+    await _merge_advance(db, run)
 
     merge = await SkillCatchUpService(db).merge_for_run(run.id, organization_id=ctx.organization_id)
-    assert merge is not None and merge.unresolved == 1
-    assert request.status == "failed" and "description" in (request.error or "")
+    assert merge is not None and request.status == "completed"
+    assert (merge.description["result"], merge.unresolved) == (None, 1)
+    assert [part["result"] for part in merge.parts if part["state"] == "conflict"] == [
+        "Refunds take 30 days.\n"
+    ]
+    assert (run.status, run.stage) == ("waiting", "filtering")
