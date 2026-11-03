@@ -24,7 +24,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui";
-import { useSkillVersions, useSkillVersionWrites } from "@/hooks/use-skill-versions";
+import { useSkillVersionWrites } from "@/hooks/use-skill-versions";
 import { getErrorMessage } from "@/lib/api-error";
 import { ROUTES } from "@/lib/constants";
 import { DIALOG_FORM } from "@/lib/dialog-sizes";
@@ -52,12 +52,15 @@ export function ChangeVersionDialog({
   skillName,
   usage,
   forks,
+  mainLatest,
   onClose,
 }: {
   skillId: string;
   skillName: string;
   usage: SkillAgentUsage;
   forks: SkillFork[];
+  /** Main's newest version number. */
+  mainLatest: number;
   onClose: () => void;
 }) {
   const t = useTranslations("skills.page.changeVersion");
@@ -65,7 +68,6 @@ export function ChangeVersionDialog({
   const tErrors = useTranslations("errors");
   const locale = useLocale();
   const router = useRouter();
-  const { versions } = useSkillVersions(skillId, null, 0);
   const { changeBinding } = useSkillVersionWrites(skillId);
   const current: BindingTarget =
     usage.binding.state === "pinned"
@@ -79,13 +81,8 @@ export function ChangeVersionDialog({
   const unchanged = sameTarget(target, current);
   const name = usage.agent.name;
   const pinned = target.state === "pinned" ? String(target.version) : "";
-  // The newest page of main, and the version the agent is pinned on wherever it sits.
-  const pinnable = [
-    ...new Set([
-      ...(current.state === "pinned" ? [current.version] : []),
-      ...versions.map((version) => version.number),
-    ]),
-  ].sort((a, b) => b - a);
+  // Main numbers its versions from 1 without gaps, so every one of them can be pinned.
+  const pinnable = Array.from({ length: mainLatest }, (_, index) => mainLatest - index);
   const firstPin = current.state === "pinned" ? current.version : pinnable[0];
 
   async function submit() {

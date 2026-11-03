@@ -28,14 +28,14 @@ export function useSkillVersions(skillId: string, forkId: string | null, page: n
 }
 
 export function useSkillVersion(skillId: string, versionId: string | null) {
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: qk.skills.version(skillId, versionId ?? ""),
     queryFn: () => getSkillVersion(skillId, versionId!),
     enabled: versionId !== null,
     // A version never changes once saved.
     staleTime: Infinity,
   });
-  return { version: data, isLoading, error };
+  return { version: data, isLoading, error, refetch };
 }
 
 export function useSkillForks(skillId: string) {

@@ -8371,7 +8371,8 @@
         "warnFork": "Speichern erzeugt v{number} von Fork „{name}“. {count, plural, =0 {Noch nutzt kein Agent den Fork.} =1 {Sein 1 Agent erhält sie sofort.} other {Seine # Agents erhalten sie sofort.}}",
         "lineMoved": "Seit Sie dies geöffnet haben, hat jemand eine neuere Version gespeichert. Ihr Text ist noch hier: kopieren Sie ihn, schließen Sie und öffnen Sie die neueste Version, um ihn dort einzufügen.",
         "forkFiles": "Nur Beschreibung und Anweisungen gehören zum Fork. Seine Dateien stammen aus der main-Version, bei der er begann, und Dateien werden auf main bearbeitet.",
-        "noBase": "Dieser Skill hat noch keine gespeicherte Version, auf die geschrieben werden kann. Laden Sie die Seite neu und versuchen Sie es erneut."
+        "noBase": "Dieser Skill hat noch keine gespeicherte Version, auf die geschrieben werden kann. Laden Sie die Seite neu und versuchen Sie es erneut.",
+        "retryFork": "Fork erneut laden"
       },
       "improve": "Verbessern",
       "improveFork": "Fork „{name}“ verbessern"

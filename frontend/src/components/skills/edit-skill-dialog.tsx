@@ -1,11 +1,13 @@
 "use client";
 
 import { useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
 import { categorySuggestions } from "@/components/skills/category-input";
 import { SkillWorkbench } from "@/components/skills/skill-workbench";
+import { ErrorState } from "@/components/states";
 import {
   Dialog,
   DialogContent,
@@ -19,6 +21,7 @@ import { useSkillVersion, useSkillVersionWrites } from "@/hooks/use-skill-versio
 import type { SkillEdit } from "@/hooks/use-skills";
 import { ApiError, getErrorMessage } from "@/lib/api-error";
 import { DIALOG_CANVAS, DIALOG_FILL } from "@/lib/dialog-sizes";
+import { qk } from "@/lib/query-keys";
 import { cn } from "@/lib/utils";
 import type { Skill } from "@/types/providers";
 import type { SkillFork } from "@/types/skill-versions";
@@ -28,8 +31,9 @@ import type { SkillFork } from "@/types/skill-versions";
  *
  * On main it is the whole skill; on a fork it is the fork's newest text, and only
  * that text - the files and the category are main's. The version a save is written
- * over is the one on screen when the dialog opened, so a line that moved since is
- * refused, and the text stays for the person to keep.
+ * over is the one on screen when the dialog opened, or the one a file written here
+ * made, so a line somebody else moved since is refused, and the text stays for the
+ * person to keep.
  */
 export function EditSkillDialog({
   skill,
@@ -51,14 +55,23 @@ export function EditSkillDialog({
   const { categories, suggestedCategories } = useSkills({ limit: 1 });
   const { save } = useSkill(skill.id);
   const { edit } = useSkillVersionWrites(skill.id);
-  const [baseId] = useState(() =>
+  const queryClient = useQueryClient();
+  const [opened] = useState(() =>
     fork === null ? skill.latest_version_id : (fork.latest?.id ?? fork.base.id),
   );
-  const [next] = useState(() =>
+  const [baseId, setBaseId] = useState(opened);
+  const [next, setNext] = useState(() =>
     fork === null ? skill.version + 1 : (fork.latest?.number ?? 0) + 1,
   );
+  // Files are main's: each write here is a new main version, read back once it settled.
+  const followFiles = () => {
+    const written = queryClient.getQueryData<Skill>(qk.skills.detail(skill.id));
+    if (!written) return;
+    setBaseId(written.latest_version_id);
+    setNext(written.version + 1);
+  };
   const [refusal, setRefusal] = useState<string | null>(null);
-  const forkText = useSkillVersion(skill.id, fork === null ? null : baseId);
+  const forkText = useSkillVersion(skill.id, fork === null ? null : opened);
   const shown =
     fork === null || forkText.version === undefined
       ? skill
@@ -117,11 +130,16 @@ export function EditSkillDialog({
             {refusal}
           </p>
         )}
-        {fork !== null && forkText.version === undefined ? (
+        {fork !== null && forkText.error ? (
+          <ErrorState
+            description={getErrorMessage(forkText.error, tErrors)}
+            cta={{ label: t("retryFork"), onClick: () => void forkText.refetch() }}
+          />
+        ) : fork !== null && forkText.version === undefined ? (
           <Skeleton className="min-h-[22rem] w-full" />
         ) : (
           <SkillWorkbench
-            key={`${skill.id}:${baseId}`}
+            key={`${skill.id}:${opened}`}
             skill={shown}
             fork={fork !== null}
             canEdit={skill.can_edit === true}
@@ -133,6 +151,7 @@ export function EditSkillDialog({
                 : t("warnFork", { number: next, name: fork.name, count: followers })
             }
             onSave={(change) => void handleSave(change)}
+            onFilesWritten={followFiles}
             onCancel={onClose}
             onDelete={fork === null ? onDelete : undefined}
           />

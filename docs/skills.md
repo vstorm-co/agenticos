@@ -535,22 +535,19 @@ Open a skill from the list to see its page. It has three tabs.
 - `Fork "Returns" · from v7 · 2 changes` - the agent uses a fork: a line of
   versions with changes of its own, started from one main version.
 
-An environment that serves a different version is named under the agent. An
-[inline specialist](concepts.md#delegate-vs-inline-specialist) that binds the skill
-itself reads its own version, so it has a row of its own under its agent's name;
-its version is changed in the agent's Builder. An agent
-that binds the skill only in its draft is marked **Only in the draft** and counts on
+An environment that serves a different version is named under the agent, and an
+inline specialist that binds the skill has a row of its own - see
+[Which version an agent reads](#which-version-an-agent-reads). An agent that binds
+the skill only in its draft is marked **Only in the draft** and counts on
 no line. Agents you cannot see are counted, not named. The chips above the table
 show everyone, the agents on main, the pinned ones, or one fork. A fork you pick
 there is also the line that History lists and Edit saves to.
 
-**Change version** moves one agent to main, to a pinned main version, or to a fork.
-It publishes a new version of the agent from its published version, with only this
-skill's binding changed, and makes the same change in the agent's draft. Other
-unfinished edits in the draft stay in the draft. A version the agent is not on has
-not been checked on it, so you confirm that first. The control is shown to people who
-may edit the agent. Without permission to publish it, the change is saved in the
-agent's draft, for somebody who may publish to do that from the Builder.
+**Change version** moves one agent to main, to a pinned main version, or to a fork,
+as [Which version an agent reads](#which-version-an-agent-reads) describes: what goes
+live, what waits in the draft, and what is changed in the Builder. A version the agent
+is not on has not been checked on it, so you confirm that first. The control is shown
+to people who may edit the agent.
 
 **History** lists the chosen line's versions, newest first: where each came from
 (an edit, a file change, the library, an agent's workspace, Improve or a restore),

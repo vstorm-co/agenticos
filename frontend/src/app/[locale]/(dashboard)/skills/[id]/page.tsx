@@ -8,19 +8,14 @@ import { useTranslations } from "next-intl";
 import { EditSkillDialog } from "@/components/skills/edit-skill-dialog";
 import { SkillAgents } from "@/components/skills/skill-agents";
 import { SkillHistory } from "@/components/skills/skill-history";
-import {
-  eachAgentOnce,
-  lineOf,
-  shownAgents,
-  type ShownAgents,
-} from "@/components/skills/skill-lines";
+import { lineOf, shownAgents, type ShownAgents } from "@/components/skills/skill-lines";
 import { SkillPageHeader } from "@/components/skills/skill-page-header";
 import { VersionTree } from "@/components/skills/version-tree";
 import { ErrorState, LoadingState } from "@/components/states";
 import { ResourceUnavailable } from "@/components/states/resource-unavailable";
 import { ConfirmDialog, Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui";
 import { useSkill } from "@/hooks";
-import { useSkillAgents, useSkillForks } from "@/hooks/use-skill-versions";
+import { useSkillAgents, useSkillForks, useSkillVersions } from "@/hooks/use-skill-versions";
 import { useUrlState } from "@/hooks/use-url-state";
 import { ApiError, getErrorMessage } from "@/lib/api-error";
 import { ROUTES } from "@/lib/constants";
@@ -49,6 +44,7 @@ export default function SkillPage({ params }: { params: Promise<{ id: string }> 
   const { skill, error, remove } = useSkill(id);
   const lines = useSkillForks(id);
   const agents = useSkillAgents(id);
+  const mainVersions = useSkillVersions(id, null, 0);
 
   if (error instanceof ApiError && [403, 404].includes(error.status)) {
     return <ResourceUnavailable back={ROUTES.SKILLS} label={tc("back")} />;
@@ -67,13 +63,8 @@ export default function SkillPage({ params }: { params: Promise<{ id: string }> 
   const fork = forks.find((one) => one.id === forkId) ?? null;
   // A link to a fork that has since been archived shows everyone.
   const shown: ShownAgents = forkId !== null && fork === null ? "all" : asked;
-  const followers = eachAgentOnce(
-    (agents.agents?.items ?? []).filter(
-      (usage) =>
-        !usage.draft_only &&
-        (fork === null ? usage.binding.state === "main" : usage.binding.fork?.id === fork.id),
-    ),
-  ).length;
+  // Counted by the server, so agents the reader cannot see and every serving environment count.
+  const followers = fork === null ? (mainVersions.versions[0]?.agents ?? 0) : fork.agents;
 
   return (
     <div className="space-y-6">
@@ -106,6 +97,7 @@ export default function SkillPage({ params }: { params: Promise<{ id: string }> 
           <SkillAgents
             skillId={id}
             skillName={skill.name}
+            mainLatest={skill.version}
             agents={agents.agents}
             error={agents.error}
             forks={forks}

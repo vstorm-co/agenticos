@@ -18,6 +18,7 @@ import { bindingLabel, eachAgentOnce, isShown, readerKey, type ShownAgents } fro
 export function SkillAgents({
   skillId,
   skillName,
+  mainLatest,
   agents,
   error,
   forks,
@@ -26,6 +27,8 @@ export function SkillAgents({
 }: {
   skillId: string;
   skillName: string;
+  /** Main's newest version number: every main version up to it can be pinned. */
+  mainLatest: number;
   agents: SkillAgentList | undefined;
   error: unknown;
   forks: SkillFork[];
@@ -122,6 +125,7 @@ export function SkillAgents({
           skillName={skillName}
           usage={changing}
           forks={forks}
+          mainLatest={mainLatest}
           onClose={() => setChanging(null)}
         />
       )}

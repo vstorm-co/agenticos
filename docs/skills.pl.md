@@ -1,5 +1,5 @@
 ---
-source_sha: "a4909f791e35"
+source_sha: "23df867f45cf"
 ---
 
 # Skille { #skills }
@@ -548,22 +548,19 @@ Otwórz skill z listy, żeby zobaczyć jego stronę. Ma trzy zakładki.
 - `Fork „Returns” · od v7 · 2 zmiany` - agent używa forka: linii wersji z
   własnymi zmianami, zaczętej od jednej wersji main.
 
-Środowisko, które serwuje inną wersję, jest podane pod agentem.
-[Specjalista inline](concepts.md#delegate-vs-inline-specialist), który sam wiąże
-skill, czyta własną wersję, więc ma osobny wiersz pod nazwą swojego agenta; jego
-wersję zmienia się w Builderze agenta. Agent, który wiąże
-skill tylko w drafcie, ma oznaczenie **Tylko w drafcie** i nie liczy się do żadnej
+Środowisko, które serwuje inną wersję, jest podane pod agentem, a specjalista inline,
+który wiąże skill, ma osobny wiersz - zobacz
+[Którą wersję czyta agent](#which-version-an-agent-reads). Agent, który wiąże skill
+tylko w drafcie, ma oznaczenie **Tylko w drafcie** i nie liczy się do żadnej
 linii. Agentów, których nie widzisz, strona liczy, ale nie nazywa. Chipy nad
 tabelą pokazują wszystkich, agentów na main, przypiętych albo jeden fork. Fork
 wybrany tam jest też linią, którą pokazuje Historia i do której zapisuje Edycja.
 
 **Zmień wersję** przenosi jednego agenta na main, na przypiętą wersję main albo na
-fork. Publikuje nową wersję agenta z jego opublikowanej wersji, w której zmienia
-się tylko wiązanie tego skilla, i tę samą zmianę wprowadza w drafcie agenta. Inne
-niedokończone zmiany w drafcie zostają w drafcie. Wersja, na której agenta nie ma,
-nie była na nim sprawdzona, więc najpierw to potwierdzasz. Kontrolkę widzą osoby,
-które mogą edytować agenta. Bez prawa do publikacji zmiana trafia do draftu
-agenta, a publikuje ją w Builderze ktoś, kto ma takie prawo.
+fork, tak jak opisuje [Którą wersję czyta agent](#which-version-an-agent-reads): co
+trafia na produkcję, co czeka w drafcie, a co zmienia się w Builderze. Wersja, na
+której agenta nie ma, nie była na nim sprawdzona, więc najpierw to potwierdzasz.
+Kontrolkę widzą osoby, które mogą edytować agenta.
 
 **Historia** wymienia wersje wybranej linii od najnowszej: skąd się wzięła każda
 (edycja, zmiana plików, biblioteka, workspace agenta, Improve albo przywrócenie),

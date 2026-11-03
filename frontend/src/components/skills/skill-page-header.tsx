@@ -14,9 +14,9 @@ import type { Skill } from "@/types/providers";
 /**
  * A skill's name and what it is for, with main's newest version beside it.
  *
- * Edit opens the same editor the list used to, on the line the page is showing;
- * a reader without edit access gets it read-only as Open. Improve reads the line's
- * runs, so it is offered to an editor who may also read them.
+ * Edit opens the skill's editor on the line the page is showing; a reader without
+ * edit access gets it read-only as Open. Improve reads the line's runs, so it is
+ * offered to an editor who may also read them.
  */
 export function SkillPageHeader({
   skill,

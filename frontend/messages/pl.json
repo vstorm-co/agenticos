@@ -8253,7 +8253,8 @@
         "warnFork": "Zapis tworzy v{number} forka „{name}”. {count, plural, =0 {Żaden agent jeszcze nie używa forka.} one {Jego # agent dostanie ją od razu.} few {Jego # agentów dostanie ją od razu.} many {Jego # agentów dostanie ją od razu.} other {Jego # agenta dostanie ją od razu.}}",
         "lineMoved": "Ktoś zapisał nowszą wersję, odkąd to otworzyłeś. Twój tekst nadal tu jest: skopiuj go, zamknij i otwórz najnowszą wersję, żeby go tam wprowadzić.",
         "forkFiles": "Do forka należą tylko opis i instrukcje. Jego pliki pochodzą z wersji main, od której wystartował, a pliki edytuje się na main.",
-        "noBase": "Ten skill nie ma jeszcze zapisanej wersji, na której można zapisać zmianę. Odśwież stronę i spróbuj ponownie."
+        "noBase": "Ten skill nie ma jeszcze zapisanej wersji, na której można zapisać zmianę. Odśwież stronę i spróbuj ponownie.",
+        "retryFork": "Wczytaj fork ponownie"
       },
       "improve": "Popraw",
       "improveFork": "Popraw fork „{name}”"

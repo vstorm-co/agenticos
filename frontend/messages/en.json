@@ -8493,7 +8493,8 @@
         "warnFork": "Saving makes v{number} of fork “{name}”. {count, plural, =0 {No agent uses the fork yet.} =1 {Its 1 agent gets it at once.} other {Its # agents get it at once.}}",
         "lineMoved": "Somebody saved a newer version since you opened this. Your text is still here: copy it, close, and open the newest version to apply it there.",
         "forkFiles": "Only the description and instructions belong to the fork. Its files come from the main version it started from, and files are edited on main.",
-        "noBase": "This skill has no saved version to write over yet. Reload the page and try again."
+        "noBase": "This skill has no saved version to write over yet. Reload the page and try again.",
+        "retryFork": "Load the fork again"
       },
       "improve": "Improve",
       "improveFork": "Improve fork “{name}”"

@@ -1,5 +1,5 @@
 ---
-source_sha: "a4909f791e35"
+source_sha: "23df867f45cf"
 ---
 
 # Skills { #skills }
@@ -566,24 +566,20 @@ Abre un skill desde la lista para ver su página. Tiene tres pestañas.
 - `Fork "Returns" · desde v7 · 2 cambios` - el agent usa un fork: una línea de
   versiones con cambios propios, iniciada desde una versión de main.
 
-Un entorno que sirve una versión distinta aparece debajo del agent. Un
-[especialista inline](concepts.md#delegate-vs-inline-specialist) que vincula el
-skill por sí mismo lee su propia versión, así que tiene una fila propia bajo el
-nombre de su agent; su versión se cambia en el Builder del agent. Un agent que
-vincula el skill solo en su borrador lleva la marca **Solo en el borrador** y no
+Un entorno que sirve una versión distinta aparece debajo del agent, y un
+especialista inline que vincula el skill tiene una fila propia - ver
+[Qué versión lee un agent](#which-version-an-agent-reads). Un agent que vincula el
+skill solo en su borrador lleva la marca **Solo en el borrador** y no
 cuenta en ninguna línea. Los agents que no puedes ver se cuentan, sin nombrarlos.
 Los chips sobre la tabla muestran a todos, los agents en main, los fijados o un
 fork. El fork que elijas ahí es también la línea que muestra el Historial y en la
 que guarda Editar.
 
-**Cambiar versión** mueve un agent a main, a una versión fijada de main o a un fork.
-Publica una versión nueva del agent a partir de su versión publicada, cambiando solo
-la vinculación de este skill, y hace el mismo cambio en el borrador del agent. Los
-demás cambios sin terminar del borrador se quedan en el borrador. Una versión en la
+**Cambiar versión** mueve un agent a main, a una versión fijada de main o a un fork,
+como describe [Qué versión lee un agent](#which-version-an-agent-reads): qué se
+publica, qué espera en el borrador y qué se cambia en el Builder. Una versión en la
 que el agent no está no se ha comprobado en él, así que primero lo confirmas. El
-control lo ve quien puede editar el agent. Sin permiso para publicarlo, el cambio
-se guarda en el borrador del agent, y quien puede publicar lo hace desde el
-Builder.
+control lo ve quien puede editar el agent.
 
 **Historial** lista las versiones de la línea elegida, de la más nueva a la más
 antigua: de dónde vino cada una (una edición, un cambio de archivos, la biblioteca,

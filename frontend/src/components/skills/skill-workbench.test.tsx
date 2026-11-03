@@ -44,6 +44,7 @@ const SKILL: Skill = {
 function renderWorkbench(props: Partial<React.ComponentProps<typeof SkillWorkbench>> = {}) {
   const onSave = vi.fn();
   const onCancel = vi.fn();
+  const onFilesWritten = vi.fn();
   const workbench = (overrides: Partial<React.ComponentProps<typeof SkillWorkbench>>) => (
     <SkillWorkbench
       skill={SKILL}
@@ -51,6 +52,7 @@ function renderWorkbench(props: Partial<React.ComponentProps<typeof SkillWorkben
       isSaving={false}
       saveWarning="Saving makes v4 on main."
       onSave={onSave}
+      onFilesWritten={onFilesWritten}
       onCancel={onCancel}
       {...props}
       {...overrides}
@@ -60,6 +62,7 @@ function renderWorkbench(props: Partial<React.ComponentProps<typeof SkillWorkben
   return {
     onSave,
     onCancel,
+    onFilesWritten,
     update: (overrides: Partial<React.ComponentProps<typeof SkillWorkbench>>) =>
       rerender(workbench(overrides)),
   };
@@ -261,25 +264,29 @@ describe("the skill's files", () => {
 
   it("saves a file's edit against that file's id", async () => {
     skillHooks.loaded.resource = { content: "old" };
-    renderWorkbench({ skill: withFile });
+    const { onFilesWritten } = renderWorkbench({ skill: withFile });
     await userEvent.click(screen.getByRole("button", { name: "workflows.md" }));
     await userEvent.click(screen.getByRole("button", { name: "Source" }));
 
     await userEvent.type(screen.getByLabelText("references/workflows.md source"), "!");
     await userEvent.click(screen.getByRole("button", { name: "Save file" }));
 
-    expect(skillHooks.saveResource.mutate).toHaveBeenCalledWith({ id: "r-1", content: "old!" });
+    expect(skillHooks.saveResource.mutate).toHaveBeenCalledWith(
+      { id: "r-1", content: "old!" },
+      { onSuccess: onFilesWritten },
+    );
   });
 
   it("returns to the body after the open file is deleted", async () => {
     // Otherwise the pane keeps rendering a resource the skill no longer has.
     skillHooks.loaded.resource = { content: "old" };
-    renderWorkbench({ skill: withFile });
+    const { onFilesWritten } = renderWorkbench({ skill: withFile });
     await userEvent.click(screen.getByRole("button", { name: "workflows.md" }));
 
     await userEvent.click(screen.getByRole("button", { name: "Remove references/workflows.md" }));
 
     expect(skillHooks.removeResource.mutateAsync).toHaveBeenCalledWith("r-1");
+    expect(onFilesWritten).toHaveBeenCalledOnce();
     expect(screen.getByRole("button", { name: /SKILL\.md/ })).toHaveAttribute(
       "aria-current",
       "true",
@@ -287,7 +294,7 @@ describe("the skill's files", () => {
   });
 
   it("adds a file, and closes the form once it is added", async () => {
-    renderWorkbench({ skill: withFile });
+    const { onFilesWritten } = renderWorkbench({ skill: withFile });
 
     await userEvent.click(screen.getByRole("button", { name: "New" }));
     await userEvent.type(screen.getByLabelText("Path"), "references/refunds.md");
@@ -300,6 +307,7 @@ describe("the skill's files", () => {
       content: "Within 30 days.",
     });
     expect(screen.queryByLabelText("Path")).toBeNull();
+    expect(onFilesWritten).toHaveBeenCalledOnce();
   });
 
   it("abandons a new file when the form is cancelled", async () => {
@@ -334,12 +342,13 @@ describe("the skill's files", () => {
   });
 
   it("uploads the files that were picked", async () => {
-    renderWorkbench({ skill: withFile });
+    const { onFilesWritten } = renderWorkbench({ skill: withFile });
     const picked = new File(["a"], "checklist.md", { type: "text/markdown" });
 
     await userEvent.upload(screen.getByLabelText("Files"), picked);
 
     expect(skillHooks.uploadResources.mutateAsync).toHaveBeenCalledWith([picked]);
+    expect(onFilesWritten).toHaveBeenCalledOnce();
   });
 
   it("asks for nothing when a picker is dismissed with no files", () => {
@@ -355,7 +364,7 @@ describe("the skill's files", () => {
     // The mutation reports its own failure; what must not happen is an
     // unhandled rejection taking the workbench down with it.
     skillHooks.uploadResources.mutateAsync.mockRejectedValueOnce(new Error("413"));
-    renderWorkbench({ skill: withFile });
+    const { onFilesWritten } = renderWorkbench({ skill: withFile });
 
     await userEvent.upload(
       screen.getByLabelText("Files"),
@@ -363,6 +372,7 @@ describe("the skill's files", () => {
     );
 
     expect(screen.getByRole("button", { name: /SKILL\.md/ })).toBeInTheDocument();
+    expect(onFilesWritten).not.toHaveBeenCalled();
   });
 
   it("closes the pane even when the delete is refused", async () => {

@@ -59,6 +59,13 @@ describe("fileChanges", () => {
       ),
     ).toEqual({ added: ["d.md"], removed: ["c.md"], changed: ["b.md"] });
   });
+
+  it("counts a new description on a file as a change to it", () => {
+    const file = { name: "a.md", size_bytes: 10, digest: "aa" };
+    expect(
+      fileChanges([{ ...file, description: null }], [{ ...file, description: "Read first" }]),
+    ).toEqual({ added: [], removed: [], changed: ["a.md"] });
+  });
 });
 
 describe("VersionDiff", () => {

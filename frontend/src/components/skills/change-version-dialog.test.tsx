@@ -61,6 +61,7 @@ function renderDialog() {
       skillName="returns-policy"
       usage={HR}
       forks={[RETURNS]}
+      mainLatest={12}
       onClose={onClose}
     />,
     {
@@ -160,14 +161,7 @@ describe("ChangeVersionDialog", () => {
 });
 
 describe("ChangeVersionDialog's pin", () => {
-  it("offers the newest main versions and the one the agent is pinned on", async () => {
-    vi.mocked(apiClient.get).mockResolvedValue({
-      items: [
-        { id: "m12", number: 12 },
-        { id: "m11", number: 11 },
-      ],
-      total: 12,
-    });
+  it("offers every main version, however old, newest first", async () => {
     vi.mocked(apiClient.put).mockResolvedValue({
       published: true,
       agent_version: 5,
@@ -177,20 +171,40 @@ describe("ChangeVersionDialog's pin", () => {
     renderDialog();
 
     await userEvent.click(screen.getByRole("combobox", { name: "Version to pin" }));
-    expect(screen.getAllByRole("option").map((option) => option.textContent)).toEqual([
-      "v12",
-      "v11",
-      "v9",
-    ]);
-    await userEvent.click(screen.getByRole("option", { name: "v11" }));
+    const options = screen.getAllByRole("option").map((option) => option.textContent);
+    expect(options).toHaveLength(12);
+    expect(options[0]).toBe("v12");
+    expect(options.at(-1)).toBe("v1");
+    await userEvent.click(screen.getByRole("option", { name: "v1" }));
     await userEvent.click(screen.getByLabelText("I understand, change it anyway"));
     await userEvent.click(screen.getByRole("button", { name: "Change and publish" }));
 
     expect(apiClient.put).toHaveBeenCalledWith("/skills/s1/agents/a1/binding", {
       state: "pinned",
-      version: 11,
+      version: 1,
     });
     expect(toast.success).toHaveBeenCalledWith("Published. HR bot has a new version.");
+  });
+
+  it("offers no pin before main has a version", () => {
+    const client = new QueryClient();
+    render(
+      <ChangeVersionDialog
+        skillId="s1"
+        skillName="returns-policy"
+        usage={{ ...HR, binding: { ...HR.binding, state: "main" } }}
+        forks={[]}
+        mainLatest={0}
+        onClose={vi.fn()}
+      />,
+      {
+        wrapper: ({ children }: { children: ReactNode }) => (
+          <QueryClientProvider client={client}>{children}</QueryClientProvider>
+        ),
+      },
+    );
+
+    expect(screen.queryByRole("radio", { name: /Pin a main version/ })).toBeNull();
   });
 
   it("opens the Builder from the draft notice", async () => {
@@ -233,6 +247,7 @@ describe("ChangeVersionDialog without publish", () => {
         skillName="returns-policy"
         usage={{ ...HR, can_publish: false }}
         forks={[RETURNS]}
+        mainLatest={12}
         onClose={vi.fn()}
       />,
       {

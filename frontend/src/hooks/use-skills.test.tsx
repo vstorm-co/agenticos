@@ -197,7 +197,6 @@ describe("useSkill", () => {
       content: "# Refunds v2",
       category: null,
     });
-    // The editor says what the save made; the hook adds nothing on top.
     expect(toastSuccess).not.toHaveBeenCalled();
   });
 

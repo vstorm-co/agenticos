@@ -365,6 +365,30 @@ describe("SkillPage's lines and writes", () => {
     expect(state.push).toHaveBeenCalledWith("/skills");
   });
 
+  it("warns an edit reaches the agents the server counts on the line", async () => {
+    vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
+      if (path.startsWith("/skills/s1/versions?")) {
+        return { items: [version(12, { agents: 4 })], total: 12 };
+      }
+      if (path === "/skills/s1/versions/r2") {
+        return { id: "r2", description: "Fork.", content: "Fork body.", resources: [] };
+      }
+      return serveOnce(path);
+    });
+    await mount();
+
+    await userEvent.click(await screen.findByRole("button", { name: "Edit" }));
+    await userEvent.type(await screen.findByLabelText("Description"), "!");
+    expect(screen.getByRole("alert")).toHaveTextContent("4 agents following main get it at once");
+
+    cleanup();
+    state.show = "fork:f1";
+    await mount();
+    await userEvent.click(await screen.findByRole("button", { name: "Edit fork “Returns”" }));
+    await userEvent.type(await screen.findByLabelText("Description"), "!");
+    expect(screen.getByRole("alert")).toHaveTextContent("Its 1 agent gets it at once");
+  });
+
   it("asks again before deleting, and keeps the skill on cancel", async () => {
     await mount();
 
