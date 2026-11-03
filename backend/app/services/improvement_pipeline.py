@@ -862,7 +862,9 @@ class ImprovementPipelineService:
         if row is None:
             raise NotFoundError(message="Improvement session not found")
         agent = await self.registry.get(ctx, row.agent_id)
-        return await ImprovementSkillService(self.db).seed(ctx, agent, row.id, skill_id)
+        return await ImprovementSkillService(self.db).seed(
+            ctx, agent, row.id, skill_id, base_version_id=row.base_version_id
+        )
 
     async def _skills_of_runs(
         self, ctx: AuthContext, agent_id: UUID, run_ids: list[UUID]

@@ -19,7 +19,7 @@ from app.core.permissions import AuthContext, Perm
 from app.db.models.agent import Agent
 from app.db.models.authoring import AuthoringRequest
 from app.db.models.skill import Skill
-from app.repositories import authoring_repo, skill_repo
+from app.repositories import agent_repo, authoring_repo, skill_repo
 from app.schemas.authoring import EvidenceItemRead
 from app.schemas.improvement import (
     ImprovementSkill,
@@ -29,7 +29,7 @@ from app.schemas.improvement import (
 )
 from app.schemas.skill_version import SkillAgentList, SkillBindingRead
 from app.services.access import SKILL, accessible_ids, resolve_access
-from app.services.skill_agents import SkillAgentService
+from app.services.skill_agents import SkillAgentService, lines_of
 
 
 @dataclass(frozen=True)
@@ -99,12 +99,20 @@ class ImprovementSkillService:
         return ImprovementSkills(items=items)
 
     async def seed(
-        self, ctx: AuthContext, agent: Agent, improvement_run_id: UUID, skill_id: UUID
+        self,
+        ctx: AuthContext,
+        agent: Agent,
+        improvement_run_id: UUID,
+        skill_id: UUID,
+        *,
+        base_version_id: UUID | None,
     ) -> SkillSeed:
         """The seed for a skill's Improve, from what this session found in that skill.
 
-        The line is the one the agent's served version reads - the one whose
-        answers the problems quote - as the session's card shows it.
+        The line is the one the session's agent version read - the one whose
+        answers the problems quote - however the agent moved since. A session with
+        no version to compare with takes the line the agent's served version reads,
+        as the session's card shows it.
 
         Raises:
             NotFoundError: The caller may not see the skill.
@@ -119,15 +127,30 @@ class ImprovementSkillService:
                 message="This improvement found no problem in that skill",
                 details={"skill_id": skill_id},
             )
-        binding = _binding_of(await SkillAgentService(self.db).agents(ctx, skill_id), agent.id)
         evidence = [item for problem in problems for item in problem.evidence]
         return SkillSeed(
             agent_id=agent.id,
-            fork_id=binding.fork.id if binding is not None and binding.fork is not None else None,
+            fork_id=await self._read_fork(ctx, agent, skill_id, base_version_id),
             run_ids=list(dict.fromkeys(item.run_id for item in evidence)),
             problems=[problem.problem for problem in problems],
             quotes=[item.quote for item in evidence if item.quote],
         )
+
+    async def _read_fork(
+        self, ctx: AuthContext, agent: Agent, skill_id: UUID, base_version_id: UUID | None
+    ) -> UUID | None:
+        version = (
+            None
+            if base_version_id is None
+            else await agent_repo.get_version(
+                self.db, base_version_id, organization_id=ctx.organization_id
+            )
+        )
+        if version is not None:
+            lines = lines_of(version.spec, skill_id)
+            return lines[0].fork_id if lines else None
+        binding = _binding_of(await SkillAgentService(self.db).agents(ctx, skill_id), agent.id)
+        return binding.fork.id if binding is not None and binding.fork is not None else None
 
     async def _item(
         self,

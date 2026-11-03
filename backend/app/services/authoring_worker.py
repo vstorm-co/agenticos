@@ -66,6 +66,7 @@ from app.repositories import (
 )
 from app.schemas.authoring import (
     MAX_REJECTED,
+    SKILL_PROBLEM,
     ContextImprovement,
     EvidenceQuote,
     FieldChange,
@@ -261,10 +262,6 @@ def _improve_prompt(
         f"# What its runs show\n{_evidence_section(pack, digests)}"
         f"{asked}"
     )
-
-
-SKILL_PROBLEM = "skill_problem"
-"""How a report names a skill problem it did not keep, beside the hunk kinds."""
 
 
 def _skills_section(spec: AgentSpec, skills: Sequence[Skill], used: Collection[UUID]) -> str:

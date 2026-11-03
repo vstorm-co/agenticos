@@ -507,8 +507,13 @@ class SkillService:
         A run served another version of a skill - before a pin moved, on an older
         main or on another fork - does not count for it: the body the improver reads
         is not the one that run answered with.
+
+        Unlike a run, the improver answers the person who started it, so a skill they
+        may not view is left out: its text would reach them through what is proposed.
         """
-        skills = await self.resolve_for_agent(ctx, spec.skill_ids, bindings=spec.skill_bindings)
+        bound = await self.resolve_for_agent(ctx, spec.skill_ids, bindings=spec.skill_bindings)
+        visible = await accessible_ids(self.db, ctx, bound, Perm.SKILLS_VIEW, resource_type=SKILL)
+        skills = [skill for skill in bound if skill.id in visible]
         used = await skill_usage_repo.skills_in_runs(
             self.db,
             organization_id=ctx.organization_id,
