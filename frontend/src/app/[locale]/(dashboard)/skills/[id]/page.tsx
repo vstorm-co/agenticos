@@ -1,24 +1,29 @@
 "use client";
 
-import { use, useState } from "react";
+import { use, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Bot, GitBranch, History } from "lucide-react";
 import { useTranslations } from "next-intl";
 
+import { DeleteSkillDialog } from "@/components/skills/delete-skill-dialog";
 import { EditSkillDialog } from "@/components/skills/edit-skill-dialog";
+import { NewForkDialog } from "@/components/skills/new-fork-dialog";
 import { SkillAgents } from "@/components/skills/skill-agents";
 import { SkillHistory } from "@/components/skills/skill-history";
 import { lineOf, shownAgents, type ShownAgents } from "@/components/skills/skill-lines";
 import { SkillPageHeader } from "@/components/skills/skill-page-header";
+import { SkillUsageCard } from "@/components/skills/skill-usage";
 import { VersionTree } from "@/components/skills/version-tree";
 import { ErrorState, LoadingState } from "@/components/states";
 import { ResourceUnavailable } from "@/components/states/resource-unavailable";
-import { ConfirmDialog, Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui";
 import { useSkill } from "@/hooks";
+import { usePermissions } from "@/hooks/use-permissions";
 import { useSkillAgents, useSkillForks, useSkillVersions } from "@/hooks/use-skill-versions";
 import { useUrlState } from "@/hooks/use-url-state";
 import { ApiError, getErrorMessage } from "@/lib/api-error";
 import { ROUTES } from "@/lib/constants";
+import { Perm } from "@/types/permissions";
 
 /** The tabs `?tab=` may open, in the order they are drawn. */
 const TABS = ["agents", "history", "tree"];
@@ -36,11 +41,15 @@ export default function SkillPage({ params }: { params: Promise<{ id: string }> 
   const tc = useTranslations("common");
   const tErrors = useTranslations("errors");
   const router = useRouter();
+  const { can } = usePermissions();
   const [tabParam, setTabParam] = useUrlState("tab");
   const tab = tabParam !== null && TABS.includes(tabParam) ? tabParam : "agents";
   const [showParam, setShowParam] = useUrlState("show");
   const [editing, setEditing] = useState(false);
+  // The editor is heavy to draw, so the button says it is opening until it is.
+  const [opening, startOpening] = useTransition();
   const [deleting, setDeleting] = useState(false);
+  const [forkFrom, setForkFrom] = useState<string | null>(null);
   const { skill, error, remove } = useSkill(id);
   const lines = useSkillForks(id);
   const agents = useSkillAgents(id);
@@ -63,19 +72,26 @@ export default function SkillPage({ params }: { params: Promise<{ id: string }> 
   const fork = forks.find((one) => one.id === forkId) ?? null;
   // A link to a fork that has since been archived shows everyone.
   const shown: ShownAgents = forkId !== null && fork === null ? "all" : asked;
+  const base = skill.latest_version_id;
   // Counted by the server, so agents the reader cannot see and every serving environment count.
   const followers = fork === null ? (mainVersions.versions[0]?.agents ?? 0) : fork.agents;
 
   return (
     <div className="space-y-6">
-      <SkillPageHeader skill={skill} line={fork?.name ?? null} onEdit={() => setEditing(true)} />
+      <SkillPageHeader
+        skill={skill}
+        line={fork?.name ?? null}
+        onEdit={() => startOpening(() => setEditing(true))}
+        opening={opening}
+        onFork={skill.can_edit && base !== null ? () => setForkFrom(base) : null}
+      />
       <Tabs
         value={tab}
         onValueChange={(next) => setTabParam(next === "agents" ? null : next)}
         className="space-y-4"
       >
         <TabsList>
-          <TabsTrigger value="agents">
+          <TabsTrigger value="agents" data-tour="skill-agents-tab">
             <Bot className="mr-1.5 size-4 shrink-0" aria-hidden />
             {t("tabs.agents")}
           </TabsTrigger>
@@ -88,7 +104,7 @@ export default function SkillPage({ params }: { params: Promise<{ id: string }> 
             {t("tabs.tree")}
           </TabsTrigger>
         </TabsList>
-        <TabsContent value="agents">
+        <TabsContent value="agents" className="space-y-4">
           <SkillAgents
             skillId={id}
             skillName={skill.name}
@@ -99,6 +115,7 @@ export default function SkillPage({ params }: { params: Promise<{ id: string }> 
             shown={shown}
             onShow={(next) => setShowParam(next === "all" ? null : next)}
           />
+          {can(Perm.runsView) && <SkillUsageCard skillId={id} />}
         </TabsContent>
         <TabsContent value="history">
           <SkillHistory
@@ -131,17 +148,27 @@ export default function SkillPage({ params }: { params: Promise<{ id: string }> 
         />
       )}
       {deleting && (
-        <ConfirmDialog
-          open
-          onOpenChange={() => setDeleting(false)}
-          title={tc("deleteNamedConfirm", { name: skill.name })}
-          description={t("deleteDescription")}
-          confirmLabel={t("delete")}
-          destructive
-          loading={remove.isPending}
-          onConfirm={async () => {
+        <DeleteSkillDialog
+          skill={skill}
+          agents={agents.agents}
+          agentsError={agents.error}
+          deleting={remove.isPending}
+          onClose={() => setDeleting(false)}
+          onDelete={async () => {
             await remove.mutateAsync();
             router.push(ROUTES.SKILLS);
+          }}
+        />
+      )}
+      {forkFrom !== null && (
+        <NewForkDialog
+          skill={skill}
+          baseId={forkFrom}
+          agents={agents.agents?.items ?? []}
+          onClose={() => setForkFrom(null)}
+          onCreated={(created) => {
+            setForkFrom(null);
+            setShowParam(`fork:${created}`);
           }}
         />
       )}

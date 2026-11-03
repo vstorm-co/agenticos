@@ -5,8 +5,9 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { apiClient } from "@/lib/api-client";
-import type { SkillAgentList, SkillAgentUsage } from "@/types/skill-versions";
+import type { SkillAgentList, SkillAgentUsage, SkillFork } from "@/types/skill-versions";
 import { SkillAgents } from "./skill-agents";
+import type { ShownAgents } from "./skill-lines";
 
 vi.mock("@/lib/api-client", async (original) => ({
   ...(await original<typeof import("@/lib/api-client")>()),
@@ -37,7 +38,12 @@ function onMain(name: string, extra: Partial<SkillAgentUsage> = {}): SkillAgentU
   };
 }
 
-function mount(agents: SkillAgentList | undefined, error: unknown = null) {
+function mount(
+  agents: SkillAgentList | undefined,
+  error: unknown = null,
+  shown: ShownAgents = "all",
+  forks: SkillFork[] = [],
+) {
   const onShow = vi.fn();
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
@@ -47,8 +53,8 @@ function mount(agents: SkillAgentList | undefined, error: unknown = null) {
       skillName="returns-policy"
       agents={agents}
       error={error}
-      forks={[]}
-      shown="all"
+      forks={forks}
+      shown={shown}
       onShow={onShow}
     />,
     {
@@ -118,18 +124,29 @@ describe("SkillAgents", () => {
 
   it("draws no count while the agents are on their way", () => {
     mount(undefined);
-    expect(screen.queryByText("No agent here uses this skill.")).toBeNull();
+    expect(screen.queryByText("No agent uses this skill yet.")).toBeNull();
     expect(screen.queryByRole("group", { name: "Which agents to show" })).toBeNull();
   });
 
   it("says when no agent uses the skill", () => {
     mount(LIST([]));
-    expect(screen.getByText("No agent here uses this skill.")).toBeInTheDocument();
+    expect(screen.getByText("No agent uses this skill yet.")).toBeInTheDocument();
+  });
+
+  it("says a fork has no agent yet, and how to give it one", () => {
+    const fork = { id: "f1", name: "Marketplace", behind_main: 0 } as SkillFork;
+    mount(LIST([]), null, "fork:f1", [fork]);
+    expect(screen.getByText(/No agent uses fork “Marketplace” yet/)).toBeInTheDocument();
+  });
+
+  it("says nobody is in a view that holds no agent", () => {
+    mount(LIST([]), null, "pinned");
+    expect(screen.getByText("No agent here.")).toBeInTheDocument();
   });
 
   it("says when the agents cannot be read rather than showing none", () => {
     mount(undefined, new Error("offline"));
-    expect(screen.queryByText("No agent here uses this skill.")).toBeNull();
+    expect(screen.queryByText("No agent uses this skill yet.")).toBeNull();
     expect(screen.getByText("offline")).toBeInTheDocument();
   });
 });

@@ -17,7 +17,7 @@ vi.mock("@/lib/api-client", async (original) => ({
 }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), info: vi.fn(), error: vi.fn() } }));
 
-const RETURNS = { id: "f1", name: "Returns" } as SkillFork;
+const RETURNS = { id: "f1", name: "Returns", base: { id: "m7", number: 7 } } as SkillFork;
 
 function version(number: number, extra: Partial<SkillVersionSummary> = {}): SkillVersionSummary {
   return {
@@ -120,8 +120,11 @@ describe("SkillHistory", () => {
   it("says a fork's restore reaches the fork's agents", async () => {
     mount({ forkId: "f1", forkName: "Returns" });
 
-    await userEvent.click(await screen.findByRole("button", { name: "Restore v1" }));
-    expect(screen.getByText(/newest version of fork “Returns”/)).toBeInTheDocument();
+    expect(await screen.findByText("Returns v2")).toBeInTheDocument();
+    await userEvent.click(await screen.findByRole("button", { name: "Restore Returns v1" }));
+    expect(
+      screen.getByText(/Returns v1 comes back as the newest version of fork “Returns”/),
+    ).toBeInTheDocument();
   });
 
   it("says why a restore was refused and closes the question", async () => {
@@ -163,5 +166,18 @@ describe("SkillHistory", () => {
     mount({ forks: [] });
 
     expect(await screen.findByText("Boom")).toBeInTheDocument();
+  });
+
+  it("says where a fork starts on main", async () => {
+    mount({ forks: [{ ...RETURNS, base: { id: "m1", number: 1 } }] });
+    expect(await screen.findByText("Fork “Returns” starts here")).toBeInTheDocument();
+  });
+
+  it("says what a fork with no version of its own reads", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({ items: [], total: 0 });
+    mount({ forkId: "f1", forkName: "Returns", latestId: null });
+    expect(
+      await screen.findByText(/No version of its own yet: the fork reads v7 on main/),
+    ).toBeInTheDocument();
   });
 });

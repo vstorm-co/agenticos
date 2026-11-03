@@ -19,6 +19,7 @@ export const qk = {
     detail: (agentId: string, runId: string) => ["improvements", agentId, runId] as const,
     changes: (agentId: string, runId: string) =>
       ["improvements", agentId, runId, "changes"] as const,
+    skills: (agentId: string, runId: string) => ["improvements", agentId, runId, "skills"] as const,
     attemptChanges: (agentId: string, runId: string, attempt: number) =>
       ["improvements", agentId, runId, "changes", attempt] as const,
   },
@@ -428,6 +429,7 @@ export const qk = {
       ["skills", skillId, "version", versionId] as const,
     forks: (skillId: string) => ["skills", skillId, "forks"] as const,
     agents: (skillId: string) => ["skills", skillId, "agents"] as const,
+    usage: (skillId: string, days: number) => ["skills", skillId, "usage", days] as const,
   },
   mcpOauth: {
     request: (orgId: string, requestId: string) =>

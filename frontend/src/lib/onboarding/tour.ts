@@ -240,6 +240,14 @@ export const TOUR_STEPS: readonly TourStep[] = [
     optional: true,
   },
   {
+    id: "improvement-skill-handoffs",
+    page: IMPROVEMENT,
+    target: "improvement-skill-handoffs",
+    activate: "improvement-step-changes",
+    permission: Perm.runsView,
+    optional: true,
+  },
+  {
     id: "improvement-next-step",
     page: IMPROVEMENT,
     target: "improvement-next-step",
@@ -585,7 +593,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
     optional: true,
     agentKind: "ordinary",
   },
-  // Beside "Draft differs from vN", which only a changed draft shows. Gated as
+  // Beside "Draft differs from agent vN", which only a changed draft shows. Gated as
   // the Evals tab is: the run it starts is read there.
   {
     id: "agent-test-draft",
@@ -669,6 +677,23 @@ export const TOUR_STEPS: readonly TourStep[] = [
     optional: true,
   },
   { id: "skill-edit", page: SKILL_DETAIL, target: "skill-edit", permission: Perm.skillsView },
+  // Drawn under the agents once its numbers load.
+  {
+    id: "skill-usage",
+    page: SKILL_DETAIL,
+    target: "skill-usage",
+    activate: "skill-agents-tab",
+    permission: Perm.runsView,
+    optional: true,
+  },
+  // New fork is drawn only for an editor of this skill, which a role cannot tell.
+  {
+    id: "skill-new-fork",
+    page: SKILL_DETAIL,
+    target: "skill-new-fork",
+    permission: Perm.skillsEdit,
+    optional: true,
+  },
   {
     id: "skill-history",
     page: SKILL_DETAIL,

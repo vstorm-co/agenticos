@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { GitBranch } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { AgentAvatar } from "@/components/agents/agent-avatar";
@@ -53,7 +54,7 @@ export function VersionTree({
         <ErrorState description={getErrorMessage(error, tErrors)} />
       ) : (
         <div className="p-4">
-          <Line rows={rows} line="main" onUnfold={unfold} />
+          <Line rows={rows} line="main" forkName={null} onUnfold={unfold} />
         </div>
       )}
     </ListCard>
@@ -63,10 +64,13 @@ export function VersionTree({
 function Line({
   rows,
   line,
+  forkName,
   onUnfold,
 }: {
   rows: TreeRow[];
   line: string;
+  /** The fork the rows belong to, whose versions number from 1 like main's; null for main. */
+  forkName: string | null;
   onUnfold: (line: string, from: number, to: number) => void;
 }) {
   const t = useTranslations("skills.page.tree");
@@ -104,7 +108,9 @@ function Line({
               />
               <div className="flex min-h-7 flex-wrap items-center gap-2 py-0.5">
                 <span className="font-mono text-sm font-medium">
-                  {t("number", { number: row.number })}
+                  {forkName === null
+                    ? t("number", { number: row.number })
+                    : t("forkNumber", { name: forkName, number: row.number })}
                 </span>
                 {row.latest && <span className="text-muted-foreground text-xs">{t("latest")}</span>}
                 <Chips agents={row.agents} />
@@ -132,15 +138,21 @@ function Branch({
   const { fork } = branch;
   return (
     <div className="relative mt-1 mb-2 pl-5">
-      <span aria-hidden className="bg-border absolute top-3 left-[-18px] h-0.5 w-8" />
+      <span
+        aria-hidden
+        className="border-primary/50 absolute -top-2 left-[-15px] h-5 w-5 rounded-bl-md border-b-2 border-l-2"
+      />
       <div className="flex flex-wrap items-center gap-2 py-0.5 text-sm">
+        <GitBranch className="text-primary size-3.5" aria-hidden />
         <span className="font-medium">{t("fork", { name: fork.name })}</span>
         <span className="text-muted-foreground text-xs">
           {t("forkFacts", { changes: fork.changes, behind: fork.behind_main })}
         </span>
         <Chips agents={branch.agents} />
       </div>
-      {branch.rows.length > 0 && <Line rows={branch.rows} line={fork.id} onUnfold={onUnfold} />}
+      {branch.rows.length > 0 && (
+        <Line rows={branch.rows} line={fork.id} forkName={fork.name} onUnfold={onUnfold} />
+      )}
     </div>
   );
 }

@@ -126,12 +126,12 @@ setup("a skill exists", async ({ page }) => {
   const dialog = page.getByRole("dialog");
   await dialog.getByLabel("Name").fill(SEEDED_SKILL_NAME);
   await dialog.getByLabel("Description").fill(SEEDED_SKILL_DESCRIPTION);
-  // The body is `SKILL.md` in a file tree now, not a "Content" textarea - the
+  // The body is Instructions in a file tree now, not a "Content" textarea - the
   // create dialog was rebuilt to look like the editor a skill becomes. It opens
   // in Preview, where there is no input at all, so switch to Source first; the
   // textarea then takes its accessible name from the file it is showing.
   await dialog.getByRole("button", { name: "Source" }).click();
-  await dialog.getByLabel(/SKILL\.md source/).fill(SEEDED_SKILL_CONTENT);
+  await dialog.getByLabel(/Instructions source/).fill(SEEDED_SKILL_CONTENT);
   await submitDialog(page, {
     dialog,
     submit: dialog.getByRole("button", { name: "Create" }),

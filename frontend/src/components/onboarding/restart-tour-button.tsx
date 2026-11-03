@@ -1,5 +1,6 @@
 "use client";
 
+import { useSyncExternalStore } from "react";
 import { usePathname } from "next/navigation";
 import { HelpCircle } from "lucide-react";
 import { useTranslations } from "next-intl";
@@ -11,6 +12,18 @@ import { pageHasSteps } from "@/lib/onboarding/tour";
 // every dashboard page, and importing through the barrel would make every test
 // that mocks `@/stores` (many do, partially) also have to stub this store.
 import { useOnboardingStore } from "@/stores/onboarding-store";
+
+/** Tailwind's `md`, where the header puts the button among its actions. */
+const WIDE = "(min-width: 768px)";
+
+function onWidthChange(changed: () => void): () => void {
+  const query = window.matchMedia?.(WIDE);
+  query?.addEventListener("change", changed);
+  return () => query?.removeEventListener("change", changed);
+}
+
+// A browser without `matchMedia` gets the wide layout, as the server renders it.
+const isWide = () => window.matchMedia?.(WIDE).matches ?? true;
 
 /**
  * Replays the current page's tips. Rendered by `PageHeader`, so it sits at the
@@ -28,8 +41,12 @@ import { useOnboardingStore } from "@/stores/onboarding-store";
  * its dependencies stay a translator, the icon, a pathname and the store's
  * `openPage`, and it carries no permission query, because keeping the button this
  * thin is what lets it live in a header shared by twenty surfaces.
+ *
+ * A header that places it differently on a phone renders it twice and names the
+ * width each copy is for, so only one is ever in the page.
  */
-export function RestartTourButton() {
+export function RestartTourButton({ at }: { at?: "narrow" | "wide" }) {
+  const wide = useSyncExternalStore(onWidthChange, isWide, () => true);
   const t = useTranslations("onboarding");
   const pathname = usePathname();
   const openPage = useOnboardingStore((state) => state.openPage);
@@ -38,6 +55,7 @@ export function RestartTourButton() {
   // `usePathname` is nullable outside a route — an error or not-found boundary
   // would otherwise take the whole header down on `stripLocale`'s first line.
   if (!pageHasSteps(stripLocale(pathname ?? "/"))) return null;
+  if (at !== undefined && (at === "wide") !== wide) return null;
 
   return (
     <IconButton

@@ -18,19 +18,44 @@ import {
   DialogHeader,
   DialogTitle,
   Label,
+  PAGE_SIZE,
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui";
-import { useSkillVersionWrites } from "@/hooks/use-skill-versions";
+import { useSkillVersions, useSkillVersionWrites } from "@/hooks/use-skill-versions";
 import { getErrorMessage } from "@/lib/api-error";
 import { ROUTES } from "@/lib/constants";
 import { DIALOG_FORM } from "@/lib/dialog-sizes";
+import { formatDate, formatDateTime } from "@/lib/utils";
 import type { BindingTarget } from "@/lib/skill-versions-api";
 import type { SkillAgentUsage, SkillFork } from "@/types/skill-versions";
 import { bindingLabel } from "./skill-lines";
+import { VersionDiff } from "./version-diff";
+
+/**
+ * The version a choice reads now - main's newest, the pinned one, or a fork's newest
+ * (its base on main until it has one) - and whether the agent already serves it.
+ */
+function reads(
+  target: BindingTarget,
+  usage: SkillAgentUsage,
+  fork: SkillFork | undefined,
+  mainLatest: number,
+): { number: number; fork: string | null; served: boolean } {
+  const served = usage.binding.version;
+  const onMain = (number: number) => ({
+    number,
+    fork: null,
+    served: served.fork_id === null && served.number === number,
+  });
+  if (target.state === "main") return onMain(mainLatest);
+  if (target.state === "pinned") return onMain(target.version);
+  if (!fork?.latest) return onMain(fork?.base.number ?? mainLatest);
+  return { number: fork.latest.number, fork: fork.name, served: served.id === fork.latest.id };
+}
 
 /** Whether two bindings name the same thing to follow. */
 function sameTarget(a: BindingTarget, b: BindingTarget): boolean {
@@ -43,9 +68,10 @@ function sameTarget(a: BindingTarget, b: BindingTarget): boolean {
  * Move one agent to main, a pinned main version, or a fork.
  *
  * It publishes a new version of the agent from its published one, with only this
- * binding changed, so nothing unfinished in its draft goes live. A version the
- * agent is not on now has not been checked on it, and the person says so before
- * the change is made.
+ * binding changed, so nothing unfinished in its draft goes live. A version other
+ * than the one the agent serves now has not been checked on it, and the person
+ * says so before the change is made; leaving main is said too, since the agent
+ * then stops getting main's new versions.
  */
 export function ChangeVersionDialog({
   skillId,
@@ -65,6 +91,7 @@ export function ChangeVersionDialog({
 }) {
   const t = useTranslations("skills.page.changeVersion");
   const tPage = useTranslations("skills.page");
+  const tHistory = useTranslations("skills.page.history");
   const tErrors = useTranslations("errors");
   const locale = useLocale();
   const router = useRouter();
@@ -84,6 +111,25 @@ export function ChangeVersionDialog({
   // Main numbers its versions from 1 without gaps, so every one of them can be pinned.
   const pinnable = Array.from({ length: mainLatest }, (_, index) => mainLatest - index);
   const firstPin = current.state === "pinned" ? current.version : pinnable[0];
+  // Main's versions run newest first, so the page holding a picked one is known from its number.
+  const pickedPage =
+    target.state === "pinned" ? Math.floor((mainLatest - target.version) / PAGE_SIZE) : 0;
+  const newest = useSkillVersions(skillId, null, 0);
+  const around = useSkillVersions(skillId, null, pickedPage);
+  const known = new Map(
+    [...newest.versions, ...around.versions].map((version) => [version.number, version]),
+  );
+  const [diffing, setDiffing] = useState(false);
+  const targetFork =
+    target.state === "fork" ? forks.find((fork) => fork.id === target.fork_id) : undefined;
+  const read = reads(target, usage, targetFork, mainLatest);
+  const label =
+    read.fork === null
+      ? t("versionOption", { number: read.number })
+      : t("forkVersion", { name: read.fork, number: read.number });
+  const needsAck = !unchanged && !read.served;
+  const leavesMain = !unchanged && current.state === "main" && target.state !== "main";
+  const picked = target.state === "pinned" ? known.get(target.version) : undefined;
 
   async function submit() {
     setError(null);
@@ -152,43 +198,99 @@ export function ChangeVersionDialog({
               target.state === "pinned" && (
                 <Select
                   value={pinned}
-                  onValueChange={(value) => setTarget({ state: "pinned", version: Number(value) })}
+                  onValueChange={(value) => {
+                    setTarget({ state: "pinned", version: Number(value) });
+                    setUnderstood(false);
+                  }}
                 >
-                  <SelectTrigger className="w-40" aria-label={t("pinVersion")}>
+                  <SelectTrigger className="w-56" aria-label={t("pinVersion")}>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {pinnable.map((number) => (
-                      <SelectItem key={number} value={String(number)}>
-                        {t("versionOption", { number })}
-                      </SelectItem>
-                    ))}
+                    {pinnable.map((number) => {
+                      const summary = known.get(number);
+                      return (
+                        <SelectItem key={number} value={String(number)}>
+                          {summary
+                            ? t("versionWhen", {
+                                number,
+                                when: formatDate(summary.created_at, locale),
+                              })
+                            : t("versionOption", { number })}
+                        </SelectItem>
+                      );
+                    })}
                   </SelectContent>
                 </Select>
               ),
             )}
+          {picked && (
+            <div className="ml-6 space-y-2">
+              <p className="text-muted-foreground text-xs">
+                {t("pinDetail", {
+                  source:
+                    picked.restored_from !== null
+                      ? tHistory("restoredFrom", {
+                          version: t("versionOption", { number: picked.restored_from.number }),
+                        })
+                      : tHistory(`source.${picked.source}`),
+                  who: picked.created_by?.name ?? tHistory("unknownAuthor"),
+                  when: formatDateTime(picked.created_at, locale),
+                })}
+              </p>
+              <Button
+                variant="link"
+                size="sm"
+                className="h-auto p-0"
+                onClick={() => setDiffing(!diffing)}
+              >
+                {diffing ? tHistory("hideChanges") : tHistory("showChanges")}
+              </Button>
+              {diffing && (
+                <VersionDiff
+                  skillId={skillId}
+                  versionId={picked.id}
+                  previousId={picked.previous?.id ?? null}
+                />
+              )}
+            </div>
+          )}
           {forks.map((fork) => (
             <div key={fork.id}>
               {option({ state: "fork", fork_id: fork.id }, t("fork", { name: fork.name }))}
             </div>
           ))}
         </fieldset>
-        {!unchanged && (
-          <Alert variant="warning">
-            <AlertTriangle className="h-4 w-4" />
-            <AlertDescription className="space-y-2">
-              <p>{t("unchecked", { name })}</p>
-              <div className="flex items-center gap-2">
-                <Checkbox
-                  id="skill-binding-understood"
-                  checked={understood}
-                  onCheckedChange={(checked) => setUnderstood(checked === true)}
-                />
-                <Label htmlFor="skill-binding-understood">{t("understood")}</Label>
-              </div>
-            </AlertDescription>
-          </Alert>
-        )}
+        {/* Held open at its full height, so the options above never move under the pointer. */}
+        <div className="min-h-28 space-y-2">
+          {leavesMain && (
+            <p className="text-sm">
+              {targetFork
+                ? t("leavesMainFork", {
+                    name,
+                    fork: targetFork.name,
+                    behind: targetFork.behind_main,
+                  })
+                : t("leavesMain", { name })}
+            </p>
+          )}
+          {needsAck && (
+            <Alert variant="warning">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertDescription className="space-y-2">
+                <p>{t("unchecked", { version: label, name })}</p>
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="skill-binding-understood"
+                    checked={understood}
+                    onCheckedChange={(checked) => setUnderstood(checked === true)}
+                  />
+                  <Label htmlFor="skill-binding-understood">{t("understood")}</Label>
+                </div>
+              </AlertDescription>
+            </Alert>
+          )}
+        </div>
         <p className="text-muted-foreground text-sm">
           {usage.can_publish ? t("publishes", { name }) : t("savesToDraft", { name })}
         </p>
@@ -203,7 +305,7 @@ export function ChangeVersionDialog({
           </Button>
           <Button
             onClick={() => void submit()}
-            disabled={unchanged || !understood}
+            disabled={unchanged || (needsAck && !understood)}
             loading={changeBinding.isPending}
           >
             {usage.can_publish ? t("submit") : t("submitDraft")}
