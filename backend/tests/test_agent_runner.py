@@ -7799,6 +7799,7 @@ def test_background_work_keeps_the_authenticated_device_through_workspace_wrappe
     assert browser.device_id == device_id and browser.folder is None
 
 
+@pytest.mark.security
 def test_result_turns_keep_the_reasoning_setting_and_budget_but_no_action_capability() -> None:
     from app.services.agent_runner import AdmittedAs
 

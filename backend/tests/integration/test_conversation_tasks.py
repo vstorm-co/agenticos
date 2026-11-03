@@ -153,6 +153,7 @@ async def test_fresh_topic_is_atomic_idempotent_bounded_and_keeps_its_source(
     assert task is not None and "ConversationTask" in repr(task)
 
 
+@pytest.mark.security
 async def test_other_tenants_and_other_members_cannot_read_or_stop_a_task(db: AsyncSession) -> None:
     a, b = await seed(db), await seed(db)
     task = await start(db, a)
