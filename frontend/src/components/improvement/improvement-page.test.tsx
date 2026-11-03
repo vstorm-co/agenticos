@@ -5,6 +5,8 @@ import { IMPROVEMENT_STEPS as STEPS, improvementSteps, isReachable } from "@/lib
 import type { Improvement, ImprovementIteration } from "@/types/improvement";
 import { ImprovementPage } from "./improvement-page";
 import { hunk } from "@/test-utils/authoring";
+import { comparison } from "@/test-utils/eval-runs";
+import type { EvalComparison } from "@/types/eval-runs";
 import type { Hunk } from "@/types/authoring";
 const actions = vi.hoisted(() => ({
   estimateContinuation: { mutateAsync: vi.fn(), isPending: false },
@@ -23,6 +25,7 @@ const actions = vi.hoisted(() => ({
   attribute: { mutateAsync: vi.fn(), isPending: false },
 }));
 const state = vi.hoisted(() => ({
+  comparison: null as EvalComparison | null,
   agentLoading: false,
   agentError: null as Error | null,
   sessionLoading: false,
@@ -117,10 +120,11 @@ vi.mock("./improvement-start-redirect", () => ({
 }));
 vi.mock("@/hooks/use-eval-runs", () => ({
   useEvalRun: () => ({ run: null, error: null }),
-  useEvalComparison: () => ({ comparison: null }),
+  useEvalComparison: () => ({ comparison: state.comparison }),
 }));
 beforeEach(() => {
   vi.clearAllMocks();
+  state.comparison = null;
   window.history.replaceState({}, "", "/");
   actions.estimateContinuation.mutateAsync.mockResolvedValue({
     mode: "next_step",
@@ -462,7 +466,20 @@ it("keeps the knowledge draft check under Show details before any attempt is mea
   expect(screen.getByText("Draft check fixture")).toBeInTheDocument();
 });
 
+it("waits for the actual comparison before claiming confirmed fixes", () => {
+  state.session!.iterations[0]!.eval_run_ids = ["run-1"];
+  render(<ImprovementPage agentId="a1" sessionId="s1" />);
+  expect(screen.queryByRole("group", { name: /3 questions newly fixed/ })).toBeNull();
+});
 it("opens the result with one sentence for the agent and one for the knowledge base", async () => {
+  state.session!.iterations[0]!.eval_run_ids = ["run-1"];
+  state.comparison = comparison({
+    verdict: "better",
+    fixed_confirmed: 3,
+    fixed_unconfirmed: 0,
+    regressions_confirmed: 0,
+    cases: [],
+  });
   state.topics = [
     {
       id: "t1",
