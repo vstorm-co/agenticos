@@ -61,6 +61,7 @@ from app.services.resource_usage import (
     agents_serving_skills,
     agents_using_skill,
     groups_sharing,
+    in_use_by,
     shared_with_group,
 )
 from app.services.sharing import SharingService
@@ -1228,18 +1229,15 @@ class SkillService:
             visible = await accessible_ids(
                 self.db, ctx, using, Perm.AGENTS_VIEW, resource_type=AGENT
             )
+            named = [agent for agent in using if agent.id in visible]
             raise InUseError(
                 message=(
-                    f"'{skill.name}' is used by {len(using)} agent(s). Remove it from them, "
-                    "or let their owners do it, before deleting it."
+                    f"'{skill.name}' is used by {in_use_by(named, len(using) - len(named))}. "
+                    "Remove it from them, or let their owners do it, before deleting it."
                 ),
                 details={
-                    "agents": [
-                        {"id": agent.id, "name": agent.name}
-                        for agent in using
-                        if agent.id in visible
-                    ],
-                    "hidden": len(using) - len(visible),
+                    "agents": [{"id": agent.id, "name": agent.name} for agent in named],
+                    "hidden": len(using) - len(named),
                 },
             )
         await resource_grant_repo.delete_for_resource(

@@ -12,9 +12,11 @@ See `app/db/models/skill_version.py` for the model.
 """
 
 import hashlib
+import json
 from collections import Counter
 from collections.abc import Iterable, Sequence
 from datetime import UTC, datetime, timedelta
+from itertools import pairwise
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -55,6 +57,7 @@ from app.schemas.skill_version import (
     VersionResourceSummary,
 )
 from app.services.access import AGENT, SKILL, accessible_ids, resolve_access
+from app.services.resource_usage import in_use_by
 
 ARCHIVE_AFTER = timedelta(days=30)
 """How long a fork goes unread before it is offered for archiving. Never archived by itself."""
@@ -78,6 +81,29 @@ def manifest_of(
         )
         bodies[sha256] = content
     return manifest, bodies
+
+
+def content_digest(version: SkillVersion) -> str:
+    """What a version says, as one hash: its description, its text and its files. Two
+    versions with the same digest read the same to every agent."""
+    files = sorted(
+        (name, entry["sha256"], entry["description"]) for name, entry in version.resources.items()
+    )
+    said = json.dumps([version.description, version.content, files])
+    return hashlib.sha256(said.encode("utf-8")).hexdigest()
+
+
+def changes_since(main: Sequence[SkillVersion]) -> int:
+    """How many of main's versions after the first of `main` changed what the skill says.
+
+    `main` is main's versions from the one an agent or a fork is on, oldest first. A
+    version saying what the one before it said - a restore of the same text - is no
+    change, and a line back at exactly what the first said is behind by none.
+    """
+    digests = [content_digest(version) for version in main]
+    if digests[0] == digests[-1]:
+        return 0
+    return sum(before != after for before, after in pairwise(digests))
 
 
 def _ref(version: SkillVersion | None) -> VersionRef | None:
@@ -507,6 +533,16 @@ class SkillVersionService:
         )
         people = await self._people(ctx, [fork.created_by_user_id for fork in forks])
         _, by_fork = await self._counts(skill)
+        main = (
+            await skill_version_repo.main_versions_from(
+                self.db,
+                organization_id=ctx.organization_id,
+                skill_id=skill.id,
+                number=min(versions[fork.base_version_id].number for fork in forks),
+            )
+            if forks
+            else []
+        )
         reads = []
         for fork in forks:
             base = versions[fork.base_version_id]
@@ -521,7 +557,9 @@ class SkillVersionService:
                     if latest is None
                     else VersionNumberRef(id=latest.id, number=latest.number),
                     changes=changes[fork.id],
-                    behind_main=skill.version - base.number,
+                    behind_main=changes_since(
+                        [version for version in main if version.number >= base.number]
+                    ),
                     agents=by_fork[fork.id],
                     archive_candidate=(
                         fork.archived_at is None
@@ -598,18 +636,15 @@ class SkillVersionService:
             visible = await accessible_ids(
                 self.db, ctx, using, Perm.AGENTS_VIEW, resource_type=AGENT
             )
+            named = [agent for agent in using if agent.id in visible]
             raise InUseError(
                 message=(
-                    f"'{fork.name}' is read by {len(using)} agent(s). Move them to another "
-                    "version before archiving it."
+                    f"'{fork.name}' is read by {in_use_by(named, len(using) - len(named))}. "
+                    "Move them to another version before archiving it."
                 ),
                 details={
-                    "agents": [
-                        {"id": agent.id, "name": agent.name}
-                        for agent in using
-                        if agent.id in visible
-                    ],
-                    "hidden": len(using) - len(visible),
+                    "agents": [{"id": agent.id, "name": agent.name} for agent in named],
+                    "hidden": len(using) - len(named),
                 },
             )
         if fork.archived_at is None:

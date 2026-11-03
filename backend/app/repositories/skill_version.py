@@ -120,6 +120,23 @@ async def get_by_numbers(
     return {version.number: version for version in result.scalars().all()}
 
 
+async def main_versions_from(
+    db: AsyncSession, *, organization_id: UUID, skill_id: UUID, number: int
+) -> list[SkillVersion]:
+    """Main's versions from `number` on, oldest first."""
+    result = await db.execute(
+        select(SkillVersion)
+        .where(
+            SkillVersion.organization_id == organization_id,
+            SkillVersion.skill_id == skill_id,
+            SkillVersion.fork_id.is_(None),
+            SkillVersion.number >= number,
+        )
+        .order_by(SkillVersion.number)
+    )
+    return list(result.scalars().all())
+
+
 async def list_versions(
     db: AsyncSession,
     *,

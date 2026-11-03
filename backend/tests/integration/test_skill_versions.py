@@ -346,6 +346,34 @@ class TestForks:
             ctx, skill.id, SkillForkCreate(name=name, from_version_id=skill.latest_version_id)
         )
 
+    async def test_behind_main_counts_changes_to_what_main_says_not_versions(self, db):
+        """Restoring the newest text again is a version and no change; a main line back
+        at what the fork started from is behind by none."""
+        ctx = await _owner(db)
+        skill = await _skill(db, ctx)
+        versions = SkillVersionService(db)
+        read = await self._fork(db, ctx, skill)
+        started = read.base.id
+        await SkillService(db).update(ctx, skill.id, SkillUpdate(content="One more rule."))
+        changed = skill.latest_version_id
+        assert changed is not None
+        for _ in range(2):
+            assert skill.latest_version_id is not None
+            await versions.restore(
+                ctx, skill.id, changed, SkillVersionRestore(base_version_id=skill.latest_version_id)
+            )
+
+        [after_restores] = (await versions.list_forks(ctx, skill.id)).items
+        assert (skill.version, after_restores.behind_main) == (4, 1)
+
+        assert skill.latest_version_id is not None
+        await versions.restore(
+            ctx, skill.id, started, SkillVersionRestore(base_version_id=skill.latest_version_id)
+        )
+
+        [back] = (await versions.list_forks(ctx, skill.id)).items
+        assert (skill.version, back.behind_main) == (5, 0)
+
     async def test_a_fork_serves_its_base_until_it_has_a_version_of_its_own(self, db):
         ctx = await _owner(db)
         skill = await _skill(db, ctx)
@@ -661,6 +689,24 @@ class TestDeleting:
 
         assert [agent["name"] for agent in refused.value.details["agents"]] == ["Clerk"]
         assert refused.value.details["hidden"] == 0
+        assert "is used by 'Clerk'." in refused.value.message
+
+    async def test_an_agent_the_caller_cannot_see_is_counted_and_never_named(self, db):
+        owner = await _owner(db)
+        member = await _member(db, owner, OrgRoleName.MEMBER)
+        skill = await _skill(db, member)
+        secret = await _published(
+            db, owner, name="Secret", spec={"name": "Secret", "skill_ids": [str(skill.id)]}
+        )
+        secret.visibility = "private"
+        await db.flush()
+
+        with pytest.raises(InUseError) as refused:
+            await SkillService(db).delete(member, skill.id)
+
+        assert refused.value.details == {"agents": [], "hidden": 1}
+        assert "is used by 1 agent you cannot see." in refused.value.message
+        assert "Secret" not in refused.value.message
 
     async def test_a_skill_a_served_specialist_binds_is_not_deleted(self, db):
         """The draft moved on; production still serves a version whose specialist reads it."""

@@ -8,7 +8,7 @@ card (#2072). The listings ask both once per page.
 """
 
 import json
-from collections.abc import Collection
+from collections.abc import Collection, Sequence
 from typing import Any
 from uuid import UUID
 
@@ -121,6 +121,15 @@ async def shared_with_group(
     return await resource_grant_repo.ids_shared_with_group(
         db, organization_id=ctx.organization_id, resource_type=resource_type.key, group_id=group_id
     )
+
+
+def in_use_by(named: Sequence[Agent], hidden: int) -> str:
+    """Who uses something, for a refusal: the agents the caller may see by name, and a
+    count of the rest."""
+    names = ", ".join(f"'{agent.name}'" for agent in named)
+    if not named:
+        return f"{hidden} agent{'' if hidden == 1 else 's'} you cannot see"
+    return f"{names} and {hidden} more you cannot see" if hidden else names
 
 
 def _binds_skill(spec: dict[str, Any], skill_id: UUID) -> bool:
