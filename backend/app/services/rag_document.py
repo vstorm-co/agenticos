@@ -664,8 +664,11 @@ class RAGDocumentService:
 
         Raises:
             NotFoundError: If document does not exist.
-            BadRequestError: If the document did not fail, or was ingested
-                before uploads kept their file and so has nothing to re-read.
+            BadRequestError: If the document did not fail, was ingested
+                before uploads kept their file and so has nothing to re-read, or
+                is an organization's filed under no knowledge base - its chunks
+                would be indexed deployment-wide, where the base listing it does
+                not read (#2568).
         """
         doc = await self.get_document(doc_id)
         if doc.status != DocumentStatus.ERROR:
@@ -676,6 +679,14 @@ class RAGDocumentService:
         if not doc.storage_path:
             raise BadRequestError(
                 message="This document has no stored file to re-read; upload it again",
+                details={"doc_id": doc_id, "filename": doc.filename},
+            )
+        if doc.knowledge_base_id is None and doc.organization_id is not None:
+            # Listed by its organization's bases, but its chunks are written and
+            # deleted as deployment-wide (`vector_scope`), where those bases do not
+            # read. One with no organization is an app-scoped base's, which does.
+            raise BadRequestError(
+                message="This document is filed under no knowledge base; upload it again",
                 details={"doc_id": doc_id, "filename": doc.filename},
             )
         file_data = await get_file_storage().load(doc.storage_path)

@@ -12,6 +12,7 @@ from sqlalchemy import (
     ColumnElement,
     String,
     and_,
+    case,
     column,
     exists,
     func,
@@ -723,14 +724,13 @@ async def delete_by_collection(db: AsyncSession, collection_name: str) -> list[s
     """Delete a collection's document rows, returning their stored file paths.
 
     Keyed on `collection_name`, so it removes every knowledge base's rows for
-    that physical collection, in every organization. Only for a name no base
-    other than the one being cleared holds - the last holder's drop, or
-    `rag-drop` of a name no base holds, under the teardown lock - where every
-    row left is one nothing can read once the table is dropped; a base of its
-    own goes by `delete_by_knowledge_base` (#913, #2560). The
-    returned `storage_path`s are the uploads the caller still has to unlink; a
-    `NULL` one (nothing was stored) is dropped. The bulk delete used to return
-    only a rowcount, so the files were orphaned on disk (#1265).
+    that physical collection, in every organization. Only for `rag-drop` of a
+    name no base holds, an operator's command, under the teardown lock. A base
+    goes by `delete_by_knowledge_base` and the unfiled rows of its own tenant,
+    even as the last holder: another tenant's rows are not its to delete (#913,
+    #2560, #2568). The returned `storage_path`s are the uploads the caller still
+    has to unlink; a `NULL` one (nothing was stored) is dropped. The bulk delete
+    used to return only a rowcount, so the files were orphaned on disk (#1265).
     """
     result = await db.execute(
         sql_delete(RAGDocument)
@@ -791,15 +791,67 @@ async def is_present(db: AsyncSession, doc_id: UUID) -> bool:
 async def delete_unfiled_with_vectors(db: AsyncSession, scope: CollectionScope) -> DeletedDocuments:
     """Delete the unfiled rows a base takes under its name - its tenant's.
 
-    For a base cleared while other bases hold the name, none of them taking these
-    rows: left behind, a kept default would go on listing and serving them, and
-    a deleted base's would come back with the tenant's next base on the name
-    (#2560). Only for a scope that `takes_unfiled`; the caller decides that.
+    For a base torn down when no other base of its tenant on the name takes these
+    rows: on a kept table, or as the last holder before its table is dropped. Left
+    behind, a kept default would go on listing and serving them, and a deleted
+    base's would come back with the tenant's next base on the name (#2560,
+    #2568). Only for a scope that `takes_unfiled`; the caller decides that.
     """
     return await _delete_returning(
         db,
         and_(RAGDocument.collection_name == scope.collection_name, _unfiled_of(scope.tenant)),
     )
+
+
+UNINDEXED_BY_DROP = (
+    "The collection's search index was dropped with the last knowledge base on its "
+    "name. Upload the document again, or sync its source, to index it again."
+)
+
+
+async def mark_unindexed(db: AsyncSession, collection_name: str) -> None:
+    """Fail the unfiled rows left under a name whose table is about to be dropped.
+
+    For the last holder's teardown, after it has deleted its own rows and its
+    tenant's unfiled ones: what is left is another tenant's, kept because the
+    caller holds no authority over it, but its chunks go with the dropped table.
+    Left `DONE`, its tenant's next base on the name would list it as indexed with
+    nothing behind it. As `ERROR` with no vector id it lists as failed, saying an
+    upload has to be made again, and a sync retires it with `discard_failed`
+    (#2568). `retry_ingestion` refuses it, being filed under no base, which also
+    keeps it from returning to `PROCESSING` under a stale attempt's write.
+
+    A row still being ingested is failed too, under `FOR UPDATE` first: that waits
+    out a chunk write holding the row `FOR KEY SHARE` (`hold_for_vector_write`),
+    the bumped attempt makes that ingest's settlement stale, and a write that
+    reaches its hold after this commits finds the row no longer `PROCESSING` and
+    is refused, rather than recreating the dropped table. A row already failed
+    keeps its attempt but loses its index metadata too: a failed retry can still
+    name the version an earlier attempt indexed, and its chunks go with the table.
+    """
+    left = and_(
+        RAGDocument.collection_name == collection_name,
+        RAGDocument.knowledge_base_id.is_(None),
+    )
+    await db.execute(select(RAGDocument.id).where(left).with_for_update())
+    await db.execute(
+        sql_update(RAGDocument)
+        .where(left)
+        .values(
+            status=DocumentStatus.ERROR,
+            error_message=UNINDEXED_BY_DROP,
+            vector_document_id=None,
+            chunk_count=0,
+            ingestion_attempt=case(
+                (
+                    RAGDocument.status != DocumentStatus.ERROR,
+                    RAGDocument.ingestion_attempt + 1,
+                ),
+                else_=RAGDocument.ingestion_attempt,
+            ),
+        )
+    )
+    await db.flush()
 
 
 async def _delete_returning(db: AsyncSession, where: ColumnElement[bool]) -> DeletedDocuments:
@@ -856,6 +908,9 @@ async def hold_for_vector_write(
     The base lock alone cannot reject a stale insert after a default was cleared:
     its base survives. The tracking row does not, and its KEY SHARE conflicts
     with the clear's delete. Acquire after the base lock, matching teardown order.
+    Every write targets the row its own attempt opened as `PROCESSING`, so a row
+    in any other state refuses it: a last holder's teardown fails another
+    tenant's rows under the name it drops (`mark_unindexed`, #2568).
     """
     result = await db.execute(
         select(RAGDocument.id)
@@ -863,6 +918,7 @@ async def hold_for_vector_write(
             RAGDocument.id == document_id,
             RAGDocument.collection_name == collection,
             RAGDocument.knowledge_base_id == knowledge_base_id,
+            RAGDocument.status == DocumentStatus.PROCESSING,
         )
         .with_for_update(read=True, key_share=True)
     )
