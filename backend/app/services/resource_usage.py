@@ -124,16 +124,15 @@ async def shared_with_group(
 
 
 def _binds_skill(spec: dict[str, Any], skill_id: UUID) -> bool:
-    """Whether a stored spec binds the skill, itself or through an inline specialist.
+    """Whether a stored spec that names the skill's id binds it, itself or through an
+    inline specialist.
 
-    Only a spec that names the skill's id is parsed. One that names it and no longer
+    Callers pass only the specs the database found naming the id. One that no longer
     parses is taken to bind it: the skill is not deleted from under a draft its owner
     has yet to fix.
     """
     from app.services.eval_suite import binds
 
-    if str(skill_id) not in json.dumps(spec):
-        return False
     try:
         return binds(AgentSpec.model_validate(spec), "skill", skill_id)
     except ValidationError:
@@ -150,8 +149,8 @@ async def agents_using_skill(
     nothing; nobody runs them.
     """
     using: set[UUID] = set()
-    for environment, version in await agent_environment_repo.served(
-        db, organization_id=organization_id
+    for environment, version in await agent_environment_repo.served_mentioning(
+        db, [str(skill_id)], organization_id=organization_id
     ):
         if environment.agent_id not in using and _binds_skill(version.spec, skill_id):
             using.add(environment.agent_id)
@@ -179,13 +178,11 @@ async def agents_serving_skills(
     from app.services.eval_suite import binds
 
     serving: dict[UUID, set[UUID]] = {skill_id: set() for skill_id in skill_ids}
-    for environment, version in await agent_environment_repo.served(
-        db, organization_id=ctx.organization_id
+    for environment, version in await agent_environment_repo.served_mentioning(
+        db, [str(skill_id) for skill_id in skill_ids], organization_id=ctx.organization_id
     ):
         text = json.dumps(version.spec)
         named = [skill_id for skill_id in skill_ids if str(skill_id) in text]
-        if not named:
-            continue
         try:
             spec = AgentSpec.model_validate(version.spec)
         except ValidationError:

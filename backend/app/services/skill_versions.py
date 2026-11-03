@@ -36,7 +36,7 @@ from app.db.models.skill_version import (
     SkillVersion,
     SkillVersionSource,
 )
-from app.repositories import skill_repo, skill_version_repo, user_repo
+from app.repositories import member_repo, skill_repo, skill_version_repo
 from app.schemas.skill import SkillUpdate
 from app.schemas.skill_version import (
     PersonRef,
@@ -223,6 +223,14 @@ class SkillVersionService:
     async def _fork(
         self, ctx: AuthContext, skill: Skill, fork_id: UUID, *, lock: bool = False
     ) -> SkillFork:
+        """The skill's fork, or 404. Locked, it is taken after the skill itself.
+
+        Applying a proposal locks the skill and then the fork, so every writer of a
+        fork takes the two in that order: two of them wait for each other instead of
+        deadlocking.
+        """
+        if lock:
+            await skill_repo.lock(self.db, skill.id)
         fork = await skill_version_repo.get_fork(
             self.db, fork_id, organization_id=ctx.organization_id, skill_id=skill.id, lock=lock
         )
@@ -233,15 +241,15 @@ class SkillVersionService:
     async def _people(
         self, ctx: AuthContext, user_ids: Sequence[UUID | None]
     ) -> dict[UUID, PersonRef]:
-        """Who made what, for a caller who may read the member directory."""
+        """Who made what, for a caller who may read the member directory. Somebody who
+        is no longer a member keeps their id and loses their name."""
         wanted = sorted({user_id for user_id in user_ids if user_id is not None})
         if not wanted or not ctx.has(Perm.MEMBERS_VIEW):
             return {}
-        users = await user_repo.get_many(self.db, wanted)
-        return {
-            user_id: PersonRef(id=user_id, name=user.full_name or user.email)
-            for user_id, user in users.items()
-        }
+        names = await member_repo.get_names_for_users(
+            self.db, organization_id=ctx.organization_id, user_ids=wanted
+        )
+        return {user_id: PersonRef(id=user_id, name=names.get(user_id)) for user_id in wanted}
 
     async def _summaries(
         self, ctx: AuthContext, skill: Skill, versions: Sequence[SkillVersion]
@@ -567,7 +575,6 @@ class SkillVersionService:
         skill = await self.skill_for(ctx, skill_id, Perm.SKILLS_EDIT)
         fork = await self._fork(ctx, skill, fork_id, lock=True)
         if data.name != fork.name:
-            await skill_repo.lock(self.db, skill.id)
             await self._refuse_taken(ctx, skill, data.name)
             fork = await skill_version_repo.update_fork(
                 self.db, fork=fork, update_data={"name": data.name}

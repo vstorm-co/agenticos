@@ -133,6 +133,16 @@ _CITING = (
 )
 
 
+def _unknown_note(pack: EvidencePack) -> str:
+    if not pack.unknown_runs:
+        return ""
+    return (
+        f"{pack.unknown_runs} more rated-down or failed runs of agents bound to it are "
+        "from before uses were recorded: whether they used it is unknown, so they are "
+        "not shown."
+    )
+
+
 def _evidence_section(pack: EvidencePack, digests: Sequence[RunFindings] | None) -> str:
     if digests is None:
         return "\n\n".join(
@@ -141,6 +151,7 @@ def _evidence_section(pack: EvidencePack, digests: Sequence[RunFindings] | None)
                 _CITING if pack.runs else "",
                 render_runs(pack.runs),
                 pack.training_feedback,
+                _unknown_note(pack),
             ]
             if part
         )
@@ -157,6 +168,7 @@ def _evidence_section(pack: EvidencePack, digests: Sequence[RunFindings] | None)
             _CITING,
             "\n".join(lines) or "(The runs showed nothing in particular.)",
             pack.training_feedback,
+            _unknown_note(pack),
         ]
         if part
     )
@@ -745,6 +757,12 @@ class AuthoringRun:
 
     def _record_evidence(self, pack: EvidencePack) -> None:
         self.request.evidence = pack.summary()
+        if not pack.runs and pack.unknown_runs:
+            raise Stopped(
+                "No run in this window is known to have used the skill. "
+                f"{pack.unknown_runs} rated-down or failed runs are from before uses were "
+                "recorded, so whether they used it is unknown."
+            )
         if not pack.runs:
             raise Stopped(
                 "Nothing to learn from yet: no run in this window was rated or failed. "

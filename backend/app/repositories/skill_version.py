@@ -224,6 +224,20 @@ async def get_fork(
     return result.scalar_one_or_none()
 
 
+async def get_forks(
+    db: AsyncSession, fork_ids: Collection[UUID], *, organization_id: UUID
+) -> dict[UUID, SkillFork]:
+    """Forks of any of the organization's skills, by id."""
+    if not fork_ids:
+        return {}
+    result = await db.execute(
+        select(SkillFork).where(
+            SkillFork.id.in_(list(fork_ids)), SkillFork.organization_id == organization_id
+        )
+    )
+    return {fork.id: fork for fork in result.scalars().all()}
+
+
 async def get_fork_by_name(
     db: AsyncSession, name: str, *, organization_id: UUID, skill_id: UUID
 ) -> SkillFork | None:

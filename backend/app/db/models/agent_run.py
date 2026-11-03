@@ -309,10 +309,11 @@ class AgentRun(Base, TimestampMixin):
     earlier_attachments_checked: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, server_default=text("false")
     )
-    # False until a run's finish records the skills it used, and for every run from
-    # before `run_skill_uses`: their use of skills is unknown, which is not none.
-    skill_uses_recorded: Mapped[bool] = mapped_column(
-        Boolean, nullable=False, default=True, server_default=text("true")
+    # Null until a run's finish records the skills it used; false for good once a
+    # segment's write failed, and for every run from before `run_skill_uses`. Only
+    # true says what the run used - the others are unknown, which is not none.
+    skill_uses_recorded: Mapped[bool | None] = mapped_column(
+        Boolean, nullable=True, default=True, server_default=text("true")
     )
 
     # The run this one was delegated from, and the delegation's own id inside it.

@@ -8169,7 +8169,7 @@
     "review": "Prüfen",
     "save": "Speichern",
     "saveFile": "Datei speichern",
-    "savedAgentsCurrent": "Gespeichert. Jeder Agent, der diesen Skill nutzt, ist jetzt auf dem neuesten Stand.",
+    "savedMainVersion": "Als neue Main-Version gespeichert. Agents auf main lesen sie ab ihrem nächsten Run; festgesetzte Agents und Forks behalten ihre.",
     "savingReachesEveryAgent": "Das Speichern erreicht jeden an diesen Skill gebundenen Agent beim nächsten Run. Es gibt keinen Entwurf und keinen Veröffentlichungsschritt.",
     "showWhatChangedIn": "Zeigen, was sich in {name} geändert hat",
     "sizeUploadsWhenCreated": "{size} · wird beim Erstellen des Skills hochgeladen",
