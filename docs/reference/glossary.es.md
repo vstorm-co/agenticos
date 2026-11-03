@@ -1,5 +1,5 @@
 ---
-source_sha: "efcb7fe03f88"
+source_sha: "525439bc4593"
 ---
 
 # Glosario { #glossary }
@@ -25,6 +25,11 @@ tal como se ven en pantalla.
 | Primeros mensajes | Lo que un chat vacío ofrece a quien abre el agent, cada uno con un clic | `starters` |
 | Capability | Algo que un agent puede hacer, activado en el Builder | `capabilities[]` |
 | Skill | Saber hacer escrito una vez y leído por cualquier agent que lo necesite | `skill` |
+| Versión del skill | Un estado guardado de un skill, que ya no cambia; **Restore** trae una anterior de vuelta como versión nueva | `skill_version` |
+| Main | La línea principal de un skill; un agent en main lee su versión más nueva | `state: main` |
+| Fijado | Un agent que se queda en una versión de main de un skill hasta que alguien lo mueve | `state: pinned` |
+| Fork | Una línea con nombre de un skill, que parte de una versión de main, con versiones propias para algunos agents | `skill_fork`, `state: fork` |
+| Detrás de main | Cuántas versiones de main no ha tomado un agent fijado o un fork | `behind_main` |
 | Context file | Conocimiento fijo que un agent siempre tiene, como un glosario o una política | `context` |
 | Knowledge base | Documentos que un agent busca y cita | `collection` |
 | Knowledge gap | Un tema de preguntas que una knowledge base no pudo responder, agrupadas por significado; Improve las cuenta como **Missing from the knowledge base** | `knowledge_gap_topic` |
@@ -106,6 +111,9 @@ tal como se ven en pantalla.
 | Try again | Empieza otro intento desde el resultado, con una **Note for the helper** opcional; escribe cambios nuevos y se detiene en **Changes** | `/{run_id}/continue` con `note` |
 | Spending limit | Lo que una sesión puede gastar en total, con el análisis y cada intento incluidos; cada paso se presupuesta antes de empezar | `budget_usd` |
 | Automatic check | **Check these questions automatically on every change**: al aceptar, una suite que hace las preguntas de la sesión antes de cada publicación y no admite ninguna regresión confirmada | `automatic_check` |
+| Improve a skill | Una sesión que mejora una línea de un skill, main o un fork, y comprueba el cambio en cada agent de esa línea | `/skills/{id}/improvements` |
+| Comprobación del skill | Un cambio de skill ejecutado en cada agent de su línea; mejor cuando ningún agent tiene una regresión confirmada y al menos uno mejora | `skill_check` |
+| Desconocido | Un agent en el que una comprobación del skill no pudo ejecutarse, nombrado con el motivo; la persona lo reconoce antes de aplicar | `state: unknown` |
 
 ## Capabilities { #capabilities }
 

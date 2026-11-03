@@ -225,3 +225,44 @@ def test_older_sessions_are_left_out_unless_the_person_asks(instructions: str) -
     rule = _bullet(instructions, "How improving stands is the newest session")
     assert "never list them or their links after the newest one" in rule
     assert "pass `history=true` only when the person asks about earlier sessions" in rule
+
+
+def test_a_skill_s_worse_agent_gets_the_session_s_choices_and_nothing_else(
+    instructions: str,
+) -> None:
+    rule = _bullet(instructions, "When an agent gets worse")
+    assert "exactly the session's `next_actions`" in rule
+    assert "`apply_and_pin`" in rule
+    assert "`fork_for_helped`" in rule
+    assert "before you call `accept_skill_improvement`" in rule
+
+
+def test_a_version_never_checked_on_an_agent_is_named_unknown_before_moving_it(
+    instructions: str,
+) -> None:
+    rule = _bullet(instructions, "Moving one agent to another version")
+    assert "only when the person asks" in rule
+    assert "say it is unknown" in rule
+
+
+def test_a_skill_problem_found_improving_an_agent_goes_to_the_skill_s_line(
+    instructions: str,
+) -> None:
+    rule = _bullet(instructions, "When an agent's own Improve session finds a problem in a skill")
+    assert "`from_run`" in rule
+    assert "the agent's fork when it is on one" in rule
+    assert "rather than copying the skill's text" in rule
+
+
+def test_a_moved_line_is_priced_again_and_a_stale_result_checked_again(
+    instructions: str,
+) -> None:
+    rule = _bullet(instructions, "When the line moves during a session")
+    assert "`estimate_next_skill_improvement_step` again" in rule
+    assert "(`recheck`) before anything is applied" in rule
+
+
+def test_the_skill_start_screen_is_not_read_as_a_session(instructions: str) -> None:
+    """`new` is no session id, so the start screen reads the skill and prices a session."""
+    assert "`/skills/<skill id>/improve/new` is the screen that starts improving" in instructions
+    assert "`get_skill`, then `estimate_skill_improvement`" in instructions

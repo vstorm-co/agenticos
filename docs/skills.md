@@ -484,6 +484,10 @@ others. A skill that nobody uses is deleted with its versions and forks.
 | `GET /api/v1/skills/behind-main` | Pinned agents and forks that main has moved past, across the organization |
 | `POST /api/v1/skills/{id}/forks/{fork_id}/return-to-main` | Moves a fork's agents back to main, and archives the fork once nobody reads it |
 | `POST /api/v1/skills/{id}/agents/{agent_id}/update-check`, `…/estimate` | Checks main's newest version on one pinned agent, or prices that check |
+| `POST /api/v1/skills/{id}/improvements/estimate`, `POST /api/v1/skills/{id}/improvements` | Prices and starts an Improve session on main or on a fork |
+| `POST /api/v1/skills/{id}/improvements/{session_id}/apply`, `…/fork`, `…/discard` | Applies a session's result, with or without pinning the worse agents, forks it for the agents it helped, or discards it |
+| `POST /api/v1/skills/{id}/improvements/{session_id}/recheck` | Checks a result again on the line as it is now |
+| `GET /api/v1/skill-improvements/awaiting` | The skill sessions waiting for a person |
 
 ## Getting skills into an organization
 
@@ -668,7 +672,7 @@ same as its base until it is edited.
 forks. While agents use it, the dialog names them and offers no delete: move each
 to another skill, or remove the skill from it in the Builder, first.
 
-### Improving a skill
+### Improving a skill { #improving-a-skill }
 
 **Improve** on a skill's page opens a session for the line on screen - main, or the
 fork picked in the chips - in the same five steps as [improving an agent](authoring.md#the-improve-wizard):
@@ -703,6 +707,11 @@ chosen changes, measured on the line as it is now, at a price shown first.
 Improving further and discarding stay offered. A line that moves while the session
 waits at Changes is priced again: Next step checks the changes on the newest
 version.
+
+The [Architect](console.md#the-assistant) reads a skill's agents, versions and
+sessions. It starts a session, runs or retries a step, accepts a result, ends a
+session or moves an agent to another version only when you ask, each through an
+approval card.
 
 ## Skills or knowledge?
 

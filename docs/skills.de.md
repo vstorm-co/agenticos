@@ -1,5 +1,5 @@
 ---
-source_sha: "5c0f217fe9b6"
+source_sha: "2f3bbfa1aea6"
 ---
 
 # Skills { #skills }
@@ -546,6 +546,10 @@ den niemand verwendet, wird mit seinen Versionen und Forks gelöscht.
 | `GET /api/v1/skills/behind-main` | Festgesetzte Agents und Forks, an denen main vorbeigezogen ist, über die ganze Organisation |
 | `POST /api/v1/skills/{id}/forks/{fork_id}/return-to-main` | Verschiebt die Agents eines Forks zurück auf main und archiviert den Fork, sobald ihn niemand mehr liest |
 | `POST /api/v1/skills/{id}/agents/{agent_id}/update-check`, `…/estimate` | Prüft die neueste Version von main an einem festgesetzten Agent oder nennt den Preis dafür |
+| `POST /api/v1/skills/{id}/improvements/estimate`, `POST /api/v1/skills/{id}/improvements` | Berechnet den Preis einer Verbessern-Sitzung auf main oder einem Fork und startet sie |
+| `POST /api/v1/skills/{id}/improvements/{session_id}/apply`, `…/fork`, `…/discard` | Übernimmt das Ergebnis einer Sitzung, mit oder ohne Festsetzen der schlechteren Agents, macht daraus einen Fork für die Agents, denen es half, oder verwirft es |
+| `POST /api/v1/skills/{id}/improvements/{session_id}/recheck` | Prüft ein Ergebnis erneut auf der Linie, wie sie jetzt ist |
+| `GET /api/v1/skill-improvements/awaiting` | Die Skill-Sitzungen, die auf einen Menschen warten |
 
 ## Skills in eine Organisation bekommen { #getting-skills-into-an-organization }
 
@@ -790,6 +794,12 @@ jetzt ist, zu einem Preis, der zuerst angezeigt wird. Weiterverbessern und
 Verwerfen bleiben möglich. Ändert sich die Linie, während die Sitzung bei Changes
 wartet, wird neu bepreist: Der nächste Schritt prüft die Änderungen auf der
 neuesten Version.
+
+Der [Architekt](console.md#the-assistant) liest die Agents, Versionen und
+Sitzungen eines Skills. Er startet eine Sitzung, führt einen Schritt aus oder
+wiederholt ihn, nimmt ein Ergebnis an, beendet eine Sitzung oder verschiebt einen
+Agent auf eine andere Version nur, wenn Sie darum bitten, jeweils über eine
+Freigabekarte.
 
 ## Skills oder Knowledge? { #skills-or-knowledge }
 
