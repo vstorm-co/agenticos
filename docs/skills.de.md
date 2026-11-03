@@ -1,5 +1,5 @@
 ---
-source_sha: "5f543c7121de"
+source_sha: "deee8bd5e47c"
 ---
 
 # Skills { #skills }
@@ -302,7 +302,9 @@ eigene Version hat, liefert er die Main-Version aus, von der er ausging.
 - **Archive** sorgt dafür, dass ein Fork keine neuen Versionen mehr annimmt. Er
   behält seine Versionen und wird nie gelöscht. Ein Fork, den 30 Tage lang kein Run
   gelesen hat, wird zum Archivieren vorgeschlagen; nichts wird automatisch
-  archiviert.
+  archiviert. Eine ältere Version eines Agents, die noch einen archivierten Fork
+  liest, wird in keine Umgebung befördert: Verschieben Sie den Agent auf eine
+  andere Version und befördern Sie die Version, die dabei veröffentlicht wird.
 
 ### Welche Version ein Agent liest { #which-version-an-agent-reads }
 

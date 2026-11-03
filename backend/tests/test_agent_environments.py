@@ -114,6 +114,8 @@ def _service(agent: MagicMock) -> AgentEnvironmentService:
     service.agents.get = AsyncMock(return_value=agent)
     # No version here runs on a ChatGPT sign-in; `test_publish_sign_ins` has one.
     service.agents.refuse_borrowed_sign_ins = AsyncMock(return_value=None)
+    # Nor reads an archived skill fork; `test_skill_bindings` has one.
+    service.agents.refuse_archived_forks = AsyncMock(return_value=None)
     return service
 
 

@@ -19,6 +19,7 @@ happened to the run.
 """
 
 import logging
+from collections.abc import Mapping
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -57,8 +58,13 @@ class SkillProposalService:
         *,
         agent_id: UUID,
         conversation_id: UUID | None,
+        forks: Mapping[UUID, UUID] | None = None,
     ) -> list[SkillProposal]:
         """Store what a run left different, one proposal per skill.
+
+        `forks` names the fork the run was bound to for each skill it read from one.
+        A fork with no versions of its own serves the main version it started from, so
+        the version alone cannot say the change is for the fork.
 
         A pending proposal for the same skill is overwritten rather than joined
         by a second: three turns of one conversation refining a checklist should
@@ -72,7 +78,7 @@ class SkillProposalService:
         recorded: list[SkillProposal] = []
         for change in changes:
             base = bases.get(change.base_version_id) if change.base_version_id else None
-            fork_id = None if base is None else base.fork_id
+            fork_id = (forks or {}).get(change.skill_id) or (None if base is None else base.fork_id)
             rewritten = await skill_proposal_repo.replace_pending(
                 self.db,
                 organization_id=ctx.organization_id,
@@ -370,7 +376,12 @@ class SkillProposalService:
             )
         )[latest_id]
         manifest, bodies = manifest_of(
-            (name, None, content) for name, content in sorted(proposal.resources.items())
+            (
+                name,
+                latest.resources[name]["description"] if name in latest.resources else None,
+                content,
+            )
+            for name, content in sorted(proposal.resources.items())
         )
         await skill_version_repo.put_files(
             self.db, organization_id=ctx.organization_id, skill_id=fork.skill_id, bodies=bodies

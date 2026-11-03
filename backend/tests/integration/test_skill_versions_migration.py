@@ -20,8 +20,12 @@ from sqlalchemy.orm import Session
 
 from app.db.models.skill import Skill, SkillResource
 from app.db.models.skill_proposal import SkillProposal
+from app.db.models.skill_usage import RunSkillUse
 from app.db.models.skill_version import SkillFile, SkillVersion
 from tests.integration.test_authoring import _owner, _published
+from tests.integration.test_skill_usage import _agent, _org, _used, _version
+from tests.integration.test_skill_usage import _run as _agent_run
+from tests.integration.test_skill_usage import _skill as _usage_skill
 
 pytestmark = pytest.mark.anyio
 
@@ -128,6 +132,20 @@ async def test_the_downgrade_takes_the_binding_out_of_every_stored_spec(db: Asyn
     assert agent.draft_spec["skill_ids"] == [skill_id]
     await db.refresh(untouched)
     assert untouched.draft_spec == {"name": "Plain"}
+
+
+async def test_a_downgrade_forgets_the_version_each_use_was_served(db: AsyncSession):
+    """The uses outlive the versions, so none may keep naming one that is gone."""
+    org, user = await _org(db)
+    skill = await _usage_skill(db, org)
+    version = await _version(db, skill, 1)
+    run = await _agent_run(db, org, await _agent(db, org, user, "Desk"))
+    await _used(db, run, skill, version=version)
+
+    await db.run_sync(_run, "_forget_served_versions")
+
+    stored = await db.execute(select(RunSkillUse.skill_version_id))
+    assert stored.scalars().all() == [None]
 
 
 def _catch_up_migration() -> ModuleType:

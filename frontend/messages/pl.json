@@ -8051,7 +8051,7 @@
     "review": "Przejrzyj",
     "save": "Zapisz",
     "saveFile": "Zapisz plik",
-    "savedAgentsCurrent": "Zapisano. Każdy agent używający tego skilla jest teraz aktualny.",
+    "savedMainVersion": "Zapisano jako nową wersję main. Agenci na main czytają ją od następnego uruchomienia; przypięci agenci i forki zostają przy swoich.",
     "savingReachesEveryAgent": "Zapis dosięga każdego związanego z tym skillem agenta przy jego następnym runie. Nie ma wersji roboczej ani kroku publikacji.",
     "showWhatChangedIn": "Pokaż, co zmieniło się w {name}",
     "sizeUploadsWhenCreated": "{size} · zostanie przesłany przy tworzeniu skilla",

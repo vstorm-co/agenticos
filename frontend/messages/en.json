@@ -8291,7 +8291,7 @@
     "review": "Review",
     "save": "Save",
     "saveFile": "Save file",
-    "savedAgentsCurrent": "Saved. Every agent using this skill is now current.",
+    "savedMainVersion": "Saved as a new main version. Agents on main read it from their next run; pinned agents and forks keep theirs.",
     "savingReachesEveryAgent": "Saving reaches every agent bound to this skill on its next run. There is no draft and no publish step.",
     "showWhatChangedIn": "Show what changed in {name}",
     "sizeUploadsWhenCreated": "{size} · uploads when the skill is created",
