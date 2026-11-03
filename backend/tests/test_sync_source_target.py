@@ -70,15 +70,15 @@ def _row(**fields: object) -> SimpleNamespace:
 def repos(monkeypatch: pytest.MonkeyPatch) -> SimpleNamespace:
     """The repositories the service writes through, and the lock it takes."""
     held = AsyncMock()
-    still_there = AsyncMock(side_effect=lambda _db, kb_id: SimpleNamespace(id=kb_id))
+    still_there = AsyncMock(return_value=True)
     create = AsyncMock(side_effect=lambda _db, **kwargs: _row(**kwargs))
     update = AsyncMock(side_effect=lambda _db, source_id, **kwargs: _row(id=source_id, **kwargs))
     monkeypatch.setattr(sync_source_module, "hold_name", held)
-    monkeypatch.setattr(sync_source_module.knowledge_base_repo, "get_by_id", still_there)
+    monkeypatch.setattr(sync_source_module.knowledge_base_repo, "hold_key_share", still_there)
     monkeypatch.setattr(sync_source_module.sync_source_repo, "create", create)
     monkeypatch.setattr(sync_source_module.sync_source_repo, "update", update)
     monkeypatch.setattr(sync_source_module, "record_audit", AsyncMock())
-    return SimpleNamespace(held=held, get_by_id=still_there, create=create, update=update)
+    return SimpleNamespace(held=held, still_there=still_there, create=create, update=update)
 
 
 def _create(name: str | None = "handbook") -> SyncSourceCreate:
@@ -132,8 +132,7 @@ class TestCreatingASourceOnABase:
         assert repos.create.await_args.kwargs["knowledge_base_id"] == base.id
 
     async def test_a_base_deleted_while_waiting_for_its_name_is_not_found(self, repos) -> None:
-        repos.get_by_id.side_effect = None
-        repos.get_by_id.return_value = None
+        repos.still_there.return_value = False
 
         with pytest.raises(NotFoundError):
             await SyncSourceService(MagicMock()).create_source(

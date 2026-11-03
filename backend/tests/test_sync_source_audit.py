@@ -110,7 +110,7 @@ def _service(monkeypatch: pytest.MonkeyPatch, *, stored=None, updated=None) -> A
     # The base a source records is held and read again (`SyncSourceService._target`).
     monkeypatch.setattr(sync_source_module, "hold_name", AsyncMock())
     monkeypatch.setattr(
-        sync_source_module.knowledge_base_repo, "get_by_id", AsyncMock(return_value=MagicMock())
+        sync_source_module.knowledge_base_repo, "hold_key_share", AsyncMock(return_value=True)
     )
     audit = AsyncMock()
     monkeypatch.setattr(sync_source_module, "record_audit", audit)

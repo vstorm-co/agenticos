@@ -322,8 +322,9 @@ class SyncSourceService:
         refuse.
 
         Held under the name's teardown lock, as a deletion takes it, and the base
-        read again inside it: a base deleted meanwhile is a miss rather than a
-        source left pointing at nothing.
+        asked for again inside it - in SQL, holding the row as the source's
+        foreign key will: the row the caller loaded is the session's cached copy,
+        and a base deleted meanwhile is a miss rather than a failed insert.
 
         Raises:
             BadRequestError: A collection was named without its knowledge base,
@@ -343,13 +344,13 @@ class SyncSourceService:
         ):
             raise BadRequestError(
                 message=(
-                    "This knowledge base belongs to another organization. Switch to it "
-                    "to add a sync source here."
+                    "This knowledge base is not this organization's, so a sync source "
+                    "of this organization cannot write into it."
                 ),
                 details={"kb_id": knowledge_base.id},
             )
         await hold_name(self.db, LockScope.COLLECTION_TEARDOWN, collection_name)
-        if await knowledge_base_repo.get_by_id(self.db, knowledge_base.id) is None:
+        if not await knowledge_base_repo.hold_key_share(self.db, knowledge_base.id):
             raise NotFoundError(
                 message="Knowledge base not found", details={"kb_id": knowledge_base.id}
             )
