@@ -92,9 +92,8 @@ class AgentExited(AcpError):
 
     def __init__(self, code: int) -> None:
         super().__init__(
-            f"The agent stopped with exit code {code} before it answered. Check that "
-            "Node.js 22 or later is installed and that the agent is signed in under "
-            "Settings → Desktop app."
+            f"The agent stopped with exit code {code} before it answered. Prepare coding "
+            "tools and check the agent sign-in under Settings → Desktop app."
         )
         self.code = code
 

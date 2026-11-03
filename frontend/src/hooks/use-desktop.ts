@@ -12,6 +12,7 @@ import {
   SKILL_SOURCES,
   getLocalServices,
   signInLocalAgent,
+  prepareLocalAgent,
   signOutLocalAgent,
   type LocalAgent,
   saveLocalService,
@@ -294,9 +295,8 @@ export function useLocalServices() {
 }
 
 /**
- * The coding agents installed on this computer. Signing in happens in the
- * agent's own Terminal command, so the list is read again whenever the window
- * regains focus rather than polled.
+ * Credential probes can show native keychain prompts. Refresh after explicit
+ * actions and requests instead of repeating them whenever the app regains focus.
  */
 export function useLocalAgents() {
   const shell = useShell();
@@ -305,10 +305,15 @@ export function useLocalAgents() {
     queryKey: qk.desktop.agents(),
     queryFn: getLocalAgents,
     enabled: isDesktopShell(shell),
-    refetchOnWindowFocus: "always",
+    refetchOnWindowFocus: false,
+    staleTime: 5 * 60 * 1000,
   });
   const failed = (error: Error) => reportShellFailure("changing a coding agent", error);
-  const signIn = useMutation({ mutationFn: signInLocalAgent, onError: failed });
+  const signIn = useMutation({
+    mutationFn: signInLocalAgent,
+    onError: failed,
+    onSuccess: () => client.invalidateQueries({ queryKey: qk.desktop.agents() }),
+  });
   const signOut = useMutation({
     mutationFn: signOutLocalAgent,
     onSuccess: (agent) =>
@@ -317,7 +322,12 @@ export function useLocalAgents() {
       ),
     onError: failed,
   });
-  return { state, signIn, signOut };
+  const prepare = useMutation({
+    mutationFn: prepareLocalAgent,
+    onSuccess: () => client.invalidateQueries({ queryKey: qk.desktop.agents() }),
+    onError: failed,
+  });
+  return { state, signIn, signOut, prepare };
 }
 
 /**

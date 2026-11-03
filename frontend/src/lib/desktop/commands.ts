@@ -542,9 +542,13 @@ export async function getLocalAgents(): Promise<LocalAgent[]> {
   return parseLocalAgents(await invokeShell("local_agents"));
 }
 
-/** Opens the agent's own sign-in in Terminal; the person finishes it there. */
+/** The agent opens browser OAuth; credentials stay with its native process. */
 export async function signInLocalAgent(id: LocalAgent["id"]): Promise<void> {
   await invokeShell("local_agent_sign_in", { id });
+}
+
+export async function prepareLocalAgent(id: LocalAgent["id"]): Promise<LocalAgent> {
+  return parseLocalAgent(await invokeShell("local_agent_prepare", { id }));
 }
 
 export async function signOutLocalAgent(id: LocalAgent["id"]): Promise<LocalAgent> {
