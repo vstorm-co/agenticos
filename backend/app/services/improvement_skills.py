@@ -23,9 +23,9 @@ from app.repositories import authoring_repo, skill_repo
 from app.schemas.authoring import EvidenceItemRead
 from app.schemas.improvement import (
     ImprovementSkill,
+    ImprovementSkillNewVersion,
     ImprovementSkillProblem,
     ImprovementSkills,
-    ImprovementSkillUpdate,
 )
 from app.schemas.skill_version import SkillAgentList, SkillBindingRead
 from app.services.access import SKILL, accessible_ids, resolve_access
@@ -187,10 +187,10 @@ def _on_line(listed: SkillAgentList, binding: SkillBindingRead) -> int:
     )
 
 
-def _update(listed: SkillAgentList, binding: SkillBindingRead) -> ImprovementSkillUpdate | None:
+def _update(listed: SkillAgentList, binding: SkillBindingRead) -> ImprovementSkillNewVersion | None:
     if binding.state == "main" or binding.behind_main == 0:
         return None
-    return ImprovementSkillUpdate(
+    return ImprovementSkillNewVersion(
         kind="update_pinned" if binding.state == "pinned" else "catch_up_fork",
         to_version=listed.main_latest.number,
     )

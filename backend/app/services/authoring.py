@@ -76,6 +76,7 @@ from app.repositories import (
     organization_repo,
     skill_proposal_repo,
 )
+from app.repositories.personal_data import REPORT_EVIDENCE
 from app.schemas.authoring import (
     AgentAuthoringRead,
     AgentWaiting,
@@ -114,7 +115,7 @@ from app.services.context import ContextService
 from app.services.eval_run import EvalRunService, spec_hash
 from app.services.eval_suite import EvalSuiteService
 from app.services.model_profile import ModelProfileService
-from app.services.skills import SkillService
+from app.services.skills import SkillService, improver_skill_chars
 from app.services.spend import month_start, organization_monthly_spend
 from app.services.system_agent_runner import SystemAgentRunner
 from app.worker.jobs import RUN_AUTHORING, RunAuthoring
@@ -317,7 +318,18 @@ class AuthoringService:
                 excluded_message_ids=excluded_message_ids,
                 train_case_ids=train_case_ids,
             )
-        return await self._estimate(ctx, improver, pack, None if pack.runs else "no_evidence")
+        skill_chars = 0
+        if body.kind == AuthoringKind.IMPROVE.value and pack.runs:
+            skills, used = await self.skills.read_by_improver(
+                ctx,
+                agent.id,
+                AgentSpec.model_validate(agent.draft_spec),
+                [run.run_id for run in pack.runs],
+            )
+            skill_chars = improver_skill_chars(skills, used)
+        return await self._estimate(
+            ctx, improver, pack, None if pack.runs else "no_evidence", skill_chars=skill_chars
+        )
 
     async def estimate_skill(
         self, ctx: AuthContext, skill_id: UUID, body: AuthoringStart
@@ -350,13 +362,24 @@ class AuthoringService:
         return await self._estimate(ctx, improver, pack, None if pack.runs else "no_evidence")
 
     async def _estimate(
-        self, ctx: AuthContext, improver: Agent, pack: EvidencePack, reason: str | None
+        self,
+        ctx: AuthContext,
+        improver: Agent,
+        pack: EvidencePack,
+        reason: str | None,
+        *,
+        skill_chars: int = 0,
     ) -> AuthoringEstimate:
+        """`skill_chars` is the skill text the call proposing the change reads beside the runs."""
         groups = pack.groups()
         calls = 0 if not groups else (1 if len(groups) == 1 else len(groups) + 1)
         evidence_chars = sum(len(run.render()) for run in pack.runs) + len(pack.training_feedback)
-        per_call = await self._per_call(ctx, improver, evidence_chars // max(1, len(groups)))
-        total = (per_call * calls).quantize(_CENT)
+        share = evidence_chars // max(1, len(groups))
+        per_call = await self._per_call(ctx, improver, share)
+        proposing = (
+            await self._per_call(ctx, improver, share + skill_chars) if skill_chars else per_call
+        )
+        total = (per_call * (calls - 1) + proposing if calls else Decimal(0)).quantize(_CENT)
         improver_left = await self._improver_left(ctx, improver)
         org_left = await self._org_left(ctx)
         return AuthoringEstimate(
@@ -712,19 +735,22 @@ class AuthoringService:
 
     @staticmethod
     def _request(request: AuthoringRequest, *, quotes: bool) -> AuthoringRequestRead:
-        """A request as a reader sees it - a verify's quotes only for a reader of runs."""
+        """A request as a reader sees it - the runs' quotes only for a reader of runs."""
         read = AuthoringRequestRead.model_validate(request)
-        findings = None if read.report is None else read.report.get("findings")
-        if quotes or read.report is None or not isinstance(findings, list):
+        if quotes or read.report is None:
             return read
-        redacted = [
-            {
-                **finding,
-                "evidence": [{"run_id": item["run_id"]} for item in finding.get("evidence", [])],
-            }
-            for finding in findings
-        ]
-        return read.model_copy(update={"report": {**read.report, "findings": redacted}})
+        redacted = {
+            key: [
+                {
+                    **item,
+                    "evidence": [{"run_id": quote["run_id"]} for quote in item.get("evidence", [])],
+                }
+                for item in items
+            ]
+            for key in REPORT_EVIDENCE
+            if isinstance(items := read.report.get(key), list)
+        }
+        return read.model_copy(update={"report": {**read.report, **redacted}})
 
     async def _batch(self, ctx: AuthContext, agent: Agent, batch: SpecProposalBatch) -> BatchRead:
         spec = AgentSpec.model_validate(agent.draft_spec)
