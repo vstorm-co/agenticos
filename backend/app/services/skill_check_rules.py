@@ -40,7 +40,18 @@ from app.db.models.skill_check import AgentState, CheckOutcome, CheckVerdict
 from app.services.improvement_states import CheckResult, judge
 
 SAMPLE_SIZE = 4
-"""How many of an agent's own questions a quick check asks."""
+"""How many of an agent's own questions a quick check asks at least."""
+
+EXPECTED_RERUN_SHARE = Decimal("0.4")
+"""The share of its re-ask ceiling a check expects to spend. The ceiling re-asks every
+question; a check re-asks only the ones that flipped, which on the Skills lab cost
+0.5 to 0.8 of the first answers again against a ceiling of twice them."""
+
+
+def expected_cost(first_answers: Decimal, rerun_ceiling: Decimal) -> Decimal:
+    """What one stage most likely costs: its first answers and the re-asks it expects."""
+    return first_answers + rerun_ceiling * EXPECTED_RERUN_SHARE
+
 
 _WORD = re.compile(r"[a-z0-9]+(?:'[a-z]+)?")
 
@@ -171,15 +182,18 @@ def verdict(states: Iterable[AgentState]) -> CheckVerdict:
     return CheckVerdict.PASSED
 
 
-def outcomes(result: CheckVerdict, *, fork: bool) -> list[CheckOutcome]:
-    """What a person may do with a finished check, in the order the page offers them."""
+def outcomes(result: CheckVerdict, *, fork: bool, helped: bool) -> list[CheckOutcome]:
+    """What a person may do with a finished check, in the order the page offers them.
+
+    `helped` says some agent got better; a fork for the helped agents needs one.
+    """
     if result is CheckVerdict.BLOCKED:
         if fork:
             return [CheckOutcome.IMPROVE_FURTHER, CheckOutcome.DISCARD]
         return [
             CheckOutcome.IMPROVE_FURTHER,
             CheckOutcome.APPLY_AND_PIN,
-            CheckOutcome.FORK_FOR_HELPED,
+            *([CheckOutcome.FORK_FOR_HELPED] if helped else []),
             CheckOutcome.DISCARD,
         ]
     if result is CheckVerdict.NO_BETTER:
@@ -232,6 +246,12 @@ def sample(
         ),
     )
     return [case.case_id for case in ranked[:size]]
+
+
+def sample_size(skill_set_held_out: int, *, minimum: int) -> int:
+    """How many of an agent's own questions a quick check asks: four, or as many as the
+    agent's result needs beside the skill's held-out questions to reach the minimum."""
+    return max(SAMPLE_SIZE, minimum - skill_set_held_out)
 
 
 def total(amounts: Iterable[Decimal]) -> Decimal:

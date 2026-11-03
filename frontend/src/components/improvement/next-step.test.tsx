@@ -209,6 +209,18 @@ it("offers nothing to a reader who may not start an improvement on the agent", (
   expect(state.estimate).not.toHaveBeenCalled();
 });
 
+it.each([AT_UNDERSTAND, AT_CHANGES])(
+  "offers a skill's waiting step although Try again could not start there",
+  async (stop) => {
+    const session = { ...stop, skill_id: "k1", can_restart: false };
+    render(<NextStep session={session} onStarted={vi.fn()} />);
+    expect(
+      await screen.findByRole("button", { name: /^Next step: .* · up to \$0\.04$/ }),
+    ).toBeEnabled();
+    expect(state.estimate).toHaveBeenCalledWith({ budget: session.budget_usd });
+  },
+);
+
 it("prices a check as the most it may cost, and says what it most likely costs", async () => {
   state.estimate.mockResolvedValue({ ...QUOTE, total_usd: "0.28", expected_usd: "0.07" });
   const view = render(<NextStep session={AT_CHANGES} onStarted={vi.fn()} />);
@@ -303,25 +315,6 @@ it("prices and starts the step with what the session's kind adds, and prices it 
       body: { main_alone: false },
     }),
   );
-});
-
-it("offers a skill session's step whatever its Try again says", async () => {
-  // The server answers `can_restart` for a finished attempt; a skill session at a stop
-  // always reads false there, and its step must still be offered.
-  const view = render(
-    <NextStep
-      session={{ ...AT_CHANGES, skill_id: "k1", can_restart: false }}
-      onStarted={vi.fn()}
-    />,
-  );
-  expect(
-    await screen.findByRole("button", {
-      name: "Next step: test the selected changes · up to $0.04",
-    }),
-  ).toBeEnabled();
-
-  view.rerender(<NextStep session={{ ...AT_CHANGES, can_restart: false }} onStarted={vi.fn()} />);
-  expect(screen.queryByRole("button", { name: /Next step/ })).not.toBeInTheDocument();
 });
 
 it("prices nothing while held, and prices again once settled", async () => {

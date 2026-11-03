@@ -1,5 +1,5 @@
 ---
-source_sha: "636c370e91d6"
+source_sha: "06e6052db16f"
 ---
 
 # Skille { #skills }
@@ -268,11 +268,15 @@ pusty albo z ostatnich odpowiedzi, które otworzyły skill - albo przyciskiem
 **Dodaj pytania testowe** przy agencie, którego [Popraw](#improving-a-skill) nie
 mogło sprawdzić, i edytowany jak każdy inny [dataset](datasets.md). Potem o pytania samego agenta:
 
-- **Quick**, domyślnie: najwyżej cztery pytania z datasetu agenta, których
+- **Quick**, domyślnie: cztery pytania z datasetu agenta - więcej, gdy pytań
+  held-out samego skilla jest za mało do pięciu, których wymaga wynik - których
   najnowsza odpowiedź otworzyła skill - te, które mają najwięcej wspólnych słów
   ze zmienianymi liniami. Agent bez takich pytań jest sprawdzany tylko na
-  zestawie skilla, a jego wiersz to mówi.
-- **Thorough**: cały dataset agenta. Zmiana opisu skilla jest zawsze sprawdzana
+  zestawie skilla, a jego wiersz to mówi. Agent, którego pytania skilla pokazały
+  jako gorszego, nie jest pytany o własne.
+- **Thorough**: cały dataset agenta, zadawany nawet wtedy, gdy pytania skilla
+  pokazały agenta jako gorszego, żeby jego wiersz mówił, gdzie zmiana go zepsuła.
+  Zmiana opisu skilla jest zawsze sprawdzana
   w ten sposób, bo opis decyduje, kiedy każdy agent w ogóle otwiera skill.
 
 !!! note "Pytania skilla mówią, co skill powinien robić"
@@ -318,9 +322,9 @@ on agents prowadzi do niej. Na main osoba może nadal:
   zmiana trafi na żywo, więc żaden z nich nie obsłuży jej ani razu. Przypięcie
   wymaga prawa publikacji każdego z nich, a środowisko czekające na promocję musi
   najpierw dostać przypiętą wersję;
-- **zrobić fork dla agentów, którym pomogła**, zostawiając main bez zmian - w
-  kroku Akceptacja w [Popraw](#improving-a-skill) albo przez API,
-  `POST /api/v1/skills/{id}/checks/{check_id}/fork`;
+- **zrobić fork dla agentów, którym pomogła**, gdy któryś wypadł lepiej,
+  zostawiając main bez zmian - w kroku Akceptacja w [Popraw](#improving-a-skill)
+  albo przez API, `POST /api/v1/skills/{id}/checks/{check_id}/fork`;
 - **odrzucić** ją.
 
 Na forku zostają tylko dalsze ulepszanie i odrzucenie: przypięcie wskazuje

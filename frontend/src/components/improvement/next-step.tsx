@@ -6,7 +6,7 @@ import { useLocale, useTranslations } from "next-intl";
 import { Button, Input, Label } from "@/components/ui";
 import { limitText, limitValue, usd } from "@/components/evals/format";
 import { useImprovement } from "@/hooks/use-improvements";
-import { subjectOf } from "@/lib/improvement-subject";
+import { mayContinue, subjectOf } from "@/lib/improvement-subject";
 import { ApiError, getErrorMessage } from "@/lib/api-error";
 import { currentAttempt, stopOf } from "@/lib/improvement-steps";
 import type { ContinuationEstimate, Improvement } from "@/types/improvement";
@@ -78,8 +78,6 @@ export function NextStep({
   ]);
   const priced = quote?.key === key ? quote.value : null;
   const error = failure?.key === key ? failure.message : null;
-  // A skill session's `can_restart` answers Try again on a finished attempt, never a stop.
-  const mayStart = Boolean(session.skill_id) || session.can_restart !== false;
   const estimate = actions.estimateContinuation.mutateAsync;
   // Too few questions kept aside is final for this session: it keeps the questions it began with.
   const refusal = useCallback(
@@ -92,8 +90,9 @@ export function NextStep({
     [t, tErrors],
   );
   const blockedBy = session.next_step_blocked;
+  const allowed = mayContinue(session);
   useEffect(() => {
-    if (!stop || readOnly || !mayStart || blockedBy || hold) return;
+    if (!stop || readOnly || !allowed || blockedBy || hold) return;
     let current = true;
     estimate({ budget: asked, body }).then(
       (value) => {
@@ -106,8 +105,8 @@ export function NextStep({
     return () => {
       current = false;
     };
-  }, [stop, readOnly, mayStart, blockedBy, hold, asked, body, key, estimate, refusal]);
-  if (!stop || readOnly || !mayStart) return null;
+  }, [stop, readOnly, allowed, blockedBy, hold, asked, body, key, estimate, refusal]);
+  if (!stop || readOnly || !allowed) return null;
   const refused = blockedBy ? t("unmeasurable", { count: blockedBy.needed }) : error;
   async function start(value: ContinuationEstimate) {
     setFailure(null);

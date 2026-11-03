@@ -3,6 +3,7 @@ person may not run or see, a run that has not settled, a line that gained an
 agent, a pin nobody may publish, and the skill's questions taken from evidence."""
 
 import uuid
+from collections.abc import Callable, Sequence
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
@@ -24,7 +25,7 @@ from app.core.exceptions import (
 from app.core.permissions import OrgRoleName, Perm
 from app.db.models.agent_run import AgentRun
 from app.db.models.background_job import BackgroundJob
-from app.db.models.dataset import Dataset
+from app.db.models.dataset import Dataset, DatasetCase
 from app.db.models.eval_run import (
     ArmRole,
     ArmSource,
@@ -36,6 +37,7 @@ from app.db.models.eval_run import (
 from app.db.models.organization import OrganizationMember
 from app.db.models.skill_check import (
     AgentState,
+    CheckOutcome,
     CheckSource,
     CheckStatus,
     CheckVerdict,
@@ -1137,6 +1139,45 @@ class TestWhatTheCheckMeasuredIsWhatShips:
         assert {row.unknown_reason for row in read.agents} == {"failed"}
         assert await _live_runs(db, check.id) == []
 
+    async def test_a_change_that_helped_nobody_offers_no_fork_for_the_helped(self, db, monkeypatch):
+        lab = await _lab(db)
+        evals = FakeEvals()
+        evals.install(monkeypatch)
+        service, check = await _finished(
+            db, lab, evals, {lab.a.id: Outcome(broken=1), lab.b.id: Outcome(broken=1)}
+        )
+
+        read = await service.read(lab.ctx, lab.skill.id, check.id)
+
+        assert read.verdict is CheckVerdict.BLOCKED
+        assert CheckOutcome.FORK_FOR_HELPED not in read.outcomes
+        with pytest.raises(BadRequestError, match="does not offer"):
+            await service.fork(lab.ctx, lab.skill.id, check.id, SkillCheckFork(name="x"))
+
+    async def test_a_change_that_helped_only_through_a_specialist_offers_no_fork(
+        self, db, monkeypatch
+    ):
+        """A fork moves only agents that bind the skill themselves; one helped through a
+        specialist is moved in its Builder, so it is no reason to offer the fork."""
+        lab = await _lab(db)
+        evals = FakeEvals()
+        evals.install(monkeypatch)
+        service, check = await _finished(
+            db, lab, evals, {lab.a.id: Outcome(fixed=1), lab.b.id: Outcome(broken=1)}
+        )
+        rows = await skill_check_repo.list_agents(
+            db, [check.id], organization_id=lab.ctx.organization_id
+        )
+        next(row for row in rows if row.agent_id == lab.a.id).via_specialist = "reader"
+        await db.flush()
+
+        read = await service.read(lab.ctx, lab.skill.id, check.id)
+
+        assert read.verdict is CheckVerdict.BLOCKED
+        assert CheckOutcome.FORK_FOR_HELPED not in read.outcomes
+        with pytest.raises(BadRequestError, match="does not offer"):
+            await service.fork(lab.ctx, lab.skill.id, check.id, SkillCheckFork(name="x"))
+
     async def test_a_change_that_hurt_nobody_is_not_forked(self, db, monkeypatch):
         lab = await _lab(db)
         evals = FakeEvals()
@@ -1266,94 +1307,107 @@ class TestATextWrittenAgainstAVersion:
         assert (lab.skill.version, lab.skill.content) == (saved, "Saved meanwhile.")
 
 
+async def _answered(
+    db: AsyncSession, lab: Lab, texts: Sequence[str], loads: Callable[[str], bool]
+) -> tuple[Dataset, list[DatasetCase]]:
+    """A dataset of these questions, every one held out, that agent A answered, with the
+    skill loaded on the answers `loads` picks."""
+    ctx = lab.ctx
+    datasets = DatasetService(db)
+    own = await datasets.create(
+        ctx,
+        DatasetCreate(name=f"a-{uuid.uuid4().hex[:6]}", improvement_holdout_share=Decimal(1)),
+    )
+    for text in texts:
+        await datasets.add_case(ctx, own.id, DatasetCaseCreate(input=text, reference_answer="y"))
+    dataset = await dataset_repo.get(db, own.id, organization_id=ctx.organization_id)
+    assert dataset is not None
+    version = await dataset_repo.get_version(
+        db, dataset.id, dataset.latest_version, organization_id=ctx.organization_id
+    )
+    assert version is not None
+    cases = await dataset_repo.list_cases(
+        db, version.id, organization_id=ctx.organization_id, limit=None
+    )
+    run = EvalRun(
+        organization_id=ctx.organization_id,
+        agent_id=lab.a.id,
+        dataset_id=dataset.id,
+        dataset_version_id=version.id,
+        created_by_user_id=ctx.user_id,
+        status=EvalRunStatus.COMPLETED.value,
+        scoring={},
+        scoring_hash="a" * 64,
+        estimate_usd=Decimal("0.1"),
+    )
+    db.add(run)
+    await db.flush()
+    arm = EvalRunArm(
+        organization_id=ctx.organization_id,
+        eval_run_id=run.id,
+        role=ArmRole.CANDIDATE.value,
+        position=0,
+        source=ArmSource.VERSION.value,
+        model_label="m",
+        spec_hash="v",
+    )
+    db.add(arm)
+    await db.flush()
+    now = datetime.now(UTC)
+    for index, case in enumerate(cases):
+        answer = AgentRun(
+            id=uuid.uuid4(),
+            organization_id=ctx.organization_id,
+            agent_id=lab.a.id,
+            surface="eval",
+            status="completed",
+            started_at=now,
+        )
+        db.add(answer)
+        await db.flush()
+        db.add(
+            EvalRunCase(
+                organization_id=ctx.organization_id,
+                eval_run_id=run.id,
+                arm_id=arm.id,
+                case_id=case.case_id,
+                case_revision_id=case.id,
+                position=index,
+                agent_run_id=answer.id,
+                ended_at=now - timedelta(minutes=index),
+            )
+        )
+        if loads(case.input):
+            await skill_usage_repo.record_uses(
+                db,
+                [
+                    SkillUseRecord(
+                        agent_id=lab.a.id,
+                        skill_id=lab.skill.id,
+                        skill_version_id=None,
+                        loaded=True,
+                        resource_reads=0,
+                        workspace_reads=0,
+                    )
+                ],
+                organization_id=ctx.organization_id,
+                run_id=answer.id,
+                started_at=now,
+            )
+    await db.flush()
+    return dataset, cases
+
+
 class TestSampleAndTestSet:
     async def test_a_quick_check_asks_the_questions_whose_answers_loaded_the_skill(self, db):
         lab = await _lab(db)
         ctx = lab.ctx
-        datasets = DatasetService(db)
-        own = await datasets.create(
-            ctx,
-            DatasetCreate(name=f"a-{uuid.uuid4().hex[:6]}", improvement_holdout_share=Decimal(1)),
+        dataset, cases = await _answered(
+            db,
+            lab,
+            ("Lost receipt, order 1", "Opening hours?", "Receipt gone, order 2"),
+            lambda text: "eceipt" in text,
         )
-        for text in ("Lost receipt, order 1", "Opening hours?", "Receipt gone, order 2"):
-            await datasets.add_case(
-                ctx, own.id, DatasetCaseCreate(input=text, reference_answer="y")
-            )
-        dataset = await dataset_repo.get(db, own.id, organization_id=ctx.organization_id)
-        assert dataset is not None
-        version = await dataset_repo.get_version(
-            db, dataset.id, dataset.latest_version, organization_id=ctx.organization_id
-        )
-        assert version is not None
-        cases = await dataset_repo.list_cases(
-            db, version.id, organization_id=ctx.organization_id, limit=None
-        )
-        run = EvalRun(
-            organization_id=ctx.organization_id,
-            agent_id=lab.a.id,
-            dataset_id=dataset.id,
-            dataset_version_id=version.id,
-            created_by_user_id=ctx.user_id,
-            status=EvalRunStatus.COMPLETED.value,
-            scoring={},
-            scoring_hash="a" * 64,
-            estimate_usd=Decimal("0.1"),
-        )
-        db.add(run)
-        await db.flush()
-        arm = EvalRunArm(
-            organization_id=ctx.organization_id,
-            eval_run_id=run.id,
-            role=ArmRole.CANDIDATE.value,
-            position=0,
-            source=ArmSource.VERSION.value,
-            model_label="m",
-            spec_hash="v",
-        )
-        db.add(arm)
-        await db.flush()
-        now = datetime.now(UTC)
-        for index, case in enumerate(cases):
-            answer = AgentRun(
-                id=uuid.uuid4(),
-                organization_id=ctx.organization_id,
-                agent_id=lab.a.id,
-                surface="eval",
-                status="completed",
-                started_at=now,
-            )
-            db.add(answer)
-            await db.flush()
-            db.add(
-                EvalRunCase(
-                    organization_id=ctx.organization_id,
-                    eval_run_id=run.id,
-                    arm_id=arm.id,
-                    case_id=case.case_id,
-                    case_revision_id=case.id,
-                    position=index,
-                    agent_run_id=answer.id,
-                    ended_at=now - timedelta(minutes=index),
-                )
-            )
-            if "eceipt" in case.input:
-                await skill_usage_repo.record_uses(
-                    db,
-                    [
-                        SkillUseRecord(
-                            agent_id=lab.a.id,
-                            skill_id=lab.skill.id,
-                            skill_version_id=None,
-                            loaded=True,
-                            resource_reads=0,
-                            workspace_reads=0,
-                        )
-                    ],
-                    organization_id=ctx.organization_id,
-                    run_id=answer.id,
-                    started_at=now,
-                )
-        await db.flush()
 
         picked = await SkillCheckService(db)._sample(
             ctx, lab.skill, lab.a.id, dataset, {"receipt", "order"}
@@ -1374,6 +1428,40 @@ class TestSampleAndTestSet:
             ctx, lab.skill, lab.a.id, dataset, {"receipt", "order"}
         )
         assert set(rest) == loaded - set(one)
+
+    async def test_without_a_skill_set_a_quick_check_asks_enough_to_judge(self, db, monkeypatch):
+        """Four questions alone are under the held-out minimum an agent's result needs, so
+        an agent with no skill's questions beside them is asked five."""
+        lab = await _lab(db)
+        evals = FakeEvals()
+        evals.install(monkeypatch)
+        texts = [f"Receipt question {index}" for index in range(6)]
+        dataset, _ = await _answered(db, lab, texts, lambda _text: True)
+        skill_id, a_id = lab.skill.id, lab.a.id
+        await db.execute(
+            delete(Dataset).where(
+                (Dataset.skill_id == skill_id)
+                | ((Dataset.agent_id == a_id) & (Dataset.id != dataset.id))
+            )
+        )
+        db.expire_all()
+        service = SkillCheckService(db)
+
+        estimate = await service.estimate(lab.ctx, skill_id, _start())
+        check = await service.start(
+            lab.ctx, skill_id, _start(), source=CheckSource.SESSION, only=[a_id]
+        )
+        evals.outcomes = {a_id: Outcome(fixed=1)}
+        for _ in range(3):
+            evals.finish_all()
+            await service.advance(check.id, lab.ctx.organization_id)
+        read = await service.read(lab.ctx, skill_id, check.id)
+
+        a = next(row for row in estimate.agents if row.agent.id == a_id)
+        assert a.sample == "own_questions"
+        assert [(stage.kind, stage.cases) for stage in a.stages] == [("dataset_sample", 5)]
+        [checked] = read.agents
+        assert checked.state is AgentState.BETTER
 
     async def test_the_skills_test_questions_can_start_from_recent_answers(self, db, monkeypatch):
         lab = await _lab(db)

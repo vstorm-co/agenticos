@@ -1,5 +1,5 @@
 ---
-source_sha: "636c370e91d6"
+source_sha: "06e6052db16f"
 ---
 
 # Skills { #skills }
@@ -277,11 +277,16 @@ cargaron el skill - o con **Añadir preguntas de prueba** junto a un agent que
 [dataset](datasets.md).
 Después, las preguntas del propio agent:
 
-- **Quick**, por defecto: como mucho cuatro preguntas del dataset del agent cuya
+- **Quick**, por defecto: cuatro preguntas del dataset del agent - más cuando las
+  preguntas held-out del propio skill no llegan a las cinco que necesita un
+  resultado - cuya
   respuesta más reciente cargó el skill - las que comparten más palabras con las
   líneas que toca el cambio. Un agent sin ninguna se comprueba solo con el
-  conjunto del skill, y su fila lo dice.
-- **Thorough**: el dataset entero del agent. Un cambio en la descripción del
+  conjunto del skill, y su fila lo dice. A un agent que las preguntas del skill
+  muestran peor no se le hacen las suyas.
+- **Thorough**: el dataset entero del agent, preguntado aunque las preguntas del
+  skill mostraran al agent peor, para que su fila diga dónde lo rompió el cambio.
+  Un cambio en la descripción del
   skill se comprueba siempre así, porque la descripción decide cuándo un agent
   abre el skill.
 
@@ -329,9 +334,9 @@ esa sesión, y Check on agents lleva a ella. En main una persona aún puede:
   pase a producción, así que ninguno lo sirve ni una vez. Fijarlos requiere poder
   publicar cada uno, y un entorno que espera una promoción debe recibir antes la
   versión fijada;
-- **crear un fork para los agents a los que ayudó**, dejando main como está - en
-  el paso Aceptar de [Improve](#improving-a-skill) o a través de la API,
-  `POST /api/v1/skills/{id}/checks/{check_id}/fork`;
+- **crear un fork para los agents a los que ayudó**, cuando alguno mejoró,
+  dejando main como está - en el paso Aceptar de [Improve](#improving-a-skill) o a
+  través de la API, `POST /api/v1/skills/{id}/checks/{check_id}/fork`;
 - **descartarlo**.
 
 En un fork solo quedan seguir mejorando y descartar: fijar nombra una versión de
