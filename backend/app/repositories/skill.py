@@ -5,7 +5,7 @@ role scope and on what was shared with them, so `list_visible` takes the
 predicate pieces the access layer resolved rather than re-deriving them here.
 """
 
-from collections.abc import Sequence
+from collections.abc import Collection, Sequence
 from typing import Any, Literal
 from uuid import UUID
 
@@ -45,6 +45,22 @@ async def lock(db: AsyncSession, skill_id: UUID) -> Skill | None:
         .execution_options(populate_existing=True)
     )
     return result.scalar_one_or_none()
+
+
+async def hold(db: AsyncSession, skill_ids: Collection[UUID], *, organization_id: UUID) -> None:
+    """Keep these skills from being deleted until the transaction ends.
+
+    A share lock: it waits for a delete in progress, and a delete waits for it, so a
+    binding written now is either seen by the delete's in-use check or written after
+    the skill is gone. Ids that name no skill of the organization are skipped.
+    """
+    if not skill_ids:
+        return
+    await db.execute(
+        select(Skill.id)
+        .where(Skill.id.in_(list(skill_ids)), Skill.organization_id == organization_id)
+        .with_for_update(read=True)
+    )
 
 
 async def get_many(
