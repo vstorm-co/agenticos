@@ -7,8 +7,8 @@ reaches the skill every other agent reads.
 
 Two properties hold the design together.
 
-*A decision is final.* Applying a proposal twice would bump a skill's version
-against a body already stored; discarding one that was applied would tell a
+*A decision is final.* Applying a proposal twice would save a second version of
+a body already stored; discarding one that was applied would tell a
 reader it never landed. `AlreadyExistsError` on a decided proposal, the same rule
 approvals follow.
 
@@ -28,13 +28,15 @@ from app.core.exceptions import AlreadyExistsError, ConcurrentChangeError, NotFo
 from app.core.permissions import AuthContext, Perm
 from app.db.models.skill import Skill
 from app.db.models.skill_proposal import ProposalStatus, SkillProposal
-from app.repositories import skill_proposal_repo, skill_repo
+from app.db.models.skill_version import SkillFork, SkillVersionSource
+from app.repositories import skill_proposal_repo, skill_repo, skill_version_repo
 from app.schemas.resource_usage import ProposalDecision
 from app.schemas.skill import SkillUpdate
 from app.schemas.skill_proposal import SkillProposalRead
 from app.services import proposal_reach
 from app.services.access import SKILL, accessible_ids, resolve_access
 from app.services.notifications import NotificationService
+from app.services.skill_versions import SkillVersionService, manifest_of
 from app.services.skill_workspace import SkillChange
 from app.services.skills import SkillService
 
@@ -75,6 +77,8 @@ class SkillProposalService:
                 resources=change.resources,
                 conversation_id=conversation_id,
                 base_version=change.base_version,
+                base_version_id=change.base_version_id,
+                fork_id=change.fork_id,
             )
             if rewritten is not None:
                 recorded.append(rewritten)
@@ -91,6 +95,8 @@ class SkillProposalService:
                     content=change.content,
                     resources=change.resources,
                     base_version=change.base_version,
+                    base_version_id=change.base_version_id,
+                    fork_id=change.fork_id,
                 )
             )
         if recorded:
@@ -229,12 +235,28 @@ class SkillProposalService:
         proposal = await self.get(ctx, proposal_id)
         self._refuse_second_decision(proposal, decision.revision)
 
+        source = (
+            SkillVersionSource.WORKSPACE
+            if proposal.authoring_request_id is None
+            else SkillVersionSource.IMPROVE
+        )
+        fork = None
         if proposal.skill_id is not None:
             current = await self.skills.get(ctx, proposal.skill_id, perm=Perm.SKILLS_EDIT)
             # Locking re-reads the row into `current`: every edit writes the skill
             # row, so an edit or a second apply committed meanwhile is seen, not overwritten.
             await skill_repo.lock(self.db, current.id)
-            if _moved_since(proposal, current):
+            if proposal.fork_id is not None:
+                fork = await skill_version_repo.get_fork(
+                    self.db,
+                    proposal.fork_id,
+                    organization_id=ctx.organization_id,
+                    skill_id=current.id,
+                    lock=True,
+                )
+                assert fork is not None, "a proposal goes with its fork"
+                SkillVersionService.refuse_archived(fork)
+            if _moved_since(proposal, current, SkillVersionService.line_latest(current, fork)):
                 raise ConcurrentChangeError(
                     message=(
                         f"'{current.name}' changed since this was proposed "
@@ -249,35 +271,46 @@ class SkillProposalService:
                 )
 
         decided = await self._claim(ctx, proposal, decision, ProposalStatus.APPLIED)
-        if proposal.skill_id is None:
+        files = [
+            (name, content.encode("utf-8")) for name, content in sorted(proposal.resources.items())
+        ]
+        if fork is not None:
+            skill = current
+            await self._apply_to_fork(ctx, fork, proposal, source)
+        elif proposal.skill_id is None:
             skill = await self.skills.create(
                 ctx,
                 name=proposal.name,
                 description=proposal.description,
                 content=proposal.content,
+                source=None if files else source,
+                proposal_id=proposal.id,
             )
         else:
             skill = await self.skills.update(
                 ctx,
                 proposal.skill_id,
                 SkillUpdate(description=proposal.description, content=proposal.content),
+                source=None if files else source,
+                proposal_id=proposal.id,
             )
-
-        if proposal.resources:
+        if files and fork is None:
             await self.skills.put_resources(
-                ctx,
-                skill.id,
-                [
-                    (name, content.encode("utf-8"))
-                    for name, content in sorted(proposal.resources.items())
-                ],
+                ctx, skill.id, files, source=source, proposal_id=proposal.id
             )
 
         reaches = (
-            await proposal_reach.reach(
-                self.db, organization_id=ctx.organization_id, kind="skill", resource_ids=[skill.id]
-            )
-        )[skill.id]
+            []
+            if fork is not None
+            else (
+                await proposal_reach.reach(
+                    self.db,
+                    organization_id=ctx.organization_id,
+                    kind="skill",
+                    resource_ids=[skill.id],
+                )
+            )[skill.id]
+        )
         notifications = NotificationService(self.db)
         for item in reaches:
             await notifications.shared_change_applied(
@@ -302,6 +335,42 @@ class SkillProposalService:
             },
         )
         return decided
+
+    async def _apply_to_fork(
+        self,
+        ctx: AuthContext,
+        fork: SkillFork,
+        proposal: SkillProposal,
+        source: SkillVersionSource,
+    ) -> None:
+        """Write the change as the fork's next version: its files are the fork's newest
+        version's, with the ones the change wrote replaced or added."""
+        latest_id = fork.latest_version_id or fork.base_version_id
+        latest = (
+            await skill_version_repo.get_versions(
+                self.db, [latest_id], organization_id=ctx.organization_id
+            )
+        )[latest_id]
+        manifest, bodies = manifest_of(
+            (
+                name,
+                latest.resources[name]["description"] if name in latest.resources else None,
+                content,
+            )
+            for name, content in sorted(proposal.resources.items())
+        )
+        await skill_version_repo.put_files(
+            self.db, organization_id=ctx.organization_id, skill_id=fork.skill_id, bodies=bodies
+        )
+        await SkillVersionService(self.db).record_fork(
+            ctx,
+            fork,
+            description=proposal.description,
+            content=proposal.content,
+            resources={**latest.resources, **manifest},
+            source=source,
+            proposal_id=proposal.id,
+        )
 
     async def discard(
         self, ctx: AuthContext, proposal_id: UUID, decision: ProposalDecision
@@ -364,14 +433,19 @@ class SkillProposalService:
             raise _changed(proposal)
 
 
-def _moved_since(proposal: SkillProposal, skill: Skill) -> bool:
-    """Whether the skill is no longer what the proposal was written against.
+def _moved_since(proposal: SkillProposal, skill: Skill, latest: UUID | None) -> bool:
+    """Whether the line is no longer at the version the proposal was written against.
 
-    A workspace change recorded before proposals kept a version has only its age to
-    go by, so any write to the skill after it was proposed counts as moving it.
+    A proposal with only a version number was written before skills were versioned,
+    against a text that versioning recorded as v1 only if it was still current - in
+    which case the migration gave it that version. Any other one has moved. A
+    workspace change recorded before proposals kept a version at all has only its
+    age to go by, so any write to the skill after it was proposed counts as moving it.
     """
+    if proposal.base_version_id is not None:
+        return proposal.base_version_id != latest
     if proposal.base_version is not None:
-        return skill.version != proposal.base_version
+        return True
     return skill.updated_at is not None and skill.updated_at > proposal.created_at
 
 

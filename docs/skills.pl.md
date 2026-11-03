@@ -1,5 +1,5 @@
 ---
-source_sha: "c4cc5a33d842"
+source_sha: "4c1e19ca96de"
 ---
 
 # Skille { #skills }
@@ -197,14 +197,14 @@ temu, kto może edytować ten skill - jego właścicielowi albo komuś z grantem
 na nim - a dla skilla, którego jeszcze nie ma, każdemu, kto może tworzyć skille.
 Nikt inny jej nie widzi:
 
-- **Apply** przepisuje skilla i podbija jego wersję, która dociera do każdego
-  podpiętego agenta przy jego następnym runie.
+- **Apply** zapisuje zmianę jako następną wersję skilla, która dociera do
+  każdego podpiętego agenta przy jego następnym runie.
 - **Discard** zachowuje zapis. Agent proponujący w kółko tę samą zmianę mówi
   komuś coś o skillu, a usunięty wiersz czyni to niewidocznym.
 
 !!! warning "Decyzja o propozycji jest ostateczna"
 
-    Zastosowanie dwa razy podbiłoby wersję wobec treści już zapisanej, a
+    Zastosowanie dwa razy zapisałoby drugą wersję treści już zapisanej, a
     odrzucenie czegoś zastosowanego mówiłoby czytelnikowi, że nigdy nie weszło.
 
 Propozycja niesie **całą treść**, a nie diff, więc recenzent kilka tygodni
@@ -243,6 +243,62 @@ wskazuje wersję zmiany, którą przeczytałeś: zmiana przepisana od tego czasu
 przez późniejszą turę albo nową prośbę - jest odrzucana z komunikatem „The
 proposal changed since you opened it”, a z dwóch decyzji podjętych naraz liczy
 się tylko jedna.
+
+## Wersje i forki { #versions-and-forks }
+
+Każda zapisana zmiana skilla tworzy nową wersję, a wersji nie zmienia się już
+potem. Tworzy ją edycja treści albo opisu, a także dodanie, zmiana lub usunięcie
+pliku, odświeżenie z biblioteki oraz zastosowana zmiana z workspace agenta albo od
+[asystenta authoringu](authoring.md#skills). Sama nowa kategoria jej nie tworzy, bo
+żaden agent jej nie czyta.
+
+**History** na stronie skilla pokazuje wersje od najnowszej. Przy każdej widać, co
+ją utworzyło (`backfill`, `created`, `edit`, `resources`, `library`, `workspace`,
+`improve` albo `restore`) i kiedy, a temu, kto może widzieć członków organizacji,
+także kto ją zapisał. Wersja zachowuje swoje pliki takie, jakie były, więc
+późniejsza zmiana pliku nie zmienia wcześniejszej wersji.
+
+Skill, który istniał przed wersjami, ma jedną wersję, v1: treść i pliki z chwili,
+gdy wersjonowanie się zaczęło. Nic wcześniejszego nie zostało zapisane.
+
+**Restore** przywraca wcześniejszą wersję jako nową wersję, więc historia zostaje
+kompletna, a nowa wersja mówi, z której pochodzi.
+
+Edycja zapisuje się względem wersji, którą edytujący przeczytał. Jeśli ktoś w tym
+czasie zapisał nowszą wersję, edycja jest odrzucana, zamiast ją nadpisać.
+
+### Forki { #forks }
+
+Fork to nazwana linia skilla, która startuje z wersji main. Ma własne wersje i
+własną najnowszą wersję, więc skill może się zmienić dla części agentów, a main
+zostaje bez zmian. Dopóki fork nie ma własnej wersji, serwuje wersję main, z której
+wystartował.
+
+- Fork startuje tylko z main. Fork forka jest odrzucany, więc drzewo ma jeden
+  poziom.
+- Nazwa forka jest unikalna w obrębie skilla, łącznie z forkami zarchiwizowanymi.
+- Pliki forka to pliki wersji, z której powstał. Pliki edytuje się tylko na main.
+- **Archive** sprawia, że fork nie przyjmuje nowych wersji. Zachowuje swoje wersje
+  i nigdy nie jest usuwany. Fork, którego żaden run nie czytał od 30 dni, jest
+  proponowany do archiwizacji; nic nie archiwizuje się samo.
+
+### Usuwanie skilla { #deleting-a-skill }
+
+Skilla, którego używa agent, nie można usunąć. Chodzi o skill związany przez
+wersję roboczą żywego agenta albo przez wersję, którą serwuje jedno z jego
+środowisk, samego agenta albo specjalisty inline. Odmowa wymienia agentów, których
+widzisz, i liczy pozostałych. Skill, którego nikt nie używa, usuwa się razem z
+jego wersjami i forkami.
+
+| Ścieżka | Co robi |
+|---|---|
+| `GET /api/v1/skills/{id}/versions` | Wersje main albo forka z `?fork_id=`, od najnowszej |
+| `GET /api/v1/skills/{id}/versions/{version_id}` | Jedna wersja, z treścią i listą plików, każdy z SHA-256 |
+| `GET /api/v1/skills/{id}/versions/{version_id}/resources/{name}` | Jeden plik w postaci z tej wersji |
+| `POST /api/v1/skills/{id}/versions` | Zapisuje edycję na main albo na forku, względem `base_version_id` |
+| `POST /api/v1/skills/{id}/versions/{version_id}/restore` | Przywraca wersję na jej własną linię |
+| `GET`, `POST /api/v1/skills/{id}/forks` | Wymienia forki albo zakłada fork z wersji main |
+| `PATCH /api/v1/skills/{id}/forks/{fork_id}`, `POST …/archive` | Zmienia nazwę forka albo go archiwizuje |
 
 ## Jak skille trafiają do organizacji { #getting-skills-into-an-organization }
 
@@ -287,7 +343,7 @@ uv run agenticos cmd seed-skills --replace          # also overwrite copies edit
 Instaluje to, czego brakuje, i **odświeża to, czego nikt nie edytował**. Każda
 kopia zapamiętuje, z której wersji dołączonego skilla została zapisana, więc gdy
 wydanie ulepsza dołączony skill, nieruszana kopia w organizacji jest zastępowana
-nową — razem z plikami, z podbitą wersją i wpisem audytu `skill.refreshed`.
+nową — razem z plikami, jako nowa wersja, z wpisem audytu `skill.refreshed`.
 
 Kopia edytowana na miejscu zostaje dokładnie taka, jaka jest, więc edytowana
 polityka zwrotów przeżywa ponowny seed; `--replace` to jedyny sposób, żeby wziąć

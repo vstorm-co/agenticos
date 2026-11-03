@@ -814,6 +814,13 @@ def delegation_binding(spec: AgentSpec) -> CapabilityBindingSpec | None:
     return None
 
 
+def bound_skill_ids(spec: AgentSpec) -> set[UUID]:
+    """Every skill a spec binds, its inline specialists' included."""
+    config = _subagents_config(spec)
+    inline = [] if config is None else config.inline
+    return set(spec.skill_ids).union(*(specialist.skill_ids for specialist in inline))
+
+
 def _subagents_config(spec: AgentSpec) -> SubagentsConfig | None:
     """The delegation policy this spec runs under, or None when it cannot delegate.
 
@@ -1932,6 +1939,7 @@ class AgentRegistryService:
         """
         agent = await self.get(ctx, agent_id, perm=Perm.AGENTS_EDIT, for_update=True)
         spec = _without_unselectable(spec)
+        await skill_repo.hold(self.db, bound_skill_ids(spec), organization_id=ctx.organization_id)
         if agent.kind != AgentKind.AGENT.value:
             _refuse_system_parts(unusable_parts(spec))
         return await agent_repo.update(
@@ -1997,6 +2005,7 @@ class AgentRegistryService:
                 it does not hold, and delegation itself. A client ignores a code
                 it does not know.
         """
+        await skill_repo.hold(self.db, bound_skill_ids(spec), organization_id=ctx.organization_id)
         problems = _SpecProblems()
 
         for binding in spec.capabilities:

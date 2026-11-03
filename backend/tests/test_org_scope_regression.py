@@ -42,7 +42,9 @@ from app.repositories import (
     personal_data_repo,
     promotion_gate_repo,
     rag_document_repo,
+    skill_repo,
     skill_usage_repo,
+    skill_version_repo,
 )
 from app.services.conversation import ConversationService
 
@@ -213,6 +215,23 @@ TENANT_REQUIRED = [
     (skill_usage_repo, "uses_in_runs"),
     (skill_usage_repo, "unknown_runs"),
     (skill_usage_repo, "agents_involved"),
+    (agent_repo, "drafts_mentioning"),
+    (skill_repo, "hold"),
+    (skill_version_repo, "create_version"),
+    (skill_version_repo, "get_version"),
+    (skill_version_repo, "get_versions"),
+    (skill_version_repo, "latest_number"),
+    (skill_version_repo, "get_by_numbers"),
+    (skill_version_repo, "list_versions"),
+    (skill_version_repo, "put_files"),
+    (skill_version_repo, "get_files"),
+    (skill_version_repo, "create_fork"),
+    (skill_version_repo, "get_fork"),
+    (skill_version_repo, "get_fork_by_name"),
+    (skill_version_repo, "list_forks"),
+    (skill_version_repo, "count_versions"),
+    (skill_version_repo, "count_active_forks"),
+    (skill_version_repo, "forks_served_since"),
 ]
 
 # Deliberately unscoped, each documented at its definition.

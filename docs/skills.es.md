@@ -1,5 +1,5 @@
 ---
-source_sha: "c4cc5a33d842"
+source_sha: "4c1e19ca96de"
 ---
 
 # Skills { #skills }
@@ -202,15 +202,15 @@ lista en la página Skills para quien pueda editar ese skill - su propietario o
 quien tenga un permiso de edición sobre él - y, para un skill que aún no existe,
 para cualquiera que pueda crear skills. Nadie más la ve:
 
-- **Apply** reescribe el skill y sube su versión, lo que alcanza a cada agent
-  vinculado en su siguiente run.
+- **Apply** guarda el cambio como la siguiente versión del skill, que alcanza a
+  cada agent vinculado en su siguiente run.
 - **Discard** conserva el registro. Un agent que propone la misma edición una y
   otra vez le está diciendo algo a alguien sobre ese skill, y una fila borrada
   lo vuelve invisible.
 
 !!! warning "Una decisión sobre una propuesta es definitiva"
 
-    Aplicar dos veces subiría una versión contra un cuerpo ya almacenado, y
+    Aplicar dos veces guardaría una segunda versión de un cuerpo ya almacenado, y
     descartar algo aplicado le diría a un lector que nunca llegó a entrar.
 
 La propuesta lleva el **cuerpo entero** en lugar de un diff, así que un revisor
@@ -248,6 +248,63 @@ avisa a los propietarios de esos agents. Una decisión nombra la versión del
 cambio que leíste: un cambio reescrito desde entonces - por un turno posterior o
 una petición nueva - se rechaza con «The proposal changed since you opened it»,
 y de dos decisiones tomadas a la vez solo cuenta una.
+
+## Versiones y forks { #versions-and-forks }
+
+Cada cambio guardado en un skill crea una versión nueva, y una versión no se
+modifica nunca después. La crea editar el texto o la descripción, y también añadir,
+cambiar o quitar un archivo, una actualización desde la biblioteca y un cambio
+aplicado desde el workspace de un agent o desde el
+[asistente de authoring](authoring.md#skills). Una categoría nueva por sí sola no
+la crea, porque ningún agent la lee.
+
+**History**, en la página del skill, lista las versiones de la más nueva a la más
+antigua. Cada una dice qué la creó (`backfill`, `created`, `edit`, `resources`,
+`library`, `workspace`, `improve` o `restore`) y cuándo, y quién la guardó a quien
+puede ver a los miembros de la organización. Una versión conserva sus archivos tal
+como estaban, así que cambiar un archivo después no cambia una versión anterior.
+
+Un skill que existía antes de las versiones tiene una versión, la v1: el texto y los
+archivos que tenía cuando empezó el versionado. No se registró nada anterior.
+
+**Restore** recupera una versión anterior como versión nueva, así que el historial
+queda completo, y la versión nueva dice de cuál procede.
+
+Una edición se guarda frente a la versión que leyó quien edita. Si alguien guardó
+una versión más nueva entretanto, la edición se rechaza en lugar de sobrescribirla.
+
+### Forks { #forks }
+
+Un fork es una línea con nombre de un skill que parte de una versión de main. Tiene
+sus propias versiones y su propia versión más reciente, así que un skill puede
+cambiar para algunos agents mientras main sigue igual. Mientras no tenga una
+versión propia, un fork sirve la versión de main de la que partió.
+
+- Un fork parte solo de main. Un fork de un fork se rechaza, así que el árbol tiene
+  un solo nivel.
+- El nombre de un fork es único dentro de su skill, incluidos los forks archivados.
+- Los archivos de un fork son los de la versión de la que se creó. Los archivos se
+  editan solo en main.
+- **Archive** hace que un fork no acepte versiones nuevas. Conserva sus versiones y
+  nunca se borra. Un fork que ningún run ha leído en 30 días se propone para
+  archivar; nada se archiva automáticamente.
+
+### Borrar un skill { #deleting-a-skill }
+
+Un skill que usa un agent no se puede borrar. Es un skill vinculado por el borrador
+de un agent activo, o por una versión que sirve uno de sus entornos, del propio
+agent o de un especialista inline. El rechazo nombra los agents que puedes ver y
+cuenta los demás. Un skill que nadie usa se borra con sus versiones y sus forks.
+
+| Ruta | Qué hace |
+|---|---|
+| `GET /api/v1/skills/{id}/versions` | Las versiones de main, o de un fork con `?fork_id=`, de la más nueva a la más antigua |
+| `GET /api/v1/skills/{id}/versions/{version_id}` | Una versión, con su texto y la lista de sus archivos, cada uno con su SHA-256 |
+| `GET /api/v1/skills/{id}/versions/{version_id}/resources/{name}` | Un archivo tal como lo tenía esa versión |
+| `POST /api/v1/skills/{id}/versions` | Guarda una edición en main o en un fork, frente a `base_version_id` |
+| `POST /api/v1/skills/{id}/versions/{version_id}/restore` | Restaura una versión en su propia línea |
+| `GET`, `POST /api/v1/skills/{id}/forks` | Lista los forks o crea uno desde una versión de main |
+| `PATCH /api/v1/skills/{id}/forks/{fork_id}`, `POST …/archive` | Cambia el nombre de un fork o lo archiva |
 
 ## Cómo llegan los skills a una organización { #getting-skills-into-an-organization }
 
@@ -294,7 +351,7 @@ uv run agenticos cmd seed-skills --replace          # also overwrite copies edit
 Instala lo que falta y **actualiza lo que nadie ha editado**. Cada copia registra
 de qué versión incluida se escribió, así que cuando una versión mejora un skill
 incluido, la copia intacta de una organización se sustituye por la nueva — con sus
-archivos, con la versión incrementada y una entrada de auditoría
+archivos, como una versión nueva y con una entrada de auditoría
 `skill.refreshed`.
 
 Una copia editada aquí se deja exactamente como está, así que una política de

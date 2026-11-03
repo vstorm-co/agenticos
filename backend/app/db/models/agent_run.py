@@ -29,7 +29,7 @@ from sqlalchemy import (
     Text,
     text,
 )
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.dialects.postgresql import ARRAY, JSONB
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -298,6 +298,12 @@ class AgentRun(Base, TimestampMixin):
     # a test of the draft has no version, and a run parked on an approval has to
     # continue on exactly what it was running.
     test_spec: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
+
+    # The skill versions this run served, its inline specialists' included; null for
+    # a run from before skills were versioned.
+    skill_version_ids: Mapped[list[uuid.UUID] | None] = mapped_column(
+        ARRAY(PG_UUID(as_uuid=True)), nullable=True
+    )
 
     # Only a completed run that reached workspace attachment setup closes their window.
     earlier_attachments_checked: Mapped[bool] = mapped_column(

@@ -660,6 +660,8 @@ class AuthoringRun:
             "resources": {},
             "conversation_id": None,
             "base_version": skill.version,
+            "base_version_id": skill.latest_version_id,
+            "fork_id": None,
         }
         proposal_row = await skill_proposal_repo.replace_pending(
             self.db,

@@ -51,6 +51,7 @@ from app.repositories import resource_grant as resource_grant_repo
 from app.repositories import group as group_repo
 from app.repositories import directory_mapping as directory_mapping_repo
 from app.repositories import skill as skill_repo
+from app.repositories import skill_version as skill_version_repo
 from app.repositories import api_key as api_key_repo
 from app.repositories import oauth as oauth_repo
 from app.repositories import artifact as artifact_repo
@@ -155,6 +156,7 @@ __all__ = [
     "ingestion_spend_repo",
     "retention_repo",
     "skill_repo",
+    "skill_version_repo",
     "api_key_repo",
     "oauth_repo",
     "artifact_repo",

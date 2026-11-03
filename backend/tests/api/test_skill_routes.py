@@ -41,8 +41,12 @@ def _used_nowhere(monkeypatch: pytest.MonkeyPatch) -> None:
     async def nowhere(*_args: object, resource_ids: list[UUID], **_kwargs: object):
         return {resource_id: [] for resource_id in resource_ids}
 
+    async def no_forks(*_args: object, skill_ids: list[UUID], **_kwargs: object):
+        return dict.fromkeys(skill_ids, 0)
+
     monkeypatch.setattr("app.services.skills.agents_using", nowhere)
     monkeypatch.setattr("app.services.skills.groups_sharing", nowhere)
+    monkeypatch.setattr("app.services.skills.skill_version_repo.count_active_forks", no_forks)
 
 
 _ORGANIZATION_ID = uuid.uuid4()

@@ -15,7 +15,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, Query, UploadFile, status
 
-from app.api.deps import Auth, SkillSvc, require
+from app.api.deps import Auth, SkillSvc, SkillVersionSvc, require
 from app.api.public_api import PUBLIC
 from app.core.permissions import Perm
 from app.repositories.skill import SkillSort
@@ -33,6 +33,17 @@ from app.schemas.skill import (
     SkillUpdate,
 )
 from app.schemas.skill_usage import SkillUsageRead
+from app.schemas.skill_version import (
+    SkillForkCreate,
+    SkillForkList,
+    SkillForkRead,
+    SkillForkUpdate,
+    SkillVersionCreate,
+    SkillVersionList,
+    SkillVersionRead,
+    SkillVersionRestore,
+    VersionResourceRead,
+)
 
 router = APIRouter(dependencies=[PUBLIC])
 
@@ -75,7 +86,7 @@ async def list_skills(
     dependencies=[Depends(require(Perm.SKILLS_EDIT))],
 )
 async def create_skill(data: SkillCreate, service: SkillSvc, ctx: Auth) -> Any:
-    return await service.create(
+    skill = await service.create(
         ctx,
         name=data.name,
         description=data.description,
@@ -85,6 +96,7 @@ async def create_skill(data: SkillCreate, service: SkillSvc, ctx: Auth) -> Any:
         group_ids=data.group_ids,
         user_ids=data.user_ids,
     )
+    return await service.read(ctx, skill)
 
 
 @router.get(
@@ -119,7 +131,7 @@ async def install_from_gallery(data: GalleryInstallRequest, service: SkillSvc, c
 
 @router.get("/{skill_id}", response_model=SkillRead)
 async def get_skill(skill_id: UUID, service: SkillSvc, ctx: Auth) -> Any:
-    return await service.get(ctx, skill_id)
+    return await service.read(ctx, await service.get(ctx, skill_id))
 
 
 @router.get("/{skill_id}/usage", response_model=SkillUsageRead)
@@ -140,8 +152,13 @@ async def get_skill_usage(
 
 @router.patch("/{skill_id}", response_model=SkillRead)
 async def update_skill(skill_id: UUID, data: SkillUpdate, service: SkillSvc, ctx: Auth) -> Any:
-    """Edit a skill. Every agent bound to it is current on the next run."""
-    return await service.update(ctx, skill_id, data)
+    """Edit a skill's main line: a changed text is a new main version.
+
+    Agents on main read it from their next run; pinned agents and forks keep theirs.
+    `POST /skills/{skill_id}/versions` does the same with a check that nobody saved a
+    newer version since it was read.
+    """
+    return await service.read(ctx, await service.update(ctx, skill_id, data))
 
 
 @router.delete(
@@ -228,3 +245,101 @@ async def update_resource(
 )
 async def remove_resource(skill_id: UUID, resource_id: UUID, service: SkillSvc, ctx: Auth) -> None:
     await service.remove_resource(ctx, skill_id, resource_id)
+
+
+@router.get("/{skill_id}/versions", response_model=SkillVersionList)
+async def list_versions(
+    skill_id: UUID,
+    service: SkillVersionSvc,
+    ctx: Auth,
+    fork_id: UUID | None = Query(None, description="A fork's own versions; unset lists main's"),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=100),
+) -> Any:
+    """One line's versions, newest first, without their text."""
+    return await service.list_versions(ctx, skill_id, fork_id=fork_id, skip=skip, limit=limit)
+
+
+@router.post(
+    "/{skill_id}/versions",
+    response_model=SkillVersionRead,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_version(
+    skill_id: UUID, data: SkillVersionCreate, service: SkillVersionSvc, ctx: Auth
+) -> Any:
+    """Save an edit of the text and description as a new version of main or of a fork.
+
+    Refused with 409 when the line has a newer version than `base_version_id`, so an
+    edit made on an old text never replaces a newer one unseen.
+    """
+    return await service.edit(ctx, skill_id, data)
+
+
+@router.get("/{skill_id}/versions/{version_id}", response_model=SkillVersionRead)
+async def read_version(
+    skill_id: UUID, version_id: UUID, service: SkillVersionSvc, ctx: Auth
+) -> Any:
+    """One version with its text and the list of its files."""
+    return await service.read_version(ctx, skill_id, version_id)
+
+
+@router.get(
+    "/{skill_id}/versions/{version_id}/resources/{name:path}", response_model=VersionResourceRead
+)
+async def read_version_resource(
+    skill_id: UUID, version_id: UUID, name: str, service: SkillVersionSvc, ctx: Auth
+) -> Any:
+    """One file as that version had it."""
+    return await service.read_resource(ctx, skill_id, version_id, name)
+
+
+@router.post(
+    "/{skill_id}/versions/{version_id}/restore",
+    response_model=SkillVersionRead,
+    status_code=status.HTTP_201_CREATED,
+)
+async def restore_version(
+    skill_id: UUID,
+    version_id: UUID,
+    data: SkillVersionRestore,
+    service: SkillVersionSvc,
+    ctx: Auth,
+) -> Any:
+    """Bring an earlier version back as the newest version of its own line."""
+    return await service.restore(ctx, skill_id, version_id, data)
+
+
+@router.get("/{skill_id}/forks", response_model=SkillForkList)
+async def list_forks(
+    skill_id: UUID,
+    service: SkillVersionSvc,
+    ctx: Auth,
+    archived: bool = Query(False, description="List the archived forks instead"),
+) -> Any:
+    return await service.list_forks(ctx, skill_id, archived=archived)
+
+
+@router.post(
+    "/{skill_id}/forks",
+    response_model=SkillForkRead,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_fork(
+    skill_id: UUID, data: SkillForkCreate, service: SkillVersionSvc, ctx: Auth
+) -> Any:
+    """Start a fork from a main version; a fork of a fork is refused."""
+    return await service.create_fork(ctx, skill_id, data)
+
+
+@router.patch("/{skill_id}/forks/{fork_id}", response_model=SkillForkRead)
+async def rename_fork(
+    skill_id: UUID, fork_id: UUID, data: SkillForkUpdate, service: SkillVersionSvc, ctx: Auth
+) -> Any:
+    return await service.rename_fork(ctx, skill_id, fork_id, data)
+
+
+@router.post("/{skill_id}/forks/{fork_id}/archive", response_model=SkillForkRead)
+async def archive_fork(skill_id: UUID, fork_id: UUID, service: SkillVersionSvc, ctx: Auth) -> Any:
+    """Archive a fork. It keeps its versions; it is never deleted."""
+    return await service.archive_fork(ctx, skill_id, fork_id)
