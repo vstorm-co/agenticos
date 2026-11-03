@@ -36,6 +36,9 @@ beforeEach(() => {
 });
 
 /** A skill is edited from its own page; context files and secrets from their lists. */
+/** A skill page reads its usage; the server always answers with every field. */
+const USAGE = { days: 30, since: "", loads: 0, agents: [], hidden_agents: 0, hidden_loads: 0 };
+
 async function renderPage(kind: "context" | "skill" | "secret") {
   await act(async () => {
     render(
@@ -84,6 +87,7 @@ it.each(["context", "skill", "secret"] as const)(
       if (path.startsWith("/context?") || path.startsWith("/skills?") || path === "/secrets")
         return { items: [row], total: 1 };
       if (path === "/context/r1" || path === "/skills/r1") return row;
+      if (path.startsWith("/skills/r1/usage")) return USAGE;
       return { items: [], total: 0 };
     });
     await renderPage(kind);
@@ -137,6 +141,7 @@ it.each(["context", "skill", "secret"] as const)(
       if (path.startsWith("/context?") || path.startsWith("/skills?") || path === "/secrets")
         return { items: [row], total: 1 };
       if (path === "/context/r1" || path === "/skills/r1") return row;
+      if (path.startsWith("/skills/r1/usage")) return USAGE;
       return { items: [], total: 0 };
     });
     await renderPage(kind);

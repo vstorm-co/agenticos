@@ -535,33 +535,50 @@ Open a skill from the list to see its page. It has three tabs.
 An environment that serves a different version is named under the agent, and an
 inline specialist that binds the skill has a row of its own - see
 [Which version an agent reads](#which-version-an-agent-reads). An agent that binds
-the skill only in its draft is marked **Only in the draft** and counts on
-no line. Agents you cannot see are counted, not named. The chips above the table
-show everyone, the agents on main, the pinned ones, or one fork. A fork you pick
-there is also the line that History lists and Edit saves to.
+the skill only in its draft is marked **Only in the draft** and follows no line.
+Agents you cannot see are counted, not named. The chips above the table show
+everyone, the agents on main, the pinned ones, one fork, or the agents only in a
+draft, so their counts add up to everyone. A fork you pick there is also the line
+that History lists and Edit saves to.
+
+Under the table, a reader who may view runs sees how often each agent opened the
+skill in the last 30 days and how many of its files it read. Runs of evals and of
+the Builder's test panel are not counted.
 
 **Change version** moves one agent to main, to a pinned main version, or to a fork,
 as [Which version an agent reads](#which-version-an-agent-reads) describes: what goes
-live, what waits in the draft, and what is changed in the Builder. A version the agent
-is not on has not been checked on it, so you confirm that first. The control is shown
-to people who may edit the agent.
+live, what waits in the draft, and what is changed in the Builder. A version other
+than the one the agent serves now has not been checked on it, so you confirm that
+first. The dialog also says when the agent would stop getting new main versions, and
+dates each main version it offers to pin, with a link to what it changed. The control
+is shown to people who may edit the agent.
 
 **History** lists the chosen line's versions, newest first: where each came from
 (an edit, a file change, the library, an agent's workspace, Improve or a restore),
 who made it and when. **Show changes** compares the description and instructions
 with the version before - for a fork's first version, its base on main - and names
 the files added, removed or changed. **Restore** brings an earlier version back as
-the newest on its own line, and the agents following that line get it at once.
+the newest on its own line, and the agents following that line get it at once. A
+fork numbers its versions from 1 like main, so they carry its name - "Returns v2" -
+and main's history marks the version each fork starts from.
 
 **Version tree** draws main from its newest version down, each fork off the version
-it started from, and agents at the version they use. Stretches that no agent uses
-fold into one row.
+it started from, and agents at the version they use. On a line of eight versions or
+more, stretches that no agent uses fold into one row.
 
 **Edit** saves a new version on the line on screen. On main, the agents following
 main get it at once; pinned agents and forks keep their version. Files and the
 category belong to main, so editing a fork changes only its description and
 instructions. Restore and Change version are shown only to people who may make
 that change; anybody else opens the skill read-only.
+
+**New fork** starts a fork from main's newest version, under a name you give it,
+and can move agents onto it at once, each as a Change version. The fork reads the
+same as its base until it is edited.
+
+**Delete**, in the editor's menu, deletes a skill nobody uses, with its versions and
+forks. While agents use it, the dialog names them and offers no delete: move each
+to another skill, or remove the skill from it in the Builder, first.
 
 ## Skills or knowledge?
 

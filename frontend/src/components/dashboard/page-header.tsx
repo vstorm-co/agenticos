@@ -82,9 +82,7 @@ export function PageHeader({
             {description && descriptionMode === "help" && <ContextHelp>{description}</ContextHelp>}
             {/* On a phone the help sits with the title it explains, rather than
                 alone on a row under the wrapped actions. */}
-            <span className="md:hidden">
-              <RestartTourButton />
-            </span>
+            <RestartTourButton at="narrow" />
           </div>
           {/* Status belongs to the thing named, so it sits under the name - it
               used to float above the action buttons, reading as a caption for
@@ -108,9 +106,7 @@ export function PageHeader({
             sat past the screen's edge with nothing saying they were there. */}
         <div className="order-2 flex max-w-full min-w-0 flex-wrap items-center gap-2 md:order-1 md:justify-end">
           {actions}
-          <span className="hidden md:inline-flex">
-            <RestartTourButton />
-          </span>
+          <RestartTourButton at="wide" />
         </div>
       </div>
     </div>

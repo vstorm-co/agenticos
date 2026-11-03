@@ -60,6 +60,7 @@ export function SkillCard({ skill }: SkillCardProps) {
         <AddToAgent
           resource={{ kind: "skill", id: skill.id }}
           name={skill.name}
+          has={skill.used_by?.map((usage) => usage.id)}
           className="h-8 shrink-0"
         />
       </div>

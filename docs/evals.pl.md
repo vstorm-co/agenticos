@@ -1,5 +1,5 @@
 ---
-source_sha: "dec34f708397"
+source_sha: "49147fff94d0"
 title: "Runy ewaluacji"
 description: "Run ewaluacji odpowiada na każdy przypadek datasetu wersją agenta albo jego wersją roboczą, ocenia każdą odpowiedź i porównuje wynik z baseline'em."
 ---
@@ -46,7 +46,7 @@ mierzony - albo jedyny, jaki istnieje - jest już wybrany; środowisko, nagrania
 i powtórki są pod **Zaawansowane** (Advanced). Koszt jest wyliczany, gdy pola
 się ustalą, i mówi, co ocenia odpowiedzi oraz ile zostanie potem w budżecie
 agenta i organizacji; run startuje dopiero z przycisku, który podaje tę kwotę.
-**Wersja robocza różni się od vN** (Draft differs from vN) na stronie agenta -
+**Wersja robocza różni się od wersji agenta vN** (Draft differs from agent vN) na stronie agenta -
 vN to najnowsza opublikowana wersja, a gdy strażnicy produkcji trzymają ją na
 starszej, drugi znaczek mówi na której, na przykład „produkcja na v1 (czeka na
 ewaluacje)” - ma przycisk **Przetestuj wersję roboczą** (Test draft), który
