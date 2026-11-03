@@ -1,0 +1,22 @@
+{
+  "license": "https://unsplash.com/license",
+  "retrieved_at": "2026-11-02",
+  "scope": "Illustrative product photography, not verified specifications or brand endorsement.",
+  "images": [
+    {
+      "file": "assets/backpack.webp",
+      "source": "https://images.unsplash.com/photo-1553062407-98eeb64c6a62",
+      "sha256": "adc837899169e5e4f842436d2150317d076d09f12de4442a3b96e925a2e93e30"
+    },
+    {
+      "file": "assets/basket.webp",
+      "source": "https://images.unsplash.com/photo-1590874103328-eac38a683ce7",
+      "sha256": "07d9ee00ea67738317d31105229c6562827ba614eda31a9bd6b25176ca45ac39"
+    },
+    {
+      "file": "assets/bottle.webp",
+      "source": "https://images.unsplash.com/photo-1602143407151-7111542de6e8",
+      "sha256": "954d41bd089441b0bcf0caf06ae4546d8a2aae2c20af1f917e0311fb25ecb911"
+    }
+  ]
+}

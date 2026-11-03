@@ -1,0 +1,321 @@
+{
+  "format": "agenticos.workflow",
+  "format_version": 1,
+  "name": "Document intelligence · demo",
+  "description": "Illustrative draft. Synthetic data; connections and credentials not configured. Not an executed workflow.",
+  "tags": [
+    "demo",
+    "configuration-only"
+  ],
+  "settings": {
+    "timezone": "UTC",
+    "default_deadline_seconds": null,
+    "error_workflow_id": null,
+    "run_retention_days": null,
+    "keep_succeeded_runs": true,
+    "max_concurrent_runs": null,
+    "run_budget_usd": null,
+    "monthly_budget_usd": null
+  },
+  "graph": {
+    "entry_node_id": "c5e0b15e-caba-4c44-8169-57f4041a2e27",
+    "nodes": [
+      {
+        "id": "c5e0b15e-caba-4c44-8169-57f4041a2e27",
+        "definition_id": "trigger.gmail",
+        "definition_version": 1,
+        "config": {},
+        "policy": null,
+        "layout": {
+          "x": 0,
+          "y": 0,
+          "width": 285
+        },
+        "label": "New document email",
+        "notes": null,
+        "disabled": false,
+        "pinned_output": null,
+        "quick_log": null
+      },
+      {
+        "id": "6be09145-d9e6-48c1-b009-0a39e1a36adc",
+        "definition_id": "mcp.call",
+        "definition_version": 1,
+        "config": {
+          "tool": "get_gmail_attachment_content"
+        },
+        "policy": null,
+        "layout": {
+          "x": 315,
+          "y": 0,
+          "width": 285
+        },
+        "label": "Read attachment",
+        "notes": null,
+        "disabled": false,
+        "pinned_output": null,
+        "quick_log": null
+      },
+      {
+        "id": "4b0f0032-2ab5-47c6-b4ca-596d50ad7205",
+        "definition_id": "ai.extract",
+        "definition_version": 1,
+        "config": {},
+        "policy": null,
+        "layout": {
+          "x": 630,
+          "y": 0,
+          "width": 285
+        },
+        "label": "Extract key facts",
+        "notes": null,
+        "disabled": false,
+        "pinned_output": null,
+        "quick_log": null
+      },
+      {
+        "id": "7a81c4ad-6d5f-4a29-a7b8-89c56d89dec8",
+        "definition_id": "logic.if",
+        "definition_version": 1,
+        "config": {
+          "expression": "value.score >= 80"
+        },
+        "policy": null,
+        "layout": {
+          "x": 945,
+          "y": 0,
+          "width": 285
+        },
+        "label": "Check required fields",
+        "notes": null,
+        "disabled": false,
+        "pinned_output": null,
+        "quick_log": null
+      },
+      {
+        "id": "878accc7-9946-4fdd-ae56-216bd9a39178",
+        "definition_id": "knowledge.search",
+        "definition_version": 1,
+        "config": {},
+        "policy": null,
+        "layout": {
+          "x": 0,
+          "y": 170,
+          "width": 285
+        },
+        "label": "Find related policy",
+        "notes": null,
+        "disabled": false,
+        "pinned_output": null,
+        "quick_log": null
+      },
+      {
+        "id": "c0d2996c-ac3d-4ca5-8a70-9b3f15ac4ae0",
+        "definition_id": "agent.run",
+        "definition_version": 1,
+        "config": {
+          "inline": {
+            "name": "Review policy changes"
+          }
+        },
+        "policy": null,
+        "layout": {
+          "x": 315,
+          "y": 170,
+          "width": 285
+        },
+        "label": "Review policy changes",
+        "notes": null,
+        "disabled": false,
+        "pinned_output": null,
+        "quick_log": null
+      },
+      {
+        "id": "d3ce2f29-8eff-42cd-a93b-16df127cf230",
+        "definition_id": "human.approval",
+        "definition_version": 1,
+        "config": {},
+        "policy": null,
+        "layout": {
+          "x": 630,
+          "y": 170,
+          "width": 285
+        },
+        "label": "Human review",
+        "notes": null,
+        "disabled": false,
+        "pinned_output": null,
+        "quick_log": null
+      },
+      {
+        "id": "0a7e1d8f-6ee7-44f7-8d90-4c7e0f46673e",
+        "definition_id": "knowledge.add",
+        "definition_version": 1,
+        "config": {},
+        "policy": null,
+        "layout": {
+          "x": 945,
+          "y": 170,
+          "width": 285
+        },
+        "label": "Save indexed document",
+        "notes": null,
+        "disabled": false,
+        "pinned_output": null,
+        "quick_log": null
+      },
+      {
+        "id": "4fd579ba-1cb2-42ec-ae0c-0c40b1e40ebb",
+        "definition_id": "table.record.upsert",
+        "definition_version": 1,
+        "config": {},
+        "policy": null,
+        "layout": {
+          "x": 0,
+          "y": 340,
+          "width": 285
+        },
+        "label": "Update document register",
+        "notes": null,
+        "disabled": false,
+        "pinned_output": null,
+        "quick_log": null
+      },
+      {
+        "id": "e0c1cec5-acfe-47c0-8bb4-a04457f92343",
+        "definition_id": "mcp.call",
+        "definition_version": 1,
+        "config": {
+          "tool": "upload-file"
+        },
+        "policy": null,
+        "layout": {
+          "x": 315,
+          "y": 340,
+          "width": 285
+        },
+        "label": "Archive in OneDrive",
+        "notes": null,
+        "disabled": false,
+        "pinned_output": null,
+        "quick_log": null
+      },
+      {
+        "id": "9a14b99a-436e-439c-a908-b1e8b23ceefc",
+        "definition_id": "slack.message.send",
+        "definition_version": 1,
+        "config": {},
+        "policy": null,
+        "layout": {
+          "x": 630,
+          "y": 340,
+          "width": 285
+        },
+        "label": "Notify knowledge team",
+        "notes": null,
+        "disabled": false,
+        "pinned_output": null,
+        "quick_log": null
+      },
+      {
+        "id": "a17d2364-234a-4ec5-8779-def4fdf96f2d",
+        "definition_id": "core.output",
+        "definition_version": 1,
+        "config": {},
+        "policy": null,
+        "layout": {
+          "x": 945,
+          "y": 340,
+          "width": 285
+        },
+        "label": "Return source summary",
+        "notes": null,
+        "disabled": false,
+        "pinned_output": null,
+        "quick_log": null
+      }
+    ],
+    "edges": [
+      {
+        "id": "c0ede476-ebeb-4aff-94be-e582c8a9792b",
+        "source_node_id": "c5e0b15e-caba-4c44-8169-57f4041a2e27",
+        "source_port": "out",
+        "target_node_id": "6be09145-d9e6-48c1-b009-0a39e1a36adc",
+        "target_port": "in"
+      },
+      {
+        "id": "f5011666-73cb-4f61-ba42-3d5e4c34845b",
+        "source_node_id": "6be09145-d9e6-48c1-b009-0a39e1a36adc",
+        "source_port": "out",
+        "target_node_id": "4b0f0032-2ab5-47c6-b4ca-596d50ad7205",
+        "target_port": "in"
+      },
+      {
+        "id": "821366ca-8e90-4c86-91a6-d563f81c9216",
+        "source_node_id": "4b0f0032-2ab5-47c6-b4ca-596d50ad7205",
+        "source_port": "out",
+        "target_node_id": "7a81c4ad-6d5f-4a29-a7b8-89c56d89dec8",
+        "target_port": "in"
+      },
+      {
+        "id": "709f2700-1198-4f6e-a0a9-b2a2527a8b3c",
+        "source_node_id": "878accc7-9946-4fdd-ae56-216bd9a39178",
+        "source_port": "out",
+        "target_node_id": "c0d2996c-ac3d-4ca5-8a70-9b3f15ac4ae0",
+        "target_port": "in"
+      },
+      {
+        "id": "b822f696-008d-4bbc-97f9-c7dcd9fb7288",
+        "source_node_id": "c0d2996c-ac3d-4ca5-8a70-9b3f15ac4ae0",
+        "source_port": "out",
+        "target_node_id": "d3ce2f29-8eff-42cd-a93b-16df127cf230",
+        "target_port": "in"
+      },
+      {
+        "id": "18e69a3c-b9d7-421d-a88b-6c1506ae19cf",
+        "source_node_id": "d3ce2f29-8eff-42cd-a93b-16df127cf230",
+        "source_port": "approved",
+        "target_node_id": "0a7e1d8f-6ee7-44f7-8d90-4c7e0f46673e",
+        "target_port": "in"
+      },
+      {
+        "id": "4440fb00-1ec8-487e-b43f-32c2dae70fae",
+        "source_node_id": "4fd579ba-1cb2-42ec-ae0c-0c40b1e40ebb",
+        "source_port": "out",
+        "target_node_id": "e0c1cec5-acfe-47c0-8bb4-a04457f92343",
+        "target_port": "in"
+      },
+      {
+        "id": "2f613bc7-8c27-4515-a406-dd3e4985b19a",
+        "source_node_id": "e0c1cec5-acfe-47c0-8bb4-a04457f92343",
+        "source_port": "out",
+        "target_node_id": "9a14b99a-436e-439c-a908-b1e8b23ceefc",
+        "target_port": "in"
+      },
+      {
+        "id": "894de57c-4988-47b8-b596-e9e62076397a",
+        "source_node_id": "9a14b99a-436e-439c-a908-b1e8b23ceefc",
+        "source_port": "out",
+        "target_node_id": "a17d2364-234a-4ec5-8779-def4fdf96f2d",
+        "target_port": "in"
+      }
+    ],
+    "bindings": [],
+    "scopes": [],
+    "notes": []
+  },
+  "unresolved": [
+    {
+      "node_id": "6be09145-d9e6-48c1-b009-0a39e1a36adc",
+      "step": "Read attachment",
+      "field": "connection_id",
+      "kind": "mcp_connection"
+    },
+    {
+      "node_id": "e0c1cec5-acfe-47c0-8bb4-a04457f92343",
+      "step": "Archive in OneDrive",
+      "field": "connection_id",
+      "kind": "mcp_connection"
+    }
+  ]
+}

@@ -42,6 +42,7 @@ mod readiness;
 mod screen;
 mod settings;
 mod shortcuts;
+mod tls;
 mod updater;
 mod webview_profile;
 mod widgets;
@@ -1342,6 +1343,7 @@ fn install_menu(app: &AppHandle, settings: &Settings) -> tauri::Result<TrayIcon>
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    tls::initialize();
     tauri::Builder::default()
         // First, and it has to be: on Windows and Linux opening a registered
         // scheme *starts the executable again*, and a desktop sign-in always
