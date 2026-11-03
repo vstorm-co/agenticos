@@ -1582,12 +1582,16 @@ class SkillCheckService:
         data: SkillCheckApply,
         *,
         from_session: bool = False,
+        merged_from_id: UUID | None = None,
     ) -> SkillCheckApplied:
         """Make the checked text the line's newest version.
 
         A change that made agents worse is applied only with `pin_worse`, which
         first moves each of them, as a new published version, to the version it
         reads now - in this transaction, so none of them serves the change even once.
+
+        `merged_from_id` names the fork version a merge onto main took in: main then
+        takes the checked files too, as the check served them.
 
         Raises:
             AuthorizationError: `pin_worse` names agents the caller may not publish.
@@ -1627,6 +1631,8 @@ class SkillCheckService:
             )
             fork, base = await self._line(ctx, skill, check.fork_id)
             version = base
+        elif merged_from_id is not None:
+            version = await self._take_in(ctx, skill, check, merged_from_id)
         else:
             created = await self.versions.edit(
                 ctx,
@@ -1647,6 +1653,36 @@ class SkillCheckService:
         )
         return SkillCheckApplied(
             version=await self.versions.read_version(ctx, skill.id, version.id), pinned=pinned
+        )
+
+    async def _take_in(
+        self, ctx: AuthContext, skill: Skill, check: SkillCheck, merged_from_id: UUID
+    ) -> SkillVersion:
+        """Write a merge of a fork onto main as main's newest version, files and all."""
+        from app.services.skills import SkillService
+
+        assert check.fork_id is None, "a merge onto main is checked on main"
+        locked = await skill_repo.lock(self.db, skill.id)
+        assert locked is not None, "the skill was read in this transaction"
+        if locked.latest_version_id != check.base_version_id:
+            raise ConcurrentChangeError(
+                message=(
+                    "This skill has a newer version than the one the check measured. Check "
+                    "the change again on the newest version."
+                ),
+                details={
+                    "base_version_id": check.base_version_id,
+                    "latest_version_id": locked.latest_version_id,
+                },
+            )
+        candidate = _candidate_of(check)
+        return await SkillService(self.db).take_in(
+            ctx,
+            locked,
+            description=candidate.description,
+            content=candidate.content,
+            files=candidate.resources,
+            merged_from_id=merged_from_id,
         )
 
     async def _pin_worse(

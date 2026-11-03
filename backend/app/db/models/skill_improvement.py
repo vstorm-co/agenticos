@@ -290,6 +290,14 @@ class SkillImprovementIteration(Base):
         ForeignKey("skill_checks.id", ondelete="SET NULL"),
         nullable=True,
     )
+    main_alone_check_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("skill_checks.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    """A catch-up's second check: main's newest alone, on the fork's agents, which says
+    whether the fork is still needed."""
     check_verdict: Mapped[str | None] = mapped_column(String(16), nullable=True)
     verdict: Mapped[str | None] = mapped_column(String(16), nullable=True)
     cost_usd: Mapped[Decimal] = mapped_column(

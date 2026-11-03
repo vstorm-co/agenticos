@@ -3,6 +3,11 @@
 Nothing here runs by itself. Every catch-up costs a check on the agents it moves,
 so main moving on only marks who it left behind; a person decides which of them
 to bring along, and when.
+
+A fork catches up, or moves to main, in an improvement session whose purpose says
+so. The session merges the three texts here when it starts, the model proposes a
+text for each conflict, a person settles the rest at Changes, and the check measures
+what the merge says. Accepting refuses once either line moved past the merge.
 """
 
 import json
@@ -13,15 +18,44 @@ from uuid import UUID
 from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.agents.capabilities.skills import SkillBodyFile
 from app.agents.capabilities.subagents import SubagentsConfig
 from app.agents.spec import AgentSpec
-from app.core.exceptions import BadRequestError, NotFoundError
+from app.core.audit import record_audit
+from app.core.exceptions import (
+    AuthorizationError,
+    BadRequestError,
+    ConcurrentChangeError,
+    ConflictError,
+    NotFoundError,
+)
+from app.core.field_errors import refused_field
 from app.core.permissions import AuthContext, Perm
 from app.db.models.agent import Agent, AgentStatus, AgentVersion
 from app.db.models.agent_environment import AgentEnvironment
+from app.db.models.improvement import ImprovementStage, ImprovementStatus
 from app.db.models.skill import Skill
-from app.repositories import agent_environment_repo, agent_repo, skill_repo, skill_version_repo
+from app.db.models.skill_improvement import SkillImprovementPurpose, SkillImprovementRun
+from app.db.models.skill_merge import MergedFile, MergedPart, SkillMerge
+from app.db.models.skill_version import ManifestEntry, SkillFork, SkillVersion, SkillVersionSource
+from app.repositories import (
+    agent_environment_repo,
+    agent_repo,
+    skill_improvement_repo,
+    skill_merge_repo,
+    skill_repo,
+    skill_version_repo,
+)
 from app.schemas.resource_usage import AgentUsage
+from app.schemas.skill_merge import (
+    MergeDescriptionEdit,
+    MergeFilePick,
+    MergeFileRead,
+    MergeFileSide,
+    MergePartEdit,
+    MergeTextRead,
+    SkillMergeRead,
+)
 from app.schemas.skill_version import (
     BehindMain,
     BehindMainList,
@@ -33,9 +67,10 @@ from app.schemas.skill_version import (
     SkillRef,
     VersionNumberRef,
 )
-from app.services.access import AGENT, SKILL, accessible_ids
+from app.services.access import AGENT, SKILL, accessible_ids, resolve_access
 from app.services.agent_registry import delegation_binding
 from app.services.skill_agents import Line, SkillAgentService, lines_of
+from app.services.skill_merge import MergePart, PartState, merge_files, merge_text, merge_value
 from app.services.skill_versions import SkillVersionService, changes_since
 
 
@@ -46,6 +81,54 @@ class _Read:
     agent_id: UUID
     skill_id: UUID
     line: Line
+
+
+@dataclass(frozen=True)
+class MergeSides:
+    """The three versions a merge reads, and the merge before anything is settled.
+
+    Attributes:
+        base: The main version the fork is based on.
+        fork: The fork's newest version.
+        main: Main's newest version.
+        description: The merged description.
+        parts: The merged instructions, in order.
+        files: Every file named on any side.
+    """
+
+    base: SkillVersion
+    fork: SkillVersion
+    main: SkillVersion
+    description: MergedPart
+    parts: list[MergedPart]
+    files: list[MergedFile]
+
+    @property
+    def conflicts(self) -> int:
+        """How many texts the model is asked to combine."""
+        return len(_conflicts(self.description, self.parts))
+
+    @property
+    def prompt(self) -> str:
+        """The conflicts as `conflicts_prompt` puts them; empty with none."""
+        return _prompt(self.description, self.parts)
+
+
+@dataclass(frozen=True)
+class MergedSkill:
+    """What a settled merge says: the text a check measures and accepting writes.
+
+    Attributes:
+        description: The merged description.
+        content: The merged instructions.
+        resources: Every file the merge keeps, as a version's manifest lists it.
+        files: The same files with their bodies, the whole set the skill is served with.
+    """
+
+    description: str
+    content: str
+    resources: dict[str, ManifestEntry]
+    files: tuple[SkillBodyFile, ...]
 
 
 class SkillCatchUpService:
@@ -143,6 +226,369 @@ class SkillCatchUpService:
             hidden=len(readers) - len(visible),
             remaining=len(remaining),
             archived=archived,
+        )
+
+    async def merge_sides(
+        self,
+        ctx: AuthContext,
+        *,
+        skill: Skill,
+        fork: SkillFork,
+        kind: SkillImprovementPurpose,
+    ) -> MergeSides:
+        """The three versions a catch-up or a move to main would merge, or why there is
+        nothing to merge.
+
+        Raises:
+            ConflictError: The fork is archived, has no version of its own - its agents
+                return to main instead - or the merge would change nothing.
+        """
+        self.versions.refuse_archived(fork)
+        if fork.latest_version_id is None:
+            raise ConflictError(
+                message=(
+                    f"The fork '{fork.name}' has no changes of its own. Return its agents to "
+                    "main instead"
+                ),
+                details={"fork_id": fork.id},
+            )
+        assert skill.latest_version_id is not None, "every skill has a main version"
+        found = await skill_version_repo.get_versions(
+            self.db,
+            {fork.base_version_id, fork.latest_version_id, skill.latest_version_id},
+            organization_id=ctx.organization_id,
+        )
+        base = found[fork.base_version_id]
+        ours = found[fork.latest_version_id]
+        main = found[skill.latest_version_id]
+        unchanged = main if kind is SkillImprovementPurpose.CATCH_UP else ours
+        if _says(unchanged) == _says(base) or _says(ours) == _says(main):
+            raise ConflictError(
+                message=(
+                    f"Main has nothing the fork '{fork.name}' does not have"
+                    if kind is SkillImprovementPurpose.CATCH_UP
+                    else f"The fork '{fork.name}' has nothing main does not have"
+                ),
+                details={"fork_id": fork.id},
+            )
+        return MergeSides(
+            base=base,
+            fork=ours,
+            main=main,
+            description=_text_row(
+                merge_value(base.description, ours.description, main.description)
+            ),
+            parts=[
+                _text_row(part) for part in merge_text(base.content, ours.content, main.content)
+            ],
+            files=_file_rows(base, ours, main),
+        )
+
+    async def build_merge(
+        self, ctx: AuthContext, *, run: SkillImprovementRun, skill: Skill, fork: SkillFork
+    ) -> SkillMerge:
+        """Merge the session's three versions, without the model, and keep the parts.
+
+        Raises:
+            ConflictError: There is nothing to merge; see `merge_sides`.
+        """
+        kind = SkillImprovementPurpose(run.purpose)
+        assert kind is not SkillImprovementPurpose.IMPROVE, "only a catch-up or a move merges"
+        sides = await self.merge_sides(ctx, skill=skill, fork=fork, kind=kind)
+        return await skill_merge_repo.create(
+            self.db,
+            organization_id=ctx.organization_id,
+            merge=SkillMerge(
+                skill_id=skill.id,
+                fork_id=fork.id,
+                run_id=run.id,
+                kind=kind.value,
+                base_version_id=sides.base.id,
+                fork_version_id=sides.fork.id,
+                main_version_id=sides.main.id,
+                description=sides.description,
+                parts=sides.parts,
+                files=sides.files,
+                conflicts=sides.conflicts,
+                unresolved=_unresolved(sides.description, sides.parts, sides.files),
+            ),
+        )
+
+    async def merge_for_run(self, run_id: UUID, *, organization_id: UUID) -> SkillMerge | None:
+        """A session's merge; `None` for a session that improves rather than merges."""
+        return await skill_merge_repo.for_run(self.db, run_id, organization_id=organization_id)
+
+    async def candidate_of(self, merge: SkillMerge) -> MergedSkill | None:
+        """What the merge says, or `None` while a text or a file waits for a person."""
+        if merge.unresolved:
+            return None
+        texts = [merge.description, *merge.parts]
+        assert all(row["result"] is not None for row in texts), "nothing is left unresolved"
+        resources: dict[str, ManifestEntry] = {}
+        for row in merge.files:
+            assert row["take"] is not None, "nothing is left unresolved"
+            entry = row["fork"] if row["take"] == "fork" else row["main"]
+            if entry is not None:
+                resources[row["name"]] = entry
+        bodies = await skill_version_repo.get_files(
+            self.db,
+            organization_id=merge.organization_id,
+            skill_id=merge.skill_id,
+            hashes=[entry["sha256"] for entry in resources.values()],
+        )
+        return MergedSkill(
+            description=merge.description["result"] or "",
+            content="".join(row["result"] or "" for row in merge.parts),
+            resources=resources,
+            files=tuple(
+                SkillBodyFile(
+                    name=name, description=entry["description"], content=bodies[entry["sha256"]]
+                )
+                for name, entry in sorted(resources.items())
+            ),
+        )
+
+    @staticmethod
+    def conflicts_prompt(merge: SkillMerge) -> str:
+        """The texts both sides changed differently, numbered in the order
+        `fill_conflicts` takes their combined texts; empty with none."""
+        return _prompt(merge.description, merge.parts)
+
+    async def fill_conflicts(self, merge: SkillMerge, proposed: Sequence[str]) -> None:
+        """Settle each conflict with the model's text for it, in `conflicts_prompt`'s order.
+
+        A person may still rewrite each one at Changes; the model's text stays beside it.
+
+        Raises:
+            ValueError: `proposed` does not hold one text per conflict.
+        """
+        description = MergedPart(**merge.description)
+        parts = [MergedPart(**row) for row in merge.parts]
+        conflicts = _conflicts(description, parts)
+        if len(proposed) != len(conflicts):
+            raise ValueError(f"{len(conflicts)} conflicts, {len(proposed)} texts")
+        for row, text in zip(conflicts, proposed, strict=True):
+            row["proposed"] = text
+            row["result"] = text
+        await self._store(merge, description, parts, merge.files)
+
+    async def refuse_moved(self, merge: SkillMerge) -> None:
+        """Refuse a merge either of whose lines has a newer version than it read.
+
+        Raises:
+            ConcurrentChangeError: Main or the fork moved since the merge.
+        """
+        skill = await skill_repo.get(self.db, merge.skill_id, organization_id=merge.organization_id)
+        fork = await skill_version_repo.get_fork(
+            self.db, merge.fork_id, organization_id=merge.organization_id, skill_id=merge.skill_id
+        )
+        assert skill is not None and fork is not None, "a merge goes with its skill and fork"
+        _refuse_moved(merge, skill, fork)
+
+    async def accept_catch_up(
+        self, ctx: AuthContext, *, skill: Skill, fork: SkillFork, merge: SkillMerge
+    ) -> SkillVersion:
+        """Make the merge the fork's newest version and base the fork on main's newest.
+
+        Takes the skill and then the fork, as every writer of a fork does.
+
+        Raises:
+            ConflictError: The fork is archived.
+            ConcurrentChangeError: Main or the fork moved since the merge.
+            BadRequestError: A text or a file still waits for a person.
+        """
+        locked = await skill_repo.lock(self.db, skill.id)
+        held = await skill_version_repo.get_fork(
+            self.db, fork.id, organization_id=ctx.organization_id, skill_id=skill.id, lock=True
+        )
+        assert locked is not None and held is not None, "the session holds its skill and fork"
+        self.versions.refuse_archived(held)
+        _refuse_moved(merge, locked, held)
+        merged = await self.candidate_of(merge)
+        if merged is None:
+            raise BadRequestError(
+                message="Settle every conflict before accepting the merge",
+                details={"unresolved": merge.unresolved},
+            )
+        version = await self.versions.record_fork(
+            ctx,
+            held,
+            description=merged.description,
+            content=merged.content,
+            resources=merged.resources,
+            source=SkillVersionSource.CATCH_UP,
+            merged_from_id=merge.main_version_id,
+        )
+        await skill_version_repo.update_fork(
+            self.db, fork=held, update_data={"base_version_id": merge.main_version_id}
+        )
+        await record_audit(
+            self.db,
+            actor_user_id=ctx.subject_id,
+            organization_id=ctx.organization_id,
+            action="skill.fork_caught_up",
+            target_type="skill",
+            target_id=str(skill.id),
+            details={"name": skill.name, "fork": held.name, "version": version.number},
+        )
+        return version
+
+    async def read_merge(self, ctx: AuthContext, skill_id: UUID, run_id: UUID) -> SkillMergeRead:
+        """A session's merge, as the Changes step shows it.
+
+        Raises:
+            AuthorizationError: The caller may not read runs.
+            NotFoundError: The skill or the session is not one the caller may reach, or
+                the session merges nothing.
+        """
+        _require_runs_view(ctx)
+        skill = await self.versions.skill_for(ctx, skill_id, Perm.SKILLS_VIEW)
+        await self._run(ctx, skill, run_id, lock=False)
+        return await self._read_merge(ctx, await self._merge(ctx, run_id, lock=False))
+
+    async def edit_description(
+        self, ctx: AuthContext, skill_id: UUID, run_id: UUID, data: MergeDescriptionEdit
+    ) -> SkillMergeRead:
+        """Write the merged description, while the session waits at Changes."""
+        merge = await self._editable(ctx, skill_id, run_id)
+        description = MergedPart(**merge.description)
+        description["result"], description["edited"] = data.result, True
+        await self._store(merge, description, merge.parts, merge.files)
+        return await self._read_merge(ctx, merge)
+
+    async def edit_part(
+        self, ctx: AuthContext, skill_id: UUID, run_id: UUID, index: int, data: MergePartEdit
+    ) -> SkillMergeRead:
+        """Write one part of the merged instructions, while the session waits at Changes.
+
+        Raises:
+            NotFoundError: The merge has no part `index`.
+        """
+        merge = await self._editable(ctx, skill_id, run_id)
+        if not 0 <= index < len(merge.parts):
+            raise NotFoundError(message="The merge has no such part", details={"index": index})
+        parts = [MergedPart(**row) for row in merge.parts]
+        parts[index]["result"], parts[index]["edited"] = data.result, True
+        await self._store(merge, merge.description, parts, merge.files)
+        return await self._read_merge(ctx, merge)
+
+    async def pick_file(
+        self, ctx: AuthContext, skill_id: UUID, run_id: UUID, data: MergeFilePick
+    ) -> SkillMergeRead:
+        """Keep one side's file, while the session waits at Changes. Taking the side the
+        file is absent from drops it."""
+        merge = await self._editable(ctx, skill_id, run_id)
+        files = [MergedFile(**row) for row in merge.files]
+        picked = next((row for row in files if row["name"] == data.name), None)
+        if picked is None:
+            raise refused_field("name", "The merge has no file by that name")
+        picked["take"] = data.take
+        await self._store(merge, merge.description, merge.parts, files)
+        return await self._read_merge(ctx, merge)
+
+    async def _editable(self, ctx: AuthContext, skill_id: UUID, run_id: UUID) -> SkillMerge:
+        """The merge of a session waiting at Changes, locked after its session.
+
+        Raises:
+            AuthorizationError: The caller may not read runs, or edit the skill.
+            NotFoundError: The skill or the session is out of reach, or merges nothing.
+            BadRequestError: The session is not waiting at Changes.
+        """
+        _require_runs_view(ctx)
+        skill = await self.versions.skill_for(ctx, skill_id, Perm.SKILLS_VIEW)
+        if not await resolve_access(self.db, ctx, skill, Perm.SKILLS_EDIT, resource_type=SKILL):
+            raise AuthorizationError(
+                message="Editing a merge needs edit access to the skill",
+                details={"permission": Perm.SKILLS_EDIT.value},
+            )
+        run = await self._run(ctx, skill, run_id, lock=True)
+        if (
+            run.status != ImprovementStatus.WAITING.value
+            or run.stage != ImprovementStage.FILTERING.value
+        ):
+            raise BadRequestError(
+                message="A merge is edited only while its session waits at Changes",
+                details={"status": run.status, "stage": run.stage},
+            )
+        return await self._merge(ctx, run_id, lock=True)
+
+    async def _run(
+        self, ctx: AuthContext, skill: Skill, run_id: UUID, *, lock: bool
+    ) -> SkillImprovementRun:
+        run = await skill_improvement_repo.get_run(
+            self.db, run_id, organization_id=ctx.organization_id, lock=lock
+        )
+        if run is None or run.skill_id != skill.id:
+            raise NotFoundError(
+                message="Improvement session not found", details={"improvement_run_id": run_id}
+            )
+        return run
+
+    async def _merge(self, ctx: AuthContext, run_id: UUID, *, lock: bool) -> SkillMerge:
+        merge = await skill_merge_repo.for_run(
+            self.db, run_id, organization_id=ctx.organization_id, lock=lock
+        )
+        if merge is None:
+            raise NotFoundError(
+                message="This session merges nothing", details={"improvement_run_id": run_id}
+            )
+        return merge
+
+    async def _store(
+        self,
+        merge: SkillMerge,
+        description: MergedPart,
+        parts: list[MergedPart],
+        files: list[MergedFile],
+    ) -> None:
+        await skill_merge_repo.update(
+            self.db,
+            merge=merge,
+            values={
+                "description": description,
+                "parts": parts,
+                "files": files,
+                "unresolved": _unresolved(description, parts, files),
+            },
+        )
+
+    async def _read_merge(self, ctx: AuthContext, merge: SkillMerge) -> SkillMergeRead:
+        versions = await skill_version_repo.get_versions(
+            self.db,
+            {merge.base_version_id, merge.fork_version_id, merge.main_version_id},
+            organization_id=ctx.organization_id,
+        )
+
+        def ref(version_id: UUID) -> VersionNumberRef:
+            return VersionNumberRef(id=version_id, number=versions[version_id].number)
+
+        return SkillMergeRead(
+            id=merge.id,
+            run_id=merge.run_id,
+            skill_id=merge.skill_id,
+            fork_id=merge.fork_id,
+            kind="catch_up" if merge.kind == SkillImprovementPurpose.CATCH_UP.value else "to_main",
+            base=ref(merge.base_version_id),
+            fork=ref(merge.fork_version_id),
+            main=ref(merge.main_version_id),
+            description=MergeTextRead.model_validate(merge.description),
+            parts=[MergeTextRead.model_validate(row) for row in merge.parts],
+            files=[
+                MergeFileRead.model_validate(
+                    {
+                        "name": row["name"],
+                        "state": row["state"],
+                        "base": _file_side(row["base"]),
+                        "fork": _file_side(row["fork"]),
+                        "main": _file_side(row["main"]),
+                        "take": row["take"],
+                    }
+                )
+                for row in merge.files
+            ],
+            conflicts=merge.conflicts,
+            unresolved=merge.unresolved,
+            updated_at=merge.updated_at,
         )
 
     async def _pinned(
@@ -359,3 +805,117 @@ def _usage(agent: Agent) -> AgentUsage:
         has_avatar=agent.has_avatar,
         avatar_color=agent.avatar_color,
     )
+
+
+def _says(version: SkillVersion) -> tuple[str, str, dict[str, ManifestEntry]]:
+    return version.description, version.content, version.resources
+
+
+def _text_row(part: MergePart) -> MergedPart:
+    return MergedPart(
+        state=part.state.value,
+        base=part.base,
+        fork=part.fork,
+        main=part.main,
+        result=part.merged,
+        proposed=None,
+        edited=False,
+    )
+
+
+def _file_rows(base: SkillVersion, fork: SkillVersion, main: SkillVersion) -> list[MergedFile]:
+    """Each file by name; two entries are the same file when body and description match."""
+
+    def keys(version: SkillVersion) -> dict[str, str]:
+        return {
+            name: f"{entry['sha256']}\x1e{entry['description'] or ''}"
+            for name, entry in version.resources.items()
+        }
+
+    rows: list[MergedFile] = []
+    for merged in merge_files(keys(base), keys(fork), keys(main)):
+        take = {
+            PartState.SAME: "main",
+            PartState.BOTH: "main",
+            PartState.MAIN: "main",
+            PartState.FORK: "fork",
+        }.get(merged.state)
+        rows.append(
+            MergedFile(
+                name=merged.name,
+                state=merged.state.value,
+                base=base.resources.get(merged.name),
+                fork=fork.resources.get(merged.name),
+                main=main.resources.get(merged.name),
+                take=take,
+            )
+        )
+    return rows
+
+
+def _conflicts(description: MergedPart, parts: Sequence[MergedPart]) -> list[MergedPart]:
+    """The texts both sides changed differently: the description first, then the parts."""
+    return [row for row in (description, *parts) if row["state"] == PartState.CONFLICT.value]
+
+
+def _prompt(description: MergedPart, parts: Sequence[MergedPart]) -> str:
+    conflicts = _conflicts(description, parts)
+    return "\n\n".join(
+        "\n".join(
+            (
+                f"Conflict {number} of {len(conflicts)} - "
+                + ("the description" if row is description else "the instructions"),
+                f"<base>\n{row['base']}\n</base>",
+                f"<fork>\n{row['fork']}\n</fork>",
+                f"<main>\n{row['main']}\n</main>",
+            )
+        )
+        for number, row in enumerate(conflicts, start=1)
+    )
+
+
+def _unresolved(
+    description: MergedPart, parts: Sequence[MergedPart], files: Sequence[MergedFile]
+) -> int:
+    return sum(row["result"] is None for row in (description, *parts)) + sum(
+        row["take"] is None for row in files
+    )
+
+
+def _refuse_moved(merge: SkillMerge, skill: Skill, fork: SkillFork) -> None:
+    if skill.latest_version_id != merge.main_version_id:
+        raise ConcurrentChangeError(
+            message="Main has a newer version than the merge read. Start the merge again",
+            details={
+                "main_version_id": merge.main_version_id,
+                "latest_version_id": skill.latest_version_id,
+            },
+        )
+    if (fork.latest_version_id, fork.base_version_id) != (
+        merge.fork_version_id,
+        merge.base_version_id,
+    ):
+        raise ConcurrentChangeError(
+            message=(
+                f"The fork '{fork.name}' has a newer version than the merge read. Start the "
+                "merge again"
+            ),
+            details={
+                "fork_version_id": merge.fork_version_id,
+                "latest_version_id": fork.latest_version_id,
+            },
+        )
+
+
+def _file_side(entry: ManifestEntry | None) -> MergeFileSide | None:
+    if entry is None:
+        return None
+    return MergeFileSide(description=entry["description"], size_bytes=entry["size_bytes"])
+
+
+def _require_runs_view(ctx: AuthContext) -> None:
+    if not ctx.has(Perm.RUNS_VIEW):
+        raise AuthorizationError(
+            message="A skill session reads runs, which needs runs:view",
+            details={"permission": Perm.RUNS_VIEW.value},
+        )

@@ -17,7 +17,7 @@ from pydantic import StringConstraints, TypeAdapter
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.agents.capabilities.skills import SkillBody
+from app.agents.capabilities.skills import SkillBody, SkillBodyFile
 from app.agents.spec import AgentSpec, SkillBindingSpec
 from app.core import catalog
 from app.core.audit import record_audit
@@ -1331,32 +1331,88 @@ class SkillService:
         `skill` is locked by the caller, which has checked the person read the newest
         version. `files` are the earlier version's file bodies by name.
         """
-        for resource in list(skill.resources):
-            await skill_repo.delete_resource(self.db, resource)
-        # See `remove_resource`: the loaded collection still holds the deleted rows.
-        self.db.expire(skill, ["resources"])
-        for name, entry in sorted(earlier.resources.items()):
-            await skill_repo.create_resource(
-                self.db,
-                skill_id=skill.id,
-                name=name,
-                description=entry["description"],
-                content=files[name],
-            )
+        return await self._replace_main(
+            ctx,
+            skill,
+            description=earlier.description,
+            content=earlier.content,
+            files=[
+                SkillBodyFile(name=name, description=entry["description"], content=files[name])
+                for name, entry in sorted(earlier.resources.items())
+            ],
+            source=SkillVersionSource.RESTORE,
+            restored_from_id=earlier.id,
+            action="skill.restored",
+        )
+
+    async def take_in(
+        self,
+        ctx: AuthContext,
+        skill: Skill,
+        *,
+        description: str,
+        content: str,
+        files: Sequence[SkillBodyFile] | None,
+        merged_from_id: UUID,
+    ) -> SkillVersion:
+        """Make a fork's changes, merged with main, main's newest version.
+
+        `skill` is locked by the caller, which has checked main did not move since the
+        merge. `files` is the whole set main has afterwards; `None` keeps main's own.
+        """
+        return await self._replace_main(
+            ctx,
+            skill,
+            description=description,
+            content=content,
+            files=files,
+            source=SkillVersionSource.FROM_FORK,
+            merged_from_id=merged_from_id,
+            action="skill.fork_taken_in",
+        )
+
+    async def _replace_main(
+        self,
+        ctx: AuthContext,
+        skill: Skill,
+        *,
+        description: str,
+        content: str,
+        files: Sequence[SkillBodyFile] | None,
+        source: SkillVersionSource,
+        action: str,
+        restored_from_id: UUID | None = None,
+        merged_from_id: UUID | None = None,
+    ) -> SkillVersion:
+        if files is not None:
+            for resource in list(skill.resources):
+                await skill_repo.delete_resource(self.db, resource)
+            # See `remove_resource`: the loaded collection still holds the deleted rows.
+            self.db.expire(skill, ["resources"])
+            for item in files:
+                await skill_repo.create_resource(
+                    self.db,
+                    skill_id=skill.id,
+                    name=item.name,
+                    description=item.description,
+                    content=item.content,
+                )
         await skill_repo.update(
-            self.db,
-            skill=skill,
-            update_data={"description": earlier.description, "content": earlier.content},
+            self.db, skill=skill, update_data={"description": description, "content": content}
         )
         version = await self.versions.record_main(
-            ctx, skill, source=SkillVersionSource.RESTORE, restored_from_id=earlier.id
+            ctx,
+            skill,
+            source=source,
+            restored_from_id=restored_from_id,
+            merged_from_id=merged_from_id,
         )
         await self._changed(skill)
         await record_audit(
             self.db,
             actor_user_id=ctx.subject_id,
             organization_id=ctx.organization_id,
-            action="skill.restored",
+            action=action,
             target_type="skill",
             target_id=str(skill.id),
             details={"name": skill.name, "fork": None, "version": version.number},

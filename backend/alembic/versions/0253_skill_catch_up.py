@@ -13,7 +13,11 @@ A pinned agent catches up by a check on that one agent: `skill_checks.agent_id` 
 it, `candidate_version_id` the main version it would move to, and the source
 `catch_up` says so.
 
-**Downgrade** forgets which versions were merges - their source reads `edit` - and a
+A session catching a fork up, or moving it to main, keeps its three-way merge in
+`skill_merges`, one row per session: the three versions it merged and the parts. A
+catch-up also checks main's newest alone, in `main_alone_check_id` of its attempt.
+
+**Downgrade** drops the merges, forgets which versions were merges - their source reads `edit` - and a
 fork stays based where its last catch-up left it. A pinned agent's checks are
 deleted: the older schema has no way to say which agent one was for.
 
@@ -25,6 +29,7 @@ Create Date: 2026-11-03
 from collections.abc import Sequence
 
 import sqlalchemy as sa
+from sqlalchemy.dialects import postgresql
 
 from alembic import op
 
@@ -103,9 +108,120 @@ def upgrade() -> None:
     op.create_check_constraint(
         op.f(_CHECK_SOURCE), "skill_checks", f"source IN ({_CHECK_SOURCES}, 'catch_up')"
     )
+    _create_merges()
+    op.add_column(
+        "skill_improvement_iterations", sa.Column("main_alone_check_id", sa.UUID(), nullable=True)
+    )
+    op.create_foreign_key(
+        op.f("skill_improvement_iterations_main_alone_check_id_fkey"),
+        "skill_improvement_iterations",
+        "skill_checks",
+        ["main_alone_check_id"],
+        ["id"],
+        ondelete="SET NULL",
+    )
+    op.create_index(
+        op.f("skill_improvement_iterations_main_alone_check_id_idx"),
+        "skill_improvement_iterations",
+        ["main_alone_check_id"],
+        unique=False,
+    )
+
+
+def _create_merges() -> None:
+    def versions(column: str) -> sa.ForeignKeyConstraint:
+        return sa.ForeignKeyConstraint(
+            [column, "organization_id"],
+            ["skill_versions.id", "skill_versions.organization_id"],
+            name=op.f(f"skill_merges_{column}_fkey"),
+            ondelete="CASCADE",
+        )
+
+    op.create_table(
+        "skill_merges",
+        sa.Column("id", sa.UUID(), nullable=False),
+        sa.Column("organization_id", sa.UUID(), nullable=False),
+        sa.Column("skill_id", sa.UUID(), nullable=False),
+        sa.Column("fork_id", sa.UUID(), nullable=False),
+        sa.Column("run_id", sa.UUID(), nullable=False),
+        sa.Column("kind", sa.String(length=16), nullable=False),
+        sa.Column("base_version_id", sa.UUID(), nullable=False),
+        sa.Column("fork_version_id", sa.UUID(), nullable=False),
+        sa.Column("main_version_id", sa.UUID(), nullable=False),
+        sa.Column("description", postgresql.JSONB(astext_type=sa.Text()), nullable=False),
+        sa.Column("parts", postgresql.JSONB(astext_type=sa.Text()), nullable=False),
+        sa.Column("files", postgresql.JSONB(astext_type=sa.Text()), nullable=False),
+        sa.Column("conflicts", sa.Integer(), nullable=False),
+        sa.Column("unresolved", sa.Integer(), nullable=False),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
+        sa.Column("updated_at", sa.DateTime(timezone=True), nullable=True),
+        sa.CheckConstraint(
+            "kind IN ('catch_up', 'to_main')", name=op.f("skill_merges_ck_skill_merge_kind_check")
+        ),
+        sa.CheckConstraint(
+            "unresolved >= 0 AND conflicts >= 0",
+            name=op.f("skill_merges_ck_skill_merge_counts_check"),
+        ),
+        sa.ForeignKeyConstraint(
+            ["organization_id"],
+            ["organizations.id"],
+            name=op.f("skill_merges_organization_id_fkey"),
+            ondelete="CASCADE",
+        ),
+        sa.ForeignKeyConstraint(
+            ["skill_id", "organization_id"],
+            ["skills.id", "skills.organization_id"],
+            name=op.f("skill_merges_skill_id_fkey"),
+            ondelete="CASCADE",
+        ),
+        sa.ForeignKeyConstraint(
+            ["fork_id", "organization_id"],
+            ["skill_forks.id", "skill_forks.organization_id"],
+            name=op.f("skill_merges_fork_id_fkey"),
+            ondelete="CASCADE",
+        ),
+        sa.ForeignKeyConstraint(
+            ["run_id", "organization_id"],
+            ["skill_improvement_runs.id", "skill_improvement_runs.organization_id"],
+            name=op.f("skill_merges_run_id_fkey"),
+            ondelete="CASCADE",
+        ),
+        versions("base_version_id"),
+        versions("fork_version_id"),
+        versions("main_version_id"),
+        sa.PrimaryKeyConstraint("id", name=op.f("skill_merges_pkey")),
+        sa.UniqueConstraint("run_id", name="uq_skill_merges_run"),
+    )
+    op.create_index(
+        op.f("skill_merges_organization_id_idx"), "skill_merges", ["organization_id"], unique=False
+    )
+    for name, column in (
+        ("ix_skill_merges_skill", "skill_id"),
+        ("ix_skill_merges_fork", "fork_id"),
+        ("ix_skill_merges_base_version", "base_version_id"),
+        ("ix_skill_merges_fork_version", "fork_version_id"),
+        ("ix_skill_merges_main_version", "main_version_id"),
+    ):
+        op.create_index(name, "skill_merges", [column], unique=False)
 
 
 def downgrade() -> None:
+    op.drop_index(
+        op.f("skill_improvement_iterations_main_alone_check_id_idx"),
+        table_name="skill_improvement_iterations",
+    )
+    op.drop_constraint(
+        op.f("skill_improvement_iterations_main_alone_check_id_fkey"),
+        "skill_improvement_iterations",
+        type_="foreignkey",
+    )
+    op.drop_column("skill_improvement_iterations", "main_alone_check_id")
+    op.drop_table("skill_merges")
     op.execute("DELETE FROM skill_checks WHERE source = 'catch_up'")
     op.drop_constraint(op.f(_CHECK_SOURCE), "skill_checks", type_="check")
     op.create_check_constraint(op.f(_CHECK_SOURCE), "skill_checks", f"source IN ({_CHECK_SOURCES})")
