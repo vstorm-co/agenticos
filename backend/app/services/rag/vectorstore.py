@@ -25,6 +25,7 @@ from app.db.vector_tables import (
     VECTOR_KB_INDEX_SUFFIX,
     VECTOR_ORG_INDEX_SUFFIX,
     VECTOR_ORGUNIT_INDEX_SUFFIX,
+    VECTOR_PARENT_INDEX_SUFFIX,
     VECTOR_SOURCE_INDEX_SUFFIX,
     VECTOR_SOURCE_PATH_INDEX_SUFFIX,
     VECTOR_TABLE_PREFIX,
@@ -805,6 +806,19 @@ class PgVectorStore(BaseVectorStore):
                         f"ON {table} USING hash ((metadata->>'{key}'))"
                     )
                 )
+            # The document key `delete_document`, `get_document_chunks` and
+            # `get_chunks_around` filter by (#2552). Without it each was a scan of
+            # the caller's whole scope. A plain column btree, not a composite with
+            # the tenant or base: a document id names a handful of chunks, so the
+            # scope conjunct only rechecks those, and the base conjunct's
+            # `OR ... IS NULL` arm could not use a composite key anyway.
+            # `0252_index_rag_parent_doc_id` builds it on collections that predate it.
+            await session.execute(
+                text(
+                    f"CREATE INDEX IF NOT EXISTS {table}{VECTOR_PARENT_INDEX_SUFFIX} "
+                    f"ON {table} (parent_doc_id)"
+                )
+            )
             # The base key the scope narrows to (#2537). A btree rather than a hash:
             # the value is a UUID, so bounded, and one table usually holds a
             # handful of bases - a hash bucket of one value grows an overflow

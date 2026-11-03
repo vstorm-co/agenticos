@@ -24,6 +24,7 @@ from app.db.vector_tables import (
     VECTOR_FILENAME_INDEX_SUFFIX,
     VECTOR_KB_INDEX_SUFFIX,
     VECTOR_ORG_INDEX_SUFFIX,
+    VECTOR_PARENT_INDEX_SUFFIX,
     VECTOR_SOURCE_PATH_INDEX_SUFFIX,
     VectorScope,
 )
@@ -113,6 +114,10 @@ async def test_ensure_collection_builds_an_index_per_lookup_key(engine: AsyncEng
     # The base key the scope narrows to (#2537): a bounded UUID, few distinct
     # values per table, so a btree - which a hash bucket of one value is not.
     assert "USING btree" in defs[f"{TABLE}{VECTOR_KB_INDEX_SUFFIX}"]
+    # The document key `delete_document`, `get_document_chunks` and
+    # `get_chunks_around` filter by (#2552): bounded, near-unique per document,
+    # so a plain btree on the column.
+    assert defs[f"{TABLE}{VECTOR_PARENT_INDEX_SUFFIX}"].endswith("USING btree (parent_doc_id)")
 
 
 async def test_source_path_wins_and_returns_that_documents_own_hash(engine: AsyncEngine) -> None:
