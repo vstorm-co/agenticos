@@ -1,5 +1,5 @@
 ---
-source_sha: "144c85bc0b50"
+source_sha: "bac02e8be323"
 ---
 
 # Skills { #skills }
@@ -338,14 +338,6 @@ En un fork solo quedan seguir mejorando y descartar: fijar nombra una versión d
 main, y un fork nunca parte de otro fork. Una comprobación se niega a aplicar si
 la línea ya tiene una versión más nueva o un agent empezó a seguirla, porque no
 midió ninguna de las dos cosas.
-
-### Mejorar un skill { #improving-a-skill }
-
-**Improve** en la página del skill ejecuta esta comprobación dentro de una sesión
-que primero encuentra qué falla en el skill y propone el cambio, una línea cada
-vez: main o un fork. Avanza paso a paso como el [Improve](authoring.md#improving-a-skill)
-de un agent, y su resultado ofrece las mismas opciones; **Seguir mejorando** lo
-intenta de nuevo con una nota en palabras de la persona.
 
 ## Versiones y forks { #versions-and-forks }
 

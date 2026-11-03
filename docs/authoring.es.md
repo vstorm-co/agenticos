@@ -1,5 +1,5 @@
 ---
-source_sha: "8e7eb3e36810"
+source_sha: "3896636926cf"
 title: "Asistente de autoría"
 description: "El asistente de autoría lee lo que la gente valoró negativamente y cómo acabaron los runs, y sugiere cambios a las instrucciones, las herramientas, la configuración, los skills y los archivos de contexto de un agent. Una persona decide cada uno."
 ---
@@ -525,39 +525,12 @@ La estimación reserva el contenido completo propuesto para cada respuesta candi
 
 ### Mejorar un skill { #improving-a-skill }
 
-Un skill que leen varios agents se mejora desde su propia página, con **Improve**.
-Una sesión mejora una línea del skill, main o un fork, en el mismo asistente que la
-de un agent. Tiene los mismos cinco pasos, las mismas paradas tras **Comprender**,
-tras **Cambios** y en el resultado, **Next step** con su precio, **Try again** con
-una nota y la misma caducidad de siete días.
-
-- **Comprender** lee solo respuestas en las que un agent abrió una versión de esta
-  línea del skill, de cada agent de la línea, y separa las malas en problemas del
-  skill y problemas que no son del skill, como las instrucciones de un agent o el
-  conocimiento que falta. Cada problema nombra los agents en los que aparece.
-- **Cambios** propone ediciones de partes del cuerpo del skill y como mucho un
-  cambio de su descripción, nunca sus archivos. Cada una se puede elegir,
-  reformular o dejar fuera, como en un agent.
-- **Comprobación** es una [comprobación en cada agent de la línea](skills.md#checking-a-change-on-every-agent),
-  con la parte de cada agent cargada a su propio budget.
-- **Resultado** muestra cada agent como mejor, sin cambios, dentro del ruido, peor
-  o desconocido, según [la regla](skills.md#the-rule).
-- **Aceptar** aplica el cambio, lo aplica fijando los agents que empeoraron o crea
-  un fork para los agents a los que ayudó, según lo que permita el resultado.
-  Antes de eso ningún agent lee nada nuevo.
-
-Si la línea avanza mientras la sesión espera, su siguiente comprobación mide los
-cambios elegidos en la línea tal como está ahora, y un paso con precio anterior al
-avance se vuelve a calcular. Un resultado cuya línea avanzó se comprueba de nuevo
-antes de aplicar nada.
-
-El Improve de un agent le pasa los problemas que pertenecen a un skill, como
-describe [Cuando el fallo está en un skill](#when-the-fault-is-in-a-skill). Las
-sesiones de skills que esperan a una persona aparecen en
-**Improvements waiting for you**. El [Architect](#asking-the-architect) lee los
-agents, las versiones y las sesiones de un skill. Inicia una sesión, ejecuta un
-paso, acepta un resultado, termina una sesión o mueve un agent a otra versión solo
-cuando se lo pides, cada vez mediante una tarjeta de aprobación.
+Un skill que leen varios agents se mejora desde su propia página, una línea cada
+vez, como describe [Mejorar un skill](skills.md#improving-a-skill). El
+[Architect](#asking-the-architect) lee los agents, las versiones y las sesiones de
+un skill. Inicia una sesión, ejecuta un paso, acepta un resultado, termina una
+sesión o mueve un agent a otra versión solo cuando se lo pides, cada vez mediante
+una tarjeta de aprobación.
 
 ### Cuando el fallo está en un skill { #when-the-fault-is-in-a-skill }
 

@@ -496,34 +496,8 @@ The estimate reserves the full proposed body for each candidate answer and its c
 
 ### Improving a skill { #improving-a-skill }
 
-A skill that several agents read is improved from its own page, with **Improve**.
-A session improves one line of the skill, main or one fork, in the same wizard as
-an agent's. It has the same five steps, the same stops after Understand, after
-Changes and at the result, **Next step** with its price, **Try again** with a note,
-and the same seven-day expiry.
-
-- **Understand** reads only answers in which an agent opened a version of this
-  line of the skill, from every agent on the line, and sorts the bad ones into
-  problems in the skill and problems that are not the skill's, such as an agent's
-  instructions or missing knowledge. Each problem names the agents it occurs in.
-- **Changes** proposes edits to parts of the skill's body and at most one change
-  to its description, never its files. Each can be chosen, reworded or left out,
-  as for an agent.
-- **Check** is a [check on every agent of the line](skills.md#checking-a-change-on-every-agent),
-  each agent's share billed to its own budget.
-- **Result** shows each agent as better, no change, within noise, worse or
-  unknown, judged by [the rule](skills.md#the-rule).
-- **Accept** applies the change, applies it with the worse agents pinned, or makes
-  a fork for the agents it helped, as the result allows. No agent reads anything
-  new before that.
-
-If the line moves on while the session waits, its next check measures the chosen
-changes on the line as it is now, and a step priced before the move is priced
-again. A result whose line moved is checked again before anything is applied.
-
-An agent's own Improve hands it problems that belong to a skill, as
-[When the fault is in a skill](#when-the-fault-is-in-a-skill) describes. Skill
-sessions waiting for a person are listed in **Improvements waiting for you**. The
+A skill that several agents read is improved from its own page, one line at a
+time, as [Improving a skill](skills.md#improving-a-skill) describes. The
 [Architect](#asking-the-architect) reads a skill's agents, versions and sessions.
 It starts a session, runs a step, accepts a result, ends a session or moves an
 agent to another version only when you ask, each through an approval card.

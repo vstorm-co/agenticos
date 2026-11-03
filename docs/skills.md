@@ -315,14 +315,6 @@ version, and a fork never starts from another fork. A check refuses to apply
 once the line has a newer version, or an agent started following it, since it
 measured neither.
 
-### Improving a skill { #improving-a-skill }
-
-**Improve** on the skill page runs this check inside a session that first finds
-what is wrong with the skill and proposes the change, one line at a time: main or
-one fork. It goes step by step like an agent's
-[Improve](authoring.md#improving-a-skill), and its result offers the same
-choices, with **Improve further** trying again from a note in the person's words.
-
 ## Versions and forks
 
 Every saved change to a skill makes a new version, and a version is never changed
@@ -613,7 +605,7 @@ same as its base until it is edited.
 forks. While agents use it, the dialog names them and offers no delete: move each
 to another skill, or remove the skill from it in the Builder, first.
 
-### Improving a skill
+### Improving a skill { #improving-a-skill }
 
 **Improve** on a skill's page opens a session for the line on screen - main, or the
 fork picked in the chips - in the same five steps as [improving an agent](authoring.md#the-improve-wizard):

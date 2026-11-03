@@ -1,5 +1,5 @@
 ---
-source_sha: "144c85bc0b50"
+source_sha: "bac02e8be323"
 ---
 
 # Skille { #skills }
@@ -327,14 +327,6 @@ Na forku zostają tylko dalsze ulepszanie i odrzucenie: przypięcie wskazuje
 wersję main, a fork nigdy nie zaczyna się od innego forka. Sprawdzenie odmawia
 zastosowania, gdy linia ma już nowszą wersję albo zaczął za nią podążać nowy
 agent, bo nie zmierzyło żadnego z nich.
-
-### Ulepszanie skilla { #improving-a-skill }
-
-**Popraw** na stronie skilla uruchamia to sprawdzenie w sesji, która najpierw
-znajduje, co jest nie tak ze skillem, i proponuje zmianę, jedną linię naraz: main
-albo jeden fork. Przechodzi krok po kroku jak [Popraw](authoring.md#improving-a-skill)
-agenta, a jej wynik daje te same wybory, a **Popraw dalej** próbuje ponownie z
-notatką własnymi słowami osoby.
 
 ## Wersje i forki { #versions-and-forks }
 

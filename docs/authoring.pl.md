@@ -1,5 +1,5 @@
 ---
-source_sha: "8e7eb3e36810"
+source_sha: "3896636926cf"
 title: "Asystent tworzenia"
 description: "Asystent tworzenia czyta, co ludzie ocenili negatywnie i jak kończyły się runy, i sugeruje zmiany w instrukcjach agenta, jego narzędziach, konfiguracji, skillach i plikach kontekstowych. O każdej decyduje człowiek."
 ---
@@ -512,36 +512,8 @@ Szacowany koszt uwzględnia pełną proponowaną treść dla każdej odpowiedzi 
 
 ### Ulepszanie skilla { #improving-a-skill }
 
-Skill czytany przez kilku agentów ulepsza się z jego własnej strony, przyciskiem
-**Popraw**. Sesja ulepsza jedną linię skilla, main albo jeden fork, w tym samym
-kreatorze co sesja agenta. Ma te same pięć kroków, te same postoje po
-**Zrozumieniu**, po **Zmianach** i na wyniku, **Następny krok** z ceną,
-**Spróbuj ponownie** z notatką i to samo wygaśnięcie po siedmiu dniach.
-
-- **Zrozumienie** czyta tylko odpowiedzi, w których agent otworzył wersję tej
-  linii skilla, od każdego agenta na tej linii, i dzieli złe odpowiedzi na
-  problemy w skillu i problemy, które nie są winą skilla, na przykład instrukcje
-  agenta albo brakującą wiedzę. Każdy problem wymienia agentów, u których
-  występuje.
-- **Zmiany** proponują edycje fragmentów treści skilla i najwyżej jedną zmianę
-  jego opisu, nigdy jego plików. Każdą można wybrać, przeredagować albo pominąć,
-  tak jak u agenta.
-- **Sprawdzenie** to [sprawdzenie na każdym agencie linii](skills.md#checking-a-change-on-every-agent),
-  a część kosztu każdego agenta idzie z jego własnego budżetu.
-- **Wynik** pokazuje każdego agenta jako lepszego, bez zmian, w granicach szumu,
-  gorszego albo nieznanego, według [reguły](skills.md#the-rule).
-- **Akceptacja** stosuje zmianę, stosuje ją z przypięciem gorszych agentów albo
-  robi fork dla agentów, którym pomogła, zależnie od tego, na co pozwala wynik. Do
-  tego momentu żaden agent nie czyta niczego nowego.
-
-Jeśli linia pójdzie dalej, gdy sesja czeka, jej następne sprawdzenie mierzy
-wybrane zmiany na linii w obecnym stanie, a krok wyceniony przed tą zmianą jest
-wyceniany ponownie. Wynik, którego linia poszła dalej, jest sprawdzany ponownie,
-zanim cokolwiek zostanie zastosowane.
-
-Popraw agenta przekazuje problemy należące do skilla, jak opisuje
-[Gdy błąd jest w skillu](#when-the-fault-is-in-a-skill). Sesje skilli czekające na
-człowieka są na karcie **Poprawki czekające na Ciebie**.
+Skill czytany przez kilku agentów ulepsza się z jego własnej strony, jedną linię
+naraz, jak opisuje [Poprawianie skilla](skills.md#improving-a-skill).
 [Architekt](#asking-the-architect) czyta agentów skilla, jego wersje i sesje.
 Zaczyna sesję, uruchamia krok, akceptuje wynik, kończy sesję albo przesuwa agenta
 na inną wersję tylko na Twoją prośbę, każde przez kartę akceptacji.

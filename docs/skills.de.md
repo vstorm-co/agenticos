@@ -1,5 +1,5 @@
 ---
-source_sha: "144c85bc0b50"
+source_sha: "bac02e8be323"
 ---
 
 # Skills { #skills }
@@ -352,15 +352,6 @@ Auf einem Fork bleiben nur Weiterverbessern und Verwerfen: Ein Festsetzen nennt
 eine main-Version, und ein Fork beginnt nie bei einem anderen Fork. Eine Prüfung
 verweigert das Anwenden, sobald die Linie eine neuere Version hat oder ein Agent
 ihr zu folgen begonnen hat, denn sie hat keines von beiden gemessen.
-
-### Einen Skill verbessern { #improving-a-skill }
-
-**Verbessern** auf der Seite des Skills führt diese Prüfung in einer Sitzung aus,
-die zuerst findet, was am Skill falsch ist, und die Änderung vorschlägt, eine
-Linie auf einmal: main oder einen Fork. Sie läuft Schritt für Schritt wie das
-[Verbessern](authoring.md#improving-a-skill) eines Agents, und ihr Ergebnis bietet
-dieselben Wahlmöglichkeiten; **Weiter verbessern** versucht es erneut mit einer
-Notiz in den Worten der Person.
 
 ## Versionen und Forks { #versions-and-forks }
 
