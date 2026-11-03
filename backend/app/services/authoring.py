@@ -263,8 +263,8 @@ class AuthoringService:
             )
 
     async def _editable(self, ctx: AuthContext, agent_id: UUID) -> Agent:
-        self._require_runs_view(ctx)
         agent = await self.registry.get(ctx, agent_id, perm=Perm.AGENTS_EDIT)
+        self._require_runs_view(ctx)
         # Its runs are all eval runs, which the assistant never reads as evidence.
         refuse_system_agent(agent, action="the authoring assistant's suggestions")
         if agent.status == AgentStatus.ARCHIVED.value:
