@@ -108,6 +108,7 @@ from app.services.background_jobs import enqueue
 from app.services.dataset import DatasetService
 from app.services.eval_run import EvalRunService
 from app.services.improvement_states import CheckResult
+from app.services.notifications import NotificationService
 from app.services.skill_agents import LineAgent, SkillAgentService
 from app.services.skill_versions import SkillVersionService, manifest_of
 
@@ -679,15 +680,15 @@ class SkillCheckService:
         )
         if check is None or check.status != CheckStatus.RUNNING.value:
             return
+        if check.created_at < datetime.now(UTC) - STALE_AFTER:
+            await self._expire(check)
+            return
         ctx = await job_context(
             self.db,
             organization_id=organization_id,
             user_id=check.created_by_user_id,
             api_key_id=None,
         )
-        if check.created_at < datetime.now(UTC) - STALE_AFTER:
-            await self._expire(check, ctx)
-            return
         rows = await skill_check_repo.list_agents(
             self.db, [check.id], organization_id=organization_id
         )
@@ -820,9 +821,13 @@ class SkillCheckService:
             )
         return len(found)
 
-    async def _expire(self, check: SkillCheck, ctx: AuthContext | None) -> None:
-        """End a check whose agents never settled: their runs are stopped where the starter
-        may still stop them, the agents are unknown, and the check is decided on."""
+    async def _expire(self, check: SkillCheck) -> None:
+        """End a check whose agents never settled: their runs are stopped, the agents are
+        unknown, and the check is decided on.
+
+        The platform ends its own runs here, so whether the starter may still read or
+        stop them does not matter - a check stuck on that is the loop expiry ends.
+        """
         unsettled = [
             row
             for row in await skill_check_repo.list_agents(
@@ -830,8 +835,17 @@ class SkillCheckService:
             )
             if not AgentState(row.state).settled
         ]
-        if ctx is not None:
-            await self._stop_runs(ctx, unsettled)
+        now = datetime.now(UTC)
+        for row in unsettled:
+            for run_id in (row.skill_set_run_id, row.dataset_run_id):
+                if run_id is not None and await eval_run_repo.cancel_live(
+                    self.db, run_id, organization_id=check.organization_id, now=now
+                ):
+                    run = await eval_run_repo.get(
+                        self.db, run_id, organization_id=check.organization_id
+                    )
+                    assert run is not None, "a run just closed is there"
+                    await NotificationService(self.db).eval_run_finished(run)
         for row in unsettled:
             await self._unknown(row, UnknownReason.FAILED)
         await self._settle(check)

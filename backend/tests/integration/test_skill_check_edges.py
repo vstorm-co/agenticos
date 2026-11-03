@@ -19,7 +19,7 @@ from app.core.exceptions import (
     ConcurrentChangeError,
     NotFoundError,
 )
-from app.core.permissions import Perm
+from app.core.permissions import OrgRoleName, Perm
 from app.db.models.agent_run import AgentRun
 from app.db.models.background_job import BackgroundJob
 from app.db.models.eval_run import (
@@ -30,6 +30,7 @@ from app.db.models.eval_run import (
     EvalRunCase,
     EvalRunStatus,
 )
+from app.db.models.organization import OrganizationMember
 from app.db.models.skill_check import (
     AgentState,
     CheckSource,
@@ -56,6 +57,7 @@ from app.schemas.skill_usage import SkillUseRecord
 from app.schemas.skill_version import SkillVersionCreate
 from app.services import skill_check as skill_check_module
 from app.services.dataset import DatasetService
+from app.services.notifications import NotificationService
 from app.services.skill_check import SkillCheckService
 from app.services.skill_proposal import SkillProposalService
 from app.services.skill_versions import SkillVersionService
@@ -353,7 +355,7 @@ class TestRunning:
         stale.created_at = stale.created_at - timedelta(days=2)
         await db.flush()
 
-        async def fail(_self, _check, _ctx):
+        async def fail(_self, _check):
             raise RuntimeError("cannot settle")
 
         monkeypatch.setattr(SkillCheckService, "_expire", fail)
@@ -412,6 +414,30 @@ class TestRunning:
 
         assert listed.total == 2
         assert {item.id for item in listed.items} == {first.id, second.id}
+
+
+def _record(into: list[object]):
+    async def record(_self, run):
+        into.append(run)
+
+    return record
+
+
+async def _live_runs(db: AsyncSession, check_id: uuid.UUID) -> list[str]:
+    """The statuses of a check's eval runs that are still going, read from the table."""
+    rows = await db.execute(
+        select(EvalRun.status)
+        .join(
+            SkillCheckAgent,
+            (SkillCheckAgent.skill_set_run_id == EvalRun.id)
+            | (SkillCheckAgent.dataset_run_id == EvalRun.id),
+        )
+        .where(
+            SkillCheckAgent.check_id == check_id,
+            EvalRun.status.in_([EvalRunStatus.QUEUED.value, EvalRunStatus.RUNNING.value]),
+        )
+    )
+    return list(rows.scalars())
 
 
 def _without(get, gone: uuid.UUID):
@@ -673,23 +699,36 @@ class TestWhatTheCheckMeasuredIsWhatShips:
         with pytest.raises(ConcurrentChangeError, match="decided elsewhere"):
             await service.fork(lab.ctx, lab.skill.id, check.id, SkillCheckFork(name="x"))
 
-    async def test_a_stale_check_whose_starter_is_gone_still_ends(self, db, monkeypatch):
+    async def test_a_stale_check_whose_starter_lost_sight_of_the_runs_still_ends(
+        self, db, monkeypatch
+    ):
+        """Ending a stale check is the platform stopping its own runs; a starter who may
+        no longer read them cannot keep the check running."""
         lab = await _lab(db)
-        evals = FakeEvals()
-        evals.install(monkeypatch)
+        FakeEvals().install(monkeypatch)
+        finished: list[object] = []
+        monkeypatch.setattr(NotificationService, "eval_run_finished", _record(finished))
         service = SkillCheckService(db)
         check = await service.start(lab.ctx, lab.skill.id, _start())
         row = await skill_check_repo.get(db, check.id, organization_id=lab.ctx.organization_id)
         assert row is not None
         row.created_at = row.created_at - timedelta(days=2)
-        row.created_by_user_id = None
+        member = await db.scalar(
+            select(OrganizationMember).where(
+                OrganizationMember.organization_id == lab.ctx.organization_id,
+                OrganizationMember.user_id == lab.ctx.user_id,
+            )
+        )
+        assert member is not None
+        member.role = OrgRoleName.VIEWER.value
         await db.flush()
 
         await service.advance(check.id, lab.ctx.organization_id)
 
         read = await service.read(lab.ctx, lab.skill.id, check.id)
         assert read.status is CheckStatus.DONE
-        assert {run.status for run in evals.runs.values()} == {EvalRunStatus.RUNNING.value}
+        assert await _live_runs(db, check.id) == []
+        assert len(finished) == 3
 
     async def test_a_check_running_for_a_day_is_ended_when_it_is_next_advanced(
         self, db, monkeypatch
@@ -710,7 +749,7 @@ class TestWhatTheCheckMeasuredIsWhatShips:
         assert read.status is CheckStatus.DONE
         reasons = {item.agent.name: item.unknown_reason for item in read.agents}
         assert reasons == {"A": "failed", "B": "failed", "C": "failed"}
-        assert {run.status for run in evals.runs.values()} == {EvalRunStatus.CANCELLED.value}
+        assert await _live_runs(db, check.id) == []
 
     async def test_a_file_replaced_on_main_keeps_its_description_as_it_would_ship(
         self, db, monkeypatch
