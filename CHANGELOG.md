@@ -26,6 +26,7 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Keep existing workspaces visible after starting the local runtime, repair incomplete macOS runtime installations and verify Docker Inc's signing identity before requesting installer elevation.
 - Remember native coding-agent startup consent per agent, folder, adapter version and connection; revoke it with folder/account access and stop affected agents. Preserve local grants on reconnect, avoid repeated credential probes on focus, hide background Windows console windows, wait for HTTP readiness and refuse remote Docker contexts or platform downgrades during local setup.
 
 - Prepare the local runtime from the macOS setup wizard and restart saved local workspaces when the desktop app opens. Pull public product images with a private anonymous configuration to avoid credential-helper and keychain prompts, and pass Docker helper paths to subprocesses launched from Finder.

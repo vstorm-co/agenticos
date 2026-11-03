@@ -173,6 +173,33 @@ it("starts an installed runtime and continues without a manual status check", as
   expect(invoke).toHaveBeenCalledWith("open_docker");
 });
 
+it("keeps saved instances visible after preparing the runtime", async () => {
+  invoke.mockImplementation(async (command) => {
+    if (command === "local_status") return "ready";
+    if (command === "local_instances")
+      return [
+        {
+          id: "work",
+          name: "Work",
+          url: "http://localhost:3001/",
+          installed: true,
+          running: false,
+        },
+      ];
+    return undefined;
+  });
+  invoke.mockResolvedValueOnce("docker_stopped");
+  const { refresh } = mount();
+  await refresh();
+  await refresh.prepare();
+  expect(invoke).toHaveBeenCalledWith("download_docker");
+  expect(screen.getByRole("heading", { name: "AgenticOS on this computer" })).toBeVisible();
+  expect(screen.getByRole("button", { name: "Start and connect" })).toBeVisible();
+  expect(
+    screen.queryByRole("heading", { name: "Create a local instance" }),
+  ).not.toBeInTheDocument();
+});
+
 it("refuses duplicate preparation and restores a retry after cancellation", async () => {
   invoke.mockResolvedValueOnce("no_docker");
   const { refresh } = mount();

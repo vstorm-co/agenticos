@@ -180,7 +180,8 @@ export function localComputerStep(root, invoke, report) {
       if (request !== generation || root.hidden) return;
       if (typeof status !== "string" || !Object.hasOwn(VIEWS, status))
         throw new Error("The app could not read this computer's status.");
-      void refreshInstances(request);
+      await refreshInstances(request);
+      if (request !== generation || root.hidden) return;
       const view = VIEWS[status];
       card.dataset.state = status;
       title.textContent = view.title;
@@ -210,7 +211,12 @@ export function localComputerStep(root, invoke, report) {
     try {
       await invoke(action === "docker" ? "download_docker" : "open_docker");
       await refresh();
-      if (card.dataset.state === "ready") showForm(null);
+      if (
+        card.dataset.state === "ready" &&
+        instances.length === 0 &&
+        instanceError.hidden
+      )
+        showForm(null);
       else if (card.dataset.state === "no_docker") {
         message.textContent =
           "Complete the runtime installation, then choose Check again to continue.";

@@ -118,7 +118,8 @@ during setup and returns with the console, following its saved visibility settin
 
 Choose **Set up this computer** to prepare the local runtime. AgenticOS downloads
 Docker Desktop 4.97.0 for your processor and verifies its pinned SHA-256 checksum.
-macOS checks the installer with Gatekeeper and requests system authorization.
+macOS checks the installer with Gatekeeper, verifies Docker Inc's signing identity
+and requests system authorization.
 Windows runs the signed installer; missing WSL features are prepared with system
 authorization. Restart Windows when requested and reopen AgenticOS to continue.
 x86-64 Ubuntu, Debian and Fedora use their system package installer. Complete

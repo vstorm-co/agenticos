@@ -1,5 +1,5 @@
 ---
-source_sha: "281c133720dc"
+source_sha: "f8b0ccd7e54f"
 ---
 
 # La app de escritorio { #the-desktop-app }
@@ -125,7 +125,8 @@ de visibilidad guardada.
 
 Elige **Set up this computer** para preparar el entorno local. AgenticOS descarga
 Docker Desktop 4.97.0 para tu procesador y verifica su suma SHA-256 fijada. macOS
-comprueba el instalador con Gatekeeper y solicita autorización del sistema.
+comprueba el instalador con Gatekeeper, verifica la identidad de firma de Docker
+Inc y solicita autorización del sistema.
 Windows ejecuta el instalador firmado y prepara las funciones WSL que falten con
 autorización del sistema. Si Windows solicita reiniciarse, vuelve a abrir AgenticOS
 para continuar. Ubuntu, Debian y Fedora en x86-64 usan el instalador de paquetes

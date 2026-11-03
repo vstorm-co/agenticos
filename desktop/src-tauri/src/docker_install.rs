@@ -214,6 +214,14 @@ pub async fn open_docker(_app: AppHandle) -> Result<(), String> {
 #[cfg(all(test, target_os = "macos"))]
 mod tests {
     use super::*;
+    #[tokio::test]
+    async fn an_apple_signed_program_is_not_a_docker_installer() {
+        assert!(
+            system_command(verify_signer(Path::new("/usr/bin/true")), "verify Docker signature")
+                .await
+                .is_err()
+        );
+    }
     #[test]
     fn installer_redirects_stay_on_the_official_tls_host() {
         assert!(allowed_redirect(
@@ -303,6 +311,15 @@ fn installer_script(installer: &std::path::Path) -> String {
 }
 
 #[cfg(target_os = "macos")]
+fn verify_signer(bundle: &Path) -> tokio::process::Command {
+    let mut command = tokio::process::Command::new("/usr/bin/codesign");
+    command
+        .args(["--verify", "--deep", "--strict", "--test-requirement", "=anchor apple generic and identifier \"com.docker.docker\" and certificate leaf[subject.OU] = \"9BNSXJN65R\""])
+        .arg(bundle);
+    command
+}
+
+#[cfg(target_os = "macos")]
 async fn install_macos(app: &AppHandle, image: &std::path::Path) -> Result<(), String> {
     let mount = app
         .path()
@@ -325,6 +342,7 @@ async fn install_macos(app: &AppHandle, image: &std::path::Path) -> Result<(), S
         let mut assess = tokio::process::Command::new("/usr/sbin/spctl");
         assess.args(["--assess", "--type", "execute"]).arg(&bundle);
         system_command(assess, "verify the local runtime installer").await?;
+        system_command(verify_signer(&bundle), "verify Docker Inc's installer signature").await?;
         let mut install = tokio::process::Command::new("/usr/bin/osascript");
         install
             .arg("-e")

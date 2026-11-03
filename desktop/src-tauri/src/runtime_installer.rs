@@ -289,9 +289,22 @@ async fn install_windows(path: &Path) -> Result<Outcome, String> {
     }
 }
 
+#[cfg(target_os = "macos")]
+fn mac_bundle_complete(bundle: &std::path::Path) -> bool {
+    use std::os::unix::fs::PermissionsExt;
+    ["Contents/Resources/bin/docker", "Contents/MacOS/install"]
+        .into_iter()
+        .all(|path| {
+            bundle
+                .join(path)
+                .metadata()
+                .is_ok_and(|meta| meta.is_file() && meta.len() > 0 && meta.permissions().mode() & 0o111 != 0)
+        })
+}
+
 pub fn installed() -> bool {
     #[cfg(target_os = "macos")]
-    return crate::docker_runtime::desktop_app().is_some();
+    return crate::docker_runtime::desktop_app().is_some_and(|bundle| mac_bundle_complete(&bundle));
     #[cfg(target_os = "windows")]
     return [
         std::env::var_os("LOCALAPPDATA")
@@ -308,6 +321,24 @@ pub fn installed() -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn incomplete_bundles_do_not_prevent_a_repair_installation() {
+        use std::os::unix::fs::PermissionsExt;
+        let bundle = std::env::temp_dir().join(format!("agenticos-incomplete-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&bundle).unwrap();
+        assert!(!mac_bundle_complete(&bundle));
+        for name in ["Contents/Resources/bin/docker", "Contents/MacOS/install"] {
+            let path = bundle.join(name);
+            std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+            std::fs::write(&path, "binary").unwrap();
+            std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o700)).unwrap();
+        }
+        assert!(mac_bundle_complete(&bundle));
+        std::fs::write(bundle.join("Contents/Resources/bin/docker"), "").unwrap();
+        assert!(!mac_bundle_complete(&bundle));
+        std::fs::remove_dir_all(bundle).unwrap();
+    }
     #[test]
     fn platform_packages_have_exact_versions_and_checksums() {
         for (os, arch, distro, kind) in [
