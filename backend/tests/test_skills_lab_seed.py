@@ -20,6 +20,7 @@ from typing import Any
 import httpx
 import pytest
 
+from app.schemas.scoring import TextCheck
 from app.services.scorers import ScoredAnswer, run_checks
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -40,6 +41,7 @@ seed = _load()
 
 STORE_CREDIT = "Without a receipt we can offer you store credit only, not a refund to your card."
 REFUND = "Your order number counts as proof of purchase, so we will refund it to your original payment method."
+REFUSED = "Without a receipt we cannot take it back at all."
 OWNER = {"email": "owner@skills.test", "password": "not-a-real-password"}
 PROVIDER_KEY = "sk-or-not-a-real-key"
 
@@ -71,11 +73,31 @@ class TestTheData:
 
     def test_the_wordings_differ_in_rule_two_alone(self) -> None:
         base = seed.skill_body("v1").splitlines()
-        for variant in ("broad", "narrow"):
+        for variant in ("broad", "narrow", "gift"):
             other = seed.skill_body(variant).splitlines()
             assert len(other) == len(base)
             differing = [line for line, theirs in zip(base, other) if line != theirs]
             assert differing == [seed.RULE_TWO["v1"]]
+
+    def test_the_gift_wording_names_goods_only_the_counters_rule_questions_ask_about(
+        self,
+    ) -> None:
+        def names_them(question: str) -> bool:
+            return any(goods in question.lower() for goods in seed.GIFT_GOODS)
+
+        assert all(goods in seed.RULE_TWO["gift"] for goods in seed.GIFT_GOODS)
+        assert seed.RULE_TWO["gift"].startswith(seed.RULE_TWO["narrow"])
+        assert sum(names_them(case.question) for case in seed.COUNTER_RULE) == 7
+        others = [
+            case.question for plan in seed.AGENTS if plan.key != "B" for case in plan.cases
+        ] + [case.question for case in (*seed.SKILL_SET, *seed.COUNTER_STORE)]
+        assert not [question for question in others if names_them(question)]
+
+    def test_every_check_the_seed_writes_is_one_the_api_accepts(self) -> None:
+        cases = [case for plan in seed.AGENTS for case in plan.cases] + list(seed.SKILL_SET)
+        for case in cases:
+            for check in case.checks:
+                TextCheck.model_validate(check)
 
     def test_no_agent_is_told_about_the_skill(self) -> None:
         for plan in seed.AGENTS:
@@ -199,6 +221,46 @@ class TestTheWordingThatBreaksB:
         answers = self.ANSWERS[variant]
         assert sum(_passes(case, answers["A"]) for case in seed.ONLINE_RULE) == online
         assert sum(_passes(case, answers["B"]) for case in seed.COUNTER_RULE) == counter
+
+    def test_gift_fails_the_counter_where_it_refuses_and_leaves_every_other_answer_as_narrow(
+        self,
+    ) -> None:
+        def counter(question: str) -> str:
+            refused = any(goods in question.lower() for goods in seed.GIFT_GOODS)
+            return REFUSED if refused else STORE_CREDIT
+
+        assert sum(_passes(case, counter(case.question)) for case in seed.COUNTER_RULE) == 1
+        assert sum(_passes(case, STORE_CREDIT) for case in seed.SKILL_SET_CREDITED) == 4
+        assert sum(_passes(case, REFUND) for case in seed.SKILL_SET_REFUNDED) == 4
+        assert sum(_passes(case, REFUND) for case in seed.ONLINE_RULE) == 8
+
+    @pytest.mark.parametrize(
+        ("answer", "credited"),
+        [
+            ("You cannot return it for a cash refund, but you can get store credit.", True),
+            ("Without a receipt we can offer you store credit only.", True),
+            ("We cannot refund it to your card, but store credit is available.", True),
+            ("We won't be able to accept a return or offer store credit for it.", False),
+            ("We are unable to process a return or store credit for this item.", False),
+            ("Unfortunately, no store credit or refund can be offered.", False),
+            ("We cannot offer store credit for this item.", False),
+            ("Store credit is unavailable without a receipt.", False),
+            ("We are unable to accept the return or even offer store credit.", False),
+            ("You would not be eligible for store credit.", False),
+            ("We can't give you store credit without a receipt.", False),
+        ],
+    )
+    def test_store_credit_passes_only_when_it_is_offered(self, answer: str, credited: bool) -> None:
+        assert _passes(seed.COUNTER_RULE[0], answer) is credited
+
+    def test_a_counter_answer_calling_its_goods_final_sale_fails_where_the_skills_own_passes(
+        self,
+    ) -> None:
+        answer = "A picture frame is not final sale, so you can get store credit for it."
+        assert not _passes(seed.COUNTER_RULE[0], answer)
+        assert _passes(seed.SKILL_SET_CREDITED[0], answer)
+        assert seed.FINAL_SALE in seed.RULE_TWO["gift"]
+        assert all(seed.FINAL_SALE not in seed.RULE_TWO[v] for v in ("v1", "broad", "narrow"))
 
     def test_a_refund_that_also_mentions_store_credit_does_not_pass_for_the_online_desk(
         self,

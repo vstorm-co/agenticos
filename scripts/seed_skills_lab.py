@@ -29,7 +29,10 @@ Rule 2 is the one the journey changes. A's customers have an order number and
 no receipt, so v1's "store credit only" is what A's people rate down, and A
 fails half its questions. The obvious fix, `broad`, drops the receipt rule: it
 fixes A and breaks B, whose shop has no order numbers. `narrow` counts an order
-number as a receipt and fixes A without touching B. `--probe` measures one
+number as a receipt and fixes A without touching B. Both change how every desk
+treats the skill's own questions; `gift` is `narrow` plus one sentence that only
+the counter's questions ask about - the goods it sells cannot be returned without
+a receipt - so it fixes A and C and breaks B alone. `--probe` measures one
 wording on A's, B's and C's questions and the skill's own, in an organization
 of its own, so that claim is checked on a real model before a phase relies on
 it.
@@ -73,8 +76,8 @@ from websockets.exceptions import WebSocketException
 from websockets.sync.client import connect
 from websockets.typing import Subprotocol
 
-Variant = Literal["v1", "broad", "narrow"]
-VARIANTS: tuple[Variant, ...] = ("v1", "broad", "narrow")
+Variant = Literal["v1", "broad", "narrow", "gift"]
+VARIANTS: tuple[Variant, ...] = ("v1", "broad", "narrow", "gift")
 AgentKey = Literal["A", "B", "C", "D", "E", "F", "G", "H", "I"]
 
 ORG_NAME = "Skills lab"
@@ -116,6 +119,18 @@ RULE_TWO: dict[Variant, str] = {
         "credit only - never a cash or card refund."
     ),
 }
+
+GIFT_GOODS = ("candle", "mug", "vase", "scarf", "teddy bear", "notebook", "earrings")
+"""What the counter sells, named in seven of its eight rule questions and in no other
+desk's question nor the skill's own."""
+
+FINAL_SALE = "final sale"
+
+RULE_TWO["gift"] = (
+    RULE_TWO["narrow"]
+    + " Without a receipt, a candle, mug, vase, scarf, teddy bear, notebook or pair of "
+    f"earrings is {FINAL_SALE}: it cannot be returned at all."
+)
 
 
 MAIN_VERSIONS = 3
@@ -179,7 +194,19 @@ def _regex(pattern: str) -> Check:
 
 
 REFUNDED = (_regex(r"(?i)refund"), Check(type="not_contains", value="store credit"))
-CREDITED = (_regex(r"(?i)store credit"),)
+STORE_CREDIT_DENIED = (
+    r"(?:\bno|\bor(?: even)?(?: (?:offer|give|provide|issue))?"
+    r"|\b(?:can(?:'t| ?not)|(?:un|not )able to|(?:won't|will not)(?: be able to)?|don't|do not)"
+    r"(?: even)?(?: (?:offer|give|provide|issue|process))?(?: you)?(?: any)?"
+    r"|\bnot(?: be)? eligible for(?: any)?) store credit"
+    r"|store credit (?:is |are )?(?:unavailable|not (?:available|possible|an option|offered))"
+    r"|store credit (?:isn't|is not|can(?:'t| ?not) be|won't be) "
+    r"(?:available|offered|given|issued|possible|an option)"
+)
+"""The ways an answer names store credit only to deny it."""
+
+CREDITED = (_regex(r"(?i)store credit"), _regex(rf"(?i)^(?![\s\S]*(?:{STORE_CREDIT_DENIED}))"))
+"""Store credit offered: named, and not only to say there is none."""
 
 GENERAL = (
     Case(
@@ -229,7 +256,7 @@ ONLINE_RULE = tuple(
 )
 
 COUNTER_RULE = tuple(
-    Case(question, CREDITED)
+    Case(question, (*CREDITED, Check(type="not_contains", value=FINAL_SALE)))
     for question in (
         "I lost the receipt for a scented candle I bought here 6 days ago. Can I return it?",
         "I bought a mug 10 days ago but threw away the receipt. What can you do?",
@@ -1431,11 +1458,12 @@ def probe(
     """Measure the main line's desks with rule 2 worded as `variant`, in an organization of its own.
 
     The skill is main's newest text with that wording, and each desk in `PROBED` answers its
-    own questions and the skill's. Against `v1`, `broad` should cost B at least five of its
-    eight rule questions and `narrow` at most one, while both win A its eight back; on the
-    skill's questions `broad` fails the ones with no order number and `narrow` passes both
-    groups. So the answer counts questions passed per group, not a pass rate over all of
-    them. Fork and version labels are not read: the probe has neither.
+    own questions and the skill's. Against `v1`, `broad` and `gift` should cost B at least
+    five of its eight rule questions and `narrow` at most one, while all three win A its
+    eight back; on the skill's questions `broad` fails the ones with no order number, and
+    `narrow` and `gift` pass both groups. So the answer counts questions passed per group,
+    not a pass rate over all of them. Fork and version labels are not read: the probe has
+    neither.
     """
     report = Report()
     me = str(api.call("GET", "/users/me")["id"])
