@@ -1,5 +1,5 @@
 ---
-source_sha: "2f3bbfa1aea6"
+source_sha: "5a19b1da6d71"
 ---
 
 # Skille { #skills }
@@ -731,9 +731,10 @@ kiedy sesja czeka na Changes, krok jest wyceniany ponownie: Następny krok spraw
 zmiany na najnowszej wersji.
 
 [Architekt](console.md#the-assistant) czyta agentów skilla, jego wersje i sesje.
-Zaczyna sesję, uruchamia albo ponawia krok, akceptuje wynik, kończy sesję albo
-przesuwa agenta na inną wersję tylko na Twoją prośbę, każde przez kartę
-akceptacji.
+Widzi też agentów przypiętych i forki, które main wyprzedził. Zaczyna sesję,
+uruchamia albo ponawia krok, akceptuje wynik, kończy sesję, przesuwa agenta na
+inną wersję albo nadgania przypiętego agenta lub fork do main tylko na Twoją
+prośbę, każde przez kartę akceptacji.
 
 ## Skille czy wiedza? { #skills-or-knowledge }
 

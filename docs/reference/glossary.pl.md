@@ -1,5 +1,5 @@
 ---
-source_sha: "525439bc4593"
+source_sha: "b37ba36230db"
 ---
 
 # Słownik { #glossary }
@@ -28,6 +28,7 @@ skrypt napisany pod nie nie przestał działać po zmianie nazwy.
 | Przypięty | Agent, który zostaje przy jednej wersji main skilla, dopóki ktoś go nie przesunie | `state: pinned` |
 | Fork | Nazwana linia skilla, zaczęta od wersji main, z własnymi wersjami dla niektórych agentów | `skill_fork`, `state: fork` |
 | Za main | Ile wersji main nie przyjął przypięty agent albo fork | `behind_main` |
+| Nadganianie | Przeniesienie przypiętego agenta albo forka na najnowszą wersję main; tylko na prośbę i po sprawdzeniu | `/skills/behind-main` |
 | Kontekst | Stała wiedza, którą agent zawsze ma, np. słownik albo polityka | `context` |
 | Baza wiedzy | Dokumenty, które agent przeszukuje i cytuje | `collection` |
 | Luka w wiedzy | Temat pytań, na które baza wiedzy nie znała odpowiedzi, pogrupowanych według znaczenia; Popraw liczy je jako **Braki w bazie wiedzy** | `knowledge_gap_topic` |

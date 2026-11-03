@@ -1,5 +1,5 @@
 ---
-source_sha: "2f3bbfa1aea6"
+source_sha: "5a19b1da6d71"
 ---
 
 # Skills { #skills }
@@ -752,9 +752,10 @@ calcular el precio: el siguiente paso comprueba los cambios en la versión más
 reciente.
 
 El [Architect](console.md#the-assistant) lee los agents, las versiones y las
-sesiones de un skill. Inicia una sesión, ejecuta o reintenta un paso, acepta un
-resultado, termina una sesión o mueve un agent a otra versión solo cuando se lo
-pides, cada vez mediante una tarjeta de aprobación.
+sesiones de un skill, y los agents fijados y los forks que main ha dejado atrás.
+Inicia una sesión, ejecuta o reintenta un paso, acepta un resultado, termina una
+sesión, mueve un agent a otra versión o pone al día un agent fijado o un fork con
+main solo cuando se lo pides, cada vez mediante una tarjeta de aprobación.
 
 ## ¿Skills o conocimiento? { #skills-or-knowledge }
 
