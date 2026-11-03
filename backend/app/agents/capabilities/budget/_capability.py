@@ -180,6 +180,11 @@ def _price_lookups(model_name: str, provider: str | None) -> list[tuple[str, str
         lookups += [(name, vendor) for name in dict.fromkeys((bare, bare.replace(".", "-")))]
     elif provider == "openrouter":
         lookups.append((model_name, "openai"))
+    # OpenRouter adds a release suffix and calls the upstream vendor `mistralai`.
+    # Resolve this published embedding id to the snapshot entry, without guessing
+    # prices for other dated models.
+    if model_name == "mistralai/mistral-embed-2312":
+        lookups.append(("mistral-embed", "mistral"))
     return lookups if provider else lookups[1:]
 
 
