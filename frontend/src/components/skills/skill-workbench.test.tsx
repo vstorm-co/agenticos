@@ -15,9 +15,6 @@ const skillHooks = vi.hoisted(() => ({
   loaded: { resource: undefined as { content: string } | undefined, isLoading: false },
 }));
 
-vi.mock("@/components/authoring/improve-skill-button", () => ({
-  ImproveSkillButton: () => <button>Improve with the assistant</button>,
-}));
 vi.mock("@/hooks", () => ({
   useSkill: () => skillHooks,
   useSkillResource: () => skillHooks.loaded,
@@ -112,8 +109,6 @@ describe("SkillWorkbench", () => {
   it("keeps a fork's files and category read-only, since they are main's", async () => {
     renderWorkbench({ fork: true });
     expect(screen.queryByRole("button", { name: /New/ })).not.toBeInTheDocument();
-    // Improve reads and proposes for main, so a fork's editor leaves it out.
-    expect(screen.queryByRole("button", { name: "Improve with the assistant" })).toBeNull();
     expect(screen.getByLabelText("Category")).toHaveAttribute("readonly");
     await userEvent.type(await content(), "!");
     expect(save()).toBeEnabled();

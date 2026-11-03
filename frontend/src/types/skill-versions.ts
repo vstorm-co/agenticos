@@ -6,6 +6,8 @@
  * main version, or uses a fork: a named line started from one main version.
  */
 
+import type { AgentCheckState } from "./skill-checks";
+
 export type SkillVersionSource =
   "backfill" | "created" | "edit" | "resources" | "library" | "workspace" | "improve" | "restore";
 
@@ -108,6 +110,19 @@ export interface SkillAgentUsage {
   can_change: boolean;
   /** Whether the change also goes live, as a new published version of the agent. */
   can_publish: boolean;
+  /** The newest check of the version it serves now, as it found this agent; null if never checked. */
+  checked?: AgentCheckRef | null;
+  /** Every version a check made after measuring it on this agent, newest check first. */
+  checked_versions?: AgentCheckRef[];
+}
+
+/** What a check found on one agent, for the version that check made. */
+export interface AgentCheckRef {
+  check_id: string;
+  version_id: string;
+  state: AgentCheckState;
+  sample: "own_questions" | "skill_set_only" | null;
+  at: string;
 }
 
 export interface SkillAgentList {

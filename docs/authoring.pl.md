@@ -1,5 +1,5 @@
 ---
-source_sha: "d2584012e735"
+source_sha: "8e4806fb4039"
 title: "Asystent tworzenia"
 description: "Asystent tworzenia czyta, co ludzie ocenili negatywnie i jak kończyły się runy, i sugeruje zmiany w instrukcjach agenta, jego narzędziach, konfiguracji, skillach i plikach kontekstowych. O każdej decyduje człowiek."
 ---
@@ -22,8 +22,9 @@ Robi trzy rzeczy:
 - **Sprawdza** Twoje zmiany: porównuje wersję roboczą z wersją, na której się
   opiera - najnowszą opublikowaną - na tych samych dowodach i mówi, co zmiany
   poprawiają, czym ryzykują i co usunęły.
-- **Ulepsza skill** albo **plik kontekstowy**: sugeruje nową treść na podstawie
-  runów, które go czytały.
+- **Ulepsza plik kontekstowy**: sugeruje nową treść na podstawie runów, które go
+  czytały. Skill poprawia się krok po kroku na jego własnej stronie - zobacz
+  [Poprawianie skilla](skills.md#improving-a-skill).
 
 Asystent jest osobnym [agentem systemowym](concepts.md#system-agents), widocznym
 razem z pozostałymi agentami systemowymi organizacji. Administrator edytuje jego
@@ -246,9 +247,10 @@ ponownie.
 
 ## Skille { #skills }
 
-Skill ulepsza się z jego workbencha w zakładce Skille. Asystent sugeruje całą
-nową treść, która czeka razem z innymi zmianami [skilli](skills.md) w zakładce
-Skille, z uzasadnieniem i dowodami.
+Skill poprawia się na jego własnej stronie w zakładce Skille. **Popraw** otwiera
+tam sesję dla linii widocznej na ekranie, w tych samych pięciu krokach co dla
+agenta, i sprawdza zmianę na każdym agencie tej linii, zanim cokolwiek zostanie
+zastosowane - zobacz [Poprawianie skilla](skills.md#improving-a-skill).
 
 Zastosowanie zmiany skilla działa od razu: każdy agent podążający za linią
 skilla czyta nową treść przy następnym runie. Dlatego zmiana skilla trafia na
@@ -319,9 +321,9 @@ agenta.
 ## Gdy wsparcie AI jest wyłączone { #when-ai-assistance-is-off }
 
 Gdy przełącznik **wsparcia AI** organizacji jest wyłączony, asystent nie działa:
-Ulepsz, Sprawdź i ulepszanie skilla albo pliku kontekstowego są odrzucane przez
-serwer, a konsola
-pokazuje je jako wyłączone z linkiem do przełącznika. Sugestie, które już
+Ulepsz, Sprawdź i ulepszanie pliku kontekstowego są odrzucane przez serwer, a
+konsola pokazuje je jako wyłączone z linkiem do przełącznika. Sesja poprawiania
+skilla zatrzymuje się przed swoim następnym krokiem. Sugestie, które już
 czekają, nadal można przyjmować, odrzucać i cofać, a run ewaluacji, który nie
 potrzebuje sędziego, nadal działa.
 

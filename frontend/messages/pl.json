@@ -3178,7 +3178,9 @@
           "changes": "Przejrzyj zmiany",
           "result": "Przejrzyj wynik",
           "blocked": "Zablokowane: zakończ i zacznij nową"
-        }
+        },
+        "skill": "{name} · {kind, select, main {main} other {fork „{line}”}}",
+        "partial": "{failed, select, skills {Nie udało się odczytać sesji skilli.} other {Nie udało się odczytać sesji agentów.}}"
       }
     },
     "edit": {
@@ -5249,10 +5251,6 @@
         "title": "Zmiany",
         "body": "Zmiany napisane przez pomocnika. Sesja zatrzymuje się tu: zaznacz te do przetestowania i popraw sformułowania, zanim zostaną przetestowane."
       },
-      "improvement-skill-handoffs": {
-        "title": "Należy do skilla",
-        "body": "Problemy, które pomocnik znalazł w jednym ze skilli agenta. Skill jest współdzielony, więc poprawia się go osobno i sprawdza na każdym agencie, który go czyta."
-      },
       "flow-improvement-changes": {
         "title": "Zmiany",
         "body": "Zmiany napisane przez pomocnika. Sesja zatrzymuje się tu: zaznacz te do przetestowania i popraw sformułowania, zanim zostaną przetestowane."
@@ -5296,6 +5294,34 @@
       "skill-tree": {
         "title": "Main i jego forki",
         "body": "Main biegnie w dół od najnowszej wersji, każdy fork odchodzi od wersji, od której wystartował, a agenci stoją przy wersji, której używają."
+      },
+      "skill-improve": {
+        "title": "Popraw skill",
+        "body": "Otwiera sesję krok po kroku dla widocznej linii: main albo wybranego forka. Nic się nie zmienia, dopóki nie zaakceptujesz wyniku."
+      },
+      "skill-improvement-start": {
+        "title": "Na kim jest sprawdzany",
+        "body": "Każdy agent linii jest wymieniony, zanim cokolwiek zostanie wydane, ci, których nie da się sprawdzić, z powodem, a cena przychodzi z limitem, który ustawiasz."
+      },
+      "skill-improvement-steps": {
+        "title": "Tych samych pięć kroków",
+        "body": "Zrozumienie, Zmiany, Sprawdzenie, Wynik i Akceptacja, jak w poprawianiu agenta. Sesja zatrzymuje się dla Ciebie po Zrozumieniu, po Zmianach i przy wyniku."
+      },
+      "skill-improvement-agents": {
+        "title": "Wynik dla każdego agenta",
+        "body": "Każdy agent linii wypada lepiej, bez zmian, w granicach szumu, gorzej albo nie wiadomo, najgorsi na górze, z tym, co naprawił i zepsuł, i linkiem do runu."
+      },
+      "skill-improvement-accept": {
+        "title": "Co możesz z tym zrobić",
+        "body": "Zastosuj, gdy nikt nie wypadł gorzej. Gdy ktoś wypadł: zostaw go na jego wersji, zrób fork dla agentów, którym pomogło, popraw dalej albo odrzuć."
+      },
+      "skill-improvement-test-set": {
+        "title": "Własne pytania skilla",
+        "body": "Agenci bez pytań testowych wychodzą jako nie wiadomo. Własne pytania skilla, zapisane z odpowiedzi, w których był wczytany, pozwolą ich sprawdzić następnym razem."
+      },
+      "improvement-skill-handoffs": {
+        "title": "Należy do skilla",
+        "body": "Problemy, które pomocnik znalazł w jednym ze skilli agenta. Skill jest współdzielony, więc poprawia się go osobno i sprawdza na każdym agencie, który go czyta."
       },
       "skill-new-fork": {
         "title": "Fork dla agentów, którzy się różnią",
@@ -8119,49 +8145,6 @@
     "bodyPlaceholder": "# Zwroty\n\nUżyj tego, gdy klient prosi o zwrot pieniędzy.\n\n## Kroki\n\n1. Sprawdź datę zamówienia.\n2. W ciągu 14 dni zwróć bez pytania.\n3. Później poproś człowieka o zatwierdzenie.",
     "whoCanUseIt": "Kto może z tego korzystać",
     "expectedEffect": "Oczekiwany efekt:",
-    "checkOnAgents": "Sprawdź na agentach",
-    "checkChangeTo": "Sprawdź zmianę w {name} na agentach, które go używają",
-    "check": {
-      "title": "Sprawdź tę zmianę na każdym agencie, który używa skilla",
-      "description": "Każdy agent odpowiada na swoje pytania ze skillem w obecnej wersji i z tą zmianą. Nic się nie zmienia, dopóki nie zdecydujesz.",
-      "price": "Najpewniej ${expected}, najwyżej ${most}. Część każdego agenta idzie z jego budżetu.",
-      "start": "Uruchom sprawdzenie",
-      "running": "Trwa sprawdzanie. To zajmie kilka minut; możesz zamknąć okno i wrócić później.",
-      "asked": "{count, plural, one {Zadano 1 pytanie} few {Zadano # pytania} many {Zadano # pytań} other {Zadano # pytania}}",
-      "skillSetOnly": "Sprawdzono tylko na pytaniach skilla: żadne pytanie tego agenta nie otworzyło skilla.",
-      "hidden": "{count, plural, one {Tego skilla używa jeszcze 1 agent, którego nie widzisz.} few {Tego skilla używa jeszcze # agentów, których nie widzisz.} many {Tego skilla używa jeszcze # agentów, których nie widzisz.} other {Tego skilla używa jeszcze # agenta, którego nie widzisz.}}",
-      "noisy": "Część wyników mieści się w szumie: sprawdzenie zobaczyło różnicę, której nie mogło potwierdzić.",
-      "forkLine": "Ta zmiana dotyczy forka, którego nie da się przypiąć ani znowu sforkować. Popraw ją dalej albo odrzuć.",
-      "acknowledge": "Rozumiem, że części agentów nie dało się sprawdzić.",
-      "discard": "Odrzuć",
-      "apply": "Zastosuj",
-      "applyAndPin": "Zastosuj i zostaw gorszych agentów na ich wersji",
-      "reason": {
-        "no_questions": "Nie sprawdzono: nie ma pytań do zadania.",
-        "no_access": "Nie sprawdzono: nie możesz uruchomić tego agenta.",
-        "no_budget": "Nie sprawdzono: jego budżet nie pokryje sprawdzenia.",
-        "no_published_version": "Nie sprawdzono: nie ma opublikowanej wersji.",
-        "inconclusive": "Nie sprawdzono: nie udało się ocenić każdej odpowiedzi.",
-        "failed": "Nie sprawdzono: jego run się nie powiódł."
-      },
-      "state": {
-        "queued": "Czeka",
-        "running": "W toku",
-        "better": "Lepiej",
-        "no_change": "Bez zmian",
-        "within_noise": "W granicach szumu",
-        "worse": "Gorzej",
-        "unknown": "Nie wiadomo"
-      },
-      "verdict": {
-        "passed": "Żaden agent nie jest gorszy, a co najmniej jeden jest lepszy.",
-        "needs_ack": "Żaden sprawdzony agent nie jest gorszy, ale części nie dało się sprawdzić.",
-        "blocked": "Któryś agent jest gorszy. Nadal możesz zastosować zmianę i zostawić go na wersji, której używa teraz.",
-        "no_better": "Żaden agent nie jest lepszy, więc nie ma czego zastosować."
-      },
-      "unaffordable": "Budżet organizacji na ten miesiąc nie pokryje tego sprawdzenia.",
-      "cancel": "Zatrzymaj sprawdzenie"
-    },
     "page": {
       "skills": "Skille",
       "mainVersion": "v{number} na main",
@@ -8199,7 +8182,9 @@
         "environment": "{name}: {binding}",
         "draftDiffers": "Jego draft używa innej wersji.",
         "emptyFork": "Żaden agent nie używa jeszcze forka „{name}”. Przenieś na niego agenta przez Zmień wersję.",
-        "emptyShown": "Brak agentów w tym widoku."
+        "emptyShown": "Brak agentów w tym widoku.",
+        "checked": "Sprawdzony na tej wersji {when}: {state}",
+        "notChecked": "Nie wiadomo: żadne sprawdzenie nie zmierzyło na nim tej wersji"
       },
       "changeVersion": {
         "button": "Zmień wersję",
@@ -8226,7 +8211,9 @@
         "forkVersion": "{name} v{number}",
         "pinDetail": "{source} · {who} · {when}",
         "leavesMain": "{name} zostaje na tej wersji i przestaje dostawać nowe wersje main.",
-        "leavesMainFork": "{name} przestaje dostawać nowe wersje main.{behind, plural, =0 {} one { Fork „{fork}” jest 1 wersję za main, więc nie ma tej zmiany.} few { Fork „{fork}” jest # wersje za main, więc nie ma ich zmian.} many { Fork „{fork}” jest # wersji za main, więc nie ma ich zmian.} other { Fork „{fork}” jest # wersji za main, więc nie ma ich zmian.}}"
+        "leavesMainFork": "{name} przestaje dostawać nowe wersje main.{behind, plural, =0 {} one { Fork „{fork}” jest 1 wersję za main, więc nie ma tej zmiany.} few { Fork „{fork}” jest # wersje za main, więc nie ma ich zmian.} many { Fork „{fork}” jest # wersji za main, więc nie ma ich zmian.} other { Fork „{fork}” jest # wersji za main, więc nie ma ich zmian.}}",
+        "checkedOn": "{version} sprawdzono na agencie {name} {when}: {state}.",
+        "checksUnseen": "Nie widzisz, czy {version} sprawdzono na agencie {name}. Jego odpowiedzi mogą się zmienić."
       },
       "history": {
         "title": "Historia: {line}",
@@ -8290,8 +8277,21 @@
         "forkFiles": "Do forka należą tylko opis i instrukcje. Jego pliki pochodzą z wersji main, od której wystartował, a pliki edytuje się na main.",
         "noBase": "Ten skill nie ma jeszcze zapisanej wersji, na której można zapisać zmianę. Odśwież stronę i spróbuj ponownie.",
         "retryFork": "Wczytaj fork ponownie",
-        "savedFork": "Zapisano jako {name} v{number}."
+        "savedFork": "Zapisano jako {name} v{number}.",
+        "version": "v{number}",
+        "forkVersion": "{name} v{number}",
+        "confirm": {
+          "title": "Zapisać {version}?",
+          "nobody": "Żaden agent nie podąża jeszcze za tą linią, więc odpowiedzi żadnego agenta się nie zmienią.",
+          "reaches": "{count, plural, one {Trafi do 1 agenta przy jego następnym runie} few {Trafi do # agentów przy ich następnym runie} many {Trafi do # agentów przy ich następnym runie} other {Trafi do # agenta przy ich następnym runie}}{named, select, yes {, wśród nich: {names}} other {}}.",
+          "checkHint": "Zapis teraz nie sprawdza zmiany na nich. Opcja „Najpierw sprawdź na agentach” uruchamia pytania każdego agenta z nowym tekstem i stosuje go na podstawie wyniku.",
+          "back": "Wróć do edycji",
+          "check": "Najpierw sprawdź na agentach",
+          "save": "Zapisz teraz"
+        }
       },
+      "improve": "Popraw",
+      "improveFork": "Popraw fork „{name}”",
       "newFork": {
         "button": "Nowy fork",
         "title": "Nowy fork skilla {name}",
@@ -8326,6 +8326,51 @@
         "agent": "{loads, plural, one {otwarty raz} few {otwarty # razy} many {otwarty # razy} other {otwarty # razy}}{files, plural, =0 {} one { · przeczytany 1 plik} few { · przeczytane # pliki} many { · przeczytanych # plików} other { · przeczytano # pliku}}{seen, select, yes { · ostatnio {last}} other {}}",
         "hidden": "{count, plural, one {1 agent, którego nie widzisz,} few {# agentów, których nie widzisz,} many {# agentów, których nie widzisz,} other {# agenta, którego nie widzisz,}} {count, plural, one {otworzył} other {otworzyło}} go {loads, plural, one {raz} few {# razy} many {# razy} other {# razy}}."
       }
+    },
+    "checkOnAgents": "Sprawdź na agentach",
+    "checkChangeTo": "Sprawdź zmianę w {name} na agentach, które go używają",
+    "check": {
+      "title": "Sprawdź tę zmianę na każdym agencie, który używa skilla",
+      "description": "Każdy agent odpowiada na swoje pytania ze skillem w obecnej wersji i z tą zmianą. Nic się nie zmienia, dopóki nie zdecydujesz.",
+      "price": "Najpewniej ${expected}, najwyżej ${most}. Część każdego agenta idzie z jego budżetu.",
+      "start": "Uruchom sprawdzenie",
+      "running": "Trwa sprawdzanie. To zajmie kilka minut; możesz zamknąć okno i wrócić później.",
+      "asked": "{count, plural, one {Zadano 1 pytanie} few {Zadano # pytania} many {Zadano # pytań} other {Zadano # pytania}}",
+      "skillSetOnly": "Sprawdzono tylko na pytaniach skilla: żadne pytanie tego agenta nie otworzyło skilla.",
+      "hidden": "{count, plural, one {Tego skilla używa jeszcze 1 agent, którego nie widzisz.} few {Tego skilla używa jeszcze # agentów, których nie widzisz.} many {Tego skilla używa jeszcze # agentów, których nie widzisz.} other {Tego skilla używa jeszcze # agenta, którego nie widzisz.}}",
+      "noisy": "Część wyników mieści się w szumie: sprawdzenie zobaczyło różnicę, której nie mogło potwierdzić.",
+      "forkLine": "Ta zmiana dotyczy forka, którego nie da się przypiąć ani znowu sforkować. Popraw ją dalej albo odrzuć.",
+      "acknowledge": "Rozumiem, że części agentów nie dało się sprawdzić.",
+      "discard": "Odrzuć",
+      "apply": "Zastosuj",
+      "applyAndPin": "Zastosuj i zostaw gorszych agentów na ich wersji",
+      "reason": {
+        "no_questions": "Nie sprawdzono: nie ma pytań do zadania.",
+        "no_access": "Nie sprawdzono: nie możesz uruchomić tego agenta.",
+        "no_budget": "Nie sprawdzono: jego budżet nie pokryje sprawdzenia.",
+        "no_published_version": "Nie sprawdzono: nie ma opublikowanej wersji.",
+        "inconclusive": "Nie sprawdzono: nie udało się ocenić każdej odpowiedzi.",
+        "failed": "Nie sprawdzono: jego run się nie powiódł."
+      },
+      "state": {
+        "queued": "Czeka",
+        "running": "W toku",
+        "better": "Lepiej",
+        "no_change": "Bez zmian",
+        "within_noise": "W granicach szumu",
+        "worse": "Gorzej",
+        "unknown": "Nie wiadomo"
+      },
+      "verdict": {
+        "passed": "Żaden agent nie jest gorszy, a co najmniej jeden jest lepszy.",
+        "needs_ack": "Żaden sprawdzony agent nie jest gorszy, ale części nie dało się sprawdzić.",
+        "blocked": "Któryś agent jest gorszy. Nadal możesz zastosować zmianę i zostawić go na wersji, której używa teraz.",
+        "no_better": "Żaden agent nie jest lepszy, więc nie ma czego zastosować."
+      },
+      "unaffordable": "Budżet organizacji na ten miesiąc nie pokryje tego sprawdzenia.",
+      "cancel": "Zatrzymaj sprawdzenie",
+      "inSession": "To sprawdzenie należy do sesji poprawiania, więc decyzja zapada w niej.",
+      "openSession": "Otwórz sesję"
     },
     "savedMainVersion": "Zapisano jako nową wersję main. Agenci na main czytają ją od następnego uruchomienia; przypięci agenci i forki zostają przy swoich.",
     "instructions": "Instrukcje"
@@ -14182,9 +14227,6 @@
       "askAdmin": "Poproś administratora o włączenie."
     },
     "skill": {
-      "improve": "Ulepsz z asystentem",
-      "working": "Czytam runy…",
-      "aiOff": "Wsparcie AI jest wyłączone w tej organizacji",
       "check": "Sprawdź w ewaluacji"
     },
     "context": {
@@ -15092,7 +15134,8 @@
       "hintSingle": "W razie potrzeby popraw brzmienie. Następny krok jest wyceniany, zanim go naciśniesz.",
       "saveWordingFirst": "Najpierw zapisz albo odrzuć nowe brzmienie.",
       "unmeasurable": "Tej próby nie da się przetestować: po pominięciu pytań, z których pochodzą jej przykłady, potrzeba jeszcze {count, plural, one {# odłożonego pytania} few {# odłożonych pytań} many {# odłożonych pytań} other {# odłożonego pytania}}. Ta sesja zachowuje pytania, z którymi wystartowała, więc dodanie nowych jej nie pomoże: zakończ sesję, dodaj pytania i zacznij nową.",
-      "likely": "Najpewniej ok. {cost}: wyższa kwota dotyczy tylko sytuacji, gdy odpowiedzi trzeba zadać ponownie."
+      "likely": "Najpewniej ok. {cost}: wyższa kwota dotyczy tylko sytuacji, gdy odpowiedzi trzeba zadać ponownie.",
+      "lineMoved": "Linia skilla dostała w międzyczasie nowszą wersję, więc krok wyceniono na niej ponownie: do {cost}. Naciśnij jeszcze raz, aby przejść dalej."
     },
     "waitingFor": {
       "understand": "Czeka na Ciebie: zobacz, co poszło nie tak",
@@ -15185,5 +15228,108 @@
     "movedOn": "Te zmiany powstały na wersji {base}; dataset ma już wersję {latest}.",
     "showChanges": "Pokaż zmiany",
     "caseGone": "Tego przypadku nie ma już w datasecie, więc jego niezapisane zmiany odrzucono."
+  },
+  "skillImprovement": {
+    "title": "Popraw {name}",
+    "skills": "Skille",
+    "heading": "Popraw",
+    "permission": "Poprawianie skilla wymaga prawa do jego edycji i do odczytu runów.",
+    "openSkill": "Otwórz skill",
+    "line": "Linia: {line}",
+    "checkWaiting": "Sprawdzenie na agentach linii jeszcze się nie zaczęło.",
+    "checkTitle": "Sprawdzanie każdego agenta",
+    "resultTitle": "Jak wypadł każdy agent",
+    "toAccept": "Zdecyduj, co dalej",
+    "acceptClosed": "Ta sesja jest zamknięta. Jej wynik zostaje tu do wglądu.",
+    "agents": {
+      "hidden": "{count, plural, =0 {} one {Sprawdzono jeszcze # agenta, którego nie widzisz.} few {Sprawdzono jeszcze # agentów, których nie widzisz.} many {Sprawdzono jeszcze # agentów, których nie widzisz.} other {Sprawdzono jeszcze # agenta, którego nie widzisz.}}{unknown, plural, =0 {} one { # z nich nie dało się sprawdzić.} few { # z nich nie dało się sprawdzić.} many { # z nich nie dało się sprawdzić.} other { # z nich nie dało się sprawdzić.}}",
+      "viaSpecialist": "Przez specjalistę {name}",
+      "state": {
+        "queued": "Czeka",
+        "running": "Sprawdzanie",
+        "better": "Lepiej",
+        "no_change": "Bez zmian",
+        "within_noise": "W granicach szumu",
+        "worse": "Gorzej",
+        "unknown": "Nie wiadomo"
+      },
+      "fixedBroken": "{fixed, plural, one {Naprawia # pytanie} few {Naprawia # pytania} many {Naprawia # pytań} other {Naprawia # pytania}}, {broken, plural, one {psuje #} few {psuje #} many {psuje #} other {psuje #}}.",
+      "unknown": {
+        "no_questions": "Nie sprawdzono: nie ma pytań testowych tam, gdzie wczytał skill, a skill nie ma własnych.",
+        "no_access": "Nie sprawdzono: nie możesz uruchamiać tego agenta.",
+        "no_budget": "Nie sprawdzono: jego budget jest wyczerpany.",
+        "no_published_version": "Nie sprawdzono: nie ma opublikowanej wersji.",
+        "failed": "Nie sprawdzono: sprawdzenie się nie powiodło.",
+        "inconclusive": "Nie sprawdzono: run nie ocenił wszystkich odpowiedzi. Sprawdź ponownie."
+      },
+      "skillSetOnly": "Sprawdzony tylko na pytaniach skilla: nie miał własnych tam, gdzie wczytał skill.",
+      "stage": {
+        "skill_set": "Run na pytaniach skilla",
+        "dataset_sample": "{named, select, yes {Run na próbce {name}} other {Run na próbce pytań agenta}}",
+        "dataset": "{named, select, yes {Run na {name}} other {Run na pytaniach agenta}}"
+      }
+    },
+    "testSet": {
+      "has": "{count, plural, one {Skill ma # pytanie testowe} few {Skill ma # pytania testowe} many {Skill ma # pytań testowych} other {Skill ma # pytania testowego}}",
+      "add": "Dodaj pytania testowe",
+      "addHint": "Powstają z odpowiedzi, w których agenci wczytali skill, więc następnym razem da się sprawdzić agenta bez własnych pytań."
+    },
+    "accept": {
+      "title": "Akceptacja",
+      "verdict": {
+        "passed": "Żaden agent nie wypadł gorzej, a przynajmniej jeden lepiej.",
+        "blocked": "Przynajmniej jeden agent wypadł gorzej. Zmianę można zastosować tylko, zostawiając tych agentów na ich wersji, zrobić z nią fork dla agentów, którym pomogła, albo dalej ją poprawiać.",
+        "no_better": "Żaden agent nie wypadł lepiej, więc nie ma czego zastosować.",
+        "needs_ack": "Żaden agent nie wypadł gorzej, a przynajmniej jeden lepiej, ale części agentów nie dało się sprawdzić."
+      },
+      "warning": {
+        "within_noise": "U części agentów zmiana mieści się w szumie testu: różnica może być przypadkiem."
+      },
+      "forkLineOnly": "Na forku agentów, którzy wypadli gorzej, nie da się przypiąć ani zrobić dla nich kolejnego forka: popraw zmianę dalej albo ją odrzuć.",
+      "acknowledge": "{count, plural, one {Wiem, że # agenta nie dało się sprawdzić{named, select, yes { ({names})} other {}}, a i tak dostanie zmianę.} few {Wiem, że # agentów nie dało się sprawdzić{named, select, yes { ({names})} other {}}, a i tak dostaną zmianę.} many {Wiem, że # agentów nie dało się sprawdzić{named, select, yes { ({names})} other {}}, a i tak dostaną zmianę.} other {Wiem, że # agenta nie dało się sprawdzić{named, select, yes { ({names})} other {}}, a i tak dostaną zmianę.}}",
+      "apply": "Zastosuj jako następną wersję: {line}",
+      "applyAndPin": "Zastosuj i zostaw {names} na obecnej wersji",
+      "forkName": "Nazwa nowego forka",
+      "forkForHelped": "Zrób fork z tą zmianą dla {names}"
+    },
+    "start": {
+      "title": "Zacznij poprawianie",
+      "openSession": "Ta linia ma już otwartą sesję.",
+      "continue": "Kontynuuj ją",
+      "hidden": "{count, plural, one {Tej linii używa jeszcze # agent, którego nie widzisz.} few {Tej linii używa jeszcze # agentów, których nie widzisz.} many {Tej linii używa jeszcze # agentów, których nie widzisz.} other {Tej linii używa jeszcze # agenta, którego nie widzisz.}}",
+      "price": "Do pierwszej propozycji kosztuje około {cost}; każda próba około {perRound}, najwyżej {rounds, plural, one {# próba} few {# próby} many {# prób} other {# próby}}.",
+      "limit": "Limit wydatków na całą sesję (USD)",
+      "unaffordable": "Budget organizacji tego nie pokrywa.",
+      "start": "Zacznij",
+      "reads": "{runs, plural, one {Czyta # odpowiedź} few {Czyta # odpowiedzi} many {Czyta # odpowiedzi} other {Czyta # odpowiedzi}}, w których wczytano wersje tej linii, {agents, plural, one {od # agenta} few {od # agentów} many {od # agentów} other {od # agenta}}.",
+      "usageUnknown": "{count, plural, one {# odpowiedź jest sprzed zapisywania wczytań skilli i nie jest czytana.} few {# odpowiedzi są sprzed zapisywania wczytań skilli i nie są czytane.} many {# odpowiedzi jest sprzed zapisywania wczytań skilli i nie są czytane.} other {# odpowiedzi jest sprzed zapisywania wczytań skilli i nie są czytane.}}",
+      "checkNamedLater": "Zanim zmiany zostaną sprawdzone, każdy agent, na którym ruszą, jest wymieniony, a ci, na których nie mogą, z powodem.",
+      "noEvidence": "Nie ma źle ocenionych ani nieudanych odpowiedzi, w których wczytano tę linię, więc na razie nie ma się z czego uczyć."
+    },
+    "understand": {
+      "title": "Zrozumienie",
+      "loading": "Czytanie, co poszło nie tak…",
+      "summary": "{count, plural, =0 {Nie znaleziono problemu ze skillem} one {# problem ze skillem} few {# problemy ze skillem} many {# problemów ze skillem} other {# problemu ze skillem}}{elsewhere, plural, =0 {} other {, # odpowiedzi z problemem gdzie indziej}}{fine, plural, =0 {} other {, # w porządku}}.",
+      "usageUnknown": "{count, plural, one {# odpowiedź jest sprzed zapisywania wczytań skilli i nie jest liczona.} few {# odpowiedzi są sprzed zapisywania wczytań skilli i nie są liczone.} many {# odpowiedzi jest sprzed zapisywania wczytań skilli i nie są liczone.} other {# odpowiedzi jest sprzed zapisywania wczytań skilli i nie są liczone.}}",
+      "agent": "{name} ({runs})",
+      "occursIn": "W {runs, plural, one {# odpowiedzi} few {# odpowiedziach} many {# odpowiedziach} other {# odpowiedzi}}, u: {agents}{hidden, plural, =0 {} one { i # agenta, którego nie widzisz} few { i # agentów, których nie widzisz} many { i # agentów, których nie widzisz} other { i # agenta, którego nie widzisz}}.",
+      "hiddenExamples": "{count, plural, one {+# ukryty przykład} few {+# ukryte przykłady} many {+# ukrytych przykładów} other {+# ukrytego przykładu}}"
+    },
+    "checkEstimate": {
+      "agents": "{count, plural, =0 {Żadnego agenta tej linii nie da się sprawdzić.} one {Sprawdzimy ją na # agencie: {names}.} few {Sprawdzimy ją na # agentach: {names}.} many {Sprawdzimy ją na # agentach: {names}.} other {Sprawdzimy ją na # agenta: {names}.}}",
+      "unchecked": "{name} nie da się sprawdzić: {reason, select, no_questions {nie ma pytań testowych tam, gdzie wczytał skill} no_access {nie możesz go uruchamiać} no_budget {jego budget jest wyczerpany} no_published_version {nie ma opublikowanej wersji} inconclusive {run nie ocenił wszystkich odpowiedzi} other {sprawdzenie się nie powiodło}}.",
+      "hidden": "{count, plural, one {Tej linii używa jeszcze # agent, którego nie widzisz.} few {Tej linii używa jeszcze # agentów, których nie widzisz.} many {Tej linii używa jeszcze # agentów, których nie widzisz.} other {Tej linii używa jeszcze # agenta, którego nie widzisz.}}",
+      "thorough": "Opis się zmienił, a on decyduje, kiedy agenci otwierają skill, więc zadawane są też własne pytania każdego agenta."
+    },
+    "checkAgain": {
+      "why": "Linia albo jej agenci zmienili się od sprawdzenia tego wyniku, więc może już nie być aktualny. Przed decyzją sprawdź te same zmiany jeszcze raz na linii w obecnym stanie.",
+      "pricing": "Wyceniamy sprawdzenie…",
+      "priceMoved": "Cena zmieniła się: teraz do {cost}. Naciśnij jeszcze raz, aby sprawdzić.",
+      "overLimit": "Sprawdzenie kosztuje więcej, niż zostało w limicie sesji. Podnieś limit dla tego sprawdzenia, aby przejść dalej.",
+      "go": "Sprawdź ponownie · do {cost}",
+      "goUnpriced": "Sprawdź ponownie",
+      "raise": "Użyj tego limitu"
+    },
+    "staleChanges": "Linia dostała nowszą wersję, odkąd te zmiany powstały. Następny krok sprawdzi je na najnowszej wersji."
   }
 }

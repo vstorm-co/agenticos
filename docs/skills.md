@@ -252,7 +252,8 @@ that edit is not checked.
 
 First the skill's own **test questions**, the same set on every agent. Each skill
 has one set, created through the API - `POST /api/v1/skills/{id}/test-set`, empty
-or from recent answers that loaded the skill - and edited like any other
+or from recent answers that loaded the skill - or with **Add test questions** beside
+an agent [Improve](#improving-a-skill) could not check, and edited like any other
 [dataset](datasets.md). Then the agent's own questions:
 
 - **Quick**, the default: at most four questions of the agent's dataset whose
@@ -298,15 +299,17 @@ name.
 ### When an agent got worse { #when-an-agent-got-worse }
 
 **Check on agents** under Skills prices the check, runs it, shows each agent's
-result and then applies or discards the change. On main a person may still:
+result and then applies or discards the change. A check an
+[Improve session](#improving-a-skill) started is decided in that session, and Check
+on agents links there instead. On main a person may still:
 
 - **apply it and keep the worse agents where they are** - each is pinned, as a new
   published version, to the version it reads now, before the change goes live, so
   none of them serves it even once. Pinning needs publishing each of them, and an
   environment that waits for promotion must take the pinned version first;
 - **make a fork for the agents it helped**, when one got better, leaving main as it
-  is - through the
-  API, `POST /api/v1/skills/{id}/checks/{check_id}/fork`;
+  is - at [Improve's](#improving-a-skill) Accept step, or through the API,
+  `POST /api/v1/skills/{id}/checks/{check_id}/fork`;
 - **discard** it.
 
 On a fork only improving further and discarding remain: a pin names a main
@@ -552,17 +555,22 @@ everyone, the agents on main, the pinned ones, one fork, or the agents only in a
 draft, so their counts add up to everyone. A fork you pick there is also the line
 that History lists and Edit saves to.
 
+Each row says whether a
+[check](#checking-a-change-on-every-agent) measured the version the agent serves,
+and how it did; a version never checked on it is **unknown**.
+
 Under the table, a reader who may view runs sees how often each agent opened the
 skill in the last 30 days and how many of its files it read. Runs of evals and of
 the Builder's test panel are not counted.
 
 **Change version** moves one agent to main, to a pinned main version, or to a fork,
-as [Which version an agent reads](#which-version-an-agent-reads) describes: what goes
-live, what waits in the draft, and what is changed in the Builder. A version other
-than the one the agent serves now has not been checked on it, so you confirm that
-first. The dialog also says when the agent would stop getting new main versions, and
-dates each main version it offers to pin, with a link to what it changed. The control
-is shown to people who may edit the agent.
+as [Which version an agent reads](#which-version-an-agent-reads) describes: what
+goes live, what waits in the draft, and what is changed in the Builder. A version
+other than the one the agent serves now, and that no check measured on it, has not
+been checked there, so you confirm that first; one a check did measure says how it
+did. The dialog also says when the agent would stop getting new main versions, and
+dates each main version it offers to pin, with a link to what it changed. The
+control is shown to people who may edit the agent.
 
 **History** lists the chosen line's versions, newest first: where each came from
 (an edit, a file change, the library, an agent's workspace, Improve or a restore),
@@ -578,7 +586,11 @@ it started from, and agents at the version they use. On a line of eight versions
 more, stretches that no agent uses fold into one row.
 
 **Edit** saves a new version on the line on screen. On main, the agents following
-main get it at once; pinned agents and forks keep their version. Files and the
+main get it at once; pinned agents and forks keep their version. A changed text is
+not saved at the first press: the dialog names the agents it reaches on their next
+run, and offers **Check on agents first**, which checks the unsaved text on them
+and applies it from the result, beside saving it now. If somebody saves the line
+meanwhile, the check is refused and your text stays in the editor. Files and the
 category belong to main, so editing a fork changes only its description and
 instructions. Restore and Change version are shown only to people who may make
 that change; anybody else opens the skill read-only.
@@ -590,6 +602,42 @@ same as its base until it is edited.
 **Delete**, in the editor's menu, deletes a skill nobody uses, with its versions and
 forks. While agents use it, the dialog names them and offers no delete: move each
 to another skill, or remove the skill from it in the Builder, first.
+
+### Improving a skill
+
+**Improve** on a skill's page opens a session for the line on screen - main, or the
+fork picked in the chips - in the same five steps as [improving an agent](authoring.md#the-improve-wizard):
+Understand, Changes, Check, Result and Accept. It stops for you after Understand,
+after Changes and at the result, and changes nothing until you accept.
+
+Its start says how many answers it reads, from how many agents. Before the changes
+are checked, Next step names every agent of the line the check runs on, and the
+ones it cannot, with the reason - no test questions, no permission to run it, no
+budget left, no published version, or a run that could not grade every answer.
+Agents you cannot see are counted.
+
+The result has a row for each agent: better, no change, within noise, worse or
+unknown, the agents to look at first on top, with the questions it fixed and broke
+and a link to its run. An agent checked only on the skill's own questions, because
+it had none of its own where it loaded the skill, says so.
+
+What Accept offers comes from the result:
+
+- **Nobody worse** and somebody better: apply it as the line's next version.
+- **Somebody worse:** apply it and keep those agents pinned on the version they
+  have, make a fork with the change for the agents it helped, improve it further,
+  or discard it. On a fork only improving further and discarding are offered,
+  since a fork cannot be pinned or forked again.
+- **Unknown agents** have to be acknowledged before anything is applied. **Add
+  test questions** beside them writes the skill's own questions from answers
+  where agents loaded it, so they can be checked next time.
+
+When the line gets a new version, or its agents change, after the check, the
+result no longer holds and offers **Check again** in place of applying: the same
+chosen changes, measured on the line as it is now, at a price shown first.
+Improving further and discarding stay offered. A line that moves while the session
+waits at Changes is priced again: Next step checks the changes on the newest
+version.
 
 ## Skills or knowledge?
 
