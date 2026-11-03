@@ -15,6 +15,7 @@ import { usePermissions } from "./use-permissions";
 import { adoptAccountContext, contextSavedBy } from "@/lib/account-context";
 import { adoptAccountLocale, localeChosenBy } from "@/lib/account-locale";
 import { ApiError, getErrorMessage } from "@/lib/api-error";
+import { turnFileSourceFromEvent } from "@/lib/turn-file-source";
 import { clientId } from "@/lib/ids";
 import { keepOutbox, keptOutbox } from "@/lib/offline/device-cache";
 import { nextStepEvent, withNextSteps, type NextStepEvent } from "@/lib/next-step-events";
@@ -44,6 +45,7 @@ import type {
   SubagentFrame,
   ToolCall,
   TurnUsage,
+  TurnFileSource,
   WSEvent,
 } from "@/types";
 import type { ParkedCall, ParkedQuestion, ResumedRun, WireQuestion } from "@/types/runs";
@@ -266,6 +268,12 @@ export function useChat(options: UseChatOptions = {}) {
   // read from the store at that moment, because switching agents while an answer
   // is streaming must not re-credit that answer to the newly picked agent.
   const turnAgentIdRef = useRef<string | null>(null);
+  const pendingFileRootRef = useRef<{
+    root: string;
+    account: string | null;
+    organization: string | null;
+  } | null>(null);
+  const turnFileSourceRef = useRef<TurnFileSource | undefined>(undefined);
   // Which conversation this hook is about: the store's, or the one passed in before
   // the store has caught up. Computed once because three places need the same answer
   // - stamping a new message, recording what a turn cost, and deciding whether that
@@ -540,6 +548,7 @@ export function useChat(options: UseChatOptions = {}) {
           conversationId: effectiveConversationId,
           isTemporaryId: true,
           agentId: turnAgentIdRef.current ?? undefined,
+          fileSource: turnFileSourceRef.current,
         });
         setCurrentMessageId(newMsgId);
         return newMsgId;
@@ -547,6 +556,18 @@ export function useChat(options: UseChatOptions = {}) {
 
       switch (wsEvent.type) {
         case "user_prompt": {
+          turnFileSourceRef.current = turnFileSourceFromEvent(wsEvent.data);
+          if (
+            turnFileSourceRef.current?.kind === "local" &&
+            pendingFileRootRef.current !== null &&
+            pendingFileRootRef.current.account === (useAuthStore.getState().user?.id ?? null) &&
+            pendingFileRootRef.current.organization === useOrgStore.getState().activeOrgId
+          ) {
+            useWorkOnStore
+              .getState()
+              .rememberFileRoot(turnFileSourceRef.current.id, pendingFileRootRef.current.root);
+          }
+          pendingFileRootRef.current = null;
           unconfirmedRef.current = null;
           const { message_id } = wsEvent.data as { message_id?: string | null };
           const id = currentUserMessageIdRef.current;
@@ -597,6 +618,7 @@ export function useChat(options: UseChatOptions = {}) {
           if (followingRef.current !== data.conversation_id) break;
           // The answer that follows is this agent's: its face and name from the start.
           turnAgentIdRef.current = data.agent_id ?? null;
+          turnFileSourceRef.current = turnFileSourceFromEvent(wsEvent.data);
           const id = data.message_id ?? clientId();
           if (chatApi.getState().messages.some((message) => message.id === id)) break;
           const local = data.client_message_id
@@ -1446,16 +1468,26 @@ export function useChat(options: UseChatOptions = {}) {
       const local = useWorkOnStore.getState().targetFor(conversationId || null);
       const localBrowser = useWorkOnStore.getState().browserFor(conversationId || null);
       const localComputer = useWorkOnStore.getState().computerFor(conversationId || null);
-      if (local)
+      const localCoding = useWorkOnStore.getState().codingFor(conversationId || null);
+      // Chosen per chat and never inherited, so it is read here and not from the target.
+      const localSkills = useWorkOnStore.getState().skillsFor(conversationId || null);
+      const target: Record<string, unknown> | null = local
+        ? {
+            ...local,
+            ...(localComputer || local.computer !== undefined ? { computer: localComputer } : {}),
+            ...(localBrowser || local.browser !== undefined ? { browser: localBrowser } : {}),
+          }
+        : localBrowser || localComputer || localCoding || localSkills.length > 0
+          ? {
+              ...(localBrowser ? { browser: true } : {}),
+              ...(localComputer ? { computer: true } : {}),
+            }
+          : null;
+      if (target)
         payload.local = {
-          ...local,
-          ...(localComputer || local.computer !== undefined ? { computer: localComputer } : {}),
-          ...(localBrowser || local.browser !== undefined ? { browser: localBrowser } : {}),
-        };
-      else if (localBrowser || localComputer)
-        payload.local = {
-          ...(localBrowser ? { browser: true } : {}),
-          ...(localComputer ? { computer: true } : {}),
+          ...target,
+          ...(localSkills.length > 0 ? { skills: localSkills } : {}),
+          ...(localCoding ? { coding_agent: localCoding } : {}),
         };
       const test = testingRef.current;
       if (test) {
@@ -1472,6 +1504,14 @@ export function useChat(options: UseChatOptions = {}) {
       const agentId = selectionApi.getState().selectedAgentId;
       if (agentId) payload.agent_id = agentId;
       turnAgentIdRef.current = agentId;
+      pendingFileRootRef.current =
+        local && !local.computer_grant
+          ? {
+              root: local.folder,
+              account: useAuthStore.getState().user?.id ?? null,
+              organization: useOrgStore.getState().activeOrgId,
+            }
+          : null;
       sendMessage(payload);
       return userMessageId;
     },

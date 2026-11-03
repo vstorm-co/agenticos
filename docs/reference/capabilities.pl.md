@@ -1,5 +1,5 @@
 ---
-source_sha: "5069fc5f2668"
+source_sha: "0b70fc7f55df"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -62,42 +62,43 @@ Przeglądarka jest kierowana do usługi przeglądarki wdrożenia
 
 ## Co jest dostarczane { #what-ships }
 
-| id                    | Nazwa                     | Kategoria     | Narzędzia                                                                                                                                                                                                       | Zakres               | Klucz                   | Głos              |
-| --------------------- | ------------------------- | ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------- | ----------------------- | ----------------- |
-| `knowledge`           | Wyszukiwanie wiedzy       | wiedza        | `search_documents`                                                                                                                                                                                              | `knowledge:read`     | —                       | bez zmian         |
-| `skills`              | Skille                    | wiedza        | `read_skill_resource`                                                                                                                                                                                           | `knowledge:read`     | —                       | dostosowana       |
-| `context`             | Kontekst                  | wiedza        | `list_context`, `read_context`                                                                                                                                                                                  | —                    | —                       | bez zmian         |
-| `memory_files`        | Pamięć                    | wiedza        | `list_memory`, `read_memory`, `write_memory`, `edit_memory`, `delete_memory`                                                                                                                                    | —                    | —                       | bez zmian         |
-| `memory_mem0`         | Pamięć (mem0)             | wiedza        | `remember`, `recall`                                                                                                                                                                                            | —                    | wymagany                | bez zmian         |
-| `conversation_search` | Poprzednie rozmowy        | wiedza        | `search_conversations`, `read_conversation`                                                                                                                                                                     | `conversations:read` | —                       | bez zmian         |
-| `virtual_tables`      | Tabele                    | dane          | `list_tables`, `table_exists`, `describe_table`, `create_table`, `record_exists`, `list_records`, `get_record`, `create_record`, `upsert_record`, `update_record`, `delete_record`, `list_views`                | `tables:read`        | —                       | bez zmian         |
-| `workflows`           | Workflowy                 | automatyzacja | `list_workflows`, `run_workflow`, `get_workflow_run`                                                                                                                                                            | `workflows:run`      | —                       | bez zmian         |
-| `web_research`        | Wyszukiwanie w internecie | badania       | `web_search`                                                                                                                                                                                                    | `web:read`           | dla usług płatnych      | bez zmian         |
-| `web_fetch`           | Czytanie stron            | badania       | `web_fetch`                                                                                                                                                                                                     | `web:fetch`          | —                       | bez zmian         |
-| `browser_use`         | Przeglądarka              | badania       | `browse_web`, `browser_open`, `browser_new_tab`, `browser_tabs`, `browser_switch_tab`, `browser_close_tab`, `browser_read`, `browser_click`, `browser_type`, `browser_select`, `browser_scroll`, `browser_back` | `web:browse`         | przez dodatek `browser` | przekazana        |
-| `computer_use`        | Obsługa komputera         | badania       | `computer_screenshot`, `computer_act`, `computer_apps`, `computer_save_screenshot`                                                                                                                              | `computer:use`       | dla daemona             | przekazana        |
-| `code_execution`      | Obliczenia                | analiza       | `run_python`                                                                                                                                                                                                    | `code:execute`       | —                       | bez zmian         |
-| `sandbox`             | Sandbox                   | analiza       | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute`                                                                                                                                         | `sandbox:execute`    | dla Daytony             | przekazana        |
-| `charts`              | Wykresy                   | analiza       | `create_chart`                                                                                                                                                                                                  | —                    | —                       | bez zmian         |
-| `visuals`             | Wizualizacje              | analiza       | `draw`, `revise_visual`, `read_visual`                                                                                                                                                                          | —                    | —                       | bez zmian         |
-| `image_generation`    | Generowanie obrazów       | analiza       | `generate_image`                                                                                                                                                                                                | —                    | wymagany                | bez zmian         |
-| `text_to_speech`      | Zamiana tekstu na mowę    | analiza       | `generate_speech`                                                                                                                                                                                               | —                    | wymagany                | bez zmian         |
-| `video_generation`    | Generowanie wideo         | analiza       | `generate_video`                                                                                                                                                                                                | —                    | wymagany                | przekazana        |
-| `coding_agent`        | Coding agent              | analiza       | `run_coding_agent`                                                                                                                                                                                              | `sandbox:execute`    | wymagany                | przekazana        |
-| `subagents`           | Subagenci                 | rozumowanie   | `task`, `check_task`, `wait_tasks`, `list_active_tasks`, `answer_subagent`, `send_message_to_subagent`, `soft_cancel_task`, `hard_cancel_task`, `create_agent`, `delegate`                                      | `agents:delegate`    | —                       | przekazana        |
-| `planning`            | Planowanie                | rozumowanie   | `write_plan`, `read_plan`, `add_task`, `update_task_status`, `update_task_statuses`, `remove_task`, `add_subtask`, `set_dependency`, `get_available_tasks`                                                      | —                    | —                       | bez zmian         |
-| `thinking`            | Myślenie                  | rozumowanie   | brak, celowo                                                                                                                                                                                                    | —                    | —                       | odwzorowana       |
-| `system_reminders`    | Przypomnienia instrukcji  | rozumowanie   | brak, celowo                                                                                                                                                                                                    | —                    | —                       | bez efektu        |
-| `tool_search`         | Wyszukiwanie narzędzi     | użytkowe      | brak, celowo                                                                                                                                                                                                    | —                    | —                       | pominięta         |
-| `clock`               | Data i godzina            | użytkowe      | brak, celowo                                                                                                                                                                                                    | —                    | —                       | bez zmian         |
-| `guardrails`          | Zabezpieczenia            | użytkowe      | brak, celowo                                                                                                                                                                                                    | —                    | —                       | na transkrypcjach |
-| `compaction`          | Długie rozmowy            | użytkowe      | brak, celowo                                                                                                                                                                                                    | —                    | —                       | bez efektu        |
-| `media`               | Odciążenie z obrazów      | użytkowe      | brak, celowo                                                                                                                                                                                                    | —                    | —                       | bez efektu        |
-| `tool_output_limits`  | Limity wyników narzędzi   | użytkowe      | `read_tool_result`                                                                                                                                                                                              | —                    | —                       | bez zmian         |
-| `artifacts`           | Aplikacje                 | użytkowe      | `publish_artifact`, `read_artifact`, `list_artifacts`, `preview_artifact`, `share_artifact`                                                                                                                     | —                    | —                       | bez zmian         |
-| `channel_tools`       | Informacje o kanale czatu | kanały        | `get_channel_info`, `list_channel_members`, `search_channels`, `read_channel_history`, `send_channel_file`                                                                                                      | —                    | —                       | niedostępna       |
-| `ask_user`            | Pytania do użytkownika    | narzędzia     | `ask_user_question`                                                                                                                                                                                             | —                    | —                       | na ekranie        |
-| `follow_ups`          | Następne kroki            | narzędzia     | `suggest_next_steps`, `propose_setup`                                                                                                                                                                           | —                    | —                       | niedostępna       |
+| id | Nazwa | Kategoria | Narzędzia | Zakres | Klucz | Głos |
+|---|---|---|---|---|---|---|
+| `knowledge` | Wyszukiwanie wiedzy | wiedza | `search_documents` | `knowledge:read` | — | bez zmian |
+| `skills` | Skille | wiedza | `read_skill_resource` | `knowledge:read` | — | dostosowana |
+| `context` | Kontekst | wiedza | `list_context`, `read_context` | — | — | bez zmian |
+| `memory_files` | Pamięć | wiedza | `list_memory`, `read_memory`, `write_memory`, `edit_memory`, `delete_memory` | — | — | bez zmian |
+| `memory_mem0` | Pamięć (mem0) | wiedza | `remember`, `recall` | — | wymagany | bez zmian |
+| `conversation_search` | Poprzednie rozmowy | wiedza | `search_conversations`, `read_conversation` | `conversations:read` | — | bez zmian |
+| `virtual_tables` | Tabele | dane | `list_tables`, `table_exists`, `describe_table`, `create_table`, `record_exists`, `list_records`, `get_record`, `create_record`, `upsert_record`, `update_record`, `delete_record`, `list_views` | `tables:read` | — | bez zmian |
+| `workflows` | Workflowy | automatyzacja | `list_workflows`, `run_workflow`, `get_workflow_run` | `workflows:run` | — | bez zmian |
+| `web_research` | Wyszukiwanie w internecie | badania | `web_search` | `web:read` | dla usług płatnych | bez zmian |
+| `web_fetch` | Czytanie stron | badania | `web_fetch` | `web:fetch` | — | bez zmian |
+| `browser_use` | Przeglądarka | badania | `browse_web`, `browser_open`, `browser_new_tab`, `browser_tabs`, `browser_switch_tab`, `browser_close_tab`, `browser_read`, `browser_click`, `browser_type`, `browser_select`, `browser_scroll`, `browser_back` | `web:browse` | przez dodatek `browser` | przekazana |
+| `computer_use` | Obsługa komputera | badania | `computer_screenshot`, `computer_act`, `computer_apps`, `computer_save_screenshot` | `computer:use` | dla daemona | przekazana |
+| `code_execution` | Obliczenia | analiza | `run_python` | `code:execute` | — | bez zmian |
+| `sandbox` | Sandbox | analiza | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute` | `sandbox:execute` | dla Daytony | przekazana |
+| `charts` | Wykresy | analiza | `create_chart` | — | — | bez zmian |
+| `visuals` | Wizualizacje | analiza | `draw`, `revise_visual`, `read_visual` | — | — | bez zmian |
+| `image_generation` | Generowanie obrazów | analiza | `generate_image` | — | wymagany | bez zmian |
+| `text_to_speech` | Zamiana tekstu na mowę | analiza | `generate_speech` | — | wymagany | bez zmian |
+| `video_generation` | Generowanie wideo | analiza | `generate_video` | — | wymagany | przekazana |
+| `coding_agent` | Coding agent | analiza | `run_coding_agent` | `sandbox:execute` | wymagany | przekazana |
+| `monitor` | Obserwuj polecenie | analiza | `start_monitor`, `list_monitors`, `stop_monitor` | `sandbox:execute` | — | przekazana |
+| `subagents` | Subagenci | rozumowanie | `task`, `check_task`, `wait_tasks`, `list_active_tasks`, `answer_subagent`, `send_message_to_subagent`, `soft_cancel_task`, `hard_cancel_task`, `create_agent`, `delegate` | `agents:delegate` | — | przekazana |
+| `planning` | Planowanie | rozumowanie | `write_plan`, `read_plan`, `add_task`, `update_task_status`, `update_task_statuses`, `remove_task`, `add_subtask`, `set_dependency`, `get_available_tasks` | — | — | bez zmian |
+| `thinking` | Myślenie | rozumowanie | brak, celowo | — | — | odwzorowana |
+| `system_reminders` | Przypomnienia instrukcji | rozumowanie | brak, celowo | — | — | bez efektu |
+| `tool_search` | Wyszukiwanie narzędzi | użytkowe | brak, celowo | — | — | pominięta |
+| `clock` | Data i godzina | użytkowe | brak, celowo | — | — | bez zmian |
+| `guardrails` | Zabezpieczenia | użytkowe | brak, celowo | — | — | na transkrypcjach |
+| `compaction` | Długie rozmowy | użytkowe | brak, celowo | — | — | bez efektu |
+| `media` | Odciążenie z obrazów | użytkowe | brak, celowo | — | — | bez efektu |
+| `tool_output_limits` | Limity wyników narzędzi | użytkowe | `read_tool_result` | — | — | bez zmian |
+| `artifacts` | Aplikacje | użytkowe | `publish_artifact`, `read_artifact`, `list_artifacts`, `preview_artifact`, `share_artifact` | — | — | bez zmian |
+| `channel_tools` | Informacje o kanale czatu | kanały | `get_channel_info`, `list_channel_members`, `search_channels`, `read_channel_history`, `send_channel_file` | — | — | niedostępna |
+| `ask_user` | Pytania do użytkownika | narzędzia | `ask_user_question` | — | — | na ekranie |
+| `follow_ups` | Następne kroki | narzędzia | `suggest_next_steps`, `propose_setup` | — | — | niedostępna |
 
 Siedem z nich celowo nie ma narzędzi. `thinking` zmienia sposób, w jaki model
 pracuje, a nie to, do czego sięga, `clock` wstawia datę do instrukcji,
@@ -1530,13 +1531,14 @@ Harness to osobny agent: agent przekazuje mu całe zadanie, harness pracuje do k
 a czat pokazuje jego pracę. Inny agent sięga do coding agenta zwykłą
 [delegacją](#delegation), tak jak do każdego specjalisty.
 
-| Konfiguracja      | Domyślnie              | Wartości                                                                                                                                         |
-| ----------------- | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `harness`         | `claude_code`          | `claude_code` (klucz API Anthropic albo token subskrypcji Claude), `codex` (klucz API OpenAI albo logowanie ChatGPT)                             |
-| `access`          | `edit`                 | `edit` zmienia pliki i uruchamia polecenia; `read_only` czyta kod i odpowiada (tylko Claude Code)                                                |
-| `model`           | domyślny dla harnessu  | Claude Opus, Sonnet albo Haiku 5.5 dla Claude Code; GPT-5.6 Sol, Terra, Luna albo GPT-5.3 Codex dla Codexa                                       |
-| `base_url`        | bezpośrednio Anthropic | Tylko Claude Code: bramka obsługująca API Anthropic, np. `https://openrouter.ai/api`, której klucz trzyma wtedy vault. Usuwany po wyborze Codexa |
-| `timeout_minutes` | 15                     | 1–60, na jedno zadanie                                                                                                                           |
+| Konfiguracja | Domyślnie | Wartości |
+|---|---|---|
+| `harness` | `claude_code` | `claude_code` (klucz API Anthropic albo token subskrypcji Claude), `codex` (klucz API OpenAI albo logowanie ChatGPT) |
+| `access` | `edit` | `edit` zmienia pliki i uruchamia polecenia; `read_only` czyta kod i odpowiada (Claude Code lub Codex na tym komputerze) |
+| `model` | domyślny dla harnessu | Claude Opus, Sonnet albo Haiku 5.5 dla Claude Code; GPT-5.6 Sol, Terra, Luna albo GPT-5.3 Codex dla Codexa |
+| `base_url` | bezpośrednio Anthropic | Tylko Claude Code: bramka obsługująca API Anthropic, np. `https://openrouter.ai/api`, której klucz trzyma wtedy vault. Usuwany po wyborze Codexa |
+| `timeout_minutes` | 15 | 1–60, na jedno zadanie |
+| `runs_on` | `sandbox` | `sandbox` uruchamia zadanie w sandboxie agenta na kluczu; `this_computer` uruchamia je w folderze wybranym przez osobę na jej komputerze w aplikacji desktopowej, na logowaniu, które agent już ma, bez klucza |
 
 **Jedno narzędzie, a binding decyduje, co wolno.** Przy `edit` harness edytuje
 dowolny plik i uruchamia dowolne polecenie w sandboxie z wyłączonymi własnymi
@@ -1546,12 +1548,16 @@ przełączniki są opisane. Przy `read_only` Claude Code działa w trybie planu,
 żadnego narzędzia, które pisze - bez narzędzi edycji i bez powłoki - i czyta przez
 Read, Grep i Glob; wie, że niczego innego nie da się zatwierdzić. Nawet poleceń
 czytających: żadna lista prefiksów poleceń nie robi z powłoki narzędzia tylko do
-odczytu, bo `git log --output=<plik>` pasuje do `git log` tak samo jak każdy odczyt. Codex nie ma `read_only`: jego tryb tylko do odczytu
+odczytu, bo `git log --output=<plik>` pasuje do `git log` tak samo jak każdy odczyt. Codex w kontenerze nie ma `read_only`: jego tryb tylko do odczytu
 to jego własny sandbox, który nie startuje w kontenerze agenta, więc publikacja
 odrzuca to połączenie. To, czy człowiek mówi „tak” przed każdym zadaniem, ustawia
 **Zatwierdzenie przez człowieka** capability na **Zawsze pytaj** — jak każda bramka,
 jest wyłączona, dopóki ktoś jej nie ustawi. Nie ma zakładki Narzędzia: jedno
 narzędzie to sama capability.
+
+**Na tym komputerze.** Ustaw `runs_on` na `this_computer`, aby użyć zainstalowanego harnessu przez [Agent Client Protocol](https://agentclientprotocol.com). Desktop uruchamia przypięty adapter przez `npx`, a protokół prowadzi serwer. Wybierz folder z pełnym dostępem w **Work on** i potwierdź każdy start w natywnym oknie. Folder jest katalogiem roboczym, nie sandboxem systemowym. Harness używa własnego logowania, więc klucz w vault jest opcjonalny. Prośby o uprawnienia stosują `access`; zgoda obowiązuje raz na zadanie. Claude read-only wyłącza bypass i narzędzia zapisujące; lokalny Codex wybiera natywny tryb odczytu.
+
+Kolejne zadania ładują tę samą sesję rozmowy; `fresh_session` jawnie zaczyna od nowa. Korekta przerywa turę ACP i kontynuuje tę samą sesję po potwierdzeniu zatrzymania. Identyfikatory sesji pozostają poza repozytorium i są usuwane po odłączeniu. Niewycenione zadania subskrypcji, także rozpoczęte zadania zakończone błędem, oznaczają koszt runu jako dolną granicę. Zobacz [aplikację desktopową](../desktop.md#coding-agents-on-this-computer).
 
 **Człowiek widzi jego pracę.** Harness startuje w sandboxie w tle
 (`claude -p --output-format stream-json` albo `codex exec --json`), a plik jego
@@ -1620,6 +1626,20 @@ zadaniem. Codex nie podaje modelu w swoich zdarzeniach, więc bez ustawionego `m
 jego zużycie jest księgowane bez ceny, a koszt runa oznaczony jako częściowy. Tak
 samo księgowane jest zadanie, które kończy się, zanim harness poda, ile wydał -
 nieudane, przerwane limitem czasu albo zatrzymane.
+
+## Obserwuj polecenie { #monitor }
+
+`start_monitor`, `list_monitors`, `stop_monitor` — *Obserwuj długo działające polecenie i dowiaduj się o jego wyjściu, gdy się pojawia.*
+
+Pozwala agentowi uruchomić polecenie, które działa długo - watcher testów, ogon logu, build, odpytywanie CI lub wdrożenia - i dowiadywać się o jego wyjściu bez odpytywania. Polecenie działa odłączone w przestrzeni roboczej przebiegu, a jego wyjście trafia tam do pliku. Przed każdym zapytaniem do modelu nowe linie są odczytywane, filtrowane opcjonalnymi słowami `match` (rozdzielonymi `|`, bez względu na wielkość liter; zwykły tekst, nie wyrażenie regularne) i dodawane na końcu zapytania jako tymczasowa notatka, tak jak przypomnienie sterujące, więc nic nie trafia do historii rozmowy. Obserwacja, która się zakończy, jest zgłaszana z kodem wyjścia.
+
+| Narzędzie | Co robi |
+|---|---|
+| `start_monitor` | Uruchamia `command` z opcjonalnymi `label` i `match`; naraz działają co najwyżej cztery |
+| `list_monitors` | Wypisuje obserwacje ze stanem, kodem wyjścia, liczbą dopasowanych linii i ostatnimi dziesięcioma |
+| `stop_monitor` | Zatrzymuje jedną obserwację i uruchomione przez nią procesy |
+
+**Obserwacja żyje tyle, co przebieg.** Każda obserwacja jest zatrzymywana na końcu tury, więc polecenie nigdy nie przeżywa tury, która o nie poprosiła. Wymaga trwałej powłoki sandboxa. Lokalna powłoka desktopu kończy procesy po każdym poleceniu, więc narzędzie odmawia uruchomienia obserwacji przed startem procesu. To, co drukuje obserwowane polecenie, to dane, a nie instrukcje, i agent o tym wie. Dodaj **Human approval**, żeby pytać przed startem polecenia.
 
 ## Wizualizacje { #visuals }
 

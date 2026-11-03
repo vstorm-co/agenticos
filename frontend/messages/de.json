@@ -1315,7 +1315,29 @@
         "computerFailed": "Der Computerzugriff konnte nicht geändert werden. Versuchen Sie es erneut.",
         "computerUseTitle": "Computer use",
         "computerUseIndependent": "Bildschirm, Maus und Tastatur dieses Computers verwenden, auch wenn der Agent keine Computer-use-Fähigkeit hat. Dies gewährt keinen Dateizugriff. Die Desktop-App fragt bei Bedarf nach Bildschirm- und Bedienungshilfenberechtigungen.",
-        "computerUseLocal": "Lokaler Computer"
+        "computerUseLocal": "Lokaler Computer",
+        "skills": {
+          "title": "Meine Skills und Anweisungen",
+          "help": "Wähle lokale Skill-Quellen für AgenticOS in diesem Chat. Dateien bleiben auf deinem Computer; geladene Skill- und Anweisungstexte erreichen das konfigurierte Modell über deinen Server. Neue Chats starten ohne Quellen. Lokale Coding agents behalten ihre eigene Konfiguration.",
+          "count": "{count, plural, one {# Skill} other {# Skills}}",
+          "hidden": "{count, plural, one {# Skill wird von einem gleichnamigen in einem früheren Ordner verdeckt} other {# Skills werden von gleichnamigen in früheren Ordnern verdeckt}}.",
+          "on": "Dieser Chat kann aktivierte lokale Skills laden und folgt deinen globalen Anweisungen, danach der AGENTS.md- und CLAUDE.md-Hierarchie des Projekts.",
+          "off": "Aus: AgenticOS lädt keine lokalen Skills oder Anweisungen."
+        },
+        "coding": {
+          "title": "Programmieragent",
+          "help": "Wählen Sie Claude Code oder Codex auf diesem Computer für diese Unterhaltung, auch wenn der Agent keine Coding-agent-Fähigkeit hat. Bestehende Freigabe- und Nur-Lesen-Regeln gelten weiterhin. Jede Aufgabe erfordert eine native Bestätigung.",
+          "agent": "Agenteneinstellung verwenden",
+          "claudeCode": "Claude Code auf diesem Computer",
+          "codex": "Codex auf diesem Computer",
+          "description": "Der Dateizugriff wird automatisch eingerichtet. Jede Aufgabe erfordert eine Bestätigung.",
+          "folder": "Wähle einen Projektordner, um fortzufahren.",
+          "setup": "Installieren oder anmelden → Desktop-Einstellungen",
+          "pickFolder": "Ordner auswählen",
+          "changeFolder": "Ordner ändern · {folder}",
+          "agentWithHarness": "Agenteneinstellung · {agent}"
+        },
+        "off": "Aus"
       },
       "modelSection": "Modell",
       "permissionsSection": "Berechtigungen",
@@ -1323,7 +1345,9 @@
       "waiverOrg": "Deine Organisation hat diesen Modus deaktiviert. Er lässt sich unter Budget und Genehmigungen aktivieren.",
       "waiverUnknown": "Die Genehmigungseinstellungen der Organisation sind noch nicht verfügbar. Versuche es nach dem Laden der Organisation erneut.",
       "waiverSettings": "Genehmigungseinstellungen öffnen",
-      "savedPreferences": "Für weitere Chats gespeichert"
+      "toolsTab": "Werkzeuge und Dateien",
+      "preferencesTab": "Einstellungen",
+      "savedAutomatically": "Änderungen werden automatisch gespeichert"
     },
     "conversationArchived": "Diese Unterhaltung ist archiviert",
     "conversationDeleted": "Unterhaltung gelöscht",
@@ -1835,7 +1859,13 @@
       "listingApps": "Liste die Anwendungen auf",
       "listApps": "Anwendungen auflisten",
       "sendingChannelFile": "Sendet eine Datei an den Kanal",
-      "sendChannelFile": "Datei an Kanal senden"
+      "sendChannelFile": "Datei an Kanal senden",
+      "startMonitor": "Einen Befehl beobachten",
+      "startingMonitor": "Beobachtung eines Befehls beginnt",
+      "listMonitors": "Die Beobachtungen",
+      "listingMonitors": "Beobachtungen werden aufgelistet",
+      "stopMonitor": "Eine Beobachtung beenden",
+      "stoppingMonitor": "Beobachtung wird beendet"
     },
     "turnWasStopped": "gestoppt",
     "unfavourite": "Aus den Favoriten entfernen",
@@ -2286,7 +2316,17 @@
     "queuedRetry": "Erneut senden",
     "browserResume": "Sitzung fortsetzen",
     "browserResumePrompt": "Setze die Browsersitzung fort. Lies die aktuelle Seite erneut, bevor du fortfährst.",
-    "browserMenu": "Browseroptionen"
+    "browserMenu": "Browseroptionen",
+    "localAgent": {
+      "claudeCode": "Claude Code",
+      "codex": "Codex",
+      "ready": "{agent} · {folder} · {access}",
+      "edit": "darf bearbeiten",
+      "readOnly": "nur lesen",
+      "needsFolder": "{agent} läuft auf diesem Computer: Wähle unter Chat-Steuerung → Arbeiten auf → Diesem Computer einen Ordner.",
+      "needsFullAccess": "{agent} läuft als du, deshalb braucht der Ordner Vollzugriff. Ändere das unter Chat-Steuerung → Arbeiten auf.",
+      "chosen": "{agent} · {folder}"
+    }
   },
   "common": {
     "archiveNamedConfirm": "{name} archivieren?",
@@ -3441,6 +3481,7 @@
   "files": {
     "couldNotBeFetched": "Diese Datei konnte nicht abgerufen werden",
     "couldNotBeRead": "Diese Datei konnte nicht gelesen werden",
+    "linkedAssetFailed": "Das verknüpfte Stylesheet {path} konnte nicht geladen werden. Öffne den Quelltext, um die Datei zu prüfen.",
     "download": "Herunterladen",
     "emptyFile": "Diese Datei ist leer.",
     "fileOfTotal": "{index} von {total}",
@@ -5383,6 +5424,18 @@
       "datasets-helper-settings": {
         "title": "Evaluierungshelfer konfigurieren",
         "body": "In den Einstellungen wählst du Modell und Anweisungen für die Testfallgenerierung und Agentenverbesserung. Die Bewertung hat eigene Modelle, Anweisungen und Kriterien. Laufende Aufgaben behalten ihre Startkonfiguration."
+      },
+      "desktop-local-agents": {
+        "title": "Coding agents auf diesem Computer",
+        "body": "Prüfe hier Installation und Anmeldung von Claude Code und Codex. Die Desktop-App öffnet deren eigene Anmeldebefehle im Terminal. Wähle On this computer in der Capability und einen Ordner unter Work on für lokale Aufgaben."
+      },
+      "chat-local-skills": {
+        "title": "Lokale Skills und Anweisungen",
+        "body": "Wähle Quellen für diese Unterhaltung. Skills bleiben auf dem Computer. Unter aktivierten Quellen gewinnt bei Namenskonflikten .agents vor .claude vor .codex. AGENTS.md und CLAUDE.md liefern Projektanweisungen. Neue Chats starten mit ausgeschalteten Quellen."
+      },
+      "chat-local-coding": {
+        "title": "Programmieragent",
+        "body": "Wählen Sie Claude Code oder Codex auf diesem Computer für diese Unterhaltung, auch wenn der Agent keine Coding-agent-Fähigkeit hat. Bestehende Freigabe- und Nur-Lesen-Regeln gelten weiterhin. Jede Aufgabe erfordert eine native Bestätigung."
       }
     },
     "chooseLanguage": "Sprache",
@@ -9058,6 +9111,20 @@
           "label": "AgenticOS öffnen",
           "hint": "Das Hauptfenster von AgenticOS in den Vordergrund bringen."
         }
+      },
+      "agents": {
+        "title": "Coding-Agenten auf diesem Computer",
+        "description": "Hier installierte Instanzen von Claude Code und Codex. Die Anmeldung gehört jedem Agenten: AgenticOS öffnet seinen eigenen Befehl im Terminal und liest oder kopiert nie seine Zugangsdaten.",
+        "installHint": "{name} ist auf diesem Computer nicht installiert.",
+        "notInstalled": "Nicht installiert",
+        "signedIn": "Angemeldet",
+        "signedOut": "Abgemeldet",
+        "unknown": "Status unbekannt",
+        "signIn": "Anmelden",
+        "signInNamed": "Bei {name} anmelden",
+        "signOut": "Abmelden",
+        "signOutNamed": "Von {name} abmelden",
+        "terminalNote": "Die Anmeldung öffnet dein Systemterminal. Kehre danach zurück, um den Status zu aktualisieren."
       }
     },
     "welcome": {
@@ -9101,6 +9168,7 @@
       "askAdmin": "Bitten Sie einen Administrator, ein Modell für die Organisation einzurichten.",
       "askAgentAdmin": "Bitten Sie einen Administrator, einen nutzbaren Agent zu veröffentlichen oder freizugeben.",
       "permissionNote": "Die Prüfung erfasst weder Bildschirm noch Audio oder Zwischenablage. Berechtigungen sind optional und erfordern einen Klick. Nach Änderungen an der Bildschirmaufnahme kann macOS einen App-Neustart verlangen.",
+      "screenCaptureDenied": "macOS gewährt dieser laufenden App keinen Bildschirmzugriff. Wenn AgenticOS in den Systemeinstellungen bereits aktiviert ist, beende und öffne diese Kopie der App erneut und aktualisiere den Status. Eine andere installierte Kopie kann andere Berechtigungen haben.",
       "retryScreenshot": "Screenshot erneut versuchen",
       "welcome": "Desktop-Verbindung fertig einrichten",
       "welcomeHint": "Aktiviere die gewünschten Desktop-Funktionen. Optionale Schritte kannst du später abschließen.",
@@ -11317,11 +11385,11 @@
     },
     "coding_agent": {
       "name": "Coding Agent",
-      "does": "Übergibt Softwarearbeit an Claude Code oder Codex, die im Sandbox des Agent daran arbeiten, während Sie jeden Schritt im Chat sehen.",
+      "does": "Übergibt Softwarearbeit an Claude Code oder Codex, in der Sandbox des Agent oder auf diesem Computer, während Sie jeden Schritt im Chat sehen.",
       "example1": "Einen fehlschlagenden Test in einem Repository beheben, das der Agent geklont hat",
       "example2": "Erklären, wie ein Modul funktioniert, ohne etwas zu ändern",
-      "needs": "Die Capability Sandbox auf einer Sandbox-Verbindung und im Vault ein Anthropic- oder OpenAI-Key, ein Claude-Abo-Token oder eine ChatGPT-Anmeldung.",
-      "never": "Arbeitet nie außerhalb des Sandbox des Agent. Setzen Sie Freigabe durch einen Menschen auf Immer fragen, dann wartet jede Aufgabe auf Ihr Ja."
+      "needs": "Für eine Sandbox: die Capability Sandbox, eine Verbindung und einen Provider-Key oder eine Anmeldung im Vault. Auf diesem Computer: die Desktop-App, einen angemeldeten Coding Agent und einen freigegebenen Ordner mit Vollzugriff.",
+      "never": "Lokale Aufgaben erfordern eine Ordnerfreigabe mit Vollzugriff und eine native Startbestätigung. Wählen Sie bei menschlicher Freigabe Immer fragen, um jede Aufgabe zusätzlich im Chat zu bestätigen."
     },
     "compaction": {
       "name": "Lange Gespräche",
@@ -11531,6 +11599,14 @@
       "example2": "Einen Bericht aus einem alten Werkzeug ohne API exportieren",
       "needs": "Ein Desktop in der eigenen Sandbox des Agenten (die Sandbox-Fähigkeit auf der Laufzeit 'desktop') oder einer, den ein Administrator mit computerd auf einem Linux-Desktop oder Mac betreibt, mit seinem Token im Tresor der Organisation. Jeder Schritt ist eine Modellanfrage mit einem Screenshot.",
       "never": "Handelt nie ohne Freigabe, außer sie ist abgeschaltet, folgt nie Anweisungen auf dem Bildschirm und hält vor Passwörtern oder Zahlungen an."
+    },
+    "monitor": {
+      "name": "Einen Befehl beobachten",
+      "does": "Startet einen lange laufenden Befehl - einen Test-Watcher, einen Log-Tail, eine CI-Abfrage - und meldet dem Agenten seine neue Ausgabe, sobald sie erscheint, damit er nicht abfragen muss.",
+      "example1": "Den Test-Watcher starten und jeden Fehler beheben, sobald er auftaucht",
+      "example2": "Ein Deploy-Log verfolgen und den ersten Fehler melden",
+      "needs": "Ein Arbeitsbereich mit Shell, etwa die Sandbox-Capability oder ein Ordner auf deinem Computer.",
+      "never": "Lässt nie einen Befehl über das Ende der Runde hinaus laufen: Jede Beobachtung endet mit dem Lauf."
     }
   },
   "capabilityCategories": {
@@ -11993,7 +12069,7 @@
       },
       "model": {
         "title": "Modell",
-        "description": "Das Modell, mit dem der Coding Agent läuft: ein Claude-Modell für Claude Code, ein OpenAI-Modell für Codex. Nicht gesetzt nimmt den Standard des Coding Agent."
+        "description": "Das Modell, mit dem der Coding Agent läuft: ein Claude-Modell für Claude Code, ein OpenAI-Modell für Codex. Nicht gesetzt nimmt den Standard des Coding Agent. Auf diesem Computer nicht verfügbar; dort nutzt der Agent seine eigene Einstellung."
       },
       "base_url": {
         "title": "Anthropic-kompatibler Endpunkt",
@@ -12002,6 +12078,10 @@
       "timeout_minutes": {
         "title": "Zeitlimit (Minuten)",
         "description": "Wie lange eine Aufgabe laufen darf, bevor sie gestoppt wird."
+      },
+      "runs_on": {
+        "title": "Wo es läuft",
+        "description": "In der eigenen Sandbox des Agenten, mit einem hier gespeicherten Schlüssel - oder im Ordner, den eine Person auf ihrem eigenen Computer in der Desktop-App wählt, wo Claude Code und Codex die vorhandene Anmeldung nutzen und keinen Schlüssel brauchen."
       }
     },
     "workflows": {

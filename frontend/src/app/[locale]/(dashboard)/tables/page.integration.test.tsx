@@ -263,3 +263,12 @@ describe("the tables catalog page", () => {
     expect(push).toHaveBeenCalledWith("/tables/t-new");
   });
 });
+
+it("keeps catalog expansion off the large-screen toolbar", async () => {
+  vi.mocked(apiClient.get).mockResolvedValue({ items: [table()], total: 1 });
+  render(<TablesPage />, { wrapper });
+  await screen.findByText("Orders");
+  expect(screen.getByRole("button", { name: "Full screen" }).parentElement).toHaveClass(
+    "lg:hidden",
+  );
+});

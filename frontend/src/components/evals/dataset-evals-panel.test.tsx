@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -42,6 +42,17 @@ beforeEach(() => {
 });
 
 describe("DatasetEvalsPanel", () => {
+  it.each(["failed", "cancelled"] as const)(
+    "keeps %s status in the mobile run summary",
+    (status) => {
+      state.runs = { ...state.runs, runs: [evalRun({ status, outcome: null })], total: 1 };
+      render(<DatasetEvalsPanel datasetId="ds-1" title="Evals" />);
+      const link = screen.getByRole("link", { name: /Refund desk/ });
+      expect(
+        within(link).getByText(status === "failed" ? "Failed" : "Stopped"),
+      ).toBeInTheDocument();
+    },
+  );
   it("shows every run in one table with its agent, pass rate and result", () => {
     state.runs = {
       ...state.runs,

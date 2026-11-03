@@ -37,7 +37,10 @@ export function RunsTable({
               {candidate ? sideName(candidate, t) : t(`status.${run.status}`)} ·{" "}
               {formatDateTime(run.created_at, locale)}
             </span>
-            <span className="block md:hidden">
+            <span className="flex flex-wrap gap-1 md:hidden">
+              <span className="sm:hidden">
+                <EvalStatusBadge status={run.status} />
+              </span>
               <VerdictChip run={run} />
             </span>
           </Link>

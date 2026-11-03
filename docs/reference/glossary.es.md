@@ -1,5 +1,5 @@
 ---
-source_sha: "faf9a13ba4f9"
+source_sha: "7a8f7c394eea"
 ---
 
 # Glosario { #glossary }
@@ -135,6 +135,7 @@ se describe en [Capabilities](capabilities.md).
 | Memory (mem0) | `memory_mem0` |
 | Planning | `planning` |
 | Work while tools run | `background_tools` |
+| Watch a command | `monitor` |
 | Sandbox | `sandbox` |
 | Skills | `skills` |
 | Subagents | `subagents` |

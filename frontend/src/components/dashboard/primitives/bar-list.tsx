@@ -30,6 +30,8 @@ export interface BarListItem {
 }
 
 /**
+ * Rows keep their intrinsic height; WidgetFrame scrolls lists that exceed the cell.
+ *
  * Label / proportional track / value rows. Plain divs, no chart library:
  * the values are printed as text by design, so colour is never the only
  * channel and a screen reader gets the same numbers a sighted reader does.
@@ -49,7 +51,7 @@ export function BarList({ items, className }: { items: BarListItem[]; className?
   const locale = useLocale();
   const max = Math.max(...items.map((item) => item.value), 1);
   return (
-    <div className={cn("flex min-h-0 flex-col gap-1", className)}>
+    <div className={cn("flex shrink-0 flex-col gap-1", className)}>
       {items.map((item) => (
         <Tooltip key={item.label}>
           <TooltipTrigger asChild>

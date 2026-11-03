@@ -594,3 +594,41 @@ it("does not restore a decided answer after switching organizations while its re
   expect(screen.queryByText("Previous organization note")).not.toBeInTheDocument();
   expect(screen.queryByText("Counts as passed.")).not.toBeInTheDocument();
 });
+
+it("takes a refreshed server decision over a retained local decision without closing its panel", async () => {
+  const waiting = caseScore({ review_state: "pending", passed: false, outcome: false });
+  state.answer = { scores: [waiting], total: 1 };
+  const decided = {
+    ...waiting,
+    human_passed: true,
+    review_state: "done" as const,
+    outcome: true,
+    human_note: "Local decision",
+    reviewed_at: "2026-11-03T01:00:00Z",
+  };
+  state.verdict.mockResolvedValueOnce(decided);
+  const { rerender } = render(<ReviewPanel dataset={dataset()} />);
+  await userEvent.click(screen.getByText(waiting.question));
+  await userEvent.type(screen.getByRole("textbox"), "Local decision");
+  await userEvent.click(
+    screen.getByRole("button", { name: "Answer is fine (the judge was wrong)" }),
+  );
+  expect(await screen.findByRole("status")).toHaveTextContent("Counts as passed.");
+  state.answer = {
+    scores: [
+      {
+        ...decided,
+        human_passed: false,
+        outcome: false,
+        human_note: "Another reviewer",
+        reviewed_at: "2026-11-03T01:01:00Z",
+      },
+    ],
+    total: 1,
+  };
+  rerender(<ReviewPanel dataset={dataset()} />);
+  expect(within(screen.getByRole("dialog")).getByRole("status")).toHaveTextContent(
+    "Counts as failed.",
+  );
+  expect(screen.getByRole("textbox")).toHaveValue("Another reviewer");
+});

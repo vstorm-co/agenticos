@@ -51,6 +51,7 @@ import { extractSources, toolCallsOf } from "@/lib/chat-sources";
 import type { DelegateRef } from "@/lib/delegations";
 import type { AskedBefore } from "@/components/datasets/follows-on";
 import { publishedApps, PublishedArtifactResult } from "./tool-results/artifact";
+import { TurnFiles } from "./turn-files";
 import { TurnExtras } from "./turn-extras";
 
 interface MessageItemProps {
@@ -391,6 +392,7 @@ export const MessageItem = memo(function MessageItem({
 
         {/* Under what the turn said and above its time and actions: a card the
             answer introduces belongs with the answer, not after its receipt. */}
+        <TurnFiles message={message} />
         <TurnExtras message={message} agentName={agent?.name} />
 
         {canShowActions &&
@@ -605,7 +607,7 @@ function MessageBody({
           mcpServers={mcpServers}
           agents={agents}
           openLastStep={openLastStep}
-          conversationId={message.conversationId}
+          fileSource={message.fileSource}
           onCiteClick={onCiteClick}
           startedAt={message.timestamp}
           durationMs={endsTurn ? message.runDurationMs : undefined}
@@ -637,7 +639,7 @@ function MessageBody({
                   <ToolCallCard
                     key={toolCall.id}
                     toolCall={toolCall}
-                    conversationId={message.conversationId}
+                    fileSource={message.fileSource}
                     mcpServers={mcpServers}
                     agents={agents}
                     startOpen={openLastStep && step === legacyCalls.length - 1}

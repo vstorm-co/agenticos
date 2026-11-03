@@ -44,6 +44,7 @@ test("a dataset's tour opens each tab it describes and runs to its end", async (
     "How cases are graded": "Grading",
     "The judge": "Grading",
     Review: "Review",
+    "Configure the evaluation helpers": "Settings",
   };
   const seen = await walkPageTour(page, async (title) => {
     const tab = tabFor[title];
@@ -51,7 +52,13 @@ test("a dataset's tour opens each tab it describes and runs to its end", async (
       await expect(page.getByRole("tab", { name: tab })).toHaveAttribute("data-state", "active");
   });
   expect(seen).toEqual(
-    expect.arrayContaining(["Write a case", "How cases are graded", "The judge", "Review"]),
+    expect.arrayContaining([
+      "Write a case",
+      "How cases are graded",
+      "The judge",
+      "Review",
+      "Configure the evaluation helpers",
+    ]),
   );
 });
 

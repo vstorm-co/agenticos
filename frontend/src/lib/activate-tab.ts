@@ -25,11 +25,7 @@ export function activateTab(
 ): void {
   // driver.js adds disclosure attributes to its highlighted tab. Its role still
   // owns activation; treating those attributes as a popover leaves it inactive.
-  if (
-    trigger.getAttribute("role") !== "tab" &&
-    trigger.hasAttribute("aria-expanded") &&
-    trigger.hasAttribute("aria-controls")
-  ) {
+  if (trigger.getAttribute("role") !== "tab" && trigger.hasAttribute("aria-expanded")) {
     if (trigger.getAttribute("aria-expanded") !== "true") trigger.click();
     return;
   }

@@ -56,6 +56,10 @@ Phone chat does not focus the input automatically on arrival or when a reply fin
 
 On phones, the actions beneath user and agent messages start hidden. Tap the **More** button beside the sender to show or hide copying, replies, ratings and other available actions. Desktop keeps its hover controls.
 
+Preview CSS imports, images and fonts resolve relative to their stylesheet through the same authorized file source. Previews limit recursion to four nested levels, 64 assets, 8 MiB of input assets and 16 MiB of expanded output. Turn file links retain their original conversation or local folder, recorded with the saved timeline; changing Work on cannot retarget them. Older turns without a recorded origin have no inferred links. Opening a local file still requires its current native folder grant.
+
+File-link metadata stores only an opaque origin identifier for local turns. The folder mapping stays on the initiating desktop, scoped to its account and organization; other participants and computers cannot resolve those links. Legacy origins containing a local path are omitted when reading stored turns.
+
 ## The dashboard
 
 The landing page is an **arrangeable grid of widgets**, and it is the answer to
@@ -395,6 +399,12 @@ skill - and `/`; they are gone the moment you click into it. Above it, the cards
 are the agent's own **first messages**, set under its instructions in the
 Builder; an agent with none offers the chat's own four, two of them to ask what it
 can do and to set up a routine.
+
+Conversation lists keep the main agent and also name Claude Code or Codex when saved task reports show they worked in the thread. The sidebar, project chats, dashboard and Quick Ask history share the same portraits and labels. Each coding harness appears once, survives a refresh and is independent of current chat settings; choosing a harness without running it does not add it to the history.
+
+The Files panel groups files by folder, keeping identical names in different directories distinct. HTML previews load local stylesheets and their nested assets through the same file access as the page. Preview and Source remain separate; scripts stay disabled. If a linked stylesheet cannot be read, the preview says which one failed. Files changed by a turn are linked below its answer, using paths reported by successful write/edit tools or the coding harness. These links open the current workspace files, not a versioned snapshot.
+
+On screens narrower than 768 px, live reasoning and routine tool steps start collapsed behind the working-time line. Tap the line to expand or collapse them. Answers, questions, approval requests, errors and visual results stay visible. Wider screens keep the live steps in view.
 
 **Under an answer.** An agent with [Follow-ups](reference/capabilities.md#follow-ups)
 offers up to three next steps as buttons under its latest answer, and a click

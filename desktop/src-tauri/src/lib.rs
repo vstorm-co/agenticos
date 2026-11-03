@@ -14,18 +14,22 @@
 //! shell's; `console.rs` is what those pages may ask of the shell, and from where.
 
 mod activity;
+mod agent_session;
 mod appearance;
 mod blobby;
 mod computer_access;
 mod console;
 mod context;
 mod device;
+mod diagnostics;
 mod docker_install;
 mod dropped;
+mod local_agents;
 mod local_browser;
 mod local_fs;
 mod local_instances;
 mod local_services;
+mod local_skills;
 mod local_stack;
 mod local_work;
 mod managed;
@@ -82,6 +86,7 @@ const OPEN_CONSOLE: &str = "open-console";
 const BACK: &str = "back";
 const FORWARD: &str = "forward";
 const DOCUMENTATION: &str = "documentation";
+const EXPORT_DIAGNOSTICS: &str = "export-diagnostics";
 const DOCUMENTATION_URL: &str = "https://vstorm-co.github.io/agenticos/desktop/";
 /// Review this server connection and any missing account or macOS setup.
 const CONNECTION_SETUP: &str = "desktop/readiness?connection=1";
@@ -762,6 +767,29 @@ fn loading_color(appearance: Appearance, system: Theme) -> Color {
     }
 }
 
+/// What share of the screen the first window takes: large enough to be the
+/// app rather than a dialog, with the Dock and menu bar still in view.
+const FIRST_WINDOW_SHARE: f64 = 0.8;
+const MIN_WINDOW: (f64, f64) = (900.0, 600.0);
+
+/// The first window's size in logical pixels for a monitor of this physical size.
+fn first_window_size(width: u32, height: u32, scale: f64) -> (f64, f64) {
+    let logical = |pixels: u32| f64::from(pixels) / scale * FIRST_WINDOW_SHARE;
+    (
+        logical(width).max(MIN_WINDOW.0).round(),
+        logical(height).max(MIN_WINDOW.1).round(),
+    )
+}
+
+/// Whether the window plugin has no saved size to restore, so this is the
+/// first time the console opens on this computer.
+fn is_first_window(app: &AppHandle) -> bool {
+    app.path()
+        .app_config_dir()
+        .map(|dir| !dir.join(tauri_plugin_window_state::DEFAULT_FILENAME).exists())
+        .unwrap_or(false)
+}
+
 fn open_window(app: &AppHandle, url: WebviewUrl) -> tauri::Result<WebviewWindow> {
     let handle = app.clone();
     let appearance = settings::current(app).appearance;
@@ -773,7 +801,7 @@ fn open_window(app: &AppHandle, url: WebviewUrl) -> tauri::Result<WebviewWindow>
         .disable_drag_drop_handler()
         .initialization_script(appearance::shell_script(&version, WINDOW))
         .inner_size(1280.0, 800.0)
-        .min_inner_size(900.0, 600.0)
+        .min_inner_size(MIN_WINDOW.0, MIN_WINDOW.1)
         .theme(appearance::theme(appearance.mode))
         // Transparent wherever a material can be drawn behind it, so glass can
         // be switched on without rebuilding the window; the loading colour is
@@ -801,6 +829,13 @@ fn open_window(app: &AppHandle, url: WebviewUrl) -> tauri::Result<WebviewWindow>
             }
             false
         });
+    if is_first_window(app) {
+        if let Some(monitor) = app.primary_monitor()? {
+            let size = monitor.size();
+            let (width, height) = first_window_size(size.width, size.height, monitor.scale_factor());
+            builder = builder.inner_size(width, height).center();
+        }
+    }
     #[cfg(target_os = "macos")]
     {
         builder = builder
@@ -1110,13 +1145,10 @@ impl ShellMenu {
             app,
             "Help",
             true,
-            &[&MenuItem::with_id(
-                app,
-                DOCUMENTATION,
-                "AgenticOS Documentation",
-                true,
-                None::<&str>,
-            )?],
+            &[
+                &MenuItem::with_id(app, DOCUMENTATION, "AgenticOS Documentation", true, None::<&str>)?,
+                &MenuItem::with_id(app, EXPORT_DIAGNOSTICS, "Export Diagnostics…", true, None::<&str>)?,
+            ],
         )?;
         Menu::with_items(
             app,
@@ -1250,6 +1282,10 @@ fn install_menu(app: &AppHandle, settings: &Settings) -> tauri::Result<TrayIcon>
                 screenshot_to_chat(app);
                 Ok(())
             }
+            EXPORT_DIAGNOSTICS => {
+                tauri::async_runtime::spawn(diagnostics::export(app.clone()));
+                Ok(())
+            }
             DOCUMENTATION => app
                 .opener()
                 .open_url(DOCUMENTATION_URL, None::<&str>)
@@ -1320,6 +1356,7 @@ pub fn run() {
             }
         }))
         .manage(local_browser::Browsers::default())
+        .manage(agent_session::Sessions::default())
         .manage(native_browser::NativeBrowsers::default())
         .plugin({
             let builder = tauri_plugin_updater::Builder::new();
@@ -1406,6 +1443,10 @@ pub fn run() {
             local_work::local_revoke,
             local_work::local_files,
             local_work::local_file,
+            local_agents::local_agents,
+            local_agents::local_agent_sign_in,
+            local_agents::local_agent_sign_out,
+            local_skills::local_skills,
             local_services::local_services,
             local_services::local_save_service,
             local_services::local_remove_service
@@ -1423,6 +1464,7 @@ pub fn run() {
         .manage(device::Device::default())
         .manage(computer_access::Access::default())
         .setup(|app| {
+            diagnostics::install_panic_hook(app.handle());
             let handle = app.handle();
             let (mut settings, unreadable) = settings::load_or_quarantine(handle);
             if let Some(typed) = server_argument(std::env::args().skip(1)) {
@@ -1542,6 +1584,18 @@ pub fn run() {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn first_window_takes_four_fifths_of_the_screen() {
+        // A 14" MacBook Pro at its default scale: 3024x1964 physical, factor 2.
+        assert_eq!(super::first_window_size(3024, 1964, 2.0), (1210.0, 786.0));
+        assert_eq!(super::first_window_size(3840, 2160, 1.0), (3072.0, 1728.0));
+    }
+
+    #[test]
+    fn first_window_never_goes_below_the_minimum() {
+        assert_eq!(super::first_window_size(1024, 640, 1.0), (900.0, 600.0));
+    }
+
     use std::net::TcpListener;
     use std::time::{Duration, Instant};
 

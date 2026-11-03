@@ -11,12 +11,13 @@ the sandbox beside the work, so the second task in a chat knows what the first
 read without the model carrying ids around. `fresh_session` starts over.
 """
 
+import hashlib
 import json
 import logging
 import uuid
 from collections.abc import Awaitable, Callable
 from dataclasses import replace
-from typing import Any, Protocol
+from typing import Any, Literal, Protocol
 from uuid import UUID
 
 import anyio
@@ -31,6 +32,7 @@ from pydantic_ai.workspaces import WorkspaceError
 from app.agents.audience import RunAudience
 from app.agents.capabilities._failures import steer
 from app.agents.capabilities.budget import assert_ambient_budget, record_ambient_usage
+from app.agents.capabilities.coding_agent._acp import AcpError, DevicePipe, run_task
 from app.agents.capabilities.coding_agent._harness import (
     CLAUDE_TOKEN_PREFIX,
     LABELS,
@@ -56,12 +58,37 @@ from app.agents.capabilities.coding_agent._task import (
     task_files,
 )
 from app.core.exceptions import BadRequestError
+from app.services.device_hub import (
+    DeviceCallFailed,
+    DeviceCallTimedOut,
+    DeviceUnavailable,
+    DeviceWorkspace,
+)
 
 logger = logging.getLogger(__name__)
 
 RUN_DESCRIPTION = (
     "Hand a software task to the coding agent, which works on it in the sandbox until done."
 )
+
+LOCAL_DOC = """Hand a software task to the coding agent, which works on it on the person's computer until done.
+
+        The coding agent (Claude Code or Codex) is a separate agent with its own tools: it
+        reads the code, searches it and - when this agent may change code - edits files and
+        runs commands such as tests, then answers. The person watches it work. Hand it whole
+        tasks rather than single steps, and say what done looks like.
+
+        Args:
+            task: The task in full: the goal, the files or area it concerns, constraints, and
+                how to check the result. Later tasks in this conversation resume this
+                agent's session for the same folder and access policy.
+            fresh_session: Start over instead of resuming this conversation's earlier session.
+
+        Returns:
+            JSON with `outcome` (`completed`, `failed` or `timed_out`), `answer` - what it
+            found or did, in the coding agent's words - `files_changed` and `steps`, what it
+            read and ran. Answer the person from `answer`.
+        """
 
 MISSING_COMMAND = 127
 """A shell's exit code for a program that is not installed."""
@@ -128,6 +155,13 @@ task could not run in, like the other two.
 """
 
 
+RunsOn = Literal["sandbox", "this_computer"]
+"""Where a task runs: the agent's sandbox, or the folder the person chose on their computer."""
+
+_LOCAL_FAILURES = (WorkspaceError, DeviceCallFailed, DeviceUnavailable, DeviceCallTimedOut, OSError)
+"""What reaching the person's computer raises; each says why in words."""
+
+
 def build_coding_toolset(
     *,
     harness: Harness,
@@ -138,6 +172,7 @@ def build_coding_toolset(
     timeout_seconds: int,
     sign_in: SignIn | None = None,
     shared_sandbox: bool = False,
+    runs_on: RunsOn = "sandbox",
 ) -> FunctionToolset[Any]:
     """The tool, bound to one harness, its access, its model and its key.
 
@@ -183,6 +218,8 @@ def build_coding_toolset(
             what it found or did, in the coding agent's words - `files_changed`
             and `steps`, what it read and ran. Answer the person from `answer`.
         """
+        if runs_on == "this_computer":
+            return await run_local(ctx, task, fresh_session)
         if api_key is None and sign_in is None:
             # Unreachable once published - the key is required at publish and at
             # build. A retry rather than a crash for a preview built without one.
@@ -217,6 +254,74 @@ def build_coding_toolset(
         )
         # `kind` is a default, and dropping defaults dropped it - and it is the
         # one field the console tells a report from a sentence by.
+        return json.dumps(
+            {"kind": report.kind, **report.model_dump(mode="json", exclude_defaults=True)}
+        )
+
+    async def run_local(ctx: RunContext[Any], task: str, fresh_session: bool) -> str:
+        """The task on the person's computer, in the folder they chose, over ACP.
+
+        The agent signs in with its own command on that computer, so there is no
+        key here to check and nothing to put in a sandbox.
+        """
+        if not task.strip():
+            return steer(ctx, "Describe the task in `task`: what to change or find, and where.")
+        workspace = ctx.workspace.backend if ctx.workspace.attached else None
+        if not isinstance(workspace, DeviceWorkspace):
+            return (
+                f"{label} is set to run on the person's computer, and this chat is not working "
+                "on one. Say that Work on needs to be set to This computer."
+            )
+        await assert_ambient_budget()
+        narration = Narration.for_call(ctx.deps, ctx.tool_call_id or uuid.uuid4().hex, harness)
+        await narration.started(task)
+        identity = ctx.deps
+        scope = (
+            str(identity.organization_id),
+            str(identity.user_id),
+            str(identity.agent_id),
+            str(identity.conversation_id),
+            harness,
+            access,
+        )
+        resume_key = (
+            hashlib.sha256(json.dumps(scope).encode()).hexdigest()
+            if identity.conversation_id is not None
+            else None
+        )
+        pipe = DevicePipe(workspace, harness, resume_key=resume_key, fresh_session=fresh_session)
+        try:
+            await pipe.open()
+            try:
+                report = await run_task(
+                    pipe,
+                    harness=harness,
+                    access=access,
+                    root=await workspace.working_dir(),
+                    task=task,
+                    timeout_seconds=timeout_seconds,
+                    shown=narration.shown,
+                    previous_session=pipe.session_id,
+                    remember=pipe.remember,
+                    steering=ctx.deps.steering,
+                )
+            finally:
+                # Failed and cancelled tasks may have spent subscription tokens too.
+                _book(Usage())
+        except AcpError as failed:
+            await narration.finished("failed", error=failed.message[:500])
+            return f"{label} could not run on this computer: {failed.message}"
+        except _LOCAL_FAILURES as failed:
+            await narration.finished("failed", error=str(failed)[:500])
+            return f"{label} could not run on this computer: {failed}"
+        except BaseException:
+            with anyio.CancelScope(shield=True):
+                await narration.finished("cancelled")
+            raise
+        await narration.finished(
+            "completed" if report.outcome == "completed" else "failed",
+            error=None if report.outcome == "completed" else report.answer[:500],
+        )
         return json.dumps(
             {"kind": report.kind, **report.model_dump(mode="json", exclude_defaults=True)}
         )
@@ -391,6 +496,11 @@ def build_coding_toolset(
             return report.model_copy(update={"answer": outcome.stderr.strip()[-2000:]})
         return report
 
+    if runs_on == "this_computer":
+        # The sandbox contract promises that later tasks continue one session, which a
+        # task on this computer does not (each is a new ACP session), so the model is
+        # told what is true of this one.
+        run_coding_agent.__doc__ = LOCAL_DOC
     tools: list[Callable[..., Awaitable[str]]] = [run_coding_agent]
     return FunctionToolset(tools)
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "4f6a0173dd12"
+source_sha: "1ed25e278234"
 ---
 
 # La consola { #the-console }
@@ -63,6 +63,10 @@ En el teléfono, enfocar el mensaje activa una fila compacta de escritura con ad
 En el teléfono, el chat no enfoca automáticamente el campo al abrirse ni cuando termina una respuesta.
 
 En el teléfono, las acciones bajo los mensajes del usuario y del agente empiezan ocultas. El botón **Más** junto al remitente muestra u oculta copiar, responder, valorar y las demás acciones disponibles. En el escritorio, los controles siguen apareciendo al pasar el cursor.
+
+Las importaciones CSS, imágenes y fuentes se resuelven respecto a su hoja de estilo mediante el mismo acceso autorizado. Las vistas previas permiten cuatro niveles anidados, 64 recursos, 8 MiB de entrada y 16 MiB de salida expandida. Los enlaces conservan su conversación o carpeta local original, registrada en la cronología del turno. Cambiar Work on no los redirige. Los turnos antiguos sin origen registrado no reciben enlaces inferidos. Abrir un archivo local sigue requiriendo su permiso nativo vigente.
+
+Los metadatos de enlaces guardan solo un identificador opaco del origen para los turnos locales. La relación con la carpeta permanece en el equipo que inició el turno, limitada a su cuenta y organización; otros participantes y equipos no pueden resolver esos enlaces. Los orígenes antiguos con una ruta local se omiten al leer turnos guardados.
 
 ## El dashboard { #the-dashboard }
 
@@ -428,6 +432,12 @@ capability, un delegado, un skill - y `/`; desaparecen en cuanto haces clic en �
 Encima, las tarjetas son los **primeros mensajes** propios del agent, definidos en
 el Builder bajo sus instrucciones; un agent sin ellos ofrece los cuatro del chat,
 entre ellos uno para preguntar qué puede hacer y otro para configurar una rutina.
+
+Las listas de conversaciones conservan el agente principal y también muestran Claude Code o Codex cuando los informes de tareas guardados confirman su participación. La barra lateral, los chats de proyecto, el dashboard y el historial de Quick Ask comparten los mismos iconos y etiquetas. Cada coding harness aparece una vez, permanece tras actualizar y no depende de los ajustes actuales del chat. Seleccionarlo sin ejecutarlo no lo añade al historial.
+
+El panel Files agrupa los archivos por carpetas y distingue nombres iguales en distintos directorios. Las vistas previas HTML cargan las hojas de estilo locales y sus recursos anidados mediante el mismo acceso que la página. La vista previa y el código fuente permanecen separados; los scripts siguen desactivados. Si no se puede leer una hoja de estilo, se indica cuál ha fallado. Debajo de cada respuesta aparecen enlaces a los archivos modificados en ese turno, según las rutas comunicadas por herramientas de escritura/edición exitosas o por el coding harness. Los enlaces abren los archivos actuales del workspace, no una copia versionada.
+
+En pantallas de menos de 768 px, el razonamiento y los pasos habituales de herramientas durante la ejecución empiezan contraídos bajo la línea del tiempo de trabajo. Tócala para mostrar u ocultar los detalles. Las respuestas, preguntas, solicitudes de aprobación, errores y resultados visuales permanecen visibles. En pantallas más anchas se siguen mostrando los pasos en directo.
 
 **Debajo de una respuesta.** Un agent con
 [Follow-ups](reference/capabilities.md#follow-ups) ofrece debajo de su respuesta

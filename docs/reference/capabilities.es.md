@@ -1,5 +1,5 @@
 ---
-source_sha: "5069fc5f2668"
+source_sha: "0b70fc7f55df"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -62,42 +62,43 @@ guarda archivos. El navegador web apunta al servicio de navegador del despliegue
 
 ## Qué se entrega { #what-ships }
 
-| id                    | Nombre                                | Categoría  | Herramientas                                                                                                                                                                                                    | Scope                | Clave                       | Voz                    |
-| --------------------- | ------------------------------------- | ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------- | --------------------------- | ---------------------- |
-| `knowledge`           | Búsqueda de conocimiento              | knowledge  | `search_documents`                                                                                                                                                                                              | `knowledge:read`     | —                           | tal cual               |
-| `skills`              | Skills                                | knowledge  | `read_skill_resource`                                                                                                                                                                                           | `knowledge:read`     | —                           | adaptada               |
-| `context`             | Contexto                              | knowledge  | `list_context`, `read_context`                                                                                                                                                                                  | —                    | —                           | tal cual               |
-| `memory_files`        | Memoria                               | knowledge  | `list_memory`, `read_memory`, `write_memory`, `edit_memory`, `delete_memory`                                                                                                                                    | —                    | —                           | tal cual               |
-| `memory_mem0`         | Memoria (mem0)                        | knowledge  | `remember`, `recall`                                                                                                                                                                                            | —                    | obligatoria                 | tal cual               |
-| `conversation_search` | Conversaciones anteriores             | knowledge  | `search_conversations`, `read_conversation`                                                                                                                                                                     | `conversations:read` | —                           | tal cual               |
-| `virtual_tables`      | Tablas                                | data       | `list_tables`, `table_exists`, `describe_table`, `create_table`, `record_exists`, `list_records`, `get_record`, `create_record`, `upsert_record`, `update_record`, `delete_record`, `list_views`                | `tables:read`        | —                           | tal cual               |
-| `workflows`           | Workflows                             | automation | `list_workflows`, `run_workflow`, `get_workflow_run`                                                                                                                                                            | `workflows:run`      | —                           | tal cual               |
-| `web_research`        | Búsqueda web                          | research   | `web_search`                                                                                                                                                                                                    | `web:read`           | para servicios de pago      | tal cual               |
-| `web_fetch`           | Leer páginas web                      | research   | `web_fetch`                                                                                                                                                                                                     | `web:fetch`          | —                           | tal cual               |
-| `browser_use`         | Navegador web                         | research   | `browse_web`, `browser_open`, `browser_new_tab`, `browser_tabs`, `browser_switch_tab`, `browser_close_tab`, `browser_read`, `browser_click`, `browser_type`, `browser_select`, `browser_scroll`, `browser_back` | `web:browse`         | mediante el extra `browser` | delegada               |
-| `computer_use`        | Computer use                          | research   | `computer_screenshot`, `computer_act`, `computer_apps`, `computer_save_screenshot`                                                                                                                              | `computer:use`       | para un daemon              | delegada               |
-| `code_execution`      | Cálculos                              | analysis   | `run_python`                                                                                                                                                                                                    | `code:execute`       | —                           | tal cual               |
-| `sandbox`             | Sandbox                               | analysis   | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute`                                                                                                                                         | `sandbox:execute`    | para Daytona                | delegada               |
-| `charts`              | Gráficos                              | analysis   | `create_chart`                                                                                                                                                                                                  | —                    | —                           | tal cual               |
-| `visuals`             | Visuals                               | analysis   | `draw`, `revise_visual`, `read_visual`                                                                                                                                                                          | —                    | —                           | tal cual               |
-| `image_generation`    | Generación de imágenes                | analysis   | `generate_image`                                                                                                                                                                                                | —                    | obligatoria                 | tal cual               |
-| `text_to_speech`      | Texto a voz                           | analysis   | `generate_speech`                                                                                                                                                                                               | —                    | obligatoria                 | tal cual               |
-| `video_generation`    | Generación de vídeo                   | analysis   | `generate_video`                                                                                                                                                                                                | —                    | obligatoria                 | delegada               |
-| `coding_agent`        | Coding agent                          | analysis   | `run_coding_agent`                                                                                                                                                                                              | `sandbox:execute`    | obligatoria                 | delegada               |
-| `subagents`           | Subagents                             | reasoning  | `task`, `check_task`, `wait_tasks`, `list_active_tasks`, `answer_subagent`, `send_message_to_subagent`, `soft_cancel_task`, `hard_cancel_task`, `create_agent`, `delegate`                                      | `agents:delegate`    | —                           | delegada               |
-| `planning`            | Planificación                         | reasoning  | `write_plan`, `read_plan`, `add_task`, `update_task_status`, `update_task_statuses`, `remove_task`, `add_subtask`, `set_dependency`, `get_available_tasks`                                                      | —                    | —                           | tal cual               |
-| `thinking`            | Razonamiento                          | reasoning  | ninguna, a propósito                                                                                                                                                                                            | —                    | —                           | mapeada                |
-| `system_reminders`    | Recordatorio de instrucciones         | reasoning  | ninguna, a propósito                                                                                                                                                                                            | —                    | —                           | sin efecto             |
-| `tool_search`         | Búsqueda de herramientas              | utility    | ninguna, a propósito                                                                                                                                                                                            | —                    | —                           | descartada             |
-| `clock`               | Fecha y hora                          | utility    | ninguna, a propósito                                                                                                                                                                                            | —                    | —                           | tal cual               |
-| `guardrails`          | Reglas de protección                  | utility    | ninguna, a propósito                                                                                                                                                                                            | —                    | —                           | en las transcripciones |
-| `compaction`          | Conversaciones largas                 | utility    | ninguna, a propósito                                                                                                                                                                                            | —                    | —                           | sin efecto             |
-| `media`               | Imágenes fuera del historial          | utility    | ninguna, a propósito                                                                                                                                                                                            | —                    | —                           | sin efecto             |
-| `tool_output_limits`  | Límites de resultados de herramientas | utility    | `read_tool_result`                                                                                                                                                                                              | —                    | —                           | tal cual               |
-| `artifacts`           | Aplicaciones                          | utility    | `publish_artifact`, `read_artifact`, `list_artifacts`, `preview_artifact`, `share_artifact`                                                                                                                     | —                    | —                           | tal cual               |
-| `channel_tools`       | Información del canal de chat         | channels   | `get_channel_info`, `list_channel_members`, `search_channels`, `read_channel_history`, `send_channel_file`                                                                                                      | —                    | —                           | no disponible          |
-| `ask_user`            | Preguntar al usuario                  | utility    | `ask_user_question`                                                                                                                                                                                             | —                    | —                           | en pantalla            |
-| `follow_ups`          | Follow-ups                            | utility    | `suggest_next_steps`, `propose_setup`                                                                                                                                                                           | —                    | —                           | no disponible          |
+| id | Nombre | Categoría | Herramientas | Scope | Clave | Voz |
+|---|---|---|---|---|---|---|
+| `knowledge` | Búsqueda de conocimiento | knowledge | `search_documents` | `knowledge:read` | — | tal cual |
+| `skills` | Skills | knowledge | `read_skill_resource` | `knowledge:read` | — | adaptada |
+| `context` | Contexto | knowledge | `list_context`, `read_context` | — | — | tal cual |
+| `memory_files` | Memoria | knowledge | `list_memory`, `read_memory`, `write_memory`, `edit_memory`, `delete_memory` | — | — | tal cual |
+| `memory_mem0` | Memoria (mem0) | knowledge | `remember`, `recall` | — | obligatoria | tal cual |
+| `conversation_search` | Conversaciones anteriores | knowledge | `search_conversations`, `read_conversation` | `conversations:read` | — | tal cual |
+| `virtual_tables` | Tablas | data | `list_tables`, `table_exists`, `describe_table`, `create_table`, `record_exists`, `list_records`, `get_record`, `create_record`, `upsert_record`, `update_record`, `delete_record`, `list_views` | `tables:read` | — | tal cual |
+| `workflows` | Workflows | automation | `list_workflows`, `run_workflow`, `get_workflow_run` | `workflows:run` | — | tal cual |
+| `web_research` | Búsqueda web | research | `web_search` | `web:read` | para servicios de pago | tal cual |
+| `web_fetch` | Leer páginas web | research | `web_fetch` | `web:fetch` | — | tal cual |
+| `browser_use` | Navegador web | research | `browse_web`, `browser_open`, `browser_new_tab`, `browser_tabs`, `browser_switch_tab`, `browser_close_tab`, `browser_read`, `browser_click`, `browser_type`, `browser_select`, `browser_scroll`, `browser_back` | `web:browse` | mediante el extra `browser` | delegada |
+| `computer_use` | Computer use | research | `computer_screenshot`, `computer_act`, `computer_apps`, `computer_save_screenshot` | `computer:use` | para un daemon | delegada |
+| `code_execution` | Cálculos | analysis | `run_python` | `code:execute` | — | tal cual |
+| `sandbox` | Sandbox | analysis | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute` | `sandbox:execute` | para Daytona | delegada |
+| `charts` | Gráficos | analysis | `create_chart` | — | — | tal cual |
+| `visuals` | Visuals | analysis | `draw`, `revise_visual`, `read_visual` | — | — | tal cual |
+| `image_generation` | Generación de imágenes | analysis | `generate_image` | — | obligatoria | tal cual |
+| `text_to_speech` | Texto a voz | analysis | `generate_speech` | — | obligatoria | tal cual |
+| `video_generation` | Generación de vídeo | analysis | `generate_video` | — | obligatoria | delegada |
+| `coding_agent` | Coding agent | analysis | `run_coding_agent` | `sandbox:execute` | obligatoria | delegada |
+| `monitor` | Watch a command | analysis | `start_monitor`, `list_monitors`, `stop_monitor` | `sandbox:execute` | — | delegada |
+| `subagents` | Subagents | reasoning | `task`, `check_task`, `wait_tasks`, `list_active_tasks`, `answer_subagent`, `send_message_to_subagent`, `soft_cancel_task`, `hard_cancel_task`, `create_agent`, `delegate` | `agents:delegate` | — | delegada |
+| `planning` | Planificación | reasoning | `write_plan`, `read_plan`, `add_task`, `update_task_status`, `update_task_statuses`, `remove_task`, `add_subtask`, `set_dependency`, `get_available_tasks` | — | — | tal cual |
+| `thinking` | Razonamiento | reasoning | ninguna, a propósito | — | — | mapeada |
+| `system_reminders` | Recordatorio de instrucciones | reasoning | ninguna, a propósito | — | — | sin efecto |
+| `tool_search` | Búsqueda de herramientas | utility | ninguna, a propósito | — | — | descartada |
+| `clock` | Fecha y hora | utility | ninguna, a propósito | — | — | tal cual |
+| `guardrails` | Reglas de protección | utility | ninguna, a propósito | — | — | en las transcripciones |
+| `compaction` | Conversaciones largas | utility | ninguna, a propósito | — | — | sin efecto |
+| `media` | Imágenes fuera del historial | utility | ninguna, a propósito | — | — | sin efecto |
+| `tool_output_limits` | Límites de resultados de herramientas | utility | `read_tool_result` | — | — | tal cual |
+| `artifacts` | Aplicaciones | utility | `publish_artifact`, `read_artifact`, `list_artifacts`, `preview_artifact`, `share_artifact` | — | — | tal cual |
+| `channel_tools` | Información del canal de chat | channels | `get_channel_info`, `list_channel_members`, `search_channels`, `read_channel_history`, `send_channel_file` | — | — | no disponible |
+| `ask_user` | Preguntar al usuario | utility | `ask_user_question` | — | — | en pantalla |
+| `follow_ups` | Follow-ups | utility | `suggest_next_steps`, `propose_setup` | — | — | no disponible |
 
 Siete de ellas no tienen herramientas a propósito. `thinking` cambia cómo trabaja
 el modelo, no qué puede alcanzar, `clock` pone la fecha en las instrucciones,
@@ -1564,13 +1565,14 @@ trabaja hasta terminarla y el chat lo muestra trabajando. Otro agent llega a un
 coding agent mediante la [delegación](#delegation) de siempre, como a cualquier
 especialista.
 
-| Configuración     | Predeterminado         | Valores                                                                                                                                                          |
-| ----------------- | ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `harness`         | `claude_code`          | `claude_code` (una clave API de Anthropic o un token de suscripción de Claude), `codex` (una clave API de OpenAI o un inicio de sesión de ChatGPT)               |
-| `access`          | `edit`                 | `edit` cambia archivos y ejecuta comandos; `read_only` lee el código y responde (solo Claude Code)                                                               |
-| `model`           | el del harness         | Claude Opus, Sonnet o Haiku 5.5 para Claude Code; GPT-5.6 Sol, Terra, Luna o GPT-5.3 Codex para Codex                                                            |
-| `base_url`        | Anthropic directamente | Solo Claude Code: una pasarela que habla la API de Anthropic, como `https://openrouter.ai/api`, cuya clave guarda entonces el vault. Se descarta al elegir Codex |
-| `timeout_minutes` | 15                     | 1–60, por tarea                                                                                                                                                  |
+| Configuración | Predeterminado | Valores |
+|---|---|---|
+| `harness` | `claude_code` | `claude_code` (una clave API de Anthropic o un token de suscripción de Claude), `codex` (una clave API de OpenAI o un inicio de sesión de ChatGPT) |
+| `access` | `edit` | `edit` cambia archivos y ejecuta comandos; `read_only` lee el código y responde (Claude Code o Codex en este ordenador) |
+| `model` | el del harness | Claude Opus, Sonnet o Haiku 5.5 para Claude Code; GPT-5.6 Sol, Terra, Luna o GPT-5.3 Codex para Codex |
+| `base_url` | Anthropic directamente | Solo Claude Code: una pasarela que habla la API de Anthropic, como `https://openrouter.ai/api`, cuya clave guarda entonces el vault. Se descarta al elegir Codex |
+| `timeout_minutes` | 15 | 1–60, por tarea |
+| `runs_on` | `sandbox` | `sandbox` ejecuta la tarea en el sandbox del agente con una clave; `this_computer` la ejecuta en la carpeta que una persona eligió en su propio ordenador en la aplicación de escritorio, con la sesión que el agente ya tiene, sin clave |
 
 **Una herramienta, y el binding decide lo que puede hacer.** Con `edit` el harness
 edita cualquier archivo y ejecuta cualquier comando en la sandbox, con sus propias
@@ -1580,12 +1582,16 @@ están documentadas. Con `read_only`, Claude Code se ejecuta en modo plan, sin
 ninguna herramienta que escriba - ni las de edición ni la shell - y lee con Read, Grep
 y Glob; sabe que no se puede aprobar nada más. Ni siquiera comandos que leen: ninguna
 lista de prefijos de comandos hace de una shell algo de solo lectura, porque
-`git log --output=<archivo>` encaja con `git log` igual que cualquier lectura. Codex no tiene `read_only`: su modo de solo lectura es una
+`git log --output=<archivo>` encaja con `git log` igual que cualquier lectura. Codex dentro de un contenedor no tiene `read_only`: su modo de solo lectura es una
 sandbox propia, que no arranca dentro del contenedor del agent, y la publicación
 rechaza la combinación. Que una persona diga sí antes de cada tarea es la
 **Aprobación humana** de la capability, puesta en **Preguntar siempre** — como toda
 compuerta, está desactivada hasta que alguien la pone. No hay pestaña de
 herramientas: la única herramienta es la capability.
+
+**En este ordenador.** Configura `runs_on` como `this_computer` para usar el harness instalado mediante [Agent Client Protocol](https://agentclientprotocol.com). El escritorio inicia un adaptador con versión fijada mediante `npx`; el servidor habla ACP. Elige una carpeta con acceso completo en **Work on** y confirma cada inicio de forma nativa. La carpeta es un directorio de trabajo, no una sandbox del sistema. El harness usa su propia sesión; la clave de vault es opcional. Los permisos siguen `access`; la aprobación se aplica una vez por tarea. Claude read-only desactiva bypass y herramientas de escritura; Codex local selecciona su modo de lectura nativo.
+
+Las siguientes tareas cargan la misma sesión de conversación; `fresh_session` inicia otra explícitamente. Las correcciones interrumpen el turno ACP y continúan la sesión tras confirmar la parada. Los identificadores quedan fuera del repositorio y se borran al desvincular. Las tareas de suscripción sin precio, incluidas las iniciadas que fallan, hacen del coste del run un mínimo. Consulta [la aplicación de escritorio](../desktop.md#coding-agents-on-this-computer).
 
 **La persona lo ve trabajar.** El harness se arranca en segundo plano en la sandbox
 (`claude -p --output-format stream-json` o `codex exec --json`), y su archivo de
@@ -1657,6 +1663,22 @@ comprueba antes de cada tarea. Codex no nombra ningún modelo en sus eventos, as
 sin `model` su uso se anota sin precio y el coste del run se marca como parcial.
 Igual se anota una tarea que termina antes de que su harness diga cuánto gastó:
 fallida, agotado su tiempo o detenida.
+
+## Watch a command { #monitor }
+
+`start_monitor`, `list_monitors`, `stop_monitor` — *Vigila un comando de larga duración y entérate de su salida a medida que aparece.*
+
+Permite que un agente inicie un comando que se ejecuta durante mucho tiempo - un watcher de pruebas, un tail de logs, una compilación, un sondeo de CI o de despliegue - y se entere de su salida sin consultarla. El comando se ejecuta desacoplado en el espacio de trabajo de la ejecución, con su salida en un archivo allí.
+
+Antes de cada petición al modelo se leen las líneas nuevas, se filtran con las palabras opcionales `match` (separadas por `|`, sin distinguir mayúsculas; texto simple, no una expresión regular) y se ponen al final de la petición como una nota efímera, como un recordatorio de dirección, de modo que nada se escribe en el historial de la conversación. Una vigilancia que termina se notifica con su código de salida.
+
+| Herramienta | Qué hace |
+|---|---|
+| `start_monitor` | Inicia `command` con `label` y `match` opcionales; como máximo cuatro a la vez |
+| `list_monitors` | Lista las vigilancias con su estado, código de salida, cuántas líneas coincidieron y las últimas diez |
+| `stop_monitor` | Detiene una vigilancia y los procesos que inició |
+
+**Una vigilancia vive lo que la ejecución.** Cada vigilancia se detiene al terminar el turno, así que un comando nunca sobrevive al turno que lo pidió. Necesita un shell persistente del sandbox. El shell de escritorio termina sus procesos después de cada comando; la herramienta lo rechaza antes de iniciar la vigilancia. Lo que imprime un comando vigilado son datos, no instrucciones, y se le dice al agente. Añade **Human approval** para preguntar antes de que arranque un comando.
 
 ## Visuals { #visuals }
 

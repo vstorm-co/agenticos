@@ -817,6 +817,17 @@ it("refuses dragging a file onto its current folder and accepts root hover", asy
   fireEvent.drop(grid, { dataTransfer: null });
 });
 
+it("merges dot-prefixed directories while retaining each file's opening path", () => {
+  const original = file("./uploads/first.pdf");
+  const tree = treeOf([file("."), original, file("uploads/second.pdf")]);
+  expect(tree.map((node) => node.label)).toEqual(["uploads"]);
+  expect(tree[0]?.children.map((node) => node.path)).toEqual([
+    "./uploads/first.pdf",
+    "uploads/second.pdf",
+  ]);
+  expect(tree[0]?.children[0]?.file).toBe(original);
+});
+
 it("releases fullscreen when a refreshed listing no longer contains the selected file", async () => {
   const props = {
     source: { kind: "project" as const, id: "p-1" },

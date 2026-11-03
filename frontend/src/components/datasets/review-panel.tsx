@@ -43,7 +43,7 @@ export function ReviewPanel({ dataset }: { dataset: Dataset }) {
   const [kept, setKept] = useState<{
     scope: string;
     order: string[];
-    scores: Record<string, CaseScore>;
+    scores: Record<string, { score: CaseScore; listing: CaseScore[] }>;
   }>({ scope, order: [], scores: {} });
   if (kept.scope !== scope) setKept({ scope, order: [], scores: {} });
   const scores = useScores(dataset.id, {
@@ -62,10 +62,12 @@ export function ReviewPanel({ dataset }: { dataset: Dataset }) {
   const toCriterion = useNoteToCriterion(dataset);
   const currentKept = kept.scope === scope ? kept : { order: [], scores: {} };
   const visible = new Map(scores.scores.map((score) => [score.id, score]));
-  for (const score of Object.values(currentKept.scores)) {
+  for (const { score, listing } of Object.values(currentKept.scores)) {
     const fresh = visible.get(score.id);
-    // A new privacy mask takes precedence over the locally retained decision.
-    if (!fresh?.case_masked && !fresh?.answer_hidden) visible.set(score.id, score);
+    // Keep the optimistic decision only against the listing it replaced. A new
+    // server listing owns remote decisions and privacy masks.
+    if (!fresh || (listing === scores.scores && !fresh.case_masked && !fresh.answer_hidden))
+      visible.set(score.id, score);
   }
   const ids = [...new Set([...currentKept.order, ...scores.scores.map((score) => score.id)])];
   const visibleScores = ids
@@ -95,7 +97,10 @@ export function ReviewPanel({ dataset }: { dataset: Dataset }) {
           : {
               ...before,
               order: before.order.length ? before.order : visibleScores.map((item) => item.id),
-              scores: { ...before.scores, [decided.id]: decided },
+              scores: {
+                ...before.scores,
+                [decided.id]: { score: decided, listing: scores.scores },
+              },
             },
       );
       const undo = () =>

@@ -486,6 +486,7 @@ describe("OnboardingTour's light", () => {
   it("selects an inactive tab even when its target is already mounted and visible", async () => {
     const trigger = tab("agent-tab-build", "inactive");
     trigger.setAttribute("role", "tab");
+    trigger.setAttribute("aria-expanded", "true");
     const target = document.createElement("div");
     target.dataset.tour = "agent-instructions-header";
     document.body.append(trigger, target);

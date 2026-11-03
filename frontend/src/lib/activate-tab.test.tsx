@@ -124,3 +124,12 @@ it("opens a disclosure once and leaves an open one alone", () => {
   activateTab(trigger);
   expect(clicked).toHaveBeenCalledOnce();
 });
+
+it("activates a dialog trigger without disclosure state", () => {
+  const trigger = document.createElement("button");
+  trigger.setAttribute("aria-haspopup", "dialog");
+  const clicked = vi.fn();
+  trigger.addEventListener("click", clicked);
+  activateTab(trigger);
+  expect(clicked).toHaveBeenCalledOnce();
+});

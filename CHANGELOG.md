@@ -218,6 +218,66 @@ environment without a person's decision.
 - A suite and a promotion override can be set up only by a person signed in as
   themselves, not through an API key or impersonation.
 
+## [1.38.1] - 2026-11-03
+
+### Fixed
+
+- Keep dashboard bar lists at their natural height so ranked agents and provider costs do not overlap idle-agent chips, monthly spend or other card content. Small cards scroll instead of compressing rows.
+
+## [1.38.0] - 2026-11-03
+
+### Added
+
+- Desktop chat controls can select local Claude Code or Codex for one conversation even when Coding agent is disabled or absent from the published agent. Existing approval and read-only rules remain active; a full-access folder and native task confirmation are still required.
+- Local coding tasks resume their conversation's harness session across process restarts. Mid-task corrections interrupt and continue the same session, with applied updates recorded in the transcript and report. Resume identifiers stay outside the repository and are isolated by account, agent, conversation, folder and access policy.
+- Local project instructions support both `AGENTS.md` and `CLAUDE.md`, with a tool to read the hierarchy inside the approved folder. Sign-in opens a native terminal on macOS, Windows and Linux.
+
+- The desktop app finds Claude Code and Codex on the computer, shows their version and whether they are signed in under Settings → Desktop app, and opens each agent's own sign-in in Terminal. AgenticOS never reads or copies the files an agent keeps its credentials in.
+- The `coding_agent` capability can run Claude Code or Codex on the person's own computer (**Where it runs: On this computer**), in a folder granted full access, over the Agent Client Protocol. The agent signs in with its own command, so no key is needed. Each start is confirmed in a native dialog; permission requests inside a task are answered from the binding's access, and the capability's approval stays once per task.
+- Chat controls → Work on → **My skills and instructions** lets a chat use the skills in `~/.agents`, `~/.claude` and `~/.codex` and your `AGENTS.md` (the newer of `~/.codex` and `~/.claude`, then the working folder's), read in place on the desktop and never copied. Off for every new chat and chosen per folder; a name clash goes to `.agents`, then `.claude`, then `.codex`.
+- Help → **Export Diagnostics…** in the desktop app writes one JSON file, to a place you choose, to attach to a bug report: version, operating system, permissions, coding agents installed and signed in, the server's origin and the last crashes - no credentials, tokens, conversations or home-folder paths, and nothing is sent. A panic is saved to `crash.log` as it happens.
+- A **Watch a command** capability (`monitor`): the agent starts a long-running command - a test watcher, a log tail, a CI poll - in its workspace and is told about its new output on its following steps, filtered by an optional pattern, without polling. At most four watches run at once and they all stop when the turn ends.
+- The composer shows which coding agent will work in which folder (`Claude Code · agenticos · can edit`) when the chosen agent runs one on this computer, or what is missing.
+- A world map in visuals and apps that needs no tile server or extra container: `AOWorldMap` draws countries shaded by a value, pins and routes as SVG from outlines the deployment serves itself.
+- Three bundled skills for building a slide deck as an app: `presentation-decks` (with a ready deck template), `deck-storyline` and `deck-review`.
+- A Homebrew tap, `vstorm-co/homebrew-agenticos`, published by the release workflow when `HOMEBREW_TAP_TOKEN` is set; `scripts/install_macos.sh` installs a release after checking its SHA-256.
+
+### Changed
+
+- **The first desktop window opens at 80% of the screen**, centred, until a size has been saved.
+- Releases are signed on macOS with one self-signed certificate when `MACOS_SELF_SIGNED_P12` is configured (`scripts/create_macos_signing_cert.sh` makes it), so macOS keeps Screen Recording and Microphone grants across updates. With the committed publisher pin, missing signing material stops the release; neither signing mode is notarized.
+- `GET /conversations` leaves out threads a bot answers in (Slack, Mattermost, Telegram, Teams) by default, so `/chat` no longer fills with them. Pass `hide_channels=false` to list them again; they stay reachable from Runs and the channel's page.
+
+### Fixed
+
+- Table, Kanban and List share one content background; local file-link origins use opaque identifiers with private desktop folder mappings.
+
+- Homebrew publication authenticates both Mac disk images against the pinned publisher before generating trusted tap checksums.
+
+- Bound the entire local ACP stream and close adapters on output overflow. Refuse monitors on desktop shells that cannot retain background processes. Require signing material when the publisher certificate is pinned. File links retain their original turn workspace, and HTML previews resolve nested CSS assets through that same authorized source.
+
+- The egress inventory includes per-chat local coding overrides; local launches recheck revoked grants after confirmation. Coding folder choices exclude incompatible grants, and file trees normalize current-directory path components.
+
+- Monitor starts reserve their limit before waiting, unfinished output stays bounded while matching full lines, and shutdown escalates unresponsive processes. Cancelled local coding-agent starts also reap sessions whose open replies were not observed; switching to local execution clears a sandbox-only model.
+
+- Coding-agent instructions remain fully readable, execution locations use icon cards, desktop readiness refreshes on native focus with guidance for macOS grants, and Tables uses consistent empty states across views without a large-screen catalog expansion button.
+
+- Conversation lists identify Claude Code and Codex used in a thread alongside its main agent, based on saved task reports and retained after refresh.
+
+- File viewers keep clear of macOS window controls, load directly linked workspace stylesheets and preserve original HTML in Source. Chat files retain their folder hierarchy, and files changed by a turn can be opened below its answer.
+
+- Live chat progress folds into an expandable line on small screens while answers and requests for attention stay visible.
+
+- Chat controls opens above the composer with direct coding-agent choices, compact tool switches and expandable folder and approval settings.
+
+- Tables and Workflows cards have the same default height on the dashboard.
+- Desktop chat settings open in a larger dialog with Tools & files and Preferences tabs. Selecting a local coding agent prepares an approved full-access folder automatically; cancelling preserves the previous choice. Finished coding tasks no longer leave a duplicate status panel below the answer.
+- The desktop console can list local coding agents and skills and open coding-agent sign-in. Their native commands are declared and granted to the main console, fixing the `Command not found` refusal.
+- Local Claude Code read-only tasks disable bypass permissions and expose reading tools only. Local Codex read-only is available in the Builder and selects its native read-only mode. Launch consent has a five-minute interaction timeout, and local skill counts follow the enabled sources.
+- Homebrew publishing supports a deploy key restricted to the tap repository, with temporary key cleanup on success and failure. The stable macOS publisher fingerprint is pinned for installer verification.
+
+- The desktop app can be allowed to use the microphone: the bundle now declares the audio-input and Apple Events entitlements it needs under the hardened runtime, and the setup wizard offers the microphone next to Screen Recording and Accessibility.
+- The cask attached to a release clears the download quarantine flag from the installed app, so Gatekeeper does not refuse an unnotarized build installed through Homebrew.
 ## [1.37.0] - 2026-11-02
 
 ### Added
@@ -19951,7 +20011,9 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.37.0...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.38.1...HEAD
+[1.38.1]: https://github.com/vstorm-co/agenticos/compare/v1.38.0...v1.38.1
+[1.38.0]: https://github.com/vstorm-co/agenticos/compare/v1.37.0...v1.38.0
 [1.37.0]: https://github.com/vstorm-co/agenticos/compare/v1.36.1...v1.37.0
 [1.36.1]: https://github.com/vstorm-co/agenticos/compare/v1.36.0...v1.36.1
 [1.36.0]: https://github.com/vstorm-co/agenticos/compare/v1.35.5...v1.36.0

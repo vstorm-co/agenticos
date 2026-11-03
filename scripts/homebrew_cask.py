@@ -34,6 +34,13 @@ def cask(folder: Path, tag: str) -> str:
   desc "Build, run and govern your company's AI agents"
   homepage "https://github.com/vstorm-co/agenticos"
   app "AgenticOS.app"
+
+  # The release is signed but not notarized, so Gatekeeper would refuse the
+  # quarantined copy Homebrew leaves behind.
+  postflight do
+    system_command "/usr/bin/xattr",
+                   args: ["-dr", "com.apple.quarantine", "#{{appdir}}/AgenticOS.app"]
+  end
 end
 '''
 

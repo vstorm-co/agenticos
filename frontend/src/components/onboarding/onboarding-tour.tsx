@@ -282,15 +282,16 @@ export function OnboardingTour() {
       const targetIsVisible = step.target
         ? [...document.querySelectorAll(`[data-tour="${step.target}"]`)].some(isRendered)
         : false;
-      const targetsTab = step.activate
-        ? document.querySelector(`[data-tour="${step.activate}"][role="tab"]`) !== null
-        : false;
-      // A mounted target does not establish which tab is selected.
-      if (step.activate && (!targetIsVisible || targetsTab)) {
+      const activations =
+        typeof step.activate === "string" ? [step.activate] : (step.activate ?? []);
+      for (const activation of activations) {
+        // A mounted target does not establish which tab is selected.
+        if (targetIsVisible && !document.querySelector(`[data-tour="${activation}"][role="tab"]`))
+          continue;
         // An optional step's tab can itself be conditional (the Memory tab renders only
         // when the capability is bound), so the activate wait takes the short timeout too.
         const trigger = await waitForElement(
-          `[data-tour="${step.activate}"]`,
+          `[data-tour="${activation}"]`,
           signal,
           step.optional ? OPTIONAL_WAIT_MS : undefined,
         );
@@ -302,7 +303,9 @@ export function OnboardingTour() {
         if (
           trigger instanceof HTMLElement &&
           !OPEN_STATES.has(trigger.getAttribute("data-state") ?? "") &&
-          !trigger.closest('[aria-current="step"]')
+          !trigger.closest('[aria-current="step"]') &&
+          (trigger.getAttribute("role") === "tab" ||
+            trigger.getAttribute("aria-expanded") !== "true")
         ) {
           await show(trigger);
           if (signal.aborted) return;

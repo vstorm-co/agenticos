@@ -9,6 +9,7 @@ interface SectionCardProps {
   action?: ReactNode;
   children?: ReactNode;
   fill?: boolean;
+  tour?: string;
 }
 
 export function SectionCard({
@@ -17,6 +18,7 @@ export function SectionCard({
   action,
   children,
   fill = false,
+  tour,
 }: SectionCardProps) {
   return (
     <section
@@ -25,7 +27,10 @@ export function SectionCard({
         fill && "flex min-h-0 flex-1 flex-col",
       )}
     >
-      <header className="border-border flex flex-wrap items-center justify-between gap-3 border-b px-4 py-3">
+      <header
+        data-tour={tour}
+        className="border-border flex flex-wrap items-center justify-between gap-3 border-b px-4 py-3"
+      >
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1">
             <h2 className="text-foreground text-sm font-semibold">{title}</h2>

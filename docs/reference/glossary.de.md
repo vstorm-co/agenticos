@@ -1,5 +1,5 @@
 ---
-source_sha: "faf9a13ba4f9"
+source_sha: "7a8f7c394eea"
 ---
 
 # Glossar { #glossary }
@@ -134,6 +134,7 @@ Jede ist unter [Capabilities](capabilities.md) beschrieben.
 | Gedächtnis (mem0) | `memory_mem0` |
 | Planung | `planning` |
 | Weiterarbeiten, während Tools laufen | `background_tools` |
+| Einen Befehl beobachten | `monitor` |
 | Sandbox | `sandbox` |
 | Skills | `skills` |
 | Subagents | `subagents` |

@@ -21,11 +21,13 @@ export function TableListView({
   records,
   isLoading,
   onOpenRecord,
+  onAddRecord,
 }: {
   columns: ColumnDef[];
   records: RecordRead[];
   isLoading: boolean;
   onOpenRecord: (record: RecordRead) => void;
+  onAddRecord?: () => void;
 }) {
   const t = useTranslations("tables.cells");
   const locale = useLocale();
@@ -48,7 +50,15 @@ export function TableListView({
   }
 
   if (records.length === 0) {
-    return <EmptyState title={tEmpty("title")} description={tEmpty("description")} />;
+    return (
+      <div className="text-muted-foreground px-4 py-12 text-center text-sm [&>*]:border-0 [&>*]:bg-transparent">
+        <EmptyState
+          title={tEmpty("title")}
+          description={tEmpty("description")}
+          cta={onAddRecord ? { label: tEmpty("add"), onClick: onAddRecord } : undefined}
+        />
+      </div>
+    );
   }
 
   return (

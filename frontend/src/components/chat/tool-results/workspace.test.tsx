@@ -9,6 +9,7 @@ const state = vi.hoisted(() => ({
   items: [] as { path: string; size: number | null; is_dir: boolean; modified_at: string | null }[],
   downloaded: [] as string[],
   downloadError: null as string | null,
+  sources: [] as unknown[],
 }));
 
 vi.mock("@/hooks", () => ({
@@ -33,11 +34,10 @@ vi.mock("@/hooks", () => ({
   }),
 }));
 vi.mock("@/lib/workspace-files", () => ({
-  workspaceFileAccess: (_source: unknown, path: string) => ({
-    path,
-    textKey: ["text", path],
-    bytesKey: ["bytes", path],
-  }),
+  workspaceFileAccess: (source: unknown, path: string) => {
+    state.sources.push(source);
+    return { path, textKey: ["text", path], bytesKey: ["bytes", path] };
+  },
 }));
 // The card's job is to open the shared viewer on the right file. What that viewer
 // then shows is asserted where it lives, once, rather than through every surface
@@ -74,6 +74,7 @@ function call(overrides: Partial<ToolCall> = {}): ToolCall {
 beforeEach(() => {
   state.items = [{ path: "/test.md", size: 3, is_dir: false, modified_at: null }];
   state.downloaded = [];
+  state.sources = [];
   state.downloadError = null;
 });
 
@@ -87,12 +88,28 @@ beforeEach(() => {
  * and left the reader to work out which was which.
  */
 describe("a workspace tool call", () => {
+  it("does not guess a workspace for historical tools without a recorded source", () => {
+    render(<WorkspaceToolResult toolCall={call()} resultText="Wrote 1 lines" />);
+    expect(screen.queryByRole("button", { name: "Open" })).toBeNull();
+    expect(state.sources).toEqual([]);
+  });
+  it("uses the recorded conversation rather than the active Work on folder", () => {
+    render(
+      <WorkspaceToolResult
+        toolCall={call()}
+        resultText="Wrote 1 lines"
+        fileSource={{ kind: "conversation", id: "original" }}
+      />,
+    );
+    expect(state.sources.at(-1)).toEqual({ kind: "conversation", id: "original" });
+  });
+
   it("ends a write in a file somebody can open, not a sentence about one", () => {
     render(
       <WorkspaceToolResult
         toolCall={call()}
         resultText="Wrote 1 lines to /workspace/test.md"
-        conversationId="c-1"
+        fileSource={{ kind: "conversation", id: "c-1" }}
       />,
     );
 
@@ -109,7 +126,7 @@ describe("a workspace tool call", () => {
       <WorkspaceToolResult
         toolCall={call()}
         resultText="Wrote 1 lines to /workspace/test.md"
-        conversationId="c-1"
+        fileSource={{ kind: "conversation", id: "c-1" }}
       />,
     );
 
@@ -120,7 +137,11 @@ describe("a workspace tool call", () => {
     // The tool is called with `/workspace/test.md` and the workspace stores it as
     // `/test.md`. A button built from the argument opens a file that is not there.
     render(
-      <WorkspaceToolResult toolCall={call()} resultText="Wrote 1 lines" conversationId="c-1" />,
+      <WorkspaceToolResult
+        toolCall={call()}
+        resultText="Wrote 1 lines"
+        fileSource={{ kind: "conversation", id: "c-1" }}
+      />,
     );
 
     await userEvent.click(screen.getByRole("button", { name: "Open" }));
@@ -136,7 +157,11 @@ describe("a workspace tool call", () => {
     ];
 
     render(
-      <WorkspaceToolResult toolCall={call()} resultText="Wrote 1 lines" conversationId="c-1" />,
+      <WorkspaceToolResult
+        toolCall={call()}
+        resultText="Wrote 1 lines"
+        fileSource={{ kind: "conversation", id: "c-1" }}
+      />,
     );
 
     await userEvent.click(screen.getByRole("button", { name: "Open" }));
@@ -146,7 +171,11 @@ describe("a workspace tool call", () => {
 
   it("saves the file the listing knows about, not the path in the arguments", async () => {
     render(
-      <WorkspaceToolResult toolCall={call()} resultText="Wrote 1 lines" conversationId="c-1" />,
+      <WorkspaceToolResult
+        toolCall={call()}
+        resultText="Wrote 1 lines"
+        fileSource={{ kind: "conversation", id: "c-1" }}
+      />,
     );
 
     await userEvent.click(screen.getByRole("button", { name: /Download/ }));
@@ -160,7 +189,11 @@ describe("a workspace tool call", () => {
     state.downloadError = "This host can only read text";
 
     render(
-      <WorkspaceToolResult toolCall={call()} resultText="Wrote 1 lines" conversationId="c-1" />,
+      <WorkspaceToolResult
+        toolCall={call()}
+        resultText="Wrote 1 lines"
+        fileSource={{ kind: "conversation", id: "c-1" }}
+      />,
     );
 
     expect(screen.getByText("This host can only read text")).toBeVisible();
@@ -179,7 +212,11 @@ describe("a workspace tool call", () => {
     state.items = [];
 
     render(
-      <WorkspaceToolResult toolCall={call()} resultText="Wrote 1 lines" conversationId="c-1" />,
+      <WorkspaceToolResult
+        toolCall={call()}
+        resultText="Wrote 1 lines"
+        fileSource={{ kind: "conversation", id: "c-1" }}
+      />,
     );
 
     expect(screen.getByText("test.md")).toBeVisible();
@@ -192,7 +229,11 @@ describe("a workspace tool call", () => {
     // the rest of the turn off the screen, and what it duplicated was one click away
     // in the card and one more in the step's raw view.
     render(
-      <WorkspaceToolResult toolCall={call()} resultText="Wrote 1 lines" conversationId="c-1" />,
+      <WorkspaceToolResult
+        toolCall={call()}
+        resultText="Wrote 1 lines"
+        fileSource={{ kind: "conversation", id: "c-1" }}
+      />,
     );
 
     expect(screen.getByText("test.md")).toBeVisible();
@@ -206,7 +247,7 @@ describe("a workspace tool call", () => {
       <WorkspaceToolResult
         toolCall={call({ status: "error" })}
         resultText="The workspace is full"
-        conversationId="c-1"
+        fileSource={{ kind: "conversation", id: "c-1" }}
       />,
     );
 
@@ -220,7 +261,7 @@ describe("a workspace tool call", () => {
       <WorkspaceToolResult
         toolCall={call({ name: "edit_file", args: { path: "/a.py", new_string: "print(2)" } })}
         resultText="Edited /a.py"
-        conversationId="c-1"
+        fileSource={{ kind: "conversation", id: "c-1" }}
       />,
     );
 
@@ -234,7 +275,7 @@ describe("a workspace tool call", () => {
       <WorkspaceToolResult
         toolCall={call({ status: "error" })}
         resultText="path must be absolute"
-        conversationId="c-1"
+        fileSource={{ kind: "conversation", id: "c-1" }}
       />,
     );
 
@@ -320,7 +361,11 @@ describe("a workspace tool call", () => {
     // The card opens a modal; the way out has to work, and it is a callback the card
     // owns rather than the viewer.
     render(
-      <WorkspaceToolResult toolCall={call()} resultText="Wrote 1 lines" conversationId="c-1" />,
+      <WorkspaceToolResult
+        toolCall={call()}
+        resultText="Wrote 1 lines"
+        fileSource={{ kind: "conversation", id: "c-1" }}
+      />,
     );
     await userEvent.click(screen.getByRole("button", { name: "Open" }));
 
@@ -338,7 +383,7 @@ describe("a workspace tool call", () => {
       <WorkspaceToolResult
         toolCall={call({ args: { path: "/Makefile", content: "all:" } })}
         resultText="Wrote 1 lines"
-        conversationId="c-1"
+        fileSource={{ kind: "conversation", id: "c-1" }}
       />,
     );
 

@@ -1345,6 +1345,41 @@ describe("the work before an answer", () => {
     expect(screen.queryByText(/Working/)).not.toBeInTheDocument();
   });
 
+  it("collapses routine live work on small screens and keeps the answer and approvals outside", async () => {
+    const parts = [
+      thought,
+      call("read"),
+      text("answer", "Here is the result."),
+      call("approve", "awaiting_approval"),
+    ];
+    const view = item({ parts, isStreaming: true });
+    const detail = screen.getByTestId("tool-tc-read").closest("[data-work-detail]");
+    expect(detail).toHaveClass("hidden", "md:block");
+    expect(screen.getByText("Here is the result.").closest("[data-work-detail]")).toBeNull();
+    expect(screen.getByTestId("tool-tc-approve").closest("[data-work-detail]")).toBeNull();
+    const toggle = screen.getByRole("button", { name: /Working/ });
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    await userEvent.click(toggle);
+    expect(detail).not.toHaveClass("hidden");
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    view.rerender(
+      <MessageItem
+        message={message({
+          parts: [...parts, { ...thought, id: "new-thought" }],
+          isStreaming: true,
+        })}
+      />,
+    );
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    await userEvent.click(toggle);
+    expect(detail).toHaveClass("hidden", "md:block");
+  });
+
+  it("keeps live failures out of the mobile progress fold", () => {
+    item({ parts: [thought, call("bad", "error")], isStreaming: true });
+    expect(screen.getByTestId("tool-tc-bad").closest("[data-work-detail]")).toBeNull();
+  });
+
   it("folds a stopped turn's work into one line that says it stopped, with no Done", () => {
     const parts = [call("a"), call("b")];
     item({ parts, runDurationMs: 12_400, wasStopped: true });

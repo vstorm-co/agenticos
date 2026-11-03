@@ -56,6 +56,7 @@ export function DelegationPanels({
    * and the team under the answer, so its panel goes; so does one the person
    * stopped, which the step now reads as "Stopped asking …". One still out in the
    * background, one that failed, and a specialist that can still be kept stay.
+   * Finished coding tasks already have a tool step and report in their turn.
    */
   settled?: boolean;
   /** The turn is still running: draw the delegations as a conversation. */
@@ -63,11 +64,16 @@ export function DelegationPanels({
 }) {
   const roots = rootsOf(delegations).filter(
     (delegation) =>
-      !settled ||
-      delegation.specialist !== null ||
-      (delegation.status === "completed"
-        ? delegation.mode === "async"
-        : delegation.status !== "cancelled"),
+      !(
+        settled &&
+        delegation.harness !== null &&
+        ["completed", "failed", "cancelled"].includes(delegation.status)
+      ) &&
+      (!settled ||
+        delegation.specialist !== null ||
+        (delegation.status === "completed"
+          ? delegation.mode === "async"
+          : delegation.status !== "cancelled")),
   );
   if (roots.length === 0) return null;
   // While the turn runs, the team is drawn as the exchange it is - see

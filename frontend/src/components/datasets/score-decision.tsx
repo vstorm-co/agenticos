@@ -37,6 +37,11 @@ export function ScoreDecision({
 }: ScoreDecisionProps) {
   const t = useTranslations("datasets.scoring");
   const [written, setWritten] = useState(note ?? "");
+  const [storedNote, setStoredNote] = useState(note);
+  if (storedNote !== note) {
+    setStoredNote(note);
+    if (written === (storedNote ?? "")) setWritten(note ?? "");
+  }
   const decide = (passed: boolean | null) =>
     onVerdict?.({ passed, note: passed === null || written.trim() === "" ? null : written });
 
