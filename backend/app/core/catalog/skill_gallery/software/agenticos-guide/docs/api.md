@@ -189,8 +189,20 @@ else's, answers `404`; one of the issuer's own conversations from the console or
 channel answers `400` - a key that may run agents was not given the person's chats.
 So does a parked run: a key resumes or answers only a run a key started, and
 one the person started answers `403`, since continuing it acts as them.
-The conversation is filed in the issuer's chat list,
-labelled **API** and hidden until they switch such conversations on there.
+The conversation is filed in the issuer's chat list, labelled **API** and hidden
+until they switch such conversations on there.
+
+A run asked in a chat is the exception to resuming it yourself. When a person
+decides its last pending approval, or answers its questions, the server continues
+the run as them and posts the answer to the chat. A key's decision continues
+nothing: a person has to resume that run from the console within about an hour of
+the last decision, or it is ended.
+
+`continues_in_chat` says so: it is on `ApprovalRead`, on `AgentRunRead` (the single
+read) and on the result of a resume and of an answer. It is always false on
+`POST /agents/{id}/run`, and for an API key. When it is true, do not call
+`/resume`. A `/resume` that arrives second gets the existing `400`, with the run's
+`status`. See [Decided outside the chat](channels.md#decided-outside-the-chat).
 
 `GET /api/v1/conversations/{id}/transcript` reads one of the issuer's
 conversations turn by turn, with the tools each turn called and what it cost,

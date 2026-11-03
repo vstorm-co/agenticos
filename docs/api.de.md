@@ -1,5 +1,5 @@
 ---
-source_sha: "7298c6f9c182"
+source_sha: "b91e3f9da2ed"
 ---
 
 # Die HTTP-API { #the-http-api }
@@ -219,6 +219,18 @@ Schlüssel gestartet hat; einer, den die Person gestartet hat, antwortet `403`,
 weil die Fortsetzung in ihrem Namen handelt. Die Unterhaltung landet in der Chatliste des
 Ausstellers mit dem Label **API** und bleibt ausgeblendet, bis er solche
 Unterhaltungen dort per Schalter einblendet.
+
+Ein im Chat gestellter Run ist die Ausnahme vom eigenhändigen Fortsetzen. Entscheidet
+eine Person die letzte offene Freigabe oder beantwortet sie die Fragen, setzt der
+Server den Run als sie fort und postet die Antwort in den Chat. Die Entscheidung eines
+Schlüssels setzt nichts fort: Eine Person muss diesen Run innerhalb von etwa einer Stunde
+nach der letzten Entscheidung in der Konsole fortsetzen, sonst wird er beendet.
+
+`continues_in_chat` sagt das: Es steht auf `ApprovalRead`, auf `AgentRunRead` (Einzelabruf) und im
+Ergebnis eines Fortsetzens und einer Antwort. Auf `POST /agents/{id}/run` ist es
+immer false, ebenso für einen API-Schlüssel. Ist es true, rufe `/resume` nicht auf.
+Ein `/resume`, das als zweites ankommt, erhält das bestehende `400` mit dem `status`
+des Runs. Siehe [Außerhalb des Chats entschieden](channels.md#decided-outside-the-chat).
 
 `GET /api/v1/conversations/{id}/transcript` liest eine der Unterhaltungen des
 Ausstellers Zug für Zug, mit den Tools, die jeder Zug aufgerufen hat, und den

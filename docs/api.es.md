@@ -1,5 +1,5 @@
 ---
-source_sha: "7298c6f9c182"
+source_sha: "b91e3f9da2ed"
 ---
 
 # La API HTTP { #the-http-api }
@@ -209,6 +209,18 @@ persona. Lo mismo con una ejecución aparcada: una clave reanuda o responde solo
 ejecución que inició una clave, y una que inició la persona responde `403`, porque
 continuarla actúa en su nombre. La conversación se guarda en la lista de chats de quien emitió la clave con
 la etiqueta **API** y queda oculta hasta que las muestre allí con un interruptor.
+
+Un run planteado en un chat es la excepción a reanudarlo uno mismo. Cuando una
+persona decide su última aprobación pendiente o responde sus preguntas, el servidor
+continúa el run como ella y publica la respuesta en el chat. La decisión de una
+clave no continúa nada: una persona tiene que reanudar ese run desde la consola en
+aproximadamente una hora desde la última decisión, o se termina.
+
+`continues_in_chat` lo indica: está en `ApprovalRead`, en `AgentRunRead` (lectura individual) y en el
+resultado de una reanudación y de una respuesta. En `POST /agents/{id}/run` es
+siempre false, y también para una clave de API. Cuando es true, no llames a
+`/resume`. Un `/resume` que llega en segundo lugar recibe el `400` existente, con el
+`status` del run. Véase [Decidido fuera del chat](channels.md#decided-outside-the-chat).
 
 `GET /api/v1/conversations/{id}/transcript` lee una de las conversaciones de
 quien emitió la clave turno a turno, con las herramientas que llamó cada turno y
