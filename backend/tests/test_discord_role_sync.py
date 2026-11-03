@@ -14,7 +14,8 @@ from sqlalchemy.exc import IntegrityError
 
 from app.core.exceptions import BadRequestError
 from app.db.models.discord_role_mapping import DiscordRoleMapping
-from app.services import channels
+from app.services import channels, rate_limit
+from app.services.channels import router as router_module
 from app.services.channels.base import IncomingMessage
 from app.services.channels.discord import DiscordAdapter
 from app.services.channels.discord_roles import (
@@ -90,6 +91,76 @@ class TestWhereItRunsInATurn:
 
         on_turn.assert_not_awaited()
         assert order == ["command"]
+
+
+class TestTheRoleSyncsAllowance:
+    """The sync asks Discord ahead of the commands, so it is counted even when a command answers."""
+
+    @pytest.fixture(autouse=True)
+    def _windows(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(router_module, "_fallback_windows", rate_limit.LocalWindows())
+
+    def _bot(self) -> MagicMock:
+        return MagicMock(id=uuid.uuid4(), is_active=True, access_policy={"rate_limit_rpm": 1})
+
+    async def test_a_command_spends_it_and_the_next_asks_discord_nothing(self):
+        bot, identity = self._bot(), MagicMock(user_id=uuid.uuid4())
+        on_turn, command, refuse = (
+            AsyncMock(),
+            AsyncMock(return_value="Available commands"),
+            AsyncMock(),
+        )
+        with (
+            patch(
+                "app.services.channels.router.channel_bot_repo.get_for_inbound",
+                new=AsyncMock(return_value=bot),
+            ),
+            patch.object(
+                ChannelMessageRouter, "_resolve_identity", new=AsyncMock(return_value=identity)
+            ),
+            patch.object(DiscordRoleSync, "on_turn", new=on_turn),
+            patch.object(ChannelMessageRouter, "_handle_command", new=command),
+            patch.object(ChannelMessageRouter, "_send_reply", new=AsyncMock()),
+            patch.object(ChannelMessageRouter, "_refuse_if_named", new=refuse),
+        ):
+            for _ in range(2):
+                await ChannelMessageRouter()._route_inner(_incoming("discord"), MagicMock())
+
+        on_turn.assert_awaited_once()
+        command.assert_awaited_once()
+        assert refuse.await_args.args[2] == "Rate limit exceeded. Please slow down."
+
+    async def test_an_ask_past_it_is_refused_before_discord_is_asked(self):
+        bot, identity = self._bot(), MagicMock(user_id=uuid.uuid4())
+        on_turn = AsyncMock()
+        with (
+            patch(
+                "app.services.channels.router.channel_bot_repo.get_for_inbound",
+                new=AsyncMock(return_value=bot),
+            ),
+            patch.object(ChannelMessageRouter, "_check_access"),
+            patch.object(
+                ChannelMessageRouter, "_resolve_identity", new=AsyncMock(return_value=identity)
+            ),
+            patch.object(DiscordRoleSync, "on_turn", new=on_turn),
+            patch.object(ChannelMessageRouter, "_admits_unlinked", return_value=True),
+        ):
+            router = ChannelMessageRouter()
+            assert await router.refusal_before_publishing(_incoming("discord"), MagicMock()) is None
+            refusal = await router.refusal_before_publishing(_incoming("discord"), MagicMock())
+
+        assert refusal == "Rate limit exceeded. Please slow down."
+        on_turn.assert_awaited_once()
+
+    async def test_an_unlinked_sender_is_asked_about_nothing_and_not_counted(self):
+        bot, identity = self._bot(), MagicMock(user_id=None)
+        with patch.object(DiscordRoleSync, "on_turn", new=AsyncMock()) as on_turn:
+            for _ in range(3):
+                await ChannelMessageRouter()._sync_discord_roles(
+                    bot, identity, _incoming("discord"), MagicMock()
+                )
+
+        on_turn.assert_not_awaited()
 
 
 class TestThePreflightBeforeAsk:

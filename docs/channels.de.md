@@ -1,5 +1,5 @@
 ---
-source_sha: "018b470d71ce"
+source_sha: "6bb7a2c20513"
 ---
 
 # Einen Agent dorthin bringen, wo die Menschen schon sind { #putting-an-agent-where-people-already-are }
@@ -1711,6 +1711,11 @@ Gruppe, und der Job bemerkt das auch bei jemandem, der dem Bot nicht mehr schrei
 Der Bot fragt Discord jeweils nach den Rollen eines Mitglieds, braucht also keinen
 privilegierten Intent, und eine neue Zuordnung erfasst Personen bei ihrer nächsten
 Nachricht statt sofort.
+
+Diese Prüfungen vor einer Nachricht zählen gegen das `rate_limit_rpm` des Absenders,
+in einem eigenen Kontingent, Befehle wie `/help` eingeschlossen. Wer es überschreitet,
+wird gebeten, langsamer zu schreiben, und Discord wird erst nach Ablauf der Minute
+wieder gefragt.
 
 Eine Zuordnung kann auch eine Rolle in der Organisation nennen. Eine verknüpfte
 Person mit der Discord-Rolle, die noch kein Mitglied ist, tritt der Organisation dann

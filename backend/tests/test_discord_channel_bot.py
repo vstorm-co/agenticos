@@ -138,7 +138,7 @@ class TestPublishingAQuestionAsTheBot:
                 "app.services.channels.router.channel_bot_repo.get_for_inbound",
                 AsyncMock(return_value=self._bot),
             ),
-            patch("app.services.channels.router.DiscordRoleSync.on_turn", AsyncMock()),
+            patch.object(ChannelMessageRouter, "_sync_discord_roles", AsyncMock()),
         ):
             return await router.refusal_before_publishing(self._incoming(), MagicMock())
 

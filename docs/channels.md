@@ -1545,6 +1545,10 @@ what notices that for somebody who has stopped writing to the bot. The bot asks
 Discord for one member's roles at a time, so it needs no privileged intent, and a
 new mapping places people at their next message rather than at once.
 
+Those checks before a message count against the sender's `rate_limit_rpm` on an
+allowance of their own, commands such as `/help` included. A sender past it is
+asked to slow down, and Discord is not asked again until the minute is over.
+
 A mapping can also name an organization role. A linked holder who is not a member
 yet then joins the organization with that role, which spares inviting everybody in
 a community server one at a time. Naming a role takes `roles:manage`, and only a

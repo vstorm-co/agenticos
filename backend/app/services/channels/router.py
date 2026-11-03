@@ -427,7 +427,10 @@ class ChannelMessageRouter:
             # the membership checked here has to be brought up to date first:
             # a role taken away a moment ago must not have its holder's words
             # posted as the bot, and one just given must not be told to link.
-            await DiscordRoleSync(db).on_turn(bot, identity, incoming.raw)
+            try:
+                await self._sync_discord_roles(bot, identity, incoming, db)
+            except BadRequestError as exc:
+                return exc.message
         if not self._admits_unlinked(incoming, bot) and not await self._sender_is_active_member(
             db, bot, identity
         ):
@@ -497,7 +500,11 @@ class ChannelMessageRouter:
             # Before the membership check below, so a member given a mapped
             # role a moment ago is answered with it, and one who lost the role
             # that admitted them is refused (#2569).
-            await DiscordRoleSync(db).on_turn(bot, identity, incoming.raw)
+            try:
+                await self._sync_discord_roles(bot, identity, incoming, db)
+            except BadRequestError as exc:
+                await self._refuse_if_named(bot, incoming, exc.message)
+                return
 
         admit_unlinked = self._admits_unlinked(incoming, bot)
 
@@ -1771,7 +1778,33 @@ class ChannelMessageRouter:
         # drift quietly against the messages people actually sent.
         return await channel_session_repo.touch(db, session)
 
-    async def _check_rate_limit(self, bot: ChannelBot, identity_id: str) -> None:
+    async def _sync_discord_roles(
+        self,
+        bot: ChannelBot,
+        identity: ChannelIdentity,
+        incoming: IncomingMessage,
+        db: AsyncSession,
+    ) -> None:
+        """Bring a linked Discord sender's memberships up to date with their roles (#2569).
+
+        Counted on an allowance of its own before Discord is asked, at the
+        bot's per-sender rate: it runs ahead of the commands, and `/help` and
+        the rest return before a turn's allowance is spent, so without it every
+        message could have the bot call Discord once per mapped server while
+        holding a database connection. An unlinked sender is asked about
+        nothing and is not counted.
+
+        Raises:
+            BadRequestError: The sender has used up the allowance.
+        """
+        if identity.user_id is None:
+            return
+        await self._check_rate_limit(bot, str(identity.id), surface="discord-roles")
+        await DiscordRoleSync(db).on_turn(bot, identity, incoming.raw)
+
+    async def _check_rate_limit(
+        self, bot: ChannelBot, identity_id: str, *, surface: str = "channel"
+    ) -> None:
         """Count this message against the chat account's allowance on this bot.
 
         Ten a minute unless `bot.access_policy.rate_limit_rpm` says otherwise.
@@ -1788,17 +1821,20 @@ class ChannelMessageRouter:
         lasts. Fail-open here would remove a production control for the length
         of a cache blip.
 
+        `surface` keeps a second allowance apart from the turn's, counted at the
+        same rate: the Discord role sync's.
+
         Raises:
             BadRequestError: If the rate limit is exceeded.
         """
         policy: dict[str, Any] = self._parse_policy(bot)
         limit = Limit(attempts=int(policy.get("rate_limit_rpm", _DEFAULT_RPM)))
         caller = f"bot:{bot.id}:identity:{identity_id}"
-        decision = await rate_limit.consume(surface="channel", caller=caller, limit=limit)
+        decision = await rate_limit.consume(surface=surface, caller=caller, limit=limit)
         allowed = decision.allowed
         if not decision.metered:
             allowed = _fallback_windows.consume(
-                caller, attempts=limit.attempts, window_seconds=limit.window_seconds
+                f"{surface}:{caller}", attempts=limit.attempts, window_seconds=limit.window_seconds
             )
         if not allowed:
             raise BadRequestError(message="Rate limit exceeded. Please slow down.")

@@ -1,5 +1,5 @@
 ---
-source_sha: "018b470d71ce"
+source_sha: "6bb7a2c20513"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -1589,6 +1589,11 @@ do któregokolwiek z botów Discorda organizacji, a także przy zadaniu
 zadanie zauważa to u kogoś, kto przestał pisać do bota. Bot pyta Discorda o role
 jednego członka naraz, więc nie potrzebuje uprzywilejowanego intentu, a nowe
 mapowanie umieszcza ludzi przy ich następnej wiadomości, nie od razu.
+
+Te sprawdzenia przed wiadomością liczą się do `rate_limit_rpm` nadawcy w osobnym
+limicie, łącznie z poleceniami takimi jak `/help`. Nadawca, który go przekroczy,
+dostaje prośbę o zwolnienie, a Discord nie jest pytany ponownie, dopóki minuta
+nie minie.
 
 Mapowanie może też wskazać rolę w organizacji. Połączona osoba z tą rolą, która nie
 jest jeszcze członkiem, dołącza wtedy do organizacji z tą rolą, co oszczędza

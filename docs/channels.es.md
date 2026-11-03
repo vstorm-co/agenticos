@@ -1,5 +1,5 @@
 ---
-source_sha: "018b470d71ce"
+source_sha: "6bb7a2c20513"
 ---
 
 # Poner un agent donde la gente ya está { #putting-an-agent-where-people-already-are }
@@ -1622,6 +1622,11 @@ rol, y el trabajo es lo que lo detecta en alguien que ha dejado de escribir al b
 El bot pregunta a Discord por los roles de un miembro cada vez, así que no necesita
 ningún intent privilegiado, y una asignación nueva coloca a las personas en su
 siguiente mensaje y no de inmediato.
+
+Esas comprobaciones antes de un mensaje cuentan contra el `rate_limit_rpm` del
+remitente en un cupo propio, incluidos comandos como `/help`. A quien lo supera se
+le pide que vaya más despacio, y no se vuelve a preguntar a Discord hasta que pase
+el minuto.
 
 Una asignación también puede nombrar un rol de la organización. Una persona
 vinculada con el rol que todavía no es miembro entra entonces en la organización con
