@@ -331,7 +331,7 @@ class AuthoringService:
                 details={"kind": body.kind},
             )
         improver = await self._improver(ctx, body.improver_agent_id)
-        pack = await self.evidence.for_skill(ctx, skill.name, window_days=body.window_days)
+        pack = await self.evidence.for_skill(ctx, skill.id, window_days=body.window_days)
         return await self._estimate(ctx, improver, pack, None if pack.runs else "no_evidence")
 
     async def estimate_context(

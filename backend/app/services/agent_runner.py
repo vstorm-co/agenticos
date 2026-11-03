@@ -170,7 +170,14 @@ from app.agents.capabilities.sandbox import (
 )
 from app.agents.capabilities.sandbox._identity import SessionScope
 from app.agents.capabilities.sandbox._recording import RecordingWorkspace
-from app.agents.capabilities.skills import SKILL_BODIES_RESOURCE, SkillBody
+from app.agents.capabilities.skills import (
+    SKILL_BODIES_RESOURCE,
+    SKILL_USE_LOG_RESOURCE,
+    SkillBody,
+    SkillUseLog,
+    served_skills,
+    tool_identities,
+)
 from app.agents.capabilities.subagents import SubagentsConfig, acting_delegate
 from app.agents.capabilities.tool_output_limits import SPILL_LOG_RESOURCE
 from app.agents.connect_on_use import (
@@ -277,6 +284,7 @@ from app.repositories import (
     message_rating_repo,
     organization_repo,
     run_manifest_repo,
+    skill_usage_repo,
     user_repo,
     voice_call_repo,
 )
@@ -1531,6 +1539,8 @@ class PreparedRun:
 
     knowledge_searches: KnowledgeSearchLog | None = None
     """The knowledge searches the run and its delegates made, waiting for `finish`."""
+    skill_uses: SkillUseLog | None = None
+    """The skills the run and its delegates used, waiting for `finish`."""
     delegate_recorders: list[tuple[UUID, RunRecorder]] = field(default_factory=list)
     """Each delegate's agent id and request recording, so `finish` can count the
     cache busts it hit on the row that answers for that agent - a delegate's agent
@@ -3624,12 +3634,17 @@ class AgentRunnerService:
             collections=_searched_bases(bound),
             found=None if knowledge is None else knowledge.found,
         )
+        skills = await self.skills.resolve_for_agent(ctx, spec.skill_ids, projected=skill_bodies)
+        skill_log = SkillUseLog(
+            agent_id=agent.id,
+            served=served_skills(skills, skill_bodies or {}),
+            tools=tool_identities(spec.capabilities),
+        )
         resources: dict[str, Any] = {
             **bound,
             KNOWLEDGE_SEARCH_LOG_RESOURCE: search_log,
-            "skills": await self.skills.resolve_for_agent(
-                ctx, spec.skill_ids, projected=skill_bodies
-            ),
+            SKILL_USE_LOG_RESOURCE: skill_log,
+            "skills": skills,
             CONTEXT_FILES_RESOURCE: await self.context.resolve_for_agent(
                 ctx,
                 spec.context_ids,
@@ -4340,6 +4355,7 @@ class AgentRunnerService:
             ],
             delegations=delegations,
             knowledge_searches=search_log,
+            skill_uses=skill_log,
             delegate_recorders=delegate_recorders,
             stash=stash,
             ctx=ctx,
@@ -5060,13 +5076,21 @@ class AgentRunnerService:
         delegate reaches a durable workspace at all.
         """
         bound = await self._bound_collections(spec, ctx)
+        skills = await self.skills.resolve_for_agent(ctx, spec.skill_ids)
         resources: dict[str, Any] = {
             **bound,
-            "skills": await self.skills.resolve_for_agent(ctx, spec.skill_ids),
+            "skills": skills,
             CONTEXT_FILES_RESOURCE: await self.context.resolve_for_agent(
                 ctx, spec.context_ids, config=context_config(spec.capabilities)
             ),
         }
+        parent_skills = parent_resources.get(SKILL_USE_LOG_RESOURCE)
+        if isinstance(parent_skills, SkillUseLog):
+            # Recorded on the run that delegated, under the delegate's own agent:
+            # the answer somebody rates is that run's, and the skill is the delegate's.
+            resources[SKILL_USE_LOG_RESOURCE] = parent_skills.for_agent(
+                agent_id, served_skills(skills, {}), tool_identities(spec.capabilities)
+            )
         parent_log = parent_resources.get(KNOWLEDGE_SEARCH_LOG_RESOURCE)
         if isinstance(parent_log, KnowledgeSearchLog):
             # An inline specialist has no agent of its own (`agent_id` is None);
@@ -5333,6 +5357,40 @@ class AgentRunnerService:
                 )
         except Exception:
             logger.exception("knowledge_searches_not_written", extra={"run_id": str(run.id)})
+
+    async def _write_skill_uses(self, prepared: PreparedRun) -> None:
+        """Write the skills the run and its delegates used, and mark the run recorded.
+
+        Never raises, for the reason :meth:`_write_knowledge_searches` gives. Both
+        writes share one savepoint. A run parked on an approval comes here once per
+        segment, so a write that fails marks the run unrecorded for good: what that
+        segment used is lost, and it reads "unknown" rather than as a run that used
+        no skill, whichever segment's write comes after it.
+        """
+        log = prepared.skill_uses
+        records = [] if log is None else log.records()
+        run = prepared.run
+        try:
+            async with self.db.begin_nested():
+                await skill_usage_repo.record_uses(
+                    self.db,
+                    records,
+                    organization_id=run.organization_id,
+                    run_id=run.id,
+                    started_at=run.started_at or run.created_at,
+                )
+                await skill_usage_repo.mark_recorded(
+                    self.db, organization_id=run.organization_id, run_id=run.id
+                )
+        except Exception:
+            logger.exception("skill_uses_not_written", extra={"run_id": str(run.id)})
+            try:
+                async with self.db.begin_nested():
+                    await skill_usage_repo.mark_unrecorded(
+                        self.db, organization_id=run.organization_id, run_id=run.id
+                    )
+            except Exception:
+                logger.exception("skill_uses_not_marked", extra={"run_id": str(run.id)})
 
     async def _may_record_about(self, user_id: UUID) -> bool:
         """Whether a search made answering this person may still be written.
@@ -5694,6 +5752,7 @@ class AgentRunnerService:
         # and recorded nothing is the hole a cancellation would otherwise open.
         await self._write_delegations(prepared)
         await self._write_knowledge_searches(prepared)
+        await self._write_skill_uses(prepared)
         await self._record_manifest(prepared)
         # Guarded, because `finish` is called from a `finally` block: an
         # exception raised while telling somebody about a failed run would

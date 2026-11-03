@@ -4,7 +4,7 @@ What only a database shows:
 
 - the evidence the assistant may read never includes an eval run, a Builder
   test or a delegate's run, and comes rated-down-with-a-comment first;
-- the runs that opened a skill are found by the `load_capability` call;
+- the runs that used a skill are found by its recorded use, a delegate's too;
 - an agent holds at most one open batch, whatever two writers attempt;
 - a hunk decision is a compare-and-set: only one of two decisions lands;
 - and nothing is read across organizations.
@@ -24,12 +24,15 @@ from app.db.models.authoring import AuthoringStatus, BatchStatus, HunkStatus
 from app.db.models.conversation import Conversation, Message, ToolCall
 from app.db.models.message_rating import MessageRating
 from app.db.models.organization import Organization
+from app.db.models.skill import Skill
 from app.db.models.user import User
-from app.repositories import authoring_repo
+from app.repositories import authoring_repo, skill_usage_repo
+from app.schemas.skill_usage import SkillUseRecord
 
 pytestmark = pytest.mark.anyio
 
 _LONG_AGO = datetime.now(UTC) - timedelta(days=30)
+_DAYS_AGO = datetime.now(UTC) - timedelta(days=5)
 
 
 async def _org(db: AsyncSession) -> tuple[Organization, User]:
@@ -121,6 +124,47 @@ async def _run(
     return run
 
 
+async def _skill(db: AsyncSession, org: Organization, name: str) -> Skill:
+    skill = Skill(
+        id=uuid.uuid4(),
+        organization_id=org.id,
+        name=name,
+        description=f"About {name}",
+        content=f"# {name}",
+        visibility="org",
+    )
+    db.add(skill)
+    await db.flush()
+    return skill
+
+
+async def _use(
+    db: AsyncSession,
+    run: AgentRun,
+    skill: Skill,
+    *,
+    agent: Agent | None = None,
+    loaded: bool = True,
+    workspace_reads: int = 0,
+    version: uuid.UUID | None = None,
+) -> None:
+    await skill_usage_repo.record_uses(
+        db,
+        [
+            SkillUseRecord(
+                agent_id=run.agent_id if agent is None else agent.id,
+                skill_id=skill.id,
+                skill_version_id=version,
+                loaded=loaded,
+                workspace_reads=workspace_reads,
+            )
+        ],
+        organization_id=run.organization_id,
+        run_id=run.id,
+        started_at=run.started_at or datetime.now(UTC),
+    )
+
+
 class TestEvidence:
     async def test_eval_runs_tests_and_delegates_are_never_evidence(self, db: AsyncSession):
         org, user = await _org(db)
@@ -176,38 +220,74 @@ class TestEvidence:
         assert [row.run.id for row in rows] == [recent.id]
         assert [row.run.id for row in limited] == [recent.id]
 
-    async def test_the_runs_that_opened_a_skill_are_found_by_its_load_call(self, db: AsyncSession):
+    async def test_the_runs_that_used_a_skill_are_found_by_its_recorded_use(self, db: AsyncSession):
         org, user = await _org(db)
         agent = await _agent(db, org, user)
-        loaded = await _run(
-            db,
-            org,
-            agent,
-            user,
-            rating=-1,
-            tool=("load_capability", {"id": "refunds"}),
-            started_at=datetime.now(UTC) - timedelta(days=5),
-        )
-        # Newer runs that opened the skill rank below the rated-down one rather
+        delegate = await _agent(db, org, user)
+        refunds = await _skill(db, org, "refunds")
+        shipping = await _skill(db, org, "shipping")
+        v2 = uuid.uuid4()
+        loaded = await _run(db, org, agent, user, rating=-1, started_at=_DAYS_AGO)
+        await _use(db, loaded, refunds)
+        # Newer runs that used the skill rank below the rated-down one rather
         # than crowding it out of the limit.
         for _ in range(3):
-            await _run(db, org, agent, user, rating=1, tool=("load_capability", {"id": "refunds"}))
-        await _run(db, org, agent, user, rating=-1, tool=("load_capability", {"id": "shipping"}))
-        await _run(
+            await _use(db, await _run(db, org, agent, user, rating=1), refunds)
+        await _use(db, await _run(db, org, agent, user, rating=-1), shipping)
+        await _use(
+            db, await _run(db, org, agent, user, rating=-1, surface=RunSurface.EVAL), refunds
+        )
+        delegated = await _run(db, org, agent, user, status="failed")
+        await _use(db, delegated, refunds, agent=delegate, version=v2)
+        probable = await _run(
+            db, org, agent, user, rating=-1, started_at=_DAYS_AGO + timedelta(days=1)
+        )
+        await _use(db, probable, refunds, loaded=False, workspace_reads=1)
+
+        first = await authoring_repo.evidence_runs(
+            db, organization_id=org.id, skill_id=refunds.id, since=_LONG_AGO, limit=1
+        )
+        every = await authoring_repo.evidence_runs(
+            db, organization_id=org.id, skill_id=refunds.id, since=_LONG_AGO, limit=10
+        )
+        of_v2 = await authoring_repo.evidence_runs(
             db,
-            org,
-            agent,
-            user,
-            rating=-1,
-            surface=RunSurface.EVAL,
-            tool=("load_capability", {"id": "refunds"}),
+            organization_id=org.id,
+            skill_id=refunds.id,
+            skill_versions=[v2],
+            since=_LONG_AGO,
+            limit=10,
         )
 
-        found = await authoring_repo.evidence_runs(
-            db, organization_id=org.id, skill_name="refunds", since=_LONG_AGO, limit=1
+        assert [row.run.id for row in first] == [probable.id]
+        assert {row.run.id for row in every} >= {loaded.id, delegated.id, probable.id}
+        assert len(every) == 6
+        assert [row.run.id for row in of_v2] == [delegated.id]
+
+    async def test_a_run_a_hidden_delegate_used_the_skill_in_does_not_take_a_place(
+        self, db: AsyncSession
+    ):
+        org, user = await _org(db)
+        agent = await _agent(db, org, user)
+        hidden = await _agent(db, org, user)
+        skill = await _skill(db, org, "refunds")
+        seen = await _run(db, org, agent, user, rating=-1, started_at=_DAYS_AGO)
+        await _use(db, seen, skill)
+        # Ranked first, and used by an agent the reader may not see.
+        unseen = await _run(db, org, agent, user, rating=-1, comment="Wrong")
+        await _use(db, unseen, skill)
+        await _use(db, unseen, skill, agent=hidden)
+
+        rows = await authoring_repo.evidence_runs(
+            db,
+            organization_id=org.id,
+            skill_id=skill.id,
+            skill_agent_ids=[agent.id],
+            since=_LONG_AGO,
+            limit=1,
         )
 
-        assert [row.run.id for row in found] == [loaded.id]
+        assert [row.run.id for row in rows] == [seen.id]
 
 
 class TestProposals:

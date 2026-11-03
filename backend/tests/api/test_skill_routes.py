@@ -15,6 +15,7 @@ prove only that the route returns whatever it was handed.
 import uuid
 from collections.abc import AsyncIterator, Callable, Iterator
 from contextlib import AbstractAsyncContextManager, asynccontextmanager
+from datetime import UTC, datetime
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import UUID
@@ -26,6 +27,7 @@ from app.api import deps
 from app.core.config import settings
 from app.core.permissions import AuthContext, OrgRoleName
 from app.main import app
+from app.schemas.skill_usage import SkillUsageRead
 from app.services import skill_library
 from app.services.skills import SkillService
 
@@ -192,3 +194,26 @@ class TestListing:
             response = await http.get(_url("?sort=oldest"))
 
         assert response.status_code == 422
+
+
+class TestUsage:
+    async def test_the_window_reaches_the_service_and_is_bounded(self, client: OpenClient):
+        skill_id = uuid.uuid4()
+        read = SkillUsageRead(
+            days=7,
+            since=datetime.now(UTC),
+            loads=0,
+            agents=[],
+            hidden_agents=1,
+            hidden_loads=2,
+        )
+        with patch.object(SkillService, "usage", AsyncMock(return_value=read)) as usage:
+            async with client() as http:
+                answered = await http.get(_url(f"/{skill_id}/usage?days=7"))
+                too_long = await http.get(_url(f"/{skill_id}/usage?days=91"))
+
+        assert answered.status_code == 200
+        assert answered.json()["hidden_agents"] == 1
+        assert usage.await_args.args[1] == skill_id
+        assert usage.await_args.kwargs == {"days": 7}
+        assert too_long.status_code == 422
