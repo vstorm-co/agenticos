@@ -907,8 +907,13 @@ class UserService:
         granted - a claim this lock waited for - is found only by a second read
         under it. Its name is taken without waiting, as the purge does (#1389):
         a claim holding that name may be waiting for the organization this holds.
-        None can appear after the second read, because a new base references the
-        locked organization or, for a personal base, the locked user.
+        No base can appear after the second read, because a new base references
+        the locked organization or, for a personal base, the locked user. One
+        creator still deadlocks rather than waits: the user being deleted. Their
+        base insert takes the organization row first, then waits for the user row
+        `_lock_for_delete` already holds, while this waits for the organization,
+        so Postgres aborts one of the two - the deletion answers 500 and a retry
+        succeeds. That ordering predates this lock.
 
         Raises:
             ConcurrentChangeError: A base created during the deletion has a name
