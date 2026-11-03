@@ -19,6 +19,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Security
+
+- **Breaking:** A sync source now records the knowledge base it syncs into (`sync_sources.knowledge_base_id`, migration `0251_sync_source_knowledge_base`) instead of resolving one again from its collection name, which is not unique (#2551). An organization base newer than a member's personal base of the same name keeps its own sources, runs and synced documents; a source can be added to any base of a shared name from that base's Sync tab, where it was refused with 400. `rag-source-add` records the organization base it checked rather than syncing into whichever base the name resolves to, and takes `--knowledge-base <id>` when several of the organization's bases hold the name. Deleting a base, or dropping it with `DELETE /rag/collections/{name}` or `rag-drop`, detaches and deactivates exactly the sources that record it, whoever else holds the name, and a source with no knowledge base is neither scheduled nor synced. The migration gives every existing source the base its sync wrote into before; a source whose collection no base of its organization or of the deployment holds was writing unfiled chunks, so the migration deactivates it and logs its id. To act on: point each logged source at a knowledge base to sync it again, and add `--knowledge-base` to `rag-source-add` scripts whose organization holds the collection name twice. Downgrading drops the column and does not reactivate those sources.
+
 ## [1.38.1] - 2026-11-03
 
 ### Fixed

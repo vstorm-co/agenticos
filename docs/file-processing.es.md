@@ -1,5 +1,5 @@
 ---
-source_sha: "4ccd1e16c6dc"
+source_sha: "c87169b283af"
 ---
 
 # Procesamiento de archivos { #file-processing }
@@ -7,8 +7,8 @@ source_sha: "4ccd1e16c6dc"
 Este documento cubre cómo se tratan los archivos en dos contextos: las subidas
 de archivos en el chat, que pertenecen a la persona que las hizo, y la ingesta
 de documentos RAG, que pertenece a una colección y depende de
-Al eliminar una base se desvinculan y desactivan las fuentes de sincronización cuyo destino
-era esa base. Conservan la configuración del conector, pero requieren una reasignación
+Al eliminar una base se desvinculan y desactivan exactamente las fuentes de sincronización
+que la registran, tenga quien tenga el nombre además. Conservan la configuración del conector, pero requieren una reasignación
 explícita antes de sincronizar de nuevo; otra base del mismo nombre no las hereda. Vaciar
 una base predeterminada conserva sus fuentes porque la fila de destino permanece. La
 ingesta por CLI rechaza un nombre reservado para un borrado pendiente hasta que se libere.
@@ -649,17 +649,23 @@ El recurso es solo una base de ámbito app: una base personal fuera de toda
 organización tampoco tiene organización, pero es de una sola persona
 ([#2537](https://github.com/vstorm-co/agenticos/issues/2537)).
 
-Una fuente de sincronización registra una organización y un nombre de colección,
-no una base de conocimiento, así que su sincronización escribe en la base que elige
-esa resolución - la base más antigua de la organización con ese nombre - y solo esa
-base la lista y la ejecuta. Cada ruta de la API que dirige una fuente a una
-colección comprueba el permiso de escritura sobre esa base, y añadir una fuente a
-otra base del mismo nombre se rechaza con 400.
+Una fuente de sincronización registra la base de conocimiento en la que sincroniza
+(`knowledge_base_id`), no solo un nombre de colección, y solo esa base la lista, la
+ejecuta y muestra su historial. Una fuente añadida desde la pestaña **Sync** de una
+base registra esa base, así que dos bases con el mismo nombre conservan cada una sus
+fuentes. Una ruta que dirige una fuente a una colección por su nombre registra la base
+a la que ese nombre se resuelve para la organización de quien llama (la resolución de
+arriba) y comprueba el permiso de escritura sobre esa base.
 
-Cuando la base personal de un miembro es más antigua que la base de la organización
-del mismo nombre, las sincronizaciones de la organización con ese nombre acaban en
-la base personal, y la base de la organización no admite fuentes: créala con un
-nombre propio.
+`rag-source-add` registra la base de la organización que comprobó, y
+`--knowledge-base` elige una cuando varias bases de la organización tienen el nombre
+([#2551](https://github.com/vstorm-co/agenticos/issues/2551)).
+
+Una fuente sin base de conocimiento no sincroniza. La actualización que añadió la
+columna dio a cada fuente existente la base en la que escribía su sincronización, y
+desactivó, registrando su id, cada fuente cuya colección no tiene ninguna base de su
+organización ni del despliegue: apúntala a una base de conocimiento para que vuelva a
+sincronizar.
 
 !!! warning "Un nombre de colección es un espacio de embeddings"
 
