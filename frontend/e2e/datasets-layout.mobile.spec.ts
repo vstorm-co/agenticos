@@ -1,7 +1,7 @@
 import type { Page } from "@playwright/test";
 
 import { expect, test } from "./fixtures";
-import { AUTH_STATE } from "./helpers";
+import { AUTH_STATE, submitDialog } from "./helpers";
 
 test.use({ storageState: AUTH_STATE });
 
@@ -134,6 +134,54 @@ test("case editing keeps fields and save reachable on narrow and short screens",
         "data-state",
         "active",
       );
+    }
+  }
+});
+
+test("dataset gallery fills the page with one card and with no search matches", async ({
+  page,
+}, info) => {
+  const name = `Gallery height ${Date.now().toString(36)}`;
+  await page.goto("/datasets");
+  await page.getByRole("button", { name: "New dataset", exact: true }).click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByRole("textbox", { name: /^Name/ }).fill(name);
+  await submitDialog(page, {
+    dialog,
+    submit: dialog.getByRole("button", { name: "Create", exact: true }),
+    path: "/api/datasets",
+  });
+  await expect(page.getByRole("heading", { name, exact: true })).toBeVisible();
+  await page.goto("/datasets");
+  const gallery = page.locator('[data-tour="datasets-list"]');
+  const search = page.getByRole("textbox", { name: "Search datasets", exact: true });
+  for (const width of [320, 390, 1440]) {
+    await page.setViewportSize({ width, height: 900 });
+    for (const empty of [false, true]) {
+      await search.fill(empty ? `${name}-no-match` : name);
+      if (empty)
+        await expect(gallery.getByText("No dataset matches", { exact: true })).toBeVisible();
+      else
+        await expect(
+          gallery.getByRole("link", { name: `Open ${name}`, exact: true }),
+        ).toBeVisible();
+      await expect
+        .poll(() =>
+          gallery.evaluate((element) => {
+            const frame = element.closest(".page-enter");
+            if (!frame) throw new Error("The gallery has no page frame");
+            const expectedBottom =
+              frame.getBoundingClientRect().bottom -
+              parseFloat(getComputedStyle(frame).paddingBottom);
+            return Math.abs(element.getBoundingClientRect().bottom - expectedBottom);
+          }),
+        )
+        .toBeLessThanOrEqual(1);
+      await fitsPage(page);
+      await page.screenshot({
+        path: info.outputPath(`gallery-${empty ? "empty" : "one-card"}-${width}.png`),
+        animations: "disabled",
+      });
     }
   }
 });

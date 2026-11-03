@@ -60,7 +60,7 @@ export default function DatasetsPage() {
 
   if (!isLoadingPermissions && !can(Perm.datasetsView)) {
     return (
-      <div className="space-y-6">
+      <div className="flex flex-1 flex-col space-y-4">
         {header}
         <EmptyState icon={Lock} title={t("noAccess")} description={t("noAccessBody")} />
       </div>
@@ -68,9 +68,10 @@ export default function DatasetsPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="flex flex-1 flex-col space-y-4">
       {header}
       <ListCard
+        fill
         data-tour="datasets-list"
         namedByPage
         title={t("title")}
@@ -110,7 +111,7 @@ export default function DatasetsPage() {
             }
           />
         ) : (
-          <div className="space-y-4">
+          <div className="flex flex-1 flex-col gap-4">
             <div className="rise-in grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
               {datasets.map((dataset) => (
                 <DatasetCard
