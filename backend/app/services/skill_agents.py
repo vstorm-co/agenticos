@@ -30,9 +30,15 @@ from app.db.models.agent import Agent, AgentStatus
 from app.db.models.agent_environment import AgentEnvironment
 from app.db.models.skill import Skill
 from app.db.models.skill_version import SkillFork, SkillVersion
-from app.repositories import agent_environment_repo, agent_repo, skill_version_repo
+from app.repositories import (
+    agent_environment_repo,
+    agent_repo,
+    skill_check_repo,
+    skill_version_repo,
+)
 from app.schemas.resource_usage import AgentUsage
 from app.schemas.skill_version import (
+    AgentCheckRef,
     AgentEnvironmentBinding,
     ForkRef,
     SkillAgentList,
@@ -98,6 +104,15 @@ def lines_of(spec: dict[str, object], skill_id: UUID) -> list[Line]:
         for specialist in inline
         if (found := read(specialist.skill_ids, specialist.skill_bindings, specialist.name))
     ]
+
+
+@dataclass(frozen=True)
+class LineAgent:
+    """An agent whose served version follows a line: the version that runs, and how."""
+
+    agent: Agent
+    agent_version: int
+    via_specialist: str | None
 
 
 @dataclass
@@ -239,6 +254,29 @@ class SkillAgentService:
             by_fork.update({binding.fork.id for binding in bindings if binding.fork is not None})
         return by_version, by_fork
 
+    async def line_agents(self, skill: Skill, fork_id: UUID | None) -> list[LineAgent]:
+        """The agents a change to this line reaches: main's followers, or the fork's.
+
+        An agent counts when a served version reads the line - its default
+        environment's first, else the first environment that does. Pinned agents,
+        other lines and agents bound in a draft alone are not reached.
+        """
+        found: list[LineAgent] = []
+        for use in await self._uses(skill):
+            on_line = [
+                (environment, number, line)
+                for environment, number, lines in use.served
+                for line in lines
+                if (line.state == "main" if fork_id is None else line.fork_id == fork_id)
+            ]
+            if not on_line:
+                continue
+            _, number, line = next(
+                (served for served in on_line if served[0].is_default), on_line[0]
+            )
+            found.append(LineAgent(use.agent, number, line.via_specialist))
+        return found
+
     async def fork_users(self, skill: Skill, fork_id: UUID) -> list[Agent]:
         """The agents that read a fork, themselves or through a specialist, in a served
         version or their draft."""
@@ -277,6 +315,25 @@ class SkillAgentService:
         lines = [line for use in uses for _, _, served in use.served for line in served]
         lines += [line for use in uses for line in use.draft]
         reader = await self._reader(skill, lines)
+        checks: dict[UUID, dict[UUID, AgentCheckRef]] = {}
+        # What a check found on an agent is eval results, read like a check itself.
+        checked = [] if not ctx.has(Perm.RUNS_VIEW) else agents
+        for agent_id, version_id, found, at in await skill_check_repo.checked_versions(
+            self.db,
+            organization_id=skill.organization_id,
+            skill_id=skill.id,
+            agent_ids=[agent.id for agent in checked],
+        ):
+            checks.setdefault(agent_id, {}).setdefault(
+                version_id,
+                AgentCheckRef(
+                    check_id=found.check_id,
+                    version_id=version_id,
+                    state=found.state,
+                    sample=found.sample,
+                    at=at,
+                ),
+            )
         rows: list[SkillAgentUsage] = []
         for use in uses:
             # The default environment first: a reader's row shows what it serves there.
@@ -327,6 +384,8 @@ class SkillAgentService:
                         draft_differs=draft.get(via) != line,
                         can_change=agent.id in editable and via is None and None in draft,
                         can_publish=agent.id in publishable,
+                        checked=checks.get(agent.id, {}).get(binding.version.id),
+                        checked_versions=list(checks.get(agent.id, {}).values()),
                     )
                 )
         return rows

@@ -11,7 +11,9 @@ from app.agents.capabilities.skills._capability import (
     SKILL_BODIES_RESOURCE,
     SKILL_TEXTS,
     SkillBody,
+    SkillBodyFile,
     Skills,
+    served_files,
     to_toolkit_skill,
 )
 from app.agents.capabilities.skills._log import (
@@ -28,8 +30,10 @@ __all__ = [
     "SKILL_USE_LOG_RESOURCE",
     "ServedSkill",
     "SkillBody",
+    "SkillBodyFile",
     "SkillUseLog",
     "Skills",
+    "served_files",
     "served_skills",
     "to_toolkit_skill",
     "tool_identities",

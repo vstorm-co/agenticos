@@ -42,6 +42,13 @@ class SkillProposalRead(BaseSchema, TimestampSchema):
             "workspace wrote before proposals recorded it"
         ),
     )
+    fork_id: UUID | None = Field(
+        default=None, description="The fork the change is to; null for the main line"
+    )
+    source: str | None = Field(
+        default=None,
+        description="What wrote it - `workspace`, `improve` or `library`; null when not recorded",
+    )
     authoring_request_id: UUID | None = Field(
         default=None,
         description=(

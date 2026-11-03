@@ -243,3 +243,198 @@ async def test_gallery_refresh_can_inspect_install_and_adopt_a_copy(db) -> None:
     copy = await skill_repo.get_by_name(db, bundled.name, organization_id=ctx.organization_id)
     assert copy is not None and copy.library_fingerprint == bundled.fingerprint
     assert await service.refresh_gallery(ctx, key, dry_run=True) is LibraryRefresh.CURRENT
+
+
+async def test_an_update_agents_follow_waits_as_a_proposal_until_it_is_checked(
+    db, monkeypatch
+) -> None:
+    """A release's better text still changes what every following agent does; it goes
+    live through a check on them, like any other change to a shared skill."""
+    from typing import cast
+
+    from app.db.models.agent import Agent
+    from app.repositories import skill_proposal_repo
+    from app.services.skill_agents import LineAgent, SkillAgentService
+
+    ctx = await _owner_ctx(db)
+    before = await _as_an_earlier_release(db, ctx)
+
+    async def followers(_self, skill, fork_id):
+        return [LineAgent(agent=cast(Agent, object()), agent_version=1, via_specialist=None)]
+
+    monkeypatch.setattr(SkillAgentService, "line_agents", followers)
+    service = SkillService(db)
+
+    assert await service.plan_library_refresh(ctx, KEY) is LibraryRefresh.WAITING
+    assert await service.refresh_from_library(ctx, KEY) is LibraryRefresh.WAITING
+    assert await service.refresh_from_library(ctx, KEY) is LibraryRefresh.WAITING
+
+    after = await _copy(db, ctx)
+    assert (after.version, after.content) == (before.version, "The old body.")
+    waiting = await skill_proposal_repo.from_source(
+        db, organization_id=ctx.organization_id, skill_id=after.id, source="library"
+    )
+    bundled = skill_library.get(KEY)
+    assert bundled is not None
+    assert [item.content for item in waiting] == [bundled.content]
+    assert waiting[0].base_version_id == after.latest_version_id
+
+
+async def test_a_newer_release_withdraws_the_older_waiting_one_and_a_decided_one_stays_decided(
+    db, monkeypatch
+) -> None:
+    from typing import cast
+
+    from app.db.models.agent import Agent
+    from app.db.models.skill_proposal import ProposalStatus
+    from app.repositories import skill_proposal_repo
+    from app.services.skill_agents import LineAgent, SkillAgentService
+
+    ctx = await _owner_ctx(db)
+    copy = await _as_an_earlier_release(db, ctx)
+    copy = await skill_repo.update(db, skill=copy, update_data={"category": "old-shelf"})
+    copy = await skill_repo.update(
+        db, skill=copy, update_data={"library_fingerprint": _fingerprint_of(copy)}
+    )
+
+    async def followers(_self, skill, fork_id):
+        return [LineAgent(agent=cast(Agent, object()), agent_version=1, via_specialist=None)]
+
+    monkeypatch.setattr(SkillAgentService, "line_agents", followers)
+    older = await skill_proposal_repo.create(
+        db,
+        organization_id=ctx.organization_id,
+        skill_id=copy.id,
+        agent_id=None,
+        conversation_id=None,
+        name=copy.name,
+        description=copy.description,
+        content="What an earlier release said.",
+        resources={},
+        base_version=copy.version,
+        base_version_id=copy.latest_version_id,
+        fork_id=None,
+    )
+    await skill_proposal_repo.annotate(db, proposal=older, values={"source": "library"})
+    long_ago = await skill_proposal_repo.create(
+        db,
+        organization_id=ctx.organization_id,
+        skill_id=copy.id,
+        agent_id=None,
+        conversation_id=None,
+        name=copy.name,
+        description=copy.description,
+        content="What a release long ago said.",
+        resources={},
+        base_version=copy.version,
+        base_version_id=copy.latest_version_id,
+        fork_id=None,
+    )
+    await skill_proposal_repo.annotate(
+        db, proposal=long_ago, values={"source": "library", "status": "discarded"}
+    )
+    service = SkillService(db)
+
+    assert await service.refresh_from_library(ctx, KEY) is LibraryRefresh.WAITING
+
+    await db.refresh(older)
+    assert older.status == ProposalStatus.DISCARDED.value
+    bundled = skill_library.get(KEY)
+    assert bundled is not None
+    assert (await _copy(db, ctx)).category == bundled.category
+    every = await skill_proposal_repo.from_source(
+        db, organization_id=ctx.organization_id, skill_id=copy.id, source="library"
+    )
+    newest = next(item for item in every if item.status == ProposalStatus.PENDING.value)
+    await skill_proposal_repo.decide_if(
+        db,
+        proposal_id=newest.id,
+        organization_id=ctx.organization_id,
+        revision=newest.revision,
+        status=ProposalStatus.DISCARDED,
+        decided_by=ctx.user_id,
+    )
+
+    await skill_repo.update(db, skill=await _copy(db, ctx), update_data={"category": "moved"})
+    stamped = await _copy(db, ctx)
+    await skill_repo.update(
+        db, skill=stamped, update_data={"library_fingerprint": _fingerprint_of(stamped)}
+    )
+    assert await service.refresh_from_library(ctx, KEY) is LibraryRefresh.WAITING
+    assert (await _copy(db, ctx)).category == bundled.category
+    again = await skill_proposal_repo.from_source(
+        db, organization_id=ctx.organization_id, skill_id=copy.id, source="library"
+    )
+    assert [item.status for item in again if item.status == ProposalStatus.PENDING.value] == []
+
+
+async def test_a_copy_edited_here_and_replaced_on_request_keeps_its_own_stamp(
+    db, monkeypatch
+) -> None:
+    """`--replace` takes the bundled version over edits; until it is applied the copy
+    is still the organization's edit, and moving its category does not hide that."""
+    from typing import cast
+
+    from app.db.models.agent import Agent
+    from app.services.skill_agents import LineAgent, SkillAgentService
+
+    ctx = await _owner_ctx(db)
+    copy = await _as_an_earlier_release(db, ctx)
+    stamp = copy.library_fingerprint
+    copy = await skill_repo.update(
+        db, skill=copy, update_data={"content": "Edited here.", "category": "old-shelf"}
+    )
+
+    async def followers(_self, skill, fork_id):
+        return [LineAgent(agent=cast(Agent, object()), agent_version=1, via_specialist=None)]
+
+    monkeypatch.setattr(SkillAgentService, "line_agents", followers)
+
+    plan = await SkillService(db).refresh_from_library(ctx, KEY, replace_edited=True)
+
+    assert plan is LibraryRefresh.WAITING
+    assert (await _copy(db, ctx)).library_fingerprint == stamp
+
+
+async def test_withdrawing_a_waiting_update_stops_its_check(db, monkeypatch) -> None:
+    """A newer release withdraws the older waiting update; checking it further would
+    spend the agents' budget on a change nobody can apply any more."""
+    from typing import cast
+
+    from app.db.models.agent import Agent
+    from app.repositories import skill_proposal_repo
+    from app.services.skill_agents import LineAgent, SkillAgentService
+    from app.services.skill_check import SkillCheckService
+
+    ctx = await _owner_ctx(db)
+    copy = await _as_an_earlier_release(db, ctx)
+
+    async def followers(_self, skill, fork_id):
+        return [LineAgent(agent=cast(Agent, object()), agent_version=1, via_specialist=None)]
+
+    monkeypatch.setattr(SkillAgentService, "line_agents", followers)
+    older = await skill_proposal_repo.create(
+        db,
+        organization_id=ctx.organization_id,
+        skill_id=copy.id,
+        agent_id=None,
+        conversation_id=None,
+        name=copy.name,
+        description=copy.description,
+        content="What an earlier release said.",
+        resources={},
+        base_version=copy.version,
+        base_version_id=copy.latest_version_id,
+        fork_id=None,
+    )
+    await skill_proposal_repo.annotate(db, proposal=older, values={"source": "library"})
+    stopped: list[object] = []
+
+    async def stop(_self, _ctx, skill_id, proposal_id):
+        stopped.append(proposal_id)
+
+    monkeypatch.setattr(SkillCheckService, "stop_for_proposal", stop)
+
+    await SkillService(db).refresh_from_library(ctx, KEY)
+
+    assert stopped == [older.id]

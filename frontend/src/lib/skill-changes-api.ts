@@ -28,6 +28,10 @@ export interface SkillChangeRecord {
   decided_at: string | null;
   /** The skill version the proposal was written against; Apply refuses past it. */
   base_version?: number | null;
+  /** The fork the change is to; null for the main line. */
+  fork_id: string | null;
+  /** What wrote it: an agent's workspace, the assistant, or a library update. */
+  source?: "workspace" | "improve" | "library" | null;
   /** The authoring assistant's request behind it; null for a change a workspace wrote. */
   authoring_request_id?: string | null;
   rationale?: string;
