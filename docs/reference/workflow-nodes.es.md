@@ -1,5 +1,5 @@
 ---
-source_sha: "7e54b3f5be8a"
+source_sha: "361ef64710ed"
 ---
 
 # Nodos de workflow { #workflow-nodes }
@@ -970,6 +970,42 @@ de la ejecución responde `404`.
 ::: app.workflows.nodes.flow_wait._handler.FlowWaitConfig
 
 ::: app.workflows.nodes.flow_wait._handler.FlowWaitOutput
+
+## flow.await_reply { #flow-await-reply }
+
+**Esperar respuesta por correo.** Selecciona el buzón Gmail u Outlook conectado de
+la organización, el `thread_id` del proveedor, el remitente exacto
+`expected_sender`, `not_before` y `deadline` con zona horaria, y opcionalmente el
+RFC `anchor_message_id` original. Outlook admite un buzón compartido que la cuenta
+pueda leer. Solo consulta metadatos cada 60–3600 segundos (300 por defecto) con el
+temporizador duradero del workflow, sin ocupar un worker ni un modelo mientras
+espera. Conserva la cuenta y su generación de consentimiento tras reinicios;
+nunca cambia automáticamente a una cuenta nueva.
+
+La salida `reply` gana cuando el remitente autenticado responde en ese hilo después
+de `not_before` y antes del plazo, inclusive. Los encabezados RFC opcionales solo
+restringen la coincidencia. No cuentan los mensajes enviados, borradores, respuestas
+automáticas ni recibos. Una última consulta correcta sin coincidencia verificada
+sale por `deadline`; `ignored_unverified` cuenta coincidencias sin autenticación.
+Significa **ninguna respuesta coincidente verificada**, no demuestra que nadie
+haya escrito. Un buzón ilegible, excesivo o revocado falla explícitamente y nunca
+sale por el plazo. El límite es de 500 mensajes y cinco páginas Graph. También
+considera respuestas recibidas antes de que el paso empezara a esperar.
+
+La pestaña Pasos muestra la expectativa. Quien inició el workflow o un editor puede
+pausarla o corregirla mientras espera; en pruebas, solo un editor. Una consulta en
+curso devuelve 409. La pausa conserva el plazo y no consulta el buzón. La revisión
+explícita de un consentimiento renovado solo acepta la misma cuenta. Un paso que
+requiere atención necesita además su decisión de reintento. Cancelar cierra el
+temporizador e impide pasos posteriores. Dura como máximo treinta días; el plazo
+general puede finalizar antes. Prepara seguimientos en `deadline` con los nodos
+habituales de notificación y aprobación; este nodo no envía correo.
+
+::: app.workflows.nodes.flow_await_reply._handler.AwaitReplyConfig
+
+::: app.schemas.reply_expectation.ReplyExpectationInput
+
+::: app.schemas.reply_expectation.ReplyExpectationOutput
 
 ## flow.resume_link { #flow-resume-link }
 

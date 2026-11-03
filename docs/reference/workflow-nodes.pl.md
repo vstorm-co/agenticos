@@ -1,5 +1,5 @@
 ---
-source_sha: "7e54b3f5be8a"
+source_sha: "361ef64710ed"
 ---
 
 # Węzły workflow { #workflow-nodes }
@@ -955,6 +955,42 @@ odpowiada `404`.
 ::: app.workflows.nodes.flow_wait._handler.FlowWaitConfig
 
 ::: app.workflows.nodes.flow_wait._handler.FlowWaitOutput
+
+## flow.await_reply { #flow-await-reply }
+
+**Oczekuj odpowiedzi e-mail.** Wybierz połączoną skrzynkę organizacji Gmail lub
+Outlook, identyfikator wątku `thread_id` u dostawcy, dokładny adres
+`expected_sender`, czas `not_before` i `deadline` ze strefą czasową oraz opcjonalny
+oryginalny RFC `anchor_message_id`. Outlook obsługuje skrzynkę współdzieloną,
+do której konto ma dostęp. Krok odczytuje tylko metadane co 60–3600 sekund
+(domyślnie 300), korzystając z trwałego timera workflow. Podczas oczekiwania nie
+zajmuje workera ani modelu. Zachowuje konto i generację zgody; zastąpienie konta
+nie przekierowuje oczekiwania.
+
+Port `reply` wygrywa, gdy uwierzytelniony nadawca odpowiedział w tym wątku po
+`not_before`, najpóźniej w terminie. Opcjonalne nagłówki RFC tylko zawężają
+wyszukiwanie. Wiadomości wysłane, szkice, automatyczne odpowiedzi i potwierdzenia
+nie są odpowiedzią. Końcowy udany odczyt bez zweryfikowanego dopasowania wybiera
+`deadline`, z liczbą odrzuconych niezweryfikowanych dopasowań
+`ignored_unverified`. To **brak zweryfikowanej pasującej odpowiedzi**, a nie dowód,
+że nikt nie napisał. Błąd, zbyt duży wątek lub cofnięta zgoda kończą krok jawnie
+bez przejścia przez `deadline`. Limit to 500 wiadomości i pięć stron Graph.
+Uwzględniane są również odpowiedzi otrzymane przed pierwszym zaparkowaniem kroku.
+
+Zakładka kroki uruchomienia pokazuje oczekiwanie. Osoba uruchamiająca lub edytor
+workflow może je wstrzymać lub poprawić, gdy krok czeka (w testach tylko edytor).
+Wykonywany odczyt zwraca 409. Pauza zachowuje termin i zatrzymuje odczyty.
+Jawny przegląd odnowionej zgody dotyczy wyłącznie tego samego konta. Krok wymagający
+uwagi nadal potrzebuje osobnej decyzji ponowienia. Anulowanie uruchomienia zamyka
+timer i blokuje dalsze kroki. Maksymalny czas to 30 dni; termin całego workflow
+może zakończyć uruchomienie wcześniej. Follow-up przygotuj na gałęzi `deadline`
+standardowymi węzłami powiadomień i akceptacji; ten krok nie wysyła poczty.
+
+::: app.workflows.nodes.flow_await_reply._handler.AwaitReplyConfig
+
+::: app.schemas.reply_expectation.ReplyExpectationInput
+
+::: app.schemas.reply_expectation.ReplyExpectationOutput
 
 ## flow.resume_link { #flow-resume-link }
 

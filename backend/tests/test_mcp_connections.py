@@ -2240,6 +2240,7 @@ class TestOAuthTokens:
             ),
             id=stale.id,
             user_id=stale.user_id,
+            authorization_generation=stale.authorization_generation,
         )
         refresh_mock = AsyncMock()
         monkeypatch.setattr(mcp_oauth, "refresh_tokens", refresh_mock)
@@ -2285,6 +2286,7 @@ class TestRefreshUnderLock:
 
     _id = uuid4()
     _user_id = uuid4()
+    _authorization_generation = uuid4()
 
     @classmethod
     def _expired(cls) -> McpConnection:
@@ -2293,6 +2295,7 @@ class TestRefreshUnderLock:
             _base_payload(access_token="stale", refresh_token="rt", expires_at=0.0),
             id=cls._id,
             user_id=cls._user_id,
+            authorization_generation=cls._authorization_generation,
         )
 
     @staticmethod

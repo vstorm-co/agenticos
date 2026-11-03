@@ -187,3 +187,13 @@ retry-state check. Migration down/up/check has no model drift. Backend lint,
 frontend typing/i18n/ESLint and strict documentation build passed.
 
 Other remaining feature blocks listed above still require implementation.
+
+## Durable mail reply expectations — implemented
+
+`flow.await_reply` uses existing workflow dispatch timers. Account and consent
+generation, exact provider thread/sender, optional RFC anchor and original deadline
+persist across wakes. Authenticated replies before the deadline win; unreadable,
+oversized or revoked mailboxes cannot produce a no-reply verdict. The run page
+shows state and permits authorized pause/correction without changing the mailbox.
+Existing cancellation, duplicate dispatch protection and storage quotas apply.
+Project/table and follow-up creation presets remain required in this block.

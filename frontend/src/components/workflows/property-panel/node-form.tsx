@@ -73,6 +73,7 @@ import {
   McpToolField,
   useMcpToolSchema,
 } from "@/components/workflows/pickers/mcp-tool-picker";
+import { ReplyMailboxPicker } from "./reply-mailbox-picker";
 import { NotificationChannels } from "./notification-channels";
 import { FormPageForm } from "./form-page-form";
 import { HttpAuthField } from "./http-auth-field";
@@ -1297,6 +1298,7 @@ function NodeFields({
   // Drawn by another field: an agent step's `inline` by `agent`, an MCP step's
   // tool by its server.
   const drawnElsewhere = (name: string) =>
+    (definition.id === "flow.await_reply" && ["provider", "connection_id"].includes(name)) ||
     (agentStep && name === AGENT_INLINE) ||
     (mcpStep && name === MCP_TOOL) ||
     (definition.id === "email.send" && name === "smtp_secret_id");
@@ -1381,6 +1383,13 @@ function NodeFields({
   return (
     <div className="space-y-6">
       {account !== undefined && <PortalAccount account={account} />}
+      {definition.id === "flow.await_reply" && (
+        <ReplyMailboxPicker
+          value={node.config.connection_id}
+          disabled={disabled}
+          onChange={(changes) => updateNodeConfig(node.id, { ...node.config, ...changes })}
+        />
+      )}
       {definition.id === HTTP_REQUEST && (
         <CurlImport
           node={node}

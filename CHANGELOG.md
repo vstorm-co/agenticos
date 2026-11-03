@@ -39,6 +39,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- Durable **Await email reply** workflow step for explicitly selected Gmail/Outlook mailboxes, including shared Outlook mailboxes: exact authenticated thread/sender matching, separate reply/deadline branches, restart-safe timers and run-page pause/correction controls. Metadata-only scans fail explicitly on unreadable mailboxes; no follow-up is sent by this step.
+
 - iMessage through an explicitly configured company BlueBubbles Mac: authenticated webhook, text/files, separate group context, numbered approvals, optional tapbacks and explicit private notification routes. Configure the bridge in Channels and register its webhook after saving. API/workers must be updated together for migration `0274_imessage_notifications.py`.
 
 - Routine owners can select individual MCP action exceptions on a concrete account together with capability actions. Version, intent, endpoint and authorization generation remain bound; explicit agent/binding approvals cannot be waived. The console shows account identity, unavailable tool inventories and refreshed reviews after rejected saves.

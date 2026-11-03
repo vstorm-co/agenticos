@@ -513,6 +513,7 @@ def _same_refresh_target(expected: McpConnection, live: McpConnection) -> bool:
         and expected.auth_type == live.auth_type
         and expected.is_enabled == live.is_enabled
         and expected.purpose == live.purpose
+        and expected.authorization_generation == live.authorization_generation
         and set(expected.granted_scopes or []) == set(live.granted_scopes or [])
     )
 
@@ -2276,6 +2277,34 @@ class McpConnectionService:
         if grant is None or not grant.is_enabled:
             return None
         return await _oauth_access_token(grant)
+
+    async def reply_mailbox_token(
+        self,
+        ctx: AuthContext,
+        *,
+        portal_key: str,
+        connection_id: UUID,
+        authorization_generation: UUID | None,
+    ) -> tuple[UUID, SecretStr] | None:
+        """Read one explicitly selected organization mailbox, without retargeting a wait.
+
+        A resumed expectation pins its consent generation. Replacing the grant,
+        revoking consent therefore requires a new review.
+        """
+        connection = await self.get_org_portal_connection(ctx, connection_id)
+        grant = await self.get_org_portal_grant(ctx, portal_key)
+        if (
+            grant is None
+            or grant.id != connection.id
+            or not connection.is_enabled
+            or (
+                authorization_generation is not None
+                and connection.authorization_generation != authorization_generation
+            )
+        ):
+            return None
+        token = await _oauth_access_token(connection)
+        return (connection.authorization_generation, SecretStr(token)) if token else None
 
     async def set_poll_interval(
         self, ctx: AuthContext, *, connection_id: UUID, minutes: int

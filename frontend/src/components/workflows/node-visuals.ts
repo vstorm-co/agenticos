@@ -125,6 +125,7 @@ const BY_ID: Record<string, NodeIcon> = {
   "trigger.outlook": brandMark("microsoft"),
   "logic.switch": Split,
   "flow.wait": Hourglass,
+  "flow.await_reply": Hourglass,
   "flow.resume_link": Link2,
   "data.filter": Filter,
   "data.combine": Combine,

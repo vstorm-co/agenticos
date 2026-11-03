@@ -928,6 +928,41 @@ link that is not the run's answers `404`.
 
 ::: app.workflows.nodes.flow_wait._handler.FlowWaitOutput
 
+## flow.await_reply { #flow-await-reply }
+
+**Await email reply.** Select the connected organization Gmail or Outlook mailbox,
+a provider `thread_id`, an exact `expected_sender`, `not_before` and `deadline` with
+timezones, and optionally an original RFC `anchor_message_id`. Outlook can name a
+shared mailbox its grant can read. The step reads metadata only, every 60–3600
+seconds (300 by default), using the existing durable workflow timer. It holds no
+worker or model while waiting. The account and its consent generation are retained
+across wakes; replacing the account never retargets the expectation.
+
+`reply` wins when a matching, authenticated sender replied after `not_before` and
+no later than the deadline. Optional RFC reply headers narrow that match; they
+never authorize a sender. Sent mail, drafts, automatic replies and receipts do not
+count. A final successful check with no verified match leaves by `deadline`, with
+`ignored_unverified` for rejected sender matches. This means **no verified matching
+reply**, not proof that nobody wrote. Unreadable, oversized or revoked mailboxes
+fail explicitly and never take the deadline branch. The bounded scan admits at most
+500 messages and five Graph pages. Replies arriving before the step first parks
+are still considered.
+
+The run's Steps tab shows the expectation. The principal or a workflow editor can
+pause or correct it while parked (only editors for test runs); an executing check
+answers 409. Pause keeps the original deadline and performs no mailbox reads.
+Explicitly reviewing renewed consent accepts only the same account. A step needing
+attention still requires its separate rerun decision. Cancelling the run closes
+its timer and prevents downstream work. The expectation lasts at most thirty days;
+the workflow's own deadline can end the run earlier. Prepare follow-ups on the
+`deadline` branch with the normal notification/approval nodes; this node sends no mail.
+
+::: app.workflows.nodes.flow_await_reply._handler.AwaitReplyConfig
+
+::: app.schemas.reply_expectation.ReplyExpectationInput
+
+::: app.schemas.reply_expectation.ReplyExpectationOutput
+
 ## flow.resume_link { #flow-resume-link }
 
 **Resume link.** Hands on `url`, the address that resumes this run's Wait steps

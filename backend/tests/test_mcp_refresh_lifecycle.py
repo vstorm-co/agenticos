@@ -15,7 +15,16 @@ pytestmark = [pytest.mark.anyio, pytest.mark.security]
 
 
 @pytest.mark.parametrize(
-    "field", ["url", "user_id", "auth_type", "is_enabled", "purpose", "granted_scopes"]
+    "field",
+    [
+        "url",
+        "user_id",
+        "auth_type",
+        "is_enabled",
+        "purpose",
+        "granted_scopes",
+        "authorization_generation",
+    ],
 )
 async def test_a_changed_binding_never_receives_the_rotated_credential(monkeypatch, field):
     payload = _base_payload(access_token="old", refresh_token="rotate", expires_at=0)
@@ -27,9 +36,15 @@ async def test_a_changed_binding_never_receives_the_rotated_credential(monkeypat
         "is_enabled": False,
         "purpose": "portal",
         "granted_scopes": ["write"],
+        "authorization_generation": uuid4(),
     }
     after = _oauth_connection(
-        payload, id=before.id, user_id=before.user_id, purpose="mcp", granted_scopes=["read"]
+        payload,
+        id=before.id,
+        user_id=before.user_id,
+        purpose="mcp",
+        granted_scopes=["read"],
+        authorization_generation=before.authorization_generation,
     )
     setattr(after, field, values[field])
     lock, rotate = AsyncMock(return_value=after), AsyncMock()
