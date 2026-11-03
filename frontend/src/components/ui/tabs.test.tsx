@@ -1,3 +1,4 @@
+import { createRef } from "react";
 import { render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { Tabs, TabsList, TabsTrigger } from "./tabs";
@@ -49,4 +50,40 @@ it("brings an earlier tab back into view when navigating back", async () => {
   await waitFor(() => expect(strip.scrollLeft).toBe(140));
   view.rerender(<Strip value="cases" />);
   await waitFor(() => expect(strip.scrollLeft).toBe(0));
+});
+
+it("forwards an object ref while a strip has no selected tab", () => {
+  const ref = createRef<HTMLDivElement>();
+  render(
+    <Tabs>
+      <TabsList ref={ref} />
+    </Tabs>,
+  );
+  expect(ref.current).toBe(screen.getByRole("tablist"));
+});
+
+it("forwards a callback ref and clears it when the strip unmounts", () => {
+  const ref = vi.fn();
+  const view = render(
+    <Tabs>
+      <TabsList ref={ref} />
+    </Tabs>,
+  );
+  expect(ref).toHaveBeenCalledWith(screen.getByRole("tablist"));
+  view.unmount();
+  expect(ref).toHaveBeenLastCalledWith(null);
+});
+
+it("supports an asChild list whose child has no rendered element", () => {
+  function HiddenList() {
+    return null;
+  }
+  render(
+    <Tabs>
+      <TabsList asChild>
+        <HiddenList />
+      </TabsList>
+    </Tabs>,
+  );
+  expect(screen.queryByRole("tablist")).toBeNull();
 });
