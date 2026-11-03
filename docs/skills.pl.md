@@ -1,5 +1,5 @@
 ---
-source_sha: "5696a2279c75"
+source_sha: "5f543c7121de"
 ---
 
 # Skille { #skills }
@@ -331,6 +331,12 @@ liczony według tego, co serwuje jego domyślne środowisko, a fork tylko wtedy,
 czyta go jakiś agent. Skille, których nie możesz zobaczyć, są pominięte, a
 przypięci agenci, których nie widzisz, są policzeni, a nie nazwani.
 
+**Powrót do main** przesuwa agentów forka z powrotem na najnowszą wersję main,
+wszystkich albo wybranych, każdego tak, jak robi to Change version. Agent, którego
+nie da się przesunąć, zostaje na forku z podanym powodem. Gdy nikt już nie czyta
+forka, fork jest archiwizowany. Agent, którego środowisko czeka na promocję, czyta
+fork do czasu promocji, więc do tego czasu fork zostaje.
+
 ### Usuwanie skilla { #deleting-a-skill }
 
 Skilla, którego używa agent, nie można usunąć. Chodzi o skill związany przez
@@ -351,6 +357,7 @@ jego wersjami i forkami.
 | `GET /api/v1/skills/{id}/agents` | Agenci skilla, wersja, którą czyta każdy z nich, i liczba ukrytych |
 | `PUT /api/v1/skills/{id}/agents/{agent_id}/binding` | Przesuwa agenta na main, wersję main albo fork |
 | `GET /api/v1/skills/behind-main` | Przypięci agenci i forki, które main wyprzedził, w całej organizacji |
+| `POST /api/v1/skills/{id}/forks/{fork_id}/return-to-main` | Przesuwa agentów forka z powrotem na main i archiwizuje fork, gdy nikt go już nie czyta |
 
 ## Jak skille trafiają do organizacji { #getting-skills-into-an-organization }
 

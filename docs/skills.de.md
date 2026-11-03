@@ -1,5 +1,5 @@
 ---
-source_sha: "5696a2279c75"
+source_sha: "5f543c7121de"
 ---
 
 # Skills { #skills }
@@ -360,6 +360,13 @@ seine Standardumgebung ausliefert, ein Fork nur, solange ein Agent ihn liest.
 Skills, die du nicht sehen darfst, fehlen, und festgesetzte Agents, die du nicht
 siehst, werden gezählt, nicht genannt.
 
+**Zurück zu main** verschiebt die Agents eines Forks zurück auf die neueste
+Main-Version, alle oder die ausgewählten, jeden so, wie Change version ihn
+verschiebt. Einer, der sich nicht verschieben lässt, bleibt mit dem Grund auf dem
+Fork. Sobald niemand den Fork mehr liest, wird er archiviert. Ein Agent, dessen
+Umgebung auf eine Beförderung wartet, liest den Fork bis dahin weiter, daher bleibt
+der Fork bis dahin bestehen.
+
 ### Einen Skill löschen { #deleting-a-skill }
 
 Ein Skill, den ein Agent verwendet, lässt sich nicht löschen. Das ist ein Skill,
@@ -380,6 +387,7 @@ den niemand verwendet, wird mit seinen Versionen und Forks gelöscht.
 | `GET /api/v1/skills/{id}/agents` | Die Agents des Skills, die Version, die jeder liest, und wie viele verborgen sind |
 | `PUT /api/v1/skills/{id}/agents/{agent_id}/binding` | Verschiebt einen Agent auf main, eine Main-Version oder einen Fork |
 | `GET /api/v1/skills/behind-main` | Festgesetzte Agents und Forks, an denen main vorbeigezogen ist, über die ganze Organisation |
+| `POST /api/v1/skills/{id}/forks/{fork_id}/return-to-main` | Verschiebt die Agents eines Forks zurück auf main und archiviert den Fork, sobald ihn niemand mehr liest |
 
 ## Skills in eine Organisation bekommen { #getting-skills-into-an-organization }
 

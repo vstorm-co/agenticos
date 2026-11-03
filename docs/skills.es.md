@@ -1,5 +1,5 @@
 ---
-source_sha: "5696a2279c75"
+source_sha: "5f543c7121de"
 ---
 
 # Skills { #skills }
@@ -340,6 +340,12 @@ atrás. Un agent fijado cuenta por lo que sirve su entorno por defecto, y un for
 solo mientras algún agent lo lee. Los skills que no puedes ver se omiten, y los
 agents fijados que no ves se cuentan, sin nombrarlos.
 
+**Volver a main** mueve los agents de un fork de vuelta a la versión más reciente de
+main, todos o los que elijas, cada uno como lo mueve Change version. El que no se
+puede mover se queda en el fork con el motivo. Cuando nadie lee ya el fork, se
+archiva. Un agent cuyo entorno espera una promoción sigue leyendo el fork hasta que
+se promueve, así que hasta entonces el fork se queda.
+
 ### Borrar un skill { #deleting-a-skill }
 
 Un skill que usa un agent no se puede borrar. Es un skill vinculado por el borrador
@@ -359,6 +365,7 @@ cuenta los demás. Un skill que nadie usa se borra con sus versiones y sus forks
 | `GET /api/v1/skills/{id}/agents` | Los agents del skill, la versión que lee cada uno y cuántos están ocultos |
 | `PUT /api/v1/skills/{id}/agents/{agent_id}/binding` | Mueve un agent a main, a una versión de main o a un fork |
 | `GET /api/v1/skills/behind-main` | Los agents fijados y los forks que main ha dejado atrás, en toda la organización |
+| `POST /api/v1/skills/{id}/forks/{fork_id}/return-to-main` | Mueve los agents de un fork de vuelta a main y archiva el fork cuando nadie lo lee |
 
 ## Cómo llegan los skills a una organización { #getting-skills-into-an-organization }
 

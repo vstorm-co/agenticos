@@ -321,6 +321,12 @@ listed by what its default environment serves, and a fork only while an agent
 reads it. Skills you cannot view are left out, and pinned agents you cannot see
 are counted, not named.
 
+**Return to main** moves a fork's agents back to main's newest version, all of them
+or the ones you pick, each as Change version moves it. One that cannot be moved
+stays on the fork with the reason. Once nobody reads the fork, it is archived. An
+agent whose environment waits for a promotion still reads the fork until it is
+promoted, so the fork stays until then.
+
 ### Deleting a skill
 
 A skill that an agent uses cannot be deleted. That is a skill bound by a live
@@ -340,6 +346,7 @@ others. A skill that nobody uses is deleted with its versions and forks.
 | `GET /api/v1/skills/{id}/agents` | The skill's agents, the version each reads, and how many are hidden |
 | `PUT /api/v1/skills/{id}/agents/{agent_id}/binding` | Moves an agent to main, a main version or a fork |
 | `GET /api/v1/skills/behind-main` | Pinned agents and forks that main has moved past, across the organization |
+| `POST /api/v1/skills/{id}/forks/{fork_id}/return-to-main` | Moves a fork's agents back to main, and archives the fork once nobody reads it |
 
 ## Getting skills into an organization
 
