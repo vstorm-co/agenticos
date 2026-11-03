@@ -399,9 +399,15 @@ class TestGroupService:
         await _mapping(db, org, ADMINS, "admin", group)
 
         with pytest.raises(AuthorizationError):
-            await GroupService(db).delete(org.id, group.id, admin.id)
+            await GroupService(db).delete(
+                AuthContext(user_id=admin.id, organization_id=org.id, role=OrgRoleName.ADMIN),
+                group.id,
+            )
 
-        await GroupService(db).delete(org.id, group.id, owner.id)
+        await GroupService(db).delete(
+            AuthContext(user_id=owner.id, organization_id=org.id, role=OrgRoleName.OWNER),
+            group.id,
+        )
         assert await group_repo.get(db, organization_id=org.id, group_id=group.id) is None
 
     async def test_renaming_to_a_taken_name_is_a_conflict(self, db):
@@ -443,7 +449,10 @@ class TestGroupService:
         )
         assert await service.list_members(org.id, group.id, owner.id) == []
 
-        await service.delete(org.id, group.id, owner.id)
+        await service.delete(
+            AuthContext(user_id=owner.id, organization_id=org.id, role=OrgRoleName.OWNER),
+            group.id,
+        )
         assert await group_repo.get(db, organization_id=org.id, group_id=group.id) is None
         actions = [
             entry.action

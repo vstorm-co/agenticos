@@ -237,7 +237,9 @@ class TestSlackAppCredentials:
                 new=AsyncMock(return_value=bot),
             ) as repo_update,
         ):
-            await service.update(bot.id, ChannelBotUpdate.model_validate({"slack_app_token": None}))
+            await service.update(
+                bot.id, ChannelBotUpdate.model_validate({"slack_app_token": None}), MagicMock()
+            )
 
         assert repo_update.call_args.kwargs["update_data"] == {"slack_app_token_encrypted": None}
 

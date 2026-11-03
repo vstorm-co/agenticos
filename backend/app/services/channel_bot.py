@@ -622,9 +622,17 @@ class ChannelBotService:
             )
         return await channel_bot_repo.list_for_org(self.db, organization_id=self._org_id)
 
-    async def update(self, bot_id: UUID, data: ChannelBotUpdate) -> ChannelBot:
+    async def update(self, bot_id: UUID, data: ChannelBotUpdate, ctx: AuthContext) -> ChannelBot:
         """Update a channel bot. Only the fields the caller sent are applied;
-        an explicit null clears a Slack credential, an omission leaves it."""
+        an explicit null clears a Slack credential, an omission leaves it.
+
+        Raises:
+            AuthorizationError: A new token for a bot holding Discord role
+                mappings the caller could not delete. A token of another
+                application is in none of the mapped servers, and the next sync
+                reads that as everybody having left them, so replacing the token
+                takes what deleting the mappings takes.
+        """
         # Locked from the read: every credential below is sealed at the row's
         # recorded key version, and a rotation committing between an unlocked
         # read and this write would tag the new envelopes with a version they
@@ -672,6 +680,7 @@ class ChannelBotService:
                 update_data.pop("slack_app_token"), key_version=bot.secret_key_version
             )
         if update_data.get("token") is not None:
+            await self._refuse_unless_mappings_removable(bot, ctx)
             # Sealed at the row's existing version, beside its other envelopes, and
             # the version column is left alone. Re-sealing the token afresh (at the
             # default v1) and resetting `secret_key_version` to match left the
@@ -731,6 +740,24 @@ class ChannelBotService:
                 a role, the ceiling `DiscordRoleMappingService.delete` applies.
         """
         bot = await self.get(bot_id)
+        await self._refuse_unless_mappings_removable(bot, ctx)
+        platform = bot.platform
+        await channel_bot_repo.delete(self.db, bot_id, organization_id=self._org_id)
+        # After the commit, and read out first: the row is gone by then, so the
+        # platform has to be a string this coroutine already holds.
+        spawn_after_commit(
+            self.db,
+            close_inbound_stream(bot_id=str(bot_id), platform=platform),
+            name=f"close_channel_stream:{bot_id}",
+        )
+
+    async def _refuse_unless_mappings_removable(self, bot: ChannelBot, ctx: AuthContext) -> None:
+        """Refuse a change that undoes the bot's Discord role mappings to one who could not delete them.
+
+        `members:manage` for any mapping, and for one that admits with a role
+        `roles:manage` and a role the caller's own strictly outranks - what
+        `DiscordRoleMappingService.delete` asks of each mapping (#2569).
+        """
         for mapping in await discord_role_mapping_repo.list_for_bot(self.db, channel_bot_id=bot.id):
             if not ctx.has(Perm.MEMBERS_MANAGE) or (
                 mapping.role is not None
@@ -743,17 +770,8 @@ class ChannelBotService:
                         "This bot's Discord role mappings place people you could not remove "
                         "yourself; someone who may remove those mappings has to delete them first"
                     ),
-                    details={"bot_id": bot_id, "role": mapping.role},
+                    details={"bot_id": bot.id, "role": mapping.role},
                 )
-        platform = bot.platform
-        await channel_bot_repo.delete(self.db, bot_id, organization_id=self._org_id)
-        # After the commit, and read out first: the row is gone by then, so the
-        # platform has to be a string this coroutine already holds.
-        spawn_after_commit(
-            self.db,
-            close_inbound_stream(bot_id=str(bot_id), platform=platform),
-            name=f"close_channel_stream:{bot_id}",
-        )
 
     async def activate(self, bot_id: UUID) -> ChannelBot:
         """Set is_active = True, and open the stream it is reached over."""

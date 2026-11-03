@@ -1,5 +1,5 @@
 ---
-source_sha: "1344c41b7d3a"
+source_sha: "018b470d71ce"
 ---
 
 # Einen Agent dorthin bringen, wo die Menschen schon sind { #putting-an-agent-where-people-already-are }
@@ -1740,7 +1740,9 @@ der [Verzeichnissynchronisierung](directory.md#what-the-sync-never-touches):
 Wer die Verknüpfung des Discord-Kontos löst, verliert, was dessen Rollen gegeben
 haben, es sei denn, ein anderes verknüpftes Discord-Konto verdient es noch. Eine
 gelöschte Zuordnung nimmt zurück, was sie gegeben hat, bei der nächsten Nachricht
-der Person oder beim nächsten Lauf des Jobs. Jede Änderung steht im Audit-Log als
+der Person oder beim nächsten Lauf des Jobs. Den Bot oder eine zugeordnete Gruppe zu
+löschen oder dem Bot einen neuen Token zu geben, nimmt dasselbe zurück und verlangt
+deshalb, was das Löschen jeder dieser Zuordnungen verlangt. Jede Änderung steht im Audit-Log als
 `discord.member_added`, `discord.role_changed`, `discord.member_removed`,
 `discord.group_joined` oder `discord.group_left`, und das Anlegen oder Löschen einer
 Zuordnung als `discord.mapping_created` oder `discord.mapping_deleted`.

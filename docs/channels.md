@@ -1568,7 +1568,9 @@ and the rules about what the sync never touches, are the ones the
 
 Unlinking the Discord account takes back what its roles gave, unless another linked
 Discord account still earns it. Deleting a mapping takes back what it gave at each
-person's next message or the next job run. Every change is in the audit log as
+person's next message or the next job run. Deleting the bot or a mapped group, or
+giving the bot a new token, takes back the same, so it needs what deleting each of
+those mappings needs. Every change is in the audit log as
 `discord.member_added`, `discord.role_changed`, `discord.member_removed`,
 `discord.group_joined` or `discord.group_left`, and making or deleting a mapping
 as `discord.mapping_created` or `discord.mapping_deleted`.

@@ -1,5 +1,5 @@
 ---
-source_sha: "1344c41b7d3a"
+source_sha: "018b470d71ce"
 ---
 
 # Poner un agent donde la gente ya está { #putting-an-agent-where-people-already-are }
@@ -1650,7 +1650,8 @@ sobre lo que la sincronización nunca toca son las de la
 Desvincular la cuenta de Discord retira lo que dieron sus roles, salvo que otra
 cuenta de Discord vinculada lo siga ganando. Borrar una asignación retira lo que dio
 en el siguiente mensaje de cada persona o en la siguiente ejecución del trabajo.
-Cada cambio queda en el registro de auditoría como `discord.member_added`,
+Borrar el bot o un grupo asignado, o darle al bot un token nuevo, retira lo mismo,
+y por eso pide lo que pide borrar cada una de esas asignaciones. Cada cambio queda en el registro de auditoría como `discord.member_added`,
 `discord.role_changed`, `discord.member_removed`, `discord.group_joined` o
 `discord.group_left`, y crear o borrar una asignación como
 `discord.mapping_created` o `discord.mapping_deleted`.

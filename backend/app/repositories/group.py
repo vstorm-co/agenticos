@@ -230,6 +230,30 @@ async def remove_member(db: AsyncSession, member: GroupMember) -> None:
     await db.flush()
 
 
+async def remove_member_from_source(
+    db: AsyncSession, member: GroupMember, *, source: MembershipSource
+) -> bool:
+    """Delete a group membership only if it still came from `source`; returns whether it did.
+
+    The condition is evaluated against the row as it is when the delete runs,
+    not as it was read: an administrator taking the membership over in between
+    commits `source = manual`, and Postgres re-checks the `WHERE` against that
+    version, so the sync's stale read cannot remove a row it no longer owns.
+
+    `synchronize_session="fetch"` because the default evaluates the `WHERE` in
+    Python against the loaded object first: on a stale source that marks the
+    instance deleted in the session even when the database kept the row.
+    """
+    result = await db.execute(
+        delete(GroupMember)
+        .where(GroupMember.id == member.id, GroupMember.source == source.value)
+        .returning(GroupMember.id)
+        .execution_options(synchronize_session="fetch")
+    )
+    await db.flush()
+    return result.scalar_one_or_none() is not None
+
+
 async def list_memberships_in_org(
     db: AsyncSession, *, organization_id: UUID, user_id: UUID
 ) -> list[GroupMember]:

@@ -136,9 +136,14 @@ async def update_bot(
     bot_id: UUID,
     data: ChannelBotUpdate,
     service: OrgChannelBotSvc,
+    ctx: Auth,
 ) -> Any:
-    """Update a channel bot."""
-    return await service.update(bot_id, data)
+    """Update a channel bot.
+
+    A new token for a Discord bot with role mappings is refused to somebody who
+    could not delete those mappings.
+    """
+    return await service.update(bot_id, data, ctx)
 
 
 @router.delete(

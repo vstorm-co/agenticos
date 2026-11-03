@@ -307,7 +307,11 @@ class DiscordRoleSync:
         held = {member.group_id for member in current}
         for member in current:
             if member.source == MembershipSource.DISCORD and member.group_id not in wanted | keep:
-                await group_repo.remove_member(self.db, member)
+                if not await group_repo.remove_member_from_source(
+                    self.db, member, source=MembershipSource.DISCORD
+                ):
+                    # Taken over by hand since it was read: no longer the sync's.
+                    continue
                 await self._audit(
                     "discord.group_left",
                     user_id,

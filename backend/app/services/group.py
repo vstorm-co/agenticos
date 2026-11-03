@@ -238,7 +238,7 @@ class GroupService:
         )
         return updated, await group_repo.count_members(self.db, updated.id)
 
-    async def delete(self, organization_id: UUID, group_id: UUID, requester_id: UUID) -> None:
+    async def delete(self, ctx: AuthContext, group_id: UUID) -> None:
         """Delete a group, and with it every grant made to it and every mapping naming it.
 
         Raises:
@@ -247,8 +247,12 @@ class GroupService:
                 mapping cascades with the group, and deleting it demotes
                 everybody it placed - which `DirectoryMappingService.delete` and
                 `DiscordRoleMappingService.delete` refuse this requester, so
-                deleting the group must not do it by the back door.
+                deleting the group must not do it by the back door. A Discord
+                mapping that names a role also takes `roles:manage` in the
+                caller's effective permissions, as deleting it directly does,
+                so an API key scoped below that is refused too.
         """
+        organization_id, requester_id = ctx.organization_id, ctx.subject_id
         membership = await self._membership(organization_id, requester_id)
         if not role_has(membership.role, Perm.MEMBERS_MANAGE):
             raise AuthorizationError(message="You cannot manage groups in this organization")
@@ -266,7 +270,9 @@ class GroupService:
         for discord_mapping in await discord_role_mapping_repo.list_for_group(
             self.db, group_id=group.id
         ):
-            if discord_mapping.role is not None and discord_mapping.role not in ceiling:
+            if discord_mapping.role is not None and (
+                not ctx.has(Perm.ROLES_MANAGE) or discord_mapping.role not in ceiling
+            ):
                 raise AuthorizationError(
                     message=(
                         "A Discord role mapping to a role your own does not outrank places "

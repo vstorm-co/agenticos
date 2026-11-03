@@ -14,7 +14,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
 import pytest
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import (
@@ -24,7 +24,7 @@ from app.core.exceptions import (
     ExternalServiceError,
     NotFoundError,
 )
-from app.core.permissions import AuthContext
+from app.core.permissions import AuthContext, Perm
 from app.db.models.audit_log import AppAdminAuditLog
 from app.db.models.background_job import BackgroundJob
 from app.db.models.channel_bot import ChannelBot
@@ -35,6 +35,7 @@ from app.db.models.group import Group, GroupMember
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.user import User
 from app.repositories import discord_role_mapping_repo, member_repo
+from app.schemas.channel_bot import ChannelBotUpdate
 from app.schemas.discord_role_mapping import DiscordRoleMappingCreate
 from app.services.channel_bot import ChannelBotService
 from app.services.channel_link import ChannelLinkService
@@ -419,6 +420,39 @@ class TestTheSync:
         # gave - the group and the membership it admitted - is kept.
         assert await _groups(db, bob) == {finance.id: "discord"}
         assert (await _membership(db, org, bob)).role == "member"
+
+    async def test_a_group_membership_taken_over_since_it_was_read_is_left(self, db, discord):
+        org, _ = await _org(db)
+        bot = await _bot(db, org)
+        finance = await _group(db, org)
+        await _mapping(db, bot, finance)
+        alice = await _member(db, org)
+        account = await _linked(db, alice)
+        sync = DiscordRoleSync(db)
+        await sync.on_turn(bot, account, _turn(account, FINANCE))
+        row = (
+            await db.execute(select(GroupMember).where(GroupMember.user_id == alice.id))
+        ).scalar_one()
+        # An administrator takes the membership over after the sync has read it
+        # as its own: the session still holds the row with its old source.
+        await db.execute(
+            update(GroupMember)
+            .where(GroupMember.id == row.id)
+            .values(source="manual")
+            .execution_options(synchronize_session=False)
+        )
+        assert row.source == "discord"
+
+        await sync.on_turn(bot, account, _turn(account))
+
+        await db.refresh(row)
+        assert row.source == "manual"
+        actions = (
+            await db.execute(
+                select(AppAdminAuditLog.action).where(AppAdminAuditLog.organization_id == org.id)
+            )
+        ).scalars()
+        assert "discord.group_left" not in set(actions)
 
     async def test_a_personal_organization_is_never_joined(self, db, discord):
         org, _ = await _org(db, personal=True)
@@ -805,8 +839,18 @@ class TestMappings:
         groups = GroupService(db)
 
         with pytest.raises(AuthorizationError):
-            await groups.delete(org.id, finance.id, admin.id)
-        await groups.delete(org.id, finance.id, owner.id)
+            await groups.delete(self._ctx(org, admin, "admin"), finance.id)
+        # An owner's API key scoped below `roles:manage` cannot delete the
+        # mapping directly, and so cannot delete the group it cascades with.
+        narrowed = AuthContext(
+            user_id=owner.id,
+            organization_id=org.id,
+            role="owner",
+            key_scopes=frozenset({Perm.MEMBERS_MANAGE}),
+        )
+        with pytest.raises(AuthorizationError):
+            await groups.delete(narrowed, finance.id)
+        await groups.delete(self._ctx(org, owner), finance.id)
 
         assert await discord_role_mapping_repo.list_for_bot(db, channel_bot_id=bot.id) == []
 
@@ -836,6 +880,31 @@ class TestMappings:
         deferred.call_args.args[1].close()
 
         assert await discord_role_mapping_repo.list_for_bot(db, channel_bot_id=bot.id) == []
+
+    async def test_a_new_token_takes_what_deleting_the_mappings_takes(self, db, discord):
+        org, owner = await _org(db)
+        bot = await _bot(db, org)
+        await _mapping(db, bot, await _group(db, org), role="admin")
+        admin = await _member(db, org, role="admin")
+        service = ChannelBotService(db, organization_id=org.id)
+        new_token = ChannelBotUpdate(token="t" * 40)
+
+        # Another application's token is in none of the mapped servers: the next
+        # sync would read everybody the mapping admitted as having left.
+        with (
+            patch.object(ChannelBotService, "_seal_at", return_value="sealed-anew"),
+            patch.object(ChannelBotService, "_reopen_stream"),
+        ):
+            with pytest.raises(AuthorizationError):
+                await service.update(bot.id, new_token, self._ctx(org, admin, "admin"))
+            # Renaming it changes nobody's roles.
+            renamed = await service.update(
+                bot.id, ChannelBotUpdate(name="Renamed"), self._ctx(org, admin, "admin")
+            )
+            assert renamed.name == "Renamed"
+            assert renamed.token_encrypted == "sealed-elsewhere"
+            updated = await service.update(bot.id, new_token, self._ctx(org, owner))
+        assert updated.token_encrypted == "sealed-anew"
 
     async def test_deleting_the_bot_or_the_group_deletes_its_mappings(self, db, discord):
         org, _ = await _org(db)

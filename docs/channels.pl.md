@@ -1,5 +1,5 @@
 ---
-source_sha: "1344c41b7d3a"
+source_sha: "018b470d71ce"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -1616,7 +1616,9 @@ nie dotyka, są takie same jak w
 
 Odłączenie konta Discorda odbiera to, co dały jego role, chyba że nadal zapewnia to
 inne połączone konto Discorda. Usunięcie mapowania odbiera to, co ono dało, przy
-następnej wiadomości danej osoby albo przy następnym przebiegu zadania. Każda zmiana
+następnej wiadomości danej osoby albo przy następnym przebiegu zadania. Usunięcie
+bota lub zmapowanej grupy albo nowy token bota odbiera to samo, więc wymaga tego,
+czego wymaga usunięcie każdego z tych mapowań. Każda zmiana
 trafia do dziennika audytu jako `discord.member_added`, `discord.role_changed`,
 `discord.member_removed`, `discord.group_joined` lub `discord.group_left`, a
 utworzenie lub usunięcie mapowania jako `discord.mapping_created` lub
