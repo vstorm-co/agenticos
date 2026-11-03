@@ -4,7 +4,7 @@
  * never goes out as a mention.
  */
 export type MentionKind =
-  "mcp" | "capability" | "agent" | "collection" | "skill" | "context" | "project";
+  "mcp" | "capability" | "agent" | "collection" | "skill" | "context" | "conversation" | "project";
 
 /** One mention as a chat frame carries it. */
 export interface MentionRef {

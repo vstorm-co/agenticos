@@ -78,6 +78,7 @@ beforeEach(() => {
   answered = false;
   window.history.replaceState({}, "", "/chat");
   get.mockImplementation((url: string) => {
+    if (url === "/conversations/background-tasks") return Promise.resolve([]);
     if (url.startsWith("/auth/me")) {
       return Promise.resolve({ ...SIGNED_IN, access_token: "t-1" });
     }
