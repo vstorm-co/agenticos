@@ -7994,3 +7994,51 @@ async def test_stopping_a_task_cancels_its_model_even_after_approval_resume(resu
         assert segment.output == ""
         assert finish.call_args.kwargs["status"] == RunStatus.CANCELLED.value
     assert closed
+
+
+@pytest.mark.anyio
+@pytest.mark.security
+async def test_a_background_tasks_budget_stop_retains_its_own_outcome() -> None:
+    from contextlib import asynccontextmanager
+
+    from app.services import conversation_tasks as tasks
+
+    prepared = _prepared()
+    prepared.admitted_as.conversation_task_id = uuid.uuid4()
+    prepared.run.organization_id = uuid.uuid4()
+    row = SimpleNamespace(status="running", return_run_id=None)
+    service = AgentRunnerService(_db())
+
+    @asynccontextmanager
+    async def database() -> AsyncGenerator[MagicMock]:
+        yield MagicMock()
+
+    with (
+        patch.object(tasks, "get_db_context", database),
+        patch.object(tasks.task_repo, "get", new=AsyncMock(return_value=row)),
+        patch.object(
+            service,
+            "_answer",
+            new=AsyncMock(
+                side_effect=BudgetExceeded(
+                    limit_usd=Decimal("1"), spent_usd=Decimal("1.2"), scope=BudgetScope.AGENT
+                )
+            ),
+        ),
+        patch(
+            "app.services.agent_runner.agent_run_repo.finish_run",
+            new=AsyncMock(return_value=prepared.run),
+        ) as finish,
+        patch.object(tasks.ConversationTaskService, "settle", new=AsyncMock()),
+    ):
+        segment = await service._run(
+            prepared,
+            user_prompt="work",
+            said="",
+            attachments=(),
+            attachment_context=None,
+            message_history=[],
+            deferred_tool_results=None,
+        )
+        assert segment.output == ""
+        assert finish.call_args.kwargs["status"] == RunStatus.BUDGET_EXCEEDED.value

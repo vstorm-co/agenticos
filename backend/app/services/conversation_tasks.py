@@ -75,7 +75,6 @@ async def task_execution(
         yield
         return
     await _check_execution(task_id, organization_id, run_id)
-    stopped = False
     try:
         async with asyncio.TaskGroup() as group:
             watcher = group.create_task(_watch_execution(task_id, organization_id, run_id))
@@ -83,10 +82,13 @@ async def task_execution(
                 yield
             finally:
                 watcher.cancel()
-    except* ConversationTaskStopped:
-        stopped = True
-    if stopped:
-        raise ConversationTaskStopped
+    except BaseExceptionGroup as group_error:
+        # A task group wraps a body exception even when it is the only error.
+        # Keep budget/guardrail stops typed for the runner; retain concurrent
+        # failures together instead of hiding a cleanup failure behind Stop.
+        if len(group_error.exceptions) == 1:
+            raise group_error.exceptions[0] from None
+        raise
 
 
 class ConversationTaskService:
