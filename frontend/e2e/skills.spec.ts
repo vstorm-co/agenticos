@@ -124,7 +124,9 @@ test.describe("Skills", () => {
     );
     await dialog.getByLabel("Description", { exact: true }).fill(edited);
     await dialog.getByRole("button", { name: "Save" }).click();
-    await expect(dialog).toBeHidden();
+    // A changed text asks before it goes live, naming the agents it would reach.
+    await page.getByRole("button", { name: "Save now" }).click();
+    await expect(page.getByRole("dialog")).toHaveCount(0);
 
     // Reloaded rather than read off the cache the mutation patched: a panel that
     // only looks right until the next fetch is a panel that never wrote
