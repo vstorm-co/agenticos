@@ -1,5 +1,5 @@
 ---
-source_sha: "80aa638db8f2"
+source_sha: "4a34b4d395be"
 ---
 
 # MCP — die Tools, die hier niemand schreiben muss { #mcp-the-tools-nobody-here-has-to-write }
@@ -1134,7 +1134,7 @@ Tool-Fehler zurück, der die fehlende Berechtigung nennt.
 | `create_skill`                                                                                                                                                                                                | `skills:edit`                                                                                                                                                |
 | `get_skill`, `list_skill_versions`, `get_skill_version` | `skills:view`; Agents, die der Aufrufer nicht sieht, werden nur gezählt |
 | `list_skill_improvements`, `get_skill_improvement` | `skills:view` und `runs:view` |
-| `estimate_skill_improvement`, `start_skill_improvement`, `estimate_next_skill_improvement_step`, `run_next_skill_improvement_step`, `accept_skill_improvement`, `end_skill_improvement` | Bearbeitungszugriff auf den Skill und `runs:view`; das Festsetzen der schlechteren Agents zusätzlich `agents:publish` auf jedem |
+| `estimate_skill_improvement`, `start_skill_improvement`, `estimate_next_skill_improvement_step`, `run_next_skill_improvement_step`, `retry_skill_improvement`, `accept_skill_improvement`, `end_skill_improvement` | Bearbeitungszugriff auf den Skill und `runs:view`; das Festsetzen der schlechteren Agents zusätzlich `agents:publish` auf jedem |
 | `change_skill_version` | Bearbeitungszugriff auf den Agent; live gehen zusätzlich `agents:publish` |
 | `list_projects`                                                                                                                                                                                               | `projects:view`                                                                                                                                              |
 | `get_project`                                                                                                                                                                                                 | Zugriff auf das Projekt                                                                                                                                      |

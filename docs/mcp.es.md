@@ -1,5 +1,5 @@
 ---
-source_sha: "80aa638db8f2"
+source_sha: "4a34b4d395be"
 ---
 
 # MCP — las herramientas que aquí nadie tiene que escribir { #mcp-the-tools-nobody-here-has-to-write }
@@ -1115,7 +1115,7 @@ permiso que faltaba.
 | `create_skill`                                                                                                                                                                                                | `skills:edit`                                                                                                                                                         |
 | `get_skill`, `list_skill_versions`, `get_skill_version` | `skills:view`; los agents que quien llama no puede ver solo se cuentan |
 | `list_skill_improvements`, `get_skill_improvement` | `skills:view` y `runs:view` |
-| `estimate_skill_improvement`, `start_skill_improvement`, `estimate_next_skill_improvement_step`, `run_next_skill_improvement_step`, `accept_skill_improvement`, `end_skill_improvement` | acceso de edición al skill y `runs:view`; fijar los agents que empeoraron también `agents:publish` en cada uno |
+| `estimate_skill_improvement`, `start_skill_improvement`, `estimate_next_skill_improvement_step`, `run_next_skill_improvement_step`, `retry_skill_improvement`, `accept_skill_improvement`, `end_skill_improvement` | acceso de edición al skill y `runs:view`; fijar los agents que empeoraron también `agents:publish` en cada uno |
 | `change_skill_version` | acceso de edición al agent; publicar en vivo también `agents:publish` |
 | `list_projects`                                                                                                                                                                                               | `projects:view`                                                                                                                                                       |
 | `get_project`                                                                                                                                                                                                 | acceso al proyecto                                                                                                                                                    |

@@ -1044,7 +1044,7 @@ would be; an expected refusal returns an explicit error envelope naming the miss
 | `create_skill` | `skills:edit` |
 | `get_skill`, `list_skill_versions`, `get_skill_version` | `skills:view`; agents the caller cannot see are only counted |
 | `list_skill_improvements`, `get_skill_improvement` | `skills:view` and `runs:view` |
-| `estimate_skill_improvement`, `start_skill_improvement`, `estimate_next_skill_improvement_step`, `run_next_skill_improvement_step`, `accept_skill_improvement`, `end_skill_improvement` | edit access to the skill and `runs:view`; pinning the worse agents also `agents:publish` on each |
+| `estimate_skill_improvement`, `start_skill_improvement`, `estimate_next_skill_improvement_step`, `run_next_skill_improvement_step`, `retry_skill_improvement`, `accept_skill_improvement`, `end_skill_improvement` | edit access to the skill and `runs:view`; pinning the worse agents also `agents:publish` on each |
 | `change_skill_version` | edit access to the agent; going live also `agents:publish` |
 | `list_projects` | `projects:view` |
 | `get_project` | access to that project |

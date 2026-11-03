@@ -664,6 +664,8 @@ def _skill_agent(usage: dict[str, Any]) -> dict[str, Any]:
         "fork_id": (binding.get("fork") or {}).get("id"),
         "behind_main": binding.get("behind_main") or 0,
         "checked": checked["state"] if isinstance(checked, dict) else "unknown",
+        "checked_on_skill_questions_only": isinstance(checked, dict)
+        and checked.get("sample") == "skill_set_only",
         "via_specialist": usage.get("via_specialist"),
         "other_environments": [env["name"] for env in usage.get("environments", [])],
         "can_change": usage.get("can_change", False),
@@ -733,6 +735,14 @@ def _skill_next_actions(session: dict[str, Any]) -> list[str]:
         actions.append(f"Next step: {waiting['next_step']}")
     if status == "failed":
         actions.append("Retry this step")
+    if (
+        status == "stopped"
+        and not session.get("try_again_blocked")
+        and session["iteration"] < session["max_iterations"]
+    ):
+        actions.append(
+            f"Try again (attempt {session['iteration'] + 1} of {session['max_iterations']})"
+        )
     if status == "ready" and session.get("stale"):
         return ["Check again on the line as it is now", "End the session"]
     outcomes = (session.get("outcomes") or []) if status == "ready" else []
@@ -782,6 +792,9 @@ def _skill_summary(session: dict[str, Any]) -> str:
         sentences.append(f"It is working ({session.get('stage')}).")
     elif session["status"] in _CLOSED:
         sentences.append(f"It is {session['status']}.")
+    elif session["status"] == "failed":
+        error = session.get("error")
+        sentences.append(f"A step failed: {error}" if error else "A step failed.")
     elif reason := _WHY_STOPPED.get(session.get("stop_reason") or ""):
         sentences.append(reason)
     if session.get("stale") and session["status"] not in _CLOSED:
@@ -2031,12 +2044,14 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         at the result, and changes no version until it is accepted. A line has
         one open session at a time: with one open, this refuses and names it.
         """
-        sessions = await api.request("GET", f"/skills/{skill_id}/improvements")
         line = str(fork_id) if fork_id is not None else None
-        open_session = next(
-            (s for s in sessions if s["status"] not in _CLOSED and s.get("fork_id") == line),
-            None,
-        )
+        open_session = None
+        if from_run is None:
+            sessions = await api.request("GET", f"/skills/{skill_id}/improvements")
+            open_session = next(
+                (s for s in sessions if s["status"] not in _CLOSED and s.get("fork_id") == line),
+                None,
+            )
         if open_session is not None:
             return api.refuse(
                 f"This skill line already has an open Improve session ({open_session['status']}): "
@@ -2120,6 +2135,15 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         moved = await api.request(
             "POST", f"/skills/{skill_id}/improvements/{session_id}/{route}", json=consent
         )
+        return _skill_session(skill_id, moved)
+
+    async def retry_skill_improvement(skill_id: UUID, session_id: UUID) -> dict[str, Any]:
+        """Run a skill session's failed step again, only when the person asked for it. Needs
+        `skills:edit` and `runs:view`.
+
+        It runs within the session's spending limit. Say the step before calling.
+        """
+        moved = await api.request("POST", f"/skills/{skill_id}/improvements/{session_id}/retry")
         return _skill_session(skill_id, moved)
 
     async def accept_skill_improvement(
@@ -2790,6 +2814,7 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         (start_skill_improvement, True),
         (estimate_next_skill_improvement_step, False),
         (run_next_skill_improvement_step, True),
+        (retry_skill_improvement, True),
         (accept_skill_improvement, True),
         (end_skill_improvement, True),
         (change_skill_version, True),

@@ -201,7 +201,11 @@ class TestReadingASkill:
                             ONLINE,
                             "Online returns desk",
                             MAIN,
-                            checked={"state": "better", "check_id": "x"},
+                            checked={
+                                "state": "better",
+                                "check_id": "x",
+                                "sample": "skill_set_only",
+                            },
                         ),
                         _usage(
                             COUNTER, "Gift shop counter", PINNED, environments=[{"name": "Staging"}]
@@ -222,6 +226,11 @@ class TestReadingASkill:
             'Fork "Wholesale" · from v1 · 1 change · 2 behind main',
         ]
         assert [agent["checked"] for agent in skill["agents"]] == ["better", "unknown", "unknown"]
+        assert [agent["checked_on_skill_questions_only"] for agent in skill["agents"]] == [
+            True,
+            False,
+            False,
+        ]
         assert skill["agents"][1]["other_environments"] == ["Staging"]
         assert skill["agents"][2]["fork_id"] == FORK
         assert skill["only_in_drafts"] == ["Draft desk"]
@@ -584,9 +593,21 @@ class TestReadingSessions:
                 "stopped",
                 {"stop_reason": "no_data"},
                 "There were no rated answers",
+                ["Try again (attempt 2 of 3)", "End the session"],
+            ),
+            (
+                "stopped",
+                {"stop_reason": "no_change", "iteration": 3},
+                "The changes made no difference",
                 ["End the session"],
             ),
-            ("failed", {}, "started from v1.", ["Retry this step", "End the session"]),
+            ("failed", {}, "A step failed.", ["Retry this step", "End the session"]),
+            (
+                "failed",
+                {"error": "The helper stopped unexpectedly."},
+                "A step failed: The helper stopped unexpectedly.",
+                ["Retry this step", "End the session"],
+            ),
         ],
     )
     async def test_a_stopped_or_decided_session_says_where_it_stands(
@@ -675,6 +696,33 @@ class TestStartingAndSteps:
         }
         assert started["line"] == "Wholesale"
         assert started["link"] == skill_improvement_link(SKILL, SESSION)
+
+    async def test_a_session_from_an_agent_s_run_leaves_the_line_to_the_server(
+        self, server: FastMCP, api: MagicMock
+    ) -> None:
+        """The run's agent decides the line, so an open session on main is no reason to refuse."""
+        api.request = _responder({("POST", SESSIONS): _session("queued")})
+
+        await _call(
+            server,
+            "start_skill_improvement",
+            skill_id=SKILL,
+            budget_usd="1",
+            from_run=str(SESSION),
+        )
+
+        assert [call.args for call in api.request.await_args_list] == [("POST", SESSIONS)]
+
+    async def test_a_failed_step_is_retried_on_its_own_route(
+        self, server: FastMCP, api: MagicMock
+    ) -> None:
+        api.request = _responder(
+            {("POST", f"{SESSION_PATH}/retry"): _session("running", stage="classifying")}
+        )
+
+        moved = await _call(server, "retry_skill_improvement", skill_id=SKILL, session_id=SESSION)
+
+        assert moved["status"] == "running"
 
     async def test_main_starts_beside_a_fork_s_open_session(
         self, server: FastMCP, api: MagicMock
@@ -990,12 +1038,21 @@ READS = {
     "get_skill_check",
 }
 WRITES = {
+    "retry_skill_improvement",
     "start_skill_improvement",
     "run_next_skill_improvement_step",
     "accept_skill_improvement",
     "end_skill_improvement",
     "change_skill_version",
 }
+
+
+@pytest.mark.security
+def test_every_skill_tool_is_classed_as_a_read_or_a_write() -> None:
+    """A skill tool added without its class would escape both approval tests below."""
+    catalog = {tool.name for tool in platform_tool_catalog()}
+    skill_tools = {name for name in catalog if "skill" in name} - {"list_skills", "create_skill"}
+    assert skill_tools == READS | WRITES
 
 
 @pytest.mark.security
@@ -1032,6 +1089,7 @@ PATHS = [
     ("POST", f"{SESSION_PATH}/fork"),
     ("POST", f"{SESSION_PATH}/discard"),
     ("POST", f"{SESSION_PATH}/cancel"),
+    ("POST", f"{SESSION_PATH}/retry"),
     ("GET", f"{BASE}/checks/{VERSION}"),
 ]
 
