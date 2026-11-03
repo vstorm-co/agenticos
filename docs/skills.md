@@ -294,7 +294,8 @@ result and then applies or discards the change. On main a person may still:
 
 - **apply it and keep the worse agents where they are** - each is pinned, as a new
   published version, to the version it reads now, before the change goes live, so
-  none of them serves it even once. Pinning needs publishing each of them;
+  none of them serves it even once. Pinning needs publishing each of them, and an
+  environment that waits for promotion must take the pinned version first;
 - **make a fork for the agents it helped**, leaving main as it is - through the
   API, `POST /api/v1/skills/{id}/checks/{check_id}/fork`;
 - **discard** it.

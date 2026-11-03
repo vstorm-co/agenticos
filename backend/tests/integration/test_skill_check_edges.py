@@ -10,7 +10,7 @@ from types import SimpleNamespace
 from typing import Any
 
 import pytest
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import (
@@ -23,6 +23,7 @@ from app.core.exceptions import (
 from app.core.permissions import OrgRoleName, Perm
 from app.db.models.agent_run import AgentRun
 from app.db.models.background_job import BackgroundJob
+from app.db.models.dataset import Dataset
 from app.db.models.eval_run import (
     ArmRole,
     ArmSource,
@@ -47,6 +48,7 @@ from app.repositories import (
     skill_usage_repo,
     skill_version_repo,
 )
+from app.schemas.api_key import ApiKeyCreate
 from app.schemas.dataset import DatasetCaseCreate, DatasetCreate
 from app.schemas.resource_usage import ProposalDecision
 from app.schemas.skill_check import (
@@ -58,6 +60,7 @@ from app.schemas.skill_check import (
 from app.schemas.skill_usage import SkillUseRecord
 from app.schemas.skill_version import SkillVersionCreate
 from app.services import skill_check as skill_check_module
+from app.services.api_key import ApiKeyService
 from app.services.dataset import DatasetService
 from app.services.notifications import NotificationService
 from app.services.skill_agents import SkillAgentService
@@ -71,6 +74,7 @@ from tests.integration.test_skill_checks import (
     FakeEvals,
     Lab,
     Outcome,
+    _follow_publishes,
     _lab,
     _run_to_end,
     _start,
@@ -91,9 +95,14 @@ def _deny(monkeypatch: pytest.MonkeyPatch, perm: Perm, *agents: uuid.UUID) -> No
 
 
 async def _proposal(
-    db: AsyncSession, lab: Lab, *, resources: dict[str, str] | None = None, **values: Any
+    db: AsyncSession,
+    lab: Lab,
+    *,
+    resources: dict[str, str] | None = None,
+    source: str | None = None,
+    **values: Any,
 ):
-    return await skill_proposal_repo.create(
+    proposal = await skill_proposal_repo.create(
         db,
         organization_id=lab.ctx.organization_id,
         skill_id=lab.skill.id,
@@ -107,6 +116,17 @@ async def _proposal(
         base_version_id=values.pop("base_version_id", lab.skill.latest_version_id),
         fork_id=values.pop("fork_id", None),
     )
+    if source is not None:
+        await skill_proposal_repo.annotate(db, proposal=proposal, values={"source": source})
+    return proposal
+
+
+async def _version(db: AsyncSession, lab: Lab, version_id: uuid.UUID):
+    version = await skill_version_repo.get_version(
+        db, version_id, organization_id=lab.ctx.organization_id, skill_id=lab.skill.id
+    )
+    assert version is not None
+    return version
 
 
 async def _finished(
@@ -349,6 +369,65 @@ class TestRunning:
             "limits.md": "Up to $500.",
         }
         assert version.source == "workspace"
+
+    async def test_a_library_update_drops_the_files_the_bundle_no_longer_has(self, db, monkeypatch):
+        """A library update's files are the bundled skill's whole set: the check serves
+        that set, and applying it leaves no file behind that the bundle removed."""
+        lab = await _lab(db)
+        evals = FakeEvals()
+        evals.install(monkeypatch)
+        proposal = await _proposal(
+            db, lab, resources={"limits.md": "Up to $500."}, source="library"
+        )
+        service = SkillCheckService(db)
+        check = await service.start(lab.ctx, lab.skill.id, SkillCheckStart(proposal_id=proposal.id))
+        stored = await skill_check_repo.get(db, check.id, organization_id=lab.ctx.organization_id)
+        assert stored is not None and stored.candidate_resources is not None
+        assert set(stored.candidate_resources) == {"limits.md"}
+        evals.outcomes = {lab.a.id: Outcome(fixed=1)}
+        await _run_to_end(service, evals, lab, check.id)
+
+        applied = await service.apply(lab.ctx, lab.skill.id, check.id, SkillCheckApply())
+
+        assert await SkillVersionService(db).files_of(
+            await _version(db, lab, applied.version.id)
+        ) == {"limits.md": "Up to $500."}
+
+    @pytest.mark.parametrize(
+        ("bundled", "left"), [({}, {}), ({"a.md": "second"}, {"a.md": "second"})]
+    )
+    async def test_an_applied_library_update_leaves_exactly_the_bundles_files(
+        self, db, monkeypatch, bundled: dict[str, str], left: dict[str, str]
+    ):
+        lab = await _lab(db)
+        proposal = await _proposal(db, lab, resources=bundled, source="library")
+        before = lab.skill.version
+
+        await SkillProposalService(db).apply(
+            lab.ctx, proposal.id, ProposalDecision(revision=proposal.revision), checked=True
+        )
+
+        await db.refresh(lab.skill)
+        assert lab.skill.version == before + 1
+        assert lab.skill.latest_version_id is not None
+        version = await _version(db, lab, lab.skill.latest_version_id)
+        assert await SkillVersionService(db).files_of(version) == left
+
+    async def test_a_fork_of_a_library_update_holds_only_the_bundles_files(self, db, monkeypatch):
+        lab = await _lab(db)
+        evals = FakeEvals()
+        evals.install(monkeypatch)
+        proposal = await _proposal(db, lab, source="library")
+        service = SkillCheckService(db)
+        check = await service.start(lab.ctx, lab.skill.id, SkillCheckStart(proposal_id=proposal.id))
+        evals.outcomes = {lab.a.id: Outcome(fixed=1), lab.b.id: Outcome(broken=1)}
+        await _run_to_end(service, evals, lab, check.id)
+
+        forked = await service.fork(lab.ctx, lab.skill.id, check.id, SkillCheckFork(name="online"))
+
+        assert forked.fork.latest is not None
+        version = await _version(db, lab, forked.fork.latest.id)
+        assert await SkillVersionService(db).files_of(version) == {}
 
     async def test_a_run_still_going_leaves_its_agent_running(self, db, monkeypatch):
         lab = await _lab(db)
@@ -881,6 +960,109 @@ class TestWhatTheCheckMeasuredIsWhatShips:
         await service.stop_for_proposal(lab.ctx, lab.skill.id, other.id)
         assert (await service.read(lab.ctx, lab.skill.id, done.id)).status is CheckStatus.DONE
 
+    async def test_discarding_a_proposal_stops_its_running_check_and_runs(self, db, monkeypatch):
+        """The result of a check on a discarded change can never be applied, so its runs
+        stop spending the moment the change is discarded."""
+        lab = await _lab(db)
+        FakeEvals().install(monkeypatch)
+        proposal = await _proposal(db, lab)
+        running = await SkillCheckService(db).start(
+            lab.ctx, lab.skill.id, SkillCheckStart(proposal_id=proposal.id)
+        )
+        assert await _live_runs(db, running.id)
+
+        await SkillProposalService(db).discard(
+            lab.ctx, proposal.id, ProposalDecision(revision=proposal.revision)
+        )
+
+        read = await SkillCheckService(db).read(lab.ctx, lab.skill.id, running.id)
+        assert read.status is CheckStatus.CANCELLED
+        assert await _live_runs(db, running.id) == []
+
+    async def test_a_check_whose_dataset_is_deleted_mid_stage_still_settles(self, db, monkeypatch):
+        """Its eval runs go with the dataset; the agents running on it are unknown, and the
+        check is decided on rather than waiting for runs that no longer exist."""
+        lab = await _lab(db)
+        FakeEvals().install(monkeypatch)
+        service = SkillCheckService(db)
+        check = await service.start(lab.ctx, lab.skill.id, _start())
+        skill_id = lab.skill.id
+        await db.execute(delete(Dataset).where(Dataset.skill_id == skill_id))
+        db.expire_all()
+
+        await service.advance(check.id, lab.ctx.organization_id)
+
+        read = await service.read(lab.ctx, skill_id, check.id)
+        assert read.status is CheckStatus.DONE
+        assert {row.unknown_reason for row in read.agents} == {"failed"}
+
+    async def test_the_second_stage_asks_the_dataset_version_the_check_planned(
+        self, db, monkeypatch
+    ):
+        """An edit to the agent's dataset while the first stage runs does not change what
+        the second asks: the sample and the price were taken from the planned version."""
+        lab = await _lab(db)
+        evals = FakeEvals()
+        evals.install(monkeypatch)
+        [own] = [
+            item
+            for item in await dataset_repo.for_agent(
+                db, lab.a.id, organization_id=lab.ctx.organization_id
+            )
+            if item.skill_id is None
+        ]
+        own.latest_version = planned = 3
+        service = SkillCheckService(db)
+        check = await service.start(lab.ctx, lab.skill.id, _start(mode="thorough"))
+        own.latest_version += 1
+        await db.flush()
+
+        evals.finish_all()
+        await service.advance(check.id, lab.ctx.organization_id)
+
+        [second] = [
+            request
+            for agent_id, request in evals.started
+            if agent_id == lab.a.id and request.dataset_id == own.id
+        ]
+        assert second.dataset_version == planned
+
+    @pytest.mark.security
+    async def test_a_key_revoked_after_the_first_stage_runs_no_second(self, db, monkeypatch):
+        """A check started with a key runs each later stage as that key stands then, never
+        as the issuer's full role."""
+        lab = await _lab(db)
+        evals = FakeEvals()
+        evals.install(monkeypatch)
+        keys = ApiKeyService(db)
+        created = await keys.create(
+            lab.ctx,
+            ApiKeyCreate(
+                name="assistant",
+                scopes=[
+                    Perm.RUNS_VIEW,
+                    Perm.SKILLS_VIEW,
+                    Perm.SKILLS_EDIT,
+                    Perm.AGENTS_VIEW,
+                    Perm.AGENTS_RUN,
+                    Perm.DATASETS_VIEW,
+                    Perm.DATASETS_RUN,
+                ],
+            ),
+        )
+        keyed = await keys.context_for_key(created.id, organization_id=lab.ctx.organization_id)
+        service = SkillCheckService(db)
+        check = await service.start(keyed, lab.skill.id, _start(mode="thorough"))
+        first = len(evals.started)
+        await keys.revoke(lab.ctx, created.id)
+
+        evals.finish_all()
+        await service.advance(check.id, lab.ctx.organization_id)
+
+        assert len(evals.started) == first
+        read = await service.read(lab.ctx, lab.skill.id, check.id)
+        assert {row.unknown_reason for row in read.agents} == {"failed"}
+
     async def test_a_change_that_hurt_nobody_is_not_forked(self, db, monkeypatch):
         lab = await _lab(db)
         evals = FakeEvals()
@@ -920,6 +1102,7 @@ class TestWhatTheCheckMeasuredIsWhatShips:
             raise ConcurrentChangeError(message="moved")
 
         monkeypatch.setattr(service.versions, "edit", refuse)
+        await _follow_publishes(db, lab.b)
         with pytest.raises(ConcurrentChangeError):
             async with db.begin_nested():
                 await service.apply(

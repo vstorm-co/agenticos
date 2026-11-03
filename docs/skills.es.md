@@ -1,5 +1,5 @@
 ---
-source_sha: "681d3aa062ae"
+source_sha: "5a462ae93444"
 ---
 
 # Skills { #skills }
@@ -317,7 +317,8 @@ una persona aún puede:
 - **aplicarlo y dejar a los agents peores donde están** - cada uno se fija, como
   versión publicada nueva, a la versión que lee ahora, antes de que el cambio
   pase a producción, así que ninguno lo sirve ni una vez. Fijarlos requiere poder
-  publicar cada uno;
+  publicar cada uno, y un entorno que espera una promoción debe recibir antes la
+  versión fijada;
 - **crear un fork para los agents a los que ayudó**, dejando main como está - a
   través de la API, `POST /api/v1/skills/{id}/checks/{check_id}/fork`;
 - **descartarlo**.

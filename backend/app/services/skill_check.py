@@ -40,6 +40,7 @@ from app.agents.capabilities.skills import SkillBody, SkillBodyFile
 from app.core.exceptions import (
     AlreadyExistsError,
     AppException,
+    AuthenticationError,
     AuthorizationError,
     BadRequestError,
     ConcurrentChangeError,
@@ -130,6 +131,8 @@ class Candidate:
     description: str
     content: str
     resources: tuple[SkillBodyFile, ...] | None = None
+    replaces: bool = False
+    """`resources` is the whole set of files, so the line's others are dropped."""
 
     def body(self) -> SkillBody:
         return SkillBody(
@@ -154,6 +157,8 @@ class Stage:
     kind: StageKind
     dataset: Dataset
     case_ids: list[UUID] | None = None
+    version: int | None = None
+    """The dataset version asked; `None` asks its latest."""
 
 
 @dataclass
@@ -187,15 +192,18 @@ class Plan:
 
 
 def _proposal_candidate(proposal: SkillProposal) -> Candidate:
+    from app.services.skill_proposal import replaces_files
+
+    replaces = replaces_files(proposal)
     files = (
         tuple(
             SkillBodyFile(name=name, description=None, content=text)
             for name, text in sorted(proposal.resources.items())
         )
-        if proposal.resources
+        if proposal.resources or replaces
         else None
     )
-    return Candidate(proposal.description, proposal.content, files)
+    return Candidate(proposal.description, proposal.content, files, replaces=replaces)
 
 
 def _proposal_digest(proposal: SkillProposal) -> str:
@@ -271,13 +279,13 @@ class SkillCheckService:
             files[name] = SkillBodyFile(
                 name=name, description=files[name].description, content=content
             )
-        # Main keeps a replaced file's description (`put_resources`); a fork's version
-        # takes the change's files as written (`_apply_to_fork`).
-        keep = base.fork_id is None
+        # A replaced file keeps its description, on main (`put_resources`) and on a fork
+        # (`_apply_to_fork`) alike.
         for item in candidate.resources:
-            kept = files[item.name].description if keep and item.name in files else None
+            kept = files[item.name].description if item.name in files else None
             files[item.name] = SkillBodyFile(name=item.name, description=kept, content=item.content)
-        return tuple(files[name] for name in sorted(files))
+        names = {item.name for item in candidate.resources} if candidate.replaces else files
+        return tuple(files[name] for name in sorted(names))
 
     async def _test_set(self, ctx: AuthContext, skill: Skill) -> Dataset | None:
         return await dataset_repo.for_skill(self.db, skill.id, organization_id=ctx.organization_id)
@@ -325,6 +333,13 @@ class SkillCheckService:
         )
         test_set = await self._test_set(ctx, skill)
         served = await self._served(candidate, base)
+        before = {} if served is None else await self.versions.files_of(base)
+        changed_words = rules.changed_words(
+            "\n".join([base.description, base.content, *before.values()]),
+            "\n".join(
+                [candidate.description, candidate.content, *(item.content for item in served or ())]
+            ),
+        )
         body = {
             skill.id: SkillBody(
                 description=candidate.description, content=candidate.content, resources=served
@@ -332,9 +347,6 @@ class SkillCheckService:
         }
         planned: list[Planned] = []
         org_remaining: Decimal | None = None
-        changed_words = rules.changed_words(
-            f"{base.description}\n{base.content}", f"{candidate.description}\n{candidate.content}"
-        )
         for user in users:
             row = Planned(user.agent, user.agent_version, user.via_specialist)
             planned.append(row)
@@ -397,7 +409,7 @@ class SkillCheckService:
         stages: list[Stage] = []
         kept = _kept(test_set, holdout)
         if test_set is not None and test_set.case_count and kept != []:
-            stages.append(Stage("skill_set", test_set, kept))
+            stages.append(Stage("skill_set", test_set, kept, test_set.latest_version or None))
         own = await dataset_repo.for_agent(
             self.db, user.agent.id, organization_id=ctx.organization_id
         )
@@ -409,14 +421,14 @@ class SkillCheckService:
         if mode is CheckMode.THOROUGH:
             own_kept = _kept(dataset, holdout)
             if own_kept != []:
-                stages.append(Stage("dataset", dataset, own_kept))
+                stages.append(Stage("dataset", dataset, own_kept, dataset.latest_version or None))
             return stages
         picked = await self._sample(
             ctx, skill, user.agent.id, dataset, changed_words, holdout.get(dataset.id)
         )
         if picked:
             row.sample = SampleKind.OWN_QUESTIONS
-            stages.append(Stage("dataset_sample", dataset, picked))
+            stages.append(Stage("dataset_sample", dataset, picked, dataset.latest_version or None))
         else:
             row.sample = SampleKind.SKILL_SET_ONLY
         return stages
@@ -470,6 +482,7 @@ class SkillCheckService:
                 sample=item.sample.value if item.sample else None,
                 sample_case_ids=_sampled(item),
                 dataset_id=_own_dataset(item),
+                dataset_version=_own_dataset_version(item),
                 expected_usd=item.expected,
                 at_most_usd=item.at_most,
             )
@@ -595,6 +608,7 @@ class SkillCheckService:
                 expected_usd=expected,
                 at_most_usd=at_most,
                 created_by_user_id=ctx.user_id,
+                created_by_api_key_id=ctx.api_key_id,
             ),
         )
         rows: list[SkillCheckAgent] = []
@@ -609,6 +623,7 @@ class SkillCheckService:
                 sample=item.sample.value if item.sample else None,
                 sample_case_ids=_sampled(item),
                 dataset_id=_own_dataset(item),
+                dataset_version=_own_dataset_version(item),
                 fixed=0,
                 broken=0,
                 held_out=0,
@@ -683,12 +698,16 @@ class SkillCheckService:
         if check.created_at < datetime.now(UTC) - STALE_AFTER:
             await self._expire(check)
             return
-        ctx = await job_context(
-            self.db,
-            organization_id=organization_id,
-            user_id=check.created_by_user_id,
-            api_key_id=None,
-        )
+        try:
+            ctx = await job_context(
+                self.db,
+                organization_id=organization_id,
+                user_id=check.created_by_user_id,
+                api_key_id=check.created_by_api_key_id,
+            )
+        except AuthenticationError:
+            # Started with a key revoked or expired since: no further stage runs on it.
+            ctx = None
         rows = await skill_check_repo.list_agents(
             self.db, [check.id], organization_id=organization_id
         )
@@ -705,9 +724,16 @@ class SkillCheckService:
         self, ctx: AuthContext, check: SkillCheck, row: SkillCheckAgent
     ) -> None:
         current = row.dataset_run_id or row.skill_set_run_id
-        assert current is not None, "a running agent has a run"
-        run = await eval_run_repo.get(self.db, current, organization_id=ctx.organization_id)
-        if run is None or EvalRunStatus(run.status) not in _SETTLED_RUNS:
+        run = (
+            None
+            if current is None
+            else await eval_run_repo.get(self.db, current, organization_id=ctx.organization_id)
+        )
+        if current is None or run is None:
+            # Deleting a dataset deletes its eval runs, so the stage has nothing to show.
+            await self._unknown(row, UnknownReason.FAILED)
+            return
+        if EvalRunStatus(run.status) not in _SETTLED_RUNS:
             return
         if run.status != EvalRunStatus.COMPLETED.value:
             await self._unknown(row, UnknownReason.FAILED)
@@ -730,7 +756,9 @@ class SkillCheckService:
                     self.db, stage[0], organization_id=ctx.organization_id
                 )
                 if dataset is not None:
-                    await self._run_stage(ctx, check, row, Stage(stage[1], dataset, stage[2]))
+                    await self._run_stage(
+                        ctx, check, row, Stage(stage[1], dataset, stage[2], stage[3])
+                    )
                     return
         await self._judge(ctx, row)
 
@@ -835,8 +863,16 @@ class SkillCheckService:
             )
             if not AgentState(row.state).settled
         ]
-        now = datetime.now(UTC)
+        await self._end_runs(check, unsettled, now=datetime.now(UTC))
         for row in unsettled:
+            await self._unknown(row, UnknownReason.FAILED)
+        await self._settle(check)
+
+    async def _end_runs(
+        self, check: SkillCheck, rows: list[SkillCheckAgent], *, now: datetime
+    ) -> None:
+        """Cancel the live eval runs of these agents and tell their starters they ended."""
+        for row in rows:
             for run_id in (row.skill_set_run_id, row.dataset_run_id):
                 if run_id is not None and await eval_run_repo.cancel_live(
                     self.db, run_id, organization_id=check.organization_id, now=now
@@ -846,9 +882,6 @@ class SkillCheckService:
                     )
                     assert run is not None, "a run just closed is there"
                     await NotificationService(self.db).eval_run_finished(run)
-        for row in unsettled:
-            await self._unknown(row, UnknownReason.FAILED)
-        await self._settle(check)
 
     async def after_run(self, organization_id: UUID, eval_run_id: UUID) -> None:
         """Queue the check an eval run belonged to, once the run has settled."""
@@ -1096,12 +1129,34 @@ class SkillCheckService:
                         await self.evals.cancel(ctx, run_id)
 
     async def stop_for_proposal(self, ctx: AuthContext, skill_id: UUID, proposal_id: UUID) -> None:
-        """Stop the running checks of a proposal withdrawn before anybody decided it."""
+        """Stop the running checks of a proposal discarded or withdrawn: nothing they find
+        can be applied any more.
+
+        Whoever closed the proposal may close its checks, so the platform ends their
+        runs, as when a check expires - whether that person may stop runs somebody else
+        started does not matter.
+        """
+        now = datetime.now(UTC)
         for found in await skill_check_repo.open_for_proposal(
             self.db, proposal_id, organization_id=ctx.organization_id
         ):
-            if found.status == CheckStatus.RUNNING.value:
-                await self.cancel(ctx, skill_id, found.id)
+            check = await skill_check_repo.get(
+                self.db, found.id, organization_id=ctx.organization_id, skill_id=skill_id, lock=True
+            )
+            if check is None or check.status != CheckStatus.RUNNING.value:
+                continue
+            await self._end_runs(
+                check,
+                await skill_check_repo.list_agents(
+                    self.db, [check.id], organization_id=ctx.organization_id
+                ),
+                now=now,
+            )
+            await skill_check_repo.update(
+                self.db,
+                row=check,
+                values={"status": CheckStatus.CANCELLED.value, "finished_at": now},
+            )
 
     async def _decidable(
         self, ctx: AuthContext, skill_id: UUID, check_id: UUID, outcome: CheckOutcome | None
@@ -1350,6 +1405,19 @@ class SkillCheckService:
                 row.agent_id,
                 SkillBindingChange(state="pinned", version=base.number, note=note),
             )
+        # An environment that waits for promotion keeps serving its old agent version,
+        # whose binding follows main - it would serve the change it got worse with.
+        unmoved = {user.agent.id for user in await self.agents.line_agents(skill, None)}
+        still = [agents[row.agent_id].name for row in worse if row.agent_id in unmoved]
+        if still:
+            raise BadRequestError(
+                message=(
+                    "Some agents that got worse would still serve the change in an environment "
+                    "that waits for promotion. Promote their pinned version there first, or "
+                    "pick another way."
+                ),
+                details={"agents": still},
+            )
         return [AgentRef(id=row.agent_id, name=agents[row.agent_id].name) for row in worse]
 
     async def fork(
@@ -1385,10 +1453,10 @@ class SkillCheckService:
                 self.db, check.proposal_id, organization_id=ctx.organization_id
             )
         )
-        from app.services.skill_proposal import version_source
+        from app.services.skill_proposal import replaces_files, version_source
 
         resources = base.resources
-        if proposal is not None and proposal.resources:
+        if proposal is not None and (proposal.resources or replaces_files(proposal)):
             manifest, bodies = manifest_of(
                 (name, base.resources.get(name, {}).get("description"), content)
                 for name, content in sorted(proposal.resources.items())
@@ -1396,7 +1464,7 @@ class SkillCheckService:
             await skill_version_repo.put_files(
                 self.db, organization_id=ctx.organization_id, skill_id=skill.id, bodies=bodies
             )
-            resources = {**base.resources, **manifest}
+            resources = manifest if replaces_files(proposal) else {**base.resources, **manifest}
         version = await self.versions.record_fork(
             ctx,
             fork,
@@ -1632,6 +1700,7 @@ def _resources_json(
 def _request(stage: Stage, agent_version: int) -> EvalRunRequest:
     return EvalRunRequest(
         dataset_id=stage.dataset.id,
+        dataset_version=stage.version,
         version=agent_version,
         baseline_version=agent_version,
         paired_baseline=True,
@@ -1654,14 +1723,19 @@ def _own_dataset(item: Planned) -> UUID | None:
     return next((stage.dataset.id for stage in item.stages if stage.kind != "skill_set"), None)
 
 
+def _own_dataset_version(item: Planned) -> int | None:
+    return next((stage.version for stage in item.stages if stage.kind != "skill_set"), None)
+
+
 def _next_stage(
     row: SkillCheckAgent, mode: CheckMode
-) -> tuple[UUID, StageKind, list[UUID] | None] | None:
-    """The agent's own questions, once its skill-set stage is behind it."""
+) -> tuple[UUID, StageKind, list[UUID] | None, int | None] | None:
+    """The agent's own questions, once its skill-set stage is behind it - the version
+    planned at the start, which is what the check sampled and priced."""
     if row.dataset_id is None or row.skill_set_run_id is None:
         return None
     kind: StageKind = "dataset_sample" if mode is CheckMode.QUICK else "dataset"
-    return row.dataset_id, kind, row.sample_case_ids
+    return row.dataset_id, kind, row.sample_case_ids, row.dataset_version
 
 
 def _priced(agents: Sequence[Planned]) -> tuple[Decimal, Decimal]:

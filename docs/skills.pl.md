@@ -1,5 +1,5 @@
 ---
-source_sha: "681d3aa062ae"
+source_sha: "5a462ae93444"
 ---
 
 # Skille { #skills }
@@ -308,7 +308,8 @@ nadal:
 - **zastosować zmianę i zostawić gorszych agentów tam, gdzie są** - każdy jest
   przypinany, jako nowa opublikowana wersja, do wersji, którą czyta teraz, zanim
   zmiana trafi na żywo, więc żaden z nich nie obsłuży jej ani razu. Przypięcie
-  wymaga prawa publikacji każdego z nich;
+  wymaga prawa publikacji każdego z nich, a środowisko czekające na promocję musi
+  najpierw dostać przypiętą wersję;
 - **zrobić fork dla agentów, którym pomogła**, zostawiając main bez zmian - przez
   API, `POST /api/v1/skills/{id}/checks/{check_id}/fork`;
 - **odrzucić** ją.
