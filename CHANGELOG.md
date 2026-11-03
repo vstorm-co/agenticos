@@ -19,6 +19,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [1.38.0] - 2026-11-03
+
 ### Added
 
 - Desktop chat controls can select local Claude Code or Codex for one conversation even when Coding agent is disabled or absent from the published agent. Existing approval and read-only rules remain active; a full-access folder and native task confirmation are still required.
@@ -19804,7 +19806,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.37.0...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.38.0...HEAD
+[1.38.0]: https://github.com/vstorm-co/agenticos/compare/v1.37.0...v1.38.0
 [1.37.0]: https://github.com/vstorm-co/agenticos/compare/v1.36.1...v1.37.0
 [1.36.1]: https://github.com/vstorm-co/agenticos/compare/v1.36.0...v1.36.1
 [1.36.0]: https://github.com/vstorm-co/agenticos/compare/v1.35.5...v1.36.0
