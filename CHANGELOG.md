@@ -19,6 +19,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- Initialize the desktop TLS crypto provider before plugins and background connections start. Paired computers can connect to the server again instead of leaving local Claude Code or Codex chats waiting for the computer.
+
 ## [1.38.1] - 2026-11-03
 
 ### Fixed

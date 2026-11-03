@@ -26,6 +26,7 @@ dependencies = [
  "objc2",
  "process-wrap",
  "reqwest",
+ "rustls",
  "serde",
  "serde_json",
  "tauri",
