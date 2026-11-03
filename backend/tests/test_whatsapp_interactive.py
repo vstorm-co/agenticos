@@ -1,5 +1,7 @@
 """The WhatsApp interactive builder: buttons, lists and the limits Meta enforces (#2076)."""
 
+import pytest
+
 from app.services.channels.base import ChannelChoice
 from app.services.channels.whatsapp_format import utf16_units
 from app.services.channels.whatsapp_interactive import (
@@ -15,6 +17,7 @@ def _choices(*labels: str) -> list[ChannelChoice]:
     return [ChannelChoice(label=label, value=f"v{index}") for index, label in enumerate(labels)]
 
 
+@pytest.mark.security
 def test_an_approval_is_two_buttons():
     choices = [
         ChannelChoice(label="Approve", value="approve:1", style="primary"),

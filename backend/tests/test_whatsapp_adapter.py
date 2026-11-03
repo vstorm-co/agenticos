@@ -655,6 +655,7 @@ def _press(**overrides: Any) -> IncomingPress:
 
 
 class TestPrompts:
+    @pytest.mark.security
     async def test_an_approval_is_sent_as_two_buttons(self, adapter, graph):
         await adapter.send_prompt(TOKEN, _prompt())
 
@@ -671,6 +672,7 @@ class TestPrompts:
             {"id": "aos:p:1", "title": "Reject"},
         ]
 
+    @pytest.mark.security
     async def test_a_long_approval_text_goes_first(self, adapter, graph):
         text = "word " * 400
 
