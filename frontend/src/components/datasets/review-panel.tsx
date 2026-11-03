@@ -155,9 +155,10 @@ export function ReviewPanel({ dataset }: { dataset: Dataset }) {
   };
 
   return (
-    <div className="space-y-4">
+    <div className="flex flex-1 flex-col gap-4">
       <ReviewPolicy dataset={dataset} />
       <ListCard
+        fill
         title={t("scores")}
         counted={t("scoreCount", { count: scores.total })}
         controls={

@@ -111,7 +111,9 @@ describe("ReviewPanel", () => {
     render(<ReviewPanel dataset={dataset()} />);
 
     expect(screen.getByText("Nothing is waiting for a decision")).toBeInTheDocument();
-    expect(screen.getByText(/An eval run sends here the regressions/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/Confirmed regressions and answers the judge could not grade/),
+    ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Waiting for a decision (0)" })).toHaveAttribute(
       "aria-pressed",
       "true",

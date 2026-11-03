@@ -114,6 +114,22 @@ test("case editing keeps fields and save reachable on narrow and short screens",
     await page.setViewportSize({ width, height: 844 });
     for (const tab of ["Cases", "Generated", "Grading", "Evals", "Review", "Settings"]) {
       await page.getByRole("tab", { name: new RegExp(`^${tab}`) }).click();
+      await page.locator("main").evaluate((element) => element.scrollTo(0, 0));
+      const panel = page.getByRole("tabpanel", { name: new RegExp(`^${tab}`) });
+      await expect
+        .poll(
+          () =>
+            panel.evaluate((element) => {
+              const frame = element.closest(".page-enter");
+              if (!frame) throw new Error("The dataset tab has no page frame");
+              const bottom =
+                frame.getBoundingClientRect().bottom -
+                parseFloat(getComputedStyle(frame).paddingBottom);
+              return Math.abs(element.getBoundingClientRect().bottom - bottom);
+            }),
+          { message: `${tab} fills the page at ${width}px before expanding` },
+        )
+        .toBeLessThanOrEqual(1);
       await page.getByRole("button", { name: "Full screen", exact: true }).click();
       const workspace = page.getByRole("dialog", { name, exact: true });
       await expect(workspace).toBeVisible();
@@ -183,5 +199,41 @@ test("dataset gallery fills the page with one card and with no search matches", 
         animations: "disabled",
       });
     }
+  }
+});
+
+test("agent gallery keeps its full height after filtering to no matches", async ({
+  page,
+}, info) => {
+  const response = page.waitForResponse((answer) => {
+    const path = new URL(answer.url()).pathname;
+    return path === "/api/agents" && answer.request().method() === "GET" && answer.ok();
+  });
+  await page.goto("/agents");
+  await response;
+  const search = page.getByRole("textbox", { name: "Search agents", exact: true });
+  await search.fill(`No such agent ${Date.now().toString(36)}`);
+  await expect(page.getByText("Nothing matches", { exact: true })).toBeVisible();
+  for (const width of [320, 390, 1440]) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.locator("main").evaluate((element) => element.scrollTo(0, 0));
+    await expect
+      .poll(() =>
+        search.evaluate((element) => {
+          const gallery = element.closest(".shadow-card");
+          const frame = element.closest(".page-enter");
+          if (!gallery || !frame) throw new Error("The agent gallery has no page frame");
+          const bottom =
+            frame.getBoundingClientRect().bottom -
+            parseFloat(getComputedStyle(frame).paddingBottom);
+          return Math.abs(gallery.getBoundingClientRect().bottom - bottom);
+        }),
+      )
+      .toBeLessThanOrEqual(1);
+    await fitsPage(page);
+    await page.screenshot({
+      path: info.outputPath(`agents-empty-${width}.png`),
+      animations: "disabled",
+    });
   }
 });

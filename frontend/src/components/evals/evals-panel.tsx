@@ -44,7 +44,7 @@ export function EvalsPanel({ agentId, canStart }: { agentId: string; canStart: b
   const failed = error ?? (runs.length === 0 ? anyDataset.error : null);
 
   return (
-    <Card data-tour="agent-evals">
+    <Card data-tour="agent-evals" className="flex flex-1 flex-col">
       <CardHeader className="flex flex-row items-start justify-between gap-4 space-y-0">
         <div className="space-y-1.5">
           <CardTitle>{t("title")}</CardTitle>
@@ -57,7 +57,7 @@ export function EvalsPanel({ agentId, canStart }: { agentId: string; canStart: b
           </Button>
         )}
       </CardHeader>
-      <CardContent className="space-y-6">
+      <CardContent className="flex flex-1 flex-col gap-6">
         {waiting ? (
           <LoadingState variant="skeleton-list" rows={3} />
         ) : failed ? (

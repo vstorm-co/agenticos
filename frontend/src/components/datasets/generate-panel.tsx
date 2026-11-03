@@ -14,8 +14,8 @@ export function GeneratePanel({ datasetId }: { datasetId: string }) {
   const [generating, setGenerating] = useState(false);
 
   return (
-    <div className="space-y-4">
-      <Card data-tour="datasets-generate">
+    <div className="flex flex-1 flex-col gap-4">
+      <Card data-tour="datasets-generate" className="flex flex-1 flex-col">
         <CardHeader className="flex-row flex-wrap items-start justify-between gap-3 space-y-0">
           <div className="min-w-0 flex-1 space-y-1.5">
             <CardTitle className="text-base">{t("generateCases")}</CardTitle>

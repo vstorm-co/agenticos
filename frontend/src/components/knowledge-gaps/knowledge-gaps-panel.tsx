@@ -67,6 +67,7 @@ export function KnowledgeGapsPanel({
   return (
     <>
       <ListCard
+        fill
         ref={ref}
         role={expanded ? "dialog" : undefined}
         aria-modal={expanded || undefined}

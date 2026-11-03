@@ -1058,8 +1058,8 @@ export default function AgentBuilderPage({ params }: PageProps) {
   return (
     // Beside the Builder rather than over it: the test panel shares the width
     // (#2074), so the Builder stays usable while the agent is being tried.
-    <div className="flex items-start gap-4">
-      <div className="min-w-0 flex-1 space-y-3 sm:space-y-4">
+    <div className="flex flex-1 items-start gap-4">
+      <div className="flex min-w-0 flex-1 flex-col gap-3 self-stretch sm:gap-4">
         <PageHeader
           title={
             <span className="flex min-w-0 items-center gap-3">
@@ -1579,7 +1579,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
           </div>
         )}
 
-        <Tabs value={tab} onValueChange={setTab}>
+        <Tabs value={tab} onValueChange={setTab} className="flex flex-1 flex-col">
           <TabsList>
             <TabsTrigger value="build" data-tour="agent-tab-build">
               <SlidersHorizontal className="mr-1.5 size-4 shrink-0" aria-hidden />
@@ -2156,7 +2156,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
           </TabsContent>
 
           {
-            <TabsContent value="evals" className="mt-6 space-y-6">
+            <TabsContent value="evals" className="mt-6 flex flex-1 flex-col gap-6">
               {canViewRuns ? (
                 <>
                   <EvalsPanel agentId={id} canStart={canStartEvals} />
@@ -2168,13 +2168,13 @@ export default function AgentBuilderPage({ params }: PageProps) {
             </TabsContent>
           }
           {isJudge && (
-            <TabsContent value="datasets" className="mt-6 space-y-6">
+            <TabsContent value="datasets" className="mt-6 flex flex-1 flex-col gap-6">
               <JudgeDatasetsCard judgeId={id} />
             </TabsContent>
           )}
           {canViewRuns && (
-            <TabsContent value="gaps" className="mt-6">
-              <div data-tour="agent-gaps" className="space-y-4">
+            <TabsContent value="gaps" className="mt-6 flex flex-1 flex-col">
+              <div data-tour="agent-gaps" className="flex flex-1 flex-col gap-4">
                 {canEdit && (
                   <ImproveLink
                     agentId={id}

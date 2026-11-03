@@ -393,8 +393,8 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
         </TabsContent>
 
         {maySeeGaps && (
-          <TabsContent value="gaps">
-            <div className="mb-8" data-tour="kb-gaps">
+          <TabsContent value="gaps" className="flex flex-1 flex-col">
+            <div className="flex flex-1 flex-col" data-tour="kb-gaps">
               <KnowledgeGapsPanel
                 scope={{ kind: "collection", id }}
                 topicId={topicParam}

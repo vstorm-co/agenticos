@@ -122,7 +122,7 @@ export function GradingPanel({
     !stored.reference.enabled;
 
   return (
-    <div className="space-y-4" data-tour="datasets-grading">
+    <div className="flex flex-1 flex-col gap-4" data-tour="datasets-grading">
       {canEdit && problem === null && ungraded > 0 && (
         <p
           role="status"

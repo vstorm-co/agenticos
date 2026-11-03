@@ -83,7 +83,7 @@ export function DatasetEvalsPanel({ datasetId, title }: { datasetId: string; tit
         ? t("runCount", { count: total })
         : t("dataset.counted", { runs: total, agents: groups.length });
   return (
-    <ListCard title={title} counted={counted}>
+    <ListCard fill title={title} counted={counted}>
       {isLoading ? (
         <LoadingState variant="skeleton-list" rows={3} />
       ) : (
@@ -137,7 +137,7 @@ function Groups({
   }
   if (groups.length === 0) {
     return (
-      <div className="space-y-3">
+      <div className="flex flex-1 flex-col justify-center gap-3">
         <EmptyState
           icon={FlaskConical}
           title={t("dataset.emptyTitle")}

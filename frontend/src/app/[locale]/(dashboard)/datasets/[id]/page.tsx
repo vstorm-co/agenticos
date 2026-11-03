@@ -185,7 +185,7 @@ export default function DatasetPage({ params }: PageProps) {
       : cases.add.mutateAsync(content);
 
   return (
-    <div className="space-y-6">
+    <div className="flex flex-1 flex-col gap-4">
       <DatasetHeader
         dataset={dataset}
         version={version}
@@ -228,11 +228,11 @@ export default function DatasetPage({ params }: PageProps) {
         aria-modal={expanded || undefined}
         aria-label={dataset.name}
         className={cn(
-          "min-w-0",
+          "flex min-w-0 flex-1 flex-col",
           expanded && "bg-background fixed inset-0 z-40 overflow-y-auto p-4 sm:p-6",
         )}
       >
-        <Tabs value={shown} onValueChange={showTab} className="space-y-4">
+        <Tabs value={shown} onValueChange={showTab} className="flex flex-1 flex-col gap-4">
           {expanded && <h2 className="mb-4 text-lg font-semibold break-words">{dataset.name}</h2>}
           <div className="flex min-w-0 items-center gap-2">
             <TabsList className="min-w-0 flex-1">
@@ -275,8 +275,9 @@ export default function DatasetPage({ params }: PageProps) {
             </TabsList>
             <WorkspaceFullscreenButton expanded={expanded} onToggle={toggle} />
           </div>
-          <TabsContent value="cases">
+          <TabsContent value="cases" className="flex flex-1 flex-col">
             <ListCard
+              fill
               namedByPage
               title={t("cases")}
               counted={t("caseCount", { count: cases.total })}
@@ -321,7 +322,7 @@ export default function DatasetPage({ params }: PageProps) {
               ) : cases.cases.length === 0 ? (
                 <EmptyCases datasetId={id} />
               ) : (
-                <div className="space-y-4">
+                <div className="flex flex-1 flex-col gap-4">
                   <CasesTable
                     cases={cases.cases}
                     onOpen={openCase}
@@ -340,13 +341,17 @@ export default function DatasetPage({ params }: PageProps) {
             </ListCard>
           </TabsContent>
           {dataset.can_edit && (
-            <TabsContent value="generated">
+            <TabsContent value="generated" className="flex flex-1 flex-col">
               <GeneratePanel datasetId={id} />
             </TabsContent>
           )}
           {/* Kept mounted while another tab is open, so a card's unsaved change
             survives looking at the cases it is about. */}
-          <TabsContent value="grading" forceMount className="data-[state=inactive]:hidden">
+          <TabsContent
+            value="grading"
+            forceMount
+            className="flex flex-1 flex-col data-[state=inactive]:hidden"
+          >
             <GradingPanel
               dataset={dataset}
               onDirtyChange={setGradingUnsaved}
@@ -355,17 +360,17 @@ export default function DatasetPage({ params }: PageProps) {
             />
           </TabsContent>
           {canViewRuns && (
-            <TabsContent value="evals">
+            <TabsContent value="evals" className="flex flex-1 flex-col">
               <DatasetEvalsPanel datasetId={id} title={t("evals")} />
             </TabsContent>
           )}
           {dataset.can_edit && (
-            <TabsContent value="settings" className="space-y-4">
+            <TabsContent value="settings" className="flex flex-1 flex-col gap-4">
               <HelperSettings dataset={dataset} kind="generator" />
               <HelperSettings dataset={dataset} kind="improver" />
             </TabsContent>
           )}
-          <TabsContent value="review">
+          <TabsContent value="review" className="flex flex-1 flex-col">
             <ReviewPanel dataset={dataset} />
           </TabsContent>
         </Tabs>
