@@ -8,7 +8,7 @@ import { agentAuthoring } from "@/test-utils/authoring";
 import type { AgentSpec } from "@/types/agents";
 import { Perm, type Permission } from "@/types/permissions";
 import { AssistantStrip } from "./assistant-strip";
-import { ImproveSkillButton } from "./improve-skill-button";
+import { ImproveContextButton } from "./improve-skill-button";
 
 const held = vi.hoisted(() => ({ permissions: new Set<string>() }));
 vi.mock("@/hooks/use-permissions", () => ({
@@ -45,6 +45,13 @@ vi.mock("@/hooks/use-authoring", () => {
       checkEstimate: idle,
       check: idle,
     }),
+    useContextAuthoring: () => ({
+      latest: null,
+      estimate: idle,
+      start: idle,
+      checkEstimate: idle,
+      check: idle,
+    }),
   };
 });
 
@@ -60,7 +67,7 @@ function surfaces({ canCheck = true } = {}) {
         persist={vi.fn()}
         onDraft={vi.fn()}
       />
-      <ImproveSkillButton skillId="skill-1" />
+      <ImproveContextButton contextId="context-1" />
     </>,
   );
 }

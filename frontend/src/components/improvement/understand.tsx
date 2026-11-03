@@ -4,6 +4,7 @@ import Link from "next/link";
 import { BookCheck, MessageSquareQuote, Sparkles } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { useImprovementEvidence } from "@/hooks/use-improvements";
+import { subjectOf } from "@/lib/improvement-subject";
 import { ROUTES } from "@/lib/constants";
 import type { Improvement, ImprovementEvidenceItem, KnowledgeAdded } from "@/types/improvement";
 import { Grades, WhyCause } from "./evidence-grades";
@@ -67,7 +68,7 @@ function problems(items: ImprovementEvidenceItem[]) {
 
 export function Understand({ session }: { session: Improvement }) {
   const t = useTranslations("improvement");
-  const sources = useImprovementEvidence(session.agent_id, {
+  const sources = useImprovementEvidence(subjectOf(session), {
     sessionId: session.id,
     live: session.status === "running" || session.status === "queued",
   });

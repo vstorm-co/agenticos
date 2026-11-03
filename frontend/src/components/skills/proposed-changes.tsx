@@ -180,7 +180,7 @@ function ChangeRow({ change, disabled, onApply, onDiscard }: ChangeRowProps) {
               {checking && (
                 <SkillCheckDialog
                   skillId={skillId}
-                  proposalId={change.id}
+                  change={{ proposalId: change.id }}
                   forkId={change.fork_id}
                   onOpenChange={setChecking}
                 />

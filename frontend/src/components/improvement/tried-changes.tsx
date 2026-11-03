@@ -2,6 +2,7 @@
 
 import { useTranslations } from "next-intl";
 import { useAttemptChanges, useImprovementEvidence } from "@/hooks/use-improvements";
+import { subjectOf } from "@/lib/improvement-subject";
 import { getErrorMessage } from "@/lib/api-error";
 import type { Improvement, ImprovementIteration } from "@/types/improvement";
 import { MeasuredChange } from "./measured-change";
@@ -48,11 +49,11 @@ function AttemptProposals({
   const t = useTranslations("improvement.attemptChanges");
   const tErrors = useTranslations("errors");
   const { changes, isLoading, error } = useAttemptChanges(
-    session.agent_id,
+    subjectOf(session),
     session.id,
     round.number,
   );
-  const { evidence } = useImprovementEvidence(session.agent_id, { sessionId: session.id });
+  const { evidence } = useImprovementEvidence(subjectOf(session), { sessionId: session.id });
   const sources = Object.fromEntries((evidence?.items ?? []).map((item) => [item.run_id, item]));
   if (error) return <p role="alert">{getErrorMessage(error, tErrors)}</p>;
   if (isLoading) return <p role="status">{t("loading")}</p>;
@@ -85,11 +86,11 @@ export function AcceptedChanges({
   const t = useTranslations("improvement");
   const tErrors = useTranslations("errors");
   const { changes, isLoading, error } = useAttemptChanges(
-    session.agent_id,
+    subjectOf(session),
     session.id,
     round.number,
   );
-  const { evidence } = useImprovementEvidence(session.agent_id, { sessionId: session.id });
+  const { evidence } = useImprovementEvidence(subjectOf(session), { sessionId: session.id });
   const sources = Object.fromEntries((evidence?.items ?? []).map((item) => [item.run_id, item]));
   if (error) return <p role="alert">{getErrorMessage(error, tErrors)}</p>;
   if (isLoading) return <p role="status">{t("attemptChanges.loading")}</p>;

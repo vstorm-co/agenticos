@@ -35,6 +35,10 @@ export const DATASET_DETAIL = "dataset-detail";
  */
 export const SKILL_DETAIL = "skill-detail";
 
+/** A skill's improvement wizard, `/skills/<id>/improve/<session>`, and its start. */
+export const SKILL_IMPROVEMENT = "skill-improvement";
+export const SKILL_IMPROVEMENT_START = "skill-improvement-start";
+
 /**
  * The two organization detail routes, collapsed the same way. Unlike the builder
  * and the collection — one detail route each — an organization opens onto two,
@@ -677,6 +681,15 @@ export const TOUR_STEPS: readonly TourStep[] = [
     optional: true,
   },
   { id: "skill-edit", page: SKILL_DETAIL, target: "skill-edit", permission: Perm.skillsView },
+  // Improve is drawn only for an editor of this skill, which a role cannot tell,
+  // who may also read the runs it learns from.
+  {
+    id: "skill-improve",
+    page: SKILL_DETAIL,
+    target: "skill-improve",
+    permission: Perm.runsView,
+    optional: true,
+  },
   // Drawn under the agents once its numbers load.
   {
     id: "skill-usage",
@@ -707,6 +720,45 @@ export const TOUR_STEPS: readonly TourStep[] = [
     target: "skill-tree",
     activate: "skill-tree-tab",
     permission: Perm.skillsView,
+  },
+
+  {
+    id: "skill-improvement-start",
+    page: SKILL_IMPROVEMENT_START,
+    target: "skill-improvement-start",
+    permission: Perm.skillsEdit,
+    optional: true,
+  },
+  {
+    id: "skill-improvement-steps",
+    page: SKILL_IMPROVEMENT,
+    target: "improvement-steps",
+    permission: Perm.runsView,
+  },
+  // Each agent's outcome exists once the line's check has run.
+  {
+    id: "skill-improvement-agents",
+    page: SKILL_IMPROVEMENT,
+    target: "skill-improvement-agents",
+    activate: "improvement-step-result",
+    permission: Perm.runsView,
+    optional: true,
+  },
+  {
+    id: "skill-improvement-accept",
+    page: SKILL_IMPROVEMENT,
+    target: "skill-improvement-accept",
+    activate: "improvement-step-accept",
+    permission: Perm.skillsEdit,
+    optional: true,
+  },
+  {
+    id: "skill-improvement-test-set",
+    page: SKILL_IMPROVEMENT,
+    target: "skill-improvement-test-set",
+    activate: "improvement-step-accept",
+    permission: Perm.skillsEdit,
+    optional: true,
   },
 
   // Standing context — the files an organization injects into every agent's
@@ -1407,6 +1459,8 @@ export function pageKey(path: string): string {
   if (path.startsWith(`${ROUTES.AGENTS}/`)) return AGENT_BUILDER;
   if (path.startsWith(`${ROUTES.RAG}/`)) return KB_DETAIL;
   if (path.startsWith(`${ROUTES.DATASETS}/`)) return DATASET_DETAIL;
+  if (/^\/skills\/[^/]+\/improve\/new(\/|$)/.test(path)) return SKILL_IMPROVEMENT_START;
+  if (/^\/skills\/[^/]+\/improve\/[^/]+/.test(path)) return SKILL_IMPROVEMENT;
   if (path.startsWith(`${ROUTES.SKILLS}/`)) return SKILL_DETAIL;
   if (path.startsWith(`${ROUTES.ORGS}/`)) {
     if (path.endsWith("/roles")) return ORG_ROLES;
