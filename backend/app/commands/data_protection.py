@@ -150,6 +150,9 @@ CAPABILITIES_STAYING_INSIDE = frozenset(
         # Questions go to the person running the agent, on the surface they are
         # already using.
         "ask_user",
+        # Runs a command in the run's own workspace and reads its output back from a
+        # file there; nothing leaves that workspace except through its own tools.
+        "monitor",
         # Runs the agent's own tools later in the same process; whatever a tool
         # reaches is that tool's capability's destination, listed under it.
         "background_tools",
@@ -512,6 +515,13 @@ async def _runnable_versions(db: AsyncSession) -> list[tuple[str, str, int, dict
     return runnable
 
 
+LOCAL_CODING_DESTINATION = (
+    "The provider or gateway configured in Claude Code or Codex on the person's "
+    "computer, directly from that computer, with the task and code the coding "
+    "agent reads. The deployment does not control its model, endpoint or sign-in."
+)
+
+
 async def _capability_destinations(db: AsyncSession) -> Section:
     """Where a capability sends something, with no row naming the address.
 
@@ -528,13 +538,30 @@ async def _capability_destinations(db: AsyncSession) -> Section:
             destination = OUTBOUND_CAPABILITIES.get(str(capability_id))
             if destination is None:
                 continue
+            config = binding.get("config") if isinstance(binding, dict) else None
+            if (
+                capability_id == "coding_agent"
+                and isinstance(config, dict)
+                and config.get("runs_on") == "this_computer"
+            ):
+                destination = LOCAL_CODING_DESTINATION
             rows.append([f"agent {slug}", f"{where} v{version}", str(capability_id), destination])
+    rows.append(
+        [
+            "desktop chat",
+            "per-conversation override",
+            "coding_agent (this computer)",
+            LOCAL_CODING_DESTINATION,
+        ]
+    )
     return Section(
         title="Capability destinations",
         note=(
             "A capability reaches its own address with nothing in the tables "
             "above naming it. Only the versions that can run are listed: the "
-            "default one, and each environment's pinned one."
+            "default one, and each environment's pinned one. The desktop chat row is a "
+            "selectable runtime path even without a published coding-agent binding, "
+            "not evidence that a conversation has used it."
         ),
         headers=("Agent", "Version", "Capability", "Reaches"),
         rows=rows,

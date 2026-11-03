@@ -135,8 +135,8 @@ export interface TourStep {
   id: string;
   page?: string;
   target?: string;
-  /** A `[data-tour="…"]` to click before spotlighting — a tab that reveals the target. */
-  activate?: string;
+  /** Controls to activate in order before spotlighting, such as a dialog and its tab. */
+  activate?: string | readonly string[];
   permission?: Permission;
   /** A section visible to holders of any of these grants. */
   anyPermission?: readonly Permission[];
@@ -186,13 +186,32 @@ export const TOUR_STEPS: readonly TourStep[] = [
   { id: "chat-start", page: ROUTES.CHAT, target: "chat-start", inTour: true },
   { id: "chat-agent-picker", page: ROUTES.CHAT, target: "chat-agent-picker", inTour: true },
   { id: "chat-composer", page: ROUTES.CHAT, target: "chat-composer" },
+  {
+    id: "chat-local-skills",
+    page: ROUTES.CHAT,
+    target: "chat-local-skills",
+    activate: "chat-settings",
+    optional: true,
+  },
+  {
+    id: "chat-local-coding",
+    page: ROUTES.CHAT,
+    target: "chat-local-coding",
+    activate: "chat-settings",
+    optional: true,
+  },
   // Only there once an agent has planned something, so `optional` - an
   // organization whose agents carry no planning capability would otherwise wait
   // four seconds for a strip that never mounts.
   { id: "chat-plan", page: ROUTES.CHAT, target: "chat-plan", optional: true },
   // Only where an agent has drawn something in the conversation on screen.
   { id: "chat-visual", page: ROUTES.CHAT, target: "chat-visual", optional: true },
-  { id: "chat-model-picker", page: ROUTES.CHAT, target: "chat-model-picker" },
+  {
+    id: "chat-model-picker",
+    page: ROUTES.CHAT,
+    target: "chat-model-picker",
+    activate: "chat-settings",
+  },
   // The call button sits in the composer whenever an agent is selected - offered
   // or crossed out - but readiness loads after the page, so the stop is optional:
   // a slow read must not pin the caption to nothing (#54).
@@ -204,7 +223,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
     id: "chat-approval-mode",
     page: ROUTES.CHAT,
     target: "chat-approval-mode",
-    activate: "chat-settings",
+    activate: ["chat-settings", "chat-settings-preferences"],
     optional: true,
   },
   // Same popover, and rendered only for an agent bound to each person's own
@@ -214,7 +233,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
     id: "chat-your-connections",
     page: ROUTES.CHAT,
     target: "chat-your-connections",
-    activate: "chat-settings",
+    activate: ["chat-settings", "chat-settings-preferences"],
     optional: true,
   },
 
@@ -1001,6 +1020,12 @@ export const TOUR_STEPS: readonly TourStep[] = [
   // in the shared layout, so it lands on whichever of the four pages the reader
   // opened help from. Ungated: everyone has their own settings.
   { id: "settings-tabs", page: SETTINGS_DETAIL, target: "settings-tabs" },
+  {
+    id: "desktop-local-agents",
+    page: SETTINGS_DETAIL,
+    target: "desktop-local-agents",
+    optional: true,
+  },
   // The Appearance card - theme, voice glow, motion. On the profile tab only,
   // so `optional`: help opened on another tab has no card to wait four seconds
   // for. Ungated, like the tabs: these are every person's own preferences.

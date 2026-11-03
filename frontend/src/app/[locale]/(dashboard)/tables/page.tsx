@@ -103,10 +103,12 @@ export default function TablesPage() {
         counted={isLoading ? null : t("shownCount", { count: total })}
         controls={
           <div className="flex min-w-0 flex-wrap items-center gap-2">
-            <WorkspaceFullscreenButton
-              expanded={galleryFullscreen}
-              onToggle={toggleGalleryFullscreen}
-            />
+            <div className={galleryFullscreen ? undefined : "lg:hidden"}>
+              <WorkspaceFullscreenButton
+                expanded={galleryFullscreen}
+                onToggle={toggleGalleryFullscreen}
+              />
+            </div>
             <SearchInput
               className="min-w-0 flex-1 sm:flex-none"
               value={query}

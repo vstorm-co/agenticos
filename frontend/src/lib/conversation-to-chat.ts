@@ -7,6 +7,7 @@ import type {
   MessagePart,
   MessageReply,
   ToolCall,
+  TurnFileSource,
 } from "@/types";
 
 /**
@@ -23,6 +24,7 @@ export interface RawToolCall {
 
 /** One entry of a stored timeline - see `MessagePart` in the backend schemas. */
 export interface RawMessagePart {
+  file_source?: TurnFileSource | null;
   type: "text" | "thinking" | "tool" | "ask_user" | "steer" | "mention" | "workflow_run";
   text?: string | null;
   /** For a `mention` entry on a user turn (#2189). */
@@ -221,6 +223,7 @@ export function conversationMessageToChatMessage(msg: RawMessage): ChatMessage {
     thinking: msg.thinking ?? undefined,
     timestamp: new Date(msg.created_at),
     conversationId: msg.conversation_id,
+    fileSource: msg.parts?.find((part) => part.file_source != null)?.file_source ?? undefined,
     sender: msg.sender ?? undefined,
     senderGone: msg.sender_gone === true || undefined,
     replyTo: replyFromWire(msg.reply_to),

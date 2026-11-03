@@ -26,7 +26,7 @@ if TYPE_CHECKING:
 
     from app.agents.deps import AgentDeps
 
-__all__ = ["STEER_PREFIX", "Steer", "Steering", "SteeringInbox"]
+__all__ = ["STEER_PREFIX", "Steer", "Steering", "SteeringInbox", "screen_steer"]
 
 STEER_PREFIX = "[Added by the person while you were working - take it into account from here]"
 
@@ -98,7 +98,7 @@ class Steering(AbstractCapability["AgentDeps"]):
             return request_context
         # Screened once, and the screened words are what the transcript keeps
         # too: a redacted secret must not come back in the next turn's history.
-        said = [_screened(inbox, steer.text) for steer in steers]
+        said = [screen_steer(inbox, steer.text) for steer in steers]
         added = UserPromptPart(content="\n\n".join([STEER_PREFIX, *said]))
         # The persistent history and this request's own list are separate lists
         # (usually holding the same message), so each takes the words explicitly:
@@ -113,7 +113,7 @@ class Steering(AbstractCapability["AgentDeps"]):
         return replace(request_context, messages=[*messages[:-1], tail])
 
 
-def _screened(inbox: SteeringInbox, text: str) -> str:
+def screen_steer(inbox: SteeringInbox, text: str) -> str:
     """The steer as the input guardrail leaves it; a blocked one raises, ending the run."""
     if inbox.screen is None:
         return text

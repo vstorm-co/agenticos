@@ -1234,7 +1234,29 @@
         "computerFailed": "Could not change computer access. Try again.",
         "computerUseTitle": "Computer use",
         "computerUseIndependent": "Use this computer's screen, mouse and keyboard, even when the agent has no Computer use capability. This does not grant file access. The desktop app asks for screen and accessibility permissions when needed.",
-        "computerUseLocal": "Local computer"
+        "computerUseLocal": "Local computer",
+        "skills": {
+          "title": "My skills and instructions",
+          "help": "Choose local skill sources for AgenticOS in this chat. Files stay on your computer; loaded skill and instruction text reaches the agent's configured model through your server. Off for new chats. Local coding agents retain their own configuration.",
+          "count": "{count, plural, one {# skill} other {# skills}}",
+          "hidden": "{count, plural, one {# skill is hidden by one of the same name in an earlier folder} other {# skills are hidden by ones of the same name in an earlier folder}}.",
+          "on": "This chat can load the enabled local skills and follows your global instructions, then the project's AGENTS.md and CLAUDE.md hierarchy.",
+          "off": "Off: AgenticOS does not load your local skills or instructions."
+        },
+        "coding": {
+          "title": "Coding agent",
+          "help": "Choose Claude Code or Codex on this computer for this conversation, even when the agent has no Coding agent capability. Its existing approval and read-only rules still apply. Each task asks for native confirmation.",
+          "agent": "Use agent setting",
+          "claudeCode": "Claude Code on this computer",
+          "codex": "Codex on this computer",
+          "description": "Folder access is set up automatically. Each task asks for confirmation.",
+          "folder": "A project folder is required to continue.",
+          "setup": "Install or sign in → Desktop settings",
+          "pickFolder": "Choose a folder",
+          "changeFolder": "Change folder · {folder}",
+          "agentWithHarness": "Agent setting · {agent}"
+        },
+        "off": "Off"
       },
       "modelSection": "Model",
       "permissionsSection": "Permissions",
@@ -1242,7 +1264,9 @@
       "waiverOrg": "Your organization has disabled this mode. It can be enabled under Budget and approvals.",
       "waiverUnknown": "Organization approval settings are not available yet. Try again when the organization has loaded.",
       "waiverSettings": "Open approval settings",
-      "savedPreferences": "Remembered across chats"
+      "toolsTab": "Tools & files",
+      "preferencesTab": "Preferences",
+      "savedAutomatically": "Changes are saved automatically"
     },
     "conversationArchived": "This conversation is archived",
     "conversationDeleted": "Conversation deleted",
@@ -1754,7 +1778,13 @@
       "listingApps": "Listing the applications",
       "listApps": "List the Applications",
       "sendingChannelFile": "Sending a file to the channel",
-      "sendChannelFile": "Send Channel File"
+      "sendChannelFile": "Send Channel File",
+      "startMonitor": "Watch a command",
+      "startingMonitor": "Starting to watch a command",
+      "listMonitors": "The watches",
+      "listingMonitors": "Listing the watches",
+      "stopMonitor": "Stop a watch",
+      "stoppingMonitor": "Stopping a watch"
     },
     "turnWasStopped": "stopped",
     "unfavourite": "Remove from favourites",
@@ -2205,7 +2235,17 @@
     "queuedRetry": "Send again",
     "browserResume": "Resume session",
     "browserResumePrompt": "Resume the browser session. Read the current page again before continuing.",
-    "browserMenu": "Browser options"
+    "browserMenu": "Browser options",
+    "localAgent": {
+      "claudeCode": "Claude Code",
+      "codex": "Codex",
+      "ready": "{agent} · {folder} · {access}",
+      "edit": "can edit",
+      "readOnly": "read only",
+      "needsFolder": "{agent} runs on this computer: choose a folder under Chat controls → Work on → This computer.",
+      "needsFullAccess": "{agent} runs as you, so the folder needs full access. Change it under Chat controls → Work on.",
+      "chosen": "{agent} · {folder}"
+    }
   },
   "common": {
     "archiveNamedConfirm": "Archive {name}?",
@@ -3232,6 +3272,7 @@
   "files": {
     "couldNotBeFetched": "That file could not be fetched",
     "couldNotBeRead": "That file could not be read",
+    "linkedAssetFailed": "Could not load the linked stylesheet {path}. Open Source to inspect the file.",
     "download": "Download",
     "emptyFile": "This file is empty.",
     "fileOfTotal": "{index} of {total}",
@@ -4681,6 +4722,14 @@
         "title": "Agents from other vendors",
         "body": "Agents registered here by their A2A agent card can be picked as delegates, beside your own agents."
       },
+      "desktop-local-agents": {
+        "title": "Coding agents on this computer",
+        "body": "Check Claude Code and Codex installation and sign-in here. The desktop app opens their own sign-in commands in your terminal. Choose On this computer in the agent capability and a folder in Work on to run a task locally."
+      },
+      "chat-local-skills": {
+        "title": "Your local skills and instructions",
+        "body": "Choose which sources this conversation may read. Skills stay on your computer; enabled sources settle name clashes in the order .agents, .claude, .codex. AGENTS.md and CLAUDE.md provide project instructions. New chats start with every source off."
+      },
       "settings-tabs": {
         "title": "Your settings",
         "body": "Your profile, sign-in and security, notifications, and slash-commands all live behind these tabs - switch between them here."
@@ -4980,6 +5029,10 @@
       "project-file-location": {
         "title": "Your computer or shared files",
         "body": "Computer shows your approved local folder. Shared project files contains uploaded copies for people with project access. The two locations do not synchronize automatically."
+      },
+      "chat-local-coding": {
+        "title": "Coding agent",
+        "body": "Choose Claude Code or Codex on this computer for this conversation, even when the agent has no Coding agent capability. Its existing approval and read-only rules still apply. Each task asks for native confirmation."
       },
       "workflow-step-view": {
         "title": "Focus on one panel",
@@ -8473,506 +8526,6 @@
       "general": "General purpose"
     }
   },
-  "agentLimit": {
-    "title": "This organization is at its agent limit",
-    "body": "This deployment allows {limit, plural, =1 {1 agent} other {# agents}} per organization, and this one has {held}. Archive an agent you no longer run to make room for a new one, or ask an administrator to raise the limit.",
-    "bodyReached": "This deployment allows {limit, plural, =1 {1 agent} other {# agents}} per organization, and this one has reached it. Archive an agent you no longer run to make room for a new one, or ask an administrator to raise the limit.",
-    "emptyGallery": "None of this organization's agents are shared with you, and it already holds as many as this deployment allows."
-  },
-  "desktop": {
-    "server": {
-      "change": "Change server…",
-      "changeFailed": "The server picker could not be opened."
-    },
-    "changeFailed": "The desktop app did not take that change.",
-    "blobby": {
-      "label": "Blobby. Drag to move, click to wave, double-click to open the console, right-click for its menu.",
-      "newChat": "New chat",
-      "signedOut": "Sign in in the console and I'll keep you posted.",
-      "approvals": "{count, plural, =1 {An approval is waiting for you} other {# approvals are waiting for you}}",
-      "unread": "{count, plural, =1 {One new notification} other {# new notifications}}",
-      "running": "{count, plural, =1 {Your agent is working on it} other {Your agents are on # runs}}",
-      "lines": {
-        "pebble": {
-          "0": "Smooth as a published spec.",
-          "1": "Rolling along.",
-          "2": "Same version everywhere.",
-          "3": "Hi."
-        },
-        "mochi": {
-          "0": "Squish me.",
-          "1": "Soft on the outside, typed inside.",
-          "2": "Snack break?",
-          "3": "Hello!"
-        },
-        "byte": {
-          "0": ">_",
-          "1": "Exit code 0.",
-          "2": "Segfault? Never met one.",
-          "3": "Ready."
-        },
-        "nimbus": {
-          "0": "Floating by.",
-          "1": "Self-hosted, never cloudy.",
-          "2": "Drifting.",
-          "3": "Hm?"
-        },
-        "sprig": {
-          "0": "Growing.",
-          "1": "Water me with tokens.",
-          "2": "Photosynthesising.",
-          "3": "Spring soon."
-        },
-        "sunny": {
-          "0": "Good morning!",
-          "1": "Everything's green.",
-          "2": "Shine on.",
-          "3": "What a day."
-        },
-        "anyone": {
-          "0": "Hi there.",
-          "1": "Need anything?",
-          "2": "I'm here.",
-          "3": "All quiet."
-        }
-      },
-      "dropHere": "Drop it here and I'll start a chat with it."
-    },
-    "settings": {
-      "onlyInApp": "These settings belong to the AgenticOS desktop app.",
-      "onlyInAppHint": "Open the console in the desktop app to configure blobby, the window and the global shortcuts.",
-      "aboutTheApp": "About the desktop app",
-      "unreadable": "The desktop app did not say what its settings are. Restart it, or update it if it is older than this console.",
-      "blobby": {
-        "heading": "Blobby",
-        "headingHint": "The creature on your desktop that keeps an eye on your agents.",
-        "title": "On your desktop",
-        "description": "Drag it anywhere. Click it to wave, double-click to open the console, right-click for its menu.",
-        "shown": "Show blobby",
-        "shownHint": "It stays on top of every window and on every desktop.",
-        "who": "Who it is",
-        "whoHint": "One of the cast, the face of one of your agents, or a face of your own.",
-        "kinds": {
-          "cast": "The cast",
-          "agent": "One of my agents",
-          "custom": "My own"
-        },
-        "noAgents": "No agents you can see yet.",
-        "seed": "Name",
-        "seedPlaceholder": "Anything at all",
-        "seedHint": "Every name draws its own creature, the same one every time.",
-        "behaviour": "Behaviour",
-        "talk": "Talks",
-        "talkHint": "How often it says something of its own accord.",
-        "chatter": {
-          "quiet": "Rarely",
-          "normal": "Now and then",
-          "chatty": "Often"
-        },
-        "activity": "Tells you what your agents are doing",
-        "activityHint": "An approval waiting, something new in your inbox, your runs in progress. A click on the bubble opens it.",
-        "roams": "Strolls",
-        "roamsHint": "Walks along the bottom of the screen when idle. Off, it stays where you put it.",
-        "size": "Size",
-        "sizeHint": "Or pinch it on the desktop, or scroll over it with ⌘ held."
-      },
-      "window": {
-        "heading": "Desktop app",
-        "headingHint": "How AgenticOS behaves as an application on this computer.",
-        "title": "Window",
-        "description": "The style and theme of the console are under Profile, Appearance.",
-        "launch_at_login": {
-          "label": "Open at login",
-          "hint": "Start AgenticOS when you sign in to this computer."
-        },
-        "keep_running": {
-          "label": "Keep running when the window is closed",
-          "hint": "Blobby, quick ask and notifications keep working; the app stays in the menu bar or tray."
-        },
-        "badge": {
-          "label": "Count what is waiting",
-          "hint": "Approvals and unread notifications on the app icon and beside the tray icon."
-        }
-      },
-      "shortcuts": {
-        "heading": "Shortcuts",
-        "headingHint": "Global: they work whichever application is in front.",
-        "title": "Global shortcuts",
-        "description": "Click a field, then hold the modifiers and press a key. Escape cancels; a combination needs at least one modifier.",
-        "open_console": {
-          "label": "Open AgenticOS",
-          "hint": "Bring the main AgenticOS window to the front."
-        },
-        "quick_ask": {
-          "label": "Quick ask",
-          "hint": "A floating panel to ask any agent, over whatever you are doing."
-        },
-        "screenshot_chat": {
-          "label": "Screenshot to a new chat",
-          "hint": "Pick a region of the screen; it lands attached to a fresh chat."
-        },
-        "press": "Press a combination",
-        "notBound": "Not bound",
-        "save": "Save",
-        "clear": "Clear",
-        "taken": "{accelerator} could not be bound: another application holds it. Pick another combination.",
-        "dictate": {
-          "label": "Push to talk",
-          "hint": "Hold to dictate a question into quick ask; let go and it is written in for you."
-        },
-        "voice_call": {
-          "label": "Voice call",
-          "hint": "Calls the agent the chat has selected. Off until you pick a combination: a call starts talking at once."
-        }
-      },
-      "pinned": {
-        "title": "Pinned agents",
-        "descriptionDock": "A new chat with any of them from the Dock icon's menu (right-click) and the menu bar icon. Pin an agent from its page.",
-        "descriptionTray": "A new chat with any of them from the tray icon's menu. Pin an agent from its page.",
-        "empty": "No agents pinned yet. Open an agent and choose Pin.",
-        "unpin": "Unpin"
-      },
-      "device": {
-        "title": "This computer",
-        "description": "Let your own agents work here when you choose \"This computer\" in a chat - in the folder you pick, as the mode you pick allows. Nobody else's runs reach it.",
-        "notLinked": "Not linked",
-        "connected": "Connected - your agents can work here",
-        "reconnecting": "Linked - reconnecting…",
-        "live": "Live",
-        "link": "Let agents work here",
-        "unlink": "Unlink",
-        "linkFailed": "This computer could not be linked.",
-        "unlinkFailed": "This computer could not be unlinked."
-      },
-      "services": {
-        "title": "Local models and MCP",
-        "description": "Connect services running on this computer. The app asks you to approve each connection; choose them under Work on in a chat. Models use an OpenAI-compatible /v1 endpoint; MCP uses Streamable HTTP.",
-        "kind": "Service type",
-        "modelKind": "Local model (Ollama, LM Studio)",
-        "failed": "Could not update local services. Check the address and confirm access in the desktop dialog, then try again.",
-        "mcpKind": "Local MCP server (HTTP)",
-        "name": "Name",
-        "endpoint": "Loopback address",
-        "model": "Installed model ID",
-        "remove": "Remove",
-        "removeNamed": "Remove {name}",
-        "add": "Connect service",
-        "confirm": "Confirm in the app…"
-      }
-    },
-    "quickAsk": {
-      "placeholder": "Ask anything",
-      "signedOut": "Sign in in the console to ask your agents",
-      "openConsole": "Open the console",
-      "thinking": "Thinking",
-      "close": "<kbd>esc</kbd> to close",
-      "continueInConsole": "Continue in the console",
-      "listening": "Listening - let go to stop",
-      "transcribing": "Writing down what you said",
-      "noDictation": "This agent takes no dictation. Turn on its Dictation switch to talk to it here.",
-      "context": {
-        "selectedIn": "Selected in {source}:",
-        "fromClipboard": "From the clipboard:",
-        "anApp": "another app",
-        "selection": "Selection from {app}",
-        "files": "{count, plural, one {# file} other {# files}} from Finder",
-        "clipboard": "Clipboard",
-        "allow": "Let AgenticOS read what you select",
-        "attaching": "Attaching the selected files",
-        "attachFailed": "The selected files could not be attached, so nothing was asked. Take them off to ask without them."
-      },
-      "conversation": "Quick Ask conversation",
-      "repairSetup": "Set up the agent or microphone to use this feature",
-      "needsAnswer": "Agent needs your answer",
-      "title": "Quick Ask",
-      "newConversation": "New chat",
-      "newConversationHint": "New conversation (⌘N / Ctrl+N)",
-      "dismiss": "Close Quick Ask",
-      "dismissHint": "Close (Esc)",
-      "sendHint": "Enter to send · Shift+Enter for a new line",
-      "mentionHint": "@ to mention a resource",
-      "offline": "Offline · messages will wait",
-      "pin": "Keep Quick Ask on screen",
-      "unpin": "Unpin Quick Ask",
-      "pinFailed": "Could not change the Quick Ask pin. Try again.",
-      "tabs": "Conversations",
-      "closeTab": "Close tab: {title}",
-      "history": "Recent conversations",
-      "searchHistory": "Search conversations…",
-      "loadingHistory": "Loading conversations…",
-      "retryHistory": "Could not load conversations. Try again",
-      "emptyHistory": "No conversations found",
-      "tabLimit": "You can open up to eight tabs in one window.",
-      "earlierMessages": "Load earlier messages",
-      "startDictation": "Start dictation",
-      "stopDictation": "Stop dictation"
-    },
-    "notifications": {
-      "approvalTitle": "{agent} wants to run {tool}",
-      "anAgent": "An agent",
-      "approve": "Approve",
-      "reject": "Reject",
-      "inboxTitle": "AgenticOS",
-      "questionBody": "Open the conversation to answer the agent."
-    },
-    "welcome": {
-      "onlyInApp": "This welcome belongs to the AgenticOS desktop app.",
-      "skip": "Skip for now",
-      "next": "Continue",
-      "open": "Open AgenticOS",
-      "blobby": {
-        "title": "Meet blobby",
-        "body": "It sits on your desktop and tells you when an agent needs you. Pick who it is; you can make it one of your agents later."
-      },
-      "shortcuts": {
-        "title": "Shortcuts that work anywhere",
-        "body": "They work whichever application is in front.",
-        "open_console": "Open AgenticOS",
-        "quick_ask": "Ask any agent",
-        "screenshot_chat": "Screenshot to a new chat",
-        "off": "Off",
-        "change": "Change them under Settings, Shortcuts.",
-        "dictate": "Hold to dictate a question",
-        "voice_call": "Call your agent"
-      },
-      "loop": {
-        "title": "Stay in the loop",
-        "body": "Approvals arrive as notifications you can answer without opening anything.",
-        "login": "Open AgenticOS at login",
-        "keepRunning": "Keep running when the window is closed",
-        "test": "Notifications",
-        "testHint": "Your computer asks once whether AgenticOS may notify you.",
-        "send": "Send a test",
-        "sent": "Sent",
-        "testTitle": "AgenticOS",
-        "testBody": "This is where your agents will reach you."
-      },
-      "done": {
-        "title": "You're all set",
-        "body": "Everything here is in Settings when you want to change it."
-      }
-    },
-    "readiness": {
-      "title": "App readiness",
-      "description": "What is ready on this Mac and for your account on this server. Enable only what you want to use.",
-      "desktopOnly": "Open the desktop app to check its setup.",
-      "refresh": "Check again",
-      "requestFailed": "Could not change the system permission. Open System Settings and check again.",
-      "askAdmin": "Ask an administrator to configure a model for this organization.",
-      "askAgentAdmin": "Ask an administrator to publish or share an agent you can use.",
-      "permissionNote": "These checks capture no screen, audio or clipboard. Permissions are optional and requested only when you click. macOS may require restarting the app after a Screen Recording change.",
-      "retryScreenshot": "Try the screenshot again",
-      "welcome": "Finish connecting this desktop",
-      "welcomeHint": "Enable the desktop features you want to use. You can finish the optional steps later.",
-      "later": "Later",
-      "done": "Continue",
-      "retry": "Retry",
-      "enable": "Set up",
-      "connect": "Connect",
-      "configure": "Configure",
-      "items": {
-        "account": "Signed-in account",
-        "device": "Paired computer",
-        "agent": "An agent you can use",
-        "model": "AI Architect model",
-        "screen_capture": "Screen Recording",
-        "accessibility": "Accessibility",
-        "microphone": "Microphone",
-        "notifications": "Notifications",
-        "shortcuts": "Quick Ask and shortcuts"
-      },
-      "state": {
-        "ready": "Ready",
-        "missing": "Not set up",
-        "checking": "Checking…",
-        "error": "Could not check — retry",
-        "unsupported": "Not required for this setup"
-      },
-      "viewAgents": "View agents",
-      "finishFailed": "Could not finish this connection. Please retry.",
-      "opening": "Opening your workspace…"
-    },
-    "notificationSettings": {
-      "title": "Desktop notifications",
-      "description": "Preferences for this account and organization on this server. Muting desktop banners does not change your inbox.",
-      "completed": "Tasks completed",
-      "failed": "Tasks failed",
-      "approvals": "Approval requests",
-      "questions": "Agent needs an answer",
-      "other": "Other inbox updates",
-      "hide_previews": "Hide private content",
-      "privacyHint": "Show a generic message. Approval actions stay inside the app so you can review the arguments first.",
-      "enable": "Set up system notifications",
-      "test": "Send a test notification",
-      "testTitle": "Test notification",
-      "testBody": "If you can see this message, macOS delivered the notification.",
-      "failedTest": "Could not send the test. Check the system notification settings.",
-      "unmuteAll": "{count, plural, one {Unmute # conversation} other {Unmute # conversations}}",
-      "mute": "Mute notifications for this conversation",
-      "unmute": "Unmute this conversation",
-      "privateTitle": "AgenticOS activity",
-      "privateApproval": "An agent needs approval. Open the app to review it.",
-      "privateQuestion": "An agent needs your answer.",
-      "privateFailed": "A task failed. Open the app for details.",
-      "privateUpdate": "There is an update about your work."
-    },
-    "activity": {
-      "running": "{agent} · working",
-      "question": "{agent} · needs an answer",
-      "approval": "{agent} · approval needed",
-      "agent": "Agent"
-    }
-  },
-  "mobile": {
-    "settings": {
-      "heading": "Mobile app",
-      "headingHint": "AgenticOS on your phone: approvals and your agents' questions where you are."
-    },
-    "addPhone": {
-      "title": "Add a phone",
-      "description": "Sign the AgenticOS app in as you by scanning a code. The code works once, for a minute.",
-      "step1": "Install AgenticOS on your phone and open it.",
-      "step2": "Choose Scan a code, or point the phone's camera here.",
-      "step3": "Scan the code and confirm your account on the phone.",
-      "show": "Show a code",
-      "again": "Show a new code",
-      "expiresIn": "{seconds, plural, =1 {Works for 1 more second} other {Works for # more seconds}}",
-      "expired": "That code has expired.",
-      "failed": "A code could not be made. Try again.",
-      "qrLabel": "A code that signs the AgenticOS app in as you"
-    },
-    "pair": {
-      "failed": "This code no longer works",
-      "failedHint": "Codes work once, for a minute. Show a new one in the console, under Settings, Mobile app, and scan it again.",
-      "confirmTitle": "Sign in to this account?",
-      "confirmHint": "Continue only if this is your account. Confirming replaces the account signed in on this device.",
-      "confirm": "Confirm sign-in",
-      "cancel": "Cancel",
-      "loading": "Checking the scanned account"
-    },
-    "activity": {
-      "approvalTitle": "{agent} wants to run {tool}",
-      "anAgent": "An agent",
-      "approve": "Approve",
-      "reject": "Reject",
-      "runTitle": "{agent} is working",
-      "runBody": "Tap to follow it in AgenticOS.",
-      "questionTitle": "{agent} has a question for you",
-      "questionBody": "Tap to answer it in AgenticOS.",
-      "callTitle": "On a call with {agent}",
-      "callBody": "Tap to go back to the call.",
-      "callAsking": "It is asking you something - tap to answer.",
-      "reviewApproval": "Review approval"
-    },
-    "share": {
-      "notAttached": "Could not attach: {names}"
-    },
-    "setup": {
-      "title": "Finish setting up this phone",
-      "welcome": "Review this connection, even if you already use AgenticOS elsewhere. You can finish optional settings later.",
-      "hint": "Your account and this phone’s settings on this server.",
-      "account": "Signed-in account",
-      "agent": "An agent you can use",
-      "lock": "App lock",
-      "notifications": "Notifications",
-      "ready": "Ready",
-      "missing": "Not set up",
-      "checking": "Checking…",
-      "error": "Could not check. Try again.",
-      "unavailable": "Not available on this device",
-      "retry": "Check again",
-      "open": "Open",
-      "settings": "Phone settings",
-      "deviceTitle": "This phone",
-      "deviceHint": "Protection and saved server connections.",
-      "lockHint": "Use Face ID, fingerprint or the device passcode when returning to the app.",
-      "managed": "Managed by your organization",
-      "failed": "Could not update this setting. Try again.",
-      "servers": "Switch server",
-      "switching": "Switching…",
-      "switchFailed": "Could not switch. Connect to the current server so its push registration can be removed, then try again.",
-      "serverHint": "Saved servers keep their own sign-in and offline data. Switching turns off push for the server you leave; enable it again on the next server. Removing an entry does not erase its sign-in: sign out there first on a shared phone.",
-      "contextPermissions": "Camera access is requested only when you scan a code. Microphone access is requested when you start voice. Nothing is recorded by these checks.",
-      "privacyTitle": "Phone notification privacy",
-      "privacyHint": "Saved for this sign-in and applied before a push is sent, including when the app is closed.",
-      "hidePreviews": "Hide notification text",
-      "mutedCount": "{count} conversations muted on this phone.",
-      "mute": "Mute notifications for this conversation",
-      "unmute": "Unmute notifications for this conversation",
-      "systemSettings": "Open system settings",
-      "installDistributor": "Install ntfy",
-      "testAccepted": "Push service accepted the test.",
-      "testHint": "A successful test means a push service accepted it, not that this phone displayed it. Check the notification shade or lock screen.",
-      "continue": "Continue"
-    }
-  },
-  "agentPin": {
-    "toDock": "Pin to Dock",
-    "toTray": "Pin to tray",
-    "unpin": "Unpin",
-    "dockHint": "Right-click the AgenticOS icon in the Dock for a new chat with this agent.",
-    "trayHint": "A new chat with this agent from the AgenticOS tray menu.",
-    "toHomeScreen": "Add to home screen",
-    "onHomeScreen": "On your home screen. Tap it for a new chat.",
-    "inLongPress": "Your launcher cannot pin it, so it is in the AgenticOS icon's long-press list.",
-    "failed": "The agent could not be added to the home screen.",
-    "toWidget": "Pin to widget",
-    "inWidget": "Pinned. Add the Pinned agents widget to your home screen; the agent is also in the AgenticOS icon's menu and in Shortcuts."
-  },
-  "capabilityChoices": {
-    "computer_use": {
-      "desktop": {
-        "auto": {
-          "label": "Automatic",
-          "description": "Use Local when the chat works on this computer; otherwise E2B if this capability has a key, or the agent's sandbox."
-        },
-        "sandbox": {
-          "label": "Docker / Sandbox",
-          "description": "Use the agent's Sandbox connection with the desktop runtime. Docker Compose includes sandboxd; you can also register your own host URL and key under Connections → Sandboxes, then choose that connection in the Sandbox capability.",
-          "summary": "A desktop on your registered sandbox host."
-        },
-        "daemon": {
-          "label": "Remote computer",
-          "description": "Connect to a computer running computerd. Set its approved address and select its access token below.",
-          "summary": "Your own computer running computerd."
-        },
-        "local": {
-          "label": "Local",
-          "description": "Use the person's paired desktop app. In chat, select local Computer use or work on This computer. The person must approve screen access.",
-          "summary": "The screen of your paired desktop app."
-        },
-        "e2b": {
-          "label": "E2B",
-          "description": "Start a separate E2B desktop for this run. Select the organization's E2B key below; no Sandbox connection is needed.",
-          "summary": "An isolated desktop hosted by E2B."
-        }
-      }
-    },
-    "browser_use": {
-      "connection": {
-        "built_in": {
-          "label": "Built in",
-          "summary": "The browser included with this deployment.",
-          "description": "Use the browser service included in this deployment. Its DevTools address is configured below."
-        },
-        "proxy": {
-          "label": "Through a proxy",
-          "summary": "The deployment browser, with your proxy.",
-          "description": "Use the deployment browser through your proxy. Configure its address and credentials below."
-        },
-        "hosted": {
-          "label": "A hosted browser",
-          "summary": "An external browser service you connect.",
-          "description": "Connect a hosted browser through its CDP endpoint and credentials below."
-        },
-        "local": {
-          "label": "This computer (desktop app)",
-          "summary": "A private browser on your paired computer.",
-          "description": "Requires a paired desktop app and Local browser selected in this chat. Your personal browser session is not shared."
-        }
-      }
-    }
-  },
   "notifications": {
     "markAllRead": "Mark all read",
     "loadMore": "Load more",
@@ -11034,11 +10587,11 @@
     },
     "coding_agent": {
       "name": "Coding agent",
-      "does": "Hands software work to Claude Code or Codex, which work on it in the agent's sandbox while you watch each step in the chat.",
+      "does": "Hands software work to Claude Code or Codex, in the agent's sandbox or on this computer, while you watch each step in the chat.",
       "example1": "Fix a failing test in a repository the agent cloned",
       "example2": "Explain how a module works, read-only",
-      "needs": "The Sandbox capability on a sandbox connection, and in the vault an Anthropic or OpenAI key, a Claude subscription token or a ChatGPT sign-in.",
-      "never": "Never works outside the agent's sandbox. Set Human approval to Always ask and each task waits for your yes."
+      "needs": "For a sandbox: the Sandbox capability, a connection and a provider key or sign-in in the vault. On this computer: the desktop app, a signed-in coding agent and an approved full-access folder.",
+      "never": "Local tasks require a full-access folder grant and native start confirmation. Set Human approval to Always ask to also approve each task in the chat."
     },
     "compaction": {
       "name": "Long conversations",
@@ -11248,6 +10801,14 @@
       "example2": "Export a report from a legacy tool with no API",
       "needs": "A desktop in the agent's own sandbox (the Sandbox capability on its 'desktop' runtime), or one an administrator runs with computerd on a Linux desktop or a Mac, with its token in the organization's vault. Each step is one model request with a screenshot.",
       "never": "Never acts without approval unless that is switched off, never follows instructions shown on the screen, and stops to ask before passwords or payments."
+    },
+    "monitor": {
+      "name": "Watch a command",
+      "does": "Starts a long-running command - a test watcher, a log tail, a CI poll - and tells the agent about its new output as it appears, so it does not have to poll.",
+      "example1": "Run the test watcher and fix each failure as it shows up",
+      "example2": "Tail a deploy log and report the first error",
+      "needs": "A workspace with a shell, such as the Sandbox capability or a folder on your computer.",
+      "never": "Never keeps a command running after the turn ends: every watch stops with the run."
     }
   },
   "capabilityCategories": {
@@ -11710,7 +11271,7 @@
       },
       "model": {
         "title": "Model",
-        "description": "The model the coding agent runs: a Claude model for Claude Code, an OpenAI one for Codex. Not set takes the coding agent's own default."
+        "description": "The model the coding agent runs: a Claude model for Claude Code, an OpenAI one for Codex. Not set takes the coding agent's own default. Not available on this computer, where the agent uses its own setting."
       },
       "base_url": {
         "title": "Anthropic-compatible endpoint",
@@ -11719,6 +11280,10 @@
       "timeout_minutes": {
         "title": "Time limit (minutes)",
         "description": "How long one task may run before it is stopped."
+      },
+      "runs_on": {
+        "title": "Where it runs",
+        "description": "The agent's own sandbox, on a key stored here - or the folder a person chooses on their own computer in the desktop app, where Claude Code and Codex use the sign-in they already have and need no key."
       }
     },
     "workflows": {
@@ -12405,6 +11970,521 @@
       "profile": "Profile",
       "role_pack": "Routine pack",
       "finding": "Watch"
+    }
+  },
+  "agentLimit": {
+    "title": "This organization is at its agent limit",
+    "body": "This deployment allows {limit, plural, =1 {1 agent} other {# agents}} per organization, and this one has {held}. Archive an agent you no longer run to make room for a new one, or ask an administrator to raise the limit.",
+    "bodyReached": "This deployment allows {limit, plural, =1 {1 agent} other {# agents}} per organization, and this one has reached it. Archive an agent you no longer run to make room for a new one, or ask an administrator to raise the limit.",
+    "emptyGallery": "None of this organization's agents are shared with you, and it already holds as many as this deployment allows."
+  },
+  "desktop": {
+    "server": {
+      "change": "Change server…",
+      "changeFailed": "The server picker could not be opened."
+    },
+    "changeFailed": "The desktop app did not take that change.",
+    "blobby": {
+      "label": "Blobby. Drag to move, click to wave, double-click to open the console, right-click for its menu.",
+      "newChat": "New chat",
+      "signedOut": "Sign in in the console and I'll keep you posted.",
+      "approvals": "{count, plural, =1 {An approval is waiting for you} other {# approvals are waiting for you}}",
+      "unread": "{count, plural, =1 {One new notification} other {# new notifications}}",
+      "running": "{count, plural, =1 {Your agent is working on it} other {Your agents are on # runs}}",
+      "lines": {
+        "pebble": {
+          "0": "Smooth as a published spec.",
+          "1": "Rolling along.",
+          "2": "Same version everywhere.",
+          "3": "Hi."
+        },
+        "mochi": {
+          "0": "Squish me.",
+          "1": "Soft on the outside, typed inside.",
+          "2": "Snack break?",
+          "3": "Hello!"
+        },
+        "byte": {
+          "0": ">_",
+          "1": "Exit code 0.",
+          "2": "Segfault? Never met one.",
+          "3": "Ready."
+        },
+        "nimbus": {
+          "0": "Floating by.",
+          "1": "Self-hosted, never cloudy.",
+          "2": "Drifting.",
+          "3": "Hm?"
+        },
+        "sprig": {
+          "0": "Growing.",
+          "1": "Water me with tokens.",
+          "2": "Photosynthesising.",
+          "3": "Spring soon."
+        },
+        "sunny": {
+          "0": "Good morning!",
+          "1": "Everything's green.",
+          "2": "Shine on.",
+          "3": "What a day."
+        },
+        "anyone": {
+          "0": "Hi there.",
+          "1": "Need anything?",
+          "2": "I'm here.",
+          "3": "All quiet."
+        }
+      },
+      "dropHere": "Drop it here and I'll start a chat with it."
+    },
+    "settings": {
+      "onlyInApp": "These settings belong to the AgenticOS desktop app.",
+      "onlyInAppHint": "Open the console in the desktop app to configure blobby, the window and the global shortcuts.",
+      "aboutTheApp": "About the desktop app",
+      "unreadable": "The desktop app did not say what its settings are. Restart it, or update it if it is older than this console.",
+      "blobby": {
+        "heading": "Blobby",
+        "headingHint": "The creature on your desktop that keeps an eye on your agents.",
+        "title": "On your desktop",
+        "description": "Drag it anywhere. Click it to wave, double-click to open the console, right-click for its menu.",
+        "shown": "Show blobby",
+        "shownHint": "It stays on top of every window and on every desktop.",
+        "who": "Who it is",
+        "whoHint": "One of the cast, the face of one of your agents, or a face of your own.",
+        "kinds": {
+          "cast": "The cast",
+          "agent": "One of my agents",
+          "custom": "My own"
+        },
+        "noAgents": "No agents you can see yet.",
+        "seed": "Name",
+        "seedPlaceholder": "Anything at all",
+        "seedHint": "Every name draws its own creature, the same one every time.",
+        "behaviour": "Behaviour",
+        "talk": "Talks",
+        "talkHint": "How often it says something of its own accord.",
+        "chatter": {
+          "quiet": "Rarely",
+          "normal": "Now and then",
+          "chatty": "Often"
+        },
+        "activity": "Tells you what your agents are doing",
+        "activityHint": "An approval waiting, something new in your inbox, your runs in progress. A click on the bubble opens it.",
+        "roams": "Strolls",
+        "roamsHint": "Walks along the bottom of the screen when idle. Off, it stays where you put it.",
+        "size": "Size",
+        "sizeHint": "Or pinch it on the desktop, or scroll over it with ⌘ held."
+      },
+      "window": {
+        "heading": "Desktop app",
+        "headingHint": "How AgenticOS behaves as an application on this computer.",
+        "title": "Window",
+        "description": "The style and theme of the console are under Profile, Appearance.",
+        "launch_at_login": {
+          "label": "Open at login",
+          "hint": "Start AgenticOS when you sign in to this computer."
+        },
+        "keep_running": {
+          "label": "Keep running when the window is closed",
+          "hint": "Blobby, quick ask and notifications keep working; the app stays in the menu bar or tray."
+        },
+        "badge": {
+          "label": "Count what is waiting",
+          "hint": "Approvals and unread notifications on the app icon and beside the tray icon."
+        }
+      },
+      "shortcuts": {
+        "heading": "Shortcuts",
+        "headingHint": "Global: they work whichever application is in front.",
+        "title": "Global shortcuts",
+        "description": "Click a field, then hold the modifiers and press a key. Escape cancels; a combination needs at least one modifier.",
+        "open_console": {
+          "label": "Open AgenticOS",
+          "hint": "Bring the main AgenticOS window to the front."
+        },
+        "quick_ask": {
+          "label": "Quick ask",
+          "hint": "A floating panel to ask any agent, over whatever you are doing."
+        },
+        "screenshot_chat": {
+          "label": "Screenshot to a new chat",
+          "hint": "Pick a region of the screen; it lands attached to a fresh chat."
+        },
+        "press": "Press a combination",
+        "notBound": "Not bound",
+        "save": "Save",
+        "clear": "Clear",
+        "taken": "{accelerator} could not be bound: another application holds it. Pick another combination.",
+        "dictate": {
+          "label": "Push to talk",
+          "hint": "Hold to dictate a question into quick ask; let go and it is written in for you."
+        },
+        "voice_call": {
+          "label": "Voice call",
+          "hint": "Calls the agent the chat has selected. Off until you pick a combination: a call starts talking at once."
+        }
+      },
+      "pinned": {
+        "title": "Pinned agents",
+        "descriptionDock": "A new chat with any of them from the Dock icon's menu (right-click) and the menu bar icon. Pin an agent from its page.",
+        "descriptionTray": "A new chat with any of them from the tray icon's menu. Pin an agent from its page.",
+        "empty": "No agents pinned yet. Open an agent and choose Pin.",
+        "unpin": "Unpin"
+      },
+      "device": {
+        "title": "This computer",
+        "description": "Let your own agents work here when you choose \"This computer\" in a chat - in the folder you pick, as the mode you pick allows. Nobody else's runs reach it.",
+        "notLinked": "Not linked",
+        "connected": "Connected - your agents can work here",
+        "reconnecting": "Linked - reconnecting…",
+        "live": "Live",
+        "link": "Let agents work here",
+        "unlink": "Unlink",
+        "linkFailed": "This computer could not be linked.",
+        "unlinkFailed": "This computer could not be unlinked."
+      },
+      "services": {
+        "title": "Local models and MCP",
+        "description": "Connect services running on this computer. The app asks you to approve each connection; choose them under Work on in a chat. Models use an OpenAI-compatible /v1 endpoint; MCP uses Streamable HTTP.",
+        "kind": "Service type",
+        "modelKind": "Local model (Ollama, LM Studio)",
+        "failed": "Could not update local services. Check the address and confirm access in the desktop dialog, then try again.",
+        "mcpKind": "Local MCP server (HTTP)",
+        "name": "Name",
+        "endpoint": "Loopback address",
+        "model": "Installed model ID",
+        "remove": "Remove",
+        "removeNamed": "Remove {name}",
+        "add": "Connect service",
+        "confirm": "Confirm in the app…"
+      },
+      "agents": {
+        "title": "Coding agents on this computer",
+        "description": "Claude Code and Codex installed here. Sign-in belongs to each agent: AgenticOS opens its own command in Terminal and never reads or copies its credentials.",
+        "installHint": "{name} is not installed on this computer.",
+        "notInstalled": "Not installed",
+        "signedIn": "Signed in",
+        "signedOut": "Signed out",
+        "unknown": "Status unknown",
+        "signIn": "Sign in",
+        "signInNamed": "Sign in to {name}",
+        "signOut": "Sign out",
+        "signOutNamed": "Sign out of {name}",
+        "terminalNote": "Sign-in opens in your system terminal. Come back when it finishes to refresh the status."
+      }
+    },
+    "quickAsk": {
+      "placeholder": "Ask anything",
+      "signedOut": "Sign in in the console to ask your agents",
+      "openConsole": "Open the console",
+      "thinking": "Thinking",
+      "close": "<kbd>esc</kbd> to close",
+      "continueInConsole": "Continue in the console",
+      "listening": "Listening - let go to stop",
+      "transcribing": "Writing down what you said",
+      "noDictation": "This agent takes no dictation. Turn on its Dictation switch to talk to it here.",
+      "context": {
+        "selectedIn": "Selected in {source}:",
+        "fromClipboard": "From the clipboard:",
+        "anApp": "another app",
+        "selection": "Selection from {app}",
+        "files": "{count, plural, one {# file} other {# files}} from Finder",
+        "clipboard": "Clipboard",
+        "allow": "Let AgenticOS read what you select",
+        "attaching": "Attaching the selected files",
+        "attachFailed": "The selected files could not be attached, so nothing was asked. Take them off to ask without them."
+      },
+      "conversation": "Quick Ask conversation",
+      "repairSetup": "Set up the agent or microphone to use this feature",
+      "needsAnswer": "Agent needs your answer",
+      "title": "Quick Ask",
+      "newConversation": "New chat",
+      "newConversationHint": "New conversation (⌘N / Ctrl+N)",
+      "dismiss": "Close Quick Ask",
+      "dismissHint": "Close (Esc)",
+      "sendHint": "Enter to send · Shift+Enter for a new line",
+      "mentionHint": "@ to mention a resource",
+      "offline": "Offline · messages will wait",
+      "pin": "Keep Quick Ask on screen",
+      "unpin": "Unpin Quick Ask",
+      "pinFailed": "Could not change the Quick Ask pin. Try again.",
+      "tabs": "Conversations",
+      "closeTab": "Close tab: {title}",
+      "history": "Recent conversations",
+      "searchHistory": "Search conversations…",
+      "loadingHistory": "Loading conversations…",
+      "retryHistory": "Could not load conversations. Try again",
+      "emptyHistory": "No conversations found",
+      "tabLimit": "You can open up to eight tabs in one window.",
+      "earlierMessages": "Load earlier messages",
+      "startDictation": "Start dictation",
+      "stopDictation": "Stop dictation"
+    },
+    "notifications": {
+      "approvalTitle": "{agent} wants to run {tool}",
+      "anAgent": "An agent",
+      "approve": "Approve",
+      "reject": "Reject",
+      "inboxTitle": "AgenticOS",
+      "questionBody": "Open the conversation to answer the agent."
+    },
+    "welcome": {
+      "onlyInApp": "This welcome belongs to the AgenticOS desktop app.",
+      "skip": "Skip for now",
+      "next": "Continue",
+      "open": "Open AgenticOS",
+      "blobby": {
+        "title": "Meet blobby",
+        "body": "It sits on your desktop and tells you when an agent needs you. Pick who it is; you can make it one of your agents later."
+      },
+      "shortcuts": {
+        "title": "Shortcuts that work anywhere",
+        "body": "They work whichever application is in front.",
+        "open_console": "Open AgenticOS",
+        "quick_ask": "Ask any agent",
+        "screenshot_chat": "Screenshot to a new chat",
+        "off": "Off",
+        "change": "Change them under Settings, Shortcuts.",
+        "dictate": "Hold to dictate a question",
+        "voice_call": "Call your agent"
+      },
+      "loop": {
+        "title": "Stay in the loop",
+        "body": "Approvals arrive as notifications you can answer without opening anything.",
+        "login": "Open AgenticOS at login",
+        "keepRunning": "Keep running when the window is closed",
+        "test": "Notifications",
+        "testHint": "Your computer asks once whether AgenticOS may notify you.",
+        "send": "Send a test",
+        "sent": "Sent",
+        "testTitle": "AgenticOS",
+        "testBody": "This is where your agents will reach you."
+      },
+      "done": {
+        "title": "You're all set",
+        "body": "Everything here is in Settings when you want to change it."
+      }
+    },
+    "readiness": {
+      "title": "App readiness",
+      "description": "What is ready on this Mac and for your account on this server. Enable only what you want to use.",
+      "desktopOnly": "Open the desktop app to check its setup.",
+      "refresh": "Check again",
+      "requestFailed": "Could not change the system permission. Open System Settings and check again.",
+      "askAdmin": "Ask an administrator to configure a model for this organization.",
+      "askAgentAdmin": "Ask an administrator to publish or share an agent you can use.",
+      "permissionNote": "These checks capture no screen, audio or clipboard. Permissions are optional and requested only when you click. macOS may require restarting the app after a Screen Recording change.",
+      "screenCaptureDenied": "macOS has not granted screen access to this running app. If AgenticOS is already enabled in System Settings, quit and reopen this copy of the app, then refresh. A different installed copy can have different permissions.",
+      "retryScreenshot": "Try the screenshot again",
+      "welcome": "Finish connecting this desktop",
+      "welcomeHint": "Enable the desktop features you want to use. You can finish the optional steps later.",
+      "later": "Later",
+      "done": "Continue",
+      "retry": "Retry",
+      "enable": "Set up",
+      "connect": "Connect",
+      "configure": "Configure",
+      "items": {
+        "account": "Signed-in account",
+        "device": "Paired computer",
+        "agent": "An agent you can use",
+        "model": "AI Architect model",
+        "screen_capture": "Screen Recording",
+        "accessibility": "Accessibility",
+        "microphone": "Microphone",
+        "notifications": "Notifications",
+        "shortcuts": "Quick Ask and shortcuts"
+      },
+      "state": {
+        "ready": "Ready",
+        "missing": "Not set up",
+        "checking": "Checking…",
+        "error": "Could not check — retry",
+        "unsupported": "Not required for this setup"
+      },
+      "viewAgents": "View agents",
+      "finishFailed": "Could not finish this connection. Please retry.",
+      "opening": "Opening your workspace…"
+    },
+    "notificationSettings": {
+      "title": "Desktop notifications",
+      "description": "Preferences for this account and organization on this server. Muting desktop banners does not change your inbox.",
+      "completed": "Tasks completed",
+      "failed": "Tasks failed",
+      "approvals": "Approval requests",
+      "questions": "Agent needs an answer",
+      "other": "Other inbox updates",
+      "hide_previews": "Hide private content",
+      "privacyHint": "Show a generic message. Approval actions stay inside the app so you can review the arguments first.",
+      "enable": "Set up system notifications",
+      "test": "Send a test notification",
+      "testTitle": "Test notification",
+      "testBody": "If you can see this message, macOS delivered the notification.",
+      "failedTest": "Could not send the test. Check the system notification settings.",
+      "unmuteAll": "{count, plural, one {Unmute # conversation} other {Unmute # conversations}}",
+      "mute": "Mute notifications for this conversation",
+      "unmute": "Unmute this conversation",
+      "privateTitle": "AgenticOS activity",
+      "privateApproval": "An agent needs approval. Open the app to review it.",
+      "privateQuestion": "An agent needs your answer.",
+      "privateFailed": "A task failed. Open the app for details.",
+      "privateUpdate": "There is an update about your work."
+    },
+    "activity": {
+      "running": "{agent} · working",
+      "question": "{agent} · needs an answer",
+      "approval": "{agent} · approval needed",
+      "agent": "Agent"
+    }
+  },
+  "mobile": {
+    "settings": {
+      "heading": "Mobile app",
+      "headingHint": "AgenticOS on your phone: approvals and your agents' questions where you are."
+    },
+    "addPhone": {
+      "title": "Add a phone",
+      "description": "Sign the AgenticOS app in as you by scanning a code. The code works once, for a minute.",
+      "step1": "Install AgenticOS on your phone and open it.",
+      "step2": "Choose Scan a code, or point the phone's camera here.",
+      "step3": "Scan the code and confirm your account on the phone.",
+      "show": "Show a code",
+      "again": "Show a new code",
+      "expiresIn": "{seconds, plural, =1 {Works for 1 more second} other {Works for # more seconds}}",
+      "expired": "That code has expired.",
+      "failed": "A code could not be made. Try again.",
+      "qrLabel": "A code that signs the AgenticOS app in as you"
+    },
+    "pair": {
+      "failed": "This code no longer works",
+      "failedHint": "Codes work once, for a minute. Show a new one in the console, under Settings, Mobile app, and scan it again.",
+      "confirmTitle": "Sign in to this account?",
+      "confirmHint": "Continue only if this is your account. Confirming replaces the account signed in on this device.",
+      "confirm": "Confirm sign-in",
+      "cancel": "Cancel",
+      "loading": "Checking the scanned account"
+    },
+    "activity": {
+      "approvalTitle": "{agent} wants to run {tool}",
+      "anAgent": "An agent",
+      "approve": "Approve",
+      "reject": "Reject",
+      "runTitle": "{agent} is working",
+      "runBody": "Tap to follow it in AgenticOS.",
+      "questionTitle": "{agent} has a question for you",
+      "questionBody": "Tap to answer it in AgenticOS.",
+      "callTitle": "On a call with {agent}",
+      "callBody": "Tap to go back to the call.",
+      "callAsking": "It is asking you something - tap to answer.",
+      "reviewApproval": "Review approval"
+    },
+    "share": {
+      "notAttached": "Could not attach: {names}"
+    },
+    "setup": {
+      "title": "Finish setting up this phone",
+      "welcome": "Review this connection, even if you already use AgenticOS elsewhere. You can finish optional settings later.",
+      "hint": "Your account and this phone’s settings on this server.",
+      "account": "Signed-in account",
+      "agent": "An agent you can use",
+      "lock": "App lock",
+      "notifications": "Notifications",
+      "ready": "Ready",
+      "missing": "Not set up",
+      "checking": "Checking…",
+      "error": "Could not check. Try again.",
+      "unavailable": "Not available on this device",
+      "retry": "Check again",
+      "open": "Open",
+      "settings": "Phone settings",
+      "deviceTitle": "This phone",
+      "deviceHint": "Protection and saved server connections.",
+      "lockHint": "Use Face ID, fingerprint or the device passcode when returning to the app.",
+      "managed": "Managed by your organization",
+      "failed": "Could not update this setting. Try again.",
+      "servers": "Switch server",
+      "switching": "Switching…",
+      "switchFailed": "Could not switch. Connect to the current server so its push registration can be removed, then try again.",
+      "serverHint": "Saved servers keep their own sign-in and offline data. Switching turns off push for the server you leave; enable it again on the next server. Removing an entry does not erase its sign-in: sign out there first on a shared phone.",
+      "contextPermissions": "Camera access is requested only when you scan a code. Microphone access is requested when you start voice. Nothing is recorded by these checks.",
+      "privacyTitle": "Phone notification privacy",
+      "privacyHint": "Saved for this sign-in and applied before a push is sent, including when the app is closed.",
+      "hidePreviews": "Hide notification text",
+      "mutedCount": "{count} conversations muted on this phone.",
+      "mute": "Mute notifications for this conversation",
+      "unmute": "Unmute notifications for this conversation",
+      "systemSettings": "Open system settings",
+      "installDistributor": "Install ntfy",
+      "testAccepted": "Push service accepted the test.",
+      "testHint": "A successful test means a push service accepted it, not that this phone displayed it. Check the notification shade or lock screen.",
+      "continue": "Continue"
+    }
+  },
+  "agentPin": {
+    "toDock": "Pin to Dock",
+    "toTray": "Pin to tray",
+    "unpin": "Unpin",
+    "dockHint": "Right-click the AgenticOS icon in the Dock for a new chat with this agent.",
+    "trayHint": "A new chat with this agent from the AgenticOS tray menu.",
+    "toHomeScreen": "Add to home screen",
+    "onHomeScreen": "On your home screen. Tap it for a new chat.",
+    "inLongPress": "Your launcher cannot pin it, so it is in the AgenticOS icon's long-press list.",
+    "failed": "The agent could not be added to the home screen.",
+    "toWidget": "Pin to widget",
+    "inWidget": "Pinned. Add the Pinned agents widget to your home screen; the agent is also in the AgenticOS icon's menu and in Shortcuts."
+  },
+  "capabilityChoices": {
+    "computer_use": {
+      "desktop": {
+        "auto": {
+          "label": "Automatic",
+          "description": "Use Local when the chat works on this computer; otherwise E2B if this capability has a key, or the agent's sandbox."
+        },
+        "sandbox": {
+          "label": "Docker / Sandbox",
+          "description": "Use the agent's Sandbox connection with the desktop runtime. Docker Compose includes sandboxd; you can also register your own host URL and key under Connections → Sandboxes, then choose that connection in the Sandbox capability.",
+          "summary": "A desktop on your registered sandbox host."
+        },
+        "daemon": {
+          "label": "Remote computer",
+          "description": "Connect to a computer running computerd. Set its approved address and select its access token below.",
+          "summary": "Your own computer running computerd."
+        },
+        "local": {
+          "label": "Local",
+          "description": "Use the person's paired desktop app. In chat, select local Computer use or work on This computer. The person must approve screen access.",
+          "summary": "The screen of your paired desktop app."
+        },
+        "e2b": {
+          "label": "E2B",
+          "description": "Start a separate E2B desktop for this run. Select the organization's E2B key below; no Sandbox connection is needed.",
+          "summary": "An isolated desktop hosted by E2B."
+        }
+      }
+    },
+    "browser_use": {
+      "connection": {
+        "built_in": {
+          "label": "Built in",
+          "summary": "The browser included with this deployment.",
+          "description": "Use the browser service included in this deployment. Its DevTools address is configured below."
+        },
+        "proxy": {
+          "label": "Through a proxy",
+          "summary": "The deployment browser, with your proxy.",
+          "description": "Use the deployment browser through your proxy. Configure its address and credentials below."
+        },
+        "hosted": {
+          "label": "A hosted browser",
+          "summary": "An external browser service you connect.",
+          "description": "Connect a hosted browser through its CDP endpoint and credentials below."
+        },
+        "local": {
+          "label": "This computer (desktop app)",
+          "summary": "A private browser on your paired computer.",
+          "description": "Requires a paired desktop app and Local browser selected in this chat. Your personal browser session is not shared."
+        }
+      }
     }
   }
 }

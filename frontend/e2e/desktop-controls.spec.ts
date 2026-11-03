@@ -325,7 +325,7 @@ test.describe("desktop pointer controls", () => {
       .getByRole("complementary")
       .filter({ has: page.getByRole("button", { name: "Close the file panel" }) });
     const close = panel.getByRole("button", { name: "Close the file panel" });
-    await expect(panel.getByRole("listitem")).toHaveCount(120);
+    await expect(panel.getByRole("treeitem")).toHaveCount(120);
     await settleEntrances(page);
     const initialClose = await close.boundingBox();
     const scrollport = panel.locator(".overflow-y-auto");
@@ -339,7 +339,7 @@ test.describe("desktop pointer controls", () => {
     await scrollport.evaluate((element) => {
       element.scrollTop = element.scrollHeight;
     });
-    await expect(panel.getByRole("listitem").last()).toBeInViewport();
+    await expect(panel.getByRole("treeitem").last()).toBeInViewport();
     expect(await close.boundingBox()).toEqual(initialClose);
     expect((await composer.boundingBox())?.y).toBe(before?.y);
     await clickCenter(page, close);

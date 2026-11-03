@@ -655,3 +655,23 @@ main:has(> [data-screen="local"][data-view="create"]:not([hidden]))
   border-block-end: 1.5px solid var(--secondary);
   transform: rotate(45deg);
 }
+
+/* Three permission rows plus the actions have to fit a default window without
+   scrolling, so this step is wider and tighter than the others. */
+main:has(> [data-screen="permissions"]:not([hidden])) {
+  inline-size: min(34rem, calc(100vw - 3rem));
+}
+main:has(> [data-screen="permissions"]:not([hidden])) > .app-icon {
+  inline-size: 56px;
+  block-size: 56px;
+  margin-block-end: 0.75rem;
+}
+[data-screen="permissions"] .lead {
+  margin-block-end: 0.5rem;
+}
+[data-screen="permissions"] .permission-list {
+  margin-block: 0.5rem;
+}
+[data-screen="permissions"] .permission-row {
+  padding-block: 0.7rem;
+}

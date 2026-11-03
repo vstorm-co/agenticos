@@ -1,5 +1,5 @@
 ---
-source_sha: "7569617d3112"
+source_sha: "995b94e2999f"
 ---
 
 # Protección de datos { #data-protection }
@@ -19,6 +19,8 @@ que el software puede hacer y lo que un deployment ha decidido de verdad.
     los acuerdos firmados y del operador que lo lleva. Cada una de esas
     condiciones aparece abajo como algo que hay que obtener y verificar, nunca
     como algo que se da por supuesto.
+
+El inventario de capabilities incluye también el coding agent local seleccionable por conversación, aunque el spec publicado no tenga ese binding o use un sandbox. Esa fila describe una ruta posible, no demuestra que se haya utilizado.
 
 ## Qué sale por defecto { #nothing-leaves-by-default }
 
@@ -198,6 +200,7 @@ decide cada uno.
 | Proxy del navegador o navegador alojado de un agent | Todo lo que el navegador carga y envía, como lo haría el navegador del despliegue - páginas, contenido de formularios, cookies, inicios de sesión - más el registro propio del proxy o del servicio | `browser_use.connection` en el spec (#2130); `built_in` por defecto | El proxy o el servicio de navegador alojado (Browserbase, Steel u otro), bajo el contrato propio de la organización |
 | Los pasos del navegador web | Cada paso de un recorrido va al propio modelo del agente: la URL de la página, su título, las etiquetas de los elementos visibles y hasta 4.000 caracteres de su texto visible, más una captura con `vision` activado — que puede ser el contenido de un sistema interno. Lo que contiene un campo no se repite: la tabla de elementos solo dice que el campo está relleno | La capability `browser_use` en el spec | El proveedor del modelo del agente, como en la conversación |
 | Computer use | Cada captura del escritorio va al propio modelo del agente y puede mostrar cualquier cosa abierta en él; ninguna se guarda con el run. Las acciones, incluido el texto que escribe el modelo, van al escritorio | La capability `computer_use` en el spec, con una conexión de sandbox para un escritorio en la sandbox; un escritorio daemon necesita su host en `COMPUTER_DAEMON_ALLOWED_HOSTS`, vacía por defecto, y el token de la organización para él en el vault | El proveedor del modelo del agente; la conexión de sandbox del agente, o el host `computerd` que ejecuta el operador |
+| Agentes de programación locales | La tarea y el código que Claude Code o Codex lee en el ordenador de la persona | `coding_agent.runs_on: this_computer`, acceso completo a una carpeta y confirmación nativa del inicio. El agente local decide su modelo, endpoint e inicio de sesión; el despliegue no los selecciona | Directamente desde ese ordenador al proveedor o gateway configurado en el agente local. El informe de protección de datos distingue esta ruta de la ejecución en sandbox |
 | La sandbox, hacia fuera | **Cualquier cosa del workspace, a cualquier host** — la runtime `workbench` tiene red, shell y `curl` | La capability `sandbox` y una runtime con `needs_network`; la aprobación de comandos controla qué se ejecuta, no adónde se conecta | Adonde fuera el comando. El control de salida es el firewall del host de la sandbox, no un ajuste de aquí |
 | Un servidor MCP | Argumentos y resultados de herramientas, de un agent o de un paso [`mcp.call`](reference/workflow-nodes.md#mcp-call) de un workflow | `mcp_connections.url`, por organización o por persona | La del operador del servidor |
 | Google Workspace y Microsoft 365, mediante un servidor que ejecutas tú | Lo que pide el paso `mcp.call` de un agent o de un workflow: términos de búsqueda, ids de mensajes y de hilos, texto de la respuesta, detalles de eventos. Tu propio servidor lo reenvía a las APIs de Google o de Microsoft y guarda además los tokens de la cuenta conectada | Una conexión de la organización o personal, creada desde la entrada de catálogo `google-workspace` o `ms-365` | Tu servidor, y luego Google o Microsoft |

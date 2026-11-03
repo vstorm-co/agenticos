@@ -363,6 +363,11 @@ def build_artifacts_toolset(
         and `lib/agenticos-map-2.js` (`AOMap.itinerary`: numbered pins in order, on the
         deployment's map tiles or as an outline without them - its own layout, so no
         border or `min-height` around its element and no second list of its stops);
+        a world map of countries, pins and routes that needs no tile server through
+        `lib/topojson-client-3.1.0.min.js`, `lib/world-atlas-2.0.2-110m.js` and
+        `lib/agenticos-worldmap-1.js` after d3 (`AOWorldMap.draw(element, {countries:
+        {Poland: 12}, pins, routes})` shades countries by a value; prefer it to the tile
+        map unless street level is needed);
         `lib/agenticos-2.css`, `lib/agenticos-2.js`, `lib/agenticos-1.css` and `lib/agenticos-map-1.js` stay served for pages published
         against them; build new pages on version 3. Follow the page
         contract in your instructions: doctype and viewport, `main.ao-page`, the header,

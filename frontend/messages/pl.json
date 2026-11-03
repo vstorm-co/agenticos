@@ -843,7 +843,13 @@
       "listingApps": "Sprawdzam zainstalowane aplikacje",
       "listApps": "Lista aplikacji",
       "sendingChannelFile": "Wysyła plik na kanał",
-      "sendChannelFile": "Wyślij plik na kanał"
+      "sendChannelFile": "Wyślij plik na kanał",
+      "startMonitor": "Obserwuj polecenie",
+      "startingMonitor": "Zaczynam obserwować polecenie",
+      "listMonitors": "Obserwacje",
+      "listingMonitors": "Wypisuję obserwacje",
+      "stopMonitor": "Zatrzymaj obserwację",
+      "stoppingMonitor": "Zatrzymuję obserwację"
     },
     "turnWasStopped": "zatrzymano",
     "unfavourite": "Usuń z ulubionych",
@@ -928,7 +934,29 @@
         "computerFailed": "Nie udało się zmienić dostępu do komputera. Spróbuj ponownie.",
         "computerUseTitle": "Computer use",
         "computerUseIndependent": "Użyj ekranu, myszy i klawiatury tego komputera, nawet jeśli agent nie ma zdolności Computer use. Nie daje to dostępu do plików. Aplikacja desktopowa poprosi o potrzebne uprawnienia do ekranu i dostępności.",
-        "computerUseLocal": "Lokalny komputer"
+        "computerUseLocal": "Lokalny komputer",
+        "skills": {
+          "title": "Moje skille i instrukcje",
+          "help": "Wybierz lokalne źródła skills dla AgenticOS w tym czacie. Pliki pozostają na komputerze; odczytany tekst skilli i instrukcji trafia przez Twój serwer do modelu agenta. Nowe czaty mają źródła wyłączone. Lokalne coding agents zachowują własną konfigurację.",
+          "count": "{count, plural, one {# skill} few {# skille} many {# skilli} other {# skilla}}",
+          "hidden": "{count, plural, one {# skill jest ukryty przez skill o tej samej nazwie we wcześniejszym folderze} few {# skille są ukryte przez skille o tych samych nazwach we wcześniejszych folderach} many {# skilli jest ukrytych przez skille o tych samych nazwach we wcześniejszych folderach} other {# skilla jest ukrytych przez skille o tych samych nazwach we wcześniejszych folderach}}.",
+          "on": "Ten czat może ładować włączone lokalne skills i stosuje globalne instrukcje, a następnie hierarchię projektowych AGENTS.md i CLAUDE.md.",
+          "off": "Wyłączone: AgenticOS nie ładuje Twoich lokalnych skilli ani instrukcji."
+        },
+        "coding": {
+          "title": "Agent programistyczny",
+          "help": "Wybierz Claude Code lub Codex na tym komputerze dla tej rozmowy, również gdy agent nie ma capability Coding agent. Istniejące reguły zatwierdzania i trybu tylko do odczytu nadal obowiązują. Każde zadanie wymaga natywnego potwierdzenia.",
+          "agent": "Użyj ustawienia agenta",
+          "claudeCode": "Claude Code na tym komputerze",
+          "codex": "Codex na tym komputerze",
+          "description": "Dostęp do plików ustawi się automatycznie. Każde zadanie wymaga potwierdzenia.",
+          "folder": "Wybierz folder projektu, aby kontynuować.",
+          "setup": "Instalacja i logowanie → Ustawienia desktopu",
+          "pickFolder": "Wybierz folder",
+          "changeFolder": "Zmień folder · {folder}",
+          "agentWithHarness": "Ustawienie agenta · {agent}"
+        },
+        "off": "Wyłączone"
       },
       "modelSection": "Model",
       "permissionsSection": "Uprawnienia",
@@ -936,7 +964,9 @@
       "waiverOrg": "Organizacja wyłączyła ten tryb. Można go włączyć w sekcji Budżet i zatwierdzenia.",
       "waiverUnknown": "Ustawienia zatwierdzeń organizacji nie są jeszcze dostępne. Spróbuj po załadowaniu organizacji.",
       "waiverSettings": "Otwórz ustawienia zatwierdzeń",
-      "savedPreferences": "Zapamiętane między chatami"
+      "toolsTab": "Narzędzia i pliki",
+      "preferencesTab": "Preferencje",
+      "savedAutomatically": "Zmiany są zapisywane automatycznie"
     },
     "conversationArchived": "Ta rozmowa jest zarchiwizowana",
     "conversationDeleted": "Rozmowa usunięta",
@@ -1362,7 +1392,17 @@
     "queuedRetry": "Wyślij ponownie",
     "browserResume": "Wznów sesję",
     "browserResumePrompt": "Wznów sesję przeglądarki. Odczytaj aktualną stronę przed kontynuowaniem.",
-    "browserMenu": "Opcje przeglądarki"
+    "browserMenu": "Opcje przeglądarki",
+    "localAgent": {
+      "claudeCode": "Claude Code",
+      "codex": "Codex",
+      "ready": "{agent} · {folder} · {access}",
+      "edit": "może edytować",
+      "readOnly": "tylko odczyt",
+      "needsFolder": "{agent} działa na tym komputerze: wybierz folder w Ustawieniach czatu → Pracuj na → Ten komputer.",
+      "needsFullAccess": "{agent} działa jako Ty, więc folder wymaga pełnego dostępu. Zmień to w Ustawieniach czatu → Pracuj na.",
+      "chosen": "{agent} · {folder}"
+    }
   },
   "errors": {
     "authorizationFailed": "Autoryzacja nie powiodła się",
@@ -5324,6 +5364,7 @@
   "files": {
     "couldNotBeFetched": "Nie udało się pobrać tego pliku",
     "couldNotBeRead": "Nie udało się odczytać tego pliku",
+    "linkedAssetFailed": "Nie udało się wczytać arkusza stylów {path}. Otwórz Źródło, aby sprawdzić plik.",
     "download": "Pobierz",
     "emptyFile": "Ten plik jest pusty.",
     "fileOfTotal": "{index} z {total}",
@@ -6069,6 +6110,14 @@
         "title": "Agenci innych dostawców",
         "body": "Agentów zarejestrowanych tu po ich agent card A2A można wybrać jako delegatów obok twoich własnych agentów."
       },
+      "desktop-local-agents": {
+        "title": "Coding agents na tym komputerze",
+        "body": "Sprawdź instalację i logowanie Claude Code oraz Codex. Desktop otwiera ich własne komendy logowania w terminalu. Aby uruchomić lokalne zadanie, wybierz On this computer w capability agenta i folder w Work on."
+      },
+      "chat-local-skills": {
+        "title": "Twoje lokalne skills i instrukcje",
+        "body": "Wybierz źródła dostępne w tej rozmowie. Skills pozostają na komputerze; wśród włączonych źródeł kolizje rozstrzyga kolejność .agents, .claude, .codex. AGENTS.md i CLAUDE.md zawierają instrukcje projektu. Nowe czaty mają źródła wyłączone."
+      },
       "settings-tabs": {
         "title": "Twoje ustawienia",
         "body": "Twój profil, logowanie i bezpieczeństwo, powiadomienia oraz polecenia ukośnika - wszystko kryje się za tymi zakładkami; przełączaj się między nimi tutaj."
@@ -6368,6 +6417,10 @@
       "project-file-location": {
         "title": "Twój komputer czy wspólne pliki",
         "body": "Ten komputer pokazuje zatwierdzony lokalny folder. Wspólne pliki projektu to wgrane kopie dla osób z dostępem do projektu. Te miejsca nie synchronizują się automatycznie."
+      },
+      "chat-local-coding": {
+        "title": "Agent programistyczny",
+        "body": "Wybierz Claude Code lub Codex na tym komputerze dla tej rozmowy, również gdy agent nie ma capability Coding agent. Istniejące reguły zatwierdzania i trybu tylko do odczytu nadal obowiązują. Każde zadanie wymaga natywnego potwierdzenia."
       },
       "workflow-step-view": {
         "title": "Skup się na jednym panelu",
@@ -8656,7 +8709,7 @@
       },
       "model": {
         "title": "Model",
-        "description": "Model, na którym działa coding agent: model Claude dla Claude Code, model OpenAI dla Codexa. Nieustawiony oznacza domyślny model coding agenta."
+        "description": "Model, na którym działa coding agent: model Claude dla Claude Code, model OpenAI dla Codexa. Nieustawiony oznacza domyślny model coding agenta. Niedostępne na tym komputerze, gdzie agent używa własnego ustawienia."
       },
       "base_url": {
         "title": "Endpoint zgodny z Anthropic",
@@ -8665,6 +8718,10 @@
       "timeout_minutes": {
         "title": "Limit czasu (minuty)",
         "description": "Jak długo jedno zadanie może trwać, zanim zostanie przerwane."
+      },
+      "runs_on": {
+        "title": "Gdzie działa",
+        "description": "W sandboxie agenta, na kluczu zapisanym tutaj - albo w folderze, który osoba wybiera na własnym komputerze w aplikacji desktopowej, gdzie Claude Code i Codex używają logowania, które już mają, i nie potrzebują klucza."
       }
     },
     "workflows": {
@@ -11216,11 +11273,11 @@
     },
     "coding_agent": {
       "name": "Coding agent",
-      "does": "Przekazuje pracę programistyczną do Claude Code albo Codex, które pracują nad nią w sandboxie agenta, a ty widzisz w czacie każdy krok.",
+      "does": "Przekazuje pracę nad kodem do Claude Code lub Codex, w sandboxie agenta albo na tym komputerze. Każdy krok widać na czacie.",
       "example1": "Napraw padający test w repozytorium sklonowanym przez agenta",
       "example2": "Wyjaśnij, jak działa moduł, bez zmieniania kodu",
-      "needs": "Capability Sandbox na połączeniu sandbox oraz w vault klucz Anthropic albo OpenAI, token subskrypcji Claude albo logowanie ChatGPT.",
-      "never": "Nigdy nie działa poza sandboxem agenta. Ustaw Zatwierdzenie przez człowieka na Zawsze pytaj, a każde zadanie poczeka na twoją zgodę."
+      "needs": "W sandboxie: capability Sandbox, połączenie oraz klucz providera lub logowanie w vault. Na tym komputerze: aplikacja desktopowa, zalogowany coding agent i zatwierdzony folder z pełnym dostępem.",
+      "never": "Zadania lokalne wymagają folderu z pełnym dostępem i natywnego potwierdzenia startu. Ustaw Human approval na Always ask, aby dodatkowo zatwierdzać każde zadanie na czacie."
     },
     "compaction": {
       "name": "Długie rozmowy",
@@ -11430,6 +11487,14 @@
       "example2": "Wyeksportuj raport ze starego narzędzia bez API",
       "needs": "Pulpit we własnym sandboxie agenta (możliwość Sandbox na środowisku 'desktop') albo pulpit uruchomiony przez administratora z computerd na Linuksie lub Macu, z tokenem w vaulcie organizacji. Każdy krok to jedno zapytanie do modelu ze zrzutem ekranu.",
       "never": "Nie działa bez akceptacji, chyba że ją wyłączono, nie wykonuje poleceń widocznych na ekranie i zatrzymuje się przed hasłami lub płatnościami."
+    },
+    "monitor": {
+      "name": "Obserwuj polecenie",
+      "does": "Uruchamia długo działające polecenie - watcher testów, ogon logu, odpytywanie CI - i na bieżąco mówi agentowi o jego nowym wyjściu, więc agent nie musi odpytywać.",
+      "example1": "Uruchom watcher testów i naprawiaj każdy błąd, gdy się pojawi",
+      "example2": "Śledź log wdrożenia i zgłoś pierwszy błąd",
+      "needs": "Przestrzeń robocza z powłoką, np. capability Sandbox albo folder na twoim komputerze.",
+      "never": "Nigdy nie zostawia polecenia po końcu tury: każda obserwacja kończy się razem z przebiegiem."
     }
   },
   "capabilityCategories": {
@@ -11867,6 +11932,20 @@
         "removeNamed": "Usuń {name}",
         "add": "Połącz usługę",
         "confirm": "Potwierdź w aplikacji…"
+      },
+      "agents": {
+        "title": "Agenty kodujące na tym komputerze",
+        "description": "Claude Code i Codex zainstalowane tutaj. Logowanie należy do każdego agenta: AgenticOS otwiera jego własne polecenie w Terminalu i nigdy nie czyta ani nie kopiuje jego poświadczeń.",
+        "installHint": "{name} nie jest zainstalowany na tym komputerze.",
+        "notInstalled": "Nie zainstalowano",
+        "signedIn": "Zalogowano",
+        "signedOut": "Wylogowano",
+        "unknown": "Stan nieznany",
+        "signIn": "Zaloguj",
+        "signInNamed": "Zaloguj do {name}",
+        "signOut": "Wyloguj",
+        "signOutNamed": "Wyloguj z {name}",
+        "terminalNote": "Logowanie otwiera terminal systemowy. Wróć po jego zakończeniu, aby odświeżyć stan."
       }
     },
     "quickAsk": {
@@ -11970,6 +12049,7 @@
       "askAdmin": "Poproś administratora o skonfigurowanie modelu dla organizacji.",
       "askAgentAdmin": "Poproś administratora o opublikowanie lub udostępnienie agenta, z którego możesz korzystać.",
       "permissionNote": "Sprawdzenie nie przechwytuje ekranu, dźwięku ani schowka. Uprawnienia są opcjonalne i wymagają kliknięcia. Po zmianie Nagrywania ekranu macOS może wymagać restartu aplikacji.",
+      "screenCaptureDenied": "macOS nie udostępnia ekranu tej uruchomionej aplikacji. Jeśli AgenticOS jest już włączony w ustawieniach systemowych, zamknij i otwórz ponownie tę kopię aplikacji, a następnie odśwież status. Inna zainstalowana kopia może mieć inne uprawnienia.",
       "retryScreenshot": "Spróbuj ponownie zrobić zrzut",
       "welcome": "Dokończ łączenie tej aplikacji",
       "welcomeHint": "Włącz funkcje desktopowe, z których chcesz korzystać. Opcjonalne kroki możesz dokończyć później.",

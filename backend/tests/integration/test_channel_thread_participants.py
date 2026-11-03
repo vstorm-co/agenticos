@@ -594,3 +594,48 @@ class TestWhoTidiesAnUnownedRoomThread:
         assert await ConversationService(db).delete_conversation(
             owned.id, organization_id=organization.id, user_id=owner.id
         )
+
+
+class TestHidingChannelThreads:
+    async def test_a_thread_a_bot_answers_in_leaves_the_list_and_the_count(
+        self, db, still_in_the_channel
+    ) -> None:
+        organization = await _org(db)
+        reader = await _user(db)
+        identity = await _identity(db, user=reader)
+        room = await _room_thread(db, organization)
+        await _channel(db, organization, room, identity)
+        await _said(db, room, identity)
+        console = Conversation(
+            id=uuid.uuid4(), user_id=reader.id, organization_id=organization.id, title="Console"
+        )
+        db.add(console)
+        await db.flush()
+
+        shown, shown_total = await ConversationService(db).list_conversations(
+            user_id=reader.id, organization_id=organization.id
+        )
+        assert {c.id for c in shown} == {room.id, console.id}
+
+        hidden, hidden_total = await ConversationService(db).list_conversations(
+            user_id=reader.id, organization_id=organization.id, hide_channels=True
+        )
+        assert [c.id for c in hidden] == [console.id]
+        assert (shown_total, hidden_total) == (2, 1)
+
+    async def test_hiding_them_does_not_ask_the_platform_who_is_still_a_member(
+        self, db, still_in_the_channel
+    ) -> None:
+        organization = await _org(db)
+        reader = await _user(db)
+        identity = await _identity(db, user=reader)
+        room = await _room_thread(db, organization)
+        await _channel(db, organization, room, identity)
+        await _said(db, room, identity)
+        still_in_the_channel.reset_mock()
+
+        await ConversationService(db).list_conversations(
+            user_id=reader.id, organization_id=organization.id, hide_channels=True
+        )
+
+        still_in_the_channel.assert_not_awaited()

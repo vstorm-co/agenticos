@@ -217,3 +217,18 @@ def test_whole_computer_target_requires_full_access_and_a_working_directory() ->
     ]:
         with pytest.raises(ValidationError, match="Whole-computer access"):
             LocalTarget.model_validate({**payload, "computer_grant": str(uuid4())})
+
+
+@pytest.mark.parametrize("platform", ["macos", "linux", "windows"])
+async def test_native_platform_is_read_from_the_resolved_device(
+    monkeypatch: pytest.MonkeyPatch,
+    platform: str,
+) -> None:
+    workspace = module.DeviceWorkspace(uuid4(), uuid4(), LocalTarget(folder="/work"))
+    call = AsyncMock(return_value={"platform": platform})
+    monkeypatch.setattr(module._hub, "call", call)
+    assert await workspace.platform() == platform
+    assert call.call_args.args[1] == "system.info"
+    call.return_value = {}
+    with pytest.raises(WorkspaceUnavailableError, match="did not identify"):
+        await workspace.platform()

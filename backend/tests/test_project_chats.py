@@ -5,6 +5,7 @@ That the queries really scope to a project, and that a teammate's turn lands
 with their name on it, is `tests/integration/test_project_chats.py`'s job.
 """
 
+from collections.abc import Iterator
 from datetime import UTC, datetime
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -23,6 +24,14 @@ MODULE = "app.services.conversation"
 ORG = uuid4()
 OWNER = uuid4()
 TEAMMATE = uuid4()
+
+
+@pytest.fixture(autouse=True)
+def coding_participants_repo() -> Iterator[AsyncMock]:
+    with patch(
+        f"{MODULE}.conversation_repo.coding_agents_in_conversations", AsyncMock(return_value={})
+    ) as mocked:
+        yield mocked
 
 
 def _chat(*, project_id: UUID | None = None, user_id: UUID = OWNER) -> SimpleNamespace:

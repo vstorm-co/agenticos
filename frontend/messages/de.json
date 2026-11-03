@@ -1234,7 +1234,29 @@
         "computerFailed": "Der Computerzugriff konnte nicht geändert werden. Versuchen Sie es erneut.",
         "computerUseTitle": "Computer use",
         "computerUseIndependent": "Bildschirm, Maus und Tastatur dieses Computers verwenden, auch wenn der Agent keine Computer-use-Fähigkeit hat. Dies gewährt keinen Dateizugriff. Die Desktop-App fragt bei Bedarf nach Bildschirm- und Bedienungshilfenberechtigungen.",
-        "computerUseLocal": "Lokaler Computer"
+        "computerUseLocal": "Lokaler Computer",
+        "skills": {
+          "title": "Meine Skills und Anweisungen",
+          "help": "Wähle lokale Skill-Quellen für AgenticOS in diesem Chat. Dateien bleiben auf deinem Computer; geladene Skill- und Anweisungstexte erreichen das konfigurierte Modell über deinen Server. Neue Chats starten ohne Quellen. Lokale Coding agents behalten ihre eigene Konfiguration.",
+          "count": "{count, plural, one {# Skill} other {# Skills}}",
+          "hidden": "{count, plural, one {# Skill wird von einem gleichnamigen in einem früheren Ordner verdeckt} other {# Skills werden von gleichnamigen in früheren Ordnern verdeckt}}.",
+          "on": "Dieser Chat kann aktivierte lokale Skills laden und folgt deinen globalen Anweisungen, danach der AGENTS.md- und CLAUDE.md-Hierarchie des Projekts.",
+          "off": "Aus: AgenticOS lädt keine lokalen Skills oder Anweisungen."
+        },
+        "coding": {
+          "title": "Programmieragent",
+          "help": "Wählen Sie Claude Code oder Codex auf diesem Computer für diese Unterhaltung, auch wenn der Agent keine Coding-agent-Fähigkeit hat. Bestehende Freigabe- und Nur-Lesen-Regeln gelten weiterhin. Jede Aufgabe erfordert eine native Bestätigung.",
+          "agent": "Agenteneinstellung verwenden",
+          "claudeCode": "Claude Code auf diesem Computer",
+          "codex": "Codex auf diesem Computer",
+          "description": "Der Dateizugriff wird automatisch eingerichtet. Jede Aufgabe erfordert eine Bestätigung.",
+          "folder": "Wähle einen Projektordner, um fortzufahren.",
+          "setup": "Installieren oder anmelden → Desktop-Einstellungen",
+          "pickFolder": "Ordner auswählen",
+          "changeFolder": "Ordner ändern · {folder}",
+          "agentWithHarness": "Agenteneinstellung · {agent}"
+        },
+        "off": "Aus"
       },
       "modelSection": "Modell",
       "permissionsSection": "Berechtigungen",
@@ -1242,7 +1264,9 @@
       "waiverOrg": "Deine Organisation hat diesen Modus deaktiviert. Er lässt sich unter Budget und Genehmigungen aktivieren.",
       "waiverUnknown": "Die Genehmigungseinstellungen der Organisation sind noch nicht verfügbar. Versuche es nach dem Laden der Organisation erneut.",
       "waiverSettings": "Genehmigungseinstellungen öffnen",
-      "savedPreferences": "Für weitere Chats gespeichert"
+      "toolsTab": "Werkzeuge und Dateien",
+      "preferencesTab": "Einstellungen",
+      "savedAutomatically": "Änderungen werden automatisch gespeichert"
     },
     "conversationArchived": "Diese Unterhaltung ist archiviert",
     "conversationDeleted": "Unterhaltung gelöscht",
@@ -1754,7 +1778,13 @@
       "listingApps": "Liste die Anwendungen auf",
       "listApps": "Anwendungen auflisten",
       "sendingChannelFile": "Sendet eine Datei an den Kanal",
-      "sendChannelFile": "Datei an Kanal senden"
+      "sendChannelFile": "Datei an Kanal senden",
+      "startMonitor": "Einen Befehl beobachten",
+      "startingMonitor": "Beobachtung eines Befehls beginnt",
+      "listMonitors": "Die Beobachtungen",
+      "listingMonitors": "Beobachtungen werden aufgelistet",
+      "stopMonitor": "Eine Beobachtung beenden",
+      "stoppingMonitor": "Beobachtung wird beendet"
     },
     "turnWasStopped": "gestoppt",
     "unfavourite": "Aus den Favoriten entfernen",
@@ -2205,7 +2235,17 @@
     "queuedRetry": "Erneut senden",
     "browserResume": "Sitzung fortsetzen",
     "browserResumePrompt": "Setze die Browsersitzung fort. Lies die aktuelle Seite erneut, bevor du fortfährst.",
-    "browserMenu": "Browseroptionen"
+    "browserMenu": "Browseroptionen",
+    "localAgent": {
+      "claudeCode": "Claude Code",
+      "codex": "Codex",
+      "ready": "{agent} · {folder} · {access}",
+      "edit": "darf bearbeiten",
+      "readOnly": "nur lesen",
+      "needsFolder": "{agent} läuft auf diesem Computer: Wähle unter Chat-Steuerung → Arbeiten auf → Diesem Computer einen Ordner.",
+      "needsFullAccess": "{agent} läuft als du, deshalb braucht der Ordner Vollzugriff. Ändere das unter Chat-Steuerung → Arbeiten auf.",
+      "chosen": "{agent} · {folder}"
+    }
   },
   "common": {
     "archiveNamedConfirm": "{name} archivieren?",
@@ -3232,6 +3272,7 @@
   "files": {
     "couldNotBeFetched": "Diese Datei konnte nicht abgerufen werden",
     "couldNotBeRead": "Diese Datei konnte nicht gelesen werden",
+    "linkedAssetFailed": "Das verknüpfte Stylesheet {path} konnte nicht geladen werden. Öffne den Quelltext, um die Datei zu prüfen.",
     "download": "Herunterladen",
     "emptyFile": "Diese Datei ist leer.",
     "fileOfTotal": "{index} von {total}",
@@ -4559,6 +4600,14 @@
         "title": "Agents anderer Anbieter",
         "body": "Hier über ihre A2A Agent Card registrierte Agents lassen sich neben Ihren eigenen Agents als Delegierte wählen."
       },
+      "desktop-local-agents": {
+        "title": "Coding agents auf diesem Computer",
+        "body": "Prüfe hier Installation und Anmeldung von Claude Code und Codex. Die Desktop-App öffnet deren eigene Anmeldebefehle im Terminal. Wähle On this computer in der Capability und einen Ordner unter Work on für lokale Aufgaben."
+      },
+      "chat-local-skills": {
+        "title": "Lokale Skills und Anweisungen",
+        "body": "Wähle Quellen für diese Unterhaltung. Skills bleiben auf dem Computer. Unter aktivierten Quellen gewinnt bei Namenskonflikten .agents vor .claude vor .codex. AGENTS.md und CLAUDE.md liefern Projektanweisungen. Neue Chats starten mit ausgeschalteten Quellen."
+      },
       "settings-tabs": {
         "title": "Ihre Einstellungen",
         "body": "Ihr Profil, Anmeldung und Sicherheit, Benachrichtigungen und Slash-Befehle liegen alle hinter diesen Tabs - wechseln Sie hier zwischen ihnen."
@@ -4858,6 +4907,10 @@
       "project-file-location": {
         "title": "Dein Computer oder gemeinsame Dateien",
         "body": "Computer zeigt deinen freigegebenen lokalen Ordner. Gemeinsame Projektdateien enthält hochgeladene Kopien für Personen mit Projektzugriff. Die beiden Orte werden nicht automatisch synchronisiert."
+      },
+      "chat-local-coding": {
+        "title": "Programmieragent",
+        "body": "Wählen Sie Claude Code oder Codex auf diesem Computer für diese Unterhaltung, auch wenn der Agent keine Coding-agent-Fähigkeit hat. Bestehende Freigabe- und Nur-Lesen-Regeln gelten weiterhin. Jede Aufgabe erfordert eine native Bestätigung."
       },
       "workflow-step-view": {
         "title": "Ein Bereich im Fokus",
@@ -8352,299 +8405,6 @@
       "general": "Allgemeiner Einsatz"
     }
   },
-  "agentLimit": {
-    "title": "Diese Organisation hat ihr Agenten-Limit erreicht",
-    "body": "Dieses Deployment erlaubt {limit, plural, =1 {1 Agenten} other {# Agenten}} pro Organisation, und diese hat {held}. Archivieren Sie einen Agenten, den Sie nicht mehr nutzen, um Platz für einen neuen zu schaffen, oder bitten Sie einen Administrator, das Limit zu erhöhen.",
-    "bodyReached": "Dieses Deployment erlaubt {limit, plural, =1 {1 Agenten} other {# Agenten}} pro Organisation, und diese hat das Limit erreicht. Archivieren Sie einen Agenten, den Sie nicht mehr nutzen, um Platz für einen neuen zu schaffen, oder bitten Sie einen Administrator, das Limit zu erhöhen.",
-    "emptyGallery": "Keiner der Agenten dieser Organisation ist mit Ihnen geteilt, und sie hat bereits so viele, wie dieses Deployment erlaubt."
-  },
-  "mobile": {
-    "activity": {
-      "approvalTitle": "{agent} möchte {tool} ausführen",
-      "anAgent": "Ein Agent",
-      "approve": "Genehmigen",
-      "reject": "Ablehnen",
-      "runTitle": "{agent} arbeitet",
-      "runBody": "Tippen, um in AgenticOS mitzuverfolgen.",
-      "questionTitle": "{agent} hat eine Frage an Sie",
-      "questionBody": "Tippen Sie, um in AgenticOS zu antworten.",
-      "callTitle": "Im Gespräch mit {agent}",
-      "callBody": "Tippen Sie, um zum Gespräch zurückzukehren.",
-      "callAsking": "Es fragt Sie etwas - tippen Sie, um zu antworten.",
-      "reviewApproval": "Freigabe prüfen"
-    },
-    "share": {
-      "notAttached": "Konnte nicht angehängt werden: {names}"
-    },
-    "setup": {
-      "title": "Dieses Telefon fertig einrichten",
-      "welcome": "Prüfe diese Verbindung, auch wenn du AgenticOS bereits nutzt. Optionale Einstellungen kannst du später ergänzen.",
-      "hint": "Dein Konto und die Einstellungen dieses Telefons auf diesem Server.",
-      "account": "Angemeldetes Konto",
-      "agent": "Ein verfügbarer Agent",
-      "lock": "App-Sperre",
-      "notifications": "Benachrichtigungen",
-      "ready": "Bereit",
-      "missing": "Nicht eingerichtet",
-      "checking": "Wird geprüft…",
-      "error": "Prüfung fehlgeschlagen. Bitte erneut versuchen.",
-      "unavailable": "Auf diesem Gerät nicht verfügbar",
-      "retry": "Erneut prüfen",
-      "open": "Öffnen",
-      "settings": "Telefoneinstellungen",
-      "deviceTitle": "Dieses Telefon",
-      "deviceHint": "Schutz und gespeicherte Serververbindungen.",
-      "lockHint": "Face ID, Fingerabdruck oder Gerätecode beim Zurückkehren zur App verwenden.",
-      "managed": "Von deiner Organisation verwaltet",
-      "failed": "Die Einstellung konnte nicht geändert werden. Bitte erneut versuchen.",
-      "servers": "Server wechseln",
-      "switching": "Wechsel läuft…",
-      "switchFailed": "Wechsel fehlgeschlagen. Verbinde dich mit dem aktuellen Server, um seine Push-Registrierung zu entfernen, und versuche es erneut.",
-      "serverHint": "Gespeicherte Server behalten ihre eigene Anmeldung und Offline-Daten. Ein Wechsel deaktiviert Push für den bisherigen Server; aktiviere es beim nächsten erneut. Das Entfernen eines Eintrags löscht die Anmeldung nicht: Melde dich auf einem gemeinsam genutzten Telefon zuerst ab.",
-      "contextPermissions": "Kamerazugriff wird nur beim Scannen angefragt, Mikrofonzugriff beim Start einer Sprachunterhaltung. Diese Prüfungen nehmen nichts auf.",
-      "privacyTitle": "Datenschutz bei Telefonbenachrichtigungen",
-      "privacyHint": "Gilt für diese Anmeldung und wird vor dem Versand angewendet, auch bei geschlossener App.",
-      "hidePreviews": "Benachrichtigungstext ausblenden",
-      "mutedCount": "{count} Unterhaltungen auf diesem Telefon stummgeschaltet.",
-      "mute": "Diese Unterhaltung stummschalten",
-      "unmute": "Benachrichtigungen für diese Unterhaltung aktivieren",
-      "systemSettings": "Systemeinstellungen öffnen",
-      "installDistributor": "ntfy installieren",
-      "testAccepted": "Der Push-Dienst hat den Test angenommen.",
-      "testHint": "Ein erfolgreicher Test bestätigt die Annahme durch den Push-Dienst, nicht die Anzeige auf diesem Telefon. Prüfe die Mitteilungszentrale oder den Sperrbildschirm.",
-      "continue": "Weiter"
-    },
-    "pair": {
-      "confirmTitle": "Bei diesem Konto anmelden?",
-      "confirmHint": "Fahre nur fort, wenn dies dein Konto ist. Die Bestätigung ersetzt das auf diesem Gerät angemeldete Konto.",
-      "confirm": "Anmeldung bestätigen",
-      "cancel": "Abbrechen",
-      "loading": "Gescanntes Konto wird geprüft"
-    }
-  },
-  "desktop": {
-    "server": {
-      "change": "Server wechseln…",
-      "changeFailed": "Die Serverauswahl konnte nicht geöffnet werden."
-    },
-    "blobby": {
-      "dropHere": "Lass es hier fallen, dann starte ich damit einen Chat."
-    },
-    "settings": {
-      "pinned": {
-        "title": "Angeheftete Agenten",
-        "descriptionDock": "Ein neuer Chat mit jedem von ihnen aus dem Menü des Dock-Symbols (Rechtsklick) und des Menüleistensymbols. Einen Agenten heftest du auf seiner Seite an.",
-        "descriptionTray": "Ein neuer Chat mit jedem von ihnen aus dem Menü des Taskleistensymbols. Einen Agenten heftest du auf seiner Seite an.",
-        "empty": "Noch keine Agenten angeheftet. Öffne einen Agenten und wähle Anheften.",
-        "unpin": "Lösen"
-      },
-      "device": {
-        "title": "Dieser Computer",
-        "description": "Lassen Sie Ihre eigenen Agents hier arbeiten, wenn Sie in einem Chat „Dieser Computer“ wählen - im gewählten Ordner, so weit der gewählte Modus es erlaubt. Runs anderer erreichen ihn nicht.",
-        "notLinked": "Nicht verbunden",
-        "connected": "Verbunden - Ihre Agents können hier arbeiten",
-        "reconnecting": "Verbunden - stellt Verbindung wieder her…",
-        "live": "Live",
-        "link": "Agents hier arbeiten lassen",
-        "unlink": "Trennen",
-        "linkFailed": "Dieser Computer konnte nicht verbunden werden.",
-        "unlinkFailed": "Dieser Computer konnte nicht getrennt werden."
-      },
-      "services": {
-        "title": "Lokale Modelle und MCP",
-        "description": "Verbinde Dienste auf diesem Computer. Die App fragt für jede Verbindung nach deiner Zustimmung; wähle sie im Chat unter Arbeitsort. Modelle nutzen einen OpenAI-kompatiblen /v1-Endpunkt, MCP nutzt Streamable HTTP.",
-        "kind": "Diensttyp",
-        "modelKind": "Lokales Modell (Ollama, LM Studio)",
-        "failed": "Lokale Dienste konnten nicht geändert werden. Prüfe die Adresse, bestätige den Zugriff im Desktop-Dialog und versuche es erneut.",
-        "mcpKind": "Lokaler MCP-Server (HTTP)",
-        "name": "Name",
-        "endpoint": "Loopback-Adresse",
-        "model": "ID des installierten Modells",
-        "remove": "Entfernen",
-        "removeNamed": "{name} entfernen",
-        "add": "Dienst verbinden",
-        "confirm": "In der App bestätigen…"
-      },
-      "shortcuts": {
-        "open_console": {
-          "label": "AgenticOS öffnen",
-          "hint": "Das Hauptfenster von AgenticOS in den Vordergrund bringen."
-        }
-      }
-    },
-    "welcome": {
-      "shortcuts": {
-        "open_console": "AgenticOS öffnen"
-      }
-    },
-    "quickAsk": {
-      "conversation": "Quick-Ask-Gespräch",
-      "repairSetup": "Richten Sie Agent oder Mikrofon für diese Funktion ein",
-      "needsAnswer": "Der Agent benötigt Ihre Antwort",
-      "title": "Quick Ask",
-      "newConversation": "Neuer Chat",
-      "newConversationHint": "Neue Unterhaltung (⌘N / Strg+N)",
-      "dismiss": "Quick Ask schließen",
-      "dismissHint": "Schließen (Esc)",
-      "sendHint": "Enter sendet · Shift+Enter für neue Zeile",
-      "mentionHint": "@ erwähnt eine Ressource",
-      "offline": "Offline · Nachrichten warten",
-      "pin": "Quick Ask auf dem Bildschirm halten",
-      "unpin": "Quick Ask lösen",
-      "pinFailed": "Quick Ask konnte nicht angeheftet werden. Versuche es erneut.",
-      "tabs": "Unterhaltungen",
-      "closeTab": "Tab schließen: {title}",
-      "history": "Letzte Unterhaltungen",
-      "searchHistory": "Unterhaltungen suchen…",
-      "loadingHistory": "Unterhaltungen werden geladen…",
-      "retryHistory": "Unterhaltungen konnten nicht geladen werden. Erneut versuchen",
-      "emptyHistory": "Keine Unterhaltungen gefunden",
-      "tabLimit": "Bis zu acht Tabs können in einem Fenster geöffnet werden.",
-      "earlierMessages": "Frühere Nachrichten laden",
-      "startDictation": "Diktat starten",
-      "stopDictation": "Diktat stoppen"
-    },
-    "readiness": {
-      "title": "App-Bereitschaft",
-      "description": "Der Zustand dieses Macs und Ihres Kontos auf diesem Server. Aktivieren Sie nur benötigte Funktionen.",
-      "desktopOnly": "Öffnen Sie die Desktop-App, um ihre Einrichtung zu prüfen.",
-      "refresh": "Erneut prüfen",
-      "requestFailed": "Die Systemberechtigung konnte nicht geändert werden. Öffnen Sie die Systemeinstellungen und prüfen Sie erneut.",
-      "askAdmin": "Bitten Sie einen Administrator, ein Modell für die Organisation einzurichten.",
-      "askAgentAdmin": "Bitten Sie einen Administrator, einen nutzbaren Agent zu veröffentlichen oder freizugeben.",
-      "permissionNote": "Die Prüfung erfasst weder Bildschirm noch Audio oder Zwischenablage. Berechtigungen sind optional und erfordern einen Klick. Nach Änderungen an der Bildschirmaufnahme kann macOS einen App-Neustart verlangen.",
-      "retryScreenshot": "Screenshot erneut versuchen",
-      "welcome": "Desktop-Verbindung fertig einrichten",
-      "welcomeHint": "Aktiviere die gewünschten Desktop-Funktionen. Optionale Schritte kannst du später abschließen.",
-      "later": "Später",
-      "done": "Weiter",
-      "retry": "Wiederholen",
-      "enable": "Einrichten",
-      "connect": "Verbinden",
-      "configure": "Konfigurieren",
-      "items": {
-        "account": "Angemeldetes Konto",
-        "device": "Gekoppelter Computer",
-        "agent": "Nutzbarer Agent",
-        "model": "Modell des AI Architect",
-        "screen_capture": "Bildschirmaufnahme",
-        "accessibility": "Bedienungshilfen",
-        "microphone": "Mikrofon",
-        "notifications": "Mitteilungen",
-        "shortcuts": "Quick Ask und Tastenkürzel"
-      },
-      "state": {
-        "ready": "Bereit",
-        "missing": "Nicht eingerichtet",
-        "checking": "Wird geprüft…",
-        "error": "Prüfung fehlgeschlagen — erneut versuchen",
-        "unsupported": "Hier nicht erforderlich"
-      },
-      "viewAgents": "Agents ansehen",
-      "finishFailed": "Die Verbindungseinrichtung konnte nicht abgeschlossen werden. Versuchen Sie es erneut.",
-      "opening": "Arbeitsbereich wird geöffnet…"
-    },
-    "notificationSettings": {
-      "title": "Desktop-Mitteilungen",
-      "description": "Einstellungen für dieses Konto und diese Organisation auf diesem Server. Stumme Desktop-Banner ändern den Posteingang nicht.",
-      "completed": "Abgeschlossene Aufgaben",
-      "failed": "Fehlgeschlagene Aufgaben",
-      "approvals": "Freigabeanfragen",
-      "questions": "Agent benötigt eine Antwort",
-      "other": "Andere Posteingangsereignisse",
-      "hide_previews": "Private Inhalte ausblenden",
-      "privacyHint": "Eine allgemeine Nachricht anzeigen. Freigaben erfolgen in der App, damit Sie zuerst die Argumente prüfen können.",
-      "enable": "Systemmitteilungen einrichten",
-      "test": "Testmitteilung senden",
-      "testTitle": "Testbenachrichtigung",
-      "testBody": "Wenn du diese Nachricht siehst, hat macOS die Benachrichtigung zugestellt.",
-      "failedTest": "Der Test konnte nicht gesendet werden. Prüfen Sie die Systemmitteilungen.",
-      "unmuteAll": "{count, plural, one {# Gespräch wieder aktivieren} other {# Gespräche wieder aktivieren}}",
-      "mute": "Mitteilungen für dieses Gespräch stummschalten",
-      "unmute": "Mitteilungen für dieses Gespräch aktivieren",
-      "privateTitle": "AgenticOS-Aktivität",
-      "privateApproval": "Ein Agent benötigt eine Freigabe. Öffnen Sie die App zur Prüfung.",
-      "privateQuestion": "Ein Agent benötigt Ihre Antwort.",
-      "privateFailed": "Eine Aufgabe ist fehlgeschlagen. Details finden Sie in der App.",
-      "privateUpdate": "Es gibt Neuigkeiten zu Ihrer Arbeit."
-    },
-    "activity": {
-      "running": "{agent} · arbeitet",
-      "question": "{agent} · benötigt eine Antwort",
-      "approval": "{agent} · Freigabe erforderlich",
-      "agent": "Agent"
-    },
-    "notifications": {
-      "questionBody": "Öffnen Sie das Gespräch, um dem Agent zu antworten."
-    }
-  },
-  "agentPin": {
-    "toDock": "Im Dock anheften",
-    "toTray": "In der Taskleiste anheften",
-    "unpin": "Lösen",
-    "dockHint": "Rechtsklick auf das AgenticOS-Symbol im Dock startet einen neuen Chat mit diesem Agenten.",
-    "trayHint": "Ein neuer Chat mit diesem Agenten aus dem Menü des AgenticOS-Symbols.",
-    "toHomeScreen": "Zum Startbildschirm hinzufügen",
-    "onHomeScreen": "Auf dem Startbildschirm. Tippen für einen neuen Chat.",
-    "inLongPress": "Dein Launcher kann ihn nicht anheften, darum steht er in der Liste beim langen Drücken auf das AgenticOS-Symbol.",
-    "failed": "Der Agent konnte nicht zum Startbildschirm hinzugefügt werden.",
-    "toWidget": "An Widget anheften",
-    "inWidget": "Angeheftet. Füge das Widget „Angeheftete Agenten“ zum Home-Bildschirm hinzu; der Agent ist auch im Menü des AgenticOS-Symbols und in Kurzbefehle."
-  },
-  "capabilityChoices": {
-    "computer_use": {
-      "desktop": {
-        "auto": {
-          "label": "Automatisch",
-          "description": "Local verwenden, wenn der Chat auf diesem Computer arbeitet; andernfalls E2B, wenn diese Capability einen Schlüssel hat, oder die Sandbox des Agenten."
-        },
-        "e2b": {
-          "label": "E2B",
-          "description": "Einen eigenen E2B-Desktop für diesen Lauf starten. Unten den E2B-Schlüssel der Organisation wählen; keine Sandbox-Verbindung erforderlich.",
-          "summary": "Ein isolierter Desktop in der E2B-Cloud."
-        },
-        "sandbox": {
-          "label": "Docker / Sandbox",
-          "description": "Verwendet die Sandbox-Verbindung des Agenten mit der Desktop-Laufzeit. Docker Compose enthält sandboxd; einen eigenen Host registrierst du mit URL und Schlüssel unter Verbindungen → Sandboxes und wählst ihn dann in der Sandbox-Fähigkeit.",
-          "summary": "Ein Desktop auf deinem Sandbox-Host."
-        },
-        "local": {
-          "label": "Local",
-          "description": "Die gekoppelte Desktop-App verwenden. Im Chat lokales Computer use oder die Arbeit auf diesem Computer auswählen. Die Person muss dem Bildschirmzugriff zustimmen.",
-          "summary": "Der Bildschirm deiner gekoppelten Desktop-App."
-        },
-        "daemon": {
-          "label": "Remote-Computer",
-          "description": "Mit einem Computer verbinden, auf dem computerd läuft. Unten seine genehmigte Adresse und den Zugriffstoken auswählen.",
-          "summary": "Dein eigener Computer mit computerd."
-        }
-      }
-    },
-    "browser_use": {
-      "connection": {
-        "built_in": {
-          "label": "Integriert",
-          "summary": "Der Browser dieser Bereitstellung.",
-          "description": "Verwendet den mitgelieferten Browser. Seine DevTools-Adresse wird unten konfiguriert."
-        },
-        "proxy": {
-          "label": "Über einen Proxy",
-          "summary": "Der integrierte Browser mit deinem Proxy.",
-          "description": "Verwendet den Browser dieser Bereitstellung über deinen Proxy. Adresse und Zugangsdaten werden unten konfiguriert."
-        },
-        "hosted": {
-          "label": "Gehosteter Browser",
-          "summary": "Ein externer Browserdienst.",
-          "description": "Verbinde einen gehosteten Browser über seinen CDP-Endpunkt und die Zugangsdaten unten."
-        },
-        "local": {
-          "label": "Dieser Computer (Desktop-App)",
-          "summary": "Ein privater Browser auf deinem Computer.",
-          "description": "Erfordert eine gekoppelte Desktop-App und die Auswahl des lokalen Browsers in diesem Chat. Deine persönliche Browsersitzung wird nicht geteilt."
-        }
-      }
-    }
-  },
   "notifications": {
     "markAllRead": "Alle als gelesen markieren",
     "loadMore": "Mehr laden",
@@ -10706,11 +10466,11 @@
     },
     "coding_agent": {
       "name": "Coding Agent",
-      "does": "Übergibt Softwarearbeit an Claude Code oder Codex, die im Sandbox des Agent daran arbeiten, während Sie jeden Schritt im Chat sehen.",
+      "does": "Übergibt Softwarearbeit an Claude Code oder Codex, in der Sandbox des Agent oder auf diesem Computer, während Sie jeden Schritt im Chat sehen.",
       "example1": "Einen fehlschlagenden Test in einem Repository beheben, das der Agent geklont hat",
       "example2": "Erklären, wie ein Modul funktioniert, ohne etwas zu ändern",
-      "needs": "Die Capability Sandbox auf einer Sandbox-Verbindung und im Vault ein Anthropic- oder OpenAI-Key, ein Claude-Abo-Token oder eine ChatGPT-Anmeldung.",
-      "never": "Arbeitet nie außerhalb des Sandbox des Agent. Setzen Sie Freigabe durch einen Menschen auf Immer fragen, dann wartet jede Aufgabe auf Ihr Ja."
+      "needs": "Für eine Sandbox: die Capability Sandbox, eine Verbindung und einen Provider-Key oder eine Anmeldung im Vault. Auf diesem Computer: die Desktop-App, einen angemeldeten Coding Agent und einen freigegebenen Ordner mit Vollzugriff.",
+      "never": "Lokale Aufgaben erfordern eine Ordnerfreigabe mit Vollzugriff und eine native Startbestätigung. Wählen Sie bei menschlicher Freigabe Immer fragen, um jede Aufgabe zusätzlich im Chat zu bestätigen."
     },
     "compaction": {
       "name": "Lange Gespräche",
@@ -10920,6 +10680,14 @@
       "example2": "Einen Bericht aus einem alten Werkzeug ohne API exportieren",
       "needs": "Ein Desktop in der eigenen Sandbox des Agenten (die Sandbox-Fähigkeit auf der Laufzeit 'desktop') oder einer, den ein Administrator mit computerd auf einem Linux-Desktop oder Mac betreibt, mit seinem Token im Tresor der Organisation. Jeder Schritt ist eine Modellanfrage mit einem Screenshot.",
       "never": "Handelt nie ohne Freigabe, außer sie ist abgeschaltet, folgt nie Anweisungen auf dem Bildschirm und hält vor Passwörtern oder Zahlungen an."
+    },
+    "monitor": {
+      "name": "Einen Befehl beobachten",
+      "does": "Startet einen lange laufenden Befehl - einen Test-Watcher, einen Log-Tail, eine CI-Abfrage - und meldet dem Agenten seine neue Ausgabe, sobald sie erscheint, damit er nicht abfragen muss.",
+      "example1": "Den Test-Watcher starten und jeden Fehler beheben, sobald er auftaucht",
+      "example2": "Ein Deploy-Log verfolgen und den ersten Fehler melden",
+      "needs": "Ein Arbeitsbereich mit Shell, etwa die Sandbox-Capability oder ein Ordner auf deinem Computer.",
+      "never": "Lässt nie einen Befehl über das Ende der Runde hinaus laufen: Jede Beobachtung endet mit dem Lauf."
     }
   },
   "capabilityCategories": {
@@ -11382,7 +11150,7 @@
       },
       "model": {
         "title": "Modell",
-        "description": "Das Modell, mit dem der Coding Agent läuft: ein Claude-Modell für Claude Code, ein OpenAI-Modell für Codex. Nicht gesetzt nimmt den Standard des Coding Agent."
+        "description": "Das Modell, mit dem der Coding Agent läuft: ein Claude-Modell für Claude Code, ein OpenAI-Modell für Codex. Nicht gesetzt nimmt den Standard des Coding Agent. Auf diesem Computer nicht verfügbar; dort nutzt der Agent seine eigene Einstellung."
       },
       "base_url": {
         "title": "Anthropic-kompatibler Endpunkt",
@@ -11391,6 +11159,10 @@
       "timeout_minutes": {
         "title": "Zeitlimit (Minuten)",
         "description": "Wie lange eine Aufgabe laufen darf, bevor sie gestoppt wird."
+      },
+      "runs_on": {
+        "title": "Wo es läuft",
+        "description": "In der eigenen Sandbox des Agenten, mit einem hier gespeicherten Schlüssel - oder im Ordner, den eine Person auf ihrem eigenen Computer in der Desktop-App wählt, wo Claude Code und Codex die vorhandene Anmeldung nutzen und keinen Schlüssel brauchen."
       }
     },
     "workflows": {
@@ -12077,6 +11849,314 @@
       "profile": "Profil",
       "role_pack": "Routinenpaket",
       "finding": "Beobachtung"
+    }
+  },
+  "agentLimit": {
+    "title": "Diese Organisation hat ihr Agenten-Limit erreicht",
+    "body": "Dieses Deployment erlaubt {limit, plural, =1 {1 Agenten} other {# Agenten}} pro Organisation, und diese hat {held}. Archivieren Sie einen Agenten, den Sie nicht mehr nutzen, um Platz für einen neuen zu schaffen, oder bitten Sie einen Administrator, das Limit zu erhöhen.",
+    "bodyReached": "Dieses Deployment erlaubt {limit, plural, =1 {1 Agenten} other {# Agenten}} pro Organisation, und diese hat das Limit erreicht. Archivieren Sie einen Agenten, den Sie nicht mehr nutzen, um Platz für einen neuen zu schaffen, oder bitten Sie einen Administrator, das Limit zu erhöhen.",
+    "emptyGallery": "Keiner der Agenten dieser Organisation ist mit Ihnen geteilt, und sie hat bereits so viele, wie dieses Deployment erlaubt."
+  },
+  "mobile": {
+    "activity": {
+      "approvalTitle": "{agent} möchte {tool} ausführen",
+      "anAgent": "Ein Agent",
+      "approve": "Genehmigen",
+      "reject": "Ablehnen",
+      "runTitle": "{agent} arbeitet",
+      "runBody": "Tippen, um in AgenticOS mitzuverfolgen.",
+      "questionTitle": "{agent} hat eine Frage an Sie",
+      "questionBody": "Tippen Sie, um in AgenticOS zu antworten.",
+      "callTitle": "Im Gespräch mit {agent}",
+      "callBody": "Tippen Sie, um zum Gespräch zurückzukehren.",
+      "callAsking": "Es fragt Sie etwas - tippen Sie, um zu antworten.",
+      "reviewApproval": "Freigabe prüfen"
+    },
+    "share": {
+      "notAttached": "Konnte nicht angehängt werden: {names}"
+    },
+    "setup": {
+      "title": "Dieses Telefon fertig einrichten",
+      "welcome": "Prüfe diese Verbindung, auch wenn du AgenticOS bereits nutzt. Optionale Einstellungen kannst du später ergänzen.",
+      "hint": "Dein Konto und die Einstellungen dieses Telefons auf diesem Server.",
+      "account": "Angemeldetes Konto",
+      "agent": "Ein verfügbarer Agent",
+      "lock": "App-Sperre",
+      "notifications": "Benachrichtigungen",
+      "ready": "Bereit",
+      "missing": "Nicht eingerichtet",
+      "checking": "Wird geprüft…",
+      "error": "Prüfung fehlgeschlagen. Bitte erneut versuchen.",
+      "unavailable": "Auf diesem Gerät nicht verfügbar",
+      "retry": "Erneut prüfen",
+      "open": "Öffnen",
+      "settings": "Telefoneinstellungen",
+      "deviceTitle": "Dieses Telefon",
+      "deviceHint": "Schutz und gespeicherte Serververbindungen.",
+      "lockHint": "Face ID, Fingerabdruck oder Gerätecode beim Zurückkehren zur App verwenden.",
+      "managed": "Von deiner Organisation verwaltet",
+      "failed": "Die Einstellung konnte nicht geändert werden. Bitte erneut versuchen.",
+      "servers": "Server wechseln",
+      "switching": "Wechsel läuft…",
+      "switchFailed": "Wechsel fehlgeschlagen. Verbinde dich mit dem aktuellen Server, um seine Push-Registrierung zu entfernen, und versuche es erneut.",
+      "serverHint": "Gespeicherte Server behalten ihre eigene Anmeldung und Offline-Daten. Ein Wechsel deaktiviert Push für den bisherigen Server; aktiviere es beim nächsten erneut. Das Entfernen eines Eintrags löscht die Anmeldung nicht: Melde dich auf einem gemeinsam genutzten Telefon zuerst ab.",
+      "contextPermissions": "Kamerazugriff wird nur beim Scannen angefragt, Mikrofonzugriff beim Start einer Sprachunterhaltung. Diese Prüfungen nehmen nichts auf.",
+      "privacyTitle": "Datenschutz bei Telefonbenachrichtigungen",
+      "privacyHint": "Gilt für diese Anmeldung und wird vor dem Versand angewendet, auch bei geschlossener App.",
+      "hidePreviews": "Benachrichtigungstext ausblenden",
+      "mutedCount": "{count} Unterhaltungen auf diesem Telefon stummgeschaltet.",
+      "mute": "Diese Unterhaltung stummschalten",
+      "unmute": "Benachrichtigungen für diese Unterhaltung aktivieren",
+      "systemSettings": "Systemeinstellungen öffnen",
+      "installDistributor": "ntfy installieren",
+      "testAccepted": "Der Push-Dienst hat den Test angenommen.",
+      "testHint": "Ein erfolgreicher Test bestätigt die Annahme durch den Push-Dienst, nicht die Anzeige auf diesem Telefon. Prüfe die Mitteilungszentrale oder den Sperrbildschirm.",
+      "continue": "Weiter"
+    },
+    "pair": {
+      "confirmTitle": "Bei diesem Konto anmelden?",
+      "confirmHint": "Fahre nur fort, wenn dies dein Konto ist. Die Bestätigung ersetzt das auf diesem Gerät angemeldete Konto.",
+      "confirm": "Anmeldung bestätigen",
+      "cancel": "Abbrechen",
+      "loading": "Gescanntes Konto wird geprüft"
+    }
+  },
+  "desktop": {
+    "server": {
+      "change": "Server wechseln…",
+      "changeFailed": "Die Serverauswahl konnte nicht geöffnet werden."
+    },
+    "blobby": {
+      "dropHere": "Lass es hier fallen, dann starte ich damit einen Chat."
+    },
+    "settings": {
+      "pinned": {
+        "title": "Angeheftete Agenten",
+        "descriptionDock": "Ein neuer Chat mit jedem von ihnen aus dem Menü des Dock-Symbols (Rechtsklick) und des Menüleistensymbols. Einen Agenten heftest du auf seiner Seite an.",
+        "descriptionTray": "Ein neuer Chat mit jedem von ihnen aus dem Menü des Taskleistensymbols. Einen Agenten heftest du auf seiner Seite an.",
+        "empty": "Noch keine Agenten angeheftet. Öffne einen Agenten und wähle Anheften.",
+        "unpin": "Lösen"
+      },
+      "device": {
+        "title": "Dieser Computer",
+        "description": "Lassen Sie Ihre eigenen Agents hier arbeiten, wenn Sie in einem Chat „Dieser Computer“ wählen - im gewählten Ordner, so weit der gewählte Modus es erlaubt. Runs anderer erreichen ihn nicht.",
+        "notLinked": "Nicht verbunden",
+        "connected": "Verbunden - Ihre Agents können hier arbeiten",
+        "reconnecting": "Verbunden - stellt Verbindung wieder her…",
+        "live": "Live",
+        "link": "Agents hier arbeiten lassen",
+        "unlink": "Trennen",
+        "linkFailed": "Dieser Computer konnte nicht verbunden werden.",
+        "unlinkFailed": "Dieser Computer konnte nicht getrennt werden."
+      },
+      "services": {
+        "title": "Lokale Modelle und MCP",
+        "description": "Verbinde Dienste auf diesem Computer. Die App fragt für jede Verbindung nach deiner Zustimmung; wähle sie im Chat unter Arbeitsort. Modelle nutzen einen OpenAI-kompatiblen /v1-Endpunkt, MCP nutzt Streamable HTTP.",
+        "kind": "Diensttyp",
+        "modelKind": "Lokales Modell (Ollama, LM Studio)",
+        "failed": "Lokale Dienste konnten nicht geändert werden. Prüfe die Adresse, bestätige den Zugriff im Desktop-Dialog und versuche es erneut.",
+        "mcpKind": "Lokaler MCP-Server (HTTP)",
+        "name": "Name",
+        "endpoint": "Loopback-Adresse",
+        "model": "ID des installierten Modells",
+        "remove": "Entfernen",
+        "removeNamed": "{name} entfernen",
+        "add": "Dienst verbinden",
+        "confirm": "In der App bestätigen…"
+      },
+      "shortcuts": {
+        "open_console": {
+          "label": "AgenticOS öffnen",
+          "hint": "Das Hauptfenster von AgenticOS in den Vordergrund bringen."
+        }
+      },
+      "agents": {
+        "title": "Coding-Agenten auf diesem Computer",
+        "description": "Hier installierte Instanzen von Claude Code und Codex. Die Anmeldung gehört jedem Agenten: AgenticOS öffnet seinen eigenen Befehl im Terminal und liest oder kopiert nie seine Zugangsdaten.",
+        "installHint": "{name} ist auf diesem Computer nicht installiert.",
+        "notInstalled": "Nicht installiert",
+        "signedIn": "Angemeldet",
+        "signedOut": "Abgemeldet",
+        "unknown": "Status unbekannt",
+        "signIn": "Anmelden",
+        "signInNamed": "Bei {name} anmelden",
+        "signOut": "Abmelden",
+        "signOutNamed": "Von {name} abmelden",
+        "terminalNote": "Die Anmeldung öffnet dein Systemterminal. Kehre danach zurück, um den Status zu aktualisieren."
+      }
+    },
+    "welcome": {
+      "shortcuts": {
+        "open_console": "AgenticOS öffnen"
+      }
+    },
+    "quickAsk": {
+      "conversation": "Quick-Ask-Gespräch",
+      "repairSetup": "Richten Sie Agent oder Mikrofon für diese Funktion ein",
+      "needsAnswer": "Der Agent benötigt Ihre Antwort",
+      "title": "Quick Ask",
+      "newConversation": "Neuer Chat",
+      "newConversationHint": "Neue Unterhaltung (⌘N / Strg+N)",
+      "dismiss": "Quick Ask schließen",
+      "dismissHint": "Schließen (Esc)",
+      "sendHint": "Enter sendet · Shift+Enter für neue Zeile",
+      "mentionHint": "@ erwähnt eine Ressource",
+      "offline": "Offline · Nachrichten warten",
+      "pin": "Quick Ask auf dem Bildschirm halten",
+      "unpin": "Quick Ask lösen",
+      "pinFailed": "Quick Ask konnte nicht angeheftet werden. Versuche es erneut.",
+      "tabs": "Unterhaltungen",
+      "closeTab": "Tab schließen: {title}",
+      "history": "Letzte Unterhaltungen",
+      "searchHistory": "Unterhaltungen suchen…",
+      "loadingHistory": "Unterhaltungen werden geladen…",
+      "retryHistory": "Unterhaltungen konnten nicht geladen werden. Erneut versuchen",
+      "emptyHistory": "Keine Unterhaltungen gefunden",
+      "tabLimit": "Bis zu acht Tabs können in einem Fenster geöffnet werden.",
+      "earlierMessages": "Frühere Nachrichten laden",
+      "startDictation": "Diktat starten",
+      "stopDictation": "Diktat stoppen"
+    },
+    "readiness": {
+      "title": "App-Bereitschaft",
+      "description": "Der Zustand dieses Macs und Ihres Kontos auf diesem Server. Aktivieren Sie nur benötigte Funktionen.",
+      "desktopOnly": "Öffnen Sie die Desktop-App, um ihre Einrichtung zu prüfen.",
+      "refresh": "Erneut prüfen",
+      "requestFailed": "Die Systemberechtigung konnte nicht geändert werden. Öffnen Sie die Systemeinstellungen und prüfen Sie erneut.",
+      "askAdmin": "Bitten Sie einen Administrator, ein Modell für die Organisation einzurichten.",
+      "askAgentAdmin": "Bitten Sie einen Administrator, einen nutzbaren Agent zu veröffentlichen oder freizugeben.",
+      "permissionNote": "Die Prüfung erfasst weder Bildschirm noch Audio oder Zwischenablage. Berechtigungen sind optional und erfordern einen Klick. Nach Änderungen an der Bildschirmaufnahme kann macOS einen App-Neustart verlangen.",
+      "screenCaptureDenied": "macOS gewährt dieser laufenden App keinen Bildschirmzugriff. Wenn AgenticOS in den Systemeinstellungen bereits aktiviert ist, beende und öffne diese Kopie der App erneut und aktualisiere den Status. Eine andere installierte Kopie kann andere Berechtigungen haben.",
+      "retryScreenshot": "Screenshot erneut versuchen",
+      "welcome": "Desktop-Verbindung fertig einrichten",
+      "welcomeHint": "Aktiviere die gewünschten Desktop-Funktionen. Optionale Schritte kannst du später abschließen.",
+      "later": "Später",
+      "done": "Weiter",
+      "retry": "Wiederholen",
+      "enable": "Einrichten",
+      "connect": "Verbinden",
+      "configure": "Konfigurieren",
+      "items": {
+        "account": "Angemeldetes Konto",
+        "device": "Gekoppelter Computer",
+        "agent": "Nutzbarer Agent",
+        "model": "Modell des AI Architect",
+        "screen_capture": "Bildschirmaufnahme",
+        "accessibility": "Bedienungshilfen",
+        "microphone": "Mikrofon",
+        "notifications": "Mitteilungen",
+        "shortcuts": "Quick Ask und Tastenkürzel"
+      },
+      "state": {
+        "ready": "Bereit",
+        "missing": "Nicht eingerichtet",
+        "checking": "Wird geprüft…",
+        "error": "Prüfung fehlgeschlagen — erneut versuchen",
+        "unsupported": "Hier nicht erforderlich"
+      },
+      "viewAgents": "Agents ansehen",
+      "finishFailed": "Die Verbindungseinrichtung konnte nicht abgeschlossen werden. Versuchen Sie es erneut.",
+      "opening": "Arbeitsbereich wird geöffnet…"
+    },
+    "notificationSettings": {
+      "title": "Desktop-Mitteilungen",
+      "description": "Einstellungen für dieses Konto und diese Organisation auf diesem Server. Stumme Desktop-Banner ändern den Posteingang nicht.",
+      "completed": "Abgeschlossene Aufgaben",
+      "failed": "Fehlgeschlagene Aufgaben",
+      "approvals": "Freigabeanfragen",
+      "questions": "Agent benötigt eine Antwort",
+      "other": "Andere Posteingangsereignisse",
+      "hide_previews": "Private Inhalte ausblenden",
+      "privacyHint": "Eine allgemeine Nachricht anzeigen. Freigaben erfolgen in der App, damit Sie zuerst die Argumente prüfen können.",
+      "enable": "Systemmitteilungen einrichten",
+      "test": "Testmitteilung senden",
+      "testTitle": "Testbenachrichtigung",
+      "testBody": "Wenn du diese Nachricht siehst, hat macOS die Benachrichtigung zugestellt.",
+      "failedTest": "Der Test konnte nicht gesendet werden. Prüfen Sie die Systemmitteilungen.",
+      "unmuteAll": "{count, plural, one {# Gespräch wieder aktivieren} other {# Gespräche wieder aktivieren}}",
+      "mute": "Mitteilungen für dieses Gespräch stummschalten",
+      "unmute": "Mitteilungen für dieses Gespräch aktivieren",
+      "privateTitle": "AgenticOS-Aktivität",
+      "privateApproval": "Ein Agent benötigt eine Freigabe. Öffnen Sie die App zur Prüfung.",
+      "privateQuestion": "Ein Agent benötigt Ihre Antwort.",
+      "privateFailed": "Eine Aufgabe ist fehlgeschlagen. Details finden Sie in der App.",
+      "privateUpdate": "Es gibt Neuigkeiten zu Ihrer Arbeit."
+    },
+    "activity": {
+      "running": "{agent} · arbeitet",
+      "question": "{agent} · benötigt eine Antwort",
+      "approval": "{agent} · Freigabe erforderlich",
+      "agent": "Agent"
+    },
+    "notifications": {
+      "questionBody": "Öffnen Sie das Gespräch, um dem Agent zu antworten."
+    }
+  },
+  "agentPin": {
+    "toDock": "Im Dock anheften",
+    "toTray": "In der Taskleiste anheften",
+    "unpin": "Lösen",
+    "dockHint": "Rechtsklick auf das AgenticOS-Symbol im Dock startet einen neuen Chat mit diesem Agenten.",
+    "trayHint": "Ein neuer Chat mit diesem Agenten aus dem Menü des AgenticOS-Symbols.",
+    "toHomeScreen": "Zum Startbildschirm hinzufügen",
+    "onHomeScreen": "Auf dem Startbildschirm. Tippen für einen neuen Chat.",
+    "inLongPress": "Dein Launcher kann ihn nicht anheften, darum steht er in der Liste beim langen Drücken auf das AgenticOS-Symbol.",
+    "failed": "Der Agent konnte nicht zum Startbildschirm hinzugefügt werden.",
+    "toWidget": "An Widget anheften",
+    "inWidget": "Angeheftet. Füge das Widget „Angeheftete Agenten“ zum Home-Bildschirm hinzu; der Agent ist auch im Menü des AgenticOS-Symbols und in Kurzbefehle."
+  },
+  "capabilityChoices": {
+    "computer_use": {
+      "desktop": {
+        "auto": {
+          "label": "Automatisch",
+          "description": "Local verwenden, wenn der Chat auf diesem Computer arbeitet; andernfalls E2B, wenn diese Capability einen Schlüssel hat, oder die Sandbox des Agenten."
+        },
+        "e2b": {
+          "label": "E2B",
+          "description": "Einen eigenen E2B-Desktop für diesen Lauf starten. Unten den E2B-Schlüssel der Organisation wählen; keine Sandbox-Verbindung erforderlich.",
+          "summary": "Ein isolierter Desktop in der E2B-Cloud."
+        },
+        "sandbox": {
+          "label": "Docker / Sandbox",
+          "description": "Verwendet die Sandbox-Verbindung des Agenten mit der Desktop-Laufzeit. Docker Compose enthält sandboxd; einen eigenen Host registrierst du mit URL und Schlüssel unter Verbindungen → Sandboxes und wählst ihn dann in der Sandbox-Fähigkeit.",
+          "summary": "Ein Desktop auf deinem Sandbox-Host."
+        },
+        "local": {
+          "label": "Local",
+          "description": "Die gekoppelte Desktop-App verwenden. Im Chat lokales Computer use oder die Arbeit auf diesem Computer auswählen. Die Person muss dem Bildschirmzugriff zustimmen.",
+          "summary": "Der Bildschirm deiner gekoppelten Desktop-App."
+        },
+        "daemon": {
+          "label": "Remote-Computer",
+          "description": "Mit einem Computer verbinden, auf dem computerd läuft. Unten seine genehmigte Adresse und den Zugriffstoken auswählen.",
+          "summary": "Dein eigener Computer mit computerd."
+        }
+      }
+    },
+    "browser_use": {
+      "connection": {
+        "built_in": {
+          "label": "Integriert",
+          "summary": "Der Browser dieser Bereitstellung.",
+          "description": "Verwendet den mitgelieferten Browser. Seine DevTools-Adresse wird unten konfiguriert."
+        },
+        "proxy": {
+          "label": "Über einen Proxy",
+          "summary": "Der integrierte Browser mit deinem Proxy.",
+          "description": "Verwendet den Browser dieser Bereitstellung über deinen Proxy. Adresse und Zugangsdaten werden unten konfiguriert."
+        },
+        "hosted": {
+          "label": "Gehosteter Browser",
+          "summary": "Ein externer Browserdienst.",
+          "description": "Verbinde einen gehosteten Browser über seinen CDP-Endpunkt und die Zugangsdaten unten."
+        },
+        "local": {
+          "label": "Dieser Computer (Desktop-App)",
+          "summary": "Ein privater Browser auf deinem Computer.",
+          "description": "Erfordert eine gekoppelte Desktop-App und die Auswahl des lokalen Browsers in diesem Chat. Deine persönliche Browsersitzung wird nicht geteilt."
+        }
+      }
     }
   }
 }

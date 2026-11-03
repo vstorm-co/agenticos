@@ -49,6 +49,7 @@ import {
 import { SlashCommandPalette } from "./slash-command-palette";
 import { ComposerEditor, type ComposerEditorHandle } from "./composer-editor";
 import { ComposerHints } from "./composer-hints";
+import { LocalAgentChip } from "./local-agent-chip";
 import { MentionPalette } from "./mention-palette";
 import { useMentionables } from "@/hooks/use-mentionables";
 import {
@@ -891,6 +892,8 @@ export function ChatInput({
           <ReplyingTo reply={replyTo} onCancel={() => setReplyTo(null)} />
         </div>
       )}
+
+      <LocalAgentChip />
 
       {/* The text has the box to itself, and every control is on one row under
           it. The buttons used to sit *beside* the textarea, which is fine on

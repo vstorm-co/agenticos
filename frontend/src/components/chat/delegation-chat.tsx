@@ -63,7 +63,7 @@ export function DelegationChat({
                 <p className="text-muted-foreground text-[11px]">
                   {t("askedBy", { from: asker.name, to: item.delegate.name })}
                 </p>
-                <p className="bg-foreground/[0.05] text-foreground/85 line-clamp-2 max-w-xl rounded-[4px_14px_14px_14px] px-3 py-1.5 text-[13px] leading-relaxed">
+                <p className="bg-foreground/[0.05] text-foreground/85 max-w-xl min-w-0 rounded-[4px_14px_14px_14px] px-3 py-1.5 text-[13px] leading-relaxed [overflow-wrap:anywhere] break-words whitespace-pre-wrap">
                   {item.brief}
                 </p>
               </div>

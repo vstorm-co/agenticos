@@ -1,5 +1,5 @@
 ---
-source_sha: "7569617d3112"
+source_sha: "995b94e2999f"
 ---
 
 # Ochrona danych { #data-protection }
@@ -18,6 +18,8 @@ oprogramowanie potrafi, a tym, co wdrożenie faktycznie postanowiło.
     zależy od skonfigurowanych providerów, ustalonej retencji, podpisanych umów
     i operatora, który je prowadzi. Każdy taki warunek jest poniżej nazwany jako
     coś do zdobycia i zweryfikowania, nigdy jako coś założonego.
+
+Inwentarz capability uwzględnia też lokalnego coding agenta wybieranego dla konwersacji, nawet gdy opublikowany spec nie ma takiego bindingu albo używa sandboxa. Ten wiersz opisuje możliwą ścieżkę, a nie dowód jej użycia.
 
 ## Co wychodzi domyślnie { #nothing-leaves-by-default }
 
@@ -189,6 +191,7 @@ włączona. To jest pełna lista celów, wraz z konfiguracją, która o każdym 
 | Proxy przeglądarki agenta albo przeglądarka hostowana | Wszystko, co przeglądarka ładuje i wysyła, tak jak inaczej robiłaby to przeglądarka we wdrożeniu - strony, treść formularzy, ciasteczka, logowania - oraz własny zapis proxy albo usługi | `browser_use.connection` w spec (#2130); domyślnie `built_in` | Proxy albo usługa przeglądarki hostowanej (Browserbase, Steel lub inna), na umowie organizacji z nią |
 | Kroki przeglądarki | Każdy krok przeglądania idzie do modelu tego agenta: adres strony, jej tytuł, etykiety widocznych elementów i do 4000 znaków jej widocznego tekstu, plus zrzut ekranu przy włączonym `vision` — co może być zawartością systemu wewnętrznego. To, co zawiera pole, nie jest powtarzane: tabela elementów podaje tylko, że pole jest wypełnione | Capability `browser_use` w specu | Dostawcy modelu agenta, tak jak przy rozmowie |
 | Obsługa komputera | Każdy zrzut ekranu pulpitu idzie do modelu tego agenta i może pokazywać wszystko, co jest na nim otwarte; żaden nie jest przechowywany z runem. Akcje, łącznie z tekstem wpisywanym przez model, idą do pulpitu | Capability `computer_use` w specu, z połączeniem sandboksa dla pulpitu w sandboksie; pulpit daemona wymaga swojego hosta na `COMPUTER_DAEMON_ALLOWED_HOSTS`, domyślnie pustej, oraz tokena organizacji do niego w vaulcie | Dostawcy modelu agenta; połączenie sandboksa agenta albo host `computerd`, który uruchamia operator |
+| Lokalne agenty programistyczne | Zadanie i kod odczytywany przez Claude Code lub Codex na komputerze użytkownika | `coding_agent.runs_on: this_computer`, pełny dostęp do folderu i natywne potwierdzenie uruchomienia. Lokalny agent wybiera własny model, endpoint i logowanie; wdrożenie ich nie ustawia | Bezpośrednio z tego komputera do dostawcy lub bramki skonfigurowanej w lokalnym agencie. Raport ochrony danych odróżnia tę ścieżkę od wykonania w sandboxie |
 | Sandbox, ruch wychodzący | **Cokolwiek z workspace'u, do dowolnego hosta** — runtime `workbench` ma sieć, powłokę i `curl` | Capability `sandbox` i runtime z `needs_network`; zatwierdzanie komend bramkuje to, co się uruchamia, a nie to, dokąd się łączy | Dokądkolwiek poszła komenda. Kontrola ruchu wychodzącego to firewall hosta sandboksa, a nie ustawienie tutaj |
 | Serwer MCP | Argumenty i wyniki narzędzi, agenta albo kroku [`mcp.call`](reference/workflow-nodes.md#mcp-call) workflow | `mcp_connections.url`, per organizacja albo per osoba | Operatora serwera |
 | Google Workspace i Microsoft 365, przez serwer, który prowadzisz | To, o co prosi krok `mcp.call` agenta lub workflow: frazy wyszukiwania, identyfikatory wiadomości i wątków, treść odpowiedzi, szczegóły wydarzeń. Twój własny serwer przekazuje to dalej do API Google lub Microsoft i trzyma też tokeny zalogowanego konta | Połączenie organizacji lub osoby utworzone z wpisu katalogu `google-workspace` albo `ms-365` | Twój serwer, a potem Google lub Microsoft |

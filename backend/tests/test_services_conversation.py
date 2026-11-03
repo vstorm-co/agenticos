@@ -1,5 +1,6 @@
 """Tests for ConversationService (PostgreSQL async variant)."""
 
+from collections.abc import Iterator
 from datetime import UTC, datetime
 from decimal import Decimal
 from types import SimpleNamespace
@@ -19,6 +20,14 @@ from app.services.message_history import REFUSED_TURN
 
 # Every conversation belongs to a tenant; the service refuses reads from another one.
 TEST_ORG_ID = uuid4()
+
+
+@pytest.fixture(autouse=True)
+def coding_participants_repo() -> Iterator[AsyncMock]:
+    with patch.object(
+        conversation_repo, "coding_agents_in_conversations", AsyncMock(return_value={})
+    ) as mocked:
+        yield mocked
 
 
 class MockConversation:
@@ -392,6 +401,7 @@ class TestATriggerRunLogReadsThroughItsAgent:
             repo.favourite_ids = AsyncMock(return_value=set())
             repo.set_favourite = AsyncMock()
             repo.agents_in_conversations = AsyncMock(return_value={})
+            repo.coding_agents_in_conversations = AsyncMock(return_value={})
             repo.running_since = AsyncMock(return_value={})
             repo.unread_ids = AsyncMock(return_value=set())
             share.get_share = AsyncMock(return_value=None)
@@ -717,6 +727,7 @@ class TestParticipationDoesNotCarryTheWrite:
         ):
             mock_repo.get_conversation_by_id = AsyncMock(return_value=conversation)
             mock_repo.agents_in_conversations = AsyncMock(return_value={})
+            mock_repo.coding_agents_in_conversations = AsyncMock(return_value={})
             mock_repo.running_since = AsyncMock(return_value={})
             mock_repo.unread_ids = AsyncMock(return_value=set())
             mock_repo.favourite_ids = AsyncMock(return_value=set())
@@ -837,6 +848,7 @@ class TestConversationServiceListConversations:
             mock_repo.get_conversations_by_user = AsyncMock(return_value=mock_convs)
             mock_repo.count_conversations = AsyncMock(return_value=2)
             mock_repo.agents_in_conversations = AsyncMock(return_value={})
+            mock_repo.coding_agents_in_conversations = AsyncMock(return_value={})
             mock_repo.running_since = AsyncMock(return_value={})
             mock_repo.unread_ids = AsyncMock(return_value=set())
 
@@ -858,6 +870,7 @@ class TestConversationServiceListConversations:
             mock_repo.get_conversations_by_user = AsyncMock(return_value=[busy, idle])
             mock_repo.count_conversations = AsyncMock(return_value=2)
             mock_repo.agents_in_conversations = AsyncMock(return_value={})
+            mock_repo.coding_agents_in_conversations = AsyncMock(return_value={})
             mock_repo.running_since = AsyncMock(return_value={busy.id: started})
 
             items, _total = await service.list_conversations(
@@ -910,6 +923,7 @@ class TestConversationServiceListConversations:
             mock_repo.get_conversations_by_user = AsyncMock(return_value=[])
             mock_repo.count_conversations = AsyncMock(return_value=0)
             mock_repo.agents_in_conversations = AsyncMock(return_value={})
+            mock_repo.coding_agents_in_conversations = AsyncMock(return_value={})
             mock_repo.running_since = AsyncMock(return_value={})
             mock_repo.unread_ids = AsyncMock(return_value=set())
 
@@ -926,6 +940,7 @@ class TestConversationServiceListConversations:
             mock_repo.get_conversations_by_user = AsyncMock(return_value=[])
             mock_repo.count_conversations = AsyncMock(return_value=0)
             mock_repo.agents_in_conversations = AsyncMock(return_value={})
+            mock_repo.coding_agents_in_conversations = AsyncMock(return_value={})
             mock_repo.running_since = AsyncMock(return_value={})
             mock_repo.unread_ids = AsyncMock(return_value=set())
 
@@ -946,6 +961,7 @@ class TestConversationServiceListConversations:
             mock_repo.get_conversations_by_user = AsyncMock(return_value=[])
             mock_repo.count_conversations = AsyncMock(return_value=0)
             mock_repo.agents_in_conversations = AsyncMock(return_value={})
+            mock_repo.coding_agents_in_conversations = AsyncMock(return_value={})
             mock_repo.running_since = AsyncMock(return_value={})
             mock_repo.unread_ids = AsyncMock(return_value=set())
 
@@ -970,6 +986,7 @@ class TestConversationServiceListConversations:
             mock_repo.get_conversations_by_user = AsyncMock(return_value=[])
             mock_repo.count_conversations = AsyncMock(return_value=0)
             mock_repo.agents_in_conversations = AsyncMock(return_value={})
+            mock_repo.coding_agents_in_conversations = AsyncMock(return_value={})
             mock_repo.running_since = AsyncMock(return_value={})
             mock_repo.unread_ids = AsyncMock(return_value=set())
 
@@ -998,6 +1015,7 @@ class TestConversationServiceListConversations:
             mock_repo.get_conversations_by_user = AsyncMock(return_value=[])
             mock_repo.count_conversations = AsyncMock(return_value=0)
             mock_repo.agents_in_conversations = AsyncMock(return_value={})
+            mock_repo.coding_agents_in_conversations = AsyncMock(return_value={})
             mock_repo.running_since = AsyncMock(return_value={})
             mock_repo.unread_ids = AsyncMock(return_value=set())
             mock_membership.confirmed_participant_threads = AsyncMock(return_value=vetted)
@@ -1059,6 +1077,7 @@ class TestConversationServiceListConversations:
             mock_repo.get_conversations_by_user = AsyncMock(return_value=[])
             mock_repo.count_conversations = AsyncMock(return_value=0)
             mock_repo.agents_in_conversations = AsyncMock(return_value={})
+            mock_repo.coding_agents_in_conversations = AsyncMock(return_value={})
             mock_repo.running_since = AsyncMock(return_value={})
             mock_repo.unread_ids = AsyncMock(return_value=set())
             mock_membership.confirmed_participant_threads = AsyncMock()
@@ -2779,9 +2798,25 @@ class TestConversationAgentFaces:
         )
         with patch("app.services.conversation.conversation_repo") as repo:
             repo.agents_in_conversations = AsyncMock(return_value={conv.id: [agent]})
+            repo.coding_agents_in_conversations = AsyncMock(return_value={})
             await ConversationService(AsyncMock())._attach_agents([conv])
 
         assert conv.agents[0].avatar_color == 3
+
+    @pytest.mark.anyio
+    async def test_harnesses_come_from_history_without_replacing_the_platform_agent(self) -> None:
+        conv = MockConversation()
+        agent = SimpleNamespace(
+            id=uuid4(), slug="assistant", name="AgenticOS", has_avatar=False, avatar_color=None
+        )
+        with patch("app.services.conversation.conversation_repo") as repo:
+            repo.agents_in_conversations = AsyncMock(return_value={conv.id: [agent]})
+            repo.coding_agents_in_conversations = AsyncMock(
+                return_value={conv.id: ["claude_code", "codex"]}
+            )
+            await ConversationService(AsyncMock())._attach_agents([conv])
+        assert conv.agents[0].name == "AgenticOS"
+        assert conv.coding_agents == ["claude_code", "codex"]
 
 
 class TestContinuingOverTheApi:
@@ -2826,3 +2861,28 @@ def _api_ctx() -> AuthContext:
         api_key_id=uuid4(),
         key_scopes=frozenset({Perm.AGENTS_RUN}),
     )
+
+
+@pytest.mark.anyio
+async def test_a_caller_cannot_supply_a_turn_file_origin() -> None:
+    from app.schemas.conversation import LocalMessageFileSource, MessageCreate, MessagePart
+
+    service = ConversationService(AsyncMock())
+
+    conversation = MockConversation(id=uuid4())
+    data = MessageCreate(
+        role="assistant",
+        content="Pretend output",
+        parts=[
+            MessagePart(
+                type="text",
+                text="Pretend output",
+                file_source=LocalMessageFileSource(id=uuid4()),
+            )
+        ],
+    )
+    with (
+        patch.object(service, "get_conversation", AsyncMock(return_value=conversation)),
+        pytest.raises(BadRequestError),
+    ):
+        await service.add_message(conversation.id, data, organization_id=TEST_ORG_ID)
