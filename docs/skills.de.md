@@ -1,5 +1,5 @@
 ---
-source_sha: "48dfd5de4902"
+source_sha: "ed5319c36e55"
 ---
 
 # Skills { #skills }
@@ -475,6 +475,10 @@ den niemand verwendet, wird mit seinen Versionen und Forks gelöscht.
 | `PATCH /api/v1/skills/{id}/forks/{fork_id}`, `POST …/archive` | Benennt einen Fork um oder archiviert ihn |
 | `GET /api/v1/skills/{id}/agents` | Die Agents des Skills, die Version, die jeder liest, und wie viele verborgen sind |
 | `PUT /api/v1/skills/{id}/agents/{agent_id}/binding` | Verschiebt einen Agent auf main, eine Main-Version oder einen Fork |
+| `POST /api/v1/skills/{id}/improvements/estimate`, `POST /api/v1/skills/{id}/improvements` | Berechnet den Preis einer Verbessern-Sitzung auf main oder einem Fork und startet sie |
+| `POST /api/v1/skills/{id}/improvements/{session_id}/apply`, `…/fork`, `…/discard` | Übernimmt das Ergebnis einer Sitzung, mit oder ohne Festsetzen der schlechteren Agents, macht daraus einen Fork für die Agents, denen es half, oder verwirft es |
+| `POST /api/v1/skills/{id}/improvements/{session_id}/recheck` | Prüft ein Ergebnis erneut auf der Linie, wie sie jetzt ist |
+| `GET /api/v1/skill-improvements/awaiting` | Die Skill-Sitzungen, die auf einen Menschen warten |
 
 ## Skills in eine Organisation bekommen { #getting-skills-into-an-organization }
 
@@ -719,6 +723,12 @@ jetzt ist, zu einem Preis, der zuerst angezeigt wird. Weiterverbessern und
 Verwerfen bleiben möglich. Ändert sich die Linie, während die Sitzung bei Changes
 wartet, wird neu bepreist: Der nächste Schritt prüft die Änderungen auf der
 neuesten Version.
+
+Der [Architekt](console.md#the-assistant) liest die Agents, Versionen und
+Sitzungen eines Skills. Er startet eine Sitzung, führt einen Schritt aus oder
+wiederholt ihn, nimmt ein Ergebnis an, beendet eine Sitzung oder verschiebt einen
+Agent auf eine andere Version nur, wenn Sie darum bitten, jeweils über eine
+Freigabekarte.
 
 ## Skills oder Knowledge? { #skills-or-knowledge }
 

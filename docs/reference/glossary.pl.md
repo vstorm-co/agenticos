@@ -1,5 +1,5 @@
 ---
-source_sha: "efcb7fe03f88"
+source_sha: "525439bc4593"
 ---
 
 # Słownik { #glossary }
@@ -23,6 +23,11 @@ skrypt napisany pod nie nie przestał działać po zmianie nazwy.
 | Pierwsze wiadomości | To, co pusty czat proponuje komuś, kto otwiera agenta, każda jednym kliknięciem | `starters` |
 | Capability | Coś, co agent może robić, włączane w Builderze | `capabilities[]` |
 | Skill | Wiedza praktyczna zapisana raz i czytana przez każdego agenta, który jej potrzebuje | `skill` |
+| Wersja skilla | Jeden zapisany stan skilla, potem już niezmieniany; **Przywróć** sprowadza wcześniejszą z powrotem jako nową wersję | `skill_version` |
+| Main | Główna linia skilla; agent na main czyta jej najnowszą wersję | `state: main` |
+| Przypięty | Agent, który zostaje przy jednej wersji main skilla, dopóki ktoś go nie przesunie | `state: pinned` |
+| Fork | Nazwana linia skilla, zaczęta od wersji main, z własnymi wersjami dla niektórych agentów | `skill_fork`, `state: fork` |
+| Za main | Ile wersji main nie przyjął przypięty agent albo fork | `behind_main` |
 | Kontekst | Stała wiedza, którą agent zawsze ma, np. słownik albo polityka | `context` |
 | Baza wiedzy | Dokumenty, które agent przeszukuje i cytuje | `collection` |
 | Luka w wiedzy | Temat pytań, na które baza wiedzy nie znała odpowiedzi, pogrupowanych według znaczenia; Popraw liczy je jako **Braki w bazie wiedzy** | `knowledge_gap_topic` |
@@ -104,6 +109,9 @@ skrypt napisany pod nie nie przestał działać po zmianie nazwy.
 | Spróbuj ponownie | Zaczyna z wyniku kolejną próbę, z polem **Notatka dla pomocnika** (opcjonalnie); próba pisze nowe zmiany i zatrzymuje się na kroku **Zmiany** | `/{run_id}/continue` z `note` |
 | Limit wydatków | Ile sesja może wydać łącznie, z analizą i każdą próbą; każdy krok jest wyceniany, zanim się zacznie | `budget_usd` |
 | Automatyczne sprawdzenie | **Sprawdzaj te pytania automatycznie przy każdej zmianie**: przy akceptacji suita, która zadaje pytania sesji przed każdą publikacją i nie dopuszcza żadnej potwierdzonej regresji | `automatic_check` |
+| Popraw skill | Sesja, która ulepsza jedną linię skilla, main albo fork, i sprawdza zmianę na każdym agencie tej linii | `/skills/{id}/improvements` |
+| Sprawdzenie skilla | Zmiana skilla uruchomiona na każdym agencie jej linii; lepsza, gdy żaden agent nie ma potwierdzonej regresji, a co najmniej jeden jest lepszy | `skill_check` |
+| Nieznany | Agent, na którym sprawdzenie skilla nie mogło się odbyć, wymieniony z powodem; osoba potwierdza go przed zastosowaniem zmiany | `state: unknown` |
 
 ## Capabilities { #capabilities }
 

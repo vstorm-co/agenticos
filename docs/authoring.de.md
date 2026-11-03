@@ -1,5 +1,5 @@
 ---
-source_sha: "8e4806fb4039"
+source_sha: "38e2a0c76864"
 title: "Authoring-Assistent"
 description: "Der Authoring-Assistent liest, was Leute negativ bewertet haben und wie Runs endeten, und schlägt Änderungen an Anweisungen, Tools, Konfiguration, Skills und Context-Dateien eines Agents vor. Über jede entscheidet ein Mensch."
 ---
@@ -537,6 +537,12 @@ Der Assistent kann **Ein Skill wäre sinnvoll** vorschlagen, wenn ein wiederverw
 Ein Ablauf aus weniger als drei verschiedenen Antworten wird nicht als Vorschlag aufgenommen. Er wartet unter **Zu prüfen** in der Gruppe Neue Skills mit vollständigem Text. **Verwerfen** verschiebt ihn nach **Entschieden**, und Rückgängig holt ihn zurück. **Create skill** öffnet eine Vorschau: Name, Beschreibung und Inhalt lassen sich bearbeiten, und ein Hinweis nennt, auf wie vielen Antworten er beruht. **Create skill** in der Vorschau legt den Skill in der Bibliothek an und bindet ihn an den Entwurf des Agenten, nie an eine veröffentlichte Version. Dafür gelten dieselben Berechtigungen wie für Accept, und es gibt keinen Modellaufruf. Ein zweiter Klick liefert den bereits erstellten Skill.
 
 Die Kostenschätzung berücksichtigt den vollständigen vorgeschlagenen Inhalt für jede Kandidatenantwort und bestätigende Wiederholungen zusätzlich zum historischen Antwortpreis.
+
+### Einen Skill verbessern { #improving-a-skill }
+
+Einen Skill, den mehrere Agents lesen, verbessern Sie auf seiner eigenen Seite,
+eine Linie auf einmal, wie [Einen Skill verbessern](skills.md#improving-a-skill)
+beschreibt.
 
 ### Wenn der Fehler im Skill liegt { #when-the-fault-is-in-a-skill }
 

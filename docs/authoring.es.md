@@ -1,5 +1,5 @@
 ---
-source_sha: "8e4806fb4039"
+source_sha: "38e2a0c76864"
 title: "Asistente de autoría"
 description: "El asistente de autoría lee lo que la gente valoró negativamente y cómo acabaron los runs, y sugiere cambios a las instrucciones, las herramientas, la configuración, los skills y los archivos de contexto de un agent. Una persona decide cada uno."
 ---
@@ -522,6 +522,11 @@ El asistente puede proponer **Worth creating a skill** cuando un procedimiento r
 Un procedimiento que procede de menos de tres respuestas distintas no se propone como sugerencia. Espera en **To review**, en el grupo New skills, con su texto completo. **Dismiss** lo pasa a **Decided** y Deshacer lo devuelve. **Create skill** abre una vista previa: el nombre, la descripción y el contenido se pueden editar, y un aviso indica en cuántas respuestas se basa. **Create skill** en la vista previa crea el skill en la biblioteca y lo vincula al borrador del agente, nunca a una versión publicada. Requiere los mismos permisos que Accept y no llama a ningún modelo. Un segundo clic devuelve el skill ya creado.
 
 La estimación reserva el contenido completo propuesto para cada respuesta candidata y sus repeticiones de confirmación, además del precio histórico por respuesta.
+
+### Mejorar un skill { #improving-a-skill }
+
+Un skill que leen varios agents se mejora desde su propia página, una línea cada
+vez, como describe [Mejorar un skill](skills.md#improving-a-skill).
 
 ### Cuando el fallo está en un skill { #when-the-fault-is-in-a-skill }
 

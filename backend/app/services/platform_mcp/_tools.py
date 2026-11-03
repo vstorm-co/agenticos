@@ -630,6 +630,253 @@ def _flips(cases: list[dict[str, Any]], flip: str) -> list[dict[str, Any]]:
     ][:_CASES_SHOWN]
 
 
+_PAGE = 100
+"""The most sessions one request to a skill's session list returns."""
+
+
+def skill_link(skill_id: UUID | str) -> str:
+    """A skill's page: its agents and their versions, its history and its version tree."""
+    return f"/skills/{skill_id}"
+
+
+def skill_improvement_link(skill_id: UUID | str, session_id: UUID | str) -> str:
+    """Where the person follows a skill session step by step: the skill's Improve wizard."""
+    return f"/skills/{skill_id}/improve/{session_id}"
+
+
+def _uses(binding: dict[str, Any]) -> str:
+    """Which version of a skill an agent reads, as the skill page writes it."""
+    behind = binding.get("behind_main") or 0
+    lag = f" · {behind} behind main" if behind else ""
+    if binding["state"] == "fork":
+        fork = binding["fork"]
+        changes = "1 change" if fork["changes"] == 1 else f"{fork['changes']} changes"
+        return f'Fork "{fork["name"]}" · from v{fork["base_number"]} · {changes}{lag}'
+    number = binding["version"]["number"]
+    return f"v{number} · pinned{lag}" if binding["state"] == "pinned" else f"v{number} · main"
+
+
+def _skill_agent(usage: dict[str, Any], *, sees_checks: bool = True) -> dict[str, Any]:
+    """One agent of a skill: the version it reads, and whether that version was checked on it.
+
+    Without `runs:view` the API leaves out every check, so an agent's check reads
+    `not_shown` rather than `unknown`, which means the version was never checked.
+    """
+    binding = usage["binding"]
+    checked = usage.get("checked")
+    if not sees_checks:
+        state = "not_shown"
+    else:
+        state = checked["state"] if isinstance(checked, dict) else "unknown"
+    return {
+        "agent_id": usage["agent"]["id"],
+        "name": usage["agent"]["name"],
+        "uses": _uses(binding),
+        "state": binding["state"],
+        "fork_id": (binding.get("fork") or {}).get("id"),
+        "behind_main": binding.get("behind_main") or 0,
+        "checked": state,
+        "checked_on_skill_questions_only": isinstance(checked, dict)
+        and checked.get("sample") == "skill_set_only",
+        "checked_versions": [
+            {"version_id": item["version_id"], "state": item["state"]}
+            for item in usage.get("checked_versions", [])
+        ],
+        "via_specialist": usage.get("via_specialist"),
+        "other_environments": [
+            {"name": env["name"], "uses": _uses(env["binding"])}
+            for env in usage.get("environments", [])
+        ],
+        "can_change": usage.get("can_change", False),
+        "can_publish": usage.get("can_publish", False),
+    }
+
+
+def _skill_fork(fork: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "fork_id": fork["id"],
+        "name": fork["name"],
+        "from_version": fork["base"]["number"],
+        "changes": fork["changes"],
+        "behind_main": fork["behind_main"],
+        "agents": fork["agents"],
+        "archive_candidate": fork.get("archive_candidate", False),
+    }
+
+
+def _checked_agent(row: dict[str, Any]) -> dict[str, Any]:
+    """How one agent came out of a skill check, in fixed and broken questions.
+
+    `sample` says, in a quick check, whether the agent's own questions were asked
+    or only the skill's, so an agent checked on the skill's questions alone is
+    never reported as checked on its own.
+    """
+    return {
+        "name": row["agent"]["name"],
+        "state": row["state"],
+        "why_unknown": row.get("unknown_reason"),
+        "sample": row.get("sample"),
+        "fixed": row.get("fixed", 0),
+        "broken": row.get("broken", 0),
+        "broken_confirmed": row.get("regressions_confirmed", 0),
+        "held_out": row.get("held_out", 0),
+        "noisy": row.get("noisy", False),
+        "expected_usd": row.get("expected_usd"),
+        "at_most_usd": row.get("at_most_usd"),
+    }
+
+
+def _skill_check(check: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "verdict": check.get("verdict"),
+        "warnings": check.get("warnings", []),
+        "agents": [_checked_agent(row) for row in check.get("agents", [])],
+        "hidden_agents": check.get("hidden", 0),
+        "hidden_unknown": check.get("hidden_unknown", 0),
+    }
+
+
+def _names(check: dict[str, Any] | None, state: str) -> str:
+    rows = (check or {}).get("agents", [])
+    return ", ".join(row["agent"]["name"] for row in rows if row["state"] == state)
+
+
+def _skill_next_actions(session: dict[str, Any]) -> list[str]:
+    """What the skill wizard offers on a session right now; none on a closed one."""
+    status = session["status"]
+    if status in _CLOSED:
+        return []
+    if status in {"queued", "running"}:
+        return ["Stop the session"]
+    actions = []
+    waiting = _waiting(session)
+    if waiting is not None:
+        actions.append(f"Next step: {waiting['next_step']}")
+    if status == "failed":
+        actions.append("Retry this step")
+    if status == "stopped" and session.get("can_restart") and not session.get("try_again_blocked"):
+        actions.append(
+            f"Try again (attempt {session['iteration'] + 1} of {session['max_iterations']})"
+        )
+    if status == "ready" and session.get("stale"):
+        return ["Check again on the line as it is now", "End the session"]
+    outcomes = (session.get("outcomes") or []) if status == "ready" else []
+    line = "main" if session.get("fork_id") is None else f'the fork "{session.get("line_name")}"'
+    check = session.get("check")
+    base = (session.get("base_version") or {}).get("number")
+    if "apply" in outcomes:
+        actions.append(f"Apply to {line}")
+    if "apply_and_pin" in outcomes:
+        worse = _names(check, "worse") or "the agents it made worse"
+        actions.append(f"Apply to main and keep {worse} on v{base}")
+    if "fork_for_helped" in outcomes:
+        helped = _names(check, "better") or "the agents it helped"
+        actions.append(f"Make a fork for {helped}")
+    if "improve_further" in outcomes and not session.get("try_again_blocked"):
+        attempt = session["iteration"] + 1
+        actions.append(f"Improve further (attempt {attempt} of {session['max_iterations']})")
+    if session.get("can_discard") is not False:
+        actions.append("End the session")
+    return actions
+
+
+_SKILL_VERDICTS = {
+    "passed": "No agent got worse and at least one got better, so it can be applied.",
+    "needs_ack": (
+        "No agent got worse and at least one got better, but some agents could not be "
+        "checked: the person acknowledges them before it is applied."
+    ),
+    "no_better": "No agent got better, so there is nothing to apply.",
+    "blocked": (
+        "An agent got worse, so it cannot simply be applied: apply it and keep the worse "
+        "agents on their version, make a fork for the agents it helped, improve further, "
+        "or end the session."
+    ),
+}
+
+
+_SKILL_CLOSED = {
+    "accepted": "It was accepted.",
+    "published": "It was accepted.",
+    "rejected": "It ended without changing the skill.",
+    "cancelled": "It was stopped without changing the skill.",
+    "stale": "It is out of date: the skill line moved on before anything was decided.",
+}
+"""How a closed skill session reads, in the wizard's words rather than its stored status."""
+
+
+def _skill_summary(session: dict[str, Any]) -> str:
+    """How improving a skill stands, in plain sentences built from the session's own facts."""
+    line = session.get("line_name") or "main"
+    base = (session.get("base_version") or {}).get("number")
+    sentences = [f"Improving the {line} line, started from v{base}."]
+    waiting = _waiting(session)
+    if waiting is not None:
+        sentences.append(
+            f"It stopped after {waiting['after']}; next it will {waiting['next_step']}."
+        )
+    elif session["status"] in {"queued", "running"}:
+        sentences.append(f"It is working on {_step(session)}.")
+    elif session["status"] in _CLOSED:
+        sentences.append(_SKILL_CLOSED[session["status"]])
+    elif session["status"] == "failed":
+        error = session.get("error")
+        sentences.append(f"A step failed: {error}" if error else "A step failed.")
+    elif reason := _WHY_STOPPED.get(session.get("stop_reason") or ""):
+        sentences.append(reason)
+    if session.get("stale") and session["status"] not in _CLOSED:
+        sentences.append(
+            "The skill line moved on since this session read it, so its next check "
+            "measures the changes on the line as it is now."
+        )
+    check = session.get("check")
+    if check and session["status"] == "ready":
+        results = [
+            f"{row['name']} {row['state']}"
+            + (f" ({row['why_unknown']})" if row["why_unknown"] else "")
+            for row in _skill_check(check)["agents"]
+        ]
+        sentences.append("The check: " + ", ".join(results) + ".")
+        if check.get("hidden"):
+            sentences.append(f"{check['hidden']} more agents use it that you cannot see.")
+        verdict = _SKILL_VERDICTS.get(check.get("verdict") or "")
+        if verdict and not session.get("stale"):
+            sentences.append(verdict)
+        if "within_noise" in check.get("warnings", []):
+            sentences.append("Some results are within noise: a warning, not a block.")
+    return " ".join(sentences)
+
+
+def _skill_session(skill_id: UUID | str, session: dict[str, Any]) -> dict[str, Any]:
+    """A skill session as the Architect reads it: where it stands and what may be done."""
+    check = session.get("check")
+    actions = _skill_next_actions(session)
+    return {
+        "id": session["id"],
+        "status": session["status"],
+        "stage": session.get("stage"),
+        "line": session.get("line_name") or "main",
+        "fork_id": session.get("fork_id"),
+        "started_from_version": (session.get("base_version") or {}).get("number"),
+        "attempt": session.get("iteration"),
+        "max_attempts": session.get("max_iterations"),
+        "spent_usd": session.get("spent_usd"),
+        "budget_usd": session.get("budget_usd"),
+        "expires_at": session.get("expires_at"),
+        "created_at": session.get("created_at"),
+        "closed": session["status"] in _CLOSED,
+        "stale": session.get("stale", False),
+        "waiting_for": _waiting(session),
+        "check": _skill_check(check) if check else None,
+        "outcome": session.get("outcome"),
+        "applied_version_id": session.get("applied_version_id"),
+        "summary": _skill_summary(session),
+        "next_actions": actions,
+        "ask": _ask(actions),
+        "link": skill_improvement_link(skill_id, session["id"]),
+    }
+
+
 def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
     """Every operation, bound to `api`."""
 
@@ -1644,6 +1891,444 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         )
         return _session(agent_id, moved)
 
+    async def get_skill(skill_id: UUID) -> dict[str, Any]:
+        """One skill: its forks, and each agent with the version it reads. Needs `skills:view`.
+
+        `uses` is how the skill page writes an agent's version - `v10 · main`,
+        `v7 · pinned · 3 behind main`, `Fork "Returns" · from v7 · 2 changes`.
+        `checked` is how that version did on that agent in a skill check,
+        `unknown` when it was never checked there, and `not_shown` when the
+        caller may not read runs, so checks are left out. `checked_versions` are
+        the versions a check measured on that agent, by `version_id` as
+        list_skill_versions gives them: read it before moving the agent.
+        `other_environments` are the environments that read the skill
+        differently, each with the version it reads. Agents the caller cannot
+        see are only counted in `hidden_agents`; never guess who they are.
+        """
+        skill = await api.request("GET", f"/skills/{skill_id}")
+        forks = await api.request("GET", f"/skills/{skill_id}/forks")
+        agents = await api.request("GET", f"/skills/{skill_id}/agents")
+        me = await api.request("GET", "/me/permissions")
+        sees_checks = any(entry["permission"] == "runs:view" for entry in me["permissions"])
+        return {
+            "id": skill["id"],
+            "name": skill["name"],
+            "description": skill["description"],
+            "main_version": agents["main_latest"]["number"],
+            "can_edit": skill.get("can_edit", False),
+            "forks": [_skill_fork(fork) for fork in forks["items"]],
+            "agents": [
+                _skill_agent(usage, sees_checks=sees_checks)
+                for usage in agents["items"]
+                if not usage["draft_only"]
+            ],
+            "only_in_drafts": [
+                usage["agent"]["name"] for usage in agents["items"] if usage["draft_only"]
+            ],
+            "hidden_agents": agents["hidden"],
+            "link": skill_link(skill_id),
+        }
+
+    async def list_skill_versions(
+        skill_id: UUID, fork_id: UUID | None = None, limit: int = 20, skip: int = 0
+    ) -> dict[str, Any]:
+        """A skill line's history, newest first: main, or the fork `fork_id`. Needs `skills:view`.
+
+        Every saved change is a version that never changes again; `source` says
+        what made it - an edit, a library sync, Improve, a restore. Read one with
+        get_skill_version. When `next_skip` is set, older versions follow: call
+        again with it as `skip`.
+        """
+        params: dict[str, Any] = {"limit": limit, "skip": skip}
+        if fork_id is not None:
+            params["fork_id"] = str(fork_id)
+        listed = await api.request("GET", f"/skills/{skill_id}/versions", params=params)
+        return {
+            "items": [
+                {
+                    "version_id": version["id"],
+                    "number": version["number"],
+                    "source": version["source"],
+                    "restored_from": (version.get("restored_from") or {}).get("number"),
+                    "created_by": (version.get("created_by") or {}).get("name"),
+                    "created_at": version["created_at"],
+                    "agents": version["agents"],
+                }
+                for version in listed["items"]
+            ],
+            "total": listed["total"],
+            "next_skip": skip + len(listed["items"])
+            if skip + len(listed["items"]) < listed["total"]
+            else None,
+        }
+
+    async def get_skill_version(skill_id: UUID, version_id: UUID) -> dict[str, Any]:
+        """One version of a skill: its description, body and files. Needs `skills:view`."""
+        version = await api.request("GET", f"/skills/{skill_id}/versions/{version_id}")
+        return {
+            "number": version["number"],
+            "fork_id": version["fork_id"],
+            "source": version["source"],
+            "description": version["description"],
+            "content": version["content"],
+            "files": [resource["name"] for resource in version.get("resources", [])],
+        }
+
+    async def _skill_step_price(skill_id: UUID | str, session: dict[str, Any]) -> dict[str, Any]:
+        try:
+            quote = await api.request(
+                "POST",
+                f"/skills/{skill_id}/improvements/{session['id']}/continue/estimate",
+                json={},
+            )
+        except ToolError as refused:
+            return {"unavailable": _plain(str(refused))}
+        return {
+            field: quote[field]
+            for field in ("total_usd", "expected_usd", "budget_usd", "affordable", "candidate_hash")
+        }
+
+    async def list_skill_improvements(
+        skill_id: UUID | None = None,
+        fork_id: UUID | None = None,
+        main: bool = False,
+        history: bool = False,
+    ) -> dict[str, Any]:
+        """A skill's Improve sessions, newest first. Needs `skills:view` and `runs:view`.
+
+        Without `skill_id`, the skill sessions waiting for a person across the
+        organization. With one, the newest session carries `summary`, `ask` and
+        the price of its next step; earlier sessions are only counted unless
+        `history` is true. A skill can have a session open on main and on each
+        fork at once: name the line asked about with `fork_id`, or `main`.
+        """
+        if skill_id is None:
+            awaiting = await api.request("GET", "/skill-improvements/awaiting")
+            return {
+                "waiting": [
+                    {**item, "link": skill_improvement_link(item["skill_id"], item["id"])}
+                    for item in awaiting
+                ]
+            }
+        line: dict[str, Any] = {"limit": _PAGE}
+        if fork_id is not None:
+            line["fork_id"] = str(fork_id)
+        elif main:
+            line["main"] = "true"
+        sessions: list[dict[str, Any]] = []
+        while True:
+            page = await api.request(
+                "GET",
+                f"/skills/{skill_id}/improvements",
+                params={**line, "skip": len(sessions)},
+            )
+            sessions += page
+            if len(page) < _PAGE:
+                break
+        ordered = sorted(sessions, key=lambda session: session["created_at"], reverse=True)
+        items = [_skill_session(skill_id, session) for session in ordered]
+        if items and items[0]["waiting_for"] is not None:
+            items[0]["waiting_for"] = {
+                **items[0]["waiting_for"],
+                "price": await _skill_step_price(skill_id, ordered[0]),
+            }
+        if history:
+            return {"items": items}
+        return {"items": items[:1], "earlier_sessions": len(items[1:])}
+
+    async def get_skill_improvement(skill_id: UUID, session_id: UUID) -> dict[str, Any]:
+        """One skill Improve session: what it found, and how each agent did in its check.
+        Needs `skills:view` and `runs:view`.
+
+        Start a reply from `summary` and keep every fact in it, a worse agent
+        above all; end it by asking with `ask` exactly as given. `found` counts
+        the problems in the skill and the bad answers that were not the skill's
+        fault.
+        """
+        path = f"/skills/{skill_id}/improvements/{session_id}"
+        session = await api.request("GET", path)
+        item = _skill_session(skill_id, session)
+        if item["waiting_for"] is not None:
+            item["waiting_for"] = {
+                **item["waiting_for"],
+                "price": await _skill_step_price(skill_id, session),
+            }
+        if session["status"] in {"waiting", "ready", "stopped", "failed"}:
+            try:
+                evidence = await api.request("GET", f"{path}/evidence")
+            except ToolError:
+                return item
+            item["found"] = {
+                "problems": [problem["title"] for problem in evidence["problems"]],
+                "not_the_skill": evidence["not_the_skill"],
+                "not_a_problem": evidence["not_a_problem"],
+            }
+        return item
+
+    async def estimate_skill_improvement(
+        skill_id: UUID,
+        fork_id: UUID | None = None,
+        max_iterations: int = 3,
+        from_run: UUID | None = None,
+    ) -> dict[str, Any]:
+        """What improving a skill line would cost, before it starts. Needs `skills:edit` and
+        `runs:view`.
+
+        Name `fork_id` to improve that fork; without it, main. `from_run` is an
+        agent's Improve session whose skill problems start it. `total_usd` is
+        what it costs up to its first stop and `per_round_usd` about one
+        attempt's proposal. Each attempt's check runs on every agent of the line,
+        billed to that agent, and is priced only when that step is taken, so a
+        spending limit for the whole session must leave room for the checks:
+        ask the person for one, and say it is not priced yet.
+        """
+        target: dict[str, Any] = {
+            "fork_id": str(fork_id) if fork_id is not None else None,
+            "max_iterations": max_iterations,
+        }
+        if from_run is not None:
+            target["from_run"] = str(from_run)
+        return await api.request("POST", f"/skills/{skill_id}/improvements/estimate", json=target)
+
+    async def start_skill_improvement(
+        skill_id: UUID,
+        budget_usd: Decimal,
+        fork_id: UUID | None = None,
+        max_iterations: int = 3,
+        from_run: UUID | None = None,
+    ) -> dict[str, Any]:
+        """Start improving a skill line, only when the person asked for it. Needs `skills:edit`
+        and `runs:view`.
+
+        Run estimate_skill_improvement first and say the price and the limit.
+        `budget_usd` is the limit for the whole session, never below its
+        `total_usd`. It stops for the person after Understand, after Changes and
+        at the result, and changes no version until it is accepted. A line has
+        one open session at a time: with one open, this refuses and names it.
+        """
+        line = str(fork_id) if fork_id is not None else None
+        open_session = None
+        if from_run is None:
+            sessions = await api.request(
+                "GET",
+                f"/skills/{skill_id}/improvements",
+                params={"fork_id": line} if line is not None else {"main": "true"},
+            )
+            open_session = next(
+                (s for s in sessions if s["status"] not in _CLOSED and s.get("fork_id") == line),
+                None,
+            )
+        if open_session is not None:
+            return api.refuse(
+                f"This skill line already has an open Improve session ({open_session['status']}): "
+                f"{skill_improvement_link(skill_id, open_session['id'])}. Continue it there, or "
+                "end it with end_skill_improvement and start a new one."
+            )
+        start: dict[str, Any] = {
+            "fork_id": line,
+            "budget_usd": str(budget_usd),
+            "max_iterations": max_iterations,
+        }
+        if from_run is not None:
+            start["from_run"] = str(from_run)
+        session = await api.request("POST", f"/skills/{skill_id}/improvements", json=start)
+        return _skill_session(skill_id, session)
+
+    async def estimate_next_skill_improvement_step(
+        skill_id: UUID,
+        session_id: UUID,
+        thorough: bool = False,
+        recheck: bool = False,
+    ) -> dict[str, Any]:
+        """What a skill session's next step, or another attempt, would cost. Needs `skills:edit`
+        and `runs:view`.
+
+        After Understand the next step proposes changes; after Changes it checks
+        them on every agent of the line; at the result it tries again. `recheck`
+        prices checking the result's changes again on the line as it is now, for
+        a `stale` result. `agents` names which agents the check runs and which
+        cannot be checked, and why. `thorough` checks each agent's whole dataset
+        instead of a sample; a changed description always does. When it is not
+        `affordable`, a higher limit goes to run_next_skill_improvement_step as
+        its `budget_usd`. Pass `total_usd` and `candidate_hash` on to it.
+        """
+        path = f"/skills/{skill_id}/improvements/{session_id}"
+        session = await api.request("GET", path)
+        body: dict[str, Any] = {"mode": "thorough"} if thorough else {}
+        route = "recheck" if recheck else "continue"
+        estimate = await api.request("POST", f"{path}/{route}/estimate", json=body)
+        check = estimate.get("check_estimate")
+        return {
+            **{key: value for key, value in estimate.items() if key != "check_estimate"},
+            "agents": [_checked_agent(row) for row in check["agents"]] if check else None,
+            "hidden_agents": check["hidden"] if check else 0,
+            "waiting_for": _waiting(session),
+            "link": skill_improvement_link(skill_id, session_id),
+        }
+
+    async def run_next_skill_improvement_step(
+        skill_id: UUID,
+        session_id: UUID,
+        budget_usd: Decimal,
+        estimate_usd: Decimal,
+        candidate_hash: str,
+        note: str | None = None,
+        thorough: bool = False,
+        recheck: bool = False,
+    ) -> dict[str, Any]:
+        """Run a skill session's next step, or improve further, only when the person asked for it.
+        Needs `skills:edit` and `runs:view`.
+
+        Pass `estimate_usd` and `candidate_hash` from
+        estimate_next_skill_improvement_step, priced the same way, and say the
+        step and its price before calling. `budget_usd` is the session's limit,
+        or a higher one the person agreed to. A session whose line moved since
+        the price is refused: price it again. `note` is what the person wants
+        done differently, in their words, for another attempt. `recheck` checks
+        a stale result's changes again instead.
+        """
+        consent: dict[str, Any] = {
+            "confirmed": True,
+            "budget_usd": str(budget_usd),
+            "estimate_usd": str(estimate_usd),
+            "candidate_hash": candidate_hash,
+        }
+        if note is not None:
+            consent["note"] = note
+        if thorough:
+            consent["mode"] = "thorough"
+        route = "recheck" if recheck else "continue"
+        moved = await api.request(
+            "POST", f"/skills/{skill_id}/improvements/{session_id}/{route}", json=consent
+        )
+        return _skill_session(skill_id, moved)
+
+    async def retry_skill_improvement_step(skill_id: UUID, session_id: UUID) -> dict[str, Any]:
+        """Run a skill session's failed step again, only when the person asked for it. Needs
+        `skills:edit` and `runs:view`.
+
+        It runs within the session's spending limit. Say the step before calling.
+        """
+        moved = await api.request("POST", f"/skills/{skill_id}/improvements/{session_id}/retry")
+        return _skill_session(skill_id, moved)
+
+    async def accept_skill_improvement(
+        skill_id: UUID,
+        session_id: UUID,
+        outcome: Literal["apply", "apply_and_pin", "fork_for_helped"],
+        acknowledge_unknown: bool = False,
+        fork_name: str | None = None,
+    ) -> dict[str, Any]:
+        """Accept a skill session's result, only as the person chose. Needs `skills:edit`.
+
+        `apply` makes it the line's new version. `apply_and_pin` applies it to
+        main and keeps every agent it made worse on its current version, which
+        also needs `agents:publish` on each of them. `fork_for_helped` leaves
+        main as it is and makes a fork named `fork_name` with this change for
+        the agents it helped. Offer only the session's `next_actions`, and say
+        which agents each choice moves. `acknowledge_unknown` only after the
+        person accepted the agents that could not be checked.
+        """
+        path = f"/skills/{skill_id}/improvements/{session_id}"
+        if outcome == "fork_for_helped":
+            if not fork_name:
+                return api.refuse("Name the fork: ask the person, or use the helped agent's name.")
+            forked = await api.request(
+                "POST",
+                f"{path}/fork",
+                json={
+                    "confirmed": True,
+                    "name": fork_name,
+                    "acknowledge_unknown": acknowledge_unknown,
+                },
+            )
+            return {
+                "status": forked["session"]["status"],
+                "fork": _skill_fork(forked["fork"]),
+                "moved": [agent["name"] for agent in forked["moved"]],
+                "only_in_drafts": [agent["name"] for agent in forked["draft_only"]],
+                "link": skill_link(skill_id),
+            }
+        applied = await api.request(
+            "POST",
+            f"{path}/apply",
+            json={
+                "confirmed": True,
+                "acknowledge_unknown": acknowledge_unknown,
+                "pin_worse": outcome == "apply_and_pin",
+            },
+        )
+        return {
+            "status": applied["session"]["status"],
+            "version": applied.get("version"),
+            "pinned": [agent["name"] for agent in applied.get("pinned", [])],
+            "link": skill_link(skill_id),
+        }
+
+    async def end_skill_improvement(skill_id: UUID, session_id: UUID) -> dict[str, Any]:
+        """End a skill session without changing the skill: stop a running one, discard the rest.
+        Needs `skills:edit`.
+        """
+        path = f"/skills/{skill_id}/improvements/{session_id}"
+        session = await api.request("GET", path)
+        if session["status"] in ("queued", "running"):
+            ended = await api.request("POST", f"{path}/cancel")
+        else:
+            ended = await api.request("POST", f"{path}/discard", json={"confirmed": True})
+        return {"status": ended["status"], "link": skill_improvement_link(skill_id, session_id)}
+
+    async def change_skill_version(
+        skill_id: UUID,
+        agent_id: UUID,
+        state: Literal["main", "pinned", "fork"],
+        version: int | None = None,
+        fork_id: UUID | None = None,
+        note: str | None = None,
+    ) -> dict[str, Any]:
+        """Move one agent to another version of a skill, only when the person asked for it.
+        Needs `agents:edit` on the agent; going live also needs `agents:publish`.
+
+        `main` follows the newest main version, `pinned` stays on main's
+        `version`, `fork` follows the fork `fork_id`. Read get_skill first: when
+        the chosen version was never checked on this agent, say it is unknown
+        and go on only once the person confirms. With `agents:publish` the
+        change is published as a new agent version; otherwise it lands in the
+        agent's draft only, and `published` is false.
+        """
+        binding: dict[str, Any] = {"state": state}
+        if state == "pinned":
+            if version is None:
+                return api.refuse("Pinning needs the main version number to stay on.")
+            binding["version"] = version
+        if state == "fork":
+            if fork_id is None:
+                return api.refuse("Moving to a fork needs its fork_id, from get_skill.")
+            binding["fork_id"] = str(fork_id)
+        if note is not None:
+            binding["note"] = note
+        moved = await api.request(
+            "PUT", f"/skills/{skill_id}/agents/{agent_id}/binding", json=binding
+        )
+        return {
+            "published": moved["published"],
+            "agent_version": moved["agent_version"],
+            "environments": moved["environments"],
+            "agent": _skill_agent(moved["usage"]) if moved.get("usage") else None,
+            "link": skill_link(skill_id),
+        }
+
+    async def get_skill_check(skill_id: UUID, check_id: UUID) -> dict[str, Any]:
+        """One skill check: how each agent did, its verdict and what it allows. Needs
+        `skills:view` and `runs:view`.
+        """
+        check = await api.request("GET", f"/skills/{skill_id}/checks/{check_id}")
+        return {
+            "check_id": check["id"],
+            "status": check["status"],
+            **_skill_check(check),
+            "outcomes": check.get("outcomes", []),
+        }
+
     async def estimate_knowledge_draft(topic_id: UUID) -> dict[str, Any]:
         """The most drafting a document for one missing-knowledge topic costs. Needs `runs:view`
         and edit access to the topic's knowledge base.
@@ -2186,6 +2871,20 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         (improve_again, True),
         (estimate_next_improvement_step, False),
         (run_next_improvement_step, True),
+        (get_skill, False),
+        (list_skill_versions, False),
+        (get_skill_version, False),
+        (list_skill_improvements, False),
+        (get_skill_improvement, False),
+        (estimate_skill_improvement, False),
+        (start_skill_improvement, True),
+        (estimate_next_skill_improvement_step, False),
+        (run_next_skill_improvement_step, True),
+        (retry_skill_improvement_step, True),
+        (accept_skill_improvement, True),
+        (end_skill_improvement, True),
+        (change_skill_version, True),
+        (get_skill_check, False),
         (estimate_knowledge_draft, False),
         (draft_knowledge_topic, True),
         (list_datasets, False),

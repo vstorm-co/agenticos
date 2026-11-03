@@ -1,5 +1,5 @@
 ---
-source_sha: "48dfd5de4902"
+source_sha: "ed5319c36e55"
 ---
 
 # Skills { #skills }
@@ -449,6 +449,10 @@ cuenta los demás. Un skill que nadie usa se borra con sus versiones y sus forks
 | `PATCH /api/v1/skills/{id}/forks/{fork_id}`, `POST …/archive` | Cambia el nombre de un fork o lo archiva |
 | `GET /api/v1/skills/{id}/agents` | Los agents del skill, la versión que lee cada uno y cuántos están ocultos |
 | `PUT /api/v1/skills/{id}/agents/{agent_id}/binding` | Mueve un agent a main, a una versión de main o a un fork |
+| `POST /api/v1/skills/{id}/improvements/estimate`, `POST /api/v1/skills/{id}/improvements` | Calcula el precio de una sesión Improve en main o en un fork y la inicia |
+| `POST /api/v1/skills/{id}/improvements/{session_id}/apply`, `…/fork`, `…/discard` | Aplica el resultado de una sesión, fijando o no los agents que empeoraron, lo convierte en un fork para los agents a los que ayudó, o lo descarta |
+| `POST /api/v1/skills/{id}/improvements/{session_id}/recheck` | Comprueba un resultado de nuevo en la línea tal como está ahora |
+| `GET /api/v1/skill-improvements/awaiting` | Las sesiones de skills que esperan a una persona |
 
 ## Cómo llegan los skills a una organización { #getting-skills-into-an-organization }
 
@@ -679,6 +683,11 @@ un precio que se muestra primero. Seguir mejorando y descartar siguen
 disponibles. Si la línea cambia mientras la sesión espera en Changes, se vuelve a
 calcular el precio: el siguiente paso comprueba los cambios en la versión más
 reciente.
+
+El [Architect](console.md#the-assistant) lee los agents, las versiones y las
+sesiones de un skill. Inicia una sesión, ejecuta o reintenta un paso, acepta un
+resultado, termina una sesión o mueve un agent a otra versión solo cuando se lo
+pides, cada vez mediante una tarjeta de aprobación.
 
 ## ¿Skills o conocimiento? { #skills-or-knowledge }
 
