@@ -784,7 +784,7 @@ UNINDEXED_BY_DROP = (
 
 
 async def mark_unindexed(db: AsyncSession, collection_name: str) -> None:
-    """Mark the indexed unfiled rows left under a name as failed, their chunks gone.
+    """Fail the unfiled rows left under a name whose table is about to be dropped.
 
     For the last holder's teardown, after it has deleted its own rows and its
     tenant's unfiled ones: what is left is another tenant's, kept because the
@@ -792,21 +792,29 @@ async def mark_unindexed(db: AsyncSession, collection_name: str) -> None:
     Left `DONE`, its tenant's next base on the name would list it as indexed with
     nothing behind it. As `ERROR` with no vector id it lists as failed, an upload
     can be retried from its stored file, and a sync retires it with
-    `discard_failed` (#2568). A row still `PROCESSING` belongs to an ingest that
-    is running and settles itself.
+    `discard_failed` (#2568).
+
+    A row still being ingested is failed too, under `FOR UPDATE` first: that waits
+    out a chunk write holding the row `FOR KEY SHARE` (`hold_for_vector_write`),
+    the bumped attempt makes that ingest's settlement stale, and a write that
+    reaches its hold after this commits finds the row no longer `PROCESSING` and
+    is refused, rather than recreating the dropped table.
     """
+    left = (
+        RAGDocument.collection_name == collection_name,
+        RAGDocument.knowledge_base_id.is_(None),
+        RAGDocument.status != DocumentStatus.ERROR,
+    )
+    await db.execute(select(RAGDocument.id).where(*left).with_for_update())
     await db.execute(
         sql_update(RAGDocument)
-        .where(
-            RAGDocument.collection_name == collection_name,
-            RAGDocument.knowledge_base_id.is_(None),
-            RAGDocument.status == DocumentStatus.DONE,
-        )
+        .where(*left)
         .values(
             status=DocumentStatus.ERROR,
             error_message=UNINDEXED_BY_DROP,
             vector_document_id=None,
             chunk_count=0,
+            ingestion_attempt=RAGDocument.ingestion_attempt + 1,
         )
     )
     await db.flush()
@@ -866,6 +874,9 @@ async def hold_for_vector_write(
     The base lock alone cannot reject a stale insert after a default was cleared:
     its base survives. The tracking row does not, and its KEY SHARE conflicts
     with the clear's delete. Acquire after the base lock, matching teardown order.
+    Every write targets the row its own attempt opened as `PROCESSING`, so a row
+    in any other state refuses it: a last holder's teardown fails another
+    tenant's rows under the name it drops (`mark_unindexed`, #2568).
     """
     result = await db.execute(
         select(RAGDocument.id)
@@ -873,6 +884,7 @@ async def hold_for_vector_write(
             RAGDocument.id == document_id,
             RAGDocument.collection_name == collection,
             RAGDocument.knowledge_base_id == knowledge_base_id,
+            RAGDocument.status == DocumentStatus.PROCESSING,
         )
         .with_for_update(read=True, key_share=True)
     )

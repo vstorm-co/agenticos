@@ -1295,7 +1295,7 @@ class TestADeletedBasesChunksOnAKeptTable:
         tenant's unfiled rows stay with their files, since the caller has no
         authority over them, but their chunks went with the table: they are marked
         failed, so their next base lists them as needing a retry rather than as
-        indexed. `DELETE /kb/{id}` left the tenant's unfiled rows behind the
+        indexed, and one still being ingested has its attempt superseded. `DELETE /kb/{id}` left the tenant's unfiled rows behind the
         dropped table, and the collection drop deleted every row under the name,
         in every organization (#2568)."""
         factory = async_sessionmaker(engine, expire_on_commit=False)
@@ -1325,6 +1325,10 @@ class TestADeletedBasesChunksOnAKeptTable:
             for index, document in enumerate(documents):
                 document.status = DocumentStatus.DONE.value
                 document.vector_document_id = f"doc-{index}"
+            # Another organization's ingest still in flight: kept, but failed with
+            # its attempt superseded, so its settlement cannot mark it done.
+            documents[2].status = DocumentStatus.PROCESSING.value
+            documents[2].vector_document_id = None
             s.add_all(documents)
             await _filed_table(s, table, {"doomed-0": doomed.id})
             await s.commit()
@@ -1356,6 +1360,7 @@ class TestADeletedBasesChunksOnAKeptTable:
                     assert kept.status == DocumentStatus.ERROR.value
                     assert kept.vector_document_id is None
                     assert kept.error_message
+                    assert kept.ingestion_attempt == 2
                 assert (
                     await s.execute(text("SELECT to_regclass(:t)"), {"t": table})
                 ).scalar() is None
