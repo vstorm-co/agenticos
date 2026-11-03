@@ -160,8 +160,19 @@ def test_a_queued_candidate_serves_the_files_it_was_measured_with() -> None:
     assert served.resources == (SkillBodyFile(name="limits.md", description=None, content="$500"),)
 
 
-@pytest.mark.parametrize("check_id", [None, uuid.uuid4()])
-async def test_a_closed_run_tells_only_its_skill_check(check_id: uuid.UUID | None) -> None:
+@pytest.mark.parametrize(
+    ("check_id", "status"),
+    [
+        (None, EvalRunStatus.COMPLETED),
+        (uuid.uuid4(), EvalRunStatus.COMPLETED),
+        (uuid.uuid4(), EvalRunStatus.FAILED),
+    ],
+)
+async def test_a_closed_run_tells_only_its_skill_check(
+    check_id: uuid.UUID | None, status: EvalRunStatus
+) -> None:
+    """Only a completed run's arms are checked for skills that moved under them: a failed
+    one stands in as no baseline anyway."""
     org, run_id = uuid.uuid4(), uuid.uuid4()
     record = ProposalCheckRecord(
         kind="skill", base_version=1, suggestions=1, skill_check_id=check_id
@@ -175,21 +186,22 @@ async def test_a_closed_run_tells_only_its_skill_check(check_id: uuid.UUID | Non
     async def sessions():
         yield db
 
-    after_run = AsyncMock()
+    after_run, forget = AsyncMock(), AsyncMock()
     with (
         patch("app.services.eval_run_worker.eval_run_repo.lock", new=AsyncMock(return_value=run)),
         patch("app.services.eval_run_worker.eval_run_repo.update_run", new=AsyncMock()),
         patch("app.services.eval_run_worker.NotificationService") as notices,
         patch("app.services.skill_check.SkillCheckService.after_run", new=after_run),
-        patch.object(EvalRunService, "forget_moved_skills", new=AsyncMock()),
+        patch.object(EvalRunService, "forget_moved_skills", new=forget),
         patch.object(EvalRunWorker, "_reader", new=AsyncMock(return_value=None)),
     ):
         notices.return_value.eval_run_finished = AsyncMock()
         await EvalRunWorker(run_id, org, sessions=sessions)._close(
-            EvalRunStatus.COMPLETED, only_from=EvalRunStatus.RUNNING
+            status, only_from=EvalRunStatus.RUNNING
         )
 
     assert after_run.await_count == (0 if check_id is None else 1)
+    assert forget.await_count == (1 if status is EvalRunStatus.COMPLETED else 0)
 
 
 @pytest.mark.parametrize("gone", [False, True])
