@@ -1,5 +1,5 @@
 ---
-source_sha: "6160d148e518"
+source_sha: "5add4838a817"
 ---
 
 # Skille { #skills }
@@ -594,7 +594,8 @@ main dostają ją od razu; przypięci agenci i forki zostają przy swojej wersji
 Zmieniony tekst nie zapisuje się przy pierwszym kliknięciu: okno wymienia agentów,
 do których trafi przy ich następnym runie, i obok zapisu teraz proponuje **Najpierw
 sprawdź na agentach**, które sprawdza niezapisany tekst na nich i stosuje go na
-podstawie wyniku. Pliki i kategoria należą do main, więc edycja forka zmienia tylko
+podstawie wyniku. Jeśli ktoś w międzyczasie zapisze linię, sprawdzenie zostaje
+odrzucone, a twój tekst zostaje w edytorze. Pliki i kategoria należą do main, więc edycja forka zmienia tylko
 jego opis i instrukcje. Przywróć i Zmień wersję widzą tylko osoby, które mogą tę
 zmianę zrobić; pozostali otwierają skill tylko do odczytu.
 

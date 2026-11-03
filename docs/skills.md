@@ -579,7 +579,8 @@ more, stretches that no agent uses fold into one row.
 main get it at once; pinned agents and forks keep their version. A changed text is
 not saved at the first press: the dialog names the agents it reaches on their next
 run, and offers **Check on agents first**, which checks the unsaved text on them
-and applies it from the result, beside saving it now. Files and the
+and applies it from the result, beside saving it now. If somebody saves the line
+meanwhile, the check is refused and your text stays in the editor. Files and the
 category belong to main, so editing a fork changes only its description and
 instructions. Restore and Change version are shown only to people who may make
 that change; anybody else opens the skill read-only.

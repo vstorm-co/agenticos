@@ -1,5 +1,5 @@
 ---
-source_sha: "6160d148e518"
+source_sha: "5add4838a817"
 ---
 
 # Skills { #skills }
@@ -646,7 +646,9 @@ bekommen die Agents, die main folgen, sie sofort; festgesetzte Agents und Forks
 behalten ihre Version. Ein geänderter Text wird nicht beim ersten Klick gespeichert:
 Der Dialog nennt die Agents, die er bei ihrem nächsten Run erreicht, und bietet
 neben dem sofortigen Speichern **Zuerst an Agents prüfen** an, das den
-ungespeicherten Text auf ihnen prüft und anhand des Ergebnisses übernimmt. Dateien
+ungespeicherten Text auf ihnen prüft und anhand des Ergebnisses übernimmt. Speichert
+jemand die Linie inzwischen, wird die Prüfung abgelehnt und Ihr Text bleibt im Editor.
+Dateien
 und Kategorie gehören zu main, deshalb ändert das Bearbeiten eines Forks nur seine
 Beschreibung und Anweisungen. Wiederherstellen und Version ändern sehen nur
 Personen, die diese Änderung vornehmen dürfen; alle anderen öffnen den Skill nur

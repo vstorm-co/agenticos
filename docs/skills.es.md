@@ -1,5 +1,5 @@
 ---
-source_sha: "6160d148e518"
+source_sha: "5add4838a817"
 ---
 
 # Skills { #skills }
@@ -613,7 +613,8 @@ siguen main la reciben de inmediato; los agents fijados y los forks conservan su
 versión. Un texto cambiado no se guarda al primer clic: el diálogo nombra los agents a
 los que llega en su siguiente run y ofrece, junto a guardar ahora, **Comprobar en
 agents primero**, que comprueba el texto sin guardar en ellos y lo aplica según el
-resultado. Los archivos y la categoría son de main, así que editar un fork cambia solo
+resultado. Si alguien guarda la línea mientras tanto, la comprobación se rechaza y tu
+texto se queda en el editor. Los archivos y la categoría son de main, así que editar un fork cambia solo
 su descripción e instrucciones. Restaurar y Cambiar versión solo se muestran a
 quien puede hacer ese cambio; los demás abren el skill en modo de solo lectura.
 
