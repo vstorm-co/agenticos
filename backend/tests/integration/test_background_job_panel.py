@@ -72,7 +72,9 @@ async def _dead_with_a_newer_copy_queued(db: AsyncSession):
 
 
 async def _audited(db: AsyncSession) -> list[tuple[str, str | None]]:
-    rows = (await db.execute(select(AppAdminAuditLog))).scalars().all()
+    rows = (
+        (await db.execute(select(AppAdminAuditLog).order_by(AppAdminAuditLog.seq))).scalars().all()
+    )
     return [(row.action, row.target_id) for row in rows]
 
 

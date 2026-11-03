@@ -224,6 +224,15 @@ environment without a person's decision.
 - A suite and a promotion override can be set up only by a person signed in as
   themselves, not through an API key or impersonation.
 
+## [1.38.3] - 2026-11-03
+
+### Fixed
+
+- Background-job audit and table-retention integration tests no longer depend on
+  PostgreSQL returning rows in insertion order.
+- Clearing the Architect's uploaded avatar restores its generated face, just as
+  it does for other agents. The special mark no longer overrides an empty avatar.
+
 ## [1.38.2] - 2026-11-03
 
 ### Fixed
