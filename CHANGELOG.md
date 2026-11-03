@@ -19,6 +19,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [1.40.0] - 2026-11-03
+
 ### Added
 
 - Delegate explicit work to durable background topics in the same project, keep talking in the source conversation, inspect or stop each task, and receive one source-bound result turn. Tasks retain pinned agent versions, ordinary budgets and approvals, the selected main model and exact local device; interrupted external actions are not automatically replayed.
@@ -19878,7 +19880,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.39.2...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.40.0...HEAD
+[1.40.0]: https://github.com/vstorm-co/agenticos/compare/v1.39.2...v1.40.0
 [1.39.2]: https://github.com/vstorm-co/agenticos/compare/v1.39.1...v1.39.2
 [1.39.1]: https://github.com/vstorm-co/agenticos/compare/v1.39.0...v1.39.1
 [1.39.0]: https://github.com/vstorm-co/agenticos/compare/v1.38.4...v1.39.0
