@@ -21,7 +21,7 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
-- Deleting an account no longer deadlocks with an ingest that is recording the embedding spend of a document in that account's personal knowledge base. The deletion now locks the personal organization before it deletes the documents under it, and a spend whose organization was deleted meanwhile is no longer written, because the organization's spend rows are deleted with it.
+- Deleting an account no longer deadlocks with an ingest that is recording the embedding spend of a document in that account's personal knowledge base. The deletion now locks the personal organization before it deletes the documents under it. An ingest whose organization is deleted while it runs no longer fails when it records its spend.
 
 ## [1.38.1] - 2026-11-03
 

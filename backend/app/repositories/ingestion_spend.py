@@ -31,10 +31,9 @@ async def record(
     settlement that removes them could run (#2565). The row is held `FOR KEY
     SHARE` to the insert's commit: a delete arriving after the check waits, then
     sets this row's reference to `NULL` as it does every other's. The
-    organization is held first, the order an organization's purge - and an
-    account deletion's, which locks the personal organization before deleting
-    its documents (#2638) - locks the two in: taken the other way round, the
-    purge and this insert deadlocked.
+    organization is held first. An organization's purge, and an account
+    deletion (#2638), lock the two in that order; taken the other way round,
+    they and this insert deadlocked.
 
     An organization deleted meanwhile is the one case that writes nothing and
     returns `None`. Its spend rows `CASCADE` with it, so this row would have gone

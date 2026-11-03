@@ -16,6 +16,7 @@ from app.core.exceptions import (
     AuthenticationError,
     AuthorizationError,
     BadRequestError,
+    ConcurrentChangeError,
     NotFoundError,
     RateLimitError,
 )
@@ -27,7 +28,7 @@ from app.core.security import (
     verify_password,
     verify_special_token,
 )
-from app.db.locks import LockScope, hold_name
+from app.db.locks import LockScope, hold_name, try_hold_name
 from app.db.models.organization import Organization
 from app.db.models.user import User
 from app.db.updates import writable
@@ -882,23 +883,47 @@ class UserService:
     ) -> None:
         """Lock the personal organization before anything under it is deleted (#2638).
 
-        A row that references the organization and one of its documents - an
-        ingest's spend - takes the two `FOR KEY SHARE` in that order, the order
+        An ingest's spend references the organization and one of its documents,
+        and takes the two `FOR KEY SHARE` in that order - the order
         `OrganizationService.purge` locks them in. Deleting the personal bases'
         documents first and reaching the purge's `FOR UPDATE` afterwards inverted
-        it: the spend held the organization and waited for a deleted document,
-        this held the document and waited for the organization, and Postgres
-        aborted one of the two. So the organization row is locked here, before
-        `_purge_personal_collections` deletes its documents, bases and sources.
+        it, and Postgres aborted one of the two. So the organization row is locked
+        here, before `_purge_personal_collections` deletes its documents, bases and
+        sources. The purge and the personal teardown take the same locks again
+        later, which Postgres grants at once to the transaction holding them.
 
         The `COLLECTION_TEARDOWN` names come first, for #1387: a claim takes the
-        name and then the organization's foreign key, so the purge takes the
-        names before the row. Both sets the delete tears down - the personal
-        bases and the personal organization's own collections - are taken in
-        one sorted pass, so a name the two share is not taken out of order.
-        The purge and the personal teardown take the same locks again later,
-        which Postgres grants at once to the transaction already holding them.
+        name and then the organization's foreign key. The personal bases' names and
+        the personal organization's own collections are taken in one sorted pass.
+        That read has no row lock, so a base committed before the `FOR UPDATE` was
+        granted - a claim this lock waited for - is found only by a second read
+        under it. Its name is taken without waiting, as the purge does (#1389):
+        a claim holding that name may be waiting for the organization this holds.
+        None can appear after the second read, because a new base references the
+        locked organization or, for a personal base, the locked user.
+
+        Raises:
+            ConcurrentChangeError: A base created during the deletion has a name
+                something else is working on right now. Nothing was deleted.
         """
+        names = await self._teardown_names(user_id, personal_orgs)
+        for collection in sorted(names):
+            await hold_name(self.db, LockScope.COLLECTION_TEARDOWN, collection)
+        for org in sorted(personal_orgs, key=lambda org: org.id):
+            await organization_repo.get_by_id_for_update(self.db, org.id)
+        for collection in sorted(await self._teardown_names(user_id, personal_orgs) - names):
+            if not await try_hold_name(self.db, LockScope.COLLECTION_TEARDOWN, collection):
+                raise ConcurrentChangeError(
+                    message=(
+                        "A knowledge collection was created while this account was being "
+                        "deleted, and something else is working on it right now. Nothing "
+                        "was deleted; try again."
+                    ),
+                    details={"collection_name": collection},
+                )
+
+    async def _teardown_names(self, user_id: UUID, personal_orgs: list[Organization]) -> set[str]:
+        """The collection names the account's deletion tears down."""
         names = {
             kb.collection_name
             for kb in await knowledge_base_repo.list_personal_by_owner(self.db, user_id)
@@ -908,10 +933,7 @@ class UserService:
                 kb.collection_name
                 for kb in await knowledge_base_repo.list_org_scoped(self.db, org.id)
             )
-        for collection in sorted(names):
-            await hold_name(self.db, LockScope.COLLECTION_TEARDOWN, collection)
-        for org in sorted(personal_orgs, key=lambda org: org.id):
-            await organization_repo.get_by_id_for_update(self.db, org.id)
+        return names
 
     async def _purge_personal_collections(self, user_id: UUID) -> None:
         """Remove the user's personal-scoped knowledge bases whole (#1131).
@@ -931,10 +953,11 @@ class UserService:
         storage_paths: list[str] = []
         collections_to_drop: list[str] = []
         base_purges: list[BasePurge] = []
-        # Sorted by name so this loop and `OrganizationService.purge` - the two paths
-        # that take several teardown locks in one transaction - acquire any shared name
-        # (#913) in one order, and cannot invert into a teardown-vs-teardown deadlock
-        # (#1387).
+        # Sorted by name so this loop, `_lock_personal_organizations` and
+        # `OrganizationService.purge` - the paths that take several teardown locks in
+        # one transaction - acquire any shared name (#913) in one order, and cannot
+        # invert into a teardown-vs-teardown deadlock (#1387). On account deletion the
+        # names are already held here, taken by `_lock_personal_organizations`.
         personal = await knowledge_base_repo.list_personal_by_owner(self.db, user_id)
         ordered = sorted(personal, key=lambda kb: kb.collection_name)
         # Acquire every name before source rows: an edit assigning a source to

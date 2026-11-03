@@ -1,14 +1,6 @@
 """Deleting an account while an ingest records its spend finishes both (#2638).
 
-An ingest's spend row references the organization and the document, and
-`ingestion_spend_repo.record` holds the two `FOR KEY SHARE` in that order - the
-order `OrganizationService.purge` locks them in. Account deletion used to delete
-the personal knowledge bases' documents first and only then reach the purge's
-`FOR UPDATE` on the personal organization: the spend held the organization and
-waited for the document, the deletion held the document and waited for the
-organization, and Postgres aborted one of them. The deletion now locks the
-personal organization before it deletes anything under it.
-
+The lock order is explained on `UserService._lock_personal_organizations`.
 Integration because the deadlock is two transactions the database arbitrates,
 which a mock cannot show.
 """
@@ -19,44 +11,35 @@ from decimal import Decimal
 from typing import Any
 
 import pytest
-from sqlalchemy import select, text
-from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
+from sqlalchemy import select
+from sqlalchemy.exc import DBAPIError
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from app.agents.capabilities.budget import SpendLedger
 from app.core.background import discard_deferred
+from app.core.exceptions import ConcurrentChangeError
+from app.db.locks import LockScope, hold_name
 from app.db.models.ingestion_spend import IngestionSpend
 from app.db.models.knowledge_base import KnowledgeBase
 from app.db.models.organization import Organization
 from app.db.models.rag_document import RAGDocument
 from app.db.models.user import User
+from app.repositories import sync_source_repo
 from app.services import user as user_service
 from app.services.user import UserService
 from app.worker.tasks import rag_tasks
 from tests.integration.test_deletion_reconciliation import (
     _kb_document,
     _org,
+    _org_collection,
     _personal_kb,
     _user,
 )
+from tests.integration.test_document_delete_mid_ingest import _until_a_statement_waits_on_a_lock
 
 pytestmark = pytest.mark.anyio
 
 _MODEL = "text-embedding-3-small"
-
-
-async def _until_a_statement_waits_on_a_lock(factory: async_sessionmaker[Any]) -> None:
-    for _ in range(250):
-        async with factory() as s:
-            waiting = await s.scalar(
-                text(
-                    "SELECT count(*) FROM pg_stat_activity "
-                    "WHERE datname = current_database() AND wait_event_type = 'Lock'"
-                )
-            )
-        if waiting:
-            return
-        await asyncio.sleep(0.02)
-    raise AssertionError("No statement ever waited on a lock")
 
 
 class _Account:
@@ -137,7 +120,9 @@ async def test_a_spend_recorded_while_the_account_deletes_its_documents_lets_bot
     recording: list[asyncio.Task[None]] = []
     delete_documents = user_service.rag_document_repo.delete_by_knowledge_base
 
-    async def delete_then_let_the_spend_in(db: Any, knowledge_base_id: uuid.UUID) -> list[str]:
+    async def delete_then_let_the_spend_in(
+        db: AsyncSession, knowledge_base_id: uuid.UUID
+    ) -> list[str]:
         deleted = await delete_documents(db, knowledge_base_id)
         recording.append(asyncio.create_task(account.record_spend()))
         await _until_a_statement_waits_on_a_lock(account.factory)
@@ -159,11 +144,14 @@ async def test_a_spend_holding_its_locks_first_is_kept_and_then_deleted_with_the
 ) -> None:
     """The other order: the spend holds the organization and the document when the
     deletion starts. The deletion waits for the spend's commit, and the row then
-    goes with the organization it was billed to."""
+    goes with the organization it was billed to. This order finished before the
+    fix too; it pins that the new lock does not break it."""
     record = rag_tasks.ingestion_spend_repo.record
     deleting: list[asyncio.Task[None]] = []
 
-    async def record_then_let_the_deletion_in(db: Any, **kwargs: Any) -> object:
+    async def record_then_let_the_deletion_in(
+        db: AsyncSession, **kwargs: Any
+    ) -> IngestionSpend | None:
         spend = await record(db, **kwargs)
         deleting.append(asyncio.create_task(account.delete()))
         await _until_a_statement_waits_on_a_lock(account.factory)
@@ -176,3 +164,95 @@ async def test_a_spend_holding_its_locks_first_is_kept_and_then_deleted_with_the
 
     assert await account.gone()
     assert await account.spend() == []
+
+
+class _BaseCreatedDuringTheDeletion:
+    """An org-scoped base in the personal organization, inserted but not yet
+    committed when the deletion reads what it tears down.
+
+    It references the organization only - no user - so the deleting user's row
+    lock does not hold it back, and the deletion's `FOR UPDATE` on the
+    organization waits for its commit. The deletion's first read never saw it.
+    """
+
+    def __init__(self, account: _Account) -> None:
+        self.account = account
+        self.name = f"lateclaim{uuid.uuid4().hex[:12]}"
+
+    async def delete_while_it_commits(self) -> asyncio.Task[None]:
+        account = self.account
+        claim = account.factory()
+        claim.add(_org_collection(account.organization_id, self.name))
+        await claim.flush()
+        deleting = asyncio.create_task(account.delete())
+        await _until_a_statement_waits_on_a_lock(account.factory)
+        await claim.commit()
+        await claim.close()
+        return deleting
+
+
+async def test_a_base_created_while_the_organization_lock_waits_is_torn_down_without_a_deadlock(
+    account: _Account, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A source added to that base holds its name and then needs the organization.
+
+    Had the deletion found the name only at the purge, with the organization
+    already held, it would have waited for the name while the source waited for
+    the organization. It is found under the lock and taken first, so the source
+    waits for the deletion and then finds no organization to belong to.
+    """
+    late = _BaseCreatedDuringTheDeletion(account)
+    adding: list[asyncio.Task[None]] = []
+
+    async def add_a_source() -> None:
+        async with account.factory() as s:
+            await hold_name(s, LockScope.COLLECTION_TEARDOWN, late.name)
+            await sync_source_repo.create(
+                s,
+                name="drive",
+                connector_type="s3",
+                config={},
+                organization_id=account.organization_id,
+                collection_name=late.name,
+            )
+            await s.commit()
+
+    purge_personal = UserService._purge_personal_collections
+
+    async def purge_then_add_a_source(self: UserService, user_id: uuid.UUID) -> None:
+        await purge_personal(self, user_id)
+        adding.append(asyncio.create_task(add_a_source()))
+        await _until_a_statement_waits_on_a_lock(account.factory)
+
+    monkeypatch.setattr(UserService, "_purge_personal_collections", purge_then_add_a_source)
+
+    deleting = await late.delete_while_it_commits()
+    await asyncio.wait_for(deleting, timeout=10)
+    with pytest.raises(DBAPIError) as refused:
+        await asyncio.wait_for(adding[0], timeout=10)
+
+    # The source's own insert, refused by the organization's foreign key - not a
+    # deadlock breaking the cycle.
+    assert "deadlock" not in str(refused.value)
+    assert "sync_sources" in str(refused.value)
+    assert await account.gone()
+
+
+async def test_a_base_created_while_the_organization_lock_waits_on_a_busy_name_refuses(
+    account: _Account,
+) -> None:
+    """The name of that late base is held by something else: waiting for it with
+    the organization held could close a cycle, so the deletion refuses whole."""
+    late = _BaseCreatedDuringTheDeletion(account)
+
+    async with account.factory() as busy:
+        await hold_name(busy, LockScope.COLLECTION_TEARDOWN, late.name)
+        deleting = await late.delete_while_it_commits()
+        with pytest.raises(ConcurrentChangeError):
+            await asyncio.wait_for(deleting, timeout=10)
+        await busy.rollback()
+
+    async with account.factory() as s:
+        assert await s.get(User, account.user_id) is not None
+        assert await s.get(Organization, account.organization_id) is not None
+        assert await s.get(RAGDocument, account.document_id) is not None
