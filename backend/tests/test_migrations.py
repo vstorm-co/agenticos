@@ -222,7 +222,13 @@ class TestMigrations:
 
 
 @pytest.mark.parametrize(
-    "starting_revision", ["0248_merge_self_improvement", "0250_discord_channel"]
+    "starting_revision",
+    [
+        "0248_merge_self_improvement",
+        "0250_discord_channel",
+        "0252_index_rag_parent_doc_id",
+        "0253_helper_snapshots",
+    ],
 )
 def test_improvement_merge_upgrades_either_existing_history(starting_revision: str) -> None:
     down = _alembic("downgrade", "base")
@@ -251,7 +257,7 @@ def test_improvement_merge_upgrades_either_existing_history(starting_revision: s
             )
             assert connection.execute(
                 text("SELECT version_num FROM alembic_version")
-            ).scalar_one() == ("0253_helper_snapshots")
+            ).scalar_one() == ("0254_merge_eval_rag_index")
         check = _alembic("check")
         assert check.returncode == 0, check.stderr
     finally:

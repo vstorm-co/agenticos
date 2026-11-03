@@ -88,6 +88,10 @@ def test_no_unmerged_migrations_claim_the_same_parent() -> None:
             "0184_diagnostics_identity",
             "0243_merge_channel_workflows",
         ],
+        "0250_discord_channel": [
+            "0251_merge_improvement_discord",
+            "0252_index_rag_parent_doc_id",
+        ],
         "0247_merge_deployment_workflows": [
             "0248_drop_refused_turn_summaries",
             "0248_merge_self_improvement",
@@ -115,6 +119,11 @@ def test_no_unmerged_migrations_claim_the_same_parent() -> None:
     assert discord_merge is not None and discord_merge.down_revision == (
         "0248_merge_self_improvement",
         "0250_discord_channel",
+    )
+    rag_merge = chain.get_revision("0254_merge_eval_rag_index")
+    assert rag_merge is not None and rag_merge.down_revision == (
+        "0253_helper_snapshots",
+        "0252_index_rag_parent_doc_id",
     )
     # Released histories must not be rewritten: an explicit merge may join them.
     chain = _chain()

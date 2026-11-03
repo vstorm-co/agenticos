@@ -199,6 +199,8 @@ environment without a person's decision.
 
 ### Fixed
 
+- Join the eval-helper and RAG-index migration histories so installations on
+  either branch upgrade to one head without rewriting applied revisions.
 
 
 - Keep incomparable eval runs and improvement rounds from presenting score
