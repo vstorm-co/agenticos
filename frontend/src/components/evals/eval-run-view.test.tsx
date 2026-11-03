@@ -979,17 +979,26 @@ describe("EvalRunView", () => {
     ).toBeInTheDocument();
   });
 
-  it("says the sides cannot be compared before it says a case was left undecided", () => {
+  it.each([null, "1"])("keeps an invalid comparison neutral with broken=%s", (broken) => {
+    if (broken !== null) navigation.params.set("broken", broken);
     state.run = {
       ...state.run,
       run: evalRun({ arms: [arm({ summary: { ...SUMMARY, ungraded: 1 } })] }),
     };
     state.comparison = comparison({
       verdict: "invalid",
+      regressions_confirmed: 4,
+      cases: [FLIP],
       invalid_reason: "The two sides were graded by a different judge, model or rubric.",
     });
     render(<EvalRunView agentId="agent-1" runId="run-1" />);
     expect(screen.getByText("Not comparable")).toBeInTheDocument();
+    expect(screen.queryByText("Confirmed regressions")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /Show the .* cases that broke/ }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText("Confirmed regression")).not.toBeInTheDocument();
+    expect(state.casesArgs.at(-1)).toEqual(["run-1", expect.objectContaining({ caseIds: null })]);
     expect(screen.queryByText("Inconclusive")).toBeNull();
   });
 

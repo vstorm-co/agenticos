@@ -56,7 +56,7 @@ export function ComparisonCard({
 }) {
   const t = useTranslations("evals.comparison");
   const { baseline, efficiency } = comparison;
-  if (baseline === null) return null;
+  if (baseline === null || comparison.verdict === "invalid") return null;
   const scope =
     tag === null
       ? null

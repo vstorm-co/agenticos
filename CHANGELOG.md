@@ -183,6 +183,8 @@ environment without a person's decision.
 
 ### Fixed
 
+- Keep incomparable eval runs from presenting score differences as confirmed
+  regressions or fixes; retain their individual answers and grading results.
 - Preserve assistant replies with file origins in chat history by serializing
   their UUID references before writing JSONB.
 - Show an exceeded eval budget explicitly instead of describing a negative

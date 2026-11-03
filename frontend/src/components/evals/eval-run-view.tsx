@@ -51,7 +51,6 @@ export function EvalRunView({ agentId, runId }: { agentId: string; runId: string
   const [arm, setArm] = useUrlState("arm");
   const [tag, setTag] = useUrlState("tag");
   const [brokenParam, setBrokenParam] = useUrlState("broken");
-  const broken = brokenParam === "1";
   const [testingAgain, setTestingAgain] = useState(false);
   // `?case=` names one case to open - how Activity hands a case back to its run.
   const params = useSearchParams();
@@ -103,6 +102,8 @@ export function EvalRunView({ agentId, runId }: { agentId: string; runId: string
     );
   }
 
+  const comparable = comparison?.verdict !== "invalid";
+  const broken = brokenParam === "1" && comparable;
   const tags = [...new Set(run.arms.flatMap((item) => Object.keys(item.by_tag)))].sort();
   const candidate = candidates.find((item) => item.id === focus);
   const brokenIds = (comparison?.cases ?? [])
@@ -217,7 +218,7 @@ export function EvalRunView({ agentId, runId }: { agentId: string; runId: string
         <CaseTable
           run={run}
           arm={focus}
-          comparison={live ? undefined : comparison}
+          comparison={live || !comparable ? undefined : comparison}
           tag={tag}
           caseIds={only !== null ? [only] : broken ? brokenIds.slice(0, CASE_IDS) : null}
           brokenTotal={brokenIds.length}

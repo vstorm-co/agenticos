@@ -578,6 +578,17 @@ describe("EstimateSummary", () => {
 });
 
 describe("ComparisonCard", () => {
+  it("does not claim confirmed changes for an invalid comparison", () => {
+    const { container } = render(
+      <ComparisonCard
+        agentId="agent-1"
+        comparison={comparison({ verdict: "invalid" })}
+        tag={null}
+      />,
+    );
+    expect(container).toBeEmptyDOMElement();
+  });
+
   it("shows both sides, the changes with what confirmed means, and the efficiency axis", () => {
     render(<ComparisonCard agentId="agent-1" comparison={comparison()} tag={null} />);
     expect(screen.getByText("How the two compare")).toBeInTheDocument();

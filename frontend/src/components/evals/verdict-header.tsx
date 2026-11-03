@@ -58,9 +58,10 @@ export function VerdictHeader({
     ? [run.attempts_done - run.first_done, reruns]
     : [run.first_done, run.first_total];
   const done = ofNow === 0 ? 0 : (doneNow / ofNow) * 100;
-  const broke = comparison
-    ? comparison.regressions_confirmed + comparison.regressions_unconfirmed
-    : 0;
+  const broke =
+    comparison && comparison.verdict !== "invalid"
+      ? comparison.regressions_confirmed + comparison.regressions_unconfirmed
+      : 0;
   const brokeOnce = comparison !== undefined && comparison.regressions_unconfirmed > 0;
   const baseline = comparison?.baseline ?? null;
   const undecided = candidate ? undecidedOf(candidate) : 0;
