@@ -105,6 +105,7 @@ from app.services.agent_runner import (
     run_failure_summary,
 )
 from app.services.approvals import ApprovalService
+from app.services.channels.handback import STOPPED_NOTICE
 from app.services.mcp_connection import (
     AccountNote,
     ResolvedMcpToolsets,
@@ -228,6 +229,7 @@ def _parked_run(**overrides):
         test_spec=None,
         # Started from a session; a run a key started records the key's scopes.
         key_scopes=None,
+        chat_notice_sent_at=None,
         trigger_id=None,
         surface=RunSurface.API.value,
         status=RunStatus.AWAITING_APPROVAL.value,
@@ -7312,6 +7314,166 @@ class TestCancelParkedRun:
         assert finish.await_args.kwargs["cost_is_partial"] == run.cost_is_partial
         expire.assert_awaited_once()
         assert audit.await_args.kwargs["actor_user_id"] == ctx.user_id
+
+    @pytest.mark.parametrize("status", [RunStatus.AWAITING_ANSWER, RunStatus.AWAITING_APPROVAL])
+    async def test_stopping_a_chat_run_from_the_console_tells_its_chat_after_commit(self, status):
+        ctx = AuthContext(user_id=uuid.uuid4(), organization_id=uuid.uuid4(), role="member")
+        destination = {
+            "bot_id": str(uuid.uuid4()),
+            "platform_chat_id": "C1",
+            "private_chat": False,
+        }
+        run = _parked_run(
+            user_id=ctx.user_id,
+            status=status.value,
+            surface="slack",
+            paused_state={
+                "messages": [],
+                "tool_call_ids": {},
+                "channel_destination": destination,
+            },
+        )
+        db = _db()
+        service = AgentRunnerService(db)
+        order: list[str] = []
+
+        async def settle(*_args, **_kwargs):
+            order.append("settle")
+
+        async def audit(*_args, **_kwargs):
+            order.append("audit")
+
+        async def finish(*_args, run, **_kwargs):
+            order.append("finish")
+            run.paused_state = None
+
+        with (
+            patch(
+                "app.services.agent_runner.agent_run_repo.claim_parked_run",
+                AsyncMock(return_value=run),
+            ),
+            patch("app.services.agent_runner.agent_run_repo.expire_pending_approvals", AsyncMock()),
+            patch("app.services.agent_runner.agent_run_repo.finish_run", side_effect=finish),
+            patch.object(service.transcript, "record", AsyncMock()),
+            patch("app.services.agent_runner.record_audit", side_effect=audit),
+            patch(
+                "app.services.agent_runner.channel_prompt_repo.settle_open", side_effect=settle
+            ) as settled,
+            patch("app.services.agent_runner.post_notice", new_callable=MagicMock) as post,
+            patch("app.services.agent_runner.spawn_after_commit") as spawn,
+        ):
+            await service.cancel_parked(ctx, run.id)
+        settled.assert_called_once_with(db, run_id=run.id, by="stopped")
+        # Settled before the audit lock, which comes last.
+        assert order.index("settle") < order.index("audit")
+        post.assert_called_once()
+        assert post.call_args.kwargs["text"] == STOPPED_NOTICE
+        assert post.call_args.kwargs["organization_id"] == run.organization_id
+        assert post.call_args.kwargs["run_id"] == run.id
+        # Read before `finish_run` cleared the state it lives in.
+        assert post.call_args.kwargs["destination"].platform_chat_id == "C1"
+        spawn.assert_called_once_with(db, post.return_value, name=f"channel-stop-notice:{run.id}")
+
+    async def test_stopping_a_run_whose_chat_was_already_told_posts_nothing_more(self):
+        ctx = AuthContext(user_id=uuid.uuid4(), organization_id=uuid.uuid4(), role="member")
+        destination = {
+            "bot_id": str(uuid.uuid4()),
+            "platform_chat_id": "C1",
+            "private_chat": False,
+        }
+        run = _parked_run(
+            user_id=ctx.user_id,
+            surface="slack",
+            paused_state={"messages": [], "tool_call_ids": {}, "channel_destination": destination},
+            chat_notice_sent_at=datetime.now(UTC),
+        )
+        service = AgentRunnerService(_db())
+        with (
+            patch(
+                "app.services.agent_runner.agent_run_repo.claim_parked_run",
+                AsyncMock(return_value=run),
+            ),
+            patch("app.services.agent_runner.agent_run_repo.expire_pending_approvals", AsyncMock()),
+            patch("app.services.agent_runner.agent_run_repo.finish_run", AsyncMock()),
+            patch.object(service.transcript, "record", AsyncMock()),
+            patch("app.services.agent_runner.record_audit", AsyncMock()),
+            patch(
+                "app.services.agent_runner.channel_prompt_repo.settle_open", AsyncMock()
+            ) as settled,
+            patch("app.services.agent_runner.spawn_after_commit") as spawn,
+        ):
+            await service.cancel_parked(ctx, run.id)
+        settled.assert_awaited_once()
+        spawn.assert_not_called()
+
+    async def test_stopping_a_run_outside_any_chat_posts_nothing(self):
+        ctx = AuthContext(user_id=uuid.uuid4(), organization_id=uuid.uuid4(), role="member")
+        run = _parked_run(user_id=ctx.user_id)
+        service = AgentRunnerService(_db())
+        with (
+            patch(
+                "app.services.agent_runner.agent_run_repo.claim_parked_run",
+                AsyncMock(return_value=run),
+            ),
+            patch("app.services.agent_runner.agent_run_repo.expire_pending_approvals", AsyncMock()),
+            patch("app.services.agent_runner.agent_run_repo.finish_run", AsyncMock()),
+            patch.object(service.transcript, "record", AsyncMock()),
+            patch("app.services.agent_runner.record_audit", AsyncMock()),
+            patch("app.services.agent_runner.channel_prompt_repo.settle_open") as settled,
+            patch("app.services.agent_runner.spawn_after_commit") as spawn,
+        ):
+            await service.cancel_parked(ctx, run.id)
+        settled.assert_not_called()
+        spawn.assert_not_called()
+
+    async def test_a_second_stop_posts_nothing(self):
+        ctx = AuthContext(user_id=uuid.uuid4(), organization_id=uuid.uuid4(), role="member")
+        run = _parked_run(
+            user_id=ctx.user_id,
+            status=RunStatus.CANCELLED.value,
+            surface="slack",
+            paused_state=None,
+        )
+        with (
+            patch(
+                "app.services.agent_runner.agent_run_repo.claim_parked_run",
+                AsyncMock(return_value=run),
+            ),
+            patch("app.services.agent_runner.spawn_after_commit") as spawn,
+        ):
+            assert await AgentRunnerService(_db()).cancel_parked(ctx, run.id) is None
+        spawn.assert_not_called()
+
+    async def test_a_workflow_ending_stops_its_runs_without_a_notice(self):
+        destination = {
+            "bot_id": str(uuid.uuid4()),
+            "platform_chat_id": "C1",
+            "private_chat": False,
+        }
+        run = _parked_run(
+            surface="slack",
+            paused_state={
+                "messages": [],
+                "tool_call_ids": {},
+                "channel_destination": destination,
+            },
+        )
+        service = AgentRunnerService(_db())
+        with (
+            patch(
+                "app.services.agent_runner.agent_run_repo.claim_parked_run",
+                AsyncMock(return_value=run),
+            ),
+            patch("app.services.agent_runner.agent_run_repo.expire_pending_approvals", AsyncMock()),
+            patch("app.services.agent_runner.agent_run_repo.finish_run", AsyncMock()),
+            patch.object(service.transcript, "record", AsyncMock()),
+            patch("app.services.agent_runner.spawn_after_commit") as spawn,
+        ):
+            stops = await service.stop_parked_for_workflow(
+                [run.id], organization_id=run.organization_id
+            )
+        assert len(stops) == 1
+        spawn.assert_not_called()
 
     async def test_a_foreign_or_missing_run_is_not_found(self):
         ctx = AuthContext(user_id=uuid.uuid4(), organization_id=uuid.uuid4(), role="member")

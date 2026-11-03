@@ -12,6 +12,8 @@ who was refused or why.
 """
 
 import logging
+from collections.abc import Sequence
+from dataclasses import dataclass
 from typing import Final
 from uuid import UUID
 
@@ -74,6 +76,28 @@ def continues_in_chat(run: AgentRun, decider: AuthContext) -> bool:
     return chat_destination(run) is not None and decided_by_a_person(decider)
 
 
+@dataclass(frozen=True)
+class ChatNotice:
+    """One fixed sentence for one chat: ids, the recorded destination and the text."""
+
+    organization_id: UUID
+    run_id: UUID
+    destination: ChannelDestination
+    text: str
+
+
+async def post_notices(notices: Sequence[ChatNotice]) -> None:
+    """Post each notice in turn, so a backlog never opens more than one connection.
+
+    A sweep that ends many runs queues one of these rather than one task per run:
+    spawned tasks all start at once, and each would hold a pooled database
+    connection while its platform answers. It never raises, and a chat that cannot
+    be told does not stop the next one.
+    """
+    for notice in notices:
+        await _post_one(notice)
+
+
 async def post_notice(
     *, organization_id: UUID, run_id: UUID, destination: ChannelDestination, text: str
 ) -> None:
@@ -83,26 +107,42 @@ async def post_notice(
     a chat that cannot be told is logged by run and bot id, never by chat id or
     text.
     """
-    bot_id = destination.bot_id
+    await post_notices(
+        [
+            ChatNotice(
+                organization_id=organization_id, run_id=run_id, destination=destination, text=text
+            )
+        ]
+    )
+
+
+async def _post_one(notice: ChatNotice) -> None:
+    bot_id = notice.destination.bot_id
     try:
+        # The session ends before the platform is called: a slow platform must never
+        # hold a database connection.
         async with get_db_context() as db:
-            bot = await channel_bot_repo.get_for_org(db, bot_id, organization_id=organization_id)
+            bot = await channel_bot_repo.get_for_org(
+                db, bot_id, organization_id=notice.organization_id
+            )
             if bot is None or not bot.is_active:
                 return
             adapter = get_adapter(bot.platform)
-            await adapter.send_message(
-                unseal_bot_token(bot),
-                OutgoingMessage(
-                    platform_chat_id=destination.platform_chat_id,
-                    text=text,
-                    api_base_url=bot.api_base_url,
-                ),
+            token = unseal_bot_token(bot)
+            message = OutgoingMessage(
+                platform_chat_id=notice.destination.platform_chat_id,
+                text=notice.text,
+                api_base_url=bot.api_base_url,
             )
+        await adapter.send_message(token, message)
     except KeyError:
-        logger.warning("chat_notice_no_adapter run_id=%s bot_id=%s", run_id, bot_id)
+        logger.warning("chat_notice_no_adapter run_id=%s bot_id=%s", notice.run_id, bot_id)
     except Exception as exc:
         logger.warning(
-            "chat_notice_failed run_id=%s bot_id=%s error=%s", run_id, bot_id, type(exc).__name__
+            "chat_notice_failed run_id=%s bot_id=%s error=%s",
+            notice.run_id,
+            bot_id,
+            type(exc).__name__,
         )
 
 

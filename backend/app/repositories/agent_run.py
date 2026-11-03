@@ -1,6 +1,6 @@
 """Agent run and approval repositories (PostgreSQL async)."""
 
-from collections.abc import Sequence
+from collections.abc import Collection, Sequence
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
@@ -2219,6 +2219,45 @@ async def list_stale_approvals(
         .limit(limit)
     )
     return list(result.scalars().all())
+
+
+async def list_stranded_runs(
+    db: AsyncSession,
+    *,
+    decided_before: datetime,
+    surfaces: Collection[str],
+    limit: int = 500,
+) -> list[tuple[AgentRun, datetime]]:
+    """Runs waiting on approval whose every call was decided before `decided_before`.
+
+    With nothing pending, nobody can decide such a run again, so only a
+    continuation can move it; one that never came leaves it parked for ever. Each
+    run comes back with the time of its last decision. Voice runs are the call's
+    and are left out, as in :func:`list_stale_approvals`.
+
+    Not scoped to an organization, for the reason :func:`list_stale_approvals`
+    gives: its caller is the sweep, which ends each run in its own organization.
+    Do not copy this shape into anything a route can reach. Oldest run first.
+    """
+    last_decided = func.max(ToolApproval.decided_at)
+    result = await db.execute(
+        select(AgentRun, last_decided)
+        .join(ToolApproval, ToolApproval.run_id == AgentRun.id)
+        .where(
+            AgentRun.status == RunStatus.AWAITING_APPROVAL.value,
+            AgentRun.surface.in_(surfaces),
+            AgentRun.modality != "voice",
+        )
+        .group_by(AgentRun.id)
+        .having(
+            func.count().filter(ToolApproval.status == ApprovalStatus.PENDING.value) == 0,
+            last_decided < decided_before,
+        )
+        .order_by(AgentRun.ended_at.asc())
+        .limit(limit)
+    )
+    # The HAVING clause drops a run with no decision, so the filter keeps every row.
+    return [(run, decided_at) for run, decided_at in result.all() if decided_at is not None]
 
 
 async def beat_run(db: AsyncSession, *, run_id: UUID, at: datetime) -> None:

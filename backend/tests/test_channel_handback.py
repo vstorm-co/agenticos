@@ -19,11 +19,13 @@ from app.services.channels.handback import (
     REFUSED_NOTICE,
     STOPPED_NOTICE,
     STRANDED_NOTICE,
+    ChatNotice,
     chat_destination,
     continues_in_chat,
     decided_by_a_person,
     ensure_channel_adapters,
     post_notice,
+    post_notices,
 )
 
 pytestmark = pytest.mark.anyio
@@ -189,6 +191,67 @@ async def test_a_notice_with_no_adapter_registered_is_logged_not_raised(
         run_id = await _post(bot, MagicMock(side_effect=KeyError("slack")))
 
     assert str(run_id) in caplog.text
+
+
+def _notices(count: int) -> list[ChatNotice]:
+    return [
+        ChatNotice(
+            organization_id=_ORG, run_id=uuid4(), destination=_DESTINATION, text=EXPIRED_NOTICE
+        )
+        for _ in range(count)
+    ]
+
+
+async def test_no_session_is_open_while_the_adapter_sends() -> None:
+    open_sessions = 0
+    seen: list[int] = []
+
+    class Session:
+        async def __aenter__(self) -> MagicMock:
+            nonlocal open_sessions
+            open_sessions += 1
+            return MagicMock()
+
+        async def __aexit__(self, *_exc: object) -> bool:
+            nonlocal open_sessions
+            open_sessions -= 1
+            return False
+
+    async def send(*_args: object) -> None:
+        seen.append(open_sessions)
+
+    adapter = MagicMock(send_message=send)
+    with (
+        patch.object(handback, "get_db_context", lambda: Session()),
+        patch.object(handback.channel_bot_repo, "get_for_org", AsyncMock(return_value=_bot())),
+        patch.object(handback, "get_adapter", MagicMock(return_value=adapter)),
+        patch.object(handback, "unseal_bot_token", return_value="tok"),
+    ):
+        await post_notices(_notices(2))
+
+    assert seen == [0, 0]
+
+
+async def test_one_chat_that_cannot_be_told_does_not_stop_the_next() -> None:
+    sent: list[str] = []
+
+    async def send(_token: str, message: OutgoingMessage) -> None:
+        sent.append(message.text)
+        if len(sent) == 1:
+            raise httpx.HTTPError("down")
+
+    context = MagicMock()
+    context.return_value.__aenter__ = AsyncMock(return_value=MagicMock())
+    context.return_value.__aexit__ = AsyncMock(return_value=False)
+    with (
+        patch.object(handback, "get_db_context", context),
+        patch.object(handback.channel_bot_repo, "get_for_org", AsyncMock(return_value=_bot())),
+        patch.object(handback, "get_adapter", MagicMock(return_value=MagicMock(send_message=send))),
+        patch.object(handback, "unseal_bot_token", return_value="tok"),
+    ):
+        await post_notices(_notices(3))
+
+    assert len(sent) == 3
 
 
 async def test_ensuring_adapters_registers_each_platform_once_and_starts_nothing() -> None:
