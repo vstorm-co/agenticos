@@ -12,6 +12,7 @@ from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from types import SimpleNamespace
 from typing import Any
+from unittest.mock import AsyncMock
 
 import pytest
 from sqlalchemy import select
@@ -1084,6 +1085,11 @@ class FakeChecks:
         check.status = CheckStatus.CANCELLED.value
         await self.db.flush()
 
+    async def stop_for_session(self, check):
+        self.calls.append(("cancel", check.id))
+        check.status = CheckStatus.CANCELLED.value
+        await self.db.flush()
+
     async def discard(self, ctx, skill_id, check_id, *, from_session=False):
         assert from_session
         self.calls.append(("discard", check_id))
@@ -1797,7 +1803,7 @@ class TestReviewFixes:
         assert [name for name, _ in fake.calls if name == "cancel"] == ["cancel"]
         assert iteration.cost_usd == Decimal("0.05")
 
-    async def test_a_session_whose_actor_lost_access_mid_check_leaves_the_check_to_stop(
+    async def test_a_session_whose_actor_lost_access_mid_check_still_stops_it(
         self, db, evidence, monkeypatch
     ):
         fake = _checked(db, monkeypatch)
@@ -1813,7 +1819,7 @@ class TestReviewFixes:
         assert (await _row(db, SkillImprovementRead.model_validate(run))).stop_reason == (
             "permission"
         )
-        assert [name for name, _ in fake.calls if name == "cancel"] == []
+        assert [name for name, _ in fake.calls if name == "cancel"] == ["cancel"]
 
     async def test_an_accepted_session_cannot_be_discarded(self, db, evidence, monkeypatch):
         _, run = await _with_result(db, await _owner(db), monkeypatch)
@@ -2163,3 +2169,73 @@ class TestArchivedLines:
             )
             == {}
         )
+
+
+class TestApprovedFollowUps:
+    async def test_the_platform_stops_a_sessions_check_whatever_the_person_may_read(
+        self, db, evidence, monkeypatch
+    ):
+        fake = _checked(db, monkeypatch)
+        ctx = await _owner(db)
+        run = await _at_changes(db, ctx)
+        await _check_now(db, ctx, run)
+        iteration = await skill_improvement_repo.get_iteration(
+            db, organization_id=ctx.organization_id, run_id=run.id, number=1
+        )
+        assert iteration is not None and iteration.skill_check_id is not None
+        check = await db.get(SkillCheck, iteration.skill_check_id)
+        assert check is not None
+        del fake
+
+        await SkillCheckService(db).stop_for_session(check)
+
+        assert check.status == "cancelled" and check.finished_at is not None
+
+    async def test_a_session_stopped_on_a_moved_line_offers_no_try_again_and_ends(
+        self, db, evidence
+    ):
+        ctx = await _owner(db)
+        run = await _at_understand(db, ctx, await _skill_on_main(db, ctx))
+        await _propose(db, ctx, run, [])
+        await SkillService(db).update(ctx, run.skill_id, SkillUpdate(content="Moved on."))
+        service = SkillImprovementService(db)
+
+        read = await service.read(ctx, run.skill_id, run.id)
+        await service.sweep()
+
+        assert (read.status, read.can_restart) == ("stopped", False)
+        assert (await _row(db, read)).status == "stale"
+
+    async def test_retrying_and_checking_again_keep_how_the_check_measured(
+        self, db, evidence, monkeypatch
+    ):
+        fake = _checked(db, monkeypatch)
+        ctx = await _owner(db)
+        run = await _at_changes(db, ctx)
+        await _check_now(db, ctx, run, mode="thorough")
+        run = await _settle(db, run, status="cancelled")
+        service = SkillImprovementService(db)
+
+        retried = await service.retry(ctx, run.skill_id, run.id)
+        run = await _settle(db, run, status="done", verdict="passed")
+        rechecked = await _recheck(db, ctx, run)
+
+        started = [
+            data
+            for name, (data, _) in ((name, value) for name, value in fake.calls if name == "start")
+        ]
+        assert [data.mode for data in started] == [CheckMode.THOROUGH] * 3
+        assert retried.iterations[0].check_verdict is None
+        assert rechecked.stage == "evaluating"
+
+    async def test_cancelling_during_a_check_keeps_what_it_cost(self, db, evidence, monkeypatch):
+        _checked(db, monkeypatch)
+        ctx = await _owner(db)
+        run = await _at_changes(db, ctx)
+        await _check_now(db, ctx, run)
+        cost = Decimal("0.07")
+        monkeypatch.setattr(skill_improvement_repo, "check_cost", AsyncMock(return_value=cost))
+
+        cancelled = await SkillImprovementService(db).cancel(ctx, run.skill_id, run.id)
+
+        assert cancelled.iterations[0].cost_usd == cost

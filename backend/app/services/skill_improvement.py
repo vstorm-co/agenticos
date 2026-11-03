@@ -712,7 +712,7 @@ class SkillImprovementService:
     ) -> SkillContinuationEstimate:
         """The price of checking the result's changes again, on the line as it is now."""
         line, run = await self._editable_row(ctx, skill_id, run_id)
-        return await self._recheck_quote(ctx, line, run, data.mode)
+        return await self._recheck_quote(ctx, line, run, data.mode or await self._mode_of(run))
 
     async def recheck(
         self, ctx: AuthContext, skill_id: UUID, run_id: UUID, consent: SkillContinuationConsent
@@ -730,7 +730,8 @@ class SkillImprovementService:
             PaymentRequiredError: The spending limit does not cover the check.
         """
         line, run = await self._editable_row(ctx, skill_id, run_id, lock=True)
-        quote = await self._recheck_quote(ctx, line, run, consent.mode)
+        mode = consent.mode or await self._mode_of(run)
+        quote = await self._recheck_quote(ctx, line, run, mode)
         if consent.candidate_hash != quote.candidate_hash or consent.estimate_usd < quote.total_usd:
             raise ConcurrentChangeError(
                 message="The check's price changed since it was quoted; review it again",
@@ -771,7 +772,7 @@ class SkillImprovementService:
                 "actor_api_key_id": ctx.api_key_id,
             },
         )
-        await self._start_check(ctx, run, line, consent.mode, base=base)
+        await self._start_check(ctx, run, line, mode, base=base)
         return await self._read(ctx, run, line)
 
     async def _recheck_quote(
@@ -848,10 +849,9 @@ class SkillImprovementService:
             run, rules.Transition(Status.CANCELLED, stage), actor_user_id=ctx.subject_id
         )
         await self._stop_requests(run)
+        await self._stop_check(run)
         check = await self._check(run)
-        if check is not None and check.status == CheckStatus.RUNNING.value:
-            await self.checks.cancel(ctx, skill_id, check.id, from_session=True)
-        elif check is not None and check.status == CheckStatus.DONE.value:
+        if check is not None and check.status == CheckStatus.DONE.value:
             await self.checks.discard(ctx, skill_id, check.id, from_session=True)
         return await self._read(ctx, run, line)
 
@@ -886,7 +886,9 @@ class SkillImprovementService:
         self._refuse_moved(run, line)
         await AiAssistanceService(self.db).require_enabled(organization_id=ctx.organization_id)
         iteration = await self._iteration(run)
-        start = await self._check_start(ctx, run, line, iteration, None)
+        failed = await self._check(run)
+        assert failed is not None, "a failed check is the attempt's"
+        start = await self._check_start(ctx, run, line, iteration, CheckMode(failed.mode))
         quote = await self.checks.estimate(
             ctx,
             run.skill_id,
@@ -902,6 +904,11 @@ class SkillImprovementService:
             self.db,
             run=run,
             values={"actor_user_id": ctx.user_id, "actor_api_key_id": ctx.api_key_id},
+        )
+        await skill_improvement_repo.update_iteration(
+            self.db,
+            iteration=iteration,
+            values={"check_verdict": None, "verdict": None, "ended_at": None},
         )
         await self._start_check(ctx, run, line, CheckMode(quote.mode))
 
@@ -970,18 +977,20 @@ class SkillImprovementService:
         return count
 
     async def _end_if_left(self, run: SkillImprovementRun, *, now: datetime) -> bool:
-        """End a session nobody took on for a week, or one waiting at Understand while its
-        line moved on.
+        """End a session nobody took on for a week, or one its line moved past while it
+        waited at Understand, stopped or failed - none of those has a step left on the line
+        as it is now.
 
         A stopped or failed session is open too, holding its line, so it expires the same
         way. At Changes or with a result, a moved line leaves the session as it is: it reads
-        as stale, and Check again measures its edits on the line as it is now.
+        as stale, and its edits are priced or checked again on the line as it is now.
         """
         stage = None if run.stage is None else Stage(run.stage)
         if rules.expired(run.stage_started_at or run.created_at, now=now):
             await self._move(run, rules.Transition(Status.STALE, stage, StopReason.EXPIRED))
             return True
-        if run.status != Status.WAITING or run.stage == Stage.FILTERING:
+        waiting_at_understand = run.status == Status.WAITING and run.stage != Stage.FILTERING
+        if not waiting_at_understand and run.status not in (Status.STOPPED, Status.FAILED):
             return False
         skill = await skill_repo.get(self.db, run.skill_id, organization_id=run.organization_id)
         assert skill is not None, "a session goes with its skill"
@@ -1010,7 +1019,7 @@ class SkillImprovementService:
             ctx = None
         if ctx is None:
             # The check runs as the same person and stops itself once they may not act.
-            await self._stop_check(None, run)
+            await self._stop_check(run)
             await self._move(run, rules.Transition(Status.STOPPED, stage, StopReason.PERMISSION))
             return
         skill = await skill_repo.get(self.db, run.skill_id, organization_id=organization_id)
@@ -1032,7 +1041,7 @@ class SkillImprovementService:
             archived=line.archived,
         )
         if moved is not None:
-            await self._stop_check(ctx if standing.edits_skill else None, run)
+            await self._stop_check(run)
             await self._move(run, moved)
             return
         if stage in (None, Stage.ANALYZING):
@@ -1279,19 +1288,14 @@ class SkillImprovementService:
         )
         await self._move(run, rules.Transition(Status.READY, Stage.JUDGING))
 
-    async def _stop_check(self, ctx: AuthContext | None, run: SkillImprovementRun) -> None:
-        """Stop the check of a session that stops while it runs, and keep what it cost.
-
-        Without a person who may still change the skill, the check is left to stop on its
-        own; what it spent so far is recorded either way.
-        """
+    async def _stop_check(self, run: SkillImprovementRun) -> None:
+        """Stop the check of a session that stops while it runs, and keep what it cost."""
         if run.stage != Stage.EVALUATING:
             return
         check = await self._check(run)
         if check is None or check.status != CheckStatus.RUNNING.value:
             return
-        if ctx is not None:
-            await self.checks.cancel(ctx, run.skill_id, check.id, from_session=True)
+        await self.checks.stop_for_session(check)
         iteration = await self._iteration(run)
         cost = await skill_improvement_repo.check_cost(
             self.db, check.id, organization_id=run.organization_id
@@ -1300,15 +1304,17 @@ class SkillImprovementService:
             self.db, iteration=iteration, values={"cost_usd": iteration.cost_usd + cost}
         )
 
+    async def _mode_of(self, run: SkillImprovementRun) -> CheckMode | None:
+        """How the attempt's last check measured: a check again measures the same way."""
+        check = await self._check(run)
+        return None if check is None else CheckMode(check.mode)
+
     @staticmethod
     def _refuse_moved(run: SkillImprovementRun, line: SessionLine) -> None:
         """Refuse a step on a line that moved on since the session read it, or was archived."""
         if line.archived or line.latest != run.base_version_id:
             raise ConcurrentChangeError(
-                message=(
-                    "The skill changed since this session read it: price the step again "
-                    "on the skill as it is now"
-                ),
+                message="The skill changed since this session read it",
                 code="LINE_MOVED",
                 details={"base_version_id": run.base_version_id, "latest": line.latest},
             )
@@ -1479,6 +1485,8 @@ class SkillImprovementService:
             run.status in (Status.READY, Status.STOPPED)
             and run.stage not in (None, Stage.ANALYZING, Stage.CLASSIFYING)
             and run.iteration < run.max_iterations
+            and line.latest == run.base_version_id
+            and not line.archived
         )
         result.can_discard = self._may_discard(ctx, run)
         result.timeline = await self._timeline(ctx, run)

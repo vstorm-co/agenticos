@@ -857,6 +857,28 @@ class SkillCheckService:
             await self._unknown(row, UnknownReason.FAILED)
         await self._settle(check)
 
+    async def stop_for_session(self, check: SkillCheck) -> None:
+        """Stop a running check because the session that started it stopped.
+
+        The session's own access is what allows this, so the platform ends the runs
+        itself - whether the person may still read or stop them does not matter, as
+        when a check expires.
+        """
+        now = datetime.now(UTC)
+        for row in await skill_check_repo.list_agents(
+            self.db, [check.id], organization_id=check.organization_id
+        ):
+            for run_id in (row.skill_set_run_id, row.dataset_run_id):
+                if run_id is not None:
+                    await eval_run_repo.cancel_live(
+                        self.db, run_id, organization_id=check.organization_id, now=now
+                    )
+        await skill_check_repo.update(
+            self.db,
+            row=check,
+            values={"status": CheckStatus.CANCELLED.value, "finished_at": now},
+        )
+
     async def after_run(self, organization_id: UUID, eval_run_id: UUID) -> None:
         """Queue the check an eval run belonged to, once the run has settled."""
         from app.worker import jobs
