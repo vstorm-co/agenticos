@@ -370,6 +370,24 @@ class AuthoringService:
         improver = await self._improver(ctx)
         return await self._estimate(ctx, improver, pack, None if pack.runs else "no_evidence")
 
+    async def estimate_call(self, ctx: AuthContext, *, chars: int) -> AuthoringEstimate:
+        """What one improver call reading `chars` of text would cost, for a session's step
+        that reads no runs."""
+        self._require_runs_view(ctx)
+        improver = await self._improver(ctx)
+        total = (await self._per_call(ctx, improver, chars)).quantize(_CENT)
+        improver_left = await self._improver_left(ctx, improver)
+        org_left = await self._org_left(ctx)
+        return AuthoringEstimate(
+            runs=0,
+            rated_down=0,
+            calls=1,
+            estimate_usd=total,
+            affordable=(improver_left is None or total <= improver_left)
+            and (org_left is None or total <= org_left),
+            reason=None,
+        )
+
     async def start_for_skill_session(
         self,
         ctx: AuthContext,

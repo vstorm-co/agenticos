@@ -38,6 +38,8 @@ async def create_run(
     estimate_usd: Decimal,
     budget_usd: Decimal,
     seed: dict[str, JsonValue] | None,
+    purpose: str = "improve",
+    source_fork_id: UUID | None = None,
 ) -> SkillImprovementRun:
     """A queued session.
 
@@ -56,6 +58,8 @@ async def create_run(
         estimate_usd=estimate_usd,
         budget_usd=budget_usd,
         seed=seed,
+        purpose=purpose,
+        source_fork_id=source_fork_id,
     )
     db.add(run)
     await db.flush()

@@ -1013,6 +1013,8 @@ class FakeChecks:
         self.conflict = False
         self.base_version_id = uuid.uuid4()
         self.agents: list[SkillCheckAgentRead] = []
+        self.files: list[Any] = []
+        self.merged_from: list[uuid.UUID | None] = []
 
     def _estimate(self, data: SkillCheckStart) -> SkillCheckEstimate:
         return SkillCheckEstimate(
@@ -1028,16 +1030,19 @@ class FakeChecks:
             affordable=True,
         )
 
-    async def estimate(self, ctx, skill_id, data, *, exclude_conversations=()):
+    async def estimate(self, ctx, skill_id, data, *, exclude_conversations=(), files=None):
         self.calls.append(("estimate", data))
         self.excluded.append(list(exclude_conversations))
         return self._estimate(data)
 
-    async def start(self, ctx, skill_id, data, *, source=None, exclude_conversations=()):
+    async def start(
+        self, ctx, skill_id, data, *, source=None, exclude_conversations=(), files=None
+    ):
         if self.refuse is not None:
             raise self.refuse
         self.excluded.append(list(exclude_conversations))
         self.calls.append(("start", (data, source)))
+        self.files.append(files)
         assert data.candidate is not None
         skill = await self.db.get(Skill, skill_id)
         assert skill is not None and skill.latest_version_id is not None
@@ -1075,11 +1080,14 @@ class FakeChecks:
             created_at=check.created_at,
         )
 
-    async def apply(self, ctx, skill_id, check_id, data, *, from_session=False):
+    async def apply(
+        self, ctx, skill_id, check_id, data, *, from_session=False, merged_from_id=None
+    ):
         assert from_session
         if self.conflict:
             raise ConcurrentChangeError(message="The line's agents changed since the check")
         self.calls.append(("apply", data))
+        self.merged_from.append(merged_from_id)
         pinned = [SimpleNamespace(id=uuid.uuid4(), name="Clerk")] if data.pin_worse else []
         return SimpleNamespace(version=SimpleNamespace(id=uuid.uuid4(), number=4), pinned=pinned)
 
@@ -1109,6 +1117,9 @@ class FakeChecks:
     async def discard(self, ctx, skill_id, check_id, *, from_session=False):
         assert from_session
         self.calls.append(("discard", check_id))
+
+    async def record_decision(self, ctx, check, outcome, version_id, *, acknowledged):
+        self.calls.append(("decided", (check.id, outcome, version_id, acknowledged)))
 
 
 _TEXT = CandidateText(description="How refunds work.", content="x")
