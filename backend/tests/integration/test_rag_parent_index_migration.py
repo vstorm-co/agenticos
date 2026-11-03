@@ -12,9 +12,11 @@ declares and asks `pg_index` whether an index of that name is valid.
 
 import importlib.util
 from collections.abc import AsyncGenerator
+from functools import partial
 from pathlib import Path
 from types import ModuleType
 
+import anyio
 import pytest
 from alembic.operations import Operations
 from alembic.runtime.migration import MigrationContext
@@ -50,14 +52,38 @@ def _sync_url(schema_url: str) -> str:
     return schema_url.replace("+asyncpg", "+psycopg2")
 
 
-def _run(schema_url: str, direction: str) -> None:
+def _run(schema_url: str, direction: str, *, lock_timeout: str = "0") -> None:
+    migration = _load_migration()
+    sync_engine = create_engine(
+        _sync_url(schema_url), connect_args={"options": f"-c lock_timeout={lock_timeout}"}
+    )
+    try:
+        with sync_engine.begin() as conn:
+            ctx = MigrationContext.configure(conn)
+            with Operations.context(ctx):
+                (migration.upgrade if direction == "up" else migration.downgrade)()
+    finally:
+        sync_engine.dispose()
+
+
+def _locks_held_after_upgrade(schema_url: str) -> set[str]:
+    """The lock modes `upgrade()` holds on the runtime table, read inside the
+    upgrade's own transaction - where they stay until the whole upgrade commits."""
     migration = _load_migration()
     sync_engine = create_engine(_sync_url(schema_url))
     try:
         with sync_engine.begin() as conn:
             ctx = MigrationContext.configure(conn)
             with Operations.context(ctx):
-                (migration.upgrade if direction == "up" else migration.downgrade)()
+                migration.upgrade()
+            result = conn.execute(
+                text(
+                    "SELECT mode FROM pg_locks "
+                    "WHERE pid = pg_backend_pid() AND relation = CAST(:t AS regclass)"
+                ),
+                {"t": TABLE},
+            )
+            return {row[0] for row in result}
     finally:
         sync_engine.dispose()
 
@@ -123,8 +149,7 @@ async def test_upgrade_builds_the_index_on_an_existing_table(
 async def test_upgrade_is_idempotent(
     engine: AsyncEngine, schema_url: str, legacy_table: None
 ) -> None:
-    """A second run - or a run over a table `_ensure_collection` already
-    indexed - builds nothing more."""
+    """A second run builds nothing more."""
     _run(schema_url, "up")
     _run(schema_url, "up")
 
@@ -174,6 +199,69 @@ async def test_an_invalid_index_left_by_a_failed_concurrent_build_is_replaced(
     [(name, valid, definition)] = await _parent_indexes(engine)
     assert (name, valid) == (INDEX, True)
     assert definition.endswith("USING btree (parent_doc_id)")
+
+
+async def test_a_valid_prebuilt_index_is_kept_without_locking_the_table(
+    engine: AsyncEngine, schema_url: str, legacy_table: None
+) -> None:
+    """The CHANGELOG has a large deployment pre-build the index online so the
+    upgrade does not pause writes; `_ensure_collection` builds the same one.
+    `CREATE INDEX IF NOT EXISTS` takes its `SHARE` lock before it finds the name
+    taken, and the upgrade holds that lock to its commit - so over a valid index
+    the migration must not issue it at all."""
+    async with engine.begin() as conn:
+        await conn.execute(text(f"CREATE INDEX {INDEX} ON {TABLE} (parent_doc_id)"))
+
+    assert _locks_held_after_upgrade(schema_url) == set()
+    assert [(name, valid) for name, valid, _ in await _parent_indexes(engine)] == [(INDEX, True)]
+
+
+async def test_an_index_a_concurrent_build_is_still_making_is_not_dropped(
+    engine: AsyncEngine, schema_url: str, legacy_table: None
+) -> None:
+    """A `CREATE INDEX CONCURRENTLY` still running is INVALID in the catalog, the
+    same as one that failed. Dropping it would wait behind the build - with the
+    table's reads queued behind the drop - and then deadlock with it, so the
+    migration stops and says to let the build finish."""
+    autocommit = engine.execution_options(isolation_level="AUTOCOMMIT")
+
+    async def build() -> None:
+        async with autocommit.connect() as conn:
+            await conn.execute(
+                text(f"CREATE INDEX CONCURRENTLY {INDEX} ON {TABLE} (parent_doc_id)")
+            )
+
+    # An open write keeps the build in its "waiting for writers" phase, with
+    # the index already in the catalog and still INVALID.
+    writer = await engine.connect()
+    write = await writer.begin()
+    await writer.execute(
+        text(
+            f"INSERT INTO {TABLE} (id, parent_doc_id, content) "  # noqa: S608
+            "VALUES ('held', 'doc', 'body')"
+        )
+    )
+    async with anyio.create_task_group() as tg:
+        tg.start_soon(build)
+        try:
+            # Another session's catalog row is the signal; nothing here can set an event.
+            building = [
+                (
+                    INDEX,
+                    False,
+                    f"CREATE INDEX {INDEX} ON public.{TABLE} USING btree (parent_doc_id)",
+                )
+            ]
+            with anyio.fail_after(10):
+                while await _parent_indexes(engine) != building:  # noqa: ASYNC110
+                    await anyio.sleep(0.05)
+            with pytest.raises(RuntimeError, match="being built"):
+                await anyio.to_thread.run_sync(partial(_run, schema_url, "up", lock_timeout="5s"))
+        finally:
+            await write.rollback()
+            await writer.close()
+
+    assert [(name, valid) for name, valid, _ in await _parent_indexes(engine)] == [(INDEX, True)]
 
 
 async def test_the_tracking_table_is_left_alone(

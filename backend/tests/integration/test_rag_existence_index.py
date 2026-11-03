@@ -16,7 +16,7 @@ import json
 from collections.abc import AsyncGenerator
 
 import pytest
-from sqlalchemy import text
+from sqlalchemy import event, text
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 
 from app.db.vector_tables import (
@@ -114,9 +114,8 @@ async def test_ensure_collection_builds_an_index_per_lookup_key(engine: AsyncEng
     # The base key the scope narrows to (#2537): a bounded UUID, few distinct
     # values per table, so a btree - which a hash bucket of one value is not.
     assert "USING btree" in defs[f"{TABLE}{VECTOR_KB_INDEX_SUFFIX}"]
-    # The document key `delete_document`, `get_document_chunks` and
-    # `get_chunks_around` filter by (#2552): bounded, near-unique per document,
-    # so a plain btree on the column.
+    # The document key the per-document reads filter by (#2552); see
+    # `0252_index_rag_parent_doc_id` for why it is plain.
     assert defs[f"{TABLE}{VECTOR_PARENT_INDEX_SUFFIX}"].endswith("USING btree (parent_doc_id)")
 
 
@@ -242,6 +241,61 @@ async def test_a_source_path_too_long_for_a_btree_index_still_ingests(engine: As
 
     assert hit is not None
     assert hit.document_id == "big"
+
+
+async def test_the_lookups_cannot_walk_the_document_index_for_their_order(
+    engine: AsyncEngine,
+) -> None:
+    """#2552 review: each lookup reads the first match by `(parent_doc_id, id)`
+    with `LIMIT 1`. The btree on `parent_doc_id` offers that order, and on a real
+    table the planner took it when the key value was common elsewhere in the
+    table and absent from the caller's scope - walking the whole index and
+    filtering every row, about 1 s against 22 ms on 300k rows. Sorting is
+    switched off here to make that ordered walk the only plan without a sort,
+    which is what the skewed statistics did; the lookups must not offer it."""
+    store = _store(engine)
+    await store._ensure_collection(COLLECTION)
+    await _insert(
+        store, doc_id="kept", source_path="/srv/a.pdf", filename="a.pdf", content_hash="h1"
+    )
+    lookups: list[tuple[str, tuple[object, ...]]] = []
+
+    def capture(
+        _conn: object,
+        _cursor: object,
+        statement: str,
+        parameters: tuple[object, ...],
+        _context: object,
+        _executemany: bool,
+    ) -> None:
+        if "LIMIT 1" in statement:
+            lookups.append((statement, parameters))
+
+    event.listen(engine.sync_engine, "before_cursor_execute", capture)
+    try:
+        await store.find_existing_document(
+            COLLECTION,
+            source_path="/srv/b.pdf",
+            content_hash="h2",
+            scope=VectorScope(tenant=None),
+        )
+    finally:
+        event.remove(engine.sync_engine, "before_cursor_execute", capture)
+    # One per key: source_path, filename, content_hash.
+    assert len(lookups) == 3
+
+    async with engine.connect() as conn:
+        driver = (await conn.get_raw_connection()).driver_connection
+        assert driver is not None
+        await driver.execute("SET enable_sort = off")
+        try:
+            for statement, parameters in lookups:
+                plan = "\n".join(
+                    row[0] for row in await driver.fetch(f"EXPLAIN {statement}", *parameters)
+                )
+                assert VECTOR_PARENT_INDEX_SUFFIX not in plan, plan
+        finally:
+            await driver.execute("RESET enable_sort")
 
 
 async def test_no_key_matches_answers_none(engine: AsyncEngine) -> None:

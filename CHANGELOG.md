@@ -23,7 +23,7 @@ Two things are versioned separately from this file and worth knowing about:
 
 - Deleting a document, reading its chunks and expanding a search hit to its neighbouring chunks no longer scan the collection. Each knowledge-base collection table now has an index on the document id: new collections get it when they are created, and migration `0252_index_rag_parent_doc_id` adds it to existing ones. On a 300k-chunk collection these operations went from 40–100 ms to under 1 ms.
 
-  **Maintenance note for large deployments.** The migration builds the index inside the upgrade transaction. Searches keep working, but ingestion and deletes into a collection wait until the upgrade commits (the build takes about 0.2 s per 300k chunks). To avoid that pause, build the indexes online before you upgrade. Run this in `psql` connected to the application database:
+  **Upgrade action (optional, large deployments):** The migration builds the index inside the upgrade transaction. Searches keep working, but ingestion and deletes into a collection wait until the upgrade commits (the build takes about 0.2 s per 300k chunks). To avoid that pause, build the indexes online before you upgrade. Run this in `psql` connected to the application database:
 
   ```sql
   SELECT format('CREATE INDEX CONCURRENTLY IF NOT EXISTS %I ON %I (parent_doc_id)',
@@ -34,7 +34,7 @@ Two things are versioned separately from this file and worth knowing about:
   \gexec
   ```
 
-  The migration then finds the indexes and does nothing. If a concurrent build fails, it leaves an invalid index. Drop it with `DROP INDEX CONCURRENTLY <name>` and run the statement again. If you upgrade with an invalid index in place, the migration drops and rebuilds it, and searches in that collection also wait until the upgrade commits.
+  The migration then finds the indexes valid and leaves those collections alone. Let the statement finish before you upgrade: if the migration finds a build still running, it stops with an error, and you run the upgrade again after the build ends. If a concurrent build fails, it leaves an invalid index. Drop it with `DROP INDEX CONCURRENTLY <name>` and run the statement again. If you upgrade with an invalid index in place, the migration drops and rebuilds it, and searches in that collection also wait until the upgrade commits.
 
 ## [1.38.1] - 2026-11-03
 
