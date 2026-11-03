@@ -53,7 +53,7 @@ describe("DatasetEvalsPanel", () => {
       ).toBeInTheDocument();
     },
   );
-  it("shows every run in one table with its agent, pass rate and result", async () => {
+  it("shows every run in one table with its agent, pass rate and result", () => {
     state.runs = {
       ...state.runs,
       runs: [
@@ -74,12 +74,12 @@ describe("DatasetEvalsPanel", () => {
         .some((link) => link.getAttribute("href") === "/agents/agent-1/evals/run-2"),
     ).toBe(true);
     expect(screen.getAllByText(/An agent you cannot see/).length).toBeGreaterThan(0);
-    const trend = screen.getByRole("button", { name: "Pass-rate trend" });
-    expect(trend).toHaveAttribute("aria-expanded", "false");
-    await userEvent.click(trend);
-    expect(trend).toHaveAttribute("aria-expanded", "true");
-    await userEvent.click(trend);
-    expect(trend).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByRole("button", { name: "Pass-rate trend" })).toBeNull();
+    const trend = screen.getByRole("region", { name: "Pass-rate trend" });
+    expect(trend).toBeVisible();
+    expect(
+      trend.compareDocumentPosition(screen.getByRole("table")) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
   });
 
   it("pages through a history longer than one page, counting every run", async () => {

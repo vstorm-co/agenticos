@@ -153,14 +153,7 @@ function Groups({
   }
   return (
     <div className="min-w-0" data-tour="dataset-evals">
-      <RunsTable
-        runs={groups
-          .flatMap((group) => group.runs)
-          .sort((a, b) => b.created_at.localeCompare(a.created_at))}
-        agentName={(id) => known.get(id)?.name ?? t("dataset.unnamedAgent")}
-      />
       <EvalTrend
-        compact
         rangeKey={`dataset-${datasetId}`}
         lines={passRateLines(
           groups.flatMap((group) => group.runs),
@@ -171,6 +164,12 @@ function Groups({
           t,
           locale,
         )}
+      />
+      <RunsTable
+        runs={groups
+          .flatMap((group) => group.runs)
+          .sort((a, b) => b.created_at.localeCompare(a.created_at))}
+        agentName={(id) => known.get(id)?.name ?? t("dataset.unnamedAgent")}
       />
     </div>
   );

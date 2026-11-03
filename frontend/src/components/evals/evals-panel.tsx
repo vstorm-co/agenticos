@@ -100,8 +100,8 @@ export function EvalsPanel({
           )
         ) : (
           <>
-            <RunsTable runs={runs} />
             <EvalTrend
+              className="px-0 pt-0 sm:px-0 sm:pt-0"
               lines={passRateLines(
                 runs,
                 (run) => ({ key: run.dataset_id, name: run.dataset_name }),
@@ -109,6 +109,7 @@ export function EvalsPanel({
                 locale,
               )}
             />
+            <RunsTable runs={runs} />
             <Pager
               page={page}
               pageCount={Math.ceil(total / TREND_RUNS)}

@@ -1,5 +1,5 @@
 ---
-source_sha: "343aa558cad2"
+source_sha: "87337c2961e1"
 title: "Eval runs"
 description: "Un eval run responde a cada caso de un dataset con una versión de un agent o su borrador, puntúa cada respuesta y compara el resultado con un baseline."
 ---
@@ -21,7 +21,7 @@ encuentren con el mismo provider el mismo día.
 
 ## En la consola { #in-the-console }
 
-La pestaña **Evals** de un agent abre el historial de runs. Cada fila muestra versiones comparadas, estado, veredicto, modelo, porcentaje y número de casos aprobados sobre el total. **Pass-rate trend**, debajo de la tabla, despliega un gráfico de líneas de su tasa de
+La pestaña **Evals** de un agent muestra un gráfico compacto sobre el historial cuando hay resultados medidos. El gráfico permanece visible. Cada fila muestra versiones comparadas, estado, veredicto, modelo, porcentaje y número de casos aprobados sobre el total. El gráfico muestra la tasa de
 aprobados run a run, el más antiguo a la izquierda, una línea por dataset, cada
 una con su propio trazo. Un punto es rojo donde el run rompió casos, verde donde
 los arregló, ámbar donde hizo ambas cosas y hueco para un borrador; al pasar el

@@ -244,6 +244,11 @@ describe("PassRateChart", () => {
     })),
   });
 
+  it("shows no chart or range controls without measured points", () => {
+    const { container } = render(<PassRateChart lines={[]} />);
+    expect(container).toBeEmptyDOMElement();
+  });
+
   const drawn = () => screen.findByText(/^drawn:/);
 
   beforeEach(() => {
@@ -339,10 +344,8 @@ describe("EvalsPanel", () => {
     };
     render(<EvalsPanel agentId="agent-1" canStart />);
 
-    expect(screen.queryByRole("group", { name: "Pass rate by run" })).toBeNull();
-    await userEvent.click(screen.getByRole("button", { name: "Pass-rate trend" }));
     expect(screen.getByRole("group", { name: "Pass rate by run" })).toBeInTheDocument();
-    expect(screen.getByText(/click it to open the run/)).toBeInTheDocument();
+    expect(screen.queryByText(/click it to open the run/)).toBeNull();
     expect(screen.getByRole("table")).toBeInTheDocument();
     const compared = screen.getByRole("link", { name: /v7 vs v6/ });
     expect(compared).toHaveAttribute("href", "/agents/agent-1/evals/run-1");
@@ -366,10 +369,9 @@ describe("EvalsPanel", () => {
     expect(screen.queryByText("start-dialog")).not.toBeInTheDocument();
   });
 
-  it("says one run is not yet a trend, and draws none while nothing has finished", async () => {
+  it("says one run is not yet a trend, and draws none while nothing has finished", () => {
     evalRuns.value = { ...evalRuns.value, runs: [evalRun()] };
     const { rerender } = render(<EvalsPanel agentId="agent-1" canStart />);
-    await userEvent.click(screen.getByRole("button", { name: "Pass-rate trend" }));
     expect(screen.getByText("One run so far. Run another to see a trend.")).toBeInTheDocument();
 
     evalRuns.value = { ...evalRuns.value, runs: [evalRun({ status: "queued" })] };
@@ -378,13 +380,12 @@ describe("EvalsPanel", () => {
     expect(screen.getAllByText("Pending").length).toBeGreaterThan(0);
   });
 
-  it("keys each line when runs of several datasets finished", async () => {
+  it("keys each line when runs of several datasets finished", () => {
     evalRuns.value = {
       ...evalRuns.value,
       runs: [evalRun(), evalRun({ id: "run-2", dataset_id: "ds-2", dataset_name: "shipping" })],
     };
     render(<EvalsPanel agentId="agent-1" canStart />);
-    await userEvent.click(screen.getByRole("button", { name: "Pass-rate trend" }));
     expect(screen.getByText("refunds", { selector: "li" })).toBeInTheDocument();
     expect(screen.getByText("shipping", { selector: "li" })).toBeInTheDocument();
   });

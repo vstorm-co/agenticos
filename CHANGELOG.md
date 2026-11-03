@@ -188,7 +188,7 @@ environment without a person's decision.
 
 - Present dataset cases with the chat message layout, labelled Markdown reference answers, expandable context and tool arguments, and editing in the fixed panel header.
 
-- Simplify Agent Builder by keeping Improve and suggestions in Evals, and make dataset cases and eval histories easier to scan with grouped creation actions, separate model and result columns, case counts and an optional trend. Keep creation buttons visible but disabled on historical dataset versions so switching snapshots preserves the toolbar layout.
+- Simplify Agent Builder by keeping Improve and suggestions in Evals, and make dataset cases and eval histories easier to scan with grouped creation actions, separate model and result columns, case counts and a compact trend above the run history. Keep creation buttons visible but disabled on historical dataset versions so switching snapshots preserves the toolbar layout.
 
 - Join the eval-helper and RAG-index migration histories so installations on
   either branch upgrade to one head without rewriting applied revisions.

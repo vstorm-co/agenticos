@@ -1,5 +1,5 @@
 ---
-source_sha: "343aa558cad2"
+source_sha: "87337c2961e1"
 title: "Eval-Runs"
 description: "Ein Eval-Run beantwortet jeden Fall eines Datasets mit einer Agent-Version oder ihrem Entwurf, bewertet jede Antwort und vergleicht das Ergebnis mit einer Baseline."
 ---
@@ -22,7 +22,7 @@ Tag auf denselben Provider treffen.
 
 ## In der Konsole { #in-the-console }
 
-Der Tab **Evals** eines Agents öffnet die Run-Historie. Jede Zeile zeigt verglichene Versionen, Status, Urteil, Modell, Bestehensquote und bestandene Fälle im Verhältnis zur Gesamtzahl. **Ergebnisverlauf** unter der Tabelle öffnet ein Liniendiagramm seiner
+Der Tab **Evals** eines Agents zeigt ein kompaktes Diagramm über der Run-Historie, sobald Messergebnisse vorliegen. Das Diagramm bleibt sichtbar. Jede Zeile zeigt verglichene Versionen, Status, Urteil, Modell, Bestehensquote und bestandene Fälle im Verhältnis zur Gesamtzahl. Das Diagramm zeigt die
 Bestehensquote Run für Run, der älteste links, eine Linie pro Dataset, jede mit
 eigener Strichart. Ein Punkt ist rot, wo der Run Fälle verschlechtert hat, grün,
 wo er sie behoben hat, bernsteinfarben, wo beides, und hohl für einen Entwurf; der

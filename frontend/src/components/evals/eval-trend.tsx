@@ -1,27 +1,28 @@
 "use client";
 
-import { useState, type ComponentProps } from "react";
-import { ChevronDown, ChartNoAxesCombined } from "lucide-react";
+import type { ComponentProps } from "react";
+import { ChartNoAxesCombined } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { Button } from "@/components/ui";
+import { cn } from "@/lib/utils";
 import { PassRateChart } from "./pass-rate-chart";
 
-/** Results stay visible first; a trend is available when the reader wants context. */
-export function EvalTrend(props: ComponentProps<typeof PassRateChart>) {
+/** A compact overview above the run history, present once there is a measured result. */
+export function EvalTrend({
+  className,
+  ...props
+}: Omit<ComponentProps<typeof PassRateChart>, "compact"> & { className?: string }) {
   const t = useTranslations("evals");
-  const [open, setOpen] = useState(false);
+  if (!props.lines.some((line) => line.points.length > 0)) return null;
   return (
-    <section className="border-border border-t p-4">
-      <Button variant="ghost" size="sm" aria-expanded={open} onClick={() => setOpen(!open)}>
-        <ChartNoAxesCombined className="size-4" />
+    <section
+      aria-label={t("trendTitle")}
+      className={cn("border-border space-y-3 border-b p-4 sm:p-5", className)}
+    >
+      <h3 className="flex items-center gap-2 text-sm font-medium">
+        <ChartNoAxesCombined className="text-muted-foreground size-4" aria-hidden />
         {t("trendTitle")}
-        <ChevronDown className={`size-4 transition-transform ${open ? "rotate-180" : ""}`} />
-      </Button>
-      {open && (
-        <div className="pt-4">
-          <PassRateChart {...props} />
-        </div>
-      )}
+      </h3>
+      <PassRateChart {...props} compact />
     </section>
   );
 }

@@ -19,7 +19,7 @@ the same run, so the two meet the same provider on the same day.
 
 ## In the console { #in-the-console }
 
-An agent's **Evals** tab opens on its run history. Each row names the compared versions, status, verdict, model, pass rate and passed/total case count. The **Pass-rate trend** control below the table expands a line chart of its pass rate run by run,
+An agent's **Evals** tab shows a compact pass-rate chart above its run history when measured results are available. The chart stays visible. Each row names the compared versions, status, verdict, model, pass rate and passed/total case count. The chart shows the pass rate run by run,
 oldest on the left, a line per dataset, each with its own dash. A point is red
 where the run broke cases, green where it fixed them, amber where it did both,
 and hollow for a draft; hovering it says what ran, against what and when, and

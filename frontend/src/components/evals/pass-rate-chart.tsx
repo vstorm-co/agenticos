@@ -202,13 +202,15 @@ export function PassRateChart({
       <div
         role="group"
         aria-label={t("trend.label")}
-        className={cn(CHART_MIN_HEIGHT, compact ? "h-56" : "h-64")}
+        className={cn(CHART_MIN_HEIGHT, compact ? "h-40 sm:h-44" : "h-64")}
       >
         <PassRateLinesImpl lines={visible} />
       </div>
-      <p className="text-muted-foreground text-xs">
-        {points === 1 ? t("trend.single") : t("trend.legend")}
-      </p>
+      {(!compact || points === 1) && (
+        <p className="text-muted-foreground text-xs">
+          {points === 1 ? t("trend.single") : t("trend.legend")}
+        </p>
+      )}
     </div>
   );
 }

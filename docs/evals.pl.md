@@ -1,5 +1,5 @@
 ---
-source_sha: "343aa558cad2"
+source_sha: "87337c2961e1"
 title: "Runy ewaluacji"
 description: "Run ewaluacji odpowiada na każdy przypadek datasetu wersją agenta albo jego wersją roboczą, ocenia każdą odpowiedź i porównuje wynik z baseline'em."
 ---
@@ -21,7 +21,7 @@ samego dnia.
 
 ## W konsoli { #in-the-console }
 
-Zakładka **Ewaluacje** (Evals) agenta otwiera historię runów. Każdy wiersz podaje porównywane wersje, stan, werdykt, model, procent i liczbę zaliczonych przypadków względem wszystkich. Przycisk **Trend wyników** pod tabelą rozwija wykres liniowy odsetka zaliczeń
+Zakładka **Ewaluacje** agenta pokazuje niewielki wykres odsetka zaliczeń nad historią runów, gdy są dostępne zmierzone wyniki. Wykres jest stale widoczny. Każdy wiersz podaje porównywane wersje, stan, werdykt, model, procent i liczbę zaliczonych przypadków względem wszystkich. Wykres pokazuje odsetek zaliczeń
 run po runie, od najstarszego po lewej, z linią na każdy dataset, każdą z inną
 kreską. Punkt jest czerwony, gdy run zepsuł przypadki, zielony, gdy je naprawił,
 bursztynowy, gdy zrobił jedno i drugie, a pusty dla wersji roboczej; najechanie na punkt
