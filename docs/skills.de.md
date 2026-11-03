@@ -1,5 +1,5 @@
 ---
-source_sha: "06e6052db16f"
+source_sha: "b870a3db589d"
 ---
 
 # Skills { #skills }
@@ -520,7 +520,9 @@ Forks können danach zu main zurückkehren.
 
 Beides wird abgelehnt (409), wenn der Fork archiviert ist, wenn er keine eigene
 Version hat (seine Agents kehren dann zu main zurück) und wenn die Zusammenführung
-nichts ändern würde. Annehmen wird abgelehnt, sobald main oder der Fork eine neuere
+nichts ändern würde. Abgelehnt wird auch (422), wenn ein Text zu lang ist oder seine
+Zeilen zu oft wiederholt, um in vertretbarer Zeit Zeile für Zeile zusammengeführt zu
+werden; die Änderungen werden dann von Hand übernommen. Annehmen wird abgelehnt, sobald main oder der Fork eine neuere
 Version hat als die, die die Zusammenführung gelesen hat, und eine Sitzung, deren
 Linien weitergezogen sind, während sie wartete, endet als veraltet: Starten Sie eine
 neue, um die neuere Version einzubeziehen.

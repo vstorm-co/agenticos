@@ -6,8 +6,11 @@ Pure functions over text, so each case is the three texts and what comes out.
 import pytest
 
 from app.services.skill_merge import (
+    MAX_LINES,
+    MAX_PAIRS,
     FileMerge,
     MergePart,
+    MergeTooLarge,
     PartState,
     merge_files,
     merge_text,
@@ -125,6 +128,32 @@ class TestMergeText:
             PartState.SAME,
             PartState.CONFLICT,
         ]
+
+
+class TestWhatIsTooLargeToMerge:
+    """Matching compares every pair of equal lines, so repetition is what costs."""
+
+    def test_a_body_repeating_one_line_past_the_budget_is_refused_before_matching(self):
+        repeated = "Check the date.\n" * 1001
+        assert MAX_PAIRS < 1001 * 1001
+
+        with pytest.raises(MergeTooLarge, match="pairs of equal lines"):
+            merge_text(repeated, repeated + "fork\n", "main\n" + repeated)
+
+    def test_a_side_past_the_line_limit_is_refused(self):
+        long = "".join(f"line {number}\n" for number in range(MAX_LINES + 1))
+
+        with pytest.raises(MergeTooLarge, match=f"more than {MAX_LINES} lines"):
+            merge_text("one\n", "one\n", long)
+
+    def test_a_long_body_of_distinct_lines_and_one_at_the_budget_still_merge(self):
+        distinct = "".join(f"line {number}\n" for number in range(MAX_LINES))
+        changed = distinct.replace("line 7\n", "LINE 7\n")
+        assert merged_text(merge_text(distinct, changed, distinct)) == changed
+
+        repeated = "Check the date.\n" * 1000
+        assert MAX_PAIRS == 1000 * 1000
+        assert merged_text(merge_text(repeated, repeated, repeated)) == repeated
 
 
 class TestMergeValue:

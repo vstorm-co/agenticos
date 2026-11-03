@@ -19,6 +19,7 @@ from app.core.exceptions import (
     ConflictError,
     NotFoundError,
 )
+from app.core.exceptions import ValidationError as TooLargeToMerge
 from app.core.permissions import AuthContext, OrgRoleName, Perm
 from app.db.models.improvement import ImprovementStage, ImprovementStatus
 from app.db.models.resource_grant import Visibility
@@ -191,6 +192,21 @@ class TestWhatCannotBeMerged:
         for kind in (CATCH_UP, TO_MAIN):
             with pytest.raises(ConflictError):
                 await service.merge_sides(ctx, skill=skill, fork=fork, kind=kind)
+
+    async def test_texts_too_repetitive_to_merge_are_refused_before_merging(self, db):
+        ctx = await _owner(db)
+        skill = await _skill(db, ctx)
+        repeated = "Check the date.\n" * 1001
+        await _main(db, ctx, skill, content=repeated + "Say hello.")
+        fork = await _fork(db, ctx, skill)
+        fork = await _on_fork(db, ctx, skill, fork, content=repeated + "Say goodbye.")
+        await _main(db, ctx, skill, content=repeated + "Say thanks.")
+
+        with pytest.raises(TooLargeToMerge) as refused:
+            await SkillCatchUpService(db).merge_sides(ctx, skill=skill, fork=fork, kind=CATCH_UP)
+
+        assert refused.value.status_code == 422
+        assert "too long or too repetitive to merge" in refused.value.message
 
     async def test_a_fork_that_changed_nothing_has_nothing_to_move_to_main(self, db):
         ctx = await _owner(db)

@@ -459,7 +459,9 @@ return its agents to main.
 agents can then return to main.
 
 Both are refused (409) when the fork is archived, when it has no version of its own
-(its agents return to main instead), and when the merge would change nothing.
+(its agents return to main instead), and when the merge would change nothing. They
+are also refused (422) when a text is too long or repeats its lines too often to be
+merged line by line in reasonable time; the changes are then brought over by hand.
 Accepting is refused once main or the fork has a newer version than the merge
 read, and a session whose lines moved on while it waited ends as stale: start a new
 one to include the newer version.

@@ -15,12 +15,29 @@ line endings has changed nothing a person would see.
 
 The description is one value, merged whole, and files are merged by name on their
 digests. Nothing here reads the database; the catch-up service stores the parts.
+
+Matching a side against the base compares every pair of equal lines, so a body of one
+line repeated thousands of times costs seconds of CPU while a long body of distinct
+lines costs almost nothing. The merge is therefore refused, before it runs, for a side
+longer than `MAX_LINES` or a pair of sides with more than `MAX_PAIRS` equal-line pairs.
 """
 
+from collections import Counter
 from collections.abc import Iterator, Mapping, Sequence
 from dataclasses import dataclass
 from difflib import SequenceMatcher
 from enum import StrEnum
+
+MAX_LINES = 5000
+"""The most lines a side may hold for the merge to run."""
+
+MAX_PAIRS = 1_000_000
+"""The most pairs of equal lines between the base and a side, about a thousand identical
+lines on both: a tenth of a second of matching."""
+
+
+class MergeTooLarge(ValueError):
+    """The texts are too long, or repeat their lines too often, to merge line by line."""
 
 
 class PartState(StrEnum):
@@ -88,8 +105,13 @@ def merge_text(base: str, fork: str, main: str) -> list[MergePart]:
     """The three texts as consecutive parts, each either agreed or a conflict.
 
     Joining every part's `merged` text gives the merge, once no part is a conflict.
+
+    Raises:
+        MergeTooLarge: A side is past `MAX_LINES`, or shares past `MAX_PAIRS` equal-line
+            pairs with the base.
     """
     base_lines, fork_lines, main_lines = (_lines(text) for text in (base, fork, main))
+    _refuse_too_large(base_lines, fork_lines, main_lines)
     parts: list[MergePart] = []
     at_base = at_fork = at_main = 0
     for kept in _kept_by_both(base_lines, fork_lines, main_lines):
@@ -157,6 +179,16 @@ class _Kept:
     fork: int
     main: int
     size: int
+
+
+def _refuse_too_large(base: list[str], fork: list[str], main: list[str]) -> None:
+    if max(len(base), len(fork), len(main)) > MAX_LINES:
+        raise MergeTooLarge(f"a side holds more than {MAX_LINES} lines")
+    counts = Counter(base)
+    for side in (fork, main):
+        pairs = sum(counts[line] * times for line, times in Counter(side).items())
+        if pairs > MAX_PAIRS:
+            raise MergeTooLarge(f"more than {MAX_PAIRS} pairs of equal lines to compare")
 
 
 def _lines(text: str) -> list[str]:
