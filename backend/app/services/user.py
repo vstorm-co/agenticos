@@ -28,6 +28,7 @@ from app.core.security import (
     verify_special_token,
 )
 from app.db.locks import LockScope, hold_name
+from app.db.models.organization import Organization
 from app.db.models.user import User
 from app.db.updates import writable
 from app.repositories import (
@@ -860,6 +861,8 @@ class UserService:
         # person's own chats outside any project still go.
         await conversation_repo.release_project_chats(self.db, user_id=user_id)
 
+        personal_orgs = [org for org in created if org.is_personal]
+        await self._lock_personal_organizations(user_id, personal_orgs)
         await self._purge_personal_collections(user_id)
 
         vector_store = self._vector_store or process_vector_store(
@@ -873,6 +876,42 @@ class UserService:
                 await organization_repo.reassign_creator(
                     self.db, org=org, new_creator_id=heirs[org.id]
                 )
+
+    async def _lock_personal_organizations(
+        self, user_id: UUID, personal_orgs: list[Organization]
+    ) -> None:
+        """Lock the personal organization before anything under it is deleted (#2638).
+
+        A row that references the organization and one of its documents - an
+        ingest's spend - takes the two `FOR KEY SHARE` in that order, the order
+        `OrganizationService.purge` locks them in. Deleting the personal bases'
+        documents first and reaching the purge's `FOR UPDATE` afterwards inverted
+        it: the spend held the organization and waited for a deleted document,
+        this held the document and waited for the organization, and Postgres
+        aborted one of the two. So the organization row is locked here, before
+        `_purge_personal_collections` deletes its documents, bases and sources.
+
+        The `COLLECTION_TEARDOWN` names come first, for #1387: a claim takes the
+        name and then the organization's foreign key, so the purge takes the
+        names before the row. Both sets the delete tears down - the personal
+        bases and the personal organization's own collections - are taken in
+        one sorted pass, so a name the two share is not taken out of order.
+        The purge and the personal teardown take the same locks again later,
+        which Postgres grants at once to the transaction already holding them.
+        """
+        names = {
+            kb.collection_name
+            for kb in await knowledge_base_repo.list_personal_by_owner(self.db, user_id)
+        }
+        for org in personal_orgs:
+            names.update(
+                kb.collection_name
+                for kb in await knowledge_base_repo.list_org_scoped(self.db, org.id)
+            )
+        for collection in sorted(names):
+            await hold_name(self.db, LockScope.COLLECTION_TEARDOWN, collection)
+        for org in sorted(personal_orgs, key=lambda org: org.id):
+            await organization_repo.get_by_id_for_update(self.db, org.id)
 
     async def _purge_personal_collections(self, user_id: UUID) -> None:
         """Remove the user's personal-scoped knowledge bases whole (#1131).
