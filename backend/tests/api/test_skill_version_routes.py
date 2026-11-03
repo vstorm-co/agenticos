@@ -22,6 +22,7 @@ from app.db.models.skill_version import SkillVersionSource
 from app.main import app
 from app.schemas.skill_version import (
     BehindMainList,
+    ReturnedToMain,
     SkillAgentList,
     SkillBindingChanged,
     SkillForkList,
@@ -323,3 +324,22 @@ async def test_what_main_left_behind_is_listed_for_the_organization(client, ctx)
     assert response.status_code == 200
     assert response.json()["hidden"] == 2
     catch_up.behind_main.assert_awaited_once_with(ctx)
+
+
+async def test_a_forks_agents_are_returned_to_main_by_the_ones_asked_for(client, ctx):
+    agent_id = uuid.uuid4()
+    catch_up = MagicMock()
+    catch_up.return_to_main = AsyncMock(
+        return_value=ReturnedToMain(agents=[], hidden=0, remaining=0, archived=True)
+    )
+    app.dependency_overrides[deps.get_skill_catch_up_service] = lambda: catch_up
+
+    response = await client.post(
+        f"/api/v1/skills/{SKILL}/forks/{FORK}/return-to-main",
+        json={"agent_ids": [str(agent_id)]},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["archived"] is True
+    [_, skill_id, fork_id, data] = catch_up.return_to_main.await_args.args
+    assert (skill_id, fork_id, data.agent_ids) == (SKILL, FORK, [agent_id])

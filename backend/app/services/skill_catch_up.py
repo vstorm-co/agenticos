@@ -15,6 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.capabilities.subagents import SubagentsConfig
 from app.agents.spec import AgentSpec
+from app.core.exceptions import BadRequestError, NotFoundError
 from app.core.permissions import AuthContext, Perm
 from app.db.models.agent import Agent, AgentStatus, AgentVersion
 from app.db.models.agent_environment import AgentEnvironment
@@ -25,12 +26,17 @@ from app.schemas.skill_version import (
     BehindMain,
     BehindMainList,
     ForkRef,
+    ReturnedAgent,
+    ReturnedToMain,
+    ReturnToMain,
+    SkillBindingChange,
     SkillRef,
     VersionNumberRef,
 )
 from app.services.access import AGENT, SKILL, accessible_ids
 from app.services.agent_registry import delegation_binding
-from app.services.skill_agents import Line, lines_of
+from app.services.skill_agents import Line, SkillAgentService, lines_of
+from app.services.skill_versions import SkillVersionService
 
 
 @dataclass(frozen=True)
@@ -47,6 +53,8 @@ class SkillCatchUpService:
 
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
+        self.versions = SkillVersionService(db)
+        self.agents = SkillAgentService(db)
 
     async def behind_main(self, ctx: AuthContext) -> BehindMainList:
         """The pinned agents and the forks main has moved past, as the caller may see them.
@@ -79,6 +87,63 @@ class SkillCatchUpService:
         items += await self._forks(ctx, skills, [read for read in reads if read.line.fork_id])
         items.sort(key=_order)
         return BehindMainList(items=items, total=len(items), hidden=hidden)
+
+    async def return_to_main(
+        self, ctx: AuthContext, skill_id: UUID, fork_id: UUID, data: ReturnToMain
+    ) -> ReturnedToMain:
+        """Move a fork's agents back to main's newest version, then archive the fork once
+        nobody reads it.
+
+        Each agent moves as Change version moves it - published with `agents:publish`,
+        otherwise in its draft - and one that cannot be moved stays on the fork with the
+        reason: an agent the caller may not change, one that reads the fork only through
+        a specialist, or one whose new version does not publish. The fork is archived
+        only for a caller who may edit the skill.
+
+        Raises:
+            NotFoundError: The skill, or the fork, is not one the caller may reach.
+        """
+        skill = await self.versions.skill_for(ctx, skill_id, Perm.SKILLS_VIEW)
+        fork = await skill_version_repo.get_fork(
+            self.db, fork_id, organization_id=ctx.organization_id, skill_id=skill.id
+        )
+        if fork is None:
+            raise NotFoundError(message="Fork not found", details={"fork_id": fork_id})
+        readers = await self.agents.fork_users(skill, fork.id)
+        visible = await accessible_ids(self.db, ctx, readers, Perm.AGENTS_VIEW, resource_type=AGENT)
+        wanted = None if data.agent_ids is None else set(data.agent_ids)
+        returned: list[ReturnedAgent] = []
+        for agent in readers:
+            if agent.id not in visible or (wanted is not None and agent.id not in wanted):
+                continue
+            try:
+                moved = await self.agents.change_binding(
+                    ctx, skill.id, agent.id, SkillBindingChange(state="main")
+                )
+            except (NotFoundError, BadRequestError) as refusal:
+                returned.append(
+                    ReturnedAgent(agent=_usage(agent), published=False, refused=refusal.message)
+                )
+                continue
+            returned.append(
+                ReturnedAgent(
+                    agent=_usage(agent),
+                    published=moved.published,
+                    agent_version=moved.agent_version,
+                )
+            )
+        remaining = await self.agents.fork_users(skill, fork.id)
+        archived = not remaining and skill.id in await accessible_ids(
+            self.db, ctx, [skill], Perm.SKILLS_EDIT, resource_type=SKILL
+        )
+        if archived:
+            await self.versions.archive_fork(ctx, skill.id, fork.id)
+        return ReturnedToMain(
+            agents=returned,
+            hidden=len(readers) - len(visible),
+            remaining=len(remaining),
+            archived=archived,
+        )
 
     async def _pinned(
         self,

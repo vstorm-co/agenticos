@@ -7,20 +7,30 @@ environments serve and off the version rows themselves.
 from typing import Any
 
 import pytest
+from sqlalchemy import update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.agents.spec import AgentSpec
+from app.core.exceptions import NotFoundError
 from app.core.permissions import AuthContext, OrgRoleName
-from app.db.models.agent import AgentVersion
+from app.db.models.agent import Agent, AgentVersion
 from app.db.models.agent_environment import AgentEnvironment
 from app.db.models.resource_grant import Visibility
 from app.db.models.skill import Skill
 from app.schemas.skill import SkillUpdate
-from app.schemas.skill_version import SkillForkCreate
+from app.schemas.skill_version import ReturnToMain, SkillForkCreate
 from app.services.skill_catch_up import SkillCatchUpService
 from app.services.skill_versions import SkillVersionService
 from app.services.skills import SkillService
 from tests.integration.test_authoring import _member, _owner
-from tests.integration.test_skill_bindings import _fork, _serving, _skill, _spec
+from tests.integration.test_skill_bindings import (
+    _fork,
+    _runnable,
+    _serving,
+    _skill,
+    _spec,
+    _with_specialist,
+)
 
 pytestmark = pytest.mark.anyio
 
@@ -187,3 +197,115 @@ class TestBehindMain:
         await _serving(db, theirs, "Theirs", _spec(skill, version=1))
 
         assert (await SkillCatchUpService(db).behind_main(ours)).items == []
+
+
+async def _following(db: AsyncSession, *agents: Agent) -> None:
+    """Make each agent's environments follow its publishes, so a move goes live there."""
+    await db.execute(
+        update(AgentEnvironment)
+        .where(AgentEnvironment.agent_id.in_([agent.id for agent in agents]))
+        .values(tracks_latest=True)
+    )
+
+
+class TestReturnToMain:
+    async def test_every_agent_moves_to_main_and_the_fork_is_archived(self, db):
+        ctx = await _owner(db)
+        skill = await _skill(db, ctx)
+        fork = await _fork(db, ctx, skill)
+        spec = await _runnable(db, ctx, skill, fork_id=str(fork.id))
+        desk = await _serving(db, ctx, "Desk", spec)
+        till = await _serving(db, ctx, "Till", spec)
+        await _following(db, desk, till)
+
+        returned = await SkillCatchUpService(db).return_to_main(
+            ctx, skill.id, fork.id, ReturnToMain()
+        )
+
+        assert sorted((row.agent.name, row.published, row.refused) for row in returned.agents) == [
+            ("Desk", True, None),
+            ("Till", True, None),
+        ]
+        assert (returned.remaining, returned.archived, returned.hidden) == (0, True, 0)
+        for agent in (desk, till):
+            await db.refresh(agent)
+            assert AgentSpec.model_validate(agent.draft_spec).skill_bindings == []
+
+    async def test_only_the_agents_asked_for_move_and_the_fork_stays_while_read(self, db):
+        ctx = await _owner(db)
+        skill = await _skill(db, ctx)
+        fork = await _fork(db, ctx, skill)
+        spec = await _runnable(db, ctx, skill, fork_id=str(fork.id))
+        desk = await _serving(db, ctx, "Desk", spec)
+        till = await _serving(db, ctx, "Till", spec)
+        await _following(db, desk, till)
+
+        returned = await SkillCatchUpService(db).return_to_main(
+            ctx, skill.id, fork.id, ReturnToMain(agent_ids=[desk.id])
+        )
+
+        assert [row.agent.name for row in returned.agents] == ["Desk"]
+        assert (returned.remaining, returned.archived) == (1, False)
+
+    async def test_an_agent_that_cannot_move_stays_with_the_reason(self, db):
+        """A specialist's binding is the Builder's; a hidden agent is only counted."""
+        owner = await _owner(db)
+        skill = await _skill(db, owner)
+        fork = await _fork(db, owner, skill)
+        on_fork = str(fork.id)
+        await _serving(
+            db, owner, "Desk", _with_specialist({"name": "Desk"}, skill, fork_id=on_fork)
+        )
+        hidden = await _serving(db, owner, "Hidden", _spec(skill, fork_id=on_fork))
+        hidden.visibility = "private"
+        await db.flush()
+        member = await _member(db, owner, OrgRoleName.MEMBER)
+
+        returned = await SkillCatchUpService(db).return_to_main(
+            member, skill.id, fork.id, ReturnToMain()
+        )
+
+        [desk] = returned.agents
+        assert desk.agent.name == "Desk" and desk.published is False
+        assert desk.refused is not None
+        assert (returned.hidden, returned.remaining, returned.archived) == (1, 2, False)
+
+    async def test_a_move_an_environment_does_not_follow_leaves_the_fork_read(self, db):
+        """Published, but production waits for a promotion: it still serves the fork."""
+        ctx = await _owner(db)
+        skill = await _skill(db, ctx)
+        fork = await _fork(db, ctx, skill)
+        await _serving(db, ctx, "Desk", await _runnable(db, ctx, skill, fork_id=str(fork.id)))
+
+        returned = await SkillCatchUpService(db).return_to_main(
+            ctx, skill.id, fork.id, ReturnToMain()
+        )
+
+        [desk] = returned.agents
+        assert (desk.published, returned.remaining, returned.archived) == (True, 1, False)
+
+    async def test_a_move_that_waits_in_the_draft_leaves_the_fork_read(self, db):
+        owner = await _owner(db)
+        skill = await _skill(db, owner)
+        fork = await _fork(db, owner, skill)
+        member = await _member(db, owner, OrgRoleName.MEMBER)
+        await _serving(db, member, "Mine", await _runnable(db, member, skill, fork_id=str(fork.id)))
+
+        returned = await SkillCatchUpService(db).return_to_main(
+            member, skill.id, fork.id, ReturnToMain()
+        )
+
+        [mine] = returned.agents
+        assert (mine.published, mine.refused) == (False, None)
+        assert (returned.remaining, returned.archived) == (1, False)
+
+    async def test_another_organizations_fork_is_not_found(self, db):
+        ours, theirs = await _owner(db), await _owner(db)
+        skill = await _skill(db, ours)
+        stranger = await _skill(db, theirs, "invoices")
+        their_fork = await _fork(db, theirs, stranger)
+
+        with pytest.raises(NotFoundError):
+            await SkillCatchUpService(db).return_to_main(
+                ours, skill.id, their_fork.id, ReturnToMain()
+            )

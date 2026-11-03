@@ -42,6 +42,8 @@ from app.schemas.skill import (
 from app.schemas.skill_usage import SkillUsageRead
 from app.schemas.skill_version import (
     BehindMainList,
+    ReturnedToMain,
+    ReturnToMain,
     SkillAgentList,
     SkillBindingChange,
     SkillBindingChanged,
@@ -370,6 +372,19 @@ async def rename_fork(
 async def archive_fork(skill_id: UUID, fork_id: UUID, service: SkillVersionSvc, ctx: Auth) -> Any:
     """Archive a fork. It keeps its versions; it is never deleted."""
     return await service.archive_fork(ctx, skill_id, fork_id)
+
+
+@router.post("/{skill_id}/forks/{fork_id}/return-to-main", response_model=ReturnedToMain)
+async def return_fork_to_main(
+    skill_id: UUID, fork_id: UUID, data: ReturnToMain, service: SkillCatchUpSvc, ctx: Auth
+) -> Any:
+    """Move a fork's agents back to main's newest version, and archive the fork once
+    nobody reads it.
+
+    Each agent moves as Change version moves it, and one that cannot be moved stays on
+    the fork with the reason. Agents the caller may not see are counted and left alone.
+    """
+    return await service.return_to_main(ctx, skill_id, fork_id, data)
 
 
 @router.get("/{skill_id}/agents", response_model=SkillAgentList)

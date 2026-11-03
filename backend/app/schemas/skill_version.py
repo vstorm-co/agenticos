@@ -250,6 +250,36 @@ class BehindMainList(BaseSchema):
     hidden: int = Field(description="Pinned agents behind main that the caller may not see")
 
 
+class ReturnToMain(BaseSchema):
+    agent_ids: list[UUID] | None = Field(
+        default=None,
+        description="Which of the fork's agents to move; every one the caller can see when omitted",
+    )
+
+
+class ReturnedAgent(BaseSchema):
+    agent: AgentUsage
+    published: bool = Field(description="A new agent version went live; otherwise only its draft")
+    agent_version: int | None = None
+    refused: str | None = Field(
+        default=None, description="Why it stayed on the fork; it was not moved"
+    )
+
+
+class ReturnedToMain(BaseSchema):
+    """What moving a fork's agents back to main did, agent by agent."""
+
+    agents: list[ReturnedAgent]
+    hidden: int = Field(description="The fork's agents the caller may not see, left as they were")
+    remaining: int = Field(
+        description=(
+            "Agents still reading the fork, hidden ones included: a move that waits in a "
+            "draft leaves the served version on the fork until it is published"
+        )
+    )
+    archived: bool = Field(description="Nobody reads the fork any more, so it was archived")
+
+
 class SkillBindingChange(BaseSchema):
     """Which version an agent should read: main's newest, a main version, or a fork."""
 
