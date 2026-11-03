@@ -108,8 +108,7 @@ def lines_of(spec: dict[str, object], skill_id: UUID) -> list[Line]:
 
 @dataclass(frozen=True)
 class LineAgent:
-    """A reader whose served version follows a line: the agent itself or one of its
-    inline specialists, and the agent version that runs."""
+    """An agent whose served version follows a line: the version that runs, and how."""
 
     agent: Agent
     agent_version: int
@@ -256,24 +255,26 @@ class SkillAgentService:
         return by_version, by_fork
 
     async def line_agents(self, skill: Skill, fork_id: UUID | None) -> list[LineAgent]:
-        """The readers a change to this line reaches: main's followers, or the fork's.
+        """The agents a change to this line reaches: main's followers, or the fork's.
 
-        One row for the agent itself and one for each inline specialist whose served
-        binding follows the line, read from the default environment first, else from
-        the first environment where it does. Pinned readers, other lines and bindings
-        in a draft alone are not reached.
+        An agent counts when a served version reads the line - its default
+        environment's first, else the first environment that does. Pinned agents,
+        other lines and agents bound in a draft alone are not reached.
         """
         found: list[LineAgent] = []
         for use in await self._uses(skill):
-            reached: dict[str | None, LineAgent] = {}
-            for _, number, lines in sorted(use.served, key=lambda entry: not entry[0].is_default):
-                for line in lines:
-                    on_line = line.state == "main" if fork_id is None else line.fork_id == fork_id
-                    if on_line and line.via_specialist not in reached:
-                        reached[line.via_specialist] = LineAgent(
-                            use.agent, number, line.via_specialist
-                        )
-            found.extend(reached.values())
+            on_line = [
+                (environment, number, line)
+                for environment, number, lines in use.served
+                for line in lines
+                if (line.state == "main" if fork_id is None else line.fork_id == fork_id)
+            ]
+            if not on_line:
+                continue
+            _, number, line = next(
+                (served for served in on_line if served[0].is_default), on_line[0]
+            )
+            found.append(LineAgent(use.agent, number, line.via_specialist))
         return found
 
     async def fork_users(self, skill: Skill, fork_id: UUID) -> list[Agent]:
@@ -315,7 +316,7 @@ class SkillAgentService:
         lines += [line for use in uses for line in use.draft]
         reader = await self._reader(skill, lines)
         checks: dict[UUID, dict[UUID, AgentCheckRef]] = {}
-        for agent_id, version_id, measured, at in await skill_check_repo.checked_versions(
+        for agent_id, version_id, found, at in await skill_check_repo.checked_versions(
             self.db,
             organization_id=skill.organization_id,
             skill_id=skill.id,
@@ -324,10 +325,10 @@ class SkillAgentService:
             checks.setdefault(agent_id, {}).setdefault(
                 version_id,
                 AgentCheckRef(
-                    check_id=measured.check_id,
+                    check_id=found.check_id,
                     version_id=version_id,
-                    state=measured.state,
-                    sample=measured.sample,
+                    state=found.state,
+                    sample=found.sample,
                     at=at,
                 ),
             )

@@ -3,6 +3,7 @@ person may not run or see, a run that has not settled, a line that gained an
 agent, a pin nobody may publish, and the skill's questions taken from evidence."""
 
 import uuid
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from types import SimpleNamespace
@@ -232,22 +233,22 @@ class TestWhatCannotBeChecked:
         lab = await _lab(db)
         evals = FakeEvals()
         evals.install(monkeypatch)
-        both = await _serving(
-            db, lab.ctx, "Both", _with_specialist(dict(lab.a.draft_spec), lab.skill)
-        )
-        readers = await SkillAgentService(db).line_agents(lab.skill, None)
-        assert sorted(
-            user.via_specialist or "" for user in readers if user.agent.id == both.id
-        ) == [
-            "",
-            "billing",
-        ]
+        real = SkillAgentService.line_agents
+
+        async def per_reader(self, skill, fork_id):
+            found = await real(self, skill, fork_id)
+            twice = [user for user in found if user.agent.id == lab.a.id]
+            specialist = [replace(user, via_specialist="reader") for user in twice]
+            return [*specialist, *found]
+
+        monkeypatch.setattr(SkillAgentService, "line_agents", per_reader)
         service = SkillCheckService(db)
 
         check = await service.start(lab.ctx, lab.skill.id, _start())
 
-        rows = [row for row in check.agents if row.agent.name == "Both"]
-        assert len(rows) == 1 and rows[0].via_specialist is None
+        assert [row.agent.name for row in check.agents].count("A") == 1
+        a = next(row for row in check.agents if row.agent.name == "A")
+        assert a.via_specialist is None
         evals.outcomes = {lab.a.id: Outcome(fixed=1)}
         read = await _run_to_end(service, evals, lab, check.id)
         assert read.verdict is CheckVerdict.PASSED
@@ -258,13 +259,48 @@ class TestWhatCannotBeChecked:
     ):
         lab = await _lab(db)
         FakeEvals().install(monkeypatch)
-        own = {**dict(lab.a.draft_spec), "skill_ids": [], "skill_bindings": []}
-        await _serving(db, lab.ctx, "Delegates", _with_specialist(own, lab.skill))
+        real = SkillAgentService.line_agents
+
+        async def specialists_only(self, skill, fork_id):
+            found = await real(self, skill, fork_id)
+            return [
+                replace(user, via_specialist=name)
+                for user in found
+                for name in ("reader", "writer")
+            ]
+
+        monkeypatch.setattr(SkillAgentService, "line_agents", specialists_only)
 
         estimate = await SkillCheckService(db).estimate(lab.ctx, lab.skill.id, _start())
 
-        rows = [row for row in estimate.agents if row.agent.name == "Delegates"]
-        assert [row.via_specialist for row in rows] == ["billing"]
+        names = [row.agent.name for row in estimate.agents]
+        assert sorted(names) == ["A", "B", "C"]
+        assert {row.via_specialist for row in estimate.agents} == {"reader"}
+
+    async def test_a_published_agent_and_its_specialist_are_reached_as_one_agent(
+        self, db, monkeypatch
+    ):
+        """Read off real specs: an agent whose own binding and specialist both follow main
+        is one agent reached through itself; one that delegates the skill is reached
+        through its specialist."""
+        lab = await _lab(db)
+        FakeEvals().install(monkeypatch)
+        both = await _serving(
+            db, lab.ctx, "Both", _with_specialist(dict(lab.a.draft_spec), lab.skill)
+        )
+        own = {**dict(lab.a.draft_spec), "skill_ids": [], "skill_bindings": []}
+        delegates = await _serving(db, lab.ctx, "Delegates", _with_specialist(own, lab.skill))
+
+        reached = await SkillAgentService(db).line_agents(lab.skill, None)
+        estimate = await SkillCheckService(db).estimate(lab.ctx, lab.skill.id, _start())
+
+        assert [user.via_specialist for user in reached if user.agent.id == both.id] == [None]
+        assert [user.via_specialist for user in reached if user.agent.id == delegates.id] == [
+            "billing"
+        ]
+        rows = {row.agent.name: row.via_specialist for row in estimate.agents}
+        assert (rows["Both"], rows["Delegates"]) == (None, "billing")
+        assert [row.agent.name for row in estimate.agents].count("Both") == 1
 
     async def test_only_the_agents_named_are_checked(self, db, monkeypatch):
         lab = await _lab(db)
