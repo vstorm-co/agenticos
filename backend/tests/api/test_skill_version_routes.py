@@ -48,6 +48,7 @@ def _version(fork_id: uuid.UUID | None = None) -> SkillVersionRead:
         source=SkillVersionSource.EDIT,
         previous=None,
         created_at=NOW,
+        agents=0,
         description="How refunds work.",
         content="Ask for the receipt.",
         resources=[],
@@ -63,6 +64,7 @@ def _fork() -> SkillForkRead:
         latest=None,
         changes=0,
         behind_main=0,
+        agents=0,
         archive_candidate=False,
         created_at=NOW,
     )

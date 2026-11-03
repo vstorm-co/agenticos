@@ -197,6 +197,17 @@ class TestServedSkills:
             "shipping": ServedSkill(SHIPPING),
         }
 
+    def test_a_stored_skill_carries_the_version_served_and_a_candidate_none(self) -> None:
+        refunds, shipping = _skill("refunds", REFUNDS), _skill("shipping", SHIPPING)
+        refunds.latest_version_id, shipping.latest_version_id = uuid.uuid4(), uuid.uuid4()
+        served = served_skills(
+            [refunds, shipping], {REFUNDS: SkillBody(description="d", content="c")}
+        )
+        assert served == {
+            "refunds": ServedSkill(REFUNDS, projected=True),
+            "shipping": ServedSkill(SHIPPING, version_id=shipping.latest_version_id),
+        }
+
 
 class TestAgentRun:
     """A real agent run, as the runner builds it, with a model that opens a skill."""

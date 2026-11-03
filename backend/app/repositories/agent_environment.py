@@ -1,11 +1,11 @@
 """Agent environment repository (PostgreSQL async)."""
 
-from collections.abc import Sequence
+from collections.abc import Collection, Sequence
 from typing import Any
 from uuid import UUID
 
+from sqlalchemy import Text, cast, or_, select
 from sqlalchemy import delete as sql_delete
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.locks import LockScope, hold_subject_shared
@@ -213,6 +213,29 @@ async def served(
         select(AgentEnvironment, AgentVersion)
         .join(AgentVersion, AgentVersion.id == AgentEnvironment.version_id)
         .where(AgentEnvironment.organization_id == organization_id)
+        .order_by(AgentEnvironment.agent_id, AgentEnvironment.created_at)
+    )
+    return list(result.tuples().all())
+
+
+async def served_mentioning(
+    db: AsyncSession, needles: Collection[str], *, organization_id: UUID
+) -> list[tuple[AgentEnvironment, AgentVersion]]:
+    """The environments whose served spec contains any of `needles` anywhere in its text.
+
+    A cheap first pass, as `agent_repo.drafts_mentioning` is for drafts: an id an inline
+    specialist binds sits deep in a capability's config, where no JSON path reaches.
+    """
+    if not needles:
+        return []
+    text = cast(AgentVersion.spec, Text)
+    result = await db.execute(
+        select(AgentEnvironment, AgentVersion)
+        .join(AgentVersion, AgentVersion.id == AgentEnvironment.version_id)
+        .where(
+            AgentEnvironment.organization_id == organization_id,
+            or_(*(text.contains(needle, autoescape=True) for needle in needles)),
+        )
         .order_by(AgentEnvironment.agent_id, AgentEnvironment.created_at)
     )
     return list(result.tuples().all())

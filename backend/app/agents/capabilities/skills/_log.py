@@ -149,13 +149,19 @@ def tool_identities(bindings: Iterable[CapabilityBindingSpec]) -> dict[str, str]
 def served_skills(
     skills: Iterable[Skill], bodies: Mapping[UUID, SkillBody]
 ) -> dict[str, ServedSkill]:
-    """The run's stored skills by name, each marked where an eval serves another body.
+    """The run's stored skills by name, each with the version it serves.
+
+    A skill an eval serves another body for is marked and has no version.
 
     A skill a proposal would create exists only for the run, with no row to
     attribute a use to, so it is left out.
     """
     return {
-        skill.name: ServedSkill(skill_id=skill.id, projected=skill.id in bodies)
+        skill.name: ServedSkill(
+            skill_id=skill.id,
+            projected=skill.id in bodies,
+            version_id=None if skill.id in bodies else skill.latest_version_id,
+        )
         for skill in skills
         if (body := bodies.get(skill.id)) is None or body.name is None
     }

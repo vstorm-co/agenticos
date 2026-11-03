@@ -12,6 +12,7 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.agents.capabilities.skills import served_skills
 from app.agents.spec import AgentSpec, SkillBindingSpec
 from app.core.exceptions import BadRequestError, InUseError, NotFoundError
 from app.core.permissions import AuthContext, OrgRoleName
@@ -19,14 +20,17 @@ from app.db.models.agent import Agent, AgentVersion
 from app.db.models.agent_environment import AgentEnvironment
 from app.db.models.resource_grant import Visibility
 from app.db.models.skill import Skill
+from app.db.models.skill_version import SkillVersion
+from app.schemas.agent_environment import EnvironmentUpdate
 from app.schemas.skill import SkillUpdate
 from app.schemas.skill_version import SkillBindingChange, SkillForkCreate, SkillVersionCreate
 from app.services import proposal_reach
+from app.services.agent_environment import AgentEnvironmentService
 from app.services.agent_registry import AgentRegistryService
 from app.services.agent_runner import AgentRunnerService
 from app.services.eval_suite import reads_skill_line
 from app.services.resource_usage import agents_serving_skills
-from app.services.skill_agents import SkillAgentService, line_of
+from app.services.skill_agents import SkillAgentService, lines_of
 from app.services.skill_versions import SkillVersionService
 from app.services.skills import SkillService
 from tests.integration.test_authoring import _member, _owner, _published
@@ -90,6 +94,19 @@ def _spec(skill: Skill, **binding: Any) -> dict[str, Any]:
     return {"name": "Clerk", "skill_ids": [str(skill.id)], "skill_bindings": bindings}
 
 
+def _with_specialist(spec: dict[str, Any], skill: Skill, **binding: Any) -> dict[str, Any]:
+    """`spec` with an inline specialist, `billing`, that binds `skill` its own way."""
+    bindings = [{"skill_id": str(skill.id), **binding}] if binding else []
+    specialist = {
+        "name": "billing",
+        "description": "Bills.",
+        "instructions": "Bill.",
+        "skill_ids": [str(skill.id)],
+        "skill_bindings": bindings,
+    }
+    return {**spec, "capabilities": [{"id": "subagents", "config": {"inline": [specialist]}}]}
+
+
 class TestWhatAnAgentReads:
     async def test_main_pinned_and_fork_each_serve_their_own_text_and_files(self, db):
         ctx = await _owner(db)
@@ -124,6 +141,25 @@ class TestWhatAnAgentReads:
         )
 
         assert resolved == []
+
+    async def test_a_pinned_agents_skill_uses_name_the_version_it_reads(self, db):
+        ctx = await _owner(db)
+        skill = await _skill(db, ctx)
+        [pinned] = await SkillService(db).resolve_for_agent(
+            ctx, [skill.id], bindings=[SkillBindingSpec(skill_id=skill.id, version=1)]
+        )
+
+        served = served_skills([pinned], {})
+
+        v1 = await db.scalar(
+            select(SkillVersion.id).where(
+                SkillVersion.skill_id == skill.id,
+                SkillVersion.fork_id.is_(None),
+                SkillVersion.number == 1,
+            )
+        )
+        await db.refresh(skill)
+        assert served[skill.name].version_id == v1 != skill.latest_version_id
 
     async def test_a_run_records_the_versions_it_and_its_specialists_serve(self, db):
         ctx = await _owner(db)
@@ -165,7 +201,7 @@ class TestPublishRefuses:
     async def _problems(self, db, ctx, spec: dict[str, Any]) -> list[str]:
         registry = AgentRegistryService(db)
         parsed = AgentSpec.model_validate(spec)
-        return await registry._skill_problems(ctx, parsed.skill_ids, parsed.skill_bindings)
+        return await registry.skill_problems(ctx, parsed.skill_ids, parsed.skill_bindings)
 
     async def test_a_version_or_fork_the_skill_does_not_have(self, db):
         ctx = await _owner(db)
@@ -320,12 +356,50 @@ class TestTheSkillsAgents:
         )
         await db.flush()
 
-        [row] = (await SkillAgentService(db).agents(ctx, skill.id)).items
+        agents = SkillAgentService(db)
+        [row] = (await agents.agents(ctx, skill.id)).items
+        by_version, by_fork = await agents.counts(skill)
 
         assert row.binding.state == "main"
         assert [(env.name, env.binding.state, env.agent_version) for env in row.environments] == [
             ("staging", "fork", 2)
         ]
+        assert by_fork[fork.id] == 1
+        assert skill.latest_version_id is not None and by_version[skill.latest_version_id] == 1
+
+    async def test_a_reader_outside_the_default_environment_gets_its_own_row(self, db):
+        """A specialist that only another environment serves, or only the draft names."""
+        ctx = await _owner(db)
+        skill = await _skill(db, ctx)
+        fork = await _fork(db, ctx, skill)
+        agent = await _serving(db, ctx, "Clerk", _spec(skill))
+        staging = AgentVersion(
+            agent_id=agent.id,
+            organization_id=ctx.organization_id,
+            version=2,
+            spec=_with_specialist(_spec(skill), skill, fork_id=str(fork.id)),
+        )
+        db.add(staging)
+        await db.flush()
+        db.add(
+            AgentEnvironment(
+                organization_id=ctx.organization_id,
+                agent_id=agent.id,
+                name="staging",
+                version_id=staging.id,
+                is_default=False,
+            )
+        )
+        agent.draft_spec = _with_specialist(_spec(skill), skill, version=1)
+        await db.flush()
+
+        rows = (await SkillAgentService(db).agents(ctx, skill.id)).items
+
+        assert [
+            (row.via_specialist, row.binding.state, row.agent_version, row.draft_only)
+            for row in rows
+        ] == [(None, "main", 1, False), ("billing", "fork", 2, False)]
+        assert rows[1].draft_differs is True
 
     async def test_agents_the_caller_cannot_see_are_only_counted(self, db):
         owner = await _owner(db)
@@ -412,14 +486,14 @@ class TestTheSkillsAgents:
             ],
         }
 
-        assert line_of(spec, skill) is None
+        assert lines_of(spec, skill) == []
         assert reads_skill_line(AgentSpec.model_validate(spec), skill, None) is False
 
     def test_a_spec_that_does_not_name_the_skill_reads_nothing(self):
         skill = uuid.uuid4()
 
-        assert line_of({"name": "x"}, skill) is None
-        assert line_of({"skill_ids": [str(skill)], "bad": 1}, skill) is None
+        assert lines_of({"name": "x"}, skill) == []
+        assert lines_of({"skill_ids": [str(skill)], "bad": 1}, skill) == []
 
 
 async def _runnable(db: AsyncSession, ctx: AuthContext, skill: Skill, **binding: Any):
@@ -501,11 +575,141 @@ class TestMovingAnAgent:
     async def test_a_skill_only_a_specialist_uses_is_changed_in_the_builder(self, db):
         ctx = await _owner(db)
         skill = await _skill(db, ctx)
-        agent = await _serving(db, ctx, "Clerk", {"name": "Clerk"})
+        spec = _with_specialist({"name": "Clerk"}, skill, version=1)
+        agent = await _serving(db, ctx, "Clerk", spec)
 
         with pytest.raises(BadRequestError, match="Builder"):
             await SkillAgentService(db).change_binding(
                 ctx, skill.id, agent.id, SkillBindingChange(state="main")
+            )
+
+    async def test_an_agent_whose_draft_does_not_use_the_skill_is_refused(self, db):
+        """The draft decides, as the Builder shows it: published but unticked is not used."""
+        ctx = await _owner(db)
+        skill = await _skill(db, ctx)
+        agent = await _serving(db, ctx, "Clerk", _spec(skill))
+        agent.draft_spec = {"name": "Clerk"}
+        await db.flush()
+
+        with pytest.raises(BadRequestError, match="does not use 'refunds'"):
+            await SkillAgentService(db).change_binding(
+                ctx, skill.id, agent.id, SkillBindingChange(state="pinned", version=1)
+            )
+
+    async def test_a_move_publishes_from_the_newest_version_not_the_default_environments(self, db):
+        ctx = await _owner(db)
+        skill = await _skill(db, ctx)
+        spec = await _runnable(db, ctx, skill)
+        agent = await _serving(db, ctx, "Clerk", spec)
+        production_version = agent.current_version_id
+        newer = AgentVersion(
+            agent_id=agent.id,
+            organization_id=ctx.organization_id,
+            version=2,
+            spec={**spec, "instructions": "From v2."},
+        )
+        db.add(newer)
+        await db.flush()
+        dev = AgentEnvironment(
+            organization_id=ctx.organization_id,
+            agent_id=agent.id,
+            name="dev",
+            version_id=newer.id,
+            is_default=False,
+            tracks_latest=True,
+        )
+        db.add(dev)
+        await db.flush()
+
+        moved = await SkillAgentService(db).change_binding(
+            ctx, skill.id, agent.id, SkillBindingChange(state="pinned", version=1)
+        )
+
+        assert (moved.published, moved.agent_version, moved.environments) == (True, 3, ["dev"])
+        await db.refresh(dev)
+        await db.refresh(agent)
+        third = await db.get(AgentVersion, dev.version_id)
+        assert third is not None and third.version == 3
+        published = AgentSpec.model_validate(third.spec)
+        assert published.instructions == "From v2."
+        assert published.skill_bindings == [SkillBindingSpec(skill_id=skill.id, version=1)]
+        assert agent.current_version_id == production_version
+
+    async def test_without_publish_an_unfinished_draft_still_takes_the_move(self, db):
+        """Only the binding is checked: a draft is allowed to be unfinished."""
+        owner = await _owner(db)
+        skill = await _skill(db, owner)
+        member = await _member(db, owner, OrgRoleName.MEMBER)
+        spec = await _runnable(db, member, skill)
+        agent = await _serving(db, member, "Mine", spec)
+        gone = str(uuid.uuid4())
+        agent.draft_spec = {**spec, "collection_ids": [gone]}
+        await db.flush()
+
+        moved = await SkillAgentService(db).change_binding(
+            member, skill.id, agent.id, SkillBindingChange(state="pinned", version=1)
+        )
+
+        await db.refresh(agent)
+        assert moved.published is False
+        draft = AgentSpec.model_validate(agent.draft_spec)
+        assert [str(collection) for collection in draft.collection_ids] == [gone]
+        assert draft.skill_bindings == [SkillBindingSpec(skill_id=skill.id, version=1)]
+        with pytest.raises(BadRequestError) as refused:
+            await SkillAgentService(db).change_binding(
+                member, skill.id, agent.id, SkillBindingChange(state="pinned", version=9)
+            )
+        assert refused.value.details["problems"] == ["Skill 'refunds' has no version 9"]
+
+    async def test_a_skill_not_published_yet_or_an_agent_never_published_moves_the_draft(self, db):
+        ctx = await _owner(db)
+        skill = await _skill(db, ctx)
+        published = await _serving(db, ctx, "Published", await _runnable(db, ctx, skill))
+        published.draft_spec = _spec(skill)
+        published_spec = await db.get(AgentVersion, published.current_version_id)
+        assert published_spec is not None
+        published_spec.spec = {"name": "Clerk"}
+        never = Agent(
+            organization_id=ctx.organization_id,
+            owner_user_id=ctx.user_id,
+            visibility="org",
+            slug=f"never-{uuid.uuid4().hex[:6]}",
+            name="Never",
+            status="draft",
+            draft_spec=_spec(skill),
+        )
+        db.add(never)
+        await db.flush()
+
+        for agent in (published, never):
+            moved = await SkillAgentService(db).change_binding(
+                ctx, skill.id, agent.id, SkillBindingChange(state="pinned", version=1)
+            )
+
+            await db.refresh(agent)
+            assert moved.published is False
+            assert AgentSpec.model_validate(agent.draft_spec).skill_bindings == [
+                SkillBindingSpec(skill_id=skill.id, version=1)
+            ]
+
+    async def test_a_caller_without_edit_or_without_the_skill_is_not_found(self, db):
+        owner = await _owner(db)
+        skill = await _skill(db, owner)
+        secret = await SkillService(db).create(
+            owner, name="secret", description="d", content="c", visibility=Visibility.PRIVATE
+        )
+        agent = await _serving(db, owner, "Clerk", _spec(skill))
+        viewer = await _member(db, owner, OrgRoleName.VIEWER)
+        member = await _member(db, owner, OrgRoleName.MEMBER)
+        own = await _serving(db, member, "Mine", _spec(skill))
+
+        with pytest.raises(NotFoundError):
+            await SkillAgentService(db).change_binding(
+                viewer, skill.id, agent.id, SkillBindingChange(state="main")
+            )
+        with pytest.raises(NotFoundError):
+            await SkillAgentService(db).change_binding(
+                member, secret.id, own.id, SkillBindingChange(state="main")
             )
 
     async def test_another_organizations_agent_is_not_found(self, db):
@@ -520,6 +724,37 @@ class TestMovingAnAgent:
 
 
 class TestArchivingAFork:
+    async def test_an_older_version_reading_an_archived_fork_is_not_promoted(self, db):
+        """Archiving only waits for what is read now; the version before is refused later."""
+        ctx = await _owner(db)
+        skill = await _skill(db, ctx)
+        fork = await _fork(db, ctx, skill)
+        agent = await _serving(
+            db, ctx, "Clerk", await _runnable(db, ctx, skill, fork_id=str(fork.id))
+        )
+        on_fork = agent.current_version_id
+        production = await db.scalar(
+            select(AgentEnvironment).where(AgentEnvironment.agent_id == agent.id)
+        )
+        assert production is not None and on_fork is not None
+        production.tracks_latest = False
+        await db.flush()
+        await SkillAgentService(db).change_binding(
+            ctx, skill.id, agent.id, SkillBindingChange(state="main")
+        )
+        await AgentEnvironmentService(db).update(
+            ctx, agent.id, production.id, EnvironmentUpdate(tracks_latest=True)
+        )
+        await SkillVersionService(db).archive_fork(ctx, skill.id, fork.id)
+
+        with pytest.raises(BadRequestError, match="archived skill fork 'returns'"):
+            await AgentEnvironmentService(db).update(
+                ctx,
+                agent.id,
+                production.id,
+                EnvironmentUpdate(tracks_latest=False, version_id=on_fork),
+            )
+
     async def test_a_fork_an_agent_reads_is_not_archived(self, db):
         ctx = await _owner(db)
         skill = await _skill(db, ctx)
@@ -530,3 +765,22 @@ class TestArchivingAFork:
             await SkillVersionService(db).archive_fork(ctx, skill.id, fork.id)
 
         assert refused.value.details["agents"][0]["name"] == "Draft"
+
+    async def test_a_fork_only_a_specialist_reads_is_read_counted_and_listed(self, db):
+        """The agent reads main itself and the fork through its specialist: both count."""
+        ctx = await _owner(db)
+        skill = await _skill(db, ctx)
+        fork = await _fork(db, ctx, skill)
+        await _serving(db, ctx, "Desk", _with_specialist(_spec(skill), skill, fork_id=str(fork.id)))
+        agents = SkillAgentService(db)
+
+        with pytest.raises(InUseError):
+            await SkillVersionService(db).archive_fork(ctx, skill.id, fork.id)
+        _, by_fork = await agents.counts(skill)
+        listed = await agents.agents(ctx, skill.id)
+
+        assert by_fork[fork.id] == 1
+        assert [
+            (row.via_specialist, row.binding.state, row.can_change) for row in listed.items
+        ] == [(None, "main", True), ("billing", "fork", False)]
+        assert listed.hidden == 0

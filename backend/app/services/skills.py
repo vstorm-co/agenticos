@@ -425,7 +425,7 @@ class SkillService:
         which is deliberate and is the same rule delegates and collections follow:
         the binding is checked once, against the publisher, when the agent is
         published, and the agent then reads it for everyone who may run it. See
-        `_skill_problems` in `app/services/agent_registry.py` for the check.
+        `skill_problems` in `app/services/agent_registry.py` for the check.
 
         Re-checking here would be wrong twice over. `resolve_access` refuses every
         context with no subject, so an API key, an embedded widget and a channel
@@ -1315,6 +1315,9 @@ class SkillService:
                 how many more they may not see.
         """
         skill = await self.get(ctx, skill_id, perm=Perm.SKILLS_EDIT)
+        # Locked before the in-use check: an agent binding the skill holds it shared
+        # (`skill_repo.hold`), so a binding is either seen here or written after it is gone.
+        await skill_repo.lock_for_delete(self.db, skill.id)
         using = await agents_using_skill(
             self.db, organization_id=ctx.organization_id, skill_id=skill.id
         )
