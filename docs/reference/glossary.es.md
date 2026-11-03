@@ -1,5 +1,5 @@
 ---
-source_sha: "5aa1c09d5f47"
+source_sha: "c9d5eb9a3eb9"
 ---
 
 # Glosario { #glossary }
@@ -36,7 +36,7 @@ tal como se ven en pantalla.
 | En la consola | Qué es | En la API y el spec |
 |---|---|---|
 | Chat | La conversación web con un agent | `conversation` |
-| Channel | Slack, Telegram o Mattermost, donde las personas hablan con un agent | `channel_bot` |
+| Channel | Slack, Telegram, Mattermost o Discord, donde las personas hablan con un agent | `channel_bot` |
 | Routine | Un agent que se ejecuta solo, con un horario o un evento | `trigger` |
 | Run | Una vez que un agent respondió, con su coste y sus pasos | `agent_run` |
 | Environment | Una etapa con nombre, como producción, que apunta a una versión | `environment` |
@@ -86,6 +86,7 @@ se describe en [Capabilities](capabilities.md).
 | Memory (mem0) | `memory_mem0` |
 | Planning | `planning` |
 | Work while tools run | `background_tools` |
+| Watch a command | `monitor` |
 | Sandbox | `sandbox` |
 | Skills | `skills` |
 | Subagents | `subagents` |

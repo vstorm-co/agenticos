@@ -1,6 +1,6 @@
-/** Channel bots - the organization-level bindings to Slack, Telegram, Mattermost, Teams. */
+/** Channel bots - the organization-level bindings to Slack, Telegram, Mattermost, Teams, Discord. */
 
-export type ChannelPlatform = "telegram" | "slack" | "mattermost" | "teams";
+export type ChannelPlatform = "telegram" | "slack" | "mattermost" | "teams" | "discord";
 
 /** How a streamed answer shows its tool calls: one row each, or one plan (#2084). */
 export type StepDisplay = "timeline" | "plan";
@@ -40,6 +40,8 @@ export interface ChannelAccessPolicy {
   mode: "open" | "whitelist" | "jwt_linked" | "group_only";
   whitelist: string[];
   allowed_groups: string[];
+  /** Explicit server approvals for Discord; absent or empty permits DMs only. */
+  discord_guild_ids?: string[];
   require_link: boolean;
   rate_limit_rpm: number;
   denied_message: string;

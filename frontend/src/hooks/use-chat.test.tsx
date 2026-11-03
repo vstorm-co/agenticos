@@ -4956,6 +4956,43 @@ it("sends a screen-only override without giving the agent a local folder", () =>
   }
 });
 
+it("sends no local field when a chat chose no skills", () => {
+  const { result } = renderHook(() => useChat(), { wrapper });
+  act(() => result.current.sendMessage("no skills"));
+  expect(lastFrame().local).toBeUndefined();
+});
+
+it("sends the skill sources a chat chose, alone, without a folder", () => {
+  const store = useWorkOnStore.getState();
+  store.setSkills(null, ["claude", "codex"]);
+  try {
+    const { result } = renderHook(() => useChat(), { wrapper });
+    act(() => result.current.sendMessage("skills only"));
+    expect(lastFrame().local).toEqual({ skills: ["claude", "codex"] });
+    expect(store.targetFor(null)).toBeNull();
+  } finally {
+    store.resetDraft();
+  }
+});
+
+it("sends the skill sources together with the folder the chat works in", () => {
+  const store = useWorkOnStore.getState();
+  store.setSkills(null, ["agents"]);
+  store.set(null, { folder: "/Users/me/work", mode: "full_access" });
+  try {
+    const { result } = renderHook(() => useChat(), { wrapper });
+    act(() => result.current.sendMessage("skills in a folder"));
+    expect(lastFrame().local).toEqual({
+      folder: "/Users/me/work",
+      mode: "full_access",
+      skills: ["agents"],
+    });
+  } finally {
+    store.set(null, null);
+    store.resetDraft();
+  }
+});
+
 it("reads approval-waiver policy for the active organization", () => {
   useOrgStore.setState({ activeOrgId: "org-1" });
   const { result } = renderHook(() => useChat(), {
@@ -4996,4 +5033,61 @@ it("stops the originating live conversation from the desktop activity command", 
   act(() => nativeStop.handler("native-chat"));
   expect(sent).toHaveBeenLastCalledWith(expect.objectContaining({ type: "stop" }));
   delete window.__AGENTICOS_SHELL__;
+});
+
+it("sends a per-chat coding choice alongside its approved folder", () => {
+  const store = useWorkOnStore.getState();
+  store.set(null, { folder: "/approved", mode: "full_access" });
+  store.setCoding(null, "codex");
+  try {
+    const { result } = renderHook(() => useChat(), { wrapper });
+    act(() => result.current.sendMessage("use the local coding agent"));
+    expect(lastFrame().local).toEqual({
+      folder: "/approved",
+      mode: "full_access",
+      coding_agent: "codex",
+    });
+  } finally {
+    store.set(null, null);
+    store.resetDraft();
+  }
+});
+
+it("retains the server-recorded file origin after composer workspace changes", () => {
+  renderHook(() => useChat(), { wrapper });
+  receive("user_prompt", { file_source: { kind: "local", id: "original-source" } });
+  receive("model_request_start", {});
+  act(() => useWorkOnStore.getState().set(null, { folder: "/different", mode: "full_access" }));
+  receive("text_delta", { index: 0, content: "Done" });
+  expect(streaming()?.fileSource).toEqual({ kind: "local", id: "original-source" });
+  useWorkOnStore.setState({ byConversation: {}, draft: null });
+});
+
+it("keeps local folder mappings private while recording only opaque turn origins", () => {
+  const store = useWorkOnStore.getState();
+  store.set(null, { folder: "/private/original", mode: "full_access" });
+  const { result } = renderHook(() => useChat(), { wrapper });
+  act(() => result.current.sendMessage("Make a file"));
+  act(() => store.set(null, { folder: "/private/different", mode: "full_access" }));
+  receive("user_prompt", { file_source: { kind: "local", id: "opaque-source" } });
+  expect(store.fileRootFor("opaque-source")).toBe("/private/original");
+  receive("model_request_start", {});
+  receive("text_delta", { index: 0, content: "Done" });
+  expect(streaming()?.fileSource).toEqual({ kind: "local", id: "opaque-source" });
+  expect(JSON.stringify(streaming()?.fileSource)).not.toContain("/private");
+  useWorkOnStore.setState({ byConversation: {}, draft: null, fileRoots: {} });
+});
+
+it("does not file a pending local origin under a newly selected organization", () => {
+  const store = useWorkOnStore.getState();
+  const organization = useOrgStore.getState().activeOrgId;
+  store.set(null, { folder: "/private/original", mode: "full_access" });
+  const { result } = renderHook(() => useChat(), { wrapper });
+  act(() => result.current.sendMessage("Make a file"));
+  act(() => useOrgStore.setState({ activeOrgId: "other-organization" }));
+  receive("user_prompt", { file_source: { kind: "local", id: "late-source" } });
+  expect(store.fileRootFor("late-source")).toBeUndefined();
+  act(() => useOrgStore.setState({ activeOrgId: organization }));
+  expect(store.fileRootFor("late-source")).toBeUndefined();
+  useWorkOnStore.setState({ byConversation: {}, draft: null, fileRoots: {} });
 });

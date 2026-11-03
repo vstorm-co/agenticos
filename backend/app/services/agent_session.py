@@ -38,7 +38,12 @@ from app.db.models.organization import Organization
 from app.db.models.user import User
 from app.db.session import get_db_context
 from app.repositories import agent_repo, agent_run_repo, conversation_repo, member_repo
-from app.schemas.conversation import ChatPerson, MessagePart
+from app.schemas.conversation import (
+    ChatPerson,
+    ConversationMessageFileSource,
+    LocalMessageFileSource,
+    MessagePart,
+)
 from app.services import chat_room, live_turn, redis_view
 from app.services.agent import (
     persist_assistant_turn,
@@ -648,7 +653,19 @@ class AgentSession:
         # failure inside it - the history, the attachment lookup - must not turn
         # a lost answer into a `NameError`.
         try:
-            if self.current_conversation_id:
+            local_target = requested_local(data)
+            if local_target is not None and local_target.folder is not None:
+                timeline.file_source = LocalMessageFileSource(id=uuid4())
+            elif self.current_conversation_id is not None:
+                timeline.file_source = ConversationMessageFileSource(
+                    id=UUID(self.current_conversation_id)
+                )
+            source_wire = (
+                timeline.file_source.model_dump(mode="json")
+                if timeline.file_source is not None
+                else None
+            )
+            if self.current_conversation_id is not None:
                 self._live = self.current_conversation_id
                 self._live_turn = await live_turn.begin(self._live)
                 await self._enter_room(self._live)
@@ -674,6 +691,7 @@ class AgentSession:
                             # Which agent answers, so a follower draws its face and name
                             # on the answer from the first word rather than at the end.
                             "agent_id": str(agent_id),
+                            "file_source": source_wire,
                         },
                     )
                 await chat_room.turn_begun(self._live, self.user.id)
@@ -687,6 +705,7 @@ class AgentSession:
                 "user_prompt",
                 {
                     "content": user_message,
+                    "file_source": source_wire,
                     "message_id": None if prompt.message_id is None else str(prompt.message_id),
                 },
             )
@@ -753,7 +772,7 @@ class AgentSession:
                     # organization's ceiling, and *refused* there rather than
                     # downgraded (#925).
                     approval_mode=requested_approval_mode(data),
-                    local=requested_local(data),
+                    local=local_target,
                     person_time_zone=requested_time_zone(data),
                     # The Builder's test panel: the draft, or a version, marked
                     # as a test either way (#2074).

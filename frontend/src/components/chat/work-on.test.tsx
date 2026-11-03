@@ -1,5 +1,5 @@
 import { useChatControlsStore } from "@/stores/chat-controls-store";
-import { act, render as renderView, screen, within } from "@testing-library/react";
+import { act, fireEvent, render as renderView, screen, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactElement, ReactNode } from "react";
 import userEvent from "@testing-library/user-event";
@@ -9,19 +9,28 @@ import { useWorkOnStore } from "@/stores/work-on-store";
 import type { DeviceStatus, LocalGrant, LocalMode } from "@/lib/desktop/commands";
 import { WorkOn } from "./work-on";
 
-function render(ui: ReactElement) {
+function render(ui: ReactElement, expandFolders = true) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  return renderView(ui, {
+  const view = renderView(ui, {
     wrapper: ({ children }: { children: ReactNode }) => (
       <QueryClientProvider client={client}>{children}</QueryClientProvider>
     ),
   });
+  const summary = view.container.querySelector("summary");
+  if (expandFolders && summary) fireEvent.click(summary);
+  return view;
 }
 
 const pick = vi.hoisted(() =>
   vi.fn<(mode: LocalMode, options: { onSuccess: (grant: LocalGrant | null) => void }) => void>(),
 );
 const computer = vi.hoisted(() => ({ allow: vi.fn(), revoke: vi.fn() }));
+vi.mock("./local-skills-control", () => ({
+  LocalSkillsControl: () => <div data-testid="skills" />,
+}));
+vi.mock("./local-coding-control", () => ({
+  LocalCodingControl: () => <div data-testid="coding" />,
+}));
 vi.mock("@/lib/desktop/commands", async (original) => ({
   ...(await original<typeof import("@/lib/desktop/commands")>()),
   allowWholeComputer: computer.allow,
@@ -61,6 +70,7 @@ vi.mock("@/hooks/use-desktop", () => ({
         grants: [
           { path: "/first", mode: "read_only" },
           { path: "/second", mode: "read_only" },
+          { path: "/coding", mode: "full_access" },
         ],
         modes: modeState.ready ? ["read_only", "full_access"] : [],
       },
@@ -92,6 +102,8 @@ beforeEach(() => {
   modeState.ready = true;
   useConversationStore.setState({ currentConversationId: "chat" });
   useWorkOnStore.setState({
+    codingByConversation: {},
+    draftCoding: null,
     byConversation: {
       chat: {
         folder: "/first",
@@ -346,10 +358,10 @@ it("keeps browser and workspace explanations behind their header information but
   expect(screen.queryByText(browserHint)).not.toBeInTheDocument();
   expect(screen.queryByText(workspaceHint)).not.toBeInTheDocument();
   const help = screen.getAllByRole("button", { name: "More information" });
-  await userEvent.click(help[0]!);
+  await userEvent.click(help[1]!);
   expect(screen.getByText(browserHint)).toBeVisible();
   await userEvent.keyboard("{Escape}");
-  await userEvent.click(help[2]!);
+  await userEvent.click(help[0]!);
   expect(screen.getByText(workspaceHint)).toBeVisible();
 });
 
@@ -377,11 +389,11 @@ it("disables absent agent capabilities without choosing local access", () => {
   });
   useChatControlsStore.setState({ byScope: {} });
   render(<WorkOn agentCapabilities={[]} />);
-  for (const option of screen.getAllByRole("radio", { name: "Agent setting" })) {
-    expect(option).toBeDisabled();
-    expect(option).toHaveAttribute("aria-checked", "false");
+  for (const option of screen.getAllByRole("radio", { name: "Off" })) {
+    expect(option).toBeEnabled();
+    expect(option).toHaveAttribute("aria-checked", "true");
   }
-  expect(screen.getByRole("radio", { name: "Cloud" })).toBeDisabled();
+  expect(screen.getAllByRole("radio", { name: "Off" })).toHaveLength(3);
   expect(screen.getByRole("radio", { name: "Local browser" })).toHaveAttribute(
     "aria-checked",
     "false",
@@ -400,4 +412,36 @@ it("can turn off local use even when the agent has no equivalent capability", as
   const group = screen.getByRole("radiogroup", { name: "Computer use" });
   await userEvent.click(within(group).getByRole("radio", { name: "Local computer" }));
   expect(useWorkOnStore.getState().computerFor("chat")).toBe(false);
+});
+
+it("keeps coding agents on full-access folders and clears the override when switching to cloud", async () => {
+  useWorkOnStore.getState().setCoding("chat", "codex");
+  useWorkOnStore.getState().set("chat", { folder: "/approved", mode: "full_access" });
+  render(<WorkOn agentCapabilities={["sandbox"]} />);
+  const access = screen.getByRole("combobox", { name: "Folder access" });
+  expect(access).toHaveValue("full_access");
+  expect(within(access).getAllByRole("option")).toHaveLength(1);
+  await userEvent.click(screen.getByRole("radio", { name: "Cloud" }));
+  expect(useWorkOnStore.getState().codingFor("chat")).toBeNull();
+  expect(useWorkOnStore.getState().targetFor("chat")).toBeNull();
+});
+
+it("keeps folder details collapsed while showing the selected workspace", async () => {
+  render(<WorkOn agentCapabilities={["sandbox"]} />, false);
+  const summary = screen.getByText("Work on").closest("summary");
+  expect(summary).toHaveTextContent("first");
+  expect(summary?.parentElement).not.toHaveAttribute("open");
+  await userEvent.click(summary!);
+  expect(summary?.parentElement).toHaveAttribute("open");
+  expect(screen.getByRole("combobox", { name: "Folder access" })).toBeVisible();
+});
+
+it("offers only existing full-access grants while a coding harness is selected", async () => {
+  useWorkOnStore.getState().setCoding("chat", "codex");
+  render(<WorkOn agentCapabilities={["sandbox"]} />);
+  expect(screen.queryByRole("radio", { name: /first/ })).not.toBeInTheDocument();
+  expect(screen.queryByRole("radio", { name: /second/ })).not.toBeInTheDocument();
+  await userEvent.click(screen.getByRole("radio", { name: /coding/ }));
+  expect(useWorkOnStore.getState().targetFor("chat")?.mode).toBe("full_access");
+  expect(useWorkOnStore.getState().codingFor("chat")).toBe("codex");
 });

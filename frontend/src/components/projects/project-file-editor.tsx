@@ -22,6 +22,8 @@ import {
   type EditableProjectFile,
 } from "@/lib/projects-api";
 import { qk } from "@/lib/query-keys";
+import { DIALOG_CANVAS, DIALOG_FILL } from "@/lib/dialog-sizes";
+import { cn } from "@/lib/utils";
 
 /** A modal editor keeps tree navigation from silently throwing away a draft. */
 export function ProjectFileEditor({ projectId, path }: { projectId: string; path: string }) {
@@ -86,7 +88,7 @@ export function ProjectFileEditor({ projectId, path }: { projectId: string; path
         }}
       >
         <DialogContent
-          className="flex h-[min(85dvh,56rem)] max-w-5xl flex-col gap-4 overflow-hidden"
+          className={cn(DIALOG_CANVAS, DIALOG_FILL)}
           onEscapeKeyDown={(event) => {
             event.preventDefault();
             close();
@@ -118,12 +120,15 @@ export function ProjectFileEditor({ projectId, path }: { projectId: string; path
                   setContent(event.target.value);
                   save.reset();
                 }}
-                className="min-h-0 flex-1 resize-none rounded-lg font-mono text-sm leading-relaxed"
+                className="min-h-0 flex-1 resize-none rounded-lg font-mono text-base leading-relaxed md:text-sm"
               />
             )
           )}
           <DialogFooter className="mt-auto">
-            <span className="text-muted-foreground mr-auto self-center text-xs" role="status">
+            <span
+              className="text-muted-foreground mr-auto self-center text-xs max-sm:sr-only"
+              role="status"
+            >
               {dirty ? t("unsaved") : original ? t("saved") : t("textOnly")}
             </span>
             <Button variant="outline" disabled={save.isPending} onClick={close}>

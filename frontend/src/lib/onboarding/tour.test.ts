@@ -55,6 +55,7 @@ const BUILDER_STEPS = [
   "agent-test",
   "agent-share",
   "agent-publish",
+  "agent-editor-fullscreen",
 ];
 
 // Every collection-detail stop, in the order the "?" walks them. The launch
@@ -77,6 +78,14 @@ const ORG_STEPS = [
 ];
 
 describe("pageKey", () => {
+  it("identifies the canvas without treating the all-runs list as a canvas", () => {
+    expect(pageKey("/workflows/wf-1")).toBe("workflow-detail");
+    expect(pageKey("/workflows/runs")).toBe("/workflows/runs");
+    expect(stepsForPage("/workflows/wf-1", () => true).map((step) => step.id)).toEqual([
+      "workflow-canvas-fullscreen",
+      "workflow-step-view",
+    ]);
+  });
   it("collapses every concrete builder route onto the one builder identity", () => {
     expect(pageKey("/agents/abc-123")).toBe(AGENT_BUILDER);
     expect(pageKey("/agents/abc-123/anything")).toBe(AGENT_BUILDER);
@@ -230,6 +239,8 @@ describe("stepsForPage", () => {
       "chat-start",
       "chat-agent-picker",
       "chat-composer",
+      "chat-local-skills",
+      "chat-local-coding",
       "chat-plan",
       "chat-visual",
       "chat-model-picker",
@@ -261,6 +272,7 @@ describe("stepsForPage", () => {
     // tab only.
     expect(stepsForPage(ROUTES.SETTINGS_NOTIFICATIONS, () => true).map((s) => s.id)).toEqual([
       "settings-tabs",
+      "desktop-local-agents",
       "settings-appearance",
       "my-memory",
       "sign-in-to-site",
@@ -271,6 +283,7 @@ describe("stepsForPage", () => {
       "settings-connected-apps",
     ]);
     expect(stepsForPage("/documents/some-id", () => true).map((s) => s.id)).toEqual([
+      "workspace-file-fullscreen",
       "workspaces-detail",
     ]);
   });

@@ -1797,6 +1797,10 @@ def _with_execution_environment(spec: AgentSpec, local: LocalTarget | None) -> A
             selected.append(
                 "Computer tools operate this person's own screen and input, not a cloud desktop."
             )
+        if local.coding_agent is not None:
+            selected.append(
+                f"Coding tasks use {local.coding_agent} in the approved folder on this computer."
+            )
         if local.model_service is not None:
             selected.append(
                 "Inference uses the selected local model service; do not claim it runs in the cloud."
@@ -1822,6 +1826,12 @@ def _with_local_capabilities(spec: AgentSpec, local: LocalTarget | None) -> Agen
         requested[BROWSER_CAPABILITY_ID] = {"connection": "local"}
     if local.computer:
         requested["computer_use"] = {"desktop": "local"}
+    if local.coding_agent is not None:
+        requested[CODING_AGENT_ID] = {
+            "runs_on": "this_computer",
+            "harness": local.coding_agent,
+            "model": None,
+        }
     bindings = list(spec.capabilities)
     for capability_id, config in requested.items():
         own = next((entry for entry in bindings if entry.id == capability_id), None)
@@ -1830,6 +1840,9 @@ def _with_local_capabilities(spec: AgentSpec, local: LocalTarget | None) -> Agen
             if own is not None
             else CapabilityBindingSpec(id=capability_id, config=config)
         )
+        if capability_id == CODING_AGENT_ID:
+            # Local harnesses use their own sign-in, never the sandbox credential.
+            binding = binding.model_copy(update={"secret_id": None})
         bindings = [entry for entry in bindings if entry.id != capability_id] + [binding]
     return spec.model_copy(update={"capabilities": bindings})
 
@@ -1911,7 +1924,13 @@ def _with_workspace_briefing(spec: AgentSpec, workspace: OpenWorkspace) -> Agent
 
 
 _CHANNEL_SURFACES = frozenset(
-    {RunSurface.SLACK, RunSurface.TELEGRAM, RunSurface.MATTERMOST, RunSurface.TEAMS}
+    {
+        RunSurface.SLACK,
+        RunSurface.TELEGRAM,
+        RunSurface.MATTERMOST,
+        RunSurface.TEAMS,
+        RunSurface.DISCORD,
+    }
 )
 
 _INTERRUPTED = frozenset(
@@ -3857,6 +3876,32 @@ class AgentRunnerService:
                 # After the skills are written, so materialising them does not read as
                 # the turn's own output.
                 started_with = await workspace_snapshot(workspace.workspace)
+
+        if local is not None and local.skills:
+            # Read on the person's own computer, in place, for a chat that chose its
+            # sources; the instruction files come last in what the model reads.
+            from app.services.device_hub import (
+                DeviceWorkspace,
+                local_skills_context,
+            )
+
+            backend = workspace.workspace.backend if workspace is not None else None
+            skills_session = (
+                backend.session_id
+                if isinstance(backend, DeviceWorkspace)
+                else await self._browser_session(workspace_ctx, local)
+            )
+            skills_context = await local_skills_context(
+                skills_session,
+                local.skills,
+                folder=local.folder,
+                computer_grant=local.computer_grant,
+                conversation_id=conversation_id,
+            )
+            spec_toolsets.append(skills_context.toolset)
+            spec = spec.model_copy(
+                update={"instructions": f"{spec.instructions}\n\n{skills_context.briefing}"}
+            )
 
         channel = ApprovalChannel(
             organization_id=ctx.organization_id,
@@ -6672,7 +6717,11 @@ class AgentRunnerService:
                     prompt=said,
                     answer=output,
                     attachments=attachments,
-                    attachment_context=attachment_context,
+                    # Replayed after the prompt on every later turn, where the input
+                    # edge no longer looks: a refused turn keeps none of it (#2578).
+                    attachment_context=(
+                        None if status is RunStatus.GUARDRAIL_BLOCKED else attachment_context
+                    ),
                     tool_calls=called,
                     settled=settled,
                     # So the step the run stopped on reads "awaiting approval" when

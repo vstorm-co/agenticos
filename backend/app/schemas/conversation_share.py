@@ -81,6 +81,7 @@ class AdminConversationRead(BaseSchema):
         default_factory=list,
         description="Every agent that answered here, in the order they first did",
     )
+    coding_agents: list[Literal["claude_code", "codex"]] = Field(default_factory=list)
     created_at: datetime
     updated_at: datetime | None = None
 

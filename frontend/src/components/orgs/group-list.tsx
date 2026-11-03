@@ -53,7 +53,7 @@ export function GroupList({
   const columns: Column<Group>[] = [
     {
       key: "name",
-      className: "pl-5",
+      className: "w-full max-w-0 pl-3 sm:pl-5",
       header: t("name"),
       cell: (group) => (
         <div className="flex min-w-0 items-center gap-3">
@@ -61,7 +61,7 @@ export function GroupList({
           <div className="min-w-0">
             <Link
               href={ROUTES.GROUP_DETAIL(group.id)}
-              className="text-foreground truncate text-sm font-medium hover:underline"
+              className="text-foreground block truncate text-sm font-medium hover:underline"
             >
               {group.name}
             </Link>
@@ -96,7 +96,7 @@ export function GroupList({
       key: "actions",
       header: "",
       align: "right",
-      className: "w-0 pr-5",
+      className: "w-0 pr-3 sm:pr-5",
       cell: (group) => (
         <div className="flex items-center justify-end gap-1">
           <IconButton

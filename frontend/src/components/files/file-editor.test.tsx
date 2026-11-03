@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
@@ -60,7 +60,7 @@ describe("the file editor", () => {
   });
 
   it("switches to the source when asked", async () => {
-    mount();
+    mountPreview();
 
     await userEvent.click(screen.getByRole("button", { name: "Source" }));
 
@@ -68,7 +68,7 @@ describe("the file editor", () => {
   });
 
   it("reports edits from the source view", async () => {
-    const { onChange } = mount({ content: "" });
+    const { onChange } = mountPreview({ content: "" });
 
     await userEvent.click(screen.getByRole("button", { name: "Source" }));
     await userEvent.type(screen.getByLabelText("checklist.md source"), "x");
@@ -77,7 +77,7 @@ describe("the file editor", () => {
   });
 
   it("makes the source read-only for somebody who may not edit", async () => {
-    mount({ canEdit: false });
+    mountPreview({ canEdit: false });
 
     await userEvent.click(screen.getByRole("button", { name: "Source" }));
 
@@ -125,7 +125,7 @@ describe("the file editor", () => {
   it("goes back to the rendered view from the source", async () => {
     // Reading is the common case, so the way back has to be one click - and the
     // toggle is the only thing that says which view is current.
-    mount({ name: "checklist.md", content: "# Checks" });
+    mountPreview({ name: "checklist.md", content: "# Checks" });
 
     await userEvent.click(screen.getByRole("button", { name: "Source" }));
     expect(screen.getByLabelText("checklist.md source")).toBeInTheDocument();
@@ -160,4 +160,16 @@ describe("the file editor", () => {
 
     expect(screen.getByText("the header")).toBeInTheDocument();
   });
+});
+
+it("keeps its editing mode when the file is expanded and closed", async () => {
+  mount();
+  await userEvent.click(screen.getByRole("button", { name: "Expand checklist.md" }));
+  const dialog = screen.getByRole("dialog", { name: "checklist.md" });
+  expect(within(dialog).getByRole("textbox")).toHaveValue("# Heading");
+  await userEvent.click(within(dialog).getByRole("button", { name: "Preview" }));
+  expect(within(dialog).getByTestId("rendered")).toHaveTextContent("# Heading");
+  await userEvent.click(within(dialog).getByRole("button", { name: "Close" }));
+  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Source" })).toBeInTheDocument();
 });

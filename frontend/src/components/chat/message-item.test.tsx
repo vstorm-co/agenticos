@@ -1345,6 +1345,41 @@ describe("the work before an answer", () => {
     expect(screen.queryByText(/Working/)).not.toBeInTheDocument();
   });
 
+  it("collapses routine live work on small screens and keeps the answer and approvals outside", async () => {
+    const parts = [
+      thought,
+      call("read"),
+      text("answer", "Here is the result."),
+      call("approve", "awaiting_approval"),
+    ];
+    const view = item({ parts, isStreaming: true });
+    const detail = screen.getByTestId("tool-tc-read").closest("[data-work-detail]");
+    expect(detail).toHaveClass("hidden", "md:block");
+    expect(screen.getByText("Here is the result.").closest("[data-work-detail]")).toBeNull();
+    expect(screen.getByTestId("tool-tc-approve").closest("[data-work-detail]")).toBeNull();
+    const toggle = screen.getByRole("button", { name: /Working/ });
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    await userEvent.click(toggle);
+    expect(detail).not.toHaveClass("hidden");
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    view.rerender(
+      <MessageItem
+        message={message({
+          parts: [...parts, { ...thought, id: "new-thought" }],
+          isStreaming: true,
+        })}
+      />,
+    );
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    await userEvent.click(toggle);
+    expect(detail).toHaveClass("hidden", "md:block");
+  });
+
+  it("keeps live failures out of the mobile progress fold", () => {
+    item({ parts: [thought, call("bad", "error")], isStreaming: true });
+    expect(screen.getByTestId("tool-tc-bad").closest("[data-work-detail]")).toBeNull();
+  });
+
   it("folds a stopped turn's work into one line that says it stopped, with no Done", () => {
     const parts = [call("a"), call("b")];
     item({ parts, runDurationMs: 12_400, wasStopped: true });
@@ -1385,4 +1420,48 @@ it("keeps a settled message out of a sibling's streaming rerender", async () => 
   expect(content).not.toHaveBeenCalled();
   expect(await screen.findByText("The next delta")).toBeInTheDocument();
   reduced.mockRestore();
+});
+
+describe("phone message actions", () => {
+  it.each(["user", "assistant"] as const)(
+    "offers an explicit toggle for a %s message",
+    async (role) => {
+      const regenerate = vi.fn();
+      item({ role }, { onRegenerate: regenerate });
+      const toggle = screen.getByRole("button", { name: "More" });
+      expect(toggle).toHaveAttribute("aria-expanded", "false");
+      const controls = document.getElementById(toggle.getAttribute("aria-controls") ?? "");
+      expect(controls).toContainElement(screen.getByRole("button", { name: "Copy to clipboard" }));
+      await userEvent.click(toggle);
+      expect(toggle).toHaveAttribute("aria-expanded", "true");
+      if (role === "assistant") {
+        await userEvent.click(screen.getByRole("button", { name: "Regenerate response" }));
+        expect(regenerate).toHaveBeenCalledOnce();
+      }
+      await userEvent.click(toggle);
+      expect(toggle).toHaveAttribute("aria-expanded", "false");
+    },
+  );
+
+  it("keeps stopped and interrupted voice status outside the folded actions", () => {
+    item({ wasStopped: true, turnId: "call:1:assistant", interrupted: true });
+    const toggle = screen.getByRole("button", { name: "More" });
+    const controls = document.getElementById(toggle.getAttribute("aria-controls") ?? "");
+    expect(controls).not.toContainElement(screen.getByText("stopped"));
+    expect(controls).not.toContainElement(screen.getByText("Voice"));
+    expect(controls).not.toContainElement(screen.getByText("Interrupted"));
+  });
+
+  it("keeps actions reachable on the final segment without repeating its speaker", async () => {
+    item({}, { continuesTurn: true, endsTurn: true });
+    const toggle = screen.getByRole("button", { name: "More" });
+    await userEvent.click(toggle);
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    expect(screen.queryByText("Agent")).toBeNull();
+  });
+
+  it("does not offer a toggle before the streamed turn finishes", () => {
+    item({ isStreaming: true });
+    expect(screen.queryByRole("button", { name: "More" })).toBeNull();
+  });
 });

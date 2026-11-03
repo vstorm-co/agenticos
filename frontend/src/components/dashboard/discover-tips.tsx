@@ -43,6 +43,7 @@ const TIPS: readonly Tip[] = [
       { name: "telegram", color: "#26A5E4" },
       { name: "mattermost", color: "#0058CC" },
       { name: "microsoftteams", color: "#6264A7" },
+      { name: "discord", color: "#5865F2" },
     ],
   },
   { id: "browser", href: ROUTES.AGENTS, art: "browser_use", gate: Perm.agentsEdit },

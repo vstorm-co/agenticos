@@ -150,6 +150,11 @@ async def finish_run(
         run.logfire_trace_id = logfire_trace_id
     db.add(run)
     await db.flush()
+    # The rows already written; see `Message.guardrail_refused` for why on the row.
+    if status == RunStatus.GUARDRAIL_BLOCKED.value:
+        await db.execute(
+            sql_update(Message).where(Message.run_id == run.id).values(guardrail_refused=True)
+        )
     await db.refresh(run)
     return run
 

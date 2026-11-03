@@ -18,7 +18,7 @@ keep in step, and the ordering is only true if there is one.
 
 from dataclasses import dataclass, field
 
-from app.schemas.conversation import MessagePart
+from app.schemas.conversation import MessageFileSource, MessagePart
 
 
 @dataclass
@@ -32,6 +32,7 @@ class TurnTimeline:
     """
 
     parts: list[MessagePart] = field(default_factory=list)
+    file_source: MessageFileSource | None = None
     _sealed: bool = field(default=False, repr=False)
     """Whether the open part ended with the model response that wrote it."""
 
@@ -137,6 +138,10 @@ class TurnTimeline:
         to fall back to, so dropping it as "a turn of one part" would lose the
         question and the answer outright (#502).
         """
+        # Tool output can carry file links even when no prose followed it.
+        if self.file_source is not None and any(part.type == "tool" for part in self.parts):
+            self.parts[0].file_source = self.file_source
+            return self.parts
         if len(self.parts) > 1:
             return self.parts
         if self.parts and self.parts[0].type in ("ask_user", "steer"):

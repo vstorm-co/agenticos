@@ -6,7 +6,8 @@ import { persist } from "zustand/middleware";
 import { useAuthStore } from "./auth-store";
 import { useOrgStore } from "./org-store";
 
-import type { LocalTarget } from "@/lib/desktop/commands";
+import type { LocalTarget, SkillSource } from "@/lib/desktop/commands";
+import type { CodingHarness } from "@/types/chat";
 
 export type { LocalTarget };
 
@@ -24,6 +25,14 @@ const browserKey = (conversationId: string) =>
   `${useAuthStore.getState().user?.id ?? "-"}:${useOrgStore.getState().activeOrgId ?? "-"}:${conversationId}`;
 
 interface WorkOnState {
+  /** Private folder mappings never leave this browser's account/organization scope. */
+  fileRoots: Record<string, string>;
+  rememberFileRoot: (id: string, root: string) => void;
+  fileRootFor: (id: string) => string | undefined;
+  codingByConversation: Record<string, CodingHarness | null>;
+  draftCoding: CodingHarness | null;
+  codingFor: (conversationId: string | null) => CodingHarness | null;
+  setCoding: (conversationId: string | null, harness: CodingHarness | null) => void;
   computerByConversation: Record<string, boolean>;
   draftComputer: boolean | undefined;
   computerFor: (conversationId: string | null) => boolean;
@@ -32,6 +41,14 @@ interface WorkOnState {
   draftBrowser: boolean | undefined;
   browserFor: (conversationId: string | null) => boolean;
   setBrowser: (conversationId: string | null, local: boolean) => void;
+  /**
+   * The skill sources a conversation reads from this computer. Off for a new chat:
+   * unlike a folder, this is never inherited, so each chat is asked for once.
+   */
+  skillsByConversation: Record<string, SkillSource[]>;
+  draftSkills: SkillSource[];
+  skillsFor: (conversationId: string | null) => SkillSource[];
+  setSkills: (conversationId: string | null, sources: SkillSource[]) => void;
   byConversation: Record<string, LocalTarget | null>;
   draft: LocalTarget | null;
   draftProjectKey: string | null;
@@ -45,9 +62,32 @@ interface WorkOnState {
   adopt: (conversationId: string) => void;
 }
 
+/** One array for "none", so a selector that reads it returns the same reference every time. */
+const NO_SKILLS: SkillSource[] = [];
+
 export const useWorkOnStore = create<WorkOnState>()(
   persist(
     (set, get) => ({
+      fileRoots: {},
+      rememberFileRoot: (id, root) =>
+        set({ fileRoots: { ...get().fileRoots, [browserKey(`file:${id}`)]: root } }),
+      fileRootFor: (id) => get().fileRoots[browserKey(`file:${id}`)],
+      codingByConversation: {},
+      draftCoding: null,
+      codingFor: (conversationId) =>
+        conversationId === null
+          ? get().draftCoding
+          : (get().codingByConversation[browserKey(conversationId)] ?? null),
+      setCoding: (conversationId, harness) => {
+        if (conversationId === null) set({ draftCoding: harness });
+        else
+          set({
+            codingByConversation: {
+              ...get().codingByConversation,
+              [browserKey(conversationId)]: harness,
+            },
+          });
+      },
       computerByConversation: {},
       draftComputer: undefined,
       computerFor: (conversationId) =>
@@ -90,6 +130,22 @@ export const useWorkOnStore = create<WorkOnState>()(
             },
           });
       },
+      skillsByConversation: {},
+      draftSkills: NO_SKILLS,
+      skillsFor: (conversationId) =>
+        conversationId === null
+          ? get().draftSkills
+          : (get().skillsByConversation[browserKey(conversationId)] ?? NO_SKILLS),
+      setSkills: (conversationId, sources) => {
+        if (conversationId === null) set({ draftSkills: sources });
+        else
+          set({
+            skillsByConversation: {
+              ...get().skillsByConversation,
+              [browserKey(conversationId)]: sources,
+            },
+          });
+      },
       byConversation: {},
       draft: null,
       draftProjectKey: null,
@@ -102,6 +158,8 @@ export const useWorkOnStore = create<WorkOnState>()(
           draftProjectKey: null,
           draftBrowser: undefined,
           draftComputer: undefined,
+          draftSkills: NO_SKILLS,
+          draftCoding: null,
         }),
       targetFor: (conversationId) => {
         if (conversationId === null)
@@ -131,6 +189,15 @@ export const useWorkOnStore = create<WorkOnState>()(
           draftProjectKey: null,
           draftComputer: undefined,
           draftBrowser: undefined,
+          draftSkills: NO_SKILLS,
+          skillsByConversation:
+            state.draftSkills.length > 0
+              ? { ...state.skillsByConversation, [key]: state.draftSkills }
+              : state.skillsByConversation,
+          codingByConversation: Object.hasOwn(state.codingByConversation, key)
+            ? state.codingByConversation
+            : { ...state.codingByConversation, [key]: state.codingFor(null) },
+          draftCoding: null,
           browserByConversation: Object.hasOwn(state.browserByConversation, key)
             ? state.browserByConversation
             : { ...state.browserByConversation, [key]: state.browserFor(null) },
@@ -144,7 +211,17 @@ export const useWorkOnStore = create<WorkOnState>()(
     {
       name: "work-on",
       version: 1,
-      partialize: ({ byConversation, browserByConversation, computerByConversation }) => ({
+      partialize: ({
+        fileRoots,
+        byConversation,
+        browserByConversation,
+        computerByConversation,
+        skillsByConversation,
+        codingByConversation,
+      }) => ({
+        fileRoots,
+        skillsByConversation,
+        codingByConversation,
         byConversation,
         browserByConversation,
         computerByConversation,

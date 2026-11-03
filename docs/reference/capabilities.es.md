@@ -1,5 +1,5 @@
 ---
-source_sha: "32f262ea9dc8"
+source_sha: "95cc474e7e4b"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -84,6 +84,7 @@ guarda archivos. El navegador web apunta al servicio de navegador del despliegue
 | `text_to_speech` | Texto a voz | analysis | `generate_speech` | — | obligatoria | tal cual |
 | `video_generation` | Generación de vídeo | analysis | `generate_video` | — | obligatoria | delegada |
 | `coding_agent` | Coding agent | analysis | `run_coding_agent` | `sandbox:execute` | obligatoria | delegada |
+| `monitor` | Watch a command | analysis | `start_monitor`, `list_monitors`, `stop_monitor` | `sandbox:execute` | — | delegada |
 | `subagents` | Subagents | reasoning | `task`, `check_task`, `wait_tasks`, `list_active_tasks`, `answer_subagent`, `send_message_to_subagent`, `soft_cancel_task`, `hard_cancel_task`, `create_agent`, `delegate` | `agents:delegate` | — | delegada |
 | `planning` | Planificación | reasoning | `write_plan`, `read_plan`, `add_task`, `update_task_status`, `update_task_statuses`, `remove_task`, `add_subtask`, `set_dependency`, `get_available_tasks` | — | — | tal cual |
 | `thinking` | Razonamiento | reasoning | ninguna, a propósito | — | — | mapeada |
@@ -1530,10 +1531,11 @@ especialista.
 | Configuración | Predeterminado | Valores |
 |---|---|---|
 | `harness` | `claude_code` | `claude_code` (una clave API de Anthropic o un token de suscripción de Claude), `codex` (una clave API de OpenAI o un inicio de sesión de ChatGPT) |
-| `access` | `edit` | `edit` cambia archivos y ejecuta comandos; `read_only` lee el código y responde (solo Claude Code) |
+| `access` | `edit` | `edit` cambia archivos y ejecuta comandos; `read_only` lee el código y responde (Claude Code o Codex en este ordenador) |
 | `model` | el del harness | Claude Opus, Sonnet o Haiku 5.5 para Claude Code; GPT-5.6 Sol, Terra, Luna o GPT-5.3 Codex para Codex |
 | `base_url` | Anthropic directamente | Solo Claude Code: una pasarela que habla la API de Anthropic, como `https://openrouter.ai/api`, cuya clave guarda entonces el vault. Se descarta al elegir Codex |
 | `timeout_minutes` | 15 | 1–60, por tarea |
+| `runs_on` | `sandbox` | `sandbox` ejecuta la tarea en el sandbox del agente con una clave; `this_computer` la ejecuta en la carpeta que una persona eligió en su propio ordenador en la aplicación de escritorio, con la sesión que el agente ya tiene, sin clave |
 
 **Una herramienta, y el binding decide lo que puede hacer.** Con `edit` el harness
 edita cualquier archivo y ejecuta cualquier comando en la sandbox, con sus propias
@@ -1543,12 +1545,16 @@ están documentadas. Con `read_only`, Claude Code se ejecuta en modo plan, sin
 ninguna herramienta que escriba - ni las de edición ni la shell - y lee con Read, Grep
 y Glob; sabe que no se puede aprobar nada más. Ni siquiera comandos que leen: ninguna
 lista de prefijos de comandos hace de una shell algo de solo lectura, porque
-`git log --output=<archivo>` encaja con `git log` igual que cualquier lectura. Codex no tiene `read_only`: su modo de solo lectura es una
+`git log --output=<archivo>` encaja con `git log` igual que cualquier lectura. Codex dentro de un contenedor no tiene `read_only`: su modo de solo lectura es una
 sandbox propia, que no arranca dentro del contenedor del agent, y la publicación
 rechaza la combinación. Que una persona diga sí antes de cada tarea es la
 **Aprobación humana** de la capability, puesta en **Preguntar siempre** — como toda
 compuerta, está desactivada hasta que alguien la pone. No hay pestaña de
 herramientas: la única herramienta es la capability.
+
+**En este ordenador.** Configura `runs_on` como `this_computer` para usar el harness instalado mediante [Agent Client Protocol](https://agentclientprotocol.com). El escritorio inicia un adaptador con versión fijada mediante `npx`; el servidor habla ACP. Elige una carpeta con acceso completo en **Work on** y confirma cada inicio de forma nativa. La carpeta es un directorio de trabajo, no una sandbox del sistema. El harness usa su propia sesión; la clave de vault es opcional. Los permisos siguen `access`; la aprobación se aplica una vez por tarea. Claude read-only desactiva bypass y herramientas de escritura; Codex local selecciona su modo de lectura nativo.
+
+Las siguientes tareas cargan la misma sesión de conversación; `fresh_session` inicia otra explícitamente. Las correcciones interrumpen el turno ACP y continúan la sesión tras confirmar la parada. Los identificadores quedan fuera del repositorio y se borran al desvincular. Las tareas de suscripción sin precio, incluidas las iniciadas que fallan, hacen del coste del run un mínimo. Consulta [la aplicación de escritorio](../desktop.md#coding-agents-on-this-computer).
 
 **La persona lo ve trabajar.** El harness se arranca en segundo plano en la sandbox
 (`claude -p --output-format stream-json` o `codex exec --json`), y su archivo de
@@ -1620,6 +1626,22 @@ comprueba antes de cada tarea. Codex no nombra ningún modelo en sus eventos, as
 sin `model` su uso se anota sin precio y el coste del run se marca como parcial.
 Igual se anota una tarea que termina antes de que su harness diga cuánto gastó:
 fallida, agotado su tiempo o detenida.
+
+## Watch a command { #monitor }
+
+`start_monitor`, `list_monitors`, `stop_monitor` — *Vigila un comando de larga duración y entérate de su salida a medida que aparece.*
+
+Permite que un agente inicie un comando que se ejecuta durante mucho tiempo - un watcher de pruebas, un tail de logs, una compilación, un sondeo de CI o de despliegue - y se entere de su salida sin consultarla. El comando se ejecuta desacoplado en el espacio de trabajo de la ejecución, con su salida en un archivo allí.
+
+Antes de cada petición al modelo se leen las líneas nuevas, se filtran con las palabras opcionales `match` (separadas por `|`, sin distinguir mayúsculas; texto simple, no una expresión regular) y se ponen al final de la petición como una nota efímera, como un recordatorio de dirección, de modo que nada se escribe en el historial de la conversación. Una vigilancia que termina se notifica con su código de salida.
+
+| Herramienta | Qué hace |
+|---|---|
+| `start_monitor` | Inicia `command` con `label` y `match` opcionales; como máximo cuatro a la vez |
+| `list_monitors` | Lista las vigilancias con su estado, código de salida, cuántas líneas coincidieron y las últimas diez |
+| `stop_monitor` | Detiene una vigilancia y los procesos que inició |
+
+**Una vigilancia vive lo que la ejecución.** Cada vigilancia se detiene al terminar el turno, así que un comando nunca sobrevive al turno que lo pidió. Necesita un shell persistente del sandbox. El shell de escritorio termina sus procesos después de cada comando; la herramienta lo rechaza antes de iniciar la vigilancia. Lo que imprime un comando vigilado son datos, no instrucciones, y se le dice al agente. Añade **Human approval** para preguntar antes de que arranque un comando.
 
 ## Visuals { #visuals }
 
@@ -2772,6 +2794,14 @@ es la plataforma funcionando y un operador que filtre buscando problemas deberí
 encontrarlo en lugar de que se lea como cualquier respuesta completada. Consulta
 [Gobernanza](../governance.md).
 
+**El mensaje de un turno bloqueado no se vuelve a leer.** Cada comprobación lee solo
+lo nuevo de su propio turno, así que el historial de un turno posterior no reproduce
+el mensaje de un run `guardrail_blocked`, sea cual sea la comprobación que lo detuvo.
+En su lugar, el modelo lee una nota breve de que un guardrail detuvo ese turno, sin
+el texto del mensaje ni lo que añadieron los archivos enviados con él. La
+conversación sigue mostrando a la persona lo que escribió. La búsqueda en
+conversaciones anteriores (`conversation_search`) todavía no filtra estos mensajes.
+
 **Una comprobación de salida filtra la respuesta antes de que nadie la vea.** Todas
 las superficies transmiten en streaming: el chat web y el widget incrustado envían la
 respuesta mientras se escribe, y un bot de canal edita su respuesta según llega el
@@ -2823,9 +2853,16 @@ que un turno que el borde bloquea no escribe nada, y un turno posterior en un
 workspace con alcance `conversation`, `user` o `agent` no tiene ningún archivo
 rechazado que abrir. El borde solo lee esas primeras líneas, así que un término
 bloqueado más abajo en el archivo no se detecta aquí; para eso está la revisión de
-los resultados de las herramientas. Una imagen enviada en línea es la excepción: el
-borde también lee sus bytes, y un bloqueo que causan esos bytes no se prevé, así que
-esa imagen se sigue escribiendo.
+los resultados de las herramientas. Una imagen enviada en línea no es texto, así que
+el borde no la lee: en un prompt con una imagen el borde revisa solo las palabras,
+nunca los bytes de la imagen, y una censura reescribe esas palabras y conserva la
+imagen. Un prompt construido en código también puede
+llevar un archivo de texto, que se revisa como el texto UTF-8 que recibe el
+modelo; un archivo que declara otro juego de caracteres o que no es válido en el
+que declara bloquea el turno. Un prompt así también puede llevar un enlace, que también se
+revisa: una censura no se puede escribir en un enlace sin romperlo, así que una
+coincidencia en él bloquea. Como los bytes ya no deciden, la revisión previa a
+la escritura prevé un turno con imagen igual que cualquier otro.
 
 **El filtrado de los resultados de herramienta es la razón de que este borde sea el que
 más importa.** Es la única guarda sobre el contenido no confiable que entra en el

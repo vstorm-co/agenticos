@@ -51,7 +51,7 @@ function ShortcutRow({ binding, mac }: { binding: ShortcutBinding; mac: boolean 
             onFocus={() => setRecording(true)}
             onBlur={() => setRecording(false)}
             onKeyDown={onKeyDown}
-            className="border-input bg-background focus-visible:ring-ring h-8 w-36 cursor-pointer rounded-md border px-2.5 text-center font-mono text-sm outline-none focus-visible:ring-2"
+            className="border-input bg-background focus-visible:ring-ring h-8 w-36 cursor-pointer rounded-md border px-2.5 text-center font-mono text-base outline-none focus-visible:ring-2 md:text-sm"
           />
           <Button
             size="sm"

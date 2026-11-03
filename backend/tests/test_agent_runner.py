@@ -2929,6 +2929,34 @@ class TestWhatANonStreamingRunRecords:
 
         assert record.await_args.kwargs["prompt"] == "summarise this"
 
+    @pytest.mark.anyio
+    @pytest.mark.security
+    async def test_a_blocked_turn_keeps_no_briefing_of_its_files(self):
+        """#2578: the briefing is replayed after the prompt on every later turn,
+        and the input edge screens only the newest prompt - so a file the edge
+        refused would have reached the model one follow-up later. The prompt row
+        is still written: the person said it, and the transcript shows it."""
+        service = AgentRunnerService(_db())
+        prepared = _prepared(conversation_id=uuid.uuid4())
+        prepared.built.agent.run = AsyncMock(
+            side_effect=GuardrailBlocked(edge="input", message="This request was blocked.")
+        )
+
+        with (
+            patch.object(service, "prepare", new=AsyncMock(return_value=prepared)),
+            patch("app.services.agent_runner.agent_run_repo.finish_run", new=AsyncMock()),
+            patch.object(service, "_notify", new=AsyncMock()),
+            patch("app.services.agent_runner.AttachmentRouter") as router,
+            patch.object(service.transcript, "record", new=AsyncMock()) as record,
+        ):
+            router.return_value.build_prompt = AsyncMock(return_value="assembled")
+            router.return_value.context = "\n---\nFirst 20 lines:\nSECRETWORD"
+            await service.execute(_ctx(), uuid.uuid4(), "summarise this", attachments=[MagicMock()])
+
+        written = record.await_args.kwargs
+        assert written["prompt"] == "summarise this"
+        assert written["attachment_context"] is None
+
 
 class TestStoppingANonStreamingRun:
     """A cancelled run, through `execute`.
@@ -7114,6 +7142,95 @@ class TestPerRunLocalServices:
             assert run.model_label == "Local model" and run.secret_id is None
 
     @pytest.mark.anyio
+    @pytest.mark.parametrize(
+        "with_folder,whole_computer", [(True, False), (False, False), (True, True)]
+    )
+    async def test_local_skills_reach_the_run_through_the_persons_own_session(
+        self, with_folder: bool, whole_computer: bool
+    ):
+        """Skills and AGENTS.md come from the initiator's paired computer, in a folder or not."""
+        from app.schemas.local_target import LocalTarget
+        from app.services import device_hub
+        from app.services.device_hub import LocalContext
+
+        ctx = _ctx()
+        session = uuid.uuid4()
+        conversation = uuid.uuid4()
+        grant = uuid.uuid4() if whole_computer else None
+        target = LocalTarget(
+            folder="/approved" if with_folder else None,
+            skills=["claude", "codex"],
+            mode="full_access" if whole_computer else "workspace_write",
+            computer_grant=grant,
+        )
+        assert ctx.user_id is not None
+        workspace = (
+            OpenWorkspace(
+                workspace=Workspace(
+                    device_hub.DeviceWorkspace(
+                        session, ctx.user_id, target, conversation_id=conversation
+                    )
+                ),
+                kind="service",
+                scope="run",
+                scope_key="local",
+                row_id=None,
+                local=True,
+            )
+            if with_folder
+            else None
+        )
+        service = AgentRunnerService(_db())
+        agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4())
+        spec = AgentSpec(name="Local", model_profile_id=uuid.uuid4())
+        toolset = MagicMock()
+        context = LocalContext(toolset=toolset, briefing="### From this person's computer\nUse it.")
+        skills = AsyncMock(return_value=context)
+        with (
+            patch.object(
+                service.registry,
+                "get_runnable_spec",
+                new=AsyncMock(return_value=(agent, spec, agent.current_version_id)),
+            ),
+            patch.object(
+                service.models,
+                "resolve",
+                new=AsyncMock(return_value=MagicMock(label="Model", provider="x", secret_id=None)),
+            ),
+            patch.object(
+                service.models,
+                "profile_for_organization",
+                new=AsyncMock(return_value=MagicMock(id=spec.model_profile_id)),
+            ),
+            patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
+            patch.object(service.workspaces, "open", new=AsyncMock(return_value=workspace)),
+            patch(
+                "app.services.agent_runner.agent_run_repo.create_run",
+                new=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
+            ),
+            patch.object(
+                device_hub, "wait_for", AsyncMock(return_value=MagicMock(session_id=session))
+            ),
+            patch.object(device_hub, "local_skills_context", skills),
+            patch("app.services.agent_runner.build_agent") as build,
+            patch("app.services.agent_runner.workspace_snapshot", AsyncMock(return_value=set())),
+            patch(
+                "app.services.agent_runner.find_earlier_attachments", AsyncMock(return_value=None)
+            ),
+        ):
+            async with asyncio.timeout(5):
+                await service.prepare(ctx, agent.id, local=target, conversation_id=conversation)
+        skills.assert_awaited_once_with(
+            session,
+            ["claude", "codex"],
+            folder="/approved" if with_folder else None,
+            computer_grant=grant,
+            conversation_id=conversation,
+        )
+        assert toolset in build.call_args.kwargs["extra_toolsets"]
+        assert build.call_args.args[0].instructions.endswith("Use it.")
+
+    @pytest.mark.anyio
     async def test_a_resumed_local_workspace_belongs_to_the_initiator(self):
         from app.schemas.local_target import LocalTarget
 
@@ -7558,3 +7675,71 @@ async def test_channel_reference_knows_whether_dispatch_adds_a_user_prompt(promp
     await prepared.execute(prompt, message_history=None, deferred_tool_results=None)
     (reference,) = prepared.built.agent.run.await_args.kwargs["capabilities"]
     assert reference.has_current_prompt is (prompt is not None)
+
+
+@pytest.mark.parametrize("enabled", [None, False, True])
+@pytest.mark.parametrize("harness", ["claude_code", "codex"])
+def test_local_coding_override_adds_or_enables_only_the_run_binding(
+    enabled: bool | None, harness: str
+) -> None:
+    from app.agents.capabilities.coding_agent import CodingAgentConfig
+    from app.agents.spec import CapabilityBindingSpec
+    from app.schemas.local_target import LocalTarget
+    from app.services.agent_runner import _with_execution_environment, _with_local_capabilities
+
+    bindings = (
+        []
+        if enabled is None
+        else [
+            CapabilityBindingSpec(
+                id="coding_agent",
+                enabled=enabled,
+                approval="required",
+                tool_approval={"run_coding_task": "required"},
+                secret_id=uuid.uuid4(),
+                config={
+                    "harness": "claude_code",
+                    "access": "read_only",
+                    "model": "anthropic:claude-sonnet-5-5",
+                },
+            )
+        ]
+    )
+    spec = AgentSpec(name="Local test", capabilities=bindings)
+    before = spec.model_dump()
+    local = LocalTarget.model_validate(
+        {"folder": "/approved", "mode": "full_access", "coding_agent": harness}
+    )
+    result = _with_local_capabilities(spec, local)
+    binding = next(item for item in result.capabilities if item.id == "coding_agent")
+    config = CodingAgentConfig.model_validate(binding.config)
+    assert binding.enabled
+    assert binding.secret_id is None
+    assert config.harness == harness
+    assert config.runs_on == "this_computer"
+    assert config.model is None
+    if enabled is not None:
+        assert binding.approval == "required"
+        assert binding.tool_approval == {"run_coding_task": "required"}
+        assert config.access == "read_only"
+    assert "Coding tasks use" in _with_execution_environment(result, local).instructions
+    assert spec.model_dump() == before
+    assert _with_local_capabilities(spec, None) is spec
+
+
+@pytest.mark.parametrize(
+    "target",
+    [
+        {"mode": "full_access"},
+        {"folder": "/approved", "mode": "workspace_write"},
+        {"folder": "/approved", "mode": "read_only"},
+        {"folder": "/approved", "mode": "full_access", "computer_grant": str(uuid.uuid4())},
+    ],
+)
+def test_local_coding_override_requires_a_full_access_folder(target: dict[str, str]) -> None:
+    from pydantic import ValidationError
+
+    from app.schemas.local_target import LocalTarget
+
+    with pytest.raises(ValidationError, match="Choose a folder with full access"):
+        LocalTarget.model_validate({**target, "coding_agent": "codex"})

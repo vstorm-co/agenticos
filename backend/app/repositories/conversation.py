@@ -11,7 +11,10 @@ from sqlalchemy import (
     Integer,
     Numeric,
     and_,
+    case,
+    cast,
     distinct,
+    exists,
     func,
     or_,
     select,
@@ -20,6 +23,7 @@ from sqlalchemy import (
 )
 from sqlalchemy import delete as sql_delete
 from sqlalchemy import update as sql_update
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import defer, load_only, raiseload, selectinload
@@ -46,6 +50,47 @@ _MESSAGE_FILE_COLUMNS = (
     ChatFile.mime_type,
     ChatFile.file_type,
 )
+
+
+type CodingHarness = Literal["claude_code", "codex"]
+
+
+async def coding_agents_in_conversations(
+    db: AsyncSession, conversation_ids: list[UUID]
+) -> dict[UUID, list[CodingHarness]]:
+    """Coding harnesses actually invoked here, newest first, once each.
+
+    Read saved tool reports for the authorized page in one query. Refusals are
+    plain text, and older reports may omit kind; neither current preferences nor
+    an agent's edited spec can identify who worked in a historical conversation.
+    """
+    if not conversation_ids:
+        return {}
+    # PostgreSQL 16's soft validation lets plain refusals coexist with JSON
+    # reports. Aggregate in SQL so only two labels per conversation cross the DB
+    # boundary, rather than loading every coding task's answer into a list view.
+    report = cast(
+        case((func.pg_input_is_valid(ToolCall.result, "jsonb"), ToolCall.result), else_="{}"),
+        JSONB,
+    )
+    harness = report["harness"].astext.label("harness")
+    result = await db.execute(
+        select(Message.conversation_id, harness)
+        .join(ToolCall, ToolCall.message_id == Message.id)
+        .where(
+            Message.conversation_id.in_(conversation_ids),
+            ToolCall.tool_name == "run_coding_agent",
+            harness.in_(("claude_code", "codex")),
+            report["outcome"].astext.in_(("completed", "failed", "timed_out")),
+        )
+        .group_by(Message.conversation_id, harness)
+        .order_by(Message.conversation_id, func.max(ToolCall.started_at).desc(), harness)
+    )
+    found: dict[UUID, list[CodingHarness]] = {}
+    for conversation_id, harness_name in result.all():
+        named: CodingHarness = "codex" if harness_name == "codex" else "claude_code"
+        found.setdefault(conversation_id, []).append(named)
+    return found
 
 
 async def agents_in_conversations(
@@ -227,6 +272,7 @@ def _list_filters(
     include_archived: bool = False,
     archived_only: bool = False,
     hide_api: bool = False,
+    hide_channels: bool = False,
     project_id: UUID | None = None,
 ) -> list[ColumnElement[bool]]:
     """The predicates both conversation listings narrow by.
@@ -256,6 +302,16 @@ def _list_filters(
     if hide_api:
         # Null for every conversation opened in the console or a channel.
         filters.append(or_(Conversation.origin.is_(None), Conversation.origin != "api"))
+    if hide_channels:
+        # A thread a bot answers in belongs to its channel, not to the console's
+        # list. An EXISTS on the session rather than a join, for the reason the
+        # agent filter below gives: a join would multiply the rows.
+        filters.append(
+            ~select(ChannelSession.id)
+            .where(ChannelSession.conversation_id == Conversation.id)
+            .correlate(Conversation)
+            .exists()
+        )
     if search:
         filters.append(contains_ci(Conversation.title, search))
     if agent_id is not None:
@@ -689,6 +745,7 @@ async def get_conversations_by_user(
     participant_conversation_ids: Collection[UUID] = frozenset(),
     visible_project_ids: Collection[UUID] = frozenset(),
     hide_api: bool = False,
+    hide_channels: bool = False,
     project_id: UUID | None = None,
 ) -> list[Conversation]:
     """Get one organization's conversations, optionally narrowed to one user.
@@ -726,6 +783,7 @@ async def get_conversations_by_user(
         include_archived=include_archived,
         archived_only=archived_only,
         hide_api=hide_api,
+        hide_channels=hide_channels,
         project_id=project_id,
     ):
         query = query.where(condition)
@@ -804,6 +862,7 @@ async def count_conversations(
     participant_conversation_ids: Collection[UUID] = frozenset(),
     visible_project_ids: Collection[UUID] = frozenset(),
     hide_api: bool = False,
+    hide_channels: bool = False,
     project_id: UUID | None = None,
 ) -> int:
     """Count one organization's conversations, optionally narrowed to one user.
@@ -826,6 +885,7 @@ async def count_conversations(
         include_archived=include_archived,
         archived_only=archived_only,
         hide_api=hide_api,
+        hide_channels=hide_channels,
         project_id=project_id,
     ):
         query = query.where(condition)
@@ -1272,6 +1332,13 @@ async def run_outcomes(db: AsyncSession, run_ids: Collection[UUID]) -> dict[UUID
     }
 
 
+def _refused(run_id: UUID) -> ColumnElement[bool]:
+    """Whether `run_id` ended `guardrail_blocked`, for a row written after it did (#2578)."""
+    return exists().where(
+        AgentRun.id == run_id, AgentRun.status == RunStatus.GUARDRAIL_BLOCKED.value
+    )
+
+
 async def get_recent_messages(
     db: AsyncSession, conversation_id: UUID, *, limit: int
 ) -> list[Message]:
@@ -1481,6 +1548,7 @@ async def create_message(
         agent_id=agent_id,
         agent_version_id=agent_version_id,
         run_id=run_id,
+        guardrail_refused=False if run_id is None else _refused(run_id),
     )
     db.add(message)
     await db.flush()
@@ -1567,18 +1635,23 @@ async def link_message_to_run(
     await db.execute(
         sql_update(Message)
         .where(Message.id == message_id, Message.conversation_id == conversation_id)
-        .values(run_id=run_id)
+        .values(
+            run_id=run_id,
+            # Kept if already set: a refusal is never taken back by a relink.
+            guardrail_refused=Message.guardrail_refused | _refused(run_id),
+        )
     )
 
 
 async def set_attachment_context(
-    db: AsyncSession, *, message_id: UUID, conversation_id: UUID, context: str
+    db: AsyncSession, *, message_id: UUID, conversation_id: UUID, context: str | None
 ) -> None:
     """Record what a prompt's attachments added for the model - see `Message.attachment_context`.
 
     Written after the prompt row, because where a file goes depends on whether
     the agent has a workspace and that is known only once the run is prepared.
     Narrowed by `conversation_id` for the reason `link_message_to_run` is.
+    `None` takes it back off a turn a guardrail refused (#2578).
     """
     await db.execute(
         sql_update(Message)

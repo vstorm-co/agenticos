@@ -13,6 +13,8 @@ Resource lists, including Inbox and Routines, fill the remaining page height eve
 
 Chat uses larger agent portraits without rings. Its Files toggle stays in the composer while the panel opens or closes, with reduced motion respected. Chat settings show the current model first. Expand **Change model** to edit the prefilled provider and model; the choice applies only after **Run on this model**. Attachment cards sit above the composer without an extra shadowed panel.
 
+On phones, skill and context editors keep descriptions, categories and file management folded away while writing. One button switches between source and preview. Apps use floating back and options buttons; opening options reveals the title, version, theme and sharing controls.
+
 Page introductions and settings explanations are available from the information icon beside their heading. Live summaries and destructive-action warnings remain visible.
 
 In Agents, Skills, Context and run history, **Filters** reveals secondary controls on every screen size and shows how many filters are active.
@@ -35,6 +37,28 @@ Chat settings use a fixed heading and close button above a scrolling body. Infor
 Conversation agents are ordered by their latest message or top-level run, newest first. The collapsed chat rail keeps full-size avatars, overlaps up to three, and hides older participants; the full participant list remains available in the tooltip.
 
 When **Approve everything** is unavailable, chat settings distinguish missing approval-decision permission from an organization policy that disables standing consent. A person allowed to decide approvals gets a link to **Budget and approvals**, where that policy can be changed explicitly. The chat never changes organization policy automatically.
+
+Phone dialogs keep a 12px gutter on every edge. Compact page headers place the title and actions on one row when they fit. Context descriptions open from the editor toolbar.
+
+On phones, primary page actions stay visible and secondary commands fold behind **More page actions**. Inbox filters and the table format use selects. Settings with many sections use a section menu, while the MCP client is selected from a dropdown. Opening a project or workspace file opens its full-screen reader; the back arrow returns to the folders. Workflow step dialogs show one chosen panel at a time: settings, input or output. Switching panels preserves edits; desktop keeps the panels side by side.
+
+Markdown fields and file editors also offer an expand button without discarding the current draft. Skill descriptions and categories can be expanded above the editor. The chat composer uses less space and caps long drafts against the available screen height. Opening navigation focuses the panel, while Tab still reaches its controls. The workflow canvas has a floating full-screen control and a smaller minimap on phones.
+
+Page headers use the surrounding layout’s spacing once. Cards, sidebar rows, tabs and empty states use compact spacing on desktop while interactive controls keep larger touch targets. Long settings section lists use a menu on desktop too. Profile fields share a row when there is room; **Save changes** is available only after an edit. Capability cards have one settings target and a separate enable switch; settings panels keep examples behind an information icon rather than repeating the gallery illustration.
+
+Template category dialogs fit their content; choosing an agent or skill industry opens the larger library. On phones, appearance choices use compact rows with thumbnails.
+
+Agent and project instructions share one compact toolbar for their heading, help, source/preview and expansion. Expanded Markdown keeps the selected source or preview view. Unused prompt variables start folded, while existing custom variables or a custom time zone keep the panel open. Expanded text and file editors keep consistent phone gutters; phone text inputs use larger type without enlarging desktop fields.
+
+On phones, focusing the chat message switches to a compact writing row with attachment and send controls. Agent selection and voice input remain available under **+**. The welcome suggestions and connection suggestions step aside while composing, and completion menus stay within the available height. Moving focus from the draft to Send keeps the layout stable.
+
+Phone chat does not focus the input automatically on arrival or when a reply finishes.
+
+On phones, the actions beneath user and agent messages start hidden. Tap the **More** button beside the sender to show or hide copying, replies, ratings and other available actions. Desktop keeps its hover controls.
+
+Preview CSS imports, images and fonts resolve relative to their stylesheet through the same authorized file source. Previews limit recursion to four nested levels, 64 assets, 8 MiB of input assets and 16 MiB of expanded output. Turn file links retain their original conversation or local folder, recorded with the saved timeline; changing Work on cannot retarget them. Older turns without a recorded origin have no inferred links. Opening a local file still requires its current native folder grant.
+
+File-link metadata stores only an opaque origin identifier for local turns. The folder mapping stays on the initiating desktop, scoped to its account and organization; other participants and computers cannot resolve those links. Legacy origins containing a local path are omitted when reading stored turns.
 
 ## The dashboard
 
@@ -214,7 +238,8 @@ time you open the page.
 
 ## The assistant
 
-Every page has the **Architect** in its bottom-right corner: an agent every
+The **Architect** sits in the phone header beside notifications and in the
+bottom-right corner on desktop: an agent every
 organization gets without installing anything, shared with everyone who may run
 agents (`agents:run`). It is bound to the
 [platform's own MCP server](mcp.md#agenticos-as-an-mcp-server). Ask it which
@@ -353,6 +378,12 @@ skill - and `/`; they are gone the moment you click into it. Above it, the cards
 are the agent's own **first messages**, set under its instructions in the
 Builder; an agent with none offers the chat's own four, two of them to ask what it
 can do and to set up a routine.
+
+Conversation lists keep the main agent and also name Claude Code or Codex when saved task reports show they worked in the thread. The sidebar, project chats, dashboard and Quick Ask history share the same portraits and labels. Each coding harness appears once, survives a refresh and is independent of current chat settings; choosing a harness without running it does not add it to the history.
+
+The Files panel groups files by folder, keeping identical names in different directories distinct. HTML previews load local stylesheets and their nested assets through the same file access as the page. Preview and Source remain separate; scripts stay disabled. If a linked stylesheet cannot be read, the preview says which one failed. Files changed by a turn are linked below its answer, using paths reported by successful write/edit tools or the coding harness. These links open the current workspace files, not a versioned snapshot.
+
+On screens narrower than 768 px, live reasoning and routine tool steps start collapsed behind the working-time line. Tap the line to expand or collapse them. Answers, questions, approval requests, errors and visual results stay visible. Wider screens keep the live steps in view.
 
 **Under an answer.** An agent with [Follow-ups](reference/capabilities.md#follow-ups)
 offers up to three next steps as buttons under its latest answer, and a click

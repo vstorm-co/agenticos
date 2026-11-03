@@ -147,7 +147,7 @@ export function ConditionField({
         {heading}
         <Input
           id={`${id}-expression`}
-          className="font-mono text-xs"
+          className="font-mono text-base md:text-xs"
           value={saved}
           disabled={disabled}
           onChange={(event) => {

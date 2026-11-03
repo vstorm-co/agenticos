@@ -46,6 +46,15 @@ describe("resolveAudience", () => {
 });
 
 describe("the layouts", () => {
+  it("aligns the tables and workflows cards at the same height", () => {
+    const entries = viewLayout("me", "member").flatMap((section) => section.entries);
+    const tables = entries.find((entry) => entry.widget === "tables");
+    const workflows = entries.find((entry) => entry.widget === "workflows");
+    expect(tables).toBeDefined();
+    expect(workflows).toBeDefined();
+    expect(tables?.rows).toBe(workflows?.rows);
+    expect(WIDGETS.tables.defaultRows).toBe(WIDGETS.workflows.defaultRows);
+  });
   it("every entry names a widget the registry has, with a span the grid knows", () => {
     for (const audience of AUDIENCES) {
       for (const section of LAYOUTS[audience]) {

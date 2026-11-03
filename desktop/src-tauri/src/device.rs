@@ -329,10 +329,15 @@ pub fn start(app: &AppHandle) {
         let mut failures = 0;
         loop {
             let ended = tokio::select! {
-                _ = stopper.notified() => return,
+                _ = stopper.notified() => {
+                    crate::agent_session::close_all(&app).await;
+                    return;
+                }
                 ended = connection(&app, &server) => ended,
             };
             set_connected(&app, false);
+            // Nothing is left to hear what a started agent writes.
+            crate::agent_session::close_all(&app).await;
             match ended {
                 Ended::Revoked => {
                     if let Err(error) = clear_authority(&app).await {
@@ -441,7 +446,7 @@ where
                         let app = app.clone();
                         let task = tauri::async_runtime::spawn(async move {
                             let _working = Working::start(&app);
-                            let outcome = run(&app, &op, args).await;
+                            let outcome = run(&app, &op, args, &call_id).await;
                             let _ = answers.send(AppFrame::answer(call_id, outcome));
                         });
                         running.0.insert(id, task);
@@ -449,7 +454,9 @@ where
                     Ok(ServerFrame::Cancel { id }) => {
                         if let Some(task) = running.0.remove(&id) {
                             task.abort();
+                            let _ = task.await;
                         }
+                        crate::agent_session::cancel_call(app, &id).await;
                     }
                     Err(_) => continue,
                 }
@@ -515,6 +522,7 @@ async fn run(
     app: &AppHandle,
     op: &str,
     args: Map<String, Value>,
+    call_id: &str,
 ) -> Result<Map<String, Value>, (String, &'static str)> {
     if op.starts_with("browser.") {
         return crate::local_browser::run(app, op, &args)
@@ -525,6 +533,16 @@ async fn run(
         return crate::local_services::run(app, op, &args)
             .await
             .map_err(|e| (e, "denied"));
+    }
+    if op.starts_with("local.") {
+        return crate::local_skills::run(app, op, &args)
+            .await
+            .map_err(|refusal| (refusal.message, refusal.kind));
+    }
+    if op.starts_with("agent.") {
+        return crate::agent_session::run(app, op, &args, call_id)
+            .await
+            .map_err(|refusal| (refusal.message, refusal.kind));
     }
     if op.starts_with("screen.") {
         return crate::screen::run(app, op, &args).await;

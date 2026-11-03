@@ -200,32 +200,34 @@ export default function AgentsPage() {
   );
 
   return (
-    <div className="flex flex-1 flex-col space-y-6">
+    <div className="flex flex-1 flex-col space-y-4">
       <PageHeader
         title={t("agents")}
         description={t("agentConfigurationNotCode")}
+        secondaryActions={
+          canEdit ? (
+            <Button
+              variant="outline"
+              data-tour="agents-templates"
+              disabled={!ceilingKnown}
+              onClick={() => setTemplatesOpen(true)}
+            >
+              <Library className="h-4 w-4" />
+              {tTemplates("browse")}
+            </Button>
+          ) : undefined
+        }
         actions={
           canEdit ? (
-            <div className="flex flex-wrap items-center gap-2">
-              <Button
-                variant="outline"
-                data-tour="agents-templates"
-                disabled={!ceilingKnown}
-                onClick={() => setTemplatesOpen(true)}
-              >
-                <Library className="h-4 w-4" />
-                {tTemplates("browse")}
-              </Button>
-              <Button
-                data-tour="agents-new"
-                disabled={!ceilingKnown || atLimit}
-                aria-describedby={atLimit ? AGENT_LIMIT_NOTICE_ID : undefined}
-                onClick={() => setCreateOpen(true)}
-              >
-                <Plus className="h-4 w-4" />
-                {t("newAgent")}
-              </Button>
-            </div>
+            <Button
+              data-tour="agents-new"
+              disabled={!ceilingKnown || atLimit}
+              aria-describedby={atLimit ? AGENT_LIMIT_NOTICE_ID : undefined}
+              onClick={() => setCreateOpen(true)}
+            >
+              <Plus className="h-4 w-4" />
+              {t("newAgent")}
+            </Button>
           ) : undefined
         }
       />

@@ -19,6 +19,7 @@ from datetime import timedelta
 from unittest.mock import patch
 from uuid import uuid4
 
+import httpx
 import pytest
 from fastapi import FastAPI
 from starlette.datastructures import URL
@@ -118,6 +119,24 @@ def test_a_value_passed_through_extra_is_escaped_too(root_stream):
     PiiRedactionFilter().filter(record)
 
     assert record.origin == "https://evil.example\\r\\n2026-01-01 FORGED"
+
+
+@pytest.mark.security
+@pytest.mark.parametrize(
+    "path",
+    [
+        "interactions/1565747921553457194/{token}/callback",
+        "webhooks/800/{token}/messages/@original",
+    ],
+)
+def test_a_discord_interaction_token_in_a_url_is_redacted(root_stream, path: str):
+    token = "aW50ZXJhY3Rpb246MTU2NTc0NzkyMTU1MzQ1NzE5NDpHTVdvcmVD"
+    url = f"https://discord.com/api/v10/{path.format(token=token)}"
+
+    redacted = PiiRedactionFilter()._redact(f"Client error '404 Not Found' for url '{url}'")
+
+    assert token not in redacted
+    assert "[TOKEN_REDACTED]" in redacted
 
 
 def test_a_tab_survives_because_it_breaks_no_line(root_stream):
@@ -585,3 +604,24 @@ def test_one_line_writes_a_line_break_out_and_leaves_none_alone():
     assert one_line("https://a.example\r\nforged: entry") == "https://a.example\\r\\nforged: entry"
     assert one_line("plain") == "plain"
     assert one_line(None) is None
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("host", ["cdn.discordapp.com", "media.discordapp.net"])
+def test_signed_discord_download_queries_do_not_escape_through_exception_logs(
+    root_stream: io.StringIO, host: str
+) -> None:
+    setup_logging()
+    path = f"https://{host}/attachments/1/2/report.txt"
+    url = path + "?ex=query-expiry&is=query-issued&hm=query-signature"
+    try:
+        httpx.Response(403, request=httpx.Request("GET", url)).raise_for_status()
+    except httpx.HTTPStatusError:
+        logging.getLogger("app.services.channels.attachments").exception("Attachment failed")
+    emitted = root_stream.getvalue()
+    assert path + "?[REDACTED]" in emitted
+    assert "query-expiry" not in emitted
+    assert "query-issued" not in emitted
+    assert "query-signature" not in emitted
+    assert redact_secret_paths(url) == path + "?[REDACTED]"
+    assert redact_secret_paths(path + "?[REDACTED]") == path + "?[REDACTED]"

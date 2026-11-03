@@ -20,6 +20,9 @@ vi.mock("@/hooks/use-desktop", () => ({
     unlink: { mutate: env.unlink, isPending: env.pending },
   }),
 }));
+vi.mock("./local-agent-settings", () => ({
+  LocalAgentSettings: () => <div data-testid="agents" />,
+}));
 vi.mock("./local-service-settings", () => ({
   LocalServiceSettings: () => <div data-testid="services" />,
 }));

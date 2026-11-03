@@ -8,6 +8,7 @@ import { ConversationSearchDialog } from "@/components/chat/conversation-search-
 import { Button, Skeleton } from "@/components/ui";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetClose } from "@/components/ui";
 import { IconButton } from "@/components/ui";
+import { useConversationAgentLabel } from "@/hooks/use-conversation-agent-label";
 import { ConversationAgents } from "@/components/agents/conversation-agents";
 import { cn, setUrlParam, timeAgo } from "@/lib/utils";
 import {
@@ -77,7 +78,6 @@ function ConversationItem({
 }: ConversationItemProps) {
   const t = useTranslations("chat");
   const tTime = useTranslations("time");
-  const tAgents = useTranslations("agents");
   const locale = useLocale();
   const [showMenu, setShowMenu] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -133,12 +133,7 @@ function ConversationItem({
     const timer = setTimeout(() => settleWorking(conversation.id), HANDOFF_GRACE_MS);
     return () => clearTimeout(timer);
   }, [handedOff, listed, conversation.id, settleWorking]);
-  const agentLabel =
-    agents.length === 0
-      ? null
-      : agents.length === 1
-        ? agents[0]!.name
-        : tAgents("agentCount", { count: agents.length });
+  const agentLabel = useConversationAgentLabel(agents, conversation.coding_agents ?? []);
 
   return (
     <div
@@ -153,8 +148,14 @@ function ConversationItem({
       {/* Which agent the thread is with leads the row - the face people pick a
           thread by. */}
       <span className="relative shrink-0">
-        {agents.length > 0 ? (
-          <ConversationAgents agents={agents} showName={false} size="md" unframed />
+        {agents.length > 0 || conversation.coding_agents?.length ? (
+          <ConversationAgents
+            agents={agents}
+            codingAgents={conversation.coding_agents}
+            showName={false}
+            size="md"
+            unframed
+          />
         ) : (
           // A box the size of a face, so every title starts at the same x.
           <span className="block size-9" aria-hidden />
@@ -181,7 +182,7 @@ function ConversationItem({
             if (e.key === "Enter") handleRename();
             if (e.key === "Escape") setIsEditing(false);
           }}
-          className="text-foreground min-w-0 flex-1 bg-transparent text-[13px] font-medium outline-none"
+          className="text-foreground min-w-0 flex-1 bg-transparent text-base font-medium outline-none md:text-[13px]"
           autoFocus
           onClick={(e) => e.stopPropagation()}
         />
@@ -1152,9 +1153,10 @@ function CollapsedSidebar({
                       )}
                     >
                       <span className="relative">
-                        {conversation.agents && conversation.agents.length > 0 ? (
+                        {conversation.agents?.length || conversation.coding_agents?.length ? (
                           <ConversationAgents
                             agents={conversation.agents}
+                            codingAgents={conversation.coding_agents}
                             showName={false}
                             size="md"
                             compact

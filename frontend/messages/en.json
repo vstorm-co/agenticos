@@ -326,7 +326,7 @@
     "mattermostWebhookToken": "Webhook token (optional)",
     "mattermostWebhookTokenHint": "The token Mattermost shows for the outgoing webhook",
     "maxTokens": "Max tokens",
-    "mentionableOnBoundBots": "Slack, Telegram and Mattermost bots that answer as this agent. It is mentionable by @handle only on the bots it is bound to.",
+    "mentionableOnBoundBots": "Slack, Microsoft Teams, Telegram, Mattermost and Discord bots that answer as this agent. It is mentionable by @handle only on the bots it is bound to.",
     "modeAsync": "Async",
     "modeAuto": "Auto",
     "modeSync": "Sync",
@@ -771,7 +771,6 @@
     "startsWithRecommended": "{count, plural, =0 {Starts with no tools} =1 {Starts with 1 recommended tool} other {Starts with # recommended tools}}",
     "capabilityRecommended": "Recommended",
     "capabilitySettingsTitle": "{name} settings",
-    "capabilityOpenSettings": "Settings",
     "capabilityShelfEnabled": "{enabled} of {total} on",
     "capabilityShelfPrevious": "Earlier in {shelf}",
     "capabilityShelfNext": "More in {shelf}",
@@ -1235,7 +1234,29 @@
         "computerFailed": "Could not change computer access. Try again.",
         "computerUseTitle": "Computer use",
         "computerUseIndependent": "Use this computer's screen, mouse and keyboard, even when the agent has no Computer use capability. This does not grant file access. The desktop app asks for screen and accessibility permissions when needed.",
-        "computerUseLocal": "Local computer"
+        "computerUseLocal": "Local computer",
+        "skills": {
+          "title": "My skills and instructions",
+          "help": "Choose local skill sources for AgenticOS in this chat. Files stay on your computer; loaded skill and instruction text reaches the agent's configured model through your server. Off for new chats. Local coding agents retain their own configuration.",
+          "count": "{count, plural, one {# skill} other {# skills}}",
+          "hidden": "{count, plural, one {# skill is hidden by one of the same name in an earlier folder} other {# skills are hidden by ones of the same name in an earlier folder}}.",
+          "on": "This chat can load the enabled local skills and follows your global instructions, then the project's AGENTS.md and CLAUDE.md hierarchy.",
+          "off": "Off: AgenticOS does not load your local skills or instructions."
+        },
+        "coding": {
+          "title": "Coding agent",
+          "help": "Choose Claude Code or Codex on this computer for this conversation, even when the agent has no Coding agent capability. Its existing approval and read-only rules still apply. Each task asks for native confirmation.",
+          "agent": "Use agent setting",
+          "claudeCode": "Claude Code on this computer",
+          "codex": "Codex on this computer",
+          "description": "Folder access is set up automatically. Each task asks for confirmation.",
+          "folder": "A project folder is required to continue.",
+          "setup": "Install or sign in → Desktop settings",
+          "pickFolder": "Choose a folder",
+          "changeFolder": "Change folder · {folder}",
+          "agentWithHarness": "Agent setting · {agent}"
+        },
+        "off": "Off"
       },
       "modelSection": "Model",
       "permissionsSection": "Permissions",
@@ -1243,7 +1264,9 @@
       "waiverOrg": "Your organization has disabled this mode. It can be enabled under Budget and approvals.",
       "waiverUnknown": "Organization approval settings are not available yet. Try again when the organization has loaded.",
       "waiverSettings": "Open approval settings",
-      "savedPreferences": "Remembered across chats"
+      "toolsTab": "Tools & files",
+      "preferencesTab": "Preferences",
+      "savedAutomatically": "Changes are saved automatically"
     },
     "conversationArchived": "This conversation is archived",
     "conversationDeleted": "Conversation deleted",
@@ -1755,7 +1778,13 @@
       "listingApps": "Listing the applications",
       "listApps": "List the Applications",
       "sendingChannelFile": "Sending a file to the channel",
-      "sendChannelFile": "Send Channel File"
+      "sendChannelFile": "Send Channel File",
+      "startMonitor": "Watch a command",
+      "startingMonitor": "Starting to watch a command",
+      "listMonitors": "The watches",
+      "listingMonitors": "Listing the watches",
+      "stopMonitor": "Stop a watch",
+      "stoppingMonitor": "Stopping a watch"
     },
     "turnWasStopped": "stopped",
     "unfavourite": "Remove from favourites",
@@ -2206,10 +2235,21 @@
     "queuedRetry": "Send again",
     "browserResume": "Resume session",
     "browserResumePrompt": "Resume the browser session. Read the current page again before continuing.",
-    "browserMenu": "Browser options"
+    "browserMenu": "Browser options",
+    "localAgent": {
+      "claudeCode": "Claude Code",
+      "codex": "Codex",
+      "ready": "{agent} · {folder} · {access}",
+      "edit": "can edit",
+      "readOnly": "read only",
+      "needsFolder": "{agent} runs on this computer: choose a folder under Chat controls → Work on → This computer.",
+      "needsFullAccess": "{agent} runs as you, so the folder needs full access. Change it under Chat controls → Work on.",
+      "chosen": "{agent} · {folder}"
+    }
   },
   "common": {
     "archiveNamedConfirm": "Archive {name}?",
+    "chooseSection": "Section: {section}",
     "back": "Back",
     "cancel": "Cancel",
     "close": "Close",
@@ -3065,6 +3105,7 @@
       "reset": "Follow the page again"
     },
     "pageStatus": "Status",
+    "morePageActions": "More page actions",
     "startChecklist": {
       "title": "Get started",
       "progress": "{done} of {total} done",
@@ -3093,7 +3134,7 @@
         "knowledge": "The documents it answers from.",
         "departments": "Groups decide who sees which agent.",
         "teammate": "Agents are worth more shared.",
-        "channel": "Slack, Teams, Telegram or Mattermost."
+        "channel": "Slack, Teams, Telegram, Mattermost or Discord."
       },
       "left": "{count, plural, =1 {1 step left} other {# steps left}}",
       "ratio": "{done}/{total}",
@@ -3231,6 +3272,7 @@
   "files": {
     "couldNotBeFetched": "That file could not be fetched",
     "couldNotBeRead": "That file could not be read",
+    "linkedAssetFailed": "Could not load the linked stylesheet {path}. Open Source to inspect the file.",
     "download": "Download",
     "emptyFile": "This file is empty.",
     "fileOfTotal": "{index} of {total}",
@@ -4015,6 +4057,7 @@
     "serverDisconnected": "{name} disconnected.",
     "serverUpdated": "{name} updated.",
     "serverUrl": "Server URL",
+    "client": "MCP client",
     "servers": "Servers",
     "settings": "Settings",
     "stateDisabled": "Disabled",
@@ -4679,6 +4722,14 @@
         "title": "Agents from other vendors",
         "body": "Agents registered here by their A2A agent card can be picked as delegates, beside your own agents."
       },
+      "desktop-local-agents": {
+        "title": "Coding agents on this computer",
+        "body": "Check Claude Code and Codex installation and sign-in here. The desktop app opens their own sign-in commands in your terminal. Choose On this computer in the agent capability and a folder in Work on to run a task locally."
+      },
+      "chat-local-skills": {
+        "title": "Your local skills and instructions",
+        "body": "Choose which sources this conversation may read. Skills stay on your computer; enabled sources settle name clashes in the order .agents, .claude, .codex. AGENTS.md and CLAUDE.md provide project instructions. New chats start with every source off."
+      },
       "settings-tabs": {
         "title": "Your settings",
         "body": "Your profile, sign-in and security, notifications, and slash-commands all live behind these tabs - switch between them here."
@@ -4706,6 +4757,30 @@
       "workspaces-browser": {
         "title": "Your documents",
         "body": "When an agent saves a file, it lands here - browse, preview and download whatever your conversations produced."
+      },
+      "project-file-fullscreen": {
+        "title": "More room for files",
+        "body": "Open a file, then expand its reader to use the screen. The back arrow returns to the folder list."
+      },
+      "workspace-file-fullscreen": {
+        "title": "More room for files",
+        "body": "Open a file, then expand its reader to use the screen. The back arrow returns to the folder list."
+      },
+      "agent-editor-fullscreen": {
+        "title": "Expand the editor",
+        "body": "Use the expand button to read or edit the whole document. Closing the expanded editor keeps your current draft."
+      },
+      "skill-editor-fullscreen": {
+        "title": "Expand the editor",
+        "body": "Use the expand button to read or edit the whole document. Closing the expanded editor keeps your current draft."
+      },
+      "context-editor-fullscreen": {
+        "title": "Expand the editor",
+        "body": "Use the expand button to read or edit the whole document. Closing the expanded editor keeps your current draft."
+      },
+      "workflow-canvas-fullscreen": {
+        "title": "Work on the full screen",
+        "body": "This floating button expands the diagram. Use it again to return to the workflow header; your draft stays in place."
       },
       "workspaces-detail": {
         "title": "Inside a folder",
@@ -4954,6 +5029,14 @@
       "project-file-location": {
         "title": "Your computer or shared files",
         "body": "Computer shows your approved local folder. Shared project files contains uploaded copies for people with project access. The two locations do not synchronize automatically."
+      },
+      "chat-local-coding": {
+        "title": "Coding agent",
+        "body": "Choose Claude Code or Codex on this computer for this conversation, even when the agent has no Coding agent capability. Its existing approval and read-only rules still apply. Each task asks for native confirmation."
+      },
+      "workflow-step-view": {
+        "title": "Focus on one panel",
+        "body": "On a phone, choose step settings, input or output to give the active panel the available space. Switching panels keeps your draft."
       }
     },
     "chooseLanguage": "Language",
@@ -5957,7 +6040,7 @@
       "broadcastsTeamsHint": "After enabling, download the updated Teams app package and reinstall or upgrade it in the target team or chat. Its owner must consent to receiving conversation messages.",
       "broadcastsTelegramHint": "Telegram uses literal @all, @here, @channel or @everyone aliases. It does not notify the whole group. The bot must receive group messages; check privacy mode in BotFather.",
       "addChannel": "Add channel",
-      "addChannelDescription": "Register a Slack, Telegram or Mattermost bot for the organization. Every credential here is sealed at rest and never read back.",
+      "addChannelDescription": "Register a Slack, Teams, Telegram, Mattermost or Discord bot for the organization. Every credential here is sealed at rest and never read back.",
       "addOneBecomesBindable": "Register one and agents can be made available on it from their Availability tab.",
       "appLevelToken": "App-level token",
       "appLevelTokenHint": "The xapp- token, for Socket Mode in development. Optional.",
@@ -5969,6 +6052,7 @@
       "botTokenHintMattermost": "The bot account's access token",
       "botTokenHintSlack": "The bot user OAuth token (xoxb-...) from your Slack app",
       "botTokenHintTeams": "The client secret of the Azure Bot's app registration (Certificates & secrets in Entra).",
+      "botTokenHintDiscord": "The token under Bot in the Discord Developer Portal. Switch on Message Content Intent and switch off Public Bot there, then invite the bot with the bot and applications.commands scopes.",
       "teamsAppId": "Microsoft App ID",
       "teamsAppIdHint": "On the Azure Bot resource, under Configuration. Create the bot as single-tenant.",
       "teamsTenantId": "Tenant ID",
@@ -6059,9 +6143,12 @@
       "transcriptionInheritsFromOrg": "{pair}, from the organization",
       "transcriptionPair": "{provider} · {model}",
       "transcriptionEngine": "Provider",
-      "transcriptionMistralFormat": "{platform, select, slack {Slack's desktop app records audio clips as WebM} other {Telegram sends voice messages as Ogg/Opus}}, which Mistral does not list as a format it accepts. They may fail to transcribe; choose another provider for this bot if they do.",
+      "transcriptionMistralFormat": "{platform, select, slack {Slack's desktop app records audio clips as WebM} discord {Discord sends voice messages as Ogg/Opus} other {Telegram sends voice messages as Ogg/Opus}}, which Mistral does not list as a format it accepts. They may fail to transcribe; choose another provider for this bot if they do.",
       "transcriptionProviderNoKey": "{name} (no usable key)",
-      "transcriptionInheritedNoKey": "No key is chosen where this pair comes from, so voice messages are not transcribed until one is."
+      "transcriptionInheritedNoKey": "No key is chosen where this pair comes from, so voice messages are not transcribed until one is.",
+      "discordGuilds": "Approved Discord server IDs",
+      "discordGuildsHint": "Enable Developer Mode in Discord and copy each approved server ID. Separate IDs with commas or spaces. An empty list permits DMs only; server messages stay blocked.",
+      "discordGuildsInvalid": "Enter decimal server IDs, separated by commas or spaces (up to 2,500 servers)."
     },
     "invitations": {
       "acceptInvitation": "Accept invitation",
@@ -6482,6 +6569,9 @@
       "surfaceFilter": "Filter by surface",
       "surfaceMattermost": "Mattermost",
       "surfaceA2a": "A2A",
+      "surfaceTeams": "Microsoft Teams",
+      "surfaceDiscord": "Discord",
+      "surfaceFollowUps": "Follow-ups",
       "surfaceSchedule": "Schedule",
       "surfaceWorkflow": "Workflow",
       "surfaceSlack": "Slack",
@@ -6570,8 +6660,6 @@
       "stepApprovalLength": "{count, number} of {max, number} characters",
       "stepApprovalNotYours": "Only the people this step names can decide it.",
       "stepApprovalEdited": "Edited",
-      "surfaceTeams": "Microsoft Teams",
-      "surfaceFollowUps": "Follow-ups",
       "surfaceProactive": "Proactive",
       "standaloneRequest": "Model request",
       "standaloneResponse": "Model response"
@@ -6611,7 +6699,7 @@
       "chatAccountNoAgentsHere": "No agent you can see answers on this bot.",
       "chatAccountNotUsedYet": "Not used anywhere yet. Send one of your organization's bots a message.",
       "chatAccounts": "Chat accounts",
-      "chatAccountsDescription": "Slack, Telegram and Mattermost accounts connected to you. An agent reached from one of these answers as you, with your permissions and your budget.",
+      "chatAccountsDescription": "Slack, Microsoft Teams, Telegram, Mattermost and Discord accounts connected to you. An agent reached from one of these answers as you, with your permissions and your budget.",
       "confirmNewPassword": "Confirm new password",
       "currentPassword": "Current password",
       "customizeCommandPaletteChat": "Customize the /command palette in chat - disable built-ins, or define your own quick prompts.",
@@ -7898,6 +7986,7 @@
     "minutesAgo": "{count, plural, other {#m ago}}"
   },
   "ui": {
+    "expandEditor": "Expand {label}",
     "cancel": "Cancel",
     "checkConnection": "Check your connection and try again.",
     "close": "Close",
@@ -8874,6 +8963,8 @@
     "dataEmpty": "Nothing in it",
     "dataMoreRows": "{count, plural, one {Show # more row} other {Show # more rows}}",
     "stepInput": "Input",
+    "stepEditorView": "Step view",
+    "stepEditorSettings": "Step settings",
     "stepInputSource": "Step to read from",
     "stepPinned": "Test data",
     "stepNoDataYet": "No data yet. Run the workflow, or test the step before it.",
@@ -9292,6 +9383,7 @@
     "currentTag": "Current",
     "publicUpdated": "Updated {when}",
     "backToArtifacts": "Back to apps",
+    "viewerControls": "App controls",
     "share": "Share",
     "moreActions": "More actions",
     "accessRestricted": "Only people with access",
@@ -9559,7 +9651,6 @@
       "blockedSwitch": "An Owner or Admin has to turn on live data on public pages in the organization's settings first.",
       "blockedLink": "The page has no public link. Turn it on first."
     },
-    "appTheme": "App theme",
     "lightTheme": "Use light app theme",
     "darkTheme": "Use dark app theme"
   },
@@ -10496,11 +10587,11 @@
     },
     "coding_agent": {
       "name": "Coding agent",
-      "does": "Hands software work to Claude Code or Codex, which work on it in the agent's sandbox while you watch each step in the chat.",
+      "does": "Hands software work to Claude Code or Codex, in the agent's sandbox or on this computer, while you watch each step in the chat.",
       "example1": "Fix a failing test in a repository the agent cloned",
       "example2": "Explain how a module works, read-only",
-      "needs": "The Sandbox capability on a sandbox connection, and in the vault an Anthropic or OpenAI key, a Claude subscription token or a ChatGPT sign-in.",
-      "never": "Never works outside the agent's sandbox. Set Human approval to Always ask and each task waits for your yes."
+      "needs": "For a sandbox: the Sandbox capability, a connection and a provider key or sign-in in the vault. On this computer: the desktop app, a signed-in coding agent and an approved full-access folder.",
+      "never": "Local tasks require a full-access folder grant and native start confirmation. Set Human approval to Always ask to also approve each task in the chat."
     },
     "compaction": {
       "name": "Long conversations",
@@ -10710,6 +10801,14 @@
       "example2": "Export a report from a legacy tool with no API",
       "needs": "A desktop in the agent's own sandbox (the Sandbox capability on its 'desktop' runtime), or one an administrator runs with computerd on a Linux desktop or a Mac, with its token in the organization's vault. Each step is one model request with a screenshot.",
       "never": "Never acts without approval unless that is switched off, never follows instructions shown on the screen, and stops to ask before passwords or payments."
+    },
+    "monitor": {
+      "name": "Watch a command",
+      "does": "Starts a long-running command - a test watcher, a log tail, a CI poll - and tells the agent about its new output as it appears, so it does not have to poll.",
+      "example1": "Run the test watcher and fix each failure as it shows up",
+      "example2": "Tail a deploy log and report the first error",
+      "needs": "A workspace with a shell, such as the Sandbox capability or a folder on your computer.",
+      "never": "Never keeps a command running after the turn ends: every watch stops with the run."
     }
   },
   "capabilityCategories": {
@@ -11172,7 +11271,7 @@
       },
       "model": {
         "title": "Model",
-        "description": "The model the coding agent runs: a Claude model for Claude Code, an OpenAI one for Codex. Not set takes the coding agent's own default."
+        "description": "The model the coding agent runs: a Claude model for Claude Code, an OpenAI one for Codex. Not set takes the coding agent's own default. Not available on this computer, where the agent uses its own setting."
       },
       "base_url": {
         "title": "Anthropic-compatible endpoint",
@@ -11181,6 +11280,10 @@
       "timeout_minutes": {
         "title": "Time limit (minutes)",
         "description": "How long one task may run before it is stopped."
+      },
+      "runs_on": {
+        "title": "Where it runs",
+        "description": "The agent's own sandbox, on a key stored here - or the folder a person chooses on their own computer in the desktop app, where Claude Code and Codex use the sign-in they already have and need no key."
       }
     },
     "workflows": {
@@ -11347,6 +11450,7 @@
     "why": "Claude Code, Codex, Cursor or any other MCP client can work in this organization through AgenticOS's own MCP server: list and run agents, read runs and what they cost, search and fill knowledge bases, invite members.",
     "docs": "What the MCP server can do",
     "serverUrl": "Server URL",
+    "client": "MCP client",
     "signIn": "Sign in",
     "viaBrowser": "Through the browser",
     "viaKey": "With an API key",
@@ -12053,6 +12157,20 @@
         "removeNamed": "Remove {name}",
         "add": "Connect service",
         "confirm": "Confirm in the app…"
+      },
+      "agents": {
+        "title": "Coding agents on this computer",
+        "description": "Claude Code and Codex installed here. Sign-in belongs to each agent: AgenticOS opens its own command in Terminal and never reads or copies its credentials.",
+        "installHint": "{name} is not installed on this computer.",
+        "notInstalled": "Not installed",
+        "signedIn": "Signed in",
+        "signedOut": "Signed out",
+        "unknown": "Status unknown",
+        "signIn": "Sign in",
+        "signInNamed": "Sign in to {name}",
+        "signOut": "Sign out",
+        "signOutNamed": "Sign out of {name}",
+        "terminalNote": "Sign-in opens in your system terminal. Come back when it finishes to refresh the status."
       }
     },
     "quickAsk": {
@@ -12156,6 +12274,7 @@
       "askAdmin": "Ask an administrator to configure a model for this organization.",
       "askAgentAdmin": "Ask an administrator to publish or share an agent you can use.",
       "permissionNote": "These checks capture no screen, audio or clipboard. Permissions are optional and requested only when you click. macOS may require restarting the app after a Screen Recording change.",
+      "screenCaptureDenied": "macOS has not granted screen access to this running app. If AgenticOS is already enabled in System Settings, quit and reopen this copy of the app, then refresh. A different installed copy can have different permissions.",
       "retryScreenshot": "Try the screenshot again",
       "welcome": "Finish connecting this desktop",
       "welcomeHint": "Enable the desktop features you want to use. You can finish the optional steps later.",

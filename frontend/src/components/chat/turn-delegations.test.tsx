@@ -198,11 +198,35 @@ describe("a coding agent's task under an answer", () => {
         agents={AGENTS}
       />,
     );
-    expect(
-      screen.getByText("Talked it through with Coding agent · 1 exchange"),
-    ).toBeInTheDocument();
+    expect(screen.queryByText(/Talked it through/)).toBeNull();
 
     rerender(<TurnDelegations toolCalls={[coded("2", "", "running")]} agents={AGENTS} />);
     expect(screen.queryByText(/Talked it through/)).toBeNull();
   });
+});
+
+it("opens a minimal coding report without inventing a brief or steps", async () => {
+  render(
+    <TurnDelegations
+      agents={AGENTS}
+      toolCalls={[
+        {
+          id: "minimal",
+          name: "run_coding_agent",
+          args: {},
+          status: "completed",
+          result: JSON.stringify({
+            kind: "coding_agent",
+            harness: "codex",
+            access: "read_only",
+            outcome: "completed",
+            answer: "No changes needed",
+          }),
+        },
+      ]}
+    />,
+  );
+  await userEvent.click(screen.getByRole("button", { name: "Open the exchanges with the team" }));
+  expect(within(screen.getByRole("dialog")).getByText("No changes needed")).toBeInTheDocument();
+  expect(screen.queryByText("Brief")).toBeNull();
 });

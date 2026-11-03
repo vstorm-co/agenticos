@@ -974,6 +974,7 @@ describe("naming a connection something a person can read", () => {
     // hold, so the category is a request like the query.
     await mount();
 
+    await userEvent.click(screen.getByRole("button", { name: "Filters" }));
     await userEvent.click(screen.getByRole("combobox", { name: /Category/i }));
     await userEvent.click(await screen.findByRole("option", { name: /Development/i }));
 

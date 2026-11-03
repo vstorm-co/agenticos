@@ -77,6 +77,7 @@ browser is pointed at the deployment's browser service
 | `text_to_speech` | Text to speech | analysis | `generate_speech` | — | required | as-is |
 | `video_generation` | Video generation | analysis | `generate_video` | — | required | handed off |
 | `coding_agent` | Coding agent | analysis | `run_coding_agent` | `sandbox:execute` | required | handed off |
+| `monitor` | Watch a command | analysis | `start_monitor`, `list_monitors`, `stop_monitor` | `sandbox:execute` | — | handed off |
 | `subagents` | Subagents | reasoning | `task`, `check_task`, `wait_tasks`, `list_active_tasks`, `answer_subagent`, `send_message_to_subagent`, `soft_cancel_task`, `hard_cancel_task`, `create_agent`, `delegate` | `agents:delegate` | — | handed off |
 | `planning` | Planning | reasoning | `write_plan`, `read_plan`, `add_task`, `update_task_status`, `update_task_statuses`, `remove_task`, `add_subtask`, `set_dependency`, `get_available_tasks` | — | — | as-is |
 | `thinking` | Thinking | reasoning | none, by design | — | — | mapped |
@@ -1432,10 +1433,11 @@ chat shows it working. Another agent reaches a coding agent through ordinary
 | Config | Default | Values |
 |---|---|---|
 | `harness` | `claude_code` | `claude_code` (an Anthropic API key or a Claude subscription token), `codex` (an OpenAI API key or a ChatGPT sign-in) |
-| `access` | `edit` | `edit` changes files and runs commands; `read_only` reads the code and answers (Claude Code only) |
+| `access` | `edit` | `edit` changes files and runs commands; `read_only` reads the code and answers (Claude Code, or Codex on this computer) |
 | `model` | the harness's default | Claude Opus, Sonnet or Haiku 5.5 for Claude Code; GPT-5.6 Sol, Terra, Luna or GPT-5.3 Codex for Codex |
 | `base_url` | Anthropic directly | Claude Code only: a gateway that speaks Anthropic's API, such as `https://openrouter.ai/api`, whose key the vault then holds. Dropped when Codex is chosen |
 | `timeout_minutes` | 15 | 1–60, for one task |
+| `runs_on` | `sandbox` | `sandbox` runs the task in the agent's sandbox on a key; `this_computer` runs it in the folder a person chose on their own computer in the desktop app, on the sign-in the agent already has, with no key |
 
 **One tool, and the binding decides what it may do.** At `edit` the harness edits
 any file and runs any command in the sandbox, with its own prompts off
@@ -1445,11 +1447,15 @@ documented for. At `read_only`, Claude Code runs in plan mode without any tool
 that writes - its editing tools and the shell - and reads with Read, Grep and Glob;
 it is told that nothing else can be approved. Not even reading commands: no list of
 command prefixes keeps a shell read-only, since `git log --output=<file>` matches
-`git log` as well as any read does. Codex has no `read_only`: its read-only mode is a
+`git log` as well as any read does. Codex in a container has no `read_only`: its read-only mode is a
 sandbox of its own, which cannot start inside the agent's container, and publish
 refuses the combination. Whether a person says yes before each task is the
 capability's **Human approval**, set to **Always ask** — like every gate, it is off
 until somebody sets it. There is no Tools tab: the one tool is the capability.
+
+**On this computer.** Set `runs_on` to `this_computer` to use the person's installed harness over the [Agent Client Protocol](https://agentclientprotocol.com). The desktop app launches a pinned adapter through `npx`; the server speaks ACP. Choose a full-access folder in **Work on** and confirm each start natively. The folder is a working directory, not an operating-system sandbox. The harness uses its own sign-in, so a vault key is optional. Permission requests follow `access`; approval applies once per task. Claude read-only disables bypass and writing tools; local Codex selects its native read-only mode.
+
+Later tasks load the same conversation session; `fresh_session` starts over explicitly. Corrections interrupt the current ACP turn and continue the same session after its stop response. Resume identifiers stay outside the repository and are cleared on unlink. Unpriced subscription tasks, including failed tasks that started, make the run's cost a floor. See [the desktop app](../desktop.md#coding-agents-on-this-computer).
 
 **The person watches it work.** The harness is started detached in the sandbox,
 `claude -p --output-format stream-json` or `codex exec --json`, and its events file
@@ -1518,6 +1524,20 @@ each task. Codex names no model in its events, so with no `model` set its usage 
 booked unpriced and the run's cost is marked partial. A task that ends before its
 harness reports what it spent - failed, timed out or stopped - is booked the same
 way.
+
+## Watch a command { #monitor }
+
+`start_monitor`, `list_monitors`, `stop_monitor` — *Watch a long-running command and be told about its output as it appears.*
+
+Lets an agent start a command that runs for a long time - a test watcher, a log tail, a build, a CI or deploy poll - and hear about its output without polling for it. The command runs detached in the run's workspace, its output going to a file there. Before each model request the new lines are read, filtered by the optional `match` words (separated by `|`, any case; plain text, not a regular expression), and put at the tail of the request as an ephemeral note, the way a steering reminder is, so nothing is written into the conversation's history. A watch that exits is reported with its exit code.
+
+| Tool | What it does |
+|---|---|
+| `start_monitor` | Starts `command` with an optional `label` and `match`; at most four run at once |
+| `list_monitors` | Lists the watches with their state, exit code, how many lines matched and the last ten |
+| `stop_monitor` | Stops one watch and the processes it started |
+
+**A watch lives as long as the run.** Every watch is stopped when the turn ends, so a command never outlives the turn that asked for it. It needs a persistent sandbox shell. The desktop's per-command shell cannot keep a watch alive, so the tool refuses it before starting a process. What a watched command prints is data, not instructions, and the agent is told so. Add **Human approval** to ask before a command starts.
 
 ## Visuals
 
@@ -2590,6 +2610,14 @@ beside `budget_exceeded`, because a refusal is the platform working and an opera
 filtering for problems should be able to find it rather than have it read like any
 completed answer. See [Governance](../governance.md).
 
+**A blocked turn's message is not read back.** A check reads only what is new in
+its own turn, so a later turn's history does not replay the message of a
+`guardrail_blocked` run, whichever check stopped it. In its place the model reads a
+short note that a guardrail stopped that turn, without the message's text or what
+the files sent with it added. The conversation still shows the person what they
+typed. Search over past conversations (`conversation_search`) does not filter these
+messages yet.
+
 **An output check screens the answer before anyone sees it.** Every surface
 streams: the web chat and the embedded widget send the answer as it is written, and
 a channel bot edits its reply as the text arrives. When any output check is
@@ -2634,9 +2662,16 @@ a workspace has that text screened before the file is copied to `uploads/`, so a
 turn the edge blocks writes nothing, and a later turn in a `conversation`-, `user`-
 or `agent`-scoped workspace has no refused file to open. The edge reads only those
 opening lines, so a blocked term further down the file is not caught here; screen
-tool results for that. A picture sent inline is the exception: the edge also reads
-its bytes, and a block those bytes cause is not foreseen, so that picture is still
-written.
+tool results for that. A picture sent inline is not text, so the edge does not read
+it: on a prompt with a picture the edge screens the words alone, never the picture's
+bytes, and a redaction rewrites those words and keeps the picture. A prompt built in
+code may also carry a text file inline, which is
+screened as the UTF-8 text a model is sent; a file that declares another
+character set or is not valid in the one it declares blocks the turn. Such a prompt
+may also carry a link, which is screened too: a redaction cannot be written
+into a link without breaking it, so a match there blocks. Because the bytes
+no longer decide, the check before the write predicts a turn with a picture as it
+does any other.
 
 **Tool-result screening is the reason this edge matters most.** It is the only guard
 on untrusted content entering the loop — a fetched page, a file, an MCP server's

@@ -161,12 +161,12 @@ Publish once. The same runner answers on all of these:
 - **A hosted page** you can send somebody a link to
 - **An embeddable widget** for your own site
 - **The HTTP API**, and a raw WebSocket for streaming
-- **Slack**, **Telegram** and **Mattermost**, where an `@mention` runs as the
+- **Slack**, **Telegram**, **Mattermost** and **Discord**, where an `@mention` runs as the
   person who sent it — not as the bot
 
 Speech to text runs on the organization's own provider on these too: dictation
 in web chat, on a hosted page and in the widget, and voice notes transcribed
-in Slack, Telegram and Mattermost.
+in Slack, Telegram, Mattermost and Discord.
 
 **Voice calls** let a person talk to a published agent and interrupt it, in web
 chat, on a hosted page or in the widget. The agent keeps its tools, knowledge,

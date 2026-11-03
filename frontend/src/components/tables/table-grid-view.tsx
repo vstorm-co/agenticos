@@ -422,7 +422,7 @@ export function TableGridView({
         }
         // Every row is one height, so only the rows in view are drawn.
         className={cn(
-          "rounded-none border-0",
+          "rounded-none border-0 bg-transparent",
           preferences.wrap_text ? "[&_tbody_td]:whitespace-normal" : "[&_tbody_td]:h-[52px]",
         )}
         rowHeight={preferences.wrap_text ? undefined : ROW_HEIGHT}

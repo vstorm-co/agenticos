@@ -174,7 +174,7 @@ function TemplateLibrary({
                 onChange={(event) => setDraft(event.target.value)}
                 maxLength={100000}
                 rows={10}
-                className="max-h-[40dvh] font-mono text-sm"
+                className="max-h-[40dvh] font-mono text-base md:text-sm"
               />
             </div>
             <Label className="flex items-center gap-2">
