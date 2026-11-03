@@ -1,5 +1,5 @@
 ---
-source_sha: "d2584012e735"
+source_sha: "e209486c9033"
 title: "Asystent tworzenia"
 description: "Asystent tworzenia czyta, co ludzie ocenili negatywnie i jak kończyły się runy, i sugeruje zmiany w instrukcjach agenta, jego narzędziach, konfiguracji, skillach i plikach kontekstowych. O każdej decyduje człowiek."
 ---
@@ -507,6 +507,42 @@ Asystent może zaproponować **Warto utworzyć skill**, gdy procedura występuje
 Procedura z mniej niż trzech różnych odpowiedzi nie trafia do sugestii. Czeka w zakładce **Do decyzji**, w grupie Nowe skille, z pełną treścią. **Odrzuć** przenosi go do **Zdecydowane**, a Cofnij przywraca. **Create skill** otwiera podgląd: nazwę, opis i treść można edytować, a ostrzeżenie mówi, na ilu odpowiedziach się opiera. **Create skill** w podglądzie tworzy skill w bibliotece i przypina go do wersji roboczej agenta, nigdy do opublikowanej wersji. Wymaga tych samych uprawnień co Accept i nie wywołuje modelu. Drugie kliknięcie zwraca już utworzony skill.
 
 Szacowany koszt uwzględnia pełną proponowaną treść dla każdej odpowiedzi kandydata i jej powtórzeń potwierdzających, oprócz historycznego kosztu odpowiedzi.
+
+### Ulepszanie skilla { #improving-a-skill }
+
+Skill czytany przez kilku agentów ulepsza się z jego własnej strony, przyciskiem
+**Popraw**. Sesja ulepsza jedną linię skilla, main albo jeden fork, w tym samym
+kreatorze co sesja agenta. Ma te same pięć kroków, te same postoje po
+**Zrozumieniu**, po **Zmianach** i na wyniku, **Następny krok** z ceną,
+**Spróbuj ponownie** z notatką i to samo wygaśnięcie po siedmiu dniach.
+
+- **Zrozumienie** czyta tylko odpowiedzi, w których agent otworzył wersję tej
+  linii skilla, od każdego agenta na tej linii, i dzieli złe odpowiedzi na
+  problemy w skillu i problemy, które nie są winą skilla, na przykład instrukcje
+  agenta albo brakującą wiedzę. Każdy problem wymienia agentów, u których
+  występuje.
+- **Zmiany** proponują edycje fragmentów treści skilla i najwyżej jedną zmianę
+  jego opisu, nigdy jego plików. Każdą można wybrać, przeredagować albo pominąć,
+  tak jak u agenta.
+- **Sprawdzenie** to [sprawdzenie na każdym agencie linii](skills.md#checking-a-change-on-every-agent),
+  a część kosztu każdego agenta idzie z jego własnego budżetu.
+- **Wynik** pokazuje każdego agenta jako lepszego, bez zmian, w granicach szumu,
+  gorszego albo nieznanego, według [reguły](skills.md#the-rule).
+- **Akceptacja** stosuje zmianę, stosuje ją z przypięciem gorszych agentów albo
+  robi fork dla agentów, którym pomogła, zależnie od tego, na co pozwala wynik. Do
+  tego momentu żaden agent nie czyta niczego nowego.
+
+Jeśli linia pójdzie dalej, gdy sesja czeka, jej następne sprawdzenie mierzy
+wybrane zmiany na linii w obecnym stanie, a krok wyceniony przed tą zmianą jest
+wyceniany ponownie. Wynik, którego linia poszła dalej, jest sprawdzany ponownie,
+zanim cokolwiek zostanie zastosowane.
+
+Popraw agenta przekazuje problemy należące do skilla, jak opisuje
+[Gdy błąd jest w skillu](#when-the-fault-is-in-a-skill). Sesje skilli czekające na
+człowieka są na karcie **Poprawki czekające na Ciebie**.
+[Architekt](#asking-the-architect) czyta agentów skilla, jego wersje i sesje.
+Zaczyna sesję, uruchamia krok, akceptuje wynik, kończy sesję albo przesuwa agenta
+na inną wersję tylko na Twoją prośbę, każde przez kartę akceptacji.
 
 ### Gdy błąd jest w skillu { #when-the-fault-is-in-a-skill }
 

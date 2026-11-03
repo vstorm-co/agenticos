@@ -311,6 +311,14 @@ version, and a fork never starts from another fork. A check refuses to apply
 once the line has a newer version, or an agent started following it, since it
 measured neither.
 
+### Improving a skill { #improving-a-skill }
+
+**Improve** on the skill page runs this check inside a session that first finds
+what is wrong with the skill and proposes the change, one line at a time: main or
+one fork. It goes step by step like an agent's
+[Improve](authoring.md#improving-a-skill), and its result offers the same
+choices, with **Improve further** trying again from a note in the person's words.
+
 ## Versions and forks
 
 Every saved change to a skill makes a new version, and a version is never changed
@@ -413,6 +421,10 @@ others. A skill that nobody uses is deleted with its versions and forks.
 | `PATCH /api/v1/skills/{id}/forks/{fork_id}`, `POST …/archive` | Renames a fork, or archives it |
 | `GET /api/v1/skills/{id}/agents` | The skill's agents, the version each reads, and how many are hidden |
 | `PUT /api/v1/skills/{id}/agents/{agent_id}/binding` | Moves an agent to main, a main version or a fork |
+| `POST /api/v1/skills/{id}/improvements/estimate`, `POST /api/v1/skills/{id}/improvements` | Prices and starts an Improve session on main or on a fork |
+| `POST /api/v1/skills/{id}/improvements/{session_id}/apply`, `…/fork`, `…/discard` | Applies a session's result, with or without pinning the worse agents, forks it for the agents it helped, or discards it |
+| `POST /api/v1/skills/{id}/improvements/{session_id}/recheck` | Checks a result again on the line as it is now |
+| `GET /api/v1/skill-improvements/awaiting` | The skill sessions waiting for a person |
 
 ## Getting skills into an organization
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "8c4be6cbee46"
+source_sha: "af90d2cc0eb6"
 ---
 
 # Skills { #skills }
@@ -335,6 +335,14 @@ main, y un fork nunca parte de otro fork. Una comprobación se niega a aplicar s
 la línea ya tiene una versión más nueva o un agent empezó a seguirla, porque no
 midió ninguna de las dos cosas.
 
+### Mejorar un skill { #improving-a-skill }
+
+**Improve** en la página del skill ejecuta esta comprobación dentro de una sesión
+que primero encuentra qué falla en el skill y propone el cambio, una línea cada
+vez: main o un fork. Avanza paso a paso como el [Improve](authoring.md#improving-a-skill)
+de un agent, y su resultado ofrece las mismas opciones; **Seguir mejorando** lo
+intenta de nuevo con una nota en palabras de la persona.
+
 ## Versiones y forks { #versions-and-forks }
 
 Cada cambio guardado en un skill crea una versión nueva, y una versión no se
@@ -440,6 +448,10 @@ cuenta los demás. Un skill que nadie usa se borra con sus versiones y sus forks
 | `PATCH /api/v1/skills/{id}/forks/{fork_id}`, `POST …/archive` | Cambia el nombre de un fork o lo archiva |
 | `GET /api/v1/skills/{id}/agents` | Los agents del skill, la versión que lee cada uno y cuántos están ocultos |
 | `PUT /api/v1/skills/{id}/agents/{agent_id}/binding` | Mueve un agent a main, a una versión de main o a un fork |
+| `POST /api/v1/skills/{id}/improvements/estimate`, `POST /api/v1/skills/{id}/improvements` | Calcula el precio de una sesión Improve en main o en un fork y la inicia |
+| `POST /api/v1/skills/{id}/improvements/{session_id}/apply`, `…/fork`, `…/discard` | Aplica el resultado de una sesión, fijando o no los agents que empeoraron, lo convierte en un fork para los agents a los que ayudó, o lo descarta |
+| `POST /api/v1/skills/{id}/improvements/{session_id}/recheck` | Comprueba un resultado de nuevo en la línea tal como está ahora |
+| `GET /api/v1/skill-improvements/awaiting` | Las sesiones de skills que esperan a una persona |
 
 ## Cómo llegan los skills a una organización { #getting-skills-into-an-organization }
 

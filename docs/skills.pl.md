@@ -1,5 +1,5 @@
 ---
-source_sha: "8c4be6cbee46"
+source_sha: "af90d2cc0eb6"
 ---
 
 # Skille { #skills }
@@ -325,6 +325,14 @@ wersję main, a fork nigdy nie zaczyna się od innego forka. Sprawdzenie odmawia
 zastosowania, gdy linia ma już nowszą wersję albo zaczął za nią podążać nowy
 agent, bo nie zmierzyło żadnego z nich.
 
+### Ulepszanie skilla { #improving-a-skill }
+
+**Popraw** na stronie skilla uruchamia to sprawdzenie w sesji, która najpierw
+znajduje, co jest nie tak ze skillem, i proponuje zmianę, jedną linię naraz: main
+albo jeden fork. Przechodzi krok po kroku jak [Popraw](authoring.md#improving-a-skill)
+agenta, a jej wynik daje te same wybory, a **Popraw dalej** próbuje ponownie z
+notatką własnymi słowami osoby.
+
 ## Wersje i forki { #versions-and-forks }
 
 Każda zapisana zmiana skilla tworzy nową wersję, a wersji nie zmienia się już
@@ -428,6 +436,10 @@ jego wersjami i forkami.
 | `PATCH /api/v1/skills/{id}/forks/{fork_id}`, `POST …/archive` | Zmienia nazwę forka albo go archiwizuje |
 | `GET /api/v1/skills/{id}/agents` | Agenci skilla, wersja, którą czyta każdy z nich, i liczba ukrytych |
 | `PUT /api/v1/skills/{id}/agents/{agent_id}/binding` | Przesuwa agenta na main, wersję main albo fork |
+| `POST /api/v1/skills/{id}/improvements/estimate`, `POST /api/v1/skills/{id}/improvements` | Wycenia i zaczyna sesję Popraw na main albo na forku |
+| `POST /api/v1/skills/{id}/improvements/{session_id}/apply`, `…/fork`, `…/discard` | Stosuje wynik sesji, z przypięciem gorszych agentów albo bez, robi z niego fork dla agentów, którym pomógł, albo go odrzuca |
+| `POST /api/v1/skills/{id}/improvements/{session_id}/recheck` | Sprawdza wynik ponownie na linii w obecnym stanie |
+| `GET /api/v1/skill-improvements/awaiting` | Sesje skilli czekające na człowieka |
 
 ## Jak skille trafiają do organizacji { #getting-skills-into-an-organization }
 

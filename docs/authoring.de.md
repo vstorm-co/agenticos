@@ -1,5 +1,5 @@
 ---
-source_sha: "d2584012e735"
+source_sha: "e209486c9033"
 title: "Authoring-Assistent"
 description: "Der Authoring-Assistent liest, was Leute negativ bewertet haben und wie Runs endeten, und schlägt Änderungen an Anweisungen, Tools, Konfiguration, Skills und Context-Dateien eines Agents vor. Über jede entscheidet ein Mensch."
 ---
@@ -535,6 +535,45 @@ Der Assistent kann **Ein Skill wäre sinnvoll** vorschlagen, wenn ein wiederverw
 Ein Ablauf aus weniger als drei verschiedenen Antworten wird nicht als Vorschlag aufgenommen. Er wartet unter **Zu prüfen** in der Gruppe Neue Skills mit vollständigem Text. **Verwerfen** verschiebt ihn nach **Entschieden**, und Rückgängig holt ihn zurück. **Create skill** öffnet eine Vorschau: Name, Beschreibung und Inhalt lassen sich bearbeiten, und ein Hinweis nennt, auf wie vielen Antworten er beruht. **Create skill** in der Vorschau legt den Skill in der Bibliothek an und bindet ihn an den Entwurf des Agenten, nie an eine veröffentlichte Version. Dafür gelten dieselben Berechtigungen wie für Accept, und es gibt keinen Modellaufruf. Ein zweiter Klick liefert den bereits erstellten Skill.
 
 Die Kostenschätzung berücksichtigt den vollständigen vorgeschlagenen Inhalt für jede Kandidatenantwort und bestätigende Wiederholungen zusätzlich zum historischen Antwortpreis.
+
+### Einen Skill verbessern { #improving-a-skill }
+
+Einen Skill, den mehrere Agents lesen, verbessern Sie auf seiner eigenen Seite mit
+**Verbessern**. Eine Sitzung verbessert eine Linie des Skills, main oder einen
+Fork, im selben Assistenten wie die eines Agents. Sie hat dieselben fünf Schritte,
+dieselben Halte nach **Verstehen**, nach **Änderungen** und beim Ergebnis,
+**Nächster Schritt** mit seinem Preis, **Erneut versuchen** mit einer Notiz und
+dieselbe Ablauffrist von sieben Tagen.
+
+- **Verstehen** liest nur Antworten, in denen ein Agent eine Version dieser Linie
+  des Skills geöffnet hat, von jedem Agent auf der Linie, und teilt die schlechten
+  in Probleme im Skill und Probleme, die nicht beim Skill liegen, etwa die
+  Anweisungen eines Agents oder fehlendes Wissen. Jedes Problem nennt die Agents,
+  bei denen es auftritt.
+- **Änderungen** schlägt Bearbeitungen von Teilen des Skill-Inhalts vor und
+  höchstens eine Änderung seiner Beschreibung, nie seine Dateien. Jede lässt sich
+  wählen, umformulieren oder weglassen, wie bei einem Agent.
+- **Prüfung** ist eine [Prüfung an jedem Agent der Linie](skills.md#checking-a-change-on-every-agent),
+  und der Anteil jedes Agents geht auf dessen eigenes Budget.
+- **Ergebnis** zeigt jeden Agent als besser, unverändert, im Rauschen, schlechter
+  oder unbekannt, nach [der Regel](skills.md#the-rule).
+- **Annehmen** wendet die Änderung an, wendet sie mit festgesetzten schlechteren
+  Agents an oder macht einen Fork für die Agents, denen sie half, je nachdem, was
+  das Ergebnis erlaubt. Vorher liest kein Agent etwas Neues.
+
+Geht die Linie weiter, während die Sitzung wartet, misst ihre nächste Prüfung die
+gewählten Änderungen auf der Linie, wie sie jetzt ist, und ein vorher bepreister
+Schritt wird neu bepreist. Ein Ergebnis, dessen Linie weitergegangen ist, wird
+erneut geprüft, bevor etwas angewendet wird.
+
+Das Verbessern eines Agents übergibt Probleme, die zu einem Skill gehören, wie
+[Wenn der Fehler im Skill liegt](#when-the-fault-is-in-a-skill) beschreibt.
+Skill-Sitzungen, die auf einen Menschen warten, stehen auf der Karte
+**Verbesserungen, die auf Sie warten**. Der [Architekt](#asking-the-architect) liest
+die Agents, Versionen und Sitzungen eines Skills. Er startet eine Sitzung, führt
+einen Schritt aus, nimmt ein Ergebnis an, beendet eine Sitzung oder verschiebt einen
+Agent auf eine andere Version nur, wenn Sie darum bitten, jeweils über eine
+Freigabekarte.
 
 ### Wenn der Fehler im Skill liegt { #when-the-fault-is-in-a-skill }
 

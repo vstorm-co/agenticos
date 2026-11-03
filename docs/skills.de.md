@@ -1,5 +1,5 @@
 ---
-source_sha: "8c4be6cbee46"
+source_sha: "af90d2cc0eb6"
 ---
 
 # Skills { #skills }
@@ -349,6 +349,15 @@ eine main-Version, und ein Fork beginnt nie bei einem anderen Fork. Eine Prüfun
 verweigert das Anwenden, sobald die Linie eine neuere Version hat oder ein Agent
 ihr zu folgen begonnen hat, denn sie hat keines von beiden gemessen.
 
+### Einen Skill verbessern { #improving-a-skill }
+
+**Verbessern** auf der Seite des Skills führt diese Prüfung in einer Sitzung aus,
+die zuerst findet, was am Skill falsch ist, und die Änderung vorschlägt, eine
+Linie auf einmal: main oder einen Fork. Sie läuft Schritt für Schritt wie das
+[Verbessern](authoring.md#improving-a-skill) eines Agents, und ihr Ergebnis bietet
+dieselben Wahlmöglichkeiten; **Weiter verbessern** versucht es erneut mit einer
+Notiz in den Worten der Person.
+
 ## Versionen und Forks { #versions-and-forks }
 
 Jede gespeicherte Änderung an einem Skill erzeugt eine neue Version, und eine
@@ -465,6 +474,10 @@ den niemand verwendet, wird mit seinen Versionen und Forks gelöscht.
 | `PATCH /api/v1/skills/{id}/forks/{fork_id}`, `POST …/archive` | Benennt einen Fork um oder archiviert ihn |
 | `GET /api/v1/skills/{id}/agents` | Die Agents des Skills, die Version, die jeder liest, und wie viele verborgen sind |
 | `PUT /api/v1/skills/{id}/agents/{agent_id}/binding` | Verschiebt einen Agent auf main, eine Main-Version oder einen Fork |
+| `POST /api/v1/skills/{id}/improvements/estimate`, `POST /api/v1/skills/{id}/improvements` | Berechnet den Preis einer Verbessern-Sitzung auf main oder einem Fork und startet sie |
+| `POST /api/v1/skills/{id}/improvements/{session_id}/apply`, `…/fork`, `…/discard` | Übernimmt das Ergebnis einer Sitzung, mit oder ohne Festsetzen der schlechteren Agents, macht daraus einen Fork für die Agents, denen es half, oder verwirft es |
+| `POST /api/v1/skills/{id}/improvements/{session_id}/recheck` | Prüft ein Ergebnis erneut auf der Linie, wie sie jetzt ist |
+| `GET /api/v1/skill-improvements/awaiting` | Die Skill-Sitzungen, die auf einen Menschen warten |
 
 ## Skills in eine Organisation bekommen { #getting-skills-into-an-organization }
 
