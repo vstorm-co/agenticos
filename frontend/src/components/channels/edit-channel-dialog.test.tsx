@@ -52,6 +52,7 @@ function draft(overrides: Partial<ChannelBotDraft> = {}): ChannelBotDraft {
     whatsappPhoneNumberId: "",
     whatsappAccountId: "",
     whatsappVerifyToken: "",
+    whatsappLateTemplate: null,
     webhookMode: false,
     respondToBroadcasts: false,
     discordGuilds: "",

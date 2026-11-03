@@ -92,6 +92,8 @@ export interface ChannelBot extends AnswerStyle {
   has_whatsapp_verify_token?: boolean;
   /** WhatsApp only: the callback URL to paste into the Meta app's webhook setup. */
   whatsapp_callback_url?: string | null;
+  /** WhatsApp only: the template a late answer goes out in; null when none is set. */
+  whatsapp_late_template?: WhatsAppTemplate | null;
   /**
    * Whether the socket this bot receives on is actually up.
    *
@@ -264,6 +266,8 @@ export interface ChannelBotUpdate {
   whatsapp_phone_number_id?: string;
   whatsapp_account_id?: string;
   whatsapp_verify_token?: string;
+  /** WhatsApp only: the template chosen from Meta's list; null clears it, omitting leaves it. */
+  whatsapp_late_template?: { name: string; language: string } | null;
   ack_reaction?: string | null;
   stream_answers?: boolean;
   step_display?: StepDisplay;
@@ -278,4 +282,14 @@ export interface ChannelBotUpdate {
   speech_to_text_model?: string | null;
   /** The key goes with the pair: sent whenever the pair or the key moved. */
   speech_to_text_secret_id?: string | null;
+}
+
+/**
+ * A WhatsApp message template as Meta lists it: approved, utility, with one
+ * variable in its body, which is what a late answer fits into (#2076).
+ */
+export interface WhatsAppTemplate {
+  name: string;
+  language: string;
+  body: string;
 }

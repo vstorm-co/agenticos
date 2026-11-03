@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import TYPE_CHECKING, Annotated, Literal
 from uuid import UUID
 
-from pydantic import Field, computed_field, model_validator
+from pydantic import Field, computed_field, field_validator, model_validator
 
 from app.schemas.base import BaseSchema
 from app.schemas.urls import ServiceAddress
@@ -14,6 +14,7 @@ from app.services.channels.webhooks import (
     inbound_command_url,
     inbound_webhook_url,
 )
+from app.services.channels.whatsapp_templates import stored_template, to_stored
 from app.services.speech_to_text import is_offered
 
 if TYPE_CHECKING:
@@ -344,6 +345,28 @@ class ChannelBotCreate(BaseSchema):
         return self
 
 
+class WhatsAppTemplateRead(BaseSchema):
+    """A WhatsApp message template, as Meta lists it (#2076)."""
+
+    name: str
+    language: str
+    body: str
+
+
+class WhatsAppTemplateList(BaseSchema):
+    """The templates a bot's account has that can carry a late answer."""
+
+    items: list[WhatsAppTemplateRead]
+    total: int
+
+
+class WhatsAppLateTemplateChoice(BaseSchema):
+    """The template a bot sends a late answer in: Meta's own name and language code."""
+
+    name: str = Field(min_length=1, max_length=512)
+    language: str = Field(min_length=2, max_length=15)
+
+
 class ChannelBotUpdate(BaseSchema):
     """Schema for updating a channel bot (all fields optional).
 
@@ -375,6 +398,8 @@ class ChannelBotUpdate(BaseSchema):
     speech_to_text_provider: str | None = Field(default=None, max_length=32)
     speech_to_text_model: str | None = Field(default=None, max_length=255)
     speech_to_text_secret_id: UUID | None = None
+    whatsapp_late_template: WhatsAppLateTemplateChoice | None = None
+    """The template a WhatsApp bot sends a late answer in. Omitted leaves it, null clears it."""
 
     @model_validator(mode="after")
     def _a_named_transcription_model_is_one_that_exists(self) -> ChannelBotUpdate:
@@ -465,10 +490,19 @@ class ChannelBotRead(BaseSchema):
     whatsapp_phone_number_id: str | None = None
     whatsapp_account_id: str | None = None
     has_whatsapp_verify_token: bool = False
+    whatsapp_late_template: WhatsAppTemplateRead | None = None
+    """The template a late answer goes out in - not a secret; the operator's own template."""
     ack_reaction: str | None = None
     stream_answers: bool = True
     step_display: StepDisplay = "timeline"
     rate_answers: bool = True
+
+    @field_validator("whatsapp_late_template", mode="before")
+    @classmethod
+    def _a_malformed_template_reads_as_none(cls, value: object) -> dict[str, str] | None:
+        """Read through `stored_template`, so a malformed value never fails the bot list."""
+        template = stored_template(value)
+        return to_stored(template) if template else None
 
     @computed_field  # type: ignore[prop-decorator]  # pydantic's documented form
     @property

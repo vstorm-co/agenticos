@@ -112,6 +112,34 @@ describe("stepping to a neighbour", () => {
     expect(screen.queryByText(/malformed arguments/)).toBeNull();
   });
 
+  it("says why an answer was not delivered (#2076)", () => {
+    serve({ run: run({ undelivered_reason: "window_no_template" }) });
+    renderRun();
+    expect(
+      screen.getByText(
+        "Not delivered: outside WhatsApp's 24-hour window and no late-answer template is set.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("says why a late template failed", () => {
+    serve({ run: run({ undelivered_reason: "window_template_failed" }) });
+    renderRun();
+    expect(screen.getByText(/the late-answer template could not be sent/i)).toBeInTheDocument();
+  });
+
+  it("falls back to a general line for a reason added later", () => {
+    serve({ run: run({ undelivered_reason: "something_new" }) });
+    renderRun();
+    expect(screen.getByText(/answer was not delivered/i)).toBeInTheDocument();
+  });
+
+  it("says nothing for a delivered run", () => {
+    serve({ run: run({ undelivered_reason: null }) });
+    renderRun();
+    expect(screen.queryByText(/not delivered/i)).toBeNull();
+  });
+
   it("says how much of the input the cache served, when it did (#2170)", () => {
     serve({ run: run({ cache_read_tokens: 900, cache_write_tokens: 100 }) });
     renderRun();

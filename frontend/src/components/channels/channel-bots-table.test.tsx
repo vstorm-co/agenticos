@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { ChannelBotsTable } from "./channel-bots-table";
@@ -83,5 +83,30 @@ describe("a bot's connection badge", () => {
 
     expect(screen.queryByText("Can't send replies")).not.toBeInTheDocument();
     expect(screen.queryByText("Not connected")).not.toBeInTheDocument();
+  });
+});
+
+describe("the late-answer template column (#2076)", () => {
+  const late = { name: "late_answer", language: "en_US", body: "Answer: {{1}} - thanks" };
+
+  it("flags a WhatsApp bot with no late-answer template", () => {
+    show(bot());
+
+    expect(screen.getByText("No late-answer template")).toBeInTheDocument();
+  });
+
+  it("says nothing about late answers for a bot with a template or another platform", () => {
+    show(bot({ whatsapp_late_template: late }));
+    expect(screen.queryByText("No late-answer template")).toBeNull();
+
+    cleanup();
+    show(bot({ platform: "telegram" }));
+    expect(screen.queryByText("No late-answer template")).toBeNull();
+  });
+
+  it("says nothing about a paused WhatsApp bot", () => {
+    show(bot({ is_active: false }));
+
+    expect(screen.queryByText("No late-answer template")).toBeNull();
   });
 });

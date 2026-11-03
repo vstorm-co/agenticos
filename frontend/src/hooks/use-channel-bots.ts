@@ -14,6 +14,7 @@ import type {
   ChannelBotList,
   ChannelBotUpdate,
   TeamsConversation,
+  WhatsAppTemplate,
 } from "@/types/channels";
 
 /**
@@ -113,6 +114,27 @@ export function useChannelBot(botId: string | null): ChannelBot | null {
     enabled: botId !== null,
   });
   return data ?? null;
+}
+
+/**
+ * The templates Meta lists for a WhatsApp bot's account, as a late answer can use them.
+ *
+ * Each fetch is a Graph management call (200 an hour per account), so a list is
+ * kept for five minutes and a window focus does not ask again.
+ */
+export function useWhatsAppTemplates(botId: string | null) {
+  return useQuery({
+    queryKey: qk.channelBots.whatsappTemplates(botId ?? ""),
+    queryFn: async () =>
+      (
+        await apiClient.get<{ items: WhatsAppTemplate[] }>(
+          `/channels/bots/${botId}/whatsapp-templates`,
+        )
+      ).items,
+    enabled: botId !== null,
+    staleTime: 5 * 60_000,
+    refetchOnWindowFocus: false,
+  });
 }
 
 /**

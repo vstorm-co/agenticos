@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { AnswerStyleFields, REACTION_PATTERN } from "@/components/channels/answer-style-fields";
 import { ChannelPlatformIcon } from "@/components/channels/channel-platform-icon";
 import { SlackTransport } from "@/components/channels/slack-transport";
+import { WhatsAppLateTemplateField } from "@/components/channels/whatsapp-late-template-field";
 import {
   Button,
   Dialog,
@@ -66,6 +67,8 @@ export interface ChannelBotDraft {
   whatsappPhoneNumberId: string;
   whatsappAccountId: string;
   whatsappVerifyToken: string;
+  /** WhatsApp: the template a late answer goes out in, by name and language; null for none. */
+  whatsappLateTemplate: { name: string; language: string } | null;
   /** Slack: whether Slack calls this deployment, or the deployment connects out. */
   webhookMode: boolean;
   respondToBroadcasts: boolean;
@@ -130,6 +133,12 @@ export function botPatch(bot: ChannelBot, draft: ChannelBotDraft): ChannelBotUpd
     if (appSecret) patch.webhook_secret = appSecret;
     const verifyToken = draft.whatsappVerifyToken.trim();
     if (verifyToken) patch.whatsapp_verify_token = verifyToken;
+    // Sent when the choice differs from what is stored, and null to clear it.
+    const stored = bot.whatsapp_late_template;
+    const chosen = draft.whatsappLateTemplate;
+    if (stored?.name !== chosen?.name || stored?.language !== chosen?.language) {
+      patch.whatsapp_late_template = chosen;
+    }
   }
 
   for (const field of ANSWER_STYLE_FIELDS) {
@@ -224,6 +233,9 @@ function BotEditForm({ bot, onOpenChange, onSubmit, isPending }: BotEditFormProp
     whatsappPhoneNumberId: bot.whatsapp_phone_number_id ?? "",
     whatsappAccountId: bot.whatsapp_account_id ?? "",
     whatsappVerifyToken: "",
+    whatsappLateTemplate: bot.whatsapp_late_template
+      ? { name: bot.whatsapp_late_template.name, language: bot.whatsapp_late_template.language }
+      : null,
     webhookMode: bot.webhook_mode,
     respondToBroadcasts: bot.access_policy.respond_to_broadcasts ?? false,
     discordGuilds: (bot.access_policy.discord_guild_ids ?? []).join(", "),
@@ -295,6 +307,7 @@ function BotEditForm({ bot, onOpenChange, onSubmit, isPending }: BotEditFormProp
             "whatsapp_phone_number_id",
             "whatsapp_account_id",
             "whatsapp_verify_token",
+            "whatsapp_late_template",
           ],
           identifiedBy: "name",
         },
@@ -470,6 +483,16 @@ function BotEditForm({ bot, onOpenChange, onSubmit, isPending }: BotEditFormProp
               />
             </FormField>
           </div>
+        )}
+
+        {whatsapp && (
+          <WhatsAppLateTemplateField
+            botId={bot.id}
+            value={draft.whatsappLateTemplate}
+            stored={bot.whatsapp_late_template}
+            onChange={(next) => setDraft((current) => ({ ...current, whatsappLateTemplate: next }))}
+            error={errors.whatsapp_late_template}
+          />
         )}
 
         {bot.platform === "slack" &&
@@ -686,6 +709,11 @@ function WhatsAppSetup({ bot }: { bot: ChannelBot }) {
         <p role="alert" className="text-destructive text-sm">
           <span className="block font-medium">{t("whatsappSendDown")}</span>
           {bot.connection.reason && <span className="block">{bot.connection.reason}</span>}
+        </p>
+      )}
+      {!bot.whatsapp_late_template && (
+        <p role="status" className="text-warning text-sm">
+          {t("whatsappNoLateTemplateHint")}
         </p>
       )}
       {bot.whatsapp_callback_url && (

@@ -5,6 +5,7 @@ active organization and requires `channels:manage`. The inbound webhook routes
 live elsewhere and are deliberately unscoped.
 """
 
+from dataclasses import asdict
 from typing import Any
 from uuid import UUID
 
@@ -20,6 +21,8 @@ from app.schemas.channel_bot import (
     ChannelSessionList,
     TeamsConversationList,
     TeamsConversationRead,
+    WhatsAppTemplateList,
+    WhatsAppTemplateRead,
 )
 
 router = APIRouter()
@@ -117,6 +120,25 @@ async def get_slack_manifest(bot_id: UUID, service: OrgChannelBotSvc) -> Any:
     deployment, with the assistant pane, App Home and the scopes they use.
     """
     return await service.slack_manifest(bot_id)
+
+
+@router.get(
+    "/bots/{bot_id}/whatsapp-templates",
+    response_model=WhatsAppTemplateList,
+    dependencies=[Depends(require(Perm.CHANNELS_MANAGE))],
+)
+async def list_whatsapp_templates(bot_id: UUID, service: OrgChannelBotSvc) -> Any:
+    """The templates on this WhatsApp bot's account that can carry a late answer (#2076).
+
+    Read from Meta each time: only approved utility templates with one variable in
+    their body, which is what a late answer fits into. A 503 says Meta refused the
+    listing or the bot's token; its `details.code` is Graph's own code.
+    """
+    templates = await service.whatsapp_templates(bot_id)
+    return WhatsAppTemplateList(
+        items=[WhatsAppTemplateRead(**asdict(template)) for template in templates],
+        total=len(templates),
+    )
 
 
 @router.patch(

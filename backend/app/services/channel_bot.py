@@ -9,13 +9,14 @@ organization, so that was a tenant boundary with nothing behind it.
 
 import logging
 import secrets
+from dataclasses import replace
 from typing import Any
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.background import spawn_after_commit
-from app.core.exceptions import BadRequestError, NotFoundError
+from app.core.exceptions import BadRequestError, ExternalServiceError, NotFoundError
 from app.core.field_errors import refused_field
 from app.core.vault import SealedSecret, VaultScope, seal, unseal
 from app.db.models.channel_bot import ChannelBot
@@ -34,6 +35,7 @@ from app.schemas.channel_bot import (
     ChannelBotRead,
     ChannelBotUpdate,
     InheritedSpeechToTextRead,
+    WhatsAppLateTemplateChoice,
 )
 from app.services.channels import (
     INBOUND_PATHS,
@@ -49,7 +51,14 @@ from app.services.channels.teams import ConversationRef
 from app.services.channels.teams_auth import TeamsCredentials
 from app.services.channels.teams_package import teams_app_package
 from app.services.channels.webhooks import SEND_HEALTH_PLATFORMS
-from app.services.channels.whatsapp_graph import WhatsAppCredentials
+from app.services.channels.whatsapp_graph import (
+    TOKEN_REFUSED,
+    WhatsAppCredentials,
+    WhatsAppGraph,
+    WhatsAppGraphError,
+    WhatsAppTokenRefused,
+)
+from app.services.channels.whatsapp_templates import LateTemplate, to_stored, usable_templates
 from app.services.speech_to_text import is_offered as stt_is_offered
 from app.services.speech_to_text_settings import SpeechToTextSettingsService
 from app.services.transcription import TranscriptionService
@@ -490,6 +499,10 @@ class ChannelBotService:
                     raise refused_field(
                         field, "Only a WhatsApp bot has a phone number, account or verify token"
                     )
+            if "whatsapp_late_template" in data.model_fields_set:
+                raise refused_field(
+                    "whatsapp_late_template", "Only a WhatsApp bot has a late-answer template"
+                )
             return
         for field in (
             "whatsapp_phone_number_id",
@@ -622,6 +635,61 @@ class ChannelBotService:
             )
         return slack_manifest(bot)
 
+    async def _chosen_template(
+        self, bot: ChannelBot, choice: WhatsAppLateTemplateChoice, changes: ChannelBotUpdate
+    ) -> dict[str, str]:
+        """The stored form of the template a WhatsApp bot was told to use, as Meta lists it now.
+
+        Listed with the access token and account the same save sets, if it sets
+        them. The stored body is Meta's, never the caller's, because the send path
+        sizes its parameter against it.
+        """
+        for template in await self._list_templates(bot, changes):
+            if (template.name, template.language) == (choice.name, choice.language):
+                return to_stored(template)
+        raise refused_field(
+            "whatsapp_late_template",
+            "Meta lists no approved utility template with that name and language "
+            "and one variable in its body",
+        )
+
+    async def whatsapp_templates(self, bot_id: UUID) -> list[LateTemplate]:
+        """The templates on this WhatsApp bot's account that can carry a late answer (#2076).
+
+        Raises:
+            NotFoundError: If the bot is not this organization's.
+            BadRequestError: If it is not a WhatsApp bot with an account id.
+            ExternalServiceError: If Meta refuses the token or the listing. Only
+                Graph's numeric code is carried, never what it said.
+        """
+        return await self._list_templates(await self.get(bot_id), None)
+
+    async def _list_templates(
+        self, bot: ChannelBot, changes: ChannelBotUpdate | None
+    ) -> list[LateTemplate]:
+        account_id = (changes.whatsapp_account_id if changes else None) or bot.whatsapp_account_id
+        if bot.platform != "whatsapp" or not account_id:
+            raise refused_field("bot_id", "Only a WhatsApp bot has message templates")
+        creds = WhatsAppCredentials.decode(unseal_bot_token(bot))
+        if changes:
+            creds = replace(
+                creds,
+                access_token=changes.token or creds.access_token,
+                phone_number_id=changes.whatsapp_phone_number_id or creds.phone_number_id,
+            )
+        graph = WhatsAppGraph()
+        try:
+            listing = await graph.message_templates(creds, account_id=account_id)
+        except WhatsAppTokenRefused as exc:
+            raise ExternalServiceError(message=TOKEN_REFUSED, details=exc.details) from None
+        except WhatsAppGraphError as exc:
+            raise ExternalServiceError(
+                message="Meta did not list this bot's message templates", details=exc.details
+            ) from None
+        finally:
+            await graph.aclose()
+        return usable_templates(listing)
+
     async def find_active(self, bot_id: UUID) -> ChannelBot | None:
         """Return an active bot by ID, or None (inbound webhook / poller path)."""
         bot = await channel_bot_repo.get_for_inbound(self.db, bot_id)
@@ -687,6 +755,15 @@ class ChannelBotService:
         # recorded key version, and a rotation committing between an unlocked
         # read and this write would tag the new envelopes with a version they
         # were not sealed under.
+        #
+        # A template is checked with Meta first, on an unlocked read: a call that
+        # can take a minute must not hold the bot's row, which every new customer,
+        # chat and prompt of the bot takes a key-share lock on.
+        chosen: dict[str, str] | None = None
+        if data.whatsapp_late_template is not None:
+            unlocked = await self.get(bot_id)
+            self._check_whatsapp_update(unlocked, data)
+            chosen = await self._chosen_template(unlocked, data.whatsapp_late_template, data)
         bot = await self.get(bot_id, for_update=True)
         if data.access_policy is not None:
             self._check_discord_policy(bot.platform, data.access_policy)
@@ -711,6 +788,8 @@ class ChannelBotService:
         if "api_base_url" in update_data:
             self._check_server_url(bot.platform, update_data["api_base_url"])
         await self._check_transcription(bot, update_data)
+        if "whatsapp_late_template" in update_data:
+            update_data["whatsapp_late_template"] = chosen
         if "slack_signing_secret" in update_data or "slack_app_token" in update_data:
             self._check_slack_fields(
                 bot.platform,

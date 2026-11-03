@@ -173,6 +173,8 @@ export const qk = {
     detail: (botId: string) => ["channel-bots", botId] as const,
     /** The Teams channels and group chats a trigger can post into (#1985). */
     teamsConversations: () => ["channel-bots", "teams-conversations"] as const,
+    /** The templates Meta lists for one WhatsApp bot's account (#2076). */
+    whatsappTemplates: (botId: string) => ["channel-bots", botId, "whatsapp-templates"] as const,
   },
   dictation: {
     // Whether the composer can dictate to one agent, and on which provider. Its

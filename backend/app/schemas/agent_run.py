@@ -113,6 +113,16 @@ class AgentRunRead(BaseSchema):
         description="The run after this one in its own conversation. See `prev_run_id`",
     )
     error: str | None = None
+    undelivered_reason: str | None = Field(
+        default=None,
+        description=(
+            "Why the run's answer did not reach the person, when it did not: "
+            "`window_no_template` (a WhatsApp customer's 24-hour window had closed and the "
+            "bot has no late-answer template) or `window_template_failed` (the template "
+            "could not be sent). A plain string, so a value added later never breaks an "
+            "older reader. Null once delivered, and for every run delivered at once"
+        ),
+    )
     conversation_id: UUID | None = Field(
         default=None,
         description=(

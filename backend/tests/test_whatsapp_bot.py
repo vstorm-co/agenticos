@@ -11,13 +11,15 @@ import uuid
 from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import httpx
 import pytest
 from pydantic import ValidationError
 
 from app.core.config import settings
-from app.core.exceptions import BadRequestError
+from app.core.exceptions import BadRequestError, ExternalServiceError, NotFoundError
 from app.core.vault import VaultScope, unseal
 from app.db.models.channel_bot import ChannelBot
+from app.schemas.agent_run import AgentRunRead
 from app.schemas.channel_bot import ChannelBotCreate, ChannelBotRead, ChannelBotUpdate
 from app.services.channel_bot import (
     ChannelBotService,
@@ -26,7 +28,14 @@ from app.services.channel_bot import (
     unseal_webhook_secret,
     unseal_whatsapp_verify_token,
 )
-from app.services.channels.whatsapp_graph import WhatsAppCredentials
+from app.services.channels.whatsapp_graph import (
+    WhatsAppCredentials,
+    WhatsAppGraph,
+    WhatsAppGraphError,
+    WhatsAppTokenRefused,
+)
+from app.services.channels.whatsapp_templates import LateTemplate, to_stored
+from tests.test_run_history_schema import _row as _run_row
 
 pytestmark = pytest.mark.anyio
 
@@ -383,3 +392,278 @@ def test_a_whatsapp_bot_reads_back_its_callback_url_and_no_other_does():
     assert whatsapp.whatsapp_callback_url is not None
     assert whatsapp.whatsapp_callback_url.endswith(f"/api/v1/whatsapp/{whatsapp.id}/webhook")
     assert read("slack").whatsapp_callback_url is None
+
+
+TEMPLATE = LateTemplate(
+    name="late_answer", language="en_US", body="Hello, your answer is ready: {{1}} - thanks"
+)
+
+
+def _listing_entry(name: str, body: str, **overrides: object) -> dict:
+    return {
+        "name": name,
+        "language": "en_US",
+        "status": "APPROVED",
+        "category": "UTILITY",
+        "components": [{"type": "BODY", "text": body}],
+        **overrides,
+    }
+
+
+LISTING = [
+    _listing_entry("late_answer", TEMPLATE.body),
+    _listing_entry("marketing", TEMPLATE.body, category="MARKETING"),
+    _listing_entry("two_variables", "{{1}} and {{2}}"),
+]
+
+
+def _sealed_row(platform: str = "whatsapp") -> ChannelBot:
+    bot = _row(platform)
+    bot.token_encrypted = seal_bot_token(
+        ACCESS_TOKEN, organization_id=bot.organization_id
+    ).ciphertext
+    bot.whatsapp_phone_number_id = PHONE_NUMBER_ID
+    bot.whatsapp_account_id = ACCOUNT_ID
+    return bot
+
+
+async def _templates(bot: ChannelBot, listing: object) -> tuple[list[LateTemplate], MagicMock]:
+    """What `whatsapp_templates` returns for a bot, with Meta's listing patched."""
+    graph = MagicMock()
+    graph.aclose = AsyncMock()
+    if isinstance(listing, Exception):
+        graph.message_templates = AsyncMock(side_effect=listing)
+    else:
+        graph.message_templates = AsyncMock(return_value=listing)
+    with (
+        patch("app.services.channel_bot.channel_bot_repo.get_for_org", AsyncMock(return_value=bot)),
+        patch("app.services.channel_bot.WhatsAppGraph", return_value=graph),
+    ):
+        service = ChannelBotService(MagicMock(), organization_id=bot.organization_id)
+        try:
+            return await service.whatsapp_templates(bot.id), graph
+        finally:
+            # The client is closed whenever it was used, including when Meta refused.
+            assert graph.aclose.await_count == graph.message_templates.await_count
+
+
+async def _chosen(
+    bot: ChannelBot, choice: object, listing: object = None
+) -> tuple[dict, MagicMock]:
+    graph = MagicMock()
+    graph.aclose = AsyncMock()
+    graph.message_templates = AsyncMock(return_value=LISTING if listing is None else listing)
+    with (
+        patch("app.services.channel_bot.WhatsAppGraph", return_value=graph),
+    ):
+        data = await _updated(bot, whatsapp_late_template=choice)
+    return data, graph
+
+
+class TestTheLateAnswerTemplate:
+    async def test_the_template_list_holds_only_usable_templates(self):
+        templates, graph = await _templates(_sealed_row(), LISTING)
+
+        assert templates == [TEMPLATE]
+        creds = graph.message_templates.await_args.args[0]
+        assert creds.phone_number_id == PHONE_NUMBER_ID
+        assert graph.message_templates.await_args.kwargs == {"account_id": ACCOUNT_ID}
+
+    @pytest.mark.security
+    @pytest.mark.parametrize(
+        "failure, code",
+        [(WhatsAppTokenRefused(code=190), 190), (WhatsAppGraphError(code=100), 100)],
+    )
+    async def test_meta_refusing_the_listing_is_a_503_that_names_no_token(self, failure, code):
+        with pytest.raises(ExternalServiceError) as refused:
+            await _templates(_sealed_row(), failure)
+
+        assert refused.value.status_code == 503
+        assert refused.value.details == {"code": code}
+        assert ACCESS_TOKEN not in f"{refused.value.message}{refused.value.details}"
+
+    async def test_only_a_whatsapp_bot_lists_templates(self):
+        with pytest.raises(BadRequestError) as refused:
+            await _templates(_sealed_row("telegram"), LISTING)
+
+        assert refused.value.details["fields"][0]["field"] == "bot_id"
+
+    async def test_a_whatsapp_bot_without_an_account_lists_nothing(self):
+        bot = _sealed_row()
+        bot.whatsapp_account_id = None
+
+        with pytest.raises(BadRequestError):
+            await _templates(bot, LISTING)
+
+    async def test_choosing_a_template_stores_what_meta_lists(self):
+        data, _ = await _chosen(_sealed_row(), {"name": "late_answer", "language": "en_US"})
+
+        assert data["whatsapp_late_template"] == to_stored(TEMPLATE)
+
+    async def test_a_template_meta_does_not_list_as_usable_is_refused(self):
+        for choice in (
+            {"name": "marketing", "language": "en_US"},
+            {"name": "late_answer", "language": "pl"},
+            {"name": "unknown", "language": "en_US"},
+        ):
+            with pytest.raises(BadRequestError) as refused:
+                await _chosen(_sealed_row(), choice)
+
+            assert refused.value.details["fields"][0]["field"] == "whatsapp_late_template"
+
+    async def test_a_null_clears_the_template_without_asking_meta(self):
+        data, graph = await _chosen(_sealed_row(), None)
+
+        assert data == {"whatsapp_late_template": None}
+        graph.message_templates.assert_not_awaited()
+
+    async def test_an_update_without_the_template_leaves_it_alone(self):
+        graph = MagicMock()
+        graph.message_templates = AsyncMock()
+        with patch("app.services.channel_bot.WhatsAppGraph", return_value=graph):
+            data = await _updated(_sealed_row(), name="Renamed")
+
+        assert data == {"name": "Renamed"}
+        graph.message_templates.assert_not_awaited()
+
+    @pytest.mark.parametrize("choice", [None, {"name": "late_answer", "language": "en_US"}])
+    async def test_another_platform_may_not_carry_a_template(self, choice):
+        with pytest.raises(BadRequestError) as refused:
+            await _updated(_row("telegram"), whatsapp_late_template=choice)
+
+        assert refused.value.details["fields"][0]["field"] == "whatsapp_late_template"
+
+    @pytest.mark.parametrize(
+        "stored, expected",
+        [
+            (to_stored(TEMPLATE), TEMPLATE.__dict__),
+            (None, None),
+            ({"name": "late_answer", "language": "en_US", "body": "no variable"}, None),
+            ("garbage", None),
+        ],
+    )
+    async def test_a_whatsapp_bot_reads_back_its_template_and_none_when_unset_or_malformed(
+        self, stored, expected
+    ):
+        bot = _row()
+        bot.whatsapp_late_template = stored
+
+        read = ChannelBotRead.model_validate(bot, from_attributes=True)
+
+        assert (
+            read.whatsapp_late_template and read.whatsapp_late_template.model_dump()
+        ) == expected
+
+    async def test_a_run_reads_back_why_its_answer_was_not_delivered(self):
+        run = _run_row(undelivered_reason="window_no_template")
+
+        assert AgentRunRead.model_validate(run).undelivered_reason == "window_no_template"
+        assert AgentRunRead.model_validate(_run_row()).undelivered_reason is None
+
+
+class TestTheTemplateIsCheckedBeforeTheRowIsLocked:
+    async def test_meta_is_asked_before_the_bot_row_is_locked(self):
+        bot = _sealed_row()
+        calls: list[str] = []
+
+        async def get_for_org(
+            *_args: object, for_update: bool = False, **_kw: object
+        ) -> ChannelBot:
+            calls.append("locked read" if for_update else "read")
+            return bot
+
+        async def listing(*_args: object, **_kw: object) -> list[dict]:
+            calls.append("meta")
+            return LISTING
+
+        graph = MagicMock()
+        graph.aclose = AsyncMock()
+        graph.message_templates = listing
+        with (
+            patch("app.services.channel_bot.channel_bot_repo.get_for_org", get_for_org),
+            patch("app.services.channel_bot.channel_bot_repo.update", AsyncMock(return_value=bot)),
+            patch("app.services.channel_bot.WhatsAppGraph", return_value=graph),
+            patch(
+                "app.services.channel_bot.spawn_after_commit",
+                side_effect=lambda _db, coro, **_: coro.close(),
+            ),
+        ):
+            service = ChannelBotService(MagicMock(), organization_id=bot.organization_id)
+            await service.update(
+                bot.id,
+                ChannelBotUpdate(
+                    whatsapp_late_template={"name": "late_answer", "language": "en_US"}
+                ),
+            )
+
+        assert calls == ["read", "meta", "locked read"]
+
+    async def test_the_choice_is_checked_against_the_credentials_the_same_save_sets(self):
+        bot = _sealed_row()
+        graph = MagicMock()
+        graph.aclose = AsyncMock()
+        graph.message_templates = AsyncMock(return_value=LISTING)
+        with patch("app.services.channel_bot.WhatsAppGraph", return_value=graph):
+            await _updated(
+                bot,
+                whatsapp_late_template={"name": "late_answer", "language": "en_US"},
+                token="EAAG-a-new-access-token",
+                whatsapp_account_id="999111",
+                whatsapp_phone_number_id="555222",
+            )
+
+        creds = graph.message_templates.await_args.args[0]
+        assert creds.access_token == "EAAG-a-new-access-token"
+        assert creds.phone_number_id == "555222"
+        assert graph.message_templates.await_args.kwargs == {"account_id": "999111"}
+
+    async def test_a_foreign_bot_lists_no_templates(self):
+        graph = MagicMock()
+        with (
+            patch(
+                "app.services.channel_bot.channel_bot_repo.get_for_org",
+                AsyncMock(return_value=None),
+            ),
+            patch("app.services.channel_bot.WhatsAppGraph", return_value=graph),
+            pytest.raises(NotFoundError),
+        ):
+            await ChannelBotService(MagicMock(), organization_id=uuid.uuid4()).whatsapp_templates(
+                uuid.uuid4()
+            )
+
+        graph.assert_not_called()
+
+    @pytest.mark.security
+    @pytest.mark.parametrize("status, code", [(401, 190), (400, 100)])
+    async def test_nothing_meta_says_reaches_the_refusal(self, status, code):
+        """Meta's own error text carries the token and a phone number: none of it may escape."""
+
+        def answer(_request: httpx.Request) -> httpx.Response:
+            return httpx.Response(
+                status,
+                json={
+                    "error": {
+                        "code": code,
+                        "message": f"Invalid token {ACCESS_TOKEN} for +48123456789",
+                    }
+                },
+            )
+
+        client = httpx.AsyncClient(transport=httpx.MockTransport(answer))
+        bot = _sealed_row()
+        with (
+            patch(
+                "app.services.channel_bot.channel_bot_repo.get_for_org", AsyncMock(return_value=bot)
+            ),
+            patch("app.services.channel_bot.WhatsAppGraph", return_value=WhatsAppGraph(client)),
+            pytest.raises(ExternalServiceError) as refused,
+        ):
+            await ChannelBotService(
+                MagicMock(), organization_id=bot.organization_id
+            ).whatsapp_templates(bot.id)
+        await client.aclose()
+
+        text = f"{refused.value.message}{refused.value.details}{refused.value.__cause__}"
+        assert refused.value.details == {"code": code}
+        assert ACCESS_TOKEN not in text
+        assert "+48123456789" not in text

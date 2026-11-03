@@ -49,6 +49,11 @@ export interface AgentRun {
   cost_is_partial: boolean;
   /** Tool calls whose malformed JSON arguments were repaired rather than retried. */
   tool_args_repaired?: number;
+  /**
+   * Why the answer did not reach the person: `window_no_template` or
+   * `window_template_failed` today. A string, so a later value is still readable.
+   */
+  undelivered_reason?: string | null;
   logfire_trace_id: string | null;
   /**
    * Where this run's trace can be read, resolved server-side. Sent on the

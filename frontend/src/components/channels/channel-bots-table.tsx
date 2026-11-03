@@ -120,6 +120,11 @@ export function ChannelBotsTable({
             <div className={cn("flex flex-col items-start gap-1", paused(bot))}>
               <Badge variant="outline">{bot.webhook_mode ? t("webhook") : t("polling")}</Badge>
               {missing && <Badge variant="secondary">{t(missing)}</Badge>}
+              {/* A live WhatsApp bot with no template holds any answer that
+                  is ready after the customer's 24-hour window (#2076). */}
+              {bot.is_active && bot.platform === "whatsapp" && !bot.whatsapp_late_template && (
+                <Badge variant="secondary">{t("whatsappNoLateTemplate")}</Badge>
+              )}
               {/* Only "down", and only on a live bot. A paused one has no
                   connection by design and already says so on the next line, and
                   an unknown state is not a fault to report. A WhatsApp bot has

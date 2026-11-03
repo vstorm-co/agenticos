@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import { botPatch, EditChannelDialog, type ChannelBotDraft } from "./edit-channel-dialog";
@@ -8,6 +9,11 @@ vi.mock("@/hooks/use-channel-bots", () => ({
   useCopySlackManifest: () => ({ mutate: vi.fn(), isPending: false }),
   useDownloadTeamsPackage: () => ({ mutate: vi.fn(), isPending: false }),
   useChannelBot: () => null,
+  useWhatsAppTemplates: () => ({
+    data: [{ name: "late_answer", language: "en_US", body: "Answer: {{1}} - thanks" }],
+    isLoading: false,
+    isError: false,
+  }),
 }));
 vi.mock("@/components/channels/transcription-fields", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/components/channels/transcription-fields")>()),
@@ -70,6 +76,7 @@ function draft(overrides: Partial<ChannelBotDraft> = {}): ChannelBotDraft {
     whatsappPhoneNumberId: "106540352242922",
     whatsappAccountId: "102290129340398",
     whatsappVerifyToken: "",
+    whatsappLateTemplate: null,
     webhookMode: true,
     respondToBroadcasts: false,
     answerStyle: {
@@ -169,6 +176,55 @@ describe("setting up a WhatsApp bot (#2076)", () => {
     expect(reason.parentElement).toBe(label.parentElement);
     expect(reason.tagName).toBe("SPAN");
     expect(reason).toHaveClass("block");
+  });
+});
+
+describe("the late-answer template (#2076)", () => {
+  const LATE = { name: "late_answer", language: "en_US" };
+
+  it("warns when no late-answer template is set", () => {
+    show(bot());
+
+    expect(screen.getByRole("status")).toHaveTextContent(/no late-answer template is set/i);
+  });
+
+  it("does not warn once one is set", () => {
+    show(bot({ whatsapp_late_template: { ...LATE, body: "Answer: {{1}} - thanks" } }));
+
+    expect(screen.queryByText(/no late-answer template is set/i)).toBeNull();
+  });
+
+  it("saves the template picked in the dialog", async () => {
+    const onSubmit = show(bot());
+    await userEvent.click(screen.getByLabelText("Late-answer template"));
+    await userEvent.click(screen.getByRole("option", { name: "late_answer · en_US" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(onSubmit).toHaveBeenCalledWith("b1", { whatsapp_late_template: LATE });
+  });
+
+  it("sends the chosen late-answer template, and null to clear it", () => {
+    const stored = bot({ whatsapp_late_template: { ...LATE, body: "x {{1}}" } });
+
+    expect(botPatch(bot(), draft({ whatsappLateTemplate: LATE }))).toEqual({
+      whatsapp_late_template: LATE,
+    });
+    expect(botPatch(stored, draft({ whatsappLateTemplate: null }))).toEqual({
+      whatsapp_late_template: null,
+    });
+  });
+
+  it("sends no template when it did not change", () => {
+    const stored = bot({ whatsapp_late_template: { ...LATE, body: "x {{1}}" } });
+
+    expect(botPatch(stored, draft({ whatsappLateTemplate: LATE }))).toEqual({});
+    expect(botPatch(bot(), draft({ whatsappLateTemplate: null }))).toEqual({});
+  });
+
+  it("never sends a template for another platform", () => {
+    const slack = bot({ platform: "slack", webhook_mode: false });
+
+    expect(botPatch(slack, draft({ webhookMode: false, whatsappLateTemplate: LATE }))).toEqual({});
   });
 });
 
