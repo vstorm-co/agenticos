@@ -60,7 +60,12 @@ class RunSkillUse(Base):
     )
     # The stored version the run was served. Null where none is known: a run
     # recorded before skills had versions, or a candidate body (`projected`).
-    skill_version_id: Mapped[uuid.UUID | None] = mapped_column(PG_UUID(as_uuid=True), nullable=True)
+    skill_version_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("skill_versions.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
     # The body was a proposed one an eval served in place of the stored skill.
     projected: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, server_default=text("false")
