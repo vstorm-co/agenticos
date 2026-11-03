@@ -101,6 +101,12 @@ describe("TriggerFormDialog with no agent in context", () => {
     // offers a target the create would refuse.
     expect(screen.queryByRole("option", { name: /Restricted/ })).toBeNull();
     await user.click(await screen.findByRole("option", { name: /Nightly/ }));
+    await user.click(
+      within(dialog).getByRole("combobox", { name: "Pause after repeated failures" }),
+    );
+    await user.click(
+      await screen.findByRole("option", { name: "Do not pause for repeated execution failures" }),
+    );
     fireEvent.change(within(dialog).getByLabelText("Ends at (device time)"), {
       target: { value: "2099-01-01T12:00" },
     });
@@ -114,6 +120,7 @@ describe("TriggerFormDialog with no agent in context", () => {
       expect.objectContaining({
         prompt: "Do it",
         trigger_type: "schedule",
+        max_failures: null,
         ends_at: new Date("2099-01-01T12:00").toISOString(),
       }),
     );

@@ -322,6 +322,7 @@ from app.services.organization import OrganizationService
 from app.services.organization_secret import OrganizationSecretService
 from app.services.project import ProjectService
 from app.services.routine_authority import MCP_SOURCES, RoutineAuthority
+from app.services.routine_health import RoutineHealthService
 from app.services.run_heartbeat import run_heartbeat
 from app.services.sandbox_workspace import (
     SANDBOX_CAPABILITY_ID,
@@ -5493,6 +5494,7 @@ class AgentRunnerService:
         # and recorded nothing is the hole a cancellation would otherwise open.
         await self._write_delegations(prepared)
         await self._record_manifest(prepared)
+        await RoutineHealthService(self.db).run_result(finished)
         await self._queue_memory_extraction(finished, prepared)
         # Guarded, because `finish` is called from a `finally` block: an
         # exception raised while telling somebody about a failed run would

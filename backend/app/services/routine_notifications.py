@@ -46,24 +46,36 @@ async def allowed_channels(
         watch = await watch_repo.get_by_id(db, origin, fresh=True)
         if watch is None or watch.organization_id != organization_id:
             return set()
-        owner, active, selected, end = (
+        owner, active, selected, end, stopped = (
             watch.user_id,
             watch.is_active,
             watch.notification_channels,
             watch.ends_at,
+            watch.auto_stopped_at,
         )
     else:
         trigger = await agent_trigger_repo.get_by_id(db, origin, fresh=True)
         if trigger is None or trigger.organization_id != organization_id:
             return set()
-        owner, active, selected, end = (
+        owner, active, selected, end, stopped = (
             trigger.created_by_user_id,
             trigger.is_active,
             trigger.notification_channels,
             trigger.ends_at,
+            trigger.auto_stopped_at,
         )
     if owner != recipient_user_id:
         return None
-    if not active or (end is not None and end <= datetime.now(UTC)):
+    if end is not None and end <= datetime.now(UTC):
+        return {NotificationChannel.IN_APP}
+    if "routine_auto_stopped_at" in context:
+        if (
+            active
+            or stopped is None
+            or context["routine_auto_stopped_at"] != stopped.isoformat()
+            or context.get("routine_failure_reason") not in ("run", "check")
+        ):
+            return {NotificationChannel.IN_APP}
+    elif not active:
         return {NotificationChannel.IN_APP}
     return channels(read_channels(selected))

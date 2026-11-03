@@ -151,6 +151,16 @@ class OutcomeService:
             )
         cleared = outcome.status != OutcomeStatus.OPEN.value
         cleared_at = datetime.now(UTC) if cleared else None
+        if not cleared and "routine_auto_stopped_at" in (context or {}):
+            # Replace the earlier notice, keeping one actionable Inbox entry
+            # and the same case decision across chat and notification channels.
+            stopped_at = _OBSERVED_AT.validate_python((context or {})["routine_auto_stopped_at"])
+            await outcome_repo.settle_notifications(
+                self.db, outcome_id=outcome.id, at=stopped_at, dismiss=True
+            )
+            await outcome_repo.skip_unsent_deliveries(
+                self.db, outcome_id=outcome.id, reason="superseded by automatic pause"
+            )
         await outcome_repo.link_notification(
             self.db,
             notification_id=notification.id,
@@ -295,8 +305,9 @@ class OutcomeService:
         observed_at: datetime,
         summary: str,
         run_id: UUID | None = None,
+        escalation_at: datetime | None = None,
     ) -> str | None:
-        """One alert per incident; retries and pre-decision events cannot reopen it."""
+        """One incident, with one additional notice when it causes an automatic pause."""
         outcome = await outcome_repo.for_cause(
             self.db,
             organization_id=organization_id,
@@ -304,10 +315,18 @@ class OutcomeService:
             dedupe_key=f"run_failed:{cause}",
         )
         if outcome is None:
-            return f"{cause}:initial"
+            return (
+                f"{cause}:auto-stop:{escalation_at.isoformat()}"
+                if escalation_at is not None
+                else f"{cause}:initial"
+            )
         if outcome.last_observed_at is not None and observed_at <= outcome.last_observed_at:
             return None
         if outcome.status != OutcomeStatus.RESOLVED.value:
+            if escalation_at is not None and outcome.status == OutcomeStatus.OPEN.value:
+                # The notification links to the existing case. Record its new
+                # observation only when that notification is successfully written.
+                return f"{cause}:auto-stop:{escalation_at.isoformat()}"
             await outcome_repo.observe_failure(
                 self.db, outcome=outcome, at=observed_at, run_id=run_id, summary=summary
             )

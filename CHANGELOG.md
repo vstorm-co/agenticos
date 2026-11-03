@@ -21,6 +21,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Changed
 
+- **Breaking:** routines and watches now pause after three consecutive unsuccessful executions by default. Owners can choose 1–20 or disable this limit; waiting and delivery errors do not count. Acknowledgement does not reset health. Resume after correcting the issue to start a fresh window. Migration `0275_routine_health.py` requires API/workers to be updated together.
+
 - **Breaking:** local routines require native grants bound to their routine, owner, organization, device, folder and operation limits. Create paused, confirm on the desktop and then activate. Offline activations wait durably without model calls; changed authority cancels old work and three failed pre-admission dispatches stop the routine. Update API, workers and desktop together and review legacy local routines.
 
 - **Breaking:** private notification routes now support Slack, Telegram, Mattermost, Microsoft Teams and SMS alongside email/push. Explicit personal opt-in is required per organization; account relinking or bot credential/server replacement invalidates the route. Unconfirmed chat sends use one durable attempt; explicit Slack HTTP 429 refusals may retry after the requested delay with a five-claim bound. Slack notifications use plain-text blocks linked to the shared case. Drain workers and update API/workers together before using new channel selections.

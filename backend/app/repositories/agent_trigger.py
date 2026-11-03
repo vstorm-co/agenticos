@@ -229,6 +229,7 @@ async def create(
     answer_to: str = "run_log",
     delivery_conversation_id: UUID | None = None,
     ends_at: datetime | None = None,
+    max_failures: int | None = 3,
     notification_channels: Sequence[str] | None = None,
     monthly_budget_usd: Decimal | None = None,
     pinned_version_id: UUID | None = None,
@@ -236,6 +237,7 @@ async def create(
 ) -> AgentTrigger:
     trigger = AgentTrigger(
         is_active=is_active,
+        max_failures=max_failures,
         organization_id=organization_id,
         agent_id=agent_id,
         created_by_user_id=created_by_user_id,

@@ -117,6 +117,17 @@ beforeEach(() => {
 });
 
 describe("WatchDialog", () => {
+  it("persists an explicit disabled failure policy", async () => {
+    render(<WatchDialog open onOpenChange={vi.fn()} watch={watch()} />);
+    await userEvent.click(screen.getByRole("combobox", { name: "Pause after repeated failures" }));
+    await userEvent.click(
+      await screen.findByRole("option", { name: "Do not pause for repeated execution failures" }),
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(state.update).toHaveBeenCalledWith(
+      expect.objectContaining({ changes: expect.objectContaining({ max_failures: null }) }),
+    );
+  });
   it("saves an explicit no-change report and app-only delivery together", async () => {
     render(<WatchDialog open onOpenChange={vi.fn()} watch={watch()} />);
     await userEvent.click(screen.getByRole("combobox", { name: "When to report" }));

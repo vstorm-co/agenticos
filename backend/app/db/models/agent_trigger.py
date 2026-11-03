@@ -214,6 +214,14 @@ class AgentTrigger(Base, TimestampMixin):
     # false when a creator loses access to the agent, so a schedule nobody can run
     # stops rather than retrying against a wall for ever.
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    max_failures: Mapped[int | None] = mapped_column(
+        Integer().evaluates_none(), nullable=True, default=3, server_default=text("3")
+    )
+    consecutive_failures: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default=text("0")
+    )
+    health_reset_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    auto_stopped_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     # Whether a fire acts as its creator - their memory and their own MCP
     # connections - rather than as an authority nobody is behind (#2027). Only the
@@ -423,6 +431,10 @@ class AgentTrigger(Base, TimestampMixin):
     # schema from the models, so a constraint stated only in the migration would
     # be absent from exactly the tests written to prove it rejects a row.
     __table_args__ = (
+        CheckConstraint(
+            "max_failures IS NULL OR max_failures BETWEEN 1 AND 20", name="ck_routine_max_failures"
+        ),
+        CheckConstraint("consecutive_failures BETWEEN 0 AND 20", name="ck_routine_failure_count"),
         Index(
             "ix_agent_triggers_pending_end",
             "ends_at",

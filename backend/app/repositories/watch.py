@@ -24,6 +24,7 @@ async def create(
     urgent: bool,
     interval_minutes: int,
     next_run_at: datetime,
+    max_failures: int | None = 3,
     notification_channels: Sequence[str] | None = None,
     report_mode: str = "changes",
     agent_id: UUID | None = None,
@@ -34,6 +35,7 @@ async def create(
     ends_at: datetime | None = None,
 ) -> Watch:
     watch = Watch(
+        max_failures=max_failures,
         organization_id=organization_id,
         user_id=user_id,
         connection_id=connection_id,

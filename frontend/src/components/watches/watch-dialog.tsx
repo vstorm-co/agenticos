@@ -1,5 +1,6 @@
 "use client";
 
+import { FailurePolicyField } from "@/components/triggers/failure-policy-field";
 import { NotificationChannelsField } from "@/components/triggers/notification-channels-field";
 import type { RoutineNotificationChannel, WatchReportMode } from "@/types/routines";
 import { useState } from "react";
@@ -117,6 +118,9 @@ export function WatchDialog({
   const [endTouched, setEndTouched] = useState(false);
   const [invalidEnd, setInvalidEnd] = useState(false);
   const [versionValid, setVersionValid] = useState(true);
+  const [maxFailures, setMaxFailures] = useState<number | null>(
+    watch?.max_failures === undefined ? 3 : watch.max_failures,
+  );
   const [notificationChannels, setNotificationChannels] = useState<
     RoutineNotificationChannel[] | null
   >(watch?.notification_channels ?? null);
@@ -163,6 +167,9 @@ export function WatchDialog({
         await update({
           id: watch.id,
           changes: {
+            ...(maxFailures !== (watch.max_failures === undefined ? 3 : watch.max_failures)
+              ? { max_failures: maxFailures }
+              : {}),
             ...(reportMode !== (watch.report_mode ?? "changes") ? { report_mode: reportMode } : {}),
             ...(JSON.stringify(notificationChannels) !==
             JSON.stringify(watch.notification_channels ?? null)
@@ -182,6 +189,7 @@ export function WatchDialog({
         });
       } else {
         await create({
+          ...(maxFailures !== 3 ? { max_failures: maxFailures } : {}),
           ...(reportMode !== "changes" ? { report_mode: reportMode } : {}),
           ...(notificationChannels !== null ? { notification_channels: notificationChannels } : {}),
           agent_id: draft.agentId,
@@ -385,6 +393,7 @@ export function WatchDialog({
               </SelectContent>
             </Select>
           </FormField>
+          <FailurePolicyField value={maxFailures} onChange={setMaxFailures} />
           <NotificationChannelsField
             value={notificationChannels}
             onChange={setNotificationChannels}

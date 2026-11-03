@@ -7,6 +7,7 @@ import { useTranslations } from "next-intl";
 import { AgentAvatar } from "@/components/agents/agent-avatar";
 import { BrandIcon, isBrandName } from "@/components/icons/brand-icon";
 import { EventSourceMark } from "@/components/triggers/event-source-mark";
+import { RoutineAutoPause } from "@/components/triggers/failure-policy-field";
 import { TriggerFormDialog } from "@/components/triggers/trigger-form-dialog";
 import { TriggerRunsSheet } from "@/components/triggers/trigger-runs-view";
 import { TriggerSummary } from "@/components/triggers/trigger-summary";
@@ -143,7 +144,10 @@ export function TriggerRow({ trigger, showAgent = false }: TriggerRowProps) {
           {t("local.waitingDevice", { count: trigger.waiting_device_count ?? 0 })}
         </Badge>
       )}
-      {!trigger.is_active && <Badge variant="secondary">{t("paused")}</Badge>}
+      <RoutineAutoPause stoppedAt={trigger.auto_stopped_at} count={trigger.consecutive_failures} />
+      {!trigger.is_active && !trigger.auto_stopped_at && (
+        <Badge variant="secondary">{t("paused")}</Badge>
+      )}
       {trigger.is_active && trigger.paused_for_budget && (
         <Badge variant="secondary">{t("pausedBudget")}</Badge>
       )}

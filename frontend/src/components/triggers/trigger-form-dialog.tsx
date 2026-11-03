@@ -48,6 +48,7 @@ import {
 } from "@/components/triggers/cadence-choices";
 import { EndsAtField, endInput, endInstant } from "@/components/triggers/ends-at-field";
 import { VersionField } from "@/components/triggers/version-field";
+import { FailurePolicyField } from "@/components/triggers/failure-policy-field";
 import { NotificationChannelsField } from "@/components/triggers/notification-channels-field";
 import type { RoutineNotificationChannel } from "@/types/routines";
 import { AnswerToField } from "@/components/triggers/answer-to-field";
@@ -258,6 +259,9 @@ export function TriggerFormDialog({
   const [teamsPost, setTeamsPost] = useState(trigger?.teams_conversation_id ?? NO_TEAMS_POST);
   const [budget, setBudget] = useState(
     trigger?.monthly_budget_usd != null ? String(Number(trigger.monthly_budget_usd)) : "",
+  );
+  const [maxFailures, setMaxFailures] = useState<number | null>(
+    trigger?.max_failures === undefined ? 3 : trigger.max_failures,
   );
   const [notificationChannels, setNotificationChannels] = useState<
     RoutineNotificationChannel[] | null
@@ -489,6 +493,7 @@ export function TriggerFormDialog({
   function buildCreate(): TriggerCreate {
     const base = {
       prompt,
+      ...(maxFailures !== 3 ? { max_failures: maxFailures } : {}),
       ...(notificationChannels !== null ? { notification_channels: notificationChannels } : {}),
       name: name.trim() || null,
       trigger_type: type,
@@ -575,6 +580,8 @@ export function TriggerFormDialog({
         // it is sent, so echoing `environment_id` back on a prompt-only edit
         // would overwrite an environment somebody rebound in between.
         const patch: TriggerUpdate = {};
+        if (maxFailures !== (trigger.max_failures === undefined ? 3 : trigger.max_failures))
+          patch.max_failures = maxFailures;
         if (prompt !== trigger.prompt) patch.prompt = prompt;
         const nextName = name.trim() || null;
         if (nextName !== (trigger.name ?? null)) patch.name = nextName;
@@ -894,6 +901,7 @@ export function TriggerFormDialog({
             <TeamsPostField value={teamsPost} onChange={setTeamsPost} />
 
             <AnswerToField value={answerTo} onChange={setAnswerTo} />
+            <FailurePolicyField value={maxFailures} onChange={setMaxFailures} />
             <NotificationChannelsField
               value={notificationChannels}
               onChange={setNotificationChannels}
@@ -1042,6 +1050,7 @@ export function TriggerFormDialog({
               <TeamsPostField value={teamsPost} onChange={setTeamsPost} />
 
               <AnswerToField value={answerTo} onChange={setAnswerTo} />
+              <FailurePolicyField value={maxFailures} onChange={setMaxFailures} />
               <NotificationChannelsField
                 value={notificationChannels}
                 onChange={setNotificationChannels}

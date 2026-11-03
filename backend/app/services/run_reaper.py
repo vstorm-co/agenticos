@@ -19,6 +19,7 @@ from app.core.config import settings
 from app.repositories import agent_run_repo
 from app.services.change_feed import ChangeEvent, run_event
 from app.services.notifications import NotificationService
+from app.services.routine_health import RoutineHealthService
 
 logger = logging.getLogger(__name__)
 
@@ -82,6 +83,7 @@ class RunReaperService:
             error=_REAPED_ERROR,
         )
         for run in reaped:
+            await RoutineHealthService(self.db).run_result(run)
             logger.warning("stale_run_reaped", extra={"run_id": str(run.id)})
             try:
                 async with self.db.begin_nested():

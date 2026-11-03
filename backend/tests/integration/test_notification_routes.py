@@ -671,3 +671,37 @@ async def test_safe_retry_database_contract_refuses_ambiguous_states(
         delivery.claimed_until = None
     with pytest.raises(IntegrityError):
         await db.flush()
+
+
+async def test_acknowledgement_cancels_a_confirmed_refusal_waiting_for_retry_after(
+    db: AsyncSession,
+) -> None:
+    from app.services.outcome import OutcomeService
+
+    user, org, ctx = await person(db)
+    session, _, _ = await destination(db, user=user, org=org)
+    await NotificationRouteService(db).replace(
+        ctx, NotificationRouteUpdate(channel="slack", session_id=session.id)
+    )
+    (note,) = await NotificationCenterService(db).write(
+        event_type=NotificationEventType.RUN_FAILED,
+        occurrence_id=uuid4().hex,
+        recipients=[user.id],
+        organization_id=org.id,
+        summary="Routine needs attention",
+        context_url="/routines",
+        render_context={"cause": "routine-safe-refusal"},
+    )
+    delivery = await db.scalar(
+        select(NotificationDelivery).where(
+            NotificationDelivery.notification_id == note.id, NotificationDelivery.channel == "slack"
+        )
+    )
+    assert delivery is not None and note.outcome_id is not None
+    delivery.retry_safe = True
+    delivery.claimed_until = datetime.now(UTC) + timedelta(hours=1)
+    delivery.attempts = 1
+    await db.flush()
+    await OutcomeService(db).settle(ctx, note.outcome_id, "acknowledge", via="chat")
+    await db.refresh(delivery)
+    assert delivery.status == "skipped" and not delivery.retry_safe

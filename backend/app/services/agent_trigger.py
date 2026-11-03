@@ -914,6 +914,7 @@ class AgentTriggerService:
             answer_to=data.answer_to,
             delivery_conversation_id=data.delivery_conversation_id,
             ends_at=data.ends_at,
+            max_failures=data.max_failures,
             notification_channels=data.notification_channels,
             monthly_budget_usd=data.monthly_budget_usd,
         )
@@ -1151,6 +1152,12 @@ class AgentTriggerService:
         """
         trigger = await self._owned(ctx, agent_id, trigger_id, for_update=True)
         changes = writable(data, over=AgentTrigger)
+        if "max_failures" in changes or changes.get("is_active") is True:
+            changes["health_reset_at"] = datetime.now(UTC)
+            changes["consecutive_failures"] = 0
+        if "is_active" in changes or "max_failures" in changes:
+            changes["auto_stopped_at"] = None
+
         self._guard_acting_as_creator(ctx, trigger, changes)
         self._guard_local_target(ctx, trigger, changes, data.local_target)
 

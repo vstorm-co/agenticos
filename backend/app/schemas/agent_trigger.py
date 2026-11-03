@@ -445,6 +445,13 @@ class TriggerCreate(BaseSchema):
     stored or returned in the clear.
     """
 
+    max_failures: int | None = Field(
+        default=3,
+        ge=1,
+        le=20,
+        description="Pause after this many consecutive unsuccessful executions; null disables this limit. Waiting and delivery failures do not count.",
+    )
+
     is_active: bool = Field(
         default=True, description="Create paused while configuring device consent."
     )
@@ -675,6 +682,13 @@ class TriggerUpdate(BaseSchema):
     shape CHECK 500.
     """
 
+    max_failures: int | None = Field(
+        default=None,
+        ge=1,
+        le=20,
+        description="Pause after this many consecutive unsuccessful executions; null disables this limit. Waiting and delivery failures do not count.",
+    )
+
     prompt: str | None = Field(default=None, min_length=1, max_length=10000)
     name: str | None = Field(default=None, max_length=120)
     schedule_kind: Literal["interval", "cron"] | None = None
@@ -768,6 +782,14 @@ class TriggerUpdate(BaseSchema):
 
 
 class TriggerRead(BaseSchema, TimestampSchema):
+    max_failures: int | None = Field(
+        default=3,
+        ge=1,
+        le=20,
+        description="Pause after this many consecutive unsuccessful executions; null disables this limit. Waiting and delivery failures do not count.",
+    )
+    consecutive_failures: int = 0
+    auto_stopped_at: datetime | None = None
     id: UUID
     agent_id: UUID
     # Set only on the org-wide listing, where a row is shown away from its agent

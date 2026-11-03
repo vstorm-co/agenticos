@@ -161,8 +161,10 @@ async def settle_notifications(
     return int(result.rowcount)  # ty: ignore[unresolved-attribute]
 
 
-async def skip_unsent_deliveries(db: AsyncSession, *, outcome_id: UUID) -> int:
-    """Cancel the e-mail and push still waiting to go out for this outcome.
+async def skip_unsent_deliveries(
+    db: AsyncSession, *, outcome_id: UUID, reason: str = SETTLED_REASON
+) -> int:
+    """Cancel external deliveries still waiting to go out for this outcome.
 
     A delivery a worker holds right now is left to it: it re-checks the outcome before
     sending, and one already sent cannot be recalled.
@@ -174,12 +176,13 @@ async def skip_unsent_deliveries(db: AsyncSession, *, outcome_id: UUID) -> int:
             or_(
                 NotificationDelivery.claimed_until.is_(None),
                 NotificationDelivery.claimed_until < func.now(),
+                NotificationDelivery.retry_safe.is_(True),
             ),
             NotificationDelivery.notification_id.in_(
                 select(Notification.id).where(Notification.outcome_id == outcome_id)
             ),
         )
-        .values(status=DeliveryStatus.SKIPPED.value, last_error=SETTLED_REASON)
+        .values(status=DeliveryStatus.SKIPPED.value, retry_safe=False, last_error=reason)
     )
     return int(result.rowcount)  # ty: ignore[unresolved-attribute]
 

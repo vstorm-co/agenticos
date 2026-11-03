@@ -402,6 +402,9 @@ class TestChangingOne:
 
         changes = update.await_args.kwargs["changes"]
         assert changes["exclusions"] == ["dependabot"]
+        assert changes["consecutive_failures"] == 0
+        assert changes["auto_stopped_at"] is None
+        assert datetime.now(UTC) - changes["health_reset_at"] < timedelta(minutes=1)
         assert datetime.now(UTC) - changes["next_run_at"] < timedelta(minutes=1)
         assert read.exclusions == ["dependabot"]
 

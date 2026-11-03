@@ -38,6 +38,9 @@ export type EventSource =
   | "zendesk";
 
 export interface Trigger {
+  consecutive_failures?: number;
+  auto_stopped_at?: string | null;
+  max_failures?: number | null;
   notification_channels?: RoutineNotificationChannel[] | null;
   id: string;
   agent_id: string;
@@ -146,6 +149,7 @@ export interface TriggerList {
 export type TriggerAnswerTo = "run_log" | "primary" | "conversation";
 
 export interface TriggerCreate {
+  max_failures?: number | null;
   is_active?: boolean;
   notification_channels?: RoutineNotificationChannel[] | null;
   prompt: string;
@@ -207,6 +211,7 @@ export interface TriggerCreated extends Trigger {
  * is remade by deleting and recreating, the secret by rotating.
  */
 export interface TriggerUpdate {
+  max_failures?: number | null;
   notification_channels?: RoutineNotificationChannel[] | null;
   prompt?: string;
   name?: string | null;

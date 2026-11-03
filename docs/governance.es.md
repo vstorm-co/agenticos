@@ -1,5 +1,5 @@
 ---
-source_sha: "a96b2362cc2c"
+source_sha: "6d1e23fb68bd"
 ---
 
 # Governance { #governance }
@@ -2294,3 +2294,13 @@ Vale la pena decirlo, porque una página de governance da a entender lo contrari
 - [Conceptos](concepts.md) — spec, versión, exposición, run.
 - [Permisos](permissions.md) — quién puede fijar todo esto.
 - [Configuración](configuration.md) — los ajustes a nivel de deployment.
+
+## Pausa automática por fallos repetidos { #routine-health }
+
+Las rutinas y observaciones se pausan por defecto tras **tres comprobaciones fallidas consecutivas**. El formulario permite elegir un límite de 1 a 20 o desactivarlo. Cuentan los fallos del proveedor o de ejecución, las lecturas inválidas y las fuentes inaccesibles. No cuentan la espera de aprobación, un ordenador desconectado ni los fallos de entrega; una comprobación vacía pero verificada como correcta reinicia la serie. Los demás bloqueos de permisos y presupuesto siguen aplicándose aunque se desactive este límite.
+
+Cada activación tiene una única observación persistente. Los reintentos no aumentan el contador y los resultados tardíos se evalúan según el orden de activación. La pausa automática detiene futuras activaciones; una solicitud al modelo ya iniciada puede terminar.
+
+El incidente existente del propietario registra la pausa y su notificación usa las preferencias y rutas compartidas. Un incidente sin confirmar recibe un único aviso de pausa que sustituye su entrada anterior en Inbox. Reanudar o cambiar la política invalida los avisos de pausa pendientes. Confirmar el incidente no reinicia el estado de ejecución ni reanuda la rutina. Tras corregir el problema, reanúdela expresamente para iniciar una nueva ventana de fallos. Cambiar el límite también inicia una ventana nueva.
+
+La lista muestra la pausa automática y el número de fallos. Se conservan como máximo 50 observaciones por rutina, sin cuerpos de fuentes ni errores del proveedor. Se incluyen en la exportación personal con límite de tamaño y se eliminan en cascada con el propietario o la rutina. La migración `0275_routine_health.py` activa el valor predeterminado también para las rutinas existentes: actualice API y workers juntos. Revertir elimina los metadatos y la política, pero conserva la pausa.

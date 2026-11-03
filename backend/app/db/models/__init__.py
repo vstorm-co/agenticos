@@ -80,6 +80,7 @@ from app.db.models.notification_delivery import DeliveryStatus, NotificationDeli
 from app.db.models.notification_preference import NotificationChannelPreference
 from app.db.models.notification_route import NotificationRoute
 from app.db.models.routine_device_wait import RoutineDeviceWait
+from app.db.models.routine_health import RoutineHealthObservation
 from app.db.models.push_subscription import PushSubscription
 from app.db.models.apns_device import ApnsDevice
 from app.db.models.announcement import Announcement
@@ -268,6 +269,7 @@ __all__ = [
     "NotificationChannelPreference",
     "NotificationRoute",
     "RoutineDeviceWait",
+    "RoutineHealthObservation",
     "PushSubscription",
     "ApnsDevice",
     "Announcement",

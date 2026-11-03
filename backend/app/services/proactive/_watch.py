@@ -47,6 +47,7 @@ from app.services.agent_runner import AgentRunnerService
 from app.services.conversation import ConversationService
 from app.services.notifications import NotificationService
 from app.services.outcome import OutcomeService
+from app.services.routine_health import RoutineHealthService
 from app.services.spend import month_start
 from app.services.watches import stopped_by
 
@@ -326,6 +327,9 @@ class WatchLook:
         except AuthorizationError:
             await self._mark_attempt(watch=watch, at=now, status=WatchAttemptStatus.ACCESS_REVOKED)
             return 0
+        await RoutineHealthService(self.db).watch_result(
+            watch, at=now, status=WatchAttemptStatus.COMPLETED
+        )
         current = await watch_repo.mark_ran(self.db, watch=watch, at=now)
         if current:
             await OutcomeService(self.db).resolve_routine_failure(
@@ -360,6 +364,7 @@ class WatchLook:
         run: AgentRun | None = None,
         notify: bool = True,
     ) -> bool:
+        await RoutineHealthService(self.db).watch_result(watch, at=at, status=status, run=run)
         current = await watch_repo.mark_attempt(self.db, watch=watch, at=at, status=status)
         if current and notify:
             await NotificationService(self.db).watch_blocked(watch, status, run=run, observed_at=at)

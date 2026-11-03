@@ -1,5 +1,5 @@
 ---
-source_sha: "a96b2362cc2c"
+source_sha: "6d1e23fb68bd"
 ---
 
 # Governance { #governance }
@@ -2439,3 +2439,13 @@ Es ist wert, gesagt zu werden, weil eine Governance-Seite anderes nahelegt:
 - [Konzepte](concepts.md) - Spec, Version, Exposure, Run.
 - [Berechtigungen](permissions.md) - wer das alles setzen darf.
 - [Konfiguration](configuration.md) - die Einstellungen auf Deployment-Ebene.
+
+## Automatische Pause bei wiederholten Fehlern { #routine-health }
+
+Routinen und Beobachtungen pausieren standardmäßig nach **drei aufeinanderfolgenden erfolglosen Prüfungen**. Im Formular lässt sich ein Limit von 1 bis 20 festlegen oder dieses Limit deaktivieren. Anbieter- und Ausführungsfehler, ungültige Beobachtungsergebnisse und unerreichbare Quellen zählen mit. Warten auf Genehmigung, einen Offline-Computer und Zustellfehler zählen nicht; eine leere, aber verifizierte erfolgreiche Prüfung setzt die Serie zurück. Andere Berechtigungs- und Budgetstopps gelten auch bei deaktiviertem Fehlerlimit.
+
+Jede Aktivierung erhält genau eine dauerhafte Zustandsbeobachtung. Wiederholungen erhöhen den Zähler nicht; verspätete Abschlüsse werden in Aktivierungsreihenfolge ausgewertet. Die automatische Pause stoppt künftige Aktivierungen; eine laufende Modellanfrage kann noch enden.
+
+Der bestehende Vorfall des Eigentümers vermerkt die Pause, seine Benachrichtigung verwendet gemeinsame Einstellungen und gewählte Ziele. Ein unbestätigter Vorfall erhält eine Pausenmeldung, die den früheren Inbox-Eintrag ersetzt. Fortsetzen oder eine Richtlinienänderung macht wartende Pausenmeldungen ungültig. Die Bestätigung des Vorfalls setzt weder den Ausführungszustand zurück noch die Routine fort. Nach der Fehlerbehebung startet ausdrückliches Fortsetzen ein neues Fehlerfenster. Eine Änderung des Limits startet ebenfalls ein neues Fenster.
+
+Die Liste zeigt automatische Pause und Fehlerzahl. Höchstens 50 Beobachtungen pro Routine bleiben gespeichert, ohne Quelltexte oder Anbieterfehler. Sie gehören zum größenbegrenzten persönlichen Datenexport und werden mit Eigentümer oder Routine kaskadierend gelöscht. Migration `0275_routine_health.py` aktiviert den Standard auch für bestehende Routinen: API und Worker gemeinsam aktualisieren. Ein Downgrade entfernt Metadaten und Richtlinie, lässt die Routine jedoch pausiert.

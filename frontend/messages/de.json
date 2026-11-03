@@ -12241,5 +12241,12 @@
     "teams": "Microsoft Teams",
     "sms": "SMS",
     "imessage": "iMessage"
+  },
+  "routineHealth": {
+    "label": "Bei wiederholten Fehlern pausieren",
+    "hint": "Warten auf Genehmigungen und Zustellfehler zählen nicht mit. Fortsetzen beginnt ein neues Fehlerfenster.",
+    "off": "Bei wiederholten Ausführungsfehlern nicht pausieren",
+    "after": "{count, plural, one {Nach # erfolgloser Prüfung} other {Nach # erfolglosen Prüfungen}}",
+    "paused": "{count, plural, one {Nach # erfolgloser Prüfung pausiert} other {Nach # erfolglosen Prüfungen pausiert}}"
   }
 }

@@ -37,6 +37,7 @@ from app.db.models.oauth import OAuthGrant
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.routine_delivery import RoutineDelivery
 from app.db.models.routine_device_wait import RoutineDeviceWait
+from app.db.models.routine_health import RoutineHealthObservation
 from app.db.models.session import Session
 from app.db.models.suggestion import Suggestion
 from app.db.models.user_slash_command import UserSlashCommand
@@ -510,3 +511,22 @@ async def routine_device_wait_export_size(db: AsyncSession, user_id: UUID) -> in
         ).where(RoutineDeviceWait.user_id == user_id)
     )
     return int(size or 0)
+
+
+async def routine_health_of(db: AsyncSession, user_id: UUID) -> list[RoutineHealthObservation]:
+    return list(
+        await db.scalars(
+            select(RoutineHealthObservation)
+            .where(RoutineHealthObservation.user_id == user_id)
+            .order_by(RoutineHealthObservation.activation_at, RoutineHealthObservation.id)
+        )
+    )
+
+
+async def routine_health_export_size(db: AsyncSession, user_id: UUID) -> int:
+    count = await db.scalar(
+        select(func.count())
+        .select_from(RoutineHealthObservation)
+        .where(RoutineHealthObservation.user_id == user_id)
+    )
+    return int(count or 0) * 1024

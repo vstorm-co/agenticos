@@ -12345,5 +12345,12 @@
     "teams": "Microsoft Teams",
     "sms": "SMS",
     "imessage": "iMessage"
+  },
+  "routineHealth": {
+    "label": "Wstrzymaj po kolejnych błędach",
+    "hint": "Oczekiwanie na zgodę i błędy dostarczenia nie zwiększają licznika. Wznowienie rozpoczyna nowe liczenie.",
+    "off": "Nie wstrzymuj po kolejnych błędach wykonania",
+    "after": "Limit nieudanych sprawdzeń: {count}",
+    "paused": "Wstrzymano · nieudane sprawdzenia: {count}"
   }
 }

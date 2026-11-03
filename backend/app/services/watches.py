@@ -81,6 +81,9 @@ def watch_read(
         last_run_at=watch.last_run_at,
         last_attempt_at=watch.last_attempt_at,
         last_attempt_status=watch.last_attempt_status,
+        max_failures=watch.max_failures,
+        consecutive_failures=watch.consecutive_failures or 0,
+        auto_stopped_at=watch.auto_stopped_at,
         waiting=waiting,
         created_at=watch.created_at,
     )
@@ -262,6 +265,7 @@ class WatchService:
             urgent=data.urgent,
             interval_minutes=data.interval_minutes,
             next_run_at=datetime.now(UTC),
+            max_failures=data.max_failures,
             notification_channels=data.notification_channels,
             report_mode=data.report_mode,
             agent_id=data.agent_id,
@@ -277,8 +281,14 @@ class WatchService:
         person = self._person(ctx)
         self._require_personal_consent(ctx)
         organization = await self._organization(ctx)
-        watch = await self._own(ctx, person, watch_id)
+        watch = await self._own(ctx, person, watch_id, for_update=True)
         changes = writable(data, over=Watch, exclude={"review_sources"})
+        if "max_failures" in changes or changes.get("is_active") is True:
+            changes["health_reset_at"] = datetime.now(UTC)
+            changes["consecutive_failures"] = 0
+        if "is_active" in changes or "max_failures" in changes:
+            changes["auto_stopped_at"] = None
+
         connection = await self._own_connection(person, watch.connection_id)
         agent_id = data.agent_id or watch.agent_id
         if agent_id is None and changes.get("is_active") is True:

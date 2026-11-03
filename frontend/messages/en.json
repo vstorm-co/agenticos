@@ -12569,5 +12569,12 @@
     "teams": "Microsoft Teams",
     "sms": "SMS",
     "imessage": "iMessage"
+  },
+  "routineHealth": {
+    "label": "Pause after repeated failures",
+    "hint": "Waiting for approval and delivery failures do not count. Resuming starts a fresh failure window.",
+    "off": "Do not pause for repeated execution failures",
+    "after": "{count, plural, one {After # unsuccessful check} other {After # unsuccessful checks}}",
+    "paused": "{count, plural, one {Paused after # unsuccessful check} other {Paused after # unsuccessful checks}}"
   }
 }

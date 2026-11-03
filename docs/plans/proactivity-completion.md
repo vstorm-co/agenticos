@@ -162,3 +162,28 @@ Still required: workflow/table presets and durable matching
 reply/deadline follow-through; broader stop/escalation policies; decision episodes
 with the actual open Improve PR #2172; Twilio PSTN/contact/quiet-hours/budget/call
 cards; remaining routine-wide source ceilings. Continue in PR #2606, no CI polling.
+
+
+## Automatic pause and escalation — implemented
+
+Migration `0275_routine_health.py` adds owner-configurable execution failure limits
+and bounded activation observations. Root terminal callbacks, stale-run reaping
+and validated watch/source outcomes feed the same policy; parked work and
+delivery failures are excluded. Parent locks plus immutable activation keys keep
+duplicates and out-of-order completion from inflating the streak. Explicit resume
+or a policy change starts a fresh epoch. Pausing updates the existing owner
+incident and the shared notification paths; acknowledgement is not recovery.
+The console exposes limits and automatic-pause state. Observation metadata is
+owner-scoped, included in bounded export and removed by parent/owner cascade.
+Local checks passed: 111 policy/incident/export tests, 136 notification escalation
+and routing tests, 49 runner/create/read checks, 15 explicit resume checks and 29
+console tests. The three new health modules have 100% statement/branch coverage.
+Postgres checks cover concurrent workers, out-of-order completion, bounded
+retention, export, cascades and explicit-null configuration. Automatic pause
+supersedes the earlier Inbox notice for the same case and uses only the current
+pause's opt-in deliveries; acknowledgment suppresses escalation without resetting
+execution health. Safe Slack refusal waits can be cancelled without violating the
+retry-state check. Migration down/up/check has no model drift. Backend lint,
+frontend typing/i18n/ESLint and strict documentation build passed.
+
+Other remaining feature blocks listed above still require implementation.

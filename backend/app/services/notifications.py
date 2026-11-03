@@ -623,6 +623,7 @@ class NotificationService:
         conversation_id: UUID | None = None,
         budget: bool = False,
         external_delivery: bool = True,
+        auto_stopped_at: datetime | None = None,
     ) -> None:
         """Keep continuing failures quiet while their single case remains actionable.
 
@@ -644,6 +645,7 @@ class NotificationService:
             observed_at=observed_at,
             summary=summary,
             run_id=run.id if run is not None else None,
+            escalation_at=auto_stopped_at,
         )
         if occurrence is None:
             return
@@ -662,6 +664,11 @@ class NotificationService:
                 "routine_kind": routine_kind,
                 "routine_failure_reason": reason,
                 "routine_observed_at": observed_at.isoformat(),
+                **(
+                    {"routine_auto_stopped_at": auto_stopped_at.isoformat()}
+                    if auto_stopped_at is not None
+                    else {}
+                ),
                 **(
                     {"routine_failure_owner_id": str(owner_user_id), "routine_budget_result": True}
                     if budget
@@ -703,10 +710,16 @@ class NotificationService:
             )
             return
         detail = details.get(status)
-        if not watch.is_active or detail is None:
+        stopped = watch.auto_stopped_at
+        if stopped is not None and status is WatchAttemptStatus.DELIVERY_UNAVAILABLE:
             return
+        if (not watch.is_active and stopped is None) or detail is None:
+            return
+        if stopped is not None:
+            detail = f"Paused automatically after {watch.consecutive_failures} unsuccessful checks. Review Activity and resume when ready."
         clock = (
-            observed_at
+            stopped
+            or observed_at
             or (run.routine_activation_at or run.started_at if run is not None else None)
             or watch.last_attempt_at
         )
@@ -725,6 +738,7 @@ class NotificationService:
             external_delivery=external_delivery,
             run=run,
             conversation_id=watch.source_conversation_id,
+            auto_stopped_at=stopped,
         )
 
     async def routine_result(
@@ -777,8 +791,10 @@ class NotificationService:
             ):
                 return
             activation = run.routine_activation_at or run.started_at
-            if watch.last_attempt_at is not None and (
-                activation is None or watch.last_attempt_at > activation
+            if (
+                watch.auto_stopped_at is None
+                and watch.last_attempt_at is not None
+                and (activation is None or watch.last_attempt_at > activation)
             ):
                 return
             await self.watch_blocked(
@@ -807,17 +823,19 @@ class NotificationService:
                 routine_kind="trigger",
             )
             return
-        if not trigger.is_active:
+        if not trigger.is_active and trigger.auto_stopped_at is None:
             return
         latest = await agent_run_repo.latest_terminal_for_trigger(
             self.db, organization_id=run.organization_id, trigger_id=trigger.id
         )
-        if latest != run.id:
+        if latest != run.id and trigger.auto_stopped_at is None:
             return
-        clock = run.ended_at or run.started_at
+        clock = trigger.auto_stopped_at or run.ended_at or run.started_at
         if clock is None:
             return
         if run.status == RunStatus.COMPLETED.value:
+            if trigger.auto_stopped_at is not None:
+                return
             await OutcomeService(self.db).resolve_routine_failure(
                 organization_id=run.organization_id,
                 user_id=trigger.created_by_user_id,
@@ -832,6 +850,8 @@ class NotificationService:
             detail = "The run stopped on a spending limit. Review its budget and Activity."
         elif run.status == RunStatus.GUARDRAIL_BLOCKED.value:
             detail = "A guardrail stopped the run. Review Activity and its policy."
+        if trigger.auto_stopped_at is not None:
+            detail = f"Paused automatically after {trigger.consecutive_failures} unsuccessful executions. Review Activity and resume when ready."
         await self.routine_blocked(
             organization_id=run.organization_id,
             owner_user_id=trigger.created_by_user_id,
@@ -845,6 +865,7 @@ class NotificationService:
             external_delivery=trigger.created_by_user_id not in budget_recipients,
             run=run,
             conversation_id=run.conversation_id,
+            auto_stopped_at=trigger.auto_stopped_at,
         )
 
     async def capability_requested(

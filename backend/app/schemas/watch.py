@@ -18,6 +18,12 @@ WatchStopped = Literal["watches_off", "connection_disabled", "needs_agent"]
 
 
 class WatchCreate(BaseSchema):
+    max_failures: int | None = Field(
+        default=3,
+        ge=1,
+        le=20,
+        description="Pause after this many consecutive unsuccessful executions; null disables this limit. Waiting and delivery failures do not count.",
+    )
     notification_channels: list[ExternalNotificationChannel] | None = Field(
         default=None, max_length=8
     )
@@ -52,7 +58,14 @@ class WatchCreate(BaseSchema):
 
 
 class WatchUpdate(BaseSchema):
-    """Partial changes; only the environment, pin and end can be cleared."""
+    """Partial changes; null clears a version/end or disables the failure limit."""
+
+    max_failures: int | None = Field(
+        default=None,
+        ge=1,
+        le=20,
+        description="Pause after this many consecutive unsuccessful executions; null disables this limit. Waiting and delivery failures do not count.",
+    )
 
     notification_channels: list[ExternalNotificationChannel] | None = Field(
         default=None, max_length=8
@@ -105,6 +118,14 @@ class WatchUpdate(BaseSchema):
 
 
 class WatchRead(BaseSchema):
+    max_failures: int | None = Field(
+        default=3,
+        ge=1,
+        le=20,
+        description="Pause after this many consecutive unsuccessful executions; null disables this limit. Waiting and delivery failures do not count.",
+    )
+    consecutive_failures: int = 0
+    auto_stopped_at: datetime | None = None
     notification_channels: list[ExternalNotificationChannel] | None = Field(
         default=None, max_length=8
     )

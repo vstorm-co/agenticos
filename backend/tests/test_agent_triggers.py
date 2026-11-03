@@ -740,6 +740,10 @@ class TestChangingASchedule:
             await service.update(_ctx(), agent.id, trigger.id, TriggerUpdate(is_active=is_active))
         changes = repo.update.call_args.kwargs["update_data"]
         assert changes["is_active"] is is_active
+        assert changes["auto_stopped_at"] is None
+        assert ("health_reset_at" in changes) is is_active
+        if is_active:
+            assert changes["consecutive_failures"] == 0
         # Resuming a schedule advances its next fire from now; pausing leaves it.
         assert ("next_fire_at" in changes) is is_active
         assert audit.call_args.kwargs["action"] == action

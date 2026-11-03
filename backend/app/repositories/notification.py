@@ -481,6 +481,7 @@ async def reap_exhausted_deliveries(
         )
         .values(
             status=DeliveryStatus.FAILED.value,
+            retry_safe=False,
             last_error="exhausted without a recorded outcome",
         )
         .returning(NotificationDelivery.id)

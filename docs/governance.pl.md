@@ -1,5 +1,5 @@
 ---
-source_sha: "a96b2362cc2c"
+source_sha: "6d1e23fb68bd"
 ---
 
 # Governance { #governance }
@@ -2290,3 +2290,13 @@ Warto to powiedzieć, bo strona o governance sugeruje coś innego:
 - [Koncepcje](concepts.md) — spec, wersja, ekspozycja, run.
 - [Uprawnienia](permissions.md) — kto może cokolwiek z tego ustawić.
 - [Konfiguracja](configuration.md) — ustawienia na poziomie wdrożenia.
+
+## Automatyczne wstrzymanie po kolejnych błędach { #routine-health }
+
+Rutyny i obserwacje domyślnie wstrzymują się po **trzech kolejnych nieudanych sprawdzeniach**. W formularzu rutyny ustaw limit od 1 do 20 lub wyłącz ten limit. Liczą się błędy dostawcy i wykonania, nieprawidłowe odczyty obserwacji oraz niedostępne źródła. Oczekiwanie na zgodę, komputer offline i błędy dostarczenia nie zwiększają licznika; puste, ale poprawnie zweryfikowane sprawdzenie zeruje serię. Inne blokady uprawnień i budżetu obowiązują także po wyłączeniu tego limitu.
+
+Każda aktywacja ma jeden trwały zapis stanu. Ponowienia nie zwiększają licznika, a opóźnione zakończenia są oceniane według kolejności aktywacji. Automatyczne wstrzymanie zatrzymuje przyszłe aktywacje; trwające żądanie do modelu może się zakończyć.
+
+Istniejąca sprawa właściciela zapisuje wstrzymanie, a powiadomienie korzysta ze wspólnych preferencji i wybranych tras. Niepotwierdzona sprawa otrzymuje jedno zawiadomienie o wstrzymaniu, zastępujące wcześniejszy wpis w Inboxie. Wznowienie lub zmiana polityki unieważnia oczekujące zawiadomienia o wstrzymaniu. Potwierdzenie sprawy nie zeruje stanu wykonania ani nie wznawia rutyny. Po naprawieniu problemu jawnie wznów rutynę, aby rozpocząć nowe liczenie. Zmiana limitu błędów również rozpoczyna nowe liczenie.
+
+Lista pokazuje automatyczne wstrzymanie i liczbę błędów. Metadane zachowują najwyżej 50 obserwacji na rutynę, bez treści źródeł i błędów dostawców. Trafiają do ograniczonego rozmiarem eksportu danych właściciela i są usuwane kaskadowo z właścicielem lub rutyną. Migracja `0275_routine_health.py` włącza domyślny limit także dla istniejących rutyn: aktualizuj API i workery razem. Wycofanie migracji usuwa metadane i politykę, zachowując wstrzymanie rutyny.

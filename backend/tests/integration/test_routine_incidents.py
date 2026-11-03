@@ -104,6 +104,104 @@ async def notes(db: AsyncSession) -> list[Notification]:
     )
 
 
+async def test_acknowledging_the_shared_case_does_not_reset_automatic_pause_policy(
+    db: AsyncSession,
+    world: World,
+) -> None:
+    from app.services.routine_health import RoutineHealthService
+
+    health = RoutineHealthService(db)
+    notifications = NotificationService(db)
+    first = await result(db, world, RunStatus.FAILED, 1)
+    # Runs using the publisher fallback still have a routine owner.
+    first.user_id = None
+    await health.run_result(first)
+    await notifications.routine_result(first)
+    (note,) = await notes(db)
+    assert note.outcome_id is not None
+    await OutcomeService(db).settle(world.ctx, note.outcome_id, "acknowledge", via="chat")
+    for tick in (2, 3):
+        failed = await result(db, world, RunStatus.FAILED, tick)
+        await health.run_result(failed)
+        await notifications.routine_result(failed)
+    assert not world.trigger.is_active and world.trigger.consecutive_failures == 3
+    assert world.trigger.auto_stopped_at is not None
+    assert len(await notes(db)) == 1
+    case = await db.get(Outcome, note.outcome_id)
+    assert case is not None and case.status == "acknowledged"
+    assert "Paused automatically" in case.summary
+
+
+@pytest.mark.parametrize("limit", [1, 3])
+async def test_automatic_pause_escalates_the_same_case_and_supersedes_the_old_notice(
+    db: AsyncSession,
+    world: World,
+    limit: int,
+) -> None:
+    from app.db.models.notification_preference import NotificationChannelPreference
+    from app.services.routine_health import RoutineHealthService
+    from app.services.routine_notifications import allowed_channels
+
+    world.trigger.max_failures = limit
+    db.add(
+        NotificationChannelPreference(
+            user_id=world.user.id, event_type="run_failed", channel="email", enabled=True
+        )
+    )
+    await db.flush()
+    health, notifications = RoutineHealthService(db), NotificationService(db)
+    for tick in range(1, limit + 1):
+        failed = await result(db, world, RunStatus.FAILED, tick)
+        await health.run_result(failed)
+        await notifications.routine_result(failed)
+    recorded = await notes(db)
+    assert len(recorded) == (1 if limit == 1 else 2)
+    current = recorded[-1]
+    assert current.outcome_id is not None
+    assert all(note.outcome_id == current.outcome_id for note in recorded)
+    assert "Paused automatically" in current.summary and not world.trigger.is_active
+    assert current.render_context is not None
+    assert (
+        current.render_context["routine_auto_stopped_at"]
+        == world.trigger.auto_stopped_at.isoformat()
+    )
+    assert (
+        await allowed_channels(
+            db,
+            organization_id=world.org.id,
+            recipient_user_id=world.user.id,
+            context=current.render_context,
+        )
+        is None
+    )
+    deliveries = list(
+        await db.scalars(
+            select(NotificationDelivery).where(NotificationDelivery.notification_id == current.id)
+        )
+    )
+    assert any(
+        delivery.channel == "email" and delivery.status == "pending" for delivery in deliveries
+    )
+    if limit > 1:
+        await db.refresh(recorded[0])
+        assert recorded[0].dismissed_at is not None
+        previous = list(
+            await db.scalars(
+                select(NotificationDelivery).where(
+                    NotificationDelivery.notification_id == recorded[0].id
+                )
+            )
+        )
+        assert all(delivery.status == "skipped" for delivery in previous)
+    await notifications.routine_result(failed)
+    assert len(await notes(db)) == len(recorded)
+    await OutcomeService(db).settle(world.ctx, current.outcome_id, "acknowledge", via="chat")
+    for delivery in deliveries:
+        await db.refresh(delivery)
+        assert delivery.status == "skipped"
+    assert not world.trigger.is_active
+
+
 async def test_one_failure_episode_acknowledges_recovers_and_reopens_the_same_case(
     db: AsyncSession,
     world: World,

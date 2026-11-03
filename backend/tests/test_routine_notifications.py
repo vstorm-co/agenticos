@@ -101,3 +101,45 @@ async def test_live_routine_state_limits_only_its_own_person(kind, change):
         else None
     )
     assert actual == expected
+
+
+@pytest.mark.parametrize("kind", ["watch", "trigger"])
+@pytest.mark.parametrize(
+    "state", ["current", "resumed", "changed", "expired", "ordinary", "wrong-reason"]
+)
+async def test_only_the_current_automatic_pause_notice_can_cross_a_paused_routine(
+    kind: str, state: str
+) -> None:
+    stopped = datetime.now(UTC)
+    owner, organization, identifier = uuid4(), uuid4(), uuid4()
+    row = MagicMock(
+        user_id=owner,
+        created_by_user_id=owner,
+        organization_id=organization,
+        is_active=state == "resumed",
+        auto_stopped_at=None if state == "resumed" else stopped,
+        notification_channels=["telegram"],
+        ends_at=stopped - timedelta(seconds=1) if state == "expired" else None,
+    )
+    context: dict[str, object] = {
+        "routine_kind": kind,
+        "routine_origin_id": str(identifier),
+        "routine_failure_reason": "run",
+    }
+    if state != "ordinary":
+        context["routine_auto_stopped_at"] = (
+            stopped - timedelta(seconds=1) if state == "changed" else stopped
+        ).isoformat()
+    if state == "wrong-reason":
+        context["routine_failure_reason"] = "delivery"
+    repo = "watch_repo" if kind == "watch" else "agent_trigger_repo"
+    with patch(f"{MODULE}.{repo}.get_by_id", new=AsyncMock(return_value=row)):
+        result = await allowed_channels(
+            MagicMock(), organization_id=organization, recipient_user_id=owner, context=context
+        )
+    expected = (
+        {NotificationChannel.IN_APP, NotificationChannel.TELEGRAM}
+        if state == "current"
+        else {NotificationChannel.IN_APP}
+    )
+    assert result == expected

@@ -35,6 +35,16 @@ class RoutineDeviceWaitExport(BaseModel):
     finished_at: datetime | None
 
 
+class RoutineHealthExport(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    organization_id: UUID
+    trigger_id: UUID | None
+    watch_id: UUID | None
+    activation_at: datetime
+    healthy: bool
+
+
 class PersonalDataExport(BaseModel):
     """Everything this deployment holds about one person, as one document.
 
@@ -51,6 +61,7 @@ class PersonalDataExport(BaseModel):
     the inventory.
     """
 
+    routine_health: list[RoutineHealthExport] = Field(default_factory=list)
     routine_device_waits: list[RoutineDeviceWaitExport] = Field(
         default_factory=list,
         description="Their durable device activations, including unconsumed event context.",

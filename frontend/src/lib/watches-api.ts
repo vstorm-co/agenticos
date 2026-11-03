@@ -21,6 +21,9 @@ export type WatchAttemptStatus =
   | "delivery_unavailable";
 
 export interface Watch {
+  consecutive_failures?: number;
+  auto_stopped_at?: string | null;
+  max_failures?: number | null;
   notification_channels?: RoutineNotificationChannel[] | null;
   report_mode?: WatchReportMode;
   id: string;
@@ -59,6 +62,7 @@ export interface WatchPreset {
 }
 
 export interface WatchDraft {
+  max_failures?: number | null;
   notification_channels?: RoutineNotificationChannel[] | null;
   report_mode?: WatchReportMode;
   agent_id: string;
@@ -76,6 +80,7 @@ export interface WatchDraft {
 export type WatchChanges = Partial<
   Pick<
     Watch,
+    | "max_failures"
     | "notification_channels"
     | "report_mode"
     | "title"

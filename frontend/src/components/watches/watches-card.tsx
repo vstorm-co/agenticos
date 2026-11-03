@@ -1,5 +1,6 @@
 "use client";
 
+import { RoutineAutoPause } from "@/components/triggers/failure-policy-field";
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -176,6 +177,7 @@ function WatchRow({
     <li className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3 sm:flex-nowrap sm:px-5">
       <div className="min-w-0 flex-1 space-y-1">
         <p className="truncate text-sm font-medium">{watch.title}</p>
+        <RoutineAutoPause stoppedAt={watch.auto_stopped_at} count={watch.consecutive_failures} />
         <p className="text-muted-foreground text-xs">
           {watch.agent_id
             ? t("executedBy", {

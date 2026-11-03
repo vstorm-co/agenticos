@@ -2158,3 +2158,13 @@ Worth stating, because a governance page implies otherwise:
 - [Concepts](concepts.md) - spec, version, exposure, run.
 - [Permissions](permissions.md) - who may set any of this.
 - [Configuration](configuration.md) - the deployment-level settings.
+
+## Automatic pause after repeated failures { #routine-health }
+
+Routines and watches pause after **three consecutive unsuccessful checks** by default. Set a limit from 1 to 20, or disable this limit, in the routine's form. Provider/runtime failures, invalid watch readings and inaccessible sources count. Waiting for approval, waiting for an offline computer and delivery failures do not count; an empty but verified successful check resets the streak. Other permission and budget stops still apply when this limit is disabled.
+
+Each activation has one durable health observation. Retries cannot increase the count, and late completions are evaluated in activation order. Automatic pause stops future activations; a model request already in flight may finish.
+
+The existing owner incident records the pause, and its notification uses shared preferences and opted-in routes. An unacknowledged case gets one pause notice replacing its earlier Inbox entry. Resuming or changing the policy invalidates queued pause notices. Acknowledging that incident does not reset execution health or resume the routine. After correcting the problem, explicitly resume to start a new failure window. Changing the failure limit also starts a new window.
+
+The list shows when a routine was paused automatically and its failure count. Health metadata retains at most 50 observations per routine, contains no source bodies or provider errors, is included in the owner's bounded personal-data export and cascades away with the owner or routine. Migration `0275_routine_health.py` enables the default for existing routines too: update API and workers together. Downgrade removes this metadata and policy while retaining the paused state.
