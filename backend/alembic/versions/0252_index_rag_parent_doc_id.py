@@ -3,9 +3,8 @@
 `delete_document`, `get_document_chunks` and `get_chunks_around` (parent-context
 expansion, on every search that uses it) filter a `rag_<collection>` table by
 `parent_doc_id` and the caller's scope. No index covered the column, so each one
-read every row of the scope: on a 300k-row table with a 240k-row tenant, about
-60 ms to delete one document and 100 ms to expand one hit. With the index each
-is under a millisecond. `_ensure_collection` now builds it with the table; this
+read every row of the scope: 40-100 ms each on a 300k-row table with a
+240k-row tenant. With the index each is under a millisecond. `_ensure_collection` now builds it with the table; this
 builds it on every existing runtime table, the same reasoning as
 `0058_backfill_rag_lookup_indexes`.
 
@@ -26,7 +25,9 @@ writes to that table (ingest, delete) wait until the upgrade commits - about
 the index online with `CREATE INDEX CONCURRENTLY` before upgrading (the
 CHANGELOG has the statement); this migration then finds it valid and builds
 nothing. An INVALID index under the name - such a build that failed - is
-dropped and rebuilt here rather than kept.
+dropped and rebuilt here rather than kept; that `DROP INDEX` takes an
+`ACCESS EXCLUSIVE` lock, so on that table searches wait for the upgrade too.
+The CHANGELOG has operators drop an invalid one concurrently first.
 
 The index suffix is written out rather than imported from
 `app.db.vector_tables`: a migration is a snapshot of what existed when it ran.

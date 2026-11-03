@@ -34,7 +34,7 @@ Two things are versioned separately from this file and worth knowing about:
   \gexec
   ```
 
-  The migration then finds the indexes and does nothing. If a concurrent build fails, it leaves an invalid index; the migration drops and rebuilds that index.
+  The migration then finds the indexes and does nothing. If a concurrent build fails, it leaves an invalid index. Drop it with `DROP INDEX CONCURRENTLY <name>` and run the statement again. If you upgrade with an invalid index in place, the migration drops and rebuilds it, and searches in that collection also wait until the upgrade commits.
 
 ## [1.38.1] - 2026-11-03
 

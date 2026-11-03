@@ -806,12 +806,9 @@ class PgVectorStore(BaseVectorStore):
                         f"ON {table} USING hash ((metadata->>'{key}'))"
                     )
                 )
-            # The document key `delete_document`, `get_document_chunks` and
-            # `get_chunks_around` filter by (#2552). Without it each was a scan of
-            # the caller's whole scope. A plain column btree, not a composite with
-            # the tenant or base: a document id names a handful of chunks, so the
-            # scope conjunct only rechecks those, and the base conjunct's
-            # `OR ... IS NULL` arm could not use a composite key anyway.
+            # The document key the per-document reads and deletes filter by
+            # (#2552). Plain, not composite with the scope keys: a document id
+            # names a handful of chunks, so the scope conjunct only rechecks them.
             # `0252_index_rag_parent_doc_id` builds it on collections that predate it.
             await session.execute(
                 text(
