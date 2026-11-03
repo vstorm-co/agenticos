@@ -151,7 +151,11 @@ describe("SkillAccept", () => {
   it("names what refused the decision", async () => {
     vi.mocked(apiClient.post).mockRejectedValue(
       new ApiError(409, "This check was already decided", {
-        error: { code: "ALREADY_EXISTS", message: "This check was already decided" },
+        error: {
+          code: "CONCURRENT_CHANGE",
+          message: "This check was already decided",
+          details: { proposal_id: "p1" },
+        },
       }),
     );
     mount(skillCheck({ warnings: ["within_noise"] }));
@@ -206,7 +210,11 @@ describe("SkillAccept", () => {
   it("offers Check again once a decision is refused because the line moved", async () => {
     vi.mocked(apiClient.post).mockRejectedValue(
       new ApiError(409, "Changed since this was checked", {
-        error: { code: "CONCURRENT_CHANGE", message: "Changed since this was checked" },
+        error: {
+          code: "CONCURRENT_CHANGE",
+          message: "Changed since this was checked",
+          details: { check_id: "c1", version: 13 },
+        },
       }),
     );
     mount(skillCheck());
@@ -220,4 +228,38 @@ describe("SkillAccept", () => {
     expect(screen.getByRole("alert")).toHaveTextContent("Changed since this was checked");
     expect(screen.queryByRole("button", { name: /Apply/ })).toBeNull();
   });
+
+  it.each([
+    [
+      "new agents on the line",
+      new ApiError(409, "Joined", {
+        error: {
+          code: "CONCURRENT_CHANGE",
+          message: "Joined",
+          details: { agents: ["Billing"], hidden: 0 },
+        },
+      }),
+      true,
+    ],
+    [
+      "a check that is already decided",
+      new ApiError(409, "Decided", { error: { code: "ALREADY_EXISTS", message: "Decided" } }),
+      false,
+    ],
+    ["a failure that is not the API's", new Error("Offline"), false],
+  ])(
+    "offers Check again only when the refusal is %s that the check missed",
+    async (_, failure, offered) => {
+      vi.mocked(apiClient.post).mockRejectedValue(failure);
+      mount(skillCheck());
+
+      await confirm();
+      await userEvent.click(
+        screen.getByRole("button", { name: "Apply as the next version of main" }),
+      );
+
+      expect(await screen.findByRole("alert")).toBeVisible();
+      expect(screen.queryByText("check again") !== null).toBe(offered);
+    },
+  );
 });

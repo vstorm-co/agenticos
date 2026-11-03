@@ -94,8 +94,8 @@ export function useSkillRecheck(skillId: string, sessionId: string) {
   const queryClient = useQueryClient();
   const estimate = useMutation({ mutationFn: () => estimateSkillRecheck(skillId, sessionId) });
   const recheck = useMutation({
-    mutationFn: (quote: SkillContinuationEstimate) =>
-      recheckSkillImprovement(skillId, sessionId, quote),
+    mutationFn: ({ quote, budget }: { quote: SkillContinuationEstimate; budget: string }) =>
+      recheckSkillImprovement(skillId, sessionId, quote, budget),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: qk.improvements.all() }),
   });
   return { estimate, recheck };

@@ -3,8 +3,8 @@
 import { useEffect, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 
-import { usd } from "@/components/evals/format";
-import { Button } from "@/components/ui";
+import { limitText, limitValue, usd } from "@/components/evals/format";
+import { Button, Input, Label } from "@/components/ui";
 import { useSkillRecheck } from "@/hooks/use-skill-improvement";
 import { ApiError, getErrorMessage } from "@/lib/api-error";
 import type { SkillContinuationEstimate, SkillImprovement } from "@/types/skill-improvement";
@@ -14,7 +14,8 @@ import { CheckEstimate } from "./check-estimate";
  * Measuring the result's chosen changes again on the line as it is now, once the
  * line or its agents moved since the check. Pricing spends nothing, so the price
  * and the agents it runs on are on screen first; pressing is the consent to that
- * price, and a price that moved meanwhile is shown again for a second press.
+ * price, and a price that moved meanwhile is shown again for a second press. A price
+ * over what the session has left takes a higher limit for this check.
  */
 export function CheckAgain({
   session,
@@ -24,12 +25,17 @@ export function CheckAgain({
   onStarted: () => void;
 }) {
   const t = useTranslations("skillImprovement.checkAgain");
+  const tLimit = useTranslations("improvement");
   const tErrors = useTranslations("errors");
   const locale = useLocale();
   const { estimate, recheck } = useSkillRecheck(session.skill_id, session.id);
   const [quote, setQuote] = useState<SkillContinuationEstimate | null>(null);
   const [moved, setMoved] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [budget, setBudget] = useState(() => limitText(session.budget_usd, locale));
+  const [asked, setAsked] = useState(session.budget_usd);
+  // The quote is priced against the session's limit; the server holds a higher one to the price.
+  const covered = quote !== null && (quote.affordable || Number(asked) > Number(quote.budget_usd));
   const price = estimate.mutateAsync;
 
   useEffect(() => {
@@ -50,7 +56,7 @@ export function CheckAgain({
   async function start(value: SkillContinuationEstimate) {
     setError(null);
     try {
-      await recheck.mutateAsync(value);
+      await recheck.mutateAsync({ quote: value, budget: asked });
       onStarted();
     } catch (failure) {
       if (!(failure instanceof ApiError && failure.status === 409)) {
@@ -79,17 +85,36 @@ export function CheckAgain({
           {t("priceMoved", { cost: usd(quote.total_usd, locale) })}
         </p>
       )}
-      {quote && !quote.affordable && <p className="text-sm">{t("overLimit")}</p>}
+      {quote && !quote.affordable && (
+        <div className="max-w-sm space-y-2">
+          <p className="text-sm">{t("overLimit")}</p>
+          <Label htmlFor="check-again-budget">{tLimit("budget")}</Label>
+          <div className="flex gap-2">
+            <Input
+              id="check-again-budget"
+              inputMode="decimal"
+              value={budget}
+              onChange={(event) => setBudget(event.target.value)}
+            />
+            <Button
+              variant="outline"
+              disabled={
+                !(Number(limitValue(budget)) > 0) || Number(limitValue(budget)) === Number(asked)
+              }
+              onClick={() => setAsked(limitValue(budget))}
+            >
+              {t("raise")}
+            </Button>
+          </div>
+        </div>
+      )}
       {quote && <CheckEstimate quote={quote} />}
       {error !== null && (
         <p role="alert" className="text-destructive text-sm">
           {error}
         </p>
       )}
-      <Button
-        disabled={!quote || !quote.affordable || recheck.isPending}
-        onClick={() => quote && void start(quote)}
-      >
+      <Button disabled={!covered || recheck.isPending} onClick={() => quote && void start(quote)}>
         {quote ? t("go", { cost: usd(quote.total_usd, locale) }) : t("goUnpriced")}
       </Button>
     </section>

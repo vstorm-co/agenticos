@@ -30,11 +30,17 @@ const RECHECK = "/skills/k1/improvements/s1/recheck";
 
 function mount(onStarted = vi.fn()) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  render(<CheckAgain session={skillSession({ stale: true })} onStarted={onStarted} />, {
-    wrapper: ({ children }: { children: ReactNode }) => (
-      <QueryClientProvider client={client}>{children}</QueryClientProvider>
-    ),
-  });
+  render(
+    <CheckAgain
+      session={skillSession({ stale: true, budget_usd: "2.00" })}
+      onStarted={onStarted}
+    />,
+    {
+      wrapper: ({ children }: { children: ReactNode }) => (
+        <QueryClientProvider client={client}>{children}</QueryClientProvider>
+      ),
+    },
+  );
   return onStarted;
 }
 
@@ -110,12 +116,23 @@ describe("CheckAgain", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("Pricing is down");
   });
 
-  it("holds a check the session's limit does not cover", async () => {
+  it("holds a check the session's limit does not cover until the limit is raised", async () => {
     serve(async () => skillSession(), [{ ...QUOTE, affordable: false }]);
     mount();
 
     expect(await screen.findByText(/costs more than this session has left/)).toBeVisible();
-    expect(screen.getByRole("button", { name: /Check again/ })).toBeDisabled();
+    const go = screen.getByRole("button", { name: /Check again/ });
+    expect(go).toBeDisabled();
+    const limit = screen.getByLabelText("Session spending limit (USD)");
+    await userEvent.clear(limit);
+    await userEvent.type(limit, "5");
+    await userEvent.click(screen.getByRole("button", { name: "Use this limit" }));
+    await userEvent.click(go);
+
+    expect(apiClient.post).toHaveBeenCalledWith(
+      RECHECK,
+      expect.objectContaining({ budget_usd: "5" }),
+    );
   });
 
   it("says when the check cannot be priced", async () => {

@@ -15125,9 +15125,10 @@
       "why": "Die Linie oder ihre Agents haben sich seit der Prüfung dieses Ergebnisses geändert, es gilt also womöglich nicht mehr. Prüfen Sie dieselben Änderungen vor der Entscheidung erneut an der Linie, wie sie jetzt ist.",
       "pricing": "Die Prüfung wird bepreist…",
       "priceMoved": "Der Preis hat sich geändert: jetzt bis zu {cost}. Drücken Sie erneut, um zu prüfen.",
-      "overLimit": "Die Prüfung kostet mehr, als die Sitzung noch übrig hat. Versuchen Sie es mit einem höheren Limit erneut oder beenden Sie die Sitzung.",
+      "overLimit": "Die Prüfung kostet mehr, als die Sitzung noch übrig hat. Erhöhen Sie das Limit für diese Prüfung, um fortzufahren.",
       "go": "Erneut prüfen · bis zu {cost}",
-      "goUnpriced": "Erneut prüfen"
+      "goUnpriced": "Erneut prüfen",
+      "raise": "Dieses Limit verwenden"
     }
   }
 }

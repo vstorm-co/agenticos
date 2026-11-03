@@ -15453,9 +15453,10 @@
       "why": "The line or its agents changed since this result was checked, so it may no longer hold. Check the same changes again on the line as it is now before deciding.",
       "pricing": "Pricing the check…",
       "priceMoved": "The price changed to up to {cost}. Press again to check.",
-      "overLimit": "The check costs more than this session has left. Try again with a higher limit, or end the session.",
+      "overLimit": "The check costs more than this session has left. Raise the limit for this check to go on.",
       "go": "Check again · up to {cost}",
-      "goUnpriced": "Check again"
+      "goUnpriced": "Check again",
+      "raise": "Use this limit"
     }
   }
 }

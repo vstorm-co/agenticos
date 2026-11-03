@@ -13,6 +13,19 @@ import type { SkillImprovement } from "@/types/skill-improvement";
 import { AddTestQuestions } from "./add-test-questions";
 import { CheckAgain } from "./check-again";
 
+/**
+ * Whether a decision was refused because the line got a newer version or new agents
+ * since the check - the refusals Check again answers. Other 409s, such as a check
+ * decided elsewhere, are only said.
+ */
+function movedLine(failure: unknown): boolean {
+  return (
+    failure instanceof ApiError &&
+    failure.code === "CONCURRENT_CHANGE" &&
+    (failure.details?.version !== undefined || failure.details?.agents !== undefined)
+  );
+}
+
 /** The outcomes that change the skill, each held until the person confirms it. */
 const WRITES: CheckOutcome[] = ["apply", "apply_and_pin", "fork_for_helped"];
 
@@ -66,7 +79,7 @@ export function SkillAccept({
     try {
       await write();
     } catch (failure) {
-      if (failure instanceof ApiError && failure.code === "CONCURRENT_CHANGE") setLineMoved(true);
+      if (movedLine(failure)) setLineMoved(true);
       setRefusal(getErrorMessage(failure, tErrors));
     }
   }

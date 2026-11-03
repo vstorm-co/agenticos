@@ -93,15 +93,19 @@ export function estimateSkillRecheck(
   );
 }
 
-/** Check the result's chosen changes again, at the quoted price. */
+/**
+ * Check the result's chosen changes again, at the quoted price, within `budget` - the
+ * session's limit, or a higher one the person set for this check.
+ */
 export function recheckSkillImprovement(
   skillId: string,
   sessionId: string,
   quote: SkillContinuationEstimate,
+  budget: string,
 ): Promise<SkillImprovement> {
   return apiClient.post<SkillImprovement>(`${root(skillId)}/${sessionId}/recheck`, {
     confirmed: true,
-    budget_usd: quote.budget_usd,
+    budget_usd: budget,
     estimate_usd: quote.total_usd,
     candidate_hash: quote.candidate_hash,
   });
