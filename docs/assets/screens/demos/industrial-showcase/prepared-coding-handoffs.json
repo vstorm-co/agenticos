@@ -1,0 +1,66 @@
+{
+  "scope": "Prepared UI fixture; no coding CLI execution, test pass or deployment is represented.",
+  "messages": [
+    {
+      "role": "user",
+      "content": "Build a supplier portal for our operations team: delivery exceptions, assembly dependencies and an approval queue. Then review the changes before we connect an ERP.",
+      "tools": []
+    },
+    {
+      "role": "assistant",
+      "content": "### From brief to a reviewable change\n\n**Claude Code** prepares the implementation. **Codex** reviews the change in read-only mode. Both handoffs stay attached to this conversation.\n\n- Delivery exceptions and assembly dependencies\n- A planner reviews changes before dispatch\n- ERP credentials stay outside the demo\n\n*Prepared interface example with fictional handoffs; no coding CLI was executed for this capture.*",
+      "tools": [
+        {
+          "name": "run_coding_agent",
+          "args": {
+            "task": "Implement the supplier portal in the project sandbox. Prepared interface fixture, no CLI execution."
+          },
+          "result": {
+            "kind": "coding_agent",
+            "harness": "claude_code",
+            "access": "edit",
+            "outcome": "completed",
+            "answer": "Prepared example: delivery board, dependency panel and approval queue. Ready for a human review; no deployment.",
+            "steps": [
+              {
+                "kind": "read",
+                "title": "supplier-portal/brief.md"
+              },
+              {
+                "kind": "edit",
+                "title": "src/DeliveryBoard.tsx"
+              },
+              {
+                "kind": "edit",
+                "title": "src/ApprovalQueue.tsx"
+              }
+            ]
+          }
+        },
+        {
+          "name": "run_coding_agent",
+          "args": {
+            "task": "Review the supplier portal; do not change files. Prepared interface fixture, no CLI execution."
+          },
+          "result": {
+            "kind": "coding_agent",
+            "harness": "codex",
+            "access": "read_only",
+            "outcome": "completed",
+            "answer": "Prepared review: check authorization on approval actions and add a stale-delivery scenario before connecting the ERP.",
+            "steps": [
+              {
+                "kind": "read",
+                "title": "src/ApprovalQueue.tsx"
+              },
+              {
+                "kind": "search",
+                "title": "Review approval permissions and stale delivery handling"
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

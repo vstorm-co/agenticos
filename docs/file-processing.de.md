@@ -1,5 +1,5 @@
 ---
-source_sha: "4ccd1e16c6dc"
+source_sha: "ce58011288a1"
 ---
 
 # Dateiverarbeitung { #file-processing }
@@ -1050,6 +1050,25 @@ und listet sie noch - dieselbe Regel wie beim Löschen einer Collection ([#2560]
 Sonst bleiben nicht zugeordnete Chunks und passen über ihren Tenant, und nicht
 zugeordnete Dokumentzeilen bleiben in den Basen ihres Tenants gelistet ([#2537](https://github.com/vstorm-co/agenticos/issues/2537)).
 
+Hält keine andere Basis den Namen, löschen beide Wege und `rag-drop` dieselben
+Zeilen mit ihren Dateien, und der Aufräum-Job löscht die Tabelle: die eigenen Zeilen
+der Basis und die nicht zugeordneten Zeilen ihres Tenants. Das sind für eine Basis
+einer Organisation oder eine persönliche Basis die Zeilen ihrer Organisation, für eine
+app-scoped Basis die Zeilen ohne Organisation (die `rag-ingest` schreibt) und für eine
+persönliche Basis außerhalb einer Organisation keine.
+
+Nicht zugeordnete Zeilen eines anderen Tenants unter dem Namen bleiben mit ihren
+Dateien, denn der Aufrufer hat keine Befugnis über sie. Ihre Chunks gehen mit der
+Tabelle, deshalb werden sie als fehlgeschlagen markiert: Die nächste Basis dieses
+Tenants mit dem Namen listet sie als fehlgeschlagen, ein hochgeladenes Dokument muss
+erneut hochgeladen werden, und eine Synchronisierung indexiert ein synchronisiertes
+Dokument neu.
+
+Vorher ließ `DELETE /kb/{id}` die nicht zugeordneten Zeilen des Tenants hinter der
+gelöschten Tabelle zurück, weiter als indexiert gelistet, und das Löschen einer
+Collection löschte jede Zeile unter dem Namen, gleich welchem Tenant sie gehörte
+([#2568](https://github.com/vstorm-co/agenticos/issues/2568)).
+
 Ein Upload oder eine Synchronisierung, die beim Löschen der Basis noch eine Datei
 für sie indexiert, hinterlässt keine Chunks. Der Schreibvorgang nimmt eine
 Sperre auf der Zeile der Basis, die mit der des Löschens kollidiert, in der
@@ -1237,6 +1256,12 @@ das keine gespeicherte Datei hat — eines, das älter ist als das Aufbewahren d
 Uploads, oder eines, das ein Sync eingelesen hat — wird mit einer 400 abgelehnt,
 statt nach `processing` versetzt zu werden
 ([#441](https://github.com/vstorm-co/agenticos/issues/441)).
+
+Der Retry lehnt auch ein Dokument einer Organisation ab, das keiner Wissensbasis
+zugeordnet ist: Seine Chunks würden deploymentweit geschrieben, wo die Basis der
+Organisation, die es listet, nicht liest, also muss es erneut hochgeladen werden.
+Eines ohne Organisation gehört einer app-scoped Basis, die dort liest, und wird
+erneut versucht ([#2568](https://github.com/vstorm-co/agenticos/issues/2568)).
 
 ### Was eine gescheiterte Ingestion sagt { #what-a-failed-ingest-says }
 

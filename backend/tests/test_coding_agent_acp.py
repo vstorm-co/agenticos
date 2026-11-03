@@ -394,7 +394,7 @@ async def test_the_device_pipe_reports_an_exit_without_what_the_agent_printed() 
     with pytest.raises(acp.AgentExited) as exited:
         await pipe.receive()
     assert exited.value.code == 1
-    assert "exit code 1" in exited.value.message and "Node.js 22" in exited.value.message
+    assert "exit code 1" in exited.value.message and "Prepare coding tools" in exited.value.message
     assert "npmrc" not in exited.value.message and "token" not in exited.value.message
 
 
@@ -561,7 +561,7 @@ async def test_an_agent_that_fails_to_start_says_why(monkeypatch: pytest.MonkeyP
 
     computer.call = poll_exits  # type: ignore[method-assign]
     answer, _ = await _local_task(monkeypatch, computer, _local_workspace())
-    assert "exit code 1" in answer and "Node.js 22 or later" in answer
+    assert "exit code 1" in answer and "Prepare coding tools" in answer
     assert "is required" not in answer
 
 
