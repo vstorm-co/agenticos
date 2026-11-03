@@ -16,6 +16,7 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.agents.capabilities.skills import SkillBodyFile
 from app.agents.spec import AgentSpec
 from app.core.exceptions import (
     AlreadyExistsError,
@@ -834,6 +835,23 @@ class TestTestSet:
         assert (await service.test_set(ctx, skill.id)).id == created.id
         with pytest.raises(AlreadyExistsError):
             await service.create_test_set(ctx, skill.id, SkillTestSetStart())
+
+
+class TestAMergedText:
+    async def test_its_files_are_the_whole_set_the_check_serves(self, db, monkeypatch):
+        lab = await _lab(db)
+        FakeEvals().install(monkeypatch)
+        files = (SkillBodyFile(name="merged.md", description="Merged", content="both sides"),)
+
+        read = await SkillCheckService(db).start(
+            lab.ctx, lab.skill.id, _start(), source=CheckSource.SESSION, files=files
+        )
+
+        check = await skill_check_repo.get(db, read.id, organization_id=lab.ctx.organization_id)
+        assert check is not None
+        assert check.candidate_resources == {
+            "merged.md": {"description": "Merged", "content": "both sides"}
+        }
 
 
 class TestASessionsCheckStops:
