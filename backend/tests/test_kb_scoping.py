@@ -513,10 +513,10 @@ class TestKBAccessControl:
             await svc.delete(kb.id, ctx=_ctx(user_id=user_id))
 
         lock.assert_awaited_once_with(mock_db, kb.id)
-        get_all.assert_awaited_once_with(
-            mock_db, collection_name=kb.collection_name, for_update=True
+        get_all.assert_awaited_once_with(mock_db, knowledge_base_id=kb.id, for_update=True)
+        update.assert_awaited_once_with(
+            mock_db, source.id, collection_name=None, knowledge_base_id=None, is_active=False
         )
-        update.assert_awaited_once_with(mock_db, source.id, collection_name=None, is_active=False)
         dispatch.assert_awaited_once_with(mock_db, [], [kb.collection_name], base_purges=[])
 
     @pytest.mark.anyio
@@ -557,9 +557,7 @@ class TestKBAccessControl:
             [],
             base_purges=[BasePurge(collection=kb.collection_name, knowledge_base_id=kb.id)],
         )
-        get_all.assert_awaited_once_with(
-            mock_db, collection_name=kb.collection_name, for_update=True
-        )
+        get_all.assert_awaited_once_with(mock_db, knowledge_base_id=kb.id, for_update=True)
         update.assert_not_awaited()
 
     @pytest.mark.anyio
