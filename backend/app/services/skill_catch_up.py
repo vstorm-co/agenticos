@@ -83,6 +83,10 @@ class _Read:
     line: Line
 
 
+_DESCRIPTION_CHARS = 500
+"""What a version's description holds, as an edit of the merge's is bounded."""
+
+
 @dataclass(frozen=True)
 class MergeSides:
     """The three versions a merge reads, and the merge before anything is settled.
@@ -357,21 +361,33 @@ class SkillCatchUpService:
     async def fill_conflicts(self, merge: SkillMerge, proposed: Sequence[str]) -> None:
         """Settle each conflict with the model's text for it, in `conflicts_prompt`'s order.
 
-        A person may still rewrite each one at Changes; the model's text stays beside it.
+        The merge is read again under its lock, since the model answers long after it was
+        asked. A text a person already wrote stands, with the model's beside it, and a
+        description outside 1 to 500 characters stays for a person to write.
 
         Raises:
             ValueError: `proposed` does not hold one text per conflict.
         """
-        description = MergedPart(**merge.description)
-        parts = [MergedPart(**row) for row in merge.parts]
+        locked = await skill_merge_repo.for_run(
+            self.db, merge.run_id, organization_id=merge.organization_id, lock=True
+        )
+        assert locked is not None, "a merge stays with its session"
+        description = MergedPart(**locked.description)
+        parts = [MergedPart(**row) for row in locked.parts]
         conflicts = _conflicts(description, parts)
         if len(proposed) != len(conflicts):
             raise ValueError(f"{len(conflicts)} conflicts, {len(proposed)} texts")
         for row, text in zip(conflicts, proposed, strict=True):
-            settled = text if row is description else _line_ended(row, text)
-            row["proposed"] = settled
-            row["result"] = settled
-        await self._store(merge, description, parts, merge.files)
+            if row is description:
+                text = text.strip()
+                if not 1 <= len(text) <= _DESCRIPTION_CHARS:
+                    continue
+            else:
+                text = _line_ended(row, text)
+            row["proposed"] = text
+            if not row["edited"]:
+                row["result"] = text
+        await self._store(locked, description, parts, locked.files)
 
     async def refuse_moved(self, merge: SkillMerge) -> None:
         """Refuse a merge either of whose lines has a newer version than it read.
@@ -861,7 +877,7 @@ def _line_ended(part: MergedPart, text: str) -> str:
     Parts are whole lines, so the next part starts on a line of its own; a text written
     without its final line break would run into it.
     """
-    ended = any(side.endswith("\n") for side in (part["fork"], part["main"]))
+    ended = any(side.endswith("\n") for side in (part["base"], part["fork"], part["main"]))
     return text + "\n" if ended and text and not text.endswith("\n") else text
 
 
@@ -915,6 +931,8 @@ def _refuse_moved(merge: SkillMerge, skill: Skill, fork: SkillFork) -> None:
             details={
                 "fork_version_id": merge.fork_version_id,
                 "latest_version_id": fork.latest_version_id,
+                "base_version_id": merge.base_version_id,
+                "fork_base_version_id": fork.base_version_id,
             },
         )
 

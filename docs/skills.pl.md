@@ -1,5 +1,5 @@
 ---
-source_sha: "75f9f14e0c04"
+source_sha: "636c370e91d6"
 ---
 
 # Skille { #skills }
@@ -455,9 +455,11 @@ fragment, także propozycję modelu (`GET …/improvements/{run_id}/merge`, a po
 `PATCH …/merge/description` albo `…/merge/parts/{index}`). Dla pliku zmienionego po
 obu stronach różnie osoba wybiera jedną stronę (`PATCH …/merge/files`); model nigdy
 nie pisze pliku. Sprawdzenie startuje dopiero, gdy nic nie zostało nierozstrzygnięte.
-Pyta agentów forka o wynik scalenia i, jeśli nie wyłączy się tego przed startem,
-o samą najnowszą wersję main. To drugie sprawdzenie mówi, czy fork jest jeszcze
-potrzebny, a wycena podaje jego cenę osobno. Akceptacja tworzy wersję forka
+Pyta agentów forka o wynik scalenia i, jeśli nie wyłączy się `main_alone` przy
+wycenie sprawdzenia na kroku Changes, o samą najnowszą wersję main. To drugie
+sprawdzenie mówi, czy fork jest jeszcze potrzebny, a wycena podaje jego cenę
+w osobnej pozycji (`main_alone_usd`). Jest pomijane, gdy scalenie i tak jest
+najnowszą wersją main. Akceptacja tworzy wersję forka
 (`catch_up`), która wskazuje wersję main, którą przyjęła. Od tej chwili fork opiera
 się na tej wersji main, więc nie jest już za main. Gdy sama main nie pogorszyła
 żadnego agenta, wynik proponuje też porzucenie forka i powrót jego agentów do main.
@@ -470,7 +472,9 @@ mogą potem wrócić do main.
 
 Oba są odrzucane (409), gdy fork jest zarchiwizowany, gdy nie ma własnej wersji (jego
 agenci wracają wtedy do main) i gdy scalenie niczego by nie zmieniło. Akceptacja jest
-odrzucana, gdy main albo fork ma nowszą wersję niż ta, którą odczytało scalenie.
+odrzucana, gdy main albo fork ma nowszą wersję niż ta, którą odczytało scalenie,
+a sesja, której linie poszły dalej, gdy czekała, kończy się jako nieaktualna: zacznij
+nową, żeby objąć nowszą wersję.
 
 ### Usuwanie skilla { #deleting-a-skill }
 

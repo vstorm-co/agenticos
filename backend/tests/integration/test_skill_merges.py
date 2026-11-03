@@ -342,6 +342,52 @@ class TestTheMerge:
         assert merged is not None and (merged.files, merged.resources) == ((), {})
 
 
+class TestTheModelsTexts:
+    async def test_a_persons_text_stands_beside_the_models(self, db):
+        ctx = await _owner(db)
+        skill = await _skill(db, ctx)
+        fork = await _fork(db, ctx, skill)
+        fork = await _on_fork(db, ctx, skill, fork, content="one\nfork")
+        await _main(db, ctx, skill, content="one\nmain")
+        merge = await _merged(db, ctx, skill, fork)
+        service = SkillCatchUpService(db)
+        await service.edit_part(ctx, skill.id, merge.run_id, 1, MergePartEdit(result="mine"))
+
+        await service.fill_conflicts(merge, ["the model's"])
+
+        part = merge.parts[1]
+        assert (part["result"], part["proposed"], part["edited"]) == ("mine", "the model's", True)
+        assert merge.unresolved == 0
+
+    async def test_a_description_out_of_bounds_stays_for_a_person(self, db):
+        ctx = await _owner(db)
+        skill = await _skill(db, ctx)
+        fork = await _fork(db, ctx, skill)
+        fork = await _on_fork(db, ctx, skill, fork, content="fork", description="The fork's.")
+        await _main(db, ctx, skill, content="main", description="Main's.")
+        merge = await _merged(db, ctx, skill, fork)
+
+        await SkillCatchUpService(db).fill_conflicts(merge, ["  ", "both"])
+
+        assert (merge.description["result"], merge.description["proposed"]) == (None, None)
+        assert (merge.parts[0]["result"], merge.unresolved) == ("both", 1)
+
+    async def test_a_line_both_sides_deleted_and_a_person_wrote_keeps_the_next_apart(self, db):
+        ctx = await _owner(db)
+        skill = await _skill(db, ctx)
+        fork = await _fork(db, ctx, skill)
+        fork = await _on_fork(db, ctx, skill, fork, content="one\nthree\nfour")
+        await _main(db, ctx, skill, content="one\nthree\nFOUR")
+        merge = await _merged(db, ctx, skill, fork)
+        service = SkillCatchUpService(db)
+        assert [part["state"] for part in merge.parts] == ["same", "both", "same", "main"]
+
+        await service.edit_part(ctx, skill.id, merge.run_id, 1, MergePartEdit(result="2"))
+
+        merged = await service.candidate_of(merge)
+        assert merged is not None and merged.content == "one\n2\nthree\nFOUR"
+
+
 class TestCatchingUp:
     async def test_accepting_makes_a_fork_version_that_took_main_in(self, db):
         ctx = await _owner(db)

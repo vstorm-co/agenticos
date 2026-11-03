@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, Query, status
 from app.api.deps import Auth, SkillImprovementSvc, require
 from app.api.public_api import ASSISTANT
 from app.core.permissions import Perm
+from app.db.models.skill_improvement import SkillImprovementPurpose
 from app.schemas.authoring import HunkRead
 from app.schemas.improvement import ChangeEdit, ImprovementDiscard, ImprovementSelection
 from app.schemas.skill_improvement import (
@@ -22,12 +23,54 @@ from app.schemas.skill_improvement import (
     SkillImprovementForked,
     SkillImprovementProblems,
     SkillImprovementRead,
+    SkillImprovementReturned,
     SkillImprovementStart,
     SkillImprovementTarget,
+    SkillMergeEstimate,
+    SkillMergeStart,
 )
 
 router = APIRouter(prefix="/skills/{skill_id}/improvements", dependencies=[ASSISTANT])
 sessions = APIRouter(prefix="/skill-improvements", dependencies=[ASSISTANT])
+merges = APIRouter(prefix="/skills/{skill_id}/forks/{fork_id}", dependencies=[ASSISTANT])
+
+
+@merges.post("/catch-up/estimate", response_model=SkillMergeEstimate)
+async def estimate_skill_catch_up(
+    skill_id: UUID, fork_id: UUID, service: SkillImprovementSvc, ctx: Auth
+) -> Any:
+    """What catching the fork up with main would merge, and what proposing the conflicts'
+    texts costs. Needs `runs:view` and edit access to the skill; 409 when main has nothing
+    the fork lacks, 400 for an archived fork."""
+    return await service.estimate_merge(ctx, skill_id, fork_id, SkillImprovementPurpose.CATCH_UP)
+
+
+@merges.post("/catch-up", response_model=SkillImprovementRead, status_code=status.HTTP_201_CREATED)
+async def start_skill_catch_up(
+    skill_id: UUID, fork_id: UUID, data: SkillMergeStart, service: SkillImprovementSvc, ctx: Auth
+) -> Any:
+    """Start a session on the fork that merges main's newest version into it. 409 when there
+    is nothing to merge or the fork has an open session, 402 when the spending limit does
+    not cover proposing the conflicts' texts."""
+    return await service.start_merge(ctx, skill_id, fork_id, SkillImprovementPurpose.CATCH_UP, data)
+
+
+@merges.post("/to-main/estimate", response_model=SkillMergeEstimate)
+async def estimate_skill_to_main(
+    skill_id: UUID, fork_id: UUID, service: SkillImprovementSvc, ctx: Auth
+) -> Any:
+    """What moving the fork's changes to main would merge, and what proposing the
+    conflicts' texts costs. 409 when the fork has no version of its own."""
+    return await service.estimate_merge(ctx, skill_id, fork_id, SkillImprovementPurpose.TO_MAIN)
+
+
+@merges.post("/to-main", response_model=SkillImprovementRead, status_code=status.HTTP_201_CREATED)
+async def start_skill_to_main(
+    skill_id: UUID, fork_id: UUID, data: SkillMergeStart, service: SkillImprovementSvc, ctx: Auth
+) -> Any:
+    """Start a session on main that merges the fork's newest version into it. 409 when there
+    is nothing to merge or main has an open session, 402 as for a catch-up."""
+    return await service.start_merge(ctx, skill_id, fork_id, SkillImprovementPurpose.TO_MAIN, data)
 
 
 @sessions.get(
@@ -203,6 +246,20 @@ async def apply_skill_improvement(
     check runs or once the result was decided.
     """
     return await service.apply(ctx, skill_id, run_id, data)
+
+
+@router.post("/{run_id}/return-to-main", response_model=SkillImprovementReturned)
+async def return_skill_improvement_to_main(
+    skill_id: UUID,
+    run_id: UUID,
+    data: ImprovementDiscard,
+    service: SkillImprovementSvc,
+    ctx: Auth,
+) -> Any:
+    """Move a caught-up fork's agents back to main instead of taking the merge in, when
+    main alone made nobody worse; the fork is archived once nobody reads it. 400 for a
+    session that is not a catch-up or a result that does not offer it."""
+    return await service.return_to_main(ctx, skill_id, run_id, data)
 
 
 @router.post("/{run_id}/fork", response_model=SkillImprovementForked)
