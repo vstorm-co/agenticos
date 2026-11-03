@@ -1625,15 +1625,51 @@ WhatsApp cannot edit a message, so a tap is answered with a short follow-up that
 quotes the question. A multi-select question is offered again after each pick. A tap
 from another chat is ignored, and a tap Meta delivers twice acts once.
 
+### Answers after 24 hours { #whatsapp-late-answers }
+
+Meta lets a business send free-form messages only within 24 hours of the customer's
+last message. An answer that is ready later, because an approval was decided the next
+day, say, cannot go out as ordinary text. AgenticOS keeps when each customer last
+wrote, using the time on Meta's own message, and treats the window as closed five
+minutes early so a slow send does not land after Meta's cutoff. A customer it has no
+record of is sent to as before, and Meta's refusal of a message as outside the window
+is taken as the final word.
+
+**Choose a late-answer template.** In WhatsApp Manager, create a **utility** template
+whose body has exactly one variable, with fixed text before and after it, for example
+`Here is the answer to your earlier message: {{1}} Reply here if you need anything
+else.` Wait for Meta to approve it, then pick it under **Late-answer template** when
+you add the bot or edit it. The console lists only templates that qualify: approved,
+utility, and one variable in the body with nothing else that varies.
+
+**What a late answer does:**
+
+- A short answer goes out at once inside the template, on one line.
+- A longer answer, or one that came with a chart or file, goes as a preview: the start
+  of the answer and an invitation to reply. The full answer follows when the customer
+  next writes, before the reply to their new message.
+- Several late answers for one customer all wait, and go out oldest first.
+- An approval or a question waits for the customer too. It is offered again after
+  their next message has been answered, and stays decidable in the console meanwhile.
+
+**With no template, or one Meta refuses,** nothing is sent. The run still waits for
+the customer's next message, the run page says "Not delivered" and why, and the
+bots list warns that the bot has no late-answer template.
+
 ### What it costs
 
 Messages a customer sends are free. Each business number gets **1,000 free service
-messages a month**; Meta charges for the ones after that. The test number needs no
+messages a month**; Meta charges for the ones after that. **Each late answer is one
+template message**, which Meta charges for on a real number. The test number needs no
 payment method.
 
 ### Limits
 
 - **Direct chats only**; there are no groups.
+- **A chart or file cannot follow a late answer.** The answer that is delivered says
+  so.
+- **Meta limits how many customers a new number can reach outside the window**, about
+  250 different customers per 24 hours at first.
 - **Files are capped by `CHAT_MAX_UPLOAD_SIZE_MB`**, the same limit as on the other
   platforms, and **voice notes by 25 MB**. A file over the cap is refused with a
   reason.

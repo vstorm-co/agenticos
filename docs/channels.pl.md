@@ -1,5 +1,5 @@
 ---
-source_sha: "e2c74963588d"
+source_sha: "c6b4a373474a"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -1676,15 +1676,53 @@ odpowiedź, która cytuje pytanie. Pytanie z wielokrotnym wyborem jest pokazywan
 ponownie po każdym wyborze. Dotknięcie z innego czatu jest ignorowane, a dotknięcie,
 które Meta dostarczy dwa razy, działa raz.
 
+### Odpowiedzi po 24 godzinach { #whatsapp-late-answers }
+
+Meta pozwala firmie wysyłać wiadomości w dowolnej formie tylko w ciągu 24 godzin od
+ostatniej wiadomości klienta. Odpowiedź gotowa później, na przykład dlatego, że
+zatwierdzenie zapadło następnego dnia, nie może pójść jako zwykły tekst. AgenticOS
+zapamiętuje, kiedy każdy klient pisał ostatnio, według czasu z wiadomości od Meta, i
+uznaje okno za zamknięte pięć minut wcześniej, żeby powolna wysyłka nie trafiła po
+terminie Meta. Do klienta, o którym nie ma zapisu, wysyła jak dotąd, a odmowę Meta z
+powodu okna uznaje za rozstrzygającą.
+
+**Wybierz szablon późnej odpowiedzi.** W WhatsApp Manager utwórz szablon kategorii
+**utility**, którego treść ma dokładnie jedną zmienną, ze stałym tekstem przed nią i
+po niej, na przykład `Oto odpowiedź na Twoją wcześniejszą wiadomość: {{1}} Napisz tu,
+jeśli potrzebujesz czegoś jeszcze.` Poczekaj na zatwierdzenie przez Meta, a potem
+wybierz go w polu **Late-answer template** (szablon późnej odpowiedzi), dodając bota
+albo edytując go. Konsola pokazuje tylko szablony, które się nadają: zatwierdzone,
+utility, z jedną zmienną w treści i bez niczego innego, co się zmienia.
+
+**Co robi późna odpowiedź:**
+
+- Krótka odpowiedź wychodzi od razu w szablonie, w jednym wierszu.
+- Dłuższa odpowiedź albo taka, która miała wykres lub plik, wychodzi jako zapowiedź:
+  początek odpowiedzi i zaproszenie do odpowiedzi. Pełna odpowiedź dochodzi, gdy
+  klient napisze następnym razem, przed odpowiedzią na jego nową wiadomość.
+- Kilka późnych odpowiedzi dla jednego klienta czeka razem i wychodzi od
+  najstarszej.
+- Zatwierdzenie albo pytanie też czeka na klienta. Wraca po odpowiedzi na jego
+  następną wiadomość i do tego czasu można o nim zdecydować w konsoli.
+
+**Bez szablonu albo z szablonem odrzuconym przez Meta** nic nie jest wysyłane. Run
+nadal czeka na następną wiadomość klienta, strona runa pisze „Not delivered” i
+dlaczego, a lista botów ostrzega, że bot nie ma szablonu późnej odpowiedzi.
+
 ### Ile to kosztuje { #what-it-costs }
 
 Wiadomości wysyłane przez klienta są bezpłatne. Każdy numer firmowy dostaje
 **1000 bezpłatnych wiadomości serwisowych miesięcznie**; za kolejne Meta pobiera
-opłatę. Numer testowy nie wymaga metody płatności.
+opłatę. **Każda późna odpowiedź to jedna wiadomość szablonowa**, za którą Meta pobiera opłatę
+na prawdziwym numerze. Numer testowy nie wymaga metody płatności.
 
 ### Ograniczenia { #limits }
 
 - **Tylko czaty bezpośrednie**; grup nie ma.
+- **Wykres ani plik nie mogą dojść po późnej odpowiedzi.** Dostarczona odpowiedź
+  mówi o tym.
+- **Meta ogranicza, ilu klientów nowy numer może zagadnąć poza oknem**: na początku
+  około 250 różnych klientów na 24 godziny.
 - **Pliki ogranicza `CHAT_MAX_UPLOAD_SIZE_MB`**, ten sam limit co na innych
   platformach, a **wiadomości głosowe 25 MB**. Plik ponad limit jest odrzucany z
   podaniem powodu.

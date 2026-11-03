@@ -36,6 +36,12 @@ Two things are versioned separately from this file and worth knowing about:
   `whitelist` policy is impractical on WhatsApp, because a sender is identified by a
   business-scoped id an operator cannot see: use linking. Outbound traffic goes to
   `graph.facebook.com`, and media is fetched only from `lookaside.fbsbx.com`.
+  An answer that comes more than 24 hours after the customer's last message (an
+  approval decided later, say) goes out inside an approved utility template chosen
+  on the bot. One that does not fit goes as a short preview, and the full answer
+  follows when the customer writes again. Without a template nothing is sent, and
+  the run page says why. Each late answer is a charged template message on a real
+  number.
 
 ### Changed
 

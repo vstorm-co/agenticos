@@ -33,6 +33,7 @@ rename.
 | Chat | The web conversation with an agent | `conversation` |
 | Channel | Slack, Telegram, Mattermost, Teams, Discord or WhatsApp, where people reach an agent | `channel_bot` |
 | Routine | An agent running on its own, on a schedule or an event | `trigger` |
+| Late-answer template | The approved WhatsApp template an answer goes out in after 24 hours | `whatsapp_late_template` |
 | Run | One time an agent answered, with its cost and steps | `agent_run` |
 | Environment | A named stage, such as production, pointing at one version | `environment` |
 | MCP server | An external tool server agents call, connected once | `mcp_connection` |

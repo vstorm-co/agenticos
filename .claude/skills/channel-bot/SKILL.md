@@ -17,7 +17,7 @@ agent pipeline as the web chat.
 | `mattermost.py` | Mattermost |
 | `teams.py`, `teams_auth.py` | Microsoft Teams over the Bot Connector's HTTP protocol (#1985): JWT-verified activities, Adaptive Cards, conversation references in `teams_conversations` |
 | `discord.py`, `discord_protocol.py` | Discord over its Gateway and REST API, no library (#2079); the protocol module holds the pure payloads, chunking and the channel-visibility arithmetic |
-| `whatsapp.py`, `whatsapp_payload.py`, `whatsapp_format.py`, `whatsapp_graph.py` | WhatsApp over Meta's Cloud API (#2076): HMAC-verified webhook batches grouped per customer, Markdown converted and split to 4096 UTF-16 units, the Graph client (a refused token marks the bot down in the console list) |
+| `whatsapp.py`, `whatsapp_payload.py`, `whatsapp_format.py`, `whatsapp_graph.py`, `whatsapp_window.py`, `whatsapp_templates.py`, `whatsapp_customers.py`, `whatsapp_inbound.py` | WhatsApp over Meta's Cloud API (#2076): HMAC-verified webhook batches grouped per customer, Markdown converted and split to 4096 UTF-16 units, the Graph client (a refused token marks the bot down in the console list); the 24-hour window: the customer record the webhook keeps, late answers in the bot's utility template or held until the customer writes |
 | `router.py` | Inbound platform message → conversation/session → agent run → reply |
 | `mentions.py` | `@slug` resolution, and the identity rules below |
 

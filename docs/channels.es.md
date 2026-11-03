@@ -1,5 +1,5 @@
 ---
-source_sha: "e2c74963588d"
+source_sha: "c6b4a373474a"
 ---
 
 # Poner un agent donde la gente ya está { #putting-an-agent-where-people-already-are }
@@ -1707,15 +1707,56 @@ mensaje que cita la pregunta. Una pregunta de selección múltiple se ofrece de 
 tras cada elección. Una pulsación de otro chat se ignora, y una pulsación que Meta
 entrega dos veces actúa una sola vez.
 
+### Respuestas pasadas 24 horas { #whatsapp-late-answers }
+
+Meta solo permite a una empresa enviar mensajes de formato libre dentro de las 24
+horas posteriores al último mensaje del cliente. Una respuesta que está lista más
+tarde, porque una aprobación se decidió al día siguiente, por ejemplo, no puede salir
+como texto normal. AgenticOS guarda cuándo escribió por última vez cada cliente, con
+la hora del propio mensaje de Meta, y trata la ventana como cerrada cinco minutos
+antes para que un envío lento no llegue después del corte de Meta. A un cliente del
+que no hay registro se le envía como hasta ahora, y que Meta rechace un mensaje por
+estar fuera de la ventana se toma como la última palabra.
+
+**Elige una plantilla de respuesta tardía.** En WhatsApp Manager, crea una plantilla
+**utility** cuyo cuerpo tenga exactamente una variable, con texto fijo antes y
+después, por ejemplo `Aquí está la respuesta a tu mensaje anterior: {{1}} Escríbenos
+aquí si necesitas algo más.` Espera a que Meta la apruebe y elígela en **Late-answer
+template** (plantilla de respuesta tardía) al añadir el bot o al editarlo. La consola
+solo lista las plantillas que sirven: aprobadas, utility, con una variable en el
+cuerpo y nada más que varíe.
+
+**Qué hace una respuesta tardía:**
+
+- Una respuesta corta sale enseguida dentro de la plantilla, en una sola línea.
+- Una respuesta más larga, o con un gráfico o un archivo, sale como vista previa: el
+  principio de la respuesta y una invitación a responder. La respuesta completa llega
+  cuando el cliente vuelve a escribir, antes de la respuesta a su nuevo mensaje.
+- Varias respuestas tardías para un mismo cliente esperan todas y salen por orden, la
+  más antigua primero.
+- Una aprobación o una pregunta también espera al cliente. Se ofrece de nuevo cuando
+  su siguiente mensaje ya se ha respondido, y mientras tanto se puede decidir en la
+  consola.
+
+**Sin plantilla, o con una que Meta rechaza,** no se envía nada. El run sigue
+esperando el siguiente mensaje del cliente, la página del run dice «Not delivered» y
+por qué, y la lista de bots avisa de que el bot no tiene plantilla de respuesta
+tardía.
+
 ### Lo que cuesta { #what-it-costs }
 
 Los mensajes que envía un cliente son gratuitos. Cada número de empresa recibe
-**1.000 mensajes de servicio gratuitos al mes**; después Meta cobra. El número de
+**1.000 mensajes de servicio gratuitos al mes**; después Meta cobra. **Cada respuesta tardía es un mensaje de plantilla**, que Meta cobra en un número real.
+El número de
 prueba no necesita método de pago.
 
 ### Límites { #limits }
 
 - **Solo chats directos**; no hay grupos.
+- **Un gráfico o un archivo no puede acompañar a una respuesta tardía.** La respuesta
+  entregada lo dice.
+- **Meta limita a cuántos clientes puede llegar un número nuevo fuera de la
+  ventana**: al principio unos 250 clientes distintos cada 24 horas.
 - **Los archivos están limitados por `CHAT_MAX_UPLOAD_SIZE_MB`**, el mismo límite que en
   las demás plataformas, y **las notas de voz por 25 MB**. Un archivo por encima del
   límite se rechaza con su motivo.

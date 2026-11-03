@@ -1,5 +1,5 @@
 ---
-source_sha: "e2c74963588d"
+source_sha: "c6b4a373474a"
 ---
 
 # Einen Agent dorthin bringen, wo die Menschen schon sind { #putting-an-agent-where-people-already-are }
@@ -1802,15 +1802,56 @@ Folgenachricht beantwortet, die die Frage zitiert. Eine Frage mit Mehrfachauswah
 wird nach jeder Auswahl erneut angeboten. Ein Tipp aus einem anderen Chat wird
 ignoriert, und ein Tipp, den Meta zweimal zustellt, wirkt einmal.
 
+### Antworten nach 24 Stunden { #whatsapp-late-answers }
+
+Meta erlaubt einem Unternehmen, frei formulierte Nachrichten nur innerhalb von 24
+Stunden nach der letzten Nachricht des Kunden zu senden. Eine Antwort, die später
+fertig wird, etwa weil eine Freigabe erst am nächsten Tag entschieden wurde, kann
+nicht als gewöhnlicher Text hinausgehen. AgenticOS merkt sich, wann jeder Kunde
+zuletzt geschrieben hat, nach der Zeit auf Metas eigener Nachricht, und behandelt das
+Fenster fünf Minuten früher als geschlossen, damit ein langsamer Versand nicht nach
+Metas Stichzeit ankommt. An einen Kunden, über den nichts gespeichert ist, wird wie
+bisher gesendet, und Metas Ablehnung einer Nachricht als außerhalb des Fensters gilt
+als das letzte Wort.
+
+**Wähle eine Vorlage für späte Antworten.** Lege im WhatsApp Manager eine
+**Utility**-Vorlage an, deren Text genau eine Variable hat, mit festem Text davor und
+danach, zum Beispiel `Hier ist die Antwort auf deine frühere Nachricht: {{1}} Schreib
+uns hier, wenn du noch etwas brauchst.` Warte, bis Meta sie freigibt, und wähle sie
+dann unter **Late-answer template** (Vorlage für späte Antworten), wenn du den Bot
+hinzufügst oder bearbeitest. Die Konsole listet nur Vorlagen, die taugen: freigegeben,
+Utility, eine Variable im Text und sonst nichts Veränderliches.
+
+**Was eine späte Antwort tut:**
+
+- Eine kurze Antwort geht sofort in der Vorlage hinaus, in einer Zeile.
+- Eine längere Antwort oder eine mit Diagramm oder Datei geht als Vorschau hinaus: der
+  Anfang der Antwort und eine Einladung zu antworten. Die vollständige Antwort folgt,
+  wenn der Kunde das nächste Mal schreibt, vor der Antwort auf seine neue Nachricht.
+- Mehrere späte Antworten für einen Kunden warten alle und gehen der Reihe nach
+  hinaus, die älteste zuerst.
+- Auch eine Freigabe oder eine Frage wartet auf den Kunden. Sie wird erneut angeboten,
+  nachdem seine nächste Nachricht beantwortet ist, und bleibt bis dahin in der Konsole
+  entscheidbar.
+
+**Ohne Vorlage oder mit einer, die Meta ablehnt,** wird nichts gesendet. Der Run wartet
+weiter auf die nächste Nachricht des Kunden, die Run-Seite nennt „Not delivered“ samt
+Grund, und die Bot-Liste warnt, dass der Bot keine Vorlage für späte Antworten hat.
+
 ### Was es kostet { #what-it-costs }
 
 Nachrichten, die ein Kunde sendet, sind kostenlos. Jede Geschäftsnummer erhält
-**1.000 kostenlose Service-Nachrichten im Monat**; danach berechnet Meta. Die
+**1.000 kostenlose Service-Nachrichten im Monat**; danach berechnet Meta. **Jede späte Antwort ist eine Vorlagennachricht**, die Meta auf einer echten Nummer
+berechnet. Die
 Testnummer braucht keine Zahlungsmethode.
 
 ### Grenzen { #limits }
 
 - **Nur Direktchats**; Gruppen gibt es nicht.
+- **Ein Diagramm oder eine Datei kann einer späten Antwort nicht folgen.** Die
+  zugestellte Antwort sagt das.
+- **Meta begrenzt, wie viele Kunden eine neue Nummer außerhalb des Fensters
+  erreichen kann**: anfangs etwa 250 verschiedene Kunden pro 24 Stunden.
 - **Dateien begrenzt `CHAT_MAX_UPLOAD_SIZE_MB`**, dasselbe Limit wie auf den anderen
   Plattformen, und **Sprachnachrichten 25 MB**. Eine Datei über dem Limit wird mit
   Begründung abgewiesen.

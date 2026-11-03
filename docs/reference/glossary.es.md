@@ -1,5 +1,5 @@
 ---
-source_sha: "a84b321e7c77"
+source_sha: "a3eb7d20c3c2"
 ---
 
 # Glosario { #glossary }
@@ -38,6 +38,7 @@ tal como se ven en pantalla.
 | Chat | La conversación web con un agent | `conversation` |
 | Channel | Slack, Telegram, Mattermost, Teams, Discord o WhatsApp, donde las personas hablan con un agent | `channel_bot` |
 | Routine | Un agent que se ejecuta solo, con un horario o un evento | `trigger` |
+| Late-answer template | La plantilla de WhatsApp aprobada en la que sale una respuesta pasadas 24 horas | `whatsapp_late_template` |
 | Run | Una vez que un agent respondió, con su coste y sus pasos | `agent_run` |
 | Environment | Una etapa con nombre, como producción, que apunta a una versión | `environment` |
 | MCP server | Un servidor de herramientas externo al que llaman los agents, conectado una vez | `mcp_connection` |
