@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { improvementsRoot, subjectKey, subjectOf } from "./improvement-subject";
+import { improvementsRoot, mayContinue, subjectKey, subjectOf } from "./improvement-subject";
 
 describe("improvement subject", () => {
   it("names an agent's session by the agent, as it always has", () => {
@@ -15,5 +15,11 @@ describe("improvement subject", () => {
     expect(subject).toEqual({ skillId: "k1" });
     expect(improvementsRoot(subject)).toBe("/skills/k1/improvements");
     expect(subjectKey(subject)).toBe("skill:k1");
+  });
+
+  it("reads an agent's access from can_restart, and leaves a skill's to the page", () => {
+    expect(mayContinue({ skill_id: null, can_restart: false })).toBe(false);
+    expect(mayContinue({ skill_id: null })).toBe(true);
+    expect(mayContinue({ skill_id: "k1", can_restart: false })).toBe(true);
   });
 });

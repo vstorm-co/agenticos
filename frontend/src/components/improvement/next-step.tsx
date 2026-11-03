@@ -6,7 +6,7 @@ import { useLocale, useTranslations } from "next-intl";
 import { Button, Input, Label } from "@/components/ui";
 import { limitText, limitValue, usd } from "@/components/evals/format";
 import { useImprovement } from "@/hooks/use-improvements";
-import { subjectOf } from "@/lib/improvement-subject";
+import { mayContinue, subjectOf } from "@/lib/improvement-subject";
 import { ApiError, getErrorMessage } from "@/lib/api-error";
 import { currentAttempt, stopOf } from "@/lib/improvement-steps";
 import type { ContinuationEstimate, Improvement } from "@/types/improvement";
@@ -67,8 +67,9 @@ export function NextStep({
     [t, tErrors],
   );
   const blockedBy = session.next_step_blocked;
+  const allowed = mayContinue(session);
   useEffect(() => {
-    if (!stop || readOnly || session.can_restart === false || blockedBy) return;
+    if (!stop || readOnly || !allowed || blockedBy) return;
     let current = true;
     estimate(asked).then(
       (value) => {
@@ -81,8 +82,8 @@ export function NextStep({
     return () => {
       current = false;
     };
-  }, [stop, readOnly, session.can_restart, blockedBy, asked, key, estimate, refusal]);
-  if (!stop || readOnly || session.can_restart === false) return null;
+  }, [stop, readOnly, allowed, blockedBy, asked, key, estimate, refusal]);
+  if (!stop || readOnly || !allowed) return null;
   const refused = blockedBy ? t("unmeasurable", { count: blockedBy.needed }) : error;
   async function start(value: ContinuationEstimate) {
     setError(null);

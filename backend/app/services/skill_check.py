@@ -303,6 +303,24 @@ class SkillCheckService:
         names = {item.name for item in candidate.resources} if candidate.replaces else files
         return tuple(files[name] for name in sorted(names))
 
+    async def _held_out(
+        self,
+        ctx: AuthContext,
+        test_set: Dataset | None,
+        holdout: Mapping[UUID, Collection[UUID]],
+    ) -> int:
+        """How many of the skill's questions a check compares: its held-out ones, or those
+        a session keeps aside."""
+        if test_set is None or not test_set.case_count:
+            return 0
+        kept = _kept(test_set, holdout)
+        if kept is not None:
+            return len(kept)
+        stats = await dataset_repo.case_stats_at(
+            self.db, {test_set.id: test_set.latest_version}, organization_id=ctx.organization_id
+        )
+        return stats[test_set.id].holdout_cases if test_set.id in stats else 0
+
     async def _test_set(self, ctx: AuthContext, skill: Skill) -> Dataset | None:
         return await dataset_repo.for_skill(self.db, skill.id, organization_id=ctx.organization_id)
 
@@ -376,6 +394,9 @@ class SkillCheckService:
             self.db, ctx, [user.agent for user in users], Perm.AGENTS_RUN, resource_type=AGENT
         )
         test_set = await self._test_set(ctx, skill)
+        size = rules.sample_size(
+            await self._held_out(ctx, test_set, holdout or {}), minimum=MIN_HOLDOUT_CASES
+        )
         before = {} if served is None else await self.versions.files_of(base)
         changed_words = rules.changed_words(
             "\n".join([base.description, base.content, *before.values()]),
@@ -401,7 +422,7 @@ class SkillCheckService:
                 row.unknown = UnknownReason.NO_ACCESS
                 continue
             row.stages = await self._stages(
-                ctx, skill, user, test_set, mode, changed_words, row, holdout or {}
+                ctx, skill, user, test_set, mode, changed_words, row, holdout or {}, size
             )
             if not row.stages:
                 row.unknown = UnknownReason.NO_QUESTIONS
@@ -420,7 +441,7 @@ class SkillCheckService:
                 except AuthorizationError, NotFoundError:
                     row.unknown = UnknownReason.NO_ACCESS
                     break
-                row.expected += quote.total_usd
+                row.expected += rules.expected_cost(quote.total_usd, quote.rerun_ceiling_usd)
                 row.at_most += quote.total_usd + quote.rerun_ceiling_usd
                 remaining = quote.agent_remaining_usd
                 org_remaining = quote.org_remaining_usd
@@ -517,6 +538,7 @@ class SkillCheckService:
         changed_words: set[str],
         row: Planned,
         holdout: Mapping[UUID, Collection[UUID]],
+        size: int,
     ) -> list[Stage]:
         """The skill's questions, then the agent's own, as far as each exists."""
         stages: list[Stage] = []
@@ -544,7 +566,7 @@ class SkillCheckService:
                 stages.append(Stage("dataset", dataset, own_kept, dataset.latest_version or None))
             return stages
         picked = await self._sample(
-            ctx, skill, user.agent.id, dataset, changed_words, holdout.get(dataset.id)
+            ctx, skill, user.agent.id, dataset, changed_words, holdout.get(dataset.id), size=size
         )
         if picked:
             row.sample = SampleKind.OWN_QUESTIONS
@@ -561,6 +583,8 @@ class SkillCheckService:
         dataset: Dataset,
         changed_words: set[str],
         allowed: Collection[UUID] | None = None,
+        *,
+        size: int = rules.SAMPLE_SIZE,
     ) -> list[UUID]:
         loaded = await skill_check_repo.loaded_cases(
             self.db,
@@ -592,6 +616,7 @@ class SkillCheckService:
                 if item.case_id in texts and (allowed is None or item.case_id in allowed)
             ],
             changed_words,
+            size=size,
         )
 
     async def _estimate(self, ctx: AuthContext, plan: Plan) -> SkillCheckEstimate:
@@ -910,9 +935,14 @@ class SkillCheckService:
         self, ctx: AuthContext, check: SkillCheck, row: SkillCheckAgent, current: UUID
     ) -> None:
         if row.dataset_run_id is None:
-            first = await self._stage_result(ctx, current)
             stage = _next_stage(row, CheckMode(check.mode))
-            if rules.stage_state(first) is not AgentState.WORSE and stage is not None:
+            # A quick check stops at a regression on the skill's questions, which is
+            # cheap; a thorough one, paid for in full, asks the agent's own as well, so
+            # its row shows where the change broke the agent.
+            if stage is not None and (
+                check.mode == CheckMode.THOROUGH.value
+                or rules.stage_state(await self._stage_result(ctx, current)) is not AgentState.WORSE
+            ):
                 dataset = await dataset_repo.get(
                     self.db, stage[0], organization_id=ctx.organization_id
                 )
@@ -1207,7 +1237,9 @@ class SkillCheckService:
                     outcomes=(
                         rules.update_outcomes(verdict)
                         if check.agent_id is not None
-                        else rules.outcomes(verdict, fork=check.fork_id is not None)
+                        else rules.outcomes(
+                            verdict, fork=check.fork_id is not None, helped=_helped(mine)
+                        )
                     )
                     if status is CheckStatus.DONE and verdict is not None
                     else [],
@@ -1451,10 +1483,15 @@ class SkillCheckService:
             raise ConcurrentChangeError(
                 message="The check has not finished", details={"check_id": check.id}
             )
+        rows = await skill_check_repo.list_agents(
+            self.db, [check.id], organization_id=ctx.organization_id
+        )
         if outcome is not None and outcome not in (
             rules.update_outcomes(CheckVerdict(check.verdict))
             if check.agent_id is not None
-            else rules.outcomes(CheckVerdict(check.verdict), fork=check.fork_id is not None)
+            else rules.outcomes(
+                CheckVerdict(check.verdict), fork=check.fork_id is not None, helped=_helped(rows)
+            )
         ):
             raise BadRequestError(
                 message="This check's result does not offer that",
@@ -1464,9 +1501,6 @@ class SkillCheckService:
         if drift is not None:
             raise drift
         await self._refuse_rewritten(ctx, check)
-        rows = await skill_check_repo.list_agents(
-            self.db, [check.id], organization_id=ctx.organization_id
-        )
         return skill, check, rows
 
     async def _drift(
@@ -1662,7 +1696,7 @@ class SkillCheckService:
             )
         outcome = CheckOutcome.APPLY_AND_PIN if blocked else CheckOutcome.APPLY
         if outcome not in rules.outcomes(
-            CheckVerdict(check.verdict), fork=check.fork_id is not None
+            CheckVerdict(check.verdict), fork=check.fork_id is not None, helped=_helped(rows)
         ):
             raise BadRequestError(
                 message="This check's result does not offer that",
@@ -1857,9 +1891,7 @@ class SkillCheckService:
             source=version_source(proposal) if proposal is not None else _source_of(check),
             proposal_id=check.proposal_id,
         )
-        helped = [
-            row for row in rows if row.state == AgentState.BETTER.value and not row.via_specialist
-        ]
+        helped = [row for row in rows if _movable_helped(row)]
         agents = await agent_repo.get_many(
             self.db, [row.agent_id for row in helped], organization_id=ctx.organization_id
         )
@@ -2042,6 +2074,16 @@ class SkillCheckService:
             await self._add_evidence(ctx, skill, created.id, window_days=data.window_days)
             return await self.datasets.read(ctx, created.id)
         return created
+
+
+def _movable_helped(row: SkillCheckAgent) -> bool:
+    """An agent the change helped that a fork can move: one reading the skill through a
+    specialist is moved in its Builder."""
+    return row.state == AgentState.BETTER.value and not row.via_specialist
+
+
+def _helped(rows: Sequence[SkillCheckAgent]) -> bool:
+    return any(_movable_helped(row) for row in rows)
 
 
 def _per_agent(users: Sequence[LineAgent]) -> list[LineAgent]:

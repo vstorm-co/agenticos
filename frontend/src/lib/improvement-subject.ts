@@ -14,6 +14,16 @@ export function subjectOf(session: Pick<Improvement, "agent_id" | "skill_id">): 
   return session.skill_id ? { skillId: session.skill_id } : session.agent_id;
 }
 
+/**
+ * Whether the reader may spend on the session. An agent's session says so in
+ * `can_restart`, which the server sets from the reader's access to the agent. A
+ * skill's sets `can_restart` only from whether Try again can start, and leaves
+ * access to the page's edit check, so it never hides the step a session waits on.
+ */
+export function mayContinue(session: Pick<Improvement, "skill_id" | "can_restart">): boolean {
+  return Boolean(session.skill_id) || session.can_restart !== false;
+}
+
 export function improvementsRoot(subject: ImprovementSubject): string {
   return typeof subject === "string"
     ? `/agents/${subject}/improvements`
