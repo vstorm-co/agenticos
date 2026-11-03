@@ -5291,6 +5291,10 @@
       "skill-tree": {
         "title": "Main i jego forki",
         "body": "Main biegnie w dół od najnowszej wersji, każdy fork odchodzi od wersji, od której wystartował, a agenci stoją przy wersji, której używają."
+      },
+      "skill-new-fork": {
+        "title": "Fork dla agentów, którzy się różnią",
+        "body": "Nowy fork zaczyna własną linię od najnowszej wersji main. Agenci przeniesieni na niego czytają jego zmiany, a agenci na main ich nie widzą."
       }
     },
     "chooseLanguage": "Język",
@@ -8119,8 +8123,6 @@
         "tree": "Drzewo wersji"
       },
       "agentCount": "{count, plural, =0 {Brak agentów} one {# agent} few {# agentów} many {# agentów} other {# agenta}}",
-      "delete": "Usuń",
-      "deleteDescription": "Agenci, którzy używają tego skilla, przestaną go znajdować. Jego wersje znikną razem z nim.",
       "state": {
         "main": "v{number} · main",
         "pinned": "v{number} · przypięty{behind, plural, =0 {} other { · # za main}}",
@@ -8225,6 +8227,29 @@
         "forkFiles": "Do forka należą tylko opis i instrukcje. Jego pliki pochodzą z wersji main, od której wystartował, a pliki edytuje się na main.",
         "noBase": "Ten skill nie ma jeszcze zapisanej wersji, na której można zapisać zmianę. Odśwież stronę i spróbuj ponownie.",
         "retryFork": "Wczytaj fork ponownie"
+      },
+      "newFork": {
+        "button": "Nowy fork",
+        "title": "Nowy fork skilla {name}",
+        "description": "Fork to linia wersji z własnymi zmianami, dla agentów, którzy ich potrzebują. Startuje od v{number}, najnowszej wersji main, i czyta się tak samo, dopóki ktoś go nie edytuje.",
+        "name": "Nazwa",
+        "agents": "Agenci do przeniesienia na fork (opcjonalnie)",
+        "agentsHint": "Każdy przeniesiony agent dostaje nową opublikowaną wersję, która czyta fork, albo zmiana czeka w jego drafcie, jeśli nie możesz go publikować.",
+        "noAgents": "Stąd nie da się przenieść żadnego agenta. Przenieś agentów później przez Zmień wersję.",
+        "agentNow": "{name} · teraz {binding}",
+        "cancel": "Anuluj",
+        "create": "Utwórz fork",
+        "created": "Utworzono fork „{name}”.{moved, plural, =0 {} one { Przeniesiono na niego 1 agenta.} few { Przeniesiono na niego # agentów.} many { Przeniesiono na niego # agentów.} other { Przeniesiono na niego # agenta.}}",
+        "moveFailed": "Nie przeniesiono agenta {name} na fork: {reason}"
+      },
+      "deleteSkill": {
+        "title": "Usunąć {name}?",
+        "description": "Razem z nim znikną jego wersje i forki. Żaden agent go teraz nie używa.",
+        "used": "Nie można usunąć skilla, którego używa agent. Przenieś każdego agenta na inny skill albo usuń z niego ten skill w Builderze, a potem go usuń.",
+        "usedBy": "{count, plural, one {Używa go 1 agent} few {Używa go # agentów} many {Używa go # agentów} other {Używa go # agenta}}{named, select, yes {: {names}} other {}}{hidden, plural, =0 {.} one {, i 1, którego nie widzisz.} few {, i #, których nie widzisz.} many {, i #, których nie widzisz.} other {, i #, którego nie widzisz.}}",
+        "close": "OK",
+        "cancel": "Anuluj",
+        "delete": "Usuń"
       }
     },
     "savedMainVersion": "Zapisano jako nową wersję main. Agenci na main czytają ją od następnego uruchomienia; przypięci agenci i forki zostają przy swoich."

@@ -10,6 +10,7 @@ import type {
   SkillAgentList,
   SkillAgentUsage,
   SkillBindingState,
+  SkillFork,
   SkillForkList,
   SkillVersionList,
   SkillVersionRead,
@@ -61,6 +62,17 @@ export function restoreSkillVersion(
 
 export function listSkillForks(skillId: string): Promise<SkillForkList> {
   return apiClient.get<SkillForkList>(`/skills/${skillId}/forks?archived=false`);
+}
+
+/** Start a fork from a main version; it serves that version until it saves one of its own. */
+export function createSkillFork(
+  skillId: string,
+  fork: { name: string; fromVersionId: string },
+): Promise<SkillFork> {
+  return apiClient.post<SkillFork>(`/skills/${skillId}/forks`, {
+    name: fork.name,
+    from_version_id: fork.fromVersionId,
+  });
 }
 
 export function listSkillAgents(skillId: string): Promise<SkillAgentList> {

@@ -5523,6 +5523,10 @@
       "skill-tree": {
         "title": "Main and its forks",
         "body": "Main runs down from its newest version, each fork branches off the version it started from, and agents sit at the version they use."
+      },
+      "skill-new-fork": {
+        "title": "A fork for the agents that differ",
+        "body": "New fork starts a line of its own from main's newest version. Agents moved onto it read its changes, and main's agents never see them."
       }
     },
     "chooseLanguage": "Language",
@@ -8359,8 +8363,6 @@
         "tree": "Version tree"
       },
       "agentCount": "{count, plural, =0 {No agents} =1 {1 agent} other {# agents}}",
-      "delete": "Delete",
-      "deleteDescription": "Agents that use this skill stop finding it. Its versions go with it.",
       "state": {
         "main": "v{number} · main",
         "pinned": "v{number} · pinned{behind, plural, =0 {} other { · # behind main}}",
@@ -8465,6 +8467,29 @@
         "forkFiles": "Only the description and instructions belong to the fork. Its files come from the main version it started from, and files are edited on main.",
         "noBase": "This skill has no saved version to write over yet. Reload the page and try again.",
         "retryFork": "Load the fork again"
+      },
+      "newFork": {
+        "button": "New fork",
+        "title": "New fork of {name}",
+        "description": "A fork is a line of versions with changes of its own, for the agents that need them. It starts from v{number}, main's newest version, and reads the same until it is edited.",
+        "name": "Name",
+        "agents": "Agents to move onto it (optional)",
+        "agentsHint": "Each agent moved gets a new published version that reads the fork, or the change waits in its draft where you may not publish it.",
+        "noAgents": "No agent can be moved onto it from here. Move agents later with Change version.",
+        "agentNow": "{name} · now {binding}",
+        "cancel": "Cancel",
+        "create": "Create fork",
+        "created": "Fork “{name}” created.{moved, plural, =0 {} =1 { 1 agent moved onto it.} other { # agents moved onto it.}}",
+        "moveFailed": "{name} was not moved onto the fork: {reason}"
+      },
+      "deleteSkill": {
+        "title": "Delete {name}?",
+        "description": "Its versions and forks go with it. No agent uses it now.",
+        "used": "A skill an agent uses cannot be deleted. Move each agent to another skill, or remove the skill from it in the Builder, then delete it.",
+        "usedBy": "{count, plural, =1 {Used by 1 agent} other {Used by # agents}}{named, select, yes {: {names}} other {}}{hidden, plural, =0 {.} =1 {, and 1 you can't see.} other {, and # you can't see.}}",
+        "close": "OK",
+        "cancel": "Cancel",
+        "delete": "Delete"
       }
     },
     "savedMainVersion": "Saved as a new main version. Agents on main read it from their next run; pinned agents and forks keep theirs."

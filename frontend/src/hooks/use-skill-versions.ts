@@ -7,6 +7,7 @@ import { PAGE_SIZE } from "@/components/ui";
 import { qk } from "@/lib/query-keys";
 import {
   changeSkillBinding,
+  createSkillFork,
   createSkillVersion,
   getSkillVersion,
   listSkillAgents,
@@ -84,5 +85,9 @@ export function useSkillVersionWrites(skillId: string) {
       await queryClient.invalidateQueries({ queryKey: qk.agents.all() });
     },
   });
-  return { edit, restore, changeBinding };
+  const createFork = useMutation({
+    mutationFn: (fork: { name: string; fromVersionId: string }) => createSkillFork(skillId, fork),
+    onSettled: settle,
+  });
+  return { edit, restore, changeBinding, createFork };
 }

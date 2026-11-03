@@ -5,7 +5,9 @@ import { useRouter } from "next/navigation";
 import { Bot, GitBranch, History } from "lucide-react";
 import { useTranslations } from "next-intl";
 
+import { DeleteSkillDialog } from "@/components/skills/delete-skill-dialog";
 import { EditSkillDialog } from "@/components/skills/edit-skill-dialog";
+import { NewForkDialog } from "@/components/skills/new-fork-dialog";
 import { SkillAgents } from "@/components/skills/skill-agents";
 import { SkillHistory } from "@/components/skills/skill-history";
 import { lineOf, shownAgents, type ShownAgents } from "@/components/skills/skill-lines";
@@ -13,7 +15,7 @@ import { SkillPageHeader } from "@/components/skills/skill-page-header";
 import { VersionTree } from "@/components/skills/version-tree";
 import { ErrorState, LoadingState } from "@/components/states";
 import { ResourceUnavailable } from "@/components/states/resource-unavailable";
-import { ConfirmDialog, Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui";
 import { useSkill } from "@/hooks";
 import { useSkillAgents, useSkillForks, useSkillVersions } from "@/hooks/use-skill-versions";
 import { useUrlState } from "@/hooks/use-url-state";
@@ -41,6 +43,7 @@ export default function SkillPage({ params }: { params: Promise<{ id: string }> 
   const [showParam, setShowParam] = useUrlState("show");
   const [editing, setEditing] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [forkFrom, setForkFrom] = useState<string | null>(null);
   const { skill, error, remove } = useSkill(id);
   const lines = useSkillForks(id);
   const agents = useSkillAgents(id);
@@ -63,12 +66,18 @@ export default function SkillPage({ params }: { params: Promise<{ id: string }> 
   const fork = forks.find((one) => one.id === forkId) ?? null;
   // A link to a fork that has since been archived shows everyone.
   const shown: ShownAgents = forkId !== null && fork === null ? "all" : asked;
+  const base = skill.latest_version_id;
   // Counted by the server, so agents the reader cannot see and every serving environment count.
   const followers = fork === null ? (mainVersions.versions[0]?.agents ?? 0) : fork.agents;
 
   return (
     <div className="space-y-6">
-      <SkillPageHeader skill={skill} line={fork?.name ?? null} onEdit={() => setEditing(true)} />
+      <SkillPageHeader
+        skill={skill}
+        line={fork?.name ?? null}
+        onEdit={() => setEditing(true)}
+        onFork={skill.can_edit && base !== null ? () => setForkFrom(base) : null}
+      />
       <Tabs
         value={tab}
         onValueChange={(next) => setTabParam(next === "agents" ? null : next)}
@@ -131,17 +140,26 @@ export default function SkillPage({ params }: { params: Promise<{ id: string }> 
         />
       )}
       {deleting && (
-        <ConfirmDialog
-          open
-          onOpenChange={() => setDeleting(false)}
-          title={tc("deleteNamedConfirm", { name: skill.name })}
-          description={t("deleteDescription")}
-          confirmLabel={t("delete")}
-          destructive
-          loading={remove.isPending}
-          onConfirm={async () => {
+        <DeleteSkillDialog
+          skill={skill}
+          agents={agents.agents}
+          deleting={remove.isPending}
+          onClose={() => setDeleting(false)}
+          onDelete={async () => {
             await remove.mutateAsync();
             router.push(ROUTES.SKILLS);
+          }}
+        />
+      )}
+      {forkFrom !== null && (
+        <NewForkDialog
+          skill={skill}
+          baseId={forkFrom}
+          agents={agents.agents?.items ?? []}
+          onClose={() => setForkFrom(null)}
+          onCreated={(created) => {
+            setForkFrom(null);
+            setShowParam(`fork:${created}`);
           }}
         />
       )}
