@@ -11973,7 +11973,7 @@
       "agents": {
         "title": "Coding-Agenten auf diesem Computer",
         "description": "Hier installierte Instanzen von Claude Code und Codex. Die Anmeldung gehört jedem Agenten: AgenticOS öffnet seinen eigenen Befehl im Terminal und liest oder kopiert nie seine Zugangsdaten.",
-        "installHint": "{name} ist auf diesem Computer nicht installiert.",
+        "installHint": "AgenticOS kann {name} für dich einrichten. Keine Entwicklerwerkzeuge erforderlich.",
         "notInstalled": "Nicht installiert",
         "signedIn": "Angemeldet",
         "signedOut": "Abgemeldet",
@@ -11982,7 +11982,11 @@
         "signInNamed": "Bei {name} anmelden",
         "signOut": "Abmelden",
         "signOutNamed": "Von {name} abmelden",
-        "terminalNote": "Die Anmeldung öffnet dein Systemterminal. Kehre danach zurück, um den Status zu aktualisieren."
+        "terminalNote": "Zur Anmeldung öffnet sich ein Browserfenster. AgenticOS liest oder speichert keine Zugangsdaten des Coding-Agenten.",
+        "prepare": "Einrichten",
+        "prepareNamed": "{name} einrichten",
+        "preparing": "Wird vorbereitet…",
+        "refresh": "Status aktualisieren"
       }
     },
     "welcome": {

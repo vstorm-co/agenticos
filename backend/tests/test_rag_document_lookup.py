@@ -377,7 +377,7 @@ class TestTheIndexedLookupIssuesOneStatementPerKey:
         assert execute.await_count == 1
         statement = str(execute.await_args.args[0])
         assert "metadata->>'source_path' = :v" in statement
-        assert "ORDER BY parent_doc_id, id" in statement
+        assert "ORDER BY parent_doc_id || '', id" in statement
         assert "LIMIT 1" in statement
 
     async def test_the_keys_are_tried_in_precedence_and_stop_at_the_first_hit(self):
