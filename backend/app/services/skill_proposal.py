@@ -25,6 +25,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import record_audit
 from app.core.exceptions import AlreadyExistsError, ConcurrentChangeError, NotFoundError
+from app.core.field_errors import refused_field
 from app.core.permissions import AuthContext, Perm
 from app.db.models.skill import Skill
 from app.db.models.skill_proposal import ProposalStatus, SkillProposal
@@ -233,7 +234,12 @@ class SkillProposalService:
         return proposal
 
     async def apply(
-        self, ctx: AuthContext, proposal_id: UUID, decision: ProposalDecision
+        self,
+        ctx: AuthContext,
+        proposal_id: UUID,
+        decision: ProposalDecision,
+        *,
+        checked: bool = False,
     ) -> SkillProposal:
         """Accept a change: mark it applied at the revision read, then write it to the skill.
 
@@ -247,20 +253,35 @@ class SkillProposalService:
         written against: a body reviewed against v3 must not silently replace a v4
         somebody wrote meanwhile.
 
+        A change to an existing skill goes live only through a check of it on
+        every agent of its line: `decision.check_id` names that check, and the
+        change is applied by it, under its rule. `checked` is the check itself
+        applying the change.
+
         Raises:
             AlreadyExistsError: If it was already decided.
             NotFoundError: If the proposal is not this organization's.
             ConcurrentChangeError: If the skill moved past the version it was written
                 against, or the proposal since the reviewer read it.
+            BadRequestError: A change to a skill with no check of it, or one whose
+                check does not allow applying it as it stands.
         """
         proposal = await self.get(ctx, proposal_id)
         self._refuse_second_decision(proposal, decision.revision)
+        if proposal.skill_id is not None and not checked:
+            from app.schemas.skill_check import SkillCheckApply
+            from app.services.skill_check import SkillCheckService
 
-        source = (
-            SkillVersionSource.WORKSPACE
-            if proposal.authoring_request_id is None
-            else SkillVersionSource.IMPROVE
-        )
+            if decision.check_id is None:
+                raise refused_field(
+                    "check_id", "Check this change on the agents of its line before applying it"
+                )
+            checks = SkillCheckService(self.db)
+            check = await checks.passed_for(ctx, proposal, decision.check_id)
+            await checks.apply(ctx, check.skill_id, check.id, SkillCheckApply())
+            return await self.get(ctx, proposal_id)
+
+        source = version_source(proposal)
         fork = None
         if proposal.skill_id is not None:
             current = await self.skills.get(ctx, proposal.skill_id, perm=Perm.SKILLS_EDIT)
@@ -412,6 +433,24 @@ class SkillProposalService:
         )
         return decided
 
+    async def mark_forked(
+        self, ctx: AuthContext, proposal_id: UUID, decision: ProposalDecision
+    ) -> SkillProposal:
+        """Decide a change that a check made a fork of instead of applying it to its line."""
+        proposal = await self.get(ctx, proposal_id)
+        self._refuse_second_decision(proposal, decision.revision)
+        decided = await self._claim(ctx, proposal, decision, ProposalStatus.APPLIED)
+        await record_audit(
+            self.db,
+            actor_user_id=ctx.subject_id,
+            organization_id=ctx.organization_id,
+            action="skill.change_forked",
+            target_type="skill",
+            target_id=str(proposal.skill_id) if proposal.skill_id else None,
+            details={"proposal_id": str(proposal_id), "revision": decided.revision},
+        )
+        return decided
+
     async def _claim(
         self,
         ctx: AuthContext,
@@ -444,6 +483,15 @@ class SkillProposalService:
             )
         if proposal.revision != revision:
             raise _changed(proposal)
+
+
+def version_source(proposal: SkillProposal) -> SkillVersionSource:
+    """What a version made from this proposal says it came from."""
+    if proposal.source is not None:
+        return SkillVersionSource(proposal.source)
+    if proposal.authoring_request_id is None:
+        return SkillVersionSource.WORKSPACE
+    return SkillVersionSource.IMPROVE
 
 
 def _moved_since(proposal: SkillProposal, skill: Skill, latest: UUID | None) -> bool:

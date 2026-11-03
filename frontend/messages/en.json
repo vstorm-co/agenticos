@@ -8323,7 +8323,50 @@
     "moreFiles": "{count, plural, =1 {+1 file} other {+# files}}",
     "bodyPlaceholder": "# Refunds\n\nUse this when a customer asks for their money back.\n\n## Steps\n\n1. Check the order date.\n2. Within 14 days, refund without asking.\n3. After that, ask a person to approve it.",
     "whoCanUseIt": "Who can use it",
-    "expectedEffect": "Expected effect:"
+    "expectedEffect": "Expected effect:",
+    "checkOnAgents": "Check on agents",
+    "checkChangeTo": "Check the change to {name} on the agents that use it",
+    "check": {
+      "title": "Check this change on every agent that uses it",
+      "description": "Each agent answers its questions with the skill as it is and with this change. Nothing changes until you decide.",
+      "price": "Most likely ${expected}, at most ${most}. Each agent's share is billed to that agent.",
+      "start": "Start the check",
+      "running": "Checking. This takes a few minutes; you can close this and come back.",
+      "asked": "{count, plural, =1 {Asked 1 question} other {Asked # questions}}",
+      "skillSetOnly": "Checked on the skill's own questions only: none of this agent's questions opened the skill.",
+      "hidden": "{count, plural, =1 {1 more agent uses this skill that you cannot see.} other {# more agents use this skill that you cannot see.}}",
+      "noisy": "Some results were within noise: the check saw a difference it could not confirm.",
+      "forkLine": "This change is to a fork, which cannot be pinned or forked again. Improve it further or discard it.",
+      "acknowledge": "I understand some agents could not be checked.",
+      "discard": "Discard",
+      "apply": "Apply",
+      "applyAndPin": "Apply, and keep the worse agents on their version",
+      "reason": {
+        "no_questions": "Not checked: it has no questions to ask.",
+        "no_access": "Not checked: you may not run this agent.",
+        "no_budget": "Not checked: its budget cannot cover the check.",
+        "no_published_version": "Not checked: it has no published version.",
+        "inconclusive": "Not checked: the check could not grade every answer.",
+        "failed": "Not checked: its run failed."
+      },
+      "state": {
+        "queued": "Waiting",
+        "running": "Running",
+        "better": "Better",
+        "no_change": "No change",
+        "within_noise": "Within noise",
+        "worse": "Worse",
+        "unknown": "Unknown"
+      },
+      "verdict": {
+        "passed": "No agent got worse and at least one got better.",
+        "needs_ack": "No agent that was checked got worse, but some could not be checked.",
+        "blocked": "An agent got worse. You can still apply the change and keep that agent on the version it uses now.",
+        "no_better": "No agent got better, so there is nothing to apply."
+      },
+      "unaffordable": "The organization's budget left this month cannot cover this check.",
+      "cancel": "Stop the check"
+    }
   },
   "states": {
     "loading": "Loading"

@@ -1069,6 +1069,15 @@ def get_skill_proposal_service(db: DBSession) -> SkillProposalService:
 
 SkillProposalSvc = Annotated[SkillProposalService, Depends(get_skill_proposal_service)]
 
+from app.services.skill_check import SkillCheckService
+
+
+def get_skill_check_service(db: DBSession) -> SkillCheckService:
+    return SkillCheckService(db)
+
+
+SkillCheckSvc = Annotated[SkillCheckService, Depends(get_skill_check_service)]
+
 from app.services.context_proposal import ContextProposalService
 
 

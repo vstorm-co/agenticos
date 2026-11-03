@@ -734,6 +734,9 @@ export const qk = {
     bytes: (id: string, path: string) => ["sandbox-workspaces", "bytes", id, path] as const,
     file: (id: string, path: string) => ["sandbox-workspaces", "file", id, path] as const,
   },
+  skillChecks: {
+    detail: (skillId: string, checkId: string) => ["skill-checks", skillId, checkId] as const,
+  },
   skillChanges: {
     all: () => ["skill-changes"] as const,
     // Keyed by filter: the reviewer's list is the pending ones, and a page

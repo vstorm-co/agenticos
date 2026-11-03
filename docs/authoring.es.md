@@ -1,5 +1,5 @@
 ---
-source_sha: "e2344fe1861a"
+source_sha: "a37662e46512"
 title: "Asistente de autoría"
 description: "El asistente de autoría lee lo que la gente valoró negativamente y cómo acabaron los runs, y sugiere cambios a las instrucciones, las herramientas, la configuración, los skills y los archivos de contexto de un agent. Una persona decide cada uno."
 ---
@@ -255,12 +255,14 @@ Un skill se mejora desde su banco de trabajo en Skills. Lo que sugiere el
 asistente es un cuerpo nuevo completo, que espera con los demás cambios de
 [skills](skills.md) en Skills, con su justificación y evidencia.
 
-Aplicar un cambio a un skill es inmediato: cada agent vinculado al skill lee el
-cuerpo nuevo en su siguiente run. Por eso un cambio a un skill se puede comprobar
-antes con evals, en un agent que lo usa: los dos lados ejecutan la versión
-publicada de ese agent, y solo cambia el cuerpo del skill. Un cambio escrito para
-una versión anterior del skill se rechaza si alguien ha cambiado el skill desde
-entonces.
+Aplicar un cambio a un skill es inmediato: cada agent que sigue la línea del skill
+lee el cuerpo nuevo en su siguiente run. Por eso un cambio a un skill solo pasa a
+producción a través de una
+[comprobación en cada agent de su línea](skills.md#checking-a-change-on-every-agent):
+la versión publicada de cada uno responde con el skill tal como está y con el
+cambio, y el cambio se aplica desde el resultado de esa comprobación. Un cambio
+escrito para una versión anterior del skill se rechaza si alguien ha cambiado el
+skill desde entonces.
 
 ## Archivos de contexto { #context-files }
 

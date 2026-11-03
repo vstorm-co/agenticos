@@ -481,7 +481,7 @@ async def test_applying_a_skill_change_goes_live_where_served_and_tells_the_owne
     service = SkillProposalService(db)
 
     read = await service.read(ctx, proposal.id)
-    applied = await service.apply(ctx, proposal.id, ProposalDecision(revision=1))
+    applied = await service.apply(ctx, proposal.id, ProposalDecision(revision=1), checked=True)
 
     assert [(item.name, item.environments) for item in read.reaches] == [
         (agent.name, ["production"])
@@ -525,7 +525,9 @@ async def test_an_owner_who_cannot_see_the_skill_is_told_without_its_name(db):
     db.add(proposal)
     await db.flush()
 
-    await SkillProposalService(db).apply(ctx, proposal.id, ProposalDecision(revision=1))
+    await SkillProposalService(db).apply(
+        ctx, proposal.id, ProposalDecision(revision=1), checked=True
+    )
 
     (told,) = (
         await db.scalars(

@@ -32,7 +32,7 @@ import json
 import logging
 from collections import defaultdict
 from collections.abc import Collection, Mapping, Sequence
-from dataclasses import dataclass, field, replace
+from dataclasses import asdict, dataclass, field, replace
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Literal
@@ -44,7 +44,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.capabilities.budget import price_request
 from app.agents.capabilities.context import ContextBody
-from app.agents.capabilities.skills import SkillBody
+from app.agents.capabilities.skills import SkillBody, SkillBodyFile
 from app.agents.spec import AgentSpec
 from app.agents.system_agents import JUDGE, refuse_system_agent, steps
 from app.core.config import settings
@@ -117,6 +117,7 @@ from app.services.agent_registry import (
     AgentRegistryService,
     PublishedCandidate,
     UnpublishedCandidate,
+    delegation_binding,
 )
 from app.services.ai_assistance import AiAssistanceService
 from app.services.background_jobs import enqueue
@@ -180,15 +181,33 @@ def spec_hash(
 
 def _bodies_json(
     bodies: Mapping[UUID, SkillBody] | Mapping[UUID, ContextBody],
-) -> dict[str, dict[str, str | None]]:
+) -> dict[str, dict[str, object]]:
     return {
         str(key): {
             "description": body.description,
             "content": body.content,
             **({"name": body.name} if body.name is not None else {}),
+            **(
+                {"resources": [asdict(file) for file in body.resources]}
+                if isinstance(body, SkillBody) and body.resources is not None
+                else {}
+            ),
         }
         for key, body in bodies.items()
     }
+
+
+def skill_body_from_json(body: Mapping[str, object]) -> SkillBody:
+    """A projected skill body as `_bodies_json` stored it."""
+    files = body.get("resources")
+    return SkillBody(
+        description=TypeAdapter(str).validate_python(body["description"]),
+        content=TypeAdapter(str).validate_python(body["content"]),
+        name=TypeAdapter(str | None).validate_python(body.get("name")),
+        resources=None
+        if files is None
+        else tuple(TypeAdapter(list[SkillBodyFile]).validate_python(files)),
+    )
 
 
 def attempt_state(attempt: EvalRunCase, score: CaseScore | None) -> CaseState:
@@ -306,6 +325,8 @@ class ArmPlan:
     cached: tuple[EvalRunArm, EvalRun] | None = None
     skill_bodies: Mapping[UUID, SkillBody] = field(default_factory=dict)
     context_bodies: Mapping[UUID, ContextBody] = field(default_factory=dict)
+    skill_versions: Mapping[str, str] | None = None
+    """The stored skill versions the spec is served, by skill; `None` when it binds none."""
 
 
 @dataclass(frozen=True)
@@ -403,6 +424,37 @@ class EvalRunService:
         self.registry = AgentRegistryService(db)
         self.datasets = DatasetService(db)
         self.models = ModelProfileService(db)
+
+    async def served_skill_versions(
+        self, ctx: AuthContext, spec: AgentSpec
+    ) -> dict[str, str] | None:
+        """The stored version of each skill the spec and its inline specialists are served.
+
+        A skill's text is not part of the agent version that binds it: an agent on
+        main reads whatever main's newest version is when it runs. So two runs of
+        one agent version answered from the same skill text only when these match.
+        Keyed by reader and skill - `":<skill>"` for the agent, `"<specialist>:<skill>"`
+        for an inline specialist - since each may bind the skill differently. A
+        published delegate is another agent with versions of its own, and is not read.
+        """
+        from app.agents.capabilities.subagents import SubagentsConfig
+        from app.services.skills import SkillService
+
+        readers = [("", spec.skill_ids, spec.skill_bindings)]
+        binding = delegation_binding(spec)
+        if binding is not None:
+            try:
+                inline = SubagentsConfig.model_validate(binding.config).inline
+            except ValidationError:
+                inline = []
+            readers += [(item.name, item.skill_ids, item.skill_bindings) for item in inline]
+        served: dict[str, str] = {}
+        skills = SkillService(self.db)
+        for reader, skill_ids, bindings in readers:
+            for skill in await skills.resolve_for_agent(ctx, skill_ids, bindings=bindings):
+                if skill.latest_version_id is not None:
+                    served[f"{reader}:{skill.id}"] = str(skill.latest_version_id)
+        return served or None
 
     async def plan(
         self,
@@ -587,8 +639,8 @@ class EvalRunService:
                 skill_bodies=dict(baseline_skills or {}),
                 context_bodies=dict(baseline_contexts or {}),
             )
-            # A skill's or a context file's stored body is live rather than versioned,
-            # so a cached baseline may have read an older one than the body replaced.
+            # A projected body is no stored version a cached arm could have read, and a
+            # context file's stored body is live, so neither side is taken from the cache.
             cached = (
                 None
                 if excluded
@@ -746,6 +798,7 @@ class EvalRunService:
             model_profile_id=spec.model_profile_id,
             scoring_hash=scoring_hash,
             execution=execution,
+            skill_versions=await self.served_skill_versions(ctx, spec),
         )
         if found is None or not await self._graded_as_now(
             ctx,
@@ -781,12 +834,9 @@ class EvalRunService:
             model_profile_id=arm.model_profile_id,
             model_label=arm.model_label,
             cached=(arm, run),
+            skill_versions=arm.skill_versions,
             skill_bodies={
-                UUID(key): SkillBody(
-                    description=body["description"],
-                    content=body["content"],
-                    name=TypeAdapter(str | None).validate_python(body.get("name")),
-                )
+                UUID(key): skill_body_from_json(body)
                 for key, body in (arm.skill_bodies or {}).items()
             },
             context_bodies={
@@ -960,6 +1010,7 @@ class EvalRunService:
             spec=spec,
             model_profile_id=model_profile_id or spec.model_profile_id,
             model_label=model.label,
+            skill_versions=await self.served_skill_versions(ctx, spec),
         )
 
     async def _judge_model(
@@ -1012,7 +1063,8 @@ class EvalRunService:
         """A completed baseline arm that may stand in for running this one.
 
         Only one that matches on everything the comparison holds constant: the
-        version, the dataset version, the model, the scoring, the environment
+        version and the skill versions it was served, the dataset version, the
+        model, the scoring, the environment
         whose test connections answered and whether recordings did - and the judge,
         whose published version and prompt must be the ones that graded every
         case, or no judge at all when none would grade now. Every first answer
@@ -1030,6 +1082,7 @@ class EvalRunService:
             dataset_version_id=dataset_version.id,
             model_profile_id=arm.model_profile_id,
             scoring_hash=scoring_hash,
+            skill_versions=arm.skill_versions,
             execution=execution,
             since=since,
         )
@@ -1552,6 +1605,7 @@ class EvalRunService:
                 spec=None if arm.version else arm.spec.model_dump(mode="json"),
                 spec_hash=spec_hash(arm.spec, arm.skill_bodies, arm.context_bodies),
                 skill_bodies=_bodies_json(arm.skill_bodies) if arm.skill_bodies else None,
+                skill_versions=dict(arm.skill_versions) if arm.skill_versions else None,
                 context_bodies=_bodies_json(arm.context_bodies) if arm.context_bodies else None,
                 model_profile_id=arm.model_profile_id,
                 model_label=arm.model_label,
