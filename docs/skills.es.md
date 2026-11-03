@@ -1,5 +1,5 @@
 ---
-source_sha: "6efeb433b44f"
+source_sha: "8c770ed86632"
 ---
 
 # Skills { #skills }
@@ -418,6 +418,20 @@ atrás. Un agent fijado cuenta por lo que sirve su entorno por defecto, y un for
 solo mientras algún agent lo lee. Los skills que no puedes ver se omiten, y los
 agents fijados que no ves se cuentan, sin nombrarlos.
 
+**Actualizar a main.** Un agent fijado que va por detrás de main se sube tras una
+comprobación: `POST /api/v1/skills/{id}/agents/{agent_id}/update-check` pregunta solo a
+ese agent, con sus propias preguntas y las del skill, con la versión en la que está y
+con la versión más reciente de main y sus archivos, con cargo a su presupuesto;
+`…/update-check/estimate` da antes el precio. La comprobación necesita permiso para
+editar el skill y para leer runs. Se acepta moviendo al agent:
+`PUT …/agents/{agent_id}/binding` con `state: main` y su `check_id`. El movimiento se
+rechaza cuando la versión nueva empeoró al agent, cuando no se confirma un resultado
+que no se pudo medir (`acknowledge_unknown`) y cuando el agent se publicó de nuevo o
+main avanzó desde la comprobación; cierra la comprobación y marca al agent como
+comprobado en esa versión. Mover un agent sin comprobación sigue siendo posible, como
+cualquier cambio de versión: el agent queda entonces como «desconocido» en su nueva
+versión, y responde de ello quien lo movió.
+
 ### Borrar un skill { #deleting-a-skill }
 
 Un skill que usa un agent no se puede borrar. Es un skill vinculado por el borrador
@@ -437,6 +451,7 @@ cuenta los demás. Un skill que nadie usa se borra con sus versiones y sus forks
 | `GET /api/v1/skills/{id}/agents` | Los agents del skill, la versión que lee cada uno y cuántos están ocultos |
 | `PUT /api/v1/skills/{id}/agents/{agent_id}/binding` | Mueve un agent a main, a una versión de main o a un fork |
 | `GET /api/v1/skills/behind-main` | Los agents fijados y los forks que main ha dejado atrás, en toda la organización |
+| `POST /api/v1/skills/{id}/agents/{agent_id}/update-check`, `…/estimate` | Comprueba la versión más reciente de main en un agent fijado, o da el precio de esa comprobación |
 
 ## Cómo llegan los skills a una organización { #getting-skills-into-an-organization }
 

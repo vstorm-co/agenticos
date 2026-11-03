@@ -392,6 +392,19 @@ listed by what its default environment serves, and a fork only while an agent
 reads it. Skills you cannot view are left out, and pinned agents you cannot see
 are counted, not named.
 
+**Update to main.** A pinned agent behind main is moved up with a check first:
+`POST /api/v1/skills/{id}/agents/{agent_id}/update-check` asks that one agent, on its
+own questions and the skill's, with the version it stays on and with main's newest
+version and its files, billed to the agent; `…/update-check/estimate` prices it
+first. The check needs permission to edit the skill and to read runs. It is accepted
+by moving the agent: `PUT …/agents/{agent_id}/binding` with `state: main` and its
+`check_id`. That move is refused when the newer version made the agent worse, when a
+result that could not be measured is not acknowledged (`acknowledge_unknown`), and
+when the agent was published again or main moved on since the check; it closes the
+check and marks the agent checked on that version. Moving an agent without a check
+stays possible, as any change of version is: the agent then reads "unknown" on its
+new version, and the person who moved it answers for that.
+
 ### Deleting a skill
 
 A skill that an agent uses cannot be deleted. That is a skill bound by a live
@@ -411,6 +424,7 @@ others. A skill that nobody uses is deleted with its versions and forks.
 | `GET /api/v1/skills/{id}/agents` | The skill's agents, the version each reads, and how many are hidden |
 | `PUT /api/v1/skills/{id}/agents/{agent_id}/binding` | Moves an agent to main, a main version or a fork |
 | `GET /api/v1/skills/behind-main` | Pinned agents and forks that main has moved past, across the organization |
+| `POST /api/v1/skills/{id}/agents/{agent_id}/update-check`, `…/estimate` | Checks main's newest version on one pinned agent, or prices that check |
 
 ## Getting skills into an organization
 

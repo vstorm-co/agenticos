@@ -1,5 +1,5 @@
 ---
-source_sha: "6efeb433b44f"
+source_sha: "8c770ed86632"
 ---
 
 # Skille { #skills }
@@ -405,6 +405,20 @@ liczony według tego, co serwuje jego domyślne środowisko, a fork tylko wtedy,
 czyta go jakiś agent. Skille, których nie możesz zobaczyć, są pominięte, a
 przypięci agenci, których nie widzisz, są policzeni, a nie nazwani.
 
+**Aktualizacja do main.** Przypiętego agenta, który jest za main, przenosi się
+w górę po sprawdzeniu: `POST /api/v1/skills/{id}/agents/{agent_id}/update-check`
+pyta tylko tego agenta, na jego własnych pytaniach i pytaniach skilla, z wersją, na
+której stoi, i z najnowszą wersją main razem z jej plikami, a koszt idzie z budżetu
+agenta; `…/update-check/estimate` najpierw podaje cenę. Sprawdzenie wymaga prawa
+edycji skilla i czytania runów. Akceptuje się je, przenosząc agenta:
+`PUT …/agents/{agent_id}/binding` ze `state: main` i jego `check_id`. To przeniesienie
+jest odrzucane, gdy nowsza wersja pogorszyła agenta, gdy wynik, którego nie dało się
+zmierzyć, nie został potwierdzony (`acknowledge_unknown`), i gdy agent został
+opublikowany ponownie albo main poszedł dalej od czasu sprawdzenia; zamyka ono
+sprawdzenie i oznacza agenta jako sprawdzonego na tej wersji. Przeniesienie bez
+sprawdzenia pozostaje możliwe, jak każda zmiana wersji: agent ma wtedy na nowej
+wersji stan „nie wiadomo”, a odpowiada za to osoba, która go przeniosła.
+
 ### Usuwanie skilla { #deleting-a-skill }
 
 Skilla, którego używa agent, nie można usunąć. Chodzi o skill związany przez
@@ -425,6 +439,7 @@ jego wersjami i forkami.
 | `GET /api/v1/skills/{id}/agents` | Agenci skilla, wersja, którą czyta każdy z nich, i liczba ukrytych |
 | `PUT /api/v1/skills/{id}/agents/{agent_id}/binding` | Przesuwa agenta na main, wersję main albo fork |
 | `GET /api/v1/skills/behind-main` | Przypięci agenci i forki, które main wyprzedził, w całej organizacji |
+| `POST /api/v1/skills/{id}/agents/{agent_id}/update-check`, `…/estimate` | Sprawdza najnowszą wersję main na jednym przypiętym agencie albo wycenia to sprawdzenie |
 
 ## Jak skille trafiają do organizacji { #getting-skills-into-an-organization }
 
