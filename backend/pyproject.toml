@@ -1103,6 +1103,7 @@ include = [
     "app/services/improvement_data.py",
     "app/schemas/improvement.py",
     "app/services/improvement_pipeline.py",
+    "app/services/improvement_skills.py",
     "app/api/routes/v1/improvements.py",
     "app/worker/tasks/improvement_tasks.py",
     # Skill improvement sessions: the same steps on one line of a shared skill.
@@ -1890,6 +1891,7 @@ include = [
     "app/services/improvement_data.py",
     "app/schemas/improvement.py",
     "app/services/improvement_pipeline.py",
+    "app/services/improvement_skills.py",
     "app/api/routes/v1/improvements.py",
     "app/worker/tasks/improvement_tasks.py",
     # Skill improvement sessions: the same steps on one line of a shared skill.

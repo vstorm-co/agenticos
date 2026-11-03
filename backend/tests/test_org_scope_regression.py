@@ -59,6 +59,7 @@ TENANT_REQUIRED = [
     (conversation_repo, "list_tool_calls_for_run"),
     (authoring_repo, "create_request"),
     (authoring_repo, "get_request"),
+    (authoring_repo, "requests_of_improvement"),
     (authoring_repo, "list_requests"),
     (authoring_repo, "get_batch"),
     (authoring_repo, "get_open_batch"),
