@@ -350,16 +350,20 @@ class TestApplying:
         }
 
     async def test_a_change_to_a_fork_is_the_forks_next_version(self, monkeypatch):
-        """Main is left alone; the fork's version keeps its files and takes the new one."""
+        """Main is left alone; the fork's version keeps its files, takes the new one, and a
+        file the change rewrote keeps the description it had."""
         service = _service(monkeypatch)
         fork = MagicMock(
             id=uuid.uuid4(), latest_version_id=_V3, base_version_id=uuid.uuid4(), archived_at=None
         )
-        proposal = _proposal(fork_id=fork.id, resources={"new.md": "two"})
+        proposal = _proposal(fork_id=fork.id, resources={"new.md": "two", "kept.md": "four"})
         monkeypatch.setattr(skill_proposal_repo, "get", AsyncMock(return_value=proposal))
         monkeypatch.setattr(skill_version_repo, "get_fork", AsyncMock(return_value=fork))
         latest = MagicMock(
-            resources={"old.md": {"sha256": "a", "description": None, "size_bytes": 3}}
+            resources={
+                "old.md": {"sha256": "a", "description": None, "size_bytes": 3},
+                "kept.md": {"sha256": "b", "description": "When to refund", "size_bytes": 5},
+            }
         )
         monkeypatch.setattr(
             skill_version_repo, "get_versions", AsyncMock(return_value={_V3: latest})
@@ -373,7 +377,9 @@ class TestApplying:
         service.skills.update.assert_not_called()
         service.skills.put_resources.assert_not_called()
         written = record_fork.await_args.kwargs
-        assert set(written["resources"]) == {"old.md", "new.md"}
+        assert set(written["resources"]) == {"old.md", "new.md", "kept.md"}
+        assert written["resources"]["kept.md"]["description"] == "When to refund"
+        assert written["resources"]["new.md"]["description"] is None
         assert written["source"] is SkillVersionSource.WORKSPACE
         assert written["proposal_id"] == proposal.id
 

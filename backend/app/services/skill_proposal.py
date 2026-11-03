@@ -352,7 +352,12 @@ class SkillProposalService:
             )
         )[latest_id]
         manifest, bodies = manifest_of(
-            (name, None, content) for name, content in sorted(proposal.resources.items())
+            (
+                name,
+                latest.resources[name]["description"] if name in latest.resources else None,
+                content,
+            )
+            for name, content in sorted(proposal.resources.items())
         )
         await skill_version_repo.put_files(
             self.db, organization_id=ctx.organization_id, skill_id=fork.skill_id, bodies=bodies
