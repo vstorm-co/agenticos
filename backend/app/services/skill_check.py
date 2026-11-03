@@ -109,6 +109,7 @@ from app.services.api_key import job_context
 from app.services.background_jobs import enqueue
 from app.services.dataset import DatasetService
 from app.services.eval_run import EvalRunService
+from app.services.improvement_data import MIN_HOLDOUT_CASES
 from app.services.improvement_states import CheckResult
 from app.services.notifications import NotificationService
 from app.services.skill_agents import LineAgent, SkillAgentService
@@ -477,12 +478,15 @@ class SkillCheckService:
             self.db, dataset.id, dataset.latest_version, organization_id=ctx.organization_id
         )
         assert version is not None, "a dataset with cases has its latest version"
+        # Only held-out questions are compared, so a sample of training ones would
+        # measure nothing: the dataset's stored partition, or a session's own draw.
         texts = {
             case.case_id: case.input
             for case in await dataset_repo.list_cases(
                 self.db, version.id, organization_id=ctx.organization_id, limit=None
             )
             if case.anonymised_at is None
+            and (allowed is not None or case.improvement_partition == "holdout")
         }
         return rules.sample(
             [
@@ -810,14 +814,36 @@ class SkillCheckService:
             compared=comparison.compared,
         )
 
+    async def _stage_comparison(self, ctx: AuthContext, run_id: UUID) -> rules.StageComparison:
+        """One stage's held-out questions compared, the minimum left to the agent's pool."""
+        comparison = await self.evals.compare(ctx, run_id, holdout_minimum=False)
+        mine, theirs = comparison.candidate_summary, comparison.baseline_summary
+        return rules.StageComparison(
+            comparable=comparison.baseline is not None and comparison.verdict != "invalid",
+            gradable_holdout=comparison.compared
+            if comparison.gradable_holdout is None
+            else comparison.gradable_holdout,
+            incomplete=mine.incomplete + (theirs.incomplete if theirs else 0),
+            ungraded=mine.ungraded + (theirs.ungraded if theirs else 0),
+            crashed=mine.crashed + (theirs.crashed if theirs else 0),
+            regressions_confirmed=comparison.regressions_confirmed,
+            fixed_confirmed=comparison.fixed_confirmed,
+            regressions_unconfirmed=comparison.regressions_unconfirmed,
+            fixed_unconfirmed=comparison.fixed_unconfirmed,
+            compared=comparison.compared,
+            candidate_pass_rate=mine.pass_rate,
+            baseline_pass_rate=None if theirs is None else theirs.pass_rate,
+        )
+
     async def _judge(self, ctx: AuthContext, row: SkillCheckAgent) -> None:
-        """An agent's result from every stage it ran."""
-        results = [
-            await self._stage_result(ctx, run_id)
+        """An agent's result from every stage it ran, their held-out questions pooled."""
+        stages = [
+            await self._stage_comparison(ctx, run_id)
             for run_id in (row.skill_set_run_id, row.dataset_run_id)
             if run_id is not None
         ]
-        state = rules.combined([rules.stage_state(result) for result in results])
+        result = rules.pooled(stages, minimum=MIN_HOLDOUT_CASES)
+        state = rules.agent_state(stages, minimum=MIN_HOLDOUT_CASES)
         await skill_check_repo.update_agent(
             self.db,
             row=row,
@@ -826,14 +852,12 @@ class SkillCheckService:
                 "unknown_reason": UnknownReason.INCONCLUSIVE.value
                 if state is AgentState.UNKNOWN
                 else None,
-                "fixed": sum(r.check.fixed_confirmed + r.fixed_unconfirmed for r in results),
-                "broken": sum(
-                    r.check.regressions_confirmed + r.regressions_unconfirmed for r in results
-                ),
-                "held_out": sum(r.compared for r in results),
-                "fixed_confirmed": sum(r.check.fixed_confirmed for r in results),
-                "regressions_confirmed": sum(r.check.regressions_confirmed for r in results),
-                "noisy": any(rules.noisy(result) for result in results),
+                "fixed": result.check.fixed_confirmed + result.fixed_unconfirmed,
+                "broken": result.check.regressions_confirmed + result.regressions_unconfirmed,
+                "held_out": result.compared,
+                "fixed_confirmed": result.check.fixed_confirmed,
+                "regressions_confirmed": result.check.regressions_confirmed,
+                "noisy": rules.noisy(result),
             },
         )
 
@@ -1746,6 +1770,9 @@ class SkillCheckService:
             DatasetCreate(
                 name=f"{skill.name} · test questions",
                 description=f"Questions every agent using '{skill.name}' is checked on.",
+                # Every question is held out: the set measures a change, and nothing
+                # learns from it.
+                improvement_holdout_share=Decimal(1),
             ),
             skill_id=skill.id,
         )

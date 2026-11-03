@@ -1,5 +1,5 @@
 ---
-source_sha: "15641a925373"
+source_sha: "82257867b08d"
 ---
 
 # Skills { #skills }
@@ -314,6 +314,13 @@ nicht prüfen konnte, und bearbeitet wie jedes andere [Dataset](datasets.md). Da
 - Ein Agent, der nicht geprüft werden konnte - keine Fragen, kein Zugriff, kein
   Budget mehr, keine veröffentlichte Version, ein fehlgeschlagener Run - ist
   **unbekannt**, und eine Person bestätigt das vor dem Anwenden.
+
+Ein Agent wird einmal beurteilt, auf den Held-out-Fragen aller seiner Stufen
+zusammen: Ein Ergebnis braucht fünf davon für den Agent, nicht fünf pro Stufe,
+und eine Regression, die eine Stufe allein bestätigt, zählt, was immer die andere
+fand.
+Jede Frage des Skill-Sets ist held-out, und eine schnelle Prüfung zieht nur die
+Held-out-Fragen des Agents.
 
 Der Anteil jedes Agents sind seine eigenen Eval-Runs, abgerechnet über sein
 Budget. Die Schätzung nennt einen Preis, wahrscheinlich und höchstens, und vor

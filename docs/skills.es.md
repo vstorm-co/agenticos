@@ -1,5 +1,5 @@
 ---
-source_sha: "15641a925373"
+source_sha: "82257867b08d"
 ---
 
 # Skills { #skills }
@@ -303,6 +303,13 @@ Después, las preguntas del propio agent:
 - Un agent que no se pudo comprobar - sin preguntas, sin acceso, sin budget, sin
   versión publicada, con un run fallido - es **desconocido**, y una persona lo
   reconoce antes de aplicar.
+
+Un agent se juzga una vez, sobre las preguntas held-out de todas sus etapas
+juntas: un resultado necesita cinco para el agent, no cinco por etapa, y una
+regresión que una etapa confirmó por sí sola cuenta, sea lo que sea que halló la
+otra. Todas las
+preguntas del conjunto del skill son held-out, y una comprobación rápida solo
+toma preguntas held-out del agent.
 
 La parte de cada agent son sus propios runs de evals, cargados a su budget. La
 estimación da un precio, lo más probable y como mucho, y nombra antes de empezar

@@ -282,6 +282,12 @@ an agent [Improve](#improving-a-skill) could not check, and edited like any othe
   no published version, a run that failed - is **unknown**, and a person
   acknowledges it before applying.
 
+An agent is judged once, on the held-out questions of all its stages together: a
+result needs five of them for the agent, not five per stage, and a regression one
+stage confirmed on its own counts whatever the other found. Every question of the
+skill's set is held out, and a quick check samples only the agent's held-out
+questions.
+
 Each agent's share is its own eval runs, billed to that agent. The estimate gives
 one price, most likely and at most, and names before the start the agents whose
 budget cannot cover it. Starting needs `runs:view` and edit access to the skill.

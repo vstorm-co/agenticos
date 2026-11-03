@@ -1,5 +1,5 @@
 ---
-source_sha: "15641a925373"
+source_sha: "82257867b08d"
 ---
 
 # Skille { #skills }
@@ -293,6 +293,12 @@ mogło sprawdzić, i edytowany jak każdy inny [dataset](datasets.md). Potem o p
 - Agent, którego nie dało się sprawdzić - brak pytań, brak dostępu, brak
   budżetu, brak opublikowanej wersji, nieudany run - jest **nieznany**, a
   osoba potwierdza to przed zastosowaniem.
+
+Agent jest oceniany raz, na pytaniach held-out ze wszystkich swoich etapów
+razem: wynik wymaga pięciu takich pytań na agenta, a nie pięciu na etap, a
+regresja potwierdzona przez jeden etap sam się liczy, cokolwiek pokazał drugi. Każde
+pytanie zestawu skilla jest held-out, a szybkie sprawdzenie losuje tylko pytania
+held-out agenta.
 
 Część każdego agenta to jego własne runy evali, rozliczane z jego budżetu.
 Estymacja podaje jedną cenę, najpewniej i najwyżej, i przed startem wymienia
