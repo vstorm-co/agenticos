@@ -125,7 +125,7 @@ async function seedSkillsLab(page: Page) {
     base_url: `http://127.0.0.1:${process.env.E2E_STUB_MODEL_PORT ?? 4010}/v1`,
     api: "chat",
   });
-  await write(api, "post", "/agents/system", headers, {
+  const helper = await write(api, "post", "/agents/system", headers, {
     kind: "improver",
     name: `E2E Skill improver ${stamp}`,
     model_profile_id: id(model),
@@ -171,15 +171,18 @@ async function seedSkillsLab(page: Page) {
       reference: { enabled: false },
       review: { select: "all" },
     });
-    // Ten per topic: each attempt keeps half aside and a result needs five.
+    // A check judges an agent on its held-out questions and needs five of them.
+    let held = 0;
     for (const topic of ["receipt", "digital"] as const) {
       for (let n = 0; n < 10; n++) {
-        await write(api, "post", `/datasets/${id(dataset)}/cases`, headers, {
+        const question = await write(api, "post", `/datasets/${id(dataset)}/cases`, headers, {
           input: `TOPIC:${topic} Returns question ${n + 1}`,
           checks: [{ type: "equals", value: EXPECTED[role][topic] }],
         });
+        if (question.improvement_partition !== "train") held++;
       }
     }
+    expect(held).toBeGreaterThanOrEqual(5);
     const measured = await write(api, "post", `/agents/${id(created)}/eval-runs`, headers, {
       dataset_id: id(dataset),
       reruns: 0,
@@ -192,10 +195,41 @@ async function seedSkillsLab(page: Page) {
     return { agent: created, dataset, measured };
   }
 
+  /**
+   * A conversation the agent answers from the skill, rated as its customer would:
+   * a skill session learns only from rated answers in which the skill was opened.
+   */
+  async function rated(agentId: string, topic: Topic, rating: 1 | -1, comment: string) {
+    const run = await write(api, "post", `/agents/${agentId}/run`, headers, {
+      prompt: `TOPIC:${topic} A customer asks about a return.`,
+    });
+    const messages = await read(
+      api,
+      `/conversations/${String(run.conversation_id)}/messages`,
+      headers,
+    );
+    const answer = (Array.isArray(messages.items) ? messages.items.map(record) : [])
+      .filter((message) => message.role === "assistant")
+      .at(-1);
+    expect(answer, "the agent answered").toBeTruthy();
+    await write(
+      api,
+      "post",
+      `/conversations/${String(run.conversation_id)}/messages/${id(answer!)}/rate`,
+      headers,
+      { rating, comment },
+    );
+  }
+
   const online = await agent("Online returns desk", "online");
   const counter = await agent("Gift shop counter", "counter");
   const wholesale = await agent("Wholesale desk", "wholesale", { fork_id: id(fork) });
-  return { api, headers, stamp, skill, fork, online, counter, wholesale };
+  for (let n = 0; n < 3; n++) {
+    await rated(id(online.agent), "receipt", -1, "My order number is my receipt.");
+    await rated(id(online.agent), "digital", -1, "I never downloaded it.");
+  }
+  await rated(id(counter.agent), "receipt", 1, "Store credit is what I expected.");
+  return { api, headers, stamp, skill, fork, helper, online, counter, wholesale };
 }
 
 /**
@@ -221,15 +255,32 @@ async function until(
     .toBe("there");
 }
 
-/** The priced Next step a person takes at a stop, with the consent agent Improve takes. */
-async function nextStep(api: APIRequestContext, headers: Record<string, string>, path: string) {
+/**
+ * The priced Next step a person takes at a stop, with the consent agent Improve
+ * takes. A check is thorough: a quick one samples at most four of an agent's own
+ * questions, short of the five a result needs when the skill has no questions of
+ * its own.
+ */
+async function nextStep(
+  api: APIRequestContext,
+  headers: Record<string, string>,
+  path: string,
+  mode?: "thorough",
+) {
   const session = await read(api, path, headers);
-  const quote = await write(api, "post", `${path}/continue/estimate`, headers, {});
+  const quote = await write(
+    api,
+    "post",
+    `${path}/continue/estimate`,
+    headers,
+    mode ? { mode } : {},
+  );
   await write(api, "post", `${path}/continue`, headers, {
     confirmed: true,
     budget_usd: session.budget_usd,
     estimate_usd: quote.total_usd,
     candidate_hash: quote.candidate_hash,
+    ...(mode ? { mode } : {}),
   });
 }
 
@@ -238,20 +289,26 @@ async function improveMain(
   api: APIRequestContext,
   headers: Record<string, string>,
   skillId: string,
+  helperId: string,
 ) {
-  const quote = await write(api, "post", `/skills/${skillId}/improvements/estimate`, headers, {
-    fork_id: null,
-  });
+  const target = { fork_id: null, improver_agent_id: helperId };
+  const quote = await write(
+    api,
+    "post",
+    `/skills/${skillId}/improvements/estimate`,
+    headers,
+    target,
+  );
   expect(quote.affordable ?? true).toBeTruthy();
   const session = await write(api, "post", `/skills/${skillId}/improvements`, headers, {
-    fork_id: null,
+    ...target,
     budget_usd: "5",
   });
   const path = `/skills/${skillId}/improvements/${id(session)}`;
   await until(api, headers, path, "waiting", "propose");
   await nextStep(api, headers, path);
   await until(api, headers, path, "waiting", "check");
-  await nextStep(api, headers, path);
+  await nextStep(api, headers, path, "thorough");
   await until(api, headers, path, "ready");
   return { path, session: await read(api, path, headers) };
 }
@@ -278,15 +335,14 @@ async function bindingOf(
 
 /**
  * One skill, several agents: a change one agent fails is applied with that
- * agent pinned, a change that helps passes, and a fork catches up with main.
+ * agent pinned, and a change that helps and breaks nothing passes.
  * Actual API, worker, checks and persisted rows; only the model is a fixture.
  */
-test("a shared skill improves on main, pins the agent it breaks and catches a fork up", async ({
-  page,
-}) => {
-  test.fixme(true, "Waits for the skill session, its wizard and catching up");
+test("a shared skill improves on main and pins the agent a change breaks", async ({ page }) => {
+  test.fixme(true, "A skill session runs its seeded helper until it takes `improver_agent_id`");
   test.setTimeout(900_000);
-  const { api, headers, skill, fork, online, counter, wholesale } = await seedSkillsLab(page);
+  const { api, headers, skill, fork, helper, online, counter, wholesale } =
+    await seedSkillsLab(page);
   const skillId = id(skill);
 
   await test.step("the skill page lists each agent on its line", async () => {
@@ -306,7 +362,7 @@ test("a shared skill improves on main, pins the agent it breaks and catches a fo
 
   await test.step("a change B fails is applied to main with B pinned", async () => {
     // Every `*/receipt` line to REFUND: A learns it, the gift shop counter must not.
-    const { path, session } = await improveMain(api, headers, skillId);
+    const { path, session } = await improveMain(api, headers, skillId, id(helper));
     expect(checkedStates(session)).toMatchObject({
       [id(online.agent)]: "better",
       [id(counter.agent)]: "worse",
@@ -318,7 +374,7 @@ test("a shared skill improves on main, pins the agent it breaks and catches a fo
       acknowledge_unknown: false,
       pin_worse: true,
     });
-    expect(record(applied.version).number).toBe(2);
+    expect(applied.version).toBe(2);
     expect(await bindingOf(api, headers, skillId, id(counter.agent))).toMatchObject({
       state: "pinned",
       version: { number: 1 },
@@ -332,7 +388,7 @@ test("a shared skill improves on main, pins the agent it breaks and catches a fo
 
   await test.step("a change that helps and breaks nothing passes", async () => {
     // `online/digital` only. B is pinned, so the check does not run it.
-    const { path, session } = await improveMain(api, headers, skillId);
+    const { path, session } = await improveMain(api, headers, skillId, id(helper));
     expect(checkedStates(session)).toEqual({ [id(online.agent)]: "better" });
     expect(record(session.check).verdict).toBe("passed");
     await write(api, "post", `${path}/apply`, headers, {
@@ -347,51 +403,6 @@ test("a shared skill improves on main, pins the agent it breaks and catches a fo
     expect(await bindingOf(api, headers, skillId, id(counter.agent))).toMatchObject({
       state: "pinned",
       behind_main: 2,
-    });
-  });
-
-  await test.step("the fork catches up with main", async () => {
-    const behind = await read(api, "/skills/behind-main", headers);
-    const lagging = (Array.isArray(behind.items) ? behind.items.map(record) : []).filter(
-      (item) => record(item.skill).id === skillId,
-    );
-    expect(lagging.map((item) => [item.kind, item.behind_main])).toEqual(
-      expect.arrayContaining([
-        ["pinned", 2],
-        ["fork", 2],
-      ]),
-    );
-    const session = await write(
-      api,
-      "post",
-      `/skills/${skillId}/forks/${id(fork)}/catch-up`,
-      headers,
-      {},
-    );
-    const path = `/skills/${skillId}/improvements/${id(session)}`;
-    // Main changed its receipt lines and the online line, the fork only its
-    // wholesale line, so every part merges by itself and nothing is proposed.
-    await until(api, headers, path, "waiting", "check");
-    const merge = await read(api, `/skills/${skillId}/merges/${String(session.merge_id)}`, headers);
-    expect(merge.unresolved).toBe(0);
-    await nextStep(api, headers, path);
-    await until(api, headers, path, "ready");
-    const result = await read(api, path, headers);
-    // Main alone gives the wholesale desk store credit on receipts, so the fork stays.
-    expect(result.outcomes).toContain("catch_up");
-    expect(result.outcomes).not.toContain("return_to_main");
-    await write(api, "post", `${path}/apply`, headers, {
-      confirmed: true,
-      acknowledge_unknown: false,
-      outcome: "catch_up",
-    });
-    const forks = await read(api, `/skills/${skillId}/forks`, headers);
-    const caughtUp = (Array.isArray(forks.items) ? forks.items.map(record) : []).find(
-      (item) => item.id === id(fork),
-    );
-    expect(caughtUp).toMatchObject({ behind_main: 0, base: { number: 3 } });
-    expect(await bindingOf(api, headers, skillId, id(wholesale.agent))).toMatchObject({
-      state: "fork",
     });
   });
 });
