@@ -591,14 +591,14 @@ class TestReadingSessions:
             ("accepted", {"outcome": "applied_pinned"}, "It is accepted.", []),
             (
                 "stopped",
-                {"stop_reason": "no_data"},
-                "There were no rated answers",
+                {"stop_reason": "no_change", "can_restart": True},
+                "The changes made no difference",
                 ["Try again (attempt 2 of 3)", "End the session"],
             ),
             (
                 "stopped",
-                {"stop_reason": "no_change", "iteration": 3},
-                "The changes made no difference",
+                {"stop_reason": "no_data", "stage": "analyzing", "can_restart": False},
+                "There were no rated answers",
                 ["End the session"],
             ),
             ("failed", {}, "A step failed.", ["Retry this step", "End the session"]),

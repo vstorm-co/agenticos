@@ -735,11 +735,7 @@ def _skill_next_actions(session: dict[str, Any]) -> list[str]:
         actions.append(f"Next step: {waiting['next_step']}")
     if status == "failed":
         actions.append("Retry this step")
-    if (
-        status == "stopped"
-        and not session.get("try_again_blocked")
-        and session["iteration"] < session["max_iterations"]
-    ):
+    if status == "stopped" and session.get("can_restart") and not session.get("try_again_blocked"):
         actions.append(
             f"Try again (attempt {session['iteration'] + 1} of {session['max_iterations']})"
         )
