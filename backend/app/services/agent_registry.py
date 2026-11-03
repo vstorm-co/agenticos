@@ -2544,7 +2544,8 @@ class AgentRegistryService:
                 )
                 if binding.version not in versions:
                     problems.append(f"Skill '{skill.name}' has no version {binding.version}")
-            elif binding.fork_id is not None:
+            else:
+                assert binding.fork_id is not None, "a binding names a version or a fork"
                 fork = await skill_version_repo.get_fork(
                     self.db,
                     binding.fork_id,

@@ -124,16 +124,15 @@ async def shared_with_group(
 
 
 def _binds_skill(spec: dict[str, Any], skill_id: UUID) -> bool:
-    """Whether a stored spec binds the skill, itself or through an inline specialist.
+    """Whether a stored spec that names the skill's id binds it, itself or through an
+    inline specialist.
 
-    Only a spec that names the skill's id is parsed. One that names it and no longer
+    Callers pass only the specs the database found naming the id. One that no longer
     parses is taken to bind it: the skill is not deleted from under a draft its owner
     has yet to fix.
     """
     from app.services.eval_suite import binds
 
-    if str(skill_id) not in json.dumps(spec):
-        return False
     try:
         return binds(AgentSpec.model_validate(spec), "skill", skill_id)
     except ValidationError:
