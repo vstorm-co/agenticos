@@ -270,7 +270,9 @@ version it started from.
   on main only.
 - **Archive** stops a fork from taking new versions. It keeps its versions and is
   never deleted. A fork that no run has read for 30 days is offered for archiving;
-  nothing is archived automatically.
+  nothing is archived automatically. An older version of an agent that still reads
+  an archived fork is not promoted to an environment: move the agent to another
+  version, and promote the version that publishes.
 
 ### Which version an agent reads
 

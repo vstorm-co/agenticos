@@ -1,5 +1,5 @@
 ---
-source_sha: "5dcfff2c2c62"
+source_sha: "cb72755e2d70"
 ---
 
 # Skille { #skills }
@@ -280,7 +280,9 @@ wystartował.
 - Pliki forka to pliki wersji, z której powstał. Pliki edytuje się tylko na main.
 - **Archive** sprawia, że fork nie przyjmuje nowych wersji. Zachowuje swoje wersje
   i nigdy nie jest usuwany. Fork, którego żaden run nie czytał od 30 dni, jest
-  proponowany do archiwizacji; nic nie archiwizuje się samo.
+  proponowany do archiwizacji; nic nie archiwizuje się samo. Starsza wersja agenta,
+  która wciąż czyta zarchiwizowany fork, nie zostanie promowana do środowiska:
+  przesuń agenta na inną wersję i promuj wersję, która się opublikuje.
 
 ### Którą wersję czyta agent { #which-version-an-agent-reads }
 

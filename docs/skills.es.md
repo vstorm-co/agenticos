@@ -1,5 +1,5 @@
 ---
-source_sha: "5dcfff2c2c62"
+source_sha: "cb72755e2d70"
 ---
 
 # Skills { #skills }
@@ -287,7 +287,9 @@ versión propia, un fork sirve la versión de main de la que partió.
   editan solo en main.
 - **Archive** hace que un fork no acepte versiones nuevas. Conserva sus versiones y
   nunca se borra. Un fork que ningún run ha leído en 30 días se propone para
-  archivar; nada se archiva automáticamente.
+  archivar; nada se archiva automáticamente. Una versión anterior de un agent que
+  aún lee un fork archivado no se promueve a ningún entorno: mueve el agent a otra
+  versión y promueve la versión que se publica.
 
 ### Qué versión lee un agent { #which-version-an-agent-reads }
 
