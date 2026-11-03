@@ -143,7 +143,10 @@ def agent_state(stages: Sequence[StageComparison], *, minimum: int) -> AgentStat
 
     A stage measured completely on its own that confirmed a regression makes the agent
     worse whatever the others say - one unmeasured beside it hides nothing it found.
-    Otherwise the stages' held-out questions are judged together.
+    The held-out minimum does not apply to that: no agent may get confirmed worse, and
+    a regression its re-asks reproduced blocks however few questions found it, since
+    blocking errs on the safe side. Getting better still needs the minimum, so
+    otherwise the stages' held-out questions are judged together.
     """
     if any(
         stage.comparable

@@ -162,6 +162,14 @@ class TestPooled:
         assert agent_state([found, beside], minimum=5) is AgentState.WORSE
         assert stage_state(pooled([found, beside], minimum=5)) is AgentState.UNKNOWN
 
+    def test_a_confirmed_regression_blocks_below_the_held_out_minimum(self) -> None:
+        """Nobody may get confirmed worse: blocking on few questions errs on the safe side,
+        while getting better still needs the minimum."""
+        assert agent_state([_compared(held_out=2, broken=1)], minimum=5) is AgentState.WORSE
+        assert agent_state([_compared(held_out=2, fixed=1, candidate=1.0)], minimum=5) is (
+            AgentState.UNKNOWN
+        )
+
     def test_a_regression_in_a_stage_not_measured_completely_waits_for_the_pool(self) -> None:
         partial = replace(_compared(held_out=6, broken=2), incomplete=1)
 
