@@ -90,9 +90,15 @@ class DiscordRoleMappingService:
                 details={"role": role},
             )
 
-    async def _servers(self, bot: ChannelBot) -> list[Server]:
+    async def _servers(self, bot: ChannelBot, guild_id: str | None = None) -> list[Server]:
+        """Every server the bot is in, or only `guild_id` when one is named (empty if not in it)."""
+        token = unseal_bot_token(bot)
         try:
-            return await discord_adapter().servers(unseal_bot_token(bot))
+            if guild_id is None:
+                servers = await discord_adapter().servers(token)
+            else:
+                server = await discord_adapter().server(token, guild_id)
+                servers = [] if server is None else [server]
         except httpx.HTTPError as exc:
             logger.warning(
                 "discord_servers_unreadable", exc_info=True, extra={"bot_id": str(bot.id)}
@@ -101,6 +107,7 @@ class DiscordRoleMappingService:
                 message="Discord did not say which servers and roles the bot can see. Try again.",
                 details={"bot_id": bot.id},
             ) from exc
+        return servers
 
     async def servers(self, ctx: AuthContext, bot_id: UUID) -> list[Server]:
         """The servers the bot is in and the roles in each a mapping may name, read live."""
@@ -157,7 +164,7 @@ class DiscordRoleMappingService:
                 message="That Discord role is already mapped for this bot",
                 details={"guild_id": data.guild_id, "discord_role_id": data.discord_role_id},
             )
-        server = next((s for s in await self._servers(bot) if s.id == data.guild_id), None)
+        server = next(iter(await self._servers(bot, data.guild_id)), None)
         if server is None:
             raise refused_field("guild_id", "The bot is not in that Discord server")
         discord_role = next((r for r in server.roles if r.id == data.discord_role_id), None)

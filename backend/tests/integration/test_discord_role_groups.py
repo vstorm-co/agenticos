@@ -77,6 +77,9 @@ class _Discord:
             ]
         )
 
+    async def server(self, _token: str, guild_id: str) -> Server | None:
+        return next((s for s in await self.servers() if s.id == guild_id), None)
+
     def give(self, account: str, *roles: str, guild: str = GUILD) -> None:
         self.roles[(guild, account)] = frozenset(roles)
 
@@ -844,9 +847,12 @@ class TestMappings:
         org, owner = await _org(db)
         bot = await _bot(db, org)
         discord.servers.side_effect = httpx.ConnectError("down")
+        service = DiscordRoleMappingService(db)
 
         with pytest.raises(ExternalServiceError):
-            await DiscordRoleMappingService(db).servers(self._ctx(org, owner), bot.id)
+            await service.servers(self._ctx(org, owner), bot.id)
+        with pytest.raises(ExternalServiceError):
+            await service.create(self._ctx(org, owner), bot.id, self._create(await _group(db, org)))
 
     async def test_deleting_a_mapping_takes_the_ceiling_making_it_took(self, db, discord):
         org, owner = await _org(db)

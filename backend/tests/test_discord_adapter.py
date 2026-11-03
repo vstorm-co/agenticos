@@ -1948,6 +1948,39 @@ class TestServerRoles:
         pages = [params for path, params in api.queries if path == "/users/@me/guilds"]
         assert pages == [{"limit": "200"}, {"limit": "200", "after": ids[199]}]
 
+    async def test_one_server_is_read_without_listing_the_rest(
+        self, adapter: DiscordAdapter, api: _Discord
+    ):
+        api.answer(
+            "GET", f"/guilds/{GUILD}", httpx.Response(200, json={"id": GUILD, "name": "Acme"})
+        )
+        api.answer(
+            "GET",
+            f"/guilds/{GUILD}/roles",
+            httpx.Response(200, json=[{"id": "7", "name": "Finance", "position": 1}]),
+        )
+
+        server = await adapter.server("tok", GUILD)
+
+        assert server is not None
+        assert (server.id, server.name) == (GUILD, "Acme")
+        assert [(role.id, role.name) for role in server.roles] == [("7", "Finance")]
+        assert [path for _, path, _ in api.calls] == [f"/guilds/{GUILD}", f"/guilds/{GUILD}/roles"]
+
+    @pytest.mark.parametrize("status", [403, 404])
+    async def test_a_server_the_bot_is_not_in_is_none(
+        self, adapter: DiscordAdapter, api: _Discord, status: int
+    ):
+        api.answer("GET", f"/guilds/{GUILD}", httpx.Response(status))
+        assert await adapter.server("tok", GUILD) is None
+
+    async def test_a_server_discord_does_not_answer_for_raises(
+        self, adapter: DiscordAdapter, api: _Discord
+    ):
+        api.answer("GET", f"/guilds/{GUILD}", httpx.Response(500))
+        with pytest.raises(httpx.HTTPStatusError):
+            await adapter.server("tok", GUILD)
+
     async def test_a_server_whose_roles_cannot_be_read_fails_the_list(
         self, adapter: DiscordAdapter, api: _Discord
     ):

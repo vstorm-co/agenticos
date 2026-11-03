@@ -655,19 +655,28 @@ class DiscordAdapter(ChannelAdapter):
             if len(page) < _GUILD_PAGE:
                 break
             after = str(page[-1]["id"])
-        servers: list[Server] = []
-        for guild in guilds:
-            guild_id = str(guild["id"])
-            roles = await self._call("GET", f"/guilds/{guild_id}/roles", bot_token)
-            roles.raise_for_status()
-            servers.append(
-                Server(
-                    id=guild_id,
-                    name=str(guild.get("name") or ""),
-                    roles=mappable_roles(guild_id, roles.json()),
-                )
-            )
-        return servers
+        return [
+            await self._with_roles(bot_token, str(guild["id"]), str(guild.get("name") or ""))
+            for guild in guilds
+        ]
+
+    async def server(self, bot_token: str, guild_id: str) -> Server | None:
+        """One server the bot is in, with the roles a mapping can name; `None` if it is not in it.
+
+        Two calls whatever the bot's server count, for creating a mapping, which
+        names one server: reading every server's roles to check one is a call
+        per server inside the request.
+        """
+        found = await self._call("GET", f"/guilds/{guild_id}", bot_token)
+        if found.status_code in (403, 404):
+            return None
+        found.raise_for_status()
+        return await self._with_roles(bot_token, guild_id, str(found.json().get("name") or ""))
+
+    async def _with_roles(self, bot_token: str, guild_id: str, name: str) -> Server:
+        roles = await self._call("GET", f"/guilds/{guild_id}/roles", bot_token)
+        roles.raise_for_status()
+        return Server(id=guild_id, name=name, roles=mappable_roles(guild_id, roles.json()))
 
     async def _messages(self, bot_token: str, channel_id: str, limit: int) -> list[dict[str, Any]]:
         """The last `limit` messages of one channel or thread, oldest first, without system ones.
