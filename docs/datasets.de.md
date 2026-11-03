@@ -1,5 +1,5 @@
 ---
-source_sha: "7b8699b33ffc"
+source_sha: "6238ca790865"
 title: "Datasets"
 description: "Datasets enthalten die Fragen, an denen ein Agent getestet wird: versionierte Fälle, von Hand geschrieben, aus CSV oder JSONL importiert oder aus einer bewerteten Antwort übernommen."
 ---
@@ -124,11 +124,7 @@ Zeilen aus Name und Wert und jede Prüfung als Typ, aus der Liste gewählt, nebe
 dem, was sie prüft. **Als JSON bearbeiten** zeigt den ganzen Fall in der Form,
 die ein Import enthält.
 
-Ein Fall in der Liste öffnet sich so, wie er sich liest, mit dem Gespräch als
-Chat-Blasen; **Bearbeiten** macht ihn zum Formular, das sagt, welche Version ein
-Speichern erzeugt und welche Scorer des Datasets den Fall so, wie er geschrieben
-ist, bewerten würden. Ein Link auf `?tab=cases&case={case_id}` auf der Seite des
-Datasets öffnet einen einzelnen Fall.
+Fälle öffnen sich in einem Seitenpanel mit dem Nachrichtenlayout des Chats. Zuerst erscheinen die Frage und die gekennzeichnete Referenzantwort; frühere Gesprächszüge lassen sich darüber aufklappen. Agenten- und Referenztexte verwenden den Markdown-Renderer des Chats, entfernte Bilder erscheinen als Links. Tool-Namen lassen sich zu ihren Argumenten aufklappen; Gegenbeispiele, Prüfungen, Notizen und Tags bleiben getrennt. **Bearbeiten** im festen Kopf öffnet das Formular, das die beim Speichern erstellte Version und die Scorer des Datasets nennt. Ein Link auf `?tab=cases&case={case_id}` öffnet einen Fall direkt.
 
 Das Speichern eines neuen Falls, dessen Frage ein Fall bereits stellt - ohne
 Rücksicht auf Groß- und Kleinschreibung oder Leerraum -, hält an und sagt das,

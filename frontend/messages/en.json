@@ -13663,7 +13663,8 @@
     "viewSourceMessages": "View source messages",
     "sourceUserMessage": "User message",
     "sourceAgentAnswer": "Agent answer",
-    "moreSources": "More ways to add"
+    "moreSources": "More ways to add",
+    "conversationTitle": "Conversation"
   },
   "knowledgeGaps": {
     "tab": "Knowledge gaps",

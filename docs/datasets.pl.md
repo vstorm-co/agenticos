@@ -1,5 +1,5 @@
 ---
-source_sha: "7b8699b33ffc"
+source_sha: "6238ca790865"
 title: "Datasety"
 description: "Datasety trzymają pytania, na których testujesz agenta: wersjonowane przypadki pisane ręcznie, importowane z CSV lub JSONL albo wzięte z ocenionej odpowiedzi."
 ---
@@ -115,10 +115,7 @@ wartości, a każde sprawdzenie jako typ wybrany z listy obok tego, co sprawdza.
 **Edytuj jako JSON** pokazuje cały przypadek w postaci, w jakiej trzyma go
 import.
 
-Przypadek na liście otwiera się w postaci do czytania, z rozmową jako dymkami
-czatu; **Edytuj** zamienia go w formularz, który mówi, jaką wersję utworzy zapis
-i które oceniacze datasetu oceniłyby przypadek w obecnym brzmieniu. Link do
-`?tab=cases&case={case_id}` na stronie datasetu otwiera jeden przypadek.
+Przypadki otwierają się w panelu bocznym z układem wiadomości takim jak na czacie. Najpierw widać pytanie i podpisaną odpowiedź wzorcową; wcześniejsze tury rozmowy można rozwinąć powyżej. Tekst agenta i odpowiedzi wzorcowej korzysta z renderowania Markdown z czatu, a zdalne obrazy są linkami. Nazwy narzędzi rozwijają ich argumenty; kontrprzykłady, sprawdzenia, notatki i etykiety mają osobne sekcje. **Edytuj** w stałym nagłówku otwiera formularz pokazujący wersję tworzoną przez zapis i oceniacze datasetu. Link do `?tab=cases&case={case_id}` otwiera przypadek bezpośrednio.
 
 Zapisanie nowego przypadku, którego pytanie zadaje już inny przypadek - bez
 względu na wielkość liter i odstępy - zatrzymuje się, żeby o tym powiedzieć, z

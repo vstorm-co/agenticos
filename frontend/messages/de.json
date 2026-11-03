@@ -13335,7 +13335,8 @@
     "viewSourceMessages": "Quellnachrichten anzeigen",
     "sourceUserMessage": "Nutzernachricht",
     "sourceAgentAnswer": "Agentenantwort",
-    "moreSources": "Weitere Möglichkeiten"
+    "moreSources": "Weitere Möglichkeiten",
+    "conversationTitle": "Gespräch"
   },
   "knowledgeGaps": {
     "tab": "Wissenslücken",

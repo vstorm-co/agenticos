@@ -1,5 +1,5 @@
 ---
-source_sha: "7b8699b33ffc"
+source_sha: "6238ca790865"
 title: "Datasets"
 description: "Los datasets guardan las preguntas con las que se prueba un agent: casos versionados escritos a mano, importados de CSV o JSONL o tomados de una respuesta valorada."
 ---
@@ -115,11 +115,7 @@ cada comprobación como un tipo elegido de la lista junto a lo que comprueba.
 **Edit as JSON** muestra el caso entero con la forma que tiene en una
 importación.
 
-Un caso de la lista se abre tal como se lee, con la conversación como burbujas de
-chat; **Edit** lo convierte en el formulario, que indica qué versión crea un
-guardado y cuáles de los evaluadores del dataset calificarían el caso tal como
-está escrito. Un enlace a `?tab=cases&case={case_id}` en la página del dataset
-abre un caso.
+Los casos se abren en un panel lateral con el diseño de mensajes del chat. Primero aparecen la pregunta y la respuesta de referencia etiquetada; los turnos anteriores se pueden desplegar encima. El texto del agente y de referencia usa el renderizador Markdown del chat, con imágenes remotas como enlaces. Los nombres de herramientas despliegan sus argumentos; contraejemplos, comprobaciones, notas y etiquetas permanecen separados. **Edit** en la cabecera fija abre el formulario, que indica la versión creada al guardar y los evaluadores del dataset. Un enlace a `?tab=cases&case={case_id}` abre un caso directamente.
 
 Guardar un caso nuevo cuya pregunta ya hace otro caso (sin tener en cuenta
 mayúsculas ni espacios) se detiene para avisarlo, con **Open it** para leer ese

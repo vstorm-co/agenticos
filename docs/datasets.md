@@ -107,10 +107,7 @@ and its arguments as name and value rows, and each check as a type picked from
 the list beside what it checks. **Edit as JSON** shows the whole case in the shape
 an import holds.
 
-A case in the list opens as it reads, with the conversation as chat bubbles;
-**Edit** turns it into the form, which says which version a save makes and which
-of the dataset's scorers would grade the case as written. A link to
-`?tab=cases&case={case_id}` on the dataset's page opens one case.
+Cases open in a side panel with the chat's message layout. The question and labelled reference answer come first; earlier conversation turns expand above them. Agent and reference text use the chat's Markdown renderer, with remote images shown as links. Tool names expand to their arguments; counter-examples, checks, notes and tags stay separate. **Edit** in the fixed header opens the form, which names the version a save creates and the dataset's scorers. A link to `?tab=cases&case={case_id}` opens a case directly.
 
 Saving a new case whose question a case already asks - compared without regard
 to case or spacing - stops to say so, with **Open it** to read that case instead

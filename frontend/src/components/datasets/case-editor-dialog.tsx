@@ -3,7 +3,7 @@
 import { useId, useState, type ReactNode } from "react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
-import { ChevronRight } from "lucide-react";
+import { ChevronRight, Pencil } from "lucide-react";
 
 import {
   Button,
@@ -336,17 +336,25 @@ export function CaseEditorDialog({
                 <p className="text-muted-foreground text-xs">{t("caseReadOnly")}</p>
               )}
             </div>
-            <SheetClose onClick={close} />
+            <div className="flex shrink-0 items-center gap-2">
+              {onSave !== undefined && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  data-tour="case-edit"
+                  onClick={() => setEditing(true)}
+                >
+                  <Pencil className="size-3.5" />
+                  {t("editCase")}
+                </Button>
+              )}
+              <SheetClose onClick={close} />
+            </div>
           </SheetHeader>
-          <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6">
-            <CaseView content={viewing} />
-          </div>
-          <div className="flex shrink-0 items-center justify-end gap-2 border-t p-4">
-            {onSave !== undefined && (
-              <Button data-tour="case-edit" onClick={() => setEditing(true)}>
-                {t("editCase")}
-              </Button>
-            )}
+          <div className="min-h-0 flex-1 overflow-y-auto">
+            <div className="mx-auto w-full max-w-2xl px-4 py-6 sm:px-8 sm:py-8">
+              <CaseView content={viewing} />
+            </div>
           </div>
         </SheetContent>
       </Sheet>

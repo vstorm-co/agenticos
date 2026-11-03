@@ -13436,7 +13436,8 @@
     "viewSourceMessages": "Pokaż wiadomości źródłowe",
     "sourceUserMessage": "Wiadomość użytkownika",
     "sourceAgentAnswer": "Odpowiedź agenta",
-    "moreSources": "Inne sposoby dodania"
+    "moreSources": "Inne sposoby dodania",
+    "conversationTitle": "Rozmowa"
   },
   "knowledgeGaps": {
     "tab": "Luki w wiedzy",

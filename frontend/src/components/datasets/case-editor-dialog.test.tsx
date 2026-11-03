@@ -219,8 +219,8 @@ describe("CaseEditorDialog", () => {
     );
 
     expect(screen.getByText("I bought a kettle")).toBeInTheDocument();
-    expect(screen.getByText("How can I help?")).toBeInTheDocument();
-    expect(screen.getByText('search_kb {"q":"refund"}')).toBeInTheDocument();
+    expect(await screen.findByText("How can I help?")).toBeInTheDocument();
+    expect(screen.getByText("search_kb").closest("details")).toHaveTextContent('"q": "refund"');
     expect(screen.getByText("contains 30 days")).toBeInTheDocument();
     expect(screen.getByText("returns")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Save case" })).toBeNull();

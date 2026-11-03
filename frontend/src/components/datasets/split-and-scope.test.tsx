@@ -57,7 +57,7 @@ describe("case privacy and criterion scope", () => {
   });
 });
 
-it("renders the conversation and all expectations without joining their text", () => {
+it("renders the conversation and all expectations without joining their text", async () => {
   const content = {
     input: "Where is my order?",
     history: [
@@ -85,8 +85,8 @@ it("renders the conversation and all expectations without joining their text", (
     "shipping",
     "Confirm the delivery date.",
   ])
-    expect(screen.getByText(text)).toBeInTheDocument();
-  expect(screen.getByText(/lookup_order/)).toHaveTextContent('"id":"42"');
+    expect(await screen.findByText(text)).toBeInTheDocument();
+  expect(screen.getByText(/lookup_order/).closest("details")).toHaveTextContent('"id": "42"');
   rerender(
     <CaseView
       content={{
