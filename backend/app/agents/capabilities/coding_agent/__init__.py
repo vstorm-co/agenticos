@@ -20,7 +20,11 @@ from app.agents.capabilities._registry import (
     CapabilityToolInfo,
     register,
 )
-from app.agents.capabilities.coding_agent._capability import CodingAgent
+from app.agents.capabilities.coding_agent._capability import (
+    LOCAL_CODING_PREFERENCES,
+    CodingAgent,
+    CodingPreferences,
+)
 from app.agents.capabilities.coding_agent._toolset import RUN_DESCRIPTION
 from app.agents.capabilities.sandbox import WORKSPACE_SHARED_RESOURCE
 from app.core.secret_kinds import (
@@ -34,7 +38,13 @@ from app.core.secret_kinds import (
 from app.services.openai_codex import PURPOSE as OPENAI_CODEX_PURPOSE
 from app.services.openai_codex import VaultCodexCredentials
 
-__all__ = ["CODING_AGENT_ID", "CodingAgent", "CodingAgentConfig"]
+__all__ = [
+    "CODING_AGENT_ID",
+    "LOCAL_CODING_PREFERENCES",
+    "CodingAgent",
+    "CodingAgentConfig",
+    "CodingPreferences",
+]
 
 CODING_AGENT_ID = "coding_agent"
 
@@ -260,10 +270,17 @@ def _build(ctx: CapabilityBuildContext) -> CodingAgent:
         if isinstance(ctx.secret, OpenAICodexSecret) and secret_id is not None
         else None
     )
+    preferences = ctx.resources.get(LOCAL_CODING_PREFERENCES)
+    local_preferences = (
+        preferences
+        if isinstance(preferences, CodingPreferences) and config.runs_on == "this_computer"
+        else CodingPreferences()
+    )
     return CodingAgent(
         harness=config.harness,
         access=config.access,
-        model=config.model_id,
+        model=local_preferences.model or config.model_id,
+        effort=local_preferences.effort,
         base_url=str(config.base_url).rstrip("/") if config.base_url is not None else None,
         timeout_seconds=config.timeout_minutes * 60,
         api_key=api_key,

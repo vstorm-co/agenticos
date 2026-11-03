@@ -327,6 +327,7 @@ const ME_SECTIONS: SectionDef[] = [
       // under three cards of history, which is the wrong way round.
       { widget: "approvals", span: "s6", rows: "r2" },
       { widget: "conversations", span: "s6", rows: "r2" },
+      { widget: "background-tasks", span: "s12", rows: "r2" },
       // Where their ongoing work is, a row of tiles under what they left open.
       { widget: "projects", span: "s12", rows: "r2" },
       { widget: "my-agents", span: "s6", rows: "r2" },

@@ -690,7 +690,8 @@ class TestPrepare:
         assert opened.await_args.kwargs["identity"].user_id is None
 
     @pytest.mark.anyio
-    async def test_a_chat_in_a_project_works_in_the_projects_container(self):
+    @pytest.mark.parametrize("aside", [False, True])
+    async def test_a_chat_in_a_project_works_in_the_projects_container(self, aside: bool):
         """Whichever agent answers, and whatever scope its own binding asks for:
         the project's files are what the person put there for any agent to use."""
         ctx = _ctx()
@@ -731,11 +732,11 @@ class TestPrepare:
                 "app.services.agent_runner.ProjectService.for_run",
                 new=AsyncMock(return_value=project),
             ),
-            patch("app.services.agent_runner.build_agent"),
+            patch("app.services.agent_runner.build_agent") as build,
             patch.object(service.workspaces, "open", new=AsyncMock(return_value=None)) as opened,
         ):
             await service.prepare(
-                ctx, agent.id, conversation_id=uuid.uuid4(), on_sandbox_wait=heard
+                ctx, agent.id, conversation_id=uuid.uuid4(), on_sandbox_wait=heard, aside=aside
             )
 
         assert opened.await_args.kwargs["scope_override"] == "project"
@@ -743,7 +744,12 @@ class TestPrepare:
         assert opened.await_args.kwargs["on_wait"] is heard
         assert opened.await_args.kwargs["identity"].project_id == project.id
         opened_spec = opened.await_args.args[0]
-        assert [binding.id for binding in opened_spec.capabilities] == ["sandbox"]
+        assert [binding.id for binding in opened_spec.capabilities] == (
+            [] if aside else ["sandbox"]
+        )
+        if aside:
+            assert build.call_args.args[0].capabilities == []
+            assert build.call_args.kwargs["extra_toolsets"] == []
         assert "Cite sources." in opened_spec.instructions
 
     @pytest.mark.anyio
@@ -6990,6 +6996,7 @@ class TestAFailedRunOverTheApi:
 
 
 class TestPerRunLocalServices:
+    @pytest.mark.parametrize("aside", [False, True])
     @pytest.mark.anyio
     @pytest.mark.parametrize(
         "connected, voice_call, model_selected, browser_selected, browser_only, computer_selected",
@@ -7011,6 +7018,7 @@ class TestPerRunLocalServices:
         browser_selected: bool,
         browser_only: bool,
         computer_selected: bool,
+        aside: bool,
     ):
         from app.agents.voice import VoiceOptions
         from app.schemas.local_target import LocalTarget
@@ -7108,12 +7116,12 @@ class TestPerRunLocalServices:
                     BadRequestError,
                     match="text conversations" if voice_call else "connected computer",
                 ):
-                    await service.prepare(ctx, agent.id, local=target, voice=voice)
+                    await service.prepare(ctx, agent.id, local=target, voice=voice, aside=aside)
                 describe.assert_not_called()
                 build.assert_not_called()
                 return
             async with asyncio.timeout(5):
-                await service.prepare(ctx, agent.id, local=target)
+                await service.prepare(ctx, agent.id, local=target, aside=aside)
         assert [call.args for call in describe.await_args_list] == [
             *([(session, "model", "model")] if model_selected else []),
             *([] if browser_only else [(session, "files", "mcp")]),
@@ -7136,8 +7144,12 @@ class TestPerRunLocalServices:
             assert build.call_args.kwargs["resources"]["local_computer_session"] == session
         if browser_only:
             tools.assert_not_called()
-        else:
+        if aside:
+            assert build.call_args.kwargs["extra_toolsets"] == []
+            assert build.call_args.args[0].capabilities == []
+        elif not browser_only:
             assert tools.return_value in build.call_args.kwargs["extra_toolsets"]
+        assert build.call_args.kwargs["resources"]["background_tasks.local"].device_id == session
         if model_selected:
             assert run.model_label == "Local model" and run.secret_id is None
 
@@ -7743,3 +7755,86 @@ def test_local_coding_override_requires_a_full_access_folder(target: dict[str, s
 
     with pytest.raises(ValidationError, match="Choose a folder with full access"):
         LocalTarget.model_validate({**target, "coding_agent": "codex"})
+
+
+def test_background_work_keeps_the_authenticated_device_through_workspace_wrappers() -> None:
+    from pydantic_ai.workspaces import Workspace
+
+    from app.schemas.local_target import LocalTarget
+    from app.services.agent_runner import _background_target
+    from app.services.device_hub import DeviceWorkspace
+
+    local = LocalTarget(
+        folder="/approved",
+        mode="full_access",
+        coding_agent="codex",
+        coding_model="fast",
+        coding_effort="low",
+    )
+    device_id = uuid.uuid4()
+    backend = DeviceWorkspace(device_id, uuid.uuid4(), local)
+    raw = Workspace(backend)
+    recorded = RecordingWorkspace(
+        raw, db=_db(), organization_id=uuid.uuid4(), session_key="local", agent_id=uuid.uuid4()
+    )
+    for workspace in [raw, recorded]:
+        target = _background_target(local, workspace, uuid.uuid4())
+        assert target.device_id == device_id
+        assert target.coding_model == "fast" and target.coding_effort == "low"
+    assert _background_target(local, document_workspace(), None) is local
+    assert _background_target(local, None, None) is local
+    browser = _background_target(LocalTarget(browser=True), None, device_id)
+    assert browser.device_id == device_id and browser.folder is None
+
+
+def test_result_turns_keep_the_reasoning_setting_and_budget_but_no_action_capability() -> None:
+    from app.services.agent_runner import AdmittedAs
+
+    thinking = CapabilityBindingSpec(id="thinking", config={"effort": "low"})
+    spec = AgentSpec(
+        name="Ops",
+        capabilities=[
+            thinking,
+            CapabilityBindingSpec(id="background_tasks"),
+            CapabilityBindingSpec(id="coding_agent"),
+        ],
+        budget={"monthly_usd": "2"},
+    )
+    answer = _answer_only(spec)
+    assert answer.capabilities == [thinking] and answer.budget == spec.budget
+    profile_id = uuid.uuid4()
+    terms = AdmittedAs(model_profile_id=profile_id, conversation_task_id=uuid.uuid4())
+    assert AdmittedAs.model_validate(terms.model_dump(mode="json")).model_profile_id == profile_id
+    assert "model_profile_id" not in AdmittedAs().model_dump(mode="json")
+
+
+@pytest.mark.anyio
+async def test_task_result_execution_keeps_the_profile_without_becoming_a_user_aside() -> None:
+    service = AgentRunnerService(_db())
+    prepared = _prepared()
+    profile_id, task_id = uuid.uuid4(), uuid.uuid4()
+    opened = AsyncMock()
+    with (
+        patch.object(service, "prepare", new=AsyncMock(return_value=prepared)) as prepare,
+        patch.object(
+            service,
+            "_run",
+            new=AsyncMock(return_value=SimpleNamespace(output="Summary", run=prepared.run)),
+        ) as run,
+    ):
+        await service.execute(
+            _ctx(),
+            uuid.uuid4(),
+            "Task result data",
+            said="",
+            result_only=True,
+            model_profile_id=profile_id,
+            conversation_task_id=task_id,
+            on_run_open=opened,
+        )
+    assert prepare.call_args.kwargs["aside"] is True
+    assert prepare.call_args.kwargs["model_profile_id"] == profile_id
+    assert prepared.admitted_as.conversation_task_id == task_id
+    assert run.call_args.kwargs["user_prompt"] == "Task result data"
+    assert run.call_args.kwargs["said"] == ""
+    assert run.call_args.kwargs["on_run_open"] is opened

@@ -17,6 +17,7 @@ mod activity;
 mod agent_session;
 mod appearance;
 mod blobby;
+mod coding_options;
 mod coding_runtime;
 mod computer_access;
 mod console;
@@ -1503,6 +1504,7 @@ pub fn run() {
             local_work::local_file,
             local_agents::local_agents,
             local_agents::local_agent_prepare,
+            coding_options::local_agent_options,
             local_agents::local_agent_sign_in,
             local_agents::local_agent_sign_out,
             local_skills::local_skills,

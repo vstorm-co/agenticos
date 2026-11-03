@@ -500,6 +500,8 @@ Later tasks resume the same harness session for this conversation, agent, folder
 
 A correction sent while a local task is running interrupts its current ACP turn. After the adapter confirms the stop, the same session continues with the correction. The transcript records the applied correction; a message arriving after completion stays available to the parent agent.
 
+After choosing the harness and an approved folder, **Coding model** and **Reasoning level** list choices reported by that installed harness. They belong to this conversation and are applied before a new or resumed task starts. Leave either unset to retain the harness’s own setting. Switching harness clears incompatible overrides. Refresh choices explicitly after changing sign-in or configuration; opening another window does not probe the account again. A removed or unsupported choice is shown and refused, rather than silently substituted. Reading choices starts no model turn and grants no tool permission.
+
 ## Your own skills and instructions { #your-own-skills-and-instructions }
 
 **Chat controls → Work on → My skills and instructions** selects which sources a conversation may use: `~/.agents/skills`, `~/.claude/skills` and `~/.codex/skills`. Every new chat starts with these sources off. Files are read in place, without copying or syncing credentials or configuration.

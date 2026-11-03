@@ -19,6 +19,11 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- Delegate explicit work to durable background topics in the same project, keep talking in the source conversation, inspect or stop each task, and receive one source-bound result turn. Tasks retain pinned agent versions, ordinary budgets and approvals, the selected main model and exact local device; interrupted external actions are not automatically replayed.
+- Choose a local Claude Code/Codex model and reasoning level per conversation from the installed harness's reported choices, including resumed coding sessions. Reference recent accessible conversations in the `@` menu through the existing Past conversations capability.
+
 ## [1.39.1] - 2026-11-03
 
 ### Changed

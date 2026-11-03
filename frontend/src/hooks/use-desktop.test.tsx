@@ -12,6 +12,7 @@ import {
   useDeviceStatus,
   useDeviceLink,
   useLocalAgents,
+  useLocalCodingOptions,
   useLocalFolders,
   useLocalServices,
   useLocalSkills,
@@ -37,6 +38,7 @@ const shell = vi.hoisted(() => ({
   getDesktopState: vi.fn(),
   getLocalSkills: vi.fn(),
   getLocalAgents: vi.fn(),
+  getLocalCodingOptions: vi.fn(),
   signInLocalAgent: vi.fn(),
   signOutLocalAgent: vi.fn(),
   getLocalServices: vi.fn(),
@@ -64,6 +66,7 @@ vi.mock("@/lib/desktop/commands", async (original) => ({
   getDesktopState: shell.getDesktopState,
   getLocalSkills: shell.getLocalSkills,
   getLocalAgents: shell.getLocalAgents,
+  getLocalCodingOptions: shell.getLocalCodingOptions,
   signInLocalAgent: shell.signInLocalAgent,
   signOutLocalAgent: shell.signOutLocalAgent,
   getLocalServices: shell.getLocalServices,
@@ -434,5 +437,45 @@ describe("useLocalAgents", () => {
     await act(() => result.current.signIn.mutateAsync("codex" as never).catch(() => undefined));
     await act(() => result.current.signOut.mutateAsync("codex" as never).catch(() => undefined));
     expect(shell.reportShellFailure).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("useLocalCodingOptions", () => {
+  it("does not start native probes without a selected harness or outside the desktop", () => {
+    renderHook(() => useLocalCodingOptions(null), { wrapper });
+    delete window.__AGENTICOS_SHELL__;
+    renderHook(() => useLocalCodingOptions("codex"), { wrapper });
+    expect(shell.getLocalCodingOptions).not.toHaveBeenCalled();
+  });
+
+  it("caches each harness and never probes again on window focus", async () => {
+    shell.getLocalCodingOptions.mockResolvedValue({
+      models: [],
+      current_model: null,
+      current_effort: null,
+    });
+    const { result, rerender } = renderHook(
+      ({ harness }: { harness: "codex" | "claude_code" }) => useLocalCodingOptions(harness),
+      { wrapper, initialProps: { harness: "codex" } },
+    );
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    const query = client.getQueryCache().find({ queryKey: qk.desktop.codingOptions("codex") });
+    expect(query?.options).toMatchObject({ refetchOnWindowFocus: false });
+    expect(shell.getLocalCodingOptions).toHaveBeenCalledTimes(1);
+    rerender({ harness: "claude_code" });
+    await waitFor(() => expect(shell.getLocalCodingOptions).toHaveBeenCalledTimes(2));
+    rerender({ harness: "codex" });
+    expect(shell.getLocalCodingOptions).toHaveBeenCalledTimes(2);
+    await act(async () => {
+      await result.current.refetch();
+    });
+    expect(shell.getLocalCodingOptions).toHaveBeenCalledTimes(3);
+  });
+
+  it("reports a startup refusal without automatically starting more probes", async () => {
+    shell.getLocalCodingOptions.mockRejectedValue(new Error("not signed in"));
+    const { result } = renderHook(() => useLocalCodingOptions("codex"), { wrapper });
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(shell.getLocalCodingOptions).toHaveBeenCalledTimes(1);
   });
 });

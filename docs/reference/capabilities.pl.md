@@ -1,5 +1,5 @@
 ---
-source_sha: "95cc474e7e4b"
+source_sha: "a9c402805186"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -86,6 +86,7 @@ Przeglądarka jest kierowana do usługi przeglądarki wdrożenia
 | `coding_agent` | Coding agent | analiza | `run_coding_agent` | `sandbox:execute` | wymagany | przekazana |
 | `monitor` | Obserwuj polecenie | analiza | `start_monitor`, `list_monitors`, `stop_monitor` | `sandbox:execute` | — | przekazana |
 | `subagents` | Subagenci | rozumowanie | `task`, `check_task`, `wait_tasks`, `list_active_tasks`, `answer_subagent`, `send_message_to_subagent`, `soft_cancel_task`, `hard_cancel_task`, `create_agent`, `delegate` | `agents:delegate` | — | przekazana |
+| `background_tasks` | Tematy w tle | reasoning | `start_background_task`, `list_background_tasks`, `stop_background_task` | — | — | przekazywane |
 | `planning` | Planowanie | rozumowanie | `write_plan`, `read_plan`, `add_task`, `update_task_status`, `update_task_statuses`, `remove_task`, `add_subtask`, `set_dependency`, `get_available_tasks` | — | — | bez zmian |
 | `thinking` | Myślenie | rozumowanie | brak, celowo | — | — | odwzorowana |
 | `system_reminders` | Przypomnienia instrukcji | rozumowanie | brak, celowo | — | — | bez efektu |
@@ -473,6 +474,10 @@ Self-hostowany `base_url` musi być https i musi znajdować się na
 w całości i jest to celowe: klucz podróżuje w nagłówku `Authorization`, więc
 twórca, który może wiązać współdzielony klucz, ale nie może go odczytać, nie może
 mieć możliwości skierowania go na własny serwer.
+
+## Tematy w tle { #background-tasks }
+
+Jawne zadanie w nowym temacie, które trwa dłużej niż odpowiedź źródłowa. Agent źródłowy podsumowuje wynik z aktualną historią, bez narzędzi. [Tematy w tle](../console.pl.md#background-topics) opisują limity, zgody, zatrzymanie i przerwaną pracę. To mechanizm oddzielny od tymczasowego `background_tools` i asynchronicznych subagentów jednego uruchomienia.
 
 ## Poprzednie rozmowy { #conversation-search }
 
