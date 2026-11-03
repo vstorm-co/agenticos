@@ -2915,6 +2915,32 @@ async def watched_connection_spec(connection: McpConnection) -> McpServerSpec | 
     )
 
 
+def reviewed_personal_sources(
+    catalog_key: str, accounts: Sequence[McpConnection]
+) -> dict[UUID, McpSourceIdentity]:
+    """Metadata-only aliases for an explicit routine review, without opening credentials.
+
+    The routine resolver subsequently keeps these reviewed names even when a
+    different account becomes the default or an earlier account goes offline.
+    """
+    if not accounts:
+        return {}
+    primary = next((account for account in accounts if account.is_default), accounts[0])
+    taken: set[str] = set()
+    sources: dict[UUID, McpSourceIdentity] = {}
+    for account in [primary, *(other for other in accounts if other is not primary)]:
+        name = catalog_key if account is primary else _extra_prefix(catalog_key, account)
+        if name in taken:
+            name = f"{name[:55]}-{account.id.hex[:8]}"
+        taken.add(name)
+        sources[account.id] = McpSourceIdentity(
+            endpoint_hash=hashlib.sha256(account.url.encode()).hexdigest(),
+            authorization_generation=account.authorization_generation,
+            tool_prefix=name,
+        )
+    return sources
+
+
 def _account_name(account: McpConnection) -> str:
     """What a person calls one of their accounts: its label, else its name."""
     return account.label or account.name

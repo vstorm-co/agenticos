@@ -1,0 +1,52 @@
+"""Explicit source ceilings for recurring work, independent of write exceptions."""
+
+from datetime import datetime
+from typing import Annotated
+from uuid import UUID
+
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints
+
+Fingerprint = Annotated[str, StringConstraints(pattern=r"^[a-f0-9]{64}$")]
+ToolName = Annotated[
+    str, StringConstraints(min_length=1, max_length=1000, pattern=r"^[^\x00-\x1f\x7f]+$")
+]
+
+
+class RoutineSourceAccount(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    endpoint_hash: Fingerprint
+    authorization_generation: UUID
+    tool_prefix: str | None = Field(default=None, max_length=128)
+    tool_ids: tuple[ToolName, ...] = Field(default=(), max_length=4096)
+
+
+class RoutineSourcePolicy(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    id: UUID
+    consented_by: UUID
+    reviewed_at: datetime
+    version_id: UUID
+    scope_hash: Fingerprint
+    spec_hash: Fingerprint
+    mcp_sources: dict[UUID, RoutineSourceAccount] = Field(default_factory=dict, max_length=100)
+    input_connection_id: UUID | None = None
+    input_source: RoutineSourceAccount | None = None
+
+
+class RoutineSourceReview(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    review_token: Fingerprint
+    version_id: UUID
+    current: bool
+    resources: list[str]
+    accounts: list[str]
+    unavailable_sources: list[str]
+
+
+class RoutineSourceConsent(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    review_token: Fingerprint

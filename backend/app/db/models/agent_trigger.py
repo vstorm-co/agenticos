@@ -236,6 +236,8 @@ class AgentTrigger(Base, TimestampMixin):
     # sandbox. Only with `runs_as_creator` - a fire nobody is behind reaches
     # nobody's computer - and cleared with it.
     local_target: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
+    approved_sources: Mapped[dict[str, object] | None] = mapped_column(JSONB, nullable=True)
+
     action_consents: Mapped[list[dict[str, object]]] = mapped_column(
         JSONB, nullable=False, default=list, server_default="[]"
     )
