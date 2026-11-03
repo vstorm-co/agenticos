@@ -20,6 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import record_audit
 from app.core.exceptions import AlreadyExistsError, BadRequestError, NotFoundError
+from app.db.models.background_job import BackgroundJob
 from app.db.models.background_task_kind import BackgroundTaskKind
 from app.repositories import background_job as background_job_repo
 from app.repositories import background_schedule as background_schedule_repo
@@ -39,7 +40,7 @@ from app.schemas.background_job import (
     JobStatus,
     KindActivityRead,
 )
-from app.worker.jobs import MOVE_PROJECT_WORKSPACE, TASKS, Payload, Priority, Task
+from app.worker.jobs import TASKS, Payload, Priority, Task
 
 
 async def enqueue[P: Payload](
@@ -201,7 +202,7 @@ class BackgroundJobService:
             before=before,
             limit=limit + 1,
         )
-        items = [BackgroundJobRead.model_validate(row) for row in rows[:limit]]
+        items = [self._job_read(row) for row in rows[:limit]]
         if len(rows) <= limit:
             return BackgroundJobList(items=items)
         return BackgroundJobList(
@@ -213,14 +214,16 @@ class BackgroundJobService:
 
         Raises:
             NotFoundError: No such job.
-            BadRequestError: The job is not dead.
+            BadRequestError: The job is not dead, or its settled domain work
+                requires a new request instead of queue-level replay.
             AlreadyExistsError: A newer job for the same work is already queued,
                 and two queued copies of one dedupe key cannot exist.
         """
         job = await background_job_repo.get(self.db, job_id)
-        if job is not None and job.kind == MOVE_PROJECT_WORKSPACE.kind:
+        task = None if job is None else TASKS.get(job.kind)
+        if task is not None and task.retry_refusal is not None:
             raise BadRequestError(
-                message="Start a new transfer in the project's sandbox settings; retired transfer copies cannot be reused",
+                message=task.retry_refusal,
                 details={"job_id": str(job_id)},
             )
         if (
@@ -318,7 +321,14 @@ class BackgroundJobService:
         job = await background_job_repo.get(self.db, job_id)
         assert job is not None, "read back in the transaction that just updated it"
         await self.db.refresh(job)
-        return BackgroundJobRead.model_validate(job)
+        return self._job_read(job)
+
+    @staticmethod
+    def _job_read(job: BackgroundJob) -> BackgroundJobRead:
+        task = TASKS.get(job.kind)
+        return BackgroundJobRead.model_validate(job).model_copy(
+            update={"retry_refusal": None if task is None else task.retry_refusal}
+        )
 
     @staticmethod
     def _superseded(job_id: UUID) -> AlreadyExistsError:

@@ -107,7 +107,9 @@ export function JobsTable({
         align: "right",
         className: "w-0 pr-3 sm:pr-5",
         cell: (job) =>
-          job.status === "dead" ? (
+          job.status === "dead" && job.retry_refusal ? (
+            <span className="text-muted-foreground max-w-64 text-xs">{job.retry_refusal}</span>
+          ) : job.status === "dead" ? (
             <Button size="sm" variant="outline" onClick={() => retry.mutate(job)}>
               {t("retry")}
             </Button>

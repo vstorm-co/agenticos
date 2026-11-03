@@ -18,6 +18,10 @@ class BackgroundJobRead(BaseSchema):
 
     id: UUID
     kind: str
+    retry_refusal: str | None = Field(
+        default=None,
+        description="Why this job needs a new request instead of retrying its queue row",
+    )
     pool: JobPool
     status: JobStatus
     priority: int

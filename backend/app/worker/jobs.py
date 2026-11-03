@@ -325,6 +325,8 @@ class TaskKind:
     # kind. Not when something else already stops a job that keeps killing its
     # worker, and a crash takes down every job the worker held at once.
     counts_deaths: bool = True
+    retry_refusal: str | None = None
+    """Why a dead job needs a new domain request instead of queue-level replay."""
 
 
 @dataclass(frozen=True)
@@ -413,6 +415,7 @@ RUN_AGENT = Task(
 # all.
 RUN_EVAL = Task(
     kind="run-eval",
+    retry_refusal="Start a new eval run from Evals; a failed eval has already been settled",
     payload_type=RunEval,
     pool=Pool.EVAL,
     max_attempts=1,
@@ -597,6 +600,7 @@ WEEKLY_USAGE_REPORT = _sweep("weekly-usage-report", timeout=timedelta(hours=1), 
 MONTHLY_USAGE_REPORT = _sweep("monthly-usage-report", timeout=timedelta(hours=1), max_attempts=3)
 
 MOVE_PROJECT_WORKSPACE = Task(
+    retry_refusal="Start a new transfer in the project's sandbox settings; retired transfer copies cannot be reused",
     kind="move-project-workspace",
     payload_type=MoveProjectWorkspacePayload,
     pool=Pool.INGEST,
