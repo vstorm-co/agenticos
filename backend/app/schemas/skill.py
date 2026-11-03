@@ -148,8 +148,9 @@ class SkillSummary(BaseSchema):
     used_by: list[AgentUsage] = Field(
         default_factory=list,
         description=(
-            "The agents whose draft binds this, among those the caller may see - so a "
-            "card says where it is used, or that it is used nowhere yet"
+            "The agents a served version of which binds this - the agent's own or an "
+            "inline specialist's - among those the caller may see, so a card says where "
+            "it runs, or that it runs nowhere yet"
         ),
     )
     shared_groups: list[str] = Field(

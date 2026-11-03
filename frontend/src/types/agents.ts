@@ -21,6 +21,16 @@ export type AgentStatus = "draft" | "published" | "archived";
 export type ApprovalMode = "default" | "required" | "never";
 
 /**
+ * A bound skill that does not read its main line's newest version: a main version
+ * it stays on (`version`), or a fork it follows (`fork_id`). Exactly one is set.
+ */
+export interface SkillBindingSpec {
+  skill_id: string;
+  version?: number | null;
+  fork_id?: string | null;
+}
+
+/**
  * What one tool is called and how it is described *for this agent*.
  *
  * Both are prompt, not labelling: the description is what the model reads
@@ -286,6 +296,8 @@ export interface SpecialistSpec {
   capabilities: CapabilityBindingSpec[];
   collection_ids: string[];
   skill_ids: string[];
+  /** Which version of a bound skill it reads, where not main's newest. */
+  skill_bindings?: SkillBindingSpec[];
   context_ids: string[];
   max_steps?: number | null;
   preferred_mode?: DelegationMode | null;
@@ -404,6 +416,8 @@ export interface AgentSpec {
   capabilities: CapabilityBindingSpec[];
   collection_ids: string[];
   skill_ids: string[];
+  /** Which version of a bound skill it reads, where not main's newest. */
+  skill_bindings?: SkillBindingSpec[];
   context_ids: string[];
   mcp_servers: McpServerRef[];
   /**

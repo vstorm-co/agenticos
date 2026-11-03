@@ -40,10 +40,13 @@ def _used_nowhere(monkeypatch: pytest.MonkeyPatch) -> None:
     async def nowhere(*_args: object, resource_ids: list[UUID], **_kwargs: object):
         return {resource_id: [] for resource_id in resource_ids}
 
+    async def no_skill_agents(*_args: object, skill_ids: list[UUID], **_kwargs: object):
+        return {skill_id: [] for skill_id in skill_ids}
+
     async def no_forks(*_args: object, skill_ids: list[UUID], **_kwargs: object):
         return dict.fromkeys(skill_ids, 0)
 
-    monkeypatch.setattr("app.services.skills.agents_using", nowhere)
+    monkeypatch.setattr("app.services.skills.agents_serving_skills", no_skill_agents)
     monkeypatch.setattr("app.services.skills.groups_sharing", nowhere)
     monkeypatch.setattr("app.services.skills.agents_using_skill", AsyncMock(return_value=[]))
     monkeypatch.setattr(
@@ -239,7 +242,7 @@ class TestAgentBinding:
         could not open in the UI. The agent still reads it, exactly as it still
         searches a collection nobody shared with the person asking: the publisher
         was checked when the version was frozen
-        (`AgentRegistryService._skill_problems`), and re-checking per runner would
+        (`AgentRegistryService.skill_problems`), and re-checking per runner would
         make one published version answer differently for two colleagues.
         """
         ctx = _ctx(OrgRoleName.MEMBER)

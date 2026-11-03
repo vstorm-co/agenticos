@@ -12,6 +12,7 @@ See `app/db/models/skill_version.py` for the model.
 """
 
 import hashlib
+from collections import Counter
 from collections.abc import Iterable, Sequence
 from datetime import UTC, datetime, timedelta
 from uuid import UUID
@@ -23,6 +24,7 @@ from app.core.exceptions import (
     AlreadyExistsError,
     ConcurrentChangeError,
     ConflictError,
+    InUseError,
     NotFoundError,
 )
 from app.core.field_errors import refused_field
@@ -52,7 +54,7 @@ from app.schemas.skill_version import (
     VersionResourceRead,
     VersionResourceSummary,
 )
-from app.services.access import SKILL, resolve_access
+from app.services.access import AGENT, SKILL, accessible_ids, resolve_access
 
 ARCHIVE_AFTER = timedelta(days=30)
 """How long a fork goes unread before it is offered for archiving. Never archived by itself."""
@@ -183,6 +185,15 @@ class SkillVersionService:
         await skill_version_repo.update_fork(
             self.db, fork=fork, update_data={"latest_version_id": version.id}
         )
+        # Imported here: the eval suites reach the agent runner, which reads skills.
+        from app.services.eval_suite import EvalSuiteService
+
+        await EvalSuiteService(self.db).dependency_changed(
+            organization_id=fork.organization_id,
+            kind="skill",
+            resource_id=fork.skill_id,
+            fork_id=fork.id,
+        )
         return version
 
     @staticmethod
@@ -192,7 +203,7 @@ class SkillVersionService:
             return skill.latest_version_id
         return fork.latest_version_id or fork.base_version_id
 
-    async def _skill(self, ctx: AuthContext, skill_id: UUID, perm: Perm) -> Skill:
+    async def skill_for(self, ctx: AuthContext, skill_id: UUID, perm: Perm) -> Skill:
         """The skill, or 404 - for a missing one and one the caller may not `perm` alike."""
         skill = await skill_repo.get(self.db, skill_id, organization_id=ctx.organization_id)
         if skill is None or not await resolve_access(
@@ -265,6 +276,7 @@ class SkillVersionService:
             organization_id=ctx.organization_id,
         )
         people = await self._people(ctx, [version.created_by_user_id for version in versions])
+        by_version, _ = await self._counts(skill)
         return [
             SkillVersionSummary(
                 id=version.id,
@@ -281,6 +293,7 @@ class SkillVersionService:
                     people.get(version.created_by_user_id) if version.created_by_user_id else None
                 ),
                 created_at=version.created_at,
+                agents=by_version[version.id],
             )
             for version in versions
         ]
@@ -295,7 +308,7 @@ class SkillVersionService:
         limit: int = 50,
     ) -> SkillVersionList:
         """One line's versions, newest first: main's, or a fork's own."""
-        skill = await self._skill(ctx, skill_id, Perm.SKILLS_VIEW)
+        skill = await self.skill_for(ctx, skill_id, Perm.SKILLS_VIEW)
         if fork_id is not None:
             await self._fork(ctx, skill, fork_id)
         versions, total = await skill_version_repo.list_versions(
@@ -312,7 +325,7 @@ class SkillVersionService:
         self, ctx: AuthContext, skill_id: UUID, version_id: UUID
     ) -> SkillVersionRead:
         """One version with its text and the list of its files."""
-        skill = await self._skill(ctx, skill_id, Perm.SKILLS_VIEW)
+        skill = await self.skill_for(ctx, skill_id, Perm.SKILLS_VIEW)
         version = await self._version(ctx, skill, version_id)
         return await self._read(ctx, skill, version)
 
@@ -339,7 +352,7 @@ class SkillVersionService:
         self, ctx: AuthContext, skill_id: UUID, version_id: UUID, name: str
     ) -> VersionResourceRead:
         """One file of a version, as that version had it."""
-        skill = await self._skill(ctx, skill_id, Perm.SKILLS_VIEW)
+        skill = await self.skill_for(ctx, skill_id, Perm.SKILLS_VIEW)
         version = await self._version(ctx, skill, version_id)
         entry = version.resources.get(name)
         bodies = (
@@ -379,7 +392,7 @@ class SkillVersionService:
         """
         from app.services.skills import SkillService
 
-        skill = await self._skill(ctx, skill_id, Perm.SKILLS_EDIT)
+        skill = await self.skill_for(ctx, skill_id, Perm.SKILLS_EDIT)
         if data.fork_id is None:
             locked = await skill_repo.lock(self.db, skill.id)
             assert locked is not None, "the skill was read in this transaction"
@@ -421,7 +434,7 @@ class SkillVersionService:
         """
         from app.services.skills import SkillService
 
-        skill = await self._skill(ctx, skill_id, Perm.SKILLS_EDIT)
+        skill = await self.skill_for(ctx, skill_id, Perm.SKILLS_EDIT)
         earlier = await self._version(ctx, skill, version_id)
         if earlier.fork_id is None:
             locked = await skill_repo.lock(self.db, skill.id)
@@ -468,7 +481,7 @@ class SkillVersionService:
     async def list_forks(
         self, ctx: AuthContext, skill_id: UUID, *, archived: bool = False
     ) -> SkillForkList:
-        skill = await self._skill(ctx, skill_id, Perm.SKILLS_VIEW)
+        skill = await self.skill_for(ctx, skill_id, Perm.SKILLS_VIEW)
         forks = await skill_version_repo.list_forks(
             self.db, organization_id=ctx.organization_id, skill_id=skill.id, archived=archived
         )
@@ -493,6 +506,7 @@ class SkillVersionService:
             self.db, organization_id=ctx.organization_id, fork_ids=ids, since=now - ARCHIVE_AFTER
         )
         people = await self._people(ctx, [fork.created_by_user_id for fork in forks])
+        _, by_fork = await self._counts(skill)
         reads = []
         for fork in forks:
             base = versions[fork.base_version_id]
@@ -508,10 +522,12 @@ class SkillVersionService:
                     else VersionNumberRef(id=latest.id, number=latest.number),
                     changes=changes[fork.id],
                     behind_main=skill.version - base.number,
+                    agents=by_fork[fork.id],
                     archive_candidate=(
                         fork.archived_at is None
                         and fork.created_at < now - ARCHIVE_AFTER
                         and fork.id not in served
+                        and not by_fork[fork.id]
                     ),
                     archived_at=fork.archived_at,
                     created_by=(
@@ -531,7 +547,7 @@ class SkillVersionService:
             BadRequestError: The version is a fork's - a fork starts only from main.
             AlreadyExistsError: The skill already has a fork of that name.
         """
-        skill = await self._skill(ctx, skill_id, Perm.SKILLS_EDIT)
+        skill = await self.skill_for(ctx, skill_id, Perm.SKILLS_EDIT)
         base = await self._version(ctx, skill, data.from_version_id)
         if base.fork_id is not None:
             raise refused_field(
@@ -556,7 +572,7 @@ class SkillVersionService:
     async def rename_fork(
         self, ctx: AuthContext, skill_id: UUID, fork_id: UUID, data: SkillForkUpdate
     ) -> SkillForkRead:
-        skill = await self._skill(ctx, skill_id, Perm.SKILLS_EDIT)
+        skill = await self.skill_for(ctx, skill_id, Perm.SKILLS_EDIT)
         fork = await self._fork(ctx, skill, fork_id, lock=True)
         if data.name != fork.name:
             await self._refuse_taken(ctx, skill, data.name)
@@ -567,9 +583,35 @@ class SkillVersionService:
         return read
 
     async def archive_fork(self, ctx: AuthContext, skill_id: UUID, fork_id: UUID) -> SkillForkRead:
-        """Archive a fork: it takes no new versions, and no agent can be moved onto it."""
-        skill = await self._skill(ctx, skill_id, Perm.SKILLS_EDIT)
+        """Archive a fork: it takes no new versions, and no agent can be moved onto it.
+
+        Raises:
+            InUseError: An agent reads the fork, in a served version or its draft;
+                it is moved first, so no agent is left on a line that takes no fix.
+        """
+        from app.services.skill_agents import SkillAgentService
+
+        skill = await self.skill_for(ctx, skill_id, Perm.SKILLS_EDIT)
         fork = await self._fork(ctx, skill, fork_id, lock=True)
+        using = await SkillAgentService(self.db).fork_users(skill, fork.id)
+        if fork.archived_at is None and using:
+            visible = await accessible_ids(
+                self.db, ctx, using, Perm.AGENTS_VIEW, resource_type=AGENT
+            )
+            raise InUseError(
+                message=(
+                    f"'{fork.name}' is read by {len(using)} agent(s). Move them to another "
+                    "version before archiving it."
+                ),
+                details={
+                    "agents": [
+                        {"id": agent.id, "name": agent.name}
+                        for agent in using
+                        if agent.id in visible
+                    ],
+                    "hidden": len(using) - len(visible),
+                },
+            )
         if fork.archived_at is None:
             fork = await skill_version_repo.update_fork(
                 self.db,
@@ -579,6 +621,13 @@ class SkillVersionService:
             await self._audit(ctx, skill, "skill.fork_archived", fork=fork, version=None)
         [read] = await self._fork_reads(ctx, skill, [fork])
         return read
+
+    async def _counts(self, skill: Skill) -> tuple[Counter[UUID], Counter[UUID]]:
+        """How many agents' served versions read each version and each fork."""
+        # Imported here: the agents of a skill read the registry, which reads skills.
+        from app.services.skill_agents import SkillAgentService
+
+        return await SkillAgentService(self.db).counts(skill)
 
     async def _refuse_taken(self, ctx: AuthContext, skill: Skill, name: str) -> None:
         """Refuse a fork name the skill has. The caller holds the skill locked, so two

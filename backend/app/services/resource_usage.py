@@ -124,16 +124,15 @@ async def shared_with_group(
 
 
 def _binds_skill(spec: dict[str, Any], skill_id: UUID) -> bool:
-    """Whether a stored spec binds the skill, itself or through an inline specialist.
+    """Whether a stored spec that names the skill's id binds it, itself or through an
+    inline specialist.
 
-    Only a spec that names the skill's id is parsed. One that names it and no longer
+    Callers pass only the specs the database found naming the id. One that no longer
     parses is taken to bind it: the skill is not deleted from under a draft its owner
     has yet to fix.
     """
     from app.services.eval_suite import binds
 
-    if str(skill_id) not in json.dumps(spec):
-        return False
     try:
         return binds(AgentSpec.model_validate(spec), "skill", skill_id)
     except ValidationError:
@@ -150,8 +149,8 @@ async def agents_using_skill(
     nothing; nobody runs them.
     """
     using: set[UUID] = set()
-    for environment, version in await agent_environment_repo.served(
-        db, organization_id=organization_id
+    for environment, version in await agent_environment_repo.served_mentioning(
+        db, [str(skill_id)], organization_id=organization_id
     ):
         if environment.agent_id not in using and _binds_skill(version.spec, skill_id):
             using.add(environment.agent_id)
@@ -165,3 +164,46 @@ async def agents_using_skill(
         (agent for agent in agents.values() if agent.status != AgentStatus.ARCHIVED.value),
         key=lambda agent: agent.name,
     )
+
+
+async def agents_serving_skills(
+    db: AsyncSession, ctx: AuthContext, *, skill_ids: Collection[UUID]
+) -> dict[UUID, list[AgentUsage]]:
+    """For each skill, the agents a served version of which binds it, that the caller may see.
+
+    A skill's agents are the ones that run it: a version one of their environments
+    serves binds it, the agent's own or an inline specialist's. A draft that binds
+    it runs nothing yet.
+    """
+    from app.services.eval_suite import binds
+
+    serving: dict[UUID, set[UUID]] = {skill_id: set() for skill_id in skill_ids}
+    for environment, version in await agent_environment_repo.served_mentioning(
+        db, [str(skill_id) for skill_id in skill_ids], organization_id=ctx.organization_id
+    ):
+        text = json.dumps(version.spec)
+        named = [skill_id for skill_id in skill_ids if str(skill_id) in text]
+        try:
+            spec = AgentSpec.model_validate(version.spec)
+        except ValidationError:
+            continue
+        for skill_id in named:
+            if binds(spec, "skill", skill_id):
+                serving[skill_id].add(environment.agent_id)
+    agents = await agent_repo.get_many(
+        db,
+        sorted({agent_id for ids in serving.values() for agent_id in ids}),
+        organization_id=ctx.organization_id,
+    )
+    found = {
+        skill_id: sorted(
+            (
+                agents[agent_id]
+                for agent_id in ids
+                if agent_id in agents and agents[agent_id].status != AgentStatus.ARCHIVED.value
+            ),
+            key=lambda agent: agent.name,
+        )
+        for skill_id, ids in serving.items()
+    }
+    return await _visible_usage(db, ctx, found)

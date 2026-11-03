@@ -410,6 +410,27 @@ end" with "it was delegated". `parent_run_id` answers that.
 """
 
 
+def _bound_forks(spec: AgentSpec) -> dict[UUID, UUID]:
+    """The fork each skill a run reads is bound to, its inline specialists' included.
+
+    The agent's own binding wins: a skill it reads itself from main is not credited to
+    a fork one of its specialists reads.
+    """
+    delegation = _delegation_config(spec)
+    forks = {
+        binding.skill_id: binding.fork_id
+        for specialist in ([] if delegation is None else delegation.inline)
+        for binding in specialist.skill_bindings
+        if binding.fork_id is not None and binding.skill_id not in spec.skill_ids
+    }
+    forks.update(
+        (binding.skill_id, binding.fork_id)
+        for binding in spec.skill_bindings
+        if binding.fork_id is not None
+    )
+    return forks
+
+
 def _delegation_config(spec: AgentSpec) -> SubagentsConfig | None:
     """This spec's delegation policy, or `None` if the agent does not delegate.
 
@@ -424,6 +445,11 @@ def _delegation_config(spec: AgentSpec) -> SubagentsConfig | None:
     """
     binding = delegation_binding(spec)
     return None if binding is None else SubagentsConfig.model_validate(binding.config)
+
+
+def _served(skills: list[Skill]) -> list[UUID]:
+    """The versions these resolved skills serve; a candidate an eval projects has none."""
+    return [skill.latest_version_id for skill in skills if skill.latest_version_id is not None]
 
 
 def input_screen_for(spec: AgentSpec) -> Callable[[str], GuardrailResult] | None:
@@ -3634,7 +3660,9 @@ class AgentRunnerService:
             collections=_searched_bases(bound),
             found=None if knowledge is None else knowledge.found,
         )
-        skills = await self.skills.resolve_for_agent(ctx, spec.skill_ids, projected=skill_bodies)
+        skills = await self.skills.resolve_for_agent(
+            ctx, spec.skill_ids, bindings=spec.skill_bindings, projected=skill_bodies
+        )
         skill_log = SkillUseLog(
             agent_id=agent.id,
             served=served_skills(skills, skill_bodies or {}),
@@ -3849,6 +3877,10 @@ class AgentRunnerService:
                 is_test=is_test,
                 test_spec=test_spec,
             )
+        # A resumed run serves what its lines say now, which may be newer than what it
+        # started on, so it keeps both.
+        served = await self._served_skill_versions(ctx, spec, resources["skills"])
+        run.skill_version_ids = list(dict.fromkeys([*(run.skill_version_ids or []), *served]))
 
         # Two lookups, because the caps they feed meter two different things. The
         # agent's own cap used to read the organization-wide number below, which
@@ -5041,6 +5073,25 @@ class AgentRunnerService:
             collection_scopes=tuple(delegate_resources["kb_vector_scopes"].items()),
         )
 
+    async def _served_skill_versions(
+        self, ctx: AuthContext, spec: AgentSpec, skills: list[Skill]
+    ) -> list[UUID]:
+        """The skill versions a run serves: its own, and each inline specialist's.
+
+        A specialist resolves its skills only when it is delegated to, but the run
+        records what it would read now, so the run says which versions it could
+        have answered from.
+        """
+        served = _served(skills)
+        delegation = _delegation_config(spec)
+        for specialist in [] if delegation is None else delegation.inline:
+            served += _served(
+                await self.skills.resolve_for_agent(
+                    ctx, specialist.skill_ids, bindings=specialist.skill_bindings
+                )
+            )
+        return list(dict.fromkeys(served))
+
     async def _delegate_resources(
         self,
         ctx: AuthContext,
@@ -5076,7 +5127,9 @@ class AgentRunnerService:
         delegate reaches a durable workspace at all.
         """
         bound = await self._bound_collections(spec, ctx)
-        skills = await self.skills.resolve_for_agent(ctx, spec.skill_ids)
+        skills = await self.skills.resolve_for_agent(
+            ctx, spec.skill_ids, bindings=spec.skill_bindings
+        )
         resources: dict[str, Any] = {
             **bound,
             "skills": skills,
@@ -5606,6 +5659,7 @@ class AgentRunnerService:
                         changes,
                         agent_id=agent_id,
                         conversation_id=conversation_id,
+                        forks=_bound_forks(prepared.spec),
                     )
         except Exception:
             logger.exception("skill_proposal_record_failed", extra={"run_id": run_id})

@@ -21,6 +21,8 @@ from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.skill_version import SkillVersionSource
 from app.main import app
 from app.schemas.skill_version import (
+    SkillAgentList,
+    SkillBindingChanged,
     SkillForkList,
     SkillForkRead,
     SkillVersionList,
@@ -46,6 +48,7 @@ def _version(fork_id: uuid.UUID | None = None) -> SkillVersionRead:
         source=SkillVersionSource.EDIT,
         previous=None,
         created_at=NOW,
+        agents=0,
         description="How refunds work.",
         content="Ask for the receipt.",
         resources=[],
@@ -61,6 +64,7 @@ def _fork() -> SkillForkRead:
         latest=None,
         changes=0,
         behind_main=0,
+        agents=0,
         archive_candidate=False,
         created_at=NOW,
     )
@@ -254,3 +258,55 @@ async def test_a_used_skill_answers_its_deletion_as_in_use(client):
 
     assert response.status_code == 409
     assert response.json()["error"]["details"] == {"agents": [], "hidden": 2}
+
+
+async def test_a_skills_agents_are_listed(client, ctx):
+    agents = MagicMock()
+    agents.agents = AsyncMock(
+        return_value=SkillAgentList(
+            main_latest=VersionNumberRef(id=VERSION, number=2), items=[], hidden=3
+        )
+    )
+    app.dependency_overrides[deps.get_skill_agent_service] = lambda: agents
+
+    response = await client.get(f"/api/v1/skills/{SKILL}/agents")
+
+    assert response.status_code == 200
+    assert response.json()["hidden"] == 3
+    agents.agents.assert_awaited_once_with(ctx, SKILL)
+
+
+async def test_an_agent_is_moved_to_a_fork(client, ctx):
+    agent_id = uuid.uuid4()
+    agents = MagicMock()
+    agents.change_binding = AsyncMock(return_value=SkillBindingChanged(published=False))
+    app.dependency_overrides[deps.get_skill_agent_service] = lambda: agents
+
+    response = await client.put(
+        f"/api/v1/skills/{SKILL}/agents/{agent_id}/binding",
+        json={"state": "fork", "fork_id": str(FORK)},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["published"] is False
+    [_, skill_id, moved, data] = agents.change_binding.await_args.args
+    assert (skill_id, moved, data.state, data.fork_id) == (SKILL, agent_id, "fork", FORK)
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        {"state": "pinned"},
+        {"state": "fork", "version": 2},
+        {"state": "main", "version": 2},
+    ],
+)
+async def test_a_move_names_exactly_what_its_state_needs(client, body):
+    agents = MagicMock()
+    agents.change_binding = AsyncMock()
+    app.dependency_overrides[deps.get_skill_agent_service] = lambda: agents
+
+    response = await client.put(f"/api/v1/skills/{SKILL}/agents/{uuid.uuid4()}/binding", json=body)
+
+    assert response.status_code == 422
+    agents.change_binding.assert_not_awaited()

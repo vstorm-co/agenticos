@@ -1,12 +1,14 @@
 """Schemas for skill versions and forks."""
 
 from datetime import datetime
+from typing import Literal
 from uuid import UUID
 
-from pydantic import Field
+from pydantic import Field, model_validator
 
 from app.db.models.skill_version import SkillVersionSource
 from app.schemas.base import BaseSchema
+from app.schemas.resource_usage import AgentUsage
 
 
 class VersionRef(BaseSchema):
@@ -42,6 +44,9 @@ class SkillVersionSummary(BaseSchema):
     )
     created_by: PersonRef | None = None
     created_at: datetime
+    agents: int = Field(
+        description="How many agents read exactly this version in an environment that serves it"
+    )
 
 
 class VersionResourceSummary(BaseSchema):
@@ -114,6 +119,9 @@ class SkillForkRead(BaseSchema):
     )
     changes: int = Field(description="How many versions of its own it has")
     behind_main: int = Field(description="How many main versions came after its base")
+    agents: int = Field(
+        description="How many agents read it in an environment that serves it, hidden ones included"
+    )
     archive_candidate: bool = Field(
         description="No agent reads it and no run has served it for 30 days"
     )
@@ -134,3 +142,93 @@ class SkillForkCreate(BaseSchema):
 
 class SkillForkUpdate(BaseSchema):
     name: str = Field(min_length=1, max_length=64)
+
+
+SkillBindingState = Literal["main", "pinned", "fork"]
+
+
+class ForkRef(BaseSchema):
+    id: UUID
+    name: str
+    base_number: int = Field(description="The main version the fork started from")
+    changes: int = Field(description="How many versions of its own it has")
+
+
+class SkillBindingRead(BaseSchema):
+    """How one agent version reads a skill, and the version that comes to now."""
+
+    state: SkillBindingState = Field(
+        description="`main` follows the newest main version, `pinned` stays on one, `fork` follows a fork"
+    )
+    version: VersionRef = Field(description="The version it serves now")
+    fork: ForkRef | None = None
+    behind_main: int = Field(description="How many main versions it is behind; 0 on main")
+
+
+class AgentEnvironmentBinding(BaseSchema):
+    id: UUID
+    name: str
+    agent_version: int
+    binding: SkillBindingRead
+
+
+class SkillAgentUsage(BaseSchema):
+    """One agent that uses a skill, and which version it reads where."""
+
+    agent: AgentUsage
+    via_specialist: str | None = Field(
+        default=None, description="The inline specialist that binds it, when the agent does not"
+    )
+    draft_only: bool = Field(
+        description="Bound only in the draft: `binding` is the draft's, and no line counts it"
+    )
+    binding: SkillBindingRead = Field(
+        description="What its default environment serves, or the first environment serving it"
+    )
+    agent_version: int | None = Field(description="That environment's agent version")
+    environments: list[AgentEnvironmentBinding] = Field(
+        description="The environments that read the skill differently from `binding`"
+    )
+    draft_differs: bool = Field(description="The draft reads the skill differently")
+    can_change: bool = Field(description="The caller may change the binding, in the draft at least")
+    can_publish: bool = Field(description="The caller may publish, so a change goes live")
+    checked: bool | None = Field(
+        default=None, description="Whether this version was checked on this agent; not known yet"
+    )
+
+
+class SkillAgentList(BaseSchema):
+    main_latest: VersionNumberRef
+    items: list[SkillAgentUsage]
+    hidden: int = Field(description="Agents using the skill that the caller may not see")
+
+
+class SkillBindingChange(BaseSchema):
+    """Which version an agent should read: main's newest, a main version, or a fork."""
+
+    state: SkillBindingState
+    version: int | None = Field(default=None, ge=1, description="The main version, for `pinned`")
+    fork_id: UUID | None = Field(default=None, description="The fork, for `fork`")
+    note: str | None = Field(default=None, max_length=500)
+
+    @model_validator(mode="after")
+    def _names_what_its_state_needs(self) -> SkillBindingChange:
+        wanted = {"main": (False, False), "pinned": (True, False), "fork": (False, True)}
+        if wanted[self.state] != (self.version is not None, self.fork_id is not None):
+            raise ValueError(
+                "`pinned` takes a version, `fork` takes a fork_id, and `main` takes neither"
+            )
+        return self
+
+
+class SkillBindingChanged(BaseSchema):
+    published: bool = Field(
+        description="A new agent version went live; otherwise only the draft changed"
+    )
+    agent_version: int | None = None
+    environments: list[str] = Field(
+        default_factory=list, description="The environments serving the new agent version"
+    )
+    usage: SkillAgentUsage | None = Field(
+        default=None, description="The agent's row as it reads now, when it still uses the skill"
+    )

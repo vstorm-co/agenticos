@@ -1,5 +1,5 @@
 ---
-source_sha: "4c1e19ca96de"
+source_sha: "cb72755e2d70"
 ---
 
 # Skills { #skills }
@@ -202,8 +202,8 @@ lista en la página Skills para quien pueda editar ese skill - su propietario o
 quien tenga un permiso de edición sobre él - y, para un skill que aún no existe,
 para cualquiera que pueda crear skills. Nadie más la ve:
 
-- **Apply** guarda el cambio como la siguiente versión del skill, que alcanza a
-  cada agent vinculado en su siguiente run.
+- **Apply** guarda el cambio como la siguiente versión de la línea para la que
+  se escribió, que alcanza a los agents de esa línea en su siguiente run.
 - **Discard** conserva el registro. Un agent que propone la misma edición una y
   otra vez le está diciendo algo a alguien sobre ese skill, y una fila borrada
   lo vuelve invisible.
@@ -287,7 +287,52 @@ versión propia, un fork sirve la versión de main de la que partió.
   editan solo en main.
 - **Archive** hace que un fork no acepte versiones nuevas. Conserva sus versiones y
   nunca se borra. Un fork que ningún run ha leído en 30 días se propone para
-  archivar; nada se archiva automáticamente.
+  archivar; nada se archiva automáticamente. Una versión anterior de un agent que
+  aún lee un fork archivado no se promueve a ningún entorno: mueve el agent a otra
+  versión y promueve la versión que se publica.
+
+### Qué versión lee un agent { #which-version-an-agent-reads }
+
+Cada agent lee un skill vinculado de una de tres maneras:
+
+| Estado | Qué lee |
+|---|---|
+| Main | La versión más nueva de main. Así lee todo agent que no nombra otra |
+| Fijado | Una versión de main, hasta que alguien lo mueva |
+| Fork | La versión más nueva de un fork |
+
+La elección forma parte de la spec del agent, en `skill_bindings`, así que se
+publica, se promueve entre entornos y se exporta con el resto del agent. Una spec
+sin el campo lee main para cada skill, como hacía todo agent antes de que los
+skills tuvieran versiones. Publicar rechaza una versión que la línea main del skill
+no tiene, un fork de otro skill, un fork archivado y cualquier cosa de otra
+organización. Cada run registra las versiones de skill que sirvió, incluidas las de
+sus especialistas inline.
+
+Una versión nueva alcanza solo a los agents de su línea. Una versión nueva de main
+alcanza a los agents en main, y una versión nueva de un fork a los agents de ese
+fork: se ejecutan sus suites de evals, el cambio indica los entornos en los que
+entra y se avisa a sus propietarios. Un agent fijado no recibe ninguna.
+
+**Los agents de un skill** son los que lo ejecutan: lo vincula una versión que sirve
+uno de sus entornos, el propio agent o un especialista inline suyo. Un agent y cada
+uno de sus especialistas leen el skill a su manera, así que cada uno es una fila: la
+página del skill lo muestra con la versión que lee, cuántas versiones de main lleva
+de retraso y cualquier entorno que lo lea de otra forma. Un agent que vincula el
+skill solo en su borrador aparece marcado como tal. Los agents que no puedes ver se
+cuentan, no se nombran.
+
+**Change version** mueve un agent a main, a una versión de main o a un fork, y es un
+cambio del agent. Si el agent usa el skill por sí mismo se lee de su borrador, tal
+como lo muestra el Builder; un skill que solo vincula uno de sus especialistas se
+cambia en el Builder. Con permiso para publicarlo, la spec publicada más reciente
+del agent con solo ese vínculo cambiado entra como su siguiente versión, y los
+entornos se mueven según sus reglas habituales de seguimiento y promoción. El
+borrador recibe el mismo cambio y conserva sus demás ediciones sin terminar, que no
+entran. Con permiso solo para editar el agent, para un agent nunca publicado o para
+uno cuya versión publicada aún no vincula el skill, el cambio espera en el borrador
+y solo se comprueba el vínculo nuevo. Un Builder ya abierto en el agent no ve el
+cambio hasta que se recarga, y guardar antes vuelve a poner el vínculo anterior.
 
 ### Borrar un skill { #deleting-a-skill }
 
@@ -305,6 +350,8 @@ cuenta los demás. Un skill que nadie usa se borra con sus versiones y sus forks
 | `POST /api/v1/skills/{id}/versions/{version_id}/restore` | Restaura una versión en su propia línea |
 | `GET`, `POST /api/v1/skills/{id}/forks` | Lista los forks o crea uno desde una versión de main |
 | `PATCH /api/v1/skills/{id}/forks/{fork_id}`, `POST …/archive` | Cambia el nombre de un fork o lo archiva |
+| `GET /api/v1/skills/{id}/agents` | Los agents del skill, la versión que lee cada uno y cuántos están ocultos |
+| `PUT /api/v1/skills/{id}/agents/{agent_id}/binding` | Mueve un agent a main, a una versión de main o a un fork |
 
 ## Cómo llegan los skills a una organización { #getting-skills-into-an-organization }
 

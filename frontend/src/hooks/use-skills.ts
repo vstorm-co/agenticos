@@ -115,8 +115,9 @@ export function useSkills({
       apiClient.patch<Skill>(`/skills/${id}`, changes),
     onSuccess: async () => {
       await invalidate();
-      // Skills are bound by reference, so an edit reaches every agent at once.
-      toast.success(t("savedAgentsCurrent"));
+      // An edit is a new main version: agents on main read it from their next run,
+      // while pinned agents and forks keep the version they read.
+      toast.success(t("savedMainVersion"));
     },
     onError: (error) => toast.error(getErrorMessage(error, tErrors)),
   });
@@ -185,8 +186,8 @@ export function useSkill(skillId: string | null) {
     mutationFn: (edit: SkillEdit) => apiClient.patch<Skill>(`/skills/${skillId}`, edit),
     onSuccess: async () => {
       await invalidate();
-      // Agents bind to the skill, not to a version of it, so this is already live.
-      toast.success(t("savedAgentsCurrent"));
+      // A new main version, which reaches the agents on main and no pinned or forked one.
+      toast.success(t("savedMainVersion"));
     },
     onError: (error) => toast.error(getErrorMessage(error, tErrors)),
   });
