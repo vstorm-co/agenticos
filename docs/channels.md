@@ -368,8 +368,8 @@ They are now. Every "no" below has a reason, and a reason is either "this would
 be wrong here" or "this is not built yet" — never silence.
 
 The last column is Teams (#1985), standing for the chat platforms beside them.
-WhatsApp (#2076) answers in text only in this release, in one message, with files
-refused by name: see [WhatsApp](#whatsapp).
+WhatsApp (#2076) reads and sends files and voice notes, answers in one message and
+offers approvals and questions as buttons: see [WhatsApp](#whatsapp).
 
 | | `/chat` (dashboard) | Raw WebSocket | The public API | Teams |
 |---|---|---|---|---|
@@ -1541,10 +1541,13 @@ to organization groups.
 ## WhatsApp { #whatsapp }
 
 A WhatsApp bot is a business number on Meta's **WhatsApp Business Cloud API**, and
-the agent answers **direct chats only** (#2076). This release answers in **text**:
-a customer who sends an image, a document, a voice note or any other message that
-is not text is told the bot cannot fetch files from WhatsApp yet, and the message
-goes through the same access, duplicate and rate-limit checks as any other.
+the agent answers **direct chats only** (#2076). The bot reads **text**, **images**,
+**documents** and **voice notes**, and a shared **location** arrives as text. A voice
+note is transcribed with the organization's speech-to-text key, under the same
+rules as on the other platforms ([what every channel shares](#what-every-channel-shares)).
+A **video**, a **sticker** or a **contact** is refused by name, so the customer is
+told what the bot cannot read. Every message goes through the same access,
+duplicate and rate-limit checks as any other.
 
 1. In [Meta for Developers](https://developers.facebook.com), create an app with
    the **WhatsApp** use case, and attach it to a WhatsApp Business account.
@@ -1553,8 +1556,8 @@ goes through the same access, duplicate and rate-limit checks as any other.
    account ID**.
 3. In Meta Business settings, create a **System User**, give it the app and the
    account, and generate a **permanent token** with `whatsapp_business_messaging`
-   and `whatsapp_business_management`. A token that expires after a day is the
-   temporary one from the app's start page; it will stop the bot.
+   and `whatsapp_business_management`. The temporary token on the app's start page
+   expires within hours and will stop the bot.
 4. Copy the app's **app secret** (*App settings → Basic*). Choose a **verify
    token**: any string, which only you and Meta know.
 5. Register it: **Channels → Add channel**, platform `whatsapp`, with the access
@@ -1605,6 +1608,23 @@ stays a code block, a table becomes a monospace block and a URL is left alone. T
 message you sent is marked **read** and a **typing indicator** shows while the agent
 works.
 
+**Charts and files are sent** as WhatsApp media. A short answer, up to 1024
+characters, becomes the first file's caption; a longer one goes first as text and
+the files follow. An image over 5 MB and any file that is not a JPEG or PNG image
+goes as a document. A `text/*` or JSON file is uploaded as plain text and keeps its
+name. When Meta refuses a file, the answer carries a short note that a file could
+not be sent, so the customer is never left guessing.
+
+**Approvals and questions are buttons.** An approval shows **Approve** and **Reject**.
+A question with up to 3 short choices shows buttons; a longer choice or more of them
+becomes a list of up to 10 rows. A text longer than a button message holds goes first
+as ordinary messages. Next steps the agent suggests arrive the same way, as buttons
+or a list.
+
+WhatsApp cannot edit a message, so a tap is answered with a short follow-up that
+quotes the question. A multi-select question is offered again after each pick. A tap
+from another chat is ignored, and a tap Meta delivers twice acts once.
+
 ### What it costs
 
 Messages a customer sends are free. Each business number gets **1,000 free service
@@ -1614,6 +1634,12 @@ payment method.
 ### Limits
 
 - **Direct chats only**; there are no groups.
+- **Files are capped by `CHAT_MAX_UPLOAD_SIZE_MB`**, the same limit as on the other
+  platforms, and **voice notes by 25 MB**. A file over the cap is refused with a
+  reason.
+- **Media comes only from `lookaside.fbsbx.com`**, the host Meta serves it from. A
+  file at any other address, or behind a redirect, is refused and the customer is
+  told it could not be downloaded.
 - **A long answer arrives as several messages, and they may arrive out of order**:
   Meta does not guarantee the order of messages sent in quick succession.
 - A restart between the moment AgenticOS acknowledges Meta and the moment it

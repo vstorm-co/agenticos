@@ -1,5 +1,5 @@
 ---
-source_sha: "9c964ac0ee6b"
+source_sha: "e2c74963588d"
 ---
 
 # Einen Agent dorthin bringen, wo die Menschen schon sind { #putting-an-agent-where-people-already-are }
@@ -400,8 +400,8 @@ Jetzt schon. Jedes „nein“ unten hat einen Grund, und ein Grund ist entweder 
 wäre hier falsch“ oder „das ist noch nicht gebaut“ — niemals Schweigen.
 
 Die letzte Spalte ist Teams (#1985), stellvertretend für die Chat-Plattformen daneben.
-WhatsApp (#2076) antwortet in dieser Version nur in Text, in einer Nachricht, und
-weist Dateien mit Namen ab: siehe [WhatsApp](#whatsapp).
+WhatsApp (#2076) liest und sendet Dateien und Sprachnachrichten, antwortet in einer
+Nachricht und bietet Freigaben und Fragen als Schaltflächen an: siehe [WhatsApp](#whatsapp).
 
 | | `/chat` (Dashboard) | Rohes WebSocket | Die öffentliche API | Teams |
 |---|---|---|---|---|
@@ -1706,11 +1706,14 @@ und die Rollen eines Servers werden nicht auf Gruppen der Organisation abgebilde
 ## WhatsApp { #whatsapp }
 
 Ein WhatsApp-Bot ist eine Geschäftsnummer an der **WhatsApp Business Cloud API**
-von Meta, und der Agent antwortet **nur in Direktchats** (#2076). In dieser
-Version antwortet er in **Text**: Wer ein Bild, ein Dokument, eine Sprachnachricht
-oder sonst etwas schickt, das kein Text ist, erfährt, dass der Bot noch keine
-Dateien von WhatsApp abrufen kann. Die Nachricht durchläuft dieselben Zugriffs-,
-Duplikat- und Rate-Limit-Prüfungen wie jede andere.
+von Meta, und der Agent antwortet **nur in Direktchats** (#2076). Der Bot liest
+**Text**, **Bilder**, **Dokumente** und **Sprachnachrichten**; ein geteilter
+**Standort** kommt als Text an. Eine Sprachnachricht wird mit dem
+Speech-to-Text-Schlüssel der Organisation transkribiert, nach denselben Regeln wie
+auf den anderen Plattformen ([was alle Kanäle teilen](#what-every-channel-shares)).
+Ein **Video**, ein **Sticker** und ein **Kontakt** werden mit Namen abgewiesen, damit
+der Absender erfährt, was der Bot nicht lesen kann. Jede Nachricht durchläuft
+dieselben Zugriffs-, Duplikat- und Rate-Limit-Prüfungen wie jede andere.
 
 1. Legen Sie in [Meta for Developers](https://developers.facebook.com) eine App mit
    dem Anwendungsfall **WhatsApp** an und verbinden Sie sie mit einem
@@ -1720,9 +1723,9 @@ Duplikat- und Rate-Limit-Prüfungen wie jede andere.
    **Phone Number ID** und die **WhatsApp Business Account ID**.
 3. Legen Sie in den Meta-Business-Einstellungen einen **System User** an, geben
    Sie ihm die App und das Konto und erzeugen Sie ein **dauerhaftes Token** mit
-   `whatsapp_business_messaging` und `whatsapp_business_management`. Ein Token, das
-   nach einem Tag abläuft, ist das temporäre von der Startseite der App; der Bot
-   hört deswegen auf zu antworten.
+   `whatsapp_business_messaging` und `whatsapp_business_management`. Das temporäre
+   Token von der Startseite der App läuft innerhalb weniger Stunden ab, und der Bot
+   hört dann auf zu antworten.
 4. Kopieren Sie das **App Secret** der App (*App settings → Basic*). Wählen Sie ein
    **Verify Token**: eine beliebige Zeichenfolge, die nur Sie und Meta kennen.
 5. Registrieren Sie ihn: **Channels → Add channel**, Plattform `whatsapp`, mit dem
@@ -1779,6 +1782,26 @@ ein Monospace-Block und eine URL bleibt unberührt. Die gesendete Nachricht wird
 **gelesen** markiert, und eine **Tippanzeige** erscheint, solange der Agent
 arbeitet.
 
+**Diagramme und Dateien werden gesendet** als WhatsApp-Medien. Eine kurze Antwort,
+bis zu 1024 Zeichen, wird zur Bildunterschrift der ersten Datei; eine längere geht
+zuerst als Text hinaus, und die Dateien folgen. Ein Bild über 5 MB und jede Datei,
+die kein JPEG- oder PNG-Bild ist, geht als Dokument hinaus. Eine `text/*`- oder
+JSON-Datei wird als reiner Text hochgeladen und behält ihren Namen. Lehnt Meta eine
+Datei ab, trägt die Antwort einen kurzen Hinweis, dass eine Datei nicht gesendet
+werden konnte, sodass der Absender nicht im Ungewissen bleibt.
+
+**Freigaben und Fragen sind Schaltflächen.** Eine Freigabe zeigt **Approve** und
+**Reject**. Eine Frage mit bis zu 3 kurzen Antworten zeigt Schaltflächen; eine
+längere Antwort oder mehr davon wird zu einer Liste mit bis zu 10 Zeilen. Ein Text,
+der länger ist, als eine Nachricht mit Schaltflächen fasst, geht zuerst als
+gewöhnliche Nachrichten hinaus. Nächste Schritte, die der Agent vorschlägt, kommen
+genauso, als Schaltflächen oder Liste.
+
+WhatsApp kann eine Nachricht nicht bearbeiten, also wird ein Tipp mit einer kurzen
+Folgenachricht beantwortet, die die Frage zitiert. Eine Frage mit Mehrfachauswahl
+wird nach jeder Auswahl erneut angeboten. Ein Tipp aus einem anderen Chat wird
+ignoriert, und ein Tipp, den Meta zweimal zustellt, wirkt einmal.
+
 ### Was es kostet { #what-it-costs }
 
 Nachrichten, die ein Kunde sendet, sind kostenlos. Jede Geschäftsnummer erhält
@@ -1788,6 +1811,13 @@ Testnummer braucht keine Zahlungsmethode.
 ### Grenzen { #limits }
 
 - **Nur Direktchats**; Gruppen gibt es nicht.
+- **Dateien begrenzt `CHAT_MAX_UPLOAD_SIZE_MB`**, dasselbe Limit wie auf den anderen
+  Plattformen, und **Sprachnachrichten 25 MB**. Eine Datei über dem Limit wird mit
+  Begründung abgewiesen.
+- **Medien kommen nur von `lookaside.fbsbx.com`**, dem Host, von dem Meta sie
+  ausliefert. Eine Datei von einer anderen Adresse oder hinter einer Weiterleitung
+  wird abgewiesen, und der Absender erfährt, dass sie nicht heruntergeladen werden
+  konnte.
 - **Eine lange Antwort kommt als mehrere Nachrichten an, die in falscher Reihenfolge
   eintreffen können**: Meta garantiert die Reihenfolge kurz nacheinander gesendeter
   Nachrichten nicht.

@@ -22,17 +22,20 @@ Two things are versioned separately from this file and worth knowing about:
 ### Added
 
 - **WhatsApp as a channel** (#2076). A published agent answers on a WhatsApp Business
-  number through Meta's Cloud API, in direct chats and in text: images, documents,
-  voice notes and other messages are refused by name until a later release. Register
-  the bot from **Channels** or `channel-add-bot --platform whatsapp`, then paste the
-  callback URL it shows into the Meta app. Every webhook POST is checked against
-  Meta's signature with the app secret before it is read. An unlinked sender
-  confirms the link in the browser and sends the 6-digit code it shows from the
-  chat within 5 minutes. Answers go as one message, split at 4096 characters and
-  converted to WhatsApp formatting, with a read receipt and a typing indicator. A
-  bot whose access token Meta refuses is shown as down. The `whitelist` policy is
-  impractical on WhatsApp, because a sender is identified by a business-scoped id
-  an operator cannot see: use linking. Outbound traffic goes to `graph.facebook.com`.
+  number through Meta's Cloud API, in direct chats. It reads images, documents and
+  voice notes (transcribed like voice on the other platforms) and sends charts and
+  files back; videos, stickers and contacts are refused by name. Linked members
+  answer approvals, questions and suggested next steps by tapping WhatsApp buttons
+  or a list. Register the bot from **Channels** or
+  `channel-add-bot --platform whatsapp`, then paste the callback URL it shows into
+  the Meta app. Every webhook POST is checked against Meta's signature with the app
+  secret before it is read. An unlinked sender confirms the link in the browser and
+  sends the 6-digit code it shows from the chat within 5 minutes. Answers are split
+  at 4096 characters and converted to WhatsApp formatting, with a read receipt and a
+  typing indicator. A bot whose access token Meta refuses is shown as down. The
+  `whitelist` policy is impractical on WhatsApp, because a sender is identified by a
+  business-scoped id an operator cannot see: use linking. Outbound traffic goes to
+  `graph.facebook.com`, and media is fetched only from `lookaside.fbsbx.com`.
 
 ### Changed
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "9c964ac0ee6b"
+source_sha: "e2c74963588d"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -380,8 +380,8 @@ Teraz mówi. Każde „nie” poniżej ma powód, a powód to albo „tutaj był
 albo „to jeszcze nie jest zbudowane” — nigdy milczenie.
 
 Ostatnia kolumna to Teams (#1985), reprezentujący stojące obok platformy czatu.
-WhatsApp (#2076) odpowiada w tym wydaniu tylko tekstem, jedną wiadomością, a pliki
-odrzuca z nazwy: zobacz [WhatsApp](#whatsapp).
+WhatsApp (#2076) czyta i wysyła pliki oraz wiadomości głosowe, odpowiada jedną
+wiadomością, a zatwierdzenia i pytania pokazuje jako przyciski: zobacz [WhatsApp](#whatsapp).
 
 | | `/chat` (dashboard) | Surowy WebSocket | Publiczne API | Teams |
 |---|---|---|---|---|
@@ -1586,10 +1586,13 @@ Discordzie, a role serwera nie są mapowane na grupy organizacji.
 ## WhatsApp { #whatsapp }
 
 Bot WhatsApp to numer firmowy w **WhatsApp Business Cloud API** Mety, a agent
-odpowiada **wyłącznie w czatach bezpośrednich** (#2076). W tym wydaniu odpowiada
-**tekstem**: klient, który wyśle obraz, dokument, wiadomość głosową albo cokolwiek
-innego niż tekst, usłyszy, że bot nie potrafi jeszcze pobierać plików z WhatsAppa.
-Taka wiadomość przechodzi te same kontrole dostępu, duplikatów i limitów co każda
+odpowiada **wyłącznie w czatach bezpośrednich** (#2076). Bot czyta **tekst**,
+**obrazy**, **dokumenty** i **wiadomości głosowe**, a udostępniona **lokalizacja**
+przychodzi jako tekst. Wiadomość głosowa jest transkrybowana kluczem
+speech-to-text organizacji, na tych samych zasadach co na innych platformach
+([co dzielą wszystkie kanały](#what-every-channel-shares)). **Wideo**, **naklejka**
+i **kontakt** są odrzucane z nazwy, więc klient dowiaduje się, czego bot nie czyta.
+Każda wiadomość przechodzi te same kontrole dostępu, duplikatów i limitów co każda
 inna.
 
 1. W [Meta for Developers](https://developers.facebook.com) utwórz aplikację z
@@ -1599,8 +1602,8 @@ inna.
    **WhatsApp Business account ID**.
 3. W ustawieniach Meta Business utwórz **System User**, przyznaj mu aplikację i
    konto i wygeneruj **stały token** z uprawnieniami `whatsapp_business_messaging`
-   i `whatsapp_business_management`. Token, który wygasa po dobie, to tymczasowy
-   token ze strony startowej aplikacji; bot przestanie przez niego działać.
+   i `whatsapp_business_management`. Tymczasowy token ze strony startowej
+   aplikacji wygasa w ciągu kilku godzin i bot przestanie działać.
 4. Skopiuj **app secret** aplikacji (*App settings → Basic*). Wybierz **verify
    token**: dowolny ciąg znany tylko tobie i Mecie.
 5. Zarejestruj go: **Channels → Add channel**, platforma `whatsapp`, z tokenem
@@ -1655,6 +1658,24 @@ WhatsAppa: blok kodu zostaje blokiem kodu, tabela staje się blokiem
 monospace, a adres URL zostaje nietknięty. Wiadomość, którą wysłałeś, jest
 oznaczana jako **przeczytana**, a **wskaźnik pisania** świeci, gdy agent pracuje.
 
+**Wykresy i pliki są wysyłane** jako multimedia WhatsAppa. Krótka odpowiedź, do 1024
+znaków, staje się podpisem pierwszego pliku; dłuższa idzie najpierw jako tekst, a
+pliki za nią. Obraz większy niż 5 MB i każdy plik, który nie jest obrazem JPEG ani
+PNG, idzie jako dokument. Plik `text/*` lub JSON jest wysyłany jako zwykły tekst i
+zachowuje swoją nazwę. Gdy Meta odrzuci plik, odpowiedź zawiera krótką notatkę, że
+pliku nie udało się wysłać, więc klient nie zostaje w niepewności.
+
+**Zatwierdzenia i pytania to przyciski.** Zatwierdzenie pokazuje **Approve** i
+**Reject**. Pytanie z maksymalnie 3 krótkimi odpowiedziami pokazuje przyciski;
+dłuższa odpowiedź albo ich więcej zamienia się w listę do 10 wierszy. Tekst dłuższy,
+niż mieści wiadomość z przyciskami, idzie najpierw jako zwykłe wiadomości. Kolejne
+kroki, które sugeruje agent, przychodzą tak samo, jako przyciski albo lista.
+
+WhatsApp nie pozwala edytować wiadomości, więc dotknięcie przycisku dostaje krótką
+odpowiedź, która cytuje pytanie. Pytanie z wielokrotnym wyborem jest pokazywane
+ponownie po każdym wyborze. Dotknięcie z innego czatu jest ignorowane, a dotknięcie,
+które Meta dostarczy dwa razy, działa raz.
+
 ### Ile to kosztuje { #what-it-costs }
 
 Wiadomości wysyłane przez klienta są bezpłatne. Każdy numer firmowy dostaje
@@ -1664,6 +1685,12 @@ opłatę. Numer testowy nie wymaga metody płatności.
 ### Ograniczenia { #limits }
 
 - **Tylko czaty bezpośrednie**; grup nie ma.
+- **Pliki ogranicza `CHAT_MAX_UPLOAD_SIZE_MB`**, ten sam limit co na innych
+  platformach, a **wiadomości głosowe 25 MB**. Plik ponad limit jest odrzucany z
+  podaniem powodu.
+- **Multimedia pochodzą tylko z `lookaside.fbsbx.com`**, hosta, z którego serwuje je
+  Meta. Plik z innego adresu albo za przekierowaniem jest odrzucany, a klient
+  dowiaduje się, że nie udało się go pobrać.
 - **Długa odpowiedź przychodzi jako kilka wiadomości, które mogą dotrzeć w złej
   kolejności**: Meta nie gwarantuje kolejności wiadomości wysłanych jedna po drugiej.
 - Restart między potwierdzeniem odbioru Mecie a przetworzeniem wiadomości gubi
