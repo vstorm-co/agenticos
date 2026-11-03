@@ -11,6 +11,7 @@ from app.db.models.skill_check import (
     AgentState,
     CheckMode,
     CheckOutcome,
+    CheckSource,
     CheckStatus,
     CheckVerdict,
     SampleKind,
@@ -49,6 +50,15 @@ class SkillCheckStart(BaseSchema):
         if (self.candidate is None) == (self.proposal_id is None):
             raise ValueError("Name a candidate text or a proposal, not both")
         return self
+
+
+class SkillUpdateCheck(BaseSchema):
+    """How thoroughly to check main's newest version on one pinned agent."""
+
+    mode: CheckMode = Field(
+        default=CheckMode.QUICK,
+        description="As for a change; a newer description is always checked thoroughly",
+    )
 
 
 class AgentRef(BaseSchema):
@@ -117,6 +127,16 @@ class SkillCheckEstimate(BaseSchema):
 class SkillCheckRead(SkillCheckEstimate):
     id: UUID
     skill_id: UUID
+    source: CheckSource = Field(
+        description="`catch_up` for a pinned agent's update, which is accepted by moving the "
+        "agent with `PUT .../agents/{agent_id}/binding`, never by applying it"
+    )
+    agent_id: UUID | None = Field(
+        default=None, description="The pinned agent an update is checked on"
+    )
+    candidate_version_id: UUID | None = Field(
+        default=None, description="The main version that update would move it to"
+    )
     status: CheckStatus
     verdict: CheckVerdict | None = None
     warnings: list[Literal["within_noise"]] = Field(default_factory=list)

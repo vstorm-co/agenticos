@@ -1053,6 +1053,7 @@ class FakeChecks:
             **self._estimate(SkillCheckStart(candidate=_TEXT)).model_dump(),
             id=check.id,
             skill_id=skill_id,
+            source=check.source,
             status=check.status,
             verdict=check.verdict,
             outcomes=[CheckOutcome.APPLY, CheckOutcome.DISCARD] if check.verdict else [],

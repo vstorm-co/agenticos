@@ -29,6 +29,7 @@ from app.core.permissions import AuthContext, Perm
 from app.db.models.agent import Agent, AgentStatus
 from app.db.models.agent_environment import AgentEnvironment
 from app.db.models.skill import Skill
+from app.db.models.skill_check import CheckOutcome
 from app.db.models.skill_version import SkillFork, SkillVersion
 from app.repositories import (
     agent_environment_repo,
@@ -277,6 +278,41 @@ class SkillAgentService:
             found.append(LineAgent(use.agent, number, line.via_specialist))
         return found
 
+    async def pinned_agent(
+        self, skill: Skill, agent_id: UUID
+    ) -> tuple[LineAgent, int] | str | None:
+        """The agent, as its served version reads the skill itself, and the main version
+        it stays on.
+
+        The name of the inline specialist that pins it instead, when only one of the
+        agent's specialists stays on a main version - that is changed in the Builder -
+        and `None` when no reader of the agent's served version does.
+        """
+        for use in await self._uses(skill):
+            if use.agent.id != agent_id or not use.served:
+                continue
+            served = sorted(use.served, key=lambda entry: not entry[0].is_default)
+            own = next(
+                (
+                    (number, line)
+                    for _, number, lines in served
+                    if (line := _by_reader(lines, None)) is not None
+                ),
+                None,
+            )
+            if own is not None and own[1].state == "pinned" and own[1].version is not None:
+                return LineAgent(use.agent, own[0], None), own[1].version
+            return next(
+                (
+                    line.via_specialist
+                    for _, _, lines in served
+                    for line in lines
+                    if line.state == "pinned" and line.via_specialist is not None
+                ),
+                None,
+            )
+        return None
+
     async def fork_users(self, skill: Skill, fork_id: UUID) -> list[Agent]:
         """The agents that read a fork, themselves or through a specialist, in a served
         version or their draft."""
@@ -404,14 +440,41 @@ class SkillAgentService:
         skill not published yet - only the draft changes, and only the new binding is
         checked, since a draft is allowed to be unfinished.
 
+        A pinned agent moving to main may name the finished check of main's newest
+        version on it (`check_id`): the move is then refused when that version made
+        the agent worse, or the agent or main changed since, and the check is closed
+        with it, which marks the agent checked on that version.
+
         Raises:
             NotFoundError: The skill, or the agent, is not one the caller may reach.
             BadRequestError: The draft does not bind the skill itself - only through an
                 inline specialist, which is changed in the Builder, or not at all - or
                 the version or fork cannot be bound, or the new spec does not publish,
-                with the reasons.
+                with the reasons; or `check_id` refuses the move, as
+                :meth:`SkillCheckService.checked_update` says.
+            ConcurrentChangeError: `check_id` measured an agent or a main that moved since.
         """
         skill = await self.versions.skill_for(ctx, skill_id, Perm.SKILLS_VIEW)
+        if data.check_id is not None:
+            # Imported here: the check service reads the agents of a skill through this one.
+            from app.services.skill_check import SkillCheckService
+
+            # Read unlocked first, so an agent the caller may not edit is not found
+            # before anything about its check is said. The decision then locks the
+            # skill, the check and the agent, the order every write to a skill takes.
+            await self.registry.get(ctx, agent_id, perm=Perm.AGENTS_EDIT)
+            checks = SkillCheckService(self.db)
+            check = await checks.checked_update(
+                ctx, skill.id, agent_id, data.check_id, acknowledged=data.acknowledge_unknown
+            )
+            assert check.candidate_version_id is not None, "an update names main's version"
+            await checks.record_decision(
+                ctx,
+                check,
+                CheckOutcome.APPLY,
+                check.candidate_version_id,
+                acknowledged=data.acknowledge_unknown,
+            )
         agent = await self.registry.get(ctx, agent_id, perm=Perm.AGENTS_EDIT, for_update=True)
         draft = AgentSpec.model_validate(agent.draft_spec)
         if skill.id not in draft.skill_ids:

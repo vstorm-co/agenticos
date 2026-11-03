@@ -1,5 +1,5 @@
 ---
-source_sha: "4b4fed16a48e"
+source_sha: "288f1857517c"
 ---
 
 # Skills { #skills }
@@ -452,6 +452,21 @@ Fork. Sobald niemand den Fork mehr liest, wird er archiviert. Ein Agent, dessen
 Umgebung auf eine Beförderung wartet, liest den Fork bis dahin weiter, daher bleibt
 der Fork bis dahin bestehen.
 
+**Auf main aktualisieren.** Ein festgesetzter Agent hinter main wird erst nach
+einer Prüfung nachgezogen: `POST /api/v1/skills/{id}/agents/{agent_id}/update-check`
+fragt nur diesen Agent, mit seinen eigenen Fragen und denen des Skills, mit der
+Version, auf der er steht, und mit der neuesten Version von main samt ihren Dateien,
+abgerechnet über das Budget des Agents; `…/update-check/estimate` nennt vorher den
+Preis. Die Prüfung braucht das Recht, den Skill zu bearbeiten und Runs zu lesen.
+Angenommen wird sie, indem der Agent verschoben wird: `PUT …/agents/{agent_id}/binding`
+mit `state: main` und ihrer `check_id`. Das Verschieben wird abgelehnt, wenn die neuere
+Version den Agent verschlechtert hat, wenn ein Ergebnis, das nicht gemessen werden
+konnte, nicht bestätigt ist (`acknowledge_unknown`), und wenn der Agent seit der
+Prüfung erneut veröffentlicht wurde oder main weitergezogen ist; es schließt die
+Prüfung ab und markiert den Agent auf dieser Version als geprüft. Einen Agent ohne
+Prüfung zu verschieben bleibt möglich, wie jeder Versionswechsel: Der Agent zeigt
+dann auf der neuen Version „unbekannt“, und dafür steht ein, wer ihn verschoben hat.
+
 ### Einen Skill löschen { #deleting-a-skill }
 
 Ein Skill, den ein Agent verwendet, lässt sich nicht löschen. Das ist ein Skill,
@@ -473,6 +488,7 @@ den niemand verwendet, wird mit seinen Versionen und Forks gelöscht.
 | `PUT /api/v1/skills/{id}/agents/{agent_id}/binding` | Verschiebt einen Agent auf main, eine Main-Version oder einen Fork |
 | `GET /api/v1/skills/behind-main` | Festgesetzte Agents und Forks, an denen main vorbeigezogen ist, über die ganze Organisation |
 | `POST /api/v1/skills/{id}/forks/{fork_id}/return-to-main` | Verschiebt die Agents eines Forks zurück auf main und archiviert den Fork, sobald ihn niemand mehr liest |
+| `POST /api/v1/skills/{id}/agents/{agent_id}/update-check`, `…/estimate` | Prüft die neueste Version von main an einem festgesetzten Agent oder nennt den Preis dafür |
 
 ## Skills in eine Organisation bekommen { #getting-skills-into-an-organization }
 

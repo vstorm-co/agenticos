@@ -1,5 +1,5 @@
 ---
-source_sha: "4b4fed16a48e"
+source_sha: "288f1857517c"
 ---
 
 # Skille { #skills }
@@ -414,6 +414,20 @@ nie da się przesunąć, zostaje na forku z podanym powodem. Gdy nikt już nie c
 forka, fork jest archiwizowany. Agent, którego środowisko czeka na promocję, czyta
 fork do czasu promocji, więc do tego czasu fork zostaje.
 
+**Aktualizacja do main.** Przypiętego agenta, który jest za main, przenosi się
+w górę po sprawdzeniu: `POST /api/v1/skills/{id}/agents/{agent_id}/update-check`
+pyta tylko tego agenta, na jego własnych pytaniach i pytaniach skilla, z wersją, na
+której stoi, i z najnowszą wersją main razem z jej plikami, a koszt idzie z budżetu
+agenta; `…/update-check/estimate` najpierw podaje cenę. Sprawdzenie wymaga prawa
+edycji skilla i czytania runów. Akceptuje się je, przenosząc agenta:
+`PUT …/agents/{agent_id}/binding` ze `state: main` i jego `check_id`. To przeniesienie
+jest odrzucane, gdy nowsza wersja pogorszyła agenta, gdy wynik, którego nie dało się
+zmierzyć, nie został potwierdzony (`acknowledge_unknown`), i gdy agent został
+opublikowany ponownie albo main poszedł dalej od czasu sprawdzenia; zamyka ono
+sprawdzenie i oznacza agenta jako sprawdzonego na tej wersji. Przeniesienie bez
+sprawdzenia pozostaje możliwe, jak każda zmiana wersji: agent ma wtedy na nowej
+wersji stan „nie wiadomo”, a odpowiada za to osoba, która go przeniosła.
+
 ### Usuwanie skilla { #deleting-a-skill }
 
 Skilla, którego używa agent, nie można usunąć. Chodzi o skill związany przez
@@ -435,6 +449,7 @@ jego wersjami i forkami.
 | `PUT /api/v1/skills/{id}/agents/{agent_id}/binding` | Przesuwa agenta na main, wersję main albo fork |
 | `GET /api/v1/skills/behind-main` | Przypięci agenci i forki, które main wyprzedził, w całej organizacji |
 | `POST /api/v1/skills/{id}/forks/{fork_id}/return-to-main` | Przesuwa agentów forka z powrotem na main i archiwizuje fork, gdy nikt go już nie czyta |
+| `POST /api/v1/skills/{id}/agents/{agent_id}/update-check`, `…/estimate` | Sprawdza najnowszą wersję main na jednym przypiętym agencie albo wycenia to sprawdzenie |
 
 ## Jak skille trafiają do organizacji { #getting-skills-into-an-organization }
 

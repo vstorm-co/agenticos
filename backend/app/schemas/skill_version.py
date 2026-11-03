@@ -313,6 +313,14 @@ class SkillBindingChange(BaseSchema):
     version: int | None = Field(default=None, ge=1, description="The main version, for `pinned`")
     fork_id: UUID | None = Field(default=None, description="The fork, for `fork`")
     note: str | None = Field(default=None, max_length=500)
+    check_id: UUID | None = Field(
+        default=None,
+        description="For a pinned agent moving to `main`: the finished check of main's newest "
+        "version on it, which marks the agent checked rather than unknown",
+    )
+    acknowledge_unknown: bool = Field(
+        default=False, description="Required with a `check_id` that could not check the agent"
+    )
 
     @model_validator(mode="after")
     def _names_what_its_state_needs(self) -> SkillBindingChange:
@@ -321,6 +329,8 @@ class SkillBindingChange(BaseSchema):
             raise ValueError(
                 "`pinned` takes a version, `fork` takes a fork_id, and `main` takes neither"
             )
+        if self.check_id is not None and self.state != "main":
+            raise ValueError("A check is given only for an update to `main`")
         return self
 
 
