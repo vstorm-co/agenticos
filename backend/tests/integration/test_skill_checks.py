@@ -39,6 +39,7 @@ from app.schemas.skill_check import (
     SkillCheckStart,
     SkillTestSetStart,
 )
+from app.services import skill_check as skill_check_module
 from app.services.eval_run import EvalRunService
 from app.services.skill_agents import SkillAgentService
 from app.services.skill_check import SkillCheckService
@@ -240,6 +241,37 @@ async def _run_to_end(service: SkillCheckService, evals: FakeEvals, lab: Lab, ch
     return await service.read(lab.ctx, lab.skill.id, check_id)
 
 
+async def _run_against(db: AsyncSession, lab: Lab, agent: Agent):
+    """A dataset made in Datasets, for no agent, that `agent` finished an eval run on."""
+    dataset = await _dataset(db, lab.ctx, "run-against")
+    version = await dataset_repo.create_version(
+        db,
+        dataset_id=dataset.id,
+        organization_id=lab.ctx.organization_id,
+        number=1,
+        case_count=dataset.case_count,
+        change="add",
+        changed_cases=0,
+        created_by_user_id=lab.ctx.user_id,
+    )
+    dataset.latest_version = 1
+    db.add(
+        EvalRun(
+            organization_id=lab.ctx.organization_id,
+            agent_id=agent.id,
+            dataset_id=dataset.id,
+            dataset_version_id=version.id,
+            created_by_user_id=lab.ctx.user_id,
+            status=EvalRunStatus.COMPLETED.value,
+            scoring={},
+            scoring_hash="a" * 64,
+            estimate_usd=Decimal("0.1"),
+        )
+    )
+    await db.flush()
+    return dataset
+
+
 class TestWhoIsChecked:
     async def test_a_main_change_runs_mains_agents_and_nobody_pinned_or_forked(
         self, db, monkeypatch
@@ -263,6 +295,67 @@ class TestWhoIsChecked:
 
         assert [row.agent.name for row in estimate.agents] == ["Forked"]
         assert estimate.line.fork_id == lab.fork_id
+
+    async def test_a_dataset_the_agent_was_run_against_is_its_own_questions(self, db, monkeypatch):
+        """A dataset made in Datasets names no agent; the one an agent's eval ran on is
+        the agent's own questions all the same, as the Datasets list filtered by it says."""
+        lab = await _lab(db)
+        FakeEvals().install(monkeypatch)
+        dataset = await _run_against(db, lab, lab.c)
+        picked = [uuid.uuid4()]
+
+        async def sample(_self, _ctx, _skill, agent_id, asked, _words, _allowed=None):
+            return picked if asked.id == dataset.id else []
+
+        monkeypatch.setattr(SkillCheckService, "_sample", sample)
+        service = SkillCheckService(db)
+
+        quick = await service.estimate(lab.ctx, lab.skill.id, _start())
+        thorough = await service.estimate(lab.ctx, lab.skill.id, _start(mode="thorough"))
+
+        c = next(row for row in quick.agents if row.agent.name == "C")
+        assert c.sample == "own_questions"
+        assert [(stage.kind, stage.dataset_id) for stage in c.stages][1:] == [
+            ("dataset_sample", dataset.id)
+        ]
+        c = next(row for row in thorough.agents if row.agent.name == "C")
+        assert [(stage.kind, stage.dataset_id) for stage in c.stages][1:] == [
+            ("dataset", dataset.id)
+        ]
+
+    async def test_a_dataset_made_for_the_agent_comes_before_one_it_was_run_against(
+        self, db, monkeypatch
+    ):
+        lab = await _lab(db)
+        FakeEvals().install(monkeypatch)
+        await _run_against(db, lab, lab.a)
+
+        estimate = await SkillCheckService(db).estimate(
+            lab.ctx, lab.skill.id, _start(mode="thorough")
+        )
+
+        a = next(row for row in estimate.agents if row.agent.name == "A")
+        [own] = [stage for stage in a.stages if stage.kind == "dataset"]
+        assert own.dataset_name is not None and own.dataset_name.startswith("a-own")
+
+    async def test_a_dataset_the_starter_may_not_see_is_not_asked(self, db, monkeypatch):
+        lab = await _lab(db)
+        FakeEvals().install(monkeypatch)
+        hidden = await _run_against(db, lab, lab.c)
+        real = skill_check_module.accessible_ids
+
+        async def accessible(db, ctx, rows, wanted, **kwargs):
+            found = await real(db, ctx, rows, wanted, **kwargs)
+            return found - {hidden.id} if wanted is Perm.DATASETS_VIEW else found
+
+        monkeypatch.setattr(skill_check_module, "accessible_ids", accessible)
+
+        estimate = await SkillCheckService(db).estimate(
+            lab.ctx, lab.skill.id, _start(mode="thorough")
+        )
+
+        c = next(row for row in estimate.agents if row.agent.name == "C")
+        assert [stage.kind for stage in c.stages] == ["skill_set"]
 
     async def test_a_quick_check_without_loaded_questions_falls_back_to_the_skill_set(
         self, db, monkeypatch

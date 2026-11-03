@@ -35,6 +35,13 @@ class SkillCheckStart(BaseSchema):
     proposal_id: UUID | None = Field(
         default=None, description="A pending change to the skill, checked as it was proposed"
     )
+    base_version_id: UUID | None = Field(
+        default=None,
+        description=(
+            "The version of the line the text was written against. A check is refused once "
+            "the line has moved past it, so a save made meanwhile is never written over"
+        ),
+    )
     mode: CheckMode = Field(
         default=CheckMode.QUICK,
         description=(
