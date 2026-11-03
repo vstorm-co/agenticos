@@ -81,7 +81,7 @@ export function EditSkillDialog({
   const [refusal, setRefusal] = useState<string | null>(null);
   // A text change waits here for the person to save it now or check it first.
   const [pending, setPending] = useState<SkillEdit | null>(null);
-  const [checking, setChecking] = useState<SkillEdit | null>(null);
+  const [checking, setChecking] = useState<{ change: SkillEdit; base: string } | null>(null);
   const version =
     fork === null
       ? t("version", { number: next })
@@ -195,8 +195,9 @@ export function EditSkillDialog({
           readers={readers}
           canCheck={canCheck}
           onCheck={() => {
-            setChecking(pending);
             setPending(null);
+            if (baseId === null) setRefusal(t("noBase"));
+            else setChecking({ change: pending, base: baseId });
           }}
           onSave={() => void handleSave(pending, true)}
           onCancel={() => setPending(null)}
@@ -205,13 +206,24 @@ export function EditSkillDialog({
       {checking !== null && (
         <SkillCheckDialog
           skillId={skill.id}
-          change={{ candidate: { description: checking.description, content: checking.content } }}
+          change={{
+            candidate: {
+              description: checking.change.description,
+              content: checking.change.content,
+            },
+            baseVersionId: checking.base,
+          }}
           forkId={fork?.id ?? null}
           onOpenChange={(open) => !open && setChecking(null)}
           onApplied={() => {
-            void saveCategory(checking).then(onClose, (failure: unknown) =>
+            void saveCategory(checking.change).then(onClose, (failure: unknown) =>
               setRefusal(getErrorMessage(failure, tErrors)),
             );
+          }}
+          onLineMoved={() => {
+            setChecking(null);
+            setRefusal(t("lineMoved"));
+            void queryClient.invalidateQueries({ queryKey: qk.skills.all() });
           }}
         />
       )}

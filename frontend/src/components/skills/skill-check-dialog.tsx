@@ -21,6 +21,15 @@ import { DIALOG_FORM, DIALOG_SCROLL } from "@/lib/dialog-sizes";
 import { CheckAgents } from "./check-agents";
 import { CheckDecision } from "./check-decision";
 
+/** A refusal naming the line's newer version: the text was written over an older one. */
+function lineMoved(error: unknown): boolean {
+  return (
+    error instanceof ApiError &&
+    error.code === "CONCURRENT_CHANGE" &&
+    error.details?.version !== undefined
+  );
+}
+
 /**
  * Check a skill change on every agent of its line, then decide it: a waiting
  * change by its proposal, or a text the editor has not saved yet.
@@ -36,14 +45,22 @@ export function SkillCheckDialog({
   forkId,
   onOpenChange,
   onApplied,
+  onLineMoved,
 }: {
   skillId: string;
-  /** What to check: a waiting proposal, or an unsaved text. */
-  change: { proposalId: string } | { candidate: { description: string; content: string } };
+  /**
+   * What to check: a waiting proposal, or an unsaved text written over `baseVersionId`,
+   * which the server refuses once the line has a newer version.
+   */
+  change:
+    | { proposalId: string }
+    | { candidate: { description: string; content: string }; baseVersionId: string };
   forkId: string | null;
   onOpenChange: (open: boolean) => void;
   /** Called once the change went live from this check. */
   onApplied?: () => void;
+  /** Called, in place of saying so here, when the line moved past the text's base. */
+  onLineMoved?: () => void;
 }) {
   const t = useTranslations("skills.check");
   const tErrors = useTranslations("errors");
@@ -52,6 +69,7 @@ export function SkillCheckDialog({
   const proposalId = "proposalId" in change ? change.proposalId : null;
   const description = "candidate" in change ? change.candidate.description : null;
   const content = "candidate" in change ? change.candidate.content : null;
+  const baseVersionId = "candidate" in change ? change.baseVersionId : null;
   const body = useMemo(
     () =>
       proposalId !== null
@@ -59,13 +77,21 @@ export function SkillCheckDialog({
         : {
             fork_id: forkId,
             candidate: { description: description ?? "", content: content ?? "" },
+            base_version_id: baseVersionId ?? undefined,
           },
-    [forkId, proposalId, description, content],
+    [forkId, proposalId, description, content, baseVersionId],
   );
   const { mutate: price } = estimate;
   useEffect(() => price(body), [price, body]);
+  useEffect(() => {
+    if (onLineMoved && lineMoved(estimate.error)) onLineMoved();
+  }, [estimate.error, onLineMoved]);
   const [decidedIn, setDecidedIn] = useState<string | null>(null);
   const failed = (error: unknown) => {
+    if (onLineMoved && lineMoved(error)) {
+      onLineMoved();
+      return;
+    }
     const session =
       error instanceof ApiError && error.code === "DECIDE_IN_SESSION"
         ? error.details?.session_id

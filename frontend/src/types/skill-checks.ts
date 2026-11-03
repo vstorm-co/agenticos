@@ -18,6 +18,8 @@ export interface SkillCheckStart {
   fork_id: string | null;
   proposal_id?: string;
   candidate?: { description: string; content: string };
+  /** For a candidate text: the version it was written over, refused once the line moves on. */
+  base_version_id?: string;
   mode?: CheckMode;
 }
 

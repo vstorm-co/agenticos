@@ -198,7 +198,10 @@ describe("SkillCheckDialog", () => {
     render(
       <SkillCheckDialog
         skillId="s-1"
-        change={{ candidate: { description: "Returns.", content: "Refund within 14 days." } }}
+        change={{
+          candidate: { description: "Returns.", content: "Refund within 14 days." },
+          baseVersionId: "m12",
+        }}
         forkId="f-1"
         onOpenChange={onOpenChange}
         onApplied={onApplied}
@@ -208,9 +211,33 @@ describe("SkillCheckDialog", () => {
     expect(held.estimate.mutate).toHaveBeenCalledWith({
       fork_id: "f-1",
       candidate: { description: "Returns.", content: "Refund within 14 days." },
+      base_version_id: "m12",
     });
     await userEvent.click(screen.getByRole("button", { name: "Apply" }));
     expect(onApplied).toHaveBeenCalled();
     expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it("hands a line that moved past the text back to the editor", async () => {
+    const moved = new ApiError(409, "Moved", {
+      error: { code: "CONCURRENT_CHANGE", message: "Moved", details: { version: 13 } },
+    });
+    held.estimate = mutation({ data: finishedCheck(), error: moved, isError: true });
+    held.start.mutate.mockImplementation((_body, options) => options.onError(moved));
+    const onLineMoved = vi.fn();
+    render(
+      <SkillCheckDialog
+        skillId="s-1"
+        change={{ candidate: { description: "Returns.", content: "Body" }, baseVersionId: "m12" }}
+        forkId={null}
+        onOpenChange={vi.fn()}
+        onLineMoved={onLineMoved}
+      />,
+    );
+
+    expect(onLineMoved).toHaveBeenCalledTimes(1);
+    held.estimate = mutation({ data: finishedCheck() });
+    await userEvent.click(screen.getByRole("button", { name: "Start the check" }));
+    expect(onLineMoved).toHaveBeenCalledTimes(2);
   });
 });

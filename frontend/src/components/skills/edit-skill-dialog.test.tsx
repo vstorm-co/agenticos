@@ -22,14 +22,17 @@ vi.mock("./skill-check-dialog", () => ({
     forkId,
     onApplied,
     onOpenChange,
+    onLineMoved,
   }: {
-    change: { candidate: { content: string } };
+    change: { candidate: { content: string }; baseVersionId: string };
     forkId: string | null;
     onApplied: () => void;
     onOpenChange: (open: boolean) => void;
+    onLineMoved: () => void;
   }) => (
     <div>
-      <p>{`checking ${change.candidate.content} on ${forkId ?? "main"}`}</p>
+      <p>{`checking ${change.candidate.content} over ${change.baseVersionId} on ${forkId ?? "main"}`}</p>
+      <button onClick={onLineMoved}>The line moved</button>
       <button onClick={onApplied}>Apply the checked change</button>
       <button onClick={() => onOpenChange(false)}>Close the check</button>
     </div>
@@ -361,7 +364,7 @@ describe("EditSkillDialog", () => {
     await userEvent.click(screen.getByRole("button", { name: "Save" }));
     await userEvent.click(screen.getByRole("button", { name: "Check on agents first" }));
 
-    expect(screen.getByText(`checking ${SKILL.content} on main`)).toBeInTheDocument();
+    expect(screen.getByText(`checking ${SKILL.content} over m12 on main`)).toBeInTheDocument();
     // The mock stands outside the editor's modal, which Radix keeps from the pointer.
     fireEvent.click(screen.getByRole("button", { name: "Close the check", hidden: true }));
     expect(screen.queryByText(/^checking/)).toBeNull();
@@ -390,5 +393,46 @@ describe("EditSkillDialog", () => {
     expect(await screen.findByText("Category refused")).toBeInTheDocument();
     expect(apiClient.patch).toHaveBeenCalledWith("/skills/s1", { category: "support" });
     expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it("says the line moved when a check refuses the text's base, and keeps the text", async () => {
+    mount();
+
+    await userEvent.clear(description());
+    await userEvent.type(description(), "When a customer returns an order.");
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+    await userEvent.click(screen.getByRole("button", { name: "Check on agents first" }));
+    fireEvent.click(screen.getByRole("button", { name: "The line moved", hidden: true }));
+
+    expect(await screen.findByText(/Somebody saved a newer version/)).toBeInTheDocument();
+    expect(description()).toHaveValue("When a customer returns an order.");
+  });
+
+  it("refuses to check a text when the skill has no version to write over", async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <EditSkillDialog
+        skill={{ ...SKILL, latest_version_id: null }}
+        fork={null}
+        followers={3}
+        readers={["Support"]}
+        canCheck
+        onClose={vi.fn()}
+        onDelete={vi.fn()}
+      />,
+      {
+        wrapper: ({ children }: { children: ReactNode }) => (
+          <QueryClientProvider client={client}>{children}</QueryClientProvider>
+        ),
+      },
+    );
+
+    await userEvent.clear(description());
+    await userEvent.type(description(), "When a customer returns an order.");
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+    await userEvent.click(screen.getByRole("button", { name: "Check on agents first" }));
+
+    expect(screen.getByText(/no saved version to write over/)).toBeInTheDocument();
+    expect(screen.queryByText(/^checking/)).toBeNull();
   });
 });
