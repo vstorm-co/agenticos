@@ -76,7 +76,7 @@ function SkillCard({ skill, sessionId }: { skill: ImprovementSkill; sessionId: s
           </ul>
           {skill.can_improve ? (
             <Button asChild size="sm">
-              <Link href={`${ROUTES.SKILLS}/${skill.skill_id}/improve/new?from_run=${sessionId}`}>
+              <Link href={ROUTES.SKILL_IMPROVE_FROM_RUN(skill.skill_id, sessionId)}>
                 {fork
                   ? t("improveFork", { name: skill.name, fork: fork.name })
                   : t("improve", { name: skill.name })}
@@ -91,7 +91,7 @@ function SkillCard({ skill, sessionId }: { skill: ImprovementSkill; sessionId: s
         <div className="flex flex-wrap items-center gap-3 text-sm">
           <span>{t("behind", { count: skill.binding.behind_main })}</span>
           <Button asChild size="sm" variant="outline">
-            <Link href={`${ROUTES.SKILLS}/${skill.skill_id}`}>
+            <Link href={ROUTES.SKILL_DETAIL(skill.skill_id)}>
               {skill.update.kind === "update_pinned"
                 ? t("updatePinned", { version: skill.update.to_version })
                 : t("catchUp")}
