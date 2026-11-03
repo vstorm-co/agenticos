@@ -712,8 +712,8 @@ class TestKBAccessControl:
         """`DELETE /rag/collections/{name}` reaches here: the documents and the KB
         row go in the request, the table drop is handed to the durable, locked
         cleanup (#1355). No base holds the name any more, so the table goes with
-        the base's own rows; this base has no tenant, so it takes no unfiled rows,
-        and nothing is deleted by name (#2568)."""
+        the base's own rows; this one takes no unfiled rows, and nothing is
+        deleted by name (#2568)."""
         kb = _kb("org", is_default=False)
         kb.collection_name = "docs"
         dispatch = _patch_dispatch(monkeypatch)

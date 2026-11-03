@@ -322,8 +322,10 @@ class KnowledgeBaseService:
         If no other base holds the name, the table goes, and the same rows do: the
         base's own and the unfiled rows of its tenant, with their files. Another
         tenant's unfiled rows under the name stay with their files - the caller
-        holds no authority over them, and their tenant's next base on the name
-        lists them and can re-index them from those files. The two routes had
+        holds no authority over them, so what happens to them is their tenant's
+        call. Its next base on the name lists them with no chunks behind them: a
+        sync indexes a synced one again, an upload has to be made again. The two
+        routes had
         drifted here: `delete` left the tenant's unfiled rows behind the dropped
         table, and the collection drop deleted every row under the name, in
         every organization (#2568).
@@ -366,7 +368,7 @@ class KnowledgeBaseService:
         if others:
             storage_paths, base_purges = await self._delete_documents_from_kept_table(kb, others)
         else:
-            _, unfiled = await self._delete_unfiled_taken(kb, others)
+            _, unfiled = await self._delete_unfiled_taken(kb, [])
             storage_paths = (
                 await rag_document_repo.delete_by_knowledge_base(self.db, kb.id)
                 + unfiled.storage_paths

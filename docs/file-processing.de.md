@@ -1,5 +1,5 @@
 ---
-source_sha: "839e27fa5261"
+source_sha: "7d072906d9e0"
 ---
 
 # Dateiverarbeitung { #file-processing }
@@ -1053,9 +1053,12 @@ zugeordnete Dokumentzeilen bleiben in den Basen ihres Tenants gelistet ([#2537](
 Hält keine andere Basis den Namen, löschen beide Wege und `rag-drop` dieselben
 Zeilen mit ihren Dateien, und der Aufräum-Job löscht die Tabelle: die eigenen Zeilen
 der Basis und die nicht zugeordneten Zeilen ihrer Organisation. Nicht zugeordnete
-Zeilen einer anderen Organisation unter dem Namen bleiben mit ihren Dateien: Der
-Aufrufer hat keine Befugnis über sie, und die nächste Basis dieser Organisation mit
-dem Namen listet sie und kann sie aus den Dateien neu indexieren. Vorher ließ
+Zeilen einer anderen Organisation unter dem Namen bleiben mit ihren Dateien, denn der
+Aufrufer hat keine Befugnis über sie. Die nächste Basis dieser Organisation mit dem
+Namen listet sie, ohne Chunks dahinter: Eine Synchronisierung indexiert ein
+synchronisiertes Dokument neu, ein hochgeladenes muss erneut hochgeladen werden.
+
+Vorher ließ
 `DELETE /kb/{id}` die nicht zugeordneten Zeilen der Organisation hinter der gelöschten
 Tabelle zurück, und das Löschen einer Collection löschte jede Zeile unter dem Namen,
 in allen Organisationen ([#2568](https://github.com/vstorm-co/agenticos/issues/2568)).

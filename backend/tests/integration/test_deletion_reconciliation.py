@@ -1289,9 +1289,9 @@ class TestADeletedBasesChunksOnAKeptTable:
         """With no other base on the name the table is dropped, and both routes
         delete the same rows with their files: the base's own and its tenant's
         unfiled ones. Another organization's unfiled rows and the tenant-less ones
-        `rag-ingest` writes stay with their files - the caller has no authority
-        over them, and their owner's next base on the name lists them and can
-        re-index them from those files. `DELETE /kb/{id}` left the tenant's
+        `rag-ingest` writes stay with their files: the caller has no authority
+        over them, so what happens to them is their owner's call.
+        `DELETE /kb/{id}` left the tenant's
         unfiled rows behind the dropped table, and the collection drop deleted
         every row under the name, in every organization (#2568)."""
         factory = async_sessionmaker(engine, expire_on_commit=False)

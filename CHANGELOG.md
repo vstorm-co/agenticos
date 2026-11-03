@@ -21,7 +21,7 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
-- Deleting the last knowledge base on a collection name deletes the same rows on every path (`DELETE /kb/{id}`, `DELETE /rag/collections/{name}` and `rag-drop`): the base's own document rows and its organization's unfiled rows, with their files, before the vector table is dropped. `DELETE /kb/{id}` used to leave the organization's unfiled rows and files behind the dropped table, for its next base on the name to list again. The collection drop used to delete every row under the name in every organization, including another organization's unfiled rows and files that its next base on the name could re-index. Those rows now stay. The three paths run one teardown.
+- Deleting the last knowledge base on a collection name deletes the same rows on every path (`DELETE /kb/{id}`, `DELETE /rag/collections/{name}` and `rag-drop`): the base's own document rows and its organization's unfiled rows, with their files, before the vector table is dropped. `DELETE /kb/{id}` used to leave the organization's unfiled rows and files behind the dropped table, for its next base on the name to list again. The collection drop used to delete every row under the name in every organization, including another organization's unfiled rows and files, which the caller had no authority over. Those rows now stay for their organization. The three paths run one teardown.
 
 ## [1.38.1] - 2026-11-03
 

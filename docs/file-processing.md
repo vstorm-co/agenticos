@@ -934,8 +934,10 @@ their tenant, and unfiled document rows stay listed under the bases of their ten
 When no other base holds the name, both routes and `rag-drop` delete the same rows,
 with their files, and the cleanup job drops the table: the base's own rows and the
 unfiled rows of its organization. Another organization's unfiled rows under the name
-stay, with their files: the caller has no authority over them, and that
-organization's next base on the name lists them and can re-index them from the files.
+stay, with their files, because the caller has no authority over them. That
+organization's next base on the name lists them, with no chunks behind them: a sync
+indexes a synced document again, and an uploaded one has to be uploaded again.
+
 Before, `DELETE /kb/{id}` left the organization's unfiled rows behind the dropped
 table, and the collection drop deleted every row under the name, in every
 organization ([#2568](https://github.com/vstorm-co/agenticos/issues/2568)).

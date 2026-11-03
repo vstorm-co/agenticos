@@ -1,5 +1,5 @@
 ---
-source_sha: "839e27fa5261"
+source_sha: "7d072906d9e0"
 ---
 
 # Przetwarzanie plików { #file-processing }
@@ -988,8 +988,10 @@ listowane w bazach swojego tenanta ([#2537](https://github.com/vstorm-co/agentic
 Gdy żadna inna baza nie ma tej nazwy, obie ścieżki i `rag-drop` usuwają te same
 wiersze, razem z ich plikami, a zadanie porządkowe usuwa tabelę: wiersze samej bazy
 i nieprzypisane wiersze jej organizacji. Nieprzypisane wiersze innej organizacji pod
-tą nazwą zostają, razem z plikami: wywołujący nie ma do nich uprawnień, a następna
-baza tej organizacji o tej nazwie je listuje i może je ponownie zindeksować z plików.
+tą nazwą zostają, razem z plikami, bo wywołujący nie ma do nich uprawnień. Następna
+baza tej organizacji o tej nazwie je listuje, bez chunków: synchronizacja ponownie
+indeksuje zsynchronizowany dokument, a przesłany trzeba przesłać jeszcze raz.
+
 Wcześniej `DELETE /kb/{id}` zostawiało nieprzypisane wiersze organizacji za usuniętą
 tabelą, a usunięcie kolekcji kasowało każdy wiersz pod tą nazwą, we wszystkich
 organizacjach ([#2568](https://github.com/vstorm-co/agenticos/issues/2568)).

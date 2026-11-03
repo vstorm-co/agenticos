@@ -1,5 +1,5 @@
 ---
-source_sha: "839e27fa5261"
+source_sha: "7d072906d9e0"
 ---
 
 # Procesamiento de archivos { #file-processing }
@@ -1009,9 +1009,12 @@ documentos sin asignar siguen listadas en las bases de su tenant ([#2537](https:
 Cuando ninguna otra base tiene el nombre, ambas rutas y `rag-drop` borran las mismas
 filas, con sus archivos, y el trabajo de limpieza elimina la tabla: las filas de la
 propia base y las filas sin asignar de su organización. Las filas sin asignar de otra
-organización bajo ese nombre se quedan, con sus archivos: quien llama no tiene
-autoridad sobre ellas, y la siguiente base de esa organización con ese nombre las
-lista y puede volver a indexarlas desde los archivos. Antes, `DELETE /kb/{id}` dejaba
+organización bajo ese nombre se quedan, con sus archivos, porque quien llama no tiene
+autoridad sobre ellas. La siguiente base de esa organización con ese nombre las lista,
+sin fragmentos detrás: una sincronización vuelve a indexar un documento sincronizado,
+y uno subido hay que subirlo de nuevo.
+
+Antes, `DELETE /kb/{id}` dejaba
 las filas sin asignar de la organización detrás de la tabla eliminada, y eliminar una
 colección borraba todas las filas bajo el nombre, en todas las organizaciones
 ([#2568](https://github.com/vstorm-co/agenticos/issues/2568)).
