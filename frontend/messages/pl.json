@@ -2781,6 +2781,8 @@
       "toolState": "{status, select, completed {Gotowe} error {Błąd} running {W toku} pending {W toku} unfinished {Nie dokończone} awaiting_approval {Czeka na zatwierdzenie} awaiting_answer {Czeka na odpowiedź} other {Nieznany}}",
       "wantsTo": "<strong>{actor}</strong> chce: <strong>{tool}</strong>",
       "askedFor": "Dla {email}",
+      "askedInChat": "{platform}: {name} (konto niezweryfikowane)",
+      "askedInChatThrough": "{platform}: {name} (konto niezweryfikowane), przez bota {bot}",
       "account": "Konto: {account}",
       "openTheRun": "Otwórz run",
       "decidedByWhom": "przez {email}",
@@ -4406,7 +4408,8 @@
         },
         "description": "Uruchomienia wstrzymane na wywołaniu narzędzia, czekające na decyzję.",
         "someAgent": "Agent",
-        "forPerson": "dla {email} · czeka {ago}"
+        "forPerson": "dla {email} · czeka {ago}",
+        "forChatAccount": "dla {name} (konto niezweryfikowane) · czeka {ago}"
       },
       "recent-failures": {
         "title": "Ostatnie niepowodzenia",

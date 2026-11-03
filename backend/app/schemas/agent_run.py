@@ -271,6 +271,22 @@ class RunTranscript(BaseSchema):
     total: int
 
 
+class ChatAskerRead(BaseSchema):
+    """The chat account that asked, for a run that ran as the binding's publisher.
+
+    Unverified: the name is what the account's owner typed on the platform.
+    """
+
+    platform: str
+    name: str = Field(
+        description="The display name, else the handle with an `@`, else the platform's user id"
+    )
+    bot_name: str | None = Field(
+        default=None,
+        description="The bot the chat reached the agent through; null once its binding is gone",
+    )
+
+
 class ApprovalRead(BaseSchema):
     """A parked tool call awaiting a decision."""
 
@@ -317,6 +333,15 @@ class ApprovalRead(BaseSchema):
     )
     triggered_by_email: str | None = Field(
         default=None, description="That person, for a queue somebody has to read"
+    )
+    asked_in_chat: ChatAskerRead | None = Field(
+        default=None,
+        description=(
+            "The chat account that asked, when the run is a chat message from an "
+            "unlinked person and so ran as the binding's publisher. Then "
+            "`triggered_by_user_id` and `triggered_by_email` are null: the publisher "
+            "did not trigger it. The account is unverified"
+        ),
     )
     decided_by_email: str | None = Field(
         default=None,
