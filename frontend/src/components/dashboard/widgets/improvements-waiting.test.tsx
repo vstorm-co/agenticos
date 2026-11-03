@@ -29,7 +29,18 @@ const behind = vi.hoisted(() => ({
   error: null as Error | null,
   refetch: vi.fn(),
 }));
-vi.mock("@/hooks/use-skill-merge", () => ({ useBehindMain: () => behind }));
+const asked = vi.hoisted(() => ({ enabled: undefined as boolean | undefined, skillsView: true }));
+vi.mock("@/hooks/use-skill-merge", () => ({
+  useBehindMain: (options: { enabled: boolean }) => {
+    asked.enabled = options.enabled;
+    return behind;
+  },
+}));
+vi.mock("@/hooks/use-permissions", () => ({
+  usePermissions: () => ({
+    can: (permission: string) => permission !== "skills:view" || asked.skillsView,
+  }),
+}));
 
 const PERIOD: Period = { preset: "30d", from: "2026-09-27", to: "2026-10-26" };
 
@@ -68,6 +79,7 @@ beforeEach(() => {
   behind.isLoading = false;
   behind.error = null;
   behind.refetch = vi.fn();
+  asked.skillsView = true;
 });
 
 describe("ImprovementsWaitingWidget", () => {
@@ -252,6 +264,28 @@ describe("ImprovementsWaitingWidget", () => {
       "/skills/sk1",
     );
     expect(within(rows[3]!).queryByRole("link", { name: "Open" })).not.toBeInTheDocument();
+  });
+
+  it("reads what main left behind only for a reader of skills, and opens a fork with nothing of its own", () => {
+    behind.behind = {
+      items: [
+        behindItem({
+          kind: "fork",
+          agent: null,
+          fork: { id: "f2", name: "empty", base_number: 4, changes: 0 },
+        }),
+      ],
+      total: 1,
+      hidden: 0,
+    };
+    widget();
+    expect(asked.enabled).toBe(true);
+    expect(screen.getByRole("link", { name: "Open" })).toHaveAttribute("href", "/skills/sk1");
+
+    asked.skillsView = false;
+    behind.behind = undefined;
+    widget();
+    expect(asked.enabled).toBe(false);
   });
 
   it("keeps the sessions listed when what main left behind cannot be read", () => {

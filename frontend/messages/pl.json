@@ -15429,12 +15429,12 @@
         "to_main": "Przenieś „{fork}” do main"
       },
       "what": {
-        "catch_up": "Zmiany z main od v{version} zostaną scalone z forkiem, a fork zachowa swoje. Potem agenci forka sprawdzą wynik.",
+        "catch_up": "Zmiany z main od wersji, na której opiera się fork, zostaną scalone z forkiem, a fork zachowa swoje. Potem agenci forka sprawdzą wynik.",
         "to_main": "Zmiany forka zostaną scalone z main v{version}, a main zachowa swoje. Potem agenci main sprawdzą wynik."
       },
       "conflicts": "{count, plural, =0 {Nic się nie gryzie: każdy fragment bierze stronę, która go zmieniła.} one {# fragment zmieniono po obu stronach. Asystent zaproponuje dla niego tekst, a Ty możesz go zmienić.} few {# fragmenty zmieniono po obu stronach. Asystent zaproponuje tekst dla każdego, a Ty możesz je zmienić.} many {# fragmentów zmieniono po obu stronach. Asystent zaproponuje tekst dla każdego, a Ty możesz je zmienić.} other {# fragmentu zmieniono po obu stronach. Asystent zaproponuje tekst dla każdego, a Ty możesz je zmienić.}}",
       "agents": "{count, plural, =0 {Żaden agent, którego widzisz, nie czyta tej linii.} one {# agent sprawdzi wynik.} few {# agenty sprawdzą wynik.} many {# agentów sprawdzi wynik.} other {# agenta sprawdzi wynik.}}",
-      "hidden": "{count, plural, one {Tej linii używa jeszcze # agent, którego nie widzisz.} few {Tej linii używa jeszcze # agentów, których nie widzisz.} many {Tej linii używa jeszcze # agentów, których nie widzisz.} other {Tej linii używa jeszcze # agenta, którego nie widzisz.}}",
+      "hidden": "{count, plural, one {Tej linii używa jeszcze # agent, którego nie widzisz.} few {Tej linii używają jeszcze # agenty, których nie widzisz.} many {Tej linii używa jeszcze # agentów, których nie widzisz.} other {Tej linii używa jeszcze # agenta, którego nie widzisz.}}",
       "price": "Propozycje tekstów dla konfliktów kosztują około {cost}. Sprawdzenie zostanie wycenione na kroku Changes.",
       "limit": "Limit wydatków na sesję (USD)",
       "limitHint": "Możesz go podnieść na kroku Changes, gdy sprawdzenie będzie wycenione.",
@@ -15443,6 +15443,11 @@
         "catch_up": "Zacznij doganianie",
         "to_main": "Zacznij przenoszenie"
       }
+    },
+    "mergeReading": "Odczytywanie scalenia…",
+    "mergeAgain": {
+      "moved": "Fork albo main ma nowszą wersję niż ta, którą odczytało to scalenie, więc nie jest sprawdzane ponownie.",
+      "start": "Zacznij scalanie od nowa"
     }
   }
 }

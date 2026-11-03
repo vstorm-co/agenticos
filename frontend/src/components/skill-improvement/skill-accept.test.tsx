@@ -303,4 +303,80 @@ describe("SkillAccept", () => {
       confirmed: true,
     });
   });
+
+  it("returns the agents to main without the acknowledgement a merge's decision needs", async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const check = skillCheck({
+      verdict: "needs_ack",
+      agents: [checkAgent("Support", "better"), checkAgent("Refunds", "unknown")],
+    });
+    render(
+      <SkillAccept
+        session={skillSession({
+          purpose: "catch_up",
+          fork_id: "f1",
+          line_name: "returns",
+          check,
+          outcomes: ["catch_up", "return_to_main", "discard"],
+        })}
+        check={check}
+        onStarted={vi.fn()}
+      />,
+      {
+        wrapper: ({ children }: { children: ReactNode }) => (
+          <QueryClientProvider client={client}>{children}</QueryClientProvider>
+        ),
+      },
+    );
+    await confirm();
+
+    expect(
+      screen.getByRole("button", { name: "Make the merge the next version of returns" }),
+    ).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "Return the agents of returns to main instead" }),
+    ).toBeEnabled();
+  });
+
+  it("offers starting a merge again when its lines moved, never Check again", async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const check = skillCheck();
+    vi.mocked(apiClient.post).mockRejectedValue(
+      new ApiError(409, "Main changed while you were catching up. Start again to include it.", {
+        error: {
+          code: "LINE_MOVED",
+          message: "Main changed while you were catching up. Start again to include it.",
+          details: { moved: "main" },
+        },
+      }),
+    );
+    render(
+      <SkillAccept
+        session={skillSession({
+          purpose: "catch_up",
+          fork_id: "f1",
+          line_name: "returns",
+          check,
+          outcomes: ["catch_up", "discard"],
+        })}
+        check={check}
+        onStarted={vi.fn()}
+      />,
+      {
+        wrapper: ({ children }: { children: ReactNode }) => (
+          <QueryClientProvider client={client}>{children}</QueryClientProvider>
+        ),
+      },
+    );
+    await confirm();
+    await userEvent.click(
+      screen.getByRole("button", { name: "Make the merge the next version of returns" }),
+    );
+
+    expect(await screen.findByRole("link", { name: "Start the merge again" })).toHaveAttribute(
+      "href",
+      "/skills/k1/improve/new?fork=f1&merge=catch_up",
+    );
+    expect(screen.queryByText("check again")).not.toBeInTheDocument();
+  });
 });

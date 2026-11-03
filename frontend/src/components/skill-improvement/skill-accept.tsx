@@ -9,21 +9,24 @@ import { Button, Checkbox, Input, Label } from "@/components/ui";
 import { useSkillAccept } from "@/hooks/use-skill-improvement";
 import { useReturnToMain } from "@/hooks/use-skill-merge";
 import { ApiError, getErrorMessage } from "@/lib/api-error";
+import { isMerge } from "@/lib/improvement-steps";
 import type { CheckOutcome, SkillCheck } from "@/types/skill-checks";
 import type { MergeOutcome, SkillImprovement } from "@/types/skill-improvement";
 import { AddTestQuestions } from "./add-test-questions";
 import { CheckAgain } from "./check-again";
+import { MergeAgain } from "./merge-again";
 
 /**
  * Whether a decision was refused because the line got a newer version or new agents
- * since the check - the refusals Check again answers. Other 409s, such as a check
- * decided elsewhere, are only said.
+ * since the check - the refusals Check again answers, or for a merge, starting it again.
+ * Other 409s, such as a check decided elsewhere, are only said.
  */
 function movedLine(failure: unknown): boolean {
   return (
     failure instanceof ApiError &&
-    failure.code === "CONCURRENT_CHANGE" &&
-    (failure.details?.version !== undefined || failure.details?.agents !== undefined)
+    (failure.code === "LINE_MOVED" ||
+      (failure.code === "CONCURRENT_CHANGE" &&
+        (failure.details?.version !== undefined || failure.details?.agents !== undefined)))
   );
 }
 
@@ -116,7 +119,7 @@ export function SkillAccept({
       {session.outcomes.includes("return_to_main") && (
         <Button
           variant="outline"
-          disabled={held}
+          disabled={!confirmed}
           loading={busy}
           onClick={() => void decide(() => returnToMain.mutateAsync())}
         >
@@ -199,7 +202,12 @@ export function SkillAccept({
               {refusal}
             </p>
           )}
-          {recheck && <CheckAgain session={session} onStarted={onStarted} />}
+          {recheck &&
+            (isMerge(session) ? (
+              <MergeAgain session={session} />
+            ) : (
+              <CheckAgain session={session} onStarted={onStarted} />
+            ))}
           <ContinueSession
             session={session}
             lead={recheck ? undefined : decisions}

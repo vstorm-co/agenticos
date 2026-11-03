@@ -26,10 +26,17 @@ export function useSkillMergeStart(skillId: string, forkId: string, kind: MergeK
   return { estimate, start };
 }
 
-/** A session's merge, and the edits a person makes to it at Changes. */
-export function useSkillMerge(skillId: string, sessionId: string, { enabled = true } = {}) {
+/**
+ * A session's merge, and the edits a person makes to it at Changes. `at` is where the
+ * session stands - its status and stage - so the merge is read again once it moves on.
+ */
+export function useSkillMerge(
+  skillId: string,
+  sessionId: string,
+  { at, enabled = true }: { at: string; enabled?: boolean },
+) {
   const queryClient = useQueryClient();
-  const key = qk.skills.merge(skillId, sessionId);
+  const key = qk.skills.merge(skillId, sessionId, at);
   const query = useQuery({
     queryKey: key,
     queryFn: () => getSkillMerge(skillId, sessionId),

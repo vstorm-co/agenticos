@@ -7,9 +7,11 @@ import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui";
 import { useImprovementsAwaiting } from "@/hooks/use-improvements";
 import { useSkillImprovementsAwaiting } from "@/hooks/use-skill-improvement";
+import { usePermissions } from "@/hooks/use-permissions";
 import { useBehindMain } from "@/hooks/use-skill-merge";
 import { ROUTES } from "@/lib/constants";
 import { stopOf } from "@/lib/improvement-steps";
+import { Perm } from "@/types/permissions";
 import { WidgetFrame } from "../widget-frame";
 import { WidgetEmptyBody, WidgetErrorBody, WidgetSkeleton } from "../widget-states";
 import type { DashboardWidgetProps } from "./types";
@@ -42,7 +44,9 @@ export function ImprovementsWaitingWidget({ title, hint, options }: DashboardWid
   const tErrors = useTranslations("dashboard.errors");
   const agents = useImprovementsAwaiting();
   const skills = useSkillImprovementsAwaiting();
-  const behind = useBehindMain();
+  // The card is gated on reading runs; what main left behind is read with skills:view.
+  const { can } = usePermissions();
+  const behind = useBehindMain({ enabled: can(Perm.skillsView) });
   const isLoading = agents.isLoading || skills.isLoading || behind.isLoading;
   const failed = (["agents", "skills", "behind"] as const).filter(
     (source: Source) => ({ agents, skills, behind })[source].error,
@@ -87,7 +91,7 @@ export function ImprovementsWaitingWidget({ title, hint, options }: DashboardWid
         href: skill,
         action: !item.can_act
           ? null
-          : item.kind === "fork"
+          : item.kind === "fork" && item.fork.changes > 0
             ? {
                 label: t("catchUp"),
                 href: `${skill}/improve/new?fork=${item.fork.id}&merge=catch_up`,

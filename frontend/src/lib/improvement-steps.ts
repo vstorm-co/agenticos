@@ -27,6 +27,11 @@ export function isMerge(session: object): boolean {
   return "purpose" in session && session.purpose !== undefined && session.purpose !== "improve";
 }
 
+/** Where a session stands: what is read for it is read again once this changes. */
+export function standing(session: Pick<Improvement, "status" | "stage">): string {
+  return `${session.status}:${session.stage}`;
+}
+
 export function isActive(session: Pick<Improvement, "status">): boolean {
   return session.status === "queued" || session.status === "running";
 }

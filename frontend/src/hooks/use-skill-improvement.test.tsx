@@ -18,14 +18,16 @@ function wrapper({ children }: { children: ReactNode }) {
 
 beforeEach(() => vi.clearAllMocks());
 
-it("reads main's sessions without naming a fork", async () => {
+it("reads main's own sessions, never every line's", async () => {
   vi.mocked(apiClient.get).mockResolvedValue([{ id: "s1" }]);
   const { result } = renderHook(() => useSkillImprovements("k1", { forkId: null, fromRun: null }), {
     wrapper,
   });
 
   await waitFor(() => expect(result.current.sessions).toHaveLength(1));
-  expect(apiClient.get).toHaveBeenCalledWith("/skills/k1/improvements", { params: {} });
+  expect(apiClient.get).toHaveBeenCalledWith("/skills/k1/improvements", {
+    params: { main: "true" },
+  });
 });
 
 it("reads the skill sessions waiting for a person across the organization", async () => {

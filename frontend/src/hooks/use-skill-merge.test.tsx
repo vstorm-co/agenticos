@@ -52,7 +52,9 @@ it("moves a fork to main on its own route", async () => {
 it("reads a session's merge and keeps each edit's answer as the merge", async () => {
   vi.mocked(apiClient.get).mockResolvedValue({ id: "m1", unresolved: 2 });
   vi.mocked(apiClient.patch).mockResolvedValue({ id: "m1", unresolved: 1 });
-  const { result } = renderHook(() => useSkillMerge("k1", "s1"), { wrapper });
+  const { result } = renderHook(() => useSkillMerge("k1", "s1", { at: "waiting:filtering" }), {
+    wrapper,
+  });
   await waitFor(() => expect(result.current.merge).toEqual({ id: "m1", unresolved: 2 }));
 
   await act(() => result.current.editDescription.mutateAsync("Refunds."));
@@ -73,7 +75,9 @@ it("reads a session's merge and keeps each edit's answer as the merge", async ()
 });
 
 it("does not read a merge for a session that merges nothing", () => {
-  renderHook(() => useSkillMerge("k1", "s1", { enabled: false }), { wrapper });
+  renderHook(() => useSkillMerge("k1", "s1", { at: "running:proposing", enabled: false }), {
+    wrapper,
+  });
   expect(apiClient.get).not.toHaveBeenCalled();
 });
 

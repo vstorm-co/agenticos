@@ -49,15 +49,20 @@ vi.mock("@/components/improvement/next-step", () => ({
     hint,
     blocked,
     body,
+    hold,
+    revision,
   }: {
     detail?: (quote: SkillContinuationEstimate) => ReactNode;
     hint?: string;
     blocked?: string;
     body?: Record<string, unknown>;
+    hold?: boolean;
+    revision?: string | null;
   }) => (
     <div>
       <p>{hint}</p>
       <p>{blocked}</p>
+      <p>{`${hold ? "held" : "priced"} at ${revision ?? "none"}`}</p>
       <p>{`body ${JSON.stringify(body ?? null)}`}</p>
       {detail?.({
         mode: "next_step",
@@ -103,7 +108,7 @@ function serve() {
       };
     if (path === "/skills/k1/improvements/s1") return state.session;
     if (path === "/skills/k1/improvements/s1/merge")
-      return { id: "m1", unresolved: state.unresolved };
+      return { id: "m1", unresolved: state.unresolved, updated_at: "r1" };
     throw new ApiError(404, "None");
   });
 }
@@ -152,6 +157,7 @@ describe("a session merging a fork with main", () => {
       ),
     ).toBeVisible();
     expect(await screen.findByText("Settle the 2 open parts first.")).toBeVisible();
+    expect(screen.getByText("held at r1")).toBeVisible();
     expect(screen.getByText('body {"main_alone":true}')).toBeVisible();
 
     const alone = screen.getByRole("checkbox", {
@@ -211,5 +217,29 @@ describe("a session merging a fork with main", () => {
         "Main alone was not checked, so returning the fork's agents to main is not offered.",
       ),
     ).toBeVisible();
+  });
+
+  it("prices the check once nothing is open, and holds it until the merge is read", async () => {
+    mount();
+    expect(await screen.findByText("Reading the merge…")).toBeVisible();
+    expect(await screen.findByText("priced at r1")).toBeVisible();
+  });
+
+  it("offers starting the merge again in place of Check again on a result its lines left behind", async () => {
+    state.session = merging("to_main", {
+      status: "ready",
+      stage: "judging",
+      check: skillCheck(),
+      stale: true,
+      source_fork_id: "f1",
+      outcomes: ["apply", "discard"],
+    });
+    state.step = "result";
+    mount();
+
+    expect(await screen.findByRole("link", { name: "Start the merge again" })).toHaveAttribute(
+      "href",
+      "/skills/k1/improve/new?fork=f1&merge=to_main",
+    );
   });
 });

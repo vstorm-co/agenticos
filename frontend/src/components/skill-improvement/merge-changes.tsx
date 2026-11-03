@@ -6,6 +6,7 @@ import { useTranslations } from "next-intl";
 import { ErrorState, LoadingState } from "@/components/states";
 import { useSkillMerge } from "@/hooks/use-skill-merge";
 import { getErrorMessage } from "@/lib/api-error";
+import { standing } from "@/lib/improvement-steps";
 import type { SkillImprovement } from "@/types/skill-improvement";
 import { MergeFiles } from "./merge-files";
 import { MergeText } from "./merge-text";
@@ -24,7 +25,7 @@ export function MergeChanges({
 }) {
   const t = useTranslations("skillImprovement.merge");
   const tErrors = useTranslations("errors");
-  const actions = useSkillMerge(session.skill_id, session.id);
+  const actions = useSkillMerge(session.skill_id, session.id, { at: standing(session) });
   const [refusal, setRefusal] = useState<string | null>(null);
   const { merge } = actions;
   if (actions.isLoading) return <LoadingState variant="skeleton-cards" rows={2} />;
@@ -71,6 +72,7 @@ export function MergeChanges({
           text={merge.description}
           editable={editable}
           saving={actions.editDescription.isPending}
+          maxLength={DESCRIPTION_CHARS}
           onSave={(result) => save(() => actions.editDescription.mutateAsync(result))}
         />
       )}
@@ -107,6 +109,9 @@ export function MergeChanges({
     </section>
   );
 }
+
+/** As long as a skill's description may be. */
+const DESCRIPTION_CHARS = 500;
 
 /** How many lines a part holds; a part ends on its line break. */
 function lines(text: string): number {

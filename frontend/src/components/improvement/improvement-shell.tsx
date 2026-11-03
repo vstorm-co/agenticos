@@ -41,8 +41,11 @@ const RETIRED_STEPS: Record<string, Step> = { today: "check", testSet: "understa
  */
 export interface NextStepTerms {
   hint?: string;
+  /** Why the step waits; it is not priced until this clears, since it changes what is measured. */
   blocked?: string;
   body?: Record<string, unknown>;
+  /** Changes with each edit of what the step measures, so it is priced again. */
+  revision?: string | null;
 }
 
 /** What a step's panel can do to the frame around it. */
@@ -216,6 +219,8 @@ export function ImprovementShell({
                         : undefined
               }
               body={nextStep?.body}
+              hold={Boolean(nextStep?.blocked)}
+              revision={nextStep?.revision}
               onStarted={followCurrent}
             />
           )}

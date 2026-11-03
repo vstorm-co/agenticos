@@ -93,7 +93,9 @@ describe("MergeStart", () => {
     mount("to_main");
 
     expect(await screen.findByRole("heading", { name: "Move “returns” to main" })).toBeVisible();
-    expect(apiClient.get).toHaveBeenCalledWith("/skills/k1/improvements", { params: {} });
+    expect(apiClient.get).toHaveBeenCalledWith("/skills/k1/improvements", {
+      params: { main: "true" },
+    });
     await userEvent.click(screen.getByRole("button", { name: "Start the move" }));
     expect(apiClient.post).toHaveBeenLastCalledWith("/skills/k1/forks/f1/to-main", {
       budget_usd: "0.00",

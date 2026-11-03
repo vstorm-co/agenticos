@@ -15327,7 +15327,7 @@
         "to_main": "„{fork}“ nach main übernehmen"
       },
       "what": {
-        "catch_up": "Die Änderungen von main seit v{version} werden in den Fork übernommen, und der Fork behält seine eigenen. Danach prüfen die Agents des Forks das Ergebnis.",
+        "catch_up": "Die Änderungen von main seit der Version, auf der der Fork basiert, werden in den Fork übernommen, und der Fork behält seine eigenen. Danach prüfen die Agents des Forks das Ergebnis.",
         "to_main": "Die Änderungen des Forks werden in main v{version} übernommen, und main behält seine eigenen. Danach prüfen die Agents von main das Ergebnis."
       },
       "conflicts": "{count, plural, =0 {Nichts steht im Konflikt: Jeder Teil nimmt die Seite, die ihn geändert hat.} =1 {1 Teil wurde auf beiden Seiten geändert. Der Assistent schlägt einen Text dafür vor, und Sie können ihn ändern.} other {# Teile wurden auf beiden Seiten geändert. Der Assistent schlägt für jeden einen Text vor, und Sie können sie ändern.}}",
@@ -15341,6 +15341,11 @@
         "catch_up": "Nachziehen starten",
         "to_main": "Übernahme starten"
       }
+    },
+    "mergeReading": "Die Zusammenführung wird gelesen…",
+    "mergeAgain": {
+      "moved": "Der Fork oder main hat eine neuere Version als die, die diese Zusammenführung gelesen hat, daher wird sie nicht erneut geprüft.",
+      "start": "Die Zusammenführung neu starten"
     }
   }
 }

@@ -304,3 +304,51 @@ it("prices and starts the step with what the session's kind adds, and prices it 
     }),
   );
 });
+
+it("offers a skill session's step whatever its Try again says", async () => {
+  // The server answers `can_restart` for a finished attempt; a skill session at a stop
+  // always reads false there, and its step must still be offered.
+  const view = render(
+    <NextStep
+      session={{ ...AT_CHANGES, skill_id: "k1", can_restart: false }}
+      onStarted={vi.fn()}
+    />,
+  );
+  expect(
+    await screen.findByRole("button", {
+      name: "Next step: test the selected changes · up to $0.04",
+    }),
+  ).toBeEnabled();
+
+  view.rerender(<NextStep session={{ ...AT_CHANGES, can_restart: false }} onStarted={vi.fn()} />);
+  expect(screen.queryByRole("button", { name: /Next step/ })).not.toBeInTheDocument();
+});
+
+it("prices nothing while held, and prices again once settled", async () => {
+  const merging = { ...AT_CHANGES, skill_id: "k1" };
+  const view = render(
+    <NextStep session={merging} blocked="Settle the 1 open part first." hold onStarted={vi.fn()} />,
+  );
+  expect(screen.getByText("Settle the 1 open part first.")).toBeVisible();
+  expect(screen.queryByRole("status")).not.toBeInTheDocument();
+  expect(state.estimate).not.toHaveBeenCalled();
+
+  view.rerender(<NextStep session={merging} revision="r2" onStarted={vi.fn()} />);
+  expect(
+    await screen.findByRole("button", {
+      name: "Next step: test the selected changes · up to $0.04",
+    }),
+  ).toBeEnabled();
+  expect(state.estimate).toHaveBeenCalledOnce();
+});
+
+it("drops a refusal once the step is priced again on what changed", async () => {
+  const merging = { ...AT_CHANGES, skill_id: "k1" };
+  state.estimate.mockRejectedValueOnce(new ApiError(400, "Resolve every conflict"));
+  const view = render(<NextStep session={merging} revision="r1" onStarted={vi.fn()} />);
+  expect(await screen.findByRole("alert")).toHaveTextContent("Resolve every conflict");
+
+  view.rerender(<NextStep session={merging} revision="r2" onStarted={vi.fn()} />);
+  await screen.findByRole("button", { name: "Next step: test the selected changes · up to $0.04" });
+  expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+});

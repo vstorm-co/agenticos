@@ -165,7 +165,13 @@ describe("MergeChanges", () => {
     expect(screen.getByText("Your text")).toBeVisible();
     const box = screen.getByRole("textbox", { name: "Merged text of Description" });
     expect(box).toHaveValue("Refunds, both ways.");
+    expect(box).toHaveAttribute("maxlength", "500");
     await userEvent.clear(box);
+    expect(
+      within(screen.getByRole("region", { name: "Description" })).getByRole("button", {
+        name: "Save",
+      }),
+    ).toBeDisabled();
     await userEvent.type(box, "Refunds.");
     await userEvent.click(
       within(screen.getByRole("region", { name: "Description" })).getByRole("button", {

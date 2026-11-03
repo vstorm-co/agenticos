@@ -19,7 +19,14 @@ import { usePermissions } from "@/hooks/use-permissions";
 import { getErrorMessage } from "@/lib/api-error";
 import { ROUTES } from "@/lib/constants";
 import { useSkillMerge } from "@/hooks/use-skill-merge";
-import { isActive, isClosed, isMerge, isReachable, stopOf } from "@/lib/improvement-steps";
+import {
+  isActive,
+  isClosed,
+  isMerge,
+  isReachable,
+  standing,
+  stopOf,
+} from "@/lib/improvement-steps";
 import { Perm } from "@/types/permissions";
 import type { SkillImprovement } from "@/types/skill-improvement";
 import type { MergeKind } from "@/types/skill-merge";
@@ -27,6 +34,7 @@ import { CheckAgain } from "./check-again";
 import { CheckAgents } from "./check-agents";
 import { CheckEstimate } from "./check-estimate";
 import { MainAloneChoice, MainAloneResult } from "./main-alone";
+import { MergeAgain } from "./merge-again";
 import { MergeChanges } from "./merge-changes";
 import { MergeStart } from "./merge-start";
 import { SkillAccept } from "./skill-accept";
@@ -111,7 +119,11 @@ function SkillSession({
   const [mainAlone, setMainAlone] = useState(true);
   const session = actions.session as SkillImprovement | undefined;
   const merging = session !== undefined && isMerge(session);
-  const { merge } = useSkillMerge(skillId, sessionId, { enabled: merging });
+  // Read once the session stops at Changes; while it works, the model is still writing.
+  const { merge } = useSkillMerge(skillId, sessionId, {
+    at: session ? standing(session) : "",
+    enabled: merging && !isActive(session),
+  });
   const catchUp = session?.purpose === "catch_up";
   const body = useMemo(
     () => (catchUp ? { main_alone: mainAlone } : undefined),
@@ -152,10 +164,13 @@ function SkillSession({
         merging
           ? {
               hint: t(`mergeHint.${session.purpose}`),
-              blocked: merge?.unresolved
-                ? t("settleFirst", { count: merge.unresolved })
-                : undefined,
+              blocked: !merge
+                ? t("mergeReading")
+                : merge.unresolved
+                  ? t("settleFirst", { count: merge.unresolved })
+                  : undefined,
               body,
+              revision: merge?.updated_at ?? null,
             }
           : undefined
       }
@@ -217,9 +232,13 @@ function SkillSession({
               <h2 className="font-medium">{t("resultTitle")}</h2>
               {measured}
               <MainAloneResult session={session} />
-              {session.stale && readOnly === null && (
-                <CheckAgain session={session} onStarted={followCurrent} />
-              )}
+              {session.stale &&
+                readOnly === null &&
+                (merging ? (
+                  <MergeAgain session={session} />
+                ) : (
+                  <CheckAgain session={session} onStarted={followCurrent} />
+                ))}
               {isReachable(views.accept) ? (
                 <Button onClick={() => goTo("accept")}>{t("toAccept")}</Button>
               ) : (

@@ -15655,7 +15655,7 @@
         "to_main": "Move “{fork}” to main"
       },
       "what": {
-        "catch_up": "Main's changes since v{version} are merged into the fork, and the fork keeps its own. Then the fork's agents check the result.",
+        "catch_up": "Main's changes since the version the fork is based on are merged into the fork, and the fork keeps its own. Then the fork's agents check the result.",
         "to_main": "The fork's changes are merged into main v{version}, and main keeps its own. Then main's agents check the result."
       },
       "conflicts": "{count, plural, =0 {Nothing conflicts: each part takes the side that changed it.} =1 {1 part was changed on both sides. The assistant proposes a text for it, and you can change it.} other {# parts were changed on both sides. The assistant proposes a text for each, and you can change them.}}",
@@ -15669,6 +15669,11 @@
         "catch_up": "Start the catch-up",
         "to_main": "Start the move"
       }
+    },
+    "mergeReading": "Reading the merge…",
+    "mergeAgain": {
+      "moved": "The fork or main has a newer version than this merge read, so it is not checked again.",
+      "start": "Start the merge again"
     }
   }
 }

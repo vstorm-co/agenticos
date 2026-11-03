@@ -10,13 +10,14 @@ import type { MergeText as MergeTextValue } from "@/types/skill-merge";
 /**
  * One text of a merge. A part only one side changed says which; a conflict shows both
  * sides beside what the merge says, marked when nobody has settled it yet, and a person
- * may rewrite it - the assistant's proposal stays visible beside the rewrite.
+ * may rewrite it, starting from the assistant's proposal where it wrote one.
  */
 export function MergeText({
   label,
   text,
   editable,
   saving,
+  maxLength,
   onSave,
 }: {
   /** What the text is: the description, or a part of the instructions. */
@@ -24,6 +25,8 @@ export function MergeText({
   text: MergeTextValue;
   editable: boolean;
   saving: boolean;
+  /** A description is one line of at most this many characters, and never empty. */
+  maxLength?: number;
   /** Resolves to whether the text was saved; a refusal keeps the rewrite on screen. */
   onSave: (result: string) => Promise<boolean>;
 }) {
@@ -57,11 +60,17 @@ export function MergeText({
                   aria-label={t("resultOf", { label })}
                   className="min-h-24 font-mono text-xs"
                   value={value}
+                  maxLength={maxLength}
+                  required={maxLength !== undefined}
                   onChange={(event) => setDraft(event.target.value)}
                 />
                 <Button
                   size="sm"
-                  disabled={draft === null || draft === (text.result ?? "")}
+                  disabled={
+                    draft === null ||
+                    draft === (text.result ?? "") ||
+                    (maxLength !== undefined && draft.trim() === "")
+                  }
                   loading={saving}
                   onClick={() => void onSave(value).then((saved) => saved && setDraft(null))}
                 >
