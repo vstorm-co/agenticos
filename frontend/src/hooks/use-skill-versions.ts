@@ -9,6 +9,7 @@ import {
   changeSkillBinding,
   createSkillFork,
   createSkillVersion,
+  getSkillUsage,
   getSkillVersion,
   listSkillAgents,
   listSkillForks,
@@ -45,6 +46,15 @@ export function useSkillForks(skillId: string) {
     queryFn: () => listSkillForks(skillId),
   });
   return { forks: data?.items ?? [], isLoading, error };
+}
+
+/** How often the skill was used, by agent, over the last `days` days. */
+export function useSkillUsage(skillId: string, days: number) {
+  const { data, isLoading, error } = useQuery({
+    queryKey: qk.skills.usage(skillId, days),
+    queryFn: () => getSkillUsage(skillId, days),
+  });
+  return { usage: data, isLoading, error };
 }
 
 export function useSkillAgents(skillId: string) {

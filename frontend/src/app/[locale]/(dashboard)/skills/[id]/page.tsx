@@ -12,15 +12,18 @@ import { SkillAgents } from "@/components/skills/skill-agents";
 import { SkillHistory } from "@/components/skills/skill-history";
 import { lineOf, shownAgents, type ShownAgents } from "@/components/skills/skill-lines";
 import { SkillPageHeader } from "@/components/skills/skill-page-header";
+import { SkillUsageCard } from "@/components/skills/skill-usage";
 import { VersionTree } from "@/components/skills/version-tree";
 import { ErrorState, LoadingState } from "@/components/states";
 import { ResourceUnavailable } from "@/components/states/resource-unavailable";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui";
 import { useSkill } from "@/hooks";
+import { usePermissions } from "@/hooks/use-permissions";
 import { useSkillAgents, useSkillForks, useSkillVersions } from "@/hooks/use-skill-versions";
 import { useUrlState } from "@/hooks/use-url-state";
 import { ApiError, getErrorMessage } from "@/lib/api-error";
 import { ROUTES } from "@/lib/constants";
+import { Perm } from "@/types/permissions";
 
 /** The tabs `?tab=` may open, in the order they are drawn. */
 const TABS = ["agents", "history", "tree"];
@@ -38,6 +41,7 @@ export default function SkillPage({ params }: { params: Promise<{ id: string }> 
   const tc = useTranslations("common");
   const tErrors = useTranslations("errors");
   const router = useRouter();
+  const { can } = usePermissions();
   const [tabParam, setTabParam] = useUrlState("tab");
   const tab = tabParam !== null && TABS.includes(tabParam) ? tabParam : "agents";
   const [showParam, setShowParam] = useUrlState("show");
@@ -97,7 +101,7 @@ export default function SkillPage({ params }: { params: Promise<{ id: string }> 
             {t("tabs.tree")}
           </TabsTrigger>
         </TabsList>
-        <TabsContent value="agents">
+        <TabsContent value="agents" className="space-y-4">
           <SkillAgents
             skillId={id}
             skillName={skill.name}
@@ -108,6 +112,7 @@ export default function SkillPage({ params }: { params: Promise<{ id: string }> 
             shown={shown}
             onShow={(next) => setShowParam(next === "all" ? null : next)}
           />
+          {can(Perm.runsView) && <SkillUsageCard skillId={id} />}
         </TabsContent>
         <TabsContent value="history">
           <SkillHistory

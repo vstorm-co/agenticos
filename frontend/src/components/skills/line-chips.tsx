@@ -9,8 +9,9 @@ import { eachAgentOnce, isShown, type ShownAgents } from "./skill-lines";
 /**
  * Which agents the page is about: everyone, main, the pinned ones, or one fork.
  *
- * Choosing a fork also points History and Edit at that fork's line. The counts
- * leave out agents bound only in a draft, which follow no line yet.
+ * Choosing a fork also points History and Edit at that fork's line. Agents bound only
+ * in a draft follow no line, so they have a chip of their own and the lines add up
+ * to everyone.
  */
 export function LineChips({
   agents,
@@ -34,6 +35,9 @@ export function LineChips({
       value: `fork:${fork.id}` as const,
       label: t("show.fork", { name: fork.name, count: count(`fork:${fork.id}`) }),
     })),
+    ...(count("draft") > 0
+      ? [{ value: "draft" as const, label: t("show.draft", { count: count("draft") }) }]
+      : []),
   ];
   return (
     <div

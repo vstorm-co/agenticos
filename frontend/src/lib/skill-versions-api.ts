@@ -12,6 +12,7 @@ import type {
   SkillBindingState,
   SkillFork,
   SkillForkList,
+  SkillUsage,
   SkillVersionList,
   SkillVersionRead,
 } from "@/types/skill-versions";
@@ -73,6 +74,11 @@ export function createSkillFork(
     name: fork.name,
     from_version_id: fork.fromVersionId,
   });
+}
+
+/** How often each agent used the skill over the last `days` days; needs `runs:view`. */
+export function getSkillUsage(skillId: string, days: number): Promise<SkillUsage> {
+  return apiClient.get<SkillUsage>(`/skills/${skillId}/usage?days=${days}`);
 }
 
 export function listSkillAgents(skillId: string): Promise<SkillAgentList> {

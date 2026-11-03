@@ -92,7 +92,7 @@ describe("ChangeVersionDialog", () => {
 
     await userEvent.click(screen.getByRole("radio", { name: "Fork “Returns”, latest" }));
     expect(
-      screen.getByText("This version has not been checked on HR bot. Its answers may change."),
+      screen.getByText("Returns v2 has not been checked on HR bot. Its answers may change."),
     ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Change and publish" })).toBeDisabled();
 
@@ -263,5 +263,129 @@ describe("ChangeVersionDialog without publish", () => {
     await userEvent.click(screen.getByRole("button", { name: "Save to the draft" }));
 
     expect(apiClient.put).toHaveBeenCalledWith("/skills/s1/agents/a1/binding", { state: "main" });
+  });
+});
+
+describe("ChangeVersionDialog's warnings", () => {
+  const ON_MAIN: SkillAgentUsage = {
+    ...HR,
+    binding: {
+      state: "main",
+      version: { id: "m12", number: 12, fork_id: null },
+      fork: null,
+      behind_main: 0,
+    },
+  };
+
+  function renderOnMain(usage = ON_MAIN, forks = [RETURNS]) {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <ChangeVersionDialog
+        skillId="s1"
+        skillName="returns-policy"
+        usage={usage}
+        forks={forks}
+        mainLatest={12}
+        onClose={vi.fn()}
+      />,
+      {
+        wrapper: ({ children }: { children: ReactNode }) => (
+          <QueryClientProvider client={client}>{children}</QueryClientProvider>
+        ),
+      },
+    );
+  }
+
+  it("asks nothing about checks when the agent already serves the version picked", async () => {
+    renderOnMain();
+
+    await userEvent.click(screen.getByRole("radio", { name: /Pin a main version/ }));
+
+    expect(screen.queryByText(/has not been checked/)).toBeNull();
+    expect(
+      screen.getByText(/HR bot stays on this version and stops getting new main/),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Change and publish" })).toBeEnabled();
+  });
+
+  it("says a fork lacks the main versions after its base", async () => {
+    renderOnMain();
+
+    await userEvent.click(screen.getByRole("radio", { name: "Fork “Returns”, latest" }));
+
+    expect(
+      screen.getByText(/Fork “Returns” is 5 versions behind main, so it lacks their changes/),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/Returns v2 has not been checked/)).toBeInTheDocument();
+  });
+
+  it("reads a fork with no version of its own as the main version it started from", async () => {
+    renderOnMain(
+      {
+        ...ON_MAIN,
+        binding: { ...ON_MAIN.binding, version: { id: "m7", number: 7, fork_id: null } },
+      },
+      [{ ...RETURNS, latest: null, behind_main: 1 }],
+    );
+
+    await userEvent.click(screen.getByRole("radio", { name: "Fork “Returns”, latest" }));
+
+    expect(screen.queryByText(/has not been checked/)).toBeNull();
+    expect(
+      screen.getByText(/Fork “Returns” is 1 version behind main, so it lacks that change/),
+    ).toBeInTheDocument();
+  });
+
+  it("dates the versions it knows and shows what one changed", async () => {
+    vi.mocked(apiClient.get).mockImplementation(async (path: string) =>
+      path.startsWith("/skills/s1/versions?")
+        ? {
+            items: [
+              {
+                id: "m11",
+                number: 11,
+                fork_id: null,
+                source: "edit",
+                restored_from: null,
+                previous: { id: "m10", number: 10, fork_id: null },
+                created_by: { id: "u1", name: "Anna" },
+                created_at: "2026-11-01T10:00:00Z",
+                agents: 0,
+              },
+              {
+                id: "m10",
+                number: 10,
+                fork_id: null,
+                source: "restore",
+                restored_from: { id: "m4", number: 4, fork_id: null },
+                previous: null,
+                created_by: null,
+                created_at: "2026-10-30T10:00:00Z",
+                agents: 0,
+              },
+            ],
+            total: 12,
+          }
+        : {
+            id: path.split("/").pop(),
+            description: "Returns.",
+            content: "Refund within 30 days.",
+            resources: [],
+          },
+    );
+    renderOnMain();
+
+    await userEvent.click(screen.getByRole("radio", { name: /Pin a main version/ }));
+    await userEvent.click(screen.getByRole("combobox", { name: "Version to pin" }));
+    expect(await screen.findByRole("option", { name: /^v11 · / })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "v12" })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("option", { name: /^v10 · / }));
+    expect(screen.getByText(/Restored from v4 · Unknown ·/)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("combobox", { name: "Version to pin" }));
+    await userEvent.click(screen.getByRole("option", { name: /^v11 · / }));
+
+    expect(screen.getByText(/Edited · Anna ·/)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Show changes" }));
+    expect(await screen.findByRole("button", { name: "Hide changes" })).toBeInTheDocument();
   });
 });

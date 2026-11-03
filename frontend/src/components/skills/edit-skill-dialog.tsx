@@ -103,7 +103,13 @@ export function EditSkillDialog({
       if (fork === null && change.category !== skill.category) {
         await save.mutateAsync({ category: change.category });
       }
-      toast.success(textChanged ? t("saved", { number: next }) : tSkills("savedAgentsCurrent"));
+      toast.success(
+        !textChanged
+          ? tSkills("savedAgentsCurrent")
+          : fork === null
+            ? t("saved", { number: next })
+            : t("savedFork", { name: fork.name, number: next }),
+      );
       onClose();
     } catch (failure) {
       setRefusal(

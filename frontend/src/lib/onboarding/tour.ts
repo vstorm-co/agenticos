@@ -669,6 +669,12 @@ export const TOUR_STEPS: readonly TourStep[] = [
     optional: true,
   },
   { id: "skill-edit", page: SKILL_DETAIL, target: "skill-edit", permission: Perm.skillsView },
+  {
+    id: "skill-usage",
+    page: SKILL_DETAIL,
+    target: "skill-usage",
+    permission: Perm.runsView,
+  },
   // New fork is drawn only for an editor of this skill, which a role cannot tell.
   {
     id: "skill-new-fork",

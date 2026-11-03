@@ -5295,6 +5295,10 @@
       "skill-new-fork": {
         "title": "Fork dla agentów, którzy się różnią",
         "body": "Nowy fork zaczyna własną linię od najnowszej wersji main. Agenci przeniesieni na niego czytają jego zmiany, a agenci na main ich nie widzą."
+      },
+      "skill-usage": {
+        "title": "Jak często jest używany",
+        "body": "Jak często każdy agent otwierał skill w ostatnich 30 dniach i jakie pliki z niego czytał. Runy ewaluacji i panelu testowego się nie liczą."
       }
     },
     "chooseLanguage": "Język",
@@ -8133,18 +8137,21 @@
         "all": "Wszyscy ({count})",
         "main": "Main ({count})",
         "pinned": "Przypięci ({count})",
-        "fork": "Fork „{name}” ({count})"
+        "fork": "Fork „{name}” ({count})",
+        "draft": "Tylko w drafcie ({count})"
       },
       "agentsTable": {
         "agent": "Agent",
         "version": "Wersja",
         "actions": "Akcje",
         "viaSpecialist": "Przez specjalistę {name}",
-        "empty": "Żaden agent tutaj nie używa tego skilla.",
+        "empty": "Żaden agent nie używa jeszcze tego skilla.",
         "hidden": "{count, plural, one {Jeszcze # agent, którego nie widzisz, używa tego skilla.} few {Jeszcze # agentów, których nie widzisz, używa tego skilla.} many {Jeszcze # agentów, których nie widzisz, używa tego skilla.} other {Jeszcze # agenta, którego nie widzisz, używa tego skilla.}}",
         "draftOnly": "Tylko w drafcie",
         "environment": "{name}: {binding}",
-        "draftDiffers": "Jego draft używa innej wersji."
+        "draftDiffers": "Jego draft używa innej wersji.",
+        "emptyFork": "Żaden agent nie używa jeszcze forka „{name}”. Przenieś na niego agenta przez Zmień wersję.",
+        "emptyShown": "Brak agentów w tym widoku."
       },
       "changeVersion": {
         "button": "Zmień wersję",
@@ -8157,7 +8164,7 @@
         "pinVersion": "Wersja do przypięcia",
         "versionOption": "v{number}",
         "fork": "Fork „{name}”, najnowsza",
-        "unchecked": "Ta wersja nie była sprawdzona na {name}. Jego odpowiedzi mogą się zmienić.",
+        "unchecked": "{version} nie była sprawdzona na agencie {name}. Jego odpowiedzi mogą się zmienić.",
         "understood": "Rozumiem, zmień mimo to",
         "publishes": "To publikuje nową wersję {name} tylko z tą zmianą. Niedokończone zmiany w jego drafcie zostają w drafcie.",
         "cancel": "Anuluj",
@@ -8166,7 +8173,12 @@
         "savedInDraft": "Zapisano w drafcie {name}. Opublikuj go w Builderze.",
         "openBuilder": "Otwórz Builder",
         "savesToDraft": "Możesz edytować {name}, ale nie możesz go publikować, więc ta zmiana trafi do jego draftu. Opublikuje ją w Builderze ktoś, kto ma takie prawo.",
-        "submitDraft": "Zapisz w drafcie"
+        "submitDraft": "Zapisz w drafcie",
+        "versionWhen": "v{number} · {when}",
+        "forkVersion": "{name} v{number}",
+        "pinDetail": "{source} · {who} · {when}",
+        "leavesMain": "{name} zostaje na tej wersji i przestaje dostawać nowe wersje main.",
+        "leavesMainFork": "{name} przestaje dostawać nowe wersje main.{behind, plural, =0 {} one { Fork „{fork}” jest 1 wersję za main, więc nie ma tej zmiany.} few { Fork „{fork}” jest # wersje za main, więc nie ma ich zmian.} many { Fork „{fork}” jest # wersji za main, więc nie ma ich zmian.} other { Fork „{fork}” jest # wersji za main, więc nie ma ich zmian.}}"
       },
       "history": {
         "title": "Historia: {line}",
@@ -8177,13 +8189,12 @@
         "showChanges": "Pokaż zmiany",
         "hideChanges": "Ukryj zmiany",
         "restore": "Przywróć",
-        "restoreVersion": "Przywróć v{number}",
-        "restoreTitle": "Przywrócić v{number}?",
-        "restoreMain": "v{number} wraca jako najnowsza wersja na main. Agenci podążający za main dostaną ją od razu; przypięci agenci i forki zostają przy swojej wersji.",
-        "restoreFork": "v{number} wraca jako najnowsza wersja forka „{name}”. Agenci forka dostaną ją od razu.",
-        "restored": "v{number} wróciła jako v{made}.",
-        "number": "v{number}",
-        "restoredFrom": "Przywrócona z v{number}",
+        "restoreVersion": "Przywróć {version}",
+        "restoreTitle": "Przywrócić {version}?",
+        "restoreMain": "{version} wraca jako najnowsza wersja na main. Agenci podążający za main dostaną ją od razu; przypięci agenci i forki zostają przy swojej wersji.",
+        "restoreFork": "{version} wraca jako najnowsza wersja forka „{name}”. Agenci forka dostaną ją od razu.",
+        "restored": "{version} wróciła jako {made}.",
+        "restoredFrom": "Przywrócona z {version}",
         "source": {
           "backfill": "Stan z początku wersjonowania",
           "created": "Utworzona",
@@ -8205,7 +8216,10 @@
           "added": "dodany",
           "removed": "usunięty",
           "changed": "zmieniony"
-        }
+        },
+        "versionLabel": "{fork, select, yes {{name} v{number}} other {v{number}}}",
+        "forkEmpty": "Fork nie ma jeszcze własnej wersji: czyta v{number} z main. Edytuj forka, żeby wprowadzić pierwszą zmianę.",
+        "forkStarts": "Tu zaczyna się fork „{name}”"
       },
       "tree": {
         "title": "Drzewo wersji",
@@ -8215,7 +8229,8 @@
         "latest": "najnowsza",
         "fork": "Fork „{name}”",
         "forkFacts": "{changes, plural, =0 {jeszcze bez zmian} one {# zmiana} few {# zmiany} many {# zmian} other {# zmiany}}{behind, plural, =0 {} other { · # za main}}",
-        "moreAgents": "+{count}"
+        "moreAgents": "+{count}",
+        "forkNumber": "{name} v{number}"
       },
       "edit": {
         "saved": "Zapisano jako v{number}.",
@@ -8226,7 +8241,8 @@
         "lineMoved": "Ktoś zapisał nowszą wersję, odkąd to otworzyłeś. Twój tekst nadal tu jest: skopiuj go, zamknij i otwórz najnowszą wersję, żeby go tam wprowadzić.",
         "forkFiles": "Do forka należą tylko opis i instrukcje. Jego pliki pochodzą z wersji main, od której wystartował, a pliki edytuje się na main.",
         "noBase": "Ten skill nie ma jeszcze zapisanej wersji, na której można zapisać zmianę. Odśwież stronę i spróbuj ponownie.",
-        "retryFork": "Wczytaj fork ponownie"
+        "retryFork": "Wczytaj fork ponownie",
+        "savedFork": "Zapisano jako {name} v{number}."
       },
       "newFork": {
         "button": "Nowy fork",
@@ -8250,6 +8266,13 @@
         "close": "OK",
         "cancel": "Anuluj",
         "delete": "Usuń"
+      },
+      "usage": {
+        "title": "Użycie w ostatnich {days} dniach",
+        "loads": "{count, plural, =0 {Nie otwierany} one {Otwarty raz} few {Otwarty # razy} many {Otwarty # razy} other {Otwarty # razy}}",
+        "none": "Żaden agent nie otworzył tego skilla w ostatnich {days} dniach. Runy ewaluacji i panelu testowego się nie liczą.",
+        "agent": "{loads, plural, one {otwarty raz} few {otwarty # razy} many {otwarty # razy} other {otwarty # razy}}{files, plural, =0 {} one { · przeczytany 1 plik} few { · przeczytane # pliki} many { · przeczytanych # plików} other { · przeczytano # pliku}}{seen, select, yes { · ostatnio {last}} other {}}",
+        "hidden": "{count, plural, one {1 agent, którego nie widzisz,} few {# agentów, których nie widzisz,} many {# agentów, których nie widzisz,} other {# agenta, którego nie widzisz,}} {count, plural, one {otworzył} other {otworzyło}} go {loads, plural, one {raz} few {# razy} many {# razy} other {# razy}}."
       }
     },
     "savedMainVersion": "Zapisano jako nową wersję main. Agenci na main czytają ją od następnego uruchomienia; przypięci agenci i forki zostają przy swoich."

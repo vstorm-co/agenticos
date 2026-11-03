@@ -7,11 +7,15 @@
  * own holds its agents on the branch itself, since it still serves its base.
  *
  * Only versions somebody would look for are drawn - each line's latest, v1, a version
- * an agent uses and a fork's base; every other stretch of two or more folds into one
- * row, so twenty versions nobody uses take one line.
+ * an agent uses and a fork's base; on a line of eight versions or more, every other
+ * stretch of two or more folds into one row, so twenty versions nobody uses take one
+ * line while a short line stays whole.
  */
 
 import type { SkillAgentUsage, SkillFork } from "@/types/skill-versions";
+
+/** How many versions a line has before stretches nobody uses fold. */
+const FOLDS_FROM = 8;
 
 export interface TreeVersion {
   kind: "version";
@@ -89,6 +93,7 @@ function lineRows({
   forksAt?: (number: number) => TreeFork[];
 }): TreeRow[] {
   const shown = (number: number) =>
+    latest < FOLDS_FROM ||
     number === latest ||
     number === 1 ||
     unfolded.has(number) ||

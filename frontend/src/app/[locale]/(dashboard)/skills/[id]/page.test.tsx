@@ -13,6 +13,13 @@ const state = vi.hoisted(() => ({
   tab: null as string | null,
   show: null as string | null,
   push: vi.fn(),
+  runsView: false,
+}));
+vi.mock("@/hooks/use-permissions", () => ({
+  usePermissions: () => ({
+    can: (permission: string) => permission === "runs:view" && state.runsView,
+    isLoading: false,
+  }),
 }));
 vi.mock("next/navigation", async (original) => ({
   ...(await original<typeof import("next/navigation")>()),
@@ -172,6 +179,7 @@ async function mount() {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  state.runsView = false;
   state.tab = null;
   state.show = null;
   skill.canEdit = true;
@@ -425,5 +433,26 @@ describe("SkillPage's lines and writes", () => {
     await mount();
     await screen.findByText("v12 · main");
     expect(screen.queryByRole("button", { name: "New fork" })).toBeNull();
+  });
+
+  it("shows how much the skill is used to a reader of runs", async () => {
+    state.runsView = true;
+    vi.mocked(apiClient.get).mockImplementation(async (path: string) =>
+      path === "/skills/s1/usage?days=30"
+        ? { days: 30, since: "", loads: 0, agents: [], hidden_agents: 0, hidden_loads: 0 }
+        : serveOnce(path),
+    );
+    await mount();
+
+    expect(await screen.findByText("Use in the last 30 days")).toBeInTheDocument();
+  });
+
+  it("names the agents bound only in a draft, and an empty fork", async () => {
+    await mount();
+
+    await userEvent.click(await screen.findByRole("button", { name: "Only in the draft (1)" }));
+    expect(screen.getByText("Drafty")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Pinned (1)" }));
+    expect(screen.getByText("HR")).toBeInTheDocument();
   });
 });
