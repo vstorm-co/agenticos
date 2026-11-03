@@ -1,7 +1,7 @@
 """Channel prompts against Postgres: what a press can find, and in what order (#2064)."""
 
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from sqlalchemy.exc import IntegrityError
@@ -89,6 +89,53 @@ async def test_a_typed_answer_finds_the_oldest_open_question_put_to_its_sender(
     run.status = RunStatus.COMPLETED.value
     await db.flush()
     assert await find(run.user_id, "C2") is None
+
+
+async def test_a_message_sent_before_a_question_was_offered_never_answers_it(
+    db: AsyncSession,
+) -> None:
+    org, bot, run_id = await _estate(db)
+    run = await agent_run_repo.get_run(db, run_id, organization_id=org.id)
+    assert run is not None and run.user_id is not None
+    run.status = RunStatus.AWAITING_ANSWER.value
+    asked: list[uuid.UUID] = []
+    for index, offered in enumerate(
+        (datetime(2026, 1, 1, 10, tzinfo=UTC), datetime(2026, 1, 1, 12, tzinfo=UTC))
+    ):
+        prompt = await channel_prompt_repo.create(
+            db,
+            organization_id=org.id,
+            bot_id=bot.id,
+            run_id=run_id,
+            platform_chat_id="C1",
+            kind=QUESTION,
+            tool_call_id="ask-1",
+            question_index=index,
+            choices=[],
+            allow_custom=True,
+        )
+        prompt.created_at = offered
+        asked.append(prompt.id)
+    await db.flush()
+    sent = datetime(2026, 1, 1, 11, tzinfo=UTC)
+
+    async def find(sent_before: datetime | None):
+        return await channel_prompt_repo.claim_typed(
+            db,
+            bot_id=bot.id,
+            platform_chat_id="C1",
+            user_id=run.user_id,
+            sent_before=sent_before,
+        )
+
+    # Typed after the first question and before the second: it answers only the first.
+    first = await find(sent)
+    assert first is not None and first.id == asked[0]
+    await channel_prompt_repo.answer(db, prompt=first, value={"answer": "x"})
+    assert await find(sent) is None
+    # A platform that does not say when a message was sent keeps the behaviour it had.
+    unrestricted = await find(None)
+    assert unrestricted is not None and unrestricted.id == asked[1]
 
 
 async def test_a_question_s_rows_come_back_in_order_and_record_their_answers(
@@ -180,3 +227,114 @@ async def test_next_steps_keep_the_kind_of_chat_a_press_is_replayed_into(
             kind=FOLLOW_UP,
             choices=["Make it a table"],
         )
+
+
+async def test_a_whatsapp_message_waiting_behind_a_re_offer_is_not_its_answer(
+    db: AsyncSession,
+) -> None:
+    """The second webhook of a held run's customer, queued while the question is offered again."""
+    from app.services.channels.whatsapp_payload import WhatsAppMessage, to_incoming
+
+    org, bot, run_id = await _estate(db)
+    run = await agent_run_repo.get_run(db, run_id, organization_id=org.id)
+    assert run is not None and run.user_id is not None
+    run.status = RunStatus.AWAITING_ANSWER.value
+    typed = datetime(2026, 11, 4, 10, tzinfo=UTC)
+
+    def message(sent_at: datetime) -> WhatsAppMessage:
+        return WhatsAppMessage(
+            wamid="wamid.X",
+            bsuid="US.111",
+            kind="text",
+            text="any news?",
+            sent_at=sent_at,
+            profile_name=None,
+            username=None,
+            phone=None,
+            media_id=None,
+            mime_type=None,
+            filename=None,
+        )
+
+    prompt = await channel_prompt_repo.create(
+        db,
+        organization_id=org.id,
+        bot_id=bot.id,
+        run_id=run_id,
+        platform_chat_id="US.111",
+        kind=QUESTION,
+        tool_call_id="ask-1",
+        question_index=0,
+        choices=[],
+        allow_custom=True,
+    )
+    prompt.created_at = typed + timedelta(seconds=30)
+    await db.flush()
+
+    async def claimed(sent_at: datetime):
+        incoming = to_incoming(message(sent_at), bot_id=str(bot.id), organization_id=org.id)
+        return await channel_prompt_repo.claim_typed(
+            db,
+            bot_id=bot.id,
+            platform_chat_id="US.111",
+            user_id=run.user_id,
+            sent_before=incoming.sent_at,
+        )
+
+    assert await claimed(typed) is None
+    found = await claimed(typed + timedelta(minutes=1))
+    assert found is not None and found.id == prompt.id
+
+
+async def test_offering_a_run_twice_leaves_one_set_of_rows_and_answering_it_settles_the_call(
+    db: AsyncSession,
+) -> None:
+    """A second set would leave the call waiting for answers nobody can give."""
+    from unittest.mock import AsyncMock, MagicMock, patch
+
+    from app.agents.ask_user import QuestionChoice, QuestionItem
+    from app.schemas.agent import ParkedQuestion
+    from app.services.channels.prompts import ChannelPrompts
+
+    _org, bot, run_id = await _estate(db)
+    asked = ParkedQuestion(
+        tool_call_id="ask-1",
+        questions=[
+            QuestionItem(question="One?", options=[QuestionChoice(label="A")]),
+            QuestionItem(question="Two?", options=[QuestionChoice(label="B")]),
+        ],
+    )
+    adapter = MagicMock(send_prompt=AsyncMock())
+    service = ChannelPrompts(db)
+    with (
+        patch("app.services.channels.prompts.get_adapter", return_value=adapter),
+        patch("app.services.channels.prompts.unseal_bot_token", return_value="t"),
+        patch.object(service.runner, "parked_calls", new=AsyncMock(return_value=[])),
+        patch.object(service.runner, "parked_questions", new=AsyncMock(return_value=[asked])),
+    ):
+        await service.offer(bot, platform="slack", platform_chat_id="C1", run_id=run_id)
+        # The reopened chat, a re-parked run: the same questions again.
+        await service.offer(bot, platform="slack", platform_chat_id="C1", run_id=run_id)
+        assert adapter.send_prompt.await_count == 2
+        await service.offer(
+            bot, platform="slack", platform_chat_id="C1", run_id=run_id, resend=True
+        )
+        assert adapter.send_prompt.await_count == 4
+
+    rows = await channel_prompt_repo.for_call(db, run_id=run_id, tool_call_id="ask-1")
+    assert [row.question_index for row in rows] == [0, 1]
+    for row in rows:
+        await channel_prompt_repo.answer(db, prompt=row, value={"answer": "x"})
+    assert all(row.answered_at is not None for row in rows)
+    # Answered, they are not asked again, whatever the caller wants resent.
+    with (
+        patch("app.services.channels.prompts.get_adapter", return_value=adapter),
+        patch("app.services.channels.prompts.unseal_bot_token", return_value="t"),
+        patch.object(service.runner, "parked_calls", new=AsyncMock(return_value=[])),
+        patch.object(service.runner, "parked_questions", new=AsyncMock(return_value=[asked])),
+    ):
+        await service.offer(
+            bot, platform="slack", platform_chat_id="C1", run_id=run_id, resend=True
+        )
+    assert adapter.send_prompt.await_count == 4
+    assert len(await channel_prompt_repo.for_run(db, run_id=run_id, bot_id=bot.id)) == 2

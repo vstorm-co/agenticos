@@ -8,7 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.agent_run import AgentRun, RunStatus
-from app.db.models.channel_prompt import QUESTION, ChannelPrompt
+from app.db.models.channel_prompt import FOLLOW_UP, QUESTION, ChannelPrompt
 
 
 async def create(
@@ -63,13 +63,21 @@ async def claim(db: AsyncSession, prompt_id: UUID, *, bot_id: UUID) -> ChannelPr
 
 
 async def claim_typed(
-    db: AsyncSession, *, bot_id: UUID, platform_chat_id: str, user_id: UUID
+    db: AsyncSession,
+    *,
+    bot_id: UUID,
+    platform_chat_id: str,
+    user_id: UUID,
+    sent_before: datetime | None = None,
 ) -> ChannelPrompt | None:
     """The oldest question in this chat that this person may answer by typing.
 
     Only a question put to them - the run's own person - on a run still waiting
     for it, and held like a press's prompt so two quick messages answer it once.
+    With `sent_before` (when the message was sent), a question created after it
+    is never taken: the message was typed before the question existed.
     """
+    offered_before = [] if sent_before is None else [ChannelPrompt.created_at <= sent_before]
     result = await db.execute(
         select(ChannelPrompt)
         .join(AgentRun, AgentRun.id == ChannelPrompt.run_id)
@@ -83,6 +91,7 @@ async def claim_typed(
             # A publisher standing in for a stranger was never the one asked.
             AgentRun.initiated_by_publisher_fallback.is_(False),
             AgentRun.status == RunStatus.AWAITING_ANSWER.value,
+            *offered_before,
         )
         .order_by(ChannelPrompt.created_at, ChannelPrompt.question_index)
         .limit(1)
@@ -122,5 +131,22 @@ async def for_call(db: AsyncSession, *, run_id: UUID, tool_call_id: str) -> list
         select(ChannelPrompt)
         .where(ChannelPrompt.run_id == run_id, ChannelPrompt.tool_call_id == tool_call_id)
         .order_by(ChannelPrompt.question_index)
+    )
+    return list(result.scalars().all())
+
+
+async def for_run(db: AsyncSession, *, run_id: UUID, bot_id: UUID) -> list[ChannelPrompt]:
+    """Every approval and question this bot offered for the run, answered or not.
+
+    Next steps are left out: they are not something the run waits on.
+    """
+    result = await db.execute(
+        select(ChannelPrompt)
+        .where(
+            ChannelPrompt.run_id == run_id,
+            ChannelPrompt.bot_id == bot_id,
+            ChannelPrompt.kind != FOLLOW_UP,
+        )
+        .order_by(ChannelPrompt.created_at, ChannelPrompt.id)
     )
     return list(result.scalars().all())

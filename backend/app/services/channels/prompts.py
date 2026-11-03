@@ -18,6 +18,7 @@ presser is told to link, like an unlinked sender.
 import logging
 import re
 from dataclasses import replace
+from datetime import datetime
 from functools import cache
 from uuid import UUID
 
@@ -182,9 +183,20 @@ class ChannelPrompts:
         self.runner = AgentRunnerService(db)
 
     async def offer(
-        self, bot: ChannelBot, *, platform: str, platform_chat_id: str, run_id: UUID
+        self,
+        bot: ChannelBot,
+        *,
+        platform: str,
+        platform_chat_id: str,
+        run_id: UUID,
+        resend: bool = False,
     ) -> None:
         """Put what the run is waiting on in front of the chat, one message each.
+
+        Idempotent: what the run waits on has at most one row each, so offering it
+        again creates none. A row still open is sent again only with `resend`, for a
+        caller that knows the first message never arrived (a platform that held it);
+        otherwise it is left as it is.
 
         Never raises: the answer the turn produced is already posted, and a
         prompt that could not be sent leaves the run where the console and the
@@ -192,13 +204,17 @@ class ChannelPrompts:
         """
         try:
             await self._offer(
-                bot, platform=platform, platform_chat_id=platform_chat_id, run_id=run_id
+                bot,
+                platform=platform,
+                platform_chat_id=platform_chat_id,
+                run_id=run_id,
+                resend=resend,
             )
         except Exception:
             logger.exception("Could not offer run %s's prompts on %s", run_id, platform)
 
     async def _offer(
-        self, bot: ChannelBot, *, platform: str, platform_chat_id: str, run_id: UUID
+        self, bot: ChannelBot, *, platform: str, platform_chat_id: str, run_id: UUID, resend: bool
     ) -> None:
         run = await agent_run_repo.get_run(self.db, run_id, organization_id=bot.organization_id)
         if run is None:
@@ -213,17 +229,28 @@ class ChannelPrompts:
         )
         adapter = get_adapter(platform)
         token = unseal_bot_token(bot)
+        # A call is answered once all its rows are, so a second set of rows for the
+        # same approval or question would leave the run waiting on answers nobody can give.
+        existing = await channel_prompt_repo.for_run(self.db, run_id=run.id, bot_id=bot.id)
+        approvals = {row.approval_id: row for row in existing if row.kind == APPROVAL}
+        questions = {
+            (row.tool_call_id, row.question_index): row for row in existing if row.kind == QUESTION
+        }
         for call in await self.runner.parked_calls(reader, run):
-            prompt = await channel_prompt_repo.create(
-                self.db,
-                organization_id=bot.organization_id,
-                bot_id=bot.id,
-                run_id=run.id,
-                platform_chat_id=platform_chat_id,
-                kind=APPROVAL,
-                approval_id=call.id,
-                choices=[APPROVE, REJECT],
-            )
+            prompt = approvals.get(call.id)
+            if prompt is None:
+                prompt = await channel_prompt_repo.create(
+                    self.db,
+                    organization_id=bot.organization_id,
+                    bot_id=bot.id,
+                    run_id=run.id,
+                    platform_chat_id=platform_chat_id,
+                    kind=APPROVAL,
+                    approval_id=call.id,
+                    choices=[APPROVE, REJECT],
+                )
+            elif prompt.answered_at is not None or not resend:
+                continue
             await adapter.send_prompt(
                 token,
                 self._message(
@@ -237,20 +264,24 @@ class ChannelPrompts:
             offered: list[ChannelPrompt] = []
             try:
                 for index, question in enumerate(parked.questions):
-                    prompt = await channel_prompt_repo.create(
-                        self.db,
-                        organization_id=bot.organization_id,
-                        bot_id=bot.id,
-                        run_id=run.id,
-                        platform_chat_id=platform_chat_id,
-                        kind=QUESTION,
-                        tool_call_id=parked.tool_call_id,
-                        question_index=index,
-                        choices=[option.label for option in question.options],
-                        multi_select=question.multi_select,
-                        # A question with no options can only be answered in words.
-                        allow_custom=question.allow_custom or not question.options,
-                    )
+                    prompt = questions.get((parked.tool_call_id, index))
+                    if prompt is None:
+                        prompt = await channel_prompt_repo.create(
+                            self.db,
+                            organization_id=bot.organization_id,
+                            bot_id=bot.id,
+                            run_id=run.id,
+                            platform_chat_id=platform_chat_id,
+                            kind=QUESTION,
+                            tool_call_id=parked.tool_call_id,
+                            question_index=index,
+                            choices=[option.label for option in question.options],
+                            multi_select=question.multi_select,
+                            # A question with no options can only be answered in words.
+                            allow_custom=question.allow_custom or not question.options,
+                        )
+                    elif prompt.answered_at is not None or not resend:
+                        continue
                     offered.append(prompt)
                     heading = f"*{question.header}* - " if question.header else ""
                     typed = f"\n{TYPE_IT}" if prompt.allow_custom else ""
@@ -370,6 +401,7 @@ class ChannelPrompts:
         platform_chat_id: str,
         platform_user_id: str,
         text: str,
+        sent_at: datetime | None = None,
     ) -> bool:
         """Answer, with a message, the question this chat put to its sender.
 
@@ -377,12 +409,17 @@ class ChannelPrompts:
         its buttons and a line saying they may type instead; this is the typing.
         The oldest such question for them in the chat takes the message whole.
         `False` when there is none, and the message is a turn like any other.
+        A question offered after `sent_at` is not one: the message was typed before it.
         """
         ctx = await linked_member(self.db, bot, platform, platform_user_id)
         if ctx is None or ctx.user_id is None or not text.strip():
             return False
         prompt = await channel_prompt_repo.claim_typed(
-            self.db, bot_id=bot.id, platform_chat_id=platform_chat_id, user_id=ctx.user_id
+            self.db,
+            bot_id=bot.id,
+            platform_chat_id=platform_chat_id,
+            user_id=ctx.user_id,
+            sent_before=sent_at,
         )
         if prompt is None:
             return False

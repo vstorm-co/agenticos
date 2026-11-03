@@ -6,7 +6,7 @@ import logging
 import re
 import time
 from collections.abc import AsyncGenerator, Awaitable, Callable, Sequence
-from contextlib import asynccontextmanager
+from contextlib import AbstractAsyncContextManager, asynccontextmanager
 from dataclasses import replace
 from datetime import UTC, datetime
 from types import SimpleNamespace
@@ -144,6 +144,16 @@ class _ChatLocks:
 
 
 _chat_locks = _ChatLocks()
+
+
+def chat_lock(bot_id: str, chat_id: str) -> AbstractAsyncContextManager[None]:
+    """The lock a chat's turns run under, for work that must not interleave with one.
+
+    Not reentrant: `route` takes it itself, so hold it around work that does not
+    route.
+    """
+    return _chat_locks.hold(bot_id, chat_id)
+
 
 # The turn each chat is running in this process, so a message that arrives
 # behind it can join it rather than wait for it (#2087). Per process like the
@@ -555,6 +565,7 @@ class ChannelMessageRouter:
             platform_chat_id=incoming.platform_chat_id,
             platform_user_id=incoming.platform_user_id,
             text=incoming.text,
+            sent_at=incoming.sent_at,
         ):
             return
 

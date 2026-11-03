@@ -47,19 +47,29 @@ def upgrade() -> None:
         sa.Column("organization_id", sa.UUID(), nullable=False),
         sa.Column("customer_id", sa.UUID(), nullable=False),
         sa.Column("run_id", sa.UUID(), nullable=False),
+        sa.Column("message_id", sa.UUID(), nullable=True),
         sa.Column("held_answer", sa.Boolean(), server_default=sa.false(), nullable=False),
         sa.Column("held_files", sa.Boolean(), server_default=sa.false(), nullable=False),
         sa.Column("claimed_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("hold_version", sa.Integer(), server_default="1", nullable=False),
         sa.Column(
             "created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False
         ),
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=True),
         sa.ForeignKeyConstraint(["customer_id"], ["whatsapp_customers.id"], ondelete="CASCADE"),
         sa.ForeignKeyConstraint(["organization_id"], ["organizations.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(["message_id"], ["messages.id"], ondelete="CASCADE"),
         sa.ForeignKeyConstraint(["run_id"], ["agent_runs.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id"),
-        sa.UniqueConstraint("customer_id", "run_id", name="uq_whatsapp_held_run_customer_run"),
+        sa.UniqueConstraint(
+            "customer_id",
+            "run_id",
+            "message_id",
+            name="uq_whatsapp_held_run_customer_run_message",
+            postgresql_nulls_not_distinct=True,
+        ),
     )
+    op.create_index(op.f("whatsapp_held_runs_message_id_idx"), "whatsapp_held_runs", ["message_id"])
     op.create_index(op.f("whatsapp_held_runs_run_id_idx"), "whatsapp_held_runs", ["run_id"])
     op.add_column(
         "channel_bots",
@@ -73,6 +83,7 @@ def upgrade() -> None:
 def downgrade() -> None:
     op.drop_column("agent_runs", "undelivered_reason")
     op.drop_column("channel_bots", "whatsapp_late_template")
+    op.drop_index(op.f("whatsapp_held_runs_message_id_idx"), table_name="whatsapp_held_runs")
     op.drop_index(op.f("whatsapp_held_runs_run_id_idx"), table_name="whatsapp_held_runs")
     op.drop_table("whatsapp_held_runs")
     op.drop_index(op.f("whatsapp_customers_organization_id_idx"), table_name="whatsapp_customers")

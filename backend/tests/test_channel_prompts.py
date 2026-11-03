@@ -7,6 +7,7 @@ its call's questions is answered; and whatever was decided is said in the chat.
 """
 
 import uuid
+from datetime import UTC, datetime
 from types import SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -45,6 +46,7 @@ _MODULE = "app.services.channels.prompts"
 ORG = uuid.uuid4()
 USER = uuid.uuid4()
 RUN = uuid.uuid4()
+APPROVAL_ID = uuid.uuid4()
 
 
 def _bot() -> MagicMock:
@@ -137,6 +139,8 @@ class _Patched:
             ),
             patch(f"{_MODULE}.agent_run_repo.claim_parked_run", new=AsyncMock(return_value=None)),
             patch(f"{_MODULE}.channel_prompt_repo.pick", new=self._pick),
+            # Nothing was offered before, unless a test says otherwise.
+            patch(f"{_MODULE}.channel_prompt_repo.for_run", new=AsyncMock(return_value=[])),
         ]
 
     async def _pick(self, db: Any, *, prompt: MagicMock, selected: list[str]) -> MagicMock:
@@ -377,6 +381,114 @@ class TestOffering:
 
         delete.assert_awaited_once_with(service.db, rows)
         assert [choice.label for choice in second.choices] == ["B", "Done", SKIP]
+
+    async def _offer_with_rows(self, rows: list[MagicMock], *, resend: bool):
+        """Offer an approval and a two-question call the chat already has `rows` for."""
+        bot = _bot()
+        approval = ParkedCall(
+            id=APPROVAL_ID, tool_call_id="c1", tool_name="gmail_send_email", tool_args={}
+        )
+        asked = ParkedQuestion(
+            tool_call_id="ask-1",
+            questions=[
+                QuestionItem(question="One?", options=[QuestionChoice(label="A")]),
+                QuestionItem(question="Two?", options=[QuestionChoice(label="B")]),
+            ],
+        )
+        service = ChannelPrompts(_session())
+        created: list[dict[str, Any]] = []
+
+        async def create(db: Any, **fields: Any) -> MagicMock:
+            created.append(fields)
+            return _prompt(**fields)
+
+        with _Patched(bot=bot, prompt=None, role="member") as env:
+            with (
+                patch(
+                    f"{_MODULE}.agent_run_repo.get_run",
+                    new=AsyncMock(return_value=MagicMock(id=RUN, user_id=USER)),
+                ),
+                patch(f"{_MODULE}.channel_prompt_repo.for_run", new=AsyncMock(return_value=rows)),
+                patch(f"{_MODULE}.channel_prompt_repo.create", new=create),
+                patch.object(
+                    service.runner, "parked_calls", new=AsyncMock(return_value=[approval])
+                ),
+                patch.object(
+                    service.runner, "parked_questions", new=AsyncMock(return_value=[asked])
+                ),
+            ):
+                await service.offer(
+                    bot, platform="slack", platform_chat_id="C1", run_id=RUN, resend=resend
+                )
+            sent = [call.args[1] for call in env.adapter.send_prompt.await_args_list]
+        return created, sent
+
+    @staticmethod
+    def _open_rows(**fields: Any) -> list[MagicMock]:
+        return [
+            _prompt(APPROVAL, approval_id=APPROVAL_ID, **fields),
+            _prompt(QUESTION, tool_call_id="ask-1", question_index=0, allow_custom=False, **fields),
+            _prompt(QUESTION, tool_call_id="ask-1", question_index=1, allow_custom=False, **fields),
+        ]
+
+    async def test_offering_what_is_already_open_creates_no_second_set_of_rows(self):
+        """A second set would leave the call waiting for answers the customer cannot give."""
+        created, sent = await self._offer_with_rows(self._open_rows(), resend=False)
+
+        assert created == []
+        assert sent == []
+
+    async def test_a_resend_sends_the_open_rows_again_and_still_creates_none(self):
+        rows = self._open_rows()
+        created, sent = await self._offer_with_rows(rows, resend=True)
+
+        assert created == []
+        assert [message.choices[0].value.split(":")[1] for message in sent] == [
+            row.id.hex for row in rows
+        ]
+
+    async def test_what_was_answered_is_never_asked_again_even_on_a_resend(self):
+        rows = self._open_rows()
+        rows[0].answered_at = rows[1].answered_at = "earlier"
+        created, sent = await self._offer_with_rows(rows, resend=True)
+
+        assert created == []
+        assert [message.text for message in sent] == ["Two?"]
+
+    async def test_only_what_has_no_row_yet_is_created(self):
+        rows = self._open_rows()[:2]
+        created, sent = await self._offer_with_rows(rows, resend=False)
+
+        assert [(f["kind"], f.get("question_index")) for f in created] == [(QUESTION, 1)]
+        assert [message.text.split("\n")[0] for message in sent] == ["Two?"]
+
+    async def test_a_resend_the_chat_does_not_get_takes_the_questions_rows_back(self):
+        """The call is all-or-nothing in the chat: a row it never saw would hold the run."""
+        bot = _bot()
+        asked = ParkedQuestion(
+            tool_call_id="ask-1", questions=[QuestionItem(question="One?", options=[])]
+        )
+        row = _prompt(QUESTION, tool_call_id="ask-1", question_index=0)
+        service = ChannelPrompts(_session())
+        with _Patched(bot=bot, prompt=None, role="member") as env:
+            env.adapter.send_prompt = AsyncMock(side_effect=RuntimeError("closed"))
+            with (
+                patch(
+                    f"{_MODULE}.agent_run_repo.get_run",
+                    new=AsyncMock(return_value=MagicMock(id=RUN, user_id=USER)),
+                ),
+                patch(f"{_MODULE}.channel_prompt_repo.for_run", new=AsyncMock(return_value=[row])),
+                patch(f"{_MODULE}.channel_prompt_repo.delete", new=AsyncMock()) as delete,
+                patch.object(service.runner, "parked_calls", new=AsyncMock(return_value=[])),
+                patch.object(
+                    service.runner, "parked_questions", new=AsyncMock(return_value=[asked])
+                ),
+            ):
+                await service.offer(
+                    bot, platform="slack", platform_chat_id="C1", run_id=RUN, resend=True
+                )
+
+        delete.assert_awaited_once_with(service.db, [row])
 
     async def test_a_run_gone_or_a_failure_offers_nothing_and_raises_nothing(self):
         bot = _bot()
@@ -818,6 +930,7 @@ class TestTypingAnAnswer:
         text: str = "Kraków, please",
         answer_raises: Exception | None = None,
         segment=None,
+        sent_at: datetime | None = None,
     ) -> tuple[bool, _Patched, AsyncMock, AsyncMock]:
         bot = _bot()
         service = ChannelPrompts(_session())
@@ -846,8 +959,20 @@ class TestTypingAnAnswer:
                     platform_chat_id="C1:1.0",
                     platform_user_id="U1",
                     text=text,
+                    sent_at=sent_at,
                 )
             return taken, env, answer, claim
+
+    async def test_only_questions_offered_before_the_message_was_sent_can_take_it(self):
+        sent = datetime(2026, 1, 1, 11, tzinfo=UTC)
+        _, _, _, claim = await self._reply(
+            prompt=_prompt(QUESTION, allow_custom=True), sent_at=sent
+        )
+        assert claim.await_args.kwargs["sent_before"] == sent
+
+    async def test_a_message_with_no_sent_time_is_matched_as_it_always_was(self):
+        _, _, _, claim = await self._reply(prompt=_prompt(QUESTION, allow_custom=True))
+        assert claim.await_args.kwargs["sent_before"] is None
 
     async def test_the_message_answers_the_question_and_continues_the_run(self):
         taken, env, answer, claim = await self._reply(prompt=_prompt(QUESTION, allow_custom=True))

@@ -13,6 +13,7 @@ carry is named in it.
 import contextlib
 import uuid
 from collections.abc import Iterator, Sequence
+from datetime import UTC, datetime
 from types import SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -1158,10 +1159,41 @@ class TestATypedAnswerIsNotATurn:
             "platform_chat_id": "C1",
             "platform_user_id": "U1",
             "text": "Kraków, please",
+            "sent_at": None,
         }
         router._receive_files.assert_not_awaited()
         router._answer_mention.assert_not_awaited()
         assert rows == []
+
+    async def test_the_time_a_message_was_sent_reaches_the_typed_answer_claim(self):
+        router, _replies, rows = _router()
+        router._receive_files = AsyncMock()  # type: ignore[method-assign]
+        router._answer_mention = AsyncMock()  # type: ignore[method-assign]
+        sent = datetime(2026, 11, 4, 10, tzinfo=UTC)
+        incoming = IncomingMessage(
+            platform="whatsapp",
+            bot_id=str(uuid.uuid4()),
+            platform_user_id="O:US.1",
+            platform_chat_id="US.1",
+            chat_type="private",
+            text="Kraków, please",
+            sent_at=sent,
+        )
+
+        with (
+            _channel(_agent_router(), rows),
+            patch(
+                "app.services.channels.router.member_repo.get_active",
+                AsyncMock(return_value=MagicMock()),
+            ),
+            patch(
+                "app.services.channels.router.ChannelPrompts.reply",
+                AsyncMock(return_value=True),
+            ) as reply,
+        ):
+            await router._route_inner(incoming, MagicMock())
+
+        assert reply.await_args.kwargs["sent_at"] == sent
 
 
 class TestAWorkflowListeningToTheBot:

@@ -62,6 +62,12 @@ class WhatsAppStatus:
     wamid: str
     status: str
     error_codes: tuple[int, ...]
+    recipient: str | None = field(default=None, repr=False)
+    """The customer's BSUID (`recipient_user_id`)."""
+    at: datetime | None = None
+    """Meta's own `timestamp` on the status."""
+    callback: str | None = None
+    """`biz_opaque_callback_data` as sent: the run id of the message this status is about."""
 
 
 @dataclass(frozen=True)
@@ -175,7 +181,21 @@ def _status(raw: object) -> WhatsAppStatus | None:
         for error in (errors if isinstance(errors, list) else [])
         if isinstance(code := _mapping(error).get("code"), int)
     )
-    return WhatsAppStatus(wamid=wamid, status=status, error_codes=codes)
+    at: datetime | None = None
+    timestamp = item.get("timestamp")
+    if isinstance(timestamp, str | int):
+        try:
+            at = datetime.fromtimestamp(int(timestamp), UTC)
+        except ValueError, OverflowError, OSError:
+            at = None
+    return WhatsAppStatus(
+        wamid=wamid,
+        status=status,
+        error_codes=codes,
+        recipient=_str(item.get("recipient_user_id")),
+        at=at,
+        callback=_str(item.get("biz_opaque_callback_data")),
+    )
 
 
 def parse_webhook(
@@ -294,6 +314,7 @@ def to_incoming(message: WhatsAppMessage, *, bot_id: str, organization_id: UUID)
         platform_username=message.username or mask_phone(message.phone),
         platform_display_name=message.profile_name,
         message_id=message.wamid,
+        sent_at=message.sent_at,
         attachments=[attachment] if attachment else [],
     )
 

@@ -7,6 +7,7 @@ from contextlib import AbstractAsyncContextManager, asynccontextmanager
 from datetime import UTC, datetime, timedelta
 
 import pytest
+from sqlalchemy import delete as sql_delete
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
@@ -14,10 +15,11 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 from app.db.models.agent import Agent
 from app.db.models.agent_run import AgentRun
 from app.db.models.channel_bot import ChannelBot
+from app.db.models.conversation import Conversation, Message
 from app.db.models.organization import Organization
 from app.db.models.user import User
 from app.db.models.whatsapp_customer import WhatsAppCustomer, WhatsAppHeldRun
-from app.repositories import agent_run_repo, whatsapp_customer_repo
+from app.repositories import agent_run_repo, conversation_repo, whatsapp_customer_repo
 from app.services.channels.whatsapp_customers import Held, WindowStore
 from app.services.channels.whatsapp_templates import LateTemplate, to_stored
 from app.services.channels.whatsapp_window import CLAIM_LEASE
@@ -159,16 +161,22 @@ async def test_the_repository_updates_and_reads_what_it_holds(db: AsyncSession) 
     customer = await _customer(db, org, bot)
     await whatsapp_customer_repo.update(db, customer=customer, update_data={"window_closed_at": T1})
     assert customer.window_closed_at == T1
-    assert not await whatsapp_customer_repo.has_held(db, bot_id=bot.id, bsuid=BSUID)
+    assert not await whatsapp_customer_repo.has_held(
+        db, bot_id=bot.id, bsuid=BSUID, claimable_before=T3
+    )
     await whatsapp_customer_repo.hold_run(
         db, customer=customer, run_id=run.id, answer=True, files=False
     )
-    assert await whatsapp_customer_repo.has_held(db, bot_id=bot.id, bsuid=BSUID)
+    assert await whatsapp_customer_repo.has_held(
+        db, bot_id=bot.id, bsuid=BSUID, claimable_before=T3
+    )
     [row] = await whatsapp_customer_repo.held_runs(db, customer=customer, claimable_before=T3)
     await whatsapp_customer_repo.update_held(db, held=row, update_data={"claimed_at": T1})
     assert await whatsapp_customer_repo.held_runs(db, customer=customer, claimable_before=T1) == []
     await whatsapp_customer_repo.delete_held(db, held_id=row.id)
-    assert not await whatsapp_customer_repo.has_held(db, bot_id=bot.id, bsuid=BSUID)
+    assert not await whatsapp_customer_repo.has_held(
+        db, bot_id=bot.id, bsuid=BSUID, claimable_before=T3
+    )
 
 
 @pytest.mark.security
@@ -268,12 +276,12 @@ class TestTheStore:
         assert await store.hold_unless_open(
             str(bot.id), BSUID, run_id=str(runs[0]), answer=True, files=False, now=now
         )
-        assert not await store.has_held(str(bot.id), BSUID)
+        assert not await store.has_held(str(bot.id), BSUID, now=T3)
         late = T1 + timedelta(hours=30)
         assert not await store.hold_unless_open(
             str(bot.id), BSUID, run_id=str(runs[0]), answer=True, files=False, now=late
         )
-        assert await store.has_held(str(bot.id), BSUID)
+        assert await store.has_held(str(bot.id), BSUID, now=T3)
 
     async def test_a_hold_for_a_customer_with_no_record_creates_one_and_holds(
         self, sessions, estate
@@ -351,7 +359,7 @@ class TestTheStore:
         assert len(await store.claim_held(str(bot.id), BSUID, now=T3)) == 1
         await store.answer_sent(held, prompts_owed=False)
         assert await self._reason(sessions, runs[0]) is None
-        assert not await store.has_held(str(bot.id), BSUID)
+        assert not await store.has_held(str(bot.id), BSUID, now=T3)
 
     async def test_an_answer_sent_with_prompts_owed_keeps_the_row_until_done(
         self, sessions, estate
@@ -363,13 +371,142 @@ class TestTheStore:
         )
         [held] = await store.claim_held(str(bot.id), BSUID, now=T3)
         await store.answer_sent(held, prompts_owed=True)
-        assert await store.has_held(str(bot.id), BSUID)
+        assert not await store.has_held(str(bot.id), BSUID, now=T3)
         assert await store.claim_held(str(bot.id), BSUID, now=T3) == []
         async with sessions() as db:
             row = (await db.execute(select(WhatsAppHeldRun))).scalar_one()
             assert (row.held_answer, row.held_files, row.claimed_at) == (False, False, T3)
         await store.done(held)
-        assert not await store.has_held(str(bot.id), BSUID)
+        assert not await store.has_held(str(bot.id), BSUID, now=T3)
+
+    async def _held_row(self, sessions) -> WhatsAppHeldRun:
+        async with sessions() as db:
+            return (await db.execute(select(WhatsAppHeldRun))).scalar_one()
+
+    async def _rehold(self, sessions, estate, run_id, *, answer: bool, files: bool) -> None:
+        """A hold from a third session, as the late path or a reclaim makes it."""
+        org, bot, _ = estate
+        async with sessions() as third:
+            await whatsapp_customer_repo.hold_run(
+                third,
+                customer=await whatsapp_customer_repo.lock(
+                    third, organization_id=org.id, bot_id=bot.id, bsuid=BSUID
+                ),
+                run_id=run_id,
+                answer=answer,
+                files=files,
+            )
+
+    async def test_a_hold_merged_after_the_claim_survives_done(self, sessions, estate) -> None:
+        _, bot, runs = estate
+        store = WindowStore(sessions)
+        await store.hold_unless_open(
+            str(bot.id), BSUID, run_id=str(runs[0]), answer=False, files=False, now=T3
+        )
+        [held] = await store.claim_held(str(bot.id), BSUID, now=T3)
+        await self._rehold(sessions, estate, runs[0], answer=True, files=True)
+        await store.done(held)
+
+        row = await self._held_row(sessions)
+        assert (row.held_answer, row.held_files, row.claimed_at) == (True, True, None)
+        assert len(await store.claim_held(str(bot.id), BSUID, now=T3)) == 1
+
+    async def test_a_hold_merged_after_an_answer_sent_survives_the_prompts_done(
+        self, sessions, estate
+    ) -> None:
+        _, bot, runs = estate
+        store = WindowStore(sessions)
+        await store.hold_unless_open(
+            str(bot.id), BSUID, run_id=str(runs[0]), answer=True, files=False, now=T3
+        )
+        [held] = await store.claim_held(str(bot.id), BSUID, now=T3)
+        await store.answer_sent(held, prompts_owed=True)
+        await self._rehold(sessions, estate, runs[0], answer=True, files=False)
+        await store.done(held)
+
+        row = await self._held_row(sessions)
+        assert (row.held_answer, row.claimed_at) == (True, None)
+
+    async def test_a_rehold_with_identical_flags_during_the_send_survives(
+        self, sessions, estate
+    ) -> None:
+        """The adapter's late path holds the run again, with what the claim carried, while it sends."""
+        _, bot, runs = estate
+        store = WindowStore(sessions)
+        await store.hold_unless_open(
+            str(bot.id), BSUID, run_id=str(runs[0]), answer=True, files=False, now=T3
+        )
+        await store.record_undelivered(str(bot.id), str(runs[0]), "window_template_failed")
+        [held] = await store.claim_held(str(bot.id), BSUID, now=T3)
+        await self._rehold(sessions, estate, runs[0], answer=True, files=False)
+        await store.answer_sent(held, prompts_owed=False)
+
+        row = await self._held_row(sessions)
+        assert (row.held_answer, row.claimed_at) == (True, None)
+        assert await self._reason(sessions, runs[0]) == "window_template_failed"
+
+    async def test_a_hold_merged_during_an_answer_sent_keeps_the_row_and_the_reason(
+        self, sessions, estate
+    ) -> None:
+        _, bot, runs = estate
+        store = WindowStore(sessions)
+        await store.hold_unless_open(
+            str(bot.id), BSUID, run_id=str(runs[0]), answer=True, files=False, now=T3
+        )
+        await store.record_undelivered(str(bot.id), str(runs[0]), "window_no_template")
+        [held] = await store.claim_held(str(bot.id), BSUID, now=T3)
+        await self._rehold(sessions, estate, runs[0], answer=False, files=True)
+        await store.answer_sent(held, prompts_owed=True)
+
+        row = await self._held_row(sessions)
+        assert (row.held_answer, row.held_files, row.claimed_at) == (True, True, None)
+        assert await self._reason(sessions, runs[0]) == "window_no_template"
+
+    async def test_an_unchanged_row_is_deleted_by_done(self, sessions, estate) -> None:
+        _, bot, runs = estate
+        store = WindowStore(sessions)
+        await store.hold_unless_open(
+            str(bot.id), BSUID, run_id=str(runs[0]), answer=False, files=False, now=T3
+        )
+        [held] = await store.claim_held(str(bot.id), BSUID, now=T3)
+        await store.done(held)
+        assert not await store.has_held(str(bot.id), BSUID, now=T3)
+
+    async def test_a_live_claim_still_owing_an_answer_or_files_is_something_to_wait_for(
+        self, sessions, estate
+    ) -> None:
+        _, bot, runs = estate
+        store = WindowStore(sessions)
+        await store.hold_unless_open(
+            str(bot.id), BSUID, run_id=str(runs[0]), answer=False, files=True, now=T3
+        )
+        await store.claim_held(str(bot.id), BSUID, now=T3)
+        assert await store.has_held(str(bot.id), BSUID, now=T3)
+
+    async def test_a_live_claim_owing_only_prompts_is_not_something_to_wait_for(
+        self, sessions, estate
+    ) -> None:
+        _, bot, runs = estate
+        store = WindowStore(sessions)
+        await store.hold_unless_open(
+            str(bot.id), BSUID, run_id=str(runs[0]), answer=False, files=False, now=T3
+        )
+        assert await store.has_held(str(bot.id), BSUID, now=T3)
+        await store.claim_held(str(bot.id), BSUID, now=T3)
+        assert not await store.has_held(str(bot.id), BSUID, now=T3)
+        assert await store.has_held(str(bot.id), BSUID, now=T3 + CLAIM_LEASE + timedelta(seconds=1))
+
+    async def test_a_settlement_covering_everything_still_clears_the_row(
+        self, sessions, estate
+    ) -> None:
+        _, bot, runs = estate
+        store = WindowStore(sessions)
+        await store.hold_unless_open(
+            str(bot.id), BSUID, run_id=str(runs[0]), answer=True, files=True, now=T3
+        )
+        [held] = await store.claim_held(str(bot.id), BSUID, now=T3)
+        await store.answer_sent(held, prompts_owed=False)
+        assert not await store.has_held(str(bot.id), BSUID, now=T3)
 
     async def test_hold_new_is_true_once_per_run(self, sessions, estate) -> None:
         _, bot, runs = estate
@@ -404,7 +541,7 @@ class TestTheStore:
         _, bot, _ = estate
         store = WindowStore(sessions)
         assert await store.window(str(bot.id), BSUID, now=T3) is None
-        assert not await store.has_held(str(bot.id), BSUID)
+        assert not await store.has_held(str(bot.id), BSUID, now=T3)
 
     async def test_the_late_template_reads_from_the_bot(self, sessions, estate) -> None:
         _, bot, _ = estate
@@ -441,3 +578,165 @@ class TestTheStore:
             assert row is not None
             await db.refresh(row)
             return row.undelivered_reason
+
+
+class TestEachOwedAnswerIsItsOwnRow:
+    """A run held twice owes two answers, and each row names the saved message it owes."""
+
+    @pytest.fixture
+    def sessions(
+        self, engine: AsyncEngine
+    ) -> Callable[[], AbstractAsyncContextManager[AsyncSession]]:
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+
+        @asynccontextmanager
+        async def open_session() -> AsyncGenerator[AsyncSession]:
+            async with factory() as session:
+                try:
+                    yield session
+                    await session.commit()
+                except BaseException:
+                    await session.rollback()
+                    raise
+
+        return open_session
+
+    @pytest.fixture
+    async def estate(self, sessions):
+        async with sessions() as db:
+            org, bot, user, agent = await _estate(db)
+            run = await _run(db, org, user, agent)
+            conversation = Conversation(user_id=user.id, organization_id=org.id)
+            db.add(conversation)
+            await db.flush()
+            run.conversation_id = conversation.id
+            return org, bot, run.id, conversation.id
+
+    async def _say(self, sessions, estate, text: str, *, role: str = "assistant") -> uuid.UUID:
+        _, _, run_id, conversation_id = estate
+        async with sessions() as db:
+            message = await conversation_repo.create_message(
+                db, conversation_id=conversation_id, role=role, content=text, run_id=run_id
+            )
+            return message.id
+
+    async def _rows(self, sessions) -> list[WhatsAppHeldRun]:
+        async with sessions() as db:
+            result = await db.execute(
+                select(WhatsAppHeldRun).order_by(WhatsAppHeldRun.created_at, WhatsAppHeldRun.id)
+            )
+            return list(result.scalars().all())
+
+    async def _hold(self, store, estate, **flags) -> None:
+        _, bot, run_id, _ = estate
+        await store.hold(str(bot.id), BSUID, run_id=str(run_id), **{"files": False, **flags})
+
+    async def test_two_late_answers_of_one_run_are_two_rows_pointing_at_their_messages(
+        self, sessions, estate
+    ) -> None:
+        _, bot, _, _ = estate
+        store = WindowStore(sessions)
+        first = await self._say(sessions, estate, "first")
+        await self._hold(store, estate, answer=True)
+        second = await self._say(sessions, estate, "second")
+        await self._hold(store, estate, answer=True)
+
+        claimed = await store.claim_held(str(bot.id), BSUID, now=T3)
+
+        assert [held.message_id for held in claimed] == [first, second]
+        assert all(held.answer for held in claimed)
+
+    async def test_the_reason_stays_while_another_answer_of_the_run_is_owed(
+        self, sessions, estate
+    ) -> None:
+        _, bot, run_id, _ = estate
+        store = WindowStore(sessions)
+        await self._say(sessions, estate, "first")
+        await self._hold(store, estate, answer=True)
+        await self._say(sessions, estate, "second")
+        await self._hold(store, estate, answer=True)
+        await store.record_undelivered(str(bot.id), str(run_id), "window_no_template")
+        first, second = await store.claim_held(str(bot.id), BSUID, now=T3)
+
+        await store.answer_sent(first, prompts_owed=False)
+        async with sessions() as db:
+            still = await db.scalar(
+                select(AgentRun.undelivered_reason).where(AgentRun.id == run_id)
+            )
+        assert still == "window_no_template"
+
+        await store.answer_sent(second, prompts_owed=False)
+        async with sessions() as db:
+            cleared = await db.scalar(
+                select(AgentRun.undelivered_reason).where(AgentRun.id == run_id)
+            )
+        assert cleared is None
+
+    async def test_holding_the_same_answer_again_is_one_row_with_a_newer_version(
+        self, sessions, estate
+    ) -> None:
+        store = WindowStore(sessions)
+        message = await self._say(sessions, estate, "only")
+        await self._hold(store, estate, answer=True)
+        await self._hold(store, estate, answer=True)
+
+        [row] = await self._rows(sessions)
+        assert (row.message_id, row.hold_version) == (message, 2)
+
+    async def test_the_prompts_of_a_run_are_their_own_row_beside_its_answers(
+        self, sessions, estate
+    ) -> None:
+        _, bot, _, _ = estate
+        store = WindowStore(sessions)
+        message = await self._say(sessions, estate, "an answer")
+        await self._hold(store, estate, answer=True)
+        await self._hold(store, estate, answer=False)
+        await self._hold(store, estate, answer=False)
+
+        rows = await self._rows(sessions)
+
+        assert sorted((row.message_id is None, row.held_answer) for row in rows) == [
+            (False, True),
+            (True, False),
+        ]
+        assert {row.message_id for row in rows} == {message, None}
+
+    async def test_a_user_message_is_never_the_one_owed(self, sessions, estate) -> None:
+        await self._say(sessions, estate, "a question", role="user")
+        await self._hold(WindowStore(sessions), estate, answer=True)
+
+        [row] = await self._rows(sessions)
+        assert row.message_id is None
+
+    async def test_deleting_the_message_removes_the_row_it_owed(self, sessions, estate) -> None:
+        message = await self._say(sessions, estate, "gone soon")
+        await self._hold(WindowStore(sessions), estate, answer=True)
+        async with sessions() as db:
+            await db.execute(sql_delete(Message).where(Message.id == message))
+
+        assert await self._rows(sessions) == []
+
+    @pytest.mark.security
+    async def test_the_answer_message_is_read_by_its_own_id_within_the_organization(
+        self, sessions, estate
+    ) -> None:
+        org, _, run_id, _ = estate
+        old = await self._say(sessions, estate, "old")
+        await self._say(sessions, estate, "newer")
+        async with sessions() as db:
+            found = await conversation_repo.answer_message(
+                db, old, run_id=run_id, organization_id=org.id
+            )
+            assert found is not None and found.content == "old"
+            assert (
+                await conversation_repo.answer_message(
+                    db, old, run_id=run_id, organization_id=uuid.uuid4()
+                )
+                is None
+            )
+            assert (
+                await conversation_repo.answer_message(
+                    db, old, run_id=uuid.uuid4(), organization_id=org.id
+                )
+                is None
+            )

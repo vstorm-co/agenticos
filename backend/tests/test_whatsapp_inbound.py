@@ -1,17 +1,27 @@
 """What a verified WhatsApp batch does: record each customer's window, queue their messages (#2076)."""
 
 import json
+import logging
 import time
 import uuid
+from collections.abc import AsyncGenerator, Iterator
+from contextlib import asynccontextmanager
+from dataclasses import replace
 from datetime import UTC, datetime
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import anyio
 import pytest
 
-from app.services.channels.base import IncomingMessage, IncomingPress
+from app.services.channels import whatsapp_inbound as inbound
+from app.services.channels.base import IncomingMessage, IncomingPress, OutgoingMessage
+from app.services.channels.router import chat_lock
+from app.services.channels.whatsapp_customers import Held, WindowStore
+from app.services.channels.whatsapp_graph import WhatsAppGraphError
 from app.services.channels.whatsapp_inbound import WhatsAppInbound, handle_customer
-from app.services.channels.whatsapp_payload import ParsedWebhook, parse_webhook
+from app.services.channels.whatsapp_payload import ParsedWebhook, WhatsAppMessage, parse_webhook
+from app.services.channels.whatsapp_window import FILES_NOT_DELIVERED
 from tests.test_whatsapp_payload import FIXTURES
 
 pytestmark = pytest.mark.anyio
@@ -78,6 +88,8 @@ async def _receive(
         patch(f"{MODULE}.whatsapp_customer_repo.record_inbound", AsyncMock()) as record,
         patch(f"{MODULE}.spawn_after_commit") as spawn,
         patch(f"{MODULE}.process_channel_events_in_order", process),
+        patch(f"{MODULE}.WindowStore", lambda: StubStore([], order=[])),
+        patch(f"{MODULE}.reclaim_after_refusal", AsyncMock()),
     ):
         await WhatsAppInbound(MagicMock()).receive(bot, parsed)
         for call in spawn.call_args_list:
@@ -125,10 +137,10 @@ async def test_a_tap_and_a_refused_sender_open_the_window_too():
 
 
 async def test_a_status_never_moves_the_window():
-    record, spawn, _, _ = await _receive(_parse(_fixture("statuses")))
+    record, _, _, routed = await _receive(_parse(_fixture("statuses")))
 
     record.assert_not_awaited()
-    spawn.assert_not_called()
+    assert routed == []
 
 
 async def test_each_customer_is_handled_after_the_commit_oldest_first():
@@ -201,3 +213,916 @@ async def test_a_template_button_tap_is_routed_as_a_message():
 
     assert isinstance(event, IncomingMessage)
     assert event.text == "Show me"
+
+
+BOT = "22222222-2222-2222-2222-222222222222"
+CHAT = "US.111"
+PARKED = "awaiting_answer"
+
+
+def _answer_id(run_id: uuid.UUID) -> uuid.UUID:
+    """The id of the saved answer `World.run` gives a run."""
+    return uuid.uuid5(uuid.NAMESPACE_URL, str(run_id))
+
+
+class StubStore(WindowStore):
+    """The held rows in memory, with the claim and settle rules the real store has."""
+
+    def __init__(self, rows: list[Held], *, window: bool | None = True, order: list[str]) -> None:
+        super().__init__()
+        self.rows = list(rows)
+        self.claimed: set[uuid.UUID] = set()
+        self.window_state = window
+        self.order = order
+        self.settled: list[tuple[str, uuid.UUID]] = []
+        self.held_new: list[uuid.UUID] = []
+        self.closures: list[datetime] = []
+        self.hold_is_new = True
+
+    async def has_held(self, bot_id: str, chat_id: str, *, now: datetime) -> bool:
+        return any(row.id not in self.claimed or row.answer or row.files for row in self.rows)
+
+    async def claim_held(self, bot_id: str, chat_id: str, *, now: datetime) -> list[Held]:
+        taken = [row for row in self.rows if row.id not in self.claimed]
+        self.claimed |= {row.id for row in taken}
+        return taken
+
+    async def window(self, bot_id: str, chat_id: str, *, now: datetime) -> bool | None:
+        return self.window_state
+
+    async def answer_sent(self, held: Held, *, prompts_owed: bool) -> None:
+        self.settled.append(("answer_sent", held.id))
+        self.rows = [
+            replace(row, answer=False, files=False) if row.id == held.id else row
+            for row in self.rows
+            if row.id != held.id or prompts_owed
+        ]
+
+    async def done(self, held: Held) -> None:
+        self.settled.append(("done", held.id))
+        self.rows = [row for row in self.rows if row.id != held.id]
+
+    async def release(self, held: Held) -> None:
+        self.settled.append(("release", held.id))
+        self.claimed.discard(held.id)
+
+    async def close(self, bot_id: str, chat_id: str, *, at: datetime) -> bool:
+        self.closures.append(at)
+        return True
+
+    async def hold_new(self, bot_id: str, chat_id: str, *, run_id: str) -> bool:
+        if self.hold_is_new:
+            self.held_new.append(uuid.UUID(run_id))
+            self.rows.append(
+                Held(
+                    id=uuid.uuid4(),
+                    run_id=uuid.UUID(run_id),
+                    answer=True,
+                    files=False,
+                    message_id=_answer_id(uuid.UUID(run_id)),
+                )
+            )
+        return self.hold_is_new
+
+    def settled_ids(self, kind: str) -> list[uuid.UUID]:
+        return [row_id for name, row_id in self.settled if name == kind]
+
+
+class World:
+    """Everything the held-answer code reaches, doubled; `order` records what happened when."""
+
+    def __init__(self) -> None:
+        self.order: list[str] = []
+        self.runs: dict[uuid.UUID, MagicMock] = {}
+        self.answers: dict[uuid.UUID, str | None] = {}
+        self.messages: dict[uuid.UUID, str] = {}
+        self.offer_kwargs: list[dict[str, Any]] = []
+        self.routed: list[list[IncomingMessage | IncomingPress]] = []
+        self.sent: list[OutgoingMessage] = []
+        self.offered: list[uuid.UUID] = []
+        self.admitted = True
+        self.session: MagicMock | None = None
+        self.sessions = 0
+
+    def run(self, *, status: str = "completed", answer: str | None = "the answer") -> MagicMock:
+        run = MagicMock(
+            id=uuid.uuid4(), status=status, surface="whatsapp", conversation_id=uuid.uuid4()
+        )
+        self.runs[run.id] = run
+        self.answers[run.id] = answer
+        return run
+
+    def held(
+        self,
+        run: MagicMock,
+        *,
+        answer: bool = True,
+        files: bool = False,
+        message: uuid.UUID | None = None,
+    ) -> Held:
+        """A row for the run's answer, or for the saved `message` it names instead."""
+        return Held(
+            id=uuid.uuid4(),
+            run_id=run.id,
+            answer=answer,
+            files=files,
+            message_id=message or (_answer_id(run.id) if answer else None),
+        )
+
+    def say(self, text: str) -> uuid.UUID:
+        """Another saved answer, owed by a row that names it."""
+        message_id = uuid.uuid4()
+        self.messages[message_id] = text
+        return message_id
+
+    def store(self, rows: list[Held], **kwargs: Any) -> StubStore:
+        return StubStore(rows, order=self.order, **kwargs)
+
+
+@pytest.fixture
+def world() -> Iterator[World]:
+    world = World()
+
+    @asynccontextmanager
+    async def sessions() -> AsyncGenerator[MagicMock]:
+        world.sessions += 1
+        yield MagicMock()
+
+    async def get_run(
+        db: Any, run_id: uuid.UUID, *, organization_id: uuid.UUID
+    ) -> MagicMock | None:
+        assert organization_id == ORG
+        return world.runs.get(run_id)
+
+    async def last_answer(db: Any, run_id: uuid.UUID, *, organization_id: uuid.UUID) -> Any:
+        text = world.answers.get(run_id)
+        return None if text is None else MagicMock(content=text)
+
+    async def answer_message(
+        db: Any, message_id: uuid.UUID, *, run_id: uuid.UUID, organization_id: uuid.UUID
+    ) -> Any:
+        assert organization_id == ORG
+        text = (
+            world.answers.get(run_id)
+            if message_id == _answer_id(run_id)
+            else world.messages.get(message_id)
+        )
+        return None if text is None else MagicMock(content=text)
+
+    async def send(token: str, message: OutgoingMessage) -> None:
+        world.order.append("answer")
+        world.sent.append(message)
+
+    async def offer(
+        bot: Any, *, platform: str, platform_chat_id: str, run_id: uuid.UUID, resend: bool = False
+    ) -> None:
+        world.order.append("offer")
+        world.offered.append(run_id)
+        world.offer_kwargs.append({"platform": platform, "resend": resend})
+
+    async def may_continue(db: Any, run: Any, incoming: IncomingMessage) -> bool:
+        assert (incoming.platform, incoming.bot_id, incoming.platform_chat_id) == (
+            "whatsapp",
+            BOT,
+            CHAT,
+        )
+        assert incoming.platform_user_id == f"{ORG}:{CHAT}" and incoming.chat_type == "private"
+        return world.admitted
+
+    async def process(events: list[IncomingMessage | IncomingPress]) -> None:
+        world.order.append("route")
+        world.routed.append(events)
+
+    adapter = MagicMock(send_message=AsyncMock(side_effect=send), send_held_preview=AsyncMock())
+    world.adapter = adapter
+    world.offer = AsyncMock(side_effect=offer)
+    world.may_continue = AsyncMock(side_effect=may_continue)
+    bot = MagicMock(is_active=True, organization_id=ORG)
+    world.bot = AsyncMock(return_value=bot)
+    prompts = MagicMock(return_value=MagicMock(offer=world.offer))
+    router = MagicMock(return_value=MagicMock(may_continue=world.may_continue))
+    with (
+        patch(f"{MODULE}.get_db_context", sessions),
+        patch(f"{MODULE}.agent_run_repo.get_run", get_run),
+        patch(f"{MODULE}.channel_bot_repo.get_for_org", world.bot),
+        patch(f"{MODULE}.conversation_repo.last_answer_message", last_answer),
+        patch(f"{MODULE}.conversation_repo.answer_message", answer_message),
+        patch(f"{MODULE}.unseal_bot_token", return_value="tok"),
+        patch(f"{MODULE}.whatsapp_adapter", return_value=adapter),
+        patch(f"{MODULE}.ChannelPrompts", prompts),
+        patch(f"{MODULE}.ChannelMessageRouter", router),
+        patch(f"{MODULE}.process_channel_events_in_order", process),
+    ):
+        yield world
+
+
+def _text(text: str = "any news?") -> list[WhatsAppMessage]:
+    return list(_batch(("wamid.N1", CHAT, 5, text)).messages)
+
+
+def _tap() -> list[WhatsAppMessage]:
+    payload = _fixture("template_button")
+    payload["entry"][0]["changes"][0]["value"]["messages"][0]["timestamp"] = str(NOW - 2)
+    return list(_parse(payload).messages)
+
+
+async def _handle(
+    world: World, store: StubStore, messages: list[WhatsAppMessage] | None = None
+) -> None:
+    await handle_customer(
+        BOT, ORG, CHAT, messages if messages is not None else _text(), store=store
+    )
+
+
+class TestHeldAnswers:
+    async def test_a_reoffered_question_does_not_take_the_message_that_triggered_it(self, world):
+        """The message is routed as a new turn before the question exists to claim it."""
+        run = world.run(status=PARKED)
+        store = world.store([world.held(run)])
+
+        await _handle(world, store)
+
+        assert world.order == ["answer", "route", "offer"]
+        [events] = world.routed
+        assert [(type(e), e.text) for e in events] == [(IncomingMessage, "any news?")]
+        assert world.offered == [run.id]
+
+    async def test_the_held_answer_goes_out_before_the_new_message_is_routed(self, world):
+        run = world.run(answer="Report ready.")
+        store = world.store([world.held(run)])
+
+        await _handle(world, store)
+
+        assert world.order == ["answer", "route"]
+        [message] = world.sent
+        assert (message.run_id, message.text, message.platform_chat_id) == (
+            str(run.id),
+            "Report ready.",
+            CHAT,
+        )
+
+    async def test_held_answers_go_out_oldest_first(self, world):
+        runs = [world.run(answer=f"answer {n}") for n in range(3)]
+        store = world.store([world.held(run) for run in runs])
+
+        await _handle(world, store)
+
+        assert [m.text for m in world.sent] == ["answer 0", "answer 1", "answer 2"]
+        assert store.rows == []
+
+    async def test_nothing_held_routes_without_taking_the_chat_lock(self, world):
+        store = world.store([])
+
+        async def hold() -> None:
+            async with chat_lock(BOT, CHAT):
+                with anyio.fail_after(1):
+                    await _handle(world, store)
+
+        await hold()
+        assert world.order == ["route"]
+
+    async def test_a_held_delivery_waits_for_the_chats_turn(self, world):
+        run = world.run()
+        store = world.store([world.held(run)])
+        sent = anyio.Event()
+        send = world.adapter.send_message.side_effect
+
+        async def notify(token: str, message: OutgoingMessage) -> None:
+            await send(token, message)
+            sent.set()
+
+        world.adapter.send_message.side_effect = notify
+        async with anyio.create_task_group() as tasks:
+            async with chat_lock(BOT, CHAT):
+                tasks.start_soon(_handle, world, store)
+                await anyio.sleep(0.1)
+                assert world.sent == []
+            with anyio.fail_after(1):
+                await sent.wait()
+        assert world.order == ["answer", "route"]
+
+    async def test_the_chats_lock_is_held_while_sending_and_offering_but_not_while_routing(
+        self, world
+    ):
+        run = world.run(status=PARKED)
+        store = world.store([world.held(run)])
+        free: dict[str, bool] = {}
+
+        async def probe(name: str) -> None:
+            with anyio.move_on_after(0.05) as scope:
+                async with chat_lock(BOT, CHAT):
+                    pass
+            free[name] = not scope.cancelled_caught
+
+        sends, offers = world.adapter.send_message.side_effect, world.offer.side_effect
+
+        async def send(token: str, message: OutgoingMessage) -> None:
+            await probe("send")
+            await sends(token, message)
+
+        async def route(events: list[Any]) -> None:
+            await probe("route")
+
+        async def offer(bot: Any, **kwargs: Any) -> None:
+            await probe("offer")
+            await offers(bot, **kwargs)
+
+        world.adapter.send_message.side_effect = send
+        world.offer.side_effect = offer
+        with patch(f"{MODULE}.process_channel_events_in_order", route):
+            await _handle(world, store)
+
+        assert free == {"send": False, "route": True, "offer": False}
+
+    async def test_two_late_answers_of_one_run_are_each_sent_once_in_order(self, world):
+        """Each row owes the message it names, never "the run's latest" saved answer."""
+        run = world.run(answer="the third, latest answer")
+        first, second = world.say("first answer"), world.say("second answer")
+        store = world.store([world.held(run, message=first), world.held(run, message=second)])
+
+        await _handle(world, store)
+
+        assert [m.text for m in world.sent] == ["first answer", "second answer"]
+        assert {m.run_id for m in world.sent} == {str(run.id)}
+        assert store.rows == []
+        assert len(store.settled_ids("answer_sent")) == 2
+
+    async def test_a_run_with_two_answers_and_a_question_offers_it_once_after_the_last(self, world):
+        run = world.run(status=PARKED)
+        rows = [
+            world.held(run, message=world.say("first answer")),
+            world.held(run, message=world.say("second answer")),
+            world.held(run, answer=False),
+        ]
+        store = world.store(rows)
+
+        await _handle(world, store)
+
+        assert [m.text for m in world.sent] == ["first answer", "second answer"]
+        assert world.order == ["answer", "answer", "route", "offer"]
+        assert world.offered == [run.id]
+        # The first message of the prompt never arrived, so it is sent again.
+        assert world.offer_kwargs == [{"platform": "whatsapp", "resend": True}]
+
+    async def test_a_failed_second_answer_stays_held_and_the_first_is_not_sent_again(self, world):
+        run = world.run()
+        first, second = world.say("first answer"), world.say("second answer")
+        store = world.store([world.held(run, message=first), world.held(run, message=second)])
+        world.adapter.send_message.side_effect = [None, WhatsAppGraphError(code=131000)]
+
+        await _handle(world, store)
+        assert [row.message_id for row in store.rows] == [second]
+        assert store.settled_ids("release") == [row.id for row in store.rows]
+
+        world.adapter.send_message.side_effect = None
+        await _handle(world, store)
+        assert [c.args[1].text for c in world.adapter.send_message.await_args_list] == [
+            "first answer",
+            "second answer",
+            "second answer",
+        ]
+
+    async def test_an_answer_whose_message_is_gone_says_done(self, world):
+        run = world.run()
+        await _handle(world, world.store([world.held(run, message=uuid.uuid4())]))
+        assert [m.text for m in world.sent] == ["Done."]
+
+    async def test_a_failing_window_store_still_routes_the_message(self, world, caplog):
+        store = world.store([])
+        store.has_held = AsyncMock(side_effect=RuntimeError("boom for US.111"))  # type: ignore[method-assign]
+
+        with caplog.at_level(logging.WARNING):
+            await _handle(world, store)
+
+        assert world.order == ["route"]
+        record = next(r for r in caplog.records if r.message == "whatsapp_held_failed")
+        assert (record.bot_id, record.error) == (BOT, "RuntimeError")
+        assert record.exc_info is None
+        assert "boom" not in caplog.text and CHAT not in caplog.text
+
+    async def test_a_failed_send_leaves_the_run_held_and_its_reason(self, world, caplog):
+        first, second = world.run(), world.run()
+        store = world.store([world.held(first), world.held(second)])
+        world.adapter.send_message.side_effect = WhatsAppGraphError(code=131000)
+
+        with caplog.at_level(logging.WARNING):
+            await _handle(world, store)
+
+        assert store.settled_ids("answer_sent") == []
+        assert store.settled_ids("release") == [row.id for row in store.rows]
+        assert len(store.rows) == 2
+        assert world.order == ["route"]
+        [record] = [r for r in caplog.records if r.message == "whatsapp_held_send_failed"]
+        assert (record.bot_id, record.run_id, record.error) == (
+            BOT,
+            str(first.id),
+            "WhatsAppGraphError",
+        )
+
+    async def test_the_reason_is_cleared_only_after_the_send(self, world):
+        run = world.run()
+        store = world.store([world.held(run)])
+        seen: list[int] = []
+
+        async def answer_sent(held: Held, *, prompts_owed: bool) -> None:
+            seen.append(world.adapter.send_message.await_count)
+
+        store.answer_sent = answer_sent  # type: ignore[method-assign]
+        await _handle(world, store)
+
+        assert seen == [1]
+
+    async def test_a_sender_no_longer_admitted_keeps_the_run_held(self, world):
+        run = world.run()
+        row = world.held(run)
+        store = world.store([row])
+        world.admitted = False
+
+        await _handle(world, store)
+
+        assert world.sent == []
+        assert store.settled == [("release", row.id)]
+        assert world.order == ["route"]
+
+    async def test_a_stale_message_does_not_deliver_into_a_closed_window(self, world):
+        run = world.run()
+        row = world.held(run)
+        store = world.store([row], window=False)
+
+        await _handle(world, store)
+
+        assert world.sent == []
+        assert store.settled == [("release", row.id)]
+        assert world.order == ["route"]
+
+    async def test_a_bot_that_is_gone_or_off_delivers_nothing(self, world):
+        run = world.run()
+        row = world.held(run)
+        for bot in (None, MagicMock(is_active=False, organization_id=ORG)):
+            world.bot.return_value = bot
+            store = world.store([row])
+            await _handle(world, store)
+            assert world.sent == []
+            assert store.settled == [("release", row.id)]
+
+    async def test_a_run_with_no_saved_answer_sends_done(self, world):
+        for saved in (None, "  \n"):
+            run = world.run(answer=saved)
+            await _handle(world, world.store([world.held(run)]))
+        assert [m.text for m in world.sent] == ["Done.", "Done."]
+
+    async def test_the_saved_answer_is_sent_as_saved(self, world):
+        run = world.run(answer="Line one.\n\n**Line two** [x](http://e.test)")
+        await _handle(world, world.store([world.held(run)]))
+
+        assert world.sent[0].text == "Line one.\n\n**Line two** [x](http://e.test)"
+
+    async def test_a_held_answer_with_files_says_they_could_not_follow(self, world):
+        run = world.run(answer="Here is the chart.")
+        await _handle(world, world.store([world.held(run, files=True)]))
+
+        assert world.sent[0].text.endswith(FILES_NOT_DELIVERED)
+        assert world.sent[0].text.startswith("Here is the chart.")
+
+    async def test_a_show_me_tap_is_not_answered_after_a_held_answer(self, world):
+        run = world.run()
+        store = world.store([world.held(run)])
+
+        await _handle(world, store, _tap())
+
+        assert len(world.sent) == 1
+        assert world.routed == []
+
+    async def test_a_show_me_tap_after_a_prompt_only_delivery_is_routed(self, world):
+        run = world.run(status=PARKED)
+        store = world.store([world.held(run, answer=False)])
+
+        await _handle(world, store, _tap())
+
+        assert world.sent == []
+        assert world.order == ["route", "offer"]
+        assert world.routed[0][0].text == "Show me"
+
+    async def test_a_show_me_tap_with_nothing_delivered_is_routed(self, world):
+        await _handle(world, world.store([]), _tap())
+        assert world.order == ["route"]
+
+    async def test_a_failed_reoffer_does_not_send_the_answer_again(self, world, caplog):
+        run = world.run(status=PARKED)
+        row = world.held(run)
+        store = world.store([row])
+        world.offer.side_effect = RuntimeError("no")
+
+        with caplog.at_level(logging.WARNING):
+            await _handle(world, store)
+        assert store.settled_ids("release") == [row.id]
+        assert [r.error for r in caplog.records if r.message == "whatsapp_offer_failed"] == [
+            "RuntimeError"
+        ]
+        assert [(r.answer, r.files) for r in store.rows] == [(False, False)]
+
+        world.offer.side_effect = AsyncMock()
+        await _handle(world, store)
+
+        assert len(world.sent) == 1
+
+    async def test_a_question_is_not_offered_again_when_the_bot_is_gone(self, world):
+        run = world.run(status=PARKED)
+        store = world.store([world.held(run, answer=False)])
+
+        bot = world.bot.return_value
+        world.bot.side_effect = [bot, None]
+        await _handle(world, store)
+
+        assert world.offered == []
+        assert store.rows == []
+
+    async def test_a_prompt_only_row_for_a_run_that_moved_on_is_dropped(self, world):
+        run = world.run(status="completed")
+        row = world.held(run, answer=False)
+        store = world.store([row])
+
+        await _handle(world, store)
+
+        assert store.settled == [("done", row.id)]
+        assert world.offered == [] and world.sent == []
+
+    async def test_an_answer_for_a_run_that_is_gone_is_dropped(self, world):
+        row = Held(id=uuid.uuid4(), run_id=uuid.uuid4(), answer=True, files=False)
+        store = world.store([row])
+
+        await _handle(world, store)
+
+        assert world.sent == []
+        assert store.settled == [("done", row.id)]
+
+    async def test_an_unexpected_failure_after_the_claim_gives_the_rows_back(self, world):
+        run = world.run()
+        row = world.held(run)
+        store = world.store([row])
+        world.may_continue.side_effect = RuntimeError("db down")
+
+        await _handle(world, store)
+
+        assert store.settled == [("release", row.id)]
+        assert world.order == ["route"]
+
+    async def test_a_second_batch_during_the_first_turn_is_routed_before_the_question_is_offered(
+        self, world
+    ):
+        """The first turn's claim is not something the second batch waits behind."""
+        run = world.run(status=PARKED)
+        store = world.store([world.held(run)])
+        entered, finish = anyio.Event(), anyio.Event()
+
+        async def route(events: list[Any]) -> None:
+            # What `route` does: the whole turn runs under the chat's lock.
+            async with chat_lock(BOT, CHAT):
+                world.order.append(f"route:{events[0].text}")
+                if events[0].text == "first":
+                    entered.set()
+                    await finish.wait()
+
+        with patch(f"{MODULE}.process_channel_events_in_order", route):
+            async with anyio.create_task_group() as tasks:
+                tasks.start_soon(_handle, world, store, _text("first"))
+                await entered.wait()
+                tasks.start_soon(_handle, world, store, _text("second"))
+                await anyio.sleep(0.1)
+                finish.set()
+
+        assert world.order == ["answer", "route:first", "route:second", "offer"]
+
+    async def test_a_second_batch_during_the_first_batchs_held_send_waits_its_turn(self, world):
+        """A claim that still owes an answer is a delivery under way: the first batch is routed first."""
+        run = world.run()
+        store = world.store([world.held(run)])
+        sending, finish = anyio.Event(), anyio.Event()
+        send = world.adapter.send_message.side_effect
+
+        async def slow(token: str, message: OutgoingMessage) -> None:
+            sending.set()
+            await finish.wait()
+            await send(token, message)
+
+        async def route(events: list[Any]) -> None:
+            async with chat_lock(BOT, CHAT):
+                world.order.append(f"route:{events[0].text}")
+
+        world.adapter.send_message.side_effect = slow
+        with patch(f"{MODULE}.process_channel_events_in_order", route):
+            async with anyio.create_task_group() as tasks:
+                tasks.start_soon(_handle, world, store, _text("first"))
+                await sending.wait()
+                tasks.start_soon(_handle, world, store, _text("second"))
+                await anyio.sleep(0.1)
+                finish.set()
+
+        assert world.order == ["answer", "route:first", "route:second"]
+
+    async def test_a_tap_dropped_after_a_held_answer_still_claims_its_delivery(self, world):
+        run = world.run()
+        store = world.store([world.held(run)])
+        [tap] = _tap()
+
+        with patch(f"{MODULE}.claim_delivery", AsyncMock(return_value=True)) as claim:
+            await _handle(world, store, [tap])
+
+        claim.assert_awaited_once()
+        assert claim.await_args.args[0].message_id == tap.wamid
+        assert world.routed == []
+
+    async def test_rows_settled_before_a_failure_are_still_offered_and_taps_still_dropped(
+        self, world
+    ):
+        first, second = world.run(status=PARKED), world.run()
+        store = world.store([world.held(first), world.held(second)])
+        settled = store.answer_sent
+
+        async def fail_second(held: Held, *, prompts_owed: bool) -> None:
+            if held.run_id == second.id:
+                raise RuntimeError("db down")
+            await settled(held, prompts_owed=prompts_owed)
+
+        store.answer_sent = fail_second  # type: ignore[method-assign]
+
+        await _handle(world, store, _tap())
+
+        assert world.offered == [first.id]
+        assert world.routed == []
+
+    async def test_the_default_store_is_the_real_one(self, world):
+        with patch(f"{MODULE}.WindowStore") as created:
+            created.return_value = world.store([])
+            await handle_customer(BOT, ORG, CHAT, _text())
+        created.assert_called_once_with()
+
+
+RUN = uuid.UUID("5b1f3c6e-2f0a-4c55-9a43-0d1f6f0c1a11")
+CLOSED_AT = datetime.fromtimestamp(1790000000, UTC)
+
+
+def _failed(*codes: int, callback: str | None = str(RUN), at: int = 1790000000) -> dict[str, Any]:
+    status: dict[str, Any] = {
+        "id": f"wamid.F{at}",
+        "status": "failed",
+        "timestamp": str(at),
+        "recipient_user_id": CHAT,
+        "errors": [{"code": code} for code in codes],
+    }
+    if callback is not None:
+        status["biz_opaque_callback_data"] = callback
+    return status
+
+
+def _statuses(*statuses: dict[str, Any]) -> ParsedWebhook:
+    payload = _fixture("statuses")
+    payload["entry"][0]["changes"][0]["value"]["statuses"] = list(statuses)
+    return _parse(payload)
+
+
+async def _queued(
+    parsed: ParsedWebhook, caplog: pytest.LogCaptureFixture
+) -> tuple[MagicMock, MagicMock]:
+    bot = _bot()
+    with (
+        patch(f"{MODULE}.whatsapp_customer_repo.record_inbound", AsyncMock()),
+        patch(f"{MODULE}.spawn_after_commit") as spawn,
+        patch(f"{MODULE}.reclaim_after_refusal", AsyncMock()) as reclaim,
+        caplog.at_level(logging.WARNING),
+    ):
+        await WhatsAppInbound(MagicMock()).receive(bot, parsed)
+        for call in spawn.call_args_list:
+            await call.args[1]
+    return bot, MagicMock(spawn=spawn, reclaim=reclaim)
+
+
+async def test_a_closed_window_status_is_queued_once_per_run(caplog):
+    later = 1790000500
+    bot, queued = await _queued(
+        _statuses(_failed(131047), _failed(131047, at=later), _failed(131047, callback="nope")),
+        caplog,
+    )
+
+    queued.reclaim.assert_awaited_once_with(
+        str(bot.id), ORG, CHAT, RUN, datetime.fromtimestamp(later, UTC)
+    )
+    assert [c.kwargs["name"] for c in queued.spawn.call_args_list] == [
+        f"whatsapp_window_closed:{bot.id}"
+    ]
+
+
+async def test_a_closed_window_status_with_no_callback_is_only_logged(caplog):
+    _, queued = await _queued(_statuses(_failed(131047, callback=None)), caplog)
+
+    queued.spawn.assert_not_called()
+    [record] = [r for r in caplog.records if r.message == "whatsapp_closed_window_unattributed"]
+    assert record.levelno == logging.WARNING
+    assert set(vars(record)) & {"phone", "recipient", "wamid", "callback"} == set()
+
+
+async def test_a_closed_window_status_with_no_recipient_is_only_logged(caplog):
+    status = _failed(131047)
+    del status["recipient_user_id"]
+    _, queued = await _queued(_statuses(status), caplog)
+
+    queued.spawn.assert_not_called()
+    assert any(r.message == "whatsapp_closed_window_unattributed" for r in caplog.records)
+
+
+async def test_another_failure_code_queues_nothing_and_holds_nothing(caplog):
+    _, queued = await _queued(_statuses(_failed(131000, 131026)), caplog)
+
+    queued.spawn.assert_not_called()
+    [record] = [r for r in caplog.records if r.message == "whatsapp_send_failed"]
+    assert (record.run_id, record.codes) == (str(RUN), [131000, 131026])
+
+
+async def test_a_status_never_falls_back_to_the_latest_run(caplog):
+    with patch(f"{MODULE}.agent_run_repo") as runs:
+        _, queued = await _queued(_statuses(_failed(131047, callback=None)), caplog)
+
+    queued.spawn.assert_not_called()
+    assert runs.method_calls == []
+
+
+async def test_a_status_with_no_time_is_queued_without_one(caplog):
+    status = _failed(131047)
+    del status["timestamp"]
+    bot, queued = await _queued(_statuses(status), caplog)
+
+    queued.reclaim.assert_awaited_once_with(str(bot.id), ORG, CHAT, RUN, None)
+
+
+async def test_another_failure_without_a_run_is_not_logged_against_one(caplog):
+    _, queued = await _queued(_statuses(_failed(131000, callback="nope")), caplog)
+
+    queued.spawn.assert_not_called()
+    assert not [r for r in caplog.records if r.message == "whatsapp_send_failed"]
+
+
+async def test_the_fixtures_failed_status_queues_one_reclaim(caplog):
+    _, queued = await _queued(_parse(_fixture("statuses")), caplog)
+    assert queued.reclaim.await_count == 1  # only the fixture's failed 131047 naming a run
+
+
+class TestReclaim:
+    @pytest.fixture
+    def claim(self, world: World) -> Iterator[World]:
+        world.chat_session = MagicMock(conversation_id=None)
+        world.runs[RUN] = run = MagicMock(
+            id=RUN, status="completed", surface="whatsapp", conversation_id=uuid.uuid4()
+        )
+        world.answers[RUN] = "the saved answer"
+        world.chat_session.conversation_id = run.conversation_id
+        world.lookups = AsyncMock(return_value=world.chat_session)
+        with patch(f"{MODULE}.channel_session_repo.get_by_bot_and_chat", world.lookups):
+            yield world
+
+    async def _reclaim(self, store: StubStore) -> None:
+        await inbound.reclaim_after_refusal(BOT, ORG, CHAT, RUN, CLOSED_AT, store=store)
+
+    async def test_a_failed_late_answer_is_held_and_previewed(self, claim):
+        store = claim.store([], window=False)
+
+        await self._reclaim(store)
+
+        assert store.closures == [CLOSED_AT]
+        assert store.held_new == [RUN]
+        [(token, message)] = [c.args for c in claim.adapter.send_held_preview.await_args_list]
+        assert (token, message.text, message.run_id, message.platform_chat_id) == (
+            "tok",
+            "the saved answer",
+            str(RUN),
+            CHAT,
+        )
+        claim.adapter.send_message.assert_not_awaited()
+
+    async def test_a_preview_with_no_saved_answer_says_done(self, claim):
+        claim.answers[RUN] = None
+        await self._reclaim(claim.store([], window=False))
+        assert claim.adapter.send_held_preview.await_args.args[1].text == "Done."
+
+    async def test_a_failed_answer_after_the_customer_wrote_again_goes_as_text(self, claim):
+        store = claim.store([], window=True)
+
+        await self._reclaim(store)
+
+        assert [m.text for m in claim.sent] == ["the saved answer"]
+        assert claim.sent[0].run_id == str(RUN)
+        assert len(store.settled_ids("answer_sent")) == 1
+        claim.adapter.send_held_preview.assert_not_awaited()
+
+    async def test_a_failed_answer_that_reopened_also_offers_the_prompts_again(self, claim):
+        claim.runs[RUN].status = PARKED
+        store = claim.store([], window=True)
+
+        await self._reclaim(store)
+
+        assert claim.order == ["answer", "offer"]
+        assert claim.offered == [RUN]
+
+    async def test_a_status_with_no_time_holds_and_acts_but_never_closes_the_window(self, claim):
+        store = claim.store([], window=False)
+
+        await inbound.reclaim_after_refusal(BOT, ORG, CHAT, RUN, None, store=store)
+
+        assert store.closures == []
+        assert store.held_new == [RUN]
+        claim.adapter.send_held_preview.assert_awaited_once()
+
+    async def test_a_message_sent_before_the_reclaims_offer_is_never_claimable_either_way(
+        self, claim
+    ):
+        """The reclaim and a batch race for the chat. Whichever goes first, the batch's message was
+        sent before the question exists, and that is what keeps it out of the answer."""
+        claim.runs[RUN].status = PARKED
+        offered_at: list[datetime] = []
+
+        async def offer(bot: Any, **kwargs: Any) -> None:
+            offered_at.append(datetime.now(UTC))
+
+        claim.offer.side_effect = offer
+        claimable: list[Any] = []
+
+        async def route(events: list[Any]) -> None:
+            async with chat_lock(BOT, CHAT):
+                claimable.extend(e for e in events if any(at <= e.sent_at for at in offered_at))
+
+        store = claim.store([], window=True)
+        with patch(f"{MODULE}.process_channel_events_in_order", route):
+            async with anyio.create_task_group() as tasks:
+                tasks.start_soon(self._reclaim, store)
+                tasks.start_soon(_handle, claim, store, _text("typed before the question"))
+
+        assert offered_at and claimable == []
+
+    async def test_a_preview_for_a_bot_that_is_gone_sends_nothing(self, claim):
+        claim.bot.return_value = None
+
+        await self._reclaim(claim.store([], window=False))
+
+        claim.adapter.send_held_preview.assert_not_awaited()
+
+    async def test_a_second_status_for_the_same_run_sends_nothing(self, claim):
+        store = claim.store([], window=False)
+        store.hold_is_new = False
+
+        await self._reclaim(store)
+
+        assert store.closures == [CLOSED_AT]
+        claim.adapter.send_held_preview.assert_not_awaited()
+        claim.adapter.send_message.assert_not_awaited()
+
+    @pytest.mark.security
+    async def test_a_callback_naming_another_organizations_run_is_ignored(self, claim, caplog):
+        del claim.runs[RUN]
+        store = claim.store([], window=False)
+
+        with caplog.at_level(logging.WARNING):
+            await self._reclaim(store)
+
+        assert store.closures == [] and store.held_new == []
+        claim.adapter.send_held_preview.assert_not_awaited()
+        assert any(r.message == "whatsapp_callback_ignored" for r in caplog.records)
+
+    async def test_a_callback_whose_run_is_not_this_chats_is_ignored(self, claim):
+        claim.chat_session.conversation_id = uuid.uuid4()
+        store = claim.store([], window=False)
+
+        await self._reclaim(store)
+
+        assert store.closures == [] and store.held_new == []
+
+    async def test_a_chat_with_no_session_is_ignored(self, claim):
+        claim.lookups.return_value = None
+        store = claim.store([], window=False)
+
+        await self._reclaim(store)
+
+        assert store.held_new == []
+
+    async def test_a_run_from_another_surface_is_ignored(self, claim):
+        claim.runs[RUN].surface = "web"
+        store = claim.store([], window=False)
+
+        await self._reclaim(store)
+
+        assert store.held_new == []
+
+    async def test_the_reclaim_never_raises_and_logs_the_type(self, claim, caplog):
+        store = claim.store([], window=False)
+        store.close = AsyncMock(side_effect=RuntimeError("boom for US.111"))  # type: ignore[method-assign]
+
+        with caplog.at_level(logging.WARNING):
+            await self._reclaim(store)
+
+        [record] = [r for r in caplog.records if r.message == "whatsapp_reclaim_failed"]
+        assert (record.bot_id, record.run_id, record.error) == (BOT, str(RUN), "RuntimeError")
+        assert "boom" not in caplog.text and record.exc_info is None
+
+    async def test_the_default_store_is_the_real_one(self, claim):
+        with patch(f"{MODULE}.WindowStore") as created:
+            created.return_value = claim.store([], window=False)
+            await inbound.reclaim_after_refusal(BOT, ORG, CHAT, RUN, CLOSED_AT)
+        created.assert_called_once_with()

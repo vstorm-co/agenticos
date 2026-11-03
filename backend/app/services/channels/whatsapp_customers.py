@@ -19,7 +19,7 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models.whatsapp_customer import WhatsAppHeldRun
+from app.db.models.whatsapp_customer import WhatsAppCustomer, WhatsAppHeldRun
 from app.services.channels.exceptions import ChannelNotConfigured
 from app.services.channels.whatsapp_templates import LateTemplate, stored_template
 from app.services.channels.whatsapp_window import (
@@ -38,6 +38,12 @@ class Held:
     run_id: UUID
     answer: bool
     files: bool
+    message_id: UUID | None = None
+    """The saved answer this row owes; `None` for the run's prompts."""
+    version: int = 1
+    """The row's `hold_version` when it was claimed: a settlement is valid only while it still is."""
+    prompts_owed: bool = False
+    """Set by the delivery: the run still waits on prompts to offer again."""
 
 
 class WindowStore:
@@ -61,6 +67,24 @@ class WindowStore:
                 "The WhatsApp bot no longer exists", details={"bot_id": bot_id}
             )
         return bot.organization_id
+
+    @staticmethod
+    async def _owed_message(
+        db: AsyncSession, customer: WhatsAppCustomer, run_id: str, *, answer: bool
+    ) -> UUID | None:
+        """The run's latest saved answer as of now, for a hold of an answer; `None` for prompts.
+
+        Each answer is held when it is refused, so the latest one saved is the one that
+        was just refused. The row keeps its id and never "the latest" afterwards.
+        """
+        if not answer:
+            return None
+        from app.repositories import conversation_repo
+
+        message = await conversation_repo.last_answer_message(
+            db, UUID(run_id), organization_id=customer.organization_id
+        )
+        return message.id if message is not None else None
 
     async def window(self, bot_id: str, chat_id: str, *, now: datetime) -> bool | None:
         """Whether the window is open, or `None` when nothing is recorded for the customer."""
@@ -103,7 +127,12 @@ class WindowStore:
             ):
                 return True
             await whatsapp_customer_repo.hold_run(
-                db, customer=customer, run_id=UUID(run_id), answer=answer, files=files
+                db,
+                customer=customer,
+                run_id=UUID(run_id),
+                answer=answer,
+                files=files,
+                message_id=await self._owed_message(db, customer, run_id, answer=answer),
             )
             return False
 
@@ -121,7 +150,12 @@ class WindowStore:
                 bsuid=chat_id,
             )
             await whatsapp_customer_repo.hold_run(
-                db, customer=customer, run_id=UUID(run_id), answer=answer, files=files
+                db,
+                customer=customer,
+                run_id=UUID(run_id),
+                answer=answer,
+                files=files,
+                message_id=await self._owed_message(db, customer, run_id, answer=answer),
             )
 
     async def hold_new(self, bot_id: str, chat_id: str, *, run_id: str) -> bool:
@@ -136,7 +170,12 @@ class WindowStore:
                 bsuid=chat_id,
             )
             return await whatsapp_customer_repo.hold_run(
-                db, customer=customer, run_id=UUID(run_id), answer=True, files=False
+                db,
+                customer=customer,
+                run_id=UUID(run_id),
+                answer=True,
+                files=False,
+                message_id=await self._owed_message(db, customer, run_id, answer=True),
             )
 
     async def close(self, bot_id: str, chat_id: str, *, at: datetime) -> bool:
@@ -161,12 +200,19 @@ class WindowStore:
             )
             return True
 
-    async def has_held(self, bot_id: str, chat_id: str) -> bool:
-        """Whether any run is held for the customer; takes no lock."""
+    async def has_held(self, bot_id: str, chat_id: str, *, now: datetime) -> bool:
+        """Whether a held run could be claimed now; takes no lock.
+
+        A row under a live claim that owes only prompts is spanning the routed turn,
+        so a message that arrives meanwhile routes at once. One still owing an answer
+        or files is a send under way: the message waits, so it is routed after it.
+        """
         from app.repositories import whatsapp_customer_repo
 
         async with self._sessions() as db:
-            return await whatsapp_customer_repo.has_held(db, bot_id=UUID(bot_id), bsuid=chat_id)
+            return await whatsapp_customer_repo.has_held(
+                db, bot_id=UUID(bot_id), bsuid=chat_id, claimable_before=now - CLAIM_LEASE
+            )
 
     async def claim_held(self, bot_id: str, chat_id: str, *, now: datetime) -> list[Held]:
         """Take the customer's unclaimed held runs, oldest first; a claim past its lease can be taken again."""
@@ -187,37 +233,63 @@ class WindowStore:
                     db, held=row, update_data={"claimed_at": now}
                 )
             return [
-                Held(id=row.id, run_id=row.run_id, answer=row.held_answer, files=row.held_files)
+                Held(
+                    id=row.id,
+                    run_id=row.run_id,
+                    answer=row.held_answer,
+                    files=row.held_files,
+                    message_id=row.message_id,
+                    version=row.hold_version,
+                )
                 for row in rows
             ]
 
     async def answer_sent(self, held: Held, *, prompts_owed: bool) -> None:
-        """The run's answer reached the customer: clear its reason, then keep or drop the row.
+        """The run's answer reached the customer: keep or drop the row, then clear its reason if nothing else is owed.
 
         With `prompts_owed` the row stays, claimed, for the prompts still to be
-        offered again; otherwise it is deleted.
+        offered again; otherwise it is deleted. A row held again since the claim
+        (`hold_version` moved) is left as it is with its claim given back, and its
+        reason stays: something said the answer did not arrive, and the next
+        delivery sends it again.
         """
         from app.repositories import agent_run_repo, whatsapp_customer_repo
 
         async with self._sessions() as db:
-            row = await db.get(WhatsAppHeldRun, held.id)
+            row = await whatsapp_customer_repo.lock_held(db, held_id=held.id)
             if row is None:
                 return
-            await agent_run_repo.mark_undelivered(
-                db, run_id=row.run_id, organization_id=row.organization_id, reason=None
-            )
+            if row.hold_version != held.version:
+                await whatsapp_customer_repo.update_held(
+                    db, held=row, update_data={"claimed_at": None}
+                )
+                return
             if prompts_owed:
                 await whatsapp_customer_repo.update_held(
                     db, held=row, update_data={"held_answer": False, "held_files": False}
                 )
             else:
                 await whatsapp_customer_repo.delete_held(db, held_id=row.id)
+            # The run page's reason stands while another answer of the run is still owed.
+            if not await whatsapp_customer_repo.run_owes_answer(db, run_id=row.run_id):
+                await agent_run_repo.mark_undelivered(
+                    db, run_id=row.run_id, organization_id=row.organization_id, reason=None
+                )
 
     async def done(self, held: Held) -> None:
+        """The row's remaining duty is over: drop it, unless the run was held again since the claim."""
         from app.repositories import whatsapp_customer_repo
 
         async with self._sessions() as db:
-            await whatsapp_customer_repo.delete_held(db, held_id=held.id)
+            row = await whatsapp_customer_repo.lock_held(db, held_id=held.id)
+            if row is None:
+                return
+            if row.hold_version != held.version:
+                await whatsapp_customer_repo.update_held(
+                    db, held=row, update_data={"claimed_at": None}
+                )
+            else:
+                await whatsapp_customer_repo.delete_held(db, held_id=row.id)
 
     async def release(self, held: Held) -> None:
         """Give the claim back so the next delivery can take the row; flags and reason are untouched."""

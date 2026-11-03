@@ -24,6 +24,7 @@
                 "status": "failed",
                 "timestamp": "1790000000",
                 "recipient_user_id": "US.111",
+                "biz_opaque_callback_data": "5b1f3c6e-2f0a-4c55-9a43-0d1f6f0c1a11",
                 "errors": [
                   {
                     "code": 131047,

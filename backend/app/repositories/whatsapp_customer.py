@@ -86,22 +86,35 @@ async def update(
 
 
 async def hold_run(
-    db: AsyncSession, *, customer: WhatsAppCustomer, run_id: UUID, answer: bool, files: bool
+    db: AsyncSession,
+    *,
+    customer: WhatsAppCustomer,
+    run_id: UUID,
+    answer: bool,
+    files: bool,
+    message_id: UUID | None = None,
 ) -> bool:
-    """Hold a run for this customer; holding it again ORs what it owes. True when the row is new."""
+    """Hold a run for this customer; True when the row is new.
+
+    One row per (customer, run, saved answer): holding the same answer again ORs what
+    it owes, and another answer of the run is a row of its own. `message_id` is `None`
+    for the run's prompts.
+    """
     statement = pg_insert(WhatsAppHeldRun).values(
         organization_id=customer.organization_id,
         customer_id=customer.id,
         run_id=run_id,
+        message_id=message_id,
         held_answer=answer,
         held_files=files,
     )
     result = await db.execute(
         statement.on_conflict_do_update(
-            constraint="uq_whatsapp_held_run_customer_run",
+            constraint="uq_whatsapp_held_run_customer_run_message",
             set_={
                 "held_answer": WhatsAppHeldRun.held_answer | statement.excluded.held_answer,
                 "held_files": WhatsAppHeldRun.held_files | statement.excluded.held_files,
+                "hold_version": WhatsAppHeldRun.hold_version + 1,
             },
         ).returning(text("(xmax = 0)"))
     )
@@ -138,15 +151,55 @@ async def update_held(
     return held
 
 
+async def lock_held(db: AsyncSession, *, held_id: UUID) -> WhatsAppHeldRun | None:
+    """The held row, locked until the transaction ends, or `None` when it is gone."""
+    result = await db.execute(
+        select(WhatsAppHeldRun)
+        .where(WhatsAppHeldRun.id == held_id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
+    return result.scalar_one_or_none()
+
+
 async def delete_held(db: AsyncSession, *, held_id: UUID) -> None:
     await db.execute(sql_delete(WhatsAppHeldRun).where(WhatsAppHeldRun.id == held_id))
 
 
-async def has_held(db: AsyncSession, *, bot_id: UUID, bsuid: str) -> bool:
+async def run_owes_answer(db: AsyncSession, *, run_id: UUID) -> bool:
+    """Whether any held row of the run still owes an answer or files."""
+    result = await db.execute(
+        select(WhatsAppHeldRun.id)
+        .where(
+            WhatsAppHeldRun.run_id == run_id,
+            or_(WhatsAppHeldRun.held_answer, WhatsAppHeldRun.held_files),
+        )
+        .limit(1)
+    )
+    return result.first() is not None
+
+
+async def has_held(
+    db: AsyncSession, *, bot_id: UUID, bsuid: str, claimable_before: datetime
+) -> bool:
+    """Whether a message should wait for a delivery: a run it could claim, or a claim still owing an answer.
+
+    A claim that owes only prompts spans the routed turn, so it is not counted: a message
+    arriving during that turn must reach the router and steer it.
+    """
     result = await db.execute(
         select(WhatsAppHeldRun.id)
         .join(WhatsAppCustomer, WhatsAppCustomer.id == WhatsAppHeldRun.customer_id)
-        .where(WhatsAppCustomer.bot_id == bot_id, WhatsAppCustomer.bsuid == bsuid)
+        .where(
+            WhatsAppCustomer.bot_id == bot_id,
+            WhatsAppCustomer.bsuid == bsuid,
+            or_(
+                WhatsAppHeldRun.claimed_at.is_(None),
+                WhatsAppHeldRun.claimed_at < claimable_before,
+                WhatsAppHeldRun.held_answer,
+                WhatsAppHeldRun.held_files,
+            ),
+        )
         .limit(1)
     )
     return result.first() is not None

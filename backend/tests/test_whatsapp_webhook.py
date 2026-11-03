@@ -310,6 +310,26 @@ class TestMessages:
         assert received_bot is bot
         assert parsed.messages[0].wamid == "wamid.A1"
 
+    async def test_a_customer_that_cannot_be_recorded_fails_the_whole_batch_and_queues_nothing(
+        self,
+    ):
+        """A 500 is right: Meta retries the batch, and a message never queued would be lost."""
+        from app.services.channels.whatsapp_inbound import WhatsAppInbound
+
+        batch = _payload("text", ages=[5, 4])
+        inbound = WhatsAppInbound(MagicMock())
+        with (
+            patch(
+                "app.services.channels.whatsapp_inbound.whatsapp_customer_repo.record_inbound",
+                AsyncMock(side_effect=RuntimeError("database is down")),
+            ),
+            patch("app.services.channels.whatsapp_inbound.spawn_after_commit") as spawn,
+            pytest.raises(RuntimeError, match="database is down"),
+        ):
+            await _post(batch, bot=_bot(), inbound=inbound)
+
+        spawn.assert_not_called()
+
     @pytest.mark.security
     async def test_a_bad_signature_records_no_customer(self):
         inbound = _inbound()

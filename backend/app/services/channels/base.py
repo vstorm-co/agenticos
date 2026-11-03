@@ -4,6 +4,7 @@ import re
 from abc import ABC, abstractmethod
 from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass, field
+from datetime import datetime
 from typing import Any, Literal
 
 from app.agents.capabilities.channel_tools import (
@@ -246,6 +247,13 @@ class IncomingMessage:
     platform_username: str | None = None
     platform_display_name: str | None = None
     message_id: str | None = None
+    sent_at: datetime | None = None
+    """When the person sent the message, as the platform says; `None` where it does not.
+
+    A message never answers a question that was offered after it was sent (see
+    `ChannelPrompts.reply`), so a message that waited behind other work is not
+    taken for the answer to a question that did not exist yet.
+    """
     broadcast_mention: bool = False
     addressed: bool | None = None
     """Whether this message named the bot, where the platform says.

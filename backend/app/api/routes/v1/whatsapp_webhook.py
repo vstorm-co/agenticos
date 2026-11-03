@@ -132,5 +132,7 @@ async def whatsapp_events(
                 },
             )
 
+    # A customer that cannot be recorded fails the whole batch with a 500 on purpose:
+    # Meta retries it for days, and a message that was never queued would be lost.
     await inbound.receive(bot, parsed)
     return Response(status_code=200)

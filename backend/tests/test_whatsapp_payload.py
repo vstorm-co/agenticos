@@ -124,6 +124,34 @@ def test_statuses_never_become_messages():
     ]
 
 
+def test_a_failed_status_names_its_run_customer_and_time():
+    delivered, failed = _parse("statuses").statuses
+
+    assert failed.callback == "5b1f3c6e-2f0a-4c55-9a43-0d1f6f0c1a11"
+    assert failed.recipient == "US.111"
+    assert failed.at == datetime.fromtimestamp(1790000000, UTC)
+    assert (delivered.callback, delivered.recipient) == (None, "US.111")
+
+
+def test_a_message_carries_the_time_meta_says_it_was_sent():
+    [message] = _parse("text").messages
+    event = to_incoming(message, bot_id="b", organization_id=ORG)
+
+    assert event.sent_at == message.sent_at
+
+
+def test_a_status_with_no_time_or_recipient_still_parses():
+    payload = _load("statuses")
+    status = payload["entry"][0]["changes"][0]["value"]["statuses"][1]
+    status["timestamp"] = "soon"
+    del status["recipient_user_id"], status["biz_opaque_callback_data"]
+    failed = parse_webhook(payload, phone_number_id="PNID1", account_id="WABA1", now=NOW).statuses[
+        1
+    ]
+
+    assert (failed.at, failed.recipient, failed.callback) == (None, None, None)
+
+
 def test_reactions_and_system_events_are_ignored_not_answered():
     parsed = _parse("reaction_and_system")
     assert parsed.messages == ()
