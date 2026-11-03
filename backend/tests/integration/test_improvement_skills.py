@@ -19,7 +19,13 @@ from app.schemas.skill import SkillUpdate
 from app.services.improvement_pipeline import ImprovementPipelineService
 from app.services.skills import SkillService
 from tests.integration.test_authoring import _member, _owner
-from tests.integration.test_skill_bindings import _fork, _serving, _skill, _spec
+from tests.integration.test_skill_bindings import (
+    _fork,
+    _serving,
+    _skill,
+    _spec,
+    _with_specialist,
+)
 
 pytestmark = pytest.mark.anyio
 
@@ -137,6 +143,17 @@ class TestTheSessionsSkills:
         assert refunds.update is not None
         assert (refunds.update.kind, refunds.update.to_version) == ("update_pinned", 4)
         assert (shipping.name, shipping.problems, shipping.update) == ("shipping", [], None)
+
+    async def test_an_agent_reading_it_itself_and_through_a_specialist_counts_once(self, db):
+        ctx = await _owner(db)
+        skill = await _skill(db, ctx)
+        both = await _serving(db, ctx, "Desk", _with_specialist(_spec(skill), skill, version=1))
+        run = await _session(db, ctx, both)
+
+        [item] = (await ImprovementPipelineService(db).skills(ctx, both.id, run.id)).items
+
+        assert item.binding is not None and item.binding.state == "main"
+        assert item.agents_on_line == 1
 
     async def test_a_fork_behind_main_offers_to_catch_up_and_counts_its_own_agents(self, db):
         ctx = await _owner(db)
