@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import Literal
 from uuid import UUID
 
-from pydantic import Field
+from pydantic import ConfigDict, Field
 
 from app.schemas.base import BaseSchema
 from app.schemas.skill_version import VersionNumberRef
@@ -14,7 +14,13 @@ Side = Literal["fork", "main"]
 
 
 class MergeTextRead(BaseSchema):
-    """One text of the merge - the description, or a part of the instructions."""
+    """One text of the merge - the description, or a part of the instructions.
+
+    Parts are whole lines, line breaks included, and joining their results gives the
+    instructions; nothing is trimmed.
+    """
+
+    model_config = ConfigDict(str_strip_whitespace=False)
 
     state: PartStateName = Field(
         description=(
@@ -76,6 +82,10 @@ class MergeDescriptionEdit(BaseSchema):
 
 
 class MergePartEdit(BaseSchema):
+    """A part's new text. Its last line ends as the part's sides end theirs."""
+
+    model_config = ConfigDict(str_strip_whitespace=False)
+
     result: str
 
 

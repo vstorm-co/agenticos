@@ -368,8 +368,9 @@ class SkillCatchUpService:
         if len(proposed) != len(conflicts):
             raise ValueError(f"{len(conflicts)} conflicts, {len(proposed)} texts")
         for row, text in zip(conflicts, proposed, strict=True):
-            row["proposed"] = text
-            row["result"] = text
+            settled = text if row is description else _line_ended(row, text)
+            row["proposed"] = settled
+            row["result"] = settled
         await self._store(merge, description, parts, merge.files)
 
     async def refuse_moved(self, merge: SkillMerge) -> None:
@@ -468,7 +469,8 @@ class SkillCatchUpService:
         if not 0 <= index < len(merge.parts):
             raise NotFoundError(message="The merge has no such part", details={"index": index})
         parts = [MergedPart(**row) for row in merge.parts]
-        parts[index]["result"], parts[index]["edited"] = data.result, True
+        parts[index]["result"] = _line_ended(parts[index], data.result)
+        parts[index]["edited"] = True
         await self._store(merge, merge.description, parts, merge.files)
         return await self._read_merge(ctx, merge)
 
@@ -851,6 +853,16 @@ def _file_rows(base: SkillVersion, fork: SkillVersion, main: SkillVersion) -> li
             )
         )
     return rows
+
+
+def _line_ended(part: MergedPart, text: str) -> str:
+    """`text` for a part of the instructions, ending its last line as the part's sides do.
+
+    Parts are whole lines, so the next part starts on a line of its own; a text written
+    without its final line break would run into it.
+    """
+    ended = any(side.endswith("\n") for side in (part["fork"], part["main"]))
+    return text + "\n" if ended and text and not text.endswith("\n") else text
 
 
 def _conflicts(description: MergedPart, parts: Sequence[MergedPart]) -> list[MergedPart]:

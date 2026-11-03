@@ -247,7 +247,8 @@ class TestTheMerge:
             "<fork>\ntwo, by fork\n\n</fork>\n<main>\ntwo, by main\n\n</main>"
         )
 
-        await service.fill_conflicts(merge, ["two, by both\n"])
+        # The model's text ends where the part ended, with its line break.
+        await service.fill_conflicts(merge, ["two, by both"])
 
         conflict = merge.parts[1]
         assert (conflict["result"], conflict["proposed"], conflict["edited"]) == (
@@ -546,6 +547,25 @@ class TestEditingTheMerge:
         merged = await service.candidate_of(merge)
         assert merged is not None
         assert (merged.description, merged.content) == ("Refunds.", "one\nboth")
+
+    async def test_a_rewritten_line_keeps_the_next_one_on_its_own(self, db):
+        ctx = await _owner(db)
+        skill = await _skill(db, ctx)
+        fork = await _fork(db, ctx, skill)
+        fork = await _on_fork(db, ctx, skill, fork, content="one\ntwo, by fork\nthree\nfour")
+        await _main(db, ctx, skill, content="one\ntwo, by main\nthree\nfour")
+        merge = await _merged(db, ctx, skill, fork)
+        service = SkillCatchUpService(db)
+
+        read = await service.edit_part(ctx, skill.id, merge.run_id, 1, MergePartEdit(result="2"))
+        assert read.parts[1].result == "2\n"
+        merged = await service.candidate_of(merge)
+        assert merged is not None and merged.content == "one\n2\nthree\nfour"
+
+        # A part a person empties drops its lines.
+        await service.edit_part(ctx, skill.id, merge.run_id, 1, MergePartEdit(result=""))
+        merged = await service.candidate_of(merge)
+        assert merged is not None and merged.content == "one\nthree\nfour"
 
     async def test_a_part_or_file_the_merge_does_not_have_is_refused(self, db):
         ctx, skill, merge = await self._conflicted(db)
