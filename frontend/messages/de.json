@@ -12158,5 +12158,33 @@
         }
       }
     }
+  },
+  "wikiGraph": {
+    "title": "Graphansicht",
+    "files": "Dateiansicht",
+    "search": "Notiz, Alias oder Tag suchen",
+    "refresh": "Aktualisieren",
+    "loading": "Markdown-Notizen werden gelesen…",
+    "automatic": "Aktualisiert sich alle 30 Sekunden, solange sichtbar",
+    "failed": "Workspace konnte nicht gelesen werden. Erneut versuchen oder Zugriff prüfen.",
+    "counts": "{pages, plural, one {# Notiz} other {# Notizen}} · {links, plural, one {# Link} other {# Links}}",
+    "partial": "Dieser Graph ist unvollständig",
+    "limits": "Der Scan nutzt die verfügbare Dateiliste: bis zu 200 Markdown-Dateien, 256 KiB je Datei und insgesamt 8 MiB. Übersprungene oder unlesbare Notizen und ihre Links fehlen.",
+    "skipped": "Übersprungen: {path}",
+    "unreadable": "Nicht lesbar: {path}",
+    "invalidFrontmatter": "Ungültiges YAML-Frontmatter (Metadaten ignoriert): {paths}",
+    "empty": "Markdown-Notizen mit Wiki-Links, Markdown-Links oder Frontmatter-Beziehungen hinzufügen, um einen Graphen zu erstellen.",
+    "open": "Notiz öffnen",
+    "notes": "Notizen",
+    "noMatches": "Keine passenden Notizen",
+    "outgoing": "Links zu",
+    "backlinks": "Rückverweise",
+    "none": "Keine",
+    "unresolved": "Nicht aufgelöste Links",
+    "missing": "{target} — in diesem Scan nicht vorhanden",
+    "ambiguous": "{target} — mehrere passende Notizen",
+    "zoomIn": "Vergrößern",
+    "zoomOut": "Verkleinern",
+    "reset": "Ansicht zurücksetzen"
   }
 }

@@ -2,7 +2,7 @@
 title: Projekte
 seo_title: Projekte - gemeinsame Dateien und Anweisungen
 description: Ein Projekt gibt laufender Arbeit einen Container mit Dateien und eine Reihe von Anweisungen, die jeder Chat darin teilt, egal welcher Agent antwortet.
-source_sha: "3f798c416272"
+source_sha: "bb1a4448678d"
 ---
 
 # Projekte { #projects }
@@ -156,6 +156,49 @@ Die Desktop-Konsole leitet Datei-Drags an dieselben Ziele wie die Web-App weiter
 Drop auf eine Datei verwendet deren Ordner; freie Flächen beider Bereiche verwenden
 das Projektverzeichnis. Blobby und das Dock behalten ihre eigene Übergabe an den
 Chat.
+
+## Graphansicht { #graph-view }
+
+Wähle im Dateiexplorer **Graph view**, um verknüpfte Markdown-Notizen zu erkunden.
+Die Ansicht funktioniert für gemeinsame Projektdateien, Sandbox-Workspaces und
+einen freigegebenen Desktop-Ordner. Jeder Ort hat seinen eigenen Graphen;
+lokale Notizen werden nicht hochgeladen.
+
+Verknüpfe Notizen mit `[[notes/topic|Beschriftung]]`, Inline-Markdown-Links wie
+`[Thema](topic.md)` oder Beziehungen im Frontmatter:
+
+```yaml
+---
+title: Agent-Gedächtnis
+aliases: [Memory]
+tags: [agents, research]
+related: ["[[notes/retrieval]]"]
+sources: [sources/report.md]
+---
+```
+
+`links`, `related` und `sources` akzeptieren Text oder Textlisten. Externe URLs
+bleiben Quellenangaben. Wiki-Links verwenden exakte Pfade oder eindeutige
+Dateinamen, Titel oder Aliase; doppelte Namen bleiben unaufgelöst. Markdown-Links
+sind relativ zur Notiz. Codebeispiele und HTML-Kommentare werden ignoriert.
+
+Suche nach Titeln, Pfaden, Aliasen oder Tags. Wähle einen Knoten für seine Links,
+Rückverweise und unaufgelösten Verweise; **Open note** öffnet die Notiz. Gemeinsame
+Projektdateien behalten **Edit file** und bestehende Berechtigungen. Die Tasten
+steuern den Zoom, Ziehen auf leerem Hintergrund verschiebt den Graphen. Die
+Notizliste lässt sich auch mit der Tastatur bedienen.
+
+Die Ansicht liest Dateien alle 30 Sekunden, solange sie geöffnet ist, bei
+Fensterfokus oder mit **Refresh**. Agenten aktualisieren Notizen und Links ohne
+HTML neu zu erzeugen. Apps aktualisieren bereits Tabellen- und Workflow-Log-Bindings,
+haben aber kein Workspace-Datei-Binding; dieser Graph liest Notizen direkt. Eine
+Graphaktualisierung startet keinen Agenten zur Prüfung von Fakten oder Quellen.
+
+Ein Scan umfasst bis zu 200 Markdown-Dateien, 256 KiB je Datei und insgesamt
+8 MiB, innerhalb der Grenzen der Quelldateiliste. Ausgelassene oder unlesbare
+Dateien, ungültiges YAML und unvollständige Listen werden angezeigt. Ein fehlender
+Verweis kann eine ausgelassene Notiz bedeuten. Aktualisierungen erfolgen
+periodisch; gleichzeitige Änderungen können in verschiedene Scans fallen.
 
 ## Lokale Ordner in der Desktop-App { #local-folders-in-the-desktop-app }
 

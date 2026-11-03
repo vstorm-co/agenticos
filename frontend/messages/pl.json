@@ -12261,5 +12261,33 @@
         }
       }
     }
+  },
+  "wikiGraph": {
+    "title": "Widok grafu",
+    "files": "Widok plików",
+    "search": "Znajdź notatkę, alias lub tag",
+    "refresh": "Odśwież",
+    "loading": "Odczytywanie notatek Markdown…",
+    "automatic": "Odświeża się co 30 sekund, gdy jest widoczny",
+    "failed": "Nie udało się odczytać workspace. Spróbuj ponownie lub sprawdź dostęp.",
+    "counts": "{pages, plural, one {# notatka} few {# notatki} many {# notatek} other {# notatki}} · {links, plural, one {# link} few {# linki} many {# linków} other {# linku}}",
+    "partial": "Ten graf jest niekompletny",
+    "limits": "Skan korzysta z dostępnej listy plików: do 200 plików Markdown, 256 KiB na plik i łącznie 8 MiB. Pominięte lub nieczytelne notatki i ich linki nie są uwzględnione.",
+    "skipped": "Pominięto: {path}",
+    "unreadable": "Nie można odczytać: {path}",
+    "invalidFrontmatter": "Niepoprawny frontmatter YAML (metadane pominięte): {paths}",
+    "empty": "Dodaj notatki Markdown z wikilinkami, linkami Markdown lub relacjami we frontmatter, aby utworzyć graf.",
+    "open": "Otwórz notatkę",
+    "notes": "Notatki",
+    "noMatches": "Brak pasujących notatek",
+    "outgoing": "Linki do",
+    "backlinks": "Linki przychodzące",
+    "none": "Brak",
+    "unresolved": "Nierozwiązane linki",
+    "missing": "{target} — brak w tym skanie",
+    "ambiguous": "{target} — więcej niż jedna pasująca notatka",
+    "zoomIn": "Przybliż",
+    "zoomOut": "Oddal",
+    "reset": "Resetuj widok"
   }
 }

@@ -625,6 +625,9 @@ export const qk = {
     all: () => ["local-services"] as const,
     list: () => ["local-services", "list"] as const,
   },
+  wikiGraph: {
+    source: (source: import("./workspace-files").FileSource) => ["wiki-graph", source] as const,
+  },
   projects: {
     all: () => ["projects"] as const,
     list: (query: { search: string; skip: number; limit: number }) =>

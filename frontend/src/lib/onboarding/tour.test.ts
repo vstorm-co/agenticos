@@ -285,6 +285,7 @@ describe("stepsForPage", () => {
     expect(stepsForPage("/documents/some-id", () => true).map((s) => s.id)).toEqual([
       "workspace-file-fullscreen",
       "workspaces-detail",
+      "workspace-graph",
     ]);
   });
 

@@ -183,3 +183,4 @@ export { useVoiceSession, type VoiceSession, type VoiceTarget } from "./use-voic
 export { useReleaseUpdate } from "./use-release-update";
 
 export { useCurrentRelease } from "./use-current-release";
+export { useWikiGraph } from "./use-wiki-graph";

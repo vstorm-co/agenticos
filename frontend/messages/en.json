@@ -5037,6 +5037,14 @@
       "workflow-step-view": {
         "title": "Focus on one panel",
         "body": "On a phone, choose step settings, input or output to give the active panel the available space. Switching panels keeps your draft."
+      },
+      "project-graph": {
+        "title": "Explore linked notes",
+        "body": "Graph view derives links and backlinks from Markdown and frontmatter. It refreshes while open, using only files you can read in this location."
+      },
+      "workspace-graph": {
+        "title": "Explore linked notes",
+        "body": "Graph view derives links and backlinks from Markdown and frontmatter. It refreshes while open, using only files you can read in this location."
       }
     },
     "chooseLanguage": "Language",
@@ -12486,5 +12494,33 @@
         }
       }
     }
+  },
+  "wikiGraph": {
+    "title": "Graph view",
+    "files": "File view",
+    "search": "Find a note, alias or tag",
+    "refresh": "Refresh",
+    "loading": "Reading Markdown notes…",
+    "automatic": "Refreshes every 30 seconds while visible",
+    "failed": "Could not read this workspace. Retry or check your access.",
+    "counts": "{pages, plural, =1 {1 note} other {# notes}} · {links, plural, =1 {1 link} other {# links}}",
+    "partial": "This graph is incomplete",
+    "limits": "The scan uses the available file listing, up to 200 Markdown files, 256 KiB per file and 8 MiB in total. Skipped or unreadable notes and their links are absent.",
+    "skipped": "Skipped: {path}",
+    "unreadable": "Could not read: {path}",
+    "invalidFrontmatter": "Invalid YAML frontmatter (metadata ignored): {paths}",
+    "empty": "Add Markdown notes with wiki links, Markdown links or frontmatter relationships to build a graph.",
+    "open": "Open note",
+    "notes": "Notes",
+    "noMatches": "No matching notes",
+    "outgoing": "Links to",
+    "backlinks": "Backlinks",
+    "none": "None",
+    "unresolved": "Unresolved links",
+    "missing": "{target} — missing from this scan",
+    "ambiguous": "{target} — more than one matching note",
+    "zoomIn": "Zoom in",
+    "zoomOut": "Zoom out",
+    "reset": "Reset view"
   }
 }

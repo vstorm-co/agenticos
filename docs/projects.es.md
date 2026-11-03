@@ -2,7 +2,7 @@
 title: Proyectos
 seo_title: Proyectos - archivos e instrucciones compartidos
 description: Un proyecto da al trabajo en curso un contenedor de archivos y unas instrucciones que comparte cada chat iniciado en él, responda el agent que responda.
-source_sha: "3f798c416272"
+source_sha: "bb1a4448678d"
 ---
 
 # Proyectos { #projects }
@@ -155,6 +155,50 @@ La consola de escritorio envía los archivos arrastrados a los mismos destinos q
 aplicación web. Al soltarlos sobre un archivo se usa su carpeta; el espacio vacío de
 cualquiera de los dos paneles usa la raíz del proyecto. Blobby y el Dock conservan su
 función de adjuntar al chat.
+
+## Vista de grafo { #graph-view }
+
+En el explorador de archivos, elige **Graph view** para explorar notas Markdown
+enlazadas. La misma vista funciona con archivos compartidos del proyecto,
+workspaces del sandbox y una carpeta Desktop autorizada. Cada ubicación conserva
+su propio grafo; las notas locales no se suben al servidor.
+
+Conecta notas con `[[notes/topic|etiqueta]]`, enlaces Markdown en línea como
+`[Tema](topic.md)` o relaciones en el frontmatter:
+
+```yaml
+---
+title: Memoria del agent
+aliases: [Memory]
+tags: [agents, research]
+related: ["[[notes/retrieval]]"]
+sources: [sources/report.md]
+---
+```
+
+`links`, `related` y `sources` aceptan un texto o una lista de textos. Las URL
+externas siguen siendo citas. Los wikilinks resuelven rutas exactas o nombres de
+archivo, títulos o alias únicos; los nombres duplicados quedan sin resolver. Los
+enlaces Markdown son relativos a su nota. Se ignoran ejemplos de código y
+comentarios HTML.
+
+Busca por título, ruta, alias o tag. Selecciona un nodo para ver sus enlaces,
+enlaces entrantes y referencias sin resolver; **Open note** abre la nota. Los
+archivos compartidos conservan **Edit file** y sus permisos existentes. Usa los
+controles de zoom y arrastra el fondo vacío para desplazarte; la lista de notas
+también funciona con teclado.
+
+La vista relee los archivos cada 30 segundos mientras está abierta, al volver a
+la ventana o con **Refresh**. Los agentes actualizan notas y enlaces sin generar
+HTML. Las Apps ya actualizan bindings de tablas y logs de workflows, pero no
+tienen un binding de archivos del workspace; este grafo lee las notas directamente.
+Actualizar el grafo no inicia un agent para verificar hechos o fuentes.
+
+Un escaneo incluye hasta 200 archivos Markdown, 256 KiB por archivo y 8 MiB en
+total, dentro de los límites de la lista de origen. La vista identifica archivos
+omitidos o ilegibles, YAML inválido y listas incompletas. Una referencia ausente
+puede indicar una nota omitida. La actualización es periódica; las ediciones
+simultáneas pueden aparecer en escaneos diferentes.
 
 ## Carpetas locales en la aplicación de escritorio { #local-folders-in-the-desktop-app }
 

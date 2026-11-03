@@ -926,6 +926,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
   },
   { id: "project-tabs", page: PROJECT_DETAIL, target: "project-tabs" },
   { id: "project-file-location", page: PROJECT_DETAIL, target: "project-file-location" },
+  { id: "project-graph", page: PROJECT_DETAIL, target: "workspace-graph", optional: true },
 
   {
     id: "project-file-fullscreen",
@@ -1015,6 +1016,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
   // place: the reader is already on one of their own workspaces, so the walk
   // spotlights the browser rather than opening an example there is none of.
   { id: "workspaces-detail", page: WORKSPACE_DETAIL, target: "workspace-files" },
+  { id: "workspace-graph", page: WORKSPACE_DETAIL, target: "workspace-graph", optional: true },
 
   // Settings — the tabbed personal section. One "?" stop on the tabs, which live
   // in the shared layout, so it lands on whichever of the four pages the reader
