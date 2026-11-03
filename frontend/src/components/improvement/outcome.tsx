@@ -6,7 +6,6 @@ import { useLocale, useTranslations } from "next-intl";
 import { KnowledgeGapDialog } from "@/components/knowledge-gaps/knowledge-gap-dialog";
 import { Skeleton } from "@/components/ui";
 import { useAgentEnvironments } from "@/hooks/use-agent-environments";
-import { useDatasetCases } from "@/hooks/use-datasets";
 import { useEvalComparison } from "@/hooks/use-eval-runs";
 import { useImprovement, useImprovementEvidence } from "@/hooks/use-improvements";
 import { useKnowledgeGaps } from "@/hooks/use-knowledge-gaps";
@@ -175,16 +174,12 @@ export function AcceptSummary({
   const t = useTranslations("improvement");
   const measured = counts(round);
   const runId = round?.eval_run_ids.at(-1);
-  const questions = useDatasetCases(session.dataset_id, {
-    version: session.dataset_version,
-    limit: 1,
-  });
   if (!measured || !runId) return <p className="text-sm">{t("resultAgentUnknown")}</p>;
   return (
     <AgentSentence
       runId={runId}
       version={session.next_version ?? null}
-      total={questions.total}
+      heldOut={round?.held_out ?? null}
       {...measured}
     />
   );
@@ -193,21 +188,25 @@ export function AcceptSummary({
 function AgentSentence({
   runId,
   version,
-  total,
+  heldOut: measuredHoldout,
   fixed,
   broken,
 }: {
   runId: string;
   version: number | null;
-  total: number;
+  heldOut: number | null;
   fixed: number;
   broken: number;
 }) {
   const t = useTranslations("improvement");
   const locale = useLocale();
-  const { comparison } = useEvalComparison(runId);
-  const before = comparison?.baseline_summary;
-  const after = comparison?.candidate_summary;
+  const { comparison, error, refetch } = useEvalComparison(runId);
+  if (error) return <StepError error={error} retry={refetch} />;
+  if (!comparison) return <p role="status">{t("loading")}</p>;
+  const before = comparison.baseline_summary;
+  const after = comparison.candidate_summary;
+  const total = after.cases;
+  const heldOut = measuredHoldout ?? total;
   const perAnswer = (cost: string, cases: number) => Number(cost) / Math.max(1, cases);
   const change =
     before && after && perAnswer(before.cost_usd, before.cases) > 0
@@ -231,7 +230,7 @@ function AgentSentence({
           costKnown: change === null ? "no" : "yes",
           cost,
           total,
-          heldOut: after?.cases ?? 0,
+          heldOut,
         })}
         tiles={[
           { label: t("widgets.fixes"), value: fixed, tone: "teal", icon: CheckCircle2 },
@@ -247,13 +246,13 @@ function AgentSentence({
             value: total,
             tone: "indigo",
             icon: ListChecks,
-            caption: t("widgets.heldOutCaption", { count: after?.cases ?? 0 }),
+            caption: t("widgets.heldOutCaption", { count: heldOut }),
           },
         ]}
       />
       {change !== null && (
         <p className="text-muted-foreground text-xs">
-          {t("costExplained", { cost, heldOut: after?.cases ?? 0 })}
+          {t("costExplained", { cost, count: total })}
         </p>
       )}
     </div>

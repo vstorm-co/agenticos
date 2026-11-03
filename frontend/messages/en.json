@@ -14759,7 +14759,7 @@
     },
     "attemptsTitle": "Attempts",
     "acceptChanges": "{count, plural, =0 {No change was tested} one {The change you are accepting} other {The # changes you are accepting}}",
-    "costExplained": "Cost per answer {cost} compared with today's version, measured on the {heldOut, plural, one {# question} other {# questions}} kept aside.",
+    "costExplained": "Cost per answer {cost} compared with today's version, measured across {count, plural, one {# tested question} other {# tested questions}}.",
     "sessionTotal": "The whole session, analysis included: {total}",
     "heldBack": "Changes held back for another attempt, not tested",
     "changeAttribution": "Effect of change {number}",

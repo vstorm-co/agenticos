@@ -14532,7 +14532,7 @@
     },
     "attemptsTitle": "Próby",
     "acceptChanges": "{count, plural, =0 {Żadna zmiana nie była testowana} one {Zmiana, którą akceptujesz} few {# zmiany, które akceptujesz} many {# zmian, które akceptujesz} other {# zmiany, które akceptujesz}}",
-    "costExplained": "Koszt odpowiedzi {cost} względem dzisiejszej wersji, zmierzony na {heldOut, plural, one {# odłożonym pytaniu} other {# odłożonych pytaniach}}.",
+    "costExplained": "Koszt odpowiedzi {cost} względem dzisiejszej wersji, zmierzony na {count, plural, one {# przetestowanym pytaniu} few {# przetestowanych pytaniach} many {# przetestowanych pytaniach} other {# przetestowanych pytaniach}}.",
     "sessionTotal": "Cała sesja, z analizą: {total}",
     "heldBack": "Zmiany odłożone na kolejną próbę, nieprzetestowane",
     "changeAttribution": "Wpływ zmiany {number}",

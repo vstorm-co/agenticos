@@ -38,6 +38,8 @@ const state = vi.hoisted(() => ({
   topicsLoading: false,
   evidenceTopics: ["t1", "t2", "t3"] as (string | null)[],
   compared: null as EvalComparison | null,
+  comparisonError: null as Error | null,
+  comparisonRetry: vi.fn(),
   environments: [] as Environment[],
   suites: [] as { id: string }[],
   defer: vi.fn(),
@@ -69,7 +71,11 @@ vi.mock("@/hooks/use-datasets", () => ({
   useDatasetCases: () => ({ cases: [], total: 12 }),
 }));
 vi.mock("@/hooks/use-eval-runs", () => ({
-  useEvalComparison: () => ({ comparison: state.compared }),
+  useEvalComparison: () => ({
+    comparison: state.compared,
+    error: state.comparisonError,
+    refetch: state.comparisonRetry,
+  }),
 }));
 vi.mock("@/hooks/use-agent-environments", () => ({
   useAgentEnvironments: () => ({ environments: state.environments }),
@@ -108,6 +114,7 @@ const topic = (id: string, extra = {}): Topic => ({
 
 beforeEach(() => {
   vi.clearAllMocks();
+  state.comparisonError = null;
   state.topicsLoading = false;
   state.topics = [topic("t1"), topic("t2"), topic("t3", { can_edit: false }), topic("t9")];
   state.topicsError = null;
@@ -246,12 +253,12 @@ it("keeps a document set aside with Not now off the list, and says when that fai
 it("states what the new version fixes, breaks and costs, and what it was tested on", () => {
   const view = render(<AcceptSummary session={{ ...SESSION, next_version: 4 }} round={ROUND} />);
   const tiles = screen.getByRole("group", {
-    name: "In the agent: version 4 will fix 3 questions, break 0, cost +2% per answer. Tested on 12 questions, 5 of them not used to write the changes.",
+    name: "In the agent: version 4 will fix 3 questions, break 0, cost +2% per answer. Tested on 5 questions, 5 of them not used to write the changes.",
   });
   expect(within(tiles).getByText("+2%")).toBeInTheDocument();
   expect(
     screen.getByText(
-      "Cost per answer +2% compared with today's version, measured on the 5 questions kept aside.",
+      "Cost per answer +2% compared with today's version, measured across 5 tested questions.",
     ),
   ).toBeInTheDocument();
   expect(within(tiles).getByText("5 not used to write the changes")).toBeInTheDocument();
@@ -262,7 +269,7 @@ it("states what the new version fixes, breaks and costs, and what it was tested 
   view.rerender(<AcceptSummary session={SESSION} round={ROUND} />);
   expect(
     screen.getByRole("group", {
-      name: "In the agent: the new version will fix 3 questions, break 0. Tested on 12 questions, 4 of them not used to write the changes.",
+      name: "In the agent: the new version will fix 3 questions, break 0. Tested on 4 questions, 4 of them not used to write the changes.",
     }),
   ).toBeInTheDocument();
   expect(screen.getByText("–")).toBeInTheDocument();
@@ -273,9 +280,8 @@ it("states what the new version fixes, breaks and costs, and what it was tested 
 it("reads no cost or held-out count from a comparison it does not have", () => {
   state.compared = null;
   render(<AcceptSummary session={SESSION} round={ROUND} />);
-  expect(
-    screen.getByRole("group", { name: /break 0\. Tested on 12 questions, 0 of them/ }),
-  ).toBeInTheDocument();
+  expect(screen.getByRole("status")).toHaveTextContent("Loading");
+  expect(screen.queryByRole("group")).not.toBeInTheDocument();
 });
 
 it("says what publishing does in each place people use the agent", () => {
@@ -374,4 +380,21 @@ it("finds the session's open topics, drafted or not, and nobody else's", () => {
   const { result } = renderHook(() => useSessionTopics(SESSION));
   expect(result.current.topics.map((item) => item.id)).toEqual(["t1", "t2"]);
   expect(result.current.error).toBeNull();
+});
+
+it("separates all tested questions from the held-out measurement", () => {
+  state.compared = comparison({ candidate_summary: { ...SUMMARY, cases: 15 } });
+  render(<AcceptSummary session={SESSION} round={{ ...ROUND, held_out: 6 }} />);
+  expect(
+    screen.getByRole("group", { name: /Tested on 15 questions, 6 of them/ }),
+  ).toBeInTheDocument();
+  expect(screen.getByText("6 not used to write the changes")).toBeInTheDocument();
+});
+
+it("offers retry when the acceptance comparison could not be read", async () => {
+  state.comparisonError = new Error("Comparison unavailable");
+  render(<AcceptSummary session={SESSION} round={ROUND} />);
+  await userEvent.click(screen.getByRole("button", { name: "Try reading again" }));
+  expect(state.comparisonRetry).toHaveBeenCalled();
+  expect(screen.queryByRole("group")).not.toBeInTheDocument();
 });

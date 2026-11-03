@@ -14431,7 +14431,7 @@
     },
     "attemptsTitle": "Versuche",
     "acceptChanges": "{count, plural, =0 {Keine Änderung wurde getestet} one {Die Änderung, die Sie übernehmen} other {Die # Änderungen, die Sie übernehmen}}",
-    "costExplained": "Kosten pro Antwort {cost} gegenüber der heutigen Version, gemessen an {heldOut, plural, one {# zurückgehaltenen Frage} other {# zurückgehaltenen Fragen}}.",
+    "costExplained": "Kosten pro Antwort {cost} gegenüber der heutigen Version, gemessen an {count, plural, one {# getesteten Frage} other {# getesteten Fragen}}.",
     "sessionTotal": "Die ganze Sitzung, mit Analyse: {total}",
     "heldBack": "Für einen weiteren Versuch zurückgestellte Änderungen, nicht getestet",
     "changeAttribution": "Wirkung der Änderung {number}",
