@@ -1,6 +1,7 @@
 """Generated summaries and proposed text are evidence, even without explicit quotes."""
 
 from typing import Literal
+from unittest.mock import AsyncMock, patch
 from uuid import uuid4
 
 import pytest
@@ -23,7 +24,10 @@ async def test_derived_details_and_decisions_need_runs_view(
     ctx = AuthContext(user_id=uuid4(), organization_id=uuid4(), role=OrgRoleName.MEMBER.value)
     service = AuthoringService(mock_db_session)
     identifier = uuid4()
-    with pytest.raises(AuthorizationError, match="runs:view"):
+    with (
+        patch.object(service.registry, "get", AsyncMock(return_value=Agent(id=identifier))),
+        pytest.raises(AuthorizationError, match="runs:view"),
+    ):
         match target:
             case "agent":
                 await service.for_agent(ctx, identifier)

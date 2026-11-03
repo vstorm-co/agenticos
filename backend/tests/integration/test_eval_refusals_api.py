@@ -13,7 +13,6 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 from app.api import deps
 from app.core.config import settings
 from app.main import app
-from app.repositories import eval_suite_repo
 from app.services.eval_suite import EvalSuiteService
 from tests.integration.test_eval_suites import _agent, _dataset, _environment, _owner, _suite_data
 
@@ -23,7 +22,7 @@ __all__ = ["_environment"]
 
 
 async def test_missing_environment_is_404_and_concurrent_duplicate_creates_are_201_or_409(
-    db, monkeypatch
+    db,
 ) -> None:
     ctx = await _owner(db)
     agent, _ = await _agent(db, ctx)
@@ -32,7 +31,18 @@ async def test_missing_environment_is_404_and_concurrent_duplicate_creates_are_2
     await db.commit()
     sessions = async_sessionmaker(db.bind, expire_on_commit=False)
 
+    creating = False
+    arrived = 0
+    ready = anyio.Event()
+
     async def service() -> AsyncIterator[EvalSuiteService]:
+        nonlocal arrived
+        if creating:
+            arrived += 1
+            if arrived == 3:
+                ready.set()
+            # Synchronize admission before the agent lock, never behind it.
+            await ready.wait()
         async with sessions() as session, session.begin():
             yield EvalSuiteService(session)
 
@@ -49,27 +59,14 @@ async def test_missing_environment_is_404_and_concurrent_duplicate_creates_are_2
             )
             assert missing.status_code == 404
             assert missing.json()["error"]["message"] == "Environment not found"
-            original = eval_suite_repo.get_by_name
-            arrived = 0
-            ready = anyio.Event()
-
-            async def same_name(*args, **kwargs):
-                nonlocal arrived
-                result = await original(*args, **kwargs)
-                arrived += 1
-                if arrived == 3:
-                    ready.set()
-                await ready.wait()
-                return result
-
-            monkeypatch.setattr(eval_suite_repo, "get_by_name", same_name)
+            creating = True
             with anyio.fail_after(20):
                 responses = await asyncio.gather(
                     *(client.post(path, json=data.model_dump(mode="json")) for _ in range(3))
                 )
             assert sorted(r.status_code for r in responses) == [201, 409, 409]
             assert all(
-                r.json()["error"]["message"] == "A suite with this name already exists"
+                r.json()["error"]["details"]["name"] == data.name
                 for r in responses
                 if r.status_code == 409
             )
