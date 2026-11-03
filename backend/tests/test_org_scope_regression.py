@@ -99,6 +99,8 @@ TENANT_REQUIRED = [
     (personal_data_repo, "asker_of"),
     (dataset_repo, "lock"),
     (dataset_repo, "list_visible"),
+    (dataset_repo, "testing_agent"),
+    (dataset_repo, "for_agent"),
     (dataset_repo, "create"),
     (dataset_repo, "get_version"),
     (dataset_repo, "list_versions"),
