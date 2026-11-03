@@ -139,20 +139,6 @@ async def test_revoked_authority_withdraws_work_before_any_model_call(returning:
         assert row.status == ("completed" if returning else "failed")
 
 
-@pytest.mark.parametrize("missing", [False, True])
-async def test_stop_watcher_cancels_when_its_task_was_stopped_or_deleted(missing: bool) -> None:
-    row = None if missing else task(status="cancelled")
-    with (
-        patch.object(module, "get_worker_db_context", database),
-        patch.object(module.asyncio, "sleep", new=AsyncMock()),
-        patch.object(
-            module.task_repo, "get", new=AsyncMock(side_effect=[task(status="running"), row])
-        ),
-        pytest.raises(module._Stopped),
-    ):
-        await module._watch_stop(ConversationTaskJob(task_id=uuid4(), organization_id=uuid4()))
-
-
 async def test_crash_settlers_and_reconciler_use_the_durable_record() -> None:
     service = MagicMock(interrupted=AsyncMock(), settle=AsyncMock(), queue_return=AsyncMock())
     row = task(status="completed")
@@ -206,8 +192,7 @@ async def test_deleted_or_concurrently_claimed_tasks_do_not_open_a_second_run(ph
         execute.assert_not_called()
 
 
-async def test_local_target_is_retained_and_stop_cancels_the_owned_execution() -> None:
-    import asyncio
+async def test_local_target_is_retained_for_execution() -> None:
 
     from app.core.permissions import AuthContext
     from app.schemas.local_target import LocalTarget
@@ -227,7 +212,6 @@ async def test_local_target_is_retained_and_stop_cancels_the_owned_execution() -
 
     async def execute(*_args, **kwargs):
         seen.append(kwargs["local"])
-        await asyncio.sleep(1)
 
     with (
         patch.object(module, "get_worker_db_context", database),
@@ -236,7 +220,6 @@ async def test_local_target_is_retained_and_stop_cancels_the_owned_execution() -
         patch.object(module, "claim", admitted),
         patch.object(module, "ConversationTaskService", return_value=service),
         patch.object(module.AgentRunnerService, "execute", new=execute),
-        patch.object(module, "_watch_stop", new=AsyncMock(side_effect=module._Stopped)),
     ):
         await module.run_task(
             ConversationTaskJob(task_id=row.id, organization_id=row.organization_id)
@@ -264,9 +247,8 @@ async def test_stop_between_preparation_and_opening_prevents_the_model_call() ->
         patch.object(module, "claim", admitted),
         patch.object(module, "ConversationTaskService", return_value=service),
         patch.object(module.AgentRunnerService, "execute", new=execute),
+        pytest.raises(AlreadyExistsError),
     ):
-        with pytest.raises(ExceptionGroup) as error:
-            await module.run_task(
-                ConversationTaskJob(task_id=row.id, organization_id=row.organization_id)
-            )
-        assert isinstance(error.value.exceptions[0], AlreadyExistsError)
+        await module.run_task(
+            ConversationTaskJob(task_id=row.id, organization_id=row.organization_id)
+        )

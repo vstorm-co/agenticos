@@ -14,6 +14,7 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    text,
 )
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
@@ -54,6 +55,18 @@ class ConversationTask(Base, TimestampMixin):
             "created_at",
         ),
         Index("conversation_tasks_person_idx", "organization_id", "user_id", "created_at"),
+        Index(
+            "conversation_tasks_pending_return_idx",
+            "created_at",
+            postgresql_where=text(
+                "delivery = 'pending' AND status IN ('completed', 'failed', 'cancelled', 'interrupted')"
+            ),
+        ),
+        Index(
+            "conversation_tasks_unsettled_idx",
+            "run_id",
+            postgresql_where=text("status IN ('running', 'awaiting_approval', 'awaiting_answer')"),
+        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)

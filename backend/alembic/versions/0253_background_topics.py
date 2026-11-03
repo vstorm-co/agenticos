@@ -146,6 +146,20 @@ def upgrade() -> None:
         ["organization_id", "source_conversation_id", "created_at"],
         unique=False,
     )
+    op.create_index(
+        "conversation_tasks_pending_return_idx",
+        "conversation_tasks",
+        ["created_at"],
+        postgresql_where=sa.text(
+            "delivery = 'pending' AND status IN ('completed', 'failed', 'cancelled', 'interrupted')"
+        ),
+    )
+    op.create_index(
+        "conversation_tasks_unsettled_idx",
+        "conversation_tasks",
+        ["run_id"],
+        postgresql_where=sa.text("status IN ('running', 'awaiting_approval', 'awaiting_answer')"),
+    )
     op.create_table(
         "conversation_turn_claims",
         sa.Column("id", sa.UUID(), nullable=False),
@@ -171,6 +185,8 @@ def upgrade() -> None:
 def downgrade() -> None:
     op.drop_index("conversation_turn_claims_topic_idx", table_name="conversation_turn_claims")
     op.drop_table("conversation_turn_claims")
+    op.drop_index("conversation_tasks_unsettled_idx", table_name="conversation_tasks")
+    op.drop_index("conversation_tasks_pending_return_idx", table_name="conversation_tasks")
     op.drop_index("conversation_tasks_source_idx", table_name="conversation_tasks")
     op.drop_index("conversation_tasks_person_idx", table_name="conversation_tasks")
     op.drop_table("conversation_tasks")

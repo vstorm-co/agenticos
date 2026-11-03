@@ -21,3 +21,7 @@ membership and access to both conversations, and treats the result as untrusted
 data, with no tools in the summary turn. The source model profile and reasoning settings are retained, including local inference. Interrupted model/tool executions are not automatically replayed, since
 they may already have edited files or changed an external service. The task
 record, both transcripts and ordinary run spend remain inspectable.
+
+Cancellation is monitored by the runner on both initial and resumed segments.
+A failed result turn is shown as interrupted; it is never claimed as delivered
+or replayed automatically.

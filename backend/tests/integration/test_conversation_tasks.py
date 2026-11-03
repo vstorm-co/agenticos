@@ -10,7 +10,7 @@ from uuid import UUID, uuid4
 
 import pytest
 from pydantic_ai.messages import ModelMessage
-from sqlalchemy import select, update
+from sqlalchemy import insert, select, text, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
@@ -25,7 +25,7 @@ from app.db.models.agent import Agent, AgentVersion
 from app.db.models.agent_run import AgentRun, RunSurface
 from app.db.models.background_job import BackgroundJob
 from app.db.models.conversation import Conversation
-from app.db.models.conversation_task import ConversationTurnClaim
+from app.db.models.conversation_task import ConversationTask, ConversationTurnClaim
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.user import User
 from app.repositories import agent_run as run_repo
@@ -691,3 +691,87 @@ def test_turn_claim_reports_the_conversation_it_belongs_to() -> None:
         id=uuid4(), conversation_id=topic_id, background=True, expires_at=datetime.now(UTC)
     )
     assert str(topic_id) in repr(claim)
+
+
+@pytest.mark.parametrize(
+    "status",
+    [
+        "completed",
+        "failed",
+        "cancelled",
+        "budget_exceeded",
+        "guardrail_blocked",
+        "loop_stopped",
+        "awaiting_approval",
+        "awaiting_answer",
+    ],
+)
+async def test_only_a_successful_result_turn_is_marked_delivered(
+    db: AsyncSession, status: str
+) -> None:
+    example = await seed(db)
+    task = await start(db, example)
+    service = ConversationTaskService(db)
+    row = await service.get(example.ctx, task.id)
+    row.return_run_id = example.source.id
+    row.status = "completed"
+    row.delivery = "running"
+    example.source.status = status
+    await db.flush()
+    await service.settle(example.source)
+    assert row.delivery == (
+        "delivered"
+        if status == "completed"
+        else "running"
+        if status in {"awaiting_approval", "awaiting_answer"}
+        else "interrupted"
+    )
+
+
+async def test_reconciliation_indexes_skip_archived_task_history(db: AsyncSession) -> None:
+    example = await seed(db)
+    first = await start(db, example)
+    row = await ConversationTaskService(db).get(example.ctx, first.id)
+    records = [
+        {
+            "id": uuid4(),
+            "organization_id": row.organization_id,
+            "user_id": row.user_id,
+            "source_conversation_id": row.source_conversation_id,
+            "conversation_id": row.conversation_id,
+            "source_run_id": row.source_run_id,
+            "source_agent_id": row.source_agent_id,
+            "source_version_id": row.source_version_id,
+            "agent_id": row.agent_id,
+            "version_id": row.version_id,
+            "tool_call_id": f"history-{i}",
+            "title": "Archived",
+            "prompt": "Completed",
+            "status": "completed",
+            "delivery": "delivered",
+        }
+        for i in range(1000)
+    ]
+    await db.execute(insert(ConversationTask), records)
+    row.status = "completed"
+    example.source.status = "completed"
+    await db.flush()
+    await db.execute(text("ANALYZE conversation_tasks"))
+    plan = await db.scalar(
+        text(
+            "EXPLAIN (FORMAT JSON) SELECT id FROM conversation_tasks WHERE delivery = 'pending' AND status IN ('completed', 'failed', 'cancelled', 'interrupted') ORDER BY created_at LIMIT 100"
+        )
+    )
+    assert "conversation_tasks_pending_return_idx" in str(plan)
+    assert [task.id for task in await task_repo.pending_returns(db)] == [row.id]
+    row.status = "running"
+    row.run_id = example.source.id
+    await db.flush()
+    await db.execute(text("ANALYZE conversation_tasks"))
+    plan = await db.scalar(
+        text(
+            "EXPLAIN (FORMAT JSON) SELECT run_id FROM conversation_tasks WHERE status IN ('running', 'awaiting_approval', 'awaiting_answer') LIMIT 100"
+        )
+    )
+    assert "conversation_tasks_unsettled_idx" in str(plan)
+    assert [task.id for task, _run in await task_repo.unsettled_runs(db)] == [row.id]

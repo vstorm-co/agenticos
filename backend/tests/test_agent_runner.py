@@ -9,7 +9,7 @@ it was parked on, with the spend it had already booked.
 import asyncio
 import logging
 import uuid
-from collections.abc import Awaitable, Callable
+from collections.abc import AsyncGenerator, Awaitable, Callable
 from dataclasses import replace
 from datetime import UTC, datetime
 from decimal import Decimal
@@ -3824,6 +3824,35 @@ class TestResume:
 
     @pytest.mark.anyio
     @pytest.mark.security
+    async def test_approval_resume_restores_the_task_cancellation_identity(self):
+        from app.services import conversation_tasks as tasks
+
+        task_id, profile_id = uuid.uuid4(), uuid.uuid4()
+        with (
+            patch.object(
+                tasks, "_check_execution", new=AsyncMock(side_effect=tasks.ConversationTaskStopped)
+            ) as checked,
+            patch.object(tasks.ConversationTaskService, "settle", new=AsyncMock()),
+        ):
+            build = await self._resumed(
+                paused_state={
+                    "messages": [],
+                    "tool_call_ids": {},
+                    "admitted_as": {
+                        "conversation_task_id": str(task_id),
+                        "model_profile_id": str(profile_id),
+                    },
+                }
+            )
+        checked.assert_awaited_once_with(
+            task_id, self.resumed_run.organization_id, self.resumed_run.id
+        )
+        assert build.return_value.deps.conversation_task_id == task_id
+        build.return_value.agent.run.assert_not_awaited()
+        assert self.resolve.call_args.kwargs["profile_id"] == profile_id
+
+    @pytest.mark.anyio
+    @pytest.mark.security
     async def test_channel_reference_context_is_restored_for_approval_resumption(self):
         build = await self._resumed(
             paused_state={
@@ -7252,6 +7281,7 @@ class TestPerRunLocalServices:
             conversation_id=conversation,
         )
         assert toolset in build.call_args.kwargs["extra_toolsets"]
+        assert build.call_args.kwargs["resources"]["background_tasks.local"].device_id == session
         assert build.call_args.args[0].instructions.endswith("Use it.")
 
     @pytest.mark.anyio
@@ -7885,6 +7915,7 @@ async def test_background_run_is_linked_before_commit_and_model_and_settled_on_f
     db.commit.side_effect = commit
     prepared.built.agent.run = AsyncMock(side_effect=model)
     with (
+        patch("app.services.conversation_tasks._check_execution", new=AsyncMock()),
         patch.object(service, "prepare", new=AsyncMock(return_value=prepared)),
         patch(
             "app.services.agent_runner.agent_run_repo.finish_run",
@@ -7908,3 +7939,58 @@ async def test_background_run_is_linked_before_commit_and_model_and_settled_on_f
         )
     assert events == (["linked", "commit"] if refused else ["linked", "commit", "model", "commit"])
     assert prepared.built.agent.run.await_count == (0 if refused else 1)
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("resumed", [False, True])
+@pytest.mark.security
+async def test_stopping_a_task_cancels_its_model_even_after_approval_resume(resumed: bool) -> None:
+    from contextlib import asynccontextmanager
+
+    from pydantic_ai import DeferredToolResults
+
+    from app.services import conversation_tasks as tasks
+
+    prepared = _prepared()
+    prepared.admitted_as.conversation_task_id = uuid.uuid4()
+    prepared.run.organization_id = uuid.uuid4()
+    row = SimpleNamespace(status="awaiting_approval" if resumed else "running", return_run_id=None)
+    closed = False
+    service = AgentRunnerService(_db())
+
+    @asynccontextmanager
+    async def database() -> AsyncGenerator[MagicMock]:
+        yield MagicMock()
+
+    async def answer(*_args: object, **_kwargs: object) -> None:
+        nonlocal closed
+        row.status = "cancelled"
+        try:
+            await asyncio.Event().wait()
+        finally:
+            closed = True
+
+    with (
+        patch.object(tasks, "get_db_context", database),
+        patch.object(tasks, "CANCEL_POLL_SECONDS", 0.001),
+        patch.object(tasks.task_repo, "get", new=AsyncMock(return_value=row)),
+        patch.object(service, "_answer", new=answer),
+        patch(
+            "app.services.agent_runner.agent_run_repo.finish_run",
+            new=AsyncMock(return_value=prepared.run),
+        ) as finish,
+        patch.object(tasks.ConversationTaskService, "settle", new=AsyncMock()),
+    ):
+        async with asyncio.timeout(1):
+            segment = await service._run(
+                prepared,
+                user_prompt="work",
+                said="",
+                attachments=(),
+                attachment_context=None,
+                message_history=[],
+                deferred_tool_results=DeferredToolResults() if resumed else None,
+            )
+        assert segment.output == ""
+        assert finish.call_args.kwargs["status"] == RunStatus.CANCELLED.value
+    assert closed

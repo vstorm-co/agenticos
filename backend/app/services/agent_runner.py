@@ -3902,6 +3902,7 @@ class AgentRunnerService:
                 # the turn's own output.
                 started_with = await workspace_snapshot(workspace.workspace)
 
+        skills_session: UUID | None = None
         if local is not None and local.skills:
             # Read on the person's own computer, in place, for a chat that chose its
             # sources; the instruction files come last in what the model reads.
@@ -3935,8 +3936,10 @@ class AgentRunnerService:
             )
 
         if local is not None:
-            resolved_session = resources.get("local_browser_session") or resources.get(
-                "local_computer_session"
+            resolved_session = (
+                resources.get("local_browser_session")
+                or resources.get("local_computer_session")
+                or skills_session
             )
             resources["background_tasks.local"] = _background_target(
                 local,
@@ -6652,6 +6655,8 @@ class AgentRunnerService:
         call already sent (#3). `ChatAgentRunner.run`, the one surface not
         routed through here, sets the same boundary.
         """
+        from app.services.conversation_tasks import ConversationTaskStopped, task_execution
+
         status = RunStatus.FAILED
         error: str | None = None
         output = ""
@@ -6680,7 +6685,14 @@ class AgentRunnerService:
             )
             # Stamped alive while the model works, so a process dying under it
             # is noticed in minutes (`app.services.run_heartbeat`).
-            async with run_heartbeat(prepared.run.id):
+            async with (
+                run_heartbeat(prepared.run.id),
+                task_execution(
+                    prepared.admitted_as.conversation_task_id,
+                    prepared.run.organization_id,
+                    prepared.run.id,
+                ),
+            ):
                 result = await self._answer(
                     prepared,
                     user_prompt=user_prompt,
@@ -6715,6 +6727,10 @@ class AgentRunnerService:
                 logger.info(
                     "Run %s parked on %d approval(s)", prepared.run.id, len(paused.tool_call_ids)
                 )
+            finished_cleanly = True
+        except ConversationTaskStopped:
+            status = RunStatus.CANCELLED
+            error = "This background topic is no longer active."
             finished_cleanly = True
         except asyncio.CancelledError:
             # The caller went away, or a delegation this run sits under was

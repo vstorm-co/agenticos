@@ -5,6 +5,9 @@ conversation/project access and run permission before spending. A lost attempt i
 reported as interrupted; it is never replayed over unknown external side effects.
 """
 
+import asyncio
+from collections.abc import AsyncGenerator
+from contextlib import asynccontextmanager
 from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
 
@@ -21,6 +24,7 @@ from app.core.permissions import AuthContext
 from app.db.locks import LockScope, hold_subject
 from app.db.models.agent_run import AgentRun, RunStatus, RunSurface
 from app.db.models.conversation_task import ConversationTask
+from app.db.session import get_db_context
 from app.repositories import agent as agent_repo
 from app.repositories import agent_run as run_repo
 from app.repositories import background_job as job_repo
@@ -36,6 +40,53 @@ from app.worker.jobs import RETURN_CONVERSATION_TASK, RUN_CONVERSATION_TASK, Con
 
 TERMINAL = frozenset({"completed", "failed", "cancelled", "interrupted"})
 MAX_ACTIVE = 4
+
+
+CANCEL_POLL_SECONDS = 2.0
+
+
+class ConversationTaskStopped(Exception):
+    """This execution lost its task, or its member explicitly stopped it."""
+
+
+async def _check_execution(task_id: UUID, organization_id: UUID, run_id: UUID) -> None:
+    async with get_db_context() as db:
+        task = await task_repo.get(db, task_id, organization_id=organization_id)
+        if task is None or (
+            task.delivery in {"interrupted", "withdrawn", "delivered"}
+            if task.return_run_id == run_id
+            else task.status in TERMINAL
+        ):
+            raise ConversationTaskStopped
+
+
+async def _watch_execution(task_id: UUID, organization_id: UUID, run_id: UUID) -> None:
+    while True:
+        await asyncio.sleep(CANCEL_POLL_SECONDS)
+        await _check_execution(task_id, organization_id, run_id)
+
+
+@asynccontextmanager
+async def task_execution(
+    task_id: UUID | None, organization_id: UUID, run_id: UUID
+) -> AsyncGenerator[None]:
+    """Own cancellation monitoring for every segment, including HTTP resumes."""
+    if task_id is None:
+        yield
+        return
+    await _check_execution(task_id, organization_id, run_id)
+    stopped = False
+    try:
+        async with asyncio.TaskGroup() as group:
+            watcher = group.create_task(_watch_execution(task_id, organization_id, run_id))
+            try:
+                yield
+            finally:
+                watcher.cancel()
+    except* ConversationTaskStopped:
+        stopped = True
+    if stopped:
+        raise ConversationTaskStopped
 
 
 class ConversationTaskService:
@@ -303,8 +354,10 @@ class ConversationTaskService:
             return
         parked = run.status in {RunStatus.AWAITING_APPROVAL.value, RunStatus.AWAITING_ANSWER.value}
         if task.return_run_id == run.id:
-            if task.delivery == "running":
-                task.delivery = "running" if parked else "delivered"
+            if task.delivery == "running" and not parked:
+                task.delivery = (
+                    "delivered" if run.status == RunStatus.COMPLETED.value else "interrupted"
+                )
         else:
             if task.status not in TERMINAL:
                 task.status = (

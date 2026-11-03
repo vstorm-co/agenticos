@@ -1,6 +1,5 @@
 """Execute one explicit delegation, then one source-bound result turn."""
 
-import asyncio
 import json
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
@@ -22,19 +21,6 @@ from app.services.conversation_tasks import TERMINAL, ConversationTaskService
 from app.services.conversation_turns import claim
 from app.services.run_stream import RunFrames
 from app.worker.jobs import ConversationTaskJob
-
-
-class _Stopped(Exception):
-    """The task's member explicitly stopped it; not a worker failure."""
-
-
-async def _watch_stop(job: ConversationTaskJob) -> None:
-    while True:
-        await asyncio.sleep(2)
-        async with get_worker_db_context() as db:
-            task = await task_repo.get(db, job.task_id, organization_id=job.organization_id)
-            if task is None or task.status == "cancelled":
-                raise _Stopped
 
 
 @asynccontextmanager
@@ -210,35 +196,26 @@ async def _perform(job: ConversationTaskJob, *, returning: bool) -> None:
             async with _live(
                 target_id, task.user_id, agent_id, task.id, returning=returning
             ) as frames:
-                try:
-                    async with asyncio.TaskGroup() as group:
-                        watcher = None if returning else group.create_task(_watch_stop(job))
-                        try:
-                            await AgentRunnerService(db).execute(
-                                ctx,
-                                agent_id,
-                                prompt,
-                                said="",
-                                surface=RunSurface.WEB,
-                                conversation_id=target_id,
-                                version_id=version_id,
-                                local=local,
-                                message_history=history,
-                                acts_for_sender=not returning,
-                                parks_questions=True,
-                                on_run_open=opened,
-                                stream=frames.drive,
-                                conversation_task_id=task.id,
-                                model_profile_id=task.source_model_profile_id
-                                if returning or task.agent_id == task.source_agent_id
-                                else None,
-                                result_only=returning,
-                            )
-                        finally:
-                            if watcher is not None:
-                                watcher.cancel()
-                except* _Stopped:
-                    pass
+                await AgentRunnerService(db).execute(
+                    ctx,
+                    agent_id,
+                    prompt,
+                    said="",
+                    surface=RunSurface.WEB,
+                    conversation_id=target_id,
+                    version_id=version_id,
+                    local=local,
+                    message_history=history,
+                    acts_for_sender=not returning,
+                    parks_questions=True,
+                    on_run_open=opened,
+                    stream=frames.drive,
+                    conversation_task_id=task.id,
+                    model_profile_id=task.source_model_profile_id
+                    if returning or task.agent_id == task.source_agent_id
+                    else None,
+                    result_only=returning,
+                )
 
 
 async def run_task(job: ConversationTaskJob) -> None:
