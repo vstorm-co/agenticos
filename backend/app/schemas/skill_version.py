@@ -239,7 +239,8 @@ class BehindMain(BaseSchema):
     can_act: bool = Field(
         description=(
             "The caller may start bringing it along: edit the agent for a pinned one, "
-            "edit the skill for a fork"
+            "edit the skill for a fork. Never for a pin in a specialist "
+            "(`via_specialist`), which changes in the agent's Builder"
         )
     )
 

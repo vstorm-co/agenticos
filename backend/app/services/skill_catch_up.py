@@ -192,7 +192,8 @@ class SkillCatchUpService:
                     version=VersionNumberRef(id=version.id, number=version.number),
                     main_latest=_main_latest(skill),
                     behind_main=skill.version - version.number,
-                    can_act=agent.id in editable,
+                    # A specialist's pin changes in the agent's Builder, not here.
+                    can_act=agent.id in editable and read.line.via_specialist is None,
                 )
             )
         return items, len({read.agent_id for read in behind if read.agent_id not in visible})

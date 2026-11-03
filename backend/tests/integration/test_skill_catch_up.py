@@ -102,6 +102,8 @@ class TestBehindMain:
             (item.agent.name if item.agent else None, item.via_specialist, item.behind_main)
             for item in items
         ] == [("Desk", "billing", 1), ("Own", "billing", 1)]
+        # Changed in the agent's Builder, so nothing here offers to update it.
+        assert [item.can_act for item in items] == [False, False]
 
     async def test_forks_nobody_reads_archived_or_already_on_main_are_not_behind(self, db):
         ctx = await _owner(db)
