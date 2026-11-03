@@ -1,5 +1,5 @@
 ---
-source_sha: "08e887dac448"
+source_sha: "31d0a04c39bf"
 title: "AgenticOS vs Dify"
 seo_title: "AgenticOS vs Dify: wielotenantowa alternatywa na Apache-2.0"
 description: "Porównaj Dify i AgenticOS, dwie platformy agentów AI self-hosted: warunki licencji, wielotenantowość, SSO, budżety, zatwierdzenia, logi audytowe i ceny."
@@ -11,11 +11,13 @@ Oba produkty da się hostować samodzielnie i oba wyszukują w dokumentach, wię
 
 Utrzymuje zespół AgenticOS. Źródła sprawdzono 21 października 2026. Wersja bazowa AgenticOS: v1.10.0. Zakres Dify: publiczne repozytorium w wersji 1.17.1, jego licencja, dokumentacja i strona cennika, a nie przetestowany plan chmurowy ani przypięte wdrożenie.
 
+Opisy funkcji AgenticOS odświeżono 2 listopada 2026 na podstawie v1.35.0. Data sprawdzenia źródeł dostawcy powyżej pozostaje bez zmian; nie jest to nowy audyt jego cen.
+
 ## W skrócie { #at-a-glance }
 
 | Obszar | Dify Community Edition | AgenticOS |
 | --- | --- | --- |
-| Jak budujesz | Wizualny canvas z węzłami workflow, chatflow i agentów | Instrukcje, profil modelu, capabilities, kolekcje i budżet, opublikowane jako wersja |
+| Jak budujesz | Wizualny canvas z węzłami workflow, chatflow i agentów | Wersjonowani agenci i wizualny canvas workflow z typowanymi krokami, rozgałęzieniami i pętlami |
 | Licencja | Dify Open Source License: Apache 2.0 z dodatkowymi warunkami | Apache-2.0; zobacz [licencje dołączonych komponentów](../licenses.md) |
 | Wielotenantowość | Jeden workspace; kilka workspace'ów to Enterprise | Wiele organizacji w jednym wdrożeniu |
 | Role | Cztery wbudowane role; role niestandardowe to Enterprise | Sześć ról, 33 uprawnienia i granty per zasób dla osób i grup |
@@ -57,11 +59,11 @@ Węzeł Human Input w Dify wstrzymuje workflow i wysyła formularz, a żądanie 
 
 ### Zmiana, którą może wprowadzić zespół biznesowy { #a-change-a-business-team-can-make }
 
-W Dify proces zmieniasz, edytując canvas. W AgenticOS właściciel biznesowy edytuje instrukcje albo włącza capability, a potem publikuje. Każda [wersja](../concepts.md#version) pozostaje czytelna, [środowiska](../environments.md#the-workflow-it-is-for) promują przetestowaną wersję, a spec [eksportuje się jako YAML](../features.md#exportable-into-your-own-repository) do przeglądu w pull requeście. Konfiguracja sięga tylko tego, co zarejestrowali inżynierowie, i to sprawia, że builder bez kodu jest bezpieczny.
+W Dify proces zmieniasz, edytując canvas. W AgenticOS właściciel biznesowy edytuje instrukcje albo włącza capability, albo edytuje wizualny workflow, a potem publikuje. Każda [wersja](../concepts.md#version) pozostaje czytelna, [środowiska](../environments.md#the-workflow-it-is-for) promują przetestowaną wersję, a spec [eksportuje się jako YAML](../features.md#exportable-into-your-own-repository) do przeglądu w pull requeście. Konfiguracja sięga tylko tego, co zarejestrowali inżynierowie.
 
 ## Kiedy Dify pasuje lepiej { #when-dify-is-the-better-fit }
 
-- twój zespół myśli schematami blokowymi i chce wizualnego canvasu z węzłami, pętlami i rozgałęzieniami. AgenticOS nie ma canvasu workflow.
+- twój zespół myśli schematami blokowymi i chce wizualnego canvasu z węzłami, pętlami i rozgałęzieniami. AgenticOS także ma wizualny edytor workflow; biblioteki węzłów i semantyka wykonania różnią się.
 - Potrzebujesz jego pluginów z marketplace'u, wyszukiwania hybrydowego z rerankingiem albo wielu integracji obserwowalności. AgenticOS nie ma jeszcze rerankera ani dashboardu trace'ów.
 - Wystarcza Ci jeden workspace albo odpowiadają Ci warunki edycji Enterprise.
 
@@ -83,7 +85,7 @@ Licencja Dify wymaga pisemnej zgody na prowadzenie środowiska wielotenantowego,
 
 ### Czy AgenticOS ma wizualny builder workflow jak Dify? { #does-agenticos-have-a-visual-workflow-builder-like-dify }
 
-Nie. AgenticOS buduje agentów z instrukcji, capabilities, wiedzy i budżetu, a pracę wieloetapową obsługuje delegacją, planowaniem i wyzwalaczami. Jeśli twój zespół pracuje na canvasie z węzłami, Dify pasuje lepiej.
+Tak. AgenticOS ma wizualny edytor workflow z typowanymi krokami, rozgałęzieniami, pętlami i publikowanymi wersjami. Dify ma własną bibliotekę węzłów i ekosystem; porównaj węzły potrzebne w konkretnym zadaniu.
 
 ### Które rozwiązanie jest tańsze w utrzymaniu? { #which-one-costs-less-to-run }
 

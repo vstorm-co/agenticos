@@ -1,5 +1,5 @@
 ---
-source_sha: "ede22781bf78"
+source_sha: "6666bbc954c8"
 ---
 
 # La app de escritorio { #the-desktop-app }
@@ -498,6 +498,14 @@ El texto de skills e instrucciones cargado pasa por tu servidor al modelo config
 ## Diagnóstico { #diagnostics }
 
 **Help → Export Diagnostics…** escribe un archivo JSON en el lugar que elijas, para adjuntarlo a un informe de error. Contiene la versión, el sistema operativo, lo que macOS ha permitido, si Claude Code y Codex están instalados y con sesión iniciada, la dirección del servidor (solo esquema, host y puerto) y los últimos fallos. No contiene credenciales, tokens, conversaciones ni rutas dentro de tu carpeta personal, y no se envía nada a ninguna parte. Un fallo se escribe en `crash.log` en la carpeta de datos de la aplicación en el momento en que ocurre.
+
+Si la aplicación de escritorio 1.38.1 permanece en **Linked — reconnecting…**
+y los chats locales muestran **Waiting for your computer**, busca `rustls` /
+`crypto/mod.rs` entre las ubicaciones de los fallos en el diagnóstico exportado.
+Este error de inicio de TLS está corregido en una versión de escritorio posterior.
+Instálala y vuelve a abrir la aplicación; actualizar solo el servidor no sustituye
+al cliente de escritorio. Esta corrección no requiere restablecer el emparejamiento
+ni los permisos de las carpetas.
 
 ## Navegador, modelos y MCP locales { #local-browser-models-and-mcp }
 

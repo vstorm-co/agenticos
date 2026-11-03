@@ -1,5 +1,5 @@
 ---
-source_sha: "41867fa39748"
+source_sha: "581422ed6012"
 ---
 
 <div class="agenticos-hero" markdown>
@@ -9,7 +9,7 @@ source_sha: "41867fa39748"
 <p class="agenticos-hero__name">AgenticOS</p>
 
 <p class="agenticos-hero__tagline">
-Daj agentom AI konkretne zadania w swoim zespole. Buduj agentów w przeglądarce, podłącz dokumenty i narzędzia, a następnie uruchamiaj ich na kontrolowanej przez siebie infrastrukturze.
+Otwarta platforma agentów AI na własnej infrastrukturze — dla współpracowników AI w Twojej firmie. Twórz, uruchamiaj i nadzoruj agentów na własnych serwerach i modelach: wspólny czat, RAG, skills, prawdziwa przeglądarka, MCP, budżety, zatwierdzenia i ślad audytowy.
 </p>
 
 <p class="agenticos-hero__badges">
@@ -20,6 +20,7 @@ Daj agentom AI konkretne zadania w swoim zespole. Buduj agentów w przeglądarce
 </p>
 
 <p class="agenticos-hero__links" markdown>
+<a href="https://vstorm-co.github.io/vstormos-landing/">AgenticOS</a> ·
 **Dokumentacja**: <a href="https://vstorm-co.github.io/agenticos/">vstorm-co.github.io/agenticos</a><br>
 **Kod źródłowy**: <a href="https://github.com/vstorm-co/agenticos">github.com/vstorm-co/agenticos</a>
 </p>
@@ -32,6 +33,10 @@ Zacznij od odpowiedzi na pytanie o dokument, którą możesz sprawdzić. Następ
 
 Twój zespół odpowiada za utrzymanie. Modele, parsowanie, embeddingi, narzędzia i tracing mogą korzystać z usług zewnętrznych zależnie od konfiguracji.
 
+
+Połącz typowane kroki, wywołania agentów i narzędzia MCP na wizualnej kanwie [Workflows](https://vstorm-co.github.io/agenticos/pl/workflows/). Zapisuj ustrukturyzowane wyniki w [Virtual Tables](https://vstorm-co.github.io/agenticos/pl/virtual-tables/), uruchamiaj pracę przez [Routines](https://vstorm-co.github.io/agenticos/pl/triggers/) i przeglądaj runy oraz zatwierdzenia. [Rozmowy głosowe](https://vstorm-co.github.io/agenticos/pl/voice/) i [aplikacja desktopowa](https://vstorm-co.github.io/agenticos/pl/desktop/) dają kolejne sposoby pracy z tymi samymi opublikowanymi agentami.
+
+Zacznij od konkretnego zadania: [LLM wiki w Project](https://vstorm-co.github.io/agenticos/pl/projects/), [widżetu agenta na stronie](https://vstorm-co.github.io/agenticos/pl/channels/) albo zespołu pracującego ze wspólnymi plikami i instrukcjami projektu. Widżet zapewnia rozmowę; rekomendacje i operacje na koszyku wymagają Twojego katalogu, integracji narzędzi i kontroli uprawnień.
 
 ---
 

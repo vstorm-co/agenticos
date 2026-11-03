@@ -1,0 +1,14 @@
+{
+  "recorded_at": "2026-11-02",
+  "application_version": "1.35.3",
+  "environment": "Isolated local Northwind Labs demonstration database",
+  "widget_run": {
+    "id": "c5f4b2c0-dcae-488a-b9c1-21c6192001bc",
+    "status": "completed",
+    "surface": "embed",
+    "conversation": "5f020bd8-3861-46d5-b1d3-cb9679b9f08c"
+  },
+  "scope": "Actual native widget and model response using fictional catalog facts in published agent instructions. No commerce tools, live inventory, orders, payments or conversion result.",
+  "prepared_conversation": "7cb23300-f92e-4a82-bb9c-2ffc764f5818",
+  "fixture_scope": "Console conversation and Visuals draw transcript are prepared; Apps are published through actual services."
+}

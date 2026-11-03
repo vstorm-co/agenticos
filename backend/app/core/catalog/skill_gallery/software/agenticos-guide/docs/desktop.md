@@ -471,6 +471,13 @@ Loaded skill and instruction text travels through your server to the agent's con
 
 **Help → Export Diagnostics…** writes one JSON file to a place you choose, to attach to a bug report. It holds the version, the operating system, what macOS has allowed, whether Claude Code and Codex are installed and signed in, the server's address (scheme, host and port only) and the last crashes. It holds no credentials, tokens, conversations or paths under your home folder, and nothing is sent anywhere. A crash is written to `crash.log` in the app's data folder as it happens.
 
+If desktop 1.38.1 stays at **Linked — reconnecting…** and local chats say
+**Waiting for your computer**, check the exported crash locations for
+`rustls` / `crypto/mod.rs`. This desktop TLS startup defect is fixed in a newer
+desktop release. Install that release and reopen the app; updating only the
+server does not replace the desktop client. Existing pairing and folder grants
+do not need to be reset for this fix.
+
 ## Local browser, models and MCP
 
 After pairing the desktop app, select **Browser → Local browser** to override

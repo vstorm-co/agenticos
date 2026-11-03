@@ -6,17 +6,21 @@ description: "Compare n8n with AgenticOS for AI agents: licence, SSO and roles w
 
 # AgenticOS vs n8n
 
-n8n is a workflow automation tool. You connect triggers, integrations and code steps on a canvas, and AI Agent nodes add models and tools to a workflow. AgenticOS starts from the agent instead: instructions, a model, capabilities, knowledge and a budget, published as a version and governed on the server.
+n8n combines visual workflows, AI Agent nodes and native agents in preview. Its native agents have their own instructions, tools, skills, knowledge and schedules. AgenticOS also offers agents and workflows; compare the operating model, licence, access and spending controls for your task.
 
 They fit together well. n8n moves data between systems on a schedule. AgenticOS runs the agents that need an owner, an approver and a spending limit.
 
 Maintained by the AgenticOS team. Sources checked 21 October 2026. AgenticOS baseline: v1.10.0. n8n scope: its pricing page, documentation and licence at n8n@2.44.5, not a tested cloud plan or self-hosted Enterprise licence.
 
+AgenticOS feature statements refreshed on 2 November 2026 against v1.35.0. The vendor source-check date above is unchanged; this is not a fresh vendor pricing audit.
+
+Native-agent availability and self-hosted knowledge setup were rechecked in the official n8n documentation on 2 November 2026. Native agents are in preview on Cloud and self-hosted plans from 2.32.3. This does not renew the pricing audit above.
+
 ## At a glance
 
 | Area | n8n | AgenticOS |
 | --- | --- | --- |
-| Unit of work | A workflow of nodes | An agent, published as a versioned spec |
+| Unit of work | Workflows, AI Agent nodes and native agents in preview | An agent, published as a versioned spec |
 | Licence | Sustainable Use License, with `.ee` files under the n8n Enterprise License | Apache-2.0 |
 | Where it runs | Self-hosted or n8n Cloud in Frankfurt | Your infrastructure |
 | Sign-in | SSO on self-hosted Business and Enterprise, and Cloud Enterprise | OIDC SSO, LDAP and Kerberos in every deployment |
@@ -50,16 +54,16 @@ n8n counts executions, and one agent turn is one execution, whatever the model s
 
 ### An agent a business owner can change
 
-Changing an n8n workflow means editing nodes on a canvas. An AgenticOS agent changes when its owner edits the instructions and publishes. Configuration can only reach the [capabilities](../reference/capabilities.md) engineers registered, and every [version](../concepts.md#version) stays readable.
+Both products let an owner configure agents as well as workflows. n8n’s native agents are in preview. An AgenticOS agent changes when its owner edits the instructions and publishes. Configuration can only reach the [capabilities](../reference/capabilities.md) engineers registered, and every [version](../concepts.md#version) stays readable.
 
 ### Knowledge as a managed collection
 
-n8n builds retrieval from nodes: loaders, embeddings and a vector store you choose. Its preview Agents feature adds a managed knowledge base that needs a Daytona sandbox when self-hosted. AgenticOS keeps [collections](../file-processing.md#rag-document-ingestion) in your Postgres with parser choice, OCR, image description, and [sync connectors](../howto/configure-sync-sources.md#what-a-sync-removes) that remove what the source deleted.
+n8n builds retrieval from nodes: loaders, embeddings and a vector store you choose. Its preview Agents feature adds a managed knowledge base that needs a configured sandbox when self-hosted. AgenticOS keeps [collections](../file-processing.md#rag-document-ingestion) in your Postgres with parser choice, OCR, image description, and [sync connectors](../howto/configure-sync-sources.md#what-a-sync-removes) that remove what the source deleted.
 
 ## When n8n is the better fit
 
 - The job is moving data between many systems, with branches, retries and schedules.
-- You want its large integration library and visual canvas. AgenticOS has no workflow canvas.
+- You prefer this product's particular node library, integrations and workflow editing experience. AgenticOS also has a visual workflow builder; available nodes and execution semantics differ.
 - You need its review channels such as Microsoft Teams, WhatsApp or Gmail, or its evaluation metrics. AgenticOS has neither yet.
 
 ## Use them together
