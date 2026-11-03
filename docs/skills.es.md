@@ -1,5 +1,5 @@
 ---
-source_sha: "6b5734e8d7df"
+source_sha: "c4cc5a33d842"
 ---
 
 # Skills { #skills }
@@ -139,6 +139,32 @@ y publicar un agent vinculado a un skill con ese nombre, también.
 
 Habilitar la capability sin ningún skill vinculado no sirve de nada — dale skills
 al agent, o deja la capability apagada.
+
+### Qué skills usó una respuesta { #which-skills-an-answer-used }
+
+Vincular un skill no significa que el modelo lo haya leído. Cada run registra los
+skills que de verdad usó, por el id del skill: si el modelo abrió uno con
+`load_capability` y cuántos de sus archivos leyó con `read_skill_resource`. Un run
+lo registra termine como termine, también si falló después de abrir el skill. Un
+skill que usó un delegado se registra en el run que delegó, bajo el agent del
+delegado, porque la respuesta que alguien valoró es la de ese run.
+
+Una llamada a una herramienta que nombra una ruta en la carpeta del skill dentro
+del workspace, como `cat /workspace/skills/refund-policy/SKILL.md`, cuenta aparte
+como uso probable. Listar la carpeta no cuenta. No se reconoce una ruta que arma
+una shell, un glob sobre varios skills ni un script que lee el archivo por su
+cuenta.
+
+`GET /api/v1/skills/{id}/usage?days=30` devuelve, por agent, cuántos runs usaron
+el skill en ese intervalo, con la versión que recibió cada uno. Los runs de evals
+y del panel de pruebas del Builder no cuentan. Las cifras salen de los runs, así
+que necesitan `runs:view`; un agent que quien llama no puede ver se cuenta, pero
+nunca se nombra.
+
+Los runs anteriores a este registro dicen «uso desconocido», que no es lo mismo
+que «no usado». Cuando se mejora un skill, sus evidencias salen solo de los runs
+que lo usaron, y los runs valorados negativamente o fallidos que podrían haberlo
+usado cuentan aparte como desconocidos.
 
 ## En un workspace, un skill también son archivos { #in-a-workspace-a-skill-is-also-files }
 

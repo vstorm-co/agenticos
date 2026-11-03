@@ -32,6 +32,7 @@ from app.schemas.skill import (
     SkillResourceUpdate,
     SkillUpdate,
 )
+from app.schemas.skill_usage import SkillUsageRead
 
 router = APIRouter(dependencies=[PUBLIC])
 
@@ -119,6 +120,22 @@ async def install_from_gallery(data: GalleryInstallRequest, service: SkillSvc, c
 @router.get("/{skill_id}", response_model=SkillRead)
 async def get_skill(skill_id: UUID, service: SkillSvc, ctx: Auth) -> Any:
     return await service.get(ctx, skill_id)
+
+
+@router.get("/{skill_id}/usage", response_model=SkillUsageRead)
+async def get_skill_usage(
+    skill_id: UUID,
+    service: SkillSvc,
+    ctx: Auth,
+    days: int = Query(30, ge=1, le=90, description="How far back to count"),
+) -> Any:
+    """How often each agent used this skill: opened it, or read one of its files.
+
+    Runs of evals and of the Builder's test panel are not counted, and a
+    delegate's use counts under the delegate. Needs `runs:view`; agents the
+    caller cannot see are a count, never named.
+    """
+    return await service.usage(ctx, skill_id, days=days)
 
 
 @router.patch("/{skill_id}", response_model=SkillRead)
