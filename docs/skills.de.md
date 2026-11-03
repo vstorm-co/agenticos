@@ -1,5 +1,5 @@
 ---
-source_sha: "23df867f45cf"
+source_sha: "c7785377d985"
 ---
 
 # Skills { #skills }
@@ -333,7 +333,9 @@ eine Person dennoch:
 - **die Änderung anwenden und die schlechteren Agents lassen, wo sie sind** -
   jeder wird, als neue veröffentlichte Version, auf die Version festgesetzt, die
   er jetzt liest, bevor die Änderung live geht, sodass keiner sie auch nur einmal
-  ausliefert. Das Festsetzen erfordert, jeden von ihnen veröffentlichen zu dürfen;
+  ausliefert. Das Festsetzen erfordert, jeden von ihnen veröffentlichen zu dürfen,
+  und eine Umgebung, die auf Beförderung wartet, muss zuerst die festgesetzte
+  Version übernehmen;
 - **einen Fork für die Agents anlegen, denen sie geholfen hat**, und main lassen,
   wie es ist - im Schritt Annehmen von [Verbessern](#improving-a-skill) oder über
   die API, `POST /api/v1/skills/{id}/checks/{check_id}/fork`;

@@ -14203,7 +14203,8 @@
         "tool_override": "Narzędzie",
         "spec_field": "Ustawienie",
         "finding": "Ustalenie",
-        "create_skill": "Nowy skill"
+        "create_skill": "Nowy skill",
+        "skill_problem": "Problem skilla"
       },
       "reason": {
         "unanchored": "Fragmentu, który zmienia, nie ma w instrukcjach",
@@ -14223,7 +14224,11 @@
         "unsupported": "Mówi, że edycja ma poparcie, ale bez dowodu, który dałoby się sprawdzić",
         "edit_not_in_diff": "Linii, którą wskazuje, nie ma w edycji",
         "superseded": "Późniejsza prośba zdążyła już zastąpić sugestie",
-        "insufficient_evidence": "Prosiły o to mniej niż trzy różne odpowiedzi, więc nie dodano go automatycznie."
+        "insufficient_evidence": "Prosiły o to mniej niż trzy różne odpowiedzi, więc nie dodano go automatycznie.",
+        "copies_skill": "Kopiuje jeden ze skilli agenta, który agent i tak już czyta",
+        "duplicates_skill": "Agent ma już skill o tej nazwie lub treści",
+        "unknown_skill": "Agent nie ma takiego skilla",
+        "skill_not_used": "Żadna z cytowanych odpowiedzi nie użyła tej wersji skilla"
       },
       "about": "Dotyczy: {line}",
       "decide": "{count, plural, one {1 pomysł czeka na Twoją decyzję} few {# pomysły czekają na Twoją decyzję} many {# pomysłów czeka na Twoją decyzję} other {# pomysłu czeka na Twoją decyzję}}",

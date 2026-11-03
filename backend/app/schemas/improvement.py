@@ -485,7 +485,7 @@ class ImprovementSkillProblem(BaseSchema):
     evidence: list[EvidenceItemRead] = Field(default_factory=list)
 
 
-class ImprovementSkillUpdate(BaseSchema):
+class ImprovementSkillNewVersion(BaseSchema):
     """A newer main version the agent could move to, through the skill's own flow."""
 
     kind: Literal["update_pinned", "catch_up_fork"] = Field(
@@ -512,7 +512,7 @@ class ImprovementSkill(BaseSchema):
     )
     problems: list[ImprovementSkillProblem] = Field(default_factory=list)
     can_improve: bool = Field(description="The caller may edit the skill, so may improve it")
-    update: ImprovementSkillUpdate | None = None
+    update: ImprovementSkillNewVersion | None = None
 
 
 class ImprovementSkills(BaseSchema):

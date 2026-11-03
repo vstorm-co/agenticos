@@ -1,5 +1,5 @@
 ---
-source_sha: "23df867f45cf"
+source_sha: "c7785377d985"
 ---
 
 # Skille { #skills }
@@ -310,7 +310,8 @@ on agents prowadzi do niej. Na main osoba może nadal:
 - **zastosować zmianę i zostawić gorszych agentów tam, gdzie są** - każdy jest
   przypinany, jako nowa opublikowana wersja, do wersji, którą czyta teraz, zanim
   zmiana trafi na żywo, więc żaden z nich nie obsłuży jej ani razu. Przypięcie
-  wymaga prawa publikacji każdego z nich;
+  wymaga prawa publikacji każdego z nich, a środowisko czekające na promocję musi
+  najpierw dostać przypiętą wersję;
 - **zrobić fork dla agentów, którym pomogła**, zostawiając main bez zmian - w
   kroku Akceptacja w [Popraw](#improving-a-skill) albo przez API,
   `POST /api/v1/skills/{id}/checks/{check_id}/fork`;

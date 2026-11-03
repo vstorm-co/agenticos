@@ -35,6 +35,7 @@ from app.repositories import skill_proposal_repo, skill_repo, skill_version_repo
 from app.schemas.resource_usage import ProposalDecision
 from app.services import proposal_reach
 from app.services import skill_proposal as skill_proposal_module
+from app.services.skill_check import SkillCheckService
 from app.services.skill_proposal import SkillProposalService
 from app.services.skill_versions import SkillVersionService
 from app.services.skill_workspace import SkillChange
@@ -102,6 +103,7 @@ def _service(monkeypatch) -> SkillProposalService:
     service.skills.create = AsyncMock(return_value=skill)
     service.skills.update = AsyncMock(return_value=skill)
     service.skills.put_resources = AsyncMock(return_value=[])
+    service.skills.drop_resources = AsyncMock(return_value=[])
     service.skills.get = AsyncMock(
         return_value=MagicMock(version=3, latest_version_id=_V3, updated_at=None)
     )
@@ -498,6 +500,7 @@ class TestDiscarding:
         service = _service(monkeypatch)
         proposal = _proposal()
         monkeypatch.setattr(skill_proposal_repo, "get", AsyncMock(return_value=proposal))
+        monkeypatch.setattr(SkillCheckService, "stop_for_proposal", AsyncMock())
 
         decided = await service.discard(_ctx(), proposal.id, _DECISION)
 

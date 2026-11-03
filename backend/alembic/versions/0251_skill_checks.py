@@ -65,6 +65,7 @@ def upgrade() -> None:
         sa.Column("expected_usd", sa.Numeric(precision=12, scale=6), nullable=False),
         sa.Column("at_most_usd", sa.Numeric(precision=12, scale=6), nullable=False),
         sa.Column("created_by_user_id", postgresql.UUID(as_uuid=True), nullable=True),
+        sa.Column("created_by_api_key_id", postgresql.UUID(as_uuid=True), nullable=True),
         sa.Column(
             "created_at",
             sa.DateTime(timezone=True),
@@ -140,6 +141,7 @@ def upgrade() -> None:
             "sample_case_ids", postgresql.ARRAY(postgresql.UUID(as_uuid=True)), nullable=True
         ),
         sa.Column("dataset_id", postgresql.UUID(as_uuid=True), nullable=True),
+        sa.Column("dataset_version", sa.Integer(), nullable=True),
         sa.Column("skill_set_run_id", postgresql.UUID(as_uuid=True), nullable=True),
         sa.Column("dataset_run_id", postgresql.UUID(as_uuid=True), nullable=True),
         sa.Column("fixed", sa.Integer(), nullable=False),

@@ -7,7 +7,7 @@ read is the skills *capability*.
 """
 
 import logging
-from collections.abc import Mapping, Sequence
+from collections.abc import Collection, Mapping, Sequence
 from datetime import UTC, datetime, timedelta
 from enum import StrEnum
 from typing import Annotated
@@ -18,7 +18,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.capabilities.skills import SkillBody
-from app.agents.spec import SkillBindingSpec
+from app.agents.spec import AgentSpec, SkillBindingSpec
 from app.core import catalog
 from app.core.audit import record_audit
 from app.core.exceptions import (
@@ -83,6 +83,14 @@ SUGGESTED_CATEGORIES: tuple[str, ...] = catalog.load(
 # it cannot read is not a smaller feature - it is a file the agent is told
 # about and then cannot use.
 MAX_RESOURCE_BYTES = 512 * 1024
+
+SKILL_BODY_CHARS = 4000
+"""How much of one skill's body an agent's improver reads."""
+
+
+def improver_skill_chars(skills: Sequence[Skill], used: Mapping[UUID, set[UUID]]) -> int:
+    """How much skill text an agent's improver is shown: the bodies its evidence used."""
+    return sum(min(len(skill.content), SKILL_BODY_CHARS) for skill in skills if skill.id in used)
 
 
 def _summary(skill: Skill, bundled_names: frozenset[str]) -> SkillSummary:
@@ -489,6 +497,25 @@ class SkillService:
                 continue
             resolved.append(served)
         return resolved
+
+    async def read_by_improver(
+        self, ctx: AuthContext, agent_id: UUID, spec: AgentSpec, run_ids: Sequence[UUID]
+    ) -> tuple[list[Skill], dict[UUID, set[UUID]]]:
+        """The skills an agent's improver reads, and the runs that used each as the agent reads it.
+
+        A run served another version of a skill - before a pin moved, on an older
+        main or on another fork - does not count for it: the body the improver reads
+        is not the one that run answered with.
+        """
+        skills = await self.resolve_for_agent(ctx, spec.skill_ids, bindings=spec.skill_bindings)
+        used = await skill_usage_repo.skills_in_runs(
+            self.db,
+            organization_id=ctx.organization_id,
+            agent_id=agent_id,
+            run_ids=run_ids,
+            versions={skill.id: skill.latest_version_id for skill in skills},
+        )
+        return skills, used
 
     async def _as_bound(self, skill: Skill, binding: SkillBindingSpec) -> Skill | None:
         """The skill as a pinned main version or a fork's newest says it, detached."""
@@ -1220,6 +1247,45 @@ class SkillService:
             target_id=str(skill.id),
             details={"name": skill.name, "resource": name},
         )
+
+    async def drop_resources(
+        self, ctx: AuthContext, skill_id: UUID, *, keep: Collection[str]
+    ) -> list[str]:
+        """Delete every file not named in `keep`, recording no version: the caller writes
+        the rest of the change and records it, so the set is one version.
+
+        For a library update, whose files are the whole set the skill should have.
+        """
+        skill = await self.get(ctx, skill_id, perm=Perm.SKILLS_EDIT)
+        stale = [resource for resource in skill.resources if resource.name not in keep]
+        for resource in stale:
+            await skill_repo.delete_resource(self.db, resource)
+        if not stale:
+            return []
+        self.db.expire(skill, ["resources"])
+        names = sorted(resource.name for resource in stale)
+        await record_audit(
+            self.db,
+            actor_user_id=ctx.subject_id,
+            organization_id=ctx.organization_id,
+            action="skill.resources_removed",
+            target_type="skill",
+            target_id=str(skill.id),
+            details={"name": skill.name, "resources": names},
+        )
+        return names
+
+    async def record_files(
+        self,
+        ctx: AuthContext,
+        skill_id: UUID,
+        *,
+        source: SkillVersionSource,
+        proposal_id: UUID | None,
+    ) -> None:
+        """Record the skill's files as they stand as a main version."""
+        skill = await self.get(ctx, skill_id, perm=Perm.SKILLS_EDIT)
+        await self._files_changed(ctx, skill, source=source, proposal_id=proposal_id)
 
     async def _files_changed(
         self,

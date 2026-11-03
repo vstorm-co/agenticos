@@ -1,5 +1,5 @@
 ---
-source_sha: "23df867f45cf"
+source_sha: "c7785377d985"
 ---
 
 # Skills { #skills }
@@ -320,7 +320,8 @@ esa sesión, y Check on agents lleva a ella. En main una persona aún puede:
 - **aplicarlo y dejar a los agents peores donde están** - cada uno se fija, como
   versión publicada nueva, a la versión que lee ahora, antes de que el cambio
   pase a producción, así que ninguno lo sirve ni una vez. Fijarlos requiere poder
-  publicar cada uno;
+  publicar cada uno, y un entorno que espera una promoción debe recibir antes la
+  versión fijada;
 - **crear un fork para los agents a los que ayudó**, dejando main como está - en
   el paso Aceptar de [Improve](#improving-a-skill) o a través de la API,
   `POST /api/v1/skills/{id}/checks/{check_id}/fork`;

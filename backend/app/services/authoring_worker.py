@@ -63,7 +63,6 @@ from app.repositories import (
     context_repo,
     skill_proposal_repo,
     skill_repo,
-    skill_usage_repo,
 )
 from app.schemas.authoring import (
     MAX_REJECTED,
@@ -94,7 +93,7 @@ from app.services.authoring_evidence import (
     render_runs,
 )
 from app.services.improvement_pipeline import ImprovementPipelineService
-from app.services.skills import SkillService
+from app.services.skills import SKILL_BODY_CHARS, SkillService
 from app.services.system_agent_runner import SystemAgentRunner
 
 logger = logging.getLogger(__name__)
@@ -266,9 +265,6 @@ def _improve_prompt(
 
 SKILL_PROBLEM = "skill_problem"
 """How a report names a skill problem it did not keep, beside the hunk kinds."""
-
-SKILL_BODY_CHARS = 4000
-"""How much of one skill's body the agent's improver reads."""
 
 
 def _skills_section(spec: AgentSpec, skills: Sequence[Skill], used: Collection[UUID]) -> str:
@@ -1262,16 +1258,9 @@ class AuthoringRun:
         self, agent_id: UUID, spec: AgentSpec, pack: EvidencePack
     ) -> tuple[list[Skill], dict[UUID, set[UUID]]]:
         """The skills the agent reads, as its bindings name them, and which runs used each."""
-        skills = await SkillService(self.db).resolve_for_agent(
-            self.ctx, spec.skill_ids, bindings=spec.skill_bindings
+        return await SkillService(self.db).read_by_improver(
+            self.ctx, agent_id, spec, [run.run_id for run in pack.runs]
         )
-        used = await skill_usage_repo.skills_in_runs(
-            self.db,
-            organization_id=self.ctx.organization_id,
-            agent_id=agent_id,
-            run_ids=[run.run_id for run in pack.runs],
-        )
-        return skills, used
 
     def _skill_problems(
         self,
@@ -1289,13 +1278,16 @@ class AuthoringRun:
             if skill is None:
                 self._reject(SKILL_PROBLEM, Rejection.UNKNOWN_SKILL, change)
                 continue
-            kept, dropped = pack.verify(problem.evidence)
-            if not kept:
+            checked, dropped = pack.verify(problem.evidence)
+            if not checked:
                 self._reject(SKILL_PROBLEM, Rejection.INSUFFICIENT_EVIDENCE, change)
                 continue
-            if not {UUID(item["run_id"]) for item in kept} & used.get(skill.id, set()):
+            runs = used.get(skill.id, set())
+            kept = [item for item in checked if UUID(item["run_id"]) in runs]
+            if not kept:
                 self._reject(SKILL_PROBLEM, Rejection.SKILL_NOT_USED, change)
                 continue
+            dropped += len(checked) - len(kept)
             found.append(
                 {
                     "skill_id": str(skill.id),

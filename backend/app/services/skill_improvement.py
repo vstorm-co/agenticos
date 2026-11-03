@@ -1018,7 +1018,6 @@ class SkillImprovementService:
         except AuthenticationError:
             ctx = None
         if ctx is None:
-            # The check runs as the same person and stops itself once they may not act.
             await self._stop_check(run)
             await self._move(run, rules.Transition(Status.STOPPED, stage, StopReason.PERMISSION))
             return
