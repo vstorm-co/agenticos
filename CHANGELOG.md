@@ -176,21 +176,6 @@ environment without a person's decision.
 
 ### Changed
 
-- Deleting a document, reading its chunks and expanding a search hit to its neighbouring chunks no longer scan the collection. Each knowledge-base collection table now has an index on the document id: new collections get it when they are created, and migration `0252_index_rag_parent_doc_id` adds it to existing ones. On a 300k-chunk collection these operations went from 40–100 ms to under 1 ms.
-
-  **Upgrade action (optional, large deployments):** The migration builds the index inside the upgrade transaction. Searches keep working, but ingestion and deletes into a collection wait until the upgrade commits (the build takes about 0.2 s per 300k chunks). To avoid that pause, build the indexes online before you upgrade. Run this in `psql` connected to the application database:
-
-  ```sql
-  SELECT format('CREATE INDEX CONCURRENTLY IF NOT EXISTS %I ON %I (parent_doc_id)',
-                table_name || '_parent_idx', table_name)
-  FROM information_schema.columns
-  WHERE table_schema = 'public' AND column_name = 'metadata'
-    AND data_type = 'jsonb' AND table_name LIKE 'rag\_%' ESCAPE '\'
-  \gexec
-  ```
-
-  The migration then finds the indexes valid and leaves those collections alone. Let the statement finish before you upgrade: if the migration finds a build still running, it stops with an error, and you run the upgrade again after the build ends. If a concurrent build fails, it leaves an invalid index. Drop it with `DROP INDEX CONCURRENTLY <name>` and run the statement again. If you upgrade with an invalid index in place, the migration drops and rebuilds it, and searches in that collection also wait until the upgrade commits.
-
 - The agent page's tabs are reordered, with an **Evals** tab that shows results
   first.
 - A publish refusal offers the one-click fixes it names beside it.
@@ -259,6 +244,26 @@ environment without a person's decision.
   the generator reads them.
 - A suite and a promotion override can be set up only by a person signed in as
   themselves, not through an API key or impersonation.
+
+## [1.39.1] - 2026-11-03
+
+### Changed
+
+- Deleting a document, reading its chunks and expanding a search hit to its neighbouring chunks no longer scan the collection. Each knowledge-base collection table now has an index on the document id: new collections get it when they are created, and migration `0252_index_rag_parent_doc_id` adds it to existing ones. On a 300k-chunk collection these operations went from 40–100 ms to under 1 ms.
+
+  **Upgrade action (optional, large deployments):** The migration builds the index inside the upgrade transaction. Searches keep working, but ingestion and deletes into a collection wait until the upgrade commits (the build takes about 0.2 s per 300k chunks). To avoid that pause, build the indexes online before you upgrade. Run this in `psql` connected to the application database:
+
+  ```sql
+  SELECT format('CREATE INDEX CONCURRENTLY IF NOT EXISTS %I ON %I (parent_doc_id)',
+                table_name || '_parent_idx', table_name)
+  FROM information_schema.columns
+  WHERE table_schema = 'public' AND column_name = 'metadata'
+    AND data_type = 'jsonb' AND table_name LIKE 'rag\_%' ESCAPE '\'
+  \gexec
+  ```
+
+  The migration then finds the indexes valid and leaves those collections alone. Let the statement finish before you upgrade: if the migration finds a build still running, it stops with an error, and you run the upgrade again after the build ends. If a concurrent build fails, it leaves an invalid index. Drop it with `DROP INDEX CONCURRENTLY <name>` and run the statement again. If you upgrade with an invalid index in place, the migration drops and rebuilds it, and searches in that collection also wait until the upgrade commits.
+
 
 ## [1.39.0] - 2026-11-03
 
