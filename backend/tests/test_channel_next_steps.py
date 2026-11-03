@@ -29,6 +29,7 @@ from app.services.channels.whatsapp import WhatsAppAdapter
 from app.services.channels.whatsapp_graph import WhatsAppCredentials
 from app.services.transcript import RecordedToolCall
 from app.worker.background.channel import process_channel_press
+from tests.whatsapp_fakes import OpenWindow
 
 pytestmark = pytest.mark.anyio
 
@@ -185,6 +186,13 @@ class TestOffering:
             "Do this every Monday",
         ]
         assert [read_next(choice.value)[1] for choice in sent.choices] == [0, 1]
+
+    async def test_next_steps_name_no_run(self):
+        bot = _bot()
+        incoming = MagicMock(platform="whatsapp", platform_chat_id="US.1", chat_type="private")
+        with _Patched(bot=bot, row=None) as env:
+            await ChannelNextSteps(MagicMock()).offer(bot, incoming, run_id=RUN, steps=["Again"])
+        assert env.adapter.send_prompt.await_args.args[1].run_id is None
 
     async def test_a_platform_that_refuses_them_costs_nothing_else(self):
         bot = _bot()
@@ -527,7 +535,7 @@ class TestOnWhatsApp:
             mark_read=AsyncMock(),
             aclose=AsyncMock(),
         )
-        adapter = WhatsAppAdapter(graph)
+        adapter = WhatsAppAdapter(graph, window=OpenWindow())
         incoming = IncomingMessage(
             platform="whatsapp",
             bot_id=str(bot.id),

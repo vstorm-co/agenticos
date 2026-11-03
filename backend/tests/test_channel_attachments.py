@@ -45,6 +45,7 @@ from app.services.channels.whatsapp_graph import MediaInfo, WhatsAppCredentials,
 from app.services.file_storage import LocalFileStorage
 from app.services.file_upload import FileUploadService
 from app.services.workflow_execution.exceptions import WorkflowAdmissionQuotaError
+from tests.whatsapp_fakes import OpenWindow
 from tests.workspaces import document_workspace
 
 pytestmark = pytest.mark.anyio
@@ -391,7 +392,7 @@ class TestReceivingWhatSomebodySent:
         """The size Meta states, filled in by the real `describe_attachments`, feeds the
         same size gate every platform has: the file is refused without being fetched."""
         graph = _whatsapp_graph(file_size=200 * 1024 * 1024)
-        adapter = WhatsAppAdapter(graph)
+        adapter = WhatsAppAdapter(graph, window=OpenWindow())
         found = [_attachment(handle="123")]
 
         described = await adapter.describe_attachments(WA_TOKEN, found)
@@ -408,7 +409,7 @@ class TestReceivingWhatSomebodySent:
     async def test_a_whatsapp_download_failure_names_the_file(self):
         graph = _whatsapp_graph(file_size=10)
         graph.download_media.side_effect = WhatsAppGraphError(code=None)
-        adapter = WhatsAppAdapter(graph)
+        adapter = WhatsAppAdapter(graph, window=OpenWindow())
         described = await adapter.describe_attachments(WA_TOKEN, [_attachment(handle="123")])
 
         stored, refused = await _service().receive(
@@ -421,7 +422,7 @@ class TestReceivingWhatSomebodySent:
 
     async def test_a_whatsapp_file_is_fetched_and_stored(self):
         graph = _whatsapp_graph(file_size=11)
-        adapter = WhatsAppAdapter(graph)
+        adapter = WhatsAppAdapter(graph, window=OpenWindow())
         described = await adapter.describe_attachments(WA_TOKEN, [_attachment(handle="123")])
         service = _service()
 
@@ -434,7 +435,7 @@ class TestReceivingWhatSomebodySent:
     async def test_a_whatsapp_video_is_refused_without_download(self):
         service = _service()
         graph = _whatsapp_graph(file_size=10)
-        adapter = WhatsAppAdapter(graph)
+        adapter = WhatsAppAdapter(graph, window=OpenWindow())
         video = _attachment(filename="video.mp4", mime_type="video/mp4", handle="123")
 
         described = await adapter.describe_attachments(WA_TOKEN, [video])

@@ -308,6 +308,8 @@ class OutgoingMessage:
     # Slack and Telegram ignore it; a Mattermost bot cannot send without it,
     # because every deployment is somebody's own server.
     api_base_url: str | None = None
+    run_id: str | None = None
+    """The run this message answers, or the run waiting on this prompt, so a platform that cannot deliver it now can deliver it later (WhatsApp outside its 24-hour window). `None` for anything else, which is sent now or not at all."""
 
 
 CHANNEL_COMMANDS: tuple[tuple[str, str], ...] = (
@@ -436,6 +438,8 @@ class PromptMessage:
     bot_id: str = ""
     """The bot posting it, for a platform whose buttons call back a per-bot URL."""
     api_base_url: str | None = None
+    run_id: str | None = None
+    """The run this message answers, or the run waiting on this prompt, so a platform that cannot deliver it now can deliver it later (WhatsApp outside its 24-hour window). `None` for anything else, which is sent now or not at all."""
 
 
 @dataclass
@@ -841,6 +845,7 @@ class ChannelAdapter(ABC):
                 platform_chat_id=prompt.platform_chat_id,
                 text=f"{prompt.text}\n{listed}",
                 api_base_url=prompt.api_base_url,
+                run_id=prompt.run_id,  # the text list still waits on this run
             ),
         )
 

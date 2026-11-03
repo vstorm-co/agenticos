@@ -289,6 +289,7 @@ class ChannelPrompts:
             choices=choices,
             bot_id=str(bot.id),
             api_base_url=bot.api_base_url,
+            run_id=str(prompt.run_id),  # a platform with a send window can hold the run
         )
 
     async def press(self, press: IncomingPress) -> None:
@@ -433,6 +434,7 @@ class ChannelPrompts:
             text="\n\n".join([segment.output or "Done.", *notices]),
             image_png=picture,
             api_base_url=bot.api_base_url,
+            run_id=str(segment.run.id),  # kept by the `replace` below
         )
         try:
             await adapter.send_message(token, message)

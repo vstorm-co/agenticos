@@ -14,17 +14,22 @@ import pytest
 
 from app.services.channels.exceptions import ChannelNotConfigured
 from app.services.channels.whatsapp_graph import (
+    CLOSED_WINDOW_CODE,
     GRAPH_BASE,
     GRAPH_VERSION,
     MAX_ATTEMPTS,
     MEDIA_HOSTS,
+    TEMPLATE_PAGES,
     TOKEN_REFUSED,
     WhatsAppCredentials,
     WhatsAppGraph,
     WhatsAppGraphError,
     WhatsAppMediaTooLarge,
     WhatsAppTokenRefused,
+    WhatsAppWindowClosed,
+    is_template_refusal,
 )
+from app.services.channels.whatsapp_templates import LateTemplate
 
 pytestmark = pytest.mark.anyio
 
@@ -473,3 +478,116 @@ async def test_a_send_without_a_message_id_is_refused():
     graph, _ = _graph(httpx.Response(200, json={"messages": []}))
     with pytest.raises(WhatsAppGraphError):
         await graph.send_interactive(CREDS, recipient="US.111", interactive={})
+
+
+LATE = LateTemplate(name="late_answer", language="en_US", body="Update: {{1}} Thanks.")
+NAMED = LateTemplate(name="late_answer", language="en_US", body="Update: {{answer}} Thanks.")
+
+
+async def test_send_template_puts_the_text_in_the_body_parameter():
+    graph, seen = _graph(_accepted(), _accepted())
+    assert await graph.send_template(CREDS, recipient="US.1", template=LATE, text="hi") == (
+        "wamid.OUT"
+    )
+    await graph.send_template(CREDS, recipient="US.1", template=NAMED, text="hi")
+    first, second = (json.loads(r.content) for r in seen)
+    assert first["type"] == "template"
+    assert first["recipient"] == "US.1"
+    assert "context" not in first
+    assert first["template"] == {
+        "name": "late_answer",
+        "language": {"code": "en_US"},
+        "components": [{"type": "body", "parameters": [{"type": "text", "text": "hi"}]}],
+    }
+    assert second["template"]["components"][0]["parameters"] == [
+        {"type": "text", "text": "hi", "parameter_name": "answer"}
+    ]
+    await graph.aclose()
+
+
+async def test_callback_data_rides_on_every_kind_of_send_and_only_when_given():
+    graph, seen = _graph(*[_accepted() for _ in range(8)])
+    await graph.send_text(CREDS, recipient="US.1", body="a", callback="run-1")
+    await graph.send_media(
+        CREDS,
+        recipient="US.1",
+        kind="image",
+        media_id="1",
+        caption=None,
+        filename=None,
+        reply_to=None,
+        callback="run-1",
+    )
+    await graph.send_interactive(
+        CREDS, recipient="US.1", interactive={"type": "button"}, callback="run-1"
+    )
+    await graph.send_template(CREDS, recipient="US.1", template=LATE, text="a", callback="run-1")
+    await graph.send_text(CREDS, recipient="US.1", body="a")
+    await graph.send_media(
+        CREDS,
+        recipient="US.1",
+        kind="image",
+        media_id="1",
+        caption=None,
+        filename=None,
+        reply_to=None,
+    )
+    await graph.send_interactive(CREDS, recipient="US.1", interactive={"type": "button"})
+    await graph.send_template(CREDS, recipient="US.1", template=LATE, text="a")
+    sent = [json.loads(r.content) for r in seen]
+    assert [p.get("biz_opaque_callback_data") for p in sent] == ["run-1"] * 4 + [None] * 4
+    assert all("biz_opaque_callback_data" not in p for p in sent[4:])
+    await graph.aclose()
+
+
+def test_a_template_refusal_is_told_apart_from_a_closed_window():
+    assert CLOSED_WINDOW_CODE == 131047
+    assert is_template_refusal(132018) and is_template_refusal(132000)
+    assert not any(is_template_refusal(c) for c in (131047, 133000, 131999, None))
+    refused = WhatsAppWindowClosed()
+    assert refused.details == {"code": CLOSED_WINDOW_CODE}
+    assert "24-hour window" in refused.message
+
+
+def _page(names: list[str], after: str | None) -> httpx.Response:
+    body: dict[str, Any] = {"data": [{"name": n} for n in names] + ["junk"], "paging": {}}
+    if after:
+        body["paging"] = {"cursors": {"after": after}, "next": "https://graph.example/next"}
+    return httpx.Response(200, json=body)
+
+
+async def test_template_listing_follows_the_cursor_and_stops():
+    graph, seen = _graph(_page(["a"], "c1"), _page(["b"], "c2"), _page(["c"], None))
+    listing = await graph.message_templates(CREDS, account_id="123")
+    assert [t["name"] for t in listing] == ["a", "b", "c"]
+    assert [r.url.params.get("after") for r in seen] == [None, "c1", "c2"]
+    first = seen[0]
+    assert first.method == "GET"
+    assert first.url.path == f"/{GRAPH_VERSION}/123/message_templates"
+    assert first.url.params["fields"] == "name,category,status,language,components"
+    assert first.url.params["limit"] == "100"
+    await graph.aclose()
+
+    endless, seen = _graph(*[_page(["x"], f"c{i}") for i in range(TEMPLATE_PAGES + 3)])
+    assert len(await endless.message_templates(CREDS, account_id="123")) == TEMPLATE_PAGES
+    assert len(seen) == TEMPLATE_PAGES == 5
+    await endless.aclose()
+
+
+@pytest.mark.parametrize("account_id", ["", "12a", "../1", "١٢٣"])
+async def test_an_account_id_that_is_not_digits_is_refused_without_a_request(account_id: str):
+    graph, seen = _graph()
+    with pytest.raises(WhatsAppGraphError) as caught:
+        await graph.message_templates(CREDS, account_id=account_id)
+    assert caught.value.details == {"code": None}
+    assert seen == []
+    await graph.aclose()
+
+
+async def test_the_listing_token_goes_only_in_the_header():
+    graph, seen = _graph(_page(["a"], "c1"), _page(["b"], None))
+    await graph.message_templates(CREDS, account_id="123")
+    for request in seen:
+        assert request.headers["authorization"] == f"Bearer {TOKEN}"
+        assert TOKEN not in str(request.url)
+    await graph.aclose()

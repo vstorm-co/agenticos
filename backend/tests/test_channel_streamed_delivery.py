@@ -62,6 +62,25 @@ async def _deliver(
         )
 
 
+class TestAnAnswerNamesItsRun:
+    async def test_a_posted_answer_names_its_run(self) -> None:
+        router, send_reply = _router()
+        await _deliver(router, MagicMock(), _answered())
+        assert send_reply.await_args.kwargs["run_id"] == str(RUN_ID)
+
+    async def test_the_streamed_fallback_names_its_run_too(self) -> None:
+        router, send_reply = _router()
+        await _deliver(
+            router, MagicMock(), _answered(), handle="222.2", streamed=_streamed(continues=False)
+        )
+        assert send_reply.await_args.kwargs["run_id"] == str(RUN_ID)
+
+    async def test_an_answer_with_no_run_names_none(self) -> None:
+        router, send_reply = _router()
+        await _deliver(router, MagicMock(), _answered(run_id=None))
+        assert send_reply.await_args.kwargs["run_id"] is None
+
+
 class TestAStreamedAnswerEnds:
     async def test_it_ends_with_the_thumbs_for_its_run(self) -> None:
         router, send_reply = _router()

@@ -555,3 +555,24 @@ async def test_a_forged_generated_image_receipt_cannot_post_another_conversation
     )
     read.assert_not_awaited()
     assert len(notices) == 1
+
+
+@pytest.mark.parametrize("run_id", ["r1", None])
+async def test_send_reply_carries_the_run_to_the_adapter(
+    monkeypatch: pytest.MonkeyPatch, run_id: str | None
+) -> None:
+    from unittest.mock import AsyncMock, MagicMock
+
+    from app.services.channels import router
+
+    adapter = MagicMock(send_message=AsyncMock())
+    monkeypatch.setattr(router, "get_adapter", lambda _: adapter)
+    monkeypatch.setattr(router, "unseal_bot_token", lambda _: "test-token")
+    incoming = MagicMock(platform="whatsapp", platform_chat_id="US.1")
+    if run_id is None:
+        await router.ChannelMessageRouter()._send_reply(MagicMock(), incoming, "Ready")
+    else:
+        await router.ChannelMessageRouter()._send_reply(
+            MagicMock(), incoming, "Ready", run_id=run_id
+        )
+    assert adapter.send_message.await_args.args[1].run_id == run_id

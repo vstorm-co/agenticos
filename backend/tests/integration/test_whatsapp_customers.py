@@ -378,6 +378,17 @@ class TestTheStore:
         assert not await store.hold_new(str(bot.id), BSUID, run_id=str(runs[0]))
         assert await store.hold_new(str(bot.id), BSUID, run_id=str(runs[1]))
 
+    async def test_hold_holds_whatever_the_record_says(self, sessions, estate) -> None:
+        org, bot, runs = estate
+        store = WindowStore(sessions)
+        await self._record(sessions, org, bot, T3)
+        assert await store.window(str(bot.id), BSUID, now=T3) is True
+        await store.hold(str(bot.id), BSUID, run_id=str(runs[0]), answer=False, files=False)
+        await store.hold(str(bot.id), BSUID, run_id=str(runs[0]), answer=True, files=True)
+        async with sessions() as db:
+            row = (await db.execute(select(WhatsAppHeldRun))).scalar_one()
+            assert (row.held_answer, row.held_files) == (True, True)
+
     async def test_a_closure_is_news_once_per_message(self, sessions, estate) -> None:
         org, bot, _ = estate
         store = WindowStore(sessions)

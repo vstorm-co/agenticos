@@ -215,6 +215,13 @@ class TestAPlatformWithNoButtons:
 
         assert adapter.sent[0].text == "Approve it?\n- Approve\n- Reject"
 
+    async def test_the_text_list_carries_the_prompts_run(self):
+        adapter = _Plain()
+        prompt = PromptMessage(platform_chat_id="c", text="Approve it?", choices=[], run_id="r1")
+        await adapter.send_prompt("t", prompt)
+        await adapter.send_prompt("t", PromptMessage(platform_chat_id="c", text="?", choices=[]))
+        assert [m.run_id for m in adapter.sent] == ["r1", None]
+
     async def test_keeps_its_buttons_and_does_not_compare_chats(self):
         adapter = _Plain()
 
@@ -285,6 +292,55 @@ class TestOffering:
         assert sent[2].text == "Anything else?"
         assert sent[3].text == f"Which city?\n{TYPE_IT}"
         assert sent[0].bot_id == str(bot.id)
+
+    async def test_offered_prompts_name_their_run(self):
+        bot = _bot()
+        asked = ParkedQuestion(
+            tool_call_id="ask-1",
+            questions=[
+                QuestionItem(question="One?", options=[QuestionChoice(label="A")]),
+                QuestionItem(
+                    question="Two?", options=[QuestionChoice(label="B")], multi_select=True
+                ),
+            ],
+        )
+        approval = ParkedCall(
+            id=uuid.uuid4(), tool_call_id="c1", tool_name="gmail_send_email", tool_args={}
+        )
+        service = ChannelPrompts(_session())
+        run = MagicMock(id=RUN, user_id=USER)
+
+        async def create(db: Any, **fields: Any) -> MagicMock:
+            return MagicMock(id=uuid.uuid4(), **{"multi_select": False, **fields})
+
+        with _Patched(bot=bot, prompt=None, role="member") as env:
+            with (
+                patch(f"{_MODULE}.agent_run_repo.get_run", new=AsyncMock(return_value=run)),
+                patch(f"{_MODULE}.channel_prompt_repo.create", new=create),
+                patch.object(
+                    service.runner, "parked_calls", new=AsyncMock(return_value=[approval])
+                ),
+                patch.object(
+                    service.runner, "parked_questions", new=AsyncMock(return_value=[asked])
+                ),
+            ):
+                await service.offer(bot, platform="slack", platform_chat_id="C1:1.0", run_id=RUN)
+            sent = [call.args[1] for call in env.adapter.send_prompt.await_args_list]
+
+        assert len(sent) == 3
+        assert {prompt.run_id for prompt in sent} == {str(RUN)}
+
+    async def test_a_continued_answer_names_its_run(self):
+        adapter = MagicMock(send_message=AsyncMock())
+        segment = MagicMock(output="Sent.", tool_calls=[], generated_files=frozenset())
+        segment.run.id = RUN
+        with (
+            patch(f"{_MODULE}.get_adapter", return_value=adapter),
+            patch(f"{_MODULE}.unseal_bot_token", return_value="tok"),
+            patch(f"{_MODULE}.drawn_picture", new=AsyncMock(return_value=None)),
+        ):
+            await ChannelPrompts(_session())._send_segment(_bot(), "whatsapp", "US.1", segment)
+        assert adapter.send_message.await_args.args[1].run_id == str(RUN)
 
     async def test_a_question_the_chat_never_got_leaves_no_row_behind(self):
         """Codex on #2062: a call is answered once all its rows are, so an

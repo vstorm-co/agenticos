@@ -32,6 +32,7 @@ from app.services.channels.whatsapp_graph import WhatsAppCredentials, WhatsAppGr
 from app.services.channels.whatsapp_payload import parse_webhook, to_event
 from app.worker.background.channel import process_channel_events_in_order
 from tests.test_whatsapp_payload import FIXTURES
+from tests.whatsapp_fakes import OpenWindow
 
 pytestmark = pytest.mark.anyio
 
@@ -347,7 +348,7 @@ class TestMessages:
             media_info=AsyncMock(side_effect=WhatsAppGraphError(code=100)),
             aclose=AsyncMock(),
         )
-        adapter = WhatsAppAdapter(graph)
+        adapter = WhatsAppAdapter(graph, window=OpenWindow())
         creds = WhatsAppCredentials(bot_id=str(bot.id), access_token="t", phone_number_id="PNID1")
         row = MagicMock(
             id=uuid.uuid4(),

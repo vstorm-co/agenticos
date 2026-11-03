@@ -31,6 +31,7 @@ from app.services.channels.whatsapp import WhatsAppAdapter
 from app.services.channels.whatsapp_graph import MediaInfo, WhatsAppCredentials
 from app.services.transcription import TranscriptionResult
 from tests.recordings import ogg_opus
+from tests.whatsapp_fakes import OpenWindow
 
 pytestmark = pytest.mark.anyio
 
@@ -348,7 +349,7 @@ class TestWhenItCannotListen:
             download_media=AsyncMock(return_value=ogg_opus(3.0)),
             aclose=AsyncMock(),
         )
-        adapter = WhatsAppAdapter(graph)
+        adapter = WhatsAppAdapter(graph, window=OpenWindow())
         note = IncomingAttachment("audio", "application/octet-stream", 0, "12345")
         [note] = await adapter.describe_attachments(creds.encode(), [note])
         transcribe = AsyncMock(return_value=_heard("hello there"))

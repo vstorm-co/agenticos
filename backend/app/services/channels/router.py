@@ -700,6 +700,8 @@ class ChannelMessageRouter:
         answer as it ends, on an edited one once the edit landed.
         """
         text = answer or _empty_answer(answered)
+        # The run rides on the message so a platform with a send window can hold it.
+        run_id = str(answered.run_id) if answered.run_id is not None else None
         rated = (
             str(answered.run_id)
             if bot.rate_answers
@@ -710,7 +712,12 @@ class ChannelMessageRouter:
         if streamed is not None:
             if not await self._finish_streamed(bot, incoming, streamed, text, rated):
                 await self._send_reply(
-                    bot, incoming, text, answered.attachments, image_png=answered.image_png
+                    bot,
+                    incoming,
+                    text,
+                    answered.attachments,
+                    image_png=answered.image_png,
+                    run_id=run_id,
                 )
                 return
             if answered.image_png is None and not answered.attachments:
@@ -743,6 +750,7 @@ class ChannelMessageRouter:
             text,
             answered.attachments,
             image_png=answered.image_png,
+            run_id=run_id,
         )
 
     async def _answer_mention(
@@ -1941,6 +1949,7 @@ class ChannelMessageRouter:
         attachments: list[OutgoingAttachment] | None = None,
         *,
         image_png: bytes | None = None,
+        run_id: str | None = None,
     ) -> None:
         """Decrypt the bot token and send a reply via the appropriate adapter.
 
@@ -1959,6 +1968,7 @@ class ChannelMessageRouter:
                 api_base_url=getattr(bot, "api_base_url", None),
                 attachments=attachments or [],
                 image_png=image_png,
+                run_id=run_id,
             )
             await adapter.send_message(decrypted_token, out)
         except Exception:

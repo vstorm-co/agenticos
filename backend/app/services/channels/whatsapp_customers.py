@@ -107,6 +107,23 @@ class WindowStore:
             )
             return False
 
+    async def hold(
+        self, bot_id: str, chat_id: str, *, run_id: str, answer: bool, files: bool
+    ) -> None:
+        """Hold the run whatever the record says: Meta has just refused the send as outside the window."""
+        from app.repositories import whatsapp_customer_repo
+
+        async with self._sessions() as db:
+            customer = await whatsapp_customer_repo.lock(
+                db,
+                organization_id=await self._organization(db, bot_id),
+                bot_id=UUID(bot_id),
+                bsuid=chat_id,
+            )
+            await whatsapp_customer_repo.hold_run(
+                db, customer=customer, run_id=UUID(run_id), answer=answer, files=files
+            )
+
     async def hold_new(self, bot_id: str, chat_id: str, *, run_id: str) -> bool:
         """Hold a run's answer whatever the window; True only when this call created the row."""
         from app.repositories import whatsapp_customer_repo

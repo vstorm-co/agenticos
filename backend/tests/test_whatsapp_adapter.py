@@ -1,7 +1,9 @@
 """The WhatsApp adapter: what it sends, the typing indicator it keeps up, send health (#2076)."""
 
 import asyncio
+import logging
 import uuid
+from datetime import UTC, datetime, timedelta
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -28,13 +30,19 @@ from app.services.channels.whatsapp import (
 )
 from app.services.channels.whatsapp_format import MAX_TEXT_UNITS, to_whatsapp, utf16_units
 from app.services.channels.whatsapp_graph import (
+    CLOSED_WINDOW_CODE,
     TOKEN_REFUSED,
     MediaInfo,
     WhatsAppCredentials,
     WhatsAppGraphError,
     WhatsAppTokenRefused,
+    WhatsAppWindowClosed,
+    WhatsAppWindowUnavailable,
 )
 from app.services.channels.whatsapp_interactive import CHOOSE_BELOW
+from app.services.channels.whatsapp_templates import LateTemplate
+from app.services.channels.whatsapp_window import PREVIEW_ENDING
+from tests.whatsapp_fakes import FakeWindowStore, OpenWindow
 from tests.workspaces import document_workspace
 
 pytestmark = pytest.mark.anyio
@@ -56,6 +64,7 @@ def _graph() -> MagicMock:
     graph.upload_media = AsyncMock(return_value="media-up")
     graph.send_media = AsyncMock(return_value="wamid.file")
     graph.send_interactive = AsyncMock(return_value="wamid.buttons")
+    graph.send_template = AsyncMock(return_value="wamid.template")
     graph.aclose = AsyncMock()
     return graph
 
@@ -77,7 +86,7 @@ def graph() -> MagicMock:
 
 @pytest.fixture
 async def adapter(graph: MagicMock):
-    adapter = WhatsAppAdapter(graph)
+    adapter = WhatsAppAdapter(graph, window=OpenWindow())
     yield adapter
     await adapter.aclose()
 
@@ -189,6 +198,7 @@ class TestSending:
             caption="*Sales* up",
             filename="sales.png",
             reply_to=None,
+            callback=None,
         )
 
     async def test_a_chart_with_no_text_goes_without_a_caption(self, adapter, graph):
@@ -542,7 +552,10 @@ class TestSendHealth:
     ):
         """Production runs several workers: the one whose send succeeds is rarely the
         one that saw the refusal, so "down" is read from the shared entry."""
-        first, second = WhatsAppAdapter(graph), WhatsAppAdapter(_graph())
+        first, second = (
+            WhatsAppAdapter(graph, window=OpenWindow()),
+            WhatsAppAdapter(_graph(), window=OpenWindow()),
+        )
         graph.send_text.side_effect = WhatsAppTokenRefused(code=190)
         try:
             with pytest.raises(WhatsAppTokenRefused):
@@ -594,7 +607,7 @@ class TestThePlatformInterface:
         assert not adapter.verify_webhook_signature({"x-hub-signature-256": good}, "s", None)
 
     async def test_closing_closes_the_graph_and_the_refreshers(self, graph):
-        adapter = WhatsAppAdapter(graph)
+        adapter = WhatsAppAdapter(graph, window=OpenWindow())
         with patch.object(whatsapp, "TYPING_REFRESH_SECONDS", 10):
             await adapter.begin_reply(TOKEN, _message("…", reply_to_message_id="wamid.in"))
         (task,) = adapter._typing.values()
@@ -606,7 +619,7 @@ class TestThePlatformInterface:
         assert task.cancelled()
 
     async def test_the_default_graph_is_a_real_client(self):
-        adapter = WhatsAppAdapter()
+        adapter = WhatsAppAdapter(window=OpenWindow())
         try:
             assert adapter._graph is not None
         finally:
@@ -748,7 +761,7 @@ class TestPrompts:
         await adapter.settle_prompt(TOKEN, _press(), "Approved.")
 
         graph.send_text.assert_awaited_once_with(
-            CREDS, recipient=CHAT, body="Approved.", reply_to="wamid.prompt"
+            CREDS, recipient=CHAT, body="Approved.", reply_to="wamid.prompt", callback=None
         )
 
     @pytest.mark.parametrize(
@@ -794,3 +807,551 @@ class TestPrompts:
 
     async def test_buttons_do_not_outlive_a_press(self, adapter):
         assert adapter.buttons_outlive_a_press is False
+
+
+NOW = datetime(2026, 11, 4, 12, tzinfo=UTC)
+LATE = NOW - timedelta(hours=23, minutes=56)
+TEMPLATE = LateTemplate(name="late_answer", language="en_US", body="Update: {{1}} Thanks.")
+
+
+def _closed(**kwargs: Any) -> FakeWindowStore:
+    kwargs.setdefault("last_inbound_at", LATE)
+    return FakeWindowStore(**kwargs)
+
+
+def _late_adapter(graph: MagicMock, window: FakeWindowStore) -> WhatsAppAdapter:
+    return WhatsAppAdapter(graph, window=window)
+
+
+@pytest.fixture(autouse=False)
+def frozen():
+    with patch.object(whatsapp, "_now", return_value=NOW):
+        yield
+
+
+def _refusal(code: int) -> WhatsAppGraphError:
+    return WhatsAppGraphError(code=code)
+
+
+@pytest.mark.usefixtures("frozen")
+class TestTheWindow:
+    async def test_inside_the_window_an_answer_is_sent_as_text(self, graph):
+        window = FakeWindowStore(last_inbound_at=NOW - timedelta(hours=23, minutes=54))
+        await _late_adapter(graph, window).send_message(TOKEN, _message("hi", run_id="r1"))
+        graph.send_text.assert_awaited_once()
+        graph.send_template.assert_not_awaited()
+        assert window.held == []
+
+    async def test_a_customer_with_no_record_is_answered_as_today(self, graph):
+        window = FakeWindowStore(record=False, template=TEMPLATE)
+        await _late_adapter(graph, window).send_message(TOKEN, _message("hi"))
+        graph.send_text.assert_awaited_once()
+
+    async def test_an_unreadable_window_sends_as_text(self, graph, caplog):
+        from sqlalchemy.exc import OperationalError
+
+        window = FakeWindowStore()
+        window.window = AsyncMock(  # type: ignore[method-assign]
+            side_effect=OperationalError("SELECT secret-bsuid", {"bsuid": CHAT}, Exception("x"))
+        )
+        with caplog.at_level(logging.WARNING):
+            await _late_adapter(graph, window).send_message(TOKEN, _message("hi"))
+        graph.send_text.assert_awaited_once()
+        (record,) = [r for r in caplog.records if r.message == "whatsapp_window_unread"]
+        assert record.error == "OperationalError"
+        assert CHAT not in caplog.text and "secret-bsuid" not in caplog.text
+
+    async def test_every_send_for_a_run_carries_its_id_as_callback_data(self, graph):
+        window = OpenWindow()
+        adapter = _late_adapter(graph, window)
+        await adapter.send_message(TOKEN, _message("a" * (MAX_TEXT_UNITS + 10), run_id="r1"))
+        await adapter.send_message(TOKEN, _message("cap", image_png=b"png", run_id="r1"))
+        await adapter.send_message(TOKEN, _message("plain"))
+        calls = graph.send_text.await_args_list
+        assert [c.kwargs["callback"] for c in calls] == ["r1", "r1", None]
+        assert graph.send_media.await_args.kwargs["callback"] == "r1"
+        late = _closed(template=TEMPLATE)
+        await _late_adapter(graph, late).send_message(TOKEN, _message("x", run_id="r2"))
+        assert graph.send_template.await_args.kwargs["callback"] == "r2"
+
+    async def test_a_short_late_answer_goes_in_the_template_on_one_line(self, graph):
+        window = _closed(template=TEMPLATE)
+        await _late_adapter(graph, window).send_message(
+            TOKEN, _message("Ships Friday.\n\nThanks", run_id="r1")
+        )
+        assert graph.send_template.await_args.kwargs["text"] == "Ships Friday. Thanks"
+        assert graph.send_template.await_args.kwargs["template"] == TEMPLATE
+        graph.send_text.assert_not_awaited()
+        assert window.held == []
+        assert window.undelivered == [("r1", None)]
+
+    async def test_a_template_that_gets_through_clears_down(self, graph, connection):
+        from app.services.channels.connection_state import ChannelConnection
+
+        connection.store[BOT_ID] = ChannelConnection(state="down", reason="x")
+        await _late_adapter(graph, _closed(template=TEMPLATE)).send_message(
+            TOKEN, _message("short")
+        )
+        connection.up.assert_awaited()
+
+    async def test_a_long_late_answer_goes_as_a_preview_and_its_run_is_held(self, graph):
+        window = _closed(template=TEMPLATE)
+        await _late_adapter(graph, window).send_message(TOKEN, _message("a" * 2000, run_id="r1"))
+        assert window.held == [("r1", True, False)]
+        sent = graph.send_template.await_args.kwargs["text"]
+        assert sent.endswith(PREVIEW_ENDING.strip())
+        assert utf16_units(sent) <= 200 + utf16_units(PREVIEW_ENDING)
+        graph.send_text.assert_not_awaited()
+
+    async def test_a_late_answer_with_a_file_is_held_even_when_its_text_is_short(self, graph):
+        window = _closed(template=TEMPLATE)
+        await _late_adapter(graph, window).send_message(
+            TOKEN, _message("short", image_png=b"png", run_id="r1")
+        )
+        assert window.held == [("r1", True, True)]
+        graph.upload_media.assert_not_awaited()
+        assert graph.send_template.await_args.kwargs["text"].endswith("full answer.")
+
+    async def test_a_refused_parameter_falls_back_to_the_preview(self, graph):
+        graph.send_template.side_effect = [_refusal(132018), "wamid.p"]
+        window = _closed(template=TEMPLATE)
+        await _late_adapter(graph, window).send_message(TOKEN, _message("short", run_id="r1"))
+        first, second = graph.send_template.await_args_list
+        assert first.kwargs["text"] == "short"
+        assert second.kwargs["text"] == "short Reply to see the full answer."
+        assert window.held == [("r1", True, False)]
+
+    async def test_any_refused_full_template_is_tried_once_as_a_preview(self, graph):
+        graph.send_template.side_effect = [_refusal(131026), "wamid.p"]
+        window = _closed(template=TEMPLATE)
+        await _late_adapter(graph, window).send_message(TOKEN, _message("short", run_id="r1"))
+        assert graph.send_template.await_count == 2
+        assert window.held == [("r1", True, False)]
+        assert window.undelivered == []
+
+    async def test_with_no_template_nothing_is_sent_and_the_run_says_why(self, graph):
+        window = _closed()
+        await _late_adapter(graph, window).send_message(TOKEN, _message("short", run_id="r1"))
+        graph.send_template.assert_not_awaited()
+        graph.send_text.assert_not_awaited()
+        assert window.undelivered == [("r1", "window_no_template")]
+        assert window.held == [("r1", True, False)]
+
+    async def test_a_failed_preview_records_why(self, graph):
+        graph.send_template.side_effect = _refusal(131026)
+        window = _closed(template=TEMPLATE)
+        await _late_adapter(graph, window).send_message(TOKEN, _message("short", run_id="r1"))
+        assert window.undelivered == [("r1", "window_template_failed")]
+        assert window.held == [("r1", True, False)]
+
+    async def test_a_token_refused_on_the_late_path_still_holds_the_run(self, graph, connection):
+        graph.send_template.side_effect = WhatsAppTokenRefused(code=190)
+        window = _closed(template=TEMPLATE)
+        with pytest.raises(WhatsAppTokenRefused):
+            await _late_adapter(graph, window).send_message(TOKEN, _message("short", run_id="r1"))
+        assert window.held == [("r1", True, False)]
+        assert window.undelivered == [("r1", "window_template_failed")]
+        connection.down.assert_awaited_once_with(BOT_ID, TOKEN_REFUSED)
+
+    async def test_a_token_refused_on_the_preview_records_why_and_marks_down(
+        self, graph, connection
+    ):
+        graph.send_template.side_effect = [_refusal(131026), WhatsAppTokenRefused(code=190)]
+        window = _closed(template=TEMPLATE)
+        with pytest.raises(WhatsAppTokenRefused):
+            await _late_adapter(graph, window).send_message(TOKEN, _message("short", run_id="r1"))
+        assert window.undelivered == [("r1", "window_template_failed")]
+        connection.down.assert_awaited_once()
+
+    async def test_a_token_refused_with_no_run_only_marks_the_bot_down(self, graph, connection):
+        graph.send_template.side_effect = WhatsAppTokenRefused(code=190)
+        window = _closed(template=TEMPLATE)
+        with pytest.raises(WhatsAppTokenRefused):
+            await _late_adapter(graph, window).send_message(TOKEN, _message("short"))
+        assert window.held == [] and window.undelivered == []
+        connection.down.assert_awaited_once()
+
+    async def test_a_window_that_opened_meanwhile_sends_normally(self, graph):
+        window = _closed()
+        window.hold_unless_open = AsyncMock(return_value=True)  # type: ignore[method-assign]
+        await _late_adapter(graph, window).send_message(TOKEN, _message("hi", run_id="r1"))
+        graph.send_text.assert_awaited_once()
+        graph.send_template.assert_not_awaited()
+
+    async def test_a_message_with_no_run_goes_in_the_template_when_it_fits(self, graph):
+        window = _closed(template=TEMPLATE)
+        await _late_adapter(graph, window).send_message(TOKEN, _message("short"))
+        assert graph.send_template.await_args.kwargs["callback"] is None
+        assert window.held == [] and window.undelivered == []
+
+    async def test_a_refused_template_with_no_run_is_refused(self, graph):
+        graph.send_template.side_effect = _refusal(132018)
+        window = _closed(template=TEMPLATE)
+        with pytest.raises(WhatsAppWindowClosed):
+            await _late_adapter(graph, window).send_message(TOKEN, _message("short"))
+        assert window.held == []
+
+    async def test_a_message_with_no_run_is_refused_when_it_does_not_fit(self, graph):
+        window = _closed(template=TEMPLATE)
+        with pytest.raises(WhatsAppWindowClosed) as caught:
+            await _late_adapter(graph, window).send_message(TOKEN, _message("a" * 2000))
+        assert caught.value.details == {"code": CLOSED_WINDOW_CODE}
+        assert window.held == []
+        graph.send_template.assert_not_awaited()
+
+    async def test_a_file_with_no_run_outside_the_window_is_refused(self, graph):
+        window = _closed(template=TEMPLATE)
+        message = _message(
+            "",
+            attachments=[
+                OutgoingAttachment(filename="a.txt", content=b"x", mime_type="text/plain")
+            ],
+        )
+        with pytest.raises(WhatsAppWindowClosed):
+            await _late_adapter(graph, window).send_message(TOKEN, message)
+        assert window.held == []
+        graph.upload_media.assert_not_awaited()
+
+    async def test_a_synchronous_131047_closes_the_window_and_takes_the_template_path(self, graph):
+        graph.send_text.side_effect = _refusal(CLOSED_WINDOW_CODE)
+        window = OpenWindow(template=TEMPLATE)
+        await _late_adapter(graph, window).send_message(TOKEN, _message("short", run_id="r1"))
+        assert window.closures == [NOW]
+        assert graph.send_template.await_args.kwargs["text"] == "short"
+
+    async def test_any_other_refusal_from_a_send_is_raised_untouched(self, graph):
+        graph.send_text.side_effect = _refusal(131026)
+        window = OpenWindow(template=TEMPLATE)
+        with pytest.raises(WhatsAppGraphError):
+            await _late_adapter(graph, window).send_message(TOKEN, _message("short"))
+        assert window.closures == []
+
+    async def test_a_window_record_that_cannot_be_written_does_not_stop_the_late_path(
+        self, graph, caplog
+    ):
+        graph.send_text.side_effect = _refusal(CLOSED_WINDOW_CODE)
+        window = OpenWindow(template=TEMPLATE)
+        window.close = AsyncMock(side_effect=RuntimeError("db"))  # type: ignore[method-assign]
+        with caplog.at_level(logging.WARNING):
+            await _late_adapter(graph, window).send_message(TOKEN, _message("short"))
+        graph.send_template.assert_awaited_once()
+        assert any(r.message == "whatsapp_window_unwritten" for r in caplog.records)
+
+    async def test_a_held_preview_never_sends_the_full_answer(self, graph):
+        window = _closed(template=TEMPLATE)
+        await _late_adapter(graph, window).send_held_preview(TOKEN, _message("short", run_id="r1"))
+        assert (
+            graph.send_template.await_args.kwargs["text"] == "short Reply to see the full answer."
+        )
+        graph.send_text.assert_not_awaited()
+
+    async def test_a_held_preview_needs_a_run(self, graph):
+        with pytest.raises(WhatsAppWindowClosed):
+            await _late_adapter(graph, _closed(template=TEMPLATE)).send_held_preview(
+                TOKEN, _message("short")
+            )
+
+    async def test_a_prompt_outside_the_window_is_held_not_sent(self, graph):
+        window = _closed(template=TEMPLATE)
+        prompt = PromptMessage(
+            platform_chat_id=CHAT,
+            text="Approve?",
+            choices=[ChannelChoice(label="Yes", value="y")],
+            run_id="r1",
+        )
+        with pytest.raises(WhatsAppWindowClosed):
+            await _late_adapter(graph, window).send_prompt(TOKEN, prompt)
+        assert window.held == [("r1", False, False)]
+        graph.send_interactive.assert_not_awaited()
+        graph.send_text.assert_not_awaited()
+
+    async def test_a_text_list_prompt_outside_the_window_is_held_too(self, graph):
+        window = _closed(template=TEMPLATE)
+        prompt = PromptMessage(platform_chat_id=CHAT, text="?", choices=[], run_id="r1")
+        with pytest.raises(WhatsAppWindowClosed):
+            await _late_adapter(graph, window).send_prompt(TOKEN, prompt)
+        assert window.held == [("r1", False, False)]
+        graph.send_text.assert_not_awaited()
+
+    async def test_a_prompt_with_no_run_outside_the_window_is_dropped(self, graph):
+        window = _closed(template=TEMPLATE)
+        prompt = PromptMessage(
+            platform_chat_id=CHAT, text="Next?", choices=[ChannelChoice(label="Go", value="g")]
+        )
+        with pytest.raises(WhatsAppWindowClosed):
+            await _late_adapter(graph, window).send_prompt(TOKEN, prompt)
+        assert window.held == []
+
+    async def test_a_prompt_in_a_window_that_opened_meanwhile_is_sent(self, graph):
+        window = _closed()
+        window.hold_unless_open = AsyncMock(return_value=True)  # type: ignore[method-assign]
+        prompt = PromptMessage(
+            platform_chat_id=CHAT,
+            text="Approve?",
+            choices=[ChannelChoice(label="Yes", value="y")],
+            run_id="r1",
+        )
+        await _late_adapter(graph, window).send_prompt(TOKEN, prompt)
+        assert graph.send_interactive.await_args.kwargs["callback"] == "r1"
+
+    async def test_a_prompts_preamble_carries_the_run_too(self, graph):
+        prompt = PromptMessage(
+            platform_chat_id=CHAT,
+            text="x" * 1100,
+            choices=[ChannelChoice(label="Yes", value="y")],
+            run_id="r1",
+        )
+        await _late_adapter(graph, OpenWindow()).send_prompt(TOKEN, prompt)
+        assert graph.send_text.await_args.kwargs["callback"] == "r1"
+
+    async def test_a_synchronous_131047_on_a_prompt_holds_its_run(self, graph):
+        graph.send_interactive.side_effect = _refusal(CLOSED_WINDOW_CODE)
+        window = FakeWindowStore(last_inbound_at=LATE)
+        window.window = AsyncMock(return_value=True)  # type: ignore[method-assign]
+        window.hold_unless_open = AsyncMock(return_value=False)  # type: ignore[method-assign]
+        prompt = PromptMessage(
+            platform_chat_id=CHAT,
+            text="Approve?",
+            choices=[ChannelChoice(label="Yes", value="y")],
+            run_id="r1",
+        )
+        with pytest.raises(WhatsAppWindowClosed):
+            await _late_adapter(graph, window).send_prompt(TOKEN, prompt)
+        assert window.closures == [NOW]
+
+    async def test_meta_is_the_authority_when_the_record_says_open(self, graph):
+        graph.send_interactive.side_effect = _refusal(CLOSED_WINDOW_CODE)
+        window = OpenWindow()
+        prompt = PromptMessage(
+            platform_chat_id=CHAT,
+            text="Approve?",
+            choices=[ChannelChoice(label="Yes", value="y")],
+            run_id="r1",
+        )
+        with pytest.raises(WhatsAppWindowClosed):
+            await _late_adapter(graph, window).send_prompt(TOKEN, prompt)
+        assert window.held == [("r1", False, False)]
+
+    async def test_a_text_list_prompt_refused_as_outside_the_window_is_held_as_a_prompt(
+        self, graph
+    ):
+        graph.send_text.side_effect = _refusal(CLOSED_WINDOW_CODE)
+        window = FakeWindowStore(record=False, template=TEMPLATE)
+        choices = [ChannelChoice(label=f"c{i}", value=str(i)) for i in range(11)]
+        prompt = PromptMessage(platform_chat_id=CHAT, text="Which?", choices=choices, run_id="r1")
+        with pytest.raises(WhatsAppWindowClosed):
+            await _late_adapter(graph, window).send_prompt(TOKEN, prompt)
+        assert window.held == [("r1", False, False)]
+        assert window.closures == [NOW]
+        graph.send_template.assert_not_awaited()
+        assert window.undelivered == []
+
+    async def test_a_text_list_prompt_marks_a_bot_down_on_a_bad_token_once(self, graph, connection):
+        graph.send_text.side_effect = WhatsAppTokenRefused(code=190)
+        choices = [ChannelChoice(label=f"c{i}", value=str(i)) for i in range(11)]
+        prompt = PromptMessage(platform_chat_id=CHAT, text="Which?", choices=choices, run_id="r1")
+        with pytest.raises(WhatsAppTokenRefused):
+            await _late_adapter(graph, OpenWindow()).send_prompt(TOKEN, prompt)
+        connection.down.assert_awaited_once()
+
+    async def test_a_text_list_prompt_with_another_refusal_is_raised(self, graph):
+        graph.send_text.side_effect = _refusal(131026)
+        choices = [ChannelChoice(label=f"c{i}", value=str(i)) for i in range(11)]
+        prompt = PromptMessage(platform_chat_id=CHAT, text="Which?", choices=choices)
+        with pytest.raises(WhatsAppGraphError) as caught:
+            await _late_adapter(graph, OpenWindow()).send_prompt(TOKEN, prompt)
+        assert not isinstance(caught.value, WhatsAppWindowClosed)
+
+    async def test_a_synchronous_131047_with_no_record_and_a_long_answer_is_held_with_a_preview(
+        self, graph
+    ):
+        graph.send_text.side_effect = _refusal(CLOSED_WINDOW_CODE)
+        window = FakeWindowStore(record=False, template=TEMPLATE)
+        await _late_adapter(graph, window).send_message(TOKEN, _message("a" * 2000, run_id="r1"))
+        assert window.held == [("r1", True, False)]
+        assert graph.send_template.await_args.kwargs["text"].endswith("full answer.")
+
+    async def test_a_stale_open_record_after_a_131047_still_holds_the_run(self, graph):
+        graph.send_text.side_effect = _refusal(CLOSED_WINDOW_CODE)
+        window = OpenWindow(template=TEMPLATE)
+        window.close = AsyncMock(side_effect=RuntimeError("db"))  # type: ignore[method-assign]
+        await _late_adapter(graph, window).send_message(TOKEN, _message("a" * 2000, run_id="r1"))
+        assert window.held == [("r1", True, False)]
+        assert graph.send_text.await_count == 1
+
+    async def test_the_preview_carries_the_run_and_clears_down(self, graph, connection):
+        from app.services.channels.connection_state import ChannelConnection
+
+        connection.store[BOT_ID] = ChannelConnection(state="down", reason="x")
+        window = _closed(template=TEMPLATE)
+        await _late_adapter(graph, window).send_held_preview(TOKEN, _message("short", run_id="r1"))
+        assert graph.send_template.await_args.kwargs["callback"] == "r1"
+        connection.up.assert_awaited()
+
+    async def test_a_late_answer_with_a_file_and_short_text_is_held_with_its_files(self, graph):
+        window = _closed(template=TEMPLATE)
+        attachment = OutgoingAttachment(filename="a.txt", content=b"x", mime_type="text/plain")
+        await _late_adapter(graph, window).send_message(
+            TOKEN, _message("short", attachments=[attachment], run_id="r1")
+        )
+        assert window.held == [("r1", True, True)]
+
+    async def test_a_token_refusal_holds_the_run_even_when_the_record_says_open(
+        self, graph, connection
+    ):
+        graph.send_template.side_effect = WhatsAppTokenRefused(code=190)
+        graph.send_text.side_effect = _refusal(CLOSED_WINDOW_CODE)
+        window = OpenWindow(template=TEMPLATE)
+        with pytest.raises(WhatsAppTokenRefused):
+            await _late_adapter(graph, window).send_message(TOKEN, _message("short", run_id="r1"))
+        assert window.held == [("r1", True, False)]
+        connection.down.assert_awaited_once()
+
+    async def test_a_token_refusal_is_raised_even_when_the_store_fails(self, graph, connection):
+        graph.send_template.side_effect = WhatsAppTokenRefused(code=190)
+        window = _closed(template=TEMPLATE)
+        window.hold = AsyncMock(side_effect=RuntimeError("db"))  # type: ignore[method-assign]
+        with pytest.raises(WhatsAppTokenRefused):
+            await _late_adapter(graph, window).send_message(TOKEN, _message("short", run_id="r1"))
+        connection.down.assert_awaited_once()
+
+
+BSUID_LEAK = "US.13491208655302741918"
+
+
+def _store_log(caplog: pytest.LogCaptureFixture) -> str:
+    [record] = [r for r in caplog.records if r.message == "whatsapp_window_store_failed"]
+    assert record.run_id == "r1" and record.bot_id == BOT_ID
+    rendered = f"{record.getMessage()} {record.__dict__}"
+    assert CHAT not in rendered and "SELECT" not in rendered and "secret" not in rendered
+    return record.error
+
+
+@pytest.mark.usefixtures("frozen")
+class TestAStoreThatFailsOnTheLatePath:
+    @staticmethod
+    def _boom() -> Exception:
+        from sqlalchemy.exc import OperationalError
+
+        return OperationalError("SELECT secret", {"bsuid": BSUID_LEAK}, Exception("x"))
+
+    async def test_an_unreadable_template_still_holds_the_run_with_a_reason(self, graph, caplog):
+        window = _closed(template=TEMPLATE)
+        window.late_template = AsyncMock(side_effect=self._boom())  # type: ignore[method-assign]
+        with caplog.at_level(logging.WARNING):
+            await _late_adapter(graph, window).send_message(TOKEN, _message("hi", run_id="r1"))
+        assert _store_log(caplog) == "OperationalError"
+        assert window.held == [("r1", True, False)]
+        assert window.undelivered == [("r1", "window_template_failed")]
+        graph.send_template.assert_not_awaited()
+
+    async def test_an_unreadable_template_with_no_run_is_refused(self, graph):
+        window = _closed(template=TEMPLATE)
+        window.late_template = AsyncMock(side_effect=self._boom())  # type: ignore[method-assign]
+        with pytest.raises(WhatsAppWindowClosed):
+            await _late_adapter(graph, window).send_message(TOKEN, _message("hi"))
+
+    async def test_a_hold_that_fails_raises_a_typed_error_with_no_sql(self, graph, caplog):
+        window = _closed()
+        window.hold_unless_open = AsyncMock(side_effect=self._boom())  # type: ignore[method-assign]
+        with caplog.at_level(logging.WARNING), pytest.raises(WhatsAppWindowUnavailable) as caught:
+            await _late_adapter(graph, window).send_message(TOKEN, _message("hi", run_id="r1"))
+        assert _store_log(caplog) == "OperationalError"
+        assert caught.value.__cause__ is None and caught.value.__suppress_context__
+        assert "SELECT" not in str(caught.value) and BSUID_LEAK not in repr(caught.value)
+
+    async def test_a_hold_that_fails_for_a_prompt_raises_a_typed_error(self, graph, caplog):
+        window = _closed()
+        window.hold_unless_open = AsyncMock(side_effect=self._boom())  # type: ignore[method-assign]
+        prompt = PromptMessage(
+            platform_chat_id=CHAT,
+            text="Approve?",
+            choices=[ChannelChoice(label="Yes", value="y")],
+            run_id="r1",
+        )
+        with caplog.at_level(logging.WARNING), pytest.raises(WhatsAppWindowUnavailable):
+            await _late_adapter(graph, window).send_prompt(TOKEN, prompt)
+        _store_log(caplog)
+
+    async def test_a_reason_that_cannot_be_recorded_raises_a_typed_error(self, graph, caplog):
+        window = _closed()
+        window.record_undelivered = AsyncMock(side_effect=self._boom())  # type: ignore[method-assign]
+        with caplog.at_level(logging.WARNING), pytest.raises(WhatsAppWindowUnavailable):
+            await _late_adapter(graph, window).send_message(TOKEN, _message("hi", run_id="r1"))
+        _store_log(caplog)
+
+    async def test_a_template_read_that_fails_on_a_held_preview_raises_a_typed_error(
+        self, graph, caplog
+    ):
+        window = _closed(template=TEMPLATE)
+        window.late_template = AsyncMock(side_effect=self._boom())  # type: ignore[method-assign]
+        with caplog.at_level(logging.WARNING), pytest.raises(WhatsAppWindowUnavailable):
+            await _late_adapter(graph, window).send_held_preview(TOKEN, _message("hi", run_id="r1"))
+        _store_log(caplog)
+
+    async def test_a_delivered_template_stays_delivered_when_its_reason_cannot_be_cleared(
+        self, graph, caplog, connection
+    ):
+        from app.services.channels.connection_state import ChannelConnection
+
+        connection.store[BOT_ID] = ChannelConnection(state="down", reason="x")
+        window = _closed(template=TEMPLATE)
+        window.record_undelivered = AsyncMock(side_effect=self._boom())  # type: ignore[method-assign]
+        with caplog.at_level(logging.WARNING):
+            await _late_adapter(graph, window).send_message(TOKEN, _message("hi", run_id="r1"))
+        graph.send_template.assert_awaited_once()
+        connection.up.assert_awaited()
+        _store_log(caplog)
+
+    async def test_another_refusal_of_a_prompt_is_raised_untouched(self, graph):
+        graph.send_interactive.side_effect = _refusal(131026)
+        prompt = PromptMessage(
+            platform_chat_id=CHAT, text="?", choices=[ChannelChoice(label="Yes", value="y")]
+        )
+        with pytest.raises(WhatsAppGraphError):
+            await _late_adapter(graph, OpenWindow()).send_prompt(TOKEN, prompt)
+
+    async def test_a_refused_token_on_a_prompt_marks_the_bot_down(self, graph, connection):
+        graph.send_interactive.side_effect = WhatsAppTokenRefused(code=190)
+        prompt = PromptMessage(
+            platform_chat_id=CHAT, text="?", choices=[ChannelChoice(label="Yes", value="y")]
+        )
+        with pytest.raises(WhatsAppTokenRefused):
+            await _late_adapter(graph, OpenWindow()).send_prompt(TOKEN, prompt)
+        connection.down.assert_awaited_once()
+
+    async def test_next_steps_outside_the_window_are_dropped_not_held(self, graph):
+        from app.services.channels.next_steps import ChannelNextSteps
+
+        window = _closed(template=TEMPLATE)
+        adapter = _late_adapter(graph, window)
+        bot = MagicMock(id=uuid.UUID(BOT_ID), organization_id=uuid.uuid4(), api_base_url=None)
+        incoming = MagicMock(platform="whatsapp", platform_chat_id=CHAT, chat_type="private")
+        row = MagicMock(id=uuid.uuid4())
+        with (
+            patch("app.services.channels.next_steps.get_adapter", return_value=adapter),
+            patch("app.services.channels.next_steps.unseal_bot_token", return_value=TOKEN),
+            patch(
+                "app.services.channels.next_steps.channel_prompt_repo.create",
+                new=AsyncMock(return_value=row),
+            ),
+        ):
+            await ChannelNextSteps(MagicMock()).offer(
+                bot, incoming, run_id=uuid.uuid4(), steps=["Again"]
+            )
+        assert window.held == []
+        graph.send_interactive.assert_not_awaited()
+
+    async def test_late_answers_log_no_wamid_number_or_text(self, graph, caplog):
+        secret = "the-confidential-answer"
+        graph.send_template.side_effect = [_refusal(132018), _refusal(131026)]
+        with caplog.at_level(logging.DEBUG):
+            await _late_adapter(graph, _closed(template=TEMPLATE)).send_message(
+                TOKEN, _message(secret, run_id="r1")
+            )
+            await _late_adapter(graph, _closed()).send_message(TOKEN, _message(secret, run_id="r2"))
+        assert caplog.records
+        for record in caplog.records:
+            rendered = f"{record.getMessage()} {record.__dict__}"
+            assert "wamid" not in rendered and secret not in rendered
+            assert "+49" not in rendered and CHAT not in rendered

@@ -17,7 +17,10 @@ seconds and which is re-sent until the answer goes out.
 
 import asyncio
 import logging
+from collections.abc import Awaitable
+from contextlib import suppress
 from dataclasses import dataclass, replace
+from datetime import UTC, datetime
 from typing import Any, Literal
 
 from app.core.background import spawn
@@ -31,16 +34,22 @@ from app.services.channels.base import (
     OutgoingMessage,
     PromptMessage,
 )
+from app.services.channels.whatsapp_customers import WindowStore
 from app.services.channels.whatsapp_format import split_message, to_whatsapp, utf16_units
 from app.services.channels.whatsapp_graph import (
+    CLOSED_WINDOW_CODE,
     TOKEN_REFUSED,
     WhatsAppCredentials,
     WhatsAppGraph,
     WhatsAppGraphError,
     WhatsAppTokenRefused,
+    WhatsAppWindowClosed,
+    WhatsAppWindowUnavailable,
+    is_template_refusal,
 )
 from app.services.channels.whatsapp_interactive import plan_interactive
 from app.services.channels.whatsapp_payload import verify_signature
+from app.services.channels.whatsapp_window import fits, flatten, preview
 from app.services.transcription import MAX_BYTES as TRANSCRIPTION_MAX_BYTES
 
 logger = logging.getLogger(__name__)
@@ -53,6 +62,12 @@ TYPING_MAX_SECONDS: float = 300
 
 _sleep = asyncio.sleep
 """The refresher's clock, a name of its own so a test can advance it by hand."""
+
+
+def _now() -> datetime:
+    """The window's clock, a name of its own so a test can freeze it."""
+    return datetime.now(UTC)
+
 
 FILE_NOT_SENT = "(A file that came with this answer could not be sent.)"
 """Said instead of dropping a file silently when Meta refused its upload."""
@@ -71,6 +86,10 @@ class _Upload:
     media_id: str
     kind: Literal["image", "document"]
     filename: str
+
+
+def _code_of(failure: WhatsAppGraphError | WhatsAppTokenRefused) -> int | None:
+    return (failure.details or {}).get("code")
 
 
 def _typing_failed(creds: WhatsAppCredentials | None, failure: Exception) -> None:
@@ -92,8 +111,11 @@ class WhatsAppAdapter(ChannelAdapter):
     # right whether or not WhatsApp keeps a tapped message's buttons live.
     buttons_outlive_a_press = False
 
-    def __init__(self, graph: WhatsAppGraph | None = None) -> None:
+    def __init__(
+        self, graph: WhatsAppGraph | None = None, window: WindowStore | None = None
+    ) -> None:
         self._graph = graph or WhatsAppGraph()
+        self._window = window or WindowStore()
         self._typing: dict[tuple[str, str], asyncio.Task[Any]] = {}
 
     async def aclose(self) -> None:
@@ -109,6 +131,66 @@ class WhatsAppAdapter(ChannelAdapter):
     async def send_message(self, bot_token: str, msg: OutgoingMessage) -> None:
         """Send the answer, then its chart and files, as WhatsApp messages.
 
+        Inside the customer's 24-hour window (or when nothing is recorded for them)
+        this is `_send_now`. Outside it the answer goes in the late-answer template
+        when it fits and otherwise as a preview, with its run held until the
+        customer writes again; see `_send_late`. Meta's 131047 is the authority:
+        a send it refuses as outside the window takes the late path too.
+
+        Raises:
+            WhatsAppTokenRefused: Meta refused the access token; the bot is marked
+                down in the console list until a send succeeds.
+            WhatsAppWindowClosed: Outside the window and no template could carry a
+                message that belongs to no run.
+            WhatsAppWindowUnavailable: Outside the window, and the record could not be
+                read or written, so the answer could not be held.
+            WhatsAppGraphError: Any other refusal, or every file was refused and
+                there was no text to send instead: the caller (`send_channel_file`)
+                must not report a delivery that did not happen.
+        """
+        creds = WhatsAppCredentials.decode(bot_token)
+        self._stop_typing((creds.bot_id, msg.platform_chat_id))
+        if not (to_whatsapp(msg.text).strip() or msg.image_png or msg.attachments):
+            await self._send_now(creds, msg)
+            return
+        if await self._window_state(creds, msg.platform_chat_id) is False:
+            await self._send_late(creds, msg)
+            return
+        try:
+            await self._send_now(creds, msg)
+        except WhatsAppGraphError as failure:
+            if _code_of(failure) != CLOSED_WINDOW_CODE:
+                raise
+            await self._close_window(creds, msg.platform_chat_id)
+            await self._send_late(creds, msg, refused_by_meta=True)
+
+    async def _window_state(self, creds: WhatsAppCredentials, chat_id: str) -> bool | None:
+        """Whether the window is open; `None` when nothing is recorded or it cannot be read.
+
+        Meta is the authority, so a record that cannot be read never blocks a send.
+        """
+        try:
+            return await self._window.window(creds.bot_id, chat_id, now=_now())
+        except Exception as failure:
+            logger.warning(
+                "whatsapp_window_unread",
+                extra={"bot_id": creds.bot_id, "error": type(failure).__name__},
+            )
+            return None
+
+    async def _close_window(self, creds: WhatsAppCredentials, chat_id: str) -> None:
+        """Record that Meta said the window is closed; a record that cannot be written is only logged."""
+        try:
+            await self._window.close(creds.bot_id, chat_id, at=_now())
+        except Exception as failure:
+            logger.warning(
+                "whatsapp_window_unwritten",
+                extra={"bot_id": creds.bot_id, "error": type(failure).__name__},
+            )
+
+    async def _send_now(self, creds: WhatsAppCredentials, msg: OutgoingMessage) -> None:
+        """Send as a free-form message: the chart and files, then the text.
+
         Every file is uploaded before anything is sent. A file Meta refuses
         (`WhatsAppGraphError`) is dropped and `FILE_NOT_SENT` is added to the
         answer once. A short answer (at most 1024 UTF-16 units) is the first file's
@@ -116,16 +198,7 @@ class WhatsAppAdapter(ChannelAdapter):
         the files follow without captions. When the only text is that note, it
         follows the files as a text message. The reply context goes on the first
         message actually sent.
-
-        Raises:
-            WhatsAppTokenRefused: Meta refused the access token; the bot is marked
-                down in the console list until a send succeeds.
-            WhatsAppGraphError: Any other refusal, or every file was refused and
-                there was no text to send instead: the caller (`send_channel_file`)
-                must not report a delivery that did not happen.
         """
-        creds = WhatsAppCredentials.decode(bot_token)
-        self._stop_typing((creds.bot_id, msg.platform_chat_id))
         text = to_whatsapp(msg.text).strip()
         reply_to = msg.reply_to_message_id
         try:
@@ -143,7 +216,9 @@ class WhatsAppAdapter(ChannelAdapter):
                 else None
             )
             if caption is None and not note_only:
-                reply_to = await self._send_text(creds, msg.platform_chat_id, text, reply_to)
+                reply_to = await self._send_text(
+                    creds, msg.platform_chat_id, text, reply_to, msg.run_id
+                )
             for upload in uploads:
                 await self._graph.send_media(
                     creds,
@@ -153,13 +228,238 @@ class WhatsAppAdapter(ChannelAdapter):
                     caption=caption,
                     filename=upload.filename,
                     reply_to=reply_to,
+                    callback=msg.run_id,
                 )
                 caption = reply_to = None
             if note_only:
-                await self._send_text(creds, msg.platform_chat_id, text, reply_to)
+                await self._send_text(creds, msg.platform_chat_id, text, reply_to, msg.run_id)
         except WhatsAppTokenRefused:
             await connection_state.record_down(creds.bot_id, TOKEN_REFUSED)
             raise
+        await self._record_sent(creds)
+
+    async def _guarded[T](
+        self, creds: WhatsAppCredentials, run_id: str | None, call: Awaitable[T]
+    ) -> T:
+        """Await a store call; a failure is logged by type and becomes `WhatsAppWindowUnavailable`.
+
+        The store's own exception carries SQL parameters, which include the customer's
+        id, so it is dropped here instead of reaching a caller's `logger.exception`.
+        """
+        try:
+            return await call
+        except Exception as failure:
+            logger.warning(
+                "whatsapp_window_store_failed",
+                extra={
+                    "bot_id": creds.bot_id,
+                    "run_id": run_id,
+                    "error": type(failure).__name__,
+                },
+            )
+            raise WhatsAppWindowUnavailable() from None
+
+    async def _hold(
+        self,
+        creds: WhatsAppCredentials,
+        chat_id: str,
+        *,
+        run_id: str,
+        answer: bool,
+        files: bool,
+        refused_by_meta: bool,
+    ) -> bool:
+        """Hold the run; False when it was not held because the record says the window is open.
+
+        A send Meta has just refused as outside the window is held without asking the
+        record: Meta is the authority, and a stale record must not drop the run.
+        """
+        if refused_by_meta:
+            await self._guarded(
+                creds,
+                run_id,
+                self._window.hold(creds.bot_id, chat_id, run_id=run_id, answer=answer, files=files),
+            )
+            return True
+        opened = await self._guarded(
+            creds,
+            run_id,
+            self._window.hold_unless_open(
+                creds.bot_id,
+                chat_id,
+                run_id=run_id,
+                answer=answer,
+                files=files,
+                now=_now(),
+            ),
+        )
+        return not opened
+
+    async def _hold_after_token_refusal(
+        self, creds: WhatsAppCredentials, msg: OutgoingMessage, has_files: bool
+    ) -> None:
+        """Hold the run and say why after the token was refused; a store failure never hides the token error."""
+        run_id = msg.run_id
+        if run_id is None:
+            return
+        with suppress(WhatsAppWindowUnavailable):  # already logged; the token error is what counts
+            await self._hold(
+                creds,
+                msg.platform_chat_id,
+                run_id=run_id,
+                answer=True,
+                files=has_files,
+                refused_by_meta=True,
+            )
+            await self._guarded(
+                creds,
+                run_id,
+                self._window.record_undelivered(creds.bot_id, run_id, "window_template_failed"),
+            )
+
+    async def _send_late(
+        self, creds: WhatsAppCredentials, msg: OutgoingMessage, *, refused_by_meta: bool = False
+    ) -> None:
+        """Send a message the window no longer allows: in the template, as a held preview, or not at all.
+
+        - The answer fits the bot's template: it goes in it whole.
+        - Otherwise a message with no run is refused (`WhatsAppWindowClosed`), and
+          one with a run is held and previewed by `send_held_preview`.
+        - A template Meta refuses for any reason other than the token is tried once
+          more as a preview when there is a run.
+        - A store that fails holds nothing it cannot hold: `WhatsAppWindowUnavailable`.
+          An unreadable template holds the run with a reason instead.
+        """
+        text = to_whatsapp(msg.text).strip()
+        has_files = bool(msg.image_png or msg.attachments)
+        run_id = msg.run_id
+        try:
+            template = await self._guarded(creds, run_id, self._window.late_template(creds.bot_id))
+        except WhatsAppWindowUnavailable:
+            if run_id is None:
+                raise WhatsAppWindowClosed() from None
+            await self._hold(
+                creds,
+                msg.platform_chat_id,
+                run_id=run_id,
+                answer=True,
+                files=has_files,
+                refused_by_meta=True,
+            )
+            await self._guarded(
+                creds,
+                run_id,
+                self._window.record_undelivered(creds.bot_id, run_id, "window_template_failed"),
+            )
+            return
+        if template is not None and fits(
+            text, fixed_length=template.fixed_length, has_files=has_files
+        ):
+            try:
+                await self._graph.send_template(
+                    creds,
+                    recipient=msg.platform_chat_id,
+                    template=template,
+                    text=flatten(text),
+                    callback=run_id,
+                )
+            except WhatsAppTokenRefused:
+                await self._hold_after_token_refusal(creds, msg, has_files)
+                await connection_state.record_down(creds.bot_id, TOKEN_REFUSED)
+                raise
+            except WhatsAppGraphError as failure:
+                logger.warning(
+                    "whatsapp_late_template_refused",
+                    extra={
+                        "bot_id": creds.bot_id,
+                        "run_id": run_id,
+                        "code": _code_of(failure),
+                        "template_refusal": is_template_refusal(_code_of(failure)),
+                    },
+                )
+                if run_id is None:
+                    raise WhatsAppWindowClosed() from None
+            else:
+                if run_id is not None:
+                    # Delivered: a reason that stays is logged, not raised over a sent answer.
+                    with suppress(WhatsAppWindowUnavailable):
+                        await self._guarded(
+                            creds,
+                            run_id,
+                            self._window.record_undelivered(creds.bot_id, run_id, None),
+                        )
+                await self._record_sent(creds)
+                return
+        if run_id is None:
+            raise WhatsAppWindowClosed()
+        held = await self._hold(
+            creds,
+            msg.platform_chat_id,
+            run_id=run_id,
+            answer=True,
+            files=has_files,
+            refused_by_meta=refused_by_meta,
+        )
+        if not held:
+            await self._send_now(creds, msg)
+            return
+        await self.send_held_preview(creds.encode(), msg)
+
+    async def send_held_preview(self, bot_token: str, msg: OutgoingMessage) -> None:
+        """Say that an answer is waiting, for a run that is already held; never sends the answer itself.
+
+        With no template nothing is sent and the run records why. A preview Meta
+        refuses records `window_template_failed`; the run stays held either way, and
+        its answer goes out when the customer writes again.
+
+        Raises:
+            WhatsAppTokenRefused: Meta refused the access token; the run records why
+                and the bot is marked down.
+            WhatsAppWindowClosed: The message belongs to no run, so there is nothing to hold.
+            WhatsAppWindowUnavailable: The record could not be read or written; the
+                run stays held.
+        """
+        run_id = msg.run_id
+        if run_id is None:
+            raise WhatsAppWindowClosed()
+        creds = WhatsAppCredentials.decode(bot_token)
+        template = await self._guarded(creds, run_id, self._window.late_template(creds.bot_id))
+        if template is None:
+            await self._guarded(
+                creds,
+                run_id,
+                self._window.record_undelivered(creds.bot_id, run_id, "window_no_template"),
+            )
+            return
+
+        async def record_failed() -> None:
+            await self._guarded(
+                creds,
+                run_id,
+                self._window.record_undelivered(creds.bot_id, run_id, "window_template_failed"),
+            )
+
+        try:
+            await self._graph.send_template(
+                creds,
+                recipient=msg.platform_chat_id,
+                template=template,
+                text=preview(to_whatsapp(msg.text).strip()),
+                callback=run_id,
+            )
+        except WhatsAppTokenRefused:
+            # A store failure is already logged; the token refusal is what the caller sees.
+            with suppress(WhatsAppWindowUnavailable):
+                await record_failed()
+            await connection_state.record_down(creds.bot_id, TOKEN_REFUSED)
+            raise
+        except WhatsAppGraphError as failure:
+            logger.warning(
+                "whatsapp_late_preview_refused",
+                extra={"bot_id": creds.bot_id, "run_id": run_id, "code": _code_of(failure)},
+            )
+            await record_failed()
+            return
         await self._record_sent(creds)
 
     @staticmethod
@@ -174,14 +474,21 @@ class WhatsAppAdapter(ChannelAdapter):
             await connection_state.record_up(creds.bot_id)
 
     async def _send_text(
-        self, creds: WhatsAppCredentials, chat_id: str, text: str, reply_to: str | None
+        self,
+        creds: WhatsAppCredentials,
+        chat_id: str,
+        text: str,
+        reply_to: str | None,
+        callback: str | None,
     ) -> str | None:
         """Send `text` in as many messages as its limit needs; the reply context goes first.
 
         Returns the reply context still unused: none when a message went out.
         """
         for chunk in split_message(text):
-            await self._graph.send_text(creds, recipient=chat_id, body=chunk, reply_to=reply_to)
+            await self._graph.send_text(
+                creds, recipient=chat_id, body=chunk, reply_to=reply_to, callback=callback
+            )
             reply_to = None
         return reply_to
 
@@ -190,32 +497,84 @@ class WhatsAppAdapter(ChannelAdapter):
 
         A prompt that fits neither (no choices, or more than a list holds) goes as the
         base class's text list. Text too long for the interactive body goes first, as
-        ordinary messages.
+        ordinary messages. Outside the 24-hour window nothing can be sent: the prompt's
+        run is held, and it is offered again when the customer writes.
 
         Raises:
             WhatsAppTokenRefused: Meta refused the access token; the bot is marked
                 down in the console list until a send succeeds.
+            WhatsAppWindowClosed: The window is closed; the run waiting on the
+                prompt is held (a prompt with no run is dropped).
+            WhatsAppWindowUnavailable: The window is closed and the record could not be
+                read or written, so the run could not be held.
             WhatsAppGraphError: Any other refusal.
         """
-        plan = plan_interactive(to_whatsapp(prompt.text).strip(), prompt.choices)
-        if plan is None:
-            await super().send_prompt(bot_token, prompt)
-            return
         creds = WhatsAppCredentials.decode(bot_token)
+        if await self._window_state(creds, prompt.platform_chat_id) is False:
+            await self._hold_prompt(creds, prompt, refused_by_meta=False)
+        plan = plan_interactive(to_whatsapp(prompt.text).strip(), prompt.choices)
         self._stop_typing((creds.bot_id, prompt.platform_chat_id))
         try:
+            if plan is None:
+                # The base class's text list, sent here: a refusal as outside the window
+                # must hold the run as a prompt, not as an answer (`send_message`).
+                listed = "\n".join(f"- {choice.label}" for choice in prompt.choices)
+                await self._send_now(
+                    creds,
+                    OutgoingMessage(
+                        platform_chat_id=prompt.platform_chat_id,
+                        text=f"{prompt.text}\n{listed}",
+                        api_base_url=prompt.api_base_url,
+                        run_id=prompt.run_id,
+                    ),
+                )
+                return
             if plan.preamble:
                 for chunk in split_message(plan.preamble):
                     await self._graph.send_text(
-                        creds, recipient=prompt.platform_chat_id, body=chunk
+                        creds,
+                        recipient=prompt.platform_chat_id,
+                        body=chunk,
+                        callback=prompt.run_id,
                     )
             await self._graph.send_interactive(
-                creds, recipient=prompt.platform_chat_id, interactive=plan.interactive
+                creds,
+                recipient=prompt.platform_chat_id,
+                interactive=plan.interactive,
+                callback=prompt.run_id,
             )
         except WhatsAppTokenRefused:
-            await connection_state.record_down(creds.bot_id, TOKEN_REFUSED)
+            if plan is not None:  # `_send_now` has recorded it for the text list
+                await connection_state.record_down(creds.bot_id, TOKEN_REFUSED)
             raise
+        except WhatsAppGraphError as failure:
+            if _code_of(failure) != CLOSED_WINDOW_CODE:
+                raise
+            await self._close_window(creds, prompt.platform_chat_id)
+            await self._hold_prompt(creds, prompt, refused_by_meta=True)  # always raises
         await self._record_sent(creds)
+
+    async def _hold_prompt(
+        self, creds: WhatsAppCredentials, prompt: PromptMessage, *, refused_by_meta: bool
+    ) -> None:
+        """Hold the run waiting on a prompt the window refuses, and raise `WhatsAppWindowClosed`.
+
+        Returns only when the record says the window is open and Meta has not said
+        otherwise, so the caller sends the prompt as usual. The held run offers the
+        prompt again after the customer's next message.
+        """
+        if prompt.run_id is None:
+            raise WhatsAppWindowClosed()
+        held = await self._hold(
+            creds,
+            prompt.platform_chat_id,
+            run_id=prompt.run_id,
+            answer=False,
+            files=False,
+            refused_by_meta=refused_by_meta,
+        )
+        if held:
+            raise WhatsAppWindowClosed()
 
     async def acknowledge(self, bot_token: str, press: IncomingPress) -> None:
         """Mark the tap read and show "typing" until the run's answer is sent. Never fatal."""
