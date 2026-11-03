@@ -1868,3 +1868,68 @@ class TestAdmissionBeforePublication:
         )
         assert not spawned
         assert api.calls[-1][2]["content"] == "Could not post your question. Try again."
+
+
+class TestServerRoles:
+    """What a role mapping reads (#2569): who holds which role, and what can be mapped."""
+
+    async def test_a_members_roles_are_read_from_the_server(
+        self, adapter: DiscordAdapter, api: _Discord
+    ):
+        api.answer(
+            "GET", f"/guilds/{GUILD}/members/{USER}", httpx.Response(200, json={"roles": ["7", 8]})
+        )
+        assert await adapter.member_roles("tok", GUILD, USER) == frozenset({"7", "8"})
+
+    @pytest.mark.parametrize("status", [403, 404])
+    async def test_an_account_the_bot_cannot_find_in_the_server_holds_nothing(
+        self, adapter: DiscordAdapter, api: _Discord, status: int
+    ):
+        """Left the server, or the bot was removed from it: nothing vouches for a role."""
+        api.answer("GET", f"/guilds/{GUILD}/members/{USER}", httpx.Response(status))
+        assert await adapter.member_roles("tok", GUILD, USER) is None
+
+    @pytest.mark.parametrize("status", [401, 500])
+    async def test_an_answer_that_is_not_about_the_member_raises(
+        self, adapter: DiscordAdapter, api: _Discord, status: int
+    ):
+        """A revoked token or an outage is not knowing, and must not read as the role gone."""
+        api.answer("GET", f"/guilds/{GUILD}/members/{USER}", httpx.Response(status))
+        with pytest.raises(httpx.HTTPStatusError):
+            await adapter.member_roles("tok", GUILD, USER)
+
+    async def test_the_servers_list_offers_each_servers_mappable_roles(
+        self, adapter: DiscordAdapter, api: _Discord
+    ):
+        api.answer(
+            "GET", "/users/@me/guilds", httpx.Response(200, json=[{"id": GUILD, "name": "Acme"}])
+        )
+        api.answer(
+            "GET",
+            f"/guilds/{GUILD}/roles",
+            httpx.Response(
+                200,
+                json=[
+                    {"id": GUILD, "name": "@everyone", "position": 0},
+                    {"id": "7", "name": "Finance", "position": 1},
+                    {"id": "8", "name": "Support", "position": 3},
+                    {"id": "9", "name": "Agent", "position": 2, "managed": True},
+                ],
+            ),
+        )
+
+        servers = await adapter.servers("tok")
+
+        assert [(server.id, server.name) for server in servers] == [(GUILD, "Acme")]
+        assert [(role.id, role.name) for role in servers[0].roles] == [
+            ("8", "Support"),
+            ("7", "Finance"),
+        ]
+
+    async def test_a_server_whose_roles_cannot_be_read_fails_the_list(
+        self, adapter: DiscordAdapter, api: _Discord
+    ):
+        api.answer("GET", "/users/@me/guilds", httpx.Response(200, json=[{"id": GUILD}]))
+        api.answer("GET", f"/guilds/{GUILD}/roles", httpx.Response(403))
+        with pytest.raises(httpx.HTTPStatusError):
+            await adapter.servers("tok")

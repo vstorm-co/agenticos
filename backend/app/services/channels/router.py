@@ -53,6 +53,8 @@ from app.services.channels.base import (
 )
 from app.services.channels.dedupe import claim_delivery, release_delivery
 from app.services.channels.directory import BoundChannelDirectory
+from app.services.channels.discord_roles import PLATFORM as DISCORD_PLATFORM
+from app.services.channels.discord_roles import DiscordRoleSync
 from app.services.channels.exceptions import ChannelNotConfigured
 from app.services.channels.formatting import LINK_ACCOUNT_INSTRUCTION, PICTURE_DELIVERY_UNCONFIRMED
 from app.services.channels.live_reply import (
@@ -484,6 +486,12 @@ class ChannelMessageRouter:
         except AuthorizationError as exc:
             await self._refuse_if_named(bot, incoming, exc.message)
             return
+
+        if incoming.platform == DISCORD_PLATFORM:
+            # Before the membership check below, so a member given a mapped
+            # role a moment ago is answered with it, and one who lost the role
+            # that admitted them is refused (#2569).
+            await DiscordRoleSync(db).on_turn(bot, identity, incoming.raw)
 
         admit_unlinked = self._admits_unlinked(incoming, bot)
 

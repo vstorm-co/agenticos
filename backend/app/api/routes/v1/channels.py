@@ -10,7 +10,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, Response, status
 
-from app.api.deps import OrgChannelBotSvc, require
+from app.api.deps import Auth, DiscordRoleMappingSvc, OrgChannelBotSvc, require
 from app.core.permissions import Perm
 from app.schemas.channel_bot import (
     ChannelBotCreate,
@@ -20,6 +20,14 @@ from app.schemas.channel_bot import (
     ChannelSessionList,
     TeamsConversationList,
     TeamsConversationRead,
+)
+from app.schemas.discord_role_mapping import (
+    DiscordRoleMappingCreate,
+    DiscordRoleMappingList,
+    DiscordRoleMappingRead,
+    DiscordServerList,
+    DiscordServerRead,
+    DiscordServerRoleRead,
 )
 
 router = APIRouter()
@@ -213,3 +221,75 @@ async def list_sessions(
     """List channel sessions for this bot."""
     items, total = await service.list_sessions(bot_id, skip=skip, limit=limit)
     return ChannelSessionList(items=items, total=total)
+
+
+@router.get(
+    "/bots/{bot_id}/discord-servers",
+    response_model=DiscordServerList,
+    dependencies=[Depends(require(Perm.CHANNELS_MANAGE))],
+)
+async def list_discord_servers(bot_id: UUID, service: DiscordRoleMappingSvc, ctx: Auth) -> Any:
+    """The servers a Discord bot is in, and the roles in each a mapping may name (#2569).
+
+    Read from Discord on every call. `@everyone` and the roles Discord manages
+    for a bot are left out. Requires `members:manage` as well.
+    """
+    servers = await service.servers(ctx, bot_id)
+    items = [
+        DiscordServerRead(
+            id=server.id,
+            name=server.name,
+            roles=[DiscordServerRoleRead(id=role.id, name=role.name) for role in server.roles],
+        )
+        for server in servers
+    ]
+    return DiscordServerList(items=items, total=len(items))
+
+
+@router.get(
+    "/bots/{bot_id}/role-mappings",
+    response_model=DiscordRoleMappingList,
+    dependencies=[Depends(require(Perm.CHANNELS_MANAGE))],
+)
+async def list_role_mappings(bot_id: UUID, service: DiscordRoleMappingSvc, ctx: Auth) -> Any:
+    """Every Discord server role this bot maps to a group. Requires `members:manage` as well."""
+    rows = await service.list_mappings(ctx, bot_id)
+    items = [
+        DiscordRoleMappingRead.model_validate(mapping).model_copy(update={"group_name": name})
+        for mapping, name in rows
+    ]
+    return DiscordRoleMappingList(items=items, total=len(items))
+
+
+@router.post(
+    "/bots/{bot_id}/role-mappings",
+    response_model=DiscordRoleMappingRead,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require(Perm.CHANNELS_MANAGE))],
+)
+async def create_role_mapping(
+    bot_id: UUID, data: DiscordRoleMappingCreate, service: DiscordRoleMappingSvc, ctx: Auth
+) -> Any:
+    """Map a role in one of the bot's servers to a group, and optionally a role, here.
+
+    Requires `members:manage`, and `roles:manage` with a role the caller's own
+    strictly outranks when one is named. A linked member holding the Discord
+    role is placed at their next turn.
+    """
+    mapping, group_name = await service.create(ctx, bot_id, data)
+    return DiscordRoleMappingRead.model_validate(mapping).model_copy(
+        update={"group_name": group_name}
+    )
+
+
+@router.delete(
+    "/bots/{bot_id}/role-mappings/{mapping_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    response_model=None,
+    dependencies=[Depends(require(Perm.CHANNELS_MANAGE))],
+)
+async def delete_role_mapping(
+    bot_id: UUID, mapping_id: UUID, service: DiscordRoleMappingSvc, ctx: Auth
+) -> None:
+    """Delete a mapping. What it gave people is taken back by the next role sync."""
+    await service.delete(ctx, bot_id, mapping_id)

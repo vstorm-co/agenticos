@@ -58,9 +58,13 @@ def normalize_groups(groups: Iterable[str]) -> frozenset[str]:
     return frozenset(folded for group in groups if (folded := group.strip().casefold()))
 
 
-def winning_role(mappings: Iterable[DirectoryGroupMapping]) -> str:
-    """The role several matching mappings resolve to, by `ROLE_PRECEDENCE`."""
-    roles = {mapping.role for mapping in mappings}
+def winning_role(mapped: Iterable[str]) -> str:
+    """The role several matching mappings resolve to, by `ROLE_PRECEDENCE`.
+
+    Shared with the Discord sync (#2569), so one person matched in both ways is
+    resolved by the same order whichever sync runs.
+    """
+    roles = set(mapped)
     for role in ROLE_PRECEDENCE:
         if role.value in roles:
             return role.value
@@ -105,7 +109,12 @@ class DirectorySyncService:
             by_organization[mapping.organization_id].append(mapping)
 
         for organization_id, mappings in by_organization.items():
-            await self._place(user_id, organization_id, winning_role(mappings), provider=provider)
+            await self._place(
+                user_id,
+                organization_id,
+                winning_role(mapping.role for mapping in mappings),
+                provider=provider,
+            )
             await self._sync_groups(
                 user_id,
                 organization_id,

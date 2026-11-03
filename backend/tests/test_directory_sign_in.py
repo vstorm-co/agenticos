@@ -239,9 +239,7 @@ class TestTheSyncRacingItself:
 class TestWinningRole:
     def test_a_role_outside_the_catalog_resolves_to_the_least_a_member_holds(self):
         """The schema forbids it, so such a row was written some other way - fail low."""
-        assert winning_role([MagicMock(role="superuser")]) == "viewer"
+        assert winning_role(["superuser"]) == "viewer"
 
     def test_the_first_role_of_the_precedence_wins(self):
-        mappings = [MagicMock(role="viewer"), MagicMock(role="operator"), MagicMock(role="admin")]
-
-        assert winning_role(mappings) == "admin"
+        assert winning_role(["viewer", "operator", "admin"]) == "admin"

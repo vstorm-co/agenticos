@@ -70,6 +70,7 @@ from app.db.models.skill_proposal import ProposalStatus, SkillProposal
 from app.db.models.resource_grant import GrantLevel, ResourceGrant, Visibility
 from app.db.models.group import Group, GroupMember
 from app.db.models.directory_mapping import DirectoryGroupMapping
+from app.db.models.discord_role_mapping import DiscordRoleMapping
 from app.db.models.notification import Notification, NotificationChannel, NotificationEventType
 from app.db.models.notification_delivery import DeliveryStatus, NotificationDelivery
 from app.db.models.notification_preference import NotificationChannelPreference
@@ -189,6 +190,7 @@ __all__ = [
     "UserSlashCommand",
     "DeploymentSettings",
     "DirectoryGroupMapping",
+    "DiscordRoleMapping",
     "DashboardLayout",
     "DashboardPreset",
     "McpConnection",

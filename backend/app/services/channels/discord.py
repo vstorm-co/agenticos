@@ -70,6 +70,7 @@ from app.services.channels.discord_protocol import (
     PUBLIC_BOT,
     THREAD_TYPES,
     Recent,
+    Server,
     attachment_type,
     can_view,
     chunks,
@@ -79,6 +80,7 @@ from app.services.channels.discord_protocol import (
     components,
     identify,
     interaction_user,
+    mappable_roles,
     pressed_value,
     read_comment,
     resume,
@@ -615,6 +617,41 @@ class DiscordAdapter(ChannelAdapter):
             member_roles=[str(role) for role in member.json().get("roles") or []],
             overwrites=channel.get("permission_overwrites") or [],
         )
+
+    async def member_roles(
+        self, bot_token: str, guild_id: str, platform_user_id: str
+    ) -> frozenset[str] | None:
+        """The role ids one account holds in one server, or `None` when it is not in it (#2569).
+
+        `None` too when the bot cannot see the server any more - removed from it,
+        or the server gone - because then nothing vouches for the roles and a
+        mapping must not go on admitting by them. Anything else Discord answers,
+        a revoked token or an outage, raises: that is not knowing, and the
+        caller must not read it as the role being taken away.
+        """
+        found = await self._call("GET", f"/guilds/{guild_id}/members/{platform_user_id}", bot_token)
+        if found.status_code in (403, 404):
+            return None
+        found.raise_for_status()
+        return frozenset(str(role) for role in found.json().get("roles") or [])
+
+    async def servers(self, bot_token: str) -> list[Server]:
+        """Every server the bot is in, with the roles a mapping can name, for the bot's page."""
+        found = await self._call("GET", "/users/@me/guilds", bot_token)
+        found.raise_for_status()
+        servers: list[Server] = []
+        for guild in found.json():
+            guild_id = str(guild["id"])
+            roles = await self._call("GET", f"/guilds/{guild_id}/roles", bot_token)
+            roles.raise_for_status()
+            servers.append(
+                Server(
+                    id=guild_id,
+                    name=str(guild.get("name") or ""),
+                    roles=mappable_roles(guild_id, roles.json()),
+                )
+            )
+        return servers
 
     async def _messages(self, bot_token: str, channel_id: str, limit: int) -> list[dict[str, Any]]:
         """The last `limit` messages of one channel or thread, oldest first, without system ones.
