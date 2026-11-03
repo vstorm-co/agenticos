@@ -1664,17 +1664,7 @@ class SkillCheckService:
         assert check.fork_id is None, "a merge onto main is checked on main"
         locked = await skill_repo.lock(self.db, skill.id)
         assert locked is not None, "the skill was read in this transaction"
-        if locked.latest_version_id != check.base_version_id:
-            raise ConcurrentChangeError(
-                message=(
-                    "This skill has a newer version than the one the check measured. Check "
-                    "the change again on the newest version."
-                ),
-                details={
-                    "base_version_id": check.base_version_id,
-                    "latest_version_id": locked.latest_version_id,
-                },
-            )
+        assert locked.latest_version_id == check.base_version_id, "a moved line is not decidable"
         candidate = _candidate_of(check)
         return await SkillService(self.db).take_in(
             ctx,
