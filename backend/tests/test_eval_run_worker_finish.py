@@ -1,14 +1,27 @@
-"""An eval worker's answer for an attempt that was closed while it worked."""
+"""An eval worker's answer for an attempt closed while it worked, and what it serves
+and tells when it closes a run."""
 
 import uuid
+from contextlib import asynccontextmanager
 from types import SimpleNamespace
+from typing import cast
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from app.db.models.eval_run import AttemptFault, CaseAttemptStatus, EvalRunCase
+from app.agents.capabilities.skills import SkillBodyFile
+from app.core.exceptions import AuthenticationError
+from app.db.models.eval_run import (
+    AttemptFault,
+    CaseAttemptStatus,
+    EvalRun,
+    EvalRunArm,
+    EvalRunCase,
+    EvalRunStatus,
+)
 from app.schemas.eval_run import KnowledgeCheckRecord, ProposalCheckRecord
-from app.services.eval_run_worker import EvalRunWorker
+from app.services.eval_run import EvalRunService
+from app.services.eval_run_worker import EvalRunWorker, _candidate
 from app.services.scoring import _kept_answer
 
 pytestmark = pytest.mark.anyio
@@ -122,3 +135,75 @@ async def test_an_answer_to_a_withdrawn_draft_is_dropped_though_its_score_is_gon
         "The knowledge draft is no longer available",
         AttemptFault.INFRASTRUCTURE.value,
     )
+
+
+def test_a_queued_candidate_serves_the_files_it_was_measured_with() -> None:
+    """A check of a changed file stores the file on the arm; the worker must serve it, or
+    both sides answer with the stored files and the change is never measured."""
+    skill_id = uuid.uuid4()
+    arm = SimpleNamespace(
+        skill_bodies={
+            str(skill_id): {
+                "description": "Refunds.",
+                "content": "Body.",
+                "resources": [{"name": "limits.md", "description": None, "content": "$500"}],
+            }
+        },
+        context_bodies=None,
+        source="draft",
+        agent_version_id=None,
+        spec={"name": "Desk"},
+    )
+
+    served = _candidate(cast(EvalRunArm, arm)).skill_bodies[skill_id]
+
+    assert served.resources == (SkillBodyFile(name="limits.md", description=None, content="$500"),)
+
+
+@pytest.mark.parametrize("check_id", [None, uuid.uuid4()])
+async def test_a_closed_run_tells_only_its_skill_check(check_id: uuid.UUID | None) -> None:
+    org, run_id = uuid.uuid4(), uuid.uuid4()
+    record = ProposalCheckRecord(
+        kind="skill", base_version=1, suggestions=1, skill_check_id=check_id
+    )
+    run = SimpleNamespace(
+        organization_id=org, id=run_id, status="running", proposal_check=record.model_dump()
+    )
+    db = AsyncMock()
+
+    @asynccontextmanager
+    async def sessions():
+        yield db
+
+    after_run = AsyncMock()
+    with (
+        patch("app.services.eval_run_worker.eval_run_repo.lock", new=AsyncMock(return_value=run)),
+        patch("app.services.eval_run_worker.eval_run_repo.update_run", new=AsyncMock()),
+        patch("app.services.eval_run_worker.NotificationService") as notices,
+        patch("app.services.skill_check.SkillCheckService.after_run", new=after_run),
+        patch.object(EvalRunService, "forget_moved_skills", new=AsyncMock()),
+        patch.object(EvalRunWorker, "_reader", new=AsyncMock(return_value=None)),
+    ):
+        notices.return_value.eval_run_finished = AsyncMock()
+        await EvalRunWorker(run_id, org, sessions=sessions)._close(
+            EvalRunStatus.COMPLETED, only_from=EvalRunStatus.RUNNING
+        )
+
+    assert after_run.await_count == (0 if check_id is None else 1)
+
+
+@pytest.mark.parametrize("gone", [False, True])
+async def test_a_runs_reader_is_its_starter_as_they_stand_or_none(gone: bool) -> None:
+    ctx = MagicMock()
+    rebuilt = AsyncMock(side_effect=AuthenticationError(message="gone") if gone else None)
+    rebuilt.return_value = ctx
+    run = SimpleNamespace(
+        organization_id=uuid.uuid4(), created_by_user_id=uuid.uuid4(), created_by_api_key_id=None
+    )
+
+    with patch("app.services.eval_run_worker.job_context", new=rebuilt):
+        reader = await EvalRunWorker(uuid.uuid4(), run.organization_id)._reader(
+            MagicMock(), cast(EvalRun, run)
+        )
+
+    assert reader is (None if gone else ctx)

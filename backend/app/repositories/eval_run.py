@@ -74,6 +74,14 @@ async def lock(db: AsyncSession, eval_run_id: UUID, *, organization_id: UUID) ->
     return result.scalar_one_or_none()
 
 
+async def update_arm(db: AsyncSession, *, arm: EvalRunArm, values: dict[str, Any]) -> EvalRunArm:
+    for name, value in values.items():
+        setattr(arm, name, value)
+    await db.flush()
+    await db.refresh(arm)
+    return arm
+
+
 async def update_run(db: AsyncSession, *, run: EvalRun, values: dict[str, Any]) -> EvalRun:
     for name, value in values.items():
         setattr(run, name, value)

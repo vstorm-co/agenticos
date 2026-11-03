@@ -19,6 +19,7 @@ from pydantic_ai.models.function import AgentInfo, FunctionModel
 from app.agents.capabilities._registry import CapabilityBuildContext
 from app.agents.capabilities._registry import get as get_capability
 from app.agents.capabilities.skills import (
+    SKILL_BODIES_RESOURCE,
     SKILL_USE_LOG_RESOURCE,
     ServedSkill,
     SkillBody,
@@ -369,6 +370,7 @@ class TestADelegateUsesSkillsUnderItsOwnName:
             resolve_for_agent=AsyncMock(return_value=[_skill("shipping", SHIPPING)])
         )
         service.context = MagicMock(resolve_for_agent=AsyncMock(return_value=[]))
+        self.resolve = service.skills.resolve_for_agent
         return await service._delegate_resources(
             ctx,
             AgentSpec(name="Delegate", skill_ids=[SHIPPING]),
@@ -376,6 +378,28 @@ class TestADelegateUsesSkillsUnderItsOwnName:
             shared=[],
             parent_resources=parent,
         )
+
+    async def test_an_inline_specialist_reads_the_candidate_its_agent_is_measured_with(
+        self,
+    ) -> None:
+        """A skill check projects the change onto the agent it runs; a specialist the
+        agent defines inline is part of that agent and must read the same change."""
+        body = SkillBody("Ships.", "New shipping rules.", name="shipping")
+
+        resources = await self._resources({SKILL_BODIES_RESOURCE: {SHIPPING: body}}, agent_id=None)
+
+        assert resources[SKILL_BODIES_RESOURCE] == {SHIPPING: body}
+        assert self.resolve.await_args.kwargs["projected"] == {SHIPPING: body}
+
+    async def test_a_published_delegate_reads_its_own_stored_skills(self) -> None:
+        body = SkillBody("Ships.", "New shipping rules.", name="shipping")
+
+        resources = await self._resources(
+            {SKILL_BODIES_RESOURCE: {SHIPPING: body}}, agent_id=uuid.uuid4()
+        )
+
+        assert resources[SKILL_BODIES_RESOURCE] == {}
+        assert self.resolve.await_args.kwargs["projected"] is None
 
     async def test_a_delegate_records_into_the_parents_log(self) -> None:
         log = _log()

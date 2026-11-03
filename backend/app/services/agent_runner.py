@@ -5127,8 +5127,15 @@ class AgentRunnerService:
         delegate reaches a durable workspace at all.
         """
         bound = await self._bound_collections(spec, ctx)
+        # An inline specialist is part of the agent being run, so a candidate skill
+        # body measured on that agent is what its specialists read too. A published
+        # delegate is another agent, served its own stored skills.
+        parent_bodies = parent_resources.get(SKILL_BODIES_RESOURCE)
+        projected: dict[UUID, SkillBody] = (
+            dict(parent_bodies) if agent_id is None and isinstance(parent_bodies, dict) else {}
+        )
         skills = await self.skills.resolve_for_agent(
-            ctx, spec.skill_ids, bindings=spec.skill_bindings
+            ctx, spec.skill_ids, bindings=spec.skill_bindings, projected=projected or None
         )
         resources: dict[str, Any] = {
             **bound,
@@ -5136,13 +5143,14 @@ class AgentRunnerService:
             CONTEXT_FILES_RESOURCE: await self.context.resolve_for_agent(
                 ctx, spec.context_ids, config=context_config(spec.capabilities)
             ),
+            SKILL_BODIES_RESOURCE: projected,
         }
         parent_skills = parent_resources.get(SKILL_USE_LOG_RESOURCE)
         if isinstance(parent_skills, SkillUseLog):
             # Recorded on the run that delegated, under the delegate's own agent:
             # the answer somebody rates is that run's, and the skill is the delegate's.
             resources[SKILL_USE_LOG_RESOURCE] = parent_skills.for_agent(
-                agent_id, served_skills(skills, {}), tool_identities(spec.capabilities)
+                agent_id, served_skills(skills, projected), tool_identities(spec.capabilities)
             )
         parent_log = parent_resources.get(KNOWLEDGE_SEARCH_LOG_RESOURCE)
         if isinstance(parent_log, KnowledgeSearchLog):
