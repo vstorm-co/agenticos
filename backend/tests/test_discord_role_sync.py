@@ -6,6 +6,7 @@ pinned against real rows in `tests/integration/test_discord_role_groups.py`.
 """
 
 import uuid
+from contextlib import asynccontextmanager
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -16,7 +17,11 @@ from app.db.models.discord_role_mapping import DiscordRoleMapping
 from app.services import channels
 from app.services.channels.base import IncomingMessage
 from app.services.channels.discord import DiscordAdapter
-from app.services.channels.discord_roles import DiscordRoleSync, discord_adapter
+from app.services.channels.discord_roles import (
+    DiscordRoleSync,
+    discord_adapter,
+    sweep_discord_roles,
+)
 from app.services.channels.router import ChannelMessageRouter
 from app.worker.tasks import channel_tasks
 
@@ -293,6 +298,39 @@ class TestTheSweepTask:
 
         assert "could not be checked" not in caplog.text
         assert "failed" not in caplog.text
+
+
+class TestTheSweepOrder:
+    async def test_a_sweep_cut_short_does_not_always_stop_at_the_same_person(self):
+        """The job's timeout ends a sweep wherever it has got to; a fixed order
+        would leave whoever sorts last unchecked on every run."""
+        people = [(uuid.uuid4(), uuid.uuid4()) for _ in range(8)]
+        firsts: list[tuple[uuid.UUID, uuid.UUID]] = []
+        visited: list[tuple[uuid.UUID, uuid.UUID]] = []
+
+        async def sync(self: DiscordRoleSync, organization_id, user_id, **kwargs):
+            visited.append((organization_id, user_id))
+            return True
+
+        @asynccontextmanager
+        async def sessions():
+            yield MagicMock()
+
+        with (
+            patch(
+                "app.services.channels.discord_roles.discord_role_mapping_repo.synced_people",
+                AsyncMock(return_value=people),
+            ),
+            patch.object(DiscordRoleSync, "sync", new=sync),
+        ):
+            for _ in range(20):
+                visited.clear()
+                counts = await sweep_discord_roles(sessions)
+                assert sorted(visited) == sorted(people)
+                firsts.append(visited[0])
+
+        assert counts == {"synced": 8, "unreadable": 0, "failed": 0}
+        assert len(set(firsts)) > 1
 
 
 def test_a_mapping_row_says_which_role_it_maps():

@@ -739,7 +739,9 @@ class ChannelBotService:
                 bot takes `members:manage` and, for a mapping that admits with
                 a role, the ceiling `DiscordRoleMappingService.delete` applies.
         """
-        bot = await self.get(bot_id)
+        # Locked before its mappings are read: they cascade with the bot, and
+        # one committed between this check and the delete would go unchecked.
+        bot = await self.get(bot_id, for_update=True)
         await self._refuse_unless_mappings_removable(bot, ctx)
         platform = bot.platform
         await channel_bot_repo.delete(self.db, bot_id, organization_id=self._org_id)

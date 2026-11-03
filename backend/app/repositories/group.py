@@ -37,15 +37,20 @@ async def create(
     return group
 
 
-async def get(db: AsyncSession, *, organization_id: UUID, group_id: UUID) -> Group | None:
+async def get(
+    db: AsyncSession, *, organization_id: UUID, group_id: UUID, for_update: bool = False
+) -> Group | None:
     """One group, only when it belongs to `organization_id`.
 
     The organization is part of the lookup rather than checked afterwards, so a
     group id from another tenant reads exactly like one that does not exist.
+    `for_update` locks the row, which also holds off a concurrent insert of a
+    row referencing it: its foreign-key check takes a lock this one excludes.
     """
-    result = await db.execute(
-        select(Group).where(Group.id == group_id, Group.organization_id == organization_id)
-    )
+    query = select(Group).where(Group.id == group_id, Group.organization_id == organization_id)
+    if for_update:
+        query = query.with_for_update()
+    result = await db.execute(query)
     return result.scalar_one_or_none()
 
 

@@ -31,6 +31,7 @@ Members Intent, which a bot here does not request.
 """
 
 import logging
+import secrets
 from collections import defaultdict
 from collections.abc import Callable
 from contextlib import AbstractAsyncContextManager
@@ -361,14 +362,19 @@ async def sweep_discord_roles(sessions: SessionFactory) -> dict[str, int]:
     each lock through every later person's calls to Discord, stalling that
     person's turns and any administrator changing their role.
 
+    In a fresh random order each run: a sweep the job's timeout cuts short
+    would otherwise stop at the same person every time, and whoever sorts
+    after them would never be looked at again.
+
     Returns how many people were reconciled, how many had a server Discord did
     not answer for - those keep what it gave until it does - and how many
     failed outright, which is logged and does not stop the rest.
     """
     async with sessions() as db:
-        placed = await discord_role_mapping_repo.synced_people(db)
+        placed = list(set(await discord_role_mapping_repo.synced_people(db)))
+    secrets.SystemRandom().shuffle(placed)
     counts = {"synced": 0, "unreadable": 0, "failed": 0}
-    for organization_id, user_id in sorted(set(placed)):
+    for organization_id, user_id in placed:
         try:
             async with sessions() as db:
                 answered = await DiscordRoleSync(db).sync(organization_id, user_id)

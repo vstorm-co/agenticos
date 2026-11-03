@@ -7,6 +7,7 @@ administrator or the directory made. Discord itself is a stand-in answering
 `member_roles`: the requests it receives are the adapter's tests'.
 """
 
+import asyncio
 import uuid
 from collections.abc import Iterator
 from contextlib import asynccontextmanager
@@ -15,7 +16,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import httpx
 import pytest
 from sqlalchemy import select, update
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.core.exceptions import (
     AlreadyExistsError,
@@ -905,6 +906,41 @@ class TestMappings:
             assert renamed.token_encrypted == "sealed-elsewhere"
             updated = await service.update(bot.id, new_token, self._ctx(org, owner))
         assert updated.token_encrypted == "sealed-anew"
+
+    @pytest.mark.parametrize("parent", ["group", "bot"])
+    async def test_a_mapping_made_while_its_parent_is_deleted_is_checked(
+        self, db, engine, discord, parent
+    ):
+        """An owner's mapping committed between the delete's check and its
+        cascade would otherwise go with the parent without being checked."""
+        org, owner = await _org(db)
+        bot = await _bot(db, org)
+        finance = await _group(db, org)
+        admin = await _member(db, org, role="admin")
+        await db.commit()
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+
+        async def delete_as_admin() -> None:
+            async with factory() as session:
+                ctx = self._ctx(org, admin, "admin")
+                if parent == "group":
+                    await GroupService(session).delete(ctx, finance.id)
+                else:
+                    await ChannelBotService(session, organization_id=org.id).delete(bot.id, ctx)
+                await session.commit()
+
+        async with factory() as owners:
+            await _mapping(owners, bot, finance, role="admin")
+            deleting = asyncio.create_task(delete_as_admin())
+            # Held behind the uncommitted mapping's foreign-key lock on the parent.
+            done, _ = await asyncio.wait({deleting}, timeout=0.2)
+            assert not done
+            await owners.commit()
+            async with asyncio.timeout(15):
+                with pytest.raises(AuthorizationError):
+                    await deleting
+
+        assert await db.scalar(select(DiscordRoleMapping.id)) is not None
 
     async def test_deleting_the_bot_or_the_group_deletes_its_mappings(self, db, discord):
         org, _ = await _org(db)

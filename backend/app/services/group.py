@@ -124,8 +124,12 @@ class GroupService:
                 message="Only an administrator or the group's lead can change who is in it"
             )
 
-    async def _group(self, organization_id: UUID, group_id: UUID) -> Group:
-        group = await group_repo.get(self.db, organization_id=organization_id, group_id=group_id)
+    async def _group(
+        self, organization_id: UUID, group_id: UUID, *, for_update: bool = False
+    ) -> Group:
+        group = await group_repo.get(
+            self.db, organization_id=organization_id, group_id=group_id, for_update=for_update
+        )
         if group is None:
             raise NotFoundError(message="Group not found", details={"group_id": str(group_id)})
         return group
@@ -256,7 +260,9 @@ class GroupService:
         membership = await self._membership(organization_id, requester_id)
         if not role_has(membership.role, Perm.MEMBERS_MANAGE):
             raise AuthorizationError(message="You cannot manage groups in this organization")
-        group = await self._group(organization_id, group_id)
+        # Locked before its mappings are read: they cascade with the group, and
+        # one committed between this check and the delete would go unchecked.
+        group = await self._group(organization_id, group_id, for_update=True)
         ceiling = assignable_roles(membership.role)
         for mapping in await directory_mapping_repo.list_for_group(self.db, group_id=group.id):
             if mapping.role not in ceiling:
