@@ -182,13 +182,11 @@ class TestWhatCannotBeMerged:
         fork = await _on_fork(db, ctx, skill, await _fork(db, ctx, skill), content="one\nTWO")
         service = SkillCatchUpService(db)
 
-        # Main has not moved, so there is nothing to catch up with.
         with pytest.raises(ConflictError, match="Main has nothing"):
             await service.merge_sides(ctx, skill=skill, fork=fork, kind=CATCH_UP)
         sides = await service.merge_sides(ctx, skill=skill, fork=fork, kind=TO_MAIN)
         assert (sides.conflicts, sides.prompt) == (0, "")
 
-        # Main says what the fork says: neither has anything for the other.
         await _main(db, ctx, skill, content="one\nTWO")
         for kind in (CATCH_UP, TO_MAIN):
             with pytest.raises(ConflictError):
@@ -368,7 +366,6 @@ class TestCatchingUp:
             skill.latest_version_id,
             started,
         )
-        # Based on main's newest, the fork has nothing left to catch up with.
         with pytest.raises(ConflictError, match="Main has nothing"):
             await service.merge_sides(ctx, skill=skill, fork=fork, kind=CATCH_UP)
 
@@ -562,7 +559,6 @@ class TestEditingTheMerge:
         merged = await service.candidate_of(merge)
         assert merged is not None and merged.content == "one\n2\nthree\nfour"
 
-        # A part a person empties drops its lines.
         await service.edit_part(ctx, skill.id, merge.run_id, 1, MergePartEdit(result=""))
         merged = await service.candidate_of(merge)
         assert merged is not None and merged.content == "one\nthree\nfour"
@@ -593,7 +589,6 @@ class TestEditingTheMerge:
             await service.edit_description(
                 ctx, skill.id, merge.run_id, MergeDescriptionEdit(result="Refunds.")
             )
-        # Reading it is not editing it.
         assert (await service.read_merge(ctx, skill.id, merge.run_id)).unresolved == 2
 
     async def test_a_session_that_merges_nothing_has_no_merge(self, db):
