@@ -129,11 +129,12 @@ class _Resolver:
     forks: dict[UUID, SkillFork]
     changes: dict[UUID, int]
     versions: dict[UUID, SkillVersion]
-    main: list[SkillVersion]
-    """Main's versions from the oldest any line here is on, oldest first."""
+    behind_main: dict[int, int]
+    """How many main versions after each one changed what the skill says, from the
+    oldest any line here is on."""
 
     def behind(self, number: int) -> int:
-        return changes_since([version for version in self.main if version.number >= number])
+        return self.behind_main.get(number, 0)
 
     def read(self, line: Line) -> SkillBindingRead | None:
         """The binding as the page shows it, or `None` for a version or fork that is gone."""
@@ -236,17 +237,18 @@ class SkillAgentService:
         )
         oldest = [version.number for version in pinned.values()]
         oldest += [versions[fork.base_version_id].number for fork in forks.values()]
-        main = (
-            await skill_version_repo.main_versions_from(
+        behind = changes_since(
+            await skill_version_repo.main_digests(
                 self.db,
                 organization_id=skill.organization_id,
                 skill_id=skill.id,
-                number=min(oldest),
+                first=min(oldest),
+                last=skill.version,
             )
             if oldest
             else []
         )
-        return _Resolver(skill, pinned, forks, changes, versions, main)
+        return _Resolver(skill, pinned, forks, changes, versions, behind)
 
     async def counts(self, skill: Skill) -> tuple[Counter[UUID], Counter[UUID]]:
         """How many agents' served versions read each skill version, and each fork.

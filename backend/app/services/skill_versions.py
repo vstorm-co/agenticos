@@ -12,11 +12,9 @@ See `app/db/models/skill_version.py` for the model.
 """
 
 import hashlib
-import json
 from collections import Counter
 from collections.abc import Iterable, Sequence
 from datetime import UTC, datetime, timedelta
-from itertools import pairwise
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -83,27 +81,22 @@ def manifest_of(
     return manifest, bodies
 
 
-def content_digest(version: SkillVersion) -> str:
-    """What a version says, as one hash: its description, its text and its files. Two
-    versions with the same digest read the same to every agent."""
-    files = sorted(
-        (name, entry["sha256"], entry["description"]) for name, entry in version.resources.items()
-    )
-    said = json.dumps([version.description, version.content, files])
-    return hashlib.sha256(said.encode("utf-8")).hexdigest()
+def changes_since(main: Sequence[tuple[int, str]]) -> dict[int, int]:
+    """For each of main's versions, how many after it changed what the skill says.
 
-
-def changes_since(main: Sequence[SkillVersion]) -> int:
-    """How many of main's versions after the first of `main` changed what the skill says.
-
-    `main` is main's versions from the one an agent or a fork is on, oldest first. A
-    version saying what the one before it said - a restore of the same text - is no
-    change, and a line back at exactly what the first said is behind by none.
+    `main` is main's versions with the hash of what each says, oldest first, up to the
+    newest. A version saying what the one before it said - a restore of the same text -
+    is no change, and a version saying what the newest says is behind by none.
     """
-    digests = [content_digest(version) for version in main]
-    if digests[0] == digests[-1]:
-        return 0
-    return sum(before != after for before, after in pairwise(digests))
+    behind: dict[int, int] = {}
+    changes = 0
+    later: str | None = None
+    for number, said in reversed(main):
+        if later is not None and said != later:
+            changes += 1
+        later = said
+        behind[number] = 0 if said == main[-1][1] else changes
+    return behind
 
 
 def _ref(version: SkillVersion | None) -> VersionRef | None:
@@ -533,12 +526,13 @@ class SkillVersionService:
         )
         people = await self._people(ctx, [fork.created_by_user_id for fork in forks])
         _, by_fork = await self._counts(skill)
-        main = (
-            await skill_version_repo.main_versions_from(
+        behind = changes_since(
+            await skill_version_repo.main_digests(
                 self.db,
                 organization_id=ctx.organization_id,
                 skill_id=skill.id,
-                number=min(versions[fork.base_version_id].number for fork in forks),
+                first=min(versions[fork.base_version_id].number for fork in forks),
+                last=skill.version,
             )
             if forks
             else []
@@ -557,9 +551,7 @@ class SkillVersionService:
                     if latest is None
                     else VersionNumberRef(id=latest.id, number=latest.number),
                     changes=changes[fork.id],
-                    behind_main=changes_since(
-                        [version for version in main if version.number >= base.number]
-                    ),
+                    behind_main=behind.get(base.number, 0),
                     agents=by_fork[fork.id],
                     archive_candidate=(
                         fork.archived_at is None
