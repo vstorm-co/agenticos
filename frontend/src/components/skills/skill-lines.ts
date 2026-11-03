@@ -15,15 +15,16 @@ export function bindingLabel(t: Translate, binding: SkillBinding): string {
 }
 
 /**
- * What the agents table shows: everyone, one state, or one fork's agents.
+ * What the agents table shows: everyone, one state, one fork's agents, or the agents
+ * bound only in a draft, which follow no line.
  *
  * Kept in the address as `?show=`, so a fork's agents are a link to send. A fork
  * is `fork:<id>`; anything unknown reads as everyone.
  */
-export type ShownAgents = "all" | "main" | "pinned" | `fork:${string}`;
+export type ShownAgents = "all" | "main" | "pinned" | "draft" | `fork:${string}`;
 
 export function shownAgents(param: string | null): ShownAgents {
-  if (param === "main" || param === "pinned") return param;
+  if (param === "main" || param === "pinned" || param === "draft") return param;
   if (param?.startsWith("fork:") && param.length > "fork:".length) return param as ShownAgents;
   return "all";
 }
@@ -36,6 +37,7 @@ export function lineOf(shown: ShownAgents): string | null {
 /** Whether an agent belongs to the shown choice. Draft-only agents belong to no line. */
 export function isShown(usage: SkillAgentUsage, shown: ShownAgents): boolean {
   if (shown === "all") return true;
+  if (shown === "draft") return usage.draft_only;
   if (usage.draft_only) return false;
   if (shown === "main" || shown === "pinned") return usage.binding.state === shown;
   return usage.binding.fork?.id === lineOf(shown);

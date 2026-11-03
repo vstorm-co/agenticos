@@ -116,3 +116,26 @@ export interface SkillAgentList {
   /** Agents using the skill that the caller may not see, counted rather than named. */
   hidden: number;
 }
+
+/** One agent's use of a skill over the window. */
+export interface SkillUsageAgent {
+  agent_id: string;
+  agent_name: string;
+  /** Runs that opened the skill or read one of its files. */
+  loads: number;
+  resource_reads: number;
+  workspace_reads: number;
+  last_loaded_at: string | null;
+}
+
+/** How often a skill was used, by agent, leaving out eval and test-panel runs. */
+export interface SkillUsage {
+  days: number;
+  since: string;
+  /** The sum of `loads` over the agents listed. */
+  loads: number;
+  agents: SkillUsageAgent[];
+  /** Agents that used the skill and the caller cannot see. */
+  hidden_agents: number;
+  hidden_loads: number;
+}

@@ -80,6 +80,11 @@ describe("versionTree", () => {
     expect(at(rows, 9).agents.map((one) => one.agent.name)).toEqual(["HR"]);
   });
 
+  it("folds nothing on a line shorter than eight versions", () => {
+    const rows = versionTree({ mainLatest: 7, forks: [], agents: [] });
+    expect(shape(rows)).toEqual(["v7", "v6", "v5", "v4", "v3", "v2", "v1"]);
+  });
+
   it("draws a lone unused version rather than folding it into a row of one", () => {
     const rows = versionTree({
       mainLatest: 4,
@@ -127,7 +132,7 @@ describe("versionTree", () => {
   });
 
   it("draws the versions a reader unfolded, per line", () => {
-    const returns = fork("f1", "Returns", 1, 6);
+    const returns = fork("f1", "Returns", 1, 9);
     const rows = versionTree({
       mainLatest: 10,
       forks: [returns],
@@ -139,7 +144,7 @@ describe("versionTree", () => {
     });
 
     expect(shape(rows)).toEqual(["v10", "v9", "v8", "v7", "v6–v2", "v1"]);
-    expect(shape(at(rows, 1).forks[0]!.rows)).toEqual(["v6", "v5–v4", "v3", "v2", "v1"]);
+    expect(shape(at(rows, 1).forks[0]!.rows)).toEqual(["v9", "v8–v4", "v3", "v2", "v1"]);
   });
 
   it("holds the agents of a fork with no versions of its own on the branch", () => {

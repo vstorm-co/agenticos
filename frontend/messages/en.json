@@ -239,7 +239,7 @@
     "disabled": "disabled",
     "documentCount": "{count, plural, =1 {1 document} other {# documents}}",
     "draft": "Draft",
-    "draftDiffersFromPublished": "Draft differs from v{version}",
+    "draftDiffersFromPublished": "Draft differs from agent v{version}",
     "draftDiffersHint": "The draft is saved and differs from v{version}, the latest published version. Publishing makes it a new version.",
     "duplicate": "Duplicate",
     "editSurface": "Edit {name}",
@@ -624,7 +624,7 @@
     "unchangedLines": "{count, plural, =1 {1 unchanged line} other {# unchanged lines}}",
     "unknownAuthor": "unknown author",
     "unnamedSpecialist": "Unnamed specialist",
-    "upToDateWithPublished": "Up to date with v{version}",
+    "upToDateWithPublished": "Up to date with agent v{version}",
     "productionOn": "production on v{version}",
     "productionWaiting": "production on v{version} (waiting for evals)",
     "productionHint": "Channels, widgets and the API answer with v{version}: production runs it until a newer version is promoted.",
@@ -1097,7 +1097,8 @@
     "backendComputerLabel": "Computer",
     "backendComputerDetail": "Use the person’s computer, approved separately in each desktop chat.",
     "backendComputerConsent": "Each person chooses a folder or Whole computer in chat settings. This setting grants no access and stores no personal path. A hosted chat must use the desktop app for this workspace.",
-    "workflowTablesViaMcp": "Workflows and Tables are tools in the AgenticOS MCP server. Add it under MCP servers and select the tools this agent needs. Existing capability bindings keep their saved grants."
+    "workflowTablesViaMcp": "Workflows and Tables are tools in the AgenticOS MCP server. Add it under MCP servers and select the tools this agent needs. Existing capability bindings keep their saved grants.",
+    "alreadyHasIt": "Uses it"
   },
   "auth": {
     "agreeToTerms": "By creating an account, you agree to our <terms>Terms</terms> and <privacy>Privacy Policy</privacy>.",
@@ -5527,6 +5528,14 @@
       "skill-tree": {
         "title": "Main and its forks",
         "body": "Main runs down from its newest version, each fork branches off the version it started from, and agents sit at the version they use."
+      },
+      "skill-new-fork": {
+        "title": "A fork for the agents that differ",
+        "body": "New fork starts a line of its own from main's newest version. Agents moved onto it read its changes, and main's agents never see them."
+      },
+      "skill-usage": {
+        "title": "How much it is used",
+        "body": "How often each agent opened the skill in the last 30 days, and the files it read. Eval and test-panel runs are left out."
       }
     },
     "chooseLanguage": "Language",
@@ -8406,8 +8415,6 @@
         "tree": "Version tree"
       },
       "agentCount": "{count, plural, =0 {No agents} =1 {1 agent} other {# agents}}",
-      "delete": "Delete",
-      "deleteDescription": "Agents that use this skill stop finding it. Its versions go with it.",
       "state": {
         "main": "v{number} · main",
         "pinned": "v{number} · pinned{behind, plural, =0 {} other { · # behind main}}",
@@ -8418,18 +8425,21 @@
         "all": "All ({count})",
         "main": "Main ({count})",
         "pinned": "Pinned ({count})",
-        "fork": "Fork “{name}” ({count})"
+        "fork": "Fork “{name}” ({count})",
+        "draft": "Only in the draft ({count})"
       },
       "agentsTable": {
         "agent": "Agent",
         "version": "Version",
         "actions": "Actions",
         "viaSpecialist": "Through its specialist {name}",
-        "empty": "No agent here uses this skill.",
+        "empty": "No agent uses this skill yet.",
         "hidden": "{count, plural, =1 {1 more agent you can't see uses this skill.} other {# more agents you can't see use this skill.}}",
         "draftOnly": "Only in the draft",
         "environment": "{name}: {binding}",
-        "draftDiffers": "Its draft uses a different version."
+        "draftDiffers": "Its draft uses a different version.",
+        "emptyFork": "No agent uses fork “{name}” yet. Move one onto it with Change version.",
+        "emptyShown": "No agent here."
       },
       "changeVersion": {
         "button": "Change version",
@@ -8442,7 +8452,7 @@
         "pinVersion": "Version to pin",
         "versionOption": "v{number}",
         "fork": "Fork “{name}”, latest",
-        "unchecked": "This version has not been checked on {name}. Its answers may change.",
+        "unchecked": "{version} has not been checked on {name}. Its answers may change.",
         "understood": "I understand, change it anyway",
         "publishes": "This publishes a new version of {name} with only this change. Unfinished changes in its draft stay in the draft.",
         "cancel": "Cancel",
@@ -8451,7 +8461,12 @@
         "savedInDraft": "Saved in the draft of {name}. Publish it in the Builder.",
         "openBuilder": "Open the Builder",
         "savesToDraft": "You may edit {name} but not publish it, so this change goes into its draft. Somebody who may publish it does that from the Builder.",
-        "submitDraft": "Save to the draft"
+        "submitDraft": "Save to the draft",
+        "versionWhen": "v{number} · {when}",
+        "forkVersion": "{name} v{number}",
+        "pinDetail": "{source} · {who} · {when}",
+        "leavesMain": "{name} stays on this version and stops getting new main versions.",
+        "leavesMainFork": "{name} stops getting new main versions.{behind, plural, =0 {} =1 { Fork “{fork}” is 1 version behind main, so it lacks that change.} other { Fork “{fork}” is # versions behind main, so it lacks their changes.}}"
       },
       "history": {
         "title": "History of {line}",
@@ -8462,13 +8477,12 @@
         "showChanges": "Show changes",
         "hideChanges": "Hide changes",
         "restore": "Restore",
-        "restoreVersion": "Restore v{number}",
-        "restoreTitle": "Restore v{number}?",
-        "restoreMain": "v{number} comes back as the newest version on main. Agents following main get it at once; pinned agents and forks keep their version.",
-        "restoreFork": "v{number} comes back as the newest version of fork “{name}”. The fork's agents get it at once.",
-        "restored": "v{number} is back as v{made}.",
-        "number": "v{number}",
-        "restoredFrom": "Restored from v{number}",
+        "restoreVersion": "Restore {version}",
+        "restoreTitle": "Restore {version}?",
+        "restoreMain": "{version} comes back as the newest version on main. Agents following main get it at once; pinned agents and forks keep their version.",
+        "restoreFork": "{version} comes back as the newest version of fork “{name}”. The fork's agents get it at once.",
+        "restored": "{version} is back as {made}.",
+        "restoredFrom": "Restored from {version}",
         "source": {
           "backfill": "As it was when versions began",
           "created": "Created",
@@ -8490,7 +8504,10 @@
           "added": "added",
           "removed": "removed",
           "changed": "changed"
-        }
+        },
+        "versionLabel": "{fork, select, yes {{name} v{number}} other {v{number}}}",
+        "forkEmpty": "No version of its own yet: the fork reads v{number} on main. Edit the fork to make its first change.",
+        "forkStarts": "Fork “{name}” starts here"
       },
       "tree": {
         "title": "Version tree",
@@ -8500,7 +8517,8 @@
         "latest": "latest",
         "fork": "Fork “{name}”",
         "forkFacts": "{changes, plural, =0 {no changes yet} =1 {1 change} other {# changes}}{behind, plural, =0 {} other { · # behind main}}",
-        "moreAgents": "+{count}"
+        "moreAgents": "+{count}",
+        "forkNumber": "{name} v{number}"
       },
       "edit": {
         "saved": "Saved as v{number}.",
@@ -8511,10 +8529,46 @@
         "lineMoved": "Somebody saved a newer version since you opened this. Your text is still here: copy it, close, and open the newest version to apply it there.",
         "forkFiles": "Only the description and instructions belong to the fork. Its files come from the main version it started from, and files are edited on main.",
         "noBase": "This skill has no saved version to write over yet. Reload the page and try again.",
-        "retryFork": "Load the fork again"
+        "retryFork": "Load the fork again",
+        "savedFork": "Saved as {name} v{number}."
+      },
+      "newFork": {
+        "button": "New fork",
+        "title": "New fork of {name}",
+        "description": "A fork is a line of versions with changes of its own, for the agents that need them. It starts from v{number}, main's newest version, and reads the same until it is edited.",
+        "name": "Name",
+        "agents": "Agents to move onto it (optional)",
+        "agentsHint": "Each agent moved gets a new published version that reads the fork, or the change waits in its draft where you may not publish it.",
+        "noAgents": "No agent can be moved onto it from here. Move agents later with Change version.",
+        "agentNow": "{name} · now {binding}",
+        "cancel": "Cancel",
+        "create": "Create fork",
+        "created": "Fork “{name}” created.{moved, plural, =0 {} =1 { 1 agent moved onto it.} other { # agents moved onto it.}}",
+        "moveFailed": "{name} was not moved onto the fork: {reason}",
+        "changesContent": "{count, plural, =1 {{names} reads} other {{names} read}} another version now, and on the fork {count, plural, =1 {gets} other {get}} v{number}'s content, which has not been checked on {count, plural, =1 {it} other {them}}. Move {count, plural, =1 {it} other {them}} anyway.",
+        "mainMoved": "Main has a newer version, v{number}, since this opened. The fork will start from it: press Create fork again."
+      },
+      "deleteSkill": {
+        "title": "Delete {name}?",
+        "description": "Its versions and forks go with it. No agent uses it now.",
+        "used": "A skill an agent uses cannot be deleted. Move each agent to another skill, or remove the skill from it in the Builder, then delete it.",
+        "usedBy": "{named, select, yes {{count, plural, =1 {Used by 1 agent} other {Used by # agents}}: {names}{hidden, plural, =0 {.} =1 {, and 1 you can't see.} other {, and # you can't see.}}} other {{hidden, plural, =1 {Used by 1 agent you can't see.} other {Used by # agents you can't see.}}}}",
+        "close": "OK",
+        "cancel": "Cancel",
+        "delete": "Delete",
+        "checking": "Checking which agents use it…",
+        "unread": "Which agents use it could not be read. A skill an agent uses is still refused."
+      },
+      "usage": {
+        "title": "Use in the last {days} days",
+        "loads": "{count, plural, =0 {Not opened} =1 {Opened once} other {Opened # times}}",
+        "none": "No agent opened this skill in the last {days} days. Runs of evals and the test panel are not counted.",
+        "agent": "{loads, plural, =1 {opened once} other {opened # times}}{files, plural, =0 {} =1 { · 1 file read} other { · # files read}}{seen, select, yes { · last {last}} other {}}",
+        "hidden": "{count, plural, =1 {1 agent you can't see} other {# agents you can't see}} opened it {loads, plural, =1 {once} other {# times}}."
       }
     },
-    "savedMainVersion": "Saved as a new main version. Agents on main read it from their next run; pinned agents and forks keep theirs."
+    "savedMainVersion": "Saved as a new main version. Agents on main read it from their next run; pinned agents and forks keep theirs.",
+    "instructions": "Instructions"
   },
   "states": {
     "loading": "Loading"

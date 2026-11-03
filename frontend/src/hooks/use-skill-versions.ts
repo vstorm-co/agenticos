@@ -7,7 +7,10 @@ import { PAGE_SIZE } from "@/components/ui";
 import { qk } from "@/lib/query-keys";
 import {
   changeSkillBinding,
+  createSkillFork,
+  getMainLatest,
   createSkillVersion,
+  getSkillUsage,
   getSkillVersion,
   listSkillAgents,
   listSkillForks,
@@ -44,6 +47,15 @@ export function useSkillForks(skillId: string) {
     queryFn: () => listSkillForks(skillId),
   });
   return { forks: data?.items ?? [], isLoading, error };
+}
+
+/** How often the skill was used, by agent, over the last `days` days. */
+export function useSkillUsage(skillId: string, days: number) {
+  const { data, isLoading, error } = useQuery({
+    queryKey: qk.skills.usage(skillId, days),
+    queryFn: () => getSkillUsage(skillId, days),
+  });
+  return { usage: data, isLoading, error };
 }
 
 export function useSkillAgents(skillId: string) {
@@ -84,5 +96,11 @@ export function useSkillVersionWrites(skillId: string) {
       await queryClient.invalidateQueries({ queryKey: qk.agents.all() });
     },
   });
-  return { edit, restore, changeBinding };
+  const createFork = useMutation({
+    mutationFn: (fork: { name: string; fromVersionId: string }) => createSkillFork(skillId, fork),
+    onSettled: settle,
+  });
+  /** Read main's newest version fresh, so a fork is not started from one superseded meanwhile. */
+  const mainLatest = useCallback(() => getMainLatest(skillId), [skillId]);
+  return { edit, restore, changeBinding, createFork, mainLatest };
 }
