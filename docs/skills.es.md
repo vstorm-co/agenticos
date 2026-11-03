@@ -1,5 +1,5 @@
 ---
-source_sha: "cb72755e2d70"
+source_sha: "a01a9fe89395"
 ---
 
 # Skills { #skills }
@@ -470,6 +470,51 @@ backend, un parser apuntando al repositorio de otra persona y una promesa sobre
 un contenido que nadie aquí ha leído. Cada carpeta de
 `app/core/catalog/skills/` y `app/core/catalog/skill_gallery/` es la misma
 pequeña promesa que hace el [catálogo MCP](mcp.md#the-catalog): alguien lo miró.
+
+## La página de un skill { #a-skills-page }
+
+Abre un skill desde la lista para ver su página. Tiene tres pestañas.
+
+**Agentes** lista cada agent que usa el skill y la versión que recibe:
+
+- `v12 · main` - el agent sigue main y recibe cada versión nueva de inmediato.
+- `v9 · fijado · 3 por detrás de main` - el agent se queda en una versión anterior de main.
+- `Fork "Returns" · desde v7 · 2 cambios` - el agent usa un fork: una línea de
+  versiones con cambios propios, iniciada desde una versión de main.
+
+Un entorno que sirve una versión distinta aparece debajo del agent, y un
+especialista inline que vincula el skill tiene una fila propia - ver
+[Qué versión lee un agent](#which-version-an-agent-reads). Un agent que vincula el
+skill solo en su borrador lleva la marca **Solo en el borrador** y no
+cuenta en ninguna línea. Los agents que no puedes ver se cuentan, sin nombrarlos.
+Los chips sobre la tabla muestran a todos, los agents en main, los fijados o un
+fork. El fork que elijas ahí es también la línea que muestra el Historial y en la
+que guarda Editar.
+
+**Cambiar versión** mueve un agent a main, a una versión fijada de main o a un fork,
+como describe [Qué versión lee un agent](#which-version-an-agent-reads): qué se
+publica, qué espera en el borrador y qué se cambia en el Builder. Una versión en la
+que el agent no está no se ha comprobado en él, así que primero lo confirmas. El
+control lo ve quien puede editar el agent.
+
+**Historial** lista las versiones de la línea elegida, de la más nueva a la más
+antigua: de dónde vino cada una (una edición, un cambio de archivos, la biblioteca,
+el workspace de un agent, Improve o una restauración), quién la hizo y cuándo.
+**Mostrar cambios** compara la descripción y las instrucciones con la versión
+anterior - para la primera versión de un fork, con su base en main - y nombra los
+archivos añadidos, eliminados o cambiados. **Restaurar** devuelve una versión
+anterior como la más nueva de su propia línea, y los agents que siguen esa línea la
+reciben de inmediato.
+
+**Árbol de versiones** dibuja main desde su versión más nueva hacia abajo, cada fork
+desde la versión en que empezó y los agents junto a la versión que usan. Los tramos
+que ningún agent usa se pliegan en una sola fila.
+
+**Editar** guarda una versión nueva en la línea en pantalla. En main, los agents que
+siguen main la reciben de inmediato; los agents fijados y los forks conservan su
+versión. Los archivos y la categoría son de main, así que editar un fork cambia solo
+su descripción e instrucciones. Restaurar y Cambiar versión solo se muestran a
+quien puede hacer ese cambio; los demás abren el skill en modo de solo lectura.
 
 ## ¿Skills o conocimiento? { #skills-or-knowledge }
 

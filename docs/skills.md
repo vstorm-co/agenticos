@@ -446,6 +446,48 @@ nobody here has read. Each folder in `app/core/catalog/skills/` and
 `app/core/catalog/skill_gallery/` is the same small promise the
 [MCP catalog](mcp.md#the-catalog) makes: somebody looked at it.
 
+## A skill's page
+
+Open a skill from the list to see its page. It has three tabs.
+
+**Agents** lists every agent that uses the skill, and the version it is served:
+
+- `v12 · main` - the agent follows main and gets each new version at once.
+- `v9 · pinned · 3 behind main` - the agent stays on an older main version.
+- `Fork "Returns" · from v7 · 2 changes` - the agent uses a fork: a line of
+  versions with changes of its own, started from one main version.
+
+An environment that serves a different version is named under the agent, and an
+inline specialist that binds the skill has a row of its own - see
+[Which version an agent reads](#which-version-an-agent-reads). An agent that binds
+the skill only in its draft is marked **Only in the draft** and counts on
+no line. Agents you cannot see are counted, not named. The chips above the table
+show everyone, the agents on main, the pinned ones, or one fork. A fork you pick
+there is also the line that History lists and Edit saves to.
+
+**Change version** moves one agent to main, to a pinned main version, or to a fork,
+as [Which version an agent reads](#which-version-an-agent-reads) describes: what goes
+live, what waits in the draft, and what is changed in the Builder. A version the agent
+is not on has not been checked on it, so you confirm that first. The control is shown
+to people who may edit the agent.
+
+**History** lists the chosen line's versions, newest first: where each came from
+(an edit, a file change, the library, an agent's workspace, Improve or a restore),
+who made it and when. **Show changes** compares the description and instructions
+with the version before - for a fork's first version, its base on main - and names
+the files added, removed or changed. **Restore** brings an earlier version back as
+the newest on its own line, and the agents following that line get it at once.
+
+**Version tree** draws main from its newest version down, each fork off the version
+it started from, and agents at the version they use. Stretches that no agent uses
+fold into one row.
+
+**Edit** saves a new version on the line on screen. On main, the agents following
+main get it at once; pinned agents and forks keep their version. Files and the
+category belong to main, so editing a fork changes only its description and
+instructions. Restore and Change version are shown only to people who may make
+that change; anybody else opens the skill read-only.
+
 ## Skills or knowledge?
 
 They answer different questions, and the difference matters when an agent gets the
