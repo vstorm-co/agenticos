@@ -350,8 +350,8 @@ class KnowledgeBaseService:
         # sync inserting a row cannot slip in between the delete and the commit and
         # survive detached under `ON DELETE SET NULL` (#1266).
         await knowledge_base_repo.lock(self.db, kb.id)
-        # This base is excluded by id: a kept default's row would otherwise count
-        # as another holder.
+        # This base's own row is still present here (a default's is kept, any
+        # other's is deleted below), so it is excluded by id.
         others = [
             ref
             for ref in await knowledge_base_repo.list_by_collection_name(self.db, collection)
