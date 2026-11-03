@@ -1,5 +1,5 @@
 ---
-source_sha: "ede22781bf78"
+source_sha: "6666bbc954c8"
 ---
 
 # Aplikacja desktopowa { #the-desktop-app }
@@ -480,6 +480,14 @@ Odczytany tekst skilli i instrukcji trafia przez Twój serwer do skonfigurowaneg
 ## Diagnostyka { #diagnostics }
 
 **Help → Export Diagnostics…** zapisuje jeden plik JSON w wybranym miejscu, do załączenia do zgłoszenia błędu. Zawiera wersję, system operacyjny, na co zezwolił macOS, czy Claude Code i Codex są zainstalowane i zalogowane, adres serwera (tylko schemat, host i port) oraz ostatnie awarie. Nie zawiera poświadczeń, tokenów, rozmów ani ścieżek w folderze domowym, a nic nie jest nigdzie wysyłane. Awaria jest zapisywana w `crash.log` w folderze danych aplikacji w chwili, gdy się zdarzy.
+
+Jeśli aplikacja desktopowa 1.38.1 pozostaje w stanie **Linked — reconnecting…**,
+a lokalne czaty pokazują **Waiting for your computer**, sprawdź, czy lokalizacje
+awarii w wyeksportowanej diagnostyce zawierają `rustls` / `crypto/mod.rs`.
+Ten błąd inicjalizacji TLS poprawiono w nowszym wydaniu aplikacji desktopowej.
+Zainstaluj je i otwórz aplikację ponownie; aktualizacja samego serwera nie
+aktualizuje klienta desktopowego. Ta poprawka nie wymaga resetowania parowania
+ani zgód na foldery.
 
 ## Lokalna przeglądarka, modele i MCP { #local-browser-models-and-mcp }
 
