@@ -11,7 +11,7 @@ import contextlib
 import json
 import uuid
 from datetime import UTC, datetime, timedelta
-from typing import Any
+from typing import Any, cast
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
@@ -22,13 +22,19 @@ from fastapi import HTTPException
 
 from app.api.routes.v1.mattermost_webhook import mattermost_action
 from app.api.routes.v1.telegram_webhook import telegram_webhook
-from app.services.channels.base import ChannelChoice, IncomingPress, PromptMessage
+from app.clients.redis import RedisClient
+from app.services.channels import dedupe
+from app.services.channels.base import ChannelChoice, IncomingMessage, IncomingPress, PromptMessage
 from app.services.channels.feedback import FeedbackOutcome
 from app.services.channels.mattermost import MattermostAdapter, trigger_presser
 from app.services.channels.telegram import TelegramAdapter
 from app.services.channels.telegram_press import parse_press
 from app.services.channels.webhooks import inbound_actions_url, sign_press
-from app.worker.background.channel import process_channel_press, process_slack_surface
+from app.worker.background.channel import (
+    process_channel_events_in_order,
+    process_channel_press,
+    process_slack_surface,
+)
 
 pytestmark = pytest.mark.anyio
 
@@ -509,11 +515,64 @@ class TestTheBackgroundHandlers:
             db_context.return_value.__aenter__ = AsyncMock(return_value=MagicMock())
             db_context.return_value.__aexit__ = AsyncMock(return_value=False)
             prompts.return_value.press = AsyncMock()
-            await process_channel_press(MagicMock(value="aos:prompt:0"))
+            await process_channel_press(MagicMock(value="aos:prompt:0", delivery_id=None))
             prompts.return_value.press.side_effect = RuntimeError("boom")
-            await process_channel_press(MagicMock(value="aos:prompt:0"))
+            await process_channel_press(MagicMock(value="aos:prompt:0", delivery_id=None))
 
         assert prompts.return_value.press.await_count == 2
+
+    async def test_a_redelivered_tap_is_pressed_once(self):
+        """Meta does deliver duplicates; on a multi-select a second one would undo the pick."""
+        module = "app.worker.background.channel"
+        seen: set[str] = set()
+
+        class Redis:
+            async def set(self, key: str, value: str, ttl: int | None = None, nx: bool = False):
+                if nx and key in seen:
+                    return False
+                seen.add(key)
+                return True
+
+        press = IncomingPress(
+            platform="whatsapp",
+            bot_id="b",
+            platform_user_id="u",
+            platform_chat_id="c",
+            value="aos:prompt:0",
+            delivery_id="wamid.TAP",
+        )
+        dedupe.configure(cast(RedisClient, Redis()))
+        try:
+            with (
+                patch(f"{module}.get_db_context") as db_context,
+                patch(f"{module}.ChannelPrompts") as prompts,
+            ):
+                db_context.return_value.__aenter__ = AsyncMock(return_value=MagicMock())
+                db_context.return_value.__aexit__ = AsyncMock(return_value=False)
+                prompts.return_value.press = AsyncMock()
+                await process_channel_press(press)
+                await process_channel_press(press)
+        finally:
+            dedupe.configure(None)
+
+        prompts.return_value.press.assert_awaited_once()
+
+    async def test_presses_and_messages_are_dispatched_in_order(self):
+        module = "app.worker.background.channel"
+        message = IncomingMessage("whatsapp", "b", "u", "c", "private", text="hi")
+        press = IncomingPress("whatsapp", "b", "u", "c", "aos:p:0")
+        order: list[object] = []
+
+        async def routed(event: object) -> None:
+            order.append(event)
+
+        with (
+            patch(f"{module}.process_channel_event", routed),
+            patch(f"{module}.process_channel_press", routed),
+        ):
+            await process_channel_events_in_order([message, press, message])
+
+        assert order == [message, press, message]
 
     async def test_a_surface_event_reaches_an_active_bot_only(self):
         module = "app.worker.background.channel"

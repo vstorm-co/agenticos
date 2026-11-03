@@ -1,0 +1,50 @@
+{
+  "object": "whatsapp_business_account",
+  "entry": [
+    {
+      "id": "WABA1",
+      "changes": [
+        {
+          "field": "messages",
+          "value": {
+            "messaging_product": "whatsapp",
+            "metadata": {
+              "display_phone_number": "15550001111",
+              "phone_number_id": "PNID1"
+            },
+            "contacts": [
+              {
+                "profile": {
+                  "name": "Ada Lovelace",
+                  "username": "ada"
+                },
+                "user_id": "US.111",
+                "wa_id": "4915112345678"
+              }
+            ],
+            "messages": [
+              {
+                "from_user_id": "US.111",
+                "timestamp": "1790000000",
+                "id": "wamid.TAP2",
+                "type": "interactive",
+                "context": {
+                  "from": "15550001111",
+                  "id": "wamid.PROMPT2"
+                },
+                "interactive": {
+                  "type": "list_reply",
+                  "list_reply": {
+                    "id": "aos:0123456789abcdef0123456789abcdef:2",
+                    "title": "Option 3",
+                    "description": "Third"
+                  }
+                }
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

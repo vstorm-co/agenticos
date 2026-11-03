@@ -21,11 +21,11 @@ from fastapi import HTTPException
 from app.api.routes.v1.whatsapp_webhook import MAX_BODY_BYTES, whatsapp_events, whatsapp_verify
 from app.services.channels import dedupe
 from app.services.channels.attachments import ChannelAttachmentService
-from app.services.channels.base import IncomingMessage
+from app.services.channels.base import IncomingMessage, IncomingPress
 from app.services.channels.mentions import AnsweredTurn, UnaddressedMessage
 from app.services.channels.router import ChannelMessageRouter
 from app.services.channels.whatsapp import WhatsAppAdapter
-from app.services.channels.whatsapp_graph import WhatsAppCredentials
+from app.services.channels.whatsapp_graph import WhatsAppCredentials, WhatsAppGraphError
 from app.worker.background.channel import process_channel_events_in_order
 from tests.test_whatsapp_payload import FIXTURES
 
@@ -324,6 +324,23 @@ class TestMessages:
         groups = [[e.text for e in call.args[0]] for call in process.call_args_list]
         assert groups == [["first", "second"], ["other"]]
 
+    async def test_a_tap_and_a_message_keep_their_order(self):
+        """The tap answers the question the text before it left open: one task, in Meta's order."""
+        payload = _payload()
+        value = payload["entry"][0]["changes"][0]["value"]
+        tap = json.loads((FIXTURES / "button_reply.json").read_text())
+        tap_message = tap["entry"][0]["changes"][0]["value"]["messages"][0]
+        tap_message["timestamp"] = str(int(time.time()) - 2)
+        value["messages"].append(tap_message)
+        with patch(f"{ROUTE}.process_channel_events_in_order") as process:
+            _, spawn = await _post(payload, bot=_bot())
+
+        spawn.assert_called_once()
+        (events,) = [call.args[0] for call in process.call_args_list]
+        assert [type(e) for e in events] == [IncomingMessage, IncomingPress]
+        assert events[1].value == "aos:0123456789abcdef0123456789abcdef:0"
+        assert events[1].platform_user_id == f"{ORG}:US.111"
+
     async def test_events_are_awaited_one_after_another(self):
         order: list[str] = []
 
@@ -341,15 +358,20 @@ class TestMessages:
 
         assert order == ["start first", "end first", "start second", "end second"]
 
-    async def test_an_unreadable_message_goes_through_the_router_as_a_named_file(self):
-        """An image whose fetch fails still reaches the router, which names it in the reply."""
+    async def test_an_image_that_cannot_be_fetched_is_answered_by_name(self):
+        """Meta refuses the media lookup: the image still reaches the router, which says so."""
         bot = _bot()
         with patch(f"{ROUTE}.process_channel_events_in_order") as process:
             await _post(_payload("image"), bot=bot)
         (incoming,) = process.call_args_list[0].args[0]
         assert [a.filename for a in incoming.attachments] == ["image.jpg"]
 
-        graph = MagicMock(send_text=AsyncMock(), mark_read=AsyncMock(), aclose=AsyncMock())
+        graph = MagicMock(
+            send_text=AsyncMock(),
+            mark_read=AsyncMock(),
+            media_info=AsyncMock(side_effect=WhatsAppGraphError(code=100)),
+            aclose=AsyncMock(),
+        )
         adapter = WhatsAppAdapter(graph)
         creds = WhatsAppCredentials(bot_id=str(bot.id), access_token="t", phone_number_id="PNID1")
         row = MagicMock(

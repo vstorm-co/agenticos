@@ -14,15 +14,18 @@ The claim is one atomic `SET NX` against the deployment's shared Redis, so
 it holds across API workers and covers the pollers as well as the webhook
 routes - the router's chat lock is per-process on purpose, serialising the
 turns one worker runs in one chat, and is no model to follow here. The router
-takes the claim at the top of `route`, the one point all six inbound paths
-cross, and gives it back if the run under it does not finish.
+takes a message's claim at the top of `route`, the one point all six inbound
+paths cross, and gives it back if the run under it does not finish. A button
+press that a platform may deliver twice is claimed by `process_channel_press`
+and, a press being a quick decision, never given back, in a namespace of its own
+(`pressed`): a tap is routed afterwards as a message under the same id.
 """
 
 import hashlib
 import logging
 
 from app.clients.redis import RedisClient
-from app.services.channels.base import IncomingMessage
+from app.services.channels.base import IncomingMessage, IncomingPress
 
 logger = logging.getLogger(__name__)
 
@@ -50,17 +53,23 @@ def configure(redis: RedisClient | None) -> None:
     _redis = redis
 
 
-def _key(incoming: IncomingMessage) -> str:
+def _key(
+    incoming: IncomingMessage | IncomingPress, delivery_id: str | None, prefix: str = "seen"
+) -> str:
     """The claim's address: what the *platform* calls the message.
 
     The chat id is part of it because a message id is only unique inside its
     chat on some platforms - Telegram numbers messages per chat and Slack's
     `ts` is per channel - so a bot-wide key would let one chat's message
     silently swallow another's.
+
+    `prefix` is the claim's namespace. A press is claimed as `pressed` and then
+    may be routed as a message under the same id; sharing a namespace would make
+    the router drop it as a duplicate of its own press.
     """
     return (
-        f"channel:seen:{incoming.bot_id}:{incoming.platform}"
-        f":{incoming.platform_chat_id}:{incoming.message_id}"
+        f"channel:{prefix}:{incoming.bot_id}:{incoming.platform}"
+        f":{incoming.platform_chat_id}:{delivery_id}"
     )
 
 
@@ -95,17 +104,44 @@ async def claim_delivery(incoming: IncomingMessage) -> bool:
             incoming.platform,
         )
         return True
+    return await _claim(
+        _key(incoming, incoming.message_id),
+        bot_id=incoming.bot_id,
+        platform=incoming.platform,
+        ref=incoming.message_id,
+    )
+
+
+async def claim_press(press: IncomingPress) -> bool:
+    """Claim this press's delivery, on the terms of `claim_delivery`.
+
+    Only a platform that may deliver one press twice gives it a `delivery_id`
+    (a tap's own message id); a press without one is always ours. The claim is per chat for the
+    same reason a message's is.
+    """
+    if press.delivery_id is None:
+        return True
+    return await _claim(
+        _key(press, press.delivery_id, "pressed"),
+        bot_id=press.bot_id,
+        platform=press.platform,
+        ref=press.delivery_id,
+    )
+
+
+async def _claim(key: str, *, bot_id: str, platform: str, ref: str) -> bool:
+    """The atomic `SET NX`, failing open; `ref` is logged only through `delivery_ref`."""
     if _redis is None:
         logger.warning(
             "Channel dedupe not configured - delivery processed without a claim: "
             "bot=%s platform=%s message=%s",
-            incoming.bot_id,
-            incoming.platform,
-            delivery_ref(incoming.message_id),
+            bot_id,
+            platform,
+            delivery_ref(ref),
         )
         return True
     try:
-        return await _redis.set(_key(incoming), "1", ttl=SEEN_TTL_SECONDS, nx=True)
+        return await _redis.set(key, "1", ttl=SEEN_TTL_SECONDS, nx=True)
     except Exception:
         logger.warning("channel_dedupe_redis_unavailable", exc_info=True)
         return True
@@ -131,6 +167,6 @@ async def release_delivery(incoming: IncomingMessage) -> None:
     if incoming.message_id is None or _redis is None:
         return
     try:
-        await _redis.delete(_key(incoming))
+        await _redis.delete(_key(incoming, incoming.message_id))
     except Exception:
         logger.warning("channel_dedupe_release_failed", exc_info=True)

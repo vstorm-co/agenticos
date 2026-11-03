@@ -139,6 +139,9 @@ class ChannelNextSteps:
         if prompt is None:
             return None
         adapter = get_adapter(press.platform)
+        if not adapter.press_matches_chat(press, prompt.platform_chat_id):
+            logger.warning("channel_press_from_another_chat", extra={"bot_id": str(bot.id)})
+            return None
         token = unseal_bot_token(bot)
         await adapter.acknowledge(token, press)
         if (
@@ -159,9 +162,11 @@ class ChannelNextSteps:
             chat_type=prompt.chat_type,
             text=step,
             platform_username=press.platform_username,
-            # The buttons' own message: what the answer replies to, and - pressed
-            # once - a delivery that cannot be claimed twice.
-            message_id=press.message_id,
+            # The press's own delivery where the platform gives it one: a message of
+            # the presser's, which the platform can mark read and the dedupe can claim.
+            # Otherwise the buttons' own message: what the answer replies to, and -
+            # pressed once - a delivery that cannot be claimed twice.
+            message_id=press.delivery_id or press.message_id,
             # Pressing the bot's own button is speaking to it.
             addressed=True,
         )

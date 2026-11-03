@@ -16,7 +16,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import UUID
 
-from app.services.channels.base import IncomingAttachment, IncomingMessage
+from app.services.channels.base import IncomingAttachment, IncomingMessage, IncomingPress
 
 MAX_MESSAGE_AGE = timedelta(days=7)
 """Meta retries a refused webhook for up to a week; older than that is not a live conversation."""
@@ -26,6 +26,8 @@ IGNORED_KINDS = frozenset({"reaction", "system"})
 the new id arrives as a new customer."""
 
 _MEDIA_KINDS = frozenset({"image", "document", "audio", "video"})
+
+_REPLY_TYPES = frozenset({"button_reply", "list_reply"})
 
 
 def verify_signature(body: bytes, header: str | None, app_secret: str) -> bool:
@@ -49,6 +51,10 @@ class WhatsAppMessage:
     media_id: str | None
     mime_type: str | None
     filename: str | None
+    reply_id: str | None = None
+    """The id of the button or list row a customer tapped; `text` is its title."""
+    context_id: str | None = None
+    """The wamid of the message the tapped buttons were on."""
 
 
 @dataclass(frozen=True)
@@ -107,6 +113,7 @@ def _message(raw: object, contacts: Mapping[str, Mapping[str, Any]]) -> WhatsApp
         return None
 
     text, media_id, mime_type, filename = "", None, None, None
+    reply_id, context_id = None, None
     if kind == "text":
         body = _mapping(item.get("text")).get("body")
         if not isinstance(body, str):
@@ -122,6 +129,16 @@ def _message(raw: object, contacts: Mapping[str, Mapping[str, Any]]) -> WhatsApp
             return None
         mime_type = _str(media.get("mime_type"))
         filename = _str(media.get("filename"))
+    elif kind == "interactive":
+        interactive = _mapping(item.get("interactive"))
+        reply_type = _str(interactive.get("type"))
+        # Any other interactive type (a flow's reply, say) stays a named, unreadable message.
+        if reply_type in _REPLY_TYPES:
+            reply = _mapping(interactive.get(reply_type))
+            reply_id = _str(reply.get("id"))
+            if reply_id is not None:
+                text = _str(reply.get("title")) or ""
+                context_id = _str(_mapping(item.get("context")).get("id"))
 
     contact = contacts.get(bsuid, {})
     profile = _mapping(contact.get("profile"))
@@ -137,6 +154,8 @@ def _message(raw: object, contacts: Mapping[str, Mapping[str, Any]]) -> WhatsApp
         media_id=media_id,
         mime_type=mime_type,
         filename=filename,
+        reply_id=reply_id,
+        context_id=context_id,
     )
 
 
@@ -271,4 +290,27 @@ def to_incoming(message: WhatsAppMessage, *, bot_id: str, organization_id: UUID)
         platform_display_name=message.profile_name,
         message_id=message.wamid,
         attachments=[attachment] if attachment else [],
+    )
+
+
+def to_event(
+    message: WhatsAppMessage, *, bot_id: str, organization_id: UUID
+) -> IncomingMessage | IncomingPress:
+    """A tap on a button or list row is a press; everything else is a message.
+
+    The tap's own wamid is its delivery id: Meta redelivers, and a second delivery
+    of a pick on a multi-select question would undo it.
+    """
+    if message.reply_id is None:
+        return to_incoming(message, bot_id=bot_id, organization_id=organization_id)
+    return IncomingPress(
+        platform="whatsapp",
+        bot_id=bot_id,
+        platform_user_id=platform_user_id_for(organization_id, message.bsuid),
+        platform_chat_id=message.bsuid,
+        value=message.reply_id,
+        platform_username=message.username or mask_phone(message.phone),
+        message_id=message.context_id,
+        ack_id=message.wamid,
+        delivery_id=message.wamid,
     )

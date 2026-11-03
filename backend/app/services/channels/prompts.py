@@ -310,6 +310,9 @@ class ChannelPrompts:
         if prompt is None or prompt.kind == FOLLOW_UP:
             return
         adapter = get_adapter(press.platform)
+        if not adapter.press_matches_chat(press, prompt.platform_chat_id):
+            logger.warning("channel_press_from_another_chat", extra={"bot_id": str(bot.id)})
+            return
         token = unseal_bot_token(bot)
         await adapter.acknowledge(token, press)
 
@@ -333,7 +336,13 @@ class ChannelPrompts:
         try:
             if prompt.multi_select and choice is not None and choice < len(prompt.choices):
                 picked = await self._toggle(ctx, prompt, choice)
-                await say(_picked_so_far(picked))
+                if adapter.buttons_outlive_a_press:
+                    await say(_picked_so_far(picked))
+                else:
+                    await adapter.send_prompt(
+                        token,
+                        self._message(bot, prompt, _picked_so_far(picked), skippable=True),
+                    )
                 return
             segment = await self._settle(ctx, prompt, choice)
         except AppException as exc:

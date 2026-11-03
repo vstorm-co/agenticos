@@ -456,6 +456,11 @@ class IncomingPress:
     """What a platform needs told the press arrived - Telegram's callback query id."""
     trigger_id: str | None = None
     """What opens a form in reply to the press - Slack's modal, Mattermost's dialog."""
+    delivery_id: str | None = None
+    """The platform's id for this press's own delivery, where it may deliver one press twice.
+
+    WhatsApp's tap wamid. `None` where the platform never redelivers a press.
+    """
 
 
 @dataclass
@@ -491,6 +496,12 @@ class ChannelAdapter(ABC):
     """
 
     platform: str  # class-level constant e.g. "telegram"
+
+    buttons_outlive_a_press: bool = True
+    """Whether a message's buttons can still be pressed after one was.
+
+    Where they can't, a multi-select question is offered again after each pick.
+    """
 
     def prepare_connection(  # noqa: B027
         self,
@@ -832,6 +843,14 @@ class ChannelAdapter(ABC):
                 api_base_url=prompt.api_base_url,
             ),
         )
+
+    def press_matches_chat(self, press: IncomingPress, platform_chat_id: str) -> bool:
+        """Whether a press came from the chat its prompt was posted in, where the platform can say.
+
+        WhatsApp can, because a chat is one customer. Slack and Mattermost thread ids
+        make that comparison unsafe, so the default does not compare.
+        """
+        return True
 
     async def acknowledge(  # noqa: B027 - most platforms need no acknowledgement
         self, bot_token: str, press: IncomingPress

@@ -2,13 +2,13 @@
 
 Meta calls this route two ways. A GET is the subscription handshake: it is
 answered with the challenge only if it names this bot's verify token. A POST is a
-batch of messages and delivery statuses, believed only after its
+batch of messages, taps on buttons and delivery statuses, believed only after its
 `X-Hub-Signature-256` is: the HMAC-SHA256 of the raw body under the Meta app
 secret. Nothing in the body is read before that holds, and a bot with no app
 secret refuses every POST - an HMAC under an empty key is computable by anyone.
 
 A batch is answered at once and run in the background, as on every other
-platform. Each customer's messages run one after another in the order Meta
+platform. Each customer's messages and taps run one after another in the order Meta
 stamped them; different customers run side by side.
 """
 
@@ -28,7 +28,7 @@ from app.services.channel_bot import unseal_webhook_secret, unseal_whatsapp_veri
 from app.services.channels.whatsapp_payload import (
     group_by_customer,
     parse_webhook,
-    to_incoming,
+    to_event,
     verify_signature,
 )
 from app.services.workflow_execution.exceptions import WorkflowRunInputTooLargeError
@@ -138,7 +138,7 @@ async def whatsapp_events(bot_id: UUID, request: Request, bot_service: ChannelBo
 
     for group in group_by_customer(parsed.messages):
         events = [
-            to_incoming(message, bot_id=str(bot_id), organization_id=bot.organization_id)
+            to_event(message, bot_id=str(bot_id), organization_id=bot.organization_id)
             for message in group
         ]
         spawn(process_channel_events_in_order(events), name=f"whatsapp_events:{bot_id}")

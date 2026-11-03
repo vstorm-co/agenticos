@@ -16,7 +16,7 @@ import pytest
 
 from app.clients.redis import RedisClient
 from app.services.channels import dedupe
-from app.services.channels.base import IncomingAttachment, IncomingMessage
+from app.services.channels.base import IncomingAttachment, IncomingMessage, IncomingPress
 from app.services.channels.router import ChannelMessageRouter
 from app.worker.background.channel import process_channel_event
 
@@ -275,3 +275,49 @@ async def test_no_log_line_about_a_delivery_carries_the_platforms_message_id(
     assert WAMID not in logged and WAMID.removeprefix("wamid.") not in logged
     assert PHONE_INSIDE not in logged
     assert str(dedupe.delivery_ref(WAMID)) in logged
+
+
+def _press(**overrides: Any) -> IncomingPress:
+    defaults: dict[str, Any] = {
+        "platform": "whatsapp",
+        "bot_id": "bot-1",
+        "platform_user_id": "U1",
+        "platform_chat_id": "C1",
+        "value": "aos:p:0",
+        "delivery_id": "wamid.TAP",
+    }
+    defaults.update(overrides)
+    return IncomingPress(**defaults)
+
+
+async def test_a_press_without_a_delivery_id_is_always_claimed(fake_redis: _FakeRedis) -> None:
+    press = _press(delivery_id=None)
+
+    assert await dedupe.claim_press(press) is True
+    assert await dedupe.claim_press(press) is True
+    assert fake_redis.store == {}
+
+
+async def test_a_press_is_claimed_once(fake_redis: _FakeRedis) -> None:
+    press = _press()
+
+    assert await dedupe.claim_press(press) is True
+    assert await dedupe.claim_press(press) is False
+
+    assert list(fake_redis.store) == ["channel:pressed:bot-1:whatsapp:C1:wamid.TAP"]
+    assert list(fake_redis.ttls.values()) == [dedupe.SEEN_TTL_SECONDS]
+    assert await dedupe.claim_press(_press(delivery_id="wamid.OTHER")) is True
+
+
+async def test_a_press_claim_fails_open_without_logging_the_id(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    press = _press()
+    with caplog.at_level("WARNING"):
+        assert await dedupe.claim_press(press) is True  # not configured
+        dedupe.configure(cast(RedisClient, _BrokenRedis()))
+        assert await dedupe.claim_press(press) is True  # unreachable
+
+    assert "wamid.TAP" not in caplog.text
+    assert dedupe.delivery_ref("wamid.TAP") in caplog.text
+    assert "channel_dedupe_redis_unavailable" in caplog.text

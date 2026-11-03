@@ -8,12 +8,15 @@ the link, the access policy and the rate limit apply to it as they do to typing.
 
 import json
 import uuid
-from typing import Any
+from dataclasses import replace
+from typing import Any, cast
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from app.clients.redis import RedisClient
 from app.db.models.channel_prompt import FOLLOW_UP, QUESTION
+from app.services.channels import dedupe
 from app.services.channels.base import IncomingMessage, IncomingPress
 from app.services.channels.next_steps import (
     OFFERED,
@@ -22,6 +25,8 @@ from app.services.channels.next_steps import (
     next_value,
     read_next,
 )
+from app.services.channels.whatsapp import WhatsAppAdapter
+from app.services.channels.whatsapp_graph import WhatsAppCredentials
 from app.services.transcript import RecordedToolCall
 from app.worker.background.channel import process_channel_press
 
@@ -71,8 +76,10 @@ def _called(name: str, result: str | None) -> RecordedToolCall:
 class _Patched:
     """What a press or an offer reaches for, patched; what was answered recorded."""
 
-    def __init__(self, *, bot: MagicMock | None, row: MagicMock | None) -> None:
-        self.adapter = MagicMock(
+    def __init__(
+        self, *, bot: MagicMock | None, row: MagicMock | None, adapter: Any = None
+    ) -> None:
+        self.adapter = adapter or MagicMock(
             send_prompt=AsyncMock(), acknowledge=AsyncMock(), settle_prompt=AsyncMock()
         )
         self.answered: list[dict[str, Any]] = []
@@ -209,6 +216,48 @@ class TestPressing:
         env.adapter.acknowledge.assert_awaited_once()
         assert env.adapter.settle_prompt.await_args.args[2] == "→ Do this every Monday"
 
+    async def test_a_confirmation_that_cannot_be_sent_still_routes_the_step(self):
+        """A failed quote must not cost the step: the press is claimed and the answer row kept."""
+        from app.services.channels.whatsapp_graph import WhatsAppGraphError
+
+        bot = _bot()
+        row = _row()
+        graph = MagicMock(send_text=AsyncMock(side_effect=WhatsAppGraphError(code=131000)))
+        creds = WhatsAppCredentials(bot_id="b", access_token="t", phone_number_id="p")
+        with _Patched(bot=bot, row=row) as env:
+            env.adapter.settle_prompt = WhatsAppAdapter(graph, window=OpenWindow()).settle_prompt
+            with patch(f"{_MODULE}.unseal_bot_token", return_value=creds.encode()):
+                said = await ChannelNextSteps(MagicMock()).take(
+                    _press(bot, next_value(row.id.hex, 1))
+                )
+
+        assert said is not None and said.text == "Do this every Monday"
+        assert env.answered == [{"step": "Do this every Monday"}]
+        graph.send_text.assert_awaited_once()
+
+    async def test_a_press_from_another_chat_is_ignored_where_the_adapter_can_tell(self):
+        bot = _bot()
+        row = _row()
+        with _Patched(bot=bot, row=row) as env:
+            env.adapter.press_matches_chat = lambda *_: False
+            said = await ChannelNextSteps(MagicMock()).take(_press(bot, next_value(row.id.hex, 0)))
+
+        assert said is None
+        assert env.answered == []
+        env.adapter.acknowledge.assert_not_awaited()
+        env.adapter.settle_prompt.assert_not_awaited()
+
+    async def test_a_press_with_its_own_delivery_id_is_that_message(self):
+        """Where a tap is a message of the presser's, it is what is answered, read and deduped."""
+        bot = _bot()
+        row = _row()
+        press = replace(_press(bot, next_value(row.id.hex, 0)), delivery_id="tap-1")
+        with _Patched(bot=bot, row=row):
+            said = await ChannelNextSteps(MagicMock()).take(press)
+
+        assert said is not None
+        assert said.message_id == "tap-1"
+
     async def test_a_second_press_says_nothing_twice(self):
         bot = _bot()
         row = _row(answered_at="earlier")
@@ -286,8 +335,12 @@ class TestTheBackgroundHandler:
             next_steps.return_value.take = AsyncMock(side_effect=[said, None])
             router.return_value.route = AsyncMock()
             prompts.return_value.press = AsyncMock()
-            await process_channel_press(MagicMock(value=next_value(uuid.uuid4().hex, 0)))
-            await process_channel_press(MagicMock(value=next_value(uuid.uuid4().hex, 0)))
+            await process_channel_press(
+                MagicMock(value=next_value(uuid.uuid4().hex, 0), delivery_id=None)
+            )
+            await process_channel_press(
+                MagicMock(value=next_value(uuid.uuid4().hex, 0), delivery_id=None)
+            )
 
         router.return_value.route.assert_awaited_once()
         assert router.return_value.route.await_args.args[0] is said
@@ -459,3 +512,113 @@ async def test_resumed_writer_uses_the_original_sender_in_a_session_of_its_own(
         assert incoming.bot_id == str(bot)
         assert incoming.platform_chat_id == "C1:1.0"
         assert incoming.chat_type == "group"
+
+
+class TestOnWhatsApp:
+    """The offer is a list or buttons; the tap is the customer's next message."""
+
+    async def test_steps_are_offered_as_buttons_and_the_tap_is_routed_as_a_message(self):
+        bot = _bot()
+        chat = "US.111"
+        creds = WhatsAppCredentials(bot_id=str(bot.id), access_token="t", phone_number_id="P1")
+        graph = MagicMock(
+            send_text=AsyncMock(),
+            send_interactive=AsyncMock(return_value="wamid.buttons"),
+            mark_read=AsyncMock(),
+            aclose=AsyncMock(),
+        )
+        adapter = WhatsAppAdapter(graph)
+        incoming = IncomingMessage(
+            platform="whatsapp",
+            bot_id=str(bot.id),
+            platform_user_id=f"{ORG}:{chat}",
+            platform_chat_id=chat,
+            chat_type="private",
+            text="Compare the vendors",
+        )
+        steps = ["Make it a table", "Do this every Monday"]
+        row = _row(platform_chat_id=chat, chat_type="private", choices=steps)
+        with (
+            _Patched(bot=bot, row=row, adapter=adapter),
+            patch(f"{_MODULE}.unseal_bot_token", return_value=creds.encode()),
+        ):
+            await ChannelNextSteps(MagicMock()).offer(bot, incoming, run_id=RUN, steps=steps)
+            interactive = graph.send_interactive.await_args.kwargs["interactive"]
+            assert interactive["type"] == "button"
+            buttons = [b["reply"] for b in interactive["action"]["buttons"]]
+            assert [b["title"] for b in buttons] == steps
+
+            tap = IncomingPress(
+                platform="whatsapp",
+                bot_id=str(bot.id),
+                platform_user_id=f"{ORG}:{chat}",
+                platform_chat_id=chat,
+                value=buttons[1]["id"],
+                message_id="wamid.buttons",
+                ack_id="wamid.TAP",
+                delivery_id="wamid.TAP",
+            )
+            said = await ChannelNextSteps(MagicMock()).take(tap)
+            elsewhere = await ChannelNextSteps(MagicMock()).take(
+                replace(tap, platform_chat_id="US.9")
+            )
+        await adapter.aclose()
+
+        assert said is not None
+        assert (said.text, said.message_id, said.platform_chat_id) == (steps[1], "wamid.TAP", chat)
+        graph.mark_read.assert_any_await(creds, message_id="wamid.TAP", typing=True)
+        assert elsewhere is None
+
+
+async def test_a_next_step_tap_with_a_delivery_id_reaches_the_run_once():
+    """The press claim and the router's message claim must not share a key: a tap is
+    claimed as a press, then routed as a message under the same id."""
+    seen: set[str] = set()
+
+    class Redis:
+        async def set(self, key: str, value: str, ttl: int | None = None, nx: bool = False):
+            if nx and key in seen:
+                return False
+            seen.add(key)
+            return True
+
+        async def delete(self, key: str) -> None:
+            seen.discard(key)
+
+    bot = _bot()
+    chat = "US.111"
+    row = _row(platform_chat_id=chat, chat_type="private")
+    adapter = MagicMock(
+        send_prompt=AsyncMock(),
+        acknowledge=AsyncMock(),
+        settle_prompt=AsyncMock(),
+        press_matches_chat=lambda press, cid: press.platform_chat_id == cid,
+    )
+    press = IncomingPress(
+        platform="whatsapp",
+        bot_id=str(bot.id),
+        platform_user_id="u",
+        platform_chat_id=chat,
+        value=next_value(row.id.hex, 0),
+        message_id="wamid.buttons",
+        ack_id="wamid.TAP",
+        delivery_id="wamid.TAP",
+    )
+    run = AsyncMock()
+    dedupe.configure(cast(RedisClient, Redis()))
+    try:
+        with (
+            _Patched(bot=bot, row=row, adapter=adapter),
+            patch("app.worker.background.channel.get_db_context") as ctx,
+            patch("app.services.channels.router.ChannelMessageRouter._route_inner", new=run),
+        ):
+            ctx.return_value.__aenter__ = AsyncMock(return_value=MagicMock())
+            ctx.return_value.__aexit__ = AsyncMock(return_value=False)
+            await process_channel_press(press)
+            await process_channel_press(press)
+    finally:
+        dedupe.configure(None)
+
+    run.assert_awaited_once()
+    assert run.await_args.args[0].text == "Make it a table"
+    assert adapter.settle_prompt.await_count == 1

@@ -10,6 +10,7 @@ from uuid import UUID
 
 import pytest
 
+from app.services.channels.base import IncomingMessage, IncomingPress
 from app.services.channels.whatsapp_payload import (
     MAX_MESSAGE_AGE,
     WhatsAppMessage,
@@ -17,6 +18,7 @@ from app.services.channels.whatsapp_payload import (
     mask_phone,
     parse_webhook,
     platform_user_id_for,
+    to_event,
     to_incoming,
     verify_signature,
 )
@@ -347,3 +349,73 @@ def test_the_phone_number_stays_out_of_a_messages_repr():
     message = _parse("text").messages[0]
     assert message.phone == "4915112345678"
     assert "4915112345678" not in repr(message)
+
+
+def _event(name: str):
+    (message,) = _parse(name).messages
+    return message, to_event(message, bot_id="bot-1", organization_id=ORG)
+
+
+def test_a_button_reply_is_a_press():
+    message, press = _event("button_reply")
+
+    assert (message.kind, message.text) == ("interactive", "Approve")
+    assert isinstance(press, IncomingPress)
+    assert press.platform == "whatsapp"
+    assert press.bot_id == "bot-1"
+    assert press.platform_user_id == f"{ORG}:US.111"
+    assert press.platform_chat_id == "US.111"
+    assert press.value == "aos:0123456789abcdef0123456789abcdef:0"
+    assert press.platform_username == "ada"
+    assert press.message_id == "wamid.PROMPT1"
+    assert press.ack_id == "wamid.TAP1"
+
+
+def test_a_list_reply_is_a_press():
+    _, press = _event("list_reply")
+
+    assert isinstance(press, IncomingPress)
+    assert press.value == "aos:0123456789abcdef0123456789abcdef:2"
+    assert press.message_id == "wamid.PROMPT2"
+    assert press.delivery_id == "wamid.TAP2"
+    assert press.ack_id == "wamid.TAP2"
+
+
+def test_a_reply_that_names_no_prompt_is_still_a_press():
+    payload = _load("button_reply")
+    del payload["entry"][0]["changes"][0]["value"]["messages"][0]["context"]
+    (message,) = parse_webhook(
+        payload, phone_number_id="PNID1", account_id="WABA1", now=NOW
+    ).messages
+
+    press = to_event(message, bot_id="b", organization_id=ORG)
+
+    assert isinstance(press, IncomingPress)
+    assert press.message_id is None
+
+
+def test_an_unknown_interactive_type_stays_a_named_message():
+    message, event = _event("interactive_unknown")
+
+    assert (message.reply_id, message.context_id) == (None, None)
+    assert isinstance(event, IncomingMessage)
+    assert [a.filename for a in event.attachments] == ["interactive message"]
+
+
+def test_a_reply_with_no_id_stays_a_named_message():
+    payload = _load("button_reply")
+    reply = payload["entry"][0]["changes"][0]["value"]["messages"][0]["interactive"]
+    del reply["button_reply"]["id"]
+    (message,) = parse_webhook(
+        payload, phone_number_id="PNID1", account_id="WABA1", now=NOW
+    ).messages
+
+    assert isinstance(to_event(message, bot_id="b", organization_id=ORG), IncomingMessage)
+
+
+def test_a_text_message_is_an_incoming_message_either_way():
+    (message,) = _parse("text").messages
+
+    assert to_event(message, bot_id="b", organization_id=ORG) == to_incoming(
+        message, bot_id="b", organization_id=ORG
+    )

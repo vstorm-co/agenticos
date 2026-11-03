@@ -10,7 +10,13 @@ from uuid import UUID
 
 from app.db.session import get_db_context
 from app.repositories import channel_bot_repo
-from app.services.channels.base import FeedbackComment, IncomingMessage, read_feedback
+from app.services.channels.base import (
+    FeedbackComment,
+    IncomingMessage,
+    IncomingPress,
+    read_feedback,
+)
+from app.services.channels.dedupe import claim_press
 from app.services.channels.feedback import ChannelFeedback
 from app.services.channels.next_steps import ChannelNextSteps, read_next
 from app.services.channels.prompts import ChannelPrompts
@@ -34,16 +40,20 @@ async def process_channel_event(incoming: Any) -> None:
         logger.exception("channel_event_processing_failed")
 
 
-async def process_channel_events_in_order(events: list[IncomingMessage]) -> None:
-    """Route one customer's messages from one webhook batch, each after the last.
+async def process_channel_events_in_order(events: list[IncomingMessage | IncomingPress]) -> None:
+    """Route one customer's messages and taps from one webhook batch, each after the last.
 
     A platform that batches (WhatsApp) can deliver several messages from one person
     at once; routed side by side they would race for the chat's session and answer
     out of order. A failed event is logged by `process_channel_event` and does not
-    stop the ones after it.
+    stop the ones after it. A tap answers the question before it, so it is never
+    overtaken by the message after it.
     """
     for event in events:
-        await process_channel_event(event)
+        if isinstance(event, IncomingPress):
+            await process_channel_press(event)
+        else:
+            await process_channel_event(event)
 
 
 async def refusal_before_publishing(incoming: Any) -> str | None:
@@ -63,9 +73,11 @@ async def process_channel_press(press: Any) -> None:
     """Decide or answer what a pressed button was offered for (#2064, #2067).
 
     The same bargain as a message: the platform has had its 200, so a failure is
-    logged rather than raised.
+    logged rather than raised. A press its platform delivers twice is taken once.
     """
     try:
+        if not await claim_press(press):
+            return
         async with get_db_context() as db:
             # A thumbs button rates an answer, a next step is the presser's next
             # message, and every other button answers a prompt.

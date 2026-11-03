@@ -10,7 +10,14 @@ from pydantic_ai_backends import StateBackend
 
 from app.services.channels import get_adapter, register_adapter, whatsapp
 from app.services.channels.attachments import channel_file_sender
-from app.services.channels.base import IncomingAttachment, OutgoingAttachment, OutgoingMessage
+from app.services.channels.base import (
+    ChannelChoice,
+    IncomingAttachment,
+    IncomingPress,
+    OutgoingAttachment,
+    OutgoingMessage,
+    PromptMessage,
+)
 from app.services.channels.directory import BoundChannelDirectory
 from app.services.channels.whatsapp import (
     FILE_NOT_SENT,
@@ -18,7 +25,7 @@ from app.services.channels.whatsapp import (
     WhatsAppAdapter,
     whatsapp_adapter,
 )
-from app.services.channels.whatsapp_format import MAX_TEXT_UNITS, utf16_units
+from app.services.channels.whatsapp_format import MAX_TEXT_UNITS, to_whatsapp, utf16_units
 from app.services.channels.whatsapp_graph import (
     TOKEN_REFUSED,
     MediaInfo,
@@ -26,6 +33,7 @@ from app.services.channels.whatsapp_graph import (
     WhatsAppGraphError,
     WhatsAppTokenRefused,
 )
+from app.services.channels.whatsapp_interactive import CHOOSE_BELOW
 from tests.workspaces import document_workspace
 
 pytestmark = pytest.mark.anyio
@@ -46,6 +54,7 @@ def _graph() -> MagicMock:
     graph.download_media = AsyncMock(return_value=b"bytes")
     graph.upload_media = AsyncMock(return_value="media-up")
     graph.send_media = AsyncMock(return_value="wamid.file")
+    graph.send_interactive = AsyncMock(return_value="wamid.buttons")
     graph.aclose = AsyncMock()
     return graph
 
@@ -600,3 +609,168 @@ class TestThePlatformInterface:
             _adapters.pop("whatsapp", None)
             if saved is not None:
                 register_adapter(saved)
+
+
+def _prompt(
+    text: str = "Send it?", labels: tuple[str, ...] = ("Approve", "Reject")
+) -> PromptMessage:
+    return PromptMessage(
+        platform_chat_id=CHAT,
+        text=text,
+        choices=[ChannelChoice(label=label, value=f"aos:p:{i}") for i, label in enumerate(labels)],
+        bot_id=BOT_ID,
+    )
+
+
+def _press(**overrides: Any) -> IncomingPress:
+    defaults: dict[str, Any] = {
+        "platform": "whatsapp",
+        "bot_id": BOT_ID,
+        "platform_user_id": "org:US.1",
+        "platform_chat_id": CHAT,
+        "value": "aos:p:0",
+        "message_id": "wamid.prompt",
+        "ack_id": "wamid.tap",
+        "delivery_id": "wamid.tap",
+    }
+    return IncomingPress(**{**defaults, **overrides})
+
+
+class TestPrompts:
+    async def test_an_approval_is_sent_as_two_buttons(self, adapter, graph):
+        await adapter.send_prompt(TOKEN, _prompt())
+
+        graph.send_text.assert_not_awaited()
+        graph.send_interactive.assert_awaited_once()
+        sent = graph.send_interactive.await_args
+        assert sent.args == (CREDS,)
+        assert sent.kwargs["recipient"] == CHAT
+        interactive = sent.kwargs["interactive"]
+        assert interactive["type"] == "button"
+        assert interactive["body"] == {"text": "Send it?"}
+        assert [b["reply"] for b in interactive["action"]["buttons"]] == [
+            {"id": "aos:p:0", "title": "Approve"},
+            {"id": "aos:p:1", "title": "Reject"},
+        ]
+
+    async def test_a_long_approval_text_goes_first(self, adapter, graph):
+        text = "word " * 400
+
+        await adapter.send_prompt(TOKEN, _prompt(text))
+
+        order = [c[0] for c in graph.mock_calls if c[0] in {"send_text", "send_interactive"}]
+        assert order == ["send_text", "send_interactive"]
+        assert graph.send_text.await_args.kwargs["body"] == to_whatsapp(text).strip()
+        assert (
+            graph.send_interactive.await_args.kwargs["interactive"]["body"]["text"] == CHOOSE_BELOW
+        )
+
+    async def test_eleven_choices_fall_back_to_a_text_list(self, adapter, graph):
+        labels = tuple(f"Option {n}" for n in range(11))
+
+        await adapter.send_prompt(TOKEN, _prompt("Which?", labels))
+
+        graph.send_interactive.assert_not_awaited()
+        body = graph.send_text.await_args.kwargs["body"]
+        assert body.startswith("Which?") and "- Option 10" in body
+
+    async def test_a_refused_token_while_prompting_records_the_bot_down(
+        self, adapter, graph, connection
+    ):
+        graph.send_interactive.side_effect = WhatsAppTokenRefused(code=190)
+
+        with pytest.raises(WhatsAppTokenRefused):
+            await adapter.send_prompt(TOKEN, _prompt())
+
+        connection.down.assert_awaited_once_with(BOT_ID, TOKEN_REFUSED)
+
+    async def test_a_prompt_that_sends_clears_a_down_the_bot_was_recorded_with(
+        self, adapter, graph, connection
+    ):
+        from app.services.channels.connection_state import ChannelConnection
+
+        connection.store[BOT_ID] = ChannelConnection(state="down", reason=TOKEN_REFUSED)
+
+        await adapter.send_prompt(TOKEN, _prompt())
+
+        connection.up.assert_awaited_once_with(BOT_ID)
+
+    async def test_prompting_stops_the_typing_indicator(self, adapter, graph, clock):
+        await adapter.acknowledge(TOKEN, _press())
+        assert adapter._typing
+
+        await adapter.send_prompt(TOKEN, _prompt())
+
+        assert not adapter._typing
+
+    async def test_a_tap_is_marked_read_with_typing(self, adapter, graph, clock):
+        await adapter.acknowledge(TOKEN, _press())
+
+        graph.mark_read.assert_awaited_once_with(CREDS, message_id="wamid.tap", typing=True)
+        assert list(adapter._typing) == [(BOT_ID, CHAT)]
+        await clock.tick()
+        assert graph.mark_read.await_count == 2
+
+    async def test_a_tap_with_nothing_to_mark_is_left_alone(self, adapter, graph):
+        await adapter.acknowledge(TOKEN, _press(ack_id=None))
+
+        graph.mark_read.assert_not_awaited()
+        assert not adapter._typing
+
+    async def test_a_failed_acknowledgement_is_never_fatal(self, adapter, graph):
+        graph.mark_read.side_effect = WhatsAppGraphError(code=131000)
+
+        await adapter.acknowledge(TOKEN, _press())
+
+        assert not adapter._typing
+
+    async def test_settling_quotes_the_prompt(self, adapter, graph):
+        await adapter.settle_prompt(TOKEN, _press(), "Approved.")
+
+        graph.send_text.assert_awaited_once_with(
+            CREDS, recipient=CHAT, body="Approved.", reply_to="wamid.prompt"
+        )
+
+    @pytest.mark.parametrize(
+        "failure",
+        [
+            WhatsAppGraphError(code=131000),
+            WhatsAppTokenRefused(code=190),
+            WhatsAppWindowClosed(),
+            WhatsAppWindowUnavailable(),
+            TimeoutError("EAAG-secret read timeout for US.13491208655302741918"),
+        ],
+    )
+    async def test_a_settling_that_fails_is_never_fatal_and_logs_only_the_bot_and_the_type(
+        self, adapter, failure, caplog
+    ):
+        """The quote only decorates the answer that follows; losing it must not lose the answer."""
+        with (
+            patch.object(adapter, "send_message", AsyncMock(side_effect=failure)),
+            caplog.at_level(logging.WARNING),
+        ):
+            await adapter.settle_prompt(TOKEN, _press(), "Approved.")
+
+        [record] = [r for r in caplog.records if r.message == "whatsapp_settle_failed"]
+        assert record.bot_id == BOT_ID
+        assert record.error == type(failure).__name__
+        assert "EAAG-secret" not in caplog.text and CHAT not in caplog.text
+
+    async def test_a_settling_with_an_unreadable_token_is_never_fatal_either(self, adapter, caplog):
+        with caplog.at_level(logging.WARNING):
+            await adapter.settle_prompt("not-a-token", _press(), "Approved.")
+
+        [record] = [r for r in caplog.records if r.message == "whatsapp_settle_failed"]
+        assert record.bot_id is None
+
+    async def test_settling_without_the_prompts_id_quotes_nothing(self, adapter, graph):
+        await adapter.settle_prompt(TOKEN, _press(message_id=None), "Rejected.")
+
+        assert graph.send_text.await_args.kwargs["reply_to"] is None
+
+    async def test_only_the_same_chat_matches(self, adapter):
+        assert adapter.press_matches_chat(_press(), CHAT) is True
+        assert adapter.press_matches_chat(_press(), "US.other") is False
+
+    async def test_buttons_do_not_outlive_a_press(self, adapter):
+        assert adapter.buttons_outlive_a_press is False

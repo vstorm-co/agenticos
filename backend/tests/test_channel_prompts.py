@@ -88,8 +88,15 @@ def _press(prompt: MagicMock, choice: int | None, bot: MagicMock) -> IncomingPre
 class _Patched:
     """Everything a press reaches for, patched; what was said and settled recorded."""
 
-    def __init__(self, *, bot: MagicMock, prompt: MagicMock | None, role: str | None) -> None:
-        self.adapter = MagicMock()
+    def __init__(
+        self,
+        *,
+        bot: MagicMock,
+        prompt: MagicMock | None,
+        role: str | None,
+        adapter_hooks: dict[str, Any] | None = None,
+    ) -> None:
+        self.adapter = MagicMock(**(adapter_hooks or {}))
         self.adapter.send_message = AsyncMock()
         self.adapter.send_prompt = AsyncMock()
         self.adapter.acknowledge = AsyncMock()
@@ -154,6 +161,17 @@ def _segment(output: str = "Sent.") -> MagicMock:
     return MagicMock(output=output, tool_calls=[], settled={}, generated_files=frozenset())
 
 
+def _settle_that_fails() -> tuple[Any, str]:
+    """WhatsApp's own `settle_prompt` over a Graph that refuses every send, and a token it can read."""
+    from app.services.channels.whatsapp import WhatsAppAdapter
+    from app.services.channels.whatsapp_graph import WhatsAppCredentials, WhatsAppGraphError
+    from tests.whatsapp_fakes import OpenWindow
+
+    graph = MagicMock(send_text=AsyncMock(side_effect=WhatsAppGraphError(code=131000)))
+    token = WhatsAppCredentials(bot_id="b", access_token="t", phone_number_id="p").encode()
+    return WhatsAppAdapter(graph, window=OpenWindow()).settle_prompt, token
+
+
 class TestPressValues:
     def test_a_value_round_trips_and_fits_a_telegram_button(self):
         prompt_id = uuid.uuid4().hex
@@ -196,6 +214,12 @@ class TestAPlatformWithNoButtons:
         await adapter.settle_prompt("t", MagicMock(), "Approved.")
 
         assert adapter.sent[0].text == "Approve it?\n- Approve\n- Reject"
+
+    async def test_keeps_its_buttons_and_does_not_compare_chats(self):
+        adapter = _Plain()
+
+        assert adapter.buttons_outlive_a_press is True
+        assert adapter.press_matches_chat(MagicMock(platform_chat_id="a"), "b") is True
 
 
 class TestOffering:
@@ -374,13 +398,18 @@ class TestPressingAnApproval:
         pending: bool = False,
         prompt=None,
         segment=None,
+        failing_settle: bool = False,
     ):
         bot = _bot()
         prompt = prompt or _prompt()
         service = ChannelPrompts(_session())
         approvals = [MagicMock(status=ApprovalStatus.PENDING.value)] if pending else []
         with _Patched(bot=bot, prompt=prompt, role=role) as env:
+            settle, token = _settle_that_fails()
+            if failing_settle:
+                env.adapter.settle_prompt = settle
             with (
+                patch(f"{_MODULE}.unseal_bot_token", return_value=token),
                 patch(f"{_MODULE}.ApprovalService") as approvals_service,
                 patch(
                     f"{_MODULE}.agent_run_repo.list_approvals_for_run",
@@ -405,6 +434,16 @@ class TestPressingAnApproval:
         assert env.adapter.settle_prompt.await_args.args[2] == "Approved."
         offered.assert_awaited_once()
         env.adapter.acknowledge.assert_awaited_once()
+
+    async def test_a_confirmation_that_cannot_be_sent_costs_neither_the_answer_nor_the_next_prompt(
+        self,
+    ):
+        """The run is already continued and committed when the quote is sent; the answer must follow."""
+        env, _decide, resume, offered = await self._press(choice=0, failing_settle=True)
+
+        resume.assert_awaited_once()
+        assert env.said() == ["Sent."]
+        offered.assert_awaited_once()
 
     async def test_rejecting_is_recorded_as_rejected(self):
         env, decide, _resume, _offered = await self._press(choice=1)
@@ -505,6 +544,7 @@ class TestPressingAQuestion:
         answer_raises=None,
         parked: list[str] | None = None,
         others: dict[str, list[MagicMock]] | None = None,
+        adapter_hooks: dict[str, Any] | None = None,
     ):
         bot = _bot()
         prompt = siblings[0]
@@ -516,7 +556,7 @@ class TestPressingAQuestion:
             user_id=USER,
             paused_state={"messages": [], "tool_call_ids": {}, "questions": parked or ["ask-1"]},
         )
-        with _Patched(bot=bot, prompt=prompt, role="member") as env:
+        with _Patched(bot=bot, prompt=prompt, role="member", adapter_hooks=adapter_hooks) as env:
             with (
                 patch(
                     f"{_MODULE}.channel_prompt_repo.for_call",
@@ -570,6 +610,35 @@ class TestPressingAQuestion:
         env, answer = await self._press(choice=len(prompt.choices), siblings=[prompt])
         assert answer.await_args.args[2] == {"ask-1": [{"selected": ["Casual", "Formal"]}]}
         assert env.adapter.settle_prompt.await_args.args[2] == "Answered: Casual, Formal"
+
+    async def test_a_pick_is_said_where_buttons_stay(self):
+        prompt = _prompt(QUESTION, multi_select=True)
+        env, _ = await self._press(
+            choice=0, siblings=[prompt], adapter_hooks={"buttons_outlive_a_press": True}
+        )
+        assert env.said() == ["Picked: Formal. Press Done when that is all."]
+        env.adapter.send_prompt.assert_not_awaited()
+
+    async def test_a_pick_is_offered_again_where_buttons_do_not_outlive_a_press(self):
+        prompt = _prompt(QUESTION, multi_select=True)
+        env, _ = await self._press(
+            choice=0, siblings=[prompt], adapter_hooks={"buttons_outlive_a_press": False}
+        )
+        assert env.said() == []
+        offered = env.adapter.send_prompt.await_args.args[1]
+        assert offered.text == "Picked: Formal. Press Done when that is all."
+        assert [c.label for c in offered.choices] == ["Formal", "Casual", "Done", SKIP]
+
+    async def test_a_press_from_another_chat_is_ignored_where_the_adapter_can_tell(self):
+        prompt = _prompt(QUESTION)
+        env, answer = await self._press(
+            choice=0, siblings=[prompt], adapter_hooks={"press_matches_chat": lambda *_: False}
+        )
+        answer.assert_not_awaited()
+        assert env.said() == []
+        env.adapter.send_prompt.assert_not_awaited()
+        env.adapter.acknowledge.assert_not_awaited()
+        env.adapter.settle_prompt.assert_not_awaited()
 
     async def test_done_with_nothing_picked_is_a_skip(self):
         prompt = _prompt(QUESTION, multi_select=True)

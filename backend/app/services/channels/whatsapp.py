@@ -27,7 +27,9 @@ from app.services.channels.base import (
     ChannelAdapter,
     IncomingAttachment,
     IncomingMessage,
+    IncomingPress,
     OutgoingMessage,
+    PromptMessage,
 )
 from app.services.channels.whatsapp_format import split_message, to_whatsapp, utf16_units
 from app.services.channels.whatsapp_graph import (
@@ -37,6 +39,7 @@ from app.services.channels.whatsapp_graph import (
     WhatsAppGraphError,
     WhatsAppTokenRefused,
 )
+from app.services.channels.whatsapp_interactive import plan_interactive
 from app.services.channels.whatsapp_payload import verify_signature
 from app.services.transcription import MAX_BYTES as TRANSCRIPTION_MAX_BYTES
 
@@ -85,6 +88,9 @@ def _typing_failed(creds: WhatsAppCredentials | None, failure: Exception) -> Non
 
 class WhatsAppAdapter(ChannelAdapter):
     platform = "whatsapp"
+    # Decided in the design, not verified on a device: offering the question again is
+    # right whether or not WhatsApp keeps a tapped message's buttons live.
+    buttons_outlive_a_press = False
 
     def __init__(self, graph: WhatsAppGraph | None = None) -> None:
         self._graph = graph or WhatsAppGraph()
@@ -154,8 +160,15 @@ class WhatsAppAdapter(ChannelAdapter):
         except WhatsAppTokenRefused:
             await connection_state.record_down(creds.bot_id, TOKEN_REFUSED)
             raise
-        # Read from the shared entry, not remembered here: the worker whose send
-        # succeeds is rarely the one that saw the refusal.
+        await self._record_sent(creds)
+
+    @staticmethod
+    async def _record_sent(creds: WhatsAppCredentials) -> None:
+        """Clear a "down" after a send went through.
+
+        Read from the shared entry, not remembered here: the worker whose send
+        succeeds is rarely the one that saw the refusal.
+        """
         recorded = await connection_state.read(creds.bot_id)
         if recorded is not None and recorded.state == "down":
             await connection_state.record_up(creds.bot_id)
@@ -171,6 +184,83 @@ class WhatsAppAdapter(ChannelAdapter):
             await self._graph.send_text(creds, recipient=chat_id, body=chunk, reply_to=reply_to)
             reply_to = None
         return reply_to
+
+    async def send_prompt(self, bot_token: str, prompt: PromptMessage) -> None:
+        """Send an approval or a question as reply buttons or a list.
+
+        A prompt that fits neither (no choices, or more than a list holds) goes as the
+        base class's text list. Text too long for the interactive body goes first, as
+        ordinary messages.
+
+        Raises:
+            WhatsAppTokenRefused: Meta refused the access token; the bot is marked
+                down in the console list until a send succeeds.
+            WhatsAppGraphError: Any other refusal.
+        """
+        plan = plan_interactive(to_whatsapp(prompt.text).strip(), prompt.choices)
+        if plan is None:
+            await super().send_prompt(bot_token, prompt)
+            return
+        creds = WhatsAppCredentials.decode(bot_token)
+        self._stop_typing((creds.bot_id, prompt.platform_chat_id))
+        try:
+            if plan.preamble:
+                for chunk in split_message(plan.preamble):
+                    await self._graph.send_text(
+                        creds, recipient=prompt.platform_chat_id, body=chunk
+                    )
+            await self._graph.send_interactive(
+                creds, recipient=prompt.platform_chat_id, interactive=plan.interactive
+            )
+        except WhatsAppTokenRefused:
+            await connection_state.record_down(creds.bot_id, TOKEN_REFUSED)
+            raise
+        await self._record_sent(creds)
+
+    async def acknowledge(self, bot_token: str, press: IncomingPress) -> None:
+        """Mark the tap read and show "typing" until the run's answer is sent. Never fatal."""
+        if not press.ack_id:
+            return
+        creds: WhatsAppCredentials | None = None
+        try:
+            creds = WhatsAppCredentials.decode(bot_token)
+            await self._graph.mark_read(creds, message_id=press.ack_id, typing=True)
+        except Exception as failure:
+            _typing_failed(creds, failure)
+            return
+        self._start_typing(creds, press.platform_chat_id, press.ack_id)
+
+    async def settle_prompt(self, bot_token: str, press: IncomingPress, text: str) -> None:
+        """Say what was chosen, quoting the prompt: a sent message cannot be edited.
+
+        Never fatal, as `acknowledge` is: here the confirmation is a send, and it runs
+        after the tap has already continued the run. It only decorates the answer that
+        follows, so a failure is logged by bot and exception type and the answer, the
+        next prompt and the next step go on.
+        """
+        creds: WhatsAppCredentials | None = None
+        try:
+            creds = WhatsAppCredentials.decode(bot_token)
+            await self.send_message(
+                bot_token,
+                OutgoingMessage(
+                    platform_chat_id=press.platform_chat_id,
+                    text=text,
+                    reply_to_message_id=press.message_id,
+                ),
+            )
+        except Exception as failure:
+            logger.warning(
+                "whatsapp_settle_failed",
+                extra={
+                    "bot_id": creds.bot_id if creds else None,
+                    "error": type(failure).__name__,
+                },
+            )
+
+    def press_matches_chat(self, press: IncomingPress, platform_chat_id: str) -> bool:
+        """A chat is one customer, so a tap from anyone else is not an answer to this prompt."""
+        return press.platform_chat_id == platform_chat_id
 
     async def _upload_all(
         self, creds: WhatsAppCredentials, msg: OutgoingMessage
@@ -263,13 +353,17 @@ class WhatsAppAdapter(ChannelAdapter):
         except Exception as failure:
             _typing_failed(creds, failure)
             return None
-        key = (creds.bot_id, msg.platform_chat_id)
+        self._start_typing(creds, msg.platform_chat_id, msg.reply_to_message_id)
+        return None
+
+    def _start_typing(self, creds: WhatsAppCredentials, chat_id: str, message_id: str) -> None:
+        """Keep the indicator up for this chat, replacing a refresher already running."""
+        key = (creds.bot_id, chat_id)
         self._stop_typing(key)
         self._typing[key] = spawn(
-            self._keep_typing(key, creds, msg.reply_to_message_id),
+            self._keep_typing(key, creds, message_id),
             name=f"whatsapp_typing:{creds.bot_id}",
         )
-        return None
 
     async def _keep_typing(
         self, key: tuple[str, str], creds: WhatsAppCredentials, message_id: str
