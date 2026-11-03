@@ -22,6 +22,7 @@ from app.core.exceptions import (
     AlreadyExistsError,
     AuthorizationError,
     BadRequestError,
+    ConcurrentChangeError,
     ExternalServiceError,
     NotFoundError,
 )
@@ -755,6 +756,49 @@ class TestMappings:
                 async with asyncio.timeout(15):
                     with pytest.raises(NotFoundError):
                         await creating
+
+    async def test_a_token_replaced_while_discord_is_asked_is_refused(self, db, engine, discord):
+        """The new token found no mapping to check and the mapping was checked
+        with the old token, so neither side may commit as if the other had not."""
+        org, owner = await _org(db)
+        bot = await _bot(db, org)
+        finance = await _group(db, org)
+        admin = await _member(db, org, role="admin")
+        await db.commit()
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+        asking, answered = asyncio.Event(), asyncio.Event()
+        found = discord.server
+
+        async def slow_server(token: str, guild_id: str) -> Server | None:
+            asking.set()
+            await answered.wait()
+            return await found(token, guild_id)
+
+        async def create() -> None:
+            async with factory() as session:
+                await DiscordRoleMappingService(session).create(
+                    self._ctx(org, owner), bot.id, self._create(finance, role="admin")
+                )
+                await session.commit()
+
+        with (
+            patch.object(discord, "server", slow_server),
+            patch.object(ChannelBotService, "_seal_at", return_value="sealed-anew"),
+            patch.object(ChannelBotService, "_reopen_stream"),
+        ):
+            creating = asyncio.create_task(create())
+            async with asyncio.timeout(15):
+                await asking.wait()
+                async with factory() as updating:
+                    await ChannelBotService(updating, organization_id=org.id).update(
+                        bot.id, ChannelBotUpdate(token="t" * 40), self._ctx(org, admin, "admin")
+                    )
+                    await updating.commit()
+                answered.set()
+                with pytest.raises(ConcurrentChangeError):
+                    await creating
+
+        assert await db.scalar(select(DiscordRoleMapping.id)) is None
 
     @pytest.mark.parametrize(
         ("overrides", "field"),

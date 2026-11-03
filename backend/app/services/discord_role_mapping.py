@@ -26,6 +26,7 @@ from app.core.exceptions import (
     AlreadyExistsError,
     AuthorizationError,
     BadRequestError,
+    ConcurrentChangeError,
     ExternalServiceError,
     NotFoundError,
 )
@@ -142,6 +143,8 @@ class DiscordRoleMappingService:
                 of its own, or the bot cannot see that server or role.
             ExternalServiceError: Discord could not be asked.
             AlreadyExistsError: The role is already mapped for this bot.
+            ConcurrentChangeError: The bot was given a new token while Discord
+                was being asked; the server and role were checked with the old one.
             NotFoundError: The bot or the group was deleted while this ran.
         """
         bot = await self._bot(ctx, bot_id)
@@ -164,6 +167,7 @@ class DiscordRoleMappingService:
                 message="That Discord role is already mapped for this bot",
                 details={"guild_id": data.guild_id, "discord_role_id": data.discord_role_id},
             )
+        checked_with = bot.token_encrypted
         server = next(iter(await self._servers(bot, data.guild_id)), None)
         if server is None:
             raise refused_field("guild_id", "The bot is not in that Discord server")
@@ -173,6 +177,21 @@ class DiscordRoleMappingService:
                 "discord_role_id",
                 "That is not a role of the server a mapping can name - not @everyone, "
                 "and not one Discord manages for a bot",
+            )
+        # Locked until this commits, and re-read: a new token takes what deleting
+        # the mappings takes, and its check counts them under this same lock, so
+        # it either sees this mapping or is seen here having changed the token
+        # the server and role were just checked with.
+        locked = await channel_bot_repo.get_for_org(
+            self.db, bot_id, organization_id=ctx.organization_id, for_update=True
+        )
+        if locked is None:
+            raise NotFoundError(message="Channel bot not found", details={"bot_id": bot_id})
+        if locked.token_encrypted != checked_with:
+            raise ConcurrentChangeError(
+                message="The bot was given a new token while the mapping was being made. "
+                "Try again.",
+                details={"bot_id": bot_id},
             )
         try:
             async with self.db.begin_nested():
@@ -189,9 +208,9 @@ class DiscordRoleMappingService:
                     created_by_user_id=ctx.user_id,
                 )
         except IntegrityError as exc:
-            # The insert also fails when the bot or the group was deleted while
-            # it waited on the lock that delete holds; that is not a duplicate.
-            await self._bot(ctx, bot_id)
+            # The insert also fails when the group was deleted while it waited on
+            # the lock that delete holds; that is not a duplicate. The bot is
+            # locked above, so it cannot have gone.
             if (
                 await group_repo.get(
                     self.db, organization_id=ctx.organization_id, group_id=data.group_id
