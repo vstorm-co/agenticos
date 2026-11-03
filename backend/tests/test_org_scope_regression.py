@@ -42,6 +42,7 @@ from app.repositories import (
     personal_data_repo,
     promotion_gate_repo,
     rag_document_repo,
+    skill_usage_repo,
     skill_version_repo,
 )
 from app.services.conversation import ConversationService
@@ -206,6 +207,14 @@ TENANT_REQUIRED = [
     (promotion_gate_repo, "guarded_following_latest"),
     (promotion_gate_repo, "add_override"),
     (promotion_gate_repo, "overrides_for_versions"),
+    (skill_usage_repo, "record_uses"),
+    (skill_usage_repo, "mark_recorded"),
+    (skill_usage_repo, "mark_unrecorded"),
+    (skill_usage_repo, "usage_by_agent"),
+    (skill_usage_repo, "usage_by_version"),
+    (skill_usage_repo, "uses_in_runs"),
+    (skill_usage_repo, "unknown_runs"),
+    (skill_usage_repo, "agents_involved"),
     (agent_repo, "drafts_mentioning"),
     (skill_version_repo, "create_version"),
     (skill_version_repo, "get_version"),
