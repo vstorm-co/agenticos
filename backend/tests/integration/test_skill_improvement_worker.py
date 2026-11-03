@@ -22,6 +22,7 @@ from app.repositories import skill_improvement_repo
 from app.services.authoring import AuthoringService
 from app.services.authoring_evidence import EvidencePack
 from app.services.authoring_worker import AuthoringWorker
+from app.services.skill_catch_up import SkillCatchUpService
 from app.services.skill_improvement import SkillImprovementService
 from tests.integration.test_authoring import (
     Improver,
@@ -33,6 +34,13 @@ from tests.integration.test_authoring import (
     _sessions,
 )
 from tests.integration.test_skill_bindings import _fork
+from tests.integration.test_skill_catch_up_session import _advance as _merge_advance
+from tests.integration.test_skill_catch_up_session import (
+    _described,
+    _diverged,
+    call_price,  # noqa: F401 - the fixture that prices a merge's conflicts call
+)
+from tests.integration.test_skill_catch_up_session import _started as _merge_started
 from tests.integration.test_skill_improvement import (
     _BODY,
     _continue,
@@ -59,6 +67,7 @@ class SkillImprover(Improver):
     """Answers a skill session's analysis and proposal."""
 
     describes = True
+    merged: tuple[str, ...] = ("Refunds take 30 days.\n",)
 
     def _answer(self, prompt: str) -> dict[str, Any]:
         if prompt.startswith("Group the bad answers"):
@@ -92,6 +101,8 @@ class SkillImprover(Improver):
                 "description": "How refunds and returns work." if self.describes else None,
                 "description_rationale": "Opened for returns too",
             }
+        if prompt.startswith("Two lines of a skill"):
+            return {"texts": list(self.merged)}
         return super()._answer(prompt)
 
 
@@ -282,3 +293,84 @@ async def test_a_fork_sessions_analysis_reads_the_forks_own_text(db, evidence):
     [analysis] = [prompt for prompt in model.prompts if prompt.startswith("Group the bad answers")]
     assert "Returns are free within 60 days." in analysis and _BODY not in analysis
     assert "(returns)" in analysis
+
+
+async def _merging(db: AsyncSession) -> tuple[AuthContext, SkillImprovementRun]:
+    """A catch-up whose one conflict waits for the model's text."""
+    ctx = await _owner(db)
+    await _improver(db, ctx)
+    skill, fork = await _diverged(db, ctx, conflict=True)
+    run = await _merge_started(db, ctx, skill, fork)
+    await _merge_advance(db, run)
+    await _merge_advance(db, run)
+    return ctx, run
+
+
+async def _merge_request(db: AsyncSession, run: SkillImprovementRun) -> uuid.UUID:
+    iteration = await skill_improvement_repo.get_iteration(
+        db, organization_id=run.organization_id, run_id=run.id, number=1
+    )
+    assert iteration is not None and iteration.authoring_request_id is not None
+    return iteration.authoring_request_id
+
+
+@pytest.mark.usefixtures("call_price")
+async def test_a_merges_conflicts_take_the_models_texts_and_wake_the_session(db):
+    ctx, run = await _merging(db)
+
+    request = await _work(db, ctx, await _merge_request(db, run))
+
+    merge = await SkillCatchUpService(db).merge_for_run(run.id, organization_id=ctx.organization_id)
+    assert merge is not None
+    merged = await SkillCatchUpService(db).candidate_of(merge)
+    assert (request.status, request.report) == ("completed", {"proposed": 1})
+    assert merged is not None and merged.content.startswith("Refunds take 30 days.\n")
+    assert await _wakes(db, run) >= 1
+
+
+@pytest.mark.usefixtures("call_price")
+async def test_an_answer_for_another_number_of_conflicts_leaves_them_to_a_person(db):
+    ctx, run = await _merging(db)
+    model_texts = ("One.\n", "Two.\n")
+
+    with pytest.MonkeyPatch.context() as patch:
+        patch.setattr(SkillImprover, "merged", model_texts)
+        request = await _work(db, ctx, await _merge_request(db, run))
+
+    merge = await SkillCatchUpService(db).merge_for_run(run.id, organization_id=ctx.organization_id)
+    assert merge is not None and merge.unresolved == 1
+    assert (request.status, request.error) == (
+        "failed",
+        "The assistant did not answer every conflict; settle them at Changes.",
+    )
+
+
+@pytest.mark.usefixtures("call_price")
+async def test_a_session_a_person_took_over_keeps_their_conflicts(db):
+    ctx, run = await _merging(db)
+    run.stage = "filtering"
+    await db.flush()
+
+    request = await _work(db, ctx, await _merge_request(db, run))
+
+    merge = await SkillCatchUpService(db).merge_for_run(run.id, organization_id=ctx.organization_id)
+    assert merge is not None and merge.unresolved == 1
+    assert (request.status, request.error) == ("failed", "The improvement session moved on.")
+
+
+@pytest.mark.usefixtures("call_price")
+async def test_a_description_past_its_limit_is_left_to_a_person(db):
+    ctx = await _owner(db)
+    await _improver(db, ctx)
+    skill, fork = await _described(db, ctx)
+    run = await _merge_started(db, ctx, skill, fork)
+    await _merge_advance(db, run)
+    await _merge_advance(db, run)
+
+    with pytest.MonkeyPatch.context() as patch:
+        patch.setattr(SkillImprover, "merged", ("x" * 700,))
+        request = await _work(db, ctx, await _merge_request(db, run))
+
+    merge = await SkillCatchUpService(db).merge_for_run(run.id, organization_id=ctx.organization_id)
+    assert merge is not None and merge.unresolved == 1
+    assert request.status == "failed" and "description" in (request.error or "")

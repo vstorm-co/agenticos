@@ -29,7 +29,7 @@ import hashlib
 import json
 import logging
 from collections.abc import Collection, Mapping, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from uuid import UUID
@@ -136,6 +136,9 @@ class Candidate:
     resources: tuple[SkillBodyFile, ...] | None = None
     replaces: bool = False
     """`resources` is the whole set of files, so the line's others are dropped."""
+    described: bool = False
+    """`resources` carry their own descriptions, as a merge's files do; otherwise a
+    replaced file keeps the line's."""
 
     def body(self, fork_id: UUID | None = None, *, over_pin: bool = False) -> SkillBody:
         return SkillBody(
@@ -289,10 +292,14 @@ class SkillCheckService:
                 name=name, description=files[name].description, content=content
             )
         # A replaced file keeps its description, on main (`put_resources`) and on a fork
-        # (`_apply_to_fork`) alike.
+        # (`_apply_to_fork`) alike; only a merge's files bring their own.
         for item in candidate.resources:
             kept = files[item.name].description if item.name in files else None
-            files[item.name] = SkillBodyFile(name=item.name, description=kept, content=item.content)
+            files[item.name] = SkillBodyFile(
+                name=item.name,
+                description=item.description if candidate.described else kept,
+                content=item.content,
+            )
         names = {item.name for item in candidate.resources} if candidate.replaces else files
         return tuple(files[name] for name in sorted(names))
 
@@ -309,6 +316,7 @@ class SkillCheckService:
         holdout: Mapping[UUID, Collection[UUID]] | None = None,
         exclude_conversations: Sequence[UUID] = (),
         pinned: UUID | None = None,
+        files: tuple[SkillBodyFile, ...] | None = None,
     ) -> Plan:
         """What a check would run, refusing what could not; nothing is written.
 
@@ -319,6 +327,8 @@ class SkillCheckService:
         agent's update rather than a line. `holdout` limits a dataset, by its id, to
         the questions a session keeps aside for measuring; `exclude_conversations`
         leaves out the questions taken from the conversations a change learned from.
+        `files` is a text's whole set of files, which replaces the line's: a merge of
+        two lines takes its files from either.
         """
         if not ctx.has(Perm.RUNS_VIEW):
             raise AuthorizationError(
@@ -331,6 +341,8 @@ class SkillCheckService:
         target: SkillVersion | None = None
         if pinned is None:
             candidate, proposal, fork_id = await self._candidate(ctx, skill, data)
+            if files is not None:
+                candidate = replace(candidate, resources=files, replaces=True, described=True)
             fork, base = await self._line(ctx, skill, fork_id)
             if data.base_version_id is not None and data.base_version_id != base.id:
                 raise ConcurrentChangeError(
@@ -627,6 +639,7 @@ class SkillCheckService:
         only: Sequence[UUID] | None = None,
         holdout: Mapping[UUID, Collection[UUID]] | None = None,
         exclude_conversations: Sequence[UUID] = (),
+        files: tuple[SkillBodyFile, ...] | None = None,
     ) -> SkillCheckEstimate:
         """What a check would run on each agent, and what it would cost, as `start` takes it."""
         plan = await self._plan(
@@ -636,6 +649,7 @@ class SkillCheckService:
             only=only,
             holdout=holdout,
             exclude_conversations=exclude_conversations,
+            files=files,
         )
         return await self._estimate(ctx, plan)
 
@@ -669,6 +683,7 @@ class SkillCheckService:
         holdout: Mapping[UUID, Collection[UUID]] | None = None,
         exclude_conversations: Sequence[UUID] = (),
         pinned: UUID | None = None,
+        files: tuple[SkillBodyFile, ...] | None = None,
     ) -> SkillCheckRead:
         """Write a check and start each agent's first stage.
 
@@ -686,6 +701,7 @@ class SkillCheckService:
             holdout=holdout,
             exclude_conversations=exclude_conversations,
             pinned=pinned,
+            files=files,
         )
         expected, at_most = _priced(plan.agents)
         if plan.org_remaining is not None and at_most > plan.org_remaining:
@@ -1377,6 +1393,19 @@ class SkillCheckService:
                 row=check,
                 values={"status": CheckStatus.CANCELLED.value, "finished_at": now},
             )
+
+    async def decidable_for_session(
+        self, ctx: AuthContext, skill_id: UUID, check_id: UUID
+    ) -> SkillCheck:
+        """A session's finished, undecided check, locked, on a line nobody joined, left or
+        republished since it ran - what a session decides through its own outcomes.
+
+        Raises:
+            AlreadyExistsError: It was decided already.
+            ConcurrentChangeError: It is still running, or the line or its agents changed.
+        """
+        _, check, _ = await self._decidable(ctx, skill_id, check_id, None, from_session=True)
+        return check
 
     async def _decidable(
         self,

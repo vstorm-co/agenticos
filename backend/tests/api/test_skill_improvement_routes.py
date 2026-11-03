@@ -17,6 +17,7 @@ from app.core.exceptions import (
     PaymentRequiredError,
 )
 from app.core.permissions import AuthContext, OrgRoleName, Perm
+from app.db.models.skill_improvement import SkillImprovementPurpose
 from app.main import app
 from app.services.skill_improvement import SkillImprovementService
 
@@ -75,6 +76,7 @@ _HASH = "a" * 64
         ("POST", f"{_ONE}/retry", "retry", None),
         ("POST", f"{_ONE}/cancel", "cancel", None),
         ("POST", f"{_ONE}/discard", "discard", {"confirmed": True}),
+        ("POST", f"{_ONE}/return-to-main", "return_to_main", {"confirmed": True}),
     ],
 )
 async def test_each_route_reaches_its_service_call_with_the_caller_and_the_path(
@@ -106,6 +108,40 @@ async def test_each_route_reaches_its_service_call_with_the_caller_and_the_path(
         supplied = payload.model_dump(mode="json", include=set(body))
         for key, value in body.items():
             assert supplied[key] == value
+
+
+@pytest.mark.parametrize(
+    ("path", "operation", "purpose", "body"),
+    [
+        ("catch-up/estimate", "estimate_merge", SkillImprovementPurpose.CATCH_UP, None),
+        ("catch-up", "start_merge", SkillImprovementPurpose.CATCH_UP, {"budget_usd": "0"}),
+        ("to-main/estimate", "estimate_merge", SkillImprovementPurpose.TO_MAIN, None),
+        ("to-main", "start_merge", SkillImprovementPurpose.TO_MAIN, {"budget_usd": "1"}),
+    ],
+)
+async def test_a_merge_route_names_its_fork_and_its_purpose(
+    client: AsyncClient,
+    mock_db_session: MagicMock,
+    path: str,
+    operation: str,
+    purpose: SkillImprovementPurpose,
+    body: dict[str, object] | None,
+) -> None:
+    ctx = AuthContext(user_id=uuid4(), organization_id=uuid4(), role=OrgRoleName.OWNER)
+    service = SkillImprovementService(mock_db_session)
+    app.dependency_overrides[deps.get_auth_context] = lambda: ctx
+    app.dependency_overrides[deps.get_skill_improvement_service] = lambda: service
+    refusal = AsyncMock(side_effect=ConcurrentChangeError(message="Nothing to merge"))
+    with patch.object(service, operation, refusal):
+        response = await client.post(
+            f"{settings.API_V1_STR}/skills/{_SKILL}/forks/{_FORK}/{path}", json=body
+        )
+
+    assert response.status_code == 409, response.text
+    call = refusal.await_args
+    assert call is not None and call.args[:4] == (ctx, _SKILL, _FORK, purpose)
+    if body is not None:
+        assert call.args[4].model_dump(mode="json")["budget_usd"] == body["budget_usd"]
 
 
 async def test_a_list_reads_its_line_and_page_from_the_query(
@@ -154,9 +190,13 @@ def test_the_platforms_own_tools_reach_every_skill_session_route() -> None:
     from app.api.public_api import is_assistant_route
     from app.api.routes.v1 import skill_improvements
 
-    routes = [*skill_improvements.router.routes, *skill_improvements.sessions.routes]
+    routes = [
+        *skill_improvements.router.routes,
+        *skill_improvements.sessions.routes,
+        *skill_improvements.merges.routes,
+    ]
 
-    assert len(routes) == 18
+    assert len(routes) == 23
     assert all(is_assistant_route(route) for route in routes)
 
 
