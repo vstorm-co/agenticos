@@ -15345,7 +15345,7 @@
     "mergeReading": "Die Zusammenführung wird gelesen…",
     "mergeAgain": {
       "moved": "Der Fork oder main hat eine neuere Version als die, die diese Zusammenführung gelesen hat, daher wird sie nicht erneut geprüft.",
-      "start": "Die Zusammenführung neu starten"
+      "start": "Diese Zusammenführung verwerfen und neu starten"
     }
   }
 }

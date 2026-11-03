@@ -15447,7 +15447,7 @@
     "mergeReading": "Odczytywanie scalenia…",
     "mergeAgain": {
       "moved": "Fork albo main ma nowszą wersję niż ta, którą odczytało to scalenie, więc nie jest sprawdzane ponownie.",
-      "start": "Zacznij scalanie od nowa"
+      "start": "Odrzuć to scalenie i zacznij od nowa"
     }
   }
 }

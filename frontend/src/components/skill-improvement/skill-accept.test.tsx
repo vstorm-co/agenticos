@@ -373,10 +373,9 @@ describe("SkillAccept", () => {
       screen.getByRole("button", { name: "Make the merge the next version of returns" }),
     );
 
-    expect(await screen.findByRole("link", { name: "Start the merge again" })).toHaveAttribute(
-      "href",
-      "/skills/k1/improve/new?fork=f1&merge=catch_up",
-    );
+    expect(
+      await screen.findByRole("button", { name: "Discard this merge and start again" }),
+    ).toBeVisible();
     expect(screen.queryByText("check again")).not.toBeInTheDocument();
   });
 });

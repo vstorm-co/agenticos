@@ -15673,7 +15673,7 @@
     "mergeReading": "Reading the merge…",
     "mergeAgain": {
       "moved": "The fork or main has a newer version than this merge read, so it is not checked again.",
-      "start": "Start the merge again"
+      "start": "Discard this merge and start again"
     }
   }
 }

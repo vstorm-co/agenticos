@@ -237,9 +237,8 @@ describe("a session merging a fork with main", () => {
     state.step = "result";
     mount();
 
-    expect(await screen.findByRole("link", { name: "Start the merge again" })).toHaveAttribute(
-      "href",
-      "/skills/k1/improve/new?fork=f1&merge=to_main",
-    );
+    expect(
+      await screen.findByRole("button", { name: "Discard this merge and start again" }),
+    ).toBeVisible();
   });
 });
