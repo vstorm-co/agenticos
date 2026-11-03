@@ -437,6 +437,16 @@ class SkillEdits(BaseModel):
     description_rationale: str = ""
 
 
+MERGE_ASK = (
+    "Two lines of a skill changed the same passages differently. For each numbered "
+    "conflict below, write the passage as it should read with both changes kept - the "
+    "fork's and main's - or, where they cannot both stand, the one that keeps the skill "
+    "correct. Answer with one text per conflict, in order, keeping each passage's line "
+    "breaks. A description stays one line of at most 500 characters.\n\n"
+)
+"""What the improver is asked before a merge's numbered conflicts."""
+
+
 class MergeTexts(BaseModel):
     """The improver's combined text for each conflict of a merge, in the order asked."""
 

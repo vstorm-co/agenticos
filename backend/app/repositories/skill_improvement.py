@@ -6,7 +6,7 @@ from typing import Any
 from uuid import UUID
 
 from pydantic import JsonValue
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.audit_log import AppAdminAuditLog
@@ -231,11 +231,15 @@ async def update_iteration(
 async def iteration_for_check(
     db: AsyncSession, check_id: UUID, *, organization_id: UUID
 ) -> SkillImprovementIteration | None:
-    """The attempt a skill check measured, when a session started it."""
+    """The attempt a skill check measured, when a session started it - its check of the
+    candidate, or a catch-up's of main alone."""
     result = await db.execute(
         select(SkillImprovementIteration).where(
             SkillImprovementIteration.organization_id == organization_id,
-            SkillImprovementIteration.skill_check_id == check_id,
+            or_(
+                SkillImprovementIteration.skill_check_id == check_id,
+                SkillImprovementIteration.main_alone_check_id == check_id,
+            ),
         )
     )
     return result.scalar_one_or_none()
@@ -247,13 +251,26 @@ async def sessions_of_checks(
     """The session each of these skill checks measured an attempt of; others are absent."""
     if not check_ids:
         return {}
+    ids = list(check_ids)
     result = await db.execute(
-        select(SkillImprovementIteration.skill_check_id, SkillImprovementIteration.run_id).where(
+        select(
+            SkillImprovementIteration.skill_check_id,
+            SkillImprovementIteration.main_alone_check_id,
+            SkillImprovementIteration.run_id,
+        ).where(
             SkillImprovementIteration.organization_id == organization_id,
-            SkillImprovementIteration.skill_check_id.in_(list(check_ids)),
+            or_(
+                SkillImprovementIteration.skill_check_id.in_(ids),
+                SkillImprovementIteration.main_alone_check_id.in_(ids),
+            ),
         )
     )
-    return {row.skill_check_id: row.run_id for row in result.all()}
+    found: dict[UUID, UUID] = {}
+    for row in result.all():
+        for check_id in (row.skill_check_id, row.main_alone_check_id):
+            if check_id in ids:
+                found[check_id] = row.run_id
+    return found
 
 
 async def spent(db: AsyncSession, run_id: UUID, *, organization_id: UUID) -> Decimal:

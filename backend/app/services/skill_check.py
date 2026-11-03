@@ -136,6 +136,9 @@ class Candidate:
     resources: tuple[SkillBodyFile, ...] | None = None
     replaces: bool = False
     """`resources` is the whole set of files, so the line's others are dropped."""
+    described: bool = False
+    """`resources` carry their own descriptions, as a merge's files do; otherwise a
+    replaced file keeps the line's."""
 
     def body(self, fork_id: UUID | None = None, *, over_pin: bool = False) -> SkillBody:
         return SkillBody(
@@ -294,7 +297,7 @@ class SkillCheckService:
             kept = files[item.name].description if item.name in files else None
             files[item.name] = SkillBodyFile(
                 name=item.name,
-                description=kept if item.description is None else item.description,
+                description=item.description if candidate.described else kept,
                 content=item.content,
             )
         names = {item.name for item in candidate.resources} if candidate.replaces else files
@@ -339,7 +342,7 @@ class SkillCheckService:
         if pinned is None:
             candidate, proposal, fork_id = await self._candidate(ctx, skill, data)
             if files is not None:
-                candidate = replace(candidate, resources=files, replaces=True)
+                candidate = replace(candidate, resources=files, replaces=True, described=True)
             fork, base = await self._line(ctx, skill, fork_id)
             if data.base_version_id is not None and data.base_version_id != base.id:
                 raise ConcurrentChangeError(
@@ -1390,6 +1393,19 @@ class SkillCheckService:
                 row=check,
                 values={"status": CheckStatus.CANCELLED.value, "finished_at": now},
             )
+
+    async def decidable_for_session(
+        self, ctx: AuthContext, skill_id: UUID, check_id: UUID
+    ) -> SkillCheck:
+        """A session's finished, undecided check, locked, on a line nobody joined, left or
+        republished since it ran - what a session decides through its own outcomes.
+
+        Raises:
+            AlreadyExistsError: It was decided already.
+            ConcurrentChangeError: It is still running, or the line or its agents changed.
+        """
+        _, check, _ = await self._decidable(ctx, skill_id, check_id, None, from_session=True)
+        return check
 
     async def _decidable(
         self,

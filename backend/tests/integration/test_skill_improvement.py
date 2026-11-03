@@ -1016,6 +1016,7 @@ class FakeChecks:
         self.agents: list[SkillCheckAgentRead] = []
         self.files: list[Any] = []
         self.merged_from: list[uuid.UUID | None] = []
+        self.drift: Exception | None = None
 
     def _estimate(self, data: SkillCheckStart) -> SkillCheckEstimate:
         return SkillCheckEstimate(
@@ -1118,6 +1119,14 @@ class FakeChecks:
     async def discard(self, ctx, skill_id, check_id, *, from_session=False):
         assert from_session
         self.calls.append(("discard", check_id))
+
+    async def decidable_for_session(self, ctx, skill_id, check_id):
+        if self.drift is not None:
+            raise self.drift
+        self.calls.append(("decidable", check_id))
+        check = await self.db.get(SkillCheck, check_id)
+        assert check is not None
+        return check
 
     async def record_decision(self, ctx, check, outcome, version_id, *, acknowledged):
         self.calls.append(("decided", (check.id, outcome, version_id, acknowledged)))

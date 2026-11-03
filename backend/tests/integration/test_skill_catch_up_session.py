@@ -340,6 +340,10 @@ class TestTheConflicts:
                 ctx, skill.id, run.id, SkillContinue()
             )
         assert refused.value.details == {"unresolved": 1}
+        read = await SkillImprovementService(db).read(ctx, skill.id, run.id)
+        assert ("skill.improvement_conflicts_left", "failed") in [
+            (event.action, event.reason) for event in read.timeline
+        ]
 
     @pytest.mark.security
     async def test_without_the_budget_for_them_they_wait_for_a_person(
@@ -506,19 +510,35 @@ class TestACatchUp:
         assert [item.agent.name for item in returned.returned.agents] == ["Desk"]
         assert len([call for call in fake.calls if call[0] == "discard"]) == 2
 
-    async def test_a_failed_check_is_tried_again_with_main_alone(self, db, call_price, monkeypatch):
+    async def test_a_retry_keeps_a_finished_check_of_main_alone(self, db, call_price, monkeypatch):
         fake = _checked(db, monkeypatch)
         ctx = await _owner(db)
         run, skill, _ = await _at_changes(db, ctx)
         await _check_now(db, ctx, run)
         await db.refresh(run)
+        kept = await _alone_id(db, run)
 
         failed = await _settle(db, run, None, "passed")
         assert (failed.status, failed.stage) == ("failed", "evaluating")
         retried = await SkillImprovementService(db).retry(ctx, skill.id, run.id)
 
         assert (retried.status, retried.stage) == ("running", "evaluating")
-        assert len(fake.files) == 4 and retried.main_alone_check is not None
+        assert len(fake.files) == 3 and await _alone_id(db, run) == kept
+
+    async def test_a_retry_checks_main_alone_again_when_it_failed_too(
+        self, db, call_price, monkeypatch
+    ):
+        fake = _checked(db, monkeypatch)
+        ctx = await _owner(db)
+        run, skill, _ = await _at_changes(db, ctx)
+        await _check_now(db, ctx, run)
+        await db.refresh(run)
+        first = await _alone_id(db, run)
+
+        await _settle(db, run, None, None)
+        await SkillImprovementService(db).retry(ctx, skill.id, run.id)
+
+        assert len(fake.files) == 4 and await _alone_id(db, run) not in (None, first)
 
 
 class TestAMoveToMain:
@@ -794,3 +814,156 @@ async def test_the_conflicts_call_is_priced_as_one_improver_call(db):
 
     assert (priced.calls, priced.runs, priced.reason) == (1, 0, None)
     assert priced.estimate_usd > 0 and priced.affordable
+
+
+async def _alone_id(db: AsyncSession, run: SkillImprovementRun) -> uuid.UUID | None:
+    iteration = await skill_improvement_repo.get_iteration(
+        db, organization_id=run.organization_id, run_id=run.id, number=run.iteration
+    )
+    assert iteration is not None
+    await db.refresh(iteration)
+    return iteration.main_alone_check_id
+
+
+async def _caught_up_and_ready(
+    db: AsyncSession, ctx: AuthContext
+) -> tuple[SkillImprovementRun, Skill, SkillForkRead]:
+    run, skill, fork = await _at_changes(db, ctx)
+    await _check_now(db, ctx, run)
+    await db.refresh(run)
+    await _settle(db, run, "passed", "passed")
+    return run, skill, fork
+
+
+class TestReviewFixes:
+    @pytest.mark.security
+    async def test_a_result_main_moved_past_offers_only_discard_and_moves_nobody(
+        self, db, call_price, monkeypatch
+    ):
+        _checked(db, monkeypatch)
+        ctx = await _owner(db)
+        run, skill, _ = await _caught_up_and_ready(db, ctx)
+        await SkillService(db).update(ctx, skill.id, SkillUpdate(content="Newest main."))
+        service = SkillImprovementService(db)
+
+        read = await service.read(ctx, skill.id, run.id)
+        with pytest.raises(ConcurrentChangeError) as returned:
+            await service.return_to_main(ctx, skill.id, run.id, ImprovementDiscard(confirmed=True))
+        with pytest.raises(ConcurrentChangeError) as taken:
+            await service.apply(ctx, skill.id, run.id, SkillImprovementApply(confirmed=True))
+
+        assert read.stale and read.outcomes == ["discard"]
+        assert returned.value.code == taken.value.code == "LINE_MOVED"
+
+    @pytest.mark.security
+    async def test_a_line_whose_agents_changed_since_the_check_is_refused(
+        self, db, call_price, monkeypatch
+    ):
+        fake = _checked(db, monkeypatch)
+        ctx = await _owner(db)
+        run, skill, _ = await _caught_up_and_ready(db, ctx)
+        fake.drift = ConcurrentChangeError(message="The line's agents changed since the check")
+        service = SkillImprovementService(db)
+
+        with pytest.raises(ConcurrentChangeError):
+            await service.apply(ctx, skill.id, run.id, SkillImprovementApply(confirmed=True))
+        with pytest.raises(ConcurrentChangeError):
+            await service.return_to_main(ctx, skill.id, run.id, ImprovementDiscard(confirmed=True))
+
+        await db.refresh(run)
+        assert run.status == "ready" and run.outcome is None
+
+    async def test_a_merged_description_past_its_limit_is_refused_by_its_field(
+        self, db, call_price, monkeypatch
+    ):
+        _checked(db, monkeypatch)
+        ctx = await _owner(db)
+        skill, fork = await _described(db, ctx)
+        run = await _started(db, ctx, skill, fork)
+        await _advance(db, run)
+        await _advance(db, run)
+        merge = await SkillCatchUpService(db).merge_for_run(
+            run.id, organization_id=ctx.organization_id
+        )
+        assert merge is not None and merge.conflicts == 1
+        await SkillCatchUpService(db).fill_conflicts(merge, ["x" * 700])
+        await _finish_request(db, run, AuthoringStatus.COMPLETED.value)
+        await _advance(db, run)
+
+        with pytest.raises(BadRequestError) as refused:
+            await SkillImprovementService(db).estimate_continuation(
+                ctx, skill.id, run.id, SkillContinue()
+            )
+
+        assert refused.value.details["fields"][0]["field"] == "description"
+
+    async def test_both_checks_lead_back_to_the_session(self, db, call_price, monkeypatch):
+        _checked(db, monkeypatch)
+        ctx = await _owner(db)
+        run, _, _ = await _at_changes(db, ctx)
+        await _check_now(db, ctx, run)
+        await db.refresh(run)
+        iteration = await skill_improvement_repo.get_iteration(
+            db, organization_id=run.organization_id, run_id=run.id, number=1
+        )
+        assert iteration is not None and iteration.main_alone_check_id is not None
+        assert iteration.skill_check_id is not None
+
+        found = await skill_improvement_repo.iteration_for_check(
+            db, iteration.main_alone_check_id, organization_id=run.organization_id
+        )
+        sessions = await skill_improvement_repo.sessions_of_checks(
+            db,
+            [iteration.skill_check_id, iteration.main_alone_check_id],
+            organization_id=run.organization_id,
+        )
+
+        assert found is not None and found.id == iteration.id
+        assert sessions == {
+            iteration.skill_check_id: run.id,
+            iteration.main_alone_check_id: run.id,
+        }
+
+    async def test_conflicts_left_to_a_person_say_why_on_the_timeline(
+        self, db, call_price, monkeypatch
+    ):
+        _checked(db, monkeypatch)
+        ctx = await _owner(db)
+        skill, fork = await _diverged(db, ctx, conflict=True)
+        run = await _started(db, ctx, skill, fork)
+        call_price["price"] = Decimal("5")
+        await _advance(db, run)
+        await _advance(db, run)
+
+        read = await SkillImprovementService(db).read(ctx, skill.id, run.id)
+
+        assert [
+            (event.action, event.reason)
+            for event in read.timeline
+            if event.action.endswith("conflicts_left")
+        ] == [("skill.improvement_conflicts_left", "budget")]
+
+
+async def _described(db: AsyncSession, ctx: AuthContext) -> tuple[Skill, SkillForkRead]:
+    """A skill whose fork and main each reworded its description differently."""
+    skill = await SkillService(db).create(
+        ctx,
+        name=f"refunds-{uuid.uuid4().hex[:6]}",
+        description="How refunds work.",
+        content=_BODY,
+        visibility=Visibility.ORG,
+    )
+    fork = await _fork(db, ctx, skill)
+    await SkillVersionService(db).edit(
+        ctx,
+        skill.id,
+        SkillVersionCreate(
+            fork_id=fork.id,
+            base_version_id=fork.base.id,
+            description="How refunds and returns work.",
+            content=_BODY,
+        ),
+    )
+    await SkillService(db).update(ctx, skill.id, SkillUpdate(description="How refunds are paid."))
+    await db.refresh(skill)
+    return skill, fork

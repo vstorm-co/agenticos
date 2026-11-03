@@ -52,7 +52,7 @@ from app.db.models.authoring import (
     HunkStatus,
 )
 from app.db.models.context import ContextFile
-from app.db.models.improvement import ImprovementStatus
+from app.db.models.improvement import ImprovementStage, ImprovementStatus
 from app.db.models.skill import Skill
 from app.db.models.skill_improvement import SkillImprovementPurpose, SkillImprovementRun
 from app.db.session import get_worker_db_context
@@ -83,7 +83,7 @@ from app.schemas.authoring import (
     VerifyReport,
 )
 from app.schemas.skill import SkillCreate, skill_name_refusal
-from app.schemas.skill_improvement import MergeTexts, SkillEdits, SkillProblems
+from app.schemas.skill_improvement import MERGE_ASK, MergeTexts, SkillEdits, SkillProblems
 from app.services import authoring_hunks
 from app.services.access import AGENT, CONTEXT, SKILL, resolve_access
 from app.services.api_key import job_context
@@ -265,13 +265,8 @@ def _improve_prompt(
     )
 
 
-_MERGE_ASK = (
-    "Two lines of a skill changed the same passages differently. For each numbered "
-    "conflict below, write the passage as it should read with both changes kept - the "
-    "fork's and main's - or, where they cannot both stand, the one that keeps the skill "
-    "correct. Answer with one text per conflict, in order, keeping each passage's line "
-    "breaks.\n\n"
-)
+_DESCRIPTION_CHARS = 500
+"""As long as a skill's description may be."""
 
 
 def _skills_section(spec: AgentSpec, skills: Sequence[Skill], used: Collection[UUID]) -> str:
@@ -829,12 +824,31 @@ class AuthoringRun:
     async def _merge_conflicts(self, session: SkillImprovementRun) -> None:
         """Write the model's text for each conflict of a session's merge; what the model
         cannot answer in full stays for a person at Changes."""
+        from app.repositories import skill_improvement_repo
         from app.services.skill_catch_up import SkillCatchUpService
 
         merges = SkillCatchUpService(self.db)
         merge = await merges.merge_for_run(session.id, organization_id=self.ctx.organization_id)
         assert merge is not None, "a merge session is written with its merge"
-        answer = await self._ask(_MERGE_ASK + merges.conflicts_prompt(merge), MergeTexts)
+        answer = await self._ask(MERGE_ASK + merges.conflicts_prompt(merge), MergeTexts)
+        # A person may have taken the conflicts over while the model answered: their edits
+        # stand, so the session is read again under its lock before anything is written.
+        locked = await skill_improvement_repo.get_run(
+            self.db, session.id, organization_id=self.ctx.organization_id, lock=True
+        )
+        if locked is None or (locked.status, locked.stage) != (
+            ImprovementStatus.RUNNING.value,
+            ImprovementStage.PROPOSING.value,
+        ):
+            raise Stopped("The improvement session moved on.")
+        if (
+            merge.description["state"] == "conflict"
+            and answer.texts
+            and not (1 <= len(answer.texts[0].strip()) <= _DESCRIPTION_CHARS)
+        ):
+            raise Stopped(
+                "The assistant's description is not 1 to 500 characters; settle it at Changes."
+            )
         try:
             await merges.fill_conflicts(merge, answer.texts)
         except ValueError as exc:

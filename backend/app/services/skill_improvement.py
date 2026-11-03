@@ -105,6 +105,7 @@ from app.schemas.skill_check import (
     SkillCheckStart,
 )
 from app.schemas.skill_improvement import (
+    MERGE_ASK,
     MergeOutcome,
     ProblemAgent,
     SkillContinuationConsent,
@@ -150,6 +151,8 @@ logger = logging.getLogger(__name__)
 
 _AWAITING_PERSON = (Status.WAITING.value, Status.READY.value)
 _AWAITING_LIMIT = 20
+_DESCRIPTION_CHARS = 500
+"""As long as a skill's description may be."""
 _MERGE_WINDOW_DAYS = 30
 """A merge reads no runs; the column holds what an Improve on the line would read."""
 _LINE_VERSIONS = 500
@@ -573,7 +576,7 @@ class SkillImprovementService:
         sides = await self.merges.merge_sides(ctx, skill=skill, fork=fork, kind=purpose)
         target = source if purpose is Purpose.CATCH_UP else SessionLine(skill, None)
         priced = (
-            await self.authoring.estimate_call(ctx, chars=len(sides.prompt))
+            await self.authoring.estimate_call(ctx, chars=len(MERGE_ASK) + len(sides.prompt))
             if sides.conflicts
             else None
         )
@@ -949,6 +952,7 @@ class SkillImprovementService:
                 details={"purpose": run.purpose},
             )
         await self._decidable(run)
+        await self._refuse_merge_moved(run, line.skill)
         read = await self._read(ctx, run, line)
         if "return_to_main" not in read.outcomes:
             raise BadRequestError(
@@ -957,6 +961,9 @@ class SkillImprovementService:
                 details={"main_alone": read.main_alone},
             )
         assert run.fork_id is not None, "a catch-up runs on its fork"
+        alone = await self._main_alone_check(run)
+        assert alone is not None, "return to main is offered after main alone was checked"
+        await self.checks.decidable_for_session(ctx, run.skill_id, alone.id)
         returned = await self.merges.return_to_main(ctx, run.skill_id, run.fork_id, ReturnToMain())
         await self._discard_checks(ctx, run)
         await self._decide(ctx, run, SkillImprovementOutcome.RETURNED_TO_MAIN, None)
@@ -971,6 +978,8 @@ class SkillImprovementService:
         data: SkillImprovementApply,
     ) -> SkillImprovementApplied:
         """Take a checked merge into the fork: nobody worse, and nobody unknown unasked."""
+        await self._refuse_merge_moved(run, line.skill)
+        check = await self.checks.decidable_for_session(ctx, run.skill_id, check_id)
         merged = await self.checks.read(ctx, run.skill_id, check_id)
         if merged.verdict is CheckVerdict.BLOCKED:
             raise BadRequestError(
@@ -985,13 +994,10 @@ class SkillImprovementService:
                 "acknowledge_unknown",
                 "Some agents could not be checked; acknowledge them to take the merge in",
             )
-        await self._refuse_merge_moved(run, line.skill)
         assert line.fork is not None, "a catch-up runs on its fork"
         version = await self.merges.accept_catch_up(
             ctx, skill=line.skill, fork=line.fork, merge=await self._merge(run)
         )
-        check = await self._check(run)
-        assert check is not None, "a result is the outcome of its check"
         await self.checks.record_decision(
             ctx,
             check,
@@ -1249,14 +1255,18 @@ class SkillImprovementService:
     async def _retry_merge_checks(
         self, ctx: AuthContext, run: SkillImprovementRun, line: SessionLine
     ) -> None:
-        """Check the merge again as it was checked, main alone included if it was."""
+        """Check the merge again as it was checked; main alone again only if it did not
+        finish with a verdict, which stands otherwise."""
         await self._refuse_merge_moved(run, line.skill)
         await AiAssistanceService(self.db).require_enabled(organization_id=ctx.organization_id)
         iteration = await self._iteration(run)
         failed = await self._check(run)
         assert failed is not None, "a failed check is the attempt's"
         mode = CheckMode(failed.mode)
-        main_alone = iteration.main_alone_check_id is not None
+        alone = await self._main_alone_check(run)
+        main_alone = alone is not None and (
+            alone.status != CheckStatus.DONE.value or alone.verdict is None
+        )
         price = Decimal(0)
         for start, files in await self._merge_starts(run, line, mode, main_alone=main_alone):
             price += (await self.checks.estimate(ctx, run.skill_id, start, files=files)).at_most_usd
@@ -1275,7 +1285,9 @@ class SkillImprovementService:
             iteration=iteration,
             values={"check_verdict": None, "verdict": None, "ended_at": None},
         )
-        await self._start_merge_checks(ctx, run, line, mode, main_alone=main_alone)
+        await self._start_merge_checks(
+            ctx, run, line, mode, main_alone=main_alone, keep_alone=alone is not None
+        )
 
     async def _stop_requests(self, run: SkillImprovementRun) -> None:
         """Fail the session's unfinished analysis and proposal, so nothing more is paid for."""
@@ -1514,7 +1526,7 @@ class SkillImprovementService:
         if iteration.authoring_request_id is None:
             merge = await self._merge(run)
             if merge.conflicts:
-                prompt = self.merges.conflicts_prompt(merge)
+                prompt = MERGE_ASK + self.merges.conflicts_prompt(merge)
                 price = (
                     await self.authoring.estimate_call(
                         ctx, chars=len(prompt), improver_agent_id=run.improver_agent_id
@@ -1535,11 +1547,14 @@ class SkillImprovementService:
                     )
                     await self._audit(run, "child_started")
                     return
+                await self._audit(run, "conflicts_left", reason="budget")
             await self._move(run, rules.Transition(Status.WAITING, Stage.FILTERING))
             return
         request = await self._request(run, iteration.authoring_request_id)
         if request.status in (AuthoringStatus.QUEUED.value, AuthoringStatus.RUNNING.value):
             return
+        if request.status != AuthoringStatus.COMPLETED.value:
+            await self._audit(run, "conflicts_left", reason="failed")
         await self._move(run, rules.Transition(Status.WAITING, Stage.FILTERING))
 
     async def _merge(self, run: SkillImprovementRun) -> SkillMerge:
@@ -1983,6 +1998,12 @@ class SkillImprovementService:
                 message="Resolve every conflict before checking the merge",
                 details={"unresolved": merge.unresolved},
             )
+        if not 1 <= len(merged.description.strip()) <= _DESCRIPTION_CHARS:
+            raise refused_field(
+                "description",
+                f"The merged description must be 1 to {_DESCRIPTION_CHARS} characters; "
+                "edit it at Changes",
+            )
         mode = mode or CheckMode.QUICK
         starts = [
             (
@@ -2020,7 +2041,10 @@ class SkillImprovementService:
         mode: CheckMode | None,
         *,
         main_alone: bool,
+        keep_alone: bool = False,
     ) -> None:
+        """Start the merge's checks; with `keep_alone`, a check of main alone not started
+        again keeps the one the attempt has."""
         iteration = await self._iteration(run)
         started = [
             await self.checks.start(
@@ -2028,12 +2052,13 @@ class SkillImprovementService:
             )
             for start, files in await self._merge_starts(run, line, mode, main_alone=main_alone)
         ]
+        alone = iteration.main_alone_check_id if keep_alone else None
         await skill_improvement_repo.update_iteration(
             self.db,
             iteration=iteration,
             values={
                 "skill_check_id": started[0].id,
-                "main_alone_check_id": started[1].id if len(started) > 1 else None,
+                "main_alone_check_id": started[1].id if len(started) > 1 else alone,
             },
         )
         await self._move(
@@ -2182,10 +2207,10 @@ class SkillImprovementService:
         )
         result.stale = at_changes_or_result and line.latest != run.base_version_id
         if run.purpose != Purpose.IMPROVE.value:
-            await self._read_merge(ctx, run, line, result)
             result.stale = at_changes_or_result and (
                 await self._merge_moved(run, line.skill) is not None
             )
+            await self._read_merge(ctx, run, line, result)
         return result
 
     async def _read_merge(
@@ -2206,8 +2231,11 @@ class SkillImprovementService:
                 "checked" if alone is not None else await self._why_not_main_alone(merge, line)
             )
         if run.status == Status.READY and result.check is not None:
-            result.outcomes = merge_outcomes(
-                Purpose(run.purpose), result.check, result.main_alone_check
+            # A merge of versions that are no longer the newest can only be set aside.
+            result.outcomes = (
+                [CheckOutcome.DISCARD]
+                if result.stale
+                else merge_outcomes(Purpose(run.purpose), result.check, result.main_alone_check)
             )
 
     async def _why_not_main_alone(
@@ -2500,13 +2528,18 @@ class SkillImprovementService:
         )
 
     async def _audit(
-        self, run: SkillImprovementRun, action: str, *, actor_user_id: UUID | None = None
+        self,
+        run: SkillImprovementRun,
+        action: str,
+        *,
+        actor_user_id: UUID | None = None,
+        reason: str | None = None,
     ) -> None:
         """Record a step on the session's timeline; the session's own steps name no actor."""
         details: dict[str, str | None] = {
             "stage": run.stage,
             "status": run.status,
-            "reason": run.stop_reason,
+            "reason": reason or run.stop_reason,
             "skill_id": str(run.skill_id),
             "fork_id": None if run.fork_id is None else str(run.fork_id),
         }

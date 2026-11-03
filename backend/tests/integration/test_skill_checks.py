@@ -915,6 +915,25 @@ class TestAMergedText:
         }
 
 
+class TestASessionsDecision:
+    async def test_only_a_finished_undecided_check_is_decided_by_its_session(self, db, monkeypatch):
+        lab = await _lab(db)
+        evals = FakeEvals()
+        evals.install(monkeypatch)
+        service = SkillCheckService(db)
+        read = await service.start(lab.ctx, lab.skill.id, _start(), source=CheckSource.SESSION)
+
+        with pytest.raises(ConcurrentChangeError):
+            await service.decidable_for_session(lab.ctx, lab.skill.id, read.id)
+        await _run_to_end(service, evals, lab, read.id)
+        check = await service.decidable_for_session(lab.ctx, lab.skill.id, read.id)
+        await service.discard(lab.ctx, lab.skill.id, read.id, from_session=True)
+
+        assert check.id == read.id
+        with pytest.raises(AlreadyExistsError):
+            await service.decidable_for_session(lab.ctx, lab.skill.id, read.id)
+
+
 class TestASessionsCheckStops:
     async def test_the_session_stops_its_check_and_every_run_it_started(self, db, monkeypatch):
         lab = await _lab(db)
