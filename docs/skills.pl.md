@@ -1,5 +1,5 @@
 ---
-source_sha: "a01a9fe89395"
+source_sha: "aa03eefbd54d"
 ---
 
 # Skille { #skills }
@@ -471,33 +471,52 @@ Otwórz skill z listy, żeby zobaczyć jego stronę. Ma trzy zakładki.
 Środowisko, które serwuje inną wersję, jest podane pod agentem, a specjalista inline,
 który wiąże skill, ma osobny wiersz - zobacz
 [Którą wersję czyta agent](#which-version-an-agent-reads). Agent, który wiąże skill
-tylko w drafcie, ma oznaczenie **Tylko w drafcie** i nie liczy się do żadnej
-linii. Agentów, których nie widzisz, strona liczy, ale nie nazywa. Chipy nad
-tabelą pokazują wszystkich, agentów na main, przypiętych albo jeden fork. Fork
-wybrany tam jest też linią, którą pokazuje Historia i do której zapisuje Edycja.
+tylko w drafcie, ma oznaczenie **Tylko w drafcie** i nie podąża za żadną linią.
+Agentów, których nie widzisz, strona liczy, ale nie nazywa. Chipy nad tabelą
+pokazują wszystkich, agentów na main, przypiętych, jeden fork albo agentów tylko w
+drafcie, więc ich liczby sumują się do wszystkich. Fork wybrany tam jest też linią,
+którą pokazuje Historia i do której zapisuje Edycja.
+
+Pod tabelą osoba, która może przeglądać runy, widzi, jak często każdy agent
+otwierał skill w ostatnich 30 dniach i ile jego plików przeczytał. Runy ewaluacji i
+panelu testowego Buildera się nie liczą.
 
 **Zmień wersję** przenosi jednego agenta na main, na przypiętą wersję main albo na
 fork, tak jak opisuje [Którą wersję czyta agent](#which-version-an-agent-reads): co
-trafia na produkcję, co czeka w drafcie, a co zmienia się w Builderze. Wersja, na
-której agenta nie ma, nie była na nim sprawdzona, więc najpierw to potwierdzasz.
-Kontrolkę widzą osoby, które mogą edytować agenta.
+trafia na produkcję, co czeka w drafcie, a co zmienia się w Builderze. Wersja inna
+niż ta, którą agent serwuje teraz, nie była na nim sprawdzona, więc najpierw to
+potwierdzasz. Okno mówi też, kiedy agent przestałby dostawać nowe wersje main, i
+podaje datę każdej wersji main do przypięcia, z linkiem do jej zmian. Kontrolkę
+widzą osoby, które mogą edytować agenta.
 
 **Historia** wymienia wersje wybranej linii od najnowszej: skąd się wzięła każda
 (edycja, zmiana plików, biblioteka, workspace agenta, Improve albo przywrócenie),
 kto ją zrobił i kiedy. **Pokaż zmiany** porównuje opis i instrukcje z poprzednią
 wersją - dla pierwszej wersji forka z jego bazą na main - i podaje pliki dodane,
 usunięte albo zmienione. **Przywróć** sprowadza wcześniejszą wersję jako najnowszą
-na jej własnej linii, a agenci podążający za tą linią dostają ją od razu.
+na jej własnej linii, a agenci podążający za tą linią dostają ją od razu. Fork
+numeruje wersje od 1 tak jak main, więc noszą jego nazwę - „Returns v2” - a
+historia main zaznacza wersję, od której startuje każdy fork.
 
 **Drzewo wersji** rysuje main od najnowszej wersji w dół, każdy fork odchodzący od
-wersji, od której wystartował, i agentów przy wersji, której używają. Odcinki,
-których nie używa żaden agent, zwijają się do jednego wiersza.
+wersji, od której wystartował, i agentów przy wersji, której używają. Na linii z
+co najmniej ośmioma wersjami odcinki, których nie używa żaden agent, zwijają się do
+jednego wiersza.
 
 **Edytuj** zapisuje nową wersję na widocznej linii. Na main agenci podążający za
 main dostają ją od razu; przypięci agenci i forki zostają przy swojej wersji. Pliki
 i kategoria należą do main, więc edycja forka zmienia tylko jego opis i instrukcje.
 Przywróć i Zmień wersję widzą tylko osoby, które mogą tę zmianę zrobić; pozostali
 otwierają skill tylko do odczytu.
+
+**Nowy fork** zaczyna fork od najnowszej wersji main, pod nadaną przez ciebie
+nazwą, i może od razu przenieść na niego agentów, każdego przez Zmień wersję. Fork
+czyta się tak samo jak jego baza, dopóki ktoś go nie edytuje.
+
+**Usuń**, w menu edytora, usuwa skill, którego nikt nie używa, razem z jego
+wersjami i forkami. Dopóki agenci go używają, okno ich wymienia i nie oferuje
+usunięcia: najpierw przenieś każdego na inny skill albo usuń z niego skill w
+Builderze.
 
 ## Skille czy wiedza? { #skills-or-knowledge }
 
