@@ -1,5 +1,5 @@
 ---
-source_sha: "3896636926cf"
+source_sha: "38e2a0c76864"
 title: "Asistente de autoría"
 description: "El asistente de autoría lee lo que la gente valoró negativamente y cómo acabaron los runs, y sugiere cambios a las instrucciones, las herramientas, la configuración, los skills y los archivos de contexto de un agent. Una persona decide cada uno."
 ---
@@ -526,11 +526,7 @@ La estimación reserva el contenido completo propuesto para cada respuesta candi
 ### Mejorar un skill { #improving-a-skill }
 
 Un skill que leen varios agents se mejora desde su propia página, una línea cada
-vez, como describe [Mejorar un skill](skills.md#improving-a-skill). El
-[Architect](#asking-the-architect) lee los agents, las versiones y las sesiones de
-un skill. Inicia una sesión, ejecuta un paso, acepta un resultado, termina una
-sesión o mueve un agent a otra versión solo cuando se lo pides, cada vez mediante
-una tarjeta de aprobación.
+vez, como describe [Mejorar un skill](skills.md#improving-a-skill).
 
 ### Cuando el fallo está en un skill { #when-the-fault-is-in-a-skill }
 

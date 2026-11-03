@@ -1,5 +1,5 @@
 ---
-source_sha: "3896636926cf"
+source_sha: "38e2a0c76864"
 title: "Authoring-Assistent"
 description: "Der Authoring-Assistent liest, was Leute negativ bewertet haben und wie Runs endeten, und schlägt Änderungen an Anweisungen, Tools, Konfiguration, Skills und Context-Dateien eines Agents vor. Über jede entscheidet ein Mensch."
 ---
@@ -542,10 +542,7 @@ Die Kostenschätzung berücksichtigt den vollständigen vorgeschlagenen Inhalt f
 
 Einen Skill, den mehrere Agents lesen, verbessern Sie auf seiner eigenen Seite,
 eine Linie auf einmal, wie [Einen Skill verbessern](skills.md#improving-a-skill)
-beschreibt. Der [Architekt](#asking-the-architect) liest die Agents, Versionen und
-Sitzungen eines Skills. Er startet eine Sitzung, führt einen Schritt aus, nimmt ein
-Ergebnis an, beendet eine Sitzung oder verschiebt einen Agent auf eine andere
-Version nur, wenn Sie darum bitten, jeweils über eine Freigabekarte.
+beschreibt.
 
 ### Wenn der Fehler im Skill liegt { #when-the-fault-is-in-a-skill }
 

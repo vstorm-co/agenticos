@@ -1,5 +1,5 @@
 ---
-source_sha: "bac02e8be323"
+source_sha: "2e375ecc4cb8"
 ---
 
 # Skille { #skills }
@@ -659,6 +659,11 @@ same wybrane zmiany, zmierzone na linii w obecnym stanie, w cenie pokazanej
 najpierw. Dalsze poprawianie i odrzucenie zostają dostępne. Gdy linia zmieni się,
 kiedy sesja czeka na Changes, krok jest wyceniany ponownie: Następny krok sprawdza
 zmiany na najnowszej wersji.
+
+[Architekt](console.md#the-assistant) czyta agentów skilla, jego wersje i sesje.
+Zaczyna sesję, uruchamia albo ponawia krok, akceptuje wynik, kończy sesję albo
+przesuwa agenta na inną wersję tylko na Twoją prośbę, każde przez kartę
+akceptacji.
 
 ## Skille czy wiedza? { #skills-or-knowledge }
 

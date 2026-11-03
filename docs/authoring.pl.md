@@ -1,5 +1,5 @@
 ---
-source_sha: "3896636926cf"
+source_sha: "38e2a0c76864"
 title: "Asystent tworzenia"
 description: "Asystent tworzenia czyta, co ludzie ocenili negatywnie i jak kończyły się runy, i sugeruje zmiany w instrukcjach agenta, jego narzędziach, konfiguracji, skillach i plikach kontekstowych. O każdej decyduje człowiek."
 ---
@@ -514,9 +514,6 @@ Szacowany koszt uwzględnia pełną proponowaną treść dla każdej odpowiedzi 
 
 Skill czytany przez kilku agentów ulepsza się z jego własnej strony, jedną linię
 naraz, jak opisuje [Poprawianie skilla](skills.md#improving-a-skill).
-[Architekt](#asking-the-architect) czyta agentów skilla, jego wersje i sesje.
-Zaczyna sesję, uruchamia krok, akceptuje wynik, kończy sesję albo przesuwa agenta
-na inną wersję tylko na Twoją prośbę, każde przez kartę akceptacji.
 
 ### Gdy błąd jest w skillu { #when-the-fault-is-in-a-skill }
 

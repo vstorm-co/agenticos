@@ -641,6 +641,11 @@ Improving further and discarding stay offered. A line that moves while the sessi
 waits at Changes is priced again: Next step checks the changes on the newest
 version.
 
+The [Architect](console.md#the-assistant) reads a skill's agents, versions and
+sessions. It starts a session, runs or retries a step, accepts a result, ends a
+session or moves an agent to another version only when you ask, each through an
+approval card.
+
 ## Skills or knowledge?
 
 They answer different questions, and the difference matters when an agent gets the

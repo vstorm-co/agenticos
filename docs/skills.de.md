@@ -1,5 +1,5 @@
 ---
-source_sha: "bac02e8be323"
+source_sha: "2e375ecc4cb8"
 ---
 
 # Skills { #skills }
@@ -717,6 +717,12 @@ jetzt ist, zu einem Preis, der zuerst angezeigt wird. Weiterverbessern und
 Verwerfen bleiben möglich. Ändert sich die Linie, während die Sitzung bei Changes
 wartet, wird neu bepreist: Der nächste Schritt prüft die Änderungen auf der
 neuesten Version.
+
+Der [Architekt](console.md#the-assistant) liest die Agents, Versionen und
+Sitzungen eines Skills. Er startet eine Sitzung, führt einen Schritt aus oder
+wiederholt ihn, nimmt ein Ergebnis an, beendet eine Sitzung oder verschiebt einen
+Agent auf eine andere Version nur, wenn Sie darum bitten, jeweils über eine
+Freigabekarte.
 
 ## Skills oder Knowledge? { #skills-or-knowledge }
 

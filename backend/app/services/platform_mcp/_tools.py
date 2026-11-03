@@ -2137,7 +2137,7 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         )
         return _skill_session(skill_id, moved)
 
-    async def retry_skill_improvement(skill_id: UUID, session_id: UUID) -> dict[str, Any]:
+    async def retry_skill_improvement_step(skill_id: UUID, session_id: UUID) -> dict[str, Any]:
         """Run a skill session's failed step again, only when the person asked for it. Needs
         `skills:edit` and `runs:view`.
 
@@ -2814,7 +2814,7 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         (start_skill_improvement, True),
         (estimate_next_skill_improvement_step, False),
         (run_next_skill_improvement_step, True),
-        (retry_skill_improvement, True),
+        (retry_skill_improvement_step, True),
         (accept_skill_improvement, True),
         (end_skill_improvement, True),
         (change_skill_version, True),

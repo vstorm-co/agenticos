@@ -720,7 +720,9 @@ class TestStartingAndSteps:
             {("POST", f"{SESSION_PATH}/retry"): _session("running", stage="classifying")}
         )
 
-        moved = await _call(server, "retry_skill_improvement", skill_id=SKILL, session_id=SESSION)
+        moved = await _call(
+            server, "retry_skill_improvement_step", skill_id=SKILL, session_id=SESSION
+        )
 
         assert moved["status"] == "running"
 
@@ -1038,7 +1040,7 @@ READS = {
     "get_skill_check",
 }
 WRITES = {
-    "retry_skill_improvement",
+    "retry_skill_improvement_step",
     "start_skill_improvement",
     "run_next_skill_improvement_step",
     "accept_skill_improvement",

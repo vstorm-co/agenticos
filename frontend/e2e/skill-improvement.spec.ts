@@ -359,7 +359,7 @@ test("a shared skill's page shows each agent's line, and Improve prices the line
 
   await page.goto(`/skills/${skillId}/improve/new`);
   await expect(page.getByRole("heading", { name: "Start improving" })).toBeVisible();
-  await expect(page.getByText(/It reads \d+ answers/)).toBeVisible();
+  await expect(page.getByText(/It reads \d+ answers?/)).toBeVisible();
   await expect(page.getByRole("button", { name: "Start", exact: true })).toBeEnabled();
 });
 

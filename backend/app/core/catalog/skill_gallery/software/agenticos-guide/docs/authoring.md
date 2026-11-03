@@ -497,10 +497,7 @@ The estimate reserves the full proposed body for each candidate answer and its c
 ### Improving a skill { #improving-a-skill }
 
 A skill that several agents read is improved from its own page, one line at a
-time, as [Improving a skill](skills.md#improving-a-skill) describes. The
-[Architect](#asking-the-architect) reads a skill's agents, versions and sessions.
-It starts a session, runs a step, accepts a result, ends a session or moves an
-agent to another version only when you ask, each through an approval card.
+time, as [Improving a skill](skills.md#improving-a-skill) describes.
 
 ### When the fault is in a skill { #when-the-fault-is-in-a-skill }
 
