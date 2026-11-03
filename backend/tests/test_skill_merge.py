@@ -130,8 +130,10 @@ class TestMergeText:
         ]
 
 
+@pytest.mark.security
 class TestWhatIsTooLargeToMerge:
-    """Matching compares every pair of equal lines, so repetition is what costs."""
+    """Matching compares every pair of equal lines, so repetition is what costs. The limit
+    keeps a body an editor wrote from holding a worker's CPU, and lets ordinary ones through."""
 
     def test_a_body_repeating_one_line_past_the_budget_is_refused_before_matching(self):
         repeated = "Check the date.\n" * 1001
