@@ -23,6 +23,7 @@ from app.schemas.skill_improvement import (
     SkillImprovementForked,
     SkillImprovementProblems,
     SkillImprovementRead,
+    SkillImprovementReturn,
     SkillImprovementReturned,
     SkillImprovementStart,
     SkillImprovementTarget,
@@ -252,13 +253,14 @@ async def apply_skill_improvement(
 async def return_skill_improvement_to_main(
     skill_id: UUID,
     run_id: UUID,
-    data: ImprovementDiscard,
+    data: SkillImprovementReturn,
     service: SkillImprovementSvc,
     ctx: Auth,
 ) -> Any:
     """Move a caught-up fork's agents back to main instead of taking the merge in, when
     main alone made nobody worse; the fork is archived once nobody reads it. 400 for a
-    session that is not a catch-up or a result that does not offer it."""
+    session that is not a catch-up, a result that does not offer it, or agents main alone
+    could not be checked on and `acknowledge_unknown` does not accept."""
     return await service.return_to_main(ctx, skill_id, run_id, data)
 
 

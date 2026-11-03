@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import { checkAgent, skillCheck, skillSession } from "@/test-utils/skill-improvement";
-import { MainAloneChoice, MainAloneResult } from "./main-alone";
+import { MainAloneAcknowledge, MainAloneChoice, MainAloneResult } from "./main-alone";
 
 const QUOTE = {
   mode: "next_step" as const,
@@ -67,5 +67,24 @@ describe("MainAloneResult", () => {
     expect(screen.queryByText("Main alone")).not.toBeInTheDocument();
     view.rerender(<MainAloneResult session={skillSession({ purpose: "catch_up" })} />);
     expect(screen.queryByText("Main alone")).not.toBeInTheDocument();
+  });
+});
+
+describe("MainAloneAcknowledge", () => {
+  it("counts the agents it cannot name, and says when one is acknowledged", async () => {
+    const changed = vi.fn();
+    render(
+      <MainAloneAcknowledge
+        check={skillCheck({ agents: [checkAgent("Desk", "no_change")], hidden_unknown: 2 })}
+        checked={false}
+        onChange={changed}
+      />,
+    );
+    await userEvent.click(
+      screen.getByLabelText(
+        "I know main alone could not be checked on 2 agents, and they return to main all the same.",
+      ),
+    );
+    expect(changed).toHaveBeenCalledWith(true);
   });
 });

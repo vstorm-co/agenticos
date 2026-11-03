@@ -1,5 +1,5 @@
 ---
-source_sha: "44d227134bc4"
+source_sha: "b381f1b58bd5"
 ---
 
 # Skills { #skills }
@@ -511,7 +511,8 @@ Zusammenführung ohnehin die neueste Version von main ist. Annehmen
 erzeugt eine Fork-Version (`catch_up`), die die übernommene main-Version nennt. Ab
 dann basiert der Fork auf dieser main-Version und ist nicht mehr hinter main. Hat
 main allein keinen Agent verschlechtert, bietet das Ergebnis außerdem an, den Fork
-aufzugeben und seine Agents zu main zurückzuholen.
+aufzugeben und seine Agents zu main zurückzuholen; Agents, an denen main allein nicht
+geprüft werden konnte, kehren erst nach einer Bestätigung zurück (`acknowledge_unknown`).
 
 **Einen Fork nach main übernehmen.** Dieselbe Zusammenführung in die andere Richtung,
 über `…/forks/{fork_id}/to-main`. Die Prüfung fragt die Agents von main nach der

@@ -451,7 +451,8 @@ merge is main's newest anyway.
 Accepting makes a fork version (`catch_up`) that names the main version it took in.
 From then on the fork is based on that main version, so it is no longer behind.
 When main alone made no agent worse, the result also offers to drop the fork and
-return its agents to main.
+return its agents to main; agents main alone could not be checked on go only once you
+acknowledge them (`acknowledge_unknown`).
 
 **Move a fork to main.** The same merge goes the other way at
 `…/forks/{fork_id}/to-main`. The check asks main's agents, by the

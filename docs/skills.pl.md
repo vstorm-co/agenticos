@@ -1,5 +1,5 @@
 ---
-source_sha: "44d227134bc4"
+source_sha: "b381f1b58bd5"
 ---
 
 # Skille { #skills }
@@ -467,7 +467,9 @@ w osobnej pozycji (`main_alone_usd`). Jest pomijane, gdy scalenie i tak jest
 najnowszą wersją main. Akceptacja tworzy wersję forka
 (`catch_up`), która wskazuje wersję main, którą przyjęła. Od tej chwili fork opiera
 się na tej wersji main, więc nie jest już za main. Gdy sama main nie pogorszyła
-żadnego agenta, wynik proponuje też porzucenie forka i powrót jego agentów do main.
+żadnego agenta, wynik proponuje też porzucenie forka i powrót jego agentów do main;
+agenci, na których samej main nie dało się sprawdzić, wracają dopiero po
+potwierdzeniu (`acknowledge_unknown`).
 
 **Przeniesienie forka do main.** To samo scalenie w drugą stronę, przez
 `…/forks/{fork_id}/to-main`. Sprawdzenie pyta agentów main według

@@ -77,7 +77,8 @@ export function useSkillMerge(
 export function useReturnToMain(skillId: string, sessionId: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: () => returnSkillImprovementToMain(skillId, sessionId),
+    mutationFn: (acknowledgeUnknown: boolean) =>
+      returnSkillImprovementToMain(skillId, sessionId, acknowledgeUnknown),
     onSuccess: () =>
       Promise.all([
         queryClient.invalidateQueries({ queryKey: qk.improvements.all() }),

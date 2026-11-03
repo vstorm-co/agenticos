@@ -305,6 +305,7 @@ describe("SkillAccept", () => {
     );
     expect(apiClient.post).toHaveBeenLastCalledWith("/skills/k1/improvements/s1/return-to-main", {
       confirmed: true,
+      acknowledge_unknown: false,
     });
     expect(returned).toHaveBeenCalledWith(result);
   });
@@ -382,5 +383,54 @@ describe("SkillAccept", () => {
       await screen.findByRole("button", { name: "Discard this merge and start again" }),
     ).toBeVisible();
     expect(screen.queryByText("check again")).not.toBeInTheDocument();
+  });
+
+  it("returns agents main alone could not check only once a person says they know", async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const check = skillCheck({ verdict: "no_better" });
+    render(
+      <SkillAccept
+        session={skillSession({
+          purpose: "catch_up",
+          fork_id: "f1",
+          line_name: "returns",
+          check,
+          main_alone: "checked",
+          main_alone_check: skillCheck({
+            verdict: "needs_ack",
+            agents: [checkAgent("Desk", "no_change"), checkAgent("Shop", "unknown")],
+          }),
+          outcomes: ["catch_up", "return_to_main", "discard"],
+        })}
+        check={check}
+        onStarted={vi.fn()}
+      />,
+      {
+        wrapper: ({ children }: { children: ReactNode }) => (
+          <QueryClientProvider client={client}>{children}</QueryClientProvider>
+        ),
+      },
+    );
+    await confirm();
+    const back = screen.getByRole("button", {
+      name: "Return the agents of returns to main instead",
+    });
+    expect(back).toBeDisabled();
+
+    await userEvent.click(
+      screen.getByLabelText(
+        "I know main alone could not be checked on 1 agent (Shop), and it returns to main all the same.",
+      ),
+    );
+    vi.mocked(apiClient.post).mockResolvedValueOnce({
+      session: skillSession(),
+      returned: { agents: [], hidden: 0, remaining: 0, archived: true },
+    });
+    await userEvent.click(back);
+
+    expect(apiClient.post).toHaveBeenLastCalledWith("/skills/k1/improvements/s1/return-to-main", {
+      confirmed: true,
+      acknowledge_unknown: true,
+    });
   });
 });

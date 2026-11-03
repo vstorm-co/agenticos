@@ -15,6 +15,7 @@ import type { MergeOutcome, SkillImprovement } from "@/types/skill-improvement";
 import type { ReturnedToMain } from "@/types/skill-merge";
 import { AddTestQuestions } from "./add-test-questions";
 import { CheckAgain } from "./check-again";
+import { MainAloneAcknowledge, unmeasured } from "./main-alone";
 import { MergeAgain } from "./merge-again";
 
 /**
@@ -78,6 +79,8 @@ export function SkillAccept({
   const unknownNames = names("unknown");
   const helped = check.agents.find((row) => row.state === "better");
   const [acknowledged, setAcknowledged] = useState(false);
+  const [aloneAcknowledged, setAloneAcknowledged] = useState(false);
+  const aloneUnknown = unmeasured(session.main_alone_check);
   const [confirmed, setConfirmed] = useState(false);
   const [forkName, setForkName] = useState(helped?.agent.name ?? "");
   const [refusal, setRefusal] = useState<string | null>(null);
@@ -123,11 +126,11 @@ export function SkillAccept({
       {session.outcomes.includes("return_to_main") && (
         <Button
           variant="outline"
-          disabled={!confirmed}
+          disabled={!confirmed || (aloneUnknown > 0 && !aloneAcknowledged)}
           loading={busy}
           onClick={() =>
             void decide(async () => {
-              const done = await returnToMain.mutateAsync();
+              const done = await returnToMain.mutateAsync(aloneAcknowledged);
               onReturned?.(done.returned);
             })
           }
@@ -171,6 +174,16 @@ export function SkillAccept({
               <AddTestQuestions skillId={session.skill_id} />
             </div>
           )}
+          {!recheck &&
+            aloneUnknown > 0 &&
+            session.main_alone_check &&
+            session.outcomes.includes("return_to_main") && (
+              <MainAloneAcknowledge
+                check={session.main_alone_check}
+                checked={aloneAcknowledged}
+                onChange={setAloneAcknowledged}
+              />
+            )}
           {!recheck && writes && (
             <div className="flex items-start gap-2">
               <Checkbox

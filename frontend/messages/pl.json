@@ -15426,7 +15426,8 @@
         "off": "Sama main nie była sprawdzana, więc powrót agentów forka do main nie jest proponowany.",
         "same": "Scalenie jest najnowszą wersją main, więc sprawdzono je raz.",
         "checked": "Sama main jest sprawdzana."
-      }
+      },
+      "acknowledge": "{count, plural, one {Wiem, że samej main nie dało się sprawdzić na # agencie{named, select, yes { ({names})} other {}}, i mimo to wraca on do main.} few {Wiem, że samej main nie dało się sprawdzić na # agentach{named, select, yes { ({names})} other {}}, i mimo to wracają one do main.} many {Wiem, że samej main nie dało się sprawdzić na # agentach{named, select, yes { ({names})} other {}}, i mimo to wracają one do main.} other {Wiem, że samej main nie dało się sprawdzić na # agenta{named, select, yes { ({names})} other {}}, i mimo to wraca do main.}}"
     },
     "mergeStart": {
       "openSession": "Ta linia ma już otwartą sesję.",

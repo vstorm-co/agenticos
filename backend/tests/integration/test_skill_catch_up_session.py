@@ -34,7 +34,6 @@ from app.db.models.skill_improvement import SkillImprovementPurpose, SkillImprov
 from app.db.models.skill_version import SkillFork, SkillVersion
 from app.repositories import skill_improvement_repo
 from app.schemas.authoring import AuthoringEstimate
-from app.schemas.improvement import ImprovementDiscard
 from app.schemas.skill import SkillUpdate
 from app.schemas.skill_check import AgentRef, SkillCheckAgentRead
 from app.schemas.skill_improvement import (
@@ -43,6 +42,7 @@ from app.schemas.skill_improvement import (
     SkillImprovementApply,
     SkillImprovementFork,
     SkillImprovementRead,
+    SkillImprovementReturn,
     SkillMergeStart,
 )
 from app.schemas.skill_version import SkillForkRead, SkillVersionCreate
@@ -411,7 +411,7 @@ class TestACatchUp:
         assert (read.main_alone, read.outcomes) == ("off", ["catch_up", "discard"])
         with pytest.raises(BadRequestError):
             await SkillImprovementService(db).return_to_main(
-                ctx, skill.id, run.id, ImprovementDiscard(confirmed=True)
+                ctx, skill.id, run.id, SkillImprovementReturn(confirmed=True)
             )
 
     async def test_a_merge_that_is_main_needs_no_main_alone(self, db, call_price, monkeypatch):
@@ -500,7 +500,7 @@ class TestACatchUp:
         await _settle(db, run, "passed", "no_better")
 
         returned = await SkillImprovementService(db).return_to_main(
-            ctx, skill.id, run.id, ImprovementDiscard(confirmed=True)
+            ctx, skill.id, run.id, SkillImprovementReturn(confirmed=True)
         )
 
         assert (returned.session.status, returned.session.outcome) == (
@@ -509,6 +509,44 @@ class TestACatchUp:
         )
         assert [item.agent.name for item in returned.returned.agents] == ["Desk"]
         assert len([call for call in fake.calls if call[0] == "discard"]) == 2
+
+    async def test_agents_main_alone_could_not_check_are_acknowledged_before_returning(
+        self, db, call_price, monkeypatch
+    ):
+        fake = _checked(db, monkeypatch)
+        ctx = await _owner(db)
+        skill, fork = await _diverged(db, ctx)
+        await _serving(db, ctx, "Desk", _spec(skill, fork_id=str(fork.id)))
+        run = await _started(db, ctx, skill, fork)
+        await _advance(db, run)
+        await _advance(db, run)
+        await _check_now(db, ctx, run)
+        await db.refresh(run)
+        await _settle(db, run, "passed", "needs_ack")
+        fake.agents = [
+            SkillCheckAgentRead(
+                agent=AgentRef(id=uuid.uuid4(), name="Shop"),
+                state=AgentState.UNKNOWN,
+                stages=[],
+                expected_usd=Decimal(0),
+                at_most_usd=Decimal(0),
+            )
+        ]
+        service = SkillImprovementService(db)
+
+        with pytest.raises(BadRequestError) as refused:
+            await service.return_to_main(
+                ctx, skill.id, run.id, SkillImprovementReturn(confirmed=True)
+            )
+        returned = await service.return_to_main(
+            ctx,
+            skill.id,
+            run.id,
+            SkillImprovementReturn(confirmed=True, acknowledge_unknown=True),
+        )
+
+        assert refused.value.details["fields"][0]["field"] == "acknowledge_unknown"
+        assert returned.session.outcome == "returned_to_main"
 
     async def test_a_retry_keeps_a_finished_check_of_main_alone(self, db, call_price, monkeypatch):
         fake = _checked(db, monkeypatch)
@@ -606,7 +644,9 @@ class TestWhatAMergeIsNot:
                 ctx, skill.id, run.id, SkillImprovementFork(confirmed=True, name="Other")
             )
         with pytest.raises(ConcurrentChangeError):
-            await service.return_to_main(ctx, skill.id, run.id, ImprovementDiscard(confirmed=True))
+            await service.return_to_main(
+                ctx, skill.id, run.id, SkillImprovementReturn(confirmed=True)
+            )
         read = await service.read(ctx, skill.id, run.id)
         assert read.can_restart is False
 
@@ -617,7 +657,7 @@ class TestWhatAMergeIsNot:
 
         with pytest.raises(BadRequestError):
             await SkillImprovementService(db).return_to_main(
-                ctx, skill.id, run.id, ImprovementDiscard(confirmed=True)
+                ctx, skill.id, run.id, SkillImprovementReturn(confirmed=True)
             )
 
     async def test_a_step_off_changes_is_refused(self, db, call_price, monkeypatch):
@@ -848,7 +888,9 @@ class TestReviewFixes:
 
         read = await service.read(ctx, skill.id, run.id)
         with pytest.raises(ConcurrentChangeError) as returned:
-            await service.return_to_main(ctx, skill.id, run.id, ImprovementDiscard(confirmed=True))
+            await service.return_to_main(
+                ctx, skill.id, run.id, SkillImprovementReturn(confirmed=True)
+            )
         with pytest.raises(ConcurrentChangeError) as taken:
             await service.apply(ctx, skill.id, run.id, SkillImprovementApply(confirmed=True))
 
@@ -868,7 +910,9 @@ class TestReviewFixes:
         with pytest.raises(ConcurrentChangeError):
             await service.apply(ctx, skill.id, run.id, SkillImprovementApply(confirmed=True))
         with pytest.raises(ConcurrentChangeError):
-            await service.return_to_main(ctx, skill.id, run.id, ImprovementDiscard(confirmed=True))
+            await service.return_to_main(
+                ctx, skill.id, run.id, SkillImprovementReturn(confirmed=True)
+            )
 
         await db.refresh(run)
         assert run.status == "ready" and run.outcome is None

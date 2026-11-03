@@ -120,6 +120,7 @@ from app.schemas.skill_improvement import (
     SkillImprovementIterationRead,
     SkillImprovementProblems,
     SkillImprovementRead,
+    SkillImprovementReturn,
     SkillImprovementReturned,
     SkillImprovementStart,
     SkillImprovementTarget,
@@ -933,14 +934,15 @@ class SkillImprovementService:
         )
 
     async def return_to_main(
-        self, ctx: AuthContext, skill_id: UUID, run_id: UUID, data: ImprovementDiscard
+        self, ctx: AuthContext, skill_id: UUID, run_id: UUID, data: SkillImprovementReturn
     ) -> SkillImprovementReturned:
         """Move a caught-up fork's agents back to main, as its check of main alone allowed;
         the session is accepted, and the fork archived once nobody reads it.
 
         Raises:
-            BadRequestError: The session is not a catch-up, or main alone was not checked
-                or made an agent worse.
+            BadRequestError: The session is not a catch-up, main alone was not checked or
+                made an agent worse, or it could not check some agents and that was not
+                acknowledged.
             ConcurrentChangeError: The session has no result to decide on.
         """
         line, run = await self._editable_row(ctx, skill_id, run_id, lock=True)
@@ -962,6 +964,16 @@ class SkillImprovementService:
         alone = await self._main_alone_check(run)
         assert alone is not None, "return to main is offered after main alone was checked"
         await self.checks.decidable_for_session(ctx, run.skill_id, alone.id)
+        measured = await self.checks.read(ctx, run.skill_id, alone.id)
+        unknown = measured.hidden_unknown + sum(
+            1 for agent in measured.agents if agent.state is AgentState.UNKNOWN
+        )
+        if unknown and not data.acknowledge_unknown:
+            raise refused_field(
+                "acknowledge_unknown",
+                "Main alone could not be checked on some agents; acknowledge them to return "
+                "the fork's agents to main",
+            )
         returned = await self.merges.return_to_main(ctx, run.skill_id, run.fork_id, ReturnToMain())
         await self._discard_checks(ctx, run)
         await self._decide(ctx, run, SkillImprovementOutcome.RETURNED_TO_MAIN, None)

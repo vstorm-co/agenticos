@@ -15324,7 +15324,8 @@
         "off": "main allein wurde nicht geprüft, daher wird die Rückkehr der Agents des Forks zu main nicht angeboten.",
         "same": "Die Zusammenführung ist die neueste Version von main, daher wurde sie einmal geprüft.",
         "checked": "main allein wird geprüft."
-      }
+      },
+      "acknowledge": "{count, plural, =1 {Ich weiß, dass main allein an 1 Agent{named, select, yes { ({names})} other {}} nicht geprüft werden konnte, und er kehrt trotzdem zu main zurück.} other {Ich weiß, dass main allein an # Agents{named, select, yes { ({names})} other {}} nicht geprüft werden konnte, und sie kehren trotzdem zu main zurück.}}"
     },
     "mergeStart": {
       "openSession": "Diese Linie hat bereits eine offene Sitzung.",

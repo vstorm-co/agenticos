@@ -72,14 +72,18 @@ export function pickMergeFile(
   return apiClient.patch<SkillMerge>(`${mergeRoot(skillId, sessionId)}/files`, { name, take });
 }
 
-/** Move a catch-up's fork agents back to main; the session is accepted with it. */
+/**
+ * Move a catch-up's fork agents back to main; the session is accepted with it. Agents main
+ * alone could not be checked on go only with `acknowledgeUnknown`.
+ */
 export function returnSkillImprovementToMain(
   skillId: string,
   sessionId: string,
+  acknowledgeUnknown: boolean,
 ): Promise<{ session: SkillImprovement; returned: ReturnedToMain }> {
   return apiClient.post<{ session: SkillImprovement; returned: ReturnedToMain }>(
     `/skills/${skillId}/improvements/${sessionId}/return-to-main`,
-    { confirmed: true },
+    { confirmed: true, acknowledge_unknown: acknowledgeUnknown },
   );
 }
 

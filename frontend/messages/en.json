@@ -15652,7 +15652,8 @@
         "off": "Main alone was not checked, so returning the fork's agents to main is not offered.",
         "same": "The merge is main's newest version, so it was checked once.",
         "checked": "Main alone is being checked."
-      }
+      },
+      "acknowledge": "{count, plural, =1 {I know main alone could not be checked on 1 agent{named, select, yes { ({names})} other {}}, and it returns to main all the same.} other {I know main alone could not be checked on # agents{named, select, yes { ({names})} other {}}, and they return to main all the same.}}"
     },
     "mergeStart": {
       "openSession": "This line already has an open session.",

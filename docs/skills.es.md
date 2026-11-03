@@ -1,5 +1,5 @@
 ---
-source_sha: "44d227134bc4"
+source_sha: "b381f1b58bd5"
 ---
 
 # Skills { #skills }
@@ -482,7 +482,9 @@ una línea propia (`main_alone_usd`). Se omite cuando la combinación ya es la v
 más reciente de main. Aceptar crea una versión del fork (`catch_up`)
 que nombra la versión de main que tomó. Desde entonces el fork se basa en esa versión
 de main, así que ya no va por detrás. Si main sola no empeoró a ningún agent, el
-resultado también ofrece abandonar el fork y devolver sus agents a main.
+resultado también ofrece abandonar el fork y devolver sus agents a main; los agents en
+los que main sola no se pudo comprobar vuelven solo tras confirmarlo
+(`acknowledge_unknown`).
 
 **Llevar un fork a main.** La misma combinación en el otro sentido, por
 `…/forks/{fork_id}/to-main`. La comprobación pregunta a los agents de main con la

@@ -5,6 +5,7 @@ import { useLocale, useTranslations } from "next-intl";
 import { usd } from "@/components/evals/format";
 import { Checkbox, Label } from "@/components/ui";
 import type { ContinuationEstimate } from "@/types/improvement";
+import type { SkillCheck } from "@/types/skill-checks";
 import type { SkillContinuationEstimate, SkillImprovement } from "@/types/skill-improvement";
 import { CheckAgents } from "./check-agents";
 
@@ -53,5 +54,47 @@ export function MainAloneResult({ session }: { session: SkillImprovement }) {
         <p className="text-muted-foreground text-sm">{t(`none.${session.main_alone}`)}</p>
       )}
     </section>
+  );
+}
+
+/** How many agents a check could not measure, the hidden ones included. */
+export function unmeasured(check: SkillCheck | null | undefined): number {
+  if (!check) return 0;
+  return check.agents.filter((row) => row.state === "unknown").length + check.hidden_unknown;
+}
+
+/**
+ * Before returning a fork's agents to main: main alone could not be checked on some of
+ * them, so they go only once a person says they know.
+ */
+export function MainAloneAcknowledge({
+  check,
+  checked,
+  onChange,
+}: {
+  check: SkillCheck;
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+}) {
+  const t = useTranslations("skillImprovement.mainAlone");
+  const locale = useLocale();
+  const names = new Intl.ListFormat(locale, { type: "conjunction" }).format(
+    check.agents.filter((row) => row.state === "unknown").map((row) => row.agent.name),
+  );
+  return (
+    <div className="flex items-start gap-2 rounded-lg border p-3">
+      <Checkbox
+        id="skill-return-unknown"
+        checked={checked}
+        onCheckedChange={(next) => onChange(next === true)}
+      />
+      <Label htmlFor="skill-return-unknown" className="leading-snug font-normal">
+        {t("acknowledge", {
+          count: unmeasured(check),
+          names,
+          named: names === "" ? "no" : "yes",
+        })}
+      </Label>
+    </div>
   );
 }

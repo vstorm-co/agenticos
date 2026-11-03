@@ -350,6 +350,15 @@ class SkillImprovementApply(SkillCheckApply):
     confirmed: Literal[True]
 
 
+class SkillImprovementReturn(BaseSchema):
+    confirmed: Literal[True]
+    acknowledge_unknown: bool = Field(
+        default=False,
+        description="Return the fork's agents although main alone could not be checked on "
+        "some of them",
+    )
+
+
 class SkillImprovementFork(SkillCheckFork):
     confirmed: Literal[True]
 
