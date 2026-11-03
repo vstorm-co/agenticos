@@ -931,12 +931,14 @@ same rule as a collection drop ([#2560](https://github.com/vstorm-co/agenticos/i
 their tenant, and unfiled document rows stay listed under the bases of their tenant
 ([#2537](https://github.com/vstorm-co/agenticos/issues/2537)).
 
-When no other base holds the name, both routes and `rag-drop` delete every document
-row under it, in every organization and unfiled rows included, with their files, and
-the cleanup job drops the table: no row can be read once the table is gone. Before,
-`DELETE /kb/{id}` deleted only the base's own rows here, so unfiled rows kept their
-files and the tenant's next base on the name listed them again
-([#2568](https://github.com/vstorm-co/agenticos/issues/2568)).
+When no other base holds the name, both routes and `rag-drop` delete the same rows,
+with their files, and the cleanup job drops the table: the base's own rows and the
+unfiled rows of its organization. Another organization's unfiled rows under the name
+stay, with their files: the caller has no authority over them, and that
+organization's next base on the name lists them and can re-index them from the files.
+Before, `DELETE /kb/{id}` left the organization's unfiled rows behind the dropped
+table, and the collection drop deleted every row under the name, in every
+organization ([#2568](https://github.com/vstorm-co/agenticos/issues/2568)).
 
 An upload or a sync still indexing a file for the base when it is deleted leaves
 no chunks behind. The write takes a lock on the base's row that conflicts with the

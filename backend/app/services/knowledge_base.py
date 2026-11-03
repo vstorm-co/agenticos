@@ -319,12 +319,14 @@ class KnowledgeBaseService:
         would otherwise go on listing and serving them, and a deleted base would
         hand them to its tenant's next base on the name.
 
-        If no other base holds the name, every row under it goes, in every
-        organization - unfiled ones included, with their files - and so does the
-        table: nothing can read a row once its table is dropped. `delete` used to
-        delete by the base's id here, so unfiled rows outlived the dropped table
-        with their files, to be listed again by the tenant's next base on the
-        name (#2568).
+        If no other base holds the name, the table goes, and the same rows do: the
+        base's own and the unfiled rows of its tenant, with their files. Another
+        tenant's unfiled rows under the name stay with their files - the caller
+        holds no authority over them, and their tenant's next base on the name
+        lists them and can re-index them from those files. The two routes had
+        drifted here: `delete` left the tenant's unfiled rows behind the dropped
+        table, and the collection drop deleted every row under the name, in
+        every organization (#2568).
 
         The stored files, the purge and the drop are a cleanup job queued in this
         transaction (`queue_external_state_cleanup`), not run in the request, so
@@ -364,7 +366,11 @@ class KnowledgeBaseService:
         if others:
             storage_paths, base_purges = await self._delete_documents_from_kept_table(kb, others)
         else:
-            storage_paths = await rag_document_repo.delete_by_collection(self.db, collection)
+            _, unfiled = await self._delete_unfiled_taken(kb, others)
+            storage_paths = (
+                await rag_document_repo.delete_by_knowledge_base(self.db, kb.id)
+                + unfiled.storage_paths
+            )
             collections_to_drop = [collection]
             # Reserve the name against reuse until the deferred drop runs, so a
             # concurrent claim cannot adopt the still-populated table (#1362).
@@ -453,15 +459,7 @@ class KnowledgeBaseService:
         """
         collection = kb.collection_name
         scope = CollectionScope.of(kb)
-        takes_unfiled = scope.takes_unfiled and not any(
-            other.vector_scope.takes_unfiled and other.vector_scope.tenant == scope.tenant
-            for other in others
-        )
-        unfiled = (
-            await rag_document_repo.delete_unfiled_with_vectors(self.db, scope)
-            if takes_unfiled
-            else rag_document_repo.DeletedDocuments(storage_paths=[], vector_document_ids=[])
-        )
+        takes_unfiled, unfiled = await self._delete_unfiled_taken(kb, others)
         base_purges: list[BasePurge] = []
         if kb.is_default:
             stored = await rag_document_repo.stored_vector_ids_at_clear(
@@ -492,6 +490,27 @@ class KnowledgeBaseService:
             for i in range(0, len(named), _PURGE_IDS_PER_ENTRY)
         ]
         return storage_paths, base_purges
+
+    async def _delete_unfiled_taken(
+        self, kb: KnowledgeBase, others: list[KnowledgeBase]
+    ) -> tuple[bool, rag_document_repo.DeletedDocuments]:
+        """Delete the unfiled rows `kb` takes under its name, unless another base does.
+
+        A base takes its tenant's unfiled rows (`VectorScope.takes_unfiled`). When
+        another base of that tenant on the name takes them too, they stay for it.
+        Returns whether the rows were taken, and what the deleted rows leave
+        behind outside the database.
+        """
+        scope = CollectionScope.of(kb)
+        takes_unfiled = scope.takes_unfiled and not any(
+            other.vector_scope.takes_unfiled and other.vector_scope.tenant == scope.tenant
+            for other in others
+        )
+        if not takes_unfiled:
+            return False, rag_document_repo.DeletedDocuments(
+                storage_paths=[], vector_document_ids=[]
+            )
+        return True, await rag_document_repo.delete_unfiled_with_vectors(self.db, scope)
 
     async def get(self, kb_id: UUID, *, ctx: AuthContext) -> KnowledgeBase:
         """The knowledge base, or "not found" - for absent and out-of-reach alike."""

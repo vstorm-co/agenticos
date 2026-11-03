@@ -1283,17 +1283,17 @@ class TestADeletedBasesChunksOnAKeptTable:
 
     @pytest.mark.security
     @_TEARDOWN_ROUTES
-    async def test_the_last_holder_takes_every_document_row_under_the_name(
+    async def test_the_last_holder_takes_its_own_and_its_tenants_unfiled_rows_only(
         self, engine: AsyncEngine, route: str
     ) -> None:
-        """With no other base on the name the table is dropped, so every document
-        row under it goes with its file, in every organization: the base's own,
-        its tenant's unfiled rows, another tenant's left by an earlier delete and
-        the tenant-less ones `rag-ingest` writes. None can be read once the table
-        is gone. `DELETE /kb/{id}` deleted by the base's id only, so unfiled rows
-        outlived the dropped table with their files, to be listed again by the
-        tenant's next base on the name; the collection drop already took them
-        (#2568)."""
+        """With no other base on the name the table is dropped, and both routes
+        delete the same rows with their files: the base's own and its tenant's
+        unfiled ones. Another organization's unfiled rows and the tenant-less ones
+        `rag-ingest` writes stay with their files - the caller has no authority
+        over them, and their owner's next base on the name lists them and can
+        re-index them from those files. `DELETE /kb/{id}` left the tenant's
+        unfiled rows behind the dropped table, and the collection drop deleted
+        every row under the name, in every organization (#2568)."""
         factory = async_sessionmaker(engine, expire_on_commit=False)
         collection = f"kblast{uuid.uuid4().hex[:12]}"
         table = f"rag_{collection}"
@@ -1322,7 +1322,8 @@ class TestADeletedBasesChunksOnAKeptTable:
             await s.commit()
             ctx = AuthContext(user_id=owner.id, organization_id=org.id, role=OrgRoleName.OWNER)
             doomed_id = doomed.id
-            document_ids = [document.id for document in documents]
+            taken = [document.id for document in documents[:2]]
+            spared = [document.id for document in documents[2:]]
 
         try:
             async with factory() as s:
@@ -1333,13 +1334,17 @@ class TestADeletedBasesChunksOnAKeptTable:
 
             async with factory() as s:
                 assert await s.get(KnowledgeBase, doomed_id) is None
-                for document_id in document_ids:
+                for document_id in taken:
                     assert await s.get(RAGDocument, document_id) is None
+                for document_id in spared:
+                    assert await s.get(RAGDocument, document_id) is not None
                 assert (
                     await s.execute(text("SELECT to_regclass(:t)"), {"t": table})
                 ).scalar() is None
-            for stored in files:
+            for stored in files[:2]:
                 assert not await storage.exists(stored)
+            for stored in files[2:]:
+                assert await storage.exists(stored)
         finally:
             for stored in files:
                 await storage.delete(stored)
