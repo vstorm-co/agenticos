@@ -15,6 +15,7 @@ from app.api.deps import (
     ApprovalSvc,
     Auth,
     ConversationSvc,
+    ParkedRunSvc,
     RunExportSvc,
     require,
 )
@@ -436,15 +437,26 @@ async def get_parked_calls(run_id: UUID, service: AgentRunnerSvc, ctx: Auth) -> 
     response_model=AgentRunResult,
     dependencies=[Depends(require(Perm.APPROVALS_DECIDE))],
 )
-async def resume_run(run_id: UUID, service: AgentRunnerSvc, ctx: Auth) -> Any:
+async def resume_run(run_id: UUID, service: AgentRunnerSvc, parked: ParkedRunSvc, ctx: Auth) -> Any:
     """Continue a run whose parked tool calls have all been decided.
 
     Separate from deciding on purpose: a decision is a click and should return
     at once, while continuing the run means executing an agent. Deciding the
     last outstanding call is what makes this call possible, not what performs
     it.
+
+    A run asked in a chat is the exception. When a person decides its last
+    pending call, the server continues it as them and posts the answer to the
+    chat (`continues_in_chat` on the decision's response); do not call this
+    route for it. A call that arrives after the server's continuation gets the
+    400 "This run is not waiting for approval", with the run's `status`. A key's
+    decision continues nothing, and a person-started run is still not resumed
+    with a key.
     """
-    return await run_result(service, ctx, await service.resume(ctx, run_id))
+    continued = await parked.resume(ctx, run_id)
+    return await run_result(
+        service, ctx, continued.segment, continues_in_chat=continued.continues_in_chat
+    )
 
 
 @router.get("/runs/{run_id}/can-stop", response_model=bool, openapi_extra=INTERNAL)
@@ -479,14 +491,19 @@ async def get_parked_questions(run_id: UUID, service: AgentRunnerSvc, ctx: Auth)
 
 @router.post("/runs/{run_id}/answers", response_model=AgentRunResult)
 async def answer_run(
-    run_id: UUID, data: QuestionAnswers, service: AgentRunnerSvc, ctx: Auth
+    run_id: UUID, data: QuestionAnswers, service: AgentRunnerSvc, parked: ParkedRunSvc, ctx: Auth
 ) -> Any:
     """Answer the questions a run parked on, and continue it (#2064).
 
     Only the person the run asked may answer. The continuation runs here, like a
-    resume, and its answer comes back in the response.
+    resume, and its answer comes back in the response. On a run asked in a chat the
+    answer is also posted to that chat (`continues_in_chat`), unless the room no
+    longer admits the asker or the chat has started over.
     """
-    return await run_result(service, ctx, await service.answer(ctx, run_id, data.responses))
+    continued = await parked.answer(ctx, run_id, data.responses)
+    return await run_result(
+        service, ctx, continued.segment, continues_in_chat=continued.continues_in_chat
+    )
 
 
 @router.get(
@@ -574,10 +591,20 @@ async def export_approvals(
     dependencies=[Depends(require(Perm.APPROVALS_DECIDE))],
 )
 async def decide_approval(
-    approval_id: UUID, data: ApprovalDecision, service: ApprovalSvc, ctx: Auth
+    approval_id: UUID, data: ApprovalDecision, service: ParkedRunSvc, ctx: Auth
 ) -> Any:
-    """Approve or reject a parked tool call. A decision cannot be revisited."""
-    return await service.decide(ctx, approval_id, approved=data.approved, note=data.note)
+    """Approve or reject a parked tool call. A decision cannot be revisited.
+
+    On a run asked in a chat, a person's decision on its last pending call makes
+    the server continue the run as them and post the answer to the chat. A decision
+    on an earlier call leaves the run waiting. The response says `continues_in_chat`
+    for every person's decision on such a run, and a client must not resume the
+    run itself then. A key's decision continues nothing.
+    """
+    decided = await service.decide(ctx, approval_id, approved=data.approved, note=data.note)
+    return ApprovalRead.model_validate(decided.approval).model_copy(
+        update={"continues_in_chat": decided.continues_in_chat}
+    )
 
 
 @router.get("/spend", response_model=CostSummary, dependencies=[Depends(require(Perm.RUNS_VIEW))])

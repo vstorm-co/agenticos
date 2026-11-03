@@ -72,6 +72,8 @@ PLATFORM_MODULES = (
     "app/services/impersonation.py",
     "app/services/channels/mentions.py",
     "app/services/channels/handback.py",
+    "app/services/channels/continuation.py",
+    "app/services/parked_runs.py",
     "app/services/collection_access.py",
     "app/services/embed_session.py",
     "app/services/embedding_resolution.py",
