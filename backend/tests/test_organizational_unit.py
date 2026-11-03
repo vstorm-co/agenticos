@@ -246,7 +246,7 @@ async def _connector_sync(
         patch.object(rag_tasks, "SyncSourceService", return_value=sources),
         patch.object(
             rag_tasks,
-            "_knowledge_base_for",
+            "_source_knowledge_base",
             new=AsyncMock(
                 return_value=MagicMock(
                     id=uuid.uuid4(),

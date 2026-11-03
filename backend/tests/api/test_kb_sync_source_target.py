@@ -1,11 +1,13 @@
-"""A sync source is added only to the knowledge base its sync writes into (#2537).
+"""A sync source records the knowledge base it is added to (#2551).
 
-A source records an organization and a collection name, not a base, so its sync
-writes into the base the name resolves to. Since bases of one organization no
-longer share their chunks, a source added to another same-named base would sync
-into the resolved one and not be listed where it was added. These pin that the
-knowledge-base routes ask `CollectionAccessService.new_source_feeds` before any
-row is written; the rule itself is unit-tested in `tests/test_collection_access.py`.
+A source used to record an organization and a collection name only, so its sync
+wrote into whichever base the name resolved to, and adding one to a base that
+was not the organization's oldest of the name was refused with 400. Now the
+knowledge-base routes hand the base in the path to the service, which records
+it, and the routes naming a collection hand over the base
+`CollectionAccessService.source_target` resolved and authorized. The recording
+itself is unit-tested in `tests/test_sync_source_audit.py`, and end to end in
+`tests/integration/test_sync_source_base.py`.
 """
 
 import uuid
@@ -18,13 +20,33 @@ from httpx import ASGITransport, AsyncClient
 
 from app.api import deps
 from app.core.config import settings
-from app.core.exceptions import BadRequestError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.main import app
+from app.schemas.sync_source import SyncSourceRead
 
 pytestmark = [pytest.mark.anyio, pytest.mark.security]
 
 _KB_ID = uuid.uuid4()
+
+
+def _read() -> SyncSourceRead:
+    return SyncSourceRead(
+        id=str(uuid.uuid4()),
+        organization_id=str(uuid.uuid4()),
+        name="Docs",
+        connector_type="gdrive",
+        collection_name="handbook",
+        knowledge_base_id=str(_KB_ID),
+        config={},
+        secret_id=None,
+        sync_mode="new_only",
+        schedule_minutes=None,
+        is_active=True,
+        last_sync_at=None,
+        last_sync_status=None,
+        last_error=None,
+        created_at=None,
+    )
 
 
 @pytest.fixture
@@ -32,16 +54,18 @@ def wired(mock_db_session: Any, mock_redis: MagicMock) -> Iterator[dict[str, Mag
     user = MagicMock()
     user.id = uuid.uuid4()
     context = AuthContext(user_id=user.id, organization_id=uuid.uuid4(), role=OrgRoleName.OWNER)
-    kb_service = MagicMock(
-        get_for_write=AsyncMock(return_value=MagicMock(id=_KB_ID, collection_name="handbook"))
-    )
+    kb = MagicMock(id=_KB_ID, collection_name="handbook")
+    kb_service = MagicMock(get_for_write=AsyncMock(return_value=kb))
+    target = MagicMock(id=uuid.uuid4(), collection_name="handbook")
     access = MagicMock(
-        new_source_feeds=AsyncMock(
-            side_effect=BadRequestError(message="elsewhere", details={"kb_id": str(_KB_ID)})
-        ),
         sync_source=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
+        source_target=AsyncMock(return_value=target),
     )
-    sources = MagicMock(create_source=AsyncMock(), clone_source=AsyncMock())
+    sources = MagicMock(
+        create_source=AsyncMock(return_value=_read()),
+        clone_source=AsyncMock(return_value=_read()),
+        update_source=AsyncMock(return_value=_read()),
+    )
     app.dependency_overrides[deps.get_db_session] = lambda: mock_db_session
     app.dependency_overrides[deps.get_redis] = lambda: mock_redis
     app.dependency_overrides[deps.get_current_user] = lambda: user
@@ -49,27 +73,93 @@ def wired(mock_db_session: Any, mock_redis: MagicMock) -> Iterator[dict[str, Mag
     app.dependency_overrides[deps.get_knowledge_base_service] = lambda: kb_service
     app.dependency_overrides[deps.get_collection_access_service] = lambda: access
     app.dependency_overrides[deps.get_sync_source_service] = lambda: sources
-    yield {"access": access, "sources": sources}
+    yield {"access": access, "sources": sources, "kb": kb, "target": target}
     app.dependency_overrides.clear()
 
 
-async def test_adding_a_source_to_a_base_it_would_not_feed_is_refused(wired) -> None:
+async def _post(path: str, body: dict[str, object]) -> int:
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-        response = await client.post(
-            f"{settings.API_V1_STR}/kb/{_KB_ID}/sync-sources",
-            json={"name": "Docs", "connector_type": "gdrive", "config": {"folder_id": "abc"}},
+        response = await client.post(f"{settings.API_V1_STR}{path}", json=body)
+    return response.status_code
+
+
+async def test_a_source_added_to_a_base_records_that_base(wired) -> None:
+    status = await _post(
+        f"/kb/{_KB_ID}/sync-sources",
+        {"name": "Docs", "connector_type": "gdrive", "config": {"folder_id": "abc"}},
+    )
+
+    assert status == 201
+    call = wired["sources"].create_source.await_args
+    assert call.kwargs["knowledge_base"] is wired["kb"]
+    assert call.args[0].collection_name == "handbook"
+
+
+async def test_a_source_cloned_into_a_base_records_that_base(wired) -> None:
+    status = await _post(
+        f"/kb/{_KB_ID}/sync-sources/{uuid.uuid4()}/clone",
+        {"collection_name": "handbook", "name": "Docs copy"},
+    )
+
+    assert status == 201
+    assert wired["sources"].clone_source.await_args.kwargs["knowledge_base"] is wired["kb"]
+
+
+async def test_a_source_patched_from_a_base_keeps_that_base(wired) -> None:
+    wired["access"].kb_sync_source = AsyncMock()
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.patch(
+            f"{settings.API_V1_STR}/kb/{_KB_ID}/sync-sources/{uuid.uuid4()}",
+            json={"collection_name": "handbook"},
         )
 
-    assert response.status_code == 400
-    wired["sources"].create_source.assert_not_awaited()
+    assert response.status_code == 200
+    assert wired["sources"].update_source.await_args.kwargs["knowledge_base"] is wired["kb"]
 
 
-async def test_cloning_a_source_into_a_base_it_would_not_feed_is_refused(wired) -> None:
+@pytest.mark.parametrize(
+    ("path", "body", "method"),
+    [
+        (
+            "/rag/sync/sources",
+            {"name": "D", "connector_type": "gdrive", "collection_name": "handbook", "config": {}},
+            "create_source",
+        ),
+        (
+            "/org/integrations",
+            {"name": "D", "connector_type": "gdrive", "collection_name": "handbook", "config": {}},
+            "create_source",
+        ),
+        (
+            f"/rag/sync/sources/{uuid.uuid4()}/clone",
+            {"collection_name": "handbook"},
+            "clone_source",
+        ),
+    ],
+)
+async def test_a_source_pointed_at_a_name_records_the_base_it_was_authorized_for(
+    wired, path: str, body: dict[str, object], method: str
+) -> None:
+    status = await _post(path, body)
+
+    assert status == 201
+    wired["access"].source_target.assert_awaited_once()
+    assert getattr(wired["sources"], method).await_args.kwargs["knowledge_base"] is wired["target"]
+
+
+@pytest.mark.parametrize(
+    ("body", "resolved"),
+    [({"collection_name": "handbook"}, True), ({"collection_name": None}, False)],
+    ids=["repointed", "detached"],
+)
+async def test_a_patch_by_name_records_the_resolved_base_or_none(
+    wired, body: dict[str, object], resolved: bool
+) -> None:
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-        response = await client.post(
-            f"{settings.API_V1_STR}/kb/{_KB_ID}/sync-sources/{uuid.uuid4()}/clone",
-            json={"collection_name": "handbook", "name": "Docs copy"},
+        response = await client.patch(
+            f"{settings.API_V1_STR}/rag/sync/sources/{uuid.uuid4()}", json=body
         )
 
-    assert response.status_code == 400
-    wired["sources"].clone_source.assert_not_awaited()
+    assert response.status_code == 200
+    expected = wired["target"] if resolved else None
+    assert wired["sources"].update_source.await_args.kwargs["knowledge_base"] is expected

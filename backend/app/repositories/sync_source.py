@@ -22,15 +22,18 @@ async def get_all(
     *,
     organization_id: UUID | None = None,
     collection_name: str | None = None,
+    knowledge_base_id: UUID | None = None,
     is_active: bool | None = None,
     for_update: bool = False,
 ) -> list[SyncSource]:
-    """List sync sources with optional org, collection, and active filters."""
+    """List sync sources with optional org, collection, base and active filters."""
     query = select(SyncSource)
     if organization_id is not None:
         query = query.where(SyncSource.organization_id == organization_id)
     if collection_name is not None:
         query = query.where(SyncSource.collection_name == collection_name)
+    if knowledge_base_id is not None:
+        query = query.where(SyncSource.knowledge_base_id == knowledge_base_id)
     if is_active is not None:
         query = query.where(SyncSource.is_active == is_active)
     query = query.order_by(SyncSource.created_at.desc())
@@ -40,17 +43,19 @@ async def get_all(
     return list(result.scalars().all())
 
 
-async def list_for_collections(db: AsyncSession, collection_names: list[str]) -> list[SyncSource]:
-    """Every organization's sync sources writing into any of these collections.
+async def list_for_knowledge_bases(
+    db: AsyncSession, knowledge_base_ids: list[UUID]
+) -> list[SyncSource]:
+    """Every organization's sync sources syncing into any of these knowledge bases.
 
-    Unfiltered by organization on purpose: the caller decides which of them
-    feed a base it may read (`CollectionAccessService`), by the base each
-    source's sync resolves to.
+    Unfiltered by organization on purpose: the caller has already decided which
+    bases it may read (`CollectionAccessService`), and a source is that base's
+    by the id it records (#2551).
     """
-    if not collection_names:
+    if not knowledge_base_ids:
         return []
     result = await db.execute(
-        select(SyncSource).where(SyncSource.collection_name.in_(collection_names))
+        select(SyncSource).where(SyncSource.knowledge_base_id.in_(knowledge_base_ids))
     )
     return list(result.scalars().all())
 
@@ -62,6 +67,7 @@ async def get_due_for_sync(db: AsyncSession) -> list[SyncSource]:
         SyncSource.is_active == True,  # noqa: E712
         SyncSource.schedule_minutes.isnot(None),
         SyncSource.collection_name.isnot(None),
+        SyncSource.knowledge_base_id.isnot(None),
     )
     result = await db.execute(query)
     sources = list(result.scalars().all())
@@ -94,6 +100,7 @@ async def any_due_for_sync(db: AsyncSession) -> bool:
             SyncSource.is_active == True,  # noqa: E712
             SyncSource.schedule_minutes.isnot(None),
             SyncSource.collection_name.isnot(None),
+            SyncSource.knowledge_base_id.isnot(None),
             due,
         )
         .exists()
@@ -109,6 +116,7 @@ async def create(
     config: dict[str, object],
     organization_id: UUID,
     collection_name: str | None = None,
+    knowledge_base_id: UUID | None = None,
     secret_id: UUID | None = None,
     organizational_unit: str | None = None,
     sync_mode: str = "new_only",
@@ -120,6 +128,7 @@ async def create(
         connector_type=connector_type,
         organization_id=organization_id,
         collection_name=collection_name,
+        knowledge_base_id=knowledge_base_id,
         config=config,
         secret_id=secret_id,
         organizational_unit=organizational_unit,

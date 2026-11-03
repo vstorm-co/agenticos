@@ -78,14 +78,24 @@ def _kb(
     )
 
 
-def _source(*, organization_id: uuid.UUID, collection_name: str = "handbook") -> SyncSource:
+def _source(
+    *,
+    organization_id: uuid.UUID,
+    knowledge_base: KnowledgeBase | None = None,
+    collection_name: str = "handbook",
+) -> SyncSource:
+    """A source recording `knowledge_base` - the base it was created on (#2551)."""
     return SyncSource(
         id=uuid.uuid4(),
         organization_id=organization_id,
         name="Drive",
         connector_type="gdrive",
-        collection_name=collection_name,
+        collection_name=collection_name
+        if knowledge_base is None
+        else knowledge_base.collection_name,
+        knowledge_base_id=None if knowledge_base is None else knowledge_base.id,
         config={},
+        is_active=True,
     )
 
 
@@ -188,17 +198,30 @@ def service(rows: Rows, monkeypatch: pytest.MonkeyPatch) -> CollectionAccessServ
         return by_name
 
     async def sources_by(
-        _db: object, *, organization_id: uuid.UUID | None, collection_name: str
+        _db: object,
+        *,
+        organization_id: uuid.UUID | None = None,
+        knowledge_base_id: uuid.UUID,
+        for_update: bool = False,
     ) -> list[SyncSource]:
+        del for_update
         return [
             source
             for source in rows.sources
-            if source.collection_name == collection_name
+            if source.knowledge_base_id == knowledge_base_id
             and (organization_id is None or source.organization_id == organization_id)
         ]
 
-    async def list_for_collections(_db: object, collection_names: list[str]) -> list[SyncSource]:
-        return [source for source in rows.sources if source.collection_name in collection_names]
+    async def list_for_knowledge_bases(
+        _db: object, knowledge_base_ids: list[uuid.UUID]
+    ) -> list[SyncSource]:
+        return [source for source in rows.sources if source.knowledge_base_id in knowledge_base_ids]
+
+    async def update_source(_db: object, source_id: uuid.UUID, **updates: object) -> SyncSource:
+        source = next(row for row in rows.sources if row.id == source_id)
+        for key, value in updates.items():
+            setattr(source, key, value)
+        return source
 
     async def is_in_collection_scope(
         _db: object, doc_id: uuid.UUID, *, scope: CollectionScope
@@ -216,7 +239,8 @@ def service(rows: Rows, monkeypatch: pytest.MonkeyPatch) -> CollectionAccessServ
     monkeypatch.setattr(knowledge_base_repo, "list_by_collection_name", list_by_collection_name)
     monkeypatch.setattr(knowledge_base_repo, "list_by_collection_names", list_by_collection_names)
     monkeypatch.setattr(sync_source_repo, "get_all", sources_by)
-    monkeypatch.setattr(sync_source_repo, "list_for_collections", list_for_collections)
+    monkeypatch.setattr(sync_source_repo, "list_for_knowledge_bases", list_for_knowledge_bases)
+    monkeypatch.setattr(sync_source_repo, "update", update_source)
     monkeypatch.setattr(knowledge_base_repo, "get_accessible", get_accessible)
     monkeypatch.setattr(rag_document_repo, "is_in_collection_scope", is_in_collection_scope)
     monkeypatch.setattr(rag_document_repo, "get_by_id", by_id("documents"))
@@ -415,8 +439,8 @@ class TestResolvingACollectionName:
         app_kb = _kb("handbook", scope=KBScope.APP, organization_id=None)
         private = _kb("handbook", owner_user_id=STRANGER)
         rows.collections = [app_kb, private]
-        ours = _source(organization_id=HOME_ORG)
-        apps = _source(organization_id=OTHER_ORG)
+        ours = _source(organization_id=HOME_ORG, knowledge_base=private)
+        apps = _source(organization_id=OTHER_ORG, knowledge_base=app_kb)
         rows.sources = [ours, apps]
         member = _ctx(role=OrgRoleName.MEMBER.value)
 
@@ -727,29 +751,33 @@ class TestResolvingASyncSource:
 
 
 class TestResolvingASyncSourceInAKnowledgeBase:
-    """`kb_sync_source`: a source feeds the base its sync writes under."""
-
-    def _source(
-        self, *, organization_id: uuid.UUID, collection_name: str = "handbook"
-    ) -> SyncSource:
-        return SyncSource(
-            id=uuid.uuid4(),
-            organization_id=organization_id,
-            name="Drive",
-            connector_type="gdrive",
-            collection_name=collection_name,
-            config={},
-        )
+    """`kb_sync_source`: a source feeds the base it records (#2551)."""
 
     async def test_a_source_feeding_the_base_is_returned(
         self, service: CollectionAccessService, rows: Rows
     ) -> None:
         kb = _kb("handbook")
-        source = self._source(organization_id=HOME_ORG)
+        source = _source(organization_id=HOME_ORG, knowledge_base=kb)
         rows.collections = [kb]
         rows.sources = [source]
 
         assert (await service.kb_sync_source(kb, str(source.id))).id == source.id
+
+    @pytest.mark.security
+    async def test_an_org_base_newer_than_a_same_named_personal_base_keeps_its_source(
+        self, service: CollectionAccessService, rows: Rows
+    ) -> None:
+        """#2551: resolved by name, the organization's sources went to the member's
+        older personal base, which listed and ran them while the org base lost them."""
+        personal = _kb("handbook", scope=KBScope.PERSONAL, owner_user_id=CALLER)
+        org_kb = _kb("handbook")
+        rows.collections = [personal, org_kb]
+        source = _source(organization_id=HOME_ORG, knowledge_base=org_kb)
+        rows.sources = [source]
+
+        assert (await service.kb_sync_source(org_kb, str(source.id))).id == source.id
+        with pytest.raises(NotFoundError):
+            await service.kb_sync_source(personal, str(source.id))
 
     @pytest.mark.security
     async def test_an_app_base_reaches_no_source_of_a_tenant_with_its_own_base(
@@ -759,8 +787,8 @@ class TestResolvingASyncSourceInAKnowledgeBase:
         reached every organization's source by its name."""
         app_kb = _kb("handbook", scope=KBScope.APP, organization_id=None)
         theirs = _kb("handbook", organization_id=OTHER_ORG)
-        tenants = self._source(organization_id=OTHER_ORG)
-        apps = self._source(organization_id=HOME_ORG)
+        tenants = _source(organization_id=OTHER_ORG, knowledge_base=theirs)
+        apps = _source(organization_id=HOME_ORG, knowledge_base=app_kb)
         rows.collections = [app_kb, theirs]
         rows.sources = [tenants, apps]
 
@@ -774,31 +802,30 @@ class TestResolvingASyncSourceInAKnowledgeBase:
         assert (await service.kb_sync_source(app_kb, str(apps.id))).id == apps.id
 
     @pytest.mark.security
-    async def test_a_base_with_no_tenant_reaches_only_the_sources_that_resolve_to_it(
+    async def test_a_source_with_no_base_feeds_none_of_the_bases_holding_its_name(
         self, service: CollectionAccessService, rows: Rows
     ) -> None:
-        """An app base and a personal base outside any organization share no tenant,
-        so a source belongs to the one its sync writes into. For an organization
-        with no base of its own that is the app base - never the older personal
-        base, which has no organization either but is one person's (#2537)."""
-        mine = _kb("handbook", scope=KBScope.PERSONAL, organization_id=None, owner_user_id=CALLER)
+        """A source detached from a deleted base, or one the upgrade could not
+        attribute, keeps its name - and no base of that name inherits it (#2551)."""
+        kb = _kb("handbook")
         app_kb = _kb("handbook", scope=KBScope.APP, organization_id=None)
-        source = self._source(organization_id=OTHER_ORG)
-        rows.collections = [mine, app_kb]
-        rows.sources = [source]
+        orphan = _source(organization_id=HOME_ORG)
+        rows.collections = [kb, app_kb]
+        rows.sources = [orphan]
 
-        with pytest.raises(NotFoundError):
-            await service.kb_sync_source(mine, str(source.id))
-        assert (await service.kb_sync_source(app_kb, str(source.id))).id == source.id
+        for base in (kb, app_kb):
+            with pytest.raises(NotFoundError):
+                await service.kb_sync_source(base, str(orphan.id))
 
     @pytest.mark.security
-    async def test_a_source_of_another_collection_or_organization_is_refused(
+    async def test_a_source_of_another_base_is_refused(
         self, service: CollectionAccessService, rows: Rows
     ) -> None:
-        kb = _kb("handbook")
-        elsewhere = self._source(organization_id=HOME_ORG, collection_name="manuals")
-        foreign = self._source(organization_id=OTHER_ORG)
-        rows.collections = [kb]
+        kb, manuals = _kb("handbook"), _kb("manuals")
+        theirs = _kb("handbook", organization_id=OTHER_ORG)
+        elsewhere = _source(organization_id=HOME_ORG, knowledge_base=manuals)
+        foreign = _source(organization_id=OTHER_ORG, knowledge_base=theirs)
+        rows.collections = [kb, manuals, theirs]
         rows.sources = [elsewhere, foreign]
 
         for source in (elsewhere, foreign):
@@ -845,32 +872,33 @@ class TestPointingASyncSourceAtACollectionByName:
             await service.source_target(_ctx(), "handbook")
 
 
-class TestAddingASyncSourceToAKnowledgeBase:
-    """`new_source_feeds`: a source names a collection, not a base, so it may only
-    be added to the base its sync writes into (#2537)."""
-
-    async def test_the_base_its_sync_writes_into_takes_it(
-        self, service: CollectionAccessService, rows: Rows
-    ) -> None:
-        kb = _kb("handbook")
-        rows.collections = [kb]
-
-        await service.new_source_feeds(_ctx(), kb)
+class TestDetachingADeletedBasesSources:
+    """`detach_sources_targeting`: exactly the base's own sources, whoever else
+    holds the name (#2551)."""
 
     @pytest.mark.security
-    async def test_a_newer_same_named_base_is_refused(
+    async def test_only_the_bases_own_sources_are_detached_and_deactivated(
         self, service: CollectionAccessService, rows: Rows
     ) -> None:
-        """Bases of one organization no longer share rows, so a source added to
-        the newer base would sync into the older one and not be listed here."""
-        older = _kb("handbook")
-        mine = _kb("handbook", scope=KBScope.PERSONAL, owner_user_id=CALLER)
-        rows.collections = [older, mine]
+        deleted = _kb("handbook")
+        sibling = _kb("handbook")
+        app_kb = _kb("handbook", scope=KBScope.APP, organization_id=None)
+        theirs = _kb("handbook", organization_id=OTHER_ORG)
+        rows.collections = [deleted, sibling, app_kb, theirs]
+        own = _source(organization_id=HOME_ORG, knowledge_base=deleted)
+        others = [
+            _source(organization_id=HOME_ORG, knowledge_base=sibling),
+            _source(organization_id=OTHER_ORG, knowledge_base=app_kb),
+            _source(organization_id=OTHER_ORG, knowledge_base=theirs),
+        ]
+        rows.sources = [own, *others]
 
-        with pytest.raises(BadRequestError) as refusal:
-            await service.new_source_feeds(_ctx(), mine)
+        await service.detach_sources_targeting(deleted)
 
-        assert refusal.value.details == {"kb_id": str(mine.id), "collection": "handbook"}
+        assert (own.collection_name, own.knowledge_base_id, own.is_active) == (None, None, False)
+        for source in others:
+            assert source.collection_name == "handbook" and source.is_active
+            assert source.knowledge_base_id is not None
 
 
 class TestListingAKnowledgeBasesSyncSources:
@@ -884,21 +912,35 @@ class TestListingAKnowledgeBasesSyncSources:
         reads only the app base saw the private base's sources."""
         app_kb = _kb("handbook", scope=KBScope.APP, organization_id=None)
         private = _kb("handbook", owner_user_id=STRANGER)
-        ours = _source(organization_id=HOME_ORG)
+        ours = _source(organization_id=HOME_ORG, knowledge_base=private)
         rows.collections = [app_kb, private]
-        rows.sources = [ours, _source(organization_id=OTHER_ORG)]
+        rows.sources = [ours, _source(organization_id=OTHER_ORG, knowledge_base=private)]
 
         assert await service.kb_sync_sources(_ctx(), app_kb) == []
         assert await service.kb_sync_sources(_ctx(), private) == [ours]
 
+    @pytest.mark.security
+    async def test_an_org_base_newer_than_a_personal_base_lists_its_own_sources(
+        self, service: CollectionAccessService, rows: Rows
+    ) -> None:
+        """#2551: the older personal base of the name took the org base's sources."""
+        personal = _kb("handbook", scope=KBScope.PERSONAL, owner_user_id=CALLER)
+        org_kb = _kb("handbook")
+        source = _source(organization_id=HOME_ORG, knowledge_base=org_kb)
+        rows.collections = [personal, org_kb]
+        rows.sources = [source]
+
+        assert await service.kb_sync_sources(_ctx(), org_kb) == [source]
+        assert await service.kb_sync_sources(_ctx(), personal) == []
+
     async def test_a_caller_with_no_organization_still_gets_only_the_bases_own(
         self, service: CollectionAccessService, rows: Rows
     ) -> None:
-        """No organization filters nothing in the query; the rule still does."""
+        """No organization filters nothing in the query; the base still does."""
         mine = _kb("handbook", scope=KBScope.PERSONAL, organization_id=None, owner_user_id=CALLER)
         theirs = _kb("handbook", organization_id=OTHER_ORG)
         rows.collections = [mine, theirs]
-        rows.sources = [_source(organization_id=OTHER_ORG)]
+        rows.sources = [_source(organization_id=OTHER_ORG, knowledge_base=theirs)]
         ctx = AuthContext(user_id=CALLER, organization_id=None, role=None)
 
         assert await service.kb_sync_sources(ctx, mine) == []
@@ -952,7 +994,8 @@ class TestResolvingASyncRun:
         mine = _kb("handbook")
         app_kb = _kb("handbook", scope=KBScope.APP, organization_id=None)
         rows.collections = [app_kb, mine]
-        ours, apps = _source(organization_id=HOME_ORG), _source(organization_id=OTHER_ORG)
+        ours = _source(organization_id=HOME_ORG, knowledge_base=mine)
+        apps = _source(organization_id=OTHER_ORG, knowledge_base=app_kb)
         rows.sources = [ours, apps]
         our_run, app_run = self._log("handbook"), self._log("handbook")
         our_run.sync_source_id, app_run.sync_source_id = ours.id, apps.id

@@ -642,6 +642,13 @@ def rag_sources() -> None:
 @click.option("--org", "org_id", required=True, help="Organization id that owns the collection")
 @click.option("--collection", required=True, help="Target collection name")
 @click.option(
+    "--knowledge-base",
+    "knowledge_base_id",
+    type=click.UUID,
+    default=None,
+    help="The knowledge base to sync into, when several of the organization's hold the name",
+)
+@click.option(
     "--secret-id",
     "secret_id",
     help="Vault secret the connector authenticates with. Required unless the connector needs none.",
@@ -665,6 +672,7 @@ def rag_source_add(
     connector_type: str,
     org_id: str,
     collection: str,
+    knowledge_base_id: UUID | None,
     secret_id: str | None,
     config_json: str,
     sync_mode: str,
@@ -681,6 +689,11 @@ def rag_source_add(
     `CollectionAccessService.writable` before creating anything. This command
     had no ctx and so asked neither question: it wrote whatever name it was
     given, into a row with no organization at all (#707).
+
+    The source records the organization base it was added to and syncs into
+    that one - not whichever base the name resolves to later, which could be a
+    member's older personal base of the same name (#2551). When several of the
+    organization's bases hold the name, `--knowledge-base` names one.
 
     `--secret-id` names the vault credential the connector authenticates with -
     a `gcp_service_account` for Drive, an `aws_credentials` pair for S3. It is not
@@ -750,12 +763,22 @@ def rag_source_add(
                 for kb in candidates
                 if kb.organization_id == organization_id and kb.scope == KBScope.ORG.value
             ]
+            if knowledge_base_id is not None:
+                owned = [kb for kb in owned if kb.id == knowledge_base_id]
             if not owned:
                 error(
-                    f"No organization-scoped collection '{collection}' in {organization.name}. "
-                    "A sync writes into the collection it names, so it has to exist first - "
-                    "and a personal collection is its owner's to point a source at, not the "
-                    "organization's."
+                    f"No organization-scoped collection '{collection}' in {organization.name}"
+                    + ("" if knowledge_base_id is None else f" with id {knowledge_base_id}")
+                    + ". A sync writes into the collection it names, so it has to exist "
+                    "first - and a personal collection is its owner's to point a source at, "
+                    "not the organization's."
+                )
+                return False
+            if len(owned) > 1:
+                error(
+                    f"Several knowledge bases of {organization.name} hold '{collection}': "
+                    + ", ".join(str(kb.id) for kb in owned)
+                    + ". Name one with --knowledge-base."
                 )
                 return False
 
@@ -766,7 +789,9 @@ def rag_source_add(
                 # vault's per-member visibility is about members of an
                 # organization, not about whoever hosts it. The tenant check still
                 # applies.
-                source = await svc.create_source(data, ctx=AuthContext.anonymous(organization_id))
+                source = await svc.create_source(
+                    data, ctx=AuthContext.anonymous(organization_id), knowledge_base=owned[0]
+                )
             except (ValueError, AppException) as e:
                 error(f"Failed to create source: {e}")
                 return False

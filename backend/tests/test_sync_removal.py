@@ -26,9 +26,18 @@ from app.worker.tasks import rag_tasks
 
 pytestmark = [pytest.mark.anyio, pytest.mark.usefixtures("sole_source_run")]
 
+# The base the source records (#2551): a sync with none refuses before it lists.
+_BASE = MagicMock(
+    id=uuid.uuid4(),
+    collection_name="docs",
+    ingestion_config={},
+    embedding_model="text-embedding-3-small",
+    vector_scope=VectorScope(tenant=None),
+)
+
 SOURCE_ID = uuid.uuid4()
 # The base a removed row is filed under - not the one the sync resolves to,
-# which is unbound here (`_knowledge_base_for` answers None).
+# which is unbound here (`_source_knowledge_base` is patched).
 ROW_SCOPE = VectorScope(tenant=uuid.uuid4(), knowledge_base_id=uuid.uuid4())
 KEPT = RemoteFile(id="k", name="kept.md", source_path="web://docs.example.com/kept")
 HIDDEN = RemoteFile(id="h", name="hidden.md", source_path="web://docs.example.com/hidden")
@@ -130,7 +139,8 @@ async def _syncing(
         patch.object(rag_tasks, "_record_embedding_spend", new=AsyncMock()),
         patch.object(rag_tasks, "assert_organization_within_budget", new=AsyncMock()),
         patch.object(rag_tasks, "SyncSourceService", return_value=sources),
-        patch.object(rag_tasks, "_knowledge_base_for", new=AsyncMock(return_value=None)),
+        patch.object(rag_tasks, "_source_knowledge_base", new=AsyncMock(return_value=_BASE)),
+        patch.object(rag_tasks.knowledge_base_repo, "get_by_id", new=AsyncMock(return_value=_BASE)),
         patch.object(rag_tasks, "IngestionConfigService") as config_service,
         patch.object(rag_tasks, "NotificationService", return_value=notifications),
         patch.object(rag_tasks.IngestionService, "ingest_file", new=ingest),

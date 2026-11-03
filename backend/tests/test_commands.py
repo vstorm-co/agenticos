@@ -7,6 +7,7 @@ from types import SimpleNamespace
 from uuid import uuid4
 
 import click
+import pytest
 from click.testing import CliRunner
 
 from app.commands import (
@@ -181,8 +182,9 @@ def _kb(
     scope: str = "org",
     owner=None,
 ) -> SimpleNamespace:
-    """A knowledge base row as the command reads one: name, tenant and scope."""
+    """A knowledge base row as the command reads one: id, name, tenant and scope."""
     return SimpleNamespace(
+        id=uuid4(),
         collection_name=collection_name,
         organization_id=organization_id,
         scope=scope,
@@ -218,8 +220,14 @@ class TestRagSourceAddRefusesWhatItCannotOwn:
             def __init__(self, db: object) -> None:
                 self.db = db
 
-            async def create_source(self, data, *, ctx):
-                created.append({"data": data, "organization_id": ctx.organization_id})
+            async def create_source(self, data, *, ctx, knowledge_base):
+                created.append(
+                    {
+                        "data": data,
+                        "organization_id": ctx.organization_id,
+                        "knowledge_base": knowledge_base,
+                    }
+                )
                 return SimpleNamespace(name=data.name, id=uuid4())
 
         @asynccontextmanager
@@ -238,12 +246,13 @@ class TestRagSourceAddRefusesWhatItCannotOwn:
         monkeypatch.setattr(rag_command, "SyncSourceService", service or RecordingService)
         return created, MagicMock
 
-    def _invoke(self, collection: str, org: str | None = None):
+    def _invoke(self, collection: str, org: str | None = None, *extra: str):
         from app.commands import rag as rag_command
 
         return CliRunner().invoke(
             rag_command.rag_source_add,
             [
+                *extra,
                 "--name",
                 "My Drive",
                 "--type",
@@ -272,6 +281,55 @@ class TestRagSourceAddRefusesWhatItCannotOwn:
         assert len(created) == 1
         assert created[0]["organization_id"] == self.ORG
         assert created[0]["data"].collection_name == "docs"
+        assert created[0]["knowledge_base"] is kb
+
+    @pytest.mark.security
+    def test_the_source_records_the_org_base_not_an_older_personal_one(self, monkeypatch) -> None:
+        """#2551: the command checked an org base existed, then the sync wrote into
+        whatever the name resolved to - a member's older personal base of the name,
+        which nobody running the command may edit."""
+        organization = SimpleNamespace(id=self.ORG, name="Acme")
+        personal = _kb(organization_id=self.ORG, scope="personal", owner=uuid4())
+        org_kb = _kb(organization_id=self.ORG)
+        created, _ = self._run(
+            monkeypatch, organization=organization, candidates=[personal, org_kb]
+        )
+
+        result = self._invoke("docs")
+
+        assert result.exit_code == 0, result.output
+        assert created[0]["knowledge_base"] is org_kb
+
+    def test_several_org_bases_of_the_name_need_one_named(self, monkeypatch) -> None:
+        organization = SimpleNamespace(id=self.ORG, name="Acme")
+        first, second = _kb(organization_id=self.ORG), _kb(organization_id=self.ORG)
+        created, _ = self._run(monkeypatch, organization=organization, candidates=[first, second])
+
+        refused = self._invoke("docs")
+
+        assert refused.exit_code != 0
+        assert created == []
+        assert str(first.id) in refused.output and str(second.id) in refused.output
+
+        chosen = self._invoke("docs", None, "--knowledge-base", str(second.id))
+
+        assert chosen.exit_code == 0, chosen.output
+        assert created[0]["knowledge_base"] is second
+
+    def test_a_named_base_that_is_not_the_organizations_is_refused(self, monkeypatch) -> None:
+        organization = SimpleNamespace(id=self.ORG, name="Acme")
+        theirs = _kb(organization_id=uuid4())
+        created, _ = self._run(
+            monkeypatch,
+            organization=organization,
+            candidates=[_kb(organization_id=self.ORG), theirs],
+        )
+
+        result = self._invoke("docs", None, "--knowledge-base", str(theirs.id))
+
+        assert result.exit_code != 0
+        assert created == []
+        assert str(theirs.id) in result.output
 
     def test_a_collection_no_knowledge_base_claims_is_refused(self, monkeypatch) -> None:
         """It was accepted, and then failed in a worker - attributed to the sync

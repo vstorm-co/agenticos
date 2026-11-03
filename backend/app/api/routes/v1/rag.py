@@ -646,11 +646,15 @@ async def create_sync_source(
     collection the caller cannot write is refused: a sync writes *into* the
     collection, so pointing one at another tenant's is an injection, not a read.
     The base checked is the one the sync writes into, not any writable base of
-    that name (`CollectionAccessService.source_target`).
+    that name (`CollectionAccessService.source_target`), and the source records
+    that base.
     """
-    if data.collection_name is not None:
-        await access.source_target(ctx, data.collection_name)
-    return await sync_source_svc.create_source(data, ctx=ctx)
+    target = (
+        None
+        if data.collection_name is None
+        else await access.source_target(ctx, data.collection_name)
+    )
+    return await sync_source_svc.create_source(data, ctx=ctx, knowledge_base=target)
 
 
 @router.post(
@@ -674,8 +678,8 @@ async def clone_sync_source(
     The clone is independent - its own schedule and sync history.
     """
     source = await access.sync_source(ctx, source_id)
-    await access.source_target(ctx, data.collection_name)
-    return await sync_source_svc.clone_source(str(source.id), data, ctx=ctx)
+    target = await access.source_target(ctx, data.collection_name)
+    return await sync_source_svc.clone_source(str(source.id), data, ctx=ctx, knowledge_base=target)
 
 
 @router.patch(
@@ -690,11 +694,19 @@ async def update_sync_source(
     access: CollectionAccessSvc,
     ctx: Auth,
 ) -> Any:
-    """Update an existing sync source configuration."""
+    """Update an existing sync source configuration.
+
+    A `collection_name` repoints the source at the base that name resolves to,
+    which the caller must be able to write (`CollectionAccessService.source_target`);
+    `null` detaches it from any base.
+    """
     source = await access.sync_source(ctx, source_id)
-    if data.collection_name is not None:
-        await access.source_target(ctx, data.collection_name)
-    return await sync_source_svc.update_source(str(source.id), data, ctx=ctx)
+    target = (
+        None
+        if data.collection_name is None
+        else await access.source_target(ctx, data.collection_name)
+    )
+    return await sync_source_svc.update_source(str(source.id), data, ctx=ctx, knowledge_base=target)
 
 
 @router.delete(
