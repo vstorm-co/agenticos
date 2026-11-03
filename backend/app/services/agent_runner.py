@@ -410,6 +410,27 @@ end" with "it was delegated". `parent_run_id` answers that.
 """
 
 
+def _bound_forks(spec: AgentSpec) -> dict[UUID, UUID]:
+    """The fork each skill a run reads is bound to, its inline specialists' included.
+
+    The agent's own binding wins: a skill it reads itself from main is not credited to
+    a fork one of its specialists reads.
+    """
+    delegation = _delegation_config(spec)
+    forks = {
+        binding.skill_id: binding.fork_id
+        for specialist in ([] if delegation is None else delegation.inline)
+        for binding in specialist.skill_bindings
+        if binding.fork_id is not None and binding.skill_id not in spec.skill_ids
+    }
+    forks.update(
+        (binding.skill_id, binding.fork_id)
+        for binding in spec.skill_bindings
+        if binding.fork_id is not None
+    )
+    return forks
+
+
 def _delegation_config(spec: AgentSpec) -> SubagentsConfig | None:
     """This spec's delegation policy, or `None` if the agent does not delegate.
 
@@ -5638,11 +5659,7 @@ class AgentRunnerService:
                         changes,
                         agent_id=agent_id,
                         conversation_id=conversation_id,
-                        forks={
-                            binding.skill_id: binding.fork_id
-                            for binding in prepared.spec.skill_bindings
-                            if binding.fork_id is not None
-                        },
+                        forks=_bound_forks(prepared.spec),
                     )
         except Exception:
             logger.exception("skill_proposal_record_failed", extra={"run_id": run_id})

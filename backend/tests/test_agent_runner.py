@@ -2492,11 +2492,24 @@ class TestSkillChangesARunProposed:
         service = AgentRunnerService(_db())
         prepared = _prepared()
         skill_id, fork_id = uuid.uuid4(), uuid.uuid4()
+        own_main, specialists_fork = uuid.uuid4(), uuid.uuid4()
+
+        def bound(skill: uuid.UUID, fork: uuid.UUID) -> dict[str, str]:
+            return {"skill_id": str(skill), "fork_id": str(fork)}
+
+        specialist = {
+            "name": "billing",
+            "description": "Bills.",
+            "instructions": "Bill.",
+            "skill_ids": [str(own_main), str(specialists_fork)],
+            "skill_bindings": [bound(own_main, uuid.uuid4()), bound(specialists_fork, fork_id)],
+        }
         prepared.spec = AgentSpec.model_validate(
             {
                 "name": "Books",
-                "skill_ids": [str(skill_id)],
-                "skill_bindings": [{"skill_id": str(skill_id), "fork_id": str(fork_id)}],
+                "skill_ids": [str(skill_id), str(own_main)],
+                "skill_bindings": [bound(skill_id, fork_id)],
+                "capabilities": [{"id": "subagents", "config": {"inline": [specialist]}}],
             }
         )
         prepared.ctx = MagicMock(organization_id=uuid.uuid4())
@@ -2507,7 +2520,10 @@ class TestSkillChangesARunProposed:
         with patch("app.services.agent_runner.collect_changes", return_value=[MagicMock()]):
             await service._propose_skill_changes(prepared)
 
-        assert service.proposals.record.await_args.kwargs["forks"] == {skill_id: fork_id}
+        assert service.proposals.record.await_args.kwargs["forks"] == {
+            skill_id: fork_id,
+            specialists_fork: fork_id,
+        }
 
     @pytest.mark.anyio
     async def test_a_run_that_left_its_skills_alone_proposes_nothing(self):
