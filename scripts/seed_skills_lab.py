@@ -857,9 +857,18 @@ def ensure_history(api: Api, org: str, skill: str, *, report: Report) -> list[st
 
 
 def ensure_fork(
-    api: Api, org: str, skill: str, main: Sequence[str], *, report: Report
+    api: Api, org: str, skill: str, main: Sequence[str], *, me: str, report: Report
 ) -> str | None:
-    """The Marketplace fork from main v`FORK_FROM`, with its own planned versions."""
+    """The Marketplace fork from main v`FORK_FROM`, with its own planned versions.
+
+    A fork by that name is the seed's only when the signed-in owner made it from that
+    version; an archived one, or one somebody else started, is refused, and so is every
+    agent that would read it.
+    """
+    archived = api.items(f"/skills/{skill}/forks", org=org, params={"archived": "true"})
+    if any(row.get("name") == FORK for row in archived):
+        report.refuse(f"fork {FORK}: it was archived")
+        return None
     found = next(
         (row for row in api.items(f"/skills/{skill}/forks", org=org) if row.get("name") == FORK),
         None,
@@ -876,6 +885,10 @@ def ensure_fork(
         )
         report.note(f"fork {FORK}", made=True)
     else:
+        made_by = str((found.get("created_by") or {}).get("id"))
+        if made_by != me or (found.get("base") or {}).get("number") != FORK_FROM:
+            report.refuse(f"fork {FORK}: somebody else's, or not started from main v{FORK_FROM}")
+            return None
         report.note(f"fork {FORK}", made=False)
     fork = str(found["id"])
     planned = [skill_body(main=FORK_FROM, fork=number) for number in range(1, FORK_VERSIONS + 1)]
@@ -937,7 +950,11 @@ def _bindings(spec: JsonObject) -> list[tuple[str, str, str]]:
 
 
 def differences(spec: JsonObject, planned: JsonObject) -> list[str]:
-    """The fields in which `spec` reaches or says more than `planned`, the spec the seed publishes."""
+    """The fields in which `spec` reaches or says more than `planned`, the spec the seed publishes.
+
+    Which line of a bound skill it reads is not one: another version or fork of the same
+    skill reaches nothing more, and moving an agent there is what the skill page is for.
+    """
     found = [
         name
         for name in ("instructions", "model_profile_id")
@@ -947,8 +964,6 @@ def differences(spec: JsonObject, planned: JsonObject) -> list[str]:
         str(x) for x in planned.get("skill_ids") or ()
     ]:
         found.append("skill_ids")
-    if _bindings(spec) != _bindings(planned):
-        found.append("skill_bindings")
     capabilities = sorted(str(c.get("id")) for c in spec.get("capabilities") or ())
     if capabilities != sorted(c["id"] for c in planned["capabilities"]):
         found.append("capabilities")
@@ -961,8 +976,11 @@ def differences(spec: JsonObject, planned: JsonObject) -> list[str]:
     return found
 
 
-def distrust(api: Api, org: str, agent_id: str, planned: JsonObject, *, me: str) -> str | None:
-    """Why an agent found under a planned name must not be run as the seed's, if it must not.
+def distrust(
+    api: Api, org: str, agent_id: str, planned: JsonObject, *, me: str
+) -> tuple[str | None, JsonObject]:
+    """Why an agent found under a planned name must not be run as the seed's, if it must not,
+    and the spec that would run.
 
     The seed asks and measures as the signed-in owner, so an agent somebody else owns, or
     one whose spec gained a model, a capability or a reach the plan does not give it, could
@@ -971,7 +989,7 @@ def distrust(api: Api, org: str, agent_id: str, planned: JsonObject, *, me: str)
     """
     agent = api.call("GET", f"/agents/{agent_id}", org=org)
     if str(agent.get("owner_user_id")) != me:
-        return "somebody else owns it"
+        return "somebody else owns it", {}
     version = agent.get("current_version_id")
     spec = (
         api.call("GET", f"/agents/{agent_id}/versions/{version}", org=org).get("spec") or {}
@@ -980,8 +998,8 @@ def distrust(api: Api, org: str, agent_id: str, planned: JsonObject, *, me: str)
     )
     changed = differences(spec, planned)
     if not changed:
-        return None
-    return f"its {'published' if version else 'draft'} spec differs in {', '.join(changed)}"
+        return None, spec
+    return f"its {'published' if version else 'draft'} spec differs in {', '.join(changed)}", spec
 
 
 def ensure_agents(
@@ -1013,7 +1031,7 @@ def ensure_agents(
             report.refuse(f"{label}: it hands work to {plan.delegates_to}, which was refused")
             continue
         if plan.line == "fork" and fork is None:
-            report.refuse(f"{label}: the {FORK} fork it reads does not exist")
+            report.refuse(f"{label}: the {FORK} fork it reads is missing or was refused")
             continue
         delegate = None
         if plan.delegates_to is not None:
@@ -1028,11 +1046,15 @@ def ensure_agents(
             agent_id = str(api.call("POST", "/agents", org=org, body={"spec": planned})["id"])
             report.note(label, made=True)
         else:
-            reason = distrust(api, org, agent_id, planned, me=me)
+            reason, spec = distrust(api, org, agent_id, planned, me=me)
             if reason is not None:
                 report.refuse(f"{label}: {reason}")
                 continue
-            report.note(label, made=False)
+            moved = _bindings(spec) != _bindings(planned)
+            report.note(
+                f"{label}{' (moved to another line of the skill, kept as is)' if moved else ''}",
+                made=False,
+            )
         if api.call("GET", f"/agents/{agent_id}", org=org).get("current_version_id") is None:
             api.call(
                 "POST",
@@ -1086,18 +1108,23 @@ def started_runs(api: Api, org: str, dataset: str) -> list[JsonObject]:
 def complete_dataset(
     api: Api, org: str, dataset: str, cases: Sequence[Case], *, label: str, report: Report
 ) -> None:
-    """Give a dataset nothing has measured yet its grading and every question it lacks.
+    """Give a dataset the seed began, and nothing has measured, its grading and the rest of
+    its questions.
 
-    Only ever called before the first measurement, so a dataset a person has worked on
-    since - a question removed, the grading changed - is never touched: once measured,
-    it is theirs. The grading is set before the first question, so a dataset holding every
-    planned question already has it and is left alone.
+    It is the seed's own only while the questions it holds are the plan's first ones, in
+    order - what an interrupted run leaves. A question removed, added or reworded since
+    makes it somebody's, and it is left as it is, grading included. The grading is set
+    before the first question, so a dataset holding every planned question already has it.
     """
-    held = {
+    held = [
         row.get("input")
         for row in api.items(f"/datasets/{dataset}/cases", org=org, params={"limit": 100})
-    }
-    missing = [case for case in cases if case.question not in held]
+    ]
+    planned = [case.question for case in cases]
+    if held != planned[: len(held)]:
+        report.note(f"{label} (changed since it was seeded, kept as is)", made=False)
+        return
+    missing = cases[len(held) :]
     if not missing:
         return
     api.call("PUT", f"/datasets/{dataset}/scoring", org=org, body=SCORING)
@@ -1301,7 +1328,7 @@ def seed(api: Api, *, key: str | None, ask_in: Callable[[str], Ask]) -> Report:
     skill = ensure_skill(api, org, body=skill_body(), me=me, report=report)
     report.skill_id = skill
     main = ensure_history(api, org, skill, report=report)
-    fork = ensure_fork(api, org, skill, main, report=report)
+    fork = ensure_fork(api, org, skill, main, me=me, report=report)
     report.fork_id = fork or ""
     report.skill_set_id = ensure_skill_set(api, org, skill, report=report)
     agents = ensure_agents(

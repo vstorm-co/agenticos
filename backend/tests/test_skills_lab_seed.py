@@ -378,7 +378,11 @@ class FakeApi:
                 r"/skills/(?P<key>[^/]+)/versions",
                 lambda key: self._save_version(org, key, body),
             ),
-            ("GET", r"/skills/(?P<key>[^/]+)/forks", lambda key: where("forks", skill_id=key)),
+            (
+                "GET",
+                r"/skills/(?P<key>[^/]+)/forks",
+                lambda key: where("forks", skill_id=key, archived=params.get("archived") == "true"),
+            ),
             (
                 "POST",
                 r"/skills/(?P<key>[^/]+)/forks",
@@ -464,7 +468,11 @@ class FakeApi:
     def _save_version(self, org: str | None, skill_id: str, body: dict[str, Any]) -> Any:
         fork_id = body.get("fork_id")
         held = self.line(skill_id, fork_id)
-        latest = held[-1]["id"] if held else self.find("forks", fork_id)["base"]["id"]
+        if held:
+            latest = held[-1]["id"]
+        else:
+            assert fork_id is not None, "the main line starts with the skill's first version"
+            latest = self.find("forks", fork_id)["base"]["id"]
         if body["base_version_id"] != latest:
             return httpx.Response(409, json={"error": {"message": "The line moved"}})
         version = self.add(
@@ -488,6 +496,8 @@ class FakeApi:
             skill_id=skill_id,
             name=body["name"],
             base={"id": base["id"], "number": base["number"]},
+            archived=False,
+            created_by={"id": self.me, "name": "Owner"},
         )
 
     def _test_set(self, skill_id: str) -> Any:
@@ -999,18 +1009,71 @@ class TestSeeding:
             "main history" in note and "changed since it was seeded" in note for note in rerun.kept
         )
 
-    def test_a_desk_moved_off_its_planned_line_is_never_run_again(self, fake: FakeApi) -> None:
-        report = _seeded(fake)
+    def test_a_desk_moved_to_another_line_of_the_skill_is_kept_and_still_trusted(
+        self, fake: FakeApi
+    ) -> None:
+        _seeded(fake)
         fake.published_spec("Marketplace desk").pop("skill_bindings")
         fake.requests.clear()
 
         rerun = seed.seed(_api(fake), key=None, ask_in=_chat(fake, []))
 
-        assert rerun.refused == [
-            "agent G Marketplace desk: its published spec differs in skill_bindings"
+        assert rerun.refused == []
+        assert (
+            "agent G Marketplace desk (moved to another line of the skill, kept as is)"
+            in rerun.kept
+        )
+        assert fake.writes() == []
+
+    def test_questions_somebody_removed_from_the_skills_own_set_stay_removed(
+        self, fake: FakeApi
+    ) -> None:
+        report = _seeded(fake)
+        own = fake.find("datasets", report.skill_set_id)
+        fake.rows["cases"] = [
+            case
+            for case in fake.rows["cases"]
+            if not (case["dataset_id"] == own["id"] and case["input"] == seed.SKILL_SET[2].question)
         ]
-        assert "G" not in rerun.measured
-        assert report.agents["G"] not in {path.split("/")[2] for _, path, _ in fake.writes()}
+        own["scoring"] = {**seed.SCORING, "judge": {"enabled": True}}
+        fake.requests.clear()
+
+        rerun = seed.seed(_api(fake), key=None, ask_in=_chat(fake, []))
+
+        assert fake.writes() == []
+        assert own["scoring"]["judge"] == {"enabled": True}
+        assert (
+            f"test questions of {seed.SKILL} (changed since it was seeded, kept as is)"
+            in rerun.kept
+        )
+
+    def test_an_archived_fork_by_the_planned_name_is_refused_with_its_desk(
+        self, fake: FakeApi
+    ) -> None:
+        report = _seeded(fake)
+        fake.find("forks", report.fork_id)["archived"] = True
+        fake.requests.clear()
+
+        rerun = seed.seed(_api(fake), key=None, ask_in=_chat(fake, []))
+
+        assert rerun.refused == [
+            f"fork {seed.FORK}: it was archived",
+            f"agent G Marketplace desk: the {seed.FORK} fork it reads is missing or was refused",
+        ]
+        assert fake.writes() == []
+
+    def test_a_fork_by_the_planned_name_somebody_else_started_is_refused(
+        self, fake: FakeApi
+    ) -> None:
+        report = _seeded(fake)
+        fake.find("forks", report.fork_id)["created_by"] = {"id": "user-builder", "name": "B"}
+        fake.requests.clear()
+
+        rerun = seed.seed(_api(fake), key=None, ask_in=_chat(fake, []))
+
+        assert rerun.refused[0].startswith(f"fork {seed.FORK}: somebody else's")
+        assert "G" not in rerun.agents
+        assert fake.writes() == []
 
     def test_it_never_acts_in_any_organization_but_the_lab(self, fake: FakeApi) -> None:
         _seeded(fake)
