@@ -11936,7 +11936,7 @@
       "agents": {
         "title": "Agenty kodujące na tym komputerze",
         "description": "Claude Code i Codex zainstalowane tutaj. Logowanie należy do każdego agenta: AgenticOS otwiera jego własne polecenie w Terminalu i nigdy nie czyta ani nie kopiuje jego poświadczeń.",
-        "installHint": "{name} nie jest zainstalowany na tym komputerze.",
+        "installHint": "AgenticOS może przygotować {name}. Nie potrzebujesz narzędzi deweloperskich.",
         "notInstalled": "Nie zainstalowano",
         "signedIn": "Zalogowano",
         "signedOut": "Wylogowano",
@@ -11945,7 +11945,11 @@
         "signInNamed": "Zaloguj do {name}",
         "signOut": "Wyloguj",
         "signOutNamed": "Wyloguj z {name}",
-        "terminalNote": "Logowanie otwiera terminal systemowy. Wróć po jego zakończeniu, aby odświeżyć stan."
+        "terminalNote": "Logowanie otwiera okno przeglądarki. AgenticOS nie odczytuje ani nie zapisuje poświadczeń agenta.",
+        "prepare": "Przygotuj",
+        "prepareNamed": "Przygotuj {name}",
+        "preparing": "Przygotowywanie…",
+        "refresh": "Odśwież status"
       }
     },
     "quickAsk": {
