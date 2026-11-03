@@ -365,6 +365,8 @@ class SkillImprovementService:
     ) -> tuple[SkillImprovementEstimate, SkillSeed | None]:
         self._require_runs_view(ctx)
         await self.versions.skill_for(ctx, skill_id, Perm.SKILLS_EDIT)
+        if target.improver_agent_id is not None:
+            await self._require_helper(ctx, target.improver_agent_id)
         seed = (
             None
             if target.from_run is None
@@ -375,7 +377,9 @@ class SkillImprovementService:
         fork_id = target.fork_id if seed is None else seed.fork_id
         line = await self._line(ctx, skill_id, fork_id, Perm.SKILLS_EDIT)
         pack = await self._evidence(ctx, line, target.window_days)
-        priced = await self.authoring.estimate_pack(ctx, pack)
+        priced = await self.authoring.estimate_pack(
+            ctx, pack, improver_agent_id=target.improver_agent_id
+        )
         visible, hidden = await self._line_agents(ctx, line)
         base = await self._base(line)
         estimate = SkillImprovementEstimate(
@@ -443,6 +447,7 @@ class SkillImprovementService:
                     max_iterations=data.max_iterations,
                     estimate_usd=estimate.total_usd,
                     budget_usd=data.budget_usd,
+                    improver_agent_id=data.improver_agent_id,
                     seed=None
                     if seed is None
                     else {
@@ -541,6 +546,15 @@ class SkillImprovementService:
         await self._audit(run, "started", actor_user_id=ctx.subject_id)
         await self._queue(run)
         return await self._read(ctx, run, target)
+
+    async def _require_helper(self, ctx: AuthContext, agent_id: UUID) -> None:
+        """Refuse a helper the caller may not see, or of another organization, as missing;
+        whether it is an improver that can run is the authoring service's to say."""
+        helper = await agent_repo.get(self.db, agent_id, organization_id=ctx.organization_id)
+        if helper is None or not await resolve_access(
+            self.db, ctx, helper, Perm.AGENTS_VIEW, resource_type=AGENT
+        ):
+            raise NotFoundError(message="No such helper", details={"improver_agent_id": agent_id})
 
     async def _merge_estimate(
         self, ctx: AuthContext, skill_id: UUID, fork_id: UUID, purpose: Purpose
@@ -1424,7 +1438,9 @@ class SkillImprovementService:
                 run, rules.Transition(Status.STOPPED, Stage.ANALYZING, StopReason.NO_DATA)
             )
             return
-        price = (await self.authoring.estimate_pack(ctx, pack)).estimate_usd
+        price = (
+            await self.authoring.estimate_pack(ctx, pack, improver_agent_id=run.improver_agent_id)
+        ).estimate_usd
         if not await self._affordable(run, price):
             await self._move(
                 run, rules.Transition(Status.STOPPED, Stage.ANALYZING, StopReason.BUDGET)
@@ -1437,6 +1453,7 @@ class SkillImprovementService:
             session_id=run.id,
             estimate_usd=price,
             window_days=run.window_days,
+            improver_agent_id=run.improver_agent_id,
         )
         await skill_improvement_repo.update_run(
             self.db, run=run, values={"analysis_request_id": request.id}
@@ -1498,7 +1515,11 @@ class SkillImprovementService:
             merge = await self._merge(run)
             if merge.conflicts:
                 prompt = self.merges.conflicts_prompt(merge)
-                price = (await self.authoring.estimate_call(ctx, chars=len(prompt))).estimate_usd
+                price = (
+                    await self.authoring.estimate_call(
+                        ctx, chars=len(prompt), improver_agent_id=run.improver_agent_id
+                    )
+                ).estimate_usd
                 if await self._affordable(run, price):
                     request = await self.authoring.start_for_skill_session(
                         ctx,
@@ -1507,6 +1528,7 @@ class SkillImprovementService:
                         session_id=run.id,
                         estimate_usd=price,
                         window_days=run.window_days,
+                        improver_agent_id=run.improver_agent_id,
                     )
                     await skill_improvement_repo.update_iteration(
                         self.db, iteration=iteration, values={"authoring_request_id": request.id}
@@ -1572,7 +1594,11 @@ class SkillImprovementService:
         iteration = await self._iteration(run)
         if iteration.authoring_request_id is None:
             pack = await self._evidence(ctx, line, run.window_days)
-            price = (await self.authoring.estimate_pack(ctx, pack)).estimate_usd
+            price = (
+                await self.authoring.estimate_pack(
+                    ctx, pack, improver_agent_id=run.improver_agent_id
+                )
+            ).estimate_usd
             if not await self._affordable(run, price):
                 await self._move(
                     run, rules.Transition(Status.STOPPED, Stage.PROPOSING, StopReason.BUDGET)
@@ -1585,6 +1611,7 @@ class SkillImprovementService:
                 session_id=run.id,
                 estimate_usd=price,
                 window_days=run.window_days,
+                improver_agent_id=run.improver_agent_id,
             )
             await skill_improvement_repo.update_iteration(
                 self.db, iteration=iteration, values={"authoring_request_id": request.id}
@@ -2096,7 +2123,9 @@ class SkillImprovementService:
                 details={"status": run.status, "stage": run.stage},
             )
         pack = await self._evidence(ctx, line, run.window_days)
-        price = (await self.authoring.estimate_pack(ctx, pack)).estimate_usd
+        price = (
+            await self.authoring.estimate_pack(ctx, pack, improver_agent_id=run.improver_agent_id)
+        ).estimate_usd
         return SkillContinuationEstimate(
             mode=step,
             number=number,

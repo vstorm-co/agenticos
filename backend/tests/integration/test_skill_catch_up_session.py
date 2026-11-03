@@ -69,7 +69,7 @@ def call_price(monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
     """What the conflicts' model call costs, and whether the improver can pay it."""
     state: dict[str, Any] = {"price": _PRICE, "affordable": True, "chars": []}
 
-    async def estimate_call(self, ctx, *, chars):
+    async def estimate_call(self, ctx, *, chars, improver_agent_id=None):
         state["chars"].append(chars)
         return AuthoringEstimate(
             runs=0,

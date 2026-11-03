@@ -68,6 +68,11 @@ class SkillImprovementTarget(BaseSchema):
         "problems are read beside the line's evidence, and its agent's line is the one "
         "improved. Read on the server; nothing else about it is taken from the request",
     )
+    improver_agent_id: UUID | None = Field(
+        default=None,
+        description="The helper that groups the problems and proposes the edits; the "
+        "organization's own when null",
+    )
 
 
 class SkillImprovementStart(SkillImprovementTarget):
@@ -190,6 +195,9 @@ class SkillImprovementRead(BaseSchema):
     skill_id: UUID
     fork_id: UUID | None
     purpose: SkillImprovementPurpose = SkillImprovementPurpose.IMPROVE
+    improver_agent_id: UUID | None = Field(
+        default=None, description="The helper the session's steps run on; null for the default"
+    )
     source_fork_id: UUID | None = Field(
         default=None, description="For a move to main, the fork whose changes it takes"
     )

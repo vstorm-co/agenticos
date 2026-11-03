@@ -120,7 +120,8 @@ def fixed_evidence(monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
         state["versions_read"] = line
         return EvidencePack(runs=list(state["runs"]), unknown_runs=2)
 
-    async def priced(self, ctx, pack):
+    async def priced(self, ctx, pack, *, improver_agent_id=None):
+        state.setdefault("helpers", []).append(improver_agent_id)
         return AuthoringEstimate(
             runs=len(pack.runs),
             rated_down=len(pack.runs),
@@ -2302,3 +2303,46 @@ class TestApprovedFollowUps:
         cancelled = await SkillImprovementService(db).cancel(ctx, run.skill_id, run.id)
 
         assert cancelled.iterations[0].cost_usd == cost
+
+
+class TestAChosenHelper:
+    async def test_every_step_runs_on_the_helper_the_session_was_started_with(self, db, evidence):
+        ctx = await _owner(db)
+        helper = await _published(
+            db, ctx, name="Strict helper", spec={"name": "Strict helper"}, kind="improver"
+        )
+        skill = await _skill_on_main(db, ctx)
+        service = SkillImprovementService(db)
+
+        read = await service.start(ctx, skill.id, _start(improver_agent_id=helper.id))
+        await service.advance(read.id, ctx.organization_id)
+        run = await _row(db, read)
+        assert run.analysis_request_id is not None
+        analysis = await db.get(AuthoringRequest, run.analysis_request_id)
+
+        assert read.improver_agent_id == helper.id == run.improver_agent_id
+        assert analysis is not None and analysis.improver_agent_id == helper.id
+        assert evidence["helpers"] == [helper.id, helper.id]
+
+    @pytest.mark.security
+    async def test_a_helper_of_another_organization_or_out_of_sight_is_missing(self, db, evidence):
+        ctx = await _owner(db)
+        skill = await _skill_on_main(db, ctx)
+        other = await _owner(db)
+        elsewhere = await _published(
+            db, other, name="Their helper", spec={"name": "Their helper"}, kind="improver"
+        )
+        helper = await _published(
+            db, ctx, name="Strict helper", spec={"name": "Strict helper"}, kind="improver"
+        )
+        blind = replace(ctx, key_scopes=frozenset(Perm) - {Perm.AGENTS_VIEW})
+        service = SkillImprovementService(db)
+
+        with pytest.raises(NotFoundError):
+            await service.estimate(
+                ctx, skill.id, SkillImprovementTarget(improver_agent_id=elsewhere.id)
+            )
+        with pytest.raises(NotFoundError):
+            await service.start(ctx, skill.id, _start(improver_agent_id=uuid.uuid4()))
+        with pytest.raises(NotFoundError):
+            await service.start(blind, skill.id, _start(improver_agent_id=helper.id))
