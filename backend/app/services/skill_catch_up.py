@@ -36,7 +36,7 @@ from app.schemas.skill_version import (
 from app.services.access import AGENT, SKILL, accessible_ids
 from app.services.agent_registry import delegation_binding
 from app.services.skill_agents import Line, SkillAgentService, lines_of
-from app.services.skill_versions import SkillVersionService
+from app.services.skill_versions import SkillVersionService, changes_since
 
 
 @dataclass(frozen=True)
@@ -153,10 +153,22 @@ class SkillCatchUpService:
         reads: Sequence[_Read],
     ) -> tuple[list[BehindMain], int]:
         """The pinned agents behind main the caller may see, and how many it may not."""
-        behind = [
+        older = [
             read
             for read in reads
             if read.line.version is not None and read.line.version < skills[read.skill_id].version
+        ]
+        firsts: dict[UUID, int] = {}
+        for read in older:
+            assert read.line.version is not None, "a pinned line names its version"
+            firsts[read.skill_id] = min(
+                read.line.version, firsts.get(read.skill_id, read.line.version)
+            )
+        changed = await self._changes(ctx, skills, firsts)
+        behind = [
+            read
+            for read in older
+            if read.line.version is not None and changed[read.skill_id].get(read.line.version, 0)
         ]
         listed = [agents[read.agent_id] for read in behind]
         visible = await accessible_ids(self.db, ctx, listed, Perm.AGENTS_VIEW, resource_type=AGENT)
@@ -191,12 +203,30 @@ class SkillCatchUpService:
                     agents=1,
                     version=VersionNumberRef(id=version.id, number=version.number),
                     main_latest=_main_latest(skill),
-                    behind_main=skill.version - version.number,
+                    behind_main=changed[skill.id][version.number],
                     # A specialist's pin changes in the agent's Builder, not here.
                     can_act=agent.id in editable and read.line.via_specialist is None,
                 )
             )
         return items, len({read.agent_id for read in behind if read.agent_id not in visible})
+
+    async def _changes(
+        self, ctx: AuthContext, skills: dict[UUID, Skill], firsts: dict[UUID, int]
+    ) -> dict[UUID, dict[int, int]]:
+        """For each skill, how many main versions after each changed what it says, from the
+        oldest one asked about; counted as the skill page counts it."""
+        return {
+            skill_id: changes_since(
+                await skill_version_repo.main_digests(
+                    self.db,
+                    organization_id=ctx.organization_id,
+                    skill_id=skill_id,
+                    first=first,
+                    last=skills[skill_id].version,
+                )
+            )
+            for skill_id, first in firsts.items()
+        }
 
     async def _forks(
         self, ctx: AuthContext, skills: dict[UUID, Skill], reads: Sequence[_Read]
@@ -230,10 +260,15 @@ class SkillCatchUpService:
             Perm.SKILLS_EDIT,
             resource_type=SKILL,
         )
+        firsts: dict[UUID, int] = {}
+        for fork in forks.values():
+            number = bases[fork.base_version_id].number
+            firsts[fork.skill_id] = min(number, firsts.get(fork.skill_id, number))
+        changed = await self._changes(ctx, skills, firsts)
         items: list[BehindMain] = []
         for fork in forks.values():
             skill, base = skills[fork.skill_id], bases[fork.base_version_id]
-            if base.number >= skill.version:
+            if not changed[skill.id].get(base.number, 0):
                 continue
             items.append(
                 BehindMain(
@@ -248,7 +283,7 @@ class SkillCatchUpService:
                     agents=len(readers[fork.id]),
                     version=VersionNumberRef(id=base.id, number=base.number),
                     main_latest=_main_latest(skill),
-                    behind_main=skill.version - base.number,
+                    behind_main=changed[skill.id][base.number],
                     can_act=skill.id in editable,
                 )
             )

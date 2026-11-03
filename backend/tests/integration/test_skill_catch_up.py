@@ -18,7 +18,7 @@ from app.db.models.agent_environment import AgentEnvironment
 from app.db.models.resource_grant import Visibility
 from app.db.models.skill import Skill
 from app.schemas.skill import SkillUpdate
-from app.schemas.skill_version import ReturnToMain, SkillForkCreate
+from app.schemas.skill_version import ReturnToMain, SkillForkCreate, SkillVersionRestore
 from app.services.skill_catch_up import SkillCatchUpService
 from app.services.skill_versions import SkillVersionService
 from app.services.skills import SkillService
@@ -88,6 +88,29 @@ class TestBehindMain:
         assert (forked.fork.id, forked.fork.base_number, forked.fork.changes) == (fork.id, 3, 0)
         assert (forked.agents, forked.behind_main, forked.can_act) == (3, 1, True)
         assert forked.version.id == fork.base.id
+
+    async def test_main_restoring_what_they_read_leaves_nobody_behind(self, db):
+        """Behind main counts changes to what the skill says, as the skill page does."""
+        ctx = await _owner(db)
+        skill = await _skill(db, ctx)
+        fork = await _fork(db, ctx, skill)
+        await _serving(db, ctx, "Pinned", _spec(skill, version=3))
+        await _serving(db, ctx, "Forked", _spec(skill, fork_id=str(fork.id)))
+        assert skill.latest_version_id is not None
+        third = skill.latest_version_id
+        await _main_moves_on(db, ctx, skill)
+        assert [
+            item.behind_main for item in (await SkillCatchUpService(db).behind_main(ctx)).items
+        ] == [1, 1]
+
+        assert skill.latest_version_id is not None
+        await SkillVersionService(db).restore(
+            ctx, skill.id, third, SkillVersionRestore(base_version_id=skill.latest_version_id)
+        )
+
+        listed = await SkillCatchUpService(db).behind_main(ctx)
+
+        assert (skill.version, listed.items) == (5, [])
 
     async def test_a_specialists_pin_is_listed_under_its_agent(self, db):
         ctx = await _owner(db)
