@@ -7,7 +7,7 @@ read is the skills *capability*.
 """
 
 import logging
-from collections.abc import Mapping, Sequence
+from collections.abc import Collection, Mapping, Sequence
 from datetime import UTC, datetime, timedelta
 from enum import StrEnum
 from typing import Annotated
@@ -1221,6 +1221,45 @@ class SkillService:
             details={"name": skill.name, "resource": name},
         )
 
+    async def drop_resources(
+        self, ctx: AuthContext, skill_id: UUID, *, keep: Collection[str]
+    ) -> list[str]:
+        """Delete every file not named in `keep`, recording no version: the caller writes
+        the rest of the change and records it, so the set is one version.
+
+        For a library update, whose files are the whole set the skill should have.
+        """
+        skill = await self.get(ctx, skill_id, perm=Perm.SKILLS_EDIT)
+        stale = [resource for resource in skill.resources if resource.name not in keep]
+        for resource in stale:
+            await skill_repo.delete_resource(self.db, resource)
+        if not stale:
+            return []
+        self.db.expire(skill, ["resources"])
+        names = sorted(resource.name for resource in stale)
+        await record_audit(
+            self.db,
+            actor_user_id=ctx.subject_id,
+            organization_id=ctx.organization_id,
+            action="skill.resources_removed",
+            target_type="skill",
+            target_id=str(skill.id),
+            details={"name": skill.name, "resources": names},
+        )
+        return names
+
+    async def record_files(
+        self,
+        ctx: AuthContext,
+        skill_id: UUID,
+        *,
+        source: SkillVersionSource,
+        proposal_id: UUID | None,
+    ) -> None:
+        """Record the skill's files as they stand as a main version."""
+        skill = await self.get(ctx, skill_id, perm=Perm.SKILLS_EDIT)
+        await self._files_changed(ctx, skill, source=source, proposal_id=proposal_id)
+
     async def _files_changed(
         self,
         ctx: AuthContext,
@@ -1315,6 +1354,9 @@ class SkillService:
                 how many more they may not see.
         """
         skill = await self.get(ctx, skill_id, perm=Perm.SKILLS_EDIT)
+        # Locked before the in-use check: an agent binding the skill holds it shared
+        # (`skill_repo.hold`), so a binding is either seen here or written after it is gone.
+        await skill_repo.lock_for_delete(self.db, skill.id)
         using = await agents_using_skill(
             self.db, organization_id=ctx.organization_id, skill_id=skill.id
         )

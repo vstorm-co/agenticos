@@ -128,6 +128,15 @@ export interface Skill {
   /** A grouping label for people ("marketing", "devops"); null is uncategorized. */
   category: string | null;
   version: number;
+  /**
+   * Main's newest version, which an edit on main is written over; `version` is its
+   * number. Null only for a skill with no version saved yet.
+   */
+  latest_version_id: string | null;
+  /** How many forks the skill has that are not archived. */
+  forks?: number;
+  /** Whether the caller may edit the skill, restore its versions and fork it. */
+  can_edit?: boolean;
   visibility: string;
   owner_user_id: string | null;
   /**

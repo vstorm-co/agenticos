@@ -1530,7 +1530,13 @@ class AuthoringService:
             )
         )
         evidence = [] if request is None else request.evidence.get("conversation_ids", [])
-        bodies = {skill.id: SkillBody(description=proposal.description, content=proposal.content)}
+        bodies = {
+            skill.id: SkillBody(
+                description=proposal.description,
+                content=proposal.content,
+                fork_id=proposal.fork_id,
+            )
+        }
         checked = await self._check_request(ctx, agent.id, body)
         pinned = checked.request.model_copy(
             update={"version": version.version, "baseline_version": version.version}

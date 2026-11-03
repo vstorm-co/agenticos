@@ -28,7 +28,8 @@ v1 as if nothing had changed.
 
 **Downgrade** drops the history: the skills keep the text of their newest main
 version and its number. Specs written by the binding that comes with versions
-(`skill_bindings`) lose it, so every agent reads its skills' main text again.
+(`skill_bindings`) lose it, so every agent reads its skills' main text again. The
+skill uses recorded since keep their rows and lose the version they were served.
 
 Revision ID: 0250_skill_versions
 Revises: 0249_run_skill_uses
@@ -409,6 +410,7 @@ def downgrade() -> None:
     _strip_bindings("agents", "draft_spec")
     _strip_bindings("agent_versions", "spec")
 
+    _forget_served_versions()
     op.drop_index(op.f("run_skill_uses_skill_version_id_idx"), table_name="run_skill_uses")
     op.drop_constraint(
         op.f("run_skill_uses_skill_version_id_fkey"), "run_skill_uses", type_="foreignkey"
@@ -449,3 +451,9 @@ def downgrade() -> None:
     op.drop_table("skill_forks")
     op.drop_column("skills", "latest_version_id")
     op.drop_constraint("uq_skills_tenant", "skills", type_="unique")
+
+
+def _forget_served_versions() -> None:
+    """Clear the version each skill use was served: the column outlives the versions it
+    names, and an id of a version that is gone would read as one that exists."""
+    op.execute("UPDATE run_skill_uses SET skill_version_id = NULL")

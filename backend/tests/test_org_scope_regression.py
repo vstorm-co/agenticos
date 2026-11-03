@@ -44,6 +44,7 @@ from app.repositories import (
     rag_document_repo,
     skill_check_repo,
     skill_proposal_repo,
+    skill_repo,
     skill_usage_repo,
     skill_version_repo,
 )
@@ -230,6 +231,7 @@ TENANT_REQUIRED = [
     (skill_usage_repo, "unknown_runs"),
     (skill_usage_repo, "agents_involved"),
     (agent_repo, "drafts_mentioning"),
+    (skill_repo, "hold"),
     (skill_version_repo, "create_version"),
     (skill_version_repo, "get_version"),
     (skill_version_repo, "get_versions"),

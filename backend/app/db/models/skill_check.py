@@ -207,6 +207,12 @@ class SkillCheck(Base):
     created_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
         PG_UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
+    # The key the check was started with, which each later stage is narrowed to as the
+    # key stands then. No foreign key: keys are hard-deleted, and a reference set to
+    # null would let the check fall back to the issuer's full role.
+    created_by_api_key_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True), nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
@@ -291,6 +297,9 @@ class SkillCheckAgent(Base):
         PG_UUID(as_uuid=True), ForeignKey("datasets.id", ondelete="SET NULL"), nullable=True
     )
     """The agent's own dataset, the second stage's questions."""
+    dataset_version: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    """The version of `dataset_id` the check sampled and priced, which the second stage
+    asks even when the dataset was edited while the first stage ran."""
     skill_set_run_id: Mapped[uuid.UUID | None] = mapped_column(
         PG_UUID(as_uuid=True), ForeignKey("eval_runs.id", ondelete="SET NULL"), nullable=True
     )

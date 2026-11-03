@@ -21,9 +21,11 @@ from app.db.models.agent_environment import AgentEnvironment
 from app.db.models.resource_grant import Visibility
 from app.db.models.skill import Skill
 from app.db.models.skill_version import SkillVersion
+from app.schemas.agent_environment import EnvironmentUpdate
 from app.schemas.skill import SkillUpdate
 from app.schemas.skill_version import SkillBindingChange, SkillForkCreate, SkillVersionCreate
 from app.services import proposal_reach
+from app.services.agent_environment import AgentEnvironmentService
 from app.services.agent_registry import AgentRegistryService
 from app.services.agent_runner import AgentRunnerService
 from app.services.eval_suite import reads_skill_line
@@ -354,12 +356,50 @@ class TestTheSkillsAgents:
         )
         await db.flush()
 
-        [row] = (await SkillAgentService(db).agents(ctx, skill.id)).items
+        agents = SkillAgentService(db)
+        [row] = (await agents.agents(ctx, skill.id)).items
+        by_version, by_fork = await agents.counts(skill)
 
         assert row.binding.state == "main"
         assert [(env.name, env.binding.state, env.agent_version) for env in row.environments] == [
             ("staging", "fork", 2)
         ]
+        assert by_fork[fork.id] == 1
+        assert skill.latest_version_id is not None and by_version[skill.latest_version_id] == 1
+
+    async def test_a_reader_outside_the_default_environment_gets_its_own_row(self, db):
+        """A specialist that only another environment serves, or only the draft names."""
+        ctx = await _owner(db)
+        skill = await _skill(db, ctx)
+        fork = await _fork(db, ctx, skill)
+        agent = await _serving(db, ctx, "Clerk", _spec(skill))
+        staging = AgentVersion(
+            agent_id=agent.id,
+            organization_id=ctx.organization_id,
+            version=2,
+            spec=_with_specialist(_spec(skill), skill, fork_id=str(fork.id)),
+        )
+        db.add(staging)
+        await db.flush()
+        db.add(
+            AgentEnvironment(
+                organization_id=ctx.organization_id,
+                agent_id=agent.id,
+                name="staging",
+                version_id=staging.id,
+                is_default=False,
+            )
+        )
+        agent.draft_spec = _with_specialist(_spec(skill), skill, version=1)
+        await db.flush()
+
+        rows = (await SkillAgentService(db).agents(ctx, skill.id)).items
+
+        assert [
+            (row.via_specialist, row.binding.state, row.agent_version, row.draft_only)
+            for row in rows
+        ] == [(None, "main", 1, False), ("billing", "fork", 2, False)]
+        assert rows[1].draft_differs is True
 
     async def test_agents_the_caller_cannot_see_are_only_counted(self, db):
         owner = await _owner(db)
@@ -684,6 +724,37 @@ class TestMovingAnAgent:
 
 
 class TestArchivingAFork:
+    async def test_an_older_version_reading_an_archived_fork_is_not_promoted(self, db):
+        """Archiving only waits for what is read now; the version before is refused later."""
+        ctx = await _owner(db)
+        skill = await _skill(db, ctx)
+        fork = await _fork(db, ctx, skill)
+        agent = await _serving(
+            db, ctx, "Clerk", await _runnable(db, ctx, skill, fork_id=str(fork.id))
+        )
+        on_fork = agent.current_version_id
+        production = await db.scalar(
+            select(AgentEnvironment).where(AgentEnvironment.agent_id == agent.id)
+        )
+        assert production is not None and on_fork is not None
+        production.tracks_latest = False
+        await db.flush()
+        await SkillAgentService(db).change_binding(
+            ctx, skill.id, agent.id, SkillBindingChange(state="main")
+        )
+        await AgentEnvironmentService(db).update(
+            ctx, agent.id, production.id, EnvironmentUpdate(tracks_latest=True)
+        )
+        await SkillVersionService(db).archive_fork(ctx, skill.id, fork.id)
+
+        with pytest.raises(BadRequestError, match="archived skill fork 'returns'"):
+            await AgentEnvironmentService(db).update(
+                ctx,
+                agent.id,
+                production.id,
+                EnvironmentUpdate(tracks_latest=False, version_id=on_fork),
+            )
+
     async def test_a_fork_an_agent_reads_is_not_archived(self, db):
         ctx = await _owner(db)
         skill = await _skill(db, ctx)

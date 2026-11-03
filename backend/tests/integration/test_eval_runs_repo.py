@@ -357,6 +357,11 @@ async def test_a_cached_baseline_read_the_skill_versions_the_agent_reads_now(db)
     assert await lookup({skill: after}) is None
     # An arm from before versions were recorded never stands in for a skilled agent.
     assert await lookup(None) is None
+    # An arm whose skills moved while it ran stands for no versions at all.
+    found_arm = found[0]
+    await eval_run_repo.update_arm(db, arm=found_arm, values={"skill_versions": {}})
+    assert await lookup({skill: before}) is None
+    assert await lookup(None) is None
 
 
 async def test_the_baseline_lookup_matches_what_it_is_asked_to_and_nothing_else(db) -> None:

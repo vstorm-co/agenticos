@@ -19,6 +19,7 @@ happened to the run.
 """
 
 import logging
+from collections.abc import Mapping
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -58,8 +59,13 @@ class SkillProposalService:
         *,
         agent_id: UUID,
         conversation_id: UUID | None,
+        forks: Mapping[UUID, UUID] | None = None,
     ) -> list[SkillProposal]:
         """Store what a run left different, one proposal per skill.
+
+        `forks` names the fork the run was bound to for each skill it read from one.
+        A fork with no versions of its own serves the main version it started from, so
+        the version alone cannot say the change is for the fork.
 
         A pending proposal for the same skill is overwritten rather than joined
         by a second: three turns of one conversation refining a checklist should
@@ -73,7 +79,7 @@ class SkillProposalService:
         recorded: list[SkillProposal] = []
         for change in changes:
             base = bases.get(change.base_version_id) if change.base_version_id else None
-            fork_id = None if base is None else base.fork_id
+            fork_id = (forks or {}).get(change.skill_id) or (None if base is None else base.fork_id)
             rewritten = await skill_proposal_repo.replace_pending(
                 self.db,
                 organization_id=ctx.organization_id,
@@ -316,6 +322,11 @@ class SkillProposalService:
         files = [
             (name, content.encode("utf-8")) for name, content in sorted(proposal.resources.items())
         ]
+        removed: list[str] = []
+        if fork is None and proposal.skill_id is not None and replaces_files(proposal):
+            removed = await self.skills.drop_resources(
+                ctx, proposal.skill_id, keep=set(proposal.resources)
+            )
         if fork is not None:
             skill = current
             await self._apply_to_fork(ctx, fork, proposal, source)
@@ -333,13 +344,15 @@ class SkillProposalService:
                 ctx,
                 proposal.skill_id,
                 SkillUpdate(description=proposal.description, content=proposal.content),
-                source=None if files else source,
+                source=None if files or removed else source,
                 proposal_id=proposal.id,
             )
         if files and fork is None:
             await self.skills.put_resources(
                 ctx, skill.id, files, source=source, proposal_id=proposal.id
             )
+        elif removed:
+            await self.skills.record_files(ctx, skill.id, source=source, proposal_id=proposal.id)
 
         reaches = (
             await proposal_reach.reach(
@@ -391,7 +404,12 @@ class SkillProposalService:
             )
         )[latest_id]
         manifest, bodies = manifest_of(
-            (name, None, content) for name, content in sorted(proposal.resources.items())
+            (
+                name,
+                latest.resources[name]["description"] if name in latest.resources else None,
+                content,
+            )
+            for name, content in sorted(proposal.resources.items())
         )
         await skill_version_repo.put_files(
             self.db, organization_id=ctx.organization_id, skill_id=fork.skill_id, bodies=bodies
@@ -418,6 +436,10 @@ class SkillProposalService:
         proposal = await self.get(ctx, proposal_id)
         self._refuse_second_decision(proposal, decision.revision)
         decided = await self._claim(ctx, proposal, decision, ProposalStatus.DISCARDED)
+        if proposal.skill_id is not None:
+            from app.services.skill_check import SkillCheckService
+
+            await SkillCheckService(self.db).stop_for_proposal(ctx, proposal.skill_id, proposal_id)
         await record_audit(
             self.db,
             actor_user_id=ctx.subject_id,
@@ -483,6 +505,14 @@ class SkillProposalService:
             )
         if proposal.revision != revision:
             raise _changed(proposal)
+
+
+def replaces_files(proposal: SkillProposal) -> bool:
+    """Whether the proposal's files are the skill's whole set rather than changes to it.
+
+    A library update carries every file the bundled skill has, so one it dropped goes.
+    """
+    return proposal.source == SkillVersionSource.LIBRARY.value
 
 
 def version_source(proposal: SkillProposal) -> SkillVersionSource:

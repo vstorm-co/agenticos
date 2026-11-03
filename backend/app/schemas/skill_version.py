@@ -22,7 +22,7 @@ class VersionRef(BaseSchema):
 
 class PersonRef(BaseSchema):
     id: UUID
-    name: str
+    name: str | None = Field(description="Null for somebody who is no longer a member")
 
 
 class SkillVersionSummary(BaseSchema):
@@ -46,7 +46,7 @@ class SkillVersionSummary(BaseSchema):
     created_by: PersonRef | None = None
     created_at: datetime
     agents: int = Field(
-        default=0, description="How many agents' served versions read exactly this version"
+        description="How many agents read exactly this version in an environment that serves it"
     )
 
 
@@ -121,7 +121,7 @@ class SkillForkRead(BaseSchema):
     changes: int = Field(description="How many versions of its own it has")
     behind_main: int = Field(description="How many main versions came after its base")
     agents: int = Field(
-        default=0, description="How many agents' served versions read it, hidden ones included"
+        description="How many agents read it in an environment that serves it, hidden ones included"
     )
     archive_candidate: bool = Field(
         description="No agent reads it and no run has served it for 30 days"

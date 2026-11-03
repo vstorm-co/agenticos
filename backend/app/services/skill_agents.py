@@ -235,14 +235,22 @@ class SkillAgentService:
     async def counts(self, skill: Skill) -> tuple[Counter[UUID], Counter[UUID]]:
         """How many agents' served versions read each skill version, and each fork.
 
-        An agent counts once on each version it reads, its specialists' included.
+        An agent counts once on each version and fork it reads in any environment that
+        serves it, its specialists' included.
         """
-        default = [_default(use)[2] for use in await self._uses(skill) if use.served]
-        reader = await self._reader(skill, [line for lines in default for line in lines])
+        uses = [use for use in await self._uses(skill) if use.served]
+        reader = await self._reader(
+            skill, [line for use in uses for _, _, lines in use.served for line in lines]
+        )
         by_version: Counter[UUID] = Counter()
         by_fork: Counter[UUID] = Counter()
-        for lines in default:
-            bindings = [binding for line in lines if (binding := reader.read(line)) is not None]
+        for use in uses:
+            bindings = [
+                binding
+                for _, _, lines in use.served
+                for line in lines
+                if (binding := reader.read(line)) is not None
+            ]
             by_version.update({binding.version.id for binding in bindings})
             by_fork.update({binding.fork.id for binding in bindings if binding.fork is not None})
         return by_version, by_fork
@@ -250,10 +258,9 @@ class SkillAgentService:
     async def line_agents(self, skill: Skill, fork_id: UUID | None) -> list[LineAgent]:
         """The agents a change to this line reaches: main's followers, or the fork's.
 
-        An agent counts once, when a served version reads the line - its default
-        environment's first, else the first environment that does, and as itself
-        before as one of its specialists. Pinned agents, other lines and agents bound
-        in a draft alone are not reached.
+        An agent counts when a served version reads the line - its default
+        environment's first, else the first environment that does. Pinned agents,
+        other lines and agents bound in a draft alone are not reached.
         """
         found: list[LineAgent] = []
         for use in await self._uses(skill):
@@ -265,11 +272,8 @@ class SkillAgentService:
             ]
             if not on_line:
                 continue
-            # One measurement per agent: a candidate replaces the skill for every reader
-            # of one run, so the agent itself and its specialists are asked together.
-            _, number, line = min(
-                on_line,
-                key=lambda item: (not item[0].is_default, item[2].via_specialist is not None),
+            _, number, line = next(
+                (served for served in on_line if served[0].is_default), on_line[0]
             )
             found.append(LineAgent(use.agent, number, line.via_specialist))
         return found
@@ -287,13 +291,21 @@ class SkillAgentService:
         for use in await self._uses(skill):
             if use.agent.id != agent_id or not use.served:
                 continue
-            _, number, lines = _default(use)
-            own = _by_reader(lines, None)
-            if own is not None and own.state == "pinned" and own.version is not None:
-                return LineAgent(use.agent, number, None), own.version
+            served = sorted(use.served, key=lambda entry: not entry[0].is_default)
+            own = next(
+                (
+                    (number, line)
+                    for _, number, lines in served
+                    if (line := _by_reader(lines, None)) is not None
+                ),
+                None,
+            )
+            if own is not None and own[1].state == "pinned" and own[1].version is not None:
+                return LineAgent(use.agent, own[0], None), own[1].version
             return next(
                 (
                     line.via_specialist
+                    for _, _, lines in served
                     for line in lines
                     if line.state == "pinned" and line.via_specialist is not None
                 ),
@@ -340,11 +352,13 @@ class SkillAgentService:
         lines += [line for use in uses for line in use.draft]
         reader = await self._reader(skill, lines)
         checks: dict[UUID, dict[UUID, AgentCheckRef]] = {}
+        # What a check found on an agent is eval results, read like a check itself.
+        checked = [] if not ctx.has(Perm.RUNS_VIEW) else agents
         for agent_id, version_id, found, at in await skill_check_repo.checked_versions(
             self.db,
             organization_id=skill.organization_id,
             skill_id=skill.id,
-            agent_ids=[agent.id for agent in agents],
+            agent_ids=[agent.id for agent in checked],
         ):
             checks.setdefault(agent_id, {}).setdefault(
                 version_id,
@@ -358,12 +372,23 @@ class SkillAgentService:
             )
         rows: list[SkillAgentUsage] = []
         for use in uses:
-            if use.served:
-                _, agent_version, readers = _default(use)
-            else:
-                agent_version, readers = None, use.draft
+            # The default environment first: a reader's row shows what it serves there.
+            served = sorted(use.served, key=lambda entry: not entry[0].is_default)
             draft = {line.via_specialist: line for line in use.draft}
-            for line in readers:
+            readers = [line.via_specialist for _, _, lines in served for line in lines]
+            for via in dict.fromkeys([*readers, *draft]):
+                primary = next(
+                    (
+                        (environment, number, found)
+                        for environment, number, lines in served
+                        if (found := _by_reader(lines, via)) is not None
+                    ),
+                    None,
+                )
+                if primary is None:
+                    shown, agent_version, line = None, None, draft[via]
+                else:
+                    shown, agent_version, line = primary
                 binding = reader.read(line)
                 if binding is None:
                     continue
@@ -371,8 +396,9 @@ class SkillAgentService:
                     AgentEnvironmentBinding(
                         id=other.id, name=other.name, agent_version=other_number, binding=read
                     )
-                    for other, other_number, other_lines in use.served
-                    if (other_line := _by_reader(other_lines, line.via_specialist)) is not None
+                    for other, other_number, other_lines in served
+                    if other is not shown
+                    and (other_line := _by_reader(other_lines, via)) is not None
                     and other_line != line
                     and (read := reader.read(other_line)) is not None
                 ]
@@ -386,15 +412,13 @@ class SkillAgentService:
                             has_avatar=agent.has_avatar,
                             avatar_color=agent.avatar_color,
                         ),
-                        via_specialist=line.via_specialist,
-                        draft_only=not use.served,
+                        via_specialist=via,
+                        draft_only=primary is None,
                         binding=binding,
                         agent_version=agent_version,
                         environments=others,
-                        draft_differs=draft.get(line.via_specialist) != line,
-                        can_change=(
-                            agent.id in editable and line.via_specialist is None and None in draft
-                        ),
+                        draft_differs=draft.get(via) != line,
+                        can_change=agent.id in editable and via is None and None in draft,
                         can_publish=agent.id in publishable,
                         checked=checks.get(agent.id, {}).get(binding.version.id),
                         checked_versions=list(checks.get(agent.id, {}).values()),
@@ -513,14 +537,6 @@ class SkillAgentService:
         uses = [use for use in await self._uses(skill) if use.agent.id == agent_id]
         rows = await self._rows(ctx, skill, uses)
         return next((row for row in rows if row.via_specialist is None), None)
-
-
-def _default(use: _Uses) -> tuple[AgentEnvironment, int, list[Line]]:
-    """The served bindings a row shows: the default environment's, else the first one's."""
-    return next(
-        (served for served in use.served if served[0].is_default),
-        use.served[0],
-    )
 
 
 def _by_reader(lines: Sequence[Line], via_specialist: str | None) -> Line | None:

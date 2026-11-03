@@ -13,10 +13,11 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import pytest
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
+from app.agents.spec import AgentSpec
 from app.core.exceptions import (
     AlreadyExistsError,
     BadRequestError,
@@ -29,6 +30,7 @@ from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.agent import Agent
 from app.db.models.agent_environment import AgentEnvironment
 from app.db.models.agent_run import AgentRun
+from app.db.models.organization import OrganizationMember
 from app.db.models.resource_grant import Visibility
 from app.db.models.skill import Skill
 from app.db.models.skill_proposal import SkillProposal
@@ -43,6 +45,7 @@ from app.schemas.skill_version import (
     SkillVersionRestore,
 )
 from app.services import skill_library
+from app.services.agent_registry import AgentRegistryService
 from app.services.skill_proposal import SkillProposalService
 from app.services.skill_versions import SkillVersionService
 from app.services.skills import SkillService
@@ -246,6 +249,26 @@ class TestEditingAndRestoring:
         assert newest.previous is not None and newest.previous.id == oldest.id
         assert oldest.previous is None
         assert newest.created_by is not None and newest.created_by.id == ctx.user_id
+
+    async def test_somebody_who_left_keeps_their_versions_and_loses_their_name(self, db):
+        ctx = await _owner(db)
+        skill = await _skill(db, ctx)
+        builder = await _member(db, ctx, OrgRoleName.BUILDER)
+        await SkillService(db).update(builder, skill.id, SkillUpdate(content="Second."))
+        await db.execute(
+            delete(OrganizationMember).where(
+                OrganizationMember.organization_id == ctx.organization_id,
+                OrganizationMember.user_id == builder.user_id,
+            )
+        )
+
+        newest, oldest = (
+            await SkillVersionService(db).list_versions(ctx, skill.id, fork_id=None)
+        ).items
+
+        assert newest.created_by is not None
+        assert (newest.created_by.id, newest.created_by.name) == (builder.user_id, None)
+        assert oldest.created_by is not None and oldest.created_by.name is not None
 
     async def test_a_version_keeps_its_files_after_main_changed_them(self, db):
         ctx = await _owner(db)
@@ -773,3 +796,62 @@ class TestTheSkillPage:
             skill.latest_version_id,
         )
         assert theirs.can_edit is False
+
+    async def test_an_edit_in_progress_does_not_hold_up_an_agent_binding_the_skill(
+        self, db: AsyncSession, engine: AsyncEngine
+    ):
+        """An edit or a decision locks the skill and then the agents it moves; an agent's
+        save holds the agent and then the skill. The two locks must not wait for each
+        other, or the pair deadlocks."""
+        ctx = await _owner(db)
+        skill = await _skill(db, ctx)
+        agent = await _published(db, ctx, name="Clerk", spec={"name": "Clerk"})
+        await db.commit()
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+        bound = AgentSpec.model_validate({"name": "Clerk", "skill_ids": [str(skill.id)]})
+
+        async with factory() as editing, factory() as binding:
+            try:
+                await skill_repo.lock(editing, skill.id)
+
+                await asyncio.wait_for(
+                    AgentRegistryService(binding).save_draft(ctx, agent.id, bound), timeout=3
+                )
+                await binding.commit()
+            finally:
+                await editing.rollback()
+
+    async def test_a_binding_saved_while_a_delete_waits_stops_the_delete(
+        self, db: AsyncSession, engine: AsyncEngine
+    ):
+        """Held here half-way: the draft binds the skill and has not committed yet. The
+        delete waits for it rather than deleting a skill a live draft now names."""
+        ctx = await _owner(db)
+        skill = await _skill(db, ctx)
+        agent = await _published(db, ctx, name="Clerk", spec={"name": "Clerk"})
+        await db.commit()
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+        bound = AgentSpec.model_validate({"name": "Clerk", "skill_ids": [str(skill.id)]})
+
+        async def delete_skill() -> None:
+            async with factory() as session:
+                await SkillService(session).delete(ctx, skill.id)
+                await session.commit()
+
+        task: asyncio.Task[None] | None = None
+        async with factory() as binding:
+            try:
+                await AgentRegistryService(binding).save_draft(ctx, agent.id, bound)
+                task = asyncio.create_task(delete_skill())
+                await asyncio.sleep(0.4)
+                assert not task.done()
+
+                await binding.commit()
+                with pytest.raises(InUseError):
+                    await task
+                task = None
+            finally:
+                if task is not None:
+                    task.cancel()
+                    with contextlib.suppress(asyncio.CancelledError):
+                        await task
