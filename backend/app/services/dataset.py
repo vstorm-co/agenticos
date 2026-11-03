@@ -33,6 +33,7 @@ from app.core.exceptions import (
     AlreadyExistsError,
     AuthorizationError,
     BadRequestError,
+    ConcurrentChangeError,
     EvalSuiteInUseError,
     NotFoundError,
 )
@@ -1032,6 +1033,32 @@ class DatasetService:
             NotFoundError: As :meth:`get` does, for a dataset the caller may not edit.
         """
         return await self._locked(ctx, dataset_id)
+
+    async def hold_generated_sources(self, ctx: AuthContext, cases: list[GeneratedCase]) -> None:
+        """Hold source accounts and their erasure locks before claiming proposed cases.
+
+        Account deletion takes user rows before personal-data locks. Use that
+        same order, before the dataset/proposal locks, so a deletion either sees
+        the accepted cases or finishes before they can be claimed.
+        """
+        people: set[UUID] = set()
+        for case in cases:
+            authors = await self._generated_from(ctx, case)
+            people.update(
+                person
+                for person in (authors.asked_by, authors.noted_by, *authors.history)
+                if person is not None
+            )
+        if not people:
+            return
+        ordered = sorted(people)
+        await user_repo.hold_key_share(self.db, ordered)
+        for person in ordered:
+            await hold_subject(self.db, LockScope.PERSONAL_DATA_PER_USER, person)
+        if await user_repo.existing_ids(self.db, ordered) != people:
+            raise ConcurrentChangeError(
+                message="A proposed case's source account was erased. Reload the proposed cases."
+            )
 
     async def add_generated(
         self, ctx: AuthContext, dataset: Dataset, cases: list[GeneratedCase]

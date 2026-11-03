@@ -112,6 +112,7 @@ async def list_proposals(
     *,
     organization_id: UUID,
     generation_id: UUID | None = None,
+    ids: Sequence[UUID] | None = None,
     without_origin: str | None = None,
     skip: int = 0,
     limit: int = 50,
@@ -127,6 +128,8 @@ async def list_proposals(
     ]
     if without_origin is not None:
         where.append(CaseProposal.origin != without_origin)
+    if ids is not None:
+        where.append(CaseProposal.id.in_(ids))
     if generation_id is not None:
         where.append(CaseProposal.generation_id == generation_id)
     total = await db.scalar(select(func.count(CaseProposal.id)).where(*where))
@@ -206,7 +209,12 @@ async def take_proposals(
     ]
     if without_origin is not None:
         where.append(CaseProposal.origin != without_origin)
-    result = await db.execute(delete(CaseProposal).where(*where).returning(CaseProposal))
+    result = await db.execute(
+        delete(CaseProposal)
+        .where(*where)
+        .returning(CaseProposal)
+        .execution_options(populate_existing=True)
+    )
     taken = {proposal.id: proposal for proposal in result.scalars().all()}
     await db.flush()
     return [taken[proposal_id] for proposal_id in ids if proposal_id in taken]

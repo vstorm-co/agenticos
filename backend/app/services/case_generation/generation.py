@@ -147,6 +147,7 @@ async def _still_asked(db: AsyncSession, drafts: list[Draft], material: Material
         return () if message_id is None else askers.get(message_id, ())
 
     people = sorted({person for draft in drafts for person in of(draft)})
+    await user_repo.hold_key_share(db, people)
     for person in people:
         await hold_subject(db, LockScope.PERSONAL_DATA_PER_USER, person)
     present = await user_repo.existing_ids(db, people)

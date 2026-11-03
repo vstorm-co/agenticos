@@ -84,6 +84,18 @@ def _drafted(proposal: CaseProposal) -> DatasetCaseContent:
     )
 
 
+def _generated_case(
+    proposal: CaseProposal, content: DatasetCaseContent | None = None
+) -> GeneratedCase:
+    return GeneratedCase(
+        content=_drafted(proposal) if content is None else content,
+        source_document_id=proposal.source_document_id,
+        source_run_id=proposal.source_run_id,
+        source_conversation_id=proposal.source_conversation_id,
+        source_message_id=proposal.source_message_id,
+    )
+
+
 class CaseGenerationService:
     """Generate cases for a dataset and decide what was generated."""
 
@@ -382,19 +394,20 @@ class CaseGenerationService:
             NotFoundError: For a dataset the caller may not edit, or when none of
                 the proposals is still waiting.
         """
-        dataset = await self.datasets.lock_for_edit(ctx, dataset_id)
+        await self.datasets.get(ctx, dataset_id, perm=Perm.DATASETS_EDIT)
         edits = {item.id: item.content for item in data.items}
+        waiting, _ = await case_generation_repo.list_proposals(
+            self.db,
+            dataset_id,
+            organization_id=ctx.organization_id,
+            ids=list(edits),
+            without_origin=proposals_hidden_from(ctx),
+            limit=len(edits),
+        )
+        await self.datasets.hold_generated_sources(ctx, [_generated_case(row) for row in waiting])
+        dataset = await self.datasets.lock_for_edit(ctx, dataset_id)
         taken = await self._take(ctx, dataset.id, list(edits))
-        cases = [
-            GeneratedCase(
-                content=edits[proposal.id] or _drafted(proposal),
-                source_document_id=proposal.source_document_id,
-                source_run_id=proposal.source_run_id,
-                source_conversation_id=proposal.source_conversation_id,
-                source_message_id=proposal.source_message_id,
-            )
-            for proposal in taken
-        ]
+        cases = [_generated_case(proposal, edits[proposal.id]) for proposal in taken]
         version = await self.datasets.add_generated(ctx, dataset, cases)
         await self._count(ctx, taken, accepted=True)
         return version
@@ -409,7 +422,7 @@ class CaseGenerationService:
         requester's behalf, and the drafts are theirs to review and remove
         afterwards. `None` when none was left waiting.
         """
-        dataset = await self.datasets.lock_for_edit(ctx, generation.dataset_id)
+        dataset = await self.datasets.get(ctx, generation.dataset_id, perm=Perm.DATASETS_EDIT)
         waiting, _ = await case_generation_repo.list_proposals(
             self.db,
             dataset.id,
@@ -417,6 +430,8 @@ class CaseGenerationService:
             generation_id=generation.id,
             limit=MAX_GENERATED,
         )
+        await self.datasets.hold_generated_sources(ctx, [_generated_case(row) for row in waiting])
+        dataset = await self.datasets.lock_for_edit(ctx, dataset.id)
         taken = await case_generation_repo.take_proposals(
             self.db,
             dataset.id,
@@ -426,16 +441,7 @@ class CaseGenerationService:
         )
         if not taken:
             return None
-        cases = [
-            GeneratedCase(
-                content=_drafted(proposal),
-                source_document_id=proposal.source_document_id,
-                source_run_id=proposal.source_run_id,
-                source_conversation_id=proposal.source_conversation_id,
-                source_message_id=proposal.source_message_id,
-            )
-            for proposal in taken
-        ]
+        cases = [_generated_case(proposal) for proposal in taken]
         version = await self.datasets.add_generated(ctx, dataset, cases)
         await self._count(ctx, taken, accepted=True)
         await record_audit(
