@@ -933,14 +933,18 @@ their tenant, and unfiled document rows stay listed under the bases of their ten
 
 When no other base holds the name, both routes and `rag-drop` delete the same rows,
 with their files, and the cleanup job drops the table: the base's own rows and the
-unfiled rows of its organization. Another organization's unfiled rows under the name
-stay, with their files, because the caller has no authority over them. That
-organization's next base on the name lists them, with no chunks behind them: a sync
-indexes a synced document again, and an uploaded one has to be uploaded again.
+unfiled rows of its tenant. That is its organization's for an organization's or a
+personal base, the ones with no organization (what `rag-ingest` writes) for an
+app-scoped base, and none for a personal base outside an organization.
 
-Before, `DELETE /kb/{id}` left the organization's unfiled rows behind the dropped
-table, and the collection drop deleted every row under the name, in every
-organization ([#2568](https://github.com/vstorm-co/agenticos/issues/2568)).
+Another tenant's unfiled rows under the name stay, with their files, because the
+caller has no authority over them. Their chunks go with the table, so they are marked
+as failed: that tenant's next base on the name lists them as failed, an upload can be
+retried from its stored file, and a sync indexes a synced document again.
+
+Before, `DELETE /kb/{id}` left the tenant's unfiled rows behind the dropped table,
+still listed as indexed, and the collection drop deleted every row under the name,
+whichever tenant it belonged to ([#2568](https://github.com/vstorm-co/agenticos/issues/2568)).
 
 An upload or a sync still indexing a file for the base when it is deleted leaves
 no chunks behind. The write takes a lock on the base's row that conflicts with the

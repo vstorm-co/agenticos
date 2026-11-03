@@ -1,5 +1,5 @@
 ---
-source_sha: "7d072906d9e0"
+source_sha: "380a2d85bed6"
 ---
 
 # Dateiverarbeitung { #file-processing }
@@ -1052,16 +1052,22 @@ zugeordnete Dokumentzeilen bleiben in den Basen ihres Tenants gelistet ([#2537](
 
 Hält keine andere Basis den Namen, löschen beide Wege und `rag-drop` dieselben
 Zeilen mit ihren Dateien, und der Aufräum-Job löscht die Tabelle: die eigenen Zeilen
-der Basis und die nicht zugeordneten Zeilen ihrer Organisation. Nicht zugeordnete
-Zeilen einer anderen Organisation unter dem Namen bleiben mit ihren Dateien, denn der
-Aufrufer hat keine Befugnis über sie. Die nächste Basis dieser Organisation mit dem
-Namen listet sie, ohne Chunks dahinter: Eine Synchronisierung indexiert ein
-synchronisiertes Dokument neu, ein hochgeladenes muss erneut hochgeladen werden.
+der Basis und die nicht zugeordneten Zeilen ihres Tenants. Das sind für eine Basis
+einer Organisation oder eine persönliche Basis die Zeilen ihrer Organisation, für eine
+app-scoped Basis die Zeilen ohne Organisation (die `rag-ingest` schreibt) und für eine
+persönliche Basis außerhalb einer Organisation keine.
 
-Vorher ließ
-`DELETE /kb/{id}` die nicht zugeordneten Zeilen der Organisation hinter der gelöschten
-Tabelle zurück, und das Löschen einer Collection löschte jede Zeile unter dem Namen,
-in allen Organisationen ([#2568](https://github.com/vstorm-co/agenticos/issues/2568)).
+Nicht zugeordnete Zeilen eines anderen Tenants unter dem Namen bleiben mit ihren
+Dateien, denn der Aufrufer hat keine Befugnis über sie. Ihre Chunks gehen mit der
+Tabelle, deshalb werden sie als fehlgeschlagen markiert: Die nächste Basis dieses
+Tenants mit dem Namen listet sie als fehlgeschlagen, ein hochgeladenes Dokument lässt
+sich aus seiner gespeicherten Datei erneut versuchen, und eine Synchronisierung
+indexiert ein synchronisiertes Dokument neu.
+
+Vorher ließ `DELETE /kb/{id}` die nicht zugeordneten Zeilen des Tenants hinter der
+gelöschten Tabelle zurück, weiter als indexiert gelistet, und das Löschen einer
+Collection löschte jede Zeile unter dem Namen, gleich welchem Tenant sie gehörte
+([#2568](https://github.com/vstorm-co/agenticos/issues/2568)).
 
 Ein Upload oder eine Synchronisierung, die beim Löschen der Basis noch eine Datei
 für sie indexiert, hinterlässt keine Chunks. Der Schreibvorgang nimmt eine

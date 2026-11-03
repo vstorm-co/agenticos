@@ -1,5 +1,5 @@
 ---
-source_sha: "7d072906d9e0"
+source_sha: "380a2d85bed6"
 ---
 
 # Przetwarzanie plików { #file-processing }
@@ -987,14 +987,20 @@ listowane w bazach swojego tenanta ([#2537](https://github.com/vstorm-co/agentic
 
 Gdy żadna inna baza nie ma tej nazwy, obie ścieżki i `rag-drop` usuwają te same
 wiersze, razem z ich plikami, a zadanie porządkowe usuwa tabelę: wiersze samej bazy
-i nieprzypisane wiersze jej organizacji. Nieprzypisane wiersze innej organizacji pod
-tą nazwą zostają, razem z plikami, bo wywołujący nie ma do nich uprawnień. Następna
-baza tej organizacji o tej nazwie je listuje, bez chunków: synchronizacja ponownie
-indeksuje zsynchronizowany dokument, a przesłany trzeba przesłać jeszcze raz.
+i nieprzypisane wiersze jej tenanta. Dla bazy organizacji albo bazy osobistej są to
+wiersze jej organizacji, dla bazy app-scoped wiersze bez organizacji (te, które
+zapisuje `rag-ingest`), a dla bazy osobistej poza organizacją żadne.
 
-Wcześniej `DELETE /kb/{id}` zostawiało nieprzypisane wiersze organizacji za usuniętą
-tabelą, a usunięcie kolekcji kasowało każdy wiersz pod tą nazwą, we wszystkich
-organizacjach ([#2568](https://github.com/vstorm-co/agenticos/issues/2568)).
+Nieprzypisane wiersze innego tenanta pod tą nazwą zostają, razem z plikami, bo
+wywołujący nie ma do nich uprawnień. Ich chunki znikają razem z tabelą, więc zostają
+oznaczone jako nieudane: następna baza tego tenanta o tej nazwie listuje je jako
+nieudane, przesłany dokument można ponowić z zapisanego pliku, a synchronizacja
+ponownie indeksuje zsynchronizowany dokument.
+
+Wcześniej `DELETE /kb/{id}` zostawiało nieprzypisane wiersze tenanta za usuniętą
+tabelą, nadal listowane jako zaindeksowane, a usunięcie kolekcji kasowało każdy
+wiersz pod tą nazwą, niezależnie od tenanta
+([#2568](https://github.com/vstorm-co/agenticos/issues/2568)).
 
 Przesłanie lub synchronizacja, która wciąż indeksuje plik dla bazy w chwili jej
 usunięcia, nie zostawia chunków. Zapis bierze blokadę wiersza bazy, która koliduje

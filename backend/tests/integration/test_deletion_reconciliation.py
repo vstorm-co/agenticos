@@ -32,7 +32,7 @@ from app.db.models.conversation import Conversation
 from app.db.models.knowledge_base import KBScope, KnowledgeBase
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.organization_secret import OrganizationSecret
-from app.db.models.rag_document import RAGDocument
+from app.db.models.rag_document import DocumentStatus, RAGDocument
 from app.db.models.user import User
 from app.repositories import (
     conversation_repo,
@@ -1079,7 +1079,8 @@ class TestADeletedBasesChunksOnAKeptTable:
     """A base deleted while another base holds its collection name leaves the shared
     table standing (#913); the chunks filed under it are read by no scope any more,
     so the queued cleanup deletes them by the base's id and leaves the survivor's
-    (#2537). These run the real job against a real table."""
+    (#2537). The last holder's teardown, which drops the table, is checked against
+    the same rows here too (#2568). These run the real job against a real table."""
 
     @_TEARDOWN_ROUTES
     async def test_deleting_a_knowledge_base_removes_its_chunks_only(
@@ -1283,25 +1284,26 @@ class TestADeletedBasesChunksOnAKeptTable:
 
     @pytest.mark.security
     @_TEARDOWN_ROUTES
+    @pytest.mark.parametrize("holder", ["org", "app"])
     async def test_the_last_holder_takes_its_own_and_its_tenants_unfiled_rows_only(
-        self, engine: AsyncEngine, route: str
+        self, engine: AsyncEngine, route: str, holder: str
     ) -> None:
         """With no other base on the name the table is dropped, and both routes
-        delete the same rows with their files: the base's own and its tenant's
-        unfiled ones. Another organization's unfiled rows and the tenant-less ones
-        `rag-ingest` writes stay with their files: the caller has no authority
-        over them, so what happens to them is their owner's call.
-        `DELETE /kb/{id}` left the tenant's
-        unfiled rows behind the dropped table, and the collection drop deleted
-        every row under the name, in every organization (#2568)."""
+        delete the same rows with their files: the base's own and the unfiled rows
+        of its tenant - its organization's for an organization's base, the
+        tenant-less ones `rag-ingest` writes for an app-scoped one. Another
+        tenant's unfiled rows stay with their files, since the caller has no
+        authority over them, but their chunks went with the table: they are marked
+        failed, so their next base lists them as needing a retry rather than as
+        indexed. `DELETE /kb/{id}` left the tenant's unfiled rows behind the
+        dropped table, and the collection drop deleted every row under the name,
+        in every organization (#2568)."""
         factory = async_sessionmaker(engine, expire_on_commit=False)
         collection = f"kblast{uuid.uuid4().hex[:12]}"
         table = f"rag_{collection}"
         storage = get_file_storage()
-        files = [
-            await storage.save("last-holder", f"{kind}.txt", kind.encode())
-            for kind in ("filed", "unfiled", "foreign", "tenantless")
-        ]
+        kinds = ("filed", "unfiled", "foreign", "tenantless")
+        files = [await storage.save("last-holder", f"{kind}.txt", kind.encode()) for kind in kinds]
         async with factory() as s:
             owner, other = _user(), _user()
             s.add_all([owner, other])
@@ -1309,6 +1311,9 @@ class TestADeletedBasesChunksOnAKeptTable:
             org = await _org(s, owner)
             other_org = await _org(s, other)
             doomed = _org_collection(org.id, collection)
+            if holder == "app":
+                doomed.scope = KBScope.APP.value
+                doomed.organization_id = None
             s.add(doomed)
             await s.flush()
             documents = [
@@ -1317,13 +1322,22 @@ class TestADeletedBasesChunksOnAKeptTable:
                 _kb_document(collection, None, other_org.id, files[2]),
                 _kb_document(collection, None, None, files[3]),
             ]
+            for index, document in enumerate(documents):
+                document.status = DocumentStatus.DONE.value
+                document.vector_document_id = f"doc-{index}"
             s.add_all(documents)
             await _filed_table(s, table, {"doomed-0": doomed.id})
             await s.commit()
-            ctx = AuthContext(user_id=owner.id, organization_id=org.id, role=OrgRoleName.OWNER)
+            ctx = AuthContext(
+                user_id=owner.id,
+                organization_id=org.id,
+                role=OrgRoleName.OWNER,
+                is_app_admin=holder == "app",
+            )
             doomed_id = doomed.id
-            taken = [document.id for document in documents[:2]]
-            spared = [document.id for document in documents[2:]]
+            ours = (0, 1) if holder == "org" else (0, 3)
+            taken = [documents[i].id for i in ours]
+            spared = [document.id for i, document in enumerate(documents) if i not in ours]
 
         try:
             async with factory() as s:
@@ -1337,14 +1351,16 @@ class TestADeletedBasesChunksOnAKeptTable:
                 for document_id in taken:
                     assert await s.get(RAGDocument, document_id) is None
                 for document_id in spared:
-                    assert await s.get(RAGDocument, document_id) is not None
+                    kept = await s.get(RAGDocument, document_id)
+                    assert kept is not None
+                    assert kept.status == DocumentStatus.ERROR.value
+                    assert kept.vector_document_id is None
+                    assert kept.error_message
                 assert (
                     await s.execute(text("SELECT to_regclass(:t)"), {"t": table})
                 ).scalar() is None
-            for stored in files[:2]:
-                assert not await storage.exists(stored)
-            for stored in files[2:]:
-                assert await storage.exists(stored)
+            for i, stored in enumerate(files):
+                assert await storage.exists(stored) == (i not in ours)
         finally:
             for stored in files:
                 await storage.delete(stored)

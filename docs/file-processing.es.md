@@ -1,5 +1,5 @@
 ---
-source_sha: "7d072906d9e0"
+source_sha: "380a2d85bed6"
 ---
 
 # Procesamiento de archivos { #file-processing }
@@ -1008,15 +1008,20 @@ documentos sin asignar siguen listadas en las bases de su tenant ([#2537](https:
 
 Cuando ninguna otra base tiene el nombre, ambas rutas y `rag-drop` borran las mismas
 filas, con sus archivos, y el trabajo de limpieza elimina la tabla: las filas de la
-propia base y las filas sin asignar de su organización. Las filas sin asignar de otra
-organización bajo ese nombre se quedan, con sus archivos, porque quien llama no tiene
-autoridad sobre ellas. La siguiente base de esa organización con ese nombre las lista,
-sin fragmentos detrás: una sincronización vuelve a indexar un documento sincronizado,
-y uno subido hay que subirlo de nuevo.
+propia base y las filas sin asignar de su tenant. Para una base de organización o una
+base personal son las de su organización, para una base app-scoped las que no tienen
+organización (las que escribe `rag-ingest`), y para una base personal fuera de una
+organización ninguna.
 
-Antes, `DELETE /kb/{id}` dejaba
-las filas sin asignar de la organización detrás de la tabla eliminada, y eliminar una
-colección borraba todas las filas bajo el nombre, en todas las organizaciones
+Las filas sin asignar de otro tenant bajo ese nombre se quedan, con sus archivos,
+porque quien llama no tiene autoridad sobre ellas. Sus fragmentos se van con la
+tabla, así que se marcan como fallidas: la siguiente base de ese tenant con ese
+nombre las lista como fallidas, un documento subido se puede reintentar desde su
+archivo guardado y una sincronización vuelve a indexar un documento sincronizado.
+
+Antes, `DELETE /kb/{id}` dejaba las filas sin asignar del tenant detrás de la tabla
+eliminada, todavía listadas como indexadas, y eliminar una colección borraba todas
+las filas bajo el nombre, fuera del tenant que fuera
 ([#2568](https://github.com/vstorm-co/agenticos/issues/2568)).
 
 Una subida o una sincronización que aún indexa un archivo para la base cuando se

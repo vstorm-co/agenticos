@@ -27,6 +27,13 @@ def _no_sync_sources(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 @pytest.fixture(autouse=True)
+def _nothing_left_unindexed(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A last holder's teardown marks another tenant's rows left under the name;
+    the statement hits the database, so it is a no-op unless a test asserts it."""
+    monkeypatch.setattr("app.repositories.rag_document_repo.mark_unindexed", AsyncMock())
+
+
+@pytest.fixture(autouse=True)
 def _used_nowhere(monkeypatch: pytest.MonkeyPatch) -> None:
     """No agent binds anything here; `test_resource_usage` covers the query."""
 
@@ -455,21 +462,28 @@ class TestKBAccessControl:
     @pytest.mark.anyio
     @pytest.mark.security
     @pytest.mark.parametrize("route", ["kb_delete", "rag_drop"])
+    @pytest.mark.parametrize("holder", ["org", "app"])
     async def test_the_last_holder_deletes_its_own_and_its_tenants_unfiled_rows_only(
-        self, mock_db, monkeypatch, route
+        self, mock_db, monkeypatch, route, holder
     ):
         """With no other base on the name the table is dropped, and both routes
-        delete the same rows: the base's own and its tenant's unfiled ones, with
-        their files. `DELETE /kb/{id}` left the tenant's unfiled rows behind the
-        dropped table, and the collection drop deleted every row under the name,
-        another organization's included (#2568)."""
+        delete the same rows: the base's own and its tenant's unfiled ones - the
+        tenant-less ones for an app-scoped base - with their files. What is left
+        under the name is another tenant's, and is marked as no longer indexed.
+        `DELETE /kb/{id}` left the tenant's unfiled rows behind the dropped table,
+        and the collection drop deleted every row under the name, another
+        organization's included (#2568)."""
         user_id = uuid.uuid4()
-        kb = _kb("org", owner_user_id=user_id, organization_id=uuid.uuid4())
+        if holder == "org":
+            kb = _kb("org", owner_user_id=user_id, organization_id=uuid.uuid4())
+        else:
+            kb = _kb("app")
         kb.vector_scope = VectorScope(
             tenant=kb.organization_id, knowledge_base_id=kb.id, takes_unfiled=True
         )
         dispatch = _patch_dispatch(monkeypatch)
         by_name = AsyncMock()
+        unindexed = AsyncMock()
         by_base = AsyncMock(return_value=["rag/docs/ours.txt"])
         unfiled = AsyncMock(
             return_value=DeletedDocuments(
@@ -484,6 +498,7 @@ class TestKBAccessControl:
             patch("app.repositories.rag_document_repo.delete_by_collection", new=by_name),
             patch("app.repositories.rag_document_repo.delete_by_knowledge_base", new=by_base),
             patch("app.repositories.rag_document_repo.delete_unfiled_with_vectors", new=unfiled),
+            patch("app.repositories.rag_document_repo.mark_unindexed", new=unindexed),
             patch(
                 "app.repositories.knowledge_base_repo.list_by_collection_name",
                 new=AsyncMock(return_value=[kb]),
@@ -492,7 +507,9 @@ class TestKBAccessControl:
         ):
             svc = KnowledgeBaseService(mock_db)
             if route == "kb_delete":
-                ctx = _ctx(user_id=user_id, organization_id=kb.organization_id)
+                ctx = _ctx(
+                    user_id=user_id, organization_id=kb.organization_id, app_admin=holder == "app"
+                )
                 await svc.delete(kb.id, ctx=ctx)
             else:
                 await svc.delete_for_rag_collection(kb)
@@ -500,6 +517,7 @@ class TestKBAccessControl:
         by_name.assert_not_awaited()
         by_base.assert_awaited_once_with(mock_db, kb.id)
         unfiled.assert_awaited_once_with(mock_db, CollectionScope.of(kb))
+        unindexed.assert_awaited_once_with(mock_db, kb.collection_name)
         dispatch.assert_awaited_once_with(
             mock_db,
             ["rag/docs/ours.txt", "rag/docs/unfiled.txt"],

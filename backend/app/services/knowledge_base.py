@@ -301,10 +301,11 @@ class KnowledgeBaseService:
     async def _tear_down(self, kb: KnowledgeBase) -> None:
         """Remove a base's documents, its vectors and - unless it is a default - its row.
 
-        The one teardown `DELETE /kb/{id}` (`delete`) and `DELETE
-        /rag/collections/{name}` (`delete_for_rag_collection`) both run, so each
-        rule below exists once; the two copies had drifted (#2568). The caller
-        has resolved access, and refused or allowed a default.
+        The one teardown `DELETE /kb/{id}` (`delete`), `DELETE
+        /rag/collections/{name}` (`delete_for_rag_collection`) and `rag-drop`
+        (`drop_collection_by_name`, through the latter) all run, so each rule
+        below exists once; the two copies had drifted (#2568). The caller has
+        resolved access, and refused or allowed a default.
 
         The name is not tenant-unique (#913), so what goes depends on whether a
         base *other than this one* still holds it. If one does, the table backs
@@ -323,12 +324,12 @@ class KnowledgeBaseService:
         base's own and the unfiled rows of its tenant, with their files. Another
         tenant's unfiled rows under the name stay with their files - the caller
         holds no authority over them, so what happens to them is their tenant's
-        call. Its next base on the name lists them with no chunks behind them: a
-        sync indexes a synced one again, an upload has to be made again. The two
-        routes had
-        drifted here: `delete` left the tenant's unfiled rows behind the dropped
-        table, and the collection drop deleted every row under the name, in
-        every organization (#2568).
+        call - but their chunks go with the table, so they are marked as failed
+        (`mark_unindexed`): an upload can be retried from its stored file, and a
+        sync indexes a synced one again. The two routes had drifted here:
+        `delete` left the tenant's unfiled rows behind the dropped table, still
+        listed as indexed, and the collection drop deleted every row under the
+        name, whichever tenant it belonged to (#2568).
 
         The stored files, the purge and the drop are a cleanup job queued in this
         transaction (`queue_external_state_cleanup`), not run in the request, so
@@ -373,6 +374,9 @@ class KnowledgeBaseService:
                 await rag_document_repo.delete_by_knowledge_base(self.db, kb.id)
                 + unfiled.storage_paths
             )
+            # Another tenant's unfiled rows stay, but not as indexed: their chunks
+            # go with the table.
+            await rag_document_repo.mark_unindexed(self.db, collection)
             collections_to_drop = [collection]
             # Reserve the name against reuse until the deferred drop runs, so a
             # concurrent claim cannot adopt the still-populated table (#1362).

@@ -701,11 +701,10 @@ async def delete_by_collection(db: AsyncSession, collection_name: str) -> list[s
     that physical collection, in every organization. Only for `rag-drop` of a
     name no base holds, an operator's command, under the teardown lock. A base
     goes by `delete_by_knowledge_base` and the unfiled rows of its own tenant,
-    even as the last holder: another tenant's rows are not its to delete
-    (#913, #2560, #2568). The
-    returned `storage_path`s are the uploads the caller still has to unlink; a
-    `NULL` one (nothing was stored) is dropped. The bulk delete used to return
-    only a rowcount, so the files were orphaned on disk (#1265).
+    even as the last holder: another tenant's rows are not its to delete (#913,
+    #2560, #2568). The returned `storage_path`s are the uploads the caller still
+    has to unlink; a `NULL` one (nothing was stored) is dropped. The bulk delete
+    used to return only a rowcount, so the files were orphaned on disk (#1265).
     """
     result = await db.execute(
         sql_delete(RAGDocument)
@@ -766,15 +765,51 @@ async def is_present(db: AsyncSession, doc_id: UUID) -> bool:
 async def delete_unfiled_with_vectors(db: AsyncSession, scope: CollectionScope) -> DeletedDocuments:
     """Delete the unfiled rows a base takes under its name - its tenant's.
 
-    For a base cleared while other bases hold the name, none of them taking these
-    rows: left behind, a kept default would go on listing and serving them, and
-    a deleted base's would come back with the tenant's next base on the name
-    (#2560). Only for a scope that `takes_unfiled`; the caller decides that.
+    For a base torn down when no other base of its tenant on the name takes these
+    rows: on a kept table, or as the last holder before its table is dropped. Left
+    behind, a kept default would go on listing and serving them, and a deleted
+    base's would come back with the tenant's next base on the name (#2560,
+    #2568). Only for a scope that `takes_unfiled`; the caller decides that.
     """
     return await _delete_returning(
         db,
         and_(RAGDocument.collection_name == scope.collection_name, _unfiled_of(scope.tenant)),
     )
+
+
+UNINDEXED_BY_DROP = (
+    "The collection's search index was dropped with the last knowledge base on its "
+    "name. Retry the document, or sync its source, to index it again."
+)
+
+
+async def mark_unindexed(db: AsyncSession, collection_name: str) -> None:
+    """Mark the indexed unfiled rows left under a name as failed, their chunks gone.
+
+    For the last holder's teardown, after it has deleted its own rows and its
+    tenant's unfiled ones: what is left is another tenant's, kept because the
+    caller holds no authority over it, but its chunks go with the dropped table.
+    Left `DONE`, its tenant's next base on the name would list it as indexed with
+    nothing behind it. As `ERROR` with no vector id it lists as failed, an upload
+    can be retried from its stored file, and a sync retires it with
+    `discard_failed` (#2568). A row still `PROCESSING` belongs to an ingest that
+    is running and settles itself.
+    """
+    await db.execute(
+        sql_update(RAGDocument)
+        .where(
+            RAGDocument.collection_name == collection_name,
+            RAGDocument.knowledge_base_id.is_(None),
+            RAGDocument.status == DocumentStatus.DONE,
+        )
+        .values(
+            status=DocumentStatus.ERROR,
+            error_message=UNINDEXED_BY_DROP,
+            vector_document_id=None,
+            chunk_count=0,
+        )
+    )
+    await db.flush()
 
 
 async def _delete_returning(db: AsyncSession, where: ColumnElement[bool]) -> DeletedDocuments:
