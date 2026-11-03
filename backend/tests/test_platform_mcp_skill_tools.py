@@ -144,6 +144,10 @@ EVIDENCE = {
 }
 
 
+def _permissions(*held: str) -> dict[str, Any]:
+    return {"permissions": [{"permission": name, "scope": "all"} for name in held]}
+
+
 def _responder(responses: dict[tuple[str, str], Any]) -> AsyncMock:
     async def respond(method: str, path: str, **_: Any) -> Any:
         answer = responses[(method, path)]
@@ -208,13 +212,20 @@ class TestReadingASkill:
                             },
                         ),
                         _usage(
-                            COUNTER, "Gift shop counter", PINNED, environments=[{"name": "Staging"}]
+                            COUNTER,
+                            "Gift shop counter",
+                            PINNED,
+                            environments=[{"name": "Staging", "binding": ON_FORK}],
+                            checked_versions=[
+                                {"version_id": VERSION, "state": "worse", "check_id": "c"}
+                            ],
                         ),
                         _usage(WHOLESALE, "Wholesale desk", ON_FORK),
                         _usage(WHOLESALE, "Draft desk", MAIN, draft_only=True),
                     ],
                     "hidden": 2,
                 },
+                ("GET", "/me/permissions"): _permissions("skills:view", "runs:view"),
             }
         )
 
@@ -231,7 +242,10 @@ class TestReadingASkill:
             False,
             False,
         ]
-        assert skill["agents"][1]["other_environments"] == ["Staging"]
+        assert skill["agents"][1]["other_environments"] == [
+            {"name": "Staging", "uses": 'Fork "Wholesale" · from v1 · 1 change · 2 behind main'}
+        ]
+        assert skill["agents"][1]["checked_versions"] == [{"version_id": VERSION, "state": "worse"}]
         assert skill["agents"][2]["fork_id"] == FORK
         assert skill["only_in_drafts"] == ["Draft desk"]
         assert skill["hidden_agents"] == 2
@@ -259,9 +273,17 @@ class TestReadingASkill:
                 ("GET", f"{BASE}/forks"): {"items": [], "total": 0},
                 ("GET", f"{BASE}/agents"): {
                     "main_latest": {"id": VERSION, "number": 3},
-                    "items": [_usage(WHOLESALE, "Wholesale desk", caught_up)],
+                    "items": [
+                        _usage(
+                            WHOLESALE,
+                            "Wholesale desk",
+                            caught_up,
+                            checked={"state": "better", "check_id": "x"},
+                        )
+                    ],
                     "hidden": 0,
                 },
+                ("GET", "/me/permissions"): _permissions("skills:view"),
             }
         )
 
@@ -269,9 +291,12 @@ class TestReadingASkill:
 
         assert skill["agents"][0]["uses"] == 'Fork "Wholesale" · from v1 · 3 changes'
         assert skill["can_edit"] is False
+        # Without runs:view checks are left out, which is not the same as never checked.
+        assert skill["agents"][0]["checked"] == "not_shown"
 
     @pytest.mark.parametrize(
-        ("fork_id", "params"), [(None, {"limit": 20}), (FORK, {"limit": 20, "fork_id": FORK})]
+        ("fork_id", "params"),
+        [(None, {"limit": 20, "skip": 0}), (FORK, {"limit": 20, "skip": 0, "fork_id": FORK})],
     )
     async def test_a_line_s_history_names_what_made_each_version(
         self, server: FastMCP, api: MagicMock, fork_id: str | None, params: dict[str, Any]
@@ -304,6 +329,26 @@ class TestReadingASkill:
             for v in history["items"]
         ] == [(4, "restore", 2, "Bartek"), (3, "library", None, None)]
         assert history["total"] == 4
+        assert history["next_skip"] == 2
+
+    async def test_the_last_page_of_a_history_has_nothing_after_it(
+        self, server: FastMCP, api: MagicMock
+    ) -> None:
+        older = {
+            "id": VERSION,
+            "number": 1,
+            "source": "created",
+            "restored_from": None,
+            "created_by": None,
+            "created_at": "2026-11-01T08:00:00Z",
+            "agents": 0,
+        }
+        api.request = _responder({("GET", f"{BASE}/versions"): {"items": [older], "total": 3}})
+
+        history = await _call(server, "list_skill_versions", skill_id=SKILL, skip=2)
+
+        assert _sent(api, "GET", f"{BASE}/versions") == {"limit": 20, "skip": 2}
+        assert history["next_skip"] is None
 
     async def test_one_version_reads_with_its_text_and_file_names(
         self, server: FastMCP, api: MagicMock
@@ -392,8 +437,40 @@ class TestReadingSessions:
 
         [item] = listed["items"]
         assert item["next_actions"] == ["Stop the session"]
-        assert item["summary"].endswith("It is working (proposing).")
+        assert item["summary"].endswith("It is working on Changes.")
         assert "earlier_sessions" not in listed
+
+    @pytest.mark.parametrize(
+        ("line", "params"),
+        [({"fork_id": FORK}, {"fork_id": FORK}), ({"main": True}, {"main": "true"})],
+    )
+    async def test_sessions_are_read_for_the_line_asked_about_and_every_page(
+        self,
+        server: FastMCP,
+        api: MagicMock,
+        line: dict[str, Any],
+        params: dict[str, Any],
+    ) -> None:
+        """A skill with more sessions than one page holds still counts them all."""
+        first = [
+            {**_session("cancelled"), "id": str(uuid.uuid4()), "created_at": "2026-10-01T08:00:00Z"}
+            for _ in range(100)
+        ]
+        last = [_session("waiting", next_step="propose")]
+
+        async def respond(method: str, path: str, **kwargs: Any) -> Any:
+            if path == SESSIONS:
+                return first if kwargs["params"]["skip"] == 0 else last
+            return QUOTE
+
+        api.request = AsyncMock(side_effect=respond)
+
+        listed = await _call(server, "list_skill_improvements", skill_id=SKILL, **line)
+
+        assert listed["earlier_sessions"] == 100
+        assert listed["items"][0]["status"] == "waiting"
+        pages = [c.kwargs["params"] for c in api.request.await_args_list if c.args[1] == SESSIONS]
+        assert pages == [{**params, "limit": 100, "skip": 0}, {**params, "limit": 100, "skip": 100}]
 
     async def test_a_skill_with_no_sessions_lists_none(
         self, server: FastMCP, api: MagicMock
@@ -568,6 +645,57 @@ class TestReadingSessions:
         assert _sent(api, "POST", f"{SESSION_PATH}/recheck")["candidate_hash"] == "c" * 64
         assert moved["status"] == "running"
 
+    async def test_a_result_whose_agents_are_hidden_still_names_its_choices(
+        self, server: FastMCP, api: MagicMock
+    ) -> None:
+        check = {
+            **BLOCKED,
+            "agents": [_checked(ONLINE, "Online returns desk", "no_change")],
+            "hidden": 2,
+        }
+        api.request = _responder(
+            {
+                ("GET", SESSION_PATH): _session(check=check, outcomes=BLOCKED["outcomes"]),
+                ("GET", f"{SESSION_PATH}/evidence"): EVIDENCE,
+            }
+        )
+
+        read = await _call(server, "get_skill_improvement", skill_id=SKILL, session_id=SESSION)
+
+        assert read["next_actions"][:2] == [
+            "Apply to main and keep the agents it made worse on v1",
+            "Make a fork for the agents it helped",
+        ]
+
+    async def test_a_stale_result_drops_its_old_verdict(
+        self, server: FastMCP, api: MagicMock
+    ) -> None:
+        api.request = _responder(
+            {
+                ("GET", SESSION_PATH): _session(stale=True),
+                ("GET", f"{SESSION_PATH}/evidence"): EVIDENCE,
+            }
+        )
+
+        read = await _call(server, "get_skill_improvement", skill_id=SKILL, session_id=SESSION)
+
+        assert "cannot simply be applied" not in read["summary"]
+        assert "Gift shop counter worse" in read["summary"]
+
+    async def test_a_stopped_session_still_says_what_it_found(
+        self, server: FastMCP, api: MagicMock
+    ) -> None:
+        api.request = _responder(
+            {
+                ("GET", SESSION_PATH): _session("stopped", stop_reason="no_proposal"),
+                ("GET", f"{SESSION_PATH}/evidence"): EVIDENCE,
+            }
+        )
+
+        read = await _call(server, "get_skill_improvement", skill_id=SKILL, session_id=SESSION)
+
+        assert read["found"]["problems"] == ["Order numbers are not taken as receipts"]
+
     async def test_a_waiting_session_whose_step_cannot_be_priced_says_why(
         self, server: FastMCP, api: MagicMock
     ) -> None:
@@ -588,7 +716,7 @@ class TestReadingSessions:
     @pytest.mark.parametrize(
         ("status", "fields", "sentence", "actions"),
         [
-            ("accepted", {"outcome": "applied_pinned"}, "It is accepted.", []),
+            ("accepted", {"outcome": "applied_pinned"}, "It was accepted.", []),
             (
                 "stopped",
                 {"stop_reason": "no_change", "can_restart": True},
@@ -619,7 +747,12 @@ class TestReadingSessions:
         sentence: str,
         actions: list[str],
     ) -> None:
-        api.request = _responder({("GET", SESSION_PATH): _session(status, **fields)})
+        api.request = _responder(
+            {
+                ("GET", SESSION_PATH): _session(status, **fields),
+                ("GET", f"{SESSION_PATH}/evidence"): ToolError("404 NOT_FOUND: No report yet"),
+            }
+        )
 
         session = await _call(server, "get_skill_improvement", skill_id=SKILL, session_id=SESSION)
 
@@ -639,7 +772,7 @@ class TestStartingAndSteps:
             ),
         ],
     )
-    async def test_the_estimate_names_the_line_and_a_limit_for_the_whole_session(
+    async def test_the_estimate_prices_the_start_and_leaves_the_checks_unpriced(
         self, server: FastMCP, api: MagicMock, arguments: dict[str, Any], sent: dict[str, Any]
     ) -> None:
         api.request = _responder(
@@ -655,7 +788,8 @@ class TestStartingAndSteps:
         estimate = await _call(server, "estimate_skill_improvement", skill_id=SKILL, **arguments)
 
         assert _sent(api, "POST", f"{SESSIONS}/estimate") == sent
-        assert estimate["limit_usd"] == "0.17"
+        assert "limit_usd" not in estimate
+        assert estimate["per_round_usd"] == "0.05"
 
     async def test_a_second_open_session_on_the_same_line_is_refused_with_a_link(
         self, server: FastMCP, api: MagicMock

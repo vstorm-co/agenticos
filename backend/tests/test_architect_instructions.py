@@ -260,3 +260,9 @@ def test_a_moved_line_is_priced_again_and_a_stale_result_checked_again(
     rule = _bullet(instructions, "When the line moves during a session")
     assert "`estimate_next_skill_improvement_step` again" in rule
     assert "(`recheck`) before anything is applied" in rule
+
+
+def test_the_skill_start_screen_is_not_read_as_a_session(instructions: str) -> None:
+    """`new` is no session id, so the start screen reads the skill and prices a session."""
+    assert "`/skills/<skill id>/improve/new` is the screen that starts improving" in instructions
+    assert "`get_skill`, then `estimate_skill_improvement`" in instructions

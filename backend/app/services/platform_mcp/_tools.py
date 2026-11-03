@@ -630,6 +630,10 @@ def _flips(cases: list[dict[str, Any]], flip: str) -> list[dict[str, Any]]:
     ][:_CASES_SHOWN]
 
 
+_PAGE = 100
+"""The most sessions one request to a skill's session list returns."""
+
+
 def skill_link(skill_id: UUID | str) -> str:
     """A skill's page: its agents and their versions, its history and its version tree."""
     return f"/skills/{skill_id}"
@@ -652,10 +656,18 @@ def _uses(binding: dict[str, Any]) -> str:
     return f"v{number} · pinned{lag}" if binding["state"] == "pinned" else f"v{number} · main"
 
 
-def _skill_agent(usage: dict[str, Any]) -> dict[str, Any]:
-    """One agent of a skill: the version it reads, and whether that version was checked on it."""
+def _skill_agent(usage: dict[str, Any], *, sees_checks: bool = True) -> dict[str, Any]:
+    """One agent of a skill: the version it reads, and whether that version was checked on it.
+
+    Without `runs:view` the API leaves out every check, so an agent's check reads
+    `not_shown` rather than `unknown`, which means the version was never checked.
+    """
     binding = usage["binding"]
     checked = usage.get("checked")
+    if not sees_checks:
+        state = "not_shown"
+    else:
+        state = checked["state"] if isinstance(checked, dict) else "unknown"
     return {
         "agent_id": usage["agent"]["id"],
         "name": usage["agent"]["name"],
@@ -663,11 +675,18 @@ def _skill_agent(usage: dict[str, Any]) -> dict[str, Any]:
         "state": binding["state"],
         "fork_id": (binding.get("fork") or {}).get("id"),
         "behind_main": binding.get("behind_main") or 0,
-        "checked": checked["state"] if isinstance(checked, dict) else "unknown",
+        "checked": state,
         "checked_on_skill_questions_only": isinstance(checked, dict)
         and checked.get("sample") == "skill_set_only",
+        "checked_versions": [
+            {"version_id": item["version_id"], "state": item["state"]}
+            for item in usage.get("checked_versions", [])
+        ],
         "via_specialist": usage.get("via_specialist"),
-        "other_environments": [env["name"] for env in usage.get("environments", [])],
+        "other_environments": [
+            {"name": env["name"], "uses": _uses(env["binding"])}
+            for env in usage.get("environments", [])
+        ],
         "can_change": usage.get("can_change", False),
         "can_publish": usage.get("can_publish", False),
     }
@@ -748,9 +767,11 @@ def _skill_next_actions(session: dict[str, Any]) -> list[str]:
     if "apply" in outcomes:
         actions.append(f"Apply to {line}")
     if "apply_and_pin" in outcomes:
-        actions.append(f"Apply to main and keep {_names(check, 'worse')} on v{base}")
+        worse = _names(check, "worse") or "the agents it made worse"
+        actions.append(f"Apply to main and keep {worse} on v{base}")
     if "fork_for_helped" in outcomes:
-        actions.append(f"Make a fork for {_names(check, 'better')}")
+        helped = _names(check, "better") or "the agents it helped"
+        actions.append(f"Make a fork for {helped}")
     if "improve_further" in outcomes and not session.get("try_again_blocked"):
         attempt = session["iteration"] + 1
         actions.append(f"Improve further (attempt {attempt} of {session['max_iterations']})")
@@ -774,6 +795,16 @@ _SKILL_VERDICTS = {
 }
 
 
+_SKILL_CLOSED = {
+    "accepted": "It was accepted.",
+    "published": "It was accepted.",
+    "rejected": "It ended without changing the skill.",
+    "cancelled": "It was stopped without changing the skill.",
+    "stale": "It is out of date: the skill line moved on before anything was decided.",
+}
+"""How a closed skill session reads, in the wizard's words rather than its stored status."""
+
+
 def _skill_summary(session: dict[str, Any]) -> str:
     """How improving a skill stands, in plain sentences built from the session's own facts."""
     line = session.get("line_name") or "main"
@@ -785,9 +816,9 @@ def _skill_summary(session: dict[str, Any]) -> str:
             f"It stopped after {waiting['after']}; next it will {waiting['next_step']}."
         )
     elif session["status"] in {"queued", "running"}:
-        sentences.append(f"It is working ({session.get('stage')}).")
+        sentences.append(f"It is working on {_step(session)}.")
     elif session["status"] in _CLOSED:
-        sentences.append(f"It is {session['status']}.")
+        sentences.append(_SKILL_CLOSED[session["status"]])
     elif session["status"] == "failed":
         error = session.get("error")
         sentences.append(f"A step failed: {error}" if error else "A step failed.")
@@ -808,7 +839,8 @@ def _skill_summary(session: dict[str, Any]) -> str:
         sentences.append("The check: " + ", ".join(results) + ".")
         if check.get("hidden"):
             sentences.append(f"{check['hidden']} more agents use it that you cannot see.")
-        if verdict := _SKILL_VERDICTS.get(check.get("verdict") or ""):
+        verdict = _SKILL_VERDICTS.get(check.get("verdict") or "")
+        if verdict and not session.get("stale"):
             sentences.append(verdict)
         if "within_noise" in check.get("warnings", []):
             sentences.append("Some results are within noise: a warning, not a block.")
@@ -1864,13 +1896,20 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
 
         `uses` is how the skill page writes an agent's version - `v10 · main`,
         `v7 · pinned · 3 behind main`, `Fork "Returns" · from v7 · 2 changes`.
-        `checked` is how that version did on that agent in a skill check, and
-        `unknown` when it was never checked there. Agents the caller cannot see
-        are only counted in `hidden_agents`; never guess who they are.
+        `checked` is how that version did on that agent in a skill check,
+        `unknown` when it was never checked there, and `not_shown` when the
+        caller may not read runs, so checks are left out. `checked_versions` are
+        the versions a check measured on that agent, by `version_id` as
+        list_skill_versions gives them: read it before moving the agent.
+        `other_environments` are the environments that read the skill
+        differently, each with the version it reads. Agents the caller cannot
+        see are only counted in `hidden_agents`; never guess who they are.
         """
         skill = await api.request("GET", f"/skills/{skill_id}")
         forks = await api.request("GET", f"/skills/{skill_id}/forks")
         agents = await api.request("GET", f"/skills/{skill_id}/agents")
+        me = await api.request("GET", "/me/permissions")
+        sees_checks = any(entry["permission"] == "runs:view" for entry in me["permissions"])
         return {
             "id": skill["id"],
             "name": skill["name"],
@@ -1878,7 +1917,11 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
             "main_version": agents["main_latest"]["number"],
             "can_edit": skill.get("can_edit", False),
             "forks": [_skill_fork(fork) for fork in forks["items"]],
-            "agents": [_skill_agent(usage) for usage in agents["items"] if not usage["draft_only"]],
+            "agents": [
+                _skill_agent(usage, sees_checks=sees_checks)
+                for usage in agents["items"]
+                if not usage["draft_only"]
+            ],
             "only_in_drafts": [
                 usage["agent"]["name"] for usage in agents["items"] if usage["draft_only"]
             ],
@@ -1887,15 +1930,16 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         }
 
     async def list_skill_versions(
-        skill_id: UUID, fork_id: UUID | None = None, limit: int = 20
+        skill_id: UUID, fork_id: UUID | None = None, limit: int = 20, skip: int = 0
     ) -> dict[str, Any]:
         """A skill line's history, newest first: main, or the fork `fork_id`. Needs `skills:view`.
 
         Every saved change is a version that never changes again; `source` says
         what made it - an edit, a library sync, Improve, a restore. Read one with
-        get_skill_version.
+        get_skill_version. When `next_skip` is set, older versions follow: call
+        again with it as `skip`.
         """
-        params: dict[str, Any] = {"limit": limit}
+        params: dict[str, Any] = {"limit": limit, "skip": skip}
         if fork_id is not None:
             params["fork_id"] = str(fork_id)
         listed = await api.request("GET", f"/skills/{skill_id}/versions", params=params)
@@ -1913,6 +1957,9 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
                 for version in listed["items"]
             ],
             "total": listed["total"],
+            "next_skip": skip + len(listed["items"])
+            if skip + len(listed["items"]) < listed["total"]
+            else None,
         }
 
     async def get_skill_version(skill_id: UUID, version_id: UUID) -> dict[str, Any]:
@@ -1942,14 +1989,18 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         }
 
     async def list_skill_improvements(
-        skill_id: UUID | None = None, history: bool = False
+        skill_id: UUID | None = None,
+        fork_id: UUID | None = None,
+        main: bool = False,
+        history: bool = False,
     ) -> dict[str, Any]:
         """A skill's Improve sessions, newest first. Needs `skills:view` and `runs:view`.
 
         Without `skill_id`, the skill sessions waiting for a person across the
         organization. With one, the newest session carries `summary`, `ask` and
         the price of its next step; earlier sessions are only counted unless
-        `history` is true.
+        `history` is true. A skill can have a session open on main and on each
+        fork at once: name the line asked about with `fork_id`, or `main`.
         """
         if skill_id is None:
             awaiting = await api.request("GET", "/skill-improvements/awaiting")
@@ -1959,7 +2010,21 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
                     for item in awaiting
                 ]
             }
-        sessions = await api.request("GET", f"/skills/{skill_id}/improvements")
+        line: dict[str, Any] = {"limit": _PAGE}
+        if fork_id is not None:
+            line["fork_id"] = str(fork_id)
+        elif main:
+            line["main"] = "true"
+        sessions: list[dict[str, Any]] = []
+        while True:
+            page = await api.request(
+                "GET",
+                f"/skills/{skill_id}/improvements",
+                params={**line, "skip": len(sessions)},
+            )
+            sessions += page
+            if len(page) < _PAGE:
+                break
         ordered = sorted(sessions, key=lambda session: session["created_at"], reverse=True)
         items = [_skill_session(skill_id, session) for session in ordered]
         if items and items[0]["waiting_for"] is not None:
@@ -1988,8 +2053,11 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
                 **item["waiting_for"],
                 "price": await _skill_step_price(skill_id, session),
             }
-        if session["status"] in {"waiting", "ready"}:
-            evidence = await api.request("GET", f"{path}/evidence")
+        if session["status"] in {"waiting", "ready", "stopped", "failed"}:
+            try:
+                evidence = await api.request("GET", f"{path}/evidence")
+            except ToolError:
+                return item
             item["found"] = {
                 "problems": [problem["title"] for problem in evidence["problems"]],
                 "not_the_skill": evidence["not_the_skill"],
@@ -2008,10 +2076,11 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
 
         Name `fork_id` to improve that fork; without it, main. `from_run` is an
         agent's Improve session whose skill problems start it. `total_usd` is
-        what it costs up to its first stop, `per_round_usd` about one attempt -
-        its check runs on every agent of the line, each billed to that agent -
-        and `limit_usd` the spending limit for the whole session. Name the
-        agents with no budget left before starting.
+        what it costs up to its first stop and `per_round_usd` about one
+        attempt's proposal. Each attempt's check runs on every agent of the line,
+        billed to that agent, and is priced only when that step is taken, so a
+        spending limit for the whole session must leave room for the checks:
+        ask the person for one, and say it is not priced yet.
         """
         target: dict[str, Any] = {
             "fork_id": str(fork_id) if fork_id is not None else None,
@@ -2019,10 +2088,7 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         }
         if from_run is not None:
             target["from_run"] = str(from_run)
-        estimate = await api.request(
-            "POST", f"/skills/{skill_id}/improvements/estimate", json=target
-        )
-        return {**estimate, "limit_usd": _session_limit(estimate)}
+        return await api.request("POST", f"/skills/{skill_id}/improvements/estimate", json=target)
 
     async def start_skill_improvement(
         skill_id: UUID,
@@ -2043,7 +2109,11 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         line = str(fork_id) if fork_id is not None else None
         open_session = None
         if from_run is None:
-            sessions = await api.request("GET", f"/skills/{skill_id}/improvements")
+            sessions = await api.request(
+                "GET",
+                f"/skills/{skill_id}/improvements",
+                params={"fork_id": line} if line is not None else {"main": "true"},
+            )
             open_session = next(
                 (s for s in sessions if s["status"] not in _CLOSED and s.get("fork_id") == line),
                 None,
