@@ -36,4 +36,21 @@ describe("useCopyToClipboard", () => {
 
     expect(vi.getTimerCount()).toBe(0);
   });
+
+  it("schedules nothing when unmounted while the write is still pending", async () => {
+    let finish: () => void = () => {};
+    vi.mocked(navigator.clipboard.writeText).mockReturnValue(
+      new Promise<void>((resolve) => {
+        finish = resolve;
+      }),
+    );
+    const { result, unmount } = renderHook(() => useCopyToClipboard());
+
+    const copying = result.current.copy("text");
+    unmount();
+    finish();
+
+    await expect(copying).resolves.toBe(true);
+    expect(vi.getTimerCount()).toBe(0);
+  });
 });
