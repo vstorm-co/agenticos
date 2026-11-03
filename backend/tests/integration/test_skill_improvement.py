@@ -32,7 +32,14 @@ from app.db.models.agent_run import AgentRun
 from app.db.models.authoring import AuthoringRequest, AuthoringStatus, HunkKind
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.skill import Skill
-from app.db.models.skill_check import CheckMode, CheckOutcome, CheckSource, CheckStatus, SkillCheck
+from app.db.models.skill_check import (
+    AgentState,
+    CheckMode,
+    CheckOutcome,
+    CheckSource,
+    CheckStatus,
+    SkillCheck,
+)
 from app.db.models.skill_improvement import SkillImprovementRun
 from app.repositories import (
     authoring_repo,
@@ -44,8 +51,10 @@ from app.schemas.authoring import AuthoringEstimate, InstructionChange
 from app.schemas.improvement import ChangeEdit, ImprovementDiscard, ImprovementSelection
 from app.schemas.skill import SkillUpdate
 from app.schemas.skill_check import (
+    AgentRef,
     CandidateText,
     LineRef,
+    SkillCheckAgentRead,
     SkillCheckApply,
     SkillCheckEstimate,
     SkillCheckFork,
@@ -998,14 +1007,16 @@ class FakeChecks:
         self.refuse: Exception | None = None
         self.excluded: list[list[uuid.UUID]] = []
         self.conflict = False
+        self.base_version_id = uuid.uuid4()
+        self.agents: list[SkillCheckAgentRead] = []
 
     def _estimate(self, data: SkillCheckStart) -> SkillCheckEstimate:
         return SkillCheckEstimate(
             line=LineRef(fork_id=data.fork_id, name="main"),
-            base_version=VersionRef(id=uuid.uuid4(), number=1, fork_id=data.fork_id),
+            base_version=VersionRef(id=self.base_version_id, number=1, fork_id=data.fork_id),
             mode=data.mode,
             description_changed=False,
-            agents=[],
+            agents=self.agents,
             hidden=0,
             expected_usd=self.price / 3,
             at_most_usd=self.price,
@@ -1125,7 +1136,9 @@ async def _check_now(
     db: AsyncSession, ctx: AuthContext, run: SkillImprovementRun, **consent: Any
 ) -> SkillImprovementRead:
     service = SkillImprovementService(db)
-    quote = await service.estimate_continuation(ctx, run.skill_id, run.id, SkillContinue())
+    quote = await service.estimate_continuation(
+        ctx, run.skill_id, run.id, SkillContinue(mode=consent.get("mode"))
+    )
     return await service.continue_run(
         ctx,
         run.skill_id,
@@ -1336,6 +1349,39 @@ class TestOutcomes:
             await SkillImprovementService(db).fork(
                 ctx, run.skill_id, run.id, SkillImprovementFork(confirmed=True, name="Returns")
             )
+
+    async def test_a_check_plan_that_changed_at_the_same_price_asks_again(
+        self, db, evidence, monkeypatch
+    ):
+        fake = _checked(db, monkeypatch)
+        ctx = await _owner(db)
+        run = await _at_changes(db, ctx)
+        service = SkillImprovementService(db)
+        quote = await service.estimate_continuation(ctx, run.skill_id, run.id, SkillContinue())
+        fake.agents = [
+            SkillCheckAgentRead(
+                agent=AgentRef(id=uuid.uuid4(), name="Desk"),
+                agent_version=2,
+                state=AgentState.QUEUED,
+                stages=[],
+                expected_usd=Decimal("0"),
+                at_most_usd=Decimal("0"),
+            )
+        ]
+
+        with pytest.raises(ConcurrentChangeError):
+            await service.continue_run(
+                ctx,
+                run.skill_id,
+                run.id,
+                SkillContinuationConsent(
+                    confirmed=True,
+                    estimate_usd=quote.total_usd,
+                    candidate_hash=quote.candidate_hash,
+                    budget_usd=run.budget_usd,
+                ),
+            )
+        assert [call for call in fake.calls if call[0] == "start"] == []
 
     async def test_cancelling_during_the_check_cancels_it_and_discarding_a_result_discards_it(
         self, db, evidence, monkeypatch
