@@ -301,7 +301,9 @@ serves binds it, itself or through an inline specialist. An agent and each of it
 specialists read the skill their own way, so each is a row: the page lists it with
 the version it reads, how many main versions it is behind, and any environment that
 reads it differently. An agent that binds the skill only in its draft is listed as
-such. Agents you cannot see are counted, not named.
+such. Agents you cannot see are counted, not named. Behind main counts the main
+versions after it that changed what the skill says: restoring the same text again is
+no change, and main back at the text it reads is behind by none.
 
 **Change version** moves one agent to main, a main version or a fork, and it is a
 change to the agent. Whether the agent uses the skill itself is read from its draft,

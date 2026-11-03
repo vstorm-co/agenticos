@@ -1,5 +1,5 @@
 ---
-source_sha: "a01a9fe89395"
+source_sha: "65ad4002ae75"
 ---
 
 # Skille { #skills }
@@ -312,6 +312,9 @@ specjalistów czytają skill po swojemu, więc każdy jest osobnym wierszem: str
 skilla pokazuje go z wersją, którą czyta, liczbą wersji main, o które jest w tyle, i
 środowiskami, które czytają go inaczej. Agent, który wiąże skill tylko w wersji
 roboczej, jest oznaczony osobno. Agentów, których nie widzisz, strona tylko liczy.
+„W tyle za main” liczy wersje main po niej, które zmieniły treść skilla: ponowne
+przywrócenie tego samego tekstu nie jest zmianą, a gdy main wróci do treści, którą
+agent czyta, agent nie jest w tyle wcale.
 
 **Change version** przesuwa jednego agenta na main, wersję main albo fork, i jest to
 zmiana agenta. To, czy agent używa skilla sam, wynika z jego wersji roboczej, tak
