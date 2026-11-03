@@ -120,7 +120,6 @@ describe("SkillHistory", () => {
   it("says a fork's restore reaches the fork's agents", async () => {
     mount({ forkId: "f1", forkName: "Returns" });
 
-    // A fork's versions number from 1 like main's, so they carry the fork's name.
     expect(await screen.findByText("Returns v2")).toBeInTheDocument();
     await userEvent.click(await screen.findByRole("button", { name: "Restore Returns v1" }));
     expect(
