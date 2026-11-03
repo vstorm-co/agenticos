@@ -1164,7 +1164,14 @@ class TestReadingACheck:
 
 
 RETURNED = {
-    "agents": [{"agent": _agent(WHOLESALE, "Wholesale desk"), "published": True, "refused": None}],
+    "agents": [
+        {"agent": _agent(WHOLESALE, "Wholesale desk"), "published": True, "refused": None},
+        {
+            "agent": _agent(COUNTER, "Gift shop counter"),
+            "published": False,
+            "refused": "You may not edit this agent",
+        },
+    ],
     "hidden": 1,
     "remaining": 1,
     "archived": False,
@@ -1201,16 +1208,24 @@ class TestCatchingUp:
                             "can_act": False,
                             "fork": ON_FORK["fork"],
                         },
+                        {
+                            **common,
+                            "kind": "pinned",
+                            "fork": None,
+                            "can_act": False,
+                            "via_specialist": "Refunds",
+                            "agent": _agent(ONLINE, "Online returns desk"),
+                        },
                     ],
                     "hidden": 1,
-                    "total": 3,
+                    "total": 4,
                 }
             }
         )
 
         behind = await _call(server, "list_skills_behind_main")
 
-        pinned, fork = behind["items"]
+        pinned, fork, through_specialist = behind["items"]
         assert (pinned["agent_id"], pinned["catch_up"]) == (
             COUNTER,
             "Update Gift shop counter to v3",
@@ -1218,6 +1233,11 @@ class TestCatchingUp:
         assert (fork["fork_id"], fork["catch_up"]) == (FORK, 'Catch the fork "Wholesale" up')
         assert fork["can_act"] is False
         assert behind["hidden_agents"] == 1
+        assert through_specialist["via_specialist"] == "Refunds"
+        assert through_specialist["catch_up"] == (
+            "Its specialist Refunds pins the skill, so update it to v3 in "
+            "Online returns desk's Builder"
+        )
 
     @pytest.mark.parametrize(("thorough", "mode"), [(False, "quick"), (True, "thorough")])
     async def test_an_update_check_is_priced_then_run_on_the_one_pinned_agent(
@@ -1394,6 +1414,30 @@ class TestCatchingUp:
         assert "next check" not in read["summary"]
         assert "Main alone" not in read["summary"]
 
+    async def test_a_catch_up_that_helped_nobody_can_still_be_taken_in(
+        self, server: FastMCP, api: MagicMock
+    ) -> None:
+        check = {**BLOCKED, "verdict": "no_better", "outcomes": ["discard"]}
+        api.request = _responder(
+            {
+                ("GET", SESSION_PATH): _session(
+                    purpose="catch_up",
+                    fork_id=FORK,
+                    line_name="Wholesale",
+                    check=check,
+                    outcomes=["catch_up", "discard"],
+                    main_alone="off",
+                ),
+                ("GET", f"{SESSION_PATH}/evidence"): EVIDENCE,
+            }
+        )
+
+        read = await _call(server, "get_skill_improvement", skill_id=SKILL, session_id=SESSION)
+
+        assert "the merge can be taken in" in read["summary"]
+        assert "nothing to apply" not in read["summary"]
+        assert read["next_actions"][0] == 'Take the merge into the fork "Wholesale"'
+
     async def test_a_move_to_main_applies_to_main(self, server: FastMCP, api: MagicMock) -> None:
         check = {**BLOCKED, "verdict": "passed", "outcomes": ["apply"]}
         api.request = _responder(
@@ -1443,10 +1487,11 @@ class TestCatchingUp:
     ) -> None:
         api.request = _responder(
             {
+                ("GET", SESSION_PATH): _session(main_alone_check={"verdict": "passed"}),
                 ("POST", f"{SESSION_PATH}/return-to-main"): {
                     "session": _session("accepted"),
                     "returned": RETURNED,
-                }
+                },
             }
         )
 
@@ -1459,11 +1504,51 @@ class TestCatchingUp:
         )
 
         assert _sent(api, "POST", f"{SESSION_PATH}/return-to-main") == {"confirmed": True}
-        assert dropped["moved"] == [{"name": "Wholesale desk", "published": True, "refused": None}]
+        assert dropped["moved"] == [{"name": "Wholesale desk", "published": True}]
+        assert dropped["refused"] == [
+            {"name": "Gift shop counter", "why": "You may not edit this agent"}
+        ]
         assert (dropped["still_on_fork"], dropped["archived"]) == (1, False)
 
+    async def test_dropping_a_fork_waits_for_its_unchecked_agents_to_be_acknowledged(
+        self, server: FastMCP, api: MagicMock
+    ) -> None:
+        """Main alone left some agents unchecked: the fork is not dropped on them unasked."""
+        api.request = _responder(
+            {
+                ("GET", SESSION_PATH): _session(main_alone_check={"verdict": "needs_ack"}),
+                ("POST", f"{SESSION_PATH}/return-to-main"): {
+                    "session": _session("accepted"),
+                    "returned": RETURNED,
+                },
+            }
+        )
+
+        with pytest.raises(ToolError):
+            await _call(
+                server,
+                "accept_skill_improvement",
+                skill_id=SKILL,
+                session_id=SESSION,
+                outcome="return_to_main",
+            )
+        assert ("POST", f"{SESSION_PATH}/return-to-main") not in [
+            call.args for call in api.request.await_args_list
+        ]
+
+        await _call(
+            server,
+            "accept_skill_improvement",
+            skill_id=SKILL,
+            session_id=SESSION,
+            outcome="return_to_main",
+            acknowledge_unknown=True,
+        )
+        assert _sent(api, "POST", f"{SESSION_PATH}/return-to-main") == {"confirmed": True}
+
     @pytest.mark.parametrize(
-        ("agent_ids", "sent"), [(None, {}), ([WHOLESALE], {"agent_ids": [WHOLESALE]})]
+        ("agent_ids", "sent"),
+        [(None, {}), ([], {"agent_ids": []}), ([WHOLESALE], {"agent_ids": [WHOLESALE]})],
     )
     async def test_a_fork_s_agents_go_back_to_main_all_or_those_named(
         self,

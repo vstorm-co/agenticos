@@ -816,6 +816,14 @@ _SKILL_CLOSED = {
 """How a closed skill session reads, in the wizard's words rather than its stored status."""
 
 
+_CATCH_UP_VERDICTS = {
+    **_SKILL_VERDICTS,
+    "passed": "None of the fork's agents got worse, so the merge can be taken in.",
+    "no_better": "None of the fork's agents got worse, so the merge can be taken in.",
+    "blocked": "Some of the fork's agents got worse, so the merge cannot be taken in.",
+}
+"""A catch-up is taken in when nobody got worse, whether or not anybody got better."""
+
 _MAIN_ALONE = {
     (
         "checked",
@@ -830,14 +838,17 @@ the result offers returning the fork's agents to main."""
 
 def _returned(returned: dict[str, Any]) -> dict[str, Any]:
     """What returning a fork's agents to main did, agent by agent."""
+    rows = returned["agents"]
     return {
         "moved": [
-            {
-                "name": row["agent"]["name"],
-                "published": row["published"],
-                "refused": row.get("refused"),
-            }
-            for row in returned["agents"]
+            {"name": row["agent"]["name"], "published": row["published"]}
+            for row in rows
+            if not row.get("refused")
+        ],
+        "refused": [
+            {"name": row["agent"]["name"], "why": row["refused"]}
+            for row in rows
+            if row.get("refused")
         ],
         "hidden_agents": returned["hidden"],
         "still_on_fork": returned["remaining"],
@@ -862,9 +873,21 @@ def _behind(item: dict[str, Any]) -> dict[str, Any]:
         "behind_main": item["behind_main"],
         "agents": item["agents"],
         "can_act": item["can_act"],
-        "catch_up": f"Update {name} to v{main}" if pinned else f'Catch the fork "{name}" up',
+        "via_specialist": item.get("via_specialist"),
+        "catch_up": _catch_up_label(item, name, main),
         "link": skill_link(item["skill"]["id"]),
     }
+
+
+def _catch_up_label(item: dict[str, Any], name: str, main: int) -> str:
+    if item["kind"] == "fork":
+        return f'Catch the fork "{name}" up'
+    if item.get("via_specialist"):
+        return (
+            f"Its specialist {item['via_specialist']} pins the skill, so update it to v{main} "
+            f"in {name}'s Builder"
+        )
+    return f"Update {name} to v{main}"
 
 
 def _skill_summary(session: dict[str, Any]) -> str:
@@ -908,7 +931,9 @@ def _skill_summary(session: dict[str, Any]) -> str:
         sentences.append("The check: " + ", ".join(results) + ".")
         if check.get("hidden"):
             sentences.append(f"{check['hidden']} more agents use it that you cannot see.")
-        verdict = _SKILL_VERDICTS.get(check.get("verdict") or "")
+        verdict = (
+            _CATCH_UP_VERDICTS if session.get("purpose") == "catch_up" else _SKILL_VERDICTS
+        ).get(check.get("verdict") or "")
         if verdict and not session.get("stale"):
             sentences.append(verdict)
         if "within_noise" in check.get("warnings", []):
@@ -2321,6 +2346,12 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         """
         path = f"/skills/{skill_id}/improvements/{session_id}"
         if outcome == "return_to_main":
+            alone = (await api.request("GET", path)).get("main_alone_check") or {}
+            if alone.get("verdict") == "needs_ack" and not acknowledge_unknown:
+                return api.refuse(
+                    "Some of the fork's agents could not be checked on main alone. Name them "
+                    "to the person, and call again with acknowledge_unknown once they accept."
+                )
             returned = await api.request("POST", f"{path}/return-to-main", json={"confirmed": True})
             return {
                 "status": returned["session"]["status"],
@@ -2528,7 +2559,7 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         accept_skill_improvement. `agent_ids` moves only those agents; without
         it, all of them. The fork is archived once no agent reads it.
         """
-        body = {"agent_ids": [str(agent) for agent in agent_ids]} if agent_ids else {}
+        body = {} if agent_ids is None else {"agent_ids": [str(agent) for agent in agent_ids]}
         returned = await api.request(
             "POST", f"/skills/{skill_id}/forks/{fork_id}/return-to-main", json=body
         )
