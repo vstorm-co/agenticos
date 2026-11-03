@@ -19,6 +19,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [1.38.3] - 2026-11-03
+
 ### Fixed
 
 - Background-job audit and table-retention integration tests no longer depend on
@@ -19825,7 +19827,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.38.2...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.38.3...HEAD
+[1.38.3]: https://github.com/vstorm-co/agenticos/compare/v1.38.2...v1.38.3
 [1.38.2]: https://github.com/vstorm-co/agenticos/compare/v1.38.1...v1.38.2
 [1.38.1]: https://github.com/vstorm-co/agenticos/compare/v1.38.0...v1.38.1
 [1.38.0]: https://github.com/vstorm-co/agenticos/compare/v1.37.0...v1.38.0
