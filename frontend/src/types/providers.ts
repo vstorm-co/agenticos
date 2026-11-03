@@ -136,6 +136,8 @@ export interface Skill {
    * that assumed the field would crash rather than degrade.
    */
   resources?: SkillResourceSummary[];
+  /** Whether this caller may edit, restore, fork or delete it. */
+  can_edit?: boolean;
 }
 
 export interface SkillSummary {

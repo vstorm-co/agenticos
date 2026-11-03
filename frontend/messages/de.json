@@ -13887,7 +13887,8 @@
         "tool_override": "Tool",
         "spec_field": "Einstellung",
         "finding": "Befund",
-        "create_skill": "Neuer Skill"
+        "create_skill": "Neuer Skill",
+        "skill_problem": "Skill-Problem"
       },
       "reason": {
         "unanchored": "Die Stelle, die sie ändert, steht nicht in den Anweisungen",
@@ -13907,7 +13908,11 @@
         "unsupported": "Sagt, die Änderung sei belegt, ohne einen prüfbaren Beleg",
         "edit_not_in_diff": "Die Zeile, die er nennt, gehört nicht zur Änderung",
         "superseded": "Eine später gestartete Anfrage hatte die Vorschläge schon ersetzt",
-        "insufficient_evidence": "Weniger als drei verschiedene Antworten haben danach gefragt, daher wurde er nicht automatisch hinzugefügt."
+        "insufficient_evidence": "Weniger als drei verschiedene Antworten haben danach gefragt, daher wurde er nicht automatisch hinzugefügt.",
+        "copies_skill": "Es kopiert einen Skill des Agents, den der Agent bereits liest",
+        "duplicates_skill": "Der Agent hat bereits einen Skill mit diesem Namen oder Text",
+        "unknown_skill": "Der Agent hat keinen solchen Skill",
+        "skill_not_used": "Keine der zitierten Antworten hat diese Version des Skills verwendet"
       },
       "about": "Betrifft: {line}",
       "decide": "{count, plural, =1 {1 weitere Idee wartet auf Ihre Entscheidung} other {# weitere Ideen warten auf Ihre Entscheidung}}",
@@ -14813,8 +14818,7 @@
       "mainLine": "Main · {count, plural, =1 {1 Agent} other {# Agents}}",
       "forkLine": "Fork „{fork}“ · {count, plural, =1 {1 Agent} other {# Agents}}",
       "hidden": "{count, plural, =1 {1 weiterer Agent, den Sie nicht sehen, nutzt diesen Skill.} other {# weitere Agents, die Sie nicht sehen, nutzen diesen Skill.}}",
-      "improve": "{name} verbessern",
-      "improveFork": "{name} verbessern, Fork „{fork}“",
+      "open": "{name} öffnen",
       "askEditor": "Bitten Sie jemanden, der {name} bearbeiten darf, ihn zu verbessern.",
       "behind": "Dieser Agent liegt {count, plural, =1 {1 Version} other {# Versionen}} hinter Main.",
       "updatePinned": "Auf v{version} aktualisieren",

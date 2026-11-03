@@ -118,6 +118,14 @@ function Proposed({ item }: { item: RejectedChange }) {
       </div>
     );
   }
+  if (item.kind === "skill_problem") {
+    return (
+      <div className="text-muted-foreground space-y-1 text-xs">
+        <p className="font-mono break-words">{change.skill}</p>
+        <p>{change.problem}</p>
+      </div>
+    );
+  }
   const subject =
     item.kind === "create_skill"
       ? change.name
