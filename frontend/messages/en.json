@@ -9420,7 +9420,7 @@
     "notificationChannels": "Channels",
     "notificationInApp": "In-app notification",
     "notificationEmail": "Email",
-    "notificationChannelHint": "Each person’s notification preferences still apply.",
+    "notificationChannelHint": "Each person’s notification preferences still apply. Private chat channels also require their own notification route in Settings.",
     "fileBindingHint": "Choose a file from an earlier step with Data. Its type and size are included automatically. To convert pasted text, add a Text to file step first."
   },
   "artifacts": {

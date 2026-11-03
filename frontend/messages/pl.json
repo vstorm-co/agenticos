@@ -10092,7 +10092,7 @@
     "notificationChannels": "Kanały",
     "notificationInApp": "Powiadomienie w aplikacji",
     "notificationEmail": "E-mail",
-    "notificationChannelHint": "Nadal obowiązują preferencje powiadomień każdej osoby.",
+    "notificationChannelHint": "Preferencje powiadomień każdej osoby nadal obowiązują. Prywatne kanały czatu wymagają też własnej trasy powiadomień w Ustawieniach.",
     "fileBindingHint": "Wybierz plik z poprzedniego kroku przez Dane. Typ i rozmiar są przekazywane automatycznie. Aby przetworzyć wklejony tekst, dodaj najpierw krok Tekst do pliku."
   },
   "artifacts": {

@@ -197,3 +197,12 @@ oversized or revoked mailboxes cannot produce a no-reply verdict. The run page
 shows state and permits authorized pause/correction without changing the mailbox.
 Existing cancellation, duplicate dispatch protection and storage quotas apply.
 Project/table and follow-up creation presets remain required in this block.
+
+## Workflow notification channels — implemented
+
+`notification.send` now selects in-app, email, push, Slack, Telegram, Mattermost,
+Teams, SMS and iMessage through the same notification center as routines. The
+workflow chooses channel ceilings, never another person's opt-in or destination.
+Current membership/workflow access, preferences, private route consent and delivery
+checks remain required; six real-database refusal tests verify that selecting a
+private channel alone queues no delivery. Existing graph configurations still load.

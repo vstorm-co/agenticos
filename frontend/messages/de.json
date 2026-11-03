@@ -9299,7 +9299,7 @@
     "notificationChannels": "Kanäle",
     "notificationInApp": "Benachrichtigung in der App",
     "notificationEmail": "E-Mail",
-    "notificationChannelHint": "Die Benachrichtigungseinstellungen jeder Person gelten weiterhin.",
+    "notificationChannelHint": "Die Benachrichtigungseinstellungen jeder Person gelten weiterhin. Private Chats benötigen außerdem eine eigene Benachrichtigungsroute in den Einstellungen.",
     "fileBindingHint": "Wählen Sie mit Daten eine Datei aus einem vorherigen Schritt. Typ und Größe werden automatisch übernommen. Für eingefügten Text verwenden Sie zuerst Text in Datei."
   },
   "artifacts": {

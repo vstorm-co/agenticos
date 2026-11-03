@@ -39,6 +39,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- Workflow **Notify members** can select push, Slack, Telegram, Mattermost, Microsoft Teams, SMS and iMessage alongside in-app/email delivery. The shared notification queue still requires each recipient’s own preferences, permissions and explicit private-channel route; choosing a channel never opts somebody in.
+
 - Durable **Await email reply** workflow step for explicitly selected Gmail/Outlook mailboxes, including shared Outlook mailboxes: exact authenticated thread/sender matching, separate reply/deadline branches, restart-safe timers and run-page pause/correction controls. Metadata-only scans fail explicitly on unreadable mailboxes; no follow-up is sent by this step.
 
 - iMessage through an explicitly configured company BlueBubbles Mac: authenticated webhook, text/files, separate group context, numbered approvals, optional tapbacks and explicit private notification routes. Configure the bridge in Channels and register its webhook after saving. API/workers must be updated together for migration `0274_imessage_notifications.py`.

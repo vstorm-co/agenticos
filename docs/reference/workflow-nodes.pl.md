@@ -1,5 +1,5 @@
 ---
-source_sha: "361ef64710ed"
+source_sha: "d3a44254be39"
 ---
 
 # Węzły workflow { #workflow-nodes }
@@ -827,14 +827,20 @@ serwera:
 
 ## notification.send { #notification-send }
 
-Powiadamia członków organizacji w aplikacji, mailem albo na oba sposoby, przez
-centrum powiadomień. Odbiorcy to członkowie wskazani po id. W chwili działania
+Powiadamia członków organizacji przez centrum powiadomień: w aplikacji, e-mailem,
+push, na Slacku, Telegramie, Mattermoście, Microsoft Teams, SMS-em lub iMessage. Odbiorcy to członkowie wskazani po id. W chwili działania
 każdy musi nadal być aktywnym członkiem, który widzi workflow, a pozostali są
 pomijani. Jeśli nie zostanie nikt, krok kończy się błędem
 `NO_PERMITTED_RECIPIENTS`. Preferencje każdej osoby dla **Workflow
 notifications** nadal obowiązują. Krok kończy się, gdy powiadomienie zostanie
 zapisane, a mail wychodzi później. Ponowiony krok nie zapisuje drugiego
 powiadomienia.
+
+Prywatny kanał wymaga własnej, jawnie zatwierdzonej trasy powiadomień i zgody
+odbiorcy. Wybór kanału tutaj nie nadaje zgody ani nie przekierowuje danych na czat
+wskazany przez workflow. Przed wysyłką kolejka ponownie sprawdza dostęp, preferencje
+i uprawnienia trasy. Dostarczenie następuje po zakończeniu kroku; zakończenie nie
+potwierdza odbioru.
 
 ::: app.workflows.nodes.notification_send._handler.NotificationSendConfig
 

@@ -803,13 +803,19 @@ the server:
 
 ## notification.send { #notification-send }
 
-Notifies members of the organization in the app, by email, or both, through
-the notification center. Recipients are members named by id. At run time each
+Notifies organization members through the notification center: in-app, email,
+push, Slack, Telegram, Mattermost, Microsoft Teams, SMS or iMessage. Recipients are members named by id. At run time each
 one must still be an active member who can see the workflow, and anyone else is
 dropped. If nobody is left, the step fails with `NO_PERMITTED_RECIPIENTS`. Each
 person's preferences for **Workflow notifications** still apply. The step
 completes when the notification is written, and email is delivered afterwards.
 A retried step writes no second notification.
+
+Private chat channels require the recipient's own explicit notification route
+and channel opt-in. Selecting a channel here never grants consent or redirects
+a notification to a workflow-supplied chat. The delivery sweep rechecks access,
+preferences and route authority before sending. Provider delivery happens after
+the step completes; completion does not prove receipt.
 
 ::: app.workflows.nodes.notification_send._handler.NotificationSendConfig
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "361ef64710ed"
+source_sha: "d3a44254be39"
 ---
 
 # Workflow-Knoten { #workflow-nodes }
@@ -866,14 +866,20 @@ kann:
 
 ## notification.send { #notification-send }
 
-Benachrichtigt Mitglieder der Organisation in der App, per E-Mail oder beides,
-über das Benachrichtigungszentrum. Empfänger sind Mitglieder, die per ID
+Benachrichtigt Organisationsmitglieder über das Benachrichtigungszentrum: in der
+App, per E-Mail, Push, Slack, Telegram, Mattermost, Microsoft Teams, SMS oder iMessage. Empfänger sind Mitglieder, die per ID
 angegeben werden. Zur Laufzeit muss jeder noch ein aktives Mitglied sein, das
 den Workflow sehen kann, alle anderen werden ausgelassen. Bleibt niemand übrig,
 schlägt der Schritt mit `NO_PERMITTED_RECIPIENTS` fehl. Die Einstellungen jeder
 Person für **Workflow notifications** gelten weiterhin. Der Schritt ist
 abgeschlossen, wenn die Benachrichtigung geschrieben ist, die E-Mail wird danach
 zugestellt. Ein wiederholter Schritt schreibt keine zweite Benachrichtigung.
+
+Private Chats erfordern die eigene ausdrücklich eingerichtete Benachrichtigungsroute
+und Zustimmung des Empfängers. Die Auswahl erteilt keine Zustimmung und erlaubt
+keine vom Workflow angegebene Chatadresse. Vor dem Versand prüft die Zustellung
+Zugriff, Einstellungen und Routenberechtigung erneut. Der Versand erfolgt nach
+Abschluss des Schritts; der Abschluss bestätigt keinen Empfang.
 
 ::: app.workflows.nodes.notification_send._handler.NotificationSendConfig
 

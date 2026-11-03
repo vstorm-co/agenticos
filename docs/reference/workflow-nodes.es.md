@@ -1,5 +1,5 @@
 ---
-source_sha: "361ef64710ed"
+source_sha: "d3a44254be39"
 ---
 
 # Nodos de workflow { #workflow-nodes }
@@ -839,14 +839,20 @@ Cuando la llamada se corta, lo que sigue depende de si pudo llegar al servidor:
 
 ## notification.send { #notification-send }
 
-Notifica a miembros de la organización en la aplicación, por email o por ambos,
-a través del centro de notificaciones. Los destinatarios son miembros indicados
+Notifica a miembros mediante el centro de notificaciones: en la aplicación, por
+email, push, Slack, Telegram, Mattermost, Microsoft Teams, SMS o iMessage. Los destinatarios son miembros indicados
 por id. En el momento de ejecutarse, cada uno debe seguir siendo un miembro
 activo que puede ver el workflow, y los demás se descartan. Si no queda nadie, el
 paso falla con `NO_PERMITTED_RECIPIENTS`. Las preferencias de cada persona para
 **Workflow notifications** siguen aplicándose. El paso termina cuando la
 notificación queda escrita, y el email se entrega después. Un paso reintentado no
 escribe una segunda notificación.
+
+Los canales privados requieren una ruta de notificaciones configurada y aceptada
+por cada destinatario. Seleccionar un canal no concede consentimiento ni permite
+enviar a un chat indicado por el workflow. La entrega vuelve a comprobar acceso,
+preferencias y autorización de la ruta antes de enviar. La entrega ocurre después
+de finalizar el paso; finalizar no demuestra recepción.
 
 ::: app.workflows.nodes.notification_send._handler.NotificationSendConfig
 
