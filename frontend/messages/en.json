@@ -12161,7 +12161,7 @@
       "agents": {
         "title": "Coding agents on this computer",
         "description": "Claude Code and Codex installed here. Sign-in belongs to each agent: AgenticOS opens its own command in Terminal and never reads or copies its credentials.",
-        "installHint": "{name} is not installed on this computer.",
+        "installHint": "AgenticOS can prepare {name} for you. No developer tools are needed.",
         "notInstalled": "Not installed",
         "signedIn": "Signed in",
         "signedOut": "Signed out",
@@ -12170,7 +12170,11 @@
         "signInNamed": "Sign in to {name}",
         "signOut": "Sign out",
         "signOutNamed": "Sign out of {name}",
-        "terminalNote": "Sign-in opens in your system terminal. Come back when it finishes to refresh the status."
+        "terminalNote": "A browser window opens for sign-in. AgenticOS never reads or stores your coding agent credentials.",
+        "prepare": "Set up",
+        "prepareNamed": "Set up {name}",
+        "preparing": "Preparing…",
+        "refresh": "Refresh status"
       }
     },
     "quickAsk": {

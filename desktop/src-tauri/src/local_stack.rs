@@ -15,8 +15,9 @@
 
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Output};
+use std::process::{Command, Output, Stdio};
 use std::time::{Duration, Instant};
+use tokio::io::AsyncReadExt;
 
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, Url};
@@ -131,8 +132,9 @@ pub enum Step {
 #[derive(Serialize, Clone, Debug)]
 pub struct Progress {
     pub step: Step,
-    /// The last line a command printed, so a long download is visibly moving.
+    /// A safe progress description; raw registry diagnostics stay out of the UI.
     pub detail: Option<String>,
+    pub instance_id: Option<String>,
 }
 
 /// Refresh Compose files without replacing an instance's durable keys.
@@ -144,7 +146,9 @@ fn write_files(app: &AppHandle, instance: &Instance) -> Result<PathBuf, String> 
         use std::os::unix::fs::PermissionsExt;
         fs::set_permissions(&dir, fs::Permissions::from_mode(0o700)).map_err(|e| e.to_string())?;
     }
-    fs::write(dir.join("docker-compose.yml"), COMPOSE).map_err(|e| e.to_string())?;
+    if !dir.join("docker-compose.yml").exists() {
+        fs::write(dir.join("docker-compose.yml"), COMPOSE).map_err(|e| e.to_string())?;
+    }
     fs::write(
         dir.join("docker-compose.desktop.yml"),
         local_instances::overrides(instance),
@@ -155,46 +159,228 @@ fn write_files(app: &AppHandle, instance: &Instance) -> Result<PathBuf, String> 
     }
     Ok(dir)
 }
-fn compose(docker: &Path, dir: &Path, instance: &Instance) -> Result<Command, String> {
+pub(crate) fn compose(docker: &Path, dir: &Path, instance: &Instance) -> Result<Command, String> {
+    compose_from(docker, dir, instance, "docker-compose.yml")
+}
+
+fn compose_from(docker: &Path, dir: &Path, instance: &Instance, manifest: &str) -> Result<Command, String> {
     let mut command = docker_runtime::command(docker)?;
+    command
+        .arg("--config")
+        .arg(docker_runtime::public_config(dir)?)
+        .env_remove("DOCKER_AUTH_CONFIG");
+    command
+        .env("DOCKER_HOST", docker_runtime::local_connection(docker)?)
+        .env_remove("DOCKER_CONTEXT");
     command
         .current_dir(dir)
         .args(["compose", "--project-name", &instance.project()])
-        .args(["--file", "docker-compose.yml", "--file", "docker-compose.desktop.yml"]);
+        .args(["--file", manifest, "--file", "docker-compose.desktop.yml"]);
     Ok(command)
 }
 
-fn run(mut command: Command, what: &str) -> Result<Output, String> {
-    let output = command
-        .output()
-        .map_err(|e| format!("Cannot run Docker to {what}: {e}"))?;
-    if output.status.success() {
-        return Ok(output);
+#[derive(Clone, Serialize)]
+pub struct Failure {
+    action: String,
+    category: &'static str,
+    exit_code: Option<i32>,
+}
+static LAST_FAILURE: std::sync::Mutex<Option<Failure>> = std::sync::Mutex::new(None);
+
+pub fn diagnostic() -> Option<Failure> {
+    LAST_FAILURE.lock().ok().and_then(|value| value.clone())
+}
+
+fn command_failure(action: &str, stderr: &str, exit_code: Option<i32>) -> String {
+    let text = stderr.to_ascii_lowercase();
+    let (category, help) = if text.contains("no space left") || text.contains("not enough space") {
+        ("storage", "Free up storage and retry. Your workspace data is kept.")
+    } else if text.contains("credential") && (text.contains("not found") || text.contains("not installed")) {
+        (
+            "credential_helper",
+            "The local runtime could not find its sign-in helper. Retry preparing this computer.",
+        )
+    } else if text.contains("unauthorized") || text.contains("authentication required") {
+        (
+            "registry_access",
+            "The image download was refused. Check runtime sign-in or your organization's network policy.",
+        )
+    } else if text.contains("certificate") || text.contains("proxyconnect") || text.contains("timeout") {
+        (
+            "network",
+            "Check your connection or your organization's proxy settings, then retry.",
+        )
+    } else {
+        (
+            "command",
+            "Retry, or use Help → Export Diagnostics to share a report. Your workspace data is kept.",
+        )
+    };
+    if let Ok(mut failure) = LAST_FAILURE.lock() {
+        *failure = Some(Failure {
+            action: action.to_owned(),
+            category,
+            exit_code,
+        });
     }
-    let said = String::from_utf8_lossy(&output.stderr);
-    let last = said.lines().rev().find(|line| !line.trim().is_empty()).unwrap_or("");
-    Err(format!("Docker could not {what}: {last}"))
+    format!("Could not {action}. {help}")
+}
+
+fn download_detail(text: &str) -> Option<String> {
+    // Registry and helper errors can contain private paths or credentials.
+    // Only known progress states cross into the console, never raw process output.
+    let status = text.lines().rev().find(|line| !line.trim().is_empty())?;
+    if status.contains("Download complete") || status.contains("Pull complete") || status.contains("Pulled") {
+        Some("A component has finished downloading.".into())
+    } else if status.contains("Downloading") {
+        Some("Downloading AgenticOS components…".into())
+    } else if status.contains("Extracting") {
+        Some("Unpacking AgenticOS components…".into())
+    } else if status.contains("Pulling") || status.contains("Waiting") {
+        Some("Preparing component downloads…".into())
+    } else {
+        None
+    }
+}
+
+pub(crate) async fn collect_output(
+    mut reader: impl tokio::io::AsyncRead + Unpin,
+    progress: Option<(&AppHandle, Step)>,
+) -> Result<Vec<u8>, std::io::Error> {
+    let mut kept = Vec::new();
+    let mut buffer = [0u8; 4096];
+    let mut updated = Instant::now() - Duration::from_secs(1);
+    loop {
+        let count = reader.read(&mut buffer).await?;
+        if count == 0 {
+            return Ok(kept);
+        }
+        kept.extend_from_slice(&buffer[..count]);
+        if kept.len() > 32 * 1024 {
+            kept.drain(..kept.len() - 32 * 1024);
+        }
+        if let Some((app, step)) = progress {
+            if updated.elapsed() >= Duration::from_millis(250) {
+                let text = String::from_utf8_lossy(&kept);
+                let detail = download_detail(&text);
+                report(app, step, detail);
+                updated = Instant::now();
+            }
+        }
+    }
+}
+
+async fn run_async(
+    command: Command,
+    what: &str,
+    progress: Option<(&AppHandle, Step)>,
+    deadline: Duration,
+) -> Result<Output, String> {
+    let mut command = tokio::process::Command::from(command);
+    command
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+    let mut child = crate::local_work::spawn_tree(command).map_err(|e| format!("Cannot {what}: {}", e.message))?;
+    let stdout = child
+        .0
+        .stdout()
+        .take()
+        .ok_or("The runtime did not provide its output.")?;
+    let stderr = child
+        .0
+        .stderr()
+        .take()
+        .ok_or("The runtime did not provide its diagnostics.")?;
+    let finished = async {
+        let (stdout, stderr, status) = tokio::join!(
+            collect_output(stdout, None),
+            collect_output(stderr, progress),
+            child.0.wait()
+        );
+        let output = Output {
+            status: status.map_err(|e| e.to_string())?,
+            stdout: stdout.map_err(|e| e.to_string())?,
+            stderr: stderr.map_err(|e| e.to_string())?,
+        };
+        if output.status.success() {
+            return Ok(output);
+        }
+        let said = String::from_utf8_lossy(&output.stderr);
+        Err(command_failure(what, &said, output.status.code()))
+    };
+    match tokio::time::timeout(deadline, finished).await {
+        Ok(result) => result,
+        Err(_) => {
+            let _ = child.0.start_kill();
+            let _ = child.0.wait().await;
+            Err(format!(
+                "It took too long to {what}. Check your connection and choose Retry. Your workspace data is kept."
+            ))
+        }
+    }
+}
+
+pub(crate) fn run(command: Command, what: &str) -> Result<Output, String> {
+    run_with_deadline(command, what, Duration::from_secs(600))
+}
+
+pub(crate) fn run_with_deadline(command: Command, what: &str, deadline: Duration) -> Result<Output, String> {
+    tauri::async_runtime::block_on(run_async(command, what, None, deadline))
+}
+
+fn pull(app: &AppHandle, docker: &Path, dir: &Path, instance: &Instance) -> Result<(), String> {
+    let mut command = compose(docker, dir, instance)?;
+    command.args(["--progress", "plain", "pull"]);
+    tauri::async_runtime::block_on(run_async(
+        command,
+        "download AgenticOS",
+        Some((app, Step::Download)),
+        Duration::from_secs(1800),
+    ))
+    .map(|_| ())
 }
 
 fn report(app: &AppHandle, step: Step, detail: Option<String>) {
-    if let Err(e) = app.emit_to(crate::WINDOW, PROGRESS_EVENT, Progress { step, detail }) {
+    if let Err(e) = app.emit_to(
+        crate::WINDOW,
+        PROGRESS_EVENT,
+        Progress {
+            step,
+            detail,
+            instance_id: None,
+        },
+    ) {
         eprintln!("local stack: {e}");
     }
 }
 
-/// Wait until the console answers, or the deadline passes.
-pub fn wait_for_console(console: &Url) -> Result<(), String> {
-    let started = Instant::now();
-    while started.elapsed() < READY_DEADLINE {
-        if crate::reachable(console).is_ok() {
-            return Ok(());
+/// A listening frontend is not enough: wait for the API and frontend HTTP endpoints.
+pub fn wait_for_instance(instance: &Instance) -> Result<(), String> {
+    tauri::async_runtime::block_on(async {
+        let client = reqwest::Client::builder()
+            .timeout(Duration::from_secs(3))
+            .connect_timeout(Duration::from_secs(2))
+            .redirect(reqwest::redirect::Policy::none())
+            .build()
+            .map_err(|e| e.to_string())?;
+        let frontend = instance.url().join("api/public/endpoints").map_err(|e| e.to_string())?;
+        let api = Url::parse(&format!("http://127.0.0.1:{}/api/v1/health/ready", instance.api_port))
+            .map_err(|e| e.to_string())?;
+        let started = Instant::now();
+        while started.elapsed() < READY_DEADLINE {
+            if endpoints_ready(&client, &api, &frontend).await {
+                return Ok(());
+            }
+            tokio::time::sleep(READY_POLL).await;
         }
-        std::thread::sleep(READY_POLL);
-    }
-    Err(
-        "AgenticOS did not start within ten minutes. `docker compose logs` in the app's data folder says why."
-            .to_owned(),
-    )
+        Err("AgenticOS is not ready yet. Choose Retry to continue; your workspace and its keys are kept.".into())
+    })
+}
+
+async fn endpoints_ready(client: &reqwest::Client, api: &Url, frontend: &Url) -> bool {
+    let (api, frontend) = tokio::join!(client.get(api.clone()).send(), client.get(frontend.clone()).send());
+    api.is_ok_and(|answer| answer.status().is_success()) && frontend.is_ok_and(|answer| answer.status().is_success())
 }
 
 /// A published image must support the namespace before credentials are sent or a session opens.
@@ -265,19 +451,27 @@ pub fn set_up(app: &AppHandle, owner: &Owner) -> Result<Url, String> {
     crate::managed::check(app, &instance.url())?;
     let console = instance.url();
 
-    report(app, Step::Files, None);
+    app.emit_to(
+        crate::WINDOW,
+        PROGRESS_EVENT,
+        Progress {
+            step: Step::Files,
+            detail: None,
+            instance_id: Some(instance.id.clone()),
+        },
+    )
+    .map_err(|e| e.to_string())?;
     let dir = write_files(app, &instance)?;
 
+    crate::local_preflight::engine(&docker, &dir)?;
     report(app, Step::Download, None);
-    let mut pull = compose(&docker, &dir, &instance)?;
-    pull.args(["pull", "--quiet"]);
-    run(pull, "download AgenticOS")?;
+    pull(app, &docker, &dir, &instance)?;
 
     report(app, Step::Start, None);
     let mut up = compose(&docker, &dir, &instance)?;
     up.args(["up", "--detach"]);
     run(up, "start AgenticOS")?;
-    wait_for_console(&console)?;
+    wait_for_instance(&instance)?;
     verify_instance_sessions(&instance)?;
 
     report(app, Step::Owner, None);
@@ -339,12 +533,49 @@ pub fn control_instance(app: &AppHandle, instance: &Instance, control: Control) 
             run(stop, "stop AgenticOS").map(|_| ())
         }
         Control::Update => {
-            let mut pull = compose(&docker, &dir, instance)?;
-            pull.args(["pull", "--quiet"]);
-            run(pull, "download the new version")?;
+            let target = env!("AGENTICOS_PLATFORM_VERSION");
+            let current = crate::local_backup::current_version(&docker, &dir, instance)?;
+            crate::local_backup::prevent_downgrade(&current, target)?;
+            crate::local_preflight::engine(&docker, &dir)?;
+            fs::write(dir.join("docker-compose.update.yml"), COMPOSE).map_err(|e| e.to_string())?;
+            let mut download = compose_from(&docker, &dir, instance, "docker-compose.update.yml")?;
+            download
+                .env("AGENTICOS_VERSION", target)
+                .args(["--progress", "plain", "pull"]);
+            tauri::async_runtime::block_on(run_async(
+                download,
+                "download the update",
+                Some((app, Step::Download)),
+                Duration::from_secs(1800),
+            ))?;
+            crate::local_preflight::engine(&docker, &dir)?;
+            let mut database = compose(&docker, &dir, instance)?;
+            database.args(["up", "--detach", "--wait", "db"]);
+            run(database, "start the database for its backup")?;
+            let mut stop = compose(&docker, &dir, instance)?;
+            stop.args(["stop", "app", "worker"]);
+            run(stop, "pause AgenticOS before its backup")?;
+            let backed_up = crate::local_backup::snapshot(&docker, &dir, instance).and_then(|backup| {
+                crate::local_backup::apply_configuration(&dir, &backup, target)?;
+                Ok(backup)
+            });
+            let backup = match backed_up {
+                Ok(backup) => backup,
+                Err(error) => {
+                    let mut restart = compose(&docker, &dir, instance)?;
+                    restart.args(["up", "--detach"]);
+                    return match run(restart, "restart the existing version") {
+                        Ok(_) => Err(error),
+                        Err(restart) => Err(format!("{error} {restart}")),
+                    };
+                }
+            };
             let mut up = compose(&docker, &dir, instance)?;
             up.args(["up", "--detach"]);
-            run(up, "restart AgenticOS").map(|_| ())
+            run(up, "start the updated AgenticOS")
+                .map_err(|error| format!("{error} A backup of the previous database, files and keys is saved in {}. Retry the update; no database downgrade was attempted.", backup.display()))?;
+            wait_for_instance(instance)?;
+            verify_instance_sessions(instance)
         }
     }
 }
@@ -422,6 +653,94 @@ mod tests {
             server.join().unwrap();
             assert_eq!(result.is_ok(), compatible);
         }
+    }
+
+    #[tokio::test]
+    async fn an_open_frontend_port_does_not_hide_an_unready_api() {
+        use std::io::{Read, Write};
+        use std::net::TcpListener;
+        fn endpoint(status: u16) -> (tauri::Url, std::thread::JoinHandle<()>) {
+            let listener = TcpListener::bind(("127.0.0.1", 0)).unwrap();
+            listener.set_nonblocking(true).unwrap();
+            let port = listener.local_addr().unwrap().port();
+            let server = std::thread::spawn(move || {
+                let start = std::time::Instant::now();
+                loop {
+                    match listener.accept() {
+                        Ok((mut stream, _)) => {
+                            stream.set_nonblocking(false).unwrap();
+                            stream
+                                .set_read_timeout(Some(std::time::Duration::from_secs(2)))
+                                .unwrap();
+                            let mut bytes = [0; 4096];
+                            let read = stream.read(&mut bytes).unwrap();
+                            assert!(read > 0);
+                            write!(
+                                stream,
+                                "HTTP/1.1 {status} Test\r\nContent-Length: 2\r\nConnection: close\r\n\r\n{{}}"
+                            )
+                            .unwrap();
+                            return;
+                        }
+                        Err(error)
+                            if error.kind() == std::io::ErrorKind::WouldBlock
+                                && start.elapsed() < std::time::Duration::from_secs(3) =>
+                        {
+                            std::thread::sleep(std::time::Duration::from_millis(10))
+                        }
+                        Err(error) => panic!("Readiness request did not arrive: {error}"),
+                    }
+                }
+            });
+            (tauri::Url::parse(&format!("http://127.0.0.1:{port}/")).unwrap(), server)
+        }
+        let client = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(2))
+            .build()
+            .unwrap();
+        for (api, frontend, ready) in [(200, 200, true), (503, 200, false), (200, 503, false)] {
+            let (api, api_server) = endpoint(api);
+            let (frontend, frontend_server) = endpoint(frontend);
+            assert_eq!(super::endpoints_ready(&client, &api, &frontend).await, ready);
+            api_server.join().unwrap();
+            frontend_server.join().unwrap();
+        }
+    }
+
+    #[test]
+    fn download_progress_does_not_forward_registry_diagnostics() {
+        assert!(super::download_detail("secret-token sk-secret").is_none());
+        let detail = super::download_detail("Downloading with secret-token sk-secret").unwrap();
+        assert!(!detail.contains("sk-secret"));
+        assert!(detail.contains("Downloading"));
+    }
+
+    #[test]
+    fn command_failures_do_not_expose_raw_credentials_or_paths() {
+        for raw in [
+            "private-token: sk-secret",
+            "credential helper not found /private/home",
+            "no space left on device sk-secret",
+        ] {
+            let shown = super::command_failure("download AgenticOS", raw, Some(1));
+            assert!(!shown.contains("sk-secret"));
+            assert!(!shown.contains("/private/home"));
+        }
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn stalled_commands_are_stopped_and_output_is_bounded() {
+        let mut command = std::process::Command::new("/bin/sh");
+        command.args(["-c", "sleep 30"]);
+        let result = super::run_async(command, "test startup", None, std::time::Duration::from_millis(50)).await;
+        assert!(result.unwrap_err().contains("Retry"));
+        let mut command = std::process::Command::new("/bin/sh");
+        command.args(["-c", "head -c 100000 /dev/zero"]);
+        let output = super::run_async(command, "test output", None, std::time::Duration::from_secs(5))
+            .await
+            .unwrap();
+        assert_eq!(output.stdout.len(), 32 * 1024);
     }
 
     #[test]

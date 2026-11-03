@@ -1,5 +1,5 @@
 ---
-source_sha: "2657ad3833a9"
+source_sha: "281c133720dc"
 ---
 
 # La app de escritorio { #the-desktop-app }
@@ -123,20 +123,47 @@ propietario y proveedor. **Cancel** vuelve a la lista de instancias. Blobby se
 oculta durante la configuración y regresa con la consola según su preferencia
 de visibilidad guardada.
 
-En macOS, elige **Set up this computer**. AgenticOS descarga el instalador oficial
-de Docker Desktop para tu procesador, lo verifica con macOS, lo instala mediante
-una autorización del sistema e inicia el entorno local. Completa los avisos del
-primer inicio, incluidos los términos de Docker; la configuración continúa
-automáticamente cuando el entorno está listo. Un entorno instalado se inicia con
-**Start workspace**. Windows y Linux abren la página de descarga de Docker si hace
-falta instalarlo. Una comprobación de estado nunca instala software por sí sola.
+Elige **Set up this computer** para preparar el entorno local. AgenticOS descarga
+Docker Desktop 4.97.0 para tu procesador y verifica su suma SHA-256 fijada. macOS
+comprueba el instalador con Gatekeeper y solicita autorización del sistema.
+Windows ejecuta el instalador firmado y prepara las funciones WSL que falten con
+autorización del sistema. Si Windows solicita reiniciarse, vuelve a abrir AgenticOS
+para continuar. Ubuntu, Debian y Fedora en x86-64 usan el instalador de paquetes
+del sistema. Completa los términos propios de Docker al iniciarlo por primera
+vez.
+
+En Linux, la configuración añade la fuente de paquetes firmada de Docker si
+falta y solicita autorización de administrador para los paquetes y el acceso a KVM.
+Reinicia cuando se solicite. Una comprobación de estado nunca instala software por
+sí sola.
+
+Antes de instalar, AgenticOS comprueba que haya 4 GB de almacenamiento libre. El
+entorno local también requiere al menos 3 GB de memoria visibles para su motor.
+Son comprobaciones de inicio, no garantías de capacidad para cualquier tarea. Las
+descargas de imágenes muestran progreso y tienen un límite de 30 minutos.
+**Retry** continúa la misma instancia conservando sus claves. El uso normal de
+la app no requiere Git, Python, uv ni Node.js en el equipo.
+
+Las instancias nuevas fijan la versión de plataforma incluida con la app.
+Actualizar la app de escritorio no cambia automáticamente una instancia en uso.
+**Update** descarga las imágenes correspondientes, pausa las escrituras y guarda
+una copia de la base de datos, los archivos multimedia y las claves de despliegue
+en el directorio privado `backups/` antes de actualizar. Si falla la copia, se
+bloquea la actualización. Las copias contienen datos personales y requieren
+protección. Se notifican los errores de migración; no se revierte automáticamente
+el esquema de la base de datos.
 
 Al abrir AgenticOS se inicia automáticamente el espacio local administrado y
-guardado si está detenido, incluido su entorno en macOS y Windows. No se inician
+guardado si está detenido, incluido el entorno instalado en sistemas compatibles. No se inician
 servidores externos ni entornos de desarrollo no administrados. La app transmite
 a los procesos secundarios los directorios de la CLI y de los asistentes de
 credenciales de Docker, incluso al abrirla desde Finder; no necesitas editar la
 configuración de credenciales de Docker ni el perfil de tu shell.
+
+Las imágenes públicas del producto usan una configuración privada y anónima del
+registro para evitar avisos de los asistentes de credenciales y del llavero. Tu
+configuración de Docker existente no cambia. La instalación local rechaza los
+contextos que apuntan a un motor remoto.
 
 Elige **New instance**, asígnale un nombre e introduce la organización y su
 propietario. La aplicación asigna puertos loopback libres y crea un proyecto Compose
@@ -479,13 +506,27 @@ despliegue tiene que coincidir en el esquema - `DESKTOP_DEEP_LINK_SCHEME`,
 
 ## Coding agents en este equipo { #coding-agents-on-this-computer }
 
-**Settings → Desktop app → Coding agents on this computer** muestra las versiones instaladas de Claude Code y Codex y su estado de sesión. **Sign in** abre el comando propio del agente en Terminal de macOS, PowerShell de Windows o un terminal disponible en Linux. Al volver, se actualiza el estado. AgenticOS no lee ni copia credenciales. Los adaptadores ACP con versión fijada requieren Node.js 22 o posterior.
+**Settings → Desktop app → Coding agents on this computer** muestra versiones y
+estado de sesión. **Set up** prepara Node.js 24.19.0 privado y los adaptadores
+fijados mediante un archivo de bloqueo, con comprobaciones de integridad. No
+necesitas instalar herramientas de desarrollo por separado. **Sign in** inicia el
+flujo OAuth propio del agente en el navegador; AgenticOS no lee ni copia
+credenciales. **Refresh status** comprueba la sesión de forma explícita. Volver
+a la app no consulta repetidamente el almacén de credenciales; el inicio de sesión
+y la preparación correctos actualizan el estado automáticamente.
 
 En la aplicación de escritorio, elige **Controles del chat → Herramientas y archivos → Agente de programación** y selecciona **Claude Code** o **Codex**, aunque la capacidad publicada esté desactivada o ausente. La aplicación prepara las herramientas de archivos locales y abre el selector nativo de carpetas, salvo que la carpeta actual ya tenga acceso completo. Cancelar conserva los ajustes anteriores. **Usar configuración del agente** restaura la configuración publicada.
 
-La selección pertenece a este chat. Se mantienen las reglas de solo lectura y aprobación; cada tarea requiere confirmación nativa. Cambiar a la nube elimina la selección local de esta conversación. Los controles del chat se despliegan sobre el campo de mensajes. El modelo aparece arriba, seguido de Herramientas y archivos. Despliega **Work on** para gestionar el acceso a carpetas y **Preferencias** para las aprobaciones y notificaciones.
+La selección pertenece a este chat. Se mantienen las reglas de solo lectura y aprobación; la autorización nativa de inicio puede recordarse para este agente y carpeta. Cambiar a la nube elimina la selección local de esta conversación. Los controles del chat se despliegan sobre el campo de mensajes. El modelo aparece arriba, seguido de Herramientas y archivos. Despliega **Work on** para gestionar el acceso a carpetas y **Preferencias** para las aprobaciones y notificaciones.
 
-Configura la capability **Coding agent** como **On this computer**, elige una carpeta en **Work on** y concédele acceso completo. Cada tarea requiere confirmación nativa, con hasta cinco minutos para responder. El adaptador se ejecuta con tu cuenta del sistema: la carpeta indica el directorio de trabajo, no una sandbox del sistema. El acceso a todo el equipo no puede iniciar un coding agent. El compositor muestra agente, carpeta y política de acceso.
+Configura la capability **Coding agent** como **On this computer**, elige una
+carpeta en **Work on** y concédele acceso completo. La autorización nativa se
+recuerda para ese agente, carpeta, versión del adaptador y conexión. Eliminar o
+volver a seleccionar la carpeta borra la autorización y detiene sus agentes;
+cambiar de cuenta o servidor también borra las autorizaciones. El adaptador se
+ejecuta con tu cuenta del sistema: la carpeta indica el directorio de trabajo,
+no una sandbox del sistema. El acceso a todo el equipo no inicia un coding agent.
+Siguen vigentes las aprobaciones de tareas y los permisos del sistema.
 
 La aprobación de la capability se aplica una vez por tarea. `edit` permite las operaciones solicitadas y `read_only` rechaza cambios. Claude desactiva la omisión de permisos en modo lectura y ofrece solo herramientas de lectura. Codex selecciona su sandbox nativa de solo lectura. Los agentes locales usan su propia configuración de modelo. El uso de suscripción no tiene precio registrado; el coste mostrado del run es un mínimo.
 

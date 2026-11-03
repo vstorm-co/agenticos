@@ -19,11 +19,20 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
-## [1.38.3] - 2026-11-03
+### Added
+
+- Prepare private, checksummed coding runtimes and pinned Claude Code/Codex adapters without host developer tools. Coding-agent setup and browser sign-in are available in desktop settings.
+- Install the verified local runtime on Windows and supported Linux desktops, resume Windows setup after a required restart, show download progress and retry the same workspace. Pin new local instances to the packaged platform release and back up database, media and deployment keys before updates.
 
 ### Fixed
 
-- Prepare the local runtime from the macOS setup wizard and restart saved local workspaces when the desktop app opens. Pass Docker credential-helper paths to subprocesses so installations launched from Finder can download images.
+- Remember native coding-agent startup consent per agent, folder, adapter version and connection; revoke it with folder/account access and stop affected agents. Preserve local grants on reconnect, avoid repeated credential probes on focus, hide background Windows console windows, wait for HTTP readiness and refuse remote Docker contexts or platform downgrades during local setup.
+
+- Prepare the local runtime from the macOS setup wizard and restart saved local workspaces when the desktop app opens. Pull public product images with a private anonymous configuration to avoid credential-helper and keychain prompts, and pass Docker helper paths to subprocesses launched from Finder.
+
+## [1.38.3] - 2026-11-03
+
+### Fixed
 
 - Background-job audit and table-retention integration tests no longer depend on
   PostgreSQL returning rows in insertion order.

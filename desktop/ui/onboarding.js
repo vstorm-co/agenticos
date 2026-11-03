@@ -97,6 +97,9 @@ function markSteps(current, failed = false) {
 }
 
 let currentStep = "files";
+document
+  .querySelector("[data-retry-setup]")
+  .addEventListener("click", () => localForm.requestSubmit());
 
 localForm.addEventListener("submit", async (event) => {
   event.preventDefault();
@@ -114,6 +117,7 @@ localForm.addEventListener("submit", async (event) => {
   const progress = document.querySelector('[data-screen="progress"]');
   hideError(progress);
   document.querySelector("[data-progress-actions]").hidden = true;
+  document.querySelector("[data-progress-detail]").hidden = true;
   currentStep = "files";
   markSteps(currentStep);
   show("progress");
@@ -139,6 +143,12 @@ async function start() {
     }
   });
   await listen("local:progress", ({ payload }) => {
+    if (typeof payload.instance_id === "string")
+      localForm.querySelector("[name=instance-id]").value = payload.instance_id;
+    const detail = document.querySelector("[data-progress-detail]");
+    detail.textContent =
+      typeof payload.detail === "string" ? payload.detail : "";
+    detail.hidden = !detail.textContent;
     currentStep = payload.step;
     markSteps(currentStep);
   });
@@ -147,6 +157,11 @@ async function start() {
     invoke("startup_notice"),
   ]);
   if (state.server_url) serverField.value = state.server_url;
+  if (state.local_setup_pending) {
+    show("local");
+    await checkLocal.prepare();
+    return;
+  }
   // Somebody who has been through it - "Change Server…", or a server that
   // stopped answering - is asked where, not welcomed again.
   if (notice) {

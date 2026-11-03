@@ -31,7 +31,7 @@ const VIEWS = {
  * @param {HTMLElement} root
  * @param {Invoke} invoke
  * @param {(message: unknown) => void} report
- * @returns {(() => Promise<void>) & { resume: () => Promise<void> }}
+ * @returns {(() => Promise<void>) & { resume: () => Promise<void>, prepare: () => Promise<void> }}
  */
 export function localComputerStep(root, invoke, report) {
   const card = root.querySelector("[data-local-instance]");
@@ -196,46 +196,48 @@ export function localComputerStep(root, invoke, report) {
       if (request === generation) setBusy(false);
     }
   }
+  async function prepareRuntime(action) {
+    if (preparing) return;
+    preparing = true;
+    showActions([]);
+    setBusy(true);
+    title.textContent =
+      action === "docker"
+        ? "Preparing this computer"
+        : "Starting your workspace";
+    message.textContent =
+      "Approve any system installation or first-run prompts. AgenticOS will continue automatically.";
+    try {
+      await invoke(action === "docker" ? "download_docker" : "open_docker");
+      await refresh();
+      if (card.dataset.state === "ready") showForm(null);
+      else if (card.dataset.state === "no_docker") {
+        message.textContent =
+          "Complete the runtime installation, then choose Check again to continue.";
+        showActions(["docker", "check"]);
+      }
+    } catch (error) {
+      title.textContent = "Setup needs your attention";
+      message.textContent = String(error);
+      showActions(
+        action === "open-docker"
+          ? ["open-docker", "docker", "check"]
+          : ["docker", "check"],
+      );
+      report(error);
+    } finally {
+      preparing = false;
+      setBusy(false);
+    }
+  }
   actions.addEventListener("click", async (event) => {
     if (!(event.target instanceof Element)) return;
     const button = event.target.closest("[data-action]");
     const action = button?.dataset.action;
     if (action === "check") await refresh();
     if (action === "create") showForm(null);
-    if (action === "docker" || action === "open-docker") {
-      if (preparing) return;
-      preparing = true;
-      showActions([]);
-      setBusy(true);
-      title.textContent =
-        action === "docker"
-          ? "Preparing this computer"
-          : "Starting your workspace";
-      message.textContent =
-        "Approve any system installation or first-run prompts. AgenticOS will continue automatically.";
-      try {
-        await invoke(action === "docker" ? "download_docker" : "open_docker");
-        await refresh();
-        if (card.dataset.state === "ready") showForm(null);
-        else if (card.dataset.state === "no_docker") {
-          message.textContent =
-            "Complete the runtime installation, then choose Check again to continue.";
-          showActions(["docker", "check"]);
-        }
-      } catch (error) {
-        title.textContent = "Setup needs your attention";
-        message.textContent = String(error);
-        showActions(
-          action === "open-docker"
-            ? ["open-docker", "docker", "check"]
-            : ["docker", "check"],
-        );
-        report(error);
-      } finally {
-        preparing = false;
-        setBusy(false);
-      }
-    }
+    if (action === "docker" || action === "open-docker")
+      await prepareRuntime(action);
     if (action !== "use" || connecting) return;
     connecting = true;
     root.inert = true;
@@ -257,6 +259,7 @@ export function localComputerStep(root, invoke, report) {
       setBusy(false);
     }
   });
+  refresh.prepare = () => prepareRuntime("docker");
   refresh.resume = async () => {
     ++generation;
     showOverview();
