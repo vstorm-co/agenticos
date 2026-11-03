@@ -222,6 +222,7 @@ function improvementReply(body: ChatRequest): string | null {
  */
 const SKILL_ROLE = /\bE2E-SKILL-AS:([a-z]+)\b/;
 const SKILL_TOPIC = /\bTOPIC:([a-z]+)\b/;
+const SKILL_TOKEN = /^PONG-[A-Za-z0-9-]+/;
 
 /** The token the served skill gives this role on this topic, once the skill was opened. */
 function skillReply(body: ChatRequest): string | null {
@@ -230,10 +231,15 @@ function skillReply(body: ChatRequest): string | null {
   const role = SKILL_ROLE.exec(text)?.[1];
   const topic = SKILL_TOPIC.exec(text)?.[1];
   if (role === undefined || topic === undefined) return null;
-  // The tool's answer is JSON, so a line break arrives as the two characters `\n`.
-  return (
-    new RegExp(`(?:^|\\s|\\\\n)${role}/${topic}: (PONG-[A-Za-z0-9-]+)`).exec(text)?.[1] ?? null
-  );
+  const line = `${role}/${topic}: `;
+  for (let at = text.indexOf(line); at >= 0; at = text.indexOf(line, at + 1)) {
+    // The tool's answer is JSON, so a line break arrives as the two characters `\n`.
+    const before = text.slice(Math.max(0, at - 2), at);
+    if (at === 0 || /\s$/.test(before) || before === "\\n") {
+      return SKILL_TOKEN.exec(text.slice(at + line.length))?.[0] ?? null;
+    }
+  }
+  return null;
 }
 
 /** The marker `skill-improvement.spec.ts` writes into its skill's description. */
