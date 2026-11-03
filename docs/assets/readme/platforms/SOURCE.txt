@@ -1,0 +1,3 @@
+# Platform marks
+
+Apple, Microsoft Windows and Linux Tux SVG marks from `@iconify-json/logos` (gilbarbara/logos, CC0), generated with the same source used by the AgenticOS landing. Marks identify installation targets; they do not imply endorsement. README labels provide the accessible platform names.

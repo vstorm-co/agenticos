@@ -1,0 +1,476 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Visuals · source trace</title>
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        font-family: ui-sans-serif, system-ui, sans-serif;
+        background: #fafaff;
+        color: #252139;
+        line-height: 1.5;
+      }
+      button,
+      input,
+      select {
+        font: inherit;
+      }
+      button {
+        cursor: pointer;
+      }
+      button:focus-visible,
+      a:focus-visible,
+      input:focus-visible {
+        outline: 3px solid #7962c9;
+        outline-offset: 4px;
+      }
+      button {
+        color: inherit;
+      }
+      header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 20px;
+        border-bottom: 1px solid #e4e0ed;
+        padding: 21px 4vw;
+      }
+      .brand {
+        font-weight: 700;
+        letter-spacing: -0.6px;
+        font-size: 19px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      .brandmark {
+        display: grid;
+        place-items: center;
+        background: #51407e;
+        color: #f0eaff;
+        width: 33px;
+        height: 33px;
+        border-radius: 10px;
+      }
+      nav {
+        display: flex;
+        gap: 24px;
+        font-size: 13px;
+      }
+      nav span {
+        color: #77728a;
+      }
+      .label {
+        font-size: 12px;
+        color: #77728a;
+      }
+      .badge {
+        display: inline-flex;
+        gap: 7px;
+        align-items: center;
+        border: 1px solid #e2daee;
+        border-radius: 20px;
+        padding: 5px 11px;
+        font-size: 11px;
+        background: #f2edfc;
+      }
+      .badge:before {
+        content: "";
+        height: 5px;
+        width: 5px;
+        background: #8870c7;
+        border-radius: 100%;
+      }
+      .wrap {
+        max-width: 1400px;
+        margin: auto;
+        padding: 34px 4vw;
+      }
+      h1 {
+        font-size: clamp(34px, 4.2vw, 56px);
+        font-weight: 550;
+        letter-spacing: -2.5px;
+        line-height: 1.07;
+        margin: 10px 0 15px;
+      }
+      h2 {
+        font-size: 19px;
+        letter-spacing: -0.5px;
+        font-weight: 600;
+        margin: 0 0 15px;
+      }
+      h3 {
+        font-size: 15px;
+        margin: 0 0 7px;
+      }
+      p {
+        margin: 0 0 13px;
+      }
+      .muted {
+        color: #77728a;
+      }
+      .hero {
+        display: flex;
+        justify-content: space-between;
+        align-items: end;
+        gap: 30px;
+        margin-bottom: 30px;
+      }
+      .hero p {
+        font-size: 14px;
+        max-width: 600px;
+      }
+      .primary {
+        background: #51407e;
+        color: #faf8ff;
+        border: 0;
+        border-radius: 8px;
+        padding: 11px 18px;
+        font-weight: 550;
+        font-size: 13px;
+      }
+      .quiet {
+        background: transparent;
+        border: 1px solid #ded7ed;
+        border-radius: 7px;
+        padding: 8px 14px;
+        font-size: 13px;
+      }
+      .selected {
+        background: #51407e !important;
+        color: #fff !important;
+      }
+      .chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 7px;
+      }
+      .chips button {
+        background: #fff;
+        border: 1px solid #e4e0ed;
+        border-radius: 20px;
+        font-size: 12px;
+        padding: 6px 13px;
+      }
+      .paper {
+        background: #fff;
+        border: 1px solid #e4e0ed;
+        border-radius: 12px;
+        padding: 22px;
+      }
+      .stats {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        margin: 25px 0 32px;
+        border-top: 1px solid #e2ddec;
+        border-bottom: 1px solid #e2ddec;
+      }
+      .stat {
+        padding: 19px 15px 18px 0;
+      }
+      .stat strong {
+        font-size: 35px;
+        font-weight: 550;
+        letter-spacing: -1.6px;
+        display: block;
+      }
+      .stat span {
+        font-size: 12px;
+        color: #77728a;
+      }
+      .row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 18px;
+      }
+      .avatar {
+        background: #eae3f6;
+        border-radius: 50%;
+        padding: 5px 7px;
+        font-size: 10px;
+        font-weight: 600;
+      }
+      .tiny {
+        font-size: 11px;
+      }
+      .footer {
+        border-top: 1px solid #e4e0ed;
+        color: #817c89;
+        margin-top: 28px;
+        padding-top: 15px;
+        font-size: 11px;
+        display: flex;
+        justify-content: space-between;
+        gap: 15px;
+      }
+      dialog {
+        border: 1px solid #cecad5;
+        border-radius: 16px;
+        max-width: 480px;
+        padding: 30px;
+        background: #f9f7fc;
+        color: #252139;
+      }
+      dialog::backdrop {
+        background: #1e152c55;
+      }
+      dialog h2 {
+        font-size: 27px;
+      }
+      .two {
+        display: grid;
+        grid-template-columns: 1fr 330px;
+        gap: 24px;
+      }
+      .demo {
+        font-size: 11px;
+        color: #7d7a81;
+      }
+      .pill {
+        padding: 3px 8px;
+        border-radius: 5px;
+        font-size: 10px;
+        background: #e5e0ee;
+        color: #4c3e62;
+      }
+      button:disabled {
+        cursor: not-allowed;
+        opacity: 0.55;
+      }
+      @media (max-width: 800px) {
+        header {
+          padding: 17px 20px;
+        }
+        nav {
+          display: none;
+        }
+        .wrap {
+          padding: 25px 20px;
+        }
+        .hero {
+          display: block;
+        }
+        .hero .primary {
+          margin-top: 10px;
+        }
+        .two {
+          grid-template-columns: 1fr;
+        }
+        .stats {
+          grid-template-columns: repeat(2, 1fr);
+        }
+        h1 {
+          letter-spacing: -1.5px;
+        }
+        .footer {
+          display: block;
+        }
+      }
+      .rag-flow {
+        display: flex;
+        gap: 14px;
+        align-items: center;
+        justify-content: space-between;
+        padding: 34px 0;
+      }
+      .flow-step {
+        flex: 1;
+        text-align: center;
+        background: #ebe7f1;
+        padding: 18px 10px;
+        border-radius: 9px;
+      }
+      .flow-step.active {
+        background: #dfd8eb;
+      }
+      .flow-step strong,
+      .flow-step small {
+        display: block;
+      }
+      .flow-step strong {
+        font-size: 13px;
+        margin: 8px 0 4px;
+      }
+      .flow-step small {
+        font-size: 10px;
+        color: #736c7e;
+      }
+      .flow-icon {
+        font-size: 23px;
+        color: #483764;
+      }
+      .evidence {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 22px;
+      }
+      .answer {
+        background: #e2dbee;
+        border-radius: 10px;
+        padding: 22px;
+        font-size: 16px;
+        line-height: 1.7;
+        min-height: 210px;
+      }
+      mark {
+        background: #d5c8eb;
+        color: inherit;
+        padding: 1px 3px;
+        border-radius: 3px;
+      }
+      @media (max-width: 620px) {
+        .evidence {
+          grid-template-columns: 1fr;
+        }
+        .rag-flow {
+          gap: 6px;
+        }
+        .flow-step small {
+          display: none;
+        }
+        .rag-flow > span {
+          font-size: 11px;
+        }
+        .flow-step {
+          padding: 12px 5px;
+        }
+      }
+      @media (prefers-color-scheme: dark) {
+        body {
+          background: #201e24;
+          color: #ebe7f2;
+        }
+        .muted,
+        .label,
+        .tiny.muted,
+        .footer,
+        .flow-step small {
+          color: #b9b1c5;
+        }
+        .paper,
+        .chips button {
+          background: #2c2832;
+          color: #ece8f2;
+          border-color: #473f55;
+        }
+        .badge {
+          background: #322a3e;
+          color: #d7cfe5;
+          border-color: #4b405c;
+        }
+        .rag-flow .flow-step {
+          background: #2d2835;
+        }
+        .rag-flow .active,
+        .answer,
+        .question {
+          background: #362c47;
+        }
+        .flow-icon {
+          color: #b9a9d3;
+        }
+        .selected {
+          background: #52426d !important;
+        }
+        .footer {
+          border-color: #473e55;
+        }
+        mark {
+          background: #4f3e6c;
+          color: #f0ebf8;
+        }
+      }
+
+header{padding:13px 24px}.wrap{padding:20px 24px}h1{font-size:30px;letter-spacing:-1px}.hero{margin-bottom:16px}.hero p{font-size:12px}.paper{padding:16px;border-radius:8px}.brand{font-size:16px}.trace-layout{gap:16px}.graph{background-color:#f4f1fa}.node{border-color:#d4cae7}.source{border-color:#e2ddec}
+</style>
+  </head>
+  <body>
+    <main class="wrap" style="padding: 25px; max-width: 1000px">
+      <div class="row">
+        <h2 style="font-size: 23px; margin: 0">An answer you can trace to its source</h2>
+        <span class="badge">Synthetic example</span>
+      </div>
+      <p class="muted" style="font-size: 13px; margin-top: 10px">
+        Choose a question. Follow the evidence into the answer.
+      </p>
+      <div class="chips" id="queries" style="margin-top: 20px">
+        <button class="selected" data-query="invoice">Who approves this invoice?</button
+        ><button data-query="launch">What is blocking the launch?</button>
+      </div>
+      <div class="rag-flow">
+        <div class="flow-step">
+          <div class="flow-icon">?</div>
+          <strong>Question</strong><small>What do I need to know?</small>
+        </div>
+        <span>→</span>
+        <div class="flow-step active">
+          <div class="flow-icon">▤</div>
+          <strong>Find the source</strong><small>Keep the relevant context</small>
+        </div>
+        <span>→</span>
+        <div class="flow-step">
+          <div class="flow-icon">✳</div>
+          <strong>Answer with evidence</strong><small>Leave a path back</small>
+        </div>
+      </div>
+      <div class="evidence">
+        <section>
+          <div class="label" style="margin-bottom: 10px">Selected source</div>
+          <div class="paper" id="excerpt" style="font-size: 15px; line-height: 1.9"></div>
+          <div class="tiny muted" id="citation" style="margin-top: 10px"></div>
+        </section>
+        <section>
+          <div class="label" style="margin-bottom: 10px">Grounded answer</div>
+          <div class="answer" id="answer"></div>
+          <p class="tiny muted" style="margin-top: 12px">
+            This preview explains the mechanism. It does not execute a live retrieval or model call.
+          </p>
+        </section>
+      </div>
+      <div class="footer">
+        <span>Visuals capability example · interactive HTML rendered inside the conversation</span
+        ><span>Fictional Northwind policies</span>
+      </div>
+    </main>
+    <script>
+      "use strict";
+      const examples = {
+        invoice: {
+          excerpt:
+            "Invoices above <mark>$10,000</mark> require <mark>finance-owner review</mark> before payment. If a required supplier field is missing, ask the owner instead of filling it in.",
+          citation: "invoice-approval-policy.md · example excerpt · reviewed Nov 2",
+          answer:
+            'For an invoice above $10,000, ask the finance owner to review it before payment.<br><br><span class="pill">[1] Invoice approval policy</span>',
+        },
+        launch: {
+          excerpt:
+            "The launch page needs an <mark>approved source for every outcome claim</mark> and a <mark>confirmed sign-up link</mark> before it is shared.",
+          citation: "launch-brief.md · example excerpt · reviewed Nov 2",
+          answer:
+            'Two decisions are still required: supporting evidence for the outcome claim and the final sign-up destination.<br><br><span class="pill">[1] Launch brief</span>',
+        },
+      };
+      function choose(key) {
+        const example = examples[key];
+        document.getElementById("excerpt").innerHTML = example.excerpt;
+        document.getElementById("citation").textContent = example.citation;
+        document.getElementById("answer").innerHTML = example.answer;
+      }
+      document.getElementById("queries").onclick = (e) => {
+        const b = e.target.closest("button");
+        if (!b) return;
+        document
+          .querySelectorAll("#queries button")
+          .forEach((x) => x.classList.toggle("selected", x === b));
+        choose(b.dataset.query);
+      };
+      choose("invoice");
+    </script>
+  </body>
+</html>

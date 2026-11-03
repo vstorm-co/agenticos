@@ -183,6 +183,9 @@ environment without a person's decision.
 
 ### Fixed
 
+- Clearing the Architect's uploaded avatar restores its generated face, just as
+  it does for other agents. The special mark no longer overrides an empty avatar.
+
 - Match the new dataset, evaluation, authoring and Improve views to the console:
   use the available page width, keep editor actions reachable, stack comparison
   metrics and case fields on phones, and offer the shared full-window editor
@@ -217,6 +220,12 @@ environment without a person's decision.
   the generator reads them.
 - A suite and a promotion override can be set up only by a person signed in as
   themselves, not through an API key or impersonation.
+
+## [1.38.2] - 2026-11-03
+
+### Fixed
+
+- Initialize the desktop TLS crypto provider before plugins and background connections start. Paired computers can connect to the server again instead of leaving local Claude Code or Codex chats waiting for the computer.
 
 ## [1.38.1] - 2026-11-03
 
@@ -20011,7 +20020,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.38.1...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.38.2...HEAD
+[1.38.2]: https://github.com/vstorm-co/agenticos/compare/v1.38.1...v1.38.2
 [1.38.1]: https://github.com/vstorm-co/agenticos/compare/v1.38.0...v1.38.1
 [1.38.0]: https://github.com/vstorm-co/agenticos/compare/v1.37.0...v1.38.0
 [1.37.0]: https://github.com/vstorm-co/agenticos/compare/v1.36.1...v1.37.0
