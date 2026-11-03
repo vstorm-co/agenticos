@@ -18,9 +18,13 @@ vi.mock("@/hooks/use-permissions", () => ({
 }));
 
 vi.mock("./skill-check-dialog", () => ({
-  SkillCheckDialog: ({ proposalId, forkId }: { proposalId: string; forkId: string | null }) => (
-    <p>{`checking ${proposalId} on ${forkId ?? "main"}`}</p>
-  ),
+  SkillCheckDialog: ({
+    change,
+    forkId,
+  }: {
+    change: { proposalId: string };
+    forkId: string | null;
+  }) => <p>{`checking ${change.proposalId} on ${forkId ?? "main"}`}</p>,
 }));
 
 vi.mock("@/hooks", () => ({

@@ -1,14 +1,18 @@
 """The rule a skill change is judged by, with no database and no model.
 
 **One agent.** Each stage of an agent's check is a paired eval run, the stored
-text against the candidate, and the agent improvement verdict reads it the same
-way here: a confirmed regression is `worse`; confirmed fixes and a pass rate that
-did not drop are `better`; anything not measured is `unknown`. A stage with
-flips its re-asks could not confirm is `within_noise` - the check saw a
-difference it cannot tell from the grading moving; a better stage with such
-flips stays better, and its row is marked noisy. A worse stage makes the agent
-worse; otherwise one better stage makes it better. An inconclusive stage is not
-asked again: the agent is `unknown`, and a person checks the change again.
+text against the candidate, compared on its held-out questions. The agent is
+judged once, on its stages' held-out questions taken together, so the minimum a
+result needs applies to the agent rather than to each stage, though a
+regression one stage confirmed completely on its own decides beside a stage
+that measured nothing. The agent improvement verdict reads that the same way
+here: a confirmed regression is
+`worse`; confirmed fixes and a pass rate that did not drop are `better`; anything
+not measured is `unknown`. Flips its re-asks could not confirm make it
+`within_noise` - the check saw a difference it cannot tell from the grading
+moving; a better agent with such flips stays better, and its row is marked
+noisy. An inconclusive agent is not asked again: it is `unknown`, and a person
+checks the change again.
 
 **The change.** It passes when no agent is worse and at least one is better.
 `within_noise` warns and never blocks. An agent that could not be checked is
@@ -25,7 +29,7 @@ lines the change touches, then the newest, then by id.
 """
 
 import re
-from collections.abc import Iterable, Sequence
+from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
@@ -79,20 +83,80 @@ def noisy(stage: StageResult) -> bool:
     return bool(stage.regressions_unconfirmed or stage.fixed_unconfirmed)
 
 
-def combined(states: Sequence[AgentState]) -> AgentState:
-    """An agent's result from its stages.
+@dataclass(frozen=True)
+class StageComparison:
+    """One stage's paired eval run, its held-out questions compared with no minimum."""
 
-    A worse stage decides even beside an unmeasured one: a confirmed regression is
-    a regression whatever else was or was not seen. Otherwise an unmeasured stage
-    leaves the agent unknown, a better one makes it better - a stage within noise
-    beside it stays a warning on the row - and only then does noise show.
+    comparable: bool
+    """It had a baseline, and nothing but its own size made it invalid."""
+    gradable_holdout: int
+    incomplete: int
+    ungraded: int
+    crashed: int
+    regressions_confirmed: int
+    fixed_confirmed: int
+    regressions_unconfirmed: int
+    fixed_unconfirmed: int
+    compared: int
+    candidate_pass_rate: float | None
+    baseline_pass_rate: float | None
+
+
+def pooled(stages: Sequence[StageComparison], *, minimum: int) -> StageResult:
+    """An agent's result from its stages' held-out questions taken as one measurement.
+
+    The minimum a result needs is the agent's, not each stage's: four sampled questions
+    and ten of the skill's are fourteen. The pass rates are weighted by what each stage
+    compared, and a confirmed regression in any stage is one in the whole.
     """
-    for state in (AgentState.WORSE, AgentState.UNKNOWN, AgentState.BETTER):
-        if state in states:
-            return state
-    if AgentState.WITHIN_NOISE in states:
-        return AgentState.WITHIN_NOISE
-    return AgentState.NO_CHANGE if states else AgentState.UNKNOWN
+    weighted = [stage for stage in stages if stage.compared]
+
+    def rate(read: Callable[[StageComparison], float | None]) -> float | None:
+        rates = [(read(stage), stage.compared) for stage in weighted]
+        if not rates or any(value is None for value, _ in rates):
+            return None
+        return sum(value * count for value, count in rates if value is not None) / sum(
+            count for _, count in rates
+        )
+
+    return StageResult(
+        check=CheckResult(
+            comparable=bool(stages)
+            and all(stage.comparable for stage in stages)
+            and sum(stage.gradable_holdout for stage in stages) >= minimum,
+            incomplete=sum(stage.incomplete for stage in stages),
+            ungraded=sum(stage.ungraded for stage in stages),
+            crashed=sum(stage.crashed for stage in stages),
+            regressions_confirmed=sum(stage.regressions_confirmed for stage in stages),
+            fixed_confirmed=sum(stage.fixed_confirmed for stage in stages),
+            candidate_pass_rate=rate(lambda stage: stage.candidate_pass_rate),
+            baseline_pass_rate=rate(lambda stage: stage.baseline_pass_rate),
+        ),
+        fixed_unconfirmed=sum(stage.fixed_unconfirmed for stage in stages),
+        regressions_unconfirmed=sum(stage.regressions_unconfirmed for stage in stages),
+        compared=sum(stage.compared for stage in stages),
+    )
+
+
+def agent_state(stages: Sequence[StageComparison], *, minimum: int) -> AgentState:
+    """What an agent's stages say about it.
+
+    A stage measured completely on its own that confirmed a regression makes the agent
+    worse whatever the others say - one unmeasured beside it hides nothing it found.
+    The held-out minimum does not apply to that: no agent may get confirmed worse, and
+    a regression its re-asks reproduced blocks however few questions found it, since
+    blocking errs on the safe side. Getting better still needs the minimum, so
+    otherwise the stages' held-out questions are judged together.
+    """
+    if any(
+        stage.comparable
+        and not stage.incomplete
+        and not stage.ungraded
+        and stage.regressions_confirmed
+        for stage in stages
+    ):
+        return AgentState.WORSE
+    return stage_state(pooled(stages, minimum=minimum))
 
 
 def verdict(states: Iterable[AgentState]) -> CheckVerdict:

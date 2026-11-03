@@ -3180,7 +3180,9 @@
           "changes": "Review the changes",
           "result": "Review the result",
           "blocked": "Blocked: end it and start a new one"
-        }
+        },
+        "skill": "{name} · {kind, select, main {main} other {fork “{line}”}}",
+        "partial": "{failed, select, skills {Skill sessions could not be read.} other {Agent sessions could not be read.}}"
       }
     },
     "edit": {
@@ -5481,10 +5483,6 @@
         "title": "Changes",
         "body": "The changes the helper wrote. The session stops here: tick the ones to test and correct any wording before they are tested."
       },
-      "improvement-skill-handoffs": {
-        "title": "Belongs to a skill",
-        "body": "Problems the helper found in one of the agent's skills. A skill is shared, so it is improved on its own, and checked on every agent that reads it."
-      },
       "flow-improvement-changes": {
         "title": "Changes",
         "body": "The changes the helper wrote. The session stops here: tick the ones to test and correct any wording before they are tested."
@@ -5528,6 +5526,34 @@
       "skill-tree": {
         "title": "Main and its forks",
         "body": "Main runs down from its newest version, each fork branches off the version it started from, and agents sit at the version they use."
+      },
+      "skill-improve": {
+        "title": "Improve the skill",
+        "body": "Opens a step-by-step session for the line on screen: main, or the fork you picked. Nothing changes until you accept a result."
+      },
+      "skill-improvement-start": {
+        "title": "Who it is checked on",
+        "body": "Every agent of the line is named before anything is spent, the ones that cannot be checked with the reason, and the price comes with a limit you set."
+      },
+      "skill-improvement-steps": {
+        "title": "The same five steps",
+        "body": "Understand, Changes, Check, Result and Accept, as in agent Improve. The session stops for you after Understand, after Changes and at the result."
+      },
+      "skill-improvement-agents": {
+        "title": "A result for every agent",
+        "body": "Each agent of the line comes out better, unchanged, within noise, worse or unknown, worst first, with what it fixed and broke and a link to its run."
+      },
+      "skill-improvement-accept": {
+        "title": "What you may do with it",
+        "body": "Apply it when nobody got worse. When somebody did: keep them on their version, make a fork for the agents it helped, improve it further or discard it."
+      },
+      "skill-improvement-test-set": {
+        "title": "Questions of the skill's own",
+        "body": "Agents without test questions come out unknown. The skill's own questions, written from answers where it was loaded, let them be checked next time."
+      },
+      "improvement-skill-handoffs": {
+        "title": "Belongs to a skill",
+        "body": "Problems the helper found in one of the agent's skills. A skill is shared, so it is improved on its own, and checked on every agent that reads it."
       },
       "skill-new-fork": {
         "title": "A fork for the agents that differ",
@@ -8359,49 +8385,6 @@
     "bodyPlaceholder": "# Refunds\n\nUse this when a customer asks for their money back.\n\n## Steps\n\n1. Check the order date.\n2. Within 14 days, refund without asking.\n3. After that, ask a person to approve it.",
     "whoCanUseIt": "Who can use it",
     "expectedEffect": "Expected effect:",
-    "checkOnAgents": "Check on agents",
-    "checkChangeTo": "Check the change to {name} on the agents that use it",
-    "check": {
-      "title": "Check this change on every agent that uses it",
-      "description": "Each agent answers its questions with the skill as it is and with this change. Nothing changes until you decide.",
-      "price": "Most likely ${expected}, at most ${most}. Each agent's share is billed to that agent.",
-      "start": "Start the check",
-      "running": "Checking. This takes a few minutes; you can close this and come back.",
-      "asked": "{count, plural, =1 {Asked 1 question} other {Asked # questions}}",
-      "skillSetOnly": "Checked on the skill's own questions only: none of this agent's questions opened the skill.",
-      "hidden": "{count, plural, =1 {1 more agent uses this skill that you cannot see.} other {# more agents use this skill that you cannot see.}}",
-      "noisy": "Some results were within noise: the check saw a difference it could not confirm.",
-      "forkLine": "This change is to a fork, which cannot be pinned or forked again. Improve it further or discard it.",
-      "acknowledge": "I understand some agents could not be checked.",
-      "discard": "Discard",
-      "apply": "Apply",
-      "applyAndPin": "Apply, and keep the worse agents on their version",
-      "reason": {
-        "no_questions": "Not checked: it has no questions to ask.",
-        "no_access": "Not checked: you may not run this agent.",
-        "no_budget": "Not checked: its budget cannot cover the check.",
-        "no_published_version": "Not checked: it has no published version.",
-        "inconclusive": "Not checked: the check could not grade every answer.",
-        "failed": "Not checked: its run failed."
-      },
-      "state": {
-        "queued": "Waiting",
-        "running": "Running",
-        "better": "Better",
-        "no_change": "No change",
-        "within_noise": "Within noise",
-        "worse": "Worse",
-        "unknown": "Unknown"
-      },
-      "verdict": {
-        "passed": "No agent got worse and at least one got better.",
-        "needs_ack": "No agent that was checked got worse, but some could not be checked.",
-        "blocked": "An agent got worse. You can still apply the change and keep that agent on the version it uses now.",
-        "no_better": "No agent got better, so there is nothing to apply."
-      },
-      "unaffordable": "The organization's budget left this month cannot cover this check.",
-      "cancel": "Stop the check"
-    },
     "page": {
       "skills": "Skills",
       "mainVersion": "v{number} on main",
@@ -8439,7 +8422,9 @@
         "environment": "{name}: {binding}",
         "draftDiffers": "Its draft uses a different version.",
         "emptyFork": "No agent uses fork “{name}” yet. Move one onto it with Change version.",
-        "emptyShown": "No agent here."
+        "emptyShown": "No agent here.",
+        "checked": "Checked on this version {when}: {state}",
+        "notChecked": "Unknown: no check measured this version on it"
       },
       "changeVersion": {
         "button": "Change version",
@@ -8466,7 +8451,9 @@
         "forkVersion": "{name} v{number}",
         "pinDetail": "{source} · {who} · {when}",
         "leavesMain": "{name} stays on this version and stops getting new main versions.",
-        "leavesMainFork": "{name} stops getting new main versions.{behind, plural, =0 {} =1 { Fork “{fork}” is 1 version behind main, so it lacks that change.} other { Fork “{fork}” is # versions behind main, so it lacks their changes.}}"
+        "leavesMainFork": "{name} stops getting new main versions.{behind, plural, =0 {} =1 { Fork “{fork}” is 1 version behind main, so it lacks that change.} other { Fork “{fork}” is # versions behind main, so it lacks their changes.}}",
+        "checkedOn": "{version} was checked on {name} {when}: {state}.",
+        "checksUnseen": "Whether {version} was checked on {name} is not shown to you. Its answers may change."
       },
       "history": {
         "title": "History of {line}",
@@ -8530,8 +8517,21 @@
         "forkFiles": "Only the description and instructions belong to the fork. Its files come from the main version it started from, and files are edited on main.",
         "noBase": "This skill has no saved version to write over yet. Reload the page and try again.",
         "retryFork": "Load the fork again",
-        "savedFork": "Saved as {name} v{number}."
+        "savedFork": "Saved as {name} v{number}.",
+        "version": "v{number}",
+        "forkVersion": "{name} v{number}",
+        "confirm": {
+          "title": "Save {version}?",
+          "nobody": "No agent follows this line yet, so no agent's answers change.",
+          "reaches": "{count, plural, =1 {It reaches 1 agent on its next run} other {It reaches # agents on their next run}}{named, select, yes {, among them {names}} other {}}.",
+          "checkHint": "Saving now does not check the change on them. Check on agents first runs each agent's questions with the new text, and applies it from the result.",
+          "back": "Back to editing",
+          "check": "Check on agents first",
+          "save": "Save now"
+        }
       },
+      "improve": "Improve",
+      "improveFork": "Improve fork “{name}”",
       "newFork": {
         "button": "New fork",
         "title": "New fork of {name}",
@@ -8566,6 +8566,51 @@
         "agent": "{loads, plural, =1 {opened once} other {opened # times}}{files, plural, =0 {} =1 { · 1 file read} other { · # files read}}{seen, select, yes { · last {last}} other {}}",
         "hidden": "{count, plural, =1 {1 agent you can't see} other {# agents you can't see}} opened it {loads, plural, =1 {once} other {# times}}."
       }
+    },
+    "checkOnAgents": "Check on agents",
+    "checkChangeTo": "Check the change to {name} on the agents that use it",
+    "check": {
+      "title": "Check this change on every agent that uses it",
+      "description": "Each agent answers its questions with the skill as it is and with this change. Nothing changes until you decide.",
+      "price": "Most likely ${expected}, at most ${most}. Each agent's share is billed to that agent.",
+      "start": "Start the check",
+      "running": "Checking. This takes a few minutes; you can close this and come back.",
+      "asked": "{count, plural, =1 {Asked 1 question} other {Asked # questions}}",
+      "skillSetOnly": "Checked on the skill's own questions only: none of this agent's questions opened the skill.",
+      "hidden": "{count, plural, =1 {1 more agent uses this skill that you cannot see.} other {# more agents use this skill that you cannot see.}}",
+      "noisy": "Some results were within noise: the check saw a difference it could not confirm.",
+      "forkLine": "This change is to a fork, which cannot be pinned or forked again. Improve it further or discard it.",
+      "acknowledge": "I understand some agents could not be checked.",
+      "discard": "Discard",
+      "apply": "Apply",
+      "applyAndPin": "Apply, and keep the worse agents on their version",
+      "reason": {
+        "no_questions": "Not checked: it has no questions to ask.",
+        "no_access": "Not checked: you may not run this agent.",
+        "no_budget": "Not checked: its budget cannot cover the check.",
+        "no_published_version": "Not checked: it has no published version.",
+        "inconclusive": "Not checked: the check could not grade every answer.",
+        "failed": "Not checked: its run failed."
+      },
+      "state": {
+        "queued": "Waiting",
+        "running": "Running",
+        "better": "Better",
+        "no_change": "No change",
+        "within_noise": "Within noise",
+        "worse": "Worse",
+        "unknown": "Unknown"
+      },
+      "verdict": {
+        "passed": "No agent got worse and at least one got better.",
+        "needs_ack": "No agent that was checked got worse, but some could not be checked.",
+        "blocked": "An agent got worse. You can still apply the change and keep that agent on the version it uses now.",
+        "no_better": "No agent got better, so there is nothing to apply."
+      },
+      "unaffordable": "The organization's budget left this month cannot cover this check.",
+      "cancel": "Stop the check",
+      "inSession": "This check belongs to an improvement session, so it is decided there.",
+      "openSession": "Open the session"
     },
     "savedMainVersion": "Saved as a new main version. Agents on main read it from their next run; pinned agents and forks keep theirs.",
     "instructions": "Instructions"
@@ -14408,9 +14453,6 @@
       "askAdmin": "Ask an admin to turn it on."
     },
     "skill": {
-      "improve": "Improve with the assistant",
-      "working": "Reading the runs…",
-      "aiOff": "AI assistance is off for this organization",
       "check": "Check with evals"
     },
     "context": {
@@ -15318,7 +15360,8 @@
       "hintSingle": "Correct the wording if needed. The next step is priced before you press.",
       "saveWordingFirst": "Save or discard the wording first.",
       "unmeasurable": "This attempt can't be tested: {count, plural, one {# more question} other {# more questions}} kept aside would be needed once the ones its examples came from are left out. This session keeps the questions it started with, so adding some won't help it: end the session, add questions, and start a new one.",
-      "likely": "Most likely about {cost}: the higher figure holds only if answers have to be asked again."
+      "likely": "Most likely about {cost}: the higher figure holds only if answers have to be asked again.",
+      "lineMoved": "The skill's line got a newer version meanwhile, so the step was priced again on it: up to {cost}. Press again to go on."
     },
     "waitingFor": {
       "understand": "Waiting for you: look at what went wrong",
@@ -15411,5 +15454,108 @@
     "movedOn": "These changes were made on version {base}; the dataset has moved on to version {latest}.",
     "showChanges": "Show the changes",
     "caseGone": "That case is no longer in the dataset, so its unsaved changes were discarded."
+  },
+  "skillImprovement": {
+    "title": "Improve {name}",
+    "skills": "Skills",
+    "heading": "Improve",
+    "permission": "Improving a skill needs edit access to it and permission to read runs.",
+    "openSkill": "Open the skill",
+    "line": "Line: {line}",
+    "checkWaiting": "The check on the line's agents has not started yet.",
+    "checkTitle": "Checking each agent",
+    "resultTitle": "How each agent did",
+    "toAccept": "Decide what to do",
+    "acceptClosed": "This session is closed. Its result stays here to read.",
+    "agents": {
+      "hidden": "{count, plural, =0 {} =1 {1 more agent you can't see was checked.} other {# more agents you can't see were checked.}}{unknown, plural, =0 {} =1 { 1 of them could not be.} other { # of them could not be.}}",
+      "viaSpecialist": "Through its specialist {name}",
+      "state": {
+        "queued": "Waiting",
+        "running": "Checking",
+        "better": "Better",
+        "no_change": "No change",
+        "within_noise": "Within noise",
+        "worse": "Worse",
+        "unknown": "Unknown"
+      },
+      "fixedBroken": "{fixed, plural, =1 {Fixes 1 question} other {Fixes # questions}}, {broken, plural, =1 {breaks 1} other {breaks #}}.",
+      "unknown": {
+        "no_questions": "Not checked: it has no test questions where it loaded the skill, and the skill has none of its own.",
+        "no_access": "Not checked: you may not run this agent.",
+        "no_budget": "Not checked: its budget is spent.",
+        "no_published_version": "Not checked: it has no published version.",
+        "failed": "Not checked: its check failed.",
+        "inconclusive": "Not checked: its run could not grade every answer. Check it again."
+      },
+      "skillSetOnly": "Checked only on the skill's own questions: it had none of its own where it loaded the skill.",
+      "stage": {
+        "skill_set": "Run on the skill's questions",
+        "dataset_sample": "{named, select, yes {Run on a sample of {name}} other {Run on a sample of the agent's questions}}",
+        "dataset": "{named, select, yes {Run on {name}} other {Run on the agent's questions}}"
+      }
+    },
+    "testSet": {
+      "has": "{count, plural, =1 {The skill has 1 test question} other {The skill has # test questions}}",
+      "add": "Add test questions",
+      "addHint": "Written from answers where agents loaded the skill, so an agent without questions of its own can be checked next time."
+    },
+    "accept": {
+      "title": "Accept",
+      "verdict": {
+        "passed": "No agent got worse and at least one got better.",
+        "blocked": "At least one agent got worse. Apply it only by keeping those agents on their version, fork it for the agents it helped, or improve it further.",
+        "no_better": "No agent got better, so there is nothing to apply.",
+        "needs_ack": "No agent got worse and at least one got better, but some agents could not be checked."
+      },
+      "warning": {
+        "within_noise": "Some agents changed within the test's noise: the difference may be chance."
+      },
+      "forkLineOnly": "On a fork, the agents that got worse cannot be pinned or forked again: improve it further or discard it.",
+      "acknowledge": "{count, plural, =1 {I know 1 agent could not be checked{named, select, yes { ({names})} other {}}, and it gets the change all the same.} other {I know # agents could not be checked{named, select, yes { ({names})} other {}}, and they get the change all the same.}}",
+      "apply": "Apply as the next version of {line}",
+      "applyAndPin": "Apply, and keep {names} on the version it has",
+      "forkName": "Name of the new fork",
+      "forkForHelped": "Make a fork with this change for {names}"
+    },
+    "start": {
+      "title": "Start improving",
+      "openSession": "This line already has a session open.",
+      "continue": "Continue it",
+      "hidden": "{count, plural, =1 {1 more agent you can't see uses this line.} other {# more agents you can't see use this line.}}",
+      "price": "Up to the first proposal it costs about {cost}; each attempt about {perRound}, up to {rounds, plural, =1 {1 attempt} other {# attempts}}.",
+      "limit": "Spending limit for the whole session (USD)",
+      "unaffordable": "The organization's budget does not cover this.",
+      "start": "Start",
+      "reads": "{runs, plural, =1 {It reads 1 answer} other {It reads # answers}} where the line's versions were loaded, {agents, plural, =1 {from 1 agent} other {from # agents}}.",
+      "usageUnknown": "{count, plural, =1 {1 answer is from before skill loads were recorded and is not read.} other {# answers are from before skill loads were recorded and are not read.}}",
+      "checkNamedLater": "Before the changes are checked, each agent they run on is named, and the ones they cannot run on, with the reason.",
+      "noEvidence": "There are no rated-down or failed answers where this line was loaded, so there is nothing to learn from yet."
+    },
+    "understand": {
+      "title": "Understand",
+      "loading": "Reading what went wrong…",
+      "summary": "{count, plural, =0 {No problem with the skill found} =1 {1 problem with the skill} other {# problems with the skill}}{elsewhere, plural, =0 {} other {, # answers whose trouble lies elsewhere}}{fine, plural, =0 {} other {, # that were fine}}.",
+      "usageUnknown": "{count, plural, =1 {1 answer is from before skill loads were recorded and is not counted.} other {# answers are from before skill loads were recorded and are not counted.}}",
+      "agent": "{name} ({runs})",
+      "occursIn": "In {runs, plural, =1 {1 answer} other {# answers}}, at {agents}{hidden, plural, =0 {} =1 { and 1 agent you can't see} other { and # agents you can't see}}.",
+      "hiddenExamples": "{count, plural, =1 {+1 hidden example} other {+# hidden examples}}"
+    },
+    "checkEstimate": {
+      "agents": "{count, plural, =0 {No agent on this line can be checked.} =1 {It will be checked on 1 agent: {names}.} other {It will be checked on # agents: {names}.}}",
+      "unchecked": "{name} cannot be checked: {reason, select, no_questions {it has no test questions where it loaded the skill} no_access {you may not run it} no_budget {its budget is spent} no_published_version {it has no published version} inconclusive {its run could not grade every answer} other {its check failed}}.",
+      "hidden": "{count, plural, =1 {1 more agent you can't see uses this line.} other {# more agents you can't see use this line.}}",
+      "thorough": "The description changed, which decides when agents open the skill, so every agent's own questions are asked too."
+    },
+    "checkAgain": {
+      "why": "The line or its agents changed since this result was checked, so it may no longer hold. Check the same changes again on the line as it is now before deciding.",
+      "pricing": "Pricing the check…",
+      "priceMoved": "The price changed to up to {cost}. Press again to check.",
+      "overLimit": "The check costs more than this session has left. Raise the limit for this check to go on.",
+      "go": "Check again · up to {cost}",
+      "goUnpriced": "Check again",
+      "raise": "Use this limit"
+    },
+    "staleChanges": "The line got a newer version since these changes were written. Next step checks them on the newest version."
   }
 }
