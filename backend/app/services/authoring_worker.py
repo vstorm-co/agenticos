@@ -138,6 +138,16 @@ _CITING = (
 )
 
 
+def _unknown_note(pack: EvidencePack) -> str:
+    if not pack.unknown_runs:
+        return ""
+    return (
+        f"{pack.unknown_runs} more rated-down or failed runs of agents bound to it are "
+        "from before uses were recorded: whether they used it is unknown, so they are "
+        "not shown."
+    )
+
+
 def _evidence_section(pack: EvidencePack, digests: Sequence[RunFindings] | None) -> str:
     if digests is None:
         return "\n\n".join(
@@ -146,6 +156,7 @@ def _evidence_section(pack: EvidencePack, digests: Sequence[RunFindings] | None)
                 _CITING if pack.runs else "",
                 render_runs(pack.runs),
                 pack.training_feedback,
+                _unknown_note(pack),
             ]
             if part
         )
@@ -162,6 +173,7 @@ def _evidence_section(pack: EvidencePack, digests: Sequence[RunFindings] | None)
             _CITING,
             "\n".join(lines) or "(The runs showed nothing in particular.)",
             pack.training_feedback,
+            _unknown_note(pack),
         ]
         if part
     )
@@ -650,7 +662,7 @@ class AuthoringRun:
         self._record_evidence(pack)
         digests = await self._digests(pack, f'the agent "{agent.name}"')
         configuration = await self.configuration.describe(self.ctx, spec)
-        skills, used = await self._skills(spec, pack)
+        skills, used = await self._skills(agent.id, spec, pack)
         proposal = await self._ask(
             _improve_prompt(
                 agent.name,
@@ -711,7 +723,7 @@ class AuthoringRun:
         self._record_evidence(pack)
         digests = await self._digests(pack, f'the agent "{agent.name}"')
         configuration = await self.configuration.describe(self.ctx, draft)
-        skills, _ = await self._skills(draft, pack)
+        skills, _ = await self._skills(agent.id, draft, pack)
         report = await self._ask(
             _verify_prompt(agent.name, published, draft, configuration, pack, digests),
             VerifyReport,
@@ -1015,6 +1027,12 @@ class AuthoringRun:
 
     def _record_evidence(self, pack: EvidencePack) -> None:
         self.request.evidence = pack.summary()
+        if not pack.runs and pack.unknown_runs:
+            raise Stopped(
+                "No run in this window is known to have used the skill. "
+                f"{pack.unknown_runs} rated-down or failed runs are from before uses were "
+                "recorded, so whether they used it is unknown."
+            )
         if not pack.runs:
             raise Stopped(
                 "Nothing to learn from yet: no run in this window was rated or failed. "
@@ -1241,7 +1259,7 @@ class AuthoringRun:
         return kept_findings
 
     async def _skills(
-        self, spec: AgentSpec, pack: EvidencePack
+        self, agent_id: UUID, spec: AgentSpec, pack: EvidencePack
     ) -> tuple[list[Skill], dict[UUID, set[UUID]]]:
         """The skills the agent reads, as its bindings name them, and which runs used each."""
         skills = await SkillService(self.db).resolve_for_agent(
@@ -1250,6 +1268,7 @@ class AuthoringRun:
         used = await skill_usage_repo.skills_in_runs(
             self.db,
             organization_id=self.ctx.organization_id,
+            agent_id=agent_id,
             run_ids=[run.run_id for run in pack.runs],
         )
         return skills, used
@@ -1262,11 +1281,11 @@ class AuthoringRun:
         used: Mapping[UUID, set[UUID]],
     ) -> list[dict[str, object]]:
         """The problems that name one of the agent's skills and cite runs that used it."""
-        by_name = {skill.name: skill for skill in skills}
+        by_name = {skill.name.casefold(): skill for skill in skills}
         found: list[dict[str, object]] = []
         for problem in problems:
             change = {"skill": problem.skill, "problem": problem.problem}
-            skill = by_name.get(problem.skill)
+            skill = by_name.get(problem.skill.casefold())
             if skill is None:
                 self._reject(SKILL_PROBLEM, Rejection.UNKNOWN_SKILL, change)
                 continue

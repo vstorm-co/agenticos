@@ -14,7 +14,7 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.spec import AgentSpec
-from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
+from app.core.exceptions import BadRequestError
 from app.core.permissions import AuthContext, Perm
 from app.db.models.agent import Agent
 from app.db.models.authoring import AuthoringRequest
@@ -28,8 +28,8 @@ from app.schemas.improvement import (
     ImprovementSkillUpdate,
 )
 from app.schemas.skill_version import SkillAgentList, SkillBindingRead
-from app.services.access import SKILL, resolve_access
-from app.services.skill_agents import SkillAgentService, line_of
+from app.services.access import SKILL, accessible_ids, resolve_access
+from app.services.skill_agents import SkillAgentService
 
 
 @dataclass(frozen=True)
@@ -77,10 +77,16 @@ class ImprovementSkillService:
     async def read(
         self, ctx: AuthContext, agent: Agent, improvement_run_id: UUID
     ) -> ImprovementSkills:
-        """Every skill the agent's draft reads, with what the session found in it."""
+        """Every skill the agent's draft reads that the caller may see, with what was found.
+
+        A skill the caller may not see is left out, as if the agent had none.
+        """
         spec = AgentSpec.model_validate(agent.draft_spec)
         rows = await skill_repo.get_many(
             self.db, spec.skill_ids, organization_id=ctx.organization_id
+        )
+        visible = await accessible_ids(
+            self.db, ctx, list(rows.values()), Perm.SKILLS_VIEW, resource_type=SKILL
         )
         requests = await authoring_repo.requests_of_improvement(
             self.db, improvement_run_id, organization_id=ctx.organization_id
@@ -88,7 +94,7 @@ class ImprovementSkillService:
         items: list[ImprovementSkill] = []
         for skill_id in spec.skill_ids:
             skill = rows.get(skill_id)
-            if skill is not None:
+            if skill is not None and skill.id in visible:
                 items.append(await self._item(ctx, agent, skill, problems_of(requests, skill.id)))
         return ImprovementSkills(items=items)
 
@@ -97,7 +103,11 @@ class ImprovementSkillService:
     ) -> SkillSeed:
         """The seed for a skill's Improve, from what this session found in that skill.
 
+        The line is the one the agent's served version reads - the one whose
+        answers the problems quote - as the session's card shows it.
+
         Raises:
+            NotFoundError: The caller may not see the skill.
             BadRequestError: The session found no problem in that skill.
         """
         requests = await authoring_repo.requests_of_improvement(
@@ -109,11 +119,11 @@ class ImprovementSkillService:
                 message="This improvement found no problem in that skill",
                 details={"skill_id": skill_id},
             )
-        line = line_of(agent.draft_spec, skill_id)
+        binding = _binding_of(await SkillAgentService(self.db).agents(ctx, skill_id), agent.id)
         evidence = [item for problem in problems for item in problem.evidence]
         return SkillSeed(
             agent_id=agent.id,
-            fork_id=line.fork_id if line is not None and line.via_specialist is None else None,
+            fork_id=binding.fork.id if binding is not None and binding.fork is not None else None,
             run_ids=list(dict.fromkeys(item.run_id for item in evidence)),
             problems=[problem.problem for problem in problems],
             quotes=[item.quote for item in evidence if item.quote],
@@ -126,28 +136,24 @@ class ImprovementSkillService:
         skill: Skill,
         problems: list[ImprovementSkillProblem],
     ) -> ImprovementSkill:
-        try:
-            listed = await SkillAgentService(self.db).agents(ctx, skill.id)
-        except NotFoundError, AuthorizationError:
-            listed = None
+        listed = await SkillAgentService(self.db).agents(ctx, skill.id)
         binding = _binding_of(listed, agent.id)
         return ImprovementSkill(
             skill_id=skill.id,
             name=skill.name,
             binding=binding,
-            agents_on_line=None if listed is None or binding is None else _on_line(listed, binding),
-            hidden_agents=0 if listed is None else listed.hidden,
+            agents_on_line=None if binding is None else _on_line(listed, binding),
+            hidden_agents=listed.hidden,
             problems=problems,
             can_improve=await resolve_access(
                 self.db, ctx, skill, Perm.SKILLS_EDIT, resource_type=SKILL
             ),
-            update=None if listed is None or binding is None else _update(listed, binding),
+            update=None if binding is None else _update(listed, binding),
         )
 
 
-def _binding_of(listed: SkillAgentList | None, agent_id: UUID) -> SkillBindingRead | None:
-    if listed is None:
-        return None
+def _binding_of(listed: SkillAgentList, agent_id: UUID) -> SkillBindingRead | None:
+    """What the agent's served version reads - its draft's, while it has none served."""
     return next((row.binding for row in listed.items if row.agent.id == agent_id), None)
 
 

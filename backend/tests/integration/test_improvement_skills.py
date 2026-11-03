@@ -10,10 +10,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
 from app.core.permissions import AuthContext, OrgRoleName, Perm
 from app.db.models.agent import Agent
+from app.db.models.agent_run import AgentRun, RunSurface
 from app.db.models.dataset import Dataset
 from app.db.models.improvement import ImprovementRun
 from app.db.models.skill import Skill
-from app.repositories import authoring_repo, improvement_repo
+from app.repositories import authoring_repo, improvement_repo, personal_data_repo
 from app.schemas.skill import SkillUpdate
 from app.services.improvement_pipeline import ImprovementPipelineService
 from app.services.skills import SkillService
@@ -152,7 +153,7 @@ class TestTheSessionsSkills:
         assert item.agents_on_line == 1
         assert item.update is not None and item.update.kind == "catch_up_fork"
 
-    async def test_a_skill_the_reader_cannot_see_is_named_without_its_line(self, db):
+    async def test_a_skill_the_reader_cannot_see_is_left_out(self, db):
         owner = await _owner(db)
         skill = await _skill(db, owner)
         agent = await _serving(db, owner, "Desk", _spec(skill))
@@ -162,19 +163,31 @@ class TestTheSessionsSkills:
             "skill_ids": [*agent.draft_spec["skill_ids"], str(uuid.uuid4())],
         }
         run = await _session(db, owner, agent)
+        await _found(db, owner, run, skill, "It says ninety days")
         blind = replace(
             owner, key_scopes=frozenset({Perm.AGENTS_VIEW, Perm.RUNS_VIEW, Perm.AGENTS_EDIT})
         )
+        service = ImprovementPipelineService(db)
 
-        [item] = (await ImprovementPipelineService(db).skills(blind, agent.id, run.id)).items
+        assert (await service.skills(blind, agent.id, run.id)).items == []
+        with pytest.raises(NotFoundError):
+            await service.skill_seed(blind, run.id, skill.id)
 
-        assert (item.name, item.binding, item.agents_on_line, item.update) == (
-            "refunds",
-            None,
-            None,
-            None,
-        )
-        assert item.can_improve is False
+    async def test_the_card_and_the_seed_read_the_served_line_not_the_draft(self, db):
+        ctx = await _owner(db)
+        skill = await _skill(db, ctx)
+        fork = await _fork(db, ctx, skill, "fork text")
+        agent = await _serving(db, ctx, "Desk", _spec(skill))
+        agent.draft_spec = _spec(skill, fork_id=str(fork.id))
+        run = await _session(db, ctx, agent)
+        await _found(db, ctx, run, skill, "It says ninety days")
+        service = ImprovementPipelineService(db)
+
+        [item] = (await service.skills(ctx, agent.id, run.id)).items
+        seed = await service.skill_seed(ctx, run.id, skill.id)
+
+        assert item.binding is not None and item.binding.state == "main"
+        assert seed.fork_id is None
 
     async def test_reading_needs_runs_view_and_a_session_of_that_agent(self, db):
         owner = await _owner(db)
@@ -239,3 +252,34 @@ class TestTheSeed:
             await service.skill_seed(owner, uuid.uuid4(), skill.id)
         with pytest.raises(NotFoundError):
             await service.skill_seed(await _owner(db), run.id, skill.id)
+
+
+async def test_an_erased_persons_quotes_leave_the_problems_and_the_seed(db):
+    ctx = await _owner(db)
+    skill = await _skill(db, ctx)
+    agent = await _serving(db, ctx, "Desk", _spec(skill))
+    erased = await _member(db, ctx, OrgRoleName.MEMBER)
+    asked = AgentRun(
+        organization_id=ctx.organization_id,
+        agent_id=agent.id,
+        user_id=erased.user_id,
+        surface=RunSurface.WEB.value,
+        status="completed",
+    )
+    db.add(asked)
+    await db.flush()
+    run = await _session(db, ctx, agent)
+    await _found(db, ctx, run, skill, "It says ninety days", cited=asked.id)
+    kept = await _found(db, ctx, run, skill, "It skips the order number")
+
+    removed = await personal_data_repo.purge_evidence_of(db, erased.user_id, comments={})
+
+    service = ImprovementPipelineService(db)
+    [item] = (await service.skills(ctx, agent.id, run.id)).items
+    assert removed == 1
+    assert {problem.problem: len(problem.evidence) for problem in item.problems} == {
+        "It says ninety days": 0,
+        "It skips the order number": 1,
+    }
+    seed = await service.skill_seed(ctx, run.id, skill.id)
+    assert (seed.run_ids, seed.quotes) == ([kept], ["Quoted for It skips the order number"])

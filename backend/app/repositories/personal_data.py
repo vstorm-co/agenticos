@@ -993,6 +993,10 @@ def _without_theirs(
     ]
 
 
+REPORT_EVIDENCE = ("findings", "skill_problems", "problems")
+"""The lists in a request's report whose items quote runs under `evidence`."""
+
+
 async def purge_evidence_of(
     db: AsyncSession, user_id: UUID, *, comments: dict[UUID, list[str]]
 ) -> int:
@@ -1004,11 +1008,12 @@ async def purge_evidence_of(
     quotes is from their conversation. From a run they only rated, only what
     repeats their comment goes - the rest is somebody else's question.
 
-    Kept on change proposals' hunks, skill and context proposals, the findings of
-    a verify request's report and the problems of a skill session's analysis. A
-    skill session's seed - what an agent's Improve handed over - holds quotes
-    without the run each came from, so a seed citing a run of theirs loses all
-    its quotes. Unscoped by organization, as every erasure is.
+    Kept on change proposals' hunks, skill and context proposals, and in a
+    request's report: a verify's findings, an improve's skill problems and the
+    problems a skill session's analysis grouped. A skill session's seed - what an
+    agent's Improve handed over - holds quotes without the run each came from,
+    so a seed citing a run of theirs loses all its quotes. Unscoped by
+    organization, as every erasure is.
 
     Returns:
         How many quotes were removed.
@@ -1026,15 +1031,17 @@ async def purge_evidence_of(
     requests = await db.execute(
         select(AuthoringRequest).where(
             or_(
-                _cites(AuthoringRequest.report, "$.findings[*].evidence[*].run_id", reached),
-                _cites(AuthoringRequest.report, "$.problems[*].evidence[*].run_id", reached),
+                *(
+                    _cites(AuthoringRequest.report, f"$.{key}[*].evidence[*].run_id", reached)
+                    for key in REPORT_EVIDENCE
+                )
             )
         )
     )
     for request in requests.scalars().all():
         assert request.report is not None
         report = dict(request.report)
-        for key in ("findings", "problems"):
+        for key in REPORT_EVIDENCE:
             if key not in report:
                 continue
             items = []

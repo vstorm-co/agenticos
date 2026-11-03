@@ -15183,7 +15183,7 @@
       "intro": "A skill is shared by other agents, so these are not changed here. Improve the skill itself, where the change is checked on every agent that reads it.",
       "mainLine": "Main · {count, plural, =1 {1 agent} other {# agents}}",
       "forkLine": "Fork \"{fork}\" · {count, plural, =1 {1 agent} other {# agents}}",
-      "hidden": "{count, plural, =1 {and 1 agent you cannot see} other {and # agents you cannot see}}",
+      "hidden": "{count, plural, =1 {1 more agent you cannot see uses this skill.} other {# more agents you cannot see use this skill.}}",
       "improve": "Improve {name}",
       "improveFork": "Improve {name}, fork \"{fork}\"",
       "askEditor": "Ask someone who can edit {name} to improve it.",

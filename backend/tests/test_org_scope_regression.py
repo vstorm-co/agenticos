@@ -238,6 +238,7 @@ TENANT_REQUIRED = [
     (dataset_repo, "for_skill"),
     (conversation_repo, "last_answers_of_runs"),
     (skill_usage_repo, "mark_recorded"),
+    (skill_usage_repo, "mark_unrecorded"),
     (skill_usage_repo, "usage_by_agent"),
     (skill_usage_repo, "usage_by_version"),
     (skill_usage_repo, "uses_in_runs"),

@@ -42,7 +42,7 @@ it("hands a skill's problems to the skill's own Improve, on main", () => {
   render(<SkillHandoffs session={SESSION} />);
   expect(screen.getByRole("heading", { name: "Belongs to a skill" })).toBeInTheDocument();
   expect(screen.getByText("Main · 5 agents")).toBeInTheDocument();
-  expect(screen.getByText("and 2 agents you cannot see")).toBeInTheDocument();
+  expect(screen.getByText("2 more agents you cannot see use this skill.")).toBeInTheDocument();
   expect(screen.getByText("You said 90 days")).toBeInTheDocument();
   expect(screen.getByRole("link", { name: "Improve refunds" })).toHaveAttribute(
     "href",

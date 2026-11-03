@@ -14855,7 +14855,7 @@
       "intro": "Andere Agents nutzen den Skill auch, deshalb wird er hier nicht geändert. Verbessern Sie den Skill selbst: Die Änderung wird an jedem Agent geprüft, der ihn liest.",
       "mainLine": "Main · {count, plural, =1 {1 Agent} other {# Agents}}",
       "forkLine": "Fork „{fork}“ · {count, plural, =1 {1 Agent} other {# Agents}}",
-      "hidden": "{count, plural, =1 {und 1 Agent, den Sie nicht sehen} other {und # Agents, die Sie nicht sehen}}",
+      "hidden": "{count, plural, =1 {1 weiterer Agent, den Sie nicht sehen, nutzt diesen Skill.} other {# weitere Agents, die Sie nicht sehen, nutzen diesen Skill.}}",
       "improve": "{name} verbessern",
       "improveFork": "{name} verbessern, Fork „{fork}“",
       "askEditor": "Bitten Sie jemanden, der {name} bearbeiten darf, ihn zu verbessern.",

@@ -197,7 +197,7 @@ class TestRecording:
             )
 
         kept, lost = await started(), await started()
-        assert (kept.skill_uses_recorded, lost.skill_uses_recorded) == (False, False)
+        assert (kept.skill_uses_recorded, lost.skill_uses_recorded) == (None, None)
         service = AgentRunnerService(db)
 
         for run in (kept, lost):
@@ -232,16 +232,56 @@ class TestRecording:
         other, _ = await _org(db)
         agent = await _agent(db, org, user, "Desk")
         run = await _run(db, org, agent)
-        run.skill_uses_recorded = False
+        run.skill_uses_recorded = None
         await db.flush()
 
         await skill_usage_repo.mark_recorded(db, organization_id=other.id, run_id=run.id)
+        await skill_usage_repo.mark_unrecorded(db, organization_id=other.id, run_id=run.id)
         await db.refresh(run)
-        assert run.skill_uses_recorded is False
+        assert run.skill_uses_recorded is None
 
         await skill_usage_repo.mark_recorded(db, organization_id=org.id, run_id=run.id)
         await db.refresh(run)
         assert run.skill_uses_recorded is True
+
+    @pytest.mark.parametrize("failed_first", [True, False])
+    async def test_a_segment_that_could_not_be_written_leaves_the_run_unknown(
+        self, db: AsyncSession, failed_first: bool
+    ):
+        """A run parked on an approval is written once per segment, in either order."""
+        org, user = await _org(db)
+        agent = await _agent(db, org, user, "Desk")
+        skill = await _skill(db, org)
+        run = await _run(db, org, agent)
+        run.skill_uses_recorded = None
+        await db.flush()
+        service = AgentRunnerService(db)
+
+        async def segment(*, fails: bool) -> None:
+            log = SkillUseLog(agent_id=agent.id, served={skill.name: ServedSkill(skill.id)})
+            log.observe("load_capability", {"id": skill.name})
+            prepared = PreparedRun(
+                run=run,
+                agent=agent,
+                spec=AgentSpec(name="Desk"),
+                built=MagicMock(),
+                approvals=MagicMock(),
+                skill_uses=log,
+            )
+            if not fails:
+                await service._write_skill_uses(prepared)
+                return
+            with patch(
+                "app.services.agent_runner.skill_usage_repo.record_uses",
+                new=AsyncMock(side_effect=RuntimeError("connection lost")),
+            ):
+                await service._write_skill_uses(prepared)
+
+        await segment(fails=failed_first)
+        await segment(fails=not failed_first)
+
+        await db.refresh(run)
+        assert run.skill_uses_recorded is False
 
 
 class TestStatistics:

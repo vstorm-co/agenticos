@@ -224,6 +224,8 @@ class EvidencePack:
             "rated_up": sum(1 for run in self.runs if run.rating > 0),
             "commented": sum(1 for run in self.runs if run.comments),
             "conversation_ids": [str(conversation) for conversation in self.conversation_ids],
+            "unknown_runs": self.unknown_runs,
+            "hidden_agents": self.hidden_agents,
         }
 
     def groups(self) -> list[list[PackedRun]]:

@@ -14955,9 +14955,9 @@
     "skills": {
       "title": "Należy do skilla",
       "intro": "Skilla używają też inni agenci, więc tu go nie zmieniamy. Popraw sam skill: zmiana zostanie sprawdzona na każdym agencie, który go czyta.",
-      "mainLine": "Main · {count, plural, one {1 agent} few {# agenci} many {# agentów} other {# agenta}}",
-      "forkLine": "Fork „{fork}” · {count, plural, one {1 agent} few {# agenci} many {# agentów} other {# agenta}}",
-      "hidden": "{count, plural, one {i 1 agent, którego nie widzisz} few {i # agenci, których nie widzisz} many {i # agentów, których nie widzisz} other {i # agenta, których nie widzisz}}",
+      "mainLine": "Main · {count, plural, one {1 agent} few {# agenty} many {# agentów} other {# agenta}}",
+      "forkLine": "Fork „{fork}” · {count, plural, one {1 agent} few {# agenty} many {# agentów} other {# agenta}}",
+      "hidden": "{count, plural, one {Tego skilla używa jeszcze 1 agent, którego nie widzisz.} few {Tego skilla używa jeszcze # agentów, których nie widzisz.} many {Tego skilla używa jeszcze # agentów, których nie widzisz.} other {Tego skilla używa jeszcze # agenta, których nie widzisz.}}",
       "improve": "Popraw {name}",
       "improveFork": "Popraw {name}, fork „{fork}”",
       "askEditor": "Poproś osobę, która może edytować {name}, o poprawienie go.",
