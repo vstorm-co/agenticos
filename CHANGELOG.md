@@ -24,6 +24,10 @@ Two things are versioned separately from this file and worth knowing about:
 - Delegate explicit work to durable background topics in the same project, keep talking in the source conversation, inspect or stop each task, and receive one source-bound result turn. Tasks retain pinned agent versions, ordinary budgets and approvals, the selected main model and exact local device; interrupted external actions are not automatically replayed.
 - Choose a local Claude Code/Codex model and reasoning level per conversation from the installed harness's reported choices, including resumed coding sessions. Reference recent accessible conversations in the `@` menu through the existing Past conversations capability.
 
+### Fixed
+
+- Deleting an account no longer deadlocks with an ingest that is recording the embedding spend of a document in that account's personal knowledge base. The deletion now locks the personal organization before it deletes the documents under it. An ingest whose organization is deleted while it runs no longer fails when it records its spend. In the rare case that a knowledge collection is created during the deletion and is busy, the deletion now returns 409 and deletes nothing, so it can be retried.
+
 ## [1.39.1] - 2026-11-03
 
 ### Changed
