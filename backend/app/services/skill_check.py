@@ -318,6 +318,14 @@ class SkillCheckService:
         skill = await self.versions.skill_for(ctx, skill_id, Perm.SKILLS_EDIT)
         candidate, proposal, fork_id = await self._candidate(ctx, skill, data)
         fork, base = await self._line(ctx, skill, fork_id)
+        if data.base_version_id is not None and data.base_version_id != base.id:
+            raise ConcurrentChangeError(
+                message=(
+                    f"'{skill.name}' changed since you opened it (now v{base.number}). Copy your "
+                    "text, open the newest version and check it again."
+                ),
+                details={"version": base.number},
+            )
         if proposal is not None and proposal.base_version_id != base.id:
             raise ConcurrentChangeError(
                 message=(
