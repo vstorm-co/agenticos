@@ -63,6 +63,9 @@ environment without a person's decision.
 
 ### Added
 
+- Prepare private, checksummed coding runtimes and pinned Claude Code/Codex adapters without host developer tools. Coding-agent setup and browser sign-in are available in desktop settings.
+- Install the verified local runtime on Windows and supported Linux desktops, resume Windows setup after a required restart, show download progress and retry the same workspace. Pin new local instances to the packaged platform release and back up database, media and deployment keys before updates.
+
 - **Datasets.** Versioned test questions with expected tool calls, checks, a
   reference answer and tags. Cases are written in the console, imported from
   CSV or JSONL, added from a rated chat answer with **Add to dataset**, or
@@ -182,6 +185,11 @@ environment without a person's decision.
   events instead of polling.
 
 ### Fixed
+
+- Keep existing workspaces visible after starting the local runtime, repair incomplete macOS runtime installations and verify Docker Inc's signing identity before requesting installer elevation.
+- Remember native coding-agent startup consent per agent, folder, adapter version and connection; revoke it with folder/account access and stop affected agents. Preserve local grants on reconnect, avoid repeated credential probes on focus, hide background Windows console windows, wait for HTTP readiness and refuse remote Docker contexts or platform downgrades during local setup.
+
+- Prepare the local runtime from the macOS setup wizard and restart saved local workspaces when the desktop app opens. Pull public product images with a private anonymous configuration to avoid credential-helper and keychain prompts, and pass Docker helper paths to subprocesses launched from Finder.
 
 - Keep incomparable eval runs from presenting score differences as confirmed
   regressions or fixes; retain their individual answers and grading results.

@@ -46,6 +46,8 @@ pub struct Settings {
     /// Resume identifiers only; the harness keeps its history in its own store.
     #[serde(default)]
     pub coding_sessions: Vec<crate::agent_session::Remembered>,
+    #[serde(default)]
+    pub coding_consents: Vec<crate::agent_session::Consent>,
 }
 
 /// Personal grants must not follow the console into another account or server.
@@ -53,6 +55,7 @@ pub fn clear_local_authority(settings: &mut Settings) {
     settings.local_grants.clear();
     settings.local_services.clear();
     settings.coding_sessions.clear();
+    settings.coding_consents.clear();
 }
 
 /// A stack the app set up on this machine, or an organization's server.
@@ -331,6 +334,7 @@ mod tests {
             "local_grants": [{"path": "/private/work", "mode": "full_access"}],
             "local_services": [{"id": "local", "name": "Private model", "kind": "model", "endpoint": "http://127.0.0.1:11434", "model": "test"}],
             "connection_revision": "previous",
+            "coding_consents": [{"root": "/private/work", "connection": "previous", "agent": "claude_code", "adapter": "v1"}],
             "coding_sessions": [{"key": {"scope": "old", "root": "/private/work", "connection": "previous", "agent": "claude_code"}, "session_id": "old-session"}]
         })).unwrap();
         clear_local_authority(&mut settings);
@@ -338,6 +342,7 @@ mod tests {
         assert!(restored.local_grants.is_empty());
         assert!(restored.local_services.is_empty());
         assert!(restored.coding_sessions.is_empty());
+        assert!(restored.coding_consents.is_empty());
         assert_eq!(restored.connection_revision, "previous");
         assert_eq!(restored.server_url.unwrap().as_str(), "https://example.com/");
     }
