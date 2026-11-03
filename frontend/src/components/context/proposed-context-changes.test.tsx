@@ -7,6 +7,7 @@ import type { ContextChange } from "@/types/authoring";
 import { ProposedContextChanges } from "./proposed-context-changes";
 
 const state = vi.hoisted(() => ({
+  runsView: true,
   changes: [] as ContextChange[],
   error: null as string | null,
   isDeciding: false,
@@ -14,6 +15,10 @@ const state = vi.hoisted(() => ({
   discard: vi.fn(),
   asked: vi.fn(),
   watch: vi.fn(),
+}));
+
+vi.mock("@/hooks/use-permissions", () => ({
+  usePermissions: () => ({ can: () => state.runsView }),
 }));
 
 vi.mock("@/components/authoring/skill-check-button", () => ({
@@ -38,6 +43,7 @@ vi.mock("@/hooks/use-context-changes", () => ({
 
 beforeEach(() => {
   vi.clearAllMocks();
+  state.runsView = true;
   state.changes = [contextChange()];
   state.error = null;
   state.isDeciding = false;
@@ -138,4 +144,10 @@ describe("ProposedContextChanges", () => {
       screen.getByRole("button", { name: "Discard the change to house-style" }),
     ).toBeDisabled();
   });
+});
+
+it("hides cached proposal text after permission to read runs is removed", () => {
+  state.runsView = false;
+  const { container } = render(<ProposedContextChanges canEdit />);
+  expect(container).toBeEmptyDOMElement();
 });

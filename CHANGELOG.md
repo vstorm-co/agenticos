@@ -206,6 +206,9 @@ environment without a person's decision.
 
 ### Security
 
+- Reading or deciding assistant-generated proposals requires `runs:view` as well
+  as target access. Summaries and proposed text can contain conversation content
+  even when explicit evidence quotes are hidden.
 - Recognised secrets are redacted from dataset cases, eval answers, tool-call
   evidence and errors before they are stored.
 - A dataset case copied from a conversation shows its text only to readers who

@@ -60,13 +60,14 @@ export function AssistantStrip({
   const router = useRouter();
   const orgId = useOrgStore((state) => state.activeOrgId);
   // The assistant reads runs, and checking runs an eval whose results are runs:
-  // without runs:view, a person decides what waits but cannot ask for more.
+  // generated suggestions can contain run text even outside their explicit quotes.
   const { can } = usePermissions();
   const canAsk = can(Perm.runsView);
-  const assistant = useAgentAuthoring(agentId);
+  const assistant = useAgentAuthoring(agentId, { enabled: canAsk });
   const [verifying, setVerifying] = useState(false);
   const [checking, setChecking] = useState(false);
-  const { authoring, decide } = assistant;
+  const { decide } = assistant;
+  const authoring = canAsk ? assistant.authoring : null;
   const { base } = useDraftBase(agentId);
   const draftDiffers = useMemo(
     () => base !== undefined && specText(storedDraft) !== specText(base.spec),
@@ -108,6 +109,8 @@ export function AssistantStrip({
     );
   }
 
+  if (!canAsk && !checkNeedsRunsView) return null;
+
   return (
     <Card data-tour="agent-assistant-strip">
       <CardHeader className="flex-row flex-wrap items-center gap-3 space-y-0">
@@ -138,17 +141,17 @@ export function AssistantStrip({
               {t("verify")}
             </Button>
           )}
+          {checkNeedsRunsView && (
+            <NeedsRunsView size="sm" variant="outline">
+              {t("check")}
+            </NeedsRunsView>
+          )}
           {pending.length > 0 && (
             <>
               {canAsk && canCheck && (
                 <Button size="sm" variant="outline" onClick={() => setChecking(true)}>
                   {t("check")}
                 </Button>
-              )}
-              {checkNeedsRunsView && (
-                <NeedsRunsView size="sm" variant="outline">
-                  {t("check")}
-                </NeedsRunsView>
               )}
               <Button
                 size="sm"
@@ -162,7 +165,7 @@ export function AssistantStrip({
           )}
         </div>
       </CardHeader>
-      {!compact && (
+      {canAsk && !compact && (
         <CardContent className="space-y-4">
           {latest?.status === "failed" && (
             <p role="alert" className="text-destructive text-sm">

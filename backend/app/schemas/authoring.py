@@ -317,7 +317,9 @@ class AuthoringRequestRead(BaseSchema):
 
 
 class EvidenceItemRead(BaseSchema):
-    """One checked piece of evidence. `quote` is absent for a reader without `runs:view`.
+    """One checked piece of evidence, read with `runs:view` and target access.
+
+    A quote can be absent from older stored evidence.
 
     `source` and `number` are the label the improver read the run under - "test
     question 2", "conversation 1" - and are absent on evidence kept before they were.

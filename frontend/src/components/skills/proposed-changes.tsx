@@ -3,6 +3,9 @@
 import { useState } from "react";
 import { Check, ChevronDown, GitPullRequest, X } from "lucide-react";
 
+import { usePermissions } from "@/hooks/use-permissions";
+import { Perm } from "@/types/permissions";
+
 import {
   Badge,
   Button,
@@ -41,10 +44,11 @@ interface ProposedChangesProps {
  * decision cannot be made from a title.
  */
 export function ProposedChanges({ canEdit }: ProposedChangesProps) {
+  const canReadRuns = usePermissions().can(Perm.runsView);
   const t = useTranslations("skills");
   const { changes, error, apply, discard, isDeciding } = useSkillChanges("pending");
 
-  if (!canEdit) return null;
+  if (!canEdit || !canReadRuns) return null;
   // An empty list and a failed request are the same pixels, so a failure is said
   // out loud even though nothing is rendered for an empty one.
   if (error !== null) return <p className="text-destructive text-sm">{error}</p>;

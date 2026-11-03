@@ -51,8 +51,9 @@ Each suggestion carries a rationale and the evidence behind it: the runs it rest
 on and quotes from them. Before anybody sees a suggestion, each quote is checked,
 word for word, against the run it names. A quote that is not there, a run that is
 not among those the assistant read, and anything past twelve items or six hundred
-characters is dropped, and the suggestion says how many were. A reader without
-`runs:view` sees which runs a suggestion rests on, not what was said in them.
+characters is dropped, and the suggestion says how many were. Reading assistant
+requests, findings and proposed text requires `runs:view`: generated summaries
+and changes can contain conversation content even when explicit quotes are absent.
 
 The check proves that a quote is in its run, not that it bears on what it backs:
 a real quote about something else passes it. So a Verify finding names the line
@@ -283,10 +284,10 @@ Activity retention keeps the combined cost of a session’s deleted paid runs, w
 | Start Improve or Verify on an agent | `runs:view`, edit access to the agent, and use of the assistant |
 | Improve a skill | `runs:view`, edit access to the skill, and use of the assistant |
 | Improve a context file | `runs:view`, `context:edit` on the file, and use of the assistant |
-| Accept, dismiss or undo a suggestion | Edit access to the agent |
+| Accept, dismiss or undo a suggestion | `runs:view` and edit access to the agent |
 | Accept a suggestion that binds or reaches something | Also the access to bind it by hand |
-| Apply or discard a skill change | `skills:edit` on the skill |
-| Apply or discard a context file change | `context:edit` on the file |
+| Apply or discard a skill change | `skills:edit` on the skill and `runs:view` |
+| Apply or discard a context file change | `context:edit` on the file and `runs:view` |
 | Check with evals | What an [eval run](evals.md#access) needs, and edit access to the agent |
 
 Grants count: a member with an edit grant on one agent may improve that agent.

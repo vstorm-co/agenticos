@@ -1,5 +1,5 @@
 ---
-source_sha: "cbabaffdd215"
+source_sha: "75d8ff4c4e85"
 title: "Asistente de autoría"
 description: "El asistente de autoría lee lo que la gente valoró negativamente y cómo acabaron los runs, y sugiere cambios a las instrucciones, las herramientas, la configuración, los skills y los archivos de contexto de un agent. Una persona decide cada uno."
 ---
@@ -53,8 +53,9 @@ en los que se apoya y citas de ellos. Antes de que nadie vea una sugerencia, cad
 cita se compara palabra por palabra con el run que nombra. Una cita que no está
 ahí, un run que no está entre los que leyó el asistente y todo lo que pase de
 doce elementos o seiscientos caracteres se descarta, y la sugerencia dice
-cuántos fueron. Quien no tiene `runs:view` ve en qué runs se apoya una
-sugerencia, no lo que se dijo en ellos.
+cuántos fueron. Leer solicitudes del asistente, hallazgos y texto propuesto
+requiere `runs:view`: los resúmenes y cambios generados pueden contener texto
+de las conversaciones incluso sin citas explícitas.
 
 La comprobación demuestra que una cita está en su run, no que tenga que ver con
 lo que respalda: una cita real sobre otra cosa la supera. Por eso un hallazgo de
@@ -299,10 +300,10 @@ La retención de actividad conserva el coste total de los runs pagados eliminado
 | Iniciar Mejorar o Verificar en un agent | `runs:view`, permiso de edición del agent y poder usar el asistente |
 | Mejorar un skill | `runs:view`, permiso de edición del skill y poder usar el asistente |
 | Mejorar un archivo de contexto | `runs:view`, `context:edit` en el archivo y poder usar el asistente |
-| Aceptar, descartar o deshacer una sugerencia | Permiso de edición del agent |
+| Aceptar, descartar o deshacer una sugerencia | `runs:view` y permiso de edición del agent |
 | Aceptar una sugerencia que vincula algo o da alcance a algo | También el acceso para vincularlo a mano |
-| Aplicar o descartar un cambio a un skill | `skills:edit` en el skill |
-| Aplicar o descartar un cambio a un archivo de contexto | `context:edit` en el archivo |
+| Aplicar o descartar un cambio a un skill | `skills:edit` en el skill y `runs:view` |
+| Aplicar o descartar un cambio a un archivo de contexto | `context:edit` en el archivo y `runs:view` |
 | Comprobar con evals | Lo que pide un [eval run](evals.md#access), y permiso de edición del agent |
 
 Los grants cuentan: un miembro con un grant de edición sobre un agent puede

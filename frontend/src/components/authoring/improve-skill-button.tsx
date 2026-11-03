@@ -18,9 +18,10 @@ import { ImproveDialog } from "./improve-dialog";
  */
 export function ImproveSkillButton({ skillId }: { skillId: string }) {
   const t = useTranslations("authoring.skill");
+  const canReadRuns = usePermissions().can(Perm.runsView);
   return (
     <ImproveButton
-      assistant={useSkillAuthoring(skillId)}
+      assistant={useSkillAuthoring(skillId, { enabled: canReadRuns })}
       labels={{ improve: t("improve"), working: t("working"), aiOff: t("aiOff") }}
     />
   );
@@ -41,9 +42,10 @@ export function ImproveContextButton({
   unsaved?: boolean;
 }) {
   const t = useTranslations("authoring.context");
+  const canReadRuns = usePermissions().can(Perm.runsView);
   return (
     <ImproveButton
-      assistant={useContextAuthoring(contextId)}
+      assistant={useContextAuthoring(contextId, { enabled: canReadRuns })}
       labels={{ improve: t("improve"), working: t("working"), aiOff: t("aiOff") }}
       held={unsaved ? t("saveFirst") : null}
     />

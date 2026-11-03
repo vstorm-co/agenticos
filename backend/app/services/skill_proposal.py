@@ -24,7 +24,12 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import record_audit
-from app.core.exceptions import AlreadyExistsError, ConcurrentChangeError, NotFoundError
+from app.core.exceptions import (
+    AlreadyExistsError,
+    AuthorizationError,
+    ConcurrentChangeError,
+    NotFoundError,
+)
 from app.core.permissions import AuthContext, Perm
 from app.db.models.skill import Skill
 from app.db.models.skill_proposal import ProposalStatus, SkillProposal
@@ -113,6 +118,8 @@ class SkillProposalService:
         A proposal for a skill nobody has written yet is one anybody who may create
         skills could accept - the route's own `skills:edit` - so it is listed for them.
         """
+        if not ctx.has(Perm.RUNS_VIEW):
+            return []
         proposals = await skill_proposal_repo.list_for_organization(
             self.db, organization_id=ctx.organization_id, status=status
         )
@@ -141,8 +148,8 @@ class SkillProposalService:
     async def read(self, ctx: AuthContext, proposal_id: UUID) -> SkillProposalRead:
         """One proposal as a reviewer reads it.
 
-        The evidence an assistant cited quotes conversations, so a reviewer
-        without `runs:view` gets the run ids and not the words. A waiting change
+        The proposed text can repeat conversations, so reading it requires
+        `runs:view` even when explicit evidence quotes are absent. A waiting change
         to a skill says which agents applying it goes live for, and where.
         """
         proposal = await self.get(ctx, proposal_id)
@@ -174,10 +181,7 @@ class SkillProposalService:
         if skill_id is not None and pending:
             reached, hidden_agents = await proposal_reach.reached(self.db, ctx, reaches[skill_id])
             read = read.model_copy(update={"reaches": reached, "reaches_hidden": hidden_agents})
-        if ctx.has(Perm.RUNS_VIEW):
-            return read
-        hidden = [{**item, "quote": None} for item in read.evidence]
-        return read.model_copy(update={"evidence": hidden})
+        return read
 
     async def get(self, ctx: AuthContext, proposal_id: UUID) -> SkillProposal:
         """One proposal the caller could decide - see :meth:`list_proposals`.
@@ -203,6 +207,8 @@ class SkillProposalService:
             raise NotFoundError(
                 message="Skill change not found", details={"proposal_id": str(proposal_id)}
             )
+        if not ctx.has(Perm.RUNS_VIEW):
+            raise AuthorizationError(message="Reading assistant suggestions requires runs:view")
         return proposal
 
     async def apply(

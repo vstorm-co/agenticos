@@ -2,6 +2,9 @@
 
 import { useState } from "react";
 import { Check, ChevronDown, GitPullRequest, X } from "lucide-react";
+
+import { usePermissions } from "@/hooks/use-permissions";
+import { Perm } from "@/types/permissions";
 import { useTranslations } from "next-intl";
 
 import {
@@ -31,13 +34,14 @@ import type { ContextChange } from "@/types/authoring";
  * edited since the proposal can only be discarded.
  */
 export function ProposedContextChanges({ canEdit }: { canEdit: boolean }) {
+  const canReadRuns = usePermissions().can(Perm.runsView);
   const t = useTranslations("authoring.contextChanges");
   const { changes, error, apply, discard, isDeciding } = useContextChanges("pending", {
-    enabled: canEdit,
+    enabled: canEdit && canReadRuns,
   });
   useContextAuthoringWatch();
 
-  if (!canEdit) return null;
+  if (!canEdit || !canReadRuns) return null;
   if (error !== null) return <p className="text-destructive text-sm">{error}</p>;
   if (changes.length === 0) return null;
 

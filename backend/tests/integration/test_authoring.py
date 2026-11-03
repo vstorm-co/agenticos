@@ -655,14 +655,8 @@ class TestVerify:
         assert read.verify.report["findings"][0]["evidence"][0]["quote"] == "You have 90 days."
 
         member = await _member(db, ctx, OrgRoleName.MEMBER)
-        hidden = await service.for_agent(member, agent.id)
-        assert hidden.verify is not None and hidden.verify.report is not None
-        assert hidden.latest is not None and hidden.latest.report == hidden.verify.report
-        (finding,) = hidden.verify.report["findings"]
-        assert finding["evidence"] == [
-            {"run_id": request.report["findings"][0]["evidence"][0]["run_id"]}
-        ]
-        assert finding["text"] == "Dropped the brevity rule"
+        with pytest.raises(AuthorizationError, match="runs:view"):
+            await service.for_agent(member, agent.id)
 
     async def test_verify_with_nothing_waiting_opens_a_batch(self, db):
         ctx, agent, _ = await _setup(db)
@@ -1024,15 +1018,13 @@ class TestRefusals:
         assert await db.scalar(select(func.count()).select_from(AuthoringRequest)) == 0
 
     @pytest.mark.security
-    async def test_quotes_are_hidden_from_a_reader_without_runs_view(self, db):
+    async def test_derived_suggestions_are_hidden_from_a_reader_without_runs_view(self, db):
         ctx, agent, _ = await _setup(db)
         await _improve(db, ctx, agent, Improver(db))
         member = await _member(db, ctx, OrgRoleName.MEMBER)
 
-        read = await AuthoringService(db).for_agent(member, agent.id)
-
-        assert read.batch is not None
-        assert {item.quote for item in read.batch.hunks[0].evidence} == {None}
+        with pytest.raises(AuthorizationError, match="runs:view"):
+            await AuthoringService(db).for_agent(member, agent.id)
 
 
 class TestWorker:
@@ -1794,8 +1786,8 @@ async def test_new_agent_reports_no_learning_evidence_without_running_a_model(db
     await _rated(db, ctx, agent)
     ready = await service.for_agent(ctx, agent.id)
     assert ready.has_evidence is True
-    with _without_runs_view():
-        assert (await service.for_agent(ctx, agent.id)).has_evidence is None
+    with _without_runs_view(), pytest.raises(AuthorizationError, match="runs:view"):
+        await service.for_agent(ctx, agent.id)
 
 
 async def test_a_helper_losing_its_publication_after_estimation_cannot_start(

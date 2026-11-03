@@ -22,7 +22,12 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from app.core.exceptions import AlreadyExistsError, ConcurrentChangeError, NotFoundError
+from app.core.exceptions import (
+    AlreadyExistsError,
+    AuthorizationError,
+    ConcurrentChangeError,
+    NotFoundError,
+)
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.skill_proposal import ProposalStatus, SkillProposal
 from app.repositories import skill_proposal_repo, skill_repo
@@ -400,7 +405,7 @@ class TestReading:
         )
 
     @pytest.mark.security
-    async def test_a_reviewer_without_runs_view_gets_the_runs_but_not_the_words(self, monkeypatch):
+    async def test_a_reviewer_without_runs_view_cannot_read_generated_text(self, monkeypatch):
         service = _service(monkeypatch)
         proposal = self._proposal()
         monkeypatch.setattr(skill_proposal_repo, "get", AsyncMock(return_value=proposal))
@@ -411,11 +416,33 @@ class TestReading:
             user_id=uuid.uuid4(), organization_id=uuid.uuid4(), role=OrgRoleName.MEMBER.value
         )
 
-        hidden = await service.read(member, proposal.id)
+        with pytest.raises(AuthorizationError, match="runs:view"):
+            await service.read(member, proposal.id)
+        assert await service.list_read(member) == []
         shown = await service.list_read(_ctx())
 
-        assert hidden.evidence == [{"run_id": "run-1", "quote": None}]
         assert shown[0].evidence == [{"run_id": "run-1", "quote": "Thirty days"}]
+
+    @pytest.mark.parametrize("has_request", [True, False])
+    async def test_generated_authoring_content_needs_runs_view_even_without_quotes(
+        self, monkeypatch, has_request
+    ):
+        service = _service(monkeypatch)
+        proposal = self._proposal()
+        proposal.authoring_request_id = uuid.uuid4() if has_request else None
+        proposal.evidence = []
+        proposal.content = "Private content copied into the proposed skill"
+        monkeypatch.setattr(skill_proposal_repo, "get", AsyncMock(return_value=proposal))
+        monkeypatch.setattr(
+            skill_proposal_repo, "list_for_organization", AsyncMock(return_value=[proposal])
+        )
+        member = AuthContext(
+            user_id=uuid.uuid4(), organization_id=uuid.uuid4(), role=OrgRoleName.MEMBER.value
+        )
+        with pytest.raises(AuthorizationError, match="runs:view"):
+            await service.read(member, proposal.id)
+        assert await service.list_read(member) == []
+        assert (await service.read(_ctx(), proposal.id)).content == proposal.content
 
 
 class TestRevision:

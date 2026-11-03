@@ -449,3 +449,14 @@ it("keeps the assistant to one line for an agent without learning evidence", () 
   expect(screen.queryByText("No suggestions yet")).not.toBeInTheDocument();
   expect(screen.queryByTestId("suggestion")).not.toBeInTheDocument();
 });
+
+it("hides cached generated text after permission to read runs is removed", () => {
+  state.runsView = false;
+  state.authoring = agentAuthoring({
+    latest: authoringRequest({ report: { summary: "Confidential source summary" } }),
+  });
+  strip();
+  expect(screen.queryByText("Confidential source summary")).toBeNull();
+  expect(screen.queryByRole("button", { name: "Dismiss all" })).toBeNull();
+  expect(screen.queryByRole("tab", { name: /To review/ })).toBeNull();
+});

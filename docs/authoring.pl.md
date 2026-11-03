@@ -1,5 +1,5 @@
 ---
-source_sha: "cbabaffdd215"
+source_sha: "75d8ff4c4e85"
 title: "Asystent tworzenia"
 description: "Asystent tworzenia czyta, co ludzie ocenili negatywnie i jak kończyły się runy, i sugeruje zmiany w instrukcjach agenta, jego narzędziach, konfiguracji, skillach i plikach kontekstowych. O każdej decyduje człowiek."
 ---
@@ -53,8 +53,9 @@ Każda sugestia ma uzasadnienie i dowody: runy, na których się opiera, i cytat
 nich. Zanim ktokolwiek zobaczy sugestię, każdy cytat jest sprawdzany słowo w
 słowo z runem, który wskazuje. Cytat, którego tam nie ma, run spoza tych, które
 asystent przeczytał, oraz wszystko ponad dwanaście pozycji albo sześćset znaków
-jest odrzucane, a sugestia podaje, ile tego było. Czytelnik bez `runs:view`
-widzi, na których runach opiera się sugestia, ale nie to, co w nich powiedziano.
+jest odrzucane, a sugestia podaje, ile tego było. Odczyt zleceń asystenta,
+ustaleń i proponowanej treści wymaga `runs:view`: wygenerowane podsumowania
+i zmiany mogą zawierać treść rozmów nawet bez jawnych cytatów.
 
 Sprawdzenie dowodzi, że cytat jest w swoim runie, a nie że dotyczy tego, co
 popiera: prawdziwy cytat o czymś innym je przechodzi. Dlatego ustalenie Sprawdź
@@ -294,10 +295,10 @@ Retencja aktywności zachowuje łączny koszt usuniętych płatnych runów sesji
 | Uruchomić Ulepsz albo Sprawdź na agencie | `runs:view`, uprawnień edycji agenta i możliwości użycia asystenta |
 | Ulepszyć skill | `runs:view`, uprawnień edycji skilla i możliwości użycia asystenta |
 | Ulepszyć plik kontekstowy | `runs:view`, `context:edit` na pliku i możliwości użycia asystenta |
-| Przyjąć, odrzucić albo cofnąć sugestię | Uprawnień edycji agenta |
+| Przyjąć, odrzucić albo cofnąć sugestię | `runs:view` i uprawnień edycji agenta |
 | Przyjąć sugestię, która coś podpina albo do czegoś sięga | Także dostępu, by podpiąć to ręcznie |
-| Zastosować albo odrzucić zmianę skilla | `skills:edit` na skillu |
-| Zastosować albo odrzucić zmianę pliku kontekstowego | `context:edit` na pliku |
+| Zastosować albo odrzucić zmianę skilla | `skills:edit` na skillu i `runs:view` |
+| Zastosować albo odrzucić zmianę pliku kontekstowego | `context:edit` na pliku i `runs:view` |
 | Sprawdzić w ewaluacji | Tego, czego wymaga [run ewaluacji](evals.md#access), i uprawnień edycji agenta |
 
 Granty się liczą: członek z grantem edycji na jednym agencie może ulepszać tego

@@ -1,5 +1,5 @@
 ---
-source_sha: "cbabaffdd215"
+source_sha: "75d8ff4c4e85"
 title: "Authoring-Assistent"
 description: "Der Authoring-Assistent liest, was Leute negativ bewertet haben und wie Runs endeten, und schlägt Änderungen an Anweisungen, Tools, Konfiguration, Skills und Context-Dateien eines Agents vor. Über jede entscheidet ein Mensch."
 ---
@@ -55,8 +55,9 @@ sich stützt, und Zitate daraus. Bevor jemand einen Vorschlag sieht, wird jedes
 Zitat Wort für Wort mit dem Run abgeglichen, den es nennt. Ein Zitat, das dort
 nicht steht, ein Run, der nicht zu den gelesenen gehört, und alles über zwölf
 Einträge oder sechshundert Zeichen hinaus wird verworfen, und der Vorschlag sagt,
-wie viele es waren. Wer kein `runs:view` hat, sieht, auf welche Runs sich ein
-Vorschlag stützt, aber nicht, was darin gesagt wurde.
+wie viele es waren. Das Lesen von Assistentenaufträgen, Ergebnissen und
+vorgeschlagenem Text erfordert `runs:view`: erzeugte Zusammenfassungen und
+Änderungen können auch ohne ausdrückliche Zitate Gesprächsinhalte enthalten.
 
 Die Prüfung belegt, dass ein Zitat in seinem Run steht, nicht, dass es zu dem
 passt, was es stützt: Ein echtes Zitat über etwas anderes besteht sie. Deshalb
@@ -309,11 +310,11 @@ Die Aufbewahrung der Aktivität erhält die Gesamtkosten gelöschter bezahlter R
 |---|---|
 | Verbessern oder Prüfen an einem Agent zu starten | `runs:view`, Bearbeitungsrechte am Agent und die Nutzung des Assistenten |
 | Einen Skill zu verbessern | `runs:view`, Bearbeitungsrechte am Skill und die Nutzung des Assistenten |
-| Einen Vorschlag anzunehmen, zu verwerfen oder rückgängig zu machen | Bearbeitungsrechte am Agent |
+| Einen Vorschlag anzunehmen, zu verwerfen oder rückgängig zu machen | `runs:view` und Bearbeitungsrechte am Agent |
 | Eine Context-Datei zu verbessern | `runs:view`, `context:edit` an der Datei und die Nutzung des Assistenten |
 | Einen Vorschlag anzunehmen, der etwas bindet oder erreicht | Zusätzlich den Zugriff, es von Hand zu binden |
-| Eine Skill-Änderung anzuwenden oder zu verwerfen | `skills:edit` am Skill |
-| Eine Änderung an einer Context-Datei anzuwenden oder zu verwerfen | `context:edit` an der Datei |
+| Eine Skill-Änderung anzuwenden oder zu verwerfen | `skills:edit` am Skill und `runs:view` |
+| Eine Änderung an einer Context-Datei anzuwenden oder zu verwerfen | `context:edit` an der Datei und `runs:view` |
 | Mit Evals zu prüfen | Was ein [Eval Run](evals.md#access) braucht, und Bearbeitungsrechte am Agent |
 
 Grants zählen: Ein Mitglied mit einem Bearbeitungs-Grant an einem Agent darf

@@ -10,7 +10,8 @@ publishes and nothing changes an agent without that decision.
 **Who may do what.** Starting one needs `runs:view` - the evidence is runs -
 edit access to the target through its own grants, and use of the organization's
 improver with a runnable model and available budget. Deciding needs edit access
-to the agent and nothing more: accepting a proposal calls no model.
+to the agent and `runs:view`: generated proposal text can contain run evidence,
+even when its explicit quotes are removed. Accepting calls no model.
 
 **A decision is one transaction with what it writes.** It locks the agent row
 and reads its draft afresh, so two decisions on one draft serialize instead of
@@ -262,6 +263,7 @@ class AuthoringService:
             )
 
     async def _editable(self, ctx: AuthContext, agent_id: UUID) -> Agent:
+        self._require_runs_view(ctx)
         agent = await self.registry.get(ctx, agent_id, perm=Perm.AGENTS_EDIT)
         # Its runs are all eval runs, which the assistant never reads as evidence.
         refuse_system_agent(agent, action="the authoring assistant's suggestions")
@@ -610,6 +612,7 @@ class AuthoringService:
 
     async def for_agent(self, ctx: AuthContext, agent_id: UUID) -> AgentAuthoringRead:
         """The open batch - or the last one - and the newest requests, for the Builder."""
+        self._require_runs_view(ctx)
         agent = await self.registry.get(ctx, agent_id)
         return await self._read(ctx, agent)
 
@@ -680,6 +683,7 @@ class AuthoringService:
 
     async def for_skill(self, ctx: AuthContext, skill_id: UUID) -> list[AuthoringRequestRead]:
         """The newest requests on one skill, for its page."""
+        self._require_runs_view(ctx)
         skill = await self.skills.get(ctx, skill_id)
         return [
             AuthoringRequestRead.model_validate(await self._settled(request))
@@ -690,6 +694,7 @@ class AuthoringService:
 
     async def for_context(self, ctx: AuthContext, context_id: UUID) -> list[AuthoringRequestRead]:
         """The newest requests on one context file, for its page."""
+        self._require_runs_view(ctx)
         file = await self.contexts.get(ctx, context_id)
         return [
             AuthoringRequestRead.model_validate(await self._settled(request))
@@ -744,39 +749,21 @@ class AuthoringService:
             ),
             None,
         )
-        quotes = ctx.has(Perm.RUNS_VIEW)
         has_evidence = None
-        if quotes and not requests and batch is None:
+        if not requests and batch is None:
             has_evidence = bool((await self.evidence.for_agent(ctx, agent.id, window_days=30)).runs)
         return AgentAuthoringRead(
             has_evidence=has_evidence,
             batch=None if batch is None else await self._batch(ctx, agent, batch),
-            latest=None if not requests else self._request(requests[0], quotes=quotes),
-            verify=None if verify is None else self._request(verify, quotes=quotes),
+            latest=None if not requests else AuthoringRequestRead.model_validate(requests[0]),
+            verify=None if verify is None else AuthoringRequestRead.model_validate(verify),
         )
-
-    @staticmethod
-    def _request(request: AuthoringRequest, *, quotes: bool) -> AuthoringRequestRead:
-        """A request as a reader sees it - a verify's quotes only for a reader of runs."""
-        read = AuthoringRequestRead.model_validate(request)
-        findings = None if read.report is None else read.report.get("findings")
-        if quotes or read.report is None or not isinstance(findings, list):
-            return read
-        redacted = [
-            {
-                **finding,
-                "evidence": [{"run_id": item["run_id"]} for item in finding.get("evidence", [])],
-            }
-            for finding in findings
-        ]
-        return read.model_copy(update={"report": {**read.report, "findings": redacted}})
 
     async def _batch(self, ctx: AuthContext, agent: Agent, batch: SpecProposalBatch) -> BatchRead:
         spec = AgentSpec.model_validate(agent.draft_spec)
         hunks = await authoring_repo.list_hunks(
             self.db, organization_id=ctx.organization_id, batch_id=batch.id
         )
-        quotes = ctx.has(Perm.RUNS_VIEW)
         names = await ConfigurationService(self.db).names(ctx, hunks)
         waiting = [hunk for hunk in hunks if hunk.status == HunkStatus.PENDING.value]
         measured = (
@@ -818,8 +805,7 @@ class AuthoringService:
             expected_effect=batch.expected_effect,
             request_id=batch.request_id,
             hunks=[
-                self._hunk(spec, hunk, quotes=quotes, names=names, blocked=gates.get(hunk.id))
-                for hunk in hunks
+                self._hunk(spec, hunk, names=names, blocked=gates.get(hunk.id)) for hunk in hunks
             ],
             check_eval_run_ids=list(batch.check_eval_run_ids),
             created_at=batch.created_at,
@@ -829,6 +815,7 @@ class AuthoringService:
         self, ctx: AuthContext, agent: Agent, batch_id: UUID, hunk_ids: list[UUID] | None
     ) -> list[HunkRead]:
         """Some of one batch's changes as the Builder reads them, open or long closed."""
+        self._require_runs_view(ctx)
         hunks = [
             hunk
             for hunk in await authoring_repo.list_hunks(
@@ -838,10 +825,7 @@ class AuthoringService:
         ]
         spec = AgentSpec.model_validate(agent.draft_spec)
         names = await ConfigurationService(self.db).names(ctx, hunks)
-        return [
-            self._hunk(spec, hunk, quotes=ctx.has(Perm.RUNS_VIEW), names=names, blocked=None)
-            for hunk in hunks
-        ]
+        return [self._hunk(spec, hunk, names=names, blocked=None) for hunk in hunks]
 
     async def _model_gate(
         self,
@@ -903,11 +887,10 @@ class AuthoringService:
         spec: AgentSpec,
         hunk: SpecProposalHunk,
         *,
-        quotes: bool,
         names: dict[str, str],
         blocked: str | None,
     ) -> HunkRead:
-        """One hunk as a reader sees it - quotes only for a reader of runs."""
+        """One hunk for a caller authorized to read its derived evidence."""
         return HunkRead(
             id=hunk.id,
             kind=hunk.kind,
@@ -938,7 +921,7 @@ class AuthoringService:
             evidence=[
                 EvidenceItemRead(
                     run_id=UUID(item["run_id"]),
-                    quote=item.get("quote") if quotes else None,
+                    quote=item.get("quote"),
                     source=item.get("source"),
                     number=item.get("number"),
                 )

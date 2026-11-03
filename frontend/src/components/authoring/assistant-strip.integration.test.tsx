@@ -72,11 +72,11 @@ beforeEach(() => {
 });
 
 describe("the assistant's controls, by permission", () => {
-  it("lets a member who may edit but not read runs decide what waits, and ask for nothing", () => {
+  it("hides generated suggestions from an editor who may not read runs", () => {
     held.permissions = new Set([Perm.agentsEdit, Perm.skillsEdit]);
     surfaces();
-    expect(screen.getByRole("button", { name: "Accept" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Dismiss all" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Accept" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Dismiss all" })).toBeNull();
     for (const name of [
       "Improve",
       "Verify my edits",
