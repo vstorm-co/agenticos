@@ -63,8 +63,6 @@ environment without a person's decision.
 
 ### Added
 
-- Prepare private, checksummed coding runtimes and pinned Claude Code/Codex adapters without host developer tools. Coding-agent setup and browser sign-in are available in desktop settings.
-- Install the verified local runtime on Windows and supported Linux desktops, resume Windows setup after a required restart, show download progress and retry the same workspace. Pin new local instances to the packaged platform release and back up database, media and deployment keys before updates.
 
 - **Datasets.** Versioned test questions with expected tool calls, checks, a
   reference answer and tags. Cases are written in the console, imported from
@@ -186,10 +184,7 @@ environment without a person's decision.
 
 ### Fixed
 
-- Keep existing workspaces visible after starting the local runtime, repair incomplete macOS runtime installations and verify Docker Inc's signing identity before requesting installer elevation.
-- Remember native coding-agent startup consent per agent, folder, adapter version and connection; revoke it with folder/account access and stop affected agents. Preserve local grants on reconnect, avoid repeated credential probes on focus, hide background Windows console windows, wait for HTTP readiness and refuse remote Docker contexts or platform downgrades during local setup.
 
-- Prepare the local runtime from the macOS setup wizard and restart saved local workspaces when the desktop app opens. Pull public product images with a private anonymous configuration to avoid credential-helper and keychain prompts, and pass Docker helper paths to subprocesses launched from Finder.
 
 - Keep incomparable eval runs from presenting score differences as confirmed
   regressions or fixes; retain their individual answers and grading results.
@@ -244,6 +239,19 @@ environment without a person's decision.
 - A suite and a promotion override can be set up only by a person signed in as
   themselves, not through an API key or impersonation.
 
+## [1.39.0] - 2026-11-03
+
+### Added
+
+- Prepare private, checksummed coding runtimes and pinned Claude Code/Codex adapters without host developer tools. Coding-agent setup and browser sign-in are available in desktop settings.
+- Install the verified local runtime on Windows and supported Linux desktops, resume Windows setup after a required restart, show download progress and retry the same workspace. Pin new local instances to the packaged platform release and back up database, media and deployment keys before updates.
+
+### Fixed
+
+- Keep existing workspaces visible after starting the local runtime, repair incomplete macOS runtime installations and verify Docker Inc's signing identity before requesting installer elevation.
+- Remember native coding-agent startup consent per agent, folder, adapter version and connection; revoke it with folder/account access and stop affected agents. Preserve local grants on reconnect, avoid repeated credential probes on focus, hide background Windows console windows, wait for HTTP readiness and refuse remote Docker contexts or platform downgrades during local setup.
+
+- Prepare the local runtime from the macOS setup wizard and restart saved local workspaces when the desktop app opens. Pull public product images with a private anonymous configuration to avoid credential-helper and keychain prompts, and pass Docker helper paths to subprocesses launched from Finder.
 ## [1.38.4] - 2026-11-03
 
 ### Fixed
@@ -20058,7 +20066,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.38.4...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.39.0...HEAD
+[1.39.0]: https://github.com/vstorm-co/agenticos/compare/v1.38.4...v1.39.0
 [1.38.4]: https://github.com/vstorm-co/agenticos/compare/v1.38.3...v1.38.4
 [1.38.3]: https://github.com/vstorm-co/agenticos/compare/v1.38.2...v1.38.3
 [1.38.2]: https://github.com/vstorm-co/agenticos/compare/v1.38.1...v1.38.2
