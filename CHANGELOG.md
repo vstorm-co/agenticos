@@ -21,6 +21,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Background-job audit and table-retention integration tests no longer depend on
+  PostgreSQL returning rows in insertion order.
 - Clearing the Architect's uploaded avatar restores its generated face, just as
   it does for other agents. The special mark no longer overrides an empty avatar.
 
