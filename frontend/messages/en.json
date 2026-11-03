@@ -13220,7 +13220,7 @@
       "reviewFilter": "Show",
       "filterPending": "Waiting for a decision ({count})",
       "filterAll": "All results ({count})",
-      "nothingAwaitingReviewBody": "An eval run sends here the regressions it confirmed and the answers its judge failed to grade, and its page any others you pick. Answers graded by hand follow the Grading tab's review setting.",
+      "nothingAwaitingReviewBody": "Confirmed regressions and answers the judge could not grade appear here. You can also send other results from an eval run. Answers graded by hand follow the review policy above.",
       "groupByHand": "Graded by hand",
       "groupEvalRun": "Eval run · {when}",
       "agentGone": "An agent that is gone",

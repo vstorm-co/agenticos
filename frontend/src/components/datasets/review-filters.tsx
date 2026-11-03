@@ -48,14 +48,21 @@ export function ReviewFilters({ filter, onChange, waiting, all, tags }: ReviewFi
 
   return (
     <div className="flex flex-wrap items-center gap-2" data-tour="datasets-review-filter">
-      <div role="group" aria-label={t("reviewFilter")} className="flex rounded-md border p-0.5">
+      <div
+        role="group"
+        aria-label={t("reviewFilter")}
+        className="flex w-full flex-col rounded-md border p-0.5 sm:w-auto sm:flex-row"
+      >
         {([true, false] as const).map((pending) => (
           <Button
             key={String(pending)}
             size="sm"
             variant="ghost"
             aria-pressed={filter.pending === pending}
-            className={cn(filter.pending === pending && "bg-muted")}
+            className={cn(
+              "h-auto min-h-8 py-1.5 whitespace-normal",
+              filter.pending === pending && "bg-muted",
+            )}
             onClick={() => set({ pending })}
           >
             {pending ? t("filterPending", { count: waiting }) : t("filterAll", { count: all })}
@@ -66,7 +73,7 @@ export function ReviewFilters({ filter, onChange, waiting, all, tags }: ReviewFi
         value={filter.outcome ?? ANY}
         onValueChange={(value) => set({ outcome: value === ANY ? null : (value as ScoreOutcome) })}
       >
-        <SelectTrigger className="w-40" aria-label={t("filterOutcome")}>
+        <SelectTrigger className="w-full sm:w-40" aria-label={t("filterOutcome")}>
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
@@ -81,7 +88,7 @@ export function ReviewFilters({ filter, onChange, waiting, all, tags }: ReviewFi
           value={filter.agentId ?? ANY}
           onValueChange={(value) => set({ agentId: value === ANY ? null : value })}
         >
-          <SelectTrigger className="w-44" aria-label={t("filterAgent")}>
+          <SelectTrigger className="w-full sm:w-44" aria-label={t("filterAgent")}>
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -99,7 +106,7 @@ export function ReviewFilters({ filter, onChange, waiting, all, tags }: ReviewFi
           value={filter.tag ?? ANY}
           onValueChange={(value) => set({ tag: value === ANY ? null : value })}
         >
-          <SelectTrigger className="w-36" aria-label={t("filterTag")}>
+          <SelectTrigger className="w-full sm:w-36" aria-label={t("filterTag")}>
             <SelectValue />
           </SelectTrigger>
           <SelectContent>

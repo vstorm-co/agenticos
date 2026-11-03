@@ -12892,7 +12892,7 @@
       "reviewFilter": "Anzeigen",
       "filterPending": "Wartet auf Entscheidung ({count})",
       "filterAll": "Alle Ergebnisse ({count})",
-      "nothingAwaitingReviewBody": "Ein Eval-Run schickt die Regressionen hierher, die er bestätigt hat, und die Antworten, an denen sein Bewerter gescheitert ist, und seine Seite weitere, die Sie auswählen. Von Hand bewertete Antworten folgen der Prüfeinstellung im Tab Bewertung.",
+      "nothingAwaitingReviewBody": "Bestätigte Regressionen und Antworten, die der Bewerter nicht bewerten konnte, erscheinen hier. Sie können auch weitere Ergebnisse eines Eval-Runs hierher senden. Für manuell bewertete Antworten gilt die obige Prüfeinstellung.",
       "groupByHand": "Von Hand bewertet",
       "groupEvalRun": "Eval-Run · {when}",
       "agentGone": "Ein Agent, den es nicht mehr gibt",

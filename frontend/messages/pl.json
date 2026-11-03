@@ -12993,7 +12993,7 @@
       "reviewFilter": "Pokaż",
       "filterPending": "Czeka na decyzję ({count})",
       "filterAll": "Wszystkie wyniki ({count})",
-      "nothingAwaitingReviewBody": "Run ewaluacji wysyła tu potwierdzone regresje i odpowiedzi, przy których jego sędzia zawiódł, a jego strona inne, które wybierzesz. Odpowiedzi ocenione ręcznie podlegają ustawieniu przeglądu w zakładce Ocenianie.",
+      "nothingAwaitingReviewBody": "Trafiają tu potwierdzone regresje i odpowiedzi, których sędzia nie zdołał ocenić. Możesz też wysłać inne wyniki ze strony runu ewaluacji. Odpowiedzi ocenione ręcznie trafiają tu zgodnie z ustawieniem powyżej.",
       "groupByHand": "Oceniane ręcznie",
       "groupEvalRun": "Run ewaluacji · {when}",
       "agentGone": "Agent, którego już nie ma",
