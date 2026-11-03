@@ -4,9 +4,9 @@
 expansion, on every search that uses it) filter a `rag_<collection>` table by
 `parent_doc_id` and the caller's scope. No index covered the column, so each one
 read every row of the scope: 40-100 ms each on a 300k-row table with a
-240k-row tenant. With the index each is under a millisecond. `_ensure_collection` now builds it with the table; this
-builds it on every existing runtime table, the same reasoning as
-`0058_backfill_rag_lookup_indexes`.
+240k-row tenant. With the index each is under a millisecond.
+`_ensure_collection` now builds it with the table; this builds it on every
+existing runtime table, the same reasoning as `0058_backfill_rag_lookup_indexes`.
 
 **A plain btree on the column**, not a composite with the tenant or base key.
 A vector document id is a UUID per parsed document, so the index narrows a
