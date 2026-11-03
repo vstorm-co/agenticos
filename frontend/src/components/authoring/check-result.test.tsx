@@ -225,3 +225,11 @@ describe("CheckResults", () => {
     expect(screen.queryByRole("link")).toBeNull();
   });
 });
+
+it("keeps an incomparable dataset check neutral despite its raw flip counts", () => {
+  given("invalid", {}, { verdict: "invalid", regressions_confirmed: 4 });
+  render(<CheckResult agentId="agent-1" runId="invalid" />);
+  const link = screen.getByRole("link", { name: /the two sides cannot be compared/ });
+  expect(link).not.toHaveClass("text-destructive");
+  expect(link).not.toHaveClass("text-success");
+});

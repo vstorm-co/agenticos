@@ -416,3 +416,30 @@ it("keeps loading and run-read failures distinct from a zero-case measurement", 
   await userEvent.click(screen.getByRole("button", { name: "Try reading again" }));
   expect(state.retryRun).toHaveBeenCalled();
 });
+
+it("keeps invalid result and acceptance summaries from reusing a previous verdict", () => {
+  state.compared = comparison({ verdict: "invalid", fixed_confirmed: 3, cases: [FLIP] });
+  const view = render(<ResultSummary session={SESSION} round={ROUND} />);
+  expect(screen.getByRole("alert")).toHaveTextContent("These results cannot be compared.");
+  expect(screen.queryByText("Newly fixed")).toBeNull();
+  expect(screen.queryByText("Newly broken")).toBeNull();
+  expect(
+    screen.queryByRole("group", { name: /^In the agent: 3 questions newly fixed/ }),
+  ).toBeNull();
+  view.rerender(<AcceptSummary session={SESSION} round={ROUND} />);
+  expect(screen.getByRole("alert")).toHaveTextContent("These results cannot be compared.");
+  expect(screen.queryByRole("group")).toBeNull();
+});
+
+it("does not state stored improvements until the comparison is read, and offers retry on failure", async () => {
+  state.compared = null;
+  const view = render(<ResultSummary session={SESSION} round={ROUND} />);
+  expect(
+    screen.getByRole("group", { name: /^In the agent: no measured result yet/ }),
+  ).toBeVisible();
+  state.comparisonError = new Error("Comparison unavailable");
+  view.rerender(<ResultSummary session={SESSION} round={ROUND} />);
+  expect(screen.getByRole("alert")).toBeVisible();
+  await userEvent.click(screen.getByRole("button", { name: "Try reading again" }));
+  expect(state.comparisonRetry).toHaveBeenCalled();
+});

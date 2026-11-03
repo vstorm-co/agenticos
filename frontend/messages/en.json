@@ -15260,7 +15260,8 @@
     "startDataset": "Dataset",
     "startDatasetHint": "Choose the cases used to check this agent’s answers.",
     "analysisEstimate": "Estimated analysis cost",
-    "startCostHint": "Analysis comes first. Each later attempt is estimated separately, around {cost}, within the session limit."
+    "startCostHint": "Analysis comes first. Each later attempt is estimated separately, around {cost}, within the session limit.",
+    "comparisonInvalid": "These results cannot be compared. Review the individual answers without treating differences as fixes or regressions."
   },
   "unsaved": {
     "title": "You have unsaved changes",

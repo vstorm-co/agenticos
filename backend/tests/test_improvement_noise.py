@@ -11,6 +11,7 @@ import pytest
 
 from app.core.exceptions import NotFoundError
 from app.core.permissions import AuthContext, OrgRoleName, Perm
+from app.db.models.improvement import ImprovementRun
 from app.services import improvement_pipeline
 from app.services.improvement_pipeline import ImprovementPipelineService
 from app.services.improvement_states import (
@@ -234,10 +235,12 @@ def service(monkeypatch):
     pipeline = ImprovementPipelineService(AsyncMock())
     monkeypatch.setattr(pipeline, "_may_continue", AsyncMock(return_value=True))
     first = SimpleNamespace(
+        verdict="no_difference",
         baseline_summary=SimpleNamespace(passed=5, pass_rate=0.5),
         cases=[_flip(0, True, reruns=[False, True]), *[_flip(i, True) for i in range(1, 10)]],
     )
     second = SimpleNamespace(
+        verdict="no_difference",
         baseline_summary=SimpleNamespace(passed=8, pass_rate=0.8),
         cases=[_flip(i, i < 8) for i in range(10)],
     )
@@ -295,3 +298,20 @@ async def test_a_listed_session_carries_no_noise_and_opens_no_check(service, mon
     compare.assert_not_awaited()
     read = await pipeline._read(OWNER, _session("stopped"))  # type: ignore[arg-type]
     assert read.measurement_noise is not None
+
+
+async def test_an_invalid_comparison_is_not_used_as_measurement_noise(
+    service: tuple[ImprovementPipelineService, AsyncMock, SimpleNamespace],
+) -> None:
+    pipeline, compare, second = service
+    invalid = SimpleNamespace(
+        verdict="invalid",
+        cases=[_flip(i, i < 2) for i in range(10)],
+    )
+    compare.side_effect = [invalid, second]
+    read = await pipeline._read(OWNER, ImprovementRun(**vars(_session("stopped"))))
+    noise = read.measurement_noise
+    assert noise is not None
+    assert [attempt.number for attempt in noise.by_attempt] == [2]
+    assert not noise.noisy
+    assert noise.between is None

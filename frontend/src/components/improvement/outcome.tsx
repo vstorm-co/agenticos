@@ -13,6 +13,7 @@ import { getErrorMessage } from "@/lib/api-error";
 import type { Improvement, ImprovementIteration } from "@/types/improvement";
 import { StepError } from "./step-error";
 import { Tiles } from "./widgets";
+import { IncomparableResult } from "./incomparable-result";
 import { SessionTopic } from "./session-topic";
 
 function counts(round: ImprovementIteration | undefined) {
@@ -55,13 +56,28 @@ export function ResultSummary({
 }) {
   const t = useTranslations("improvement");
   const { topics, added } = useSessionTopics(session);
-  const measured = counts(round);
   const runId = round?.eval_run_ids.at(-1);
-  const { comparison } = useEvalComparison(runId ?? "", { enabled: runId !== undefined });
+  const { comparison, error, refetch } = useEvalComparison(runId ?? "", {
+    enabled: runId !== undefined,
+  });
+  const measured = comparison && comparison.verdict !== "invalid" ? counts(round) : null;
   const unconfirmed = (flip: "fixed" | "regression") =>
     comparison?.cases.filter((c) => c.flip === flip && !c.confirmed).length ?? 0;
   const more = (count: number) => (count > 0 ? t("notConfirmedMore", { count }) : undefined);
   const knowledge = t("resultKnowledge", { count: topics.length, added: added.length });
+  if (error) return <StepError error={error} retry={refetch} />;
+  if (comparison?.verdict === "invalid" && runId) {
+    return (
+      <div className="space-y-3">
+        <IncomparableResult
+          agentId={session.agent_id}
+          runId={runId}
+          reason={comparison.invalid_reason}
+        />
+        <p className="text-muted-foreground text-sm">{knowledge}</p>
+      </div>
+    );
+  }
   const pending = measured ? unconfirmed("fixed") + unconfirmed("regression") : 0;
   return (
     <div className="space-y-2">
@@ -177,6 +193,7 @@ export function AcceptSummary({
   if (!measured || !runId) return <p className="text-sm">{t("resultAgentUnknown")}</p>;
   return (
     <AgentSentence
+      agentId={session.agent_id}
       runId={runId}
       version={session.next_version ?? null}
       heldOut={round?.held_out ?? null}
@@ -186,12 +203,14 @@ export function AcceptSummary({
 }
 
 function AgentSentence({
+  agentId,
   runId,
   version,
   heldOut: measuredHoldout,
   fixed,
   broken,
 }: {
+  agentId: string;
   runId: string;
   version: number | null;
   heldOut: number | null;
@@ -205,6 +224,10 @@ function AgentSentence({
   if (error) return <StepError error={error} retry={refetch} />;
   if (measured.error) return <StepError error={measured.error} retry={measured.refetch} />;
   if (!comparison || !measured.run) return <p role="status">{t("loading")}</p>;
+  if (comparison.verdict === "invalid")
+    return (
+      <IncomparableResult agentId={agentId} runId={runId} reason={comparison.invalid_reason} />
+    );
   const before = comparison.baseline_summary;
   const after = comparison.candidate_summary;
   const total = measured.run.cases;

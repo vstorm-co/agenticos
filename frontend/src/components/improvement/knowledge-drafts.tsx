@@ -349,14 +349,19 @@ function KnowledgeResult({
         <p role="status">{t("working")}</p>
       ) : run.status !== "completed" ? (
         <p role="alert">{t("attributionUnavailable")}</p>
-      ) : comparison?.verdict === "invalid" &&
-        comparison.invalid_reason_code === "knowledge_not_retrieved" ? (
-        <p>{t("knowledgeNotRetrieved")}</p>
+      ) : comparison?.verdict === "invalid" ? (
+        <p role="alert">
+          {t(
+            comparison.invalid_reason_code === "knowledge_not_retrieved"
+              ? "knowledgeNotRetrieved"
+              : "comparisonInvalid",
+          )}
+        </p>
       ) : (
         comparison && (
           <p>
             {t(
-              `verdict.${comparison.verdict === "better" ? "better" : comparison.verdict === "worse" || comparison.regressions_confirmed > 0 ? "regression" : comparison.verdict === "invalid" ? "inconclusive" : "no_change"}`,
+              `verdict.${comparison.verdict === "better" ? "better" : comparison.verdict === "worse" || comparison.regressions_confirmed > 0 ? "regression" : "no_change"}`,
               { fixed: comparison.fixed_confirmed, broken: comparison.regressions_confirmed },
             )}
           </p>

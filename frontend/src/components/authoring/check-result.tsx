@@ -50,6 +50,7 @@ export function checkSentence(
 
 function tone(run: EvalRun, comparison: EvalComparison): string {
   const status = run.suite_check?.status;
+  if (!status && comparison.verdict === "invalid") return "text-muted-foreground";
   if (status === "failed" || (!status && comparison.regressions_confirmed > 0)) {
     return "border-destructive/40 text-destructive";
   }

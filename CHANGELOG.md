@@ -186,8 +186,10 @@ environment without a person's decision.
 
 
 
-- Keep incomparable eval runs from presenting score differences as confirmed
-  regressions or fixes; retain their individual answers and grading results.
+- Keep incomparable eval runs and improvement rounds from presenting score
+  differences as confirmed regressions or fixes, including knowledge checks and
+  acceptance summaries. Exclude invalid comparisons from measurement noise;
+  retain their individual answers and grading results.
 - Preserve assistant replies with file origins in chat history by serializing
   their UUID references before writing JSONB.
 - Show an exceeded eval budget explicitly instead of describing a negative

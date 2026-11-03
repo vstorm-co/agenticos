@@ -541,3 +541,21 @@ it("names what an attempt's cost covers, apart from the session's analysis", () 
   render(<AttemptRow session={SESSION} round={{ ...ROUND, cost_usd: "0.0758" }} />);
   expect(screen.getByText("writing + test: $0.0758")).toBeInTheDocument();
 });
+
+it("does not infer changes or success tones from an invalid comparison", () => {
+  state.compared = comparison({
+    verdict: "invalid",
+    invalid_reason: "The two runs were scored with different scoring settings.",
+    cases: [{ ...FLIP, flip: "fixed", confirmed: true }],
+    fixed_confirmed: 1,
+  });
+  const { container } = render(<RoundResults session={SESSION} round={ROUND} />);
+  expect(screen.getByRole("alert")).toHaveTextContent("These results cannot be compared.");
+  expect(screen.queryByText(/Changed questions:/)).not.toBeInTheDocument();
+  expect(screen.queryByText(/The bars count/)).not.toBeInTheDocument();
+  expect(container.querySelector(".text-success, .text-destructive")).toBeNull();
+  expect(screen.getByRole("link", { name: "Open the full check" })).toHaveAttribute(
+    "href",
+    "/agents/agent-1/evals/main",
+  );
+});

@@ -1056,6 +1056,8 @@ class ImprovementPipelineService:
                 comparison = await self.evals.compare(ctx, iteration.eval_run_ids[-1])
             except NotFoundError:
                 continue
+            if comparison.verdict == "invalid":
+                continue
             attempts.append(
                 rules.CheckedAttempt(
                     number=iteration.number,
