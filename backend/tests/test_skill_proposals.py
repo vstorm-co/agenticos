@@ -22,19 +22,28 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from app.core.exceptions import AlreadyExistsError, ConcurrentChangeError, NotFoundError
+from app.core.exceptions import (
+    AlreadyExistsError,
+    ConcurrentChangeError,
+    ConflictError,
+    NotFoundError,
+)
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.skill_proposal import ProposalStatus, SkillProposal
-from app.repositories import skill_proposal_repo, skill_repo
+from app.db.models.skill_version import SkillVersionSource
+from app.repositories import skill_proposal_repo, skill_repo, skill_version_repo
 from app.schemas.resource_usage import ProposalDecision
 from app.services import proposal_reach
 from app.services import skill_proposal as skill_proposal_module
 from app.services.skill_proposal import SkillProposalService
+from app.services.skill_versions import SkillVersionService
 from app.services.skill_workspace import SkillChange
 
 pytestmark = pytest.mark.anyio
 
 _DECISION = ProposalDecision(revision=1)
+_V3 = uuid.uuid4()
+"""The id of the version the skill is at in these tests, v3, and the proposals' base."""
 _ROWS: dict[uuid.UUID, MagicMock] = {}
 
 
@@ -51,6 +60,9 @@ def _proposal(**overrides: object) -> MagicMock:
         resources={},
         status=ProposalStatus.PENDING.value,
         base_version=3,
+        base_version_id=_V3,
+        fork_id=None,
+        authoring_request_id=None,
         revision=1,
         created_at=datetime(2026, 10, 1, tzinfo=UTC),
     )
@@ -66,6 +78,7 @@ def _change(**overrides: object) -> SkillChange:
         "name": "refunds",
         "skill_id": uuid.uuid4(),
         "base_version": 3,
+        "base_version_id": _V3,
         "description": "How refunds work now.",
         "content": "Ask for the receipt.",
         "resources": {},
@@ -88,9 +101,12 @@ def _service(monkeypatch) -> SkillProposalService:
     service.skills.create = AsyncMock(return_value=skill)
     service.skills.update = AsyncMock(return_value=skill)
     service.skills.put_resources = AsyncMock(return_value=[])
-    service.skills.get = AsyncMock(return_value=MagicMock(version=3, updated_at=None))
+    service.skills.get = AsyncMock(
+        return_value=MagicMock(version=3, latest_version_id=_V3, updated_at=None)
+    )
     monkeypatch.setattr(skill_repo, "lock", AsyncMock())
     monkeypatch.setattr(skill_proposal_repo, "decide_if", AsyncMock(side_effect=_decided))
+    monkeypatch.setattr(skill_version_repo, "get_versions", AsyncMock(return_value={}))
     # Who may decide a proposal is the integration tests' question; here everybody may.
     monkeypatch.setattr(skill_repo, "get", AsyncMock(return_value=MagicMock()))
     monkeypatch.setattr(skill_repo, "get_many", AsyncMock(return_value={}))
@@ -133,8 +149,56 @@ class TestRecordingWhatARunWrote:
 
         assert len(recorded) == 1
         assert created.call_args.kwargs["base_version"] == 3
+        assert created.call_args.kwargs["base_version_id"] == _V3
+        assert created.call_args.kwargs["fork_id"] is None
         service.skills.update.assert_not_called()
         service.skills.create.assert_not_called()
+
+    async def test_a_change_read_from_a_fork_is_proposed_for_that_fork(self, monkeypatch):
+        """The line comes from the version the run was given, so an agent on a fork
+        proposes to its fork and never to the main line it was not reading."""
+        service = _service(monkeypatch)
+        fork_id = uuid.uuid4()
+        monkeypatch.setattr(
+            skill_version_repo,
+            "get_versions",
+            AsyncMock(return_value={_V3: MagicMock(id=_V3, fork_id=fork_id)}),
+        )
+        monkeypatch.setattr(
+            skill_proposal_repo, "get_pending_for_skill", AsyncMock(return_value=None)
+        )
+        created = AsyncMock(return_value=_proposal())
+        monkeypatch.setattr(skill_proposal_repo, "create", created)
+
+        await service.record(_ctx(), [_change()], agent_id=uuid.uuid4(), conversation_id=None)
+
+        assert created.call_args.kwargs["fork_id"] == fork_id
+
+    async def test_a_change_from_a_fork_with_no_versions_yet_is_for_that_fork(self, monkeypatch):
+        """Such a fork serves the main version it started from: the binding names the fork."""
+        service = _service(monkeypatch)
+        fork_id = uuid.uuid4()
+        change = _change()
+        monkeypatch.setattr(
+            skill_version_repo,
+            "get_versions",
+            AsyncMock(return_value={_V3: MagicMock(id=_V3, fork_id=None)}),
+        )
+        monkeypatch.setattr(
+            skill_proposal_repo, "get_pending_for_skill", AsyncMock(return_value=None)
+        )
+        created = AsyncMock(return_value=_proposal())
+        monkeypatch.setattr(skill_proposal_repo, "create", created)
+
+        await service.record(
+            _ctx(),
+            [change],
+            agent_id=uuid.uuid4(),
+            conversation_id=None,
+            forks={change.skill_id: fork_id},
+        )
+
+        assert created.call_args.kwargs["fork_id"] == fork_id
 
     async def test_a_second_turn_replaces_the_pending_proposal(self, monkeypatch):
         """A reviewer asked the same question three times has been given more
@@ -155,6 +219,7 @@ class TestRecordingWhatARunWrote:
 
         replaced.assert_awaited_once()
         assert replaced.call_args.kwargs["base_version"] == 5
+        assert replaced.call_args.kwargs["base_version_id"] == _V3
         created.assert_not_called()
 
     async def test_a_proposal_decided_meanwhile_is_left_alone_and_a_new_one_made(self, monkeypatch):
@@ -211,7 +276,7 @@ class TestApplying:
         service = _service(monkeypatch)
         proposal = _proposal(base_version=3)
         monkeypatch.setattr(skill_proposal_repo, "get", AsyncMock(return_value=proposal))
-        service.skills.get = AsyncMock(return_value=MagicMock(version=3))
+        service.skills.get = AsyncMock(return_value=MagicMock(version=3, latest_version_id=_V3))
         monkeypatch.setattr(skill_repo, "lock", AsyncMock())
 
         decided = await service.apply(_ctx(), proposal.id, _DECISION)
@@ -223,7 +288,9 @@ class TestApplying:
         service = _service(monkeypatch)
         proposal = _proposal(base_version=3)
         monkeypatch.setattr(skill_proposal_repo, "get", AsyncMock(return_value=proposal))
-        service.skills.get = AsyncMock(return_value=MagicMock(version=4))
+        service.skills.get = AsyncMock(
+            return_value=MagicMock(version=4, latest_version_id=uuid.uuid4())
+        )
         monkeypatch.setattr(skill_repo, "lock", AsyncMock())
 
         with pytest.raises(ConcurrentChangeError, match="changed since"):
@@ -237,11 +304,12 @@ class TestApplying:
         service = _service(monkeypatch)
         proposal = _proposal(base_version=3)
         monkeypatch.setattr(skill_proposal_repo, "get", AsyncMock(return_value=proposal))
-        skill = MagicMock(version=3)
+        skill = MagicMock(version=3, latest_version_id=_V3)
         service.skills.get = AsyncMock(return_value=skill)
 
         async def edited_meanwhile(_db: object, _skill_id: object) -> MagicMock:
             skill.version = 4
+            skill.latest_version_id = uuid.uuid4()
             return skill
 
         monkeypatch.setattr(skill_repo, "lock", edited_meanwhile)
@@ -256,7 +324,7 @@ class TestApplying:
     ):
         """A workspace change recorded before proposals kept a version has only its age."""
         service = _service(monkeypatch)
-        proposal = _proposal(base_version=None)
+        proposal = _proposal(base_version=None, base_version_id=None)
         monkeypatch.setattr(skill_proposal_repo, "get", AsyncMock(return_value=proposal))
         service.skills.get = AsyncMock(
             return_value=MagicMock(version=7, updated_at=datetime(2026, 10, 2, tzinfo=UTC))
@@ -271,7 +339,7 @@ class TestApplying:
         self, monkeypatch
     ):
         service = _service(monkeypatch)
-        proposal = _proposal(base_version=None)
+        proposal = _proposal(base_version=None, base_version_id=None)
         monkeypatch.setattr(skill_proposal_repo, "get", AsyncMock(return_value=proposal))
         service.skills.get = AsyncMock(
             return_value=MagicMock(version=7, updated_at=datetime(2026, 9, 30, tzinfo=UTC))
@@ -280,6 +348,99 @@ class TestApplying:
         decided = await service.apply(_ctx(), proposal.id, _DECISION)
 
         assert decided.status == ProposalStatus.APPLIED.value
+
+    async def test_a_proposal_from_before_versions_at_an_old_number_is_refused(self, monkeypatch):
+        """Versioning recorded only the text a skill had then, as v1, and re-pointed
+        the proposals written against it. One left with only a number was written
+        against a text that is gone - even when that number is the skill's own now."""
+        service = _service(monkeypatch)
+        proposal = _proposal(base_version=3, base_version_id=None)
+        monkeypatch.setattr(skill_proposal_repo, "get", AsyncMock(return_value=proposal))
+
+        with pytest.raises(ConcurrentChangeError, match="changed since"):
+            await service.apply(_ctx(), proposal.id, _DECISION)
+
+        service.skills.update.assert_not_called()
+
+    @pytest.mark.parametrize(
+        ("request_id", "source"),
+        [(None, SkillVersionSource.WORKSPACE), (uuid.uuid4(), SkillVersionSource.IMPROVE)],
+    )
+    async def test_the_version_it_makes_says_where_the_change_came_from(
+        self, monkeypatch, request_id, source
+    ):
+        """An agent's own edit, or the assistant's proposal - History tells them apart."""
+        service = _service(monkeypatch)
+        proposal = _proposal(authoring_request_id=request_id)
+        monkeypatch.setattr(skill_proposal_repo, "get", AsyncMock(return_value=proposal))
+
+        await service.apply(_ctx(), proposal.id, _DECISION)
+
+        assert service.skills.update.await_args.kwargs == {
+            "source": source,
+            "proposal_id": proposal.id,
+        }
+
+    async def test_a_change_with_files_is_one_version_not_two(self, monkeypatch):
+        """The text is written without a version, and the files with it record the one."""
+        service = _service(monkeypatch)
+        proposal = _proposal(resources={"reconcile.py": "print(1)"})
+        monkeypatch.setattr(skill_proposal_repo, "get", AsyncMock(return_value=proposal))
+
+        await service.apply(_ctx(), proposal.id, _DECISION)
+
+        assert service.skills.update.await_args.kwargs["source"] is None
+        assert service.skills.put_resources.await_args.kwargs == {
+            "source": SkillVersionSource.WORKSPACE,
+            "proposal_id": proposal.id,
+        }
+
+    async def test_a_change_to_a_fork_is_the_forks_next_version(self, monkeypatch):
+        """Main is left alone; the fork's version keeps its files, takes the new one, and a
+        file the change rewrote keeps the description it had."""
+        service = _service(monkeypatch)
+        fork = MagicMock(
+            id=uuid.uuid4(), latest_version_id=_V3, base_version_id=uuid.uuid4(), archived_at=None
+        )
+        proposal = _proposal(fork_id=fork.id, resources={"new.md": "two", "kept.md": "four"})
+        monkeypatch.setattr(skill_proposal_repo, "get", AsyncMock(return_value=proposal))
+        monkeypatch.setattr(skill_version_repo, "get_fork", AsyncMock(return_value=fork))
+        latest = MagicMock(
+            resources={
+                "old.md": {"sha256": "a", "description": None, "size_bytes": 3},
+                "kept.md": {"sha256": "b", "description": "When to refund", "size_bytes": 5},
+            }
+        )
+        monkeypatch.setattr(
+            skill_version_repo, "get_versions", AsyncMock(return_value={_V3: latest})
+        )
+        monkeypatch.setattr(skill_version_repo, "put_files", AsyncMock())
+        record_fork = AsyncMock()
+        monkeypatch.setattr(SkillVersionService, "record_fork", record_fork)
+
+        await service.apply(_ctx(), proposal.id, _DECISION)
+
+        service.skills.update.assert_not_called()
+        service.skills.put_resources.assert_not_called()
+        written = record_fork.await_args.kwargs
+        assert set(written["resources"]) == {"old.md", "new.md", "kept.md"}
+        assert written["resources"]["kept.md"]["description"] == "When to refund"
+        assert written["resources"]["new.md"]["description"] is None
+        assert written["source"] is SkillVersionSource.WORKSPACE
+        assert written["proposal_id"] == proposal.id
+
+    async def test_a_change_to_an_archived_fork_is_refused(self, monkeypatch):
+        """An archived fork takes no new version, from a person's edit or an agent's."""
+        service = _service(monkeypatch)
+        fork = MagicMock(id=uuid.uuid4(), latest_version_id=_V3, archived_at=datetime.now(UTC))
+        proposal = _proposal(fork_id=fork.id)
+        monkeypatch.setattr(skill_proposal_repo, "get", AsyncMock(return_value=proposal))
+        monkeypatch.setattr(skill_version_repo, "get_fork", AsyncMock(return_value=fork))
+
+        with pytest.raises(ConflictError, match="archived"):
+            await service.apply(_ctx(), proposal.id, _DECISION)
+
+        assert proposal.status == ProposalStatus.PENDING.value
 
     async def test_the_resources_are_written_too(self, monkeypatch):
         """A skill whose script did not come with it is a skill that no longer

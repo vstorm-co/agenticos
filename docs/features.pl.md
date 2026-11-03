@@ -1,5 +1,5 @@
 ---
-source_sha: "b8de3c3b35e1"
+source_sha: "21569b3f9ec9"
 ---
 
 # Funkcje { #features }
@@ -259,12 +259,23 @@ Zaplanuj run albo odpal go na zdarzenie. Ten sam spec, ten sam budżet, ten sam
 
 [Triggery →](triggers.md)
 
-## Hostowany u siebie i cichy { #self-hosted-and-quiet }
+## Hostowany u siebie i jasny co do tego, co wychodzi { #self-hosted-and-quiet }
 
 Docker Compose, Twój Postgres, Twój Redis, Twój sprzęt.
 
-Nic nie dzwoni do domu. Ceny modeli pochodzą ze snapshotu dołączonego do wydania,
-a jedyne żądania wychodzące to te, które robią Twoi agenci.
+Twoje prompty, rozmowy i dokumenty zostają w Twoim wdrożeniu, w jego bazie danych
+i magazynie. Nie trafiają nigdzie, dopóki nie dodasz czegoś, co wskazuje cel:
+profilu modelu, dostawcy embeddingów albo parsowania dla kolekcji, serwera MCP
+albo kanału. Ceny modeli pochodzą ze snapshotu dołączonego do wydania.
+
+Jeden raport jest domyślnie włączony: [diagnostyka wdrożenia](configuration.md#diagnostics).
+Raz na godzinę worker wysyła wersję, stan bazy i workera, zgrubne liczniki użycia
+oraz liczby nieudanych runów, zadań i ingestii według zamkniętej kategorii.
+Zalogowane przeglądarki oraz aplikacje desktopowe i mobilne wysyłają
+pseudonimowy sygnał aktywności prosto do kolektora. Nie są wysyłane prompty,
+rozmowy, nazwy plików, nazwy kont, adresy e-mail, klucze providerów ani
+komunikaty wyjątków. Ustaw `DIAGNOSTICS_ENABLED=false`, żeby go wyłączyć, albo
+wskaż `DIAGNOSTICS_COLLECTOR_URL` na kolektor, który prowadzisz.
 
 ## Open source { #open-source }
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "3b37854bab7f"
+source_sha: "b3f95ce9d50a"
 title: "AgenticOS vs n8n"
 seo_title: "AgenticOS vs n8n: alternatywa na Apache-2.0 dla agentów AI"
 description: "Porównaj n8n z AgenticOS pod kątem agentów AI: licencja, SSO i role bez płatnych planów, budżety per agent zamiast limitów wykonań oraz zatwierdzenia."
@@ -34,7 +34,7 @@ Utrzymuje zespół AgenticOS. Źródła sprawdzono 21 października 2026. Wersja
 
 Sustainable Use License n8n pozwala na użycie „wyłącznie do własnych wewnętrznych celów biznesowych albo do użytku niekomercyjnego lub osobistego”. Funkcje w plikach `.ee` wymagają płatnego klucza licencyjnego. Strona z cennikiem n8n mówi, że klucz licencyjny w self-hostingu codziennie łączy się z serwerem licencji.
 
-AgenticOS jest na licencji Apache-2.0. Możesz go uruchamiać dla klientów, zmieniać i budować na nim produkt; sprawdź [licencje dołączonych komponentów](../licenses.md#the-agpl-component) dla obrazu, który dostarczasz. Świeża instalacja [niczego nigdzie nie wysyła](../data-protection.md#nothing-leaves-by-default).
+AgenticOS jest na licencji Apache-2.0. Możesz go uruchamiać dla klientów, zmieniać i budować na nim produkt; sprawdź [licencje dołączonych komponentów](../licenses.md#the-agpl-component) dla obrazu, który dostarczasz. Świeża instalacja [nie wysyła nigdzie promptów ani dokumentów](../data-protection.md#nothing-leaves-by-default); [diagnostyka wdrożenia](../configuration.md#diagnostics) jest domyślnie włączona i można ją wyłączyć.
 
 ### Kontrole klasy enterprise bez zmiany planu { #enterprise-controls-without-a-plan-upgrade }
 

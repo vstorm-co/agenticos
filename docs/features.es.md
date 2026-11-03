@@ -1,5 +1,5 @@
 ---
-source_sha: "b8de3c3b35e1"
+source_sha: "21569b3f9ec9"
 ---
 
 # Funciones { #features }
@@ -262,12 +262,25 @@ mismo rastro de auditoría — solo que sin nadie tecleando.
 
 [Triggers →](triggers.md)
 
-## Autoalojado, y silencioso { #self-hosted-and-quiet }
+## Autoalojado, y claro sobre lo que sale { #self-hosted-and-quiet }
 
 Docker Compose, tu Postgres, tu Redis, tu hardware.
 
-Nada llama a casa. Los precios de los modelos vienen de una instantánea incluida
-en la release, y las únicas peticiones salientes son las que hacen tus agents.
+Tus prompts, conversaciones y documentos se quedan en tu propio deployment, en
+su base de datos y su almacenamiento. No van a ninguna parte a menos que añadas
+algo que nombre un destino: un perfil de modelo, un provider de embeddings o de
+parseo para una colección, un servidor MCP o un canal. Los precios de los modelos
+vienen de una instantánea incluida con la release.
+
+Un informe está activado por defecto: el [diagnóstico del
+deployment](configuration.md#diagnostics). Una vez por hora el worker envía la
+versión, el estado de la base de datos y del worker, recuentos de uso aproximados
+y recuentos de runs, jobs e ingestas fallidos por categoría cerrada. Los
+navegadores con sesión iniciada y las apps de escritorio y móvil envían una señal
+de actividad seudónima directamente al colector. No se envía ningún prompt,
+conversación, nombre de archivo, nombre de cuenta, correo electrónico, clave de
+provider ni mensaje de excepción. Establece `DIAGNOSTICS_ENABLED=false` para
+desactivarlo, o apunta `DIAGNOSTICS_COLLECTOR_URL` a un colector que ejecutes tú.
 
 ## Código abierto { #open-source }
 

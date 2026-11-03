@@ -728,28 +728,14 @@ class DatasetService:
         reads = [_case_read(case) for case in cases]
         if ctx.has(Perm.RUNS_VIEW):
             return reads
-        accessible: dict[UUID, bool] = {}
-        conversations = ConversationService(self.db)
+        readable = await ConversationService(self.db).readable(
+            ctx,
+            {case.source_conversation_id for case in cases if case.source_conversation_id},
+        )
         for case, read in zip(cases, reads, strict=True):
             if case.source != CaseSource.CONVERSATION.value and case.source_conversation_id is None:
                 continue
-            source = case.source_conversation_id
-            if source is not None and source not in accessible:
-                allowed = False
-                if ctx.user_id is not None:
-                    try:
-                        await conversations.get_conversation(
-                            source,
-                            organization_id=ctx.organization_id,
-                            user_id=ctx.subject_id,
-                            ctx=ctx,
-                            include_favourite=False,
-                        )
-                        allowed = True
-                    except NotFoundError:
-                        allowed = False
-                accessible[source] = allowed
-            if source is not None and accessible[source]:
+            if case.source_conversation_id in readable:
                 continue
             read.input = "From a conversation you cannot open"
             read.history = []

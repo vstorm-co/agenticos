@@ -64,7 +64,14 @@ class Skill(Base, TimestampMixin):
     # which is a fine thing for a skill to be.
     category: Mapped[str | None] = mapped_column(String(64), nullable=True)
 
+    # `content`, `description`, `version` and `resources` mirror the newest main version
+    # (`latest_version_id`); only `SkillVersionService` moves them together.
     version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    latest_version_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("skill_versions.id", ondelete="SET NULL", use_alter=True),
+        nullable=True,
+    )
     # The fingerprint of the bundled folder this row was last written from, or
     # null for a skill somebody wrote here. `seed-skills` compares it with the row
     # as it stands: equal means nobody has edited the copy, so a newer bundled
@@ -80,6 +87,9 @@ class Skill(Base, TimestampMixin):
 
     __table_args__ = (
         UniqueConstraint("organization_id", "name", name="uq_skill_org_name"),
+        # The target of the versions' and forks' tenant keys, so a version can only
+        # ever belong to a skill of its own organization.
+        UniqueConstraint("id", "organization_id", name="uq_skills_tenant"),
         CheckConstraint("visibility IN ('private', 'team', 'org')", name="ck_skill_visibility"),
     )
 

@@ -135,6 +135,24 @@ class SkillProposal(Base, TimestampMixin):
     edited after it was proposed.
     """
 
+    base_version_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("skill_versions.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    """The exact version the body was written against. Apply compares it with the
+    newest version of the same line; a proposal recorded before versions has only
+    `base_version`, and is treated as written against a skill that has since moved."""
+
+    fork_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("skill_forks.id", ondelete="CASCADE"),
+        nullable=True,
+        index=True,
+    )
+    """The fork the change is for, or `None` for main: the line its agent read from."""
+
     rationale: Mapped[str] = mapped_column(Text, nullable=False, default="")
     evidence: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, nullable=False, default=list)
     """Checked against the runs the proposal was derived from; see `spec_proposal_hunks`."""

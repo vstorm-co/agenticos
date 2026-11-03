@@ -14,8 +14,26 @@ from app.agents.capabilities.skills._capability import (
     Skills,
     to_toolkit_skill,
 )
+from app.agents.capabilities.skills._log import (
+    SKILL_USE_LOG_RESOURCE,
+    ServedSkill,
+    SkillUseLog,
+    served_skills,
+    tool_identities,
+)
 
-__all__ = ["SAFE_SKILL_TOOLS", "SKILL_BODIES_RESOURCE", "SkillBody", "Skills", "to_toolkit_skill"]
+__all__ = [
+    "SAFE_SKILL_TOOLS",
+    "SKILL_BODIES_RESOURCE",
+    "SKILL_USE_LOG_RESOURCE",
+    "ServedSkill",
+    "SkillBody",
+    "SkillUseLog",
+    "Skills",
+    "served_skills",
+    "to_toolkit_skill",
+    "tool_identities",
+]
 
 
 @register(
@@ -58,4 +76,8 @@ def _build(ctx: CapabilityBuildContext) -> Skills | None:
     skills = ctx.resources.get("skills") or []
     if not skills:
         return None
-    return Skills(skills=skills, bodies=ctx.resources.get(SKILL_BODIES_RESOURCE))
+    return Skills(
+        skills=skills,
+        bodies=ctx.resources.get(SKILL_BODIES_RESOURCE),
+        log=ctx.resources.get(SKILL_USE_LOG_RESOURCE),
+    )

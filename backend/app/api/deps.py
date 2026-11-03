@@ -845,6 +845,8 @@ def get_stats_service(db: DBSession) -> StatsService:
 StatsSvc = Annotated[StatsService, Depends(get_stats_service)]
 
 from app.services.skill_proposal import SkillProposalService
+from app.services.skill_agents import SkillAgentService
+from app.services.skill_versions import SkillVersionService
 from app.services.skills import SkillService
 
 
@@ -854,6 +856,22 @@ def get_skill_service(db: DBSession) -> SkillService:
 
 
 SkillSvc = Annotated[SkillService, Depends(get_skill_service)]
+
+
+def get_skill_version_service(db: DBSession) -> SkillVersionService:
+    """Create SkillVersionService instance with database session."""
+    return SkillVersionService(db)
+
+
+SkillVersionSvc = Annotated[SkillVersionService, Depends(get_skill_version_service)]
+
+
+def get_skill_agent_service(db: DBSession) -> SkillAgentService:
+    """Create SkillAgentService instance with database session."""
+    return SkillAgentService(db)
+
+
+SkillAgentSvc = Annotated[SkillAgentService, Depends(get_skill_agent_service)]
 
 from app.services.context import ContextService
 

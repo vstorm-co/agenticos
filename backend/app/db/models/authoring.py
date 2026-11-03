@@ -188,8 +188,13 @@ class AuthoringRequest(Base):
         nullable=True,
         index=True,
     )
+    # `now()` is one value for a whole transaction; the newest row is the one
+    # written last only if each insert reads the clock for itself.
     created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), nullable=False
+        DateTime(timezone=True),
+        default=func.clock_timestamp(),
+        server_default=func.now(),
+        nullable=False,
     )
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
@@ -264,7 +269,10 @@ class SpecProposalBatch(Base):
         index=True,
     )
     created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), nullable=False
+        DateTime(timezone=True),
+        default=func.clock_timestamp(),
+        server_default=func.now(),
+        nullable=False,
     )
     closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 

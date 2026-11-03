@@ -8465,7 +8465,8 @@
         "forkFiles": "Only the description and instructions belong to the fork. Its files come from the main version it started from, and files are edited on main.",
         "noBase": "This skill has no saved version to write over yet. Reload the page and try again."
       }
-    }
+    },
+    "savedMainVersion": "Saved as a new main version. Agents on main read it from their next run; pinned agents and forks keep theirs."
   },
   "states": {
     "loading": "Loading"

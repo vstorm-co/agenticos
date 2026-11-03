@@ -38,7 +38,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.capabilities.subagents import SubagentsConfig
-from app.agents.spec import AgentSpec
+from app.agents.spec import AgentSpec, SkillBindingSpec
 from app.agents.system_agents import JUDGE, refuse_system_agent
 from app.core.audit import current_impersonator, record_audit
 from app.core.background import spawn_after_commit
@@ -171,6 +171,42 @@ def binds(spec: AgentSpec, kind: DependencyKind, resource_id: UUID) -> bool:
     except ValidationError:
         return False
     return any(resource_id in getattr(specialist, field) for specialist in config.inline)
+
+
+def reads_skill_line(spec: AgentSpec, skill_id: UUID, fork_id: UUID | None) -> bool:
+    """Whether a version reads the newest version of one line of the skill - main's when
+    `fork_id` is None, that fork's otherwise - itself or through a specialist it defines.
+
+    A binding pinned to a main version reads neither: a new version reaches it only
+    when somebody moves it.
+    """
+
+    def on_line(skill_ids: list[UUID], bindings: list[SkillBindingSpec]) -> bool:
+        if skill_id not in skill_ids:
+            return False
+        binding = next((binding for binding in bindings if binding.skill_id == skill_id), None)
+        if binding is None:
+            return fork_id is None
+        return binding.version is None and binding.fork_id == fork_id
+
+    if on_line(spec.skill_ids, spec.skill_bindings):
+        return True
+    binding = delegation_binding(spec)
+    if binding is None:
+        return False
+    try:
+        config = SubagentsConfig.model_validate(binding.config)
+    except ValidationError:
+        return False
+    return any(on_line(item.skill_ids, item.skill_bindings) for item in config.inline)
+
+
+def reaches(spec: AgentSpec, kind: DependencyKind, resource_id: UUID, fork_id: UUID | None) -> bool:
+    """Whether a change to this resource reaches a version: for a skill, one on the line
+    that changed; for anything else, any version that binds it."""
+    if kind == "skill":
+        return reads_skill_line(spec, resource_id, fork_id)
+    return binds(spec, kind, resource_id)
 
 
 def fires_per_month(schedule: EvalSuiteSchedule, *, now: datetime) -> int:
@@ -1236,9 +1272,15 @@ class EvalSuiteService:
             await self._pause(suite, reason="environment_gone")
 
     async def dependency_changed(
-        self, *, organization_id: UUID, kind: DependencyKind, resource_id: UUID
+        self,
+        *,
+        organization_id: UUID,
+        kind: DependencyKind,
+        resource_id: UUID,
+        fork_id: UUID | None = None,
     ) -> None:
-        """Queue the suites whose checked version binds what changed.
+        """Queue the suites whose checked version reads what changed - for a skill, the
+        line that changed: main's when `fork_id` is None, or that fork's.
 
         Due a quiet period later, so the burst of edits one change usually is -
         a document upload of thirty files, a skill and its resources - is one
@@ -1246,7 +1288,7 @@ class EvalSuiteService:
         """
         due = datetime.now(UTC) + timedelta(seconds=settings.EVAL_SUITE_DEPENDENCY_DEBOUNCE_SECONDS)
         for suite, version in await self.watching(
-            organization_id=organization_id, kind=kind, resource_id=resource_id
+            organization_id=organization_id, kind=kind, resource_id=resource_id, fork_id=fork_id
         ):
             await self._enqueue(
                 suite,
@@ -1257,13 +1299,18 @@ class EvalSuiteService:
             )
 
     async def watching(
-        self, *, organization_id: UUID, kind: DependencyKind, resource_id: UUID
+        self,
+        *,
+        organization_id: UUID,
+        kind: DependencyKind,
+        resource_id: UUID,
+        fork_id: UUID | None = None,
     ) -> list[tuple[EvalSuite, AgentVersion]]:
         """The suites a change to this resource queues, each with the version it checks."""
         return [
             (suite, version)
             for suite, version in await self.watchers(organization_id=organization_id)
-            if binds(AgentSpec.model_validate(version.spec), kind, resource_id)
+            if reaches(AgentSpec.model_validate(version.spec), kind, resource_id, fork_id)
         ]
 
     async def watchers(self, *, organization_id: UUID) -> list[tuple[EvalSuite, AgentVersion]]:

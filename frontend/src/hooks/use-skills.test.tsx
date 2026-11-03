@@ -138,7 +138,9 @@ describe("useSkills", () => {
     expect(cancelOrder).toBeLessThan(invalidateOrder);
   });
 
-  it("says an edit was saved", async () => {
+  it("says an edit reaches the agents on main and leaves pinned agents and forks", async () => {
+    // An edit is a new main version: the person saving it should know which agents
+    // read it next and which keep what they read.
     vi.mocked(apiClient.patch).mockResolvedValue({ name: "refunds" });
     const { result } = renderHook(() => useSkills(), { wrapper });
     await waitFor(() => expect(result.current.isLoading).toBe(false));
@@ -146,7 +148,7 @@ describe("useSkills", () => {
     await result.current.update.mutateAsync({ id: "s1", content: "# Refunds v2" });
 
     expect(apiClient.patch).toHaveBeenCalledWith("/skills/s1", { content: "# Refunds v2" });
-    expect(toastSuccess.mock.calls.at(-1)?.[0]).toBe("Saved.");
+    expect(toastSuccess.mock.calls.at(-1)?.[0]).toMatch(/agents on main.*pinned agents and forks/i);
   });
 });
 

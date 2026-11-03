@@ -1,5 +1,5 @@
 ---
-source_sha: "b5980b04db6b"
+source_sha: "2d76d0e782bd"
 ---
 
 # Skills { #skills }
@@ -140,6 +140,32 @@ y publicar un agent vinculado a un skill con ese nombre, también.
 Habilitar la capability sin ningún skill vinculado no sirve de nada — dale skills
 al agent, o deja la capability apagada.
 
+### Qué skills usó una respuesta { #which-skills-an-answer-used }
+
+Vincular un skill no significa que el modelo lo haya leído. Cada run registra los
+skills que de verdad usó, por el id del skill: si el modelo abrió uno con
+`load_capability` y cuántos de sus archivos leyó con `read_skill_resource`. Un run
+lo registra termine como termine, también si falló después de abrir el skill. Un
+skill que usó un delegado se registra en el run que delegó, bajo el agent del
+delegado, porque la respuesta que alguien valoró es la de ese run.
+
+Una llamada a una herramienta que nombra una ruta en la carpeta del skill dentro
+del workspace, como `cat /workspace/skills/refund-policy/SKILL.md`, cuenta aparte
+como uso probable. Listar la carpeta no cuenta. No se reconoce una ruta que arma
+una shell, un glob sobre varios skills ni un script que lee el archivo por su
+cuenta.
+
+`GET /api/v1/skills/{id}/usage?days=30` devuelve, por agent, cuántos runs usaron
+el skill en ese intervalo, con la versión que recibió cada uno. Los runs de evals
+y del panel de pruebas del Builder no cuentan. Las cifras salen de los runs, así
+que necesitan `runs:view`; un agent que quien llama no puede ver se cuenta, pero
+nunca se nombra.
+
+Los runs anteriores a este registro dicen «uso desconocido», que no es lo mismo
+que «no usado». Cuando se mejora un skill, sus evidencias salen solo de los runs
+que lo usaron, y los runs valorados negativamente o fallidos que podrían haberlo
+usado cuentan aparte como desconocidos.
+
 ## En un workspace, un skill también son archivos { #in-a-workspace-a-skill-is-also-files }
 
 Un agent que tiene a la vez skills y un
@@ -176,15 +202,15 @@ lista en la página Skills para quien pueda editar ese skill - su propietario o
 quien tenga un permiso de edición sobre él - y, para un skill que aún no existe,
 para cualquiera que pueda crear skills. Nadie más la ve:
 
-- **Apply** reescribe el skill y sube su versión, lo que alcanza a cada agent
-  vinculado en su siguiente run.
+- **Apply** guarda el cambio como la siguiente versión de la línea para la que
+  se escribió, que alcanza a los agents de esa línea en su siguiente run.
 - **Discard** conserva el registro. Un agent que propone la misma edición una y
   otra vez le está diciendo algo a alguien sobre ese skill, y una fila borrada
   lo vuelve invisible.
 
 !!! warning "Una decisión sobre una propuesta es definitiva"
 
-    Aplicar dos veces subiría una versión contra un cuerpo ya almacenado, y
+    Aplicar dos veces guardaría una segunda versión de un cuerpo ya almacenado, y
     descartar algo aplicado le diría a un lector que nunca llegó a entrar.
 
 La propuesta lleva el **cuerpo entero** en lugar de un diff, así que un revisor
@@ -222,6 +248,110 @@ avisa a los propietarios de esos agents. Una decisión nombra la versión del
 cambio que leíste: un cambio reescrito desde entonces - por un turno posterior o
 una petición nueva - se rechaza con «The proposal changed since you opened it»,
 y de dos decisiones tomadas a la vez solo cuenta una.
+
+## Versiones y forks { #versions-and-forks }
+
+Cada cambio guardado en un skill crea una versión nueva, y una versión no se
+modifica nunca después. La crea editar el texto o la descripción, y también añadir,
+cambiar o quitar un archivo, una actualización desde la biblioteca y un cambio
+aplicado desde el workspace de un agent o desde el
+[asistente de authoring](authoring.md#skills). Una categoría nueva por sí sola no
+la crea, porque ningún agent la lee.
+
+**History**, en la página del skill, lista las versiones de la más nueva a la más
+antigua. Cada una dice qué la creó (`backfill`, `created`, `edit`, `resources`,
+`library`, `workspace`, `improve` o `restore`) y cuándo, y quién la guardó a quien
+puede ver a los miembros de la organización. Una versión conserva sus archivos tal
+como estaban, así que cambiar un archivo después no cambia una versión anterior.
+
+Un skill que existía antes de las versiones tiene una versión, la v1: el texto y los
+archivos que tenía cuando empezó el versionado. No se registró nada anterior.
+
+**Restore** recupera una versión anterior como versión nueva, así que el historial
+queda completo, y la versión nueva dice de cuál procede.
+
+Una edición se guarda frente a la versión que leyó quien edita. Si alguien guardó
+una versión más nueva entretanto, la edición se rechaza en lugar de sobrescribirla.
+
+### Forks { #forks }
+
+Un fork es una línea con nombre de un skill que parte de una versión de main. Tiene
+sus propias versiones y su propia versión más reciente, así que un skill puede
+cambiar para algunos agents mientras main sigue igual. Mientras no tenga una
+versión propia, un fork sirve la versión de main de la que partió.
+
+- Un fork parte solo de main. Un fork de un fork se rechaza, así que el árbol tiene
+  un solo nivel.
+- El nombre de un fork es único dentro de su skill, incluidos los forks archivados.
+- Los archivos de un fork son los de la versión de la que se creó. Los archivos se
+  editan solo en main.
+- **Archive** hace que un fork no acepte versiones nuevas. Conserva sus versiones y
+  nunca se borra. Un fork que ningún run ha leído en 30 días se propone para
+  archivar; nada se archiva automáticamente. Una versión anterior de un agent que
+  aún lee un fork archivado no se promueve a ningún entorno: mueve el agent a otra
+  versión y promueve la versión que se publica.
+
+### Qué versión lee un agent { #which-version-an-agent-reads }
+
+Cada agent lee un skill vinculado de una de tres maneras:
+
+| Estado | Qué lee |
+|---|---|
+| Main | La versión más nueva de main. Así lee todo agent que no nombra otra |
+| Fijado | Una versión de main, hasta que alguien lo mueva |
+| Fork | La versión más nueva de un fork |
+
+La elección forma parte de la spec del agent, en `skill_bindings`, así que se
+publica, se promueve entre entornos y se exporta con el resto del agent. Una spec
+sin el campo lee main para cada skill, como hacía todo agent antes de que los
+skills tuvieran versiones. Publicar rechaza una versión que la línea main del skill
+no tiene, un fork de otro skill, un fork archivado y cualquier cosa de otra
+organización. Cada run registra las versiones de skill que sirvió, incluidas las de
+sus especialistas inline.
+
+Una versión nueva alcanza solo a los agents de su línea. Una versión nueva de main
+alcanza a los agents en main, y una versión nueva de un fork a los agents de ese
+fork: se ejecutan sus suites de evals, el cambio indica los entornos en los que
+entra y se avisa a sus propietarios. Un agent fijado no recibe ninguna.
+
+**Los agents de un skill** son los que lo ejecutan: lo vincula una versión que sirve
+uno de sus entornos, el propio agent o un especialista inline suyo. Un agent y cada
+uno de sus especialistas leen el skill a su manera, así que cada uno es una fila: la
+página del skill lo muestra con la versión que lee, cuántas versiones de main lleva
+de retraso y cualquier entorno que lo lea de otra forma. Un agent que vincula el
+skill solo en su borrador aparece marcado como tal. Los agents que no puedes ver se
+cuentan, no se nombran.
+
+**Change version** mueve un agent a main, a una versión de main o a un fork, y es un
+cambio del agent. Si el agent usa el skill por sí mismo se lee de su borrador, tal
+como lo muestra el Builder; un skill que solo vincula uno de sus especialistas se
+cambia en el Builder. Con permiso para publicarlo, la spec publicada más reciente
+del agent con solo ese vínculo cambiado entra como su siguiente versión, y los
+entornos se mueven según sus reglas habituales de seguimiento y promoción. El
+borrador recibe el mismo cambio y conserva sus demás ediciones sin terminar, que no
+entran. Con permiso solo para editar el agent, para un agent nunca publicado o para
+uno cuya versión publicada aún no vincula el skill, el cambio espera en el borrador
+y solo se comprueba el vínculo nuevo. Un Builder ya abierto en el agent no ve el
+cambio hasta que se recarga, y guardar antes vuelve a poner el vínculo anterior.
+
+### Borrar un skill { #deleting-a-skill }
+
+Un skill que usa un agent no se puede borrar. Es un skill vinculado por el borrador
+de un agent activo, o por una versión que sirve uno de sus entornos, del propio
+agent o de un especialista inline. El rechazo nombra los agents que puedes ver y
+cuenta los demás. Un skill que nadie usa se borra con sus versiones y sus forks.
+
+| Ruta | Qué hace |
+|---|---|
+| `GET /api/v1/skills/{id}/versions` | Las versiones de main, o de un fork con `?fork_id=`, de la más nueva a la más antigua |
+| `GET /api/v1/skills/{id}/versions/{version_id}` | Una versión, con su texto y la lista de sus archivos, cada uno con su SHA-256 |
+| `GET /api/v1/skills/{id}/versions/{version_id}/resources/{name}` | Un archivo tal como lo tenía esa versión |
+| `POST /api/v1/skills/{id}/versions` | Guarda una edición en main o en un fork, frente a `base_version_id` |
+| `POST /api/v1/skills/{id}/versions/{version_id}/restore` | Restaura una versión en su propia línea |
+| `GET`, `POST /api/v1/skills/{id}/forks` | Lista los forks o crea uno desde una versión de main |
+| `PATCH /api/v1/skills/{id}/forks/{fork_id}`, `POST …/archive` | Cambia el nombre de un fork o lo archiva |
+| `GET /api/v1/skills/{id}/agents` | Los agents del skill, la versión que lee cada uno y cuántos están ocultos |
+| `PUT /api/v1/skills/{id}/agents/{agent_id}/binding` | Mueve un agent a main, a una versión de main o a un fork |
 
 ## Cómo llegan los skills a una organización { #getting-skills-into-an-organization }
 
@@ -268,7 +398,7 @@ uv run agenticos cmd seed-skills --replace          # also overwrite copies edit
 Instala lo que falta y **actualiza lo que nadie ha editado**. Cada copia registra
 de qué versión incluida se escribió, así que cuando una versión mejora un skill
 incluido, la copia intacta de una organización se sustituye por la nueva — con sus
-archivos, con la versión incrementada y una entrada de auditoría
+archivos, como una versión nueva y con una entrada de auditoría
 `skill.refreshed`.
 
 Una copia editada aquí se deja exactamente como está, así que una política de

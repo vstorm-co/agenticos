@@ -60,7 +60,7 @@ environment without a person's decision.
 - **New permissions.** `datasets:view`, `datasets:edit`, `datasets:run` and
   `promotions:override` join the catalog with defaults for every built-in role.
   Starting or estimating an eval also needs `runs:view`.
-- **Migrations `0160_datasets.py` to `0215_main_128_merge.py`** add
+- **Migrations `0160_datasets.py` to `0248_merge_self_improvement.py`** add
   the dataset, eval, suite, knowledge gap and improvement tables and new
   columns on agents, agent runs, MCP connections, knowledge-base documents, API
   keys and background jobs, and extend the agent kind and notification event
@@ -199,6 +199,7 @@ environment without a person's decision.
 
 ### Fixed
 
+- CI, load tests and dependency freshness checks disable deployment diagnostics so ephemeral test installations and browser activity do not enter the live analytics collector.
 - Price embedding models OpenRouter serves by their bare OpenAI names, so
   knowledge searches through OpenRouter are no longer booked at $0.
 - Recommend a workspace the organization can publish when creating an agent,
@@ -226,6 +227,18 @@ environment without a person's decision.
   the generator reads them.
 - A suite and a promotion override can be set up only by a person signed in as
   themselves, not through an API key or impersonation.
+
+## [1.34.2] - 2026-11-01
+
+### Fixed
+
+- Documentation and `llms.txt` no longer say that nothing phones home or that a fresh install sends nothing anywhere. Deployment diagnostics are on by default, so the docs now state that prompts, conversations and documents stay in the deployment's own database, that diagnostics send the version, health, coarse usage counts and a pseudonymous activity signal, that the default collector is remote (`https://analytics-agenticos.testapp.ovh`), and how to turn them off with `DIAGNOSTICS_ENABLED=false`. The diagnostics collector is added to the lists of what leaves a deployment in the data protection and security pages, and the Polish, German and Spanish translations are updated to match.
+
+## [1.34.1] - 2026-11-01
+
+### Changed
+
+- Update the GitHub Actions the workflows use: `tauri-apps/tauri-action` to 1.0.0, `actions/download-artifact` to 8.0.2 and `actions/upload-artifact` to 7.0.2, among others. CI and release behaviour are unchanged.
 
 ## [1.34.0] - 2026-11-01
 

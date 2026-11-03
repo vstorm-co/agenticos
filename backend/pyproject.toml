@@ -1,6 +1,6 @@
 [project]
 name = "agenticos"
-version = "1.34.0"
+version = "1.34.2"
 description = "OS for your agents."
 requires-python = ">=3.15"
 license = { text = "Apache-2.0" }
@@ -732,6 +732,8 @@ include = [
     "app/repositories/local_service.py",
     "app/repositories/sandbox_connection.py",
     "app/repositories/skill_proposal.py",
+    "app/repositories/skill_usage.py",
+    "app/repositories/skill_version.py",
     "app/services/attachments.py",
     # The one subprocess in the chat attachment feature (#1591): a managed,
     # killable `soffice` for DOC. Every branch is a refusal or a teardown - a
@@ -745,7 +747,9 @@ include = [
     "app/services/sandbox_workspace.py",
     "app/services/sandboxd_compat.py",
     "app/services/usage_report.py",
+    "app/services/skill_agents.py",
     "app/services/skill_proposal.py",
+    "app/services/skill_versions.py",
     "app/services/skill_workspace.py",
     "app/services/channels/attachments.py",
     "app/services/channels/dedupe.py",
@@ -945,6 +949,8 @@ include = [
     "app/api/routes/v1/datasets.py",
     "app/db/models/knowledge_gap.py",
     "app/schemas/knowledge_gap.py",
+    "app/db/models/skill_usage.py",
+    "app/schemas/skill_usage.py",
     "app/repositories/knowledge_gap.py",
     "app/services/knowledge_gaps.py",
     "app/api/routes/v1/knowledge_gaps.py",
@@ -1470,6 +1476,8 @@ include = [
     "app/repositories/local_service.py",
     "app/repositories/sandbox_connection.py",
     "app/repositories/skill_proposal.py",
+    "app/repositories/skill_usage.py",
+    "app/repositories/skill_version.py",
     "app/services/attachments.py",
     # The one subprocess in the chat attachment feature (#1591): a managed,
     # killable `soffice` for DOC. Every branch is a refusal or a teardown - a
@@ -1483,7 +1491,9 @@ include = [
     "app/services/sandbox_workspace.py",
     "app/services/sandboxd_compat.py",
     "app/services/usage_report.py",
+    "app/services/skill_agents.py",
     "app/services/skill_proposal.py",
+    "app/services/skill_versions.py",
     "app/services/skill_workspace.py",
     "app/services/channels/attachments.py",
     "app/services/channels/dedupe.py",
@@ -1713,6 +1723,8 @@ include = [
     "app/api/routes/v1/datasets.py",
     "app/db/models/knowledge_gap.py",
     "app/schemas/knowledge_gap.py",
+    "app/db/models/skill_usage.py",
+    "app/schemas/skill_usage.py",
     "app/repositories/knowledge_gap.py",
     "app/services/knowledge_gaps.py",
     "app/api/routes/v1/knowledge_gaps.py",
