@@ -273,6 +273,14 @@ describe("a bot's three-way transcription choice", () => {
     expect(screen.getByRole("note")).toBeInTheDocument();
   });
 
+  it("names Discord, not Telegram, when warning a Discord bot on Mistral", () => {
+    mount(choose("mistral", "voxtral-mini-latest"), { platform: "discord" });
+
+    expect(screen.getByRole("note")).toHaveTextContent(
+      /^Discord sends voice messages as Ogg\/Opus/,
+    );
+  });
+
   it("warns a WhatsApp bot on Mistral about WhatsApp's Ogg notes, not Telegram's", () => {
     mount(choose("mistral", "voxtral-mini-latest"), { platform: "whatsapp" });
 

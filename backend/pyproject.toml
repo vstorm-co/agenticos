@@ -1,6 +1,6 @@
 [project]
 name = "agenticos"
-version = "1.35.4"
+version = "1.38.1"
 description = "OS for your agents."
 requires-python = ">=3.15"
 license = { text = "Apache-2.0" }
@@ -763,6 +763,8 @@ include = [
     "app/services/channels/telegram_press.py",
     "app/services/channels/whatsapp_format.py",
     "app/services/channels/whatsapp_payload.py",
+    # What the Discord adapter says and reads, without the I/O (#2079).
+    "app/services/channels/discord_protocol.py",
     "app/repositories/channel_prompt.py",
     "app/services/collection_access.py",
     "app/repositories/collection_teardown.py",
@@ -996,6 +998,7 @@ include = [
     "app/services/device_hub/_protocol.py",
     "app/services/device_hub/workspace.py",
     "app/services/device_hub/services.py",
+    "app/services/device_hub/local_context.py",
     "app/services/device_hub/exceptions.py",
     "app/api/routes/v1/device_hub.py",
     "app/db/models/organization_assistant.py",
@@ -1414,6 +1417,8 @@ include = [
     "app/services/channels/telegram_press.py",
     "app/services/channels/whatsapp_format.py",
     "app/services/channels/whatsapp_payload.py",
+    # What the Discord adapter says and reads, without the I/O (#2079).
+    "app/services/channels/discord_protocol.py",
     "app/repositories/channel_prompt.py",
     "app/services/collection_access.py",
     "app/repositories/collection_teardown.py",
@@ -1677,6 +1682,7 @@ include = [
     "app/services/device_hub/_protocol.py",
     "app/services/device_hub/workspace.py",
     "app/services/device_hub/services.py",
+    "app/services/device_hub/local_context.py",
     "app/services/device_hub/exceptions.py",
     "app/api/routes/v1/device_hub.py",
     "app/db/models/organization_assistant.py",

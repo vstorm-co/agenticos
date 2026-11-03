@@ -238,7 +238,7 @@ function SpecialistEditor({
             disabled={disabled}
             spellCheck={false}
             aria-invalid={showNameError || clash}
-            className="font-mono text-sm"
+            className="font-mono text-base md:text-sm"
             onBlur={() => setTouched(true)}
             onChange={(event) => {
               setTouched(true);

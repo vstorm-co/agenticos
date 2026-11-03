@@ -28,6 +28,7 @@ from app.repositories import (
     teams_conversation_repo,
 )
 from app.schemas.channel_bot import (
+    AccessPolicy,
     BotAgent,
     ChannelBotCreate,
     ChannelBotRead,
@@ -35,7 +36,9 @@ from app.schemas.channel_bot import (
     InheritedSpeechToTextRead,
 )
 from app.services.channels import (
+    INBOUND_PATHS,
     SECRET_MINTED_BY_US,
+    STREAM_ONLY,
     connection_state,
     get_adapter,
     inbound_webhook_url,
@@ -239,6 +242,11 @@ class ChannelBotService:
                 token=unseal_bot_token(bot),
                 api_base_url=bot.api_base_url,
                 app_token=unseal_slack_app_token(bot),
+                approved_guild_ids=(
+                    tuple(AccessPolicy.model_validate(bot.access_policy).discord_guild_ids)
+                    if bot.platform == "discord"
+                    else ()
+                ),
             ),
             name=f"open_channel_stream:{bot_id}",
         )
@@ -258,6 +266,7 @@ class ChannelBotService:
                 stored as a pair that can never run.
         """
         self._check_slack_fields(data.platform, data.slack_signing_secret, data.slack_app_token)
+        self._check_discord_policy(data.platform, data.access_policy)
         if data.speech_to_text_provider is not None:
             # The schema has already made the pair whole, and refused a key
             # without one, so the provider stands for all three.
@@ -506,6 +515,13 @@ class ChannelBotService:
                 details={"platform": platform},
             )
 
+    @staticmethod
+    def _check_discord_policy(platform: str, policy: AccessPolicy) -> None:
+        if platform != "discord" and policy.discord_guild_ids:
+            raise refused_field(
+                "access_policy.discord_guild_ids", "Only Discord bots use Discord server approvals"
+            )
+
     async def get(self, bot_id: UUID, *, for_update: bool = False) -> ChannelBot:
         """Get one of this organization's bots; raises NotFoundError if not found.
 
@@ -672,6 +688,8 @@ class ChannelBotService:
         # read and this write would tag the new envelopes with a version they
         # were not sealed under.
         bot = await self.get(bot_id, for_update=True)
+        if data.access_policy is not None:
+            self._check_discord_policy(bot.platform, data.access_policy)
         # Before `writable`, which would drop it as a NOT NULL column's sentinel:
         # a null here is somebody asking for a third state that no longer
         # exists - it used to be the pair that went null for "off" - and they are
@@ -683,6 +701,13 @@ class ChannelBotService:
             )
         self._check_whatsapp_update(bot, data)
         update_data = writable(data, over=ChannelBot)
+        if bot.platform in STREAM_ONLY and (
+            update_data.get("webhook_mode") or update_data.get("webhook_secret") is not None
+        ):
+            raise refused_field(
+                "webhook_mode",
+                f"A {bot.platform} bot connects over its own Gateway connection and takes no webhook",
+            )
         if "api_base_url" in update_data:
             self._check_server_url(bot.platform, update_data["api_base_url"])
         await self._check_transcription(bot, update_data)
@@ -821,6 +846,11 @@ class ChannelBotService:
         webhook URL from settings, and asks the adapter to register it.
         """
         bot = await self.get(bot_id)
+        if bot.platform not in INBOUND_PATHS:
+            raise BadRequestError(
+                message=f"A {bot.platform} bot has no webhook to register",
+                details={"platform": bot.platform},
+            )
         adapter = get_adapter(bot.platform)
         token = self.get_decrypted_token(bot)
         webhook_url = inbound_webhook_url(bot.platform, bot_id)

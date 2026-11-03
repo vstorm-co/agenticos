@@ -29,7 +29,13 @@ from sqlalchemy.ext.asyncio import create_async_engine
 from app.core.config import settings
 from app.db.vector_tables import VectorScope
 from app.services.background_jobs import enqueue
-from app.worker.jobs import CLEANUP_EXTERNAL_STATE, BasePurge, CleanupExternalState, Restamp
+from app.worker.jobs import (
+    CLEANUP_EXTERNAL_STATE,
+    BasePurge,
+    CleanupExternalState,
+    DiscardVectorDocument,
+    Restamp,
+)
 
 if TYPE_CHECKING:
     from collections.abc import AsyncGenerator
@@ -389,3 +395,17 @@ async def run_external_state_cleanup(job: CleanupExternalState) -> dict[str, int
         job.required_paths,
         job.base_purges,
     )
+
+
+async def discard_vector_document(job: DiscardVectorDocument) -> None:
+    """Remove the chunks of a document deleted while it indexed (#2565).
+
+    Raises on a store failure so the queue retries it; a missing table is a no-op,
+    so a retry after the collection was dropped settles.
+    """
+    async with _vector_store() as store:
+        await store.delete_document(
+            job.collection,
+            job.vector_document_id,
+            VectorScope(tenant=job.tenant, knowledge_base_id=job.knowledge_base_id),
+        )

@@ -144,7 +144,9 @@ function useChatColumns(): Column<ProjectChat>[] {
         hideBelow: "lg",
         className: "whitespace-nowrap",
         cell: (chat) =>
-          (chat.agents ?? []).length > 0 ? <ConversationAgents agents={chat.agents ?? []} /> : null,
+          (chat.agents ?? []).length > 0 || chat.coding_agents?.length ? (
+            <ConversationAgents agents={chat.agents ?? []} codingAgents={chat.coding_agents} />
+          ) : null,
       },
       {
         key: "activity",

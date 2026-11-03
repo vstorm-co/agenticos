@@ -1,7 +1,7 @@
 """A WhatsApp bot: its Cloud API registration and two-way link confirmation (#2076).
 
-Revision ID: 0248_whatsapp_channel
-Revises: 0247_merge_deployment_workflows
+Revision ID: 0251_whatsapp_channel
+Revises: 0250_discord_channel
 Create Date: 2026-11-02
 """
 
@@ -11,8 +11,8 @@ import sqlalchemy as sa
 
 from alembic import op
 
-revision: str = "0248_whatsapp_channel"
-down_revision: str | None = "0247_merge_deployment_workflows"
+revision: str = "0251_whatsapp_channel"
+down_revision: str | None = "0250_discord_channel"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
@@ -47,7 +47,7 @@ def upgrade() -> None:
     op.create_check_constraint(
         op.f(_SURFACE_CHECK),
         "agent_exposures",
-        "surface IN ('slack', 'telegram', 'mattermost', 'teams', 'whatsapp')",
+        "surface IN ('slack', 'telegram', 'mattermost', 'teams', 'discord', 'whatsapp')",
     )
 
 
@@ -57,7 +57,7 @@ def downgrade() -> None:
     op.create_check_constraint(
         op.f(_SURFACE_CHECK),
         "agent_exposures",
-        "surface IN ('slack', 'telegram', 'mattermost', 'teams')",
+        "surface IN ('slack', 'telegram', 'mattermost', 'teams', 'discord')",
     )
     op.drop_constraint(op.f(_CONFIRMED_USER_FK), "channel_link_requests", type_="foreignkey")
     op.drop_column("channel_link_requests", "confirm_code")

@@ -7,6 +7,7 @@ import {
   capabilityCardsOf,
   drawnUnderTheAnswer,
   followUpsOf,
+  filesChangedOf,
   memoryChangesOf,
   setupProposalsOf,
 } from "./turn-extras";
@@ -182,5 +183,33 @@ describe("setupProposalsOf", () => {
     expect(setupProposalsOf([call(PROPOSE_SETUP, { status: "running" })])).toEqual([]);
     expect(setupProposalsOf([call(PROPOSE_SETUP, { result: "not json" })])).toEqual([]);
     expect(setupProposalsOf([call(PROPOSE_SETUP, { result: '{"proposals": {}}' })])).toEqual([]);
+  });
+});
+
+describe("files a turn changed", () => {
+  it("combines exact coding report paths and successful writes without duplicates", () => {
+    expect(
+      filesChangedOf([
+        call("run_coding_agent", {
+          result: JSON.stringify({
+            files_changed: ["site/index.html", "site/style.css", null, ""],
+          }),
+        }),
+        call("write_file", { args: { path: "site/index.html" } }),
+        call("edit_file", { args: { file_path: "README.md" } }),
+      ]),
+    ).toEqual(["site/index.html", "site/style.css", "README.md"]);
+  });
+  it("ignores failed writes, reads, refusals and reports without changed files", () => {
+    expect(filesChangedOf(undefined)).toEqual([]);
+    expect(
+      filesChangedOf([
+        call("write_file", { status: "error", args: { path: "a" } }),
+        call("read_file", { args: { path: "b" } }),
+        call("write_file"),
+        call("run_coding_agent", { result: "refused" }),
+        call("run_coding_agent", { result: "{}" }),
+      ]),
+    ).toEqual([]);
   });
 });

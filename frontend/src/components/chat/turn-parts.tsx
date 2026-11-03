@@ -1,5 +1,6 @@
 "use client";
 
+import { Fragment, useState } from "react";
 import { Lightbulb, MessageCircleQuestion } from "lucide-react";
 import { useTranslations } from "next-intl";
 
@@ -13,6 +14,7 @@ import { useInChatScope } from "@/stores/chat-scope-context";
 import type { DelegateRef } from "@/lib/delegations";
 import type { McpServerRef } from "@/lib/tool-steps";
 import type { MessagePart, ToolCall } from "@/types";
+import type { TurnFileSource } from "@/types/chat";
 import type { Mentionable } from "@/types/mention";
 import { AgentSteps } from "./agent-step";
 import { TurnBrowses } from "./browser-card";
@@ -52,7 +54,7 @@ export function TurnParts({
   mcpServers,
   agents = [],
   openLastStep = false,
-  conversationId,
+  fileSource,
   onCiteClick,
   startedAt,
   durationMs,
@@ -66,7 +68,7 @@ export function TurnParts({
   /** The agents the reader can see, for naming a delegate; empty on a public page. */
   agents?: readonly DelegateRef[];
   openLastStep?: boolean;
-  conversationId?: string;
+  fileSource?: TurnFileSource;
   onCiteClick?: (index: number) => void;
   /** When the turn began, which a live turn counts its working time from. */
   startedAt?: Date;
@@ -75,6 +77,7 @@ export function TurnParts({
   /** The run was stopped part-way, so its work ends without an answer or a "Done". */
   stopped?: boolean;
 }) {
+  const [mobileWorkOpen, setMobileWorkOpen] = useState(false);
   const runs = runsOf(parts);
   const elapsed = useTurnElapsed(startedAt, isStreaming);
   // A browse is shown in the turn whether or not the steps around it fold:
@@ -93,7 +96,7 @@ export function TurnParts({
             <ToolCallCard
               key={part.id}
               toolCall={part.toolCall!}
-              conversationId={conversationId}
+              fileSource={fileSource}
               mcpServers={mcpServers}
               agents={agents}
               // The last call of that turn, which is the one whose result the
@@ -139,9 +142,36 @@ export function TurnParts({
   if (isStreaming) {
     return (
       <>
-        {runs.some(isWork) && <WorkingLine elapsedMs={elapsed} />}
+        {runs.some(isWork) && (
+          <>
+            <div className="hidden md:block">
+              <WorkingLine elapsedMs={elapsed} />
+            </div>
+            <div className="md:hidden">
+              <WorkingLine
+                elapsedMs={elapsed}
+                expanded={mobileWorkOpen}
+                onToggle={() => setMobileWorkOpen((open) => !open)}
+              />
+            </div>
+          </>
+        )}
         <TurnBrowses calls={browseCalls(runs)} />
-        {runs.map((run, index) => render(run, true, index > 0 && isWork(runs[index - 1]!)))}
+        {runs.map((run, index) => {
+          // Questions, approvals, failures and tool payloads stay reachable while
+          // routine progress folds on small screens. Text keeps its turn order.
+          const foldable = isWork(run) && (run.kind !== "tools" || !mustShowEveryStep(run.parts));
+          return foldable ? (
+            <Fragment key={run.kind === "tools" ? run.parts[0].id : run.part.id}>
+              <div className={cn(!mobileWorkOpen && "hidden md:block")} data-work-detail>
+                {render(run, false)}
+              </div>
+              <TurnVisuals calls={visualCalls([run])} />
+            </Fragment>
+          ) : (
+            render(run, true, index > 0 && isWork(runs[index - 1]!))
+          );
+        })}
       </>
     );
   }

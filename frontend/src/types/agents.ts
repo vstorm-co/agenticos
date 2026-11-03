@@ -22,6 +22,11 @@ export type ApprovalMode = "default" | "required" | "never";
  * would be passed over for. An absent key means the value the capability
  * declared in code.
  */
+export interface LocalCodingAgent {
+  harness: "claude_code" | "codex";
+  access: "edit" | "read_only";
+}
+
 export interface ToolOverride {
   name?: string;
   description?: string;
@@ -527,6 +532,11 @@ export interface Agent {
   published_model?: PublishedModel | null;
   /** Enabled bindings from the frozen version; absent on older servers. */
   published_capabilities?: string[] | null;
+  /**
+   * The coding agent the published version runs on the person's own computer, or
+   * null when it runs none there; the composer names it. Listing only.
+   */
+  local_coding_agent?: LocalCodingAgent | null;
   /** The published version's first messages, which an empty chat offers. Listing only. */
   starters?: string[];
   created_at?: string;
@@ -858,13 +868,18 @@ export interface JsonSchemaProperty {
    * `model-profile` is one of the organization's model profiles, chosen from
    * the same picker the Builder uses for the agent's own model.
    */
-  "x-widget"?: "model-profile" | "browser-connection" | "computer-environment";
+  "x-widget"?:
+    "model-profile" | "browser-connection" | "computer-environment" | "coding-environment";
   /**
    * The choices an enum offers for each value of another field of the form -
    * the coding agent's models, which depend on its harness. A choice the other
    * field no longer allows is cleared when that field changes.
    */
-  "x-enum-when"?: { field: string; choices: Record<string, string[]> };
+  "x-enum-when"?: {
+    field: string;
+    choices: Record<string, string[]>;
+    unless?: { field: string; equals: string[] };
+  };
   /**
    * Show this field only while another field of the same form holds one of
    * these values - a proxy's address under "Through a proxy" and nowhere else.

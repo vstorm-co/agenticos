@@ -74,6 +74,8 @@ export const TABLE_DETAIL = "table-detail";
  * One workflow's runs, `/workflows/<id>/runs`, collapsed the same way. Not
  * `/workflows/runs` - every workflow's runs - which is a page of its own.
  */
+export const WORKFLOW_DETAIL = "workflow-detail";
+
 export const WORKFLOW_RUNS_DETAIL = "workflow-runs-detail";
 
 /** One workflow's log, `/workflows/<id>/logs`: "?"-only and shown in place, like its runs. */
@@ -133,8 +135,8 @@ export interface TourStep {
   id: string;
   page?: string;
   target?: string;
-  /** A `[data-tour="…"]` to click before spotlighting — a tab that reveals the target. */
-  activate?: string;
+  /** Controls to activate in order before spotlighting, such as a dialog and its tab. */
+  activate?: string | readonly string[];
   permission?: Permission;
   /** A section visible to holders of any of these grants. */
   anyPermission?: readonly Permission[];
@@ -184,13 +186,32 @@ export const TOUR_STEPS: readonly TourStep[] = [
   { id: "chat-start", page: ROUTES.CHAT, target: "chat-start", inTour: true },
   { id: "chat-agent-picker", page: ROUTES.CHAT, target: "chat-agent-picker", inTour: true },
   { id: "chat-composer", page: ROUTES.CHAT, target: "chat-composer" },
+  {
+    id: "chat-local-skills",
+    page: ROUTES.CHAT,
+    target: "chat-local-skills",
+    activate: "chat-settings",
+    optional: true,
+  },
+  {
+    id: "chat-local-coding",
+    page: ROUTES.CHAT,
+    target: "chat-local-coding",
+    activate: "chat-settings",
+    optional: true,
+  },
   // Only there once an agent has planned something, so `optional` - an
   // organization whose agents carry no planning capability would otherwise wait
   // four seconds for a strip that never mounts.
   { id: "chat-plan", page: ROUTES.CHAT, target: "chat-plan", optional: true },
   // Only where an agent has drawn something in the conversation on screen.
   { id: "chat-visual", page: ROUTES.CHAT, target: "chat-visual", optional: true },
-  { id: "chat-model-picker", page: ROUTES.CHAT, target: "chat-model-picker" },
+  {
+    id: "chat-model-picker",
+    page: ROUTES.CHAT,
+    target: "chat-model-picker",
+    activate: "chat-settings",
+  },
   // The call button sits in the composer whenever an agent is selected - offered
   // or crossed out - but readiness loads after the page, so the stop is optional:
   // a slow read must not pin the caption to nothing (#54).
@@ -202,7 +223,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
     id: "chat-approval-mode",
     page: ROUTES.CHAT,
     target: "chat-approval-mode",
-    activate: "chat-settings",
+    activate: ["chat-settings", "chat-settings-preferences"],
     optional: true,
   },
   // Same popover, and rendered only for an agent bound to each person's own
@@ -212,7 +233,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
     id: "chat-your-connections",
     page: ROUTES.CHAT,
     target: "chat-your-connections",
-    activate: "chat-settings",
+    activate: ["chat-settings", "chat-settings-preferences"],
     optional: true,
   },
 
@@ -220,6 +241,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
     id: "agents-templates",
     page: ROUTES.AGENTS,
     target: "agents-templates",
+    activate: "page-secondary-actions",
     permission: Perm.agentsEdit,
     inTour: true,
   },
@@ -349,6 +371,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
     id: "agent-test",
     page: AGENT_BUILDER,
     target: "agent-test",
+    activate: "page-secondary-actions",
     permission: Perm.agentsEdit,
     inTour: true,
   },
@@ -358,6 +381,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
     id: "agent-share",
     page: AGENT_BUILDER,
     target: "agent-share",
+    activate: "page-secondary-actions",
     permission: Perm.agentsView,
   },
   {
@@ -381,6 +405,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
     id: "skills-gallery",
     page: ROUTES.SKILLS,
     target: "skills-gallery",
+    activate: "page-secondary-actions",
     permission: Perm.skillsEdit,
     inTour: true,
   },
@@ -447,6 +472,18 @@ export const TOUR_STEPS: readonly TourStep[] = [
     page: ROUTES.WORKFLOWS,
     target: "workflows-list",
     permission: Perm.workflowsView,
+  },
+  {
+    id: "workflow-canvas-fullscreen",
+    page: WORKFLOW_DETAIL,
+    target: "workflow-canvas-fullscreen",
+    optional: true,
+  },
+  {
+    id: "workflow-step-view",
+    page: WORKFLOW_DETAIL,
+    target: "workflow-step-view",
+    optional: true,
   },
   // Every workflow's runs, filtered on the server: one describing stop on the list.
   {
@@ -702,11 +739,17 @@ export const TOUR_STEPS: readonly TourStep[] = [
     id: "table-columns",
     page: TABLE_DETAIL,
     target: "table-columns",
+    activate: "page-secondary-actions",
     optional: true,
   },
   // Ungated: any member who can open the table can read its triggers, and the
   // sheet itself hides the controls from one who cannot edit them.
-  { id: "table-triggers", page: TABLE_DETAIL, target: "table-triggers" },
+  {
+    id: "table-triggers",
+    page: TABLE_DETAIL,
+    target: "table-triggers",
+    activate: "page-secondary-actions",
+  },
   { id: "table-view-tabs", page: TABLE_DETAIL, target: "table-view-tabs" },
 
   { id: "orgs-new", page: ROUTES.ORGS, target: "orgs-new" },
@@ -884,6 +927,41 @@ export const TOUR_STEPS: readonly TourStep[] = [
   { id: "project-tabs", page: PROJECT_DETAIL, target: "project-tabs" },
   { id: "project-file-location", page: PROJECT_DETAIL, target: "project-file-location" },
 
+  {
+    id: "project-file-fullscreen",
+    page: PROJECT_DETAIL,
+    target: "workspace-fullscreen",
+    optional: true,
+  },
+  {
+    id: "workspace-file-fullscreen",
+    page: WORKSPACE_DETAIL,
+    target: "workspace-fullscreen",
+    optional: true,
+  },
+  {
+    id: "agent-editor-fullscreen",
+    page: AGENT_BUILDER,
+    target: "text-editor-expand",
+    activate: "agent-tab-build",
+    permission: Perm.agentsView,
+    optional: true,
+  },
+  {
+    id: "skill-editor-fullscreen",
+    page: ROUTES.SKILLS,
+    target: "text-editor-expand",
+    permission: Perm.skillsView,
+    optional: true,
+  },
+  {
+    id: "context-editor-fullscreen",
+    page: ROUTES.CONTEXT,
+    target: "text-editor-expand",
+    permission: Perm.contextView,
+    optional: true,
+  },
+
   // Other vendors' agents, reached over A2A (#2092). The list is what the page
   // is for; registering is `agents:edit`, which the button carries.
   {
@@ -942,6 +1020,12 @@ export const TOUR_STEPS: readonly TourStep[] = [
   // in the shared layout, so it lands on whichever of the four pages the reader
   // opened help from. Ungated: everyone has their own settings.
   { id: "settings-tabs", page: SETTINGS_DETAIL, target: "settings-tabs" },
+  {
+    id: "desktop-local-agents",
+    page: SETTINGS_DETAIL,
+    target: "desktop-local-agents",
+    optional: true,
+  },
   // The Appearance card - theme, voice glow, motion. On the profile tab only,
   // so `optional`: help opened on another tab has no card to wait four seconds
   // for. Ungated, like the tabs: these are every person's own preferences.
@@ -1011,6 +1095,8 @@ export function pageKey(path: string): string {
   if (path.startsWith(`${ROUTES.ARTIFACTS}/`)) return ARTIFACT_DETAIL;
   if (WORKFLOW_RUNS_PATH.test(path)) return WORKFLOW_RUNS_DETAIL;
   if (WORKFLOW_LOGS_PATH.test(path)) return WORKFLOW_LOGS_DETAIL;
+  if (/^\/workflows\/[^/]+$/.test(path) && path !== ROUTES.WORKFLOW_ALL_RUNS)
+    return WORKFLOW_DETAIL;
   return path;
 }
 

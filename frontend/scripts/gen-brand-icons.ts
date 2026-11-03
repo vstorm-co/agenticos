@@ -123,6 +123,7 @@ const BRANDS: Readonly<Record<string, Source>> = {
   databricks: logos("databricks-icon"),
   datadog: logos("datadog-icon"),
   deepl: thesvg("deepl"),
+  discord: logos("discord-icon"),
   docker: logos("docker-icon"),
   dropbox: logos("dropbox"),
   duckduckgo: thesvg("duckduckgo"),

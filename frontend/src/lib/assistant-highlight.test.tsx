@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { act, cleanup, render } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -410,11 +411,28 @@ describe("pointAt", () => {
   it("opens the popover a control lives behind", async () => {
     // `chat-approval-mode` sits inside the chat settings popover.
     window.history.replaceState(null, "", "/chat");
+    function Preferences() {
+      const [expanded, setExpanded] = useState(false);
+      return (
+        <>
+          <div data-tour="chat-local-coding">coding</div>
+          <button
+            type="button"
+            data-tour="chat-settings-preferences"
+            aria-expanded={expanded}
+            onClick={() => setExpanded(!expanded)}
+          >
+            Preferences
+          </button>
+          {expanded && <div data-tour="chat-approval-mode">approval</div>}
+        </>
+      );
+    }
     render(
       <Popover>
         <PopoverTrigger data-tour="chat-settings">Settings</PopoverTrigger>
         <PopoverContent>
-          <div data-tour="chat-approval-mode">approval</div>
+          <Preferences />
         </PopoverContent>
       </Popover>,
     );
@@ -423,6 +441,9 @@ describe("pointAt", () => {
 
     await expect(settled(pointing)).resolves.toBe(true);
     expect(ringed("chat-approval-mode")).toBe(true);
+    const coding = await pointFor("chat-local-coding", "/chat");
+    await expect(settled(coding.pointing)).resolves.toBe(true);
+    expect(ringed("chat-local-coding")).toBe(true);
   });
 
   it("jumps rather than glides for a reader who asked for less motion", async () => {

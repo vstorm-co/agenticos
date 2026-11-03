@@ -267,7 +267,7 @@ for (const platform of ["ios", "android"] as const) {
       }
     });
 
-    test("gives app preview actions vertical breathing room and equal touch targets", async ({
+    test("floats app controls above the preview and discloses sharing actions", async ({
       page,
     }) => {
       // This is a toolbar-layout contract. Publishing apps requires an agent
@@ -349,11 +349,19 @@ for (const platform of ["ios", "android"] as const) {
       for (const width of [320, 390]) {
         await page.setViewportSize({ width, height: 844 });
         await page.goto(href);
+        const controls = page.getByRole("button", { name: "App controls", exact: true });
+        await expectTouchTarget(controls);
+        const floating = await controls.boundingBox();
+        if (!floating) throw new Error("Expected the floating app controls");
+        expect(floating.y).toBeGreaterThanOrEqual((platform === "ios" ? 54 : 28) + 12);
         const share = page.getByRole("button", { name: "Share", exact: true });
+        await expect(share).toBeHidden();
+        await controls.tap();
+        await expect(controls).toHaveAttribute("aria-expanded", "true");
         await expectTouchTarget(share);
         const follow = page.getByRole("button", { name: /^(Follow|Unfollow)$/ });
         await expectTouchTarget(follow);
-        const bar = page.locator("header").filter({ has: share });
+        const bar = page.locator("header > div[id]").filter({ has: share });
         const bounds = await bar.boundingBox();
         const action = await share.boundingBox();
         if (!bounds || !action) throw new Error("Expected the app toolbar bounds");

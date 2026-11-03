@@ -60,7 +60,7 @@ export default function VaultPage() {
   // draws a different shape from what follows is a layout jump on every load.
   if (secretsLoading)
     return (
-      <div className="flex flex-1 flex-col space-y-6">
+      <div className="flex flex-1 flex-col space-y-4">
         <PageHeader title={t("vault")} description={t(VAULT_DESCRIPTION)} />
         <ListCard fill namedByPage title={t("keys")} counted={null} contentClassName="p-0">
           {[0, 1, 2].map((row) => (
@@ -80,7 +80,7 @@ export default function VaultPage() {
     );
 
   return (
-    <div className="flex flex-1 flex-col space-y-6">
+    <div className="flex flex-1 flex-col space-y-4">
       <PageHeader
         title={t("vault2")}
         description={t(VAULT_DESCRIPTION)}

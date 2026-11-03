@@ -23,9 +23,11 @@ export function activateTab(
   trigger: HTMLElement,
   { moveFocus = true }: { moveFocus?: boolean } = {},
 ): void {
-  // A popover's trigger opens on a click, not a press: the chat's settings, whose
-  // approval-mode and connection stops sit inside it, waited out their timeout
-  // behind a closed popover and the walk stood still between them.
+  // Disclosures are idempotent: revealing an already open panel must not close it.
+  if (trigger.hasAttribute("aria-expanded") && trigger.getAttribute("role") !== "tab") {
+    if (trigger.getAttribute("aria-expanded") !== "true") trigger.click();
+    return;
+  }
   if (trigger.getAttribute("aria-haspopup") === "dialog") {
     trigger.click();
     return;

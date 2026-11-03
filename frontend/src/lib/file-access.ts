@@ -33,6 +33,8 @@ export interface FileAccess {
   readonly textKey: readonly unknown[];
   readonly bytesKey: readonly unknown[];
   readText(): Promise<FileText>;
+  /** A self-contained HTML preview with styles read from this same source. */
+  readPreview?(): Promise<FileText>;
   readBytes(): Promise<Blob>;
   /**
    * Save it to disk.

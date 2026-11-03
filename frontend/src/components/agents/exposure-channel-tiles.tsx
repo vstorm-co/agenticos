@@ -19,6 +19,7 @@ const PLATFORMS: readonly ExposureSurface[] = [
   "teams",
   "telegram",
   "mattermost",
+  "discord",
   "whatsapp",
 ];
 
@@ -28,6 +29,7 @@ export const SURFACE_LABEL: Record<ExposureSurface, string> = {
   mattermost: "Mattermost",
   // i18n-exempt: a product\'s own name, written the same in every language
   teams: "Microsoft Teams",
+  discord: "Discord",
   // i18n-exempt: a product\'s own name, written the same in every language
   whatsapp: "WhatsApp",
 };

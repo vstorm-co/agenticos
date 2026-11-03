@@ -1,5 +1,5 @@
 import { act, render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { activateTab } from "./activate-tab";
 import {
@@ -73,4 +73,24 @@ describe("activateTab", () => {
     act(() => activateTab(trigger));
     expect(screen.getByText("approval-section")).toBeInTheDocument();
   });
+});
+
+it("opens a disclosure once and leaves an open one alone", () => {
+  const trigger = document.createElement("button");
+  trigger.setAttribute("aria-controls", "secondary");
+  trigger.setAttribute("aria-expanded", "false");
+  const clicked = vi.fn(() => trigger.setAttribute("aria-expanded", "true"));
+  trigger.addEventListener("click", clicked);
+  activateTab(trigger);
+  activateTab(trigger);
+  expect(clicked).toHaveBeenCalledOnce();
+});
+
+it("activates a dialog trigger without disclosure state", () => {
+  const trigger = document.createElement("button");
+  trigger.setAttribute("aria-haspopup", "dialog");
+  const clicked = vi.fn();
+  trigger.addEventListener("click", clicked);
+  activateTab(trigger);
+  expect(clicked).toHaveBeenCalledOnce();
 });

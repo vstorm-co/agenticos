@@ -1,5 +1,5 @@
 ---
-source_sha: "fed639325e0e"
+source_sha: "8adf815937f3"
 ---
 
 # Die Konsole { #the-console }
@@ -43,6 +43,30 @@ Die Chat-Einstellungen haben eine feste Überschrift und Schließen-Schaltfläch
 Die Agenten einer Unterhaltung sind nach ihrer letzten Nachricht oder ihrem letzten übergeordneten Lauf sortiert, die neuesten zuerst. Die eingeklappte Chat-Leiste behält die volle Avatargröße bei, überlagert bis zu drei Bilder und blendet ältere Teilnehmer aus; die vollständige Liste bleibt im Tooltip verfügbar.
 
 Ist **Approve everything** nicht verfügbar, unterscheiden die Chat-Einstellungen zwischen fehlender Entscheidungsberechtigung und einer Organisationsrichtlinie, die pauschale Zustimmung deaktiviert. Wer Genehmigungen entscheiden darf, erhält einen Link zu **Budget und Genehmigungen**, um die Richtlinie ausdrücklich zu ändern. Der Chat ändert die Organisationsrichtlinie niemals automatisch.
+
+Dialoge behalten auf dem Smartphone an allen Rändern 12 px Abstand. Kompakte Seitenköpfe zeigen Titel und Aktionen in einer Zeile, wenn genug Platz ist. Die Context-Beschreibung öffnet sich über die Editorleiste.
+
+Auf dem Smartphone bleiben die Hauptaktionen sichtbar; weitere Befehle öffnet **Weitere Seitenaktionen**. Inbox-Filter und Tabellenformat werden über Auswahllisten gewählt. Einstellungen mit vielen Bereichen haben ein Bereichsmenü; der MCP-Client wird aus einer Liste gewählt. Projekt- und Workspace-Dateien öffnen sich im Vollbildleser; der Zurück-Pfeil führt zu den Ordnern. Im Workflow-Schritteditor wählst du Einstellungen, Eingabe oder Ausgabe. Beim Wechsel bleiben Änderungen erhalten; auf dem Desktop stehen die Bereiche weiterhin nebeneinander.
+
+Markdown-Felder und Dateieditoren bieten ebenfalls eine Schaltfläche zum Vergrößern, ohne den aktuellen Entwurf zu verwerfen. Beschreibung und Kategorie eines Skills lassen sich über dem Editor aufklappen. Das Chat-Eingabefeld benötigt weniger Platz und begrenzt lange Entwürfe anhand der verfügbaren Bildschirmhöhe. Beim Öffnen der Navigation erhält das Panel den Fokus; mit Tab sind dessen Bedienelemente weiterhin erreichbar. Der Workflow-Canvas bietet auf Telefonen eine schwebende Vollbild-Schaltfläche und eine kleinere Minimap.
+
+Auf Telefonen bleiben Beschreibung, Kategorie und Dateiverwaltung in Skill- und Kontexteditoren beim Schreiben eingeklappt. Eine Schaltfläche wechselt zwischen Quelltext und Vorschau. Apps bietet schwebende Zurück- und Optionsschaltflächen; die Optionen zeigen Titel, Version, Design und Freigabe.
+
+Seitenüberschriften verwenden die Abstände des umgebenden Layouts ohne Verdopplung. Karten, Seitenleistenzeilen, Tabs und leere Zustände haben auf dem Desktop kompaktere Abstände; Bedienelemente behalten größere Touchflächen. Lange Listen von Einstellungsbereichen verwenden auch auf dem Desktop ein Menü. Profilfelder stehen bei genügend Platz nebeneinander; **Änderungen speichern** ist erst nach einer Bearbeitung verfügbar. Eine Fähigkeitskarte hat einen Bereich zum Öffnen der Einstellungen und einen separaten Schalter zum Aktivieren. Beispiele stehen im Einstellungsbereich hinter dem Informationssymbol; die Illustration der Galerie wird dort nicht wiederholt.
+
+Dialoge für Vorlagenkategorien passen sich ihrem Inhalt an; die Auswahl einer Branche für Agenten oder Skills öffnet die größere Bibliothek. Auf dem Telefon erscheinen die Stile als kompakte Zeilen mit Miniaturen.
+
+Anweisungen für Agenten und Projekte haben eine kompakte gemeinsame Leiste für Titel, Hilfe, Quelltext/Vorschau und Vergrößern. Vergrößerte Markdown-Ansichten behalten den gewählten Modus. Ungenutzte Prompt-Variablen sind zunächst eingeklappt; vorhandene eigene Variablen oder eine eigene Zeitzone halten den Bereich offen. Vergrößerte Text- und Dateieditoren behalten auf dem Telefon gleichmäßige Außenabstände. Texteingaben nutzen dort größere Schrift, ohne Desktop-Felder zu vergrößern.
+
+Auf dem Telefon wechselt das Nachrichtenfeld beim Fokussieren in eine kompakte Schreibzeile mit Anhängen und Senden. Agentenauswahl und Spracheingabe bleiben unter **+** erreichbar. Begrüßung und Verbindungsvorschläge treten beim Schreiben zurück; Ergänzungsmenüs passen sich der verfügbaren Höhe an. Beim Fokuswechsel zum Senden bleibt das Layout stabil.
+
+Auf dem Telefon fokussiert der Chat das Eingabefeld weder beim Öffnen noch nach einer fertigen Antwort automatisch.
+
+Auf dem Smartphone sind die Aktionen unter Nachrichten von Nutzern und Agenten zunächst ausgeblendet. Die Schaltfläche **Mehr** neben dem Absender blendet Kopieren, Antworten, Bewertungen und weitere verfügbare Aktionen ein oder aus. Am Desktop erscheinen die Bedienelemente weiterhin beim Darüberfahren.
+
+CSS-Importe, Bilder und Fonts werden relativ zum Stylesheet über dieselbe autorisierte Dateiquelle aufgelöst. Vorschauen erlauben vier verschachtelte Ebenen, 64 Ressourcen, 8 MiB Eingabedaten und 16 MiB expandierte Ausgabe. Dateilinks behalten ihre ursprüngliche Konversation oder ihren lokalen Ordner, gespeichert mit dem Verlauf des Turns. Eine Änderung von Work on leitet sie nicht um. Ältere Turns ohne gespeicherte Herkunft erhalten keine geratenen Links. Lokale Dateien benötigen weiterhin eine aktuelle native Ordnerfreigabe.
+
+Dateilink-Metadaten speichern für lokale Schritte nur eine opake Herkunftskennung. Die Ordnerzuordnung bleibt auf dem initiierenden Desktop und ist auf Konto und Organisation begrenzt; andere Teilnehmer und Computer können diese Links nicht auflösen. Ältere Herkunftsangaben mit einem lokalen Pfad werden beim Lesen gespeicherter Schritte weggelassen.
 
 ## Das Dashboard { #the-dashboard }
 
@@ -249,7 +273,8 @@ Seite.
 
 ## Der Assistent { #the-assistant }
 
-Unten rechts auf jeder Seite sitzt der **Architekt**: ein Agent, den jede
+Auf dem Smartphone sitzt der **Architekt** oben neben den Benachrichtigungen,
+auf dem Desktop unten rechts: ein Agent, den jede
 Organisation bekommt, ohne etwas zu installieren, gemeinsam für alle, die Agents
 ausführen dürfen (`agents:run`). Er ist an
 [den MCP-Server dieser Plattform](mcp.md#agenticos-as-an-mcp-server) gebunden.
@@ -402,6 +427,12 @@ hineinklicken. Darüber sind die Karten die eigenen **ersten Nachrichten** des
 Agents, im Builder unter seinen Instruktionen gesetzt; ein Agent ohne sie bietet
 die vier des Chats an, darunter eine, die fragt, was er kann, und eine, die eine
 Routine einrichtet.
+
+Unterhaltungslisten behalten den Hauptagenten bei und nennen zusätzlich Claude Code oder Codex, wenn gespeicherte Aufgabenberichte ihre Mitarbeit belegen. Sidebar, Projektchats, Dashboard und Quick-Ask-Verlauf verwenden dieselben Symbole und Beschriftungen. Jeder Coding-Harness erscheint einmal, bleibt nach dem Aktualisieren sichtbar und ist unabhängig von aktuellen Chat-Einstellungen. Die Auswahl ohne Ausführung fügt ihn nicht zum Verlauf hinzu.
+
+Das Files-Panel gruppiert Dateien nach Ordnern und unterscheidet gleiche Namen in verschiedenen Verzeichnissen. HTML-Vorschauen laden lokale Stylesheets und ihre verschachtelten Ressourcen über denselben Dateizugriff wie die Seite. Vorschau und Quelltext bleiben getrennt; Skripte sind deaktiviert. Ist ein Stylesheet nicht lesbar, nennt die Vorschau die betroffene Datei. Unter einer Antwort stehen Links zu den in diesem Turn geänderten Dateien, anhand der von erfolgreichen Schreib-/Bearbeitungswerkzeugen oder dem Coding-Harness gemeldeten Pfade. Die Links öffnen aktuelle Workspace-Dateien, keine versionierte Kopie.
+
+Auf Bildschirmen unter 768 px bleiben laufende Überlegungen und gewöhnliche Werkzeugschritte zunächst hinter der Zeile mit der Arbeitszeit eingeklappt. Tippe darauf, um Details ein- oder auszuklappen. Antworten, Fragen, Freigabeanfragen, Fehler und visuelle Ergebnisse bleiben sichtbar. Auf breiteren Bildschirmen sind laufende Schritte weiterhin zu sehen.
 
 **Unter einer Antwort.** Ein Agent mit
 [Nächsten Schritten](reference/capabilities.md#follow-ups) bietet unter seiner

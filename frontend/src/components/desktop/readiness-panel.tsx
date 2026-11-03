@@ -109,6 +109,12 @@ function ReadyItems({ repair }: { repair?: string | null }) {
                   />
                   {t(`state.${item.state}`)}
                 </p>
+                {item.key === "screen_capture" &&
+                  setup.native.status.data?.screen_capture === "denied" && (
+                    <p className="text-muted-foreground mt-1 max-w-sm text-xs leading-relaxed">
+                      {t("screenCaptureDenied")}
+                    </p>
+                  )}
                 {item.key === "model" && item.state === "missing" && !manage && (
                   <p className="text-muted-foreground text-xs">{t("askAdmin")}</p>
                 )}

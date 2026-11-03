@@ -30,32 +30,42 @@ look. An explicit saved theme or look takes precedence.
 
 In **Chat controls → Computer use**, select **Local computer** to give this conversation screenshot, mouse and keyboard tools even when the agent has no Computer use binding. The choice is independent of Browser and Work on: it does not grant a folder or command access, and the published agent stays unchanged. The initiating person must have their own paired device connected; native screen consent and operating-system permissions still apply.
 
+Returning from System Settings refreshes readiness even when the webview stays visible. If Screen Recording is enabled but access is still denied, quit and reopen the running copy, then refresh. Permissions can differ between an installed build and an ad-hoc test copy.
+
+Local ACP tasks stop after 16,384 inbound events or 8 MiB of cumulative serialized updates, including session replay. The error is explicit and the adapter is closed.
+
+A committed publisher certificate pin requires the matching signing material: a missing MACOS_SELF_SIGNED_P12 stops the release. Ad-hoc release signing is available only with an unpinned distribution.
+
 ## Installing the app
 
 Download the package for your computer from the [GitHub release](https://github.com/vstorm-co/agenticos/releases/latest). You do not need Rust or development tools to install a release.
 
 - **macOS:** choose Apple silicon or Intel, open the `.dmg`, then drag AgenticOS to **Applications** along the arrow. Launch it from Applications and eject the disk image.
+- **macOS without the warning:** `curl -fsSL https://raw.githubusercontent.com/vstorm-co/agenticos/main/scripts/install_macos.sh | bash` downloads the release, checks its SHA-256 against the one published with it, copies the app to Applications and clears the download flag from that one app. `brew install --cask vstorm-co/agenticos/agenticos` does the same through [the project's tap](https://github.com/vstorm-co/homebrew-agenticos). Releases are not notarized by Apple, so a `.dmg` downloaded in a browser still asks for **Open Anyway**. Once the project pins the certificate its releases are signed with (`scripts/macos_signing_identity.txt`), the script also refuses an app signed by any other.
 - **Windows:** open the `setup.exe` installer. It follows your system language and installs for your user without requiring administrator rights. Open AgenticOS from the Start menu. An `.msi` package is also available for managed deployments.
 - **Linux:** open the `.deb` or `.rpm` package in your distribution's software installer. For a portable installation, mark the `.AppImage` executable in its file properties and open it.
 
 The first launch guides you through connecting to a server or creating a local instance. Docker is needed only for a local instance; the wizard detects it and offers a download when missing. Installation does not grant screen or microphone access.
 
+[Why macOS shows this warning](howto/macos-warning.md).
+
 ### Desktop widgets on macOS
 
 On macOS 14 or later, launch the installed app once, then right-click the desktop, choose **Edit Widgets** and search for **AgenticOS**. The small widget opens Quick Ask; the medium widget also opens Chat, Inbox and Activity. Widgets follow the system appearance and contain shortcuts only, with no account data. A widget click never starts recording or a call.
 
-Release CI builds native packages for Mac (Apple silicon and Intel), Windows and Linux. By default, macOS packages use ad-hoc signing and are not notarized by Apple. After copying the app to Applications, try opening it once. If macOS blocks it because the developer cannot be verified, choose **System Settings → Privacy & Security → Open Anyway** and confirm. Managed computers may prohibit this exception. See [Apple’s instructions](https://support.apple.com/en-us/102445). Updater downloads still require a valid signature from the release updater key.
+Release CI builds native packages for Mac (Apple silicon and Intel), Windows and Linux. macOS packages use the configured stable self-signed certificate, with ad-hoc signing only for an unpinned distribution. These builds are not notarized by Apple. After copying the app to Applications, try opening it once. If macOS blocks it because the developer cannot be verified, choose **System Settings → Privacy & Security → Open Anyway** and confirm. Managed computers may prohibit this exception. See [Apple’s instructions](https://support.apple.com/en-us/102445). Updater downloads still require a valid signature from the release updater key.
 
 After an ad-hoc update, macOS may request microphone, Screen Recording, Accessibility or Keychain access again. If device pairing is lost, reconnect the device. Updater signatures verify the package but do not provide a stable Apple signing identity.
+
+When the release workflow has a stable self-signed certificate (`scripts/create_macos_signing_cert.sh` makes one), macOS keeps the Screen Recording and Microphone grants across updates, because they are bound to the signing identity. Create it once and never replace it: a new certificate asks every user again. Self-signing does not remove the Gatekeeper warning; only Developer ID signing and notarization do.
 
 ## Running it
 
 Before choosing a local installation or connecting to a server, the first-run wizard
-offers optional Screen Recording and Accessibility permissions on macOS. Each button
+offers optional Screen Recording, Accessibility and Microphone permissions on macOS. Each button
 opens the relevant system settings; setup never captures the screen or controls the
 computer. Continue works without either permission. Returning from System Settings
-refreshes their status; macOS may require an app restart. Microphone and folder access
-remain requested when those features are used.
+refreshes their status; macOS may require an app restart. Folder access remains requested when it is used. The Microphone prompt is a normal macOS one; the other two open System Settings. The first window opens at 80% of the screen, centred, and afterwards remembers its size and place.
 
 Rust from [rustup](https://rustup.rs) and the platform's webview - WebKit on macOS,
 WebView2 on Windows, WebKitGTK on Linux - are the prerequisites; Tauri's own
@@ -431,6 +441,36 @@ and about its own public address.
   API host or worker reaches a computer, and `DeviceWorkspace`, the sandbox
   workspace carried out by the app.
 
+## Coding agents on this computer { #coding-agents-on-this-computer }
+
+**Settings → Desktop app → Coding agents on this computer** shows installed Claude Code and Codex versions and sign-in status. **Sign in** opens the agent's own command in Terminal on macOS, PowerShell on Windows or an available terminal on Linux. Return to refresh the status. AgenticOS does not read or copy credentials. Node.js 22 or later is required for the pinned ACP adapters.
+
+In desktop **Chat controls → Tools & files → Coding agent**, choose **Claude Code** or **Codex**, even when the published capability is disabled or absent. The app prepares local file tools and opens the native folder picker unless the current folder already has a full-access grant. Cancelling leaves the previous settings unchanged. **Use agent setting** restores the published configuration.
+
+The choice belongs to this chat. Existing read-only and approval rules still apply, and each task needs native confirmation. Switching to Cloud clears the conversation's local coding choice. Chat controls opens above the composer. The model is at the top, followed by Tools & files; expand **Work on** to manage folder access and **Preferences** for approvals and notifications.
+
+Set the **Coding agent** capability to **On this computer**, choose a folder under **Work on**, and grant it full access. Every task starts with a native confirmation, with up to five minutes to answer. The adapter runs as your operating-system account: the folder selects its working directory, not an OS sandbox. Whole-computer access cannot start a coding agent. The composer names the agent, folder and access policy.
+
+The capability's approval applies once per task. Inside it, `edit` allows requested operations and `read_only` refuses changes. Claude read-only disables bypass permissions and exposes only reading tools. Codex read-only selects its native read-only sandbox mode. Local agents use their own model settings; subscription usage is unpriced, so the run's reported cost is a floor.
+
+Later tasks resume the same harness session for this conversation, agent, folder, account and access policy. `fresh_session` explicitly starts over. Resume identifiers stay in desktop settings, outside your repository, and are cleared when you unlink or change accounts. If a saved session cannot load, the task fails explicitly; start fresh when appropriate. Processes stop on disconnect, but their saved harness history can be resumed.
+
+A correction sent while a local task is running interrupts its current ACP turn. After the adapter confirms the stop, the same session continues with the correction. The transcript records the applied correction; a message arriving after completion stays available to the parent agent.
+
+## Your own skills and instructions { #your-own-skills-and-instructions }
+
+**Chat controls → Work on → My skills and instructions** selects which sources a conversation may use: `~/.agents/skills`, `~/.claude/skills` and `~/.codex/skills`. Every new chat starts with these sources off. Files are read in place, without copying or syncing credentials or configuration.
+
+Among enabled sources, a name clash goes to `.agents`, then `.claude`, then `.codex`. Counts reflect the current selection. Links to the same skill folder are deduplicated by the desktop reader. Global instructions use the newer enabled `~/.codex/AGENTS.md`, `~/.claude/AGENTS.md` or `~/.claude/CLAUDE.md` file, including Markdown symlinks.
+
+The approved working folder's `AGENTS.md` and `CLAUDE.md` follow the global instructions. Before entering a subfolder, the agent can call `load_local_instructions` to read the hierarchy from the approved root down to that directory. More specific files follow parent files. This reader never traverses above the approved folder or follows project symlinks. Instruction files cannot widen the run's permissions.
+
+Loaded skill and instruction text travels through your server to the agent's configured model. The source switch controls this AgenticOS context; locally running coding agents retain their own configuration and instruction discovery.
+
+## Diagnostics { #diagnostics }
+
+**Help → Export Diagnostics…** writes one JSON file to a place you choose, to attach to a bug report. It holds the version, the operating system, what macOS has allowed, whether Claude Code and Codex are installed and signed in, the server's address (scheme, host and port only) and the last crashes. It holds no credentials, tokens, conversations or paths under your home folder, and nothing is sent anywhere. A crash is written to `crash.log` in the app's data folder as it happens.
+
 ## Local browser, models and MCP
 
 After pairing the desktop app, select **Browser → Local browser** to override
@@ -495,8 +535,7 @@ Linux and builds Android debug APKs and an iOS simulator app. Full native checks
 run in CI. Local `make desktop-check` remains available for a focused change.
 The **App release** workflow attaches installers, signed updater artifacts, an
 Android APK and a Homebrew cask to an existing published stable `v1.MINOR.PATCH`
-release whose commit is on `main`. It does not create a platform release. The cask
-is a downloadable asset; publishing a Homebrew tap is a separate operator step.
+release whose commit is on `main`. It does not create a platform release. The cask is also published to the Homebrew tap when a deploy key or token is configured.
 The desktop menu's **Check for Updates…** requires a build with the updater public
 key and verifies the downloaded signature before installation.
 
@@ -514,6 +553,8 @@ builds. Until distribution is enabled, follow
 
 Configure the `apps-release` GitHub environment before running a release:
 
+- Stable macOS signing: secrets `MACOS_SELF_SIGNED_P12`, `MACOS_SELF_SIGNED_P12_PASSWORD` and variable `MACOS_SELF_SIGNED_IDENTITY`. Publish its public fingerprint in `scripts/macos_signing_identity.txt`.
+- Homebrew: secret `HOMEBREW_TAP_DEPLOY_KEY`, a write deploy key restricted to the tap repository. `HOMEBREW_TAP_TOKEN` remains an alternative. Temporary key files are removed on success and failure.
 - Variable `AGENTICOS_UPDATER_PUBLIC_KEY`; secrets `TAURI_SIGNING_PRIVATE_KEY`
   and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` (one persistent updater key pair).
 - Optional macOS Developer ID signing: set the repository variable
@@ -522,8 +563,7 @@ Configure the `apps-release` GitHub environment before running a release:
   `APPLE_SIGNING_IDENTITY`, `APPLE_ID`, `APPLE_PASSWORD` (app-specific),
   and `APPLE_TEAM_ID` for Developer ID signing and notarization. When enabled,
   missing credentials stop the build; there is no fallback to ad-hoc signing.
-  With the flag unset or false, macOS uses ad-hoc signing without notarization.
-  Apple credentials are ignored in that mode.
+  With the flag unset or false, macOS uses the configured stable self-signed certificate, or ad-hoc signing when none is configured. Neither is notarized; Apple credentials are ignored in that mode.
 - Optional Windows Authenticode: `WINDOWS_CERTIFICATE_BASE64` (PFX) and
   `WINDOWS_CERTIFICATE_PASSWORD`. Without them the installer is unsigned.
 - Android: `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`,

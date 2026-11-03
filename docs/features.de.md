@@ -1,5 +1,5 @@
 ---
-source_sha: "85a5077601cc"
+source_sha: "d964e59c7617"
 ---
 
 # Funktionen { #features }
@@ -178,14 +178,14 @@ Einmal veröffentlichen. Derselbe Runner antwortet auf all diesen:
 - **Eine gehostete Seite**, auf die Sie jemandem einen Link schicken können
 - **Ein einbettbares Widget** für Ihre eigene Website
 - **Die HTTP-API** und ein rohes WebSocket für Streaming
-- **Slack**, **Telegram** und **Mattermost**, wo eine `@mention` als die Person
+- **Slack**, **Telegram**, **Mattermost** und **Discord**, wo eine `@mention` als die Person
   läuft, die sie geschickt hat — nicht als der Bot
 - **WhatsApp**, in Direktchats, mit Antworten in Text und einem Mitglied, das per Code
   aus dem Chat verknüpft wird
 
 Spracherkennung läuft auch hier über den eigenen Provider der Organisation:
 Diktieren im Web-Chat, auf einer gehosteten Seite und im Widget sowie
-transkribierte Sprachnachrichten in Slack, Telegram und Mattermost.
+transkribierte Sprachnachrichten in Slack, Telegram, Mattermost und Discord.
 
 **Sprachanrufe** lassen eine Person mit einem veröffentlichten Agent sprechen und
 ihn unterbrechen, im Web-Chat, auf einer gehosteten Seite oder im Widget. Der

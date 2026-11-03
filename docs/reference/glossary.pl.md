@@ -1,5 +1,5 @@
 ---
-source_sha: "02ff44dc2113"
+source_sha: "a84b321e7c77"
 ---
 
 # Słownik { #glossary }
@@ -34,7 +34,7 @@ skrypt napisany pod nie nie przestał działać po zmianie nazwy.
 | W konsoli | Co to jest | W API i spec |
 |---|---|---|
 | Czat | Rozmowa z agentem w przeglądarce | `conversation` |
-| Kanał | Slack, Telegram, Mattermost, Teams albo WhatsApp, gdzie ludzie piszą do agenta | `channel_bot` |
+| Kanał | Slack, Telegram, Mattermost, Teams, Discord albo WhatsApp, gdzie ludzie piszą do agenta | `channel_bot` |
 | Rutyna | Agent działający sam, według harmonogramu albo zdarzenia | `trigger` |
 | Run | Jedna odpowiedź agenta, z jej kosztem i krokami | `agent_run` |
 | Środowisko | Nazwany etap, np. produkcja, wskazujący jedną wersję | `environment` |
@@ -84,6 +84,7 @@ w [Capabilities](capabilities.md).
 | Pamięć (mem0) | `memory_mem0` |
 | Planowanie | `planning` |
 | Praca w trakcie narzędzi | `background_tools` |
+| Obserwuj polecenie | `monitor` |
 | Sandbox | `sandbox` |
 | Skille | `skills` |
 | Subagenci | `subagents` |

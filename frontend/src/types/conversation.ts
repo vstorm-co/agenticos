@@ -1,4 +1,10 @@
-import { RatingValue, type ChatMessageFile, type ConversationCost, type UserRating } from "./chat";
+import {
+  type CodingHarness,
+  RatingValue,
+  type ChatMessageFile,
+  type ConversationCost,
+  type UserRating,
+} from "./chat";
 import type { RatingsByDay } from "./stats";
 
 /**
@@ -39,8 +45,10 @@ export interface Conversation {
    * where it sits for everybody who can see it (#929).
    */
   is_favourite?: boolean;
-  /** In the order they first answered. Empty means the general assistant. */
+  /** Most recently used first. Empty means the general assistant. */
   agents?: ConversationAgent[];
+  /** Coding harnesses actually used, newest first; absent from older servers. */
+  coding_agents?: CodingHarness[];
   /** The project it was started in, whose files and instructions its runs share. */
   project_id?: string | null;
   /** `api` for a conversation an organization key's run opened (#2122). */
@@ -216,6 +224,8 @@ export interface AdminConversation {
   message_count: number;
   user_email?: string;
   agents?: ConversationAgent[];
+  /** Coding harnesses actually used, newest first; absent from older servers. */
+  coding_agents?: CodingHarness[];
   created_at: string;
   updated_at?: string;
 }

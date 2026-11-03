@@ -1,5 +1,5 @@
 ---
-source_sha: "98715dd7765c"
+source_sha: "ede22781bf78"
 ---
 
 # La app de escritorio { #the-desktop-app }
@@ -35,32 +35,42 @@ y el estilo **Glass**. Una elección explícita guardada tiene prioridad.
 
 En **Chat controls → Computer use**, selecciona **Local computer** para dar a esta conversación herramientas de capturas de pantalla, ratón y teclado, aunque el agente no tenga la capacidad Computer use. La elección es independiente de Browser y Work on: no concede acceso a carpetas ni comandos y no modifica el agente publicado. La persona debe tener conectado su propio dispositivo emparejado; siguen siendo necesarios el consentimiento nativo para la pantalla y los permisos del sistema operativo.
 
+Al volver de Ajustes del Sistema se actualiza el estado aunque la vista web siga visible. Si la grabación de pantalla está activada pero el acceso sigue denegado, cierra y vuelve a abrir la copia en ejecución y actualiza el estado. Los permisos pueden diferir entre una versión instalada y una copia de prueba con firma ad hoc.
+
+Las tareas ACP locales terminan tras 16.384 eventos entrantes u 8 MiB acumulados de actualizaciones serializadas, incluida la reproducción de la sesión. El error es explícito y se cierra el adaptador.
+
+Un pin del certificado del editor registrado exige el material de firma correspondiente: si falta MACOS_SELF_SIGNED_P12, la versión falla. La firma ad hoc solo se permite en distribuciones sin pin.
+
 ## Instalar la aplicación { #installing-the-app }
 
 Descarga el paquete para tu ordenador desde la [versión en GitHub](https://github.com/vstorm-co/agenticos/releases/latest). Instalar una versión no requiere Rust ni herramientas de desarrollo.
 
 - **macOS:** elige Apple silicon o Intel, abre el `.dmg` y arrastra AgenticOS a **Applications** siguiendo la flecha. Inícialo desde Applications y expulsa la imagen de disco.
+- **macOS sin la advertencia:** `curl -fsSL https://raw.githubusercontent.com/vstorm-co/agenticos/main/scripts/install_macos.sh | bash` descarga la versión, comprueba su SHA-256 con el publicado junto a ella, copia la aplicación a Applications y quita la marca de descarga de esa sola aplicación. `brew install --cask vstorm-co/agenticos/agenticos` hace lo mismo mediante [el tap del proyecto](https://github.com/vstorm-co/homebrew-agenticos). Las versiones no están notarizadas por Apple, así que un `.dmg` descargado en el navegador sigue pidiendo **Abrir igualmente**. Cuando el proyecto fije el certificado con el que firma sus versiones (`scripts/macos_signing_identity.txt`), el script también rechazará una aplicación firmada con cualquier otro.
 - **Windows:** abre el instalador `setup.exe`. Utiliza el idioma del sistema e instala para tu usuario sin permisos de administrador. Abre AgenticOS desde el menú Inicio. También hay un paquete `.msi` para instalaciones administradas.
 - **Linux:** abre `.deb` o `.rpm` en el instalador de software de tu distribución. Para una instalación portátil, permite ejecutar el `.AppImage` en sus propiedades y ábrelo.
 
 El primer inicio te guía para conectarte a un servidor o crear una instancia local. Solo las instancias locales necesitan Docker; el asistente lo detecta y ofrece descargarlo si falta. La instalación no concede acceso a la pantalla ni al micrófono.
 
+[Por qué macOS muestra esta advertencia](howto/macos-warning.md).
+
 ### Widgets de escritorio en macOS { #desktop-widgets-on-macos }
 
 En macOS 14 o posterior, inicia una vez la aplicación instalada, haz clic derecho en el escritorio, elige **Editar widgets** y busca **AgenticOS**. El pequeño abre Quick Ask; el mediano también Chat, Inbox y Activity. Siguen la apariencia del sistema y solo contienen accesos directos, sin datos de la cuenta. Un clic nunca inicia una grabación ni una llamada.
 
-La CI de versiones crea paquetes nativos para Mac (Apple silicon e Intel), Windows y Linux. Por defecto, los paquetes macOS usan firma ad-hoc sin notarización de Apple. Copia la aplicación a Applications e intenta abrirla. Si macOS la bloquea porque no puede verificar al desarrollador, selecciona **Ajustes del Sistema → Privacidad y seguridad → Abrir igualmente** y confirma. Los ordenadores administrados pueden impedir esta excepción. Consulta las [instrucciones de Apple](https://support.apple.com/es-es/102445). Las actualizaciones descargadas siguen requiriendo una firma válida con la clave de actualización de la versión.
+La CI de versiones crea paquetes nativos para Mac (Apple silicon e Intel), Windows y Linux. Los paquetes macOS usan el certificado autofirmado estable configurado, o firma ad-hoc solo en una distribución sin pin. Estas compilaciones no están notarizadas por Apple. Copia la aplicación a Applications e intenta abrirla. Si macOS la bloquea porque no puede verificar al desarrollador, selecciona **Ajustes del Sistema → Privacidad y seguridad → Abrir igualmente** y confirma. Los ordenadores administrados pueden impedir esta excepción. Consulta las [instrucciones de Apple](https://support.apple.com/es-es/102445). Las actualizaciones descargadas siguen requiriendo una firma válida con la clave de actualización de la versión.
 
 Tras una actualización con firma ad-hoc, macOS puede volver a solicitar acceso al micrófono, grabación de pantalla, accesibilidad o llavero. Si se pierde el emparejamiento del dispositivo, vuelve a conectarlo. Las firmas de actualización verifican el paquete, pero no proporcionan una identidad de firma estable de Apple.
+
+Cuando el workflow de versiones tiene un certificado autofirmado estable (`scripts/create_macos_signing_cert.sh` crea uno), macOS conserva los permisos de grabación de pantalla y micrófono entre actualizaciones, porque están ligados a la identidad de firma. Créalo una vez y no lo sustituyas nunca: un certificado nuevo vuelve a preguntar a todos. Autofirmar no elimina la advertencia de Gatekeeper; solo lo hacen la firma Developer ID y la notarización.
 
 ## Ejecutarla { #running-it }
 
 Antes de elegir una instalación local o conectar con un servidor, el asistente inicial
-ofrece permisos opcionales de grabación de pantalla y accesibilidad en macOS. Cada botón
+ofrece permisos opcionales de grabación de pantalla, accesibilidad y micrófono en macOS. Cada botón
 abre los ajustes del sistema correspondientes; la configuración no captura la pantalla
-ni controla el equipo. Se puede continuar sin ambos permisos. Al volver de Ajustes se
-actualiza su estado; macOS puede requerir reiniciar la aplicación. El acceso al
-micrófono y las carpetas se solicita al usar esas funciones.
+ni controla el equipo. Se puede continuar sin ninguno. Al volver de Ajustes se
+actualiza su estado; macOS puede requerir reiniciar la aplicación. El acceso a las carpetas se solicita al usarlo. El micrófono lo pide macOS con el aviso habitual; los otros dos abren los ajustes del sistema. La primera ventana se abre al 80 % de la pantalla, centrada, y después recuerda su tamaño y posición.
 
 Hacen falta Rust de [rustup](https://rustup.rs) y el webview de la plataforma -
 WebKit en macOS, WebView2 en Windows, WebKitGTK en Linux; la
@@ -459,6 +469,36 @@ despliegue tiene que coincidir en el esquema - `DESKTOP_DEEP_LINK_SCHEME`,
   para que cualquier host de API o worker llegue a un ordenador, y
   `DeviceWorkspace`, el workspace de la sandbox que ejecuta la app.
 
+## Coding agents en este equipo { #coding-agents-on-this-computer }
+
+**Settings → Desktop app → Coding agents on this computer** muestra las versiones instaladas de Claude Code y Codex y su estado de sesión. **Sign in** abre el comando propio del agente en Terminal de macOS, PowerShell de Windows o un terminal disponible en Linux. Al volver, se actualiza el estado. AgenticOS no lee ni copia credenciales. Los adaptadores ACP con versión fijada requieren Node.js 22 o posterior.
+
+En la aplicación de escritorio, elige **Controles del chat → Herramientas y archivos → Agente de programación** y selecciona **Claude Code** o **Codex**, aunque la capacidad publicada esté desactivada o ausente. La aplicación prepara las herramientas de archivos locales y abre el selector nativo de carpetas, salvo que la carpeta actual ya tenga acceso completo. Cancelar conserva los ajustes anteriores. **Usar configuración del agente** restaura la configuración publicada.
+
+La selección pertenece a este chat. Se mantienen las reglas de solo lectura y aprobación; cada tarea requiere confirmación nativa. Cambiar a la nube elimina la selección local de esta conversación. Los controles del chat se despliegan sobre el campo de mensajes. El modelo aparece arriba, seguido de Herramientas y archivos. Despliega **Work on** para gestionar el acceso a carpetas y **Preferencias** para las aprobaciones y notificaciones.
+
+Configura la capability **Coding agent** como **On this computer**, elige una carpeta en **Work on** y concédele acceso completo. Cada tarea requiere confirmación nativa, con hasta cinco minutos para responder. El adaptador se ejecuta con tu cuenta del sistema: la carpeta indica el directorio de trabajo, no una sandbox del sistema. El acceso a todo el equipo no puede iniciar un coding agent. El compositor muestra agente, carpeta y política de acceso.
+
+La aprobación de la capability se aplica una vez por tarea. `edit` permite las operaciones solicitadas y `read_only` rechaza cambios. Claude desactiva la omisión de permisos en modo lectura y ofrece solo herramientas de lectura. Codex selecciona su sandbox nativa de solo lectura. Los agentes locales usan su propia configuración de modelo. El uso de suscripción no tiene precio registrado; el coste mostrado del run es un mínimo.
+
+Las tareas posteriores reanudan la sesión del mismo harness para la conversación, agente, carpeta, cuenta y política de acceso. `fresh_session` comienza de nuevo explícitamente. Los identificadores quedan en los ajustes del escritorio, fuera del repositorio, y se borran al desvincular o cambiar de cuenta. Si no se puede cargar una sesión guardada, la tarea falla explícitamente; inicia una nueva cuando corresponda. La desconexión detiene el proceso, pero permite reanudar el historial guardado del harness.
+
+Una corrección enviada durante la tarea local interrumpe el turno ACP actual. Tras confirmar el adaptador la parada, la misma sesión continúa con la corrección. La transcripción registra la corrección aplicada. Un mensaje que llega tras finalizar queda disponible para el agente principal.
+
+## Tus skills e instrucciones { #your-own-skills-and-instructions }
+
+**Chat controls → Work on → My skills and instructions** elige las fuentes de una conversación: `~/.agents/skills`, `~/.claude/skills` y `~/.codex/skills`. Cada chat nuevo las tiene desactivadas. Los archivos se leen en su ubicación, sin copiar ni sincronizar credenciales o configuración.
+
+Entre las fuentes activadas, los nombres coincidentes se resuelven por `.agents`, después `.claude` y luego `.codex`. Los contadores respetan la selección actual. El escritorio deduplica los enlaces a la misma carpeta de skill. Las instrucciones globales usan el archivo activado más reciente entre `~/.codex/AGENTS.md`, `~/.claude/AGENTS.md` y `~/.claude/CLAUDE.md`, incluidos enlaces simbólicos a Markdown.
+
+Después se leen `AGENTS.md` y `CLAUDE.md` de la carpeta aprobada. Antes de trabajar en una subcarpeta, el agente puede usar `load_local_instructions` para leer la jerarquía desde la raíz aprobada hasta ella. Los archivos específicos siguen a los de sus padres. El lector no sale de la carpeta aprobada ni sigue enlaces simbólicos del proyecto. Las instrucciones no amplían los permisos del run.
+
+El texto de skills e instrucciones cargado pasa por tu servidor al modelo configurado del agente. El selector controla ese contexto de AgenticOS; los coding agents locales conservan su propia configuración y búsqueda de instrucciones.
+
+## Diagnóstico { #diagnostics }
+
+**Help → Export Diagnostics…** escribe un archivo JSON en el lugar que elijas, para adjuntarlo a un informe de error. Contiene la versión, el sistema operativo, lo que macOS ha permitido, si Claude Code y Codex están instalados y con sesión iniciada, la dirección del servidor (solo esquema, host y puerto) y los últimos fallos. No contiene credenciales, tokens, conversaciones ni rutas dentro de tu carpeta personal, y no se envía nada a ninguna parte. Un fallo se escribe en `crash.log` en la carpeta de datos de la aplicación en el momento en que ocurre.
+
 ## Navegador, modelos y MCP locales { #local-browser-models-and-mcp }
 
 Tras emparejar la aplicación, selecciona **Navegador → Navegador local** para
@@ -527,8 +567,7 @@ simulador iOS. Las comprobaciones completas se ejecutan en CI; `make desktop-che
 sigue disponible para cambios locales concretos. **App release** adjunta
 instaladores, archivos de actualización firmados, un APK y un cask Homebrew a una
 versión estable ya publicada `v1.MINOR.PATCH` cuyo commit pertenece a `main`.
-No crea una versión de la plataforma. El cask es un archivo descargable; publicar
-un tap Homebrew es una operación separada. **Check for Updates…** requiere un
+No crea una versión de la plataforma. El cask también se publica en el tap Homebrew si se configura una clave de despliegue o un token. **Check for Updates…** requiere un
 build con la clave pública y verifica la firma antes de instalar.
 
 Los builds de versiones de escritorio se ejecutan en paralelo. Cada uno sube
@@ -546,9 +585,11 @@ habituales de CI siguen activas. Hasta habilitar la distribución, consulta la
 
 Configura el entorno GitHub `apps-release` antes de publicar:
 
+- Firma estable macOS: secretos `MACOS_SELF_SIGNED_P12`, `MACOS_SELF_SIGNED_P12_PASSWORD` y variable `MACOS_SELF_SIGNED_IDENTITY`. Publica la huella pública en `scripts/macos_signing_identity.txt`.
+- Homebrew: secreto `HOMEBREW_TAP_DEPLOY_KEY`, una clave de despliegue con escritura limitada al repositorio del tap. `HOMEBREW_TAP_TOKEN` sigue siendo una alternativa. Los archivos temporales se borran también si falla la publicación.
 - Variable `AGENTICOS_UPDATER_PUBLIC_KEY`; secretos `TAURI_SIGNING_PRIVATE_KEY`
   y `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` (pareja de claves persistente).
-- Firma opcional macOS Developer ID: establece la variable del repositorio `AGENTICOS_MACOS_SIGNING_ENABLED=true` y configura las siguientes credenciales de Apple. Si faltan datos, la compilación falla sin recurrir a firma ad-hoc. Sin la variable o con false, se usa firma ad-hoc sin notarización y se ignoran las credenciales de Apple.
+- Firma opcional macOS Developer ID: establece la variable del repositorio `AGENTICOS_MACOS_SIGNING_ENABLED=true` y configura las siguientes credenciales de Apple. Si faltan datos, la compilación falla sin recurrir a firma ad-hoc. Sin la variable o con false, se usa el certificado autofirmado estable configurado, o firma ad-hoc solo en una distribución sin pin. Ninguno tiene notarización; se ignoran las credenciales de Apple.
 - macOS: `APPLE_CERTIFICATE` (P12 en base64), `APPLE_CERTIFICATE_PASSWORD`,
   `APPLE_SIGNING_IDENTITY`, `APPLE_ID`, `APPLE_PASSWORD` (contraseña de aplicación)
   y `APPLE_TEAM_ID` para firma Developer ID y notarización.

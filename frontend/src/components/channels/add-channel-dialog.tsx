@@ -7,6 +7,7 @@ import {
   AnswerStyleFields,
   DEFAULT_ANSWER_STYLE,
   REACTION_PATTERN,
+  reactsOn,
 } from "@/components/channels/answer-style-fields";
 import { ChannelPlatformIcon } from "@/components/channels/channel-platform-icon";
 import { SlackTransport } from "@/components/channels/slack-transport";
@@ -38,10 +39,12 @@ import type {
   InheritedSpeechToText,
 } from "@/types/channels";
 import { MentionPolicyFields } from "./mention-policy-fields";
+import { DiscordGuildsField, parseDiscordGuilds, validDiscordGuilds } from "./discord-guilds-field";
 import { useTranslations } from "next-intl";
 import { DIALOG_BODY, DIALOG_COLUMN, DIALOG_FORM } from "@/lib/dialog-sizes";
 
 const PLATFORMS: readonly ChannelPlatform[] = [
+  "discord",
   "mattermost",
   "slack",
   "teams",
@@ -55,6 +58,7 @@ const PLATFORM_LABEL: Record<ChannelPlatform, string> = {
   mattermost: "Mattermost",
   // i18n-exempt: a product\'s own name, written the same in every language
   teams: "Microsoft Teams",
+  discord: "Discord",
   // i18n-exempt: a product\'s own name, written the same in every language
   whatsapp: "WhatsApp",
 };
@@ -65,6 +69,7 @@ const TOKEN_HINT: Record<ChannelPlatform, string> = {
   slack: "botTokenHintSlack",
   mattermost: "botTokenHintMattermost",
   teams: "botTokenHintTeams",
+  discord: "botTokenHintDiscord",
   whatsapp: "botTokenHintWhatsapp",
 };
 
@@ -127,6 +132,7 @@ export function AddChannelDialog({
   const [whatsappAccountId, setWhatsappAccountId] = useState("");
   const [whatsappVerifyToken, setWhatsappVerifyToken] = useState("");
   const [respondToBroadcasts, setRespondToBroadcasts] = useState(false);
+  const [discordGuilds, setDiscordGuilds] = useState("");
   const [answerStyle, setAnswerStyle] = useState<AnswerStyle>(DEFAULT_ANSWER_STYLE);
   const [transcription, setTranscription] = useState<TranscriptionChoice>(INHERIT);
   // A bot not yet registered serves no agent, so what it would inherit today is
@@ -175,7 +181,8 @@ export function AddChannelDialog({
     !missingServerUrl &&
     !missingTeamsIds &&
     !missingWhatsapp &&
-    !badReaction;
+    !badReaction &&
+    (platform !== "discord" || validDiscordGuilds(discordGuilds));
 
   function reset() {
     setPlatform(initialPlatform);
@@ -193,6 +200,7 @@ export function AddChannelDialog({
     setWhatsappVerifyToken("");
     setAnswerStyle(DEFAULT_ANSWER_STYLE);
     setRespondToBroadcasts(false);
+    setDiscordGuilds("");
     setTranscription(INHERIT);
     setErrors({});
   }
@@ -200,6 +208,7 @@ export function AddChannelDialog({
   /** Another platform asks other questions, so the answers to the old ones go. */
   function choosePlatform(next: ChannelPlatform) {
     setPlatform(next);
+    setDiscordGuilds("");
     setServerUrl("");
     setWebhookSecret("");
     setSigningSecret("");
@@ -209,6 +218,8 @@ export function AddChannelDialog({
     setWhatsappPhoneNumberId("");
     setWhatsappAccountId("");
     setWhatsappVerifyToken("");
+    // Hidden where the bot cannot react, and a hidden choice would still be sent.
+    if (!reactsOn(next)) setAnswerStyle((style) => ({ ...style, ack_reaction: null }));
     setErrors({});
   }
 
@@ -246,8 +257,15 @@ export function AddChannelDialog({
             }
           : {}),
         ...answerStyle,
-        ...(respondToBroadcasts && platform !== "whatsapp"
-          ? { access_policy: { respond_to_broadcasts: true } }
+        ...(platform === "discord" || (respondToBroadcasts && platform !== "whatsapp")
+          ? {
+              access_policy: {
+                ...(respondToBroadcasts ? { respond_to_broadcasts: true } : {}),
+                ...(platform === "discord"
+                  ? { discord_guild_ids: parseDiscordGuilds(discordGuilds) }
+                  : {}),
+              },
+            }
           : {}),
         // Inherit is the server's default, so it sends nothing; off is the
         // switch; choose is both halves and the key - the schema refuses one
@@ -370,6 +388,13 @@ export function AddChannelDialog({
             </FormField>
           </div>
 
+          {platform === "discord" && (
+            <DiscordGuildsField
+              idPrefix="channel"
+              value={discordGuilds}
+              onChange={setDiscordGuilds}
+            />
+          )}
           {platform === "mattermost" && (
             <div className="space-y-5">
               <FormField

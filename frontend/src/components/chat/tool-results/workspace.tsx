@@ -1,5 +1,7 @@
 "use client";
 
+import { useTurnFileSource } from "@/hooks/use-turn-file-source";
+import type { TurnFileSource } from "@/types/chat";
 import { useState } from "react";
 import { Download } from "lucide-react";
 
@@ -10,7 +12,7 @@ import { useConversationWorkspace, useFileActions } from "@/hooks";
 import type { FileAccess } from "@/lib/file-access";
 import { resolveFileKind, suffixOf } from "@/lib/file-kinds";
 import { basename, contentArg, pathArg } from "@/lib/tool-steps";
-import { workspaceFileAccess, type FileSource } from "@/lib/workspace-files";
+import { workspaceFileAccess } from "@/lib/workspace-files";
 import type { ToolCall } from "@/types";
 import { useTranslations } from "next-intl";
 
@@ -54,14 +56,17 @@ function lines(name: string, result: string): string[] | null {
  * better answer than a control that was never offered.
  */
 function WorkspaceFileCard({
-  conversationId,
+  fileSource,
   path,
 }: {
-  conversationId: string | undefined;
+  fileSource: TurnFileSource | undefined;
   path: string;
 }) {
   const t = useTranslations("files");
-  const { workspace } = useConversationWorkspace(conversationId ?? null);
+  const source = useTurnFileSource(fileSource);
+  const { workspace } = useConversationWorkspace(
+    source?.kind === "conversation" ? source.id : null,
+  );
   const [opened, setOpened] = useState(false);
   const name = basename(path);
   const suffix = suffixOf(name);
@@ -69,8 +74,6 @@ function WorkspaceFileCard({
     workspace?.items.find((file) => !file.is_dir && file.path === path) ??
     workspace?.items.find((file) => !file.is_dir && basename(file.path) === name) ??
     null;
-  const source: FileSource | null =
-    conversationId === undefined ? null : { kind: "conversation", id: conversationId };
   // The listing's path when it has one, the tool's argument when it does not. Only
   // the conversation is required, because that is what the file routes address.
   const target = entry?.path ?? path;
@@ -154,11 +157,11 @@ function FileCardActions({
 export function WorkspaceToolResult({
   toolCall,
   resultText,
-  conversationId,
+  fileSource,
 }: {
   toolCall: ToolCall;
   resultText: string;
-  conversationId?: string;
+  fileSource?: TurnFileSource;
 }) {
   const t = useTranslations("chat.tools");
   const path = pathArg(toolCall.args);
@@ -176,9 +179,7 @@ export function WorkspaceToolResult({
       {/* The file itself, once there is one. Not while the call is in flight and not
           when it failed: a card offering to open a file that was never written is the
           one wrong thing this could do. */}
-      {showsCard && path !== null && (
-        <WorkspaceFileCard conversationId={conversationId} path={path} />
-      )}
+      {showsCard && path !== null && <WorkspaceFileCard fileSource={fileSource} path={path} />}
 
       {command !== null && (
         <pre className="bg-muted text-foreground/80 overflow-x-auto rounded-md px-3 py-2 font-mono text-xs">

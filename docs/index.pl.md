@@ -1,5 +1,5 @@
 ---
-source_sha: "08f62e118618"
+source_sha: "67bbfa3d0698"
 ---
 
 <div class="agenticos-hero" markdown>
@@ -220,7 +220,7 @@ odpowiedź.
 ## Sprawdź to { #check-it }
 
 Opublikuj go, a będzie działał tak samo na każdej powierzchni: czat w konsoli,
-hostowana strona, osadzony widget, HTTP API, Slack, Teams, Telegram, Mattermost, WhatsApp.
+hostowana strona, osadzony widget, HTTP API, Slack, Teams, Telegram, Mattermost, Discord, WhatsApp.
 
 ```bash
 curl -X POST http://localhost:8000/api/v1/agents/$AGENT_ID/run \
@@ -244,7 +244,7 @@ przyszło pytanie.
 | **[Wiedza](file-processing.md)** | Wyszukiwanie po Twoich dokumentach z trzema parserami PDF, własnym chunkingiem, OCR-em i opisem obrazów — per kolekcja, nadpisywalne per wgranie. Synchronizacja Google Drive i S3 |
 | **[Skille](skills.md)** | Spisane know-how, które agent wczytuje tylko wtedy, gdy uzna je za istotne |
 | **[Nadzór](governance.md)** | Miesięczne budżety, zatwierdzanie przez człowieka, ślad audytowy, alerty per agent |
-| **[Powierzchnie](channels.md)** | Czat webowy, hostowana strona bez logowania, osadzalny widget, HTTP API, surowy WebSocket dla Twojego własnego frontendu, Slack, Teams, Telegram, Mattermost, WhatsApp — za wszystkimi jeden runner |
+| **[Powierzchnie](channels.md)** | Czat webowy, hostowana strona bez logowania, osadzalny widget, HTTP API, surowy WebSocket dla Twojego własnego frontendu, Slack, Teams, Telegram, Mattermost, Discord, WhatsApp — za wszystkimi jeden runner |
 | **[Sekrety](secrets.md)** | Pieczętowane per organizacja. Żadna odpowiedź, linia logu ani wpis audytowy nigdy nie niesie klucza otwartym tekstem |
 
 [Pełna lista funkcji →](features.md)

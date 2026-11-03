@@ -112,6 +112,7 @@ async def test_failed_context_is_unknown_without_leaking_provider_details(error)
 @pytest.mark.parametrize(
     "platform, expected",
     [
+        ("discord", "Discord"),
         ("mattermost", "Mattermost"),
         ("slack", "Slack"),
         ("teams", "Microsoft Teams"),

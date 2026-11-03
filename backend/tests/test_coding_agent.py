@@ -1532,6 +1532,10 @@ class TestChoosingAModel:
     def test_the_builder_offers_each_harness_its_own_models(self) -> None:
         when = CodingAgentConfig.model_json_schema()["properties"]["model"]["x-enum-when"]
         assert when["field"] == "harness"
+        assert CodingAgentConfig.model_json_schema()["properties"]["model"]["x-visible-when"] == {
+            "field": "runs_on",
+            "equals": ["sandbox"],
+        }
         assert all(model.startswith("anthropic:") for model in when["choices"]["claude_code"])
         assert all(model.startswith("openai:") for model in when["choices"]["codex"])
 
@@ -1565,3 +1569,11 @@ class TestChoosingAModel:
         assert isinstance(built, CodingAgent)
         assert built.api_key is None and built.sign_in is not None
         assert repr(built.sign_in(uuid4())).startswith("VaultCodexCredentials(")
+
+
+def test_coding_environment_uses_icon_choice_cards() -> None:
+    from app.agents.capabilities.coding_agent import CodingAgentConfig
+
+    field = CodingAgentConfig.model_json_schema()["properties"]["runs_on"]
+    assert field["x-widget"] == "coding-environment"
+    assert field["enum"] == ["sandbox", "this_computer"]

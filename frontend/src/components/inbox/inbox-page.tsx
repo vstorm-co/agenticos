@@ -16,8 +16,17 @@ import { ErrorState, LoadingState } from "@/components/states";
 import { useUrlState } from "@/hooks/use-url-state";
 import { SuggestionMark } from "@/components/chat/suggestion-actions";
 import { PageHeader } from "@/components/dashboard/page-header";
-import { ChoiceGroup } from "@/components/settings/choice-group";
-import { Badge, Button, ListCard, ListCardEmpty } from "@/components/ui";
+import {
+  Badge,
+  Button,
+  ListCard,
+  ListCardEmpty,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui";
 import { useSuggestionHistory, useSuggestions } from "@/hooks/use-suggestions";
 import { getErrorMessage } from "@/lib/api-error";
 import { ROUTES } from "@/lib/constants";
@@ -64,7 +73,7 @@ export function InboxPage() {
   const open = filter === "done" ? [] : suggestions.filter(KEEPS[filter]);
 
   return (
-    <div className="flex flex-1 flex-col space-y-6">
+    <div className="flex flex-1 flex-col space-y-4">
       <PageHeader title={t("title")} description={t("description")} />
       <ListCard
         fill
@@ -78,16 +87,30 @@ export function InboxPage() {
             <span id="inbox-filter-label" className="sr-only">
               {t("filterLabel")}
             </span>
-            <ChoiceGroup<Filter>
-              labelledBy="inbox-filter-label"
+            <Select
               value={filter}
-              onChange={(next) => setFilter(next === "all" ? null : next)}
-              options={FILTERS.map((value) => ({
-                value,
-                label: t(`filter.${value}`),
-                icon: FILTER_ICONS[value],
-              }))}
-            />
+              onValueChange={(value) => {
+                const next = FILTERS.find((each) => each === value);
+                if (next) setFilter(next === "all" ? null : next);
+              }}
+            >
+              <SelectTrigger aria-labelledby="inbox-filter-label" className="w-full sm:w-52">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {FILTERS.map((value) => {
+                  const Icon = FILTER_ICONS[value];
+                  return (
+                    <SelectItem key={value} value={value}>
+                      <span className="flex items-center gap-2">
+                        <Icon className="size-4" aria-hidden />
+                        {t(`filter.${value}`)}
+                      </span>
+                    </SelectItem>
+                  );
+                })}
+              </SelectContent>
+            </Select>
           </>
         }
       >

@@ -1,5 +1,5 @@
 ---
-source_sha: "b4bd3ed6f404"
+source_sha: "95cc474e7e4b"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -84,6 +84,7 @@ Przeglądarka jest kierowana do usługi przeglądarki wdrożenia
 | `text_to_speech` | Zamiana tekstu na mowę | analiza | `generate_speech` | — | wymagany | bez zmian |
 | `video_generation` | Generowanie wideo | analiza | `generate_video` | — | wymagany | przekazana |
 | `coding_agent` | Coding agent | analiza | `run_coding_agent` | `sandbox:execute` | wymagany | przekazana |
+| `monitor` | Obserwuj polecenie | analiza | `start_monitor`, `list_monitors`, `stop_monitor` | `sandbox:execute` | — | przekazana |
 | `subagents` | Subagenci | rozumowanie | `task`, `check_task`, `wait_tasks`, `list_active_tasks`, `answer_subagent`, `send_message_to_subagent`, `soft_cancel_task`, `hard_cancel_task`, `create_agent`, `delegate` | `agents:delegate` | — | przekazana |
 | `planning` | Planowanie | rozumowanie | `write_plan`, `read_plan`, `add_task`, `update_task_status`, `update_task_statuses`, `remove_task`, `add_subtask`, `set_dependency`, `get_available_tasks` | — | — | bez zmian |
 | `thinking` | Myślenie | rozumowanie | brak, celowo | — | — | odwzorowana |
@@ -1498,10 +1499,11 @@ a czat pokazuje jego pracę. Inny agent sięga do coding agenta zwykłą
 | Konfiguracja | Domyślnie | Wartości |
 |---|---|---|
 | `harness` | `claude_code` | `claude_code` (klucz API Anthropic albo token subskrypcji Claude), `codex` (klucz API OpenAI albo logowanie ChatGPT) |
-| `access` | `edit` | `edit` zmienia pliki i uruchamia polecenia; `read_only` czyta kod i odpowiada (tylko Claude Code) |
+| `access` | `edit` | `edit` zmienia pliki i uruchamia polecenia; `read_only` czyta kod i odpowiada (Claude Code lub Codex na tym komputerze) |
 | `model` | domyślny dla harnessu | Claude Opus, Sonnet albo Haiku 5.5 dla Claude Code; GPT-5.6 Sol, Terra, Luna albo GPT-5.3 Codex dla Codexa |
 | `base_url` | bezpośrednio Anthropic | Tylko Claude Code: bramka obsługująca API Anthropic, np. `https://openrouter.ai/api`, której klucz trzyma wtedy vault. Usuwany po wyborze Codexa |
 | `timeout_minutes` | 15 | 1–60, na jedno zadanie |
+| `runs_on` | `sandbox` | `sandbox` uruchamia zadanie w sandboxie agenta na kluczu; `this_computer` uruchamia je w folderze wybranym przez osobę na jej komputerze w aplikacji desktopowej, na logowaniu, które agent już ma, bez klucza |
 
 **Jedno narzędzie, a binding decyduje, co wolno.** Przy `edit` harness edytuje
 dowolny plik i uruchamia dowolne polecenie w sandboxie z wyłączonymi własnymi
@@ -1511,12 +1513,16 @@ przełączniki są opisane. Przy `read_only` Claude Code działa w trybie planu,
 żadnego narzędzia, które pisze - bez narzędzi edycji i bez powłoki - i czyta przez
 Read, Grep i Glob; wie, że niczego innego nie da się zatwierdzić. Nawet poleceń
 czytających: żadna lista prefiksów poleceń nie robi z powłoki narzędzia tylko do
-odczytu, bo `git log --output=<plik>` pasuje do `git log` tak samo jak każdy odczyt. Codex nie ma `read_only`: jego tryb tylko do odczytu
+odczytu, bo `git log --output=<plik>` pasuje do `git log` tak samo jak każdy odczyt. Codex w kontenerze nie ma `read_only`: jego tryb tylko do odczytu
 to jego własny sandbox, który nie startuje w kontenerze agenta, więc publikacja
 odrzuca to połączenie. To, czy człowiek mówi „tak” przed każdym zadaniem, ustawia
 **Zatwierdzenie przez człowieka** capability na **Zawsze pytaj** — jak każda bramka,
 jest wyłączona, dopóki ktoś jej nie ustawi. Nie ma zakładki Narzędzia: jedno
 narzędzie to sama capability.
+
+**Na tym komputerze.** Ustaw `runs_on` na `this_computer`, aby użyć zainstalowanego harnessu przez [Agent Client Protocol](https://agentclientprotocol.com). Desktop uruchamia przypięty adapter przez `npx`, a protokół prowadzi serwer. Wybierz folder z pełnym dostępem w **Work on** i potwierdź każdy start w natywnym oknie. Folder jest katalogiem roboczym, nie sandboxem systemowym. Harness używa własnego logowania, więc klucz w vault jest opcjonalny. Prośby o uprawnienia stosują `access`; zgoda obowiązuje raz na zadanie. Claude read-only wyłącza bypass i narzędzia zapisujące; lokalny Codex wybiera natywny tryb odczytu.
+
+Kolejne zadania ładują tę samą sesję rozmowy; `fresh_session` jawnie zaczyna od nowa. Korekta przerywa turę ACP i kontynuuje tę samą sesję po potwierdzeniu zatrzymania. Identyfikatory sesji pozostają poza repozytorium i są usuwane po odłączeniu. Niewycenione zadania subskrypcji, także rozpoczęte zadania zakończone błędem, oznaczają koszt runu jako dolną granicę. Zobacz [aplikację desktopową](../desktop.md#coding-agents-on-this-computer).
 
 **Człowiek widzi jego pracę.** Harness startuje w sandboxie w tle
 (`claude -p --output-format stream-json` albo `codex exec --json`), a plik jego
@@ -1585,6 +1591,20 @@ zadaniem. Codex nie podaje modelu w swoich zdarzeniach, więc bez ustawionego `m
 jego zużycie jest księgowane bez ceny, a koszt runa oznaczony jako częściowy. Tak
 samo księgowane jest zadanie, które kończy się, zanim harness poda, ile wydał -
 nieudane, przerwane limitem czasu albo zatrzymane.
+
+## Obserwuj polecenie { #monitor }
+
+`start_monitor`, `list_monitors`, `stop_monitor` — *Obserwuj długo działające polecenie i dowiaduj się o jego wyjściu, gdy się pojawia.*
+
+Pozwala agentowi uruchomić polecenie, które działa długo - watcher testów, ogon logu, build, odpytywanie CI lub wdrożenia - i dowiadywać się o jego wyjściu bez odpytywania. Polecenie działa odłączone w przestrzeni roboczej przebiegu, a jego wyjście trafia tam do pliku. Przed każdym zapytaniem do modelu nowe linie są odczytywane, filtrowane opcjonalnymi słowami `match` (rozdzielonymi `|`, bez względu na wielkość liter; zwykły tekst, nie wyrażenie regularne) i dodawane na końcu zapytania jako tymczasowa notatka, tak jak przypomnienie sterujące, więc nic nie trafia do historii rozmowy. Obserwacja, która się zakończy, jest zgłaszana z kodem wyjścia.
+
+| Narzędzie | Co robi |
+|---|---|
+| `start_monitor` | Uruchamia `command` z opcjonalnymi `label` i `match`; naraz działają co najwyżej cztery |
+| `list_monitors` | Wypisuje obserwacje ze stanem, kodem wyjścia, liczbą dopasowanych linii i ostatnimi dziesięcioma |
+| `stop_monitor` | Zatrzymuje jedną obserwację i uruchomione przez nią procesy |
+
+**Obserwacja żyje tyle, co przebieg.** Każda obserwacja jest zatrzymywana na końcu tury, więc polecenie nigdy nie przeżywa tury, która o nie poprosiła. Wymaga trwałej powłoki sandboxa. Lokalna powłoka desktopu kończy procesy po każdym poleceniu, więc narzędzie odmawia uruchomienia obserwacji przed startem procesu. To, co drukuje obserwowane polecenie, to dane, a nie instrukcje, i agent o tym wie. Dodaj **Human approval**, żeby pytać przed startem polecenia.
 
 ## Wizualizacje { #visuals }
 
@@ -2701,6 +2721,14 @@ wykonała pracę. Blokada na słowie kluczowym zamiast tego kończy run ze statu
 platformą działającą poprawnie, a operator filtrujący problemy powinien móc ją
 znaleźć, a nie czytać ją jak każdą ukończoną odpowiedź. Zobacz
 [Nadzór](../governance.md).
+
+**Wiadomość z zablokowanej tury nie wraca do modelu.** Każde sprawdzenie czyta
+tylko to, co nowe w jego własnej turze, więc historia kolejnej tury nie odtwarza
+wiadomości z runa `guardrail_blocked`, niezależnie od tego, które sprawdzenie go
+zatrzymało. W jej miejscu model czyta krótką notkę, że guardrail zatrzymał tę turę,
+bez treści wiadomości i bez tego, co dodały wysłane z nią pliki. Rozmowa nadal
+pokazuje osobie to, co wpisała. Wyszukiwanie w dawnych rozmowach
+(`conversation_search`) jeszcze nie pomija tych wiadomości.
 
 **Sprawdzenie wyjścia działa, zanim ktokolwiek zobaczy odpowiedź.** Każda
 powierzchnia streamuje: czat w przeglądarce i osadzony widżet wysyłają odpowiedź

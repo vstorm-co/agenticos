@@ -47,6 +47,7 @@ class ExposureSurface(enum.StrEnum):
     MATTERMOST = "mattermost"
     TEAMS = "teams"
     WHATSAPP = "whatsapp"
+    DISCORD = "discord"
 
 
 class AgentExposure(Base, TimestampMixin):
@@ -190,7 +191,7 @@ class AgentExposure(Base, TimestampMixin):
         # the other rows meant.
         UniqueConstraint("channel_bot_id", name="uq_exposure_bot"),
         CheckConstraint(
-            "surface IN ('slack', 'telegram', 'mattermost', 'teams', 'whatsapp')",
+            "surface IN ('slack', 'telegram', 'mattermost', 'teams', 'discord', 'whatsapp')",
             name="ck_exposure_surface",
         ),
     )

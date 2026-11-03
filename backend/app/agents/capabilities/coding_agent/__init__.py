@@ -27,6 +27,7 @@ from app.core.secret_kinds import (
     ApiKeySecret,
     OpenAICodexSecret,
     PurposesByValue,
+    SecretCondition,
     SecretKind,
     SecretRequirement,
 )
@@ -77,6 +78,22 @@ class CodingAgentConfig(BaseModel):
         ),
         json_schema_extra={"x-enum-labels": {"claude_code": "Claude Code", "codex": "Codex"}},
     )
+    runs_on: Literal["sandbox", "this_computer"] = Field(
+        title="Where it runs",
+        default="sandbox",
+        description=(
+            "The agent's own sandbox, on a key stored here - or the folder a person "
+            "chooses on their own computer in the desktop app, where Claude Code and "
+            "Codex use the sign-in they already have and need no key."
+        ),
+        json_schema_extra={
+            "x-widget": "coding-environment",
+            "x-enum-labels": {
+                "sandbox": "In the agent's sandbox",
+                "this_computer": "On this computer",
+            },
+        },
+    )
     access: Literal["edit", "read_only"] = Field(
         title="What it may do",
         default="edit",
@@ -93,6 +110,7 @@ class CodingAgentConfig(BaseModel):
             "x-enum-when": {
                 "field": "harness",
                 "choices": {"claude_code": ["edit", "read_only"], "codex": ["edit"]},
+                "unless": {"field": "runs_on", "equals": ["this_computer"]},
             },
         },
     )
@@ -101,10 +119,12 @@ class CodingAgentConfig(BaseModel):
         default=None,
         description=(
             "The model the coding agent runs: a Claude model for Claude Code, an "
-            "OpenAI one for Codex. Not set takes the coding agent's own default."
+            "OpenAI one for Codex. Not set takes the coding agent's own default. "
+            "Not available on this computer, where the agent uses its own setting."
         ),
         json_schema_extra={
             "x-enum-labels": _MODEL_NAMES,
+            "x-visible-when": {"field": "runs_on", "equals": ["sandbox"]},
             # The Builder offers each harness only its own vendor's models.
             "x-enum-when": {
                 "field": "harness",
@@ -145,8 +165,22 @@ class CodingAgentConfig(BaseModel):
         return self
 
     @model_validator(mode="after")
+    def _the_computers_agent_picks_its_own_model(self) -> CodingAgentConfig:
+        # On this computer the agent runs on its own sign-in and its own settings; this
+        # binding cannot select its model over ACP, so a model chosen here would be a
+        # promise nothing keeps. The gateway is a sandbox-key concern and is dropped.
+        if self.runs_on == "this_computer":
+            if self.model is not None:
+                raise ValueError(
+                    "On this computer the coding agent uses the model its own app is set to: "
+                    "leave Model empty, or run it in the agent's sandbox."
+                )
+            self.base_url = None
+        return self
+
+    @model_validator(mode="after")
     def _codex_may_edit(self) -> CodingAgentConfig:
-        if self.harness == "codex" and self.access == "read_only":
+        if self.runs_on == "sandbox" and self.harness == "codex" and self.access == "read_only":
             raise ValueError(
                 "Codex can only run with access to change files: its read-only mode is "
                 "a sandbox of its own, which cannot start inside the agent's sandbox. "
@@ -175,7 +209,7 @@ class CodingAgentConfig(BaseModel):
     category="analysis",
     description=(
         "Hand software work to Claude Code or Codex, which work on it in the agent's "
-        "sandbox while you watch."
+        "sandbox or an approved folder on this computer while you watch."
     ),
     tools=(CapabilityToolInfo(id="run_coding_agent", description=RUN_DESCRIPTION),),
     config_schema=CodingAgentConfig,
@@ -191,6 +225,10 @@ class CodingAgentConfig(BaseModel):
     secret=SecretRequirement(
         kind=SecretKind.API_KEY,
         also_accepts=(SecretKind.OPENAI_CODEX,),
+        # On the person's computer the agent signs in with its own command: no key is
+        # needed, and the picker still offers one with a "none" choice.
+        required_when=SecretCondition(field="runs_on", equals=("sandbox",)),
+        optional_when=SecretCondition(field="runs_on", equals=("this_computer",)),
         # The harness decides the provider, so the picker and publish narrow to
         # its keys. Behind `base_url` the key is the gateway's - OpenRouter,
         # LiteLLM, z.ai - which the platform cannot tell apart, so any key fits.
@@ -231,4 +269,5 @@ def _build(ctx: CapabilityBuildContext) -> CodingAgent:
         api_key=api_key,
         sign_in=sign_in,
         shared_sandbox=ctx.resources.get(WORKSPACE_SHARED_RESOURCE) is True,
+        runs_on=config.runs_on,
     )

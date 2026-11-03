@@ -142,3 +142,28 @@ it("overlaps two full-size faces without shrinking either one", () => {
   expect(faces[0]).toHaveClass("w-9");
   expect(faces[1]).toHaveClass("w-9", "-ml-8");
 });
+
+it("keeps the platform agent and identifies the coding harness by name and brand", () => {
+  render(
+    <ConversationAgents agents={[agent("AgenticOS")]} codingAgents={["claude_code"]} size="md" />,
+  );
+  expect(screen.getByText("AgenticOS · Claude Code")).toBeVisible();
+  expect(screen.getByRole("img", { name: "Claude Code" })).toBeVisible();
+  expect(screen.getByTitle("AgenticOS → Claude Code")).toBeVisible();
+});
+it("shows coding-only history and keeps both harnesses visible ahead of extra agent portraits", () => {
+  const view = render(<ConversationAgents agents={undefined} codingAgents={["codex"]} compact />);
+  expect(screen.getByText("Codex")).toBeVisible();
+  expect(screen.getByRole("img", { name: "Codex" })).toBeVisible();
+  view.rerender(
+    <ConversationAgents
+      agents={[agent("A"), agent("B"), agent("C")]}
+      codingAgents={["claude_code", "codex"]}
+      showName={false}
+      size="md"
+    />,
+  );
+  expect(screen.getByRole("img", { name: "Claude Code" })).toBeVisible();
+  expect(screen.getByRole("img", { name: "Codex" })).toBeVisible();
+  expect(screen.getByText("+2")).toBeVisible();
+});

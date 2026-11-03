@@ -1,5 +1,5 @@
 ---
-source_sha: "b40858006ae4"
+source_sha: "f637a0bdd4e6"
 ---
 
 # Bezpieczeństwo { #security }
@@ -51,7 +51,7 @@ i każde jest granicą, o którą przegląd u klienta zapyta.
 | Do | Co | Kiedy |
 |---|---|---|
 | Skonfigurowany provider modelu | Prompt, wyjście modelu, argumenty i wyniki narzędzi | Każdy run — chyba że model działa na własnej infrastrukturze operatora, wtedy nic nie wychodzi |
-| Skonfigurowany kanał (Slack, Teams, Telegram, Mattermost, WhatsApp) | Wygenerowane odpowiedzi agenta — tekst, obrazy i załączniki; odpowiedzi WhatsAppa idą do `graph.facebook.com`, a AgenticOS zapisuje o nadawcy tylko business-scoped ID, nazwę profilu i zamaskowany numer, nigdy ID wiadomości ani numeru telefonu w logu | Zawsze, gdy agent jest wystawiony przez ten kanał; każde `send_message` publikuje u providera (`app/services/channels/`) |
+| Skonfigurowany kanał (Slack, Teams, Telegram, Mattermost, Discord, WhatsApp) | Wygenerowane odpowiedzi agenta — tekst, obrazy i załączniki; odpowiedzi WhatsAppa idą do `graph.facebook.com`, a AgenticOS zapisuje o nadawcy tylko business-scoped ID, nazwę profilu i zamaskowany numer, nigdy ID wiadomości ani numeru telefonu w logu | Zawsze, gdy agent jest wystawiony przez ten kanał; każde `send_message` publikuje u providera (`app/services/channels/`) |
 | Logfire | Trace'y, które niosą prompty i wyjścia, chyba że agent mówi inaczej | Dwie niezależne ścieżki. Token observability per agent trace'uje tego agenta, a jego tryb `content` decyduje, ile niesie span - `none` sprowadza go do czasu, tokenów, kosztu i nazw narzędzi (#1413). `LOGFIRE_TOKEN` na poziomie wdrożenia instrumentuje **każdy** run, tak samo w API jak w workerze (`app/core/logfire_setup.py`), więc przy nim ustawionym wychodzi treść każdego agenta, który nie poprosił o `none`; agent, który poprosił, jest przypięty do instrumentacji bez treści również na tym tracerze (`suppress_content`), więc tryb trzyma na obu ścieżkach, a specjalista tego agenta go dziedziczy - napisany inline albo wymyślony w trakcie runu. Jedna luka, której nie obejmuje: nieudane podpięcie, które jest logowane i zostawione. Żadna ze ścieżek nie jest domyślnie włączona. Stanu pośredniego z filtrem świadomie nie ma - częściowo wyczyszczony eksport to gwarancja, której nikt nie zaudytuje ([#1616](https://github.com/vstorm-co/agenticos/issues/1616)) |
 | Serwery MCP | Wywołania narzędzi i ich argumenty | Tylko dla narzędzi, do których agent jest podpięty |
 | Dostawca web search (Tavily, DuckDuckGo) | Zapytanie wyszukiwania | Tylko gdy przyznana jest capability wyszukiwania |

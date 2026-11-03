@@ -125,12 +125,48 @@ jobs:
           for name in "${names[@]}"; do
             printf '%s<<%s\n%s\n%s\n' "$name" "$delimiter" "${!name}" "$delimiter" >> "$GITHUB_ENV"
           done
-      - name: Announce ad-hoc macOS distribution
+      - name: Sign macOS with the stable self-signed certificate
         if: runner.os == 'macOS' && vars.AGENTICOS_MACOS_SIGNING_ENABLED != 'true'
         shell: bash
+        env:
+          SIGNING_P12: ${{ secrets.MACOS_SELF_SIGNED_P12 }}
+          SIGNING_P12_PASSWORD: ${{ secrets.MACOS_SELF_SIGNED_P12_PASSWORD }}
+          SIGNING_IDENTITY: ${{ vars.MACOS_SELF_SIGNED_IDENTITY }}
         run: |
-          echo "APPLE_SIGNING_IDENTITY=-" >> "$GITHUB_ENV"
-          echo "::warning::macOS packages use ad-hoc signing without Apple notarization. First launch requires System Settings > Privacy & Security > Open Anyway. Updater signatures remain required."
+          set -euo pipefail
+          if [ -z "$SIGNING_P12" ]; then
+            pin_lines="$(sed '/^[[:space:]]*#/d; /^[[:space:]]*$/d' scripts/macos_signing_identity.txt)"
+            if [ -n "$pin_lines" ]; then
+              echo "::error::The publisher certificate is pinned, but MACOS_SELF_SIGNED_P12 is missing in apps-release. Refusing an uninstallable ad-hoc release."
+              exit 1
+            fi
+            echo "APPLE_SIGNING_IDENTITY=-" >> "$GITHUB_ENV"
+            echo "::warning::macOS packages use ad-hoc signing: macOS asks again for Screen Recording and Microphone after every update. Create the stable certificate with scripts/create_macos_signing_cert.sh. Neither mode is notarized, so first launch needs Privacy & Security > Open Anyway."
+            exit 0
+          fi
+          test -n "$SIGNING_IDENTITY"
+          # One identity for every release keeps macOS's privacy grants, which
+          # are bound to the signing identity, across updates.
+          keychain="$RUNNER_TEMP/signing.keychain-db"
+          password=$(uuidgen)
+          security create-keychain -p "$password" "$keychain"
+          security set-keychain-settings -lut 21600 "$keychain"
+          security unlock-keychain -p "$password" "$keychain"
+          printf '%s' "$SIGNING_P12" | base64 --decode > "$RUNNER_TEMP/signing.p12"
+          security import "$RUNNER_TEMP/signing.p12" -k "$keychain" -P "$SIGNING_P12_PASSWORD" -T /usr/bin/codesign
+          rm "$RUNNER_TEMP/signing.p12"
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$password" "$keychain" > /dev/null
+          security list-keychains -d user -s "$keychain" $(security list-keychains -d user | tr -d '"')
+          # Prove the identity signs now, with a clear error, rather than deep inside the
+          # bundler: a self-signed identity is untrusted, which codesign accepts when it
+          # is named, and this is what shows whether the runner agrees.
+          probe="$RUNNER_TEMP/codesign-probe"
+          cp /usr/bin/true "$probe"
+          codesign --force --sign "$SIGNING_IDENTITY" "$probe"
+          codesign --verify --strict --verbose=2 "$probe"
+          rm -f "$probe"
+          echo "APPLE_SIGNING_IDENTITY=$SIGNING_IDENTITY" >> "$GITHUB_ENV"
+          echo "::notice::macOS packages are signed with the self-signed '$SIGNING_IDENTITY' certificate, without Apple notarization."
       - name: Import Windows signing certificate
         if: runner.os == 'Windows'
         shell: pwsh
@@ -348,7 +384,8 @@ jobs:
   homebrew:
     timeout-minutes: 10
     needs: [resolve, desktop]
-    runs-on: ubuntu-latest
+    environment: apps-release
+    runs-on: macos-latest
     permissions: {contents: write}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -360,5 +397,41 @@ jobs:
         run: |
           set -euo pipefail
           gh release download "$TAG" --pattern '*.dmg' --dir "$RUNNER_TEMP/dmgs"
+          for dmg in "$RUNNER_TEMP"/dmgs/*.dmg; do
+            bash scripts/verify_macos_dmg.sh "$dmg" scripts/macos_signing_identity.txt
+          done
           python3 scripts/homebrew_cask.py "$RUNNER_TEMP/dmgs" "$TAG" > "$RUNNER_TEMP/agenticos.rb"
           gh release upload "$TAG" "$RUNNER_TEMP/agenticos.rb" --clobber
+      - name: Publish the cask to the Homebrew tap
+        env:
+          GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          TAP_DEPLOY_KEY: ${{ secrets.HOMEBREW_TAP_DEPLOY_KEY }}
+          TAG: ${{ needs.resolve.outputs.tag }}
+        run: |
+          set -euo pipefail
+          if [ -n "$TAP_DEPLOY_KEY" ]; then
+            umask 077
+            key="$RUNNER_TEMP/tap_deploy_key"
+            hosts="$RUNNER_TEMP/tap_known_hosts"
+            trap 'rm -f "$key" "$hosts"' EXIT
+            printf '%s\n' "$TAP_DEPLOY_KEY" > "$key"
+            # GitHub publishes its SSH host keys over authenticated HTTPS.
+            curl -fsSL https://api.github.com/meta | python3 -c 'import json,sys; print("\n".join("github.com " + key for key in json.load(sys.stdin)["ssh_keys"]))' > "$hosts"
+            export GIT_SSH_COMMAND="ssh -i $key -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile=$hosts"
+            git clone git@github.com:vstorm-co/homebrew-agenticos.git "$RUNNER_TEMP/tap"
+          elif [ -n "$GH_TOKEN" ]; then
+            gh repo clone vstorm-co/homebrew-agenticos "$RUNNER_TEMP/tap"
+          else
+            echo "::warning::No Homebrew tap deploy key or token is configured; the cask remains attached to the release."
+            exit 0
+          fi
+          mkdir -p "$RUNNER_TEMP/tap/Casks"
+          cp "$RUNNER_TEMP/agenticos.rb" "$RUNNER_TEMP/tap/Casks/agenticos.rb"
+          cd "$RUNNER_TEMP/tap"
+          git add Casks/agenticos.rb
+          if git diff --cached --quiet; then
+            echo "The tap already has $TAG."
+            exit 0
+          fi
+          git -c user.name="agenticos-release" -c user.email="release@vstorm.co" commit -m "agenticos $TAG"
+          git push origin HEAD

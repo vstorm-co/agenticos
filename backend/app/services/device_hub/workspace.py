@@ -117,6 +117,18 @@ class DeviceWorkspace:
         except DeviceCallFailed as exc:
             raise _as_os_error(exc) from exc
 
+    async def platform(self) -> str:
+        """The native system, for tools whose shell contract is platform-specific."""
+        value = await self._call("system.info", {}, timeout=FILE_TIMEOUT_SECONDS)
+        platform = value.get("platform")
+        if platform not in ("macos", "linux", "windows"):
+            raise WorkspaceUnavailableError("The computer did not identify its platform")
+        return str(platform)
+
+    async def agent_call(self, op: str, args: dict[str, Any], *, timeout: float) -> dict[str, Any]:
+        """An `agent.*` operation: a coding agent started on this computer, in this folder."""
+        return await self._call(op, args, timeout=timeout)
+
     async def run(
         self,
         command: WorkspaceCommand,

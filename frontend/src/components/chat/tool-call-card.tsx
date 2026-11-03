@@ -1,6 +1,7 @@
 "use client";
 import { useMemo, useState, type MouseEvent } from "react";
 import { Code2 } from "lucide-react";
+import type { TurnFileSource } from "@/types/chat";
 import type { ToolCall } from "@/types";
 import { cn } from "@/lib/utils";
 import { toolStep } from "@/lib/tool-steps";
@@ -31,14 +32,8 @@ import { useTranslations } from "next-intl";
 
 interface ToolCallCardProps {
   toolCall: ToolCall;
-  /**
-   * The conversation this call happened in, when it is known.
-   *
-   * Only the workspace tools use it, and only to turn a file they wrote into a file
-   * somebody can open - the files live in *this* conversation's workspace, and the
-   * route that serves them is addressed through it.
-   */
-  conversationId?: string;
+  /** The immutable workspace recorded when this tool ran. */
+  fileSource?: TurnFileSource;
   /**
    * The organization's MCP connections, for naming a call that came from one.
    *
@@ -83,7 +78,7 @@ interface ToolCallCardProps {
  */
 export function ToolCallCard({
   toolCall,
-  conversationId,
+  fileSource,
   mcpServers,
   startOpen = false,
   agents = [],
@@ -315,11 +310,7 @@ export function ToolCallCard({
       ) : delegate !== null ? (
         <DelegationResult brief={brief} answer={resultText} />
       ) : renderer === "workspace" ? (
-        <WorkspaceToolResult
-          toolCall={toolCall}
-          resultText={resultText}
-          conversationId={conversationId}
-        />
+        <WorkspaceToolResult toolCall={toolCall} resultText={resultText} fileSource={fileSource} />
       ) : (
         // Everything else, and every renderer whose payload turned out not to be one:
         // a `web_search` that errored, a `create_chart` that came back as a sentence.

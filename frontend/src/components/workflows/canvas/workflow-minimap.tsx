@@ -129,8 +129,8 @@ export function WorkflowMinimap() {
         maskStrokeColor="color-mix(in srgb, var(--color-foreground) 40%, transparent)"
         maskStrokeWidth={1}
         offsetScale={12}
-        style={{ width: 220, height: 140 }}
-        className="!bg-background !mb-14 !overflow-hidden !rounded-xl !border shadow-sm"
+        style={{ width: "var(--minimap-width)", height: "var(--minimap-height)" }}
+        className="!bg-background !mb-14 !overflow-hidden !rounded-xl !border shadow-sm [--minimap-height:5rem] [--minimap-width:8rem] sm:[--minimap-height:8.75rem] sm:[--minimap-width:13.75rem]"
       />
     </Wires.Provider>
   );

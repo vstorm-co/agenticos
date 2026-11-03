@@ -84,7 +84,12 @@ function PageLinkField({ artifactId }: { artifactId: string }) {
     <div className="space-y-2">
       <Label htmlFor="artifact-page-link">{t("pageLink")}</Label>
       <div className="flex items-center gap-2">
-        <Input id="artifact-page-link" readOnly value={pageUrl} className="font-mono text-xs" />
+        <Input
+          id="artifact-page-link"
+          readOnly
+          value={pageUrl}
+          className="font-mono text-base md:text-xs"
+        />
         <CopyButton text={pageUrl} className="h-8 w-8 opacity-100" />
       </div>
       <p className="text-muted-foreground text-sm">{t("pageLinkWhy")}</p>

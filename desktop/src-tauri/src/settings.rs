@@ -3,7 +3,8 @@
 
 use std::fs;
 use std::io::ErrorKind;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+use std::sync::{Mutex, MutexGuard};
 
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager, Url};
@@ -42,12 +43,16 @@ pub struct Settings {
     pub local_grants: Vec<Grant>,
     #[serde(default)]
     pub local_services: Vec<crate::local_services::Service>,
+    /// Resume identifiers only; the harness keeps its history in its own store.
+    #[serde(default)]
+    pub coding_sessions: Vec<crate::agent_session::Remembered>,
 }
 
 /// Personal grants must not follow the console into another account or server.
 pub fn clear_local_authority(settings: &mut Settings) {
     settings.local_grants.clear();
     settings.local_services.clear();
+    settings.coding_sessions.clear();
 }
 
 /// A stack the app set up on this machine, or an organization's server.
@@ -197,9 +202,21 @@ fn path(app: &AppHandle) -> Result<PathBuf, String> {
     Ok(dir.join("server.json"))
 }
 
+// Reads share the writer's lock: quarantine must never observe a partial write.
+static SETTINGS_IO: Mutex<()> = Mutex::new(());
+
+fn settings_io() -> MutexGuard<'static, ()> {
+    // No in-memory state survives a panic; every operation reads the file again.
+    SETTINGS_IO.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
+}
+
 pub fn load(app: &AppHandle) -> Result<Settings, String> {
-    let path = path(app)?;
-    let raw = match fs::read_to_string(&path) {
+    let _guard = settings_io();
+    load_path(&path(app)?)
+}
+
+fn load_path(path: &Path) -> Result<Settings, String> {
+    let raw = match fs::read_to_string(path) {
         Ok(raw) => raw,
         Err(e) if e.kind() == ErrorKind::NotFound => return Ok(Settings::default()),
         Err(e) => return Err(format!("Cannot read {}: {e}", path.display())),
@@ -214,12 +231,17 @@ pub fn load(app: &AppHandle) -> Result<Settings, String> {
 /// rather than fail on every submission with the very problem it is showing. The
 /// second value says so, for the form.
 pub fn load_or_quarantine(app: &AppHandle) -> (Settings, Option<String>) {
-    let problem = match load(app) {
+    let _guard = settings_io();
+    load_or_quarantine_path(path(app))
+}
+
+fn load_or_quarantine_path(path: Result<PathBuf, String>) -> (Settings, Option<String>) {
+    let problem = match path.as_ref().map_err(Clone::clone).and_then(|path| load_path(path)) {
         Ok(settings) => return (settings, None),
         Err(problem) => problem,
     };
     eprintln!("{problem}");
-    let notice = match path(app) {
+    let notice = match path {
         Ok(path) => {
             let aside = path.with_extension("json.invalid");
             match fs::rename(&path, &aside) {
@@ -237,19 +259,28 @@ pub fn current(app: &AppHandle) -> Settings {
 }
 
 pub fn save(app: &AppHandle, settings: &Settings) -> Result<(), String> {
-    let path = path(app)?;
+    let _guard = settings_io();
+    save_path(&path(app)?, settings)
+}
+
+fn save_path(path: &Path, settings: &Settings) -> Result<(), String> {
     if let Some(dir) = path.parent() {
         fs::create_dir_all(dir).map_err(|e| format!("Cannot create {}: {e}", dir.display()))?;
     }
     let raw = serde_json::to_string_pretty(settings).map_err(|e| e.to_string())?;
-    fs::write(&path, raw).map_err(|e| format!("Cannot write {}: {e}", path.display()))
+    fs::write(path, raw).map_err(|e| format!("Cannot write {}: {e}", path.display()))
 }
 
 /// Read, change and write the settings in one step.
 pub fn update<T>(app: &AppHandle, change: impl FnOnce(&mut Settings) -> T) -> Result<(Settings, T), String> {
-    let mut settings = current(app);
+    update_path(&path(app)?, change)
+}
+
+fn update_path<T>(path: &Path, change: impl FnOnce(&mut Settings) -> T) -> Result<(Settings, T), String> {
+    let _guard = settings_io();
+    let mut settings = load_or_quarantine_path(Ok(path.to_owned())).0;
     let outcome = change(&mut settings);
-    save(app, &settings)?;
+    save_path(path, &settings)?;
     Ok((settings, outcome))
 }
 
@@ -262,17 +293,51 @@ mod tests {
     use super::{clear_local_authority, Action, Settings, Shortcuts, WindowPreferences};
 
     #[test]
+    fn concurrent_session_and_authority_updates_preserve_both_changes() {
+        let root = std::env::temp_dir().join(format!("agenticos-settings-{}", uuid::Uuid::new_v4()));
+        let path = root.join("server.json");
+        super::save_path(
+            &path,
+            &serde_json::from_value(serde_json::json!({
+                "local_grants": [{"path": "/private/work", "mode": "full_access"}]
+            }))
+            .unwrap(),
+        )
+        .unwrap();
+        let (entered, wait_for_entry) = std::sync::mpsc::channel();
+        let writer_path = path.clone();
+        let writer = std::thread::spawn(move || {
+            super::update_path(&writer_path, |settings| {
+                entered.send(()).unwrap();
+                // The competing revocation must wait for this transaction.
+                std::thread::sleep(std::time::Duration::from_millis(30));
+                settings.connection_revision = "resumed-session".into();
+            })
+            .unwrap();
+        });
+        wait_for_entry.recv().unwrap();
+        super::update_path(&path, super::clear_local_authority).unwrap();
+        writer.join().unwrap();
+        let stored = super::load_path(&path).unwrap();
+        assert!(stored.local_grants.is_empty());
+        assert_eq!(stored.connection_revision, "resumed-session");
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
     fn account_changes_remove_personal_grants_without_resetting_appearance() {
         let mut settings: Settings = serde_json::from_value(serde_json::json!({
             "server_url": "https://example.com/",
             "local_grants": [{"path": "/private/work", "mode": "full_access"}],
             "local_services": [{"id": "local", "name": "Private model", "kind": "model", "endpoint": "http://127.0.0.1:11434", "model": "test"}],
-            "connection_revision": "previous"
+            "connection_revision": "previous",
+            "coding_sessions": [{"key": {"scope": "old", "root": "/private/work", "connection": "previous", "agent": "claude_code"}, "session_id": "old-session"}]
         })).unwrap();
         clear_local_authority(&mut settings);
         let restored: Settings = serde_json::from_str(&serde_json::to_string(&settings).unwrap()).unwrap();
         assert!(restored.local_grants.is_empty());
         assert!(restored.local_services.is_empty());
+        assert!(restored.coding_sessions.is_empty());
         assert_eq!(restored.connection_revision, "previous");
         assert_eq!(restored.server_url.unwrap().as_str(), "https://example.com/");
     }

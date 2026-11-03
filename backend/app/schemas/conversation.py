@@ -5,16 +5,35 @@ This module contains Pydantic schemas for Conversation, Message, and ToolCall en
 
 from datetime import datetime
 from decimal import Decimal
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Annotated, Any, Literal
 from uuid import UUID
 
-from pydantic import ConfigDict, Field
+from pydantic import ConfigDict, Field, field_validator
 
 from app.schemas.base import BaseSchema, TimestampSchema
 from app.schemas.mention import MentionKind
 
 if TYPE_CHECKING:
     from app.db.models.user import User
+
+
+class LocalMessageFileSource(BaseSchema):
+    """Opaque turn origin; its folder mapping stays on the initiating desktop."""
+
+    kind: Literal["local"] = "local"
+    id: UUID
+
+
+class ConversationMessageFileSource(BaseSchema):
+    """The conversation file endpoint, with its existing sharing authorization."""
+
+    kind: Literal["conversation"] = "conversation"
+    id: UUID
+
+
+MessageFileSource = Annotated[
+    LocalMessageFileSource | ConversationMessageFileSource, Field(discriminator="kind")
+]
 
 
 class MessagePart(BaseSchema):
@@ -77,6 +96,19 @@ class MessagePart(BaseSchema):
         default=None,
         description="The words, for a `text` or `thinking` entry, or what the person added for a `steer`.",
     )
+    file_source: MessageFileSource | None = Field(
+        default=None,
+        description="The turn's file origin, recorded with its timeline so later workspace changes cannot retarget its links.",
+    )
+
+    @field_validator("file_source", mode="before")
+    @classmethod
+    def discard_legacy_local_paths(cls, value: object) -> object:
+        """Old previews lose their link rather than expose a private folder path."""
+        if isinstance(value, dict) and value.get("kind") == "local" and "root" in value:
+            return None
+        return value
+
     tool_call_id: str | None = Field(
         default=None, description="Which tool call this entry is, for a `tool` entry."
     )
@@ -526,6 +558,11 @@ class ConversationRead(ConversationBase, TimestampSchema):
             "its latest message or top-level run. The picker can be changed "
             "mid-thread."
         ),
+    )
+
+    coding_agents: list[Literal["claude_code", "codex"]] = Field(
+        default_factory=list,
+        description="Coding harnesses used in this conversation, most recently first, from saved task reports",
     )
 
 

@@ -1,16 +1,19 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type DragEvent, type ReactNode } from "react";
-import { AlertTriangle, Download, Folder, Info, Search, Trash2 } from "lucide-react";
+import { AlertTriangle, ArrowLeft, Download, Folder, Info, Search, Trash2 } from "lucide-react";
 
 import {
   ProjectEntryActions,
   PROJECT_PATH_DRAG,
 } from "@/components/projects/project-entry-actions";
-import { FileContent, FileIcon, PathTree, type PathTreeNode } from "@/components/files";
+import { FileContent, FileIcon, PathTree } from "@/components/files";
 import { Badge, BlankPeek, Button, DocPeek, Input, Skeleton } from "@/components/ui";
+import { treeOf, type WorkspaceTreeNode } from "@/lib/workspace-tree";
 import { hasSourceView, readsAsText, resolveFileKind } from "@/lib/file-kinds";
 import { useWorkspaceFiles } from "@/hooks";
+import { useWorkspaceFullscreen } from "@/hooks/use-workspace-fullscreen";
+import { WorkspaceFullscreenButton } from "@/components/ui/workspace-fullscreen-button";
 import { cn, formatBytes } from "@/lib/utils";
 import { workspaceFileAccess, type FileSource } from "@/lib/workspace-files";
 import type { WorkspaceFile, WorkspaceFiles } from "@/lib/sandbox-workspaces-api";
@@ -56,75 +59,8 @@ function moveDestination(origin: string, folder: string): string | null {
  * shared tree reads, `file` is what this surface's rows render - a size and a
  * download, which a skill's file has neither of.
  */
-export interface TreeNode extends PathTreeNode {
-  label: string;
-  path: string;
-  isDir: boolean;
-  children: TreeNode[];
-  /** The listing's own row, for a file. Absent for a folder. */
-  file?: WorkspaceFile;
-}
-
-/**
- * The listing as a tree, built once from the flat paths.
- *
- * Derived rather than fetched per directory: the listing carries every path, so
- * opening a folder is a state change and not a request - which is also why search
- * can be immediate.
- *
- * A folder exists here because something is inside it, whether or not the host
- * returned a directory entry of its own: a listing that names `uploads/x.pdf` and
- * nothing else still has an `uploads`, and a tree built only from `is_dir` rows
- * would hide the file under a folder it never drew.
- */
-export function treeOf(files: WorkspaceFile[]): TreeNode[] {
-  const roots: TreeNode[] = [];
-  const byPath = new Map<string, TreeNode>();
-
-  const folder = (parts: string[]): TreeNode[] => {
-    let siblings = roots;
-    let walked = "";
-    for (const part of parts) {
-      walked = walked === "" ? part : `${walked}/${part}`;
-      let node = byPath.get(walked);
-      if (node === undefined || !node.isDir) {
-        node = { label: part, path: walked, isDir: true, children: [] };
-        byPath.set(walked, node);
-        siblings.push(node);
-      }
-      siblings = node.children;
-    }
-    return siblings;
-  };
-
-  // Directories first, so a folder that *is* in the listing keeps its own row
-  // rather than being invented by the file underneath it.
-  for (const file of [...files].sort((left, right) => Number(right.is_dir) - Number(left.is_dir))) {
-    const parts = segments(file.path);
-    if (parts.length === 0) continue;
-    if (file.is_dir) {
-      folder(parts);
-      continue;
-    }
-    const label = parts[parts.length - 1] as string;
-    const siblings = folder(parts.slice(0, -1));
-    const node: TreeNode = { label, path: file.path, isDir: false, children: [], file };
-    byPath.set(segments(file.path).join("/"), node);
-    siblings.push(node);
-  }
-
-  const order = (nodes: TreeNode[]): TreeNode[] => {
-    // Folders above files, each alphabetical - the order every file manager uses,
-    // and the one that puts what can be opened where a reader looks first.
-    nodes.sort(
-      (left, right) =>
-        Number(right.isDir) - Number(left.isDir) || left.label.localeCompare(right.label),
-    );
-    for (const node of nodes) order(node.children);
-    return nodes;
-  };
-  return order(roots);
-}
+type TreeNode = WorkspaceTreeNode<WorkspaceFile>;
+export { treeOf } from "@/lib/workspace-tree";
 
 /** How many files a tree holds, for deciding whether to open all of it. */
 function countFiles(nodes: TreeNode[]): number {
@@ -199,6 +135,11 @@ export function FileExplorer({
   const t = useTranslations("sandboxes.workspaces");
   const tc = useTranslations("common");
   const ts = useTranslations("states");
+  const {
+    ref: readerRef,
+    expanded: readerExpanded,
+    toggle: toggleReader,
+  } = useWorkspaceFullscreen();
   // Which folders are open, by path. A set rather than a prefix: the tree shows
   // every level at once, so "where am I" is not a single place any more.
   const [query, setQuery] = useState("");
@@ -211,6 +152,7 @@ export function FileExplorer({
   const choose = (path: string) => {
     setSelected(path);
     setAsSource(false);
+    if (!readerExpanded && window.matchMedia("(max-width: 767px)").matches) toggleReader();
   };
   // Above the search, not inside the tree: searching replaces the tree with a
   // flat list, so folds kept in the tree would be discarded and reset every time
@@ -345,6 +287,13 @@ export function FileExplorer({
       />
     ) : null;
 
+  const chosen =
+    selected === null
+      ? null
+      : (all.find((file) => segments(file.path).join("/") === segments(selected).join("/")) ??
+        null);
+  if (readerExpanded && (chosen === null || (!isLoading && error !== null))) toggleReader();
+
   if (!isLoading && error !== null)
     return (
       <div className="text-destructive flex items-start gap-2 text-sm">
@@ -353,11 +302,6 @@ export function FileExplorer({
       </div>
     );
 
-  const chosen =
-    selected === null
-      ? null
-      : (all.find((file) => segments(file.path).join("/") === segments(selected).join("/")) ??
-        null);
   const kind = chosen === null ? null : resolveFileKind(chosen.path);
 
   return (
@@ -427,7 +371,12 @@ export function FileExplorer({
         onDrop={(event) => dropIn(event, "")}
         className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[20rem_1fr]"
       >
-        <div className="border-border bg-card flex min-h-0 min-w-0 flex-col gap-3 overflow-y-auto rounded-xl border p-3">
+        <div
+          className={cn(
+            "border-border bg-card flex min-h-0 min-w-0 flex-col gap-3 overflow-y-auto rounded-xl border p-3",
+            chosen !== null && "hidden lg:flex",
+          )}
+        >
           <div className="relative">
             <Search
               className="text-muted-foreground absolute top-1/2 left-2 h-3.5 w-3.5 -translate-y-1/2"
@@ -439,7 +388,7 @@ export function FileExplorer({
               aria-label={t("searchLabel")}
               placeholder={t("searchPlaceholder")}
               onChange={(event) => setQuery(event.target.value)}
-              className="h-8 pl-7 text-xs"
+              className="h-8 pl-7 text-base md:text-xs"
             />
           </div>
 
@@ -592,7 +541,17 @@ export function FileExplorer({
           )}
         </div>
 
-        <div className="border-border bg-card flex min-h-0 min-w-0 flex-col overflow-hidden rounded-xl border">
+        <div
+          ref={readerRef}
+          role={readerExpanded ? "dialog" : undefined}
+          aria-modal={readerExpanded || undefined}
+          aria-label={readerExpanded ? chosen?.path : undefined}
+          className={cn(
+            "border-border bg-card flex min-h-0 min-w-0 flex-col overflow-hidden rounded-xl border",
+            chosen === null && "hidden lg:flex",
+            readerExpanded && "fixed inset-0 z-40 rounded-none",
+          )}
+        >
           {isLoading ? (
             <div className="m-auto space-y-4 p-6" aria-hidden>
               <Skeleton className="h-24 w-32 rounded-xl" />
@@ -610,10 +569,27 @@ export function FileExplorer({
           ) : (
             <>
               <div className="border-border flex flex-wrap items-center gap-2 border-b px-3 py-2">
-                <FileIcon name={chosen.path} className="text-muted-foreground h-4 w-4 shrink-0" />
-                <span className="min-w-0 flex-1 truncate text-sm font-medium" title={chosen.path}>
-                  {chosen.path}
-                </span>
+                <div className="flex min-w-0 flex-1 basis-full items-center gap-2 sm:basis-0">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="lg:hidden"
+                    aria-label={t("folders")}
+                    onClick={() => {
+                      if (readerExpanded) toggleReader();
+                      setSelected(null);
+                    }}
+                  >
+                    <ArrowLeft className="size-4" aria-hidden />
+                  </Button>
+                  <FileIcon name={chosen.path} className="text-muted-foreground h-4 w-4 shrink-0" />
+                  <span className="min-w-0 flex-1 truncate text-sm font-medium" title={chosen.path}>
+                    {chosen.path}
+                  </span>
+                  <span data-tour="workspace-fullscreen" className="shrink-0">
+                    <WorkspaceFullscreenButton expanded={readerExpanded} onToggle={toggleReader} />
+                  </span>
+                </div>
                 <span className="text-muted-foreground shrink-0 text-xs">
                   {source.kind !== "project" &&
                     (chosen.size == null ? "—" : formatBytes(chosen.size))}

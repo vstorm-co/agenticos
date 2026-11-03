@@ -217,7 +217,7 @@ async def memory_about(db: AsyncSession, owner_key: str) -> list[AgentMemoryFile
 
 
 async def identities_of(db: AsyncSession, user_id: UUID) -> list[ChannelIdentity]:
-    """Their Slack, Telegram, Mattermost, Teams and WhatsApp accounts, as this deployment knows them."""
+    """Their Slack, Telegram, Mattermost, Teams, Discord and WhatsApp accounts, as this deployment knows them."""
     result = await db.execute(select(ChannelIdentity).where(ChannelIdentity.user_id == user_id))
     return list(result.scalars().all())
 

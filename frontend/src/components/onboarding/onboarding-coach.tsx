@@ -1,5 +1,7 @@
 "use client";
 
+import { isRendered } from "@/lib/rendered";
+
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { usePathname, useRouter } from "next/navigation";
@@ -346,7 +348,10 @@ export function OnboardingCoach() {
         router.push(step.page);
         return; // this effect re-runs once the navigation lands
       }
-      if (step.activate) {
+      const targetIsVisible = step.target
+        ? [...document.querySelectorAll(`[data-tour="${step.target}"]`)].some(isRendered)
+        : false;
+      if (step.activate && !targetIsVisible) {
         const trigger = await waitForElement(`[data-tour="${step.activate}"]`, signal);
         if (signal.aborted) return;
         if (trigger instanceof HTMLElement) activateTab(trigger);

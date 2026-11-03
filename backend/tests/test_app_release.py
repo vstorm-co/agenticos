@@ -88,6 +88,9 @@ def test_homebrew_cask_hashes_both_architectures_and_refuses_ambiguity(tmp_path:
     assert result.count("sha256") == 2
     assert 'version "1.8.3"' in result
     assert "AgenticOS_1.8.3_aarch64.dmg" in result
+    # An unnotarized app installed by Homebrew keeps its quarantine flag, which
+    # makes Gatekeeper refuse it, so the cask clears it from the installed app.
+    assert 'args: ["-dr", "com.apple.quarantine", "#{appdir}/AgenticOS.app"]' in result
     (tmp_path / "duplicate_aarch64.dmg").write_bytes(b"other")
     with pytest.raises(ValueError, match="exactly one"):
         module.cask(tmp_path, "v1.8.3")
@@ -272,7 +275,9 @@ def test_macos_release_defaults_to_ad_hoc_without_disabling_updater_signatures()
     assert action["env"]["TAURI_SIGNING_PRIVATE_KEY"] == "${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}"
     assert action["with"]["uploadUpdaterJson"] is False
     notice = next(
-        step for step in steps if step.get("name") == "Announce ad-hoc macOS distribution"
+        step
+        for step in steps
+        if step.get("name") == "Sign macOS with the stable self-signed certificate"
     )
     assert notice["if"] == "runner.os == 'macOS' && vars.AGENTICOS_MACOS_SIGNING_ENABLED != 'true'"
     assert "Open Anyway" in notice["run"]
@@ -327,15 +332,60 @@ def test_ad_hoc_macos_exports_only_the_ad_hoc_identity(tmp_path: Path) -> None:
     step = next(
         s
         for s in workflow["jobs"]["desktop"]["steps"]
-        if s.get("name") == "Announce ad-hoc macOS distribution"
+        if s.get("name") == "Sign macOS with the stable self-signed certificate"
     )
+    (tmp_path / "scripts").mkdir()
+    (tmp_path / "scripts/macos_signing_identity.txt").write_text("# unpinned test distribution\n")
     output = tmp_path / "github-env"
     bash = shutil.which("bash")
     assert bash is not None
     subprocess.run(
-        [bash, "-c", step["run"]], env={"GITHUB_ENV": str(output)}, check=True, capture_output=True
+        [bash, "-c", step["run"]],
+        cwd=tmp_path,
+        env={
+            "GITHUB_ENV": str(output),
+            "SIGNING_P12": "",
+            "SIGNING_P12_PASSWORD": "",
+            "SIGNING_IDENTITY": "",
+        },
+        check=True,
+        capture_output=True,
     )
     assert output.read_text() == "APPLE_SIGNING_IDENTITY=-\n"
+
+
+def test_self_signed_macos_needs_the_identity_name_before_touching_a_keychain(
+    tmp_path: Path,
+) -> None:
+    workflow = yaml.safe_load((ROOT / ".github/workflows/app-release.yml").read_text())
+    step = next(
+        s
+        for s in workflow["jobs"]["desktop"]["steps"]
+        if s.get("name") == "Sign macOS with the stable self-signed certificate"
+    )
+    assert set(step["env"]) == {"SIGNING_P12", "SIGNING_P12_PASSWORD", "SIGNING_IDENTITY"}
+    # The identity must prove it can sign before the build depends on it.
+    assert step["run"].index("codesign --force --sign") < step["run"].index(
+        "APPLE_SIGNING_IDENTITY=$SIGNING_IDENTITY"
+    )
+    output = tmp_path / "github-env"
+    bash = shutil.which("bash")
+    assert bash is not None
+    result = subprocess.run(
+        [bash, "-c", step["run"]],
+        env={
+            "GITHUB_ENV": str(output),
+            "PATH": os.environ["PATH"],
+            "SIGNING_P12": "certificate",
+            "SIGNING_P12_PASSWORD": "secret",
+            "SIGNING_IDENTITY": "",
+        },
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode != 0
+    assert not output.exists()
+    assert "secret" not in result.stdout + result.stderr
 
 
 def test_release_bundler_receives_the_same_public_key_as_the_running_app(tmp_path: Path) -> None:
@@ -368,6 +418,102 @@ def test_release_bundler_receives_the_same_public_key_as_the_running_app(tmp_pat
     assert config["bundle"]["createUpdaterArtifacts"] is True
 
 
+@pytest.mark.parametrize("push_fails", [False, True])
+def test_tap_deploy_key_is_scoped_and_removed_even_when_publishing_fails(
+    tmp_path: Path,
+    push_fails: bool,
+) -> None:
+    workflow = yaml.safe_load((ROOT / ".github/workflows/app-release.yml").read_text())
+    step = next(
+        s
+        for s in workflow["jobs"]["homebrew"]["steps"]
+        if s.get("name") == "Publish the cask to the Homebrew tap"
+    )
+    tools = tmp_path / "bin"
+    tools.mkdir()
+    git = tools / "git"
+    git.write_text("""#!/bin/sh
+case "$1" in
+  clone) mkdir -p "$3" ;;
+  diff) exit 1 ;;
+  push) test "$PUSH_FAILS" = "false" ;;
+esac
+""")
+    curl = tools / "curl"
+    curl.write_text(
+        "#!/bin/sh\nprintf '%s\\n' '{\"ssh_keys\":[\"ssh-ed25519 public-host-key\"]}'\n"
+    )
+    for tool in (git, curl):
+        tool.chmod(0o700)
+    (tmp_path / "agenticos.rb").write_text("cask 'agenticos'\n")
+    bash = shutil.which("bash")
+    assert bash is not None
+    result = subprocess.run(
+        [bash, "-c", step["run"]],
+        capture_output=True,
+        text=True,
+        env={
+            **os.environ,
+            "PATH": f"{tools}:{os.environ['PATH']}",
+            "RUNNER_TEMP": str(tmp_path),
+            "TAP_DEPLOY_KEY": "test-private-deploy-key",
+            "GH_TOKEN": "",
+            "TAG": "v1.35.0",
+            "PUSH_FAILS": str(push_fails).lower(),
+        },
+    )
+    assert (result.returncode != 0) == push_fails
+    assert not (tmp_path / "tap_deploy_key").exists()
+    assert not (tmp_path / "tap_known_hosts").exists()
+    assert "test-private-deploy-key" not in result.stdout + result.stderr
+    assert (tmp_path / "tap/Casks/agenticos.rb").read_text() == "cask 'agenticos'\n"
+
+
+@pytest.mark.parametrize(
+    "certificate", [b"trusted signing certificate", b"impostor certificate", None]
+)
+def test_installer_authenticates_certificate_bytes_not_designated_requirement(
+    tmp_path: Path, certificate: bytes | None
+) -> None:
+    trusted = b"trusted signing certificate"
+    pinned = "a619e028e78dfdff7635345c37bb4be891f5ac47"
+    tools = tmp_path / "tools"
+    tools.mkdir()
+    codesign = tools / "codesign"
+    codesign.write_text(
+        "#!/bin/bash\n"
+        'if [ "$1" = "--verify" ]; then exit 0; fi\n'
+        'if [[ "$2" == --extract-certificates=* ]]; then\n'
+        '  [ -f "$CERTIFICATE" ] || exit 1\n'
+        '  prefix="${2#*=}"; cp "$CERTIFICATE" "${prefix}0"\n'
+        "  exit 0\n"
+        "fi\n"
+        # A malicious signer can include the trusted pin in a requirement it authors.
+        'echo "designated => identifier evil or certificate root = H\\"$pinned\\"" >&2\n'
+    )
+    codesign.chmod(0o755)
+    cert = tmp_path / "certificate"
+    if certificate is not None:
+        cert.write_bytes(certificate)
+    installer = (ROOT / "scripts/install_macos.sh").read_text()
+    check = installer.split('if [ -n "$pinned" ]; then\n', 1)[1].split("\nelse\n", 1)[0]
+    result = subprocess.run(
+        ["/bin/bash", "-euo", "pipefail", "-c", check],
+        env={
+            **os.environ,
+            "PATH": f"{tools}{os.pathsep}{os.environ['PATH']}",
+            "CERTIFICATE": str(cert),
+            "pinned": pinned,
+            "mount": str(tmp_path),
+            "work": str(tmp_path),
+        },
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert (result.returncode == 0) is (certificate == trusted), result.stderr
+
+
 def test_releases_only_read_dependency_caches_seeded_by_native_ci() -> None:
     release = yaml.safe_load((ROOT / ".github/workflows/app-release.yml").read_text())
     apps = yaml.safe_load((ROOT / ".github/workflows/apps.yml").read_text())
@@ -385,3 +531,92 @@ def test_releases_only_read_dependency_caches_seeded_by_native_ci() -> None:
         assert seed["uses"].startswith("actions/cache@")
         assert restore["with"] == seed["with"]
         assert "target" not in restore["with"]["path"]
+
+
+@pytest.mark.parametrize("pin", ["351ec21dde69acfb29f5d2661b27c0f6a517035a", "", "malformed"])
+def test_pinned_releases_refuse_missing_signing_material(tmp_path: Path, pin: str) -> None:
+    workflow = yaml.safe_load((ROOT / ".github/workflows/app-release.yml").read_text())
+    step = next(
+        s
+        for s in workflow["jobs"]["desktop"]["steps"]
+        if s.get("name") == "Sign macOS with the stable self-signed certificate"
+    )
+    (tmp_path / "scripts").mkdir()
+    (tmp_path / "scripts/macos_signing_identity.txt").write_text("# Publisher pin\n" + pin + "\n")
+    env_file = tmp_path / "github-env"
+    env_file.touch()
+    result = subprocess.run(
+        ["/bin/bash", "-c", step["run"]],
+        cwd=tmp_path,
+        env={**os.environ, "SIGNING_P12": "", "GITHUB_ENV": str(env_file)},
+        capture_output=True,
+        text=True,
+    )
+    assert (result.returncode != 0) is bool(pin)
+    if pin:
+        assert "MACOS_SELF_SIGNED_P12 is missing" in result.stdout
+        assert env_file.read_text() == ""
+    else:
+        assert "APPLE_SIGNING_IDENTITY=-" in env_file.read_text()
+
+
+@pytest.mark.parametrize("failure", [None, "signer", "signature", "certificate", "pin", "attach"])
+def test_homebrew_authenticates_assets_before_publishing_checksums(
+    tmp_path: Path, failure: str | None
+) -> None:
+    trusted = b"trusted publisher certificate"
+    cert = tmp_path / "certificate"
+    cert.write_bytes(b"impostor" if failure == "signer" else trusted)
+    pin = tmp_path / "pin"
+    pin.write_text("malformed" if failure == "pin" else "114d1d66465f9e2174313defbbeb59639eafeeef")
+    tools = tmp_path / "tools"
+    tools.mkdir()
+    (tools / "hdiutil").write_text("""#!/bin/bash
+if [ "$1" = attach ]; then
+  [ "$FAILURE" != attach ] || exit 1
+  mkdir -p "$4/AgenticOS.app"
+else
+  printf '%s' "$2" > "$DETACHED"
+fi
+""")
+    (tools / "codesign").write_text("""#!/bin/bash
+if [ "$1" = --verify ]; then
+  [ "$FAILURE" != signature ]
+else
+  [ "$FAILURE" != certificate ] || exit 1
+  cp "$CERTIFICATE" "${2#*=}0"
+fi
+""")
+    for tool in tools.iterdir():
+        tool.chmod(0o700)
+    detached = tmp_path / "detached"
+    bash = shutil.which("bash")
+    assert bash is not None
+    result = subprocess.run(
+        [bash, str(ROOT / "scripts/verify_macos_dmg.sh"), "asset.dmg", str(pin)],
+        env={
+            **os.environ,
+            "PATH": f"{tools}:{os.environ['PATH']}",
+            "FAILURE": failure or "",
+            "CERTIFICATE": str(cert),
+            "DETACHED": str(detached),
+        },
+        capture_output=True,
+        text=True,
+    )
+    assert (result.returncode == 0) is (failure is None), result.stderr
+    if failure == "pin":
+        assert not detached.exists()
+    else:
+        mount = Path(detached.read_text())
+        assert not mount.parent.exists()
+
+    workflow = yaml.safe_load((ROOT / ".github/workflows/app-release.yml").read_text())
+    job = workflow["jobs"]["homebrew"]
+    assert job["runs-on"] == "macos-latest"
+    attach = next(
+        s for s in job["steps"] if s.get("name") == "Attach the cask for both Mac architectures"
+    )
+    commands = attach["run"]
+    assert commands.index("verify_macos_dmg.sh") < commands.index("homebrew_cask.py")
+    assert 'for dmg in "$RUNNER_TEMP"/dmgs/*.dmg' in commands

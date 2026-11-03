@@ -1,5 +1,5 @@
 ---
-source_sha: "08f62e118618"
+source_sha: "67bbfa3d0698"
 ---
 
 <div class="agenticos-hero" markdown>
@@ -230,7 +230,7 @@ agent en marzo* tiene respuesta.
 
 Publícalo y se ejecuta igual en todas las superficies: el chat de la consola,
 una página alojada, un widget incrustado, la API HTTP, Slack, Teams, Telegram,
-Mattermost, WhatsApp.
+Mattermost, Discord, WhatsApp.
 
 ```bash
 curl -X POST http://localhost:8000/api/v1/agents/$AGENT_ID/run \
@@ -254,7 +254,7 @@ vino la pregunta.
 | **[Conocimiento](file-processing.md)** | Retrieval sobre tus documentos con tres parsers de PDF, tu propio chunking, OCR y descripción de imágenes — por colección, anulable por subida. Sincronización con Google Drive y S3 |
 | **[Skills](skills.md)** | Conocimiento escrito que el agent carga solo cuando decide que es relevante |
 | **[Gobernanza](governance.md)** | Budgets mensuales, aprobación humana, un rastro de auditoría, alertas por agent |
-| **[Superficies](channels.md)** | Chat web, una página alojada sin inicio de sesión, un widget incrustable, la API HTTP, un WebSocket en crudo para tu propio frontend, Slack, Teams, Telegram, Mattermost, WhatsApp — un solo runner detrás de todas |
+| **[Superficies](channels.md)** | Chat web, una página alojada sin inicio de sesión, un widget incrustable, la API HTTP, un WebSocket en crudo para tu propio frontend, Slack, Teams, Telegram, Mattermost, Discord, WhatsApp — un solo runner detrás de todas |
 | **[Secretos](secrets.md)** | Sellados por organización. Ninguna respuesta, línea de log ni entrada de auditoría lleva jamás una clave en texto plano |
 
 [La lista completa de funciones →](features.md)

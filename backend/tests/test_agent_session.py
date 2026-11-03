@@ -39,6 +39,7 @@ library's task cancellation, this platform's accounting sweep - runs while a
 
 import asyncio
 import contextlib
+import json
 import logging
 from collections.abc import AsyncIterator, Iterator
 from contextlib import contextmanager
@@ -3657,3 +3658,28 @@ async def test_session_readiness_waits_for_cleanup_and_frees_the_admission_slot(
         assert next_task is not None
         await next_task
         assert _frame_types(session) == ["complete", "session_ready", "complete", "session_ready"]
+
+
+@pytest.mark.security
+async def test_local_file_origins_hide_private_paths_in_shared_frames() -> None:
+    session = _session()
+    run = AsyncMock(return_value=_finished_turn())
+    publish = AsyncMock()
+    with (
+        _chat(run),
+        patch("app.services.agent_session.live_turn.begin", AsyncMock(return_value=MagicMock())),
+        patch("app.services.agent_session.live_turn.publish", publish),
+        patch("app.services.agent_session.live_turn.end", AsyncMock()),
+    ):
+        await session.process_message(
+            _message(local={"folder": "/Users/alice/private", "mode": "full_access"})
+        )
+    frames = dict(_sent_events(session))
+    source = frames["user_prompt"]["file_source"]
+    assert source["kind"] == "local"
+    assert UUID(source["id"])
+    assert set(source) == {"kind", "id"}
+    shared = next(call.args[2] for call in publish.await_args_list if call.args[1] == "turn_prompt")
+    assert shared["file_source"] == source
+    assert "/Users/alice" not in json.dumps(shared)
+    assert run.await_args.kwargs["local"].folder == "/Users/alice/private"

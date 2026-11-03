@@ -79,7 +79,7 @@ export function PublicLinkCard({
               readOnly
               value={publicUrl}
               aria-label={t("publicLink")}
-              className="font-mono text-xs"
+              className="font-mono text-base md:text-xs"
             />
             {/* The chat's copy button hides until its message is hovered; here it is the point. */}
             <CopyButton text={publicUrl} className="h-8 w-8 opacity-100" />

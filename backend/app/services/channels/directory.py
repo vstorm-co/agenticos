@@ -74,6 +74,11 @@ PLATFORM_TOOLS: dict[str, tuple[str, ...]] = {
     # WhatsApp reads and sends text only for now: no history, no members and no
     # files until the adapter can fetch and send them (#2076).
     "whatsapp": (),
+    # Discord posts a file like any reply and lets a bot read a channel's or a
+    # thread's messages. A server has no member list a bot may read without the
+    # privileged Server Members intent, so no roster, details or channel search yet
+    # (#2079).
+    "discord": ("send_channel_file", "read_channel_history"),
 }
 """What each platform can actually answer, as the Builder offers it.
 

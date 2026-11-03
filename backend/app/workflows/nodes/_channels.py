@@ -34,7 +34,7 @@ from app.workflows.contracts.results import Failed, NodeResult, WorkflowError
 
 logger = logging.getLogger(__name__)
 
-# Teams has no workflow steps, and WhatsApp has none yet (#2076).
+# Teams and Discord have no workflow steps, and WhatsApp has none yet (#2076).
 type Platform = Literal["slack", "mattermost", "telegram"]
 
 PLATFORM_NAMES: dict[Platform, str] = {

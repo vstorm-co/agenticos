@@ -9,6 +9,7 @@ const MARKS = {
   telegram: brandMark("telegram"),
   mattermost: brandMark("mattermost"),
   teams: brandMark("microsoftteams"),
+  discord: brandMark("discord"),
   whatsapp: brandMark("whatsapp"),
 } as const;
 

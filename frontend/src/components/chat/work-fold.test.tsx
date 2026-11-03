@@ -1,4 +1,5 @@
 import { act, fireEvent, render, renderHook, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useTurnElapsed, WorkFold, WorkingLine } from "./work-fold";
@@ -59,6 +60,16 @@ describe("WorkingLine", () => {
     render(<WorkingLine elapsedMs={5_000} />);
     expect(screen.getByRole("status")).toHaveTextContent("Working for 5s…");
   });
+});
+
+it("lets the live progress line expand and collapse with the keyboard", async () => {
+  const toggle = vi.fn();
+  render(<WorkingLine elapsedMs={5000} expanded={false} onToggle={toggle} />);
+  const button = screen.getByRole("button", { name: "Working for 5s…" });
+  expect(button).toHaveAttribute("aria-expanded", "false");
+  button.focus();
+  await userEvent.keyboard("{Enter}");
+  expect(toggle).toHaveBeenCalledOnce();
 });
 
 describe("WorkFold", () => {

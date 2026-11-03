@@ -338,7 +338,7 @@ describe("a tool call in the transcript", () => {
       <ToolCallCard
         mcpServers={servers.list}
         startOpen
-        conversationId="c-1"
+        fileSource={{ kind: "conversation", id: "c-1" }}
         toolCall={{
           id: "tc-1",
           name: "write_file",
@@ -355,7 +355,11 @@ describe("a tool call in the transcript", () => {
   it("keeps the agent's bookkeeping folded even as the turn's last step", () => {
     // A note the agent wrote itself for next time opened over the answer it came
     // after. The same generic step that is not bookkeeping opens as before.
-    const props = { mcpServers: servers.list, startOpen: true, conversationId: "c-1" };
+    const props = {
+      mcpServers: servers.list,
+      startOpen: true,
+      fileSource: { kind: "conversation" as const, id: "c-1" },
+    };
     const memory = render(
       <ToolCallCard
         {...props}
@@ -518,7 +522,7 @@ describe("a tool call in the transcript", () => {
     const { rerender } = render(
       <ToolCallCard
         mcpServers={servers.list}
-        conversationId="c-1"
+        fileSource={{ kind: "conversation", id: "c-1" }}
         toolCall={{ ...live, status: "running" }}
       />,
     );
@@ -527,7 +531,7 @@ describe("a tool call in the transcript", () => {
     rerender(
       <ToolCallCard
         mcpServers={servers.list}
-        conversationId="c-1"
+        fileSource={{ kind: "conversation", id: "c-1" }}
         toolCall={{ ...live, status: "completed", result: "Wrote 1 lines" }}
       />,
     );

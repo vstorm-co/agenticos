@@ -128,6 +128,7 @@ class FollowUpService:
                 RunSurface.TELEGRAM,
                 RunSurface.MATTERMOST,
                 RunSurface.TEAMS,
+                RunSurface.DISCORD,
                 RunSurface.WHATSAPP,
             }
             and channel is None
