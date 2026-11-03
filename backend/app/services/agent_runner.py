@@ -381,6 +381,11 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+#: Every candidate skill body of the run, whichever line each was written for. The
+#: agent reads its own share as `SKILL_BODIES_RESOURCE`; each inline specialist takes
+#: its share from this, since it may follow a line the agent does not.
+RUN_SKILL_BODIES_RESOURCE = "run_skill_bodies"
+
 _PREVIEW_CHARS = 80
 
 _ORIGIN_KINDS: dict[str, Literal["grader", "improve", "knowledge_gaps", "test_questions"]] = {
@@ -3661,12 +3666,13 @@ class AgentRunnerService:
             collections=_searched_bases(bound),
             found=None if knowledge is None else knowledge.found,
         )
+        own_bodies = _on_line(spec.skill_bindings, skill_bodies or {})
         skills = await self.skills.resolve_for_agent(
-            ctx, spec.skill_ids, bindings=spec.skill_bindings, projected=skill_bodies
+            ctx, spec.skill_ids, bindings=spec.skill_bindings, projected=own_bodies or None
         )
         skill_log = SkillUseLog(
             agent_id=agent.id,
-            served=served_skills(skills, skill_bodies or {}),
+            served=served_skills(skills, own_bodies),
             tools=tool_identities(spec.capabilities),
         )
         resources: dict[str, Any] = {
@@ -3680,7 +3686,8 @@ class AgentRunnerService:
                 projected=context_bodies,
                 config=context_config(spec.capabilities),
             ),
-            SKILL_BODIES_RESOURCE: dict(skill_bodies or {}),
+            SKILL_BODIES_RESOURCE: own_bodies,
+            RUN_SKILL_BODIES_RESOURCE: dict(skill_bodies or {}),
             CONTEXT_BODIES_RESOURCE: dict(context_bodies or {}),
         }
         # What an earlier turn of this thread wrote down. Read here rather than
@@ -5132,16 +5139,11 @@ class AgentRunnerService:
         # body measured on that agent is what its specialists read too - where they
         # follow the line it was written for. A published delegate is another agent,
         # served its own stored skills.
-        parent_bodies = parent_resources.get(SKILL_BODIES_RESOURCE)
-        projected: dict[UUID, SkillBody] = (
-            {
-                skill_id: body
-                for skill_id, body in parent_bodies.items()
-                if _reads_line(spec.skill_bindings, skill_id, body.fork_id)
-            }
-            if agent_id is None and isinstance(parent_bodies, dict)
-            else {}
+        parent_bodies = parent_resources.get(RUN_SKILL_BODIES_RESOURCE)
+        run_bodies: dict[UUID, SkillBody] = (
+            dict(parent_bodies) if agent_id is None and isinstance(parent_bodies, dict) else {}
         )
+        projected = _on_line(spec.skill_bindings, run_bodies)
         skills = await self.skills.resolve_for_agent(
             ctx, spec.skill_ids, bindings=spec.skill_bindings, projected=projected or None
         )
@@ -5152,6 +5154,7 @@ class AgentRunnerService:
                 ctx, spec.context_ids, config=context_config(spec.capabilities)
             ),
             SKILL_BODIES_RESOURCE: projected,
+            RUN_SKILL_BODIES_RESOURCE: run_bodies,
         }
         parent_skills = parent_resources.get(SKILL_USE_LOG_RESOURCE)
         if isinstance(parent_skills, SkillUseLog):
@@ -7778,6 +7781,17 @@ class AgentRunnerService:
             until=until,
             month_since=month_start(),
         )
+
+
+def _on_line(
+    bindings: Sequence[SkillBindingSpec], bodies: Mapping[UUID, SkillBody]
+) -> dict[UUID, SkillBody]:
+    """The bodies a reader with these bindings is served: those of the line it follows."""
+    return {
+        skill_id: body
+        for skill_id, body in bodies.items()
+        if _reads_line(bindings, skill_id, body.fork_id)
+    }
 
 
 def _reads_line(bindings: Sequence[SkillBindingSpec], skill_id: UUID, fork_id: UUID | None) -> bool:

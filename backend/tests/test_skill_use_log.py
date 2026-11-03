@@ -31,7 +31,12 @@ from app.agents.capabilities.skills import (
 from app.agents.spec import AgentSpec, CapabilityBindingSpec, SkillBindingSpec
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.skill import Skill, SkillResource
-from app.services.agent_runner import AgentRunnerService, PreparedRun
+from app.services.agent_runner import (
+    RUN_SKILL_BODIES_RESOURCE,
+    AgentRunnerService,
+    PreparedRun,
+    _on_line,
+)
 
 pytestmark = pytest.mark.anyio
 
@@ -392,7 +397,9 @@ class TestADelegateUsesSkillsUnderItsOwnName:
         agent defines inline is part of that agent and must read the same change."""
         body = SkillBody("Ships.", "New shipping rules.", name="shipping")
 
-        resources = await self._resources({SKILL_BODIES_RESOURCE: {SHIPPING: body}}, agent_id=None)
+        resources = await self._resources(
+            {RUN_SKILL_BODIES_RESOURCE: {SHIPPING: body}}, agent_id=None
+        )
 
         assert resources[SKILL_BODIES_RESOURCE] == {SHIPPING: body}
         assert self.resolve.await_args.kwargs["projected"] == {SHIPPING: body}
@@ -415,7 +422,7 @@ class TestADelegateUsesSkillsUnderItsOwnName:
         bindings = None if binding is None else [SkillBindingSpec(skill_id=SHIPPING, **binding)]
 
         resources = await self._resources(
-            {SKILL_BODIES_RESOURCE: {SHIPPING: body}}, agent_id=None, bindings=bindings
+            {RUN_SKILL_BODIES_RESOURCE: {SHIPPING: body}}, agent_id=None, bindings=bindings
         )
 
         assert (SHIPPING in resources[SKILL_BODIES_RESOURCE]) is reads
@@ -424,7 +431,7 @@ class TestADelegateUsesSkillsUnderItsOwnName:
         body = SkillBody("Ships.", "New shipping rules.", name="shipping")
 
         resources = await self._resources(
-            {SKILL_BODIES_RESOURCE: {SHIPPING: body}}, agent_id=uuid.uuid4()
+            {RUN_SKILL_BODIES_RESOURCE: {SHIPPING: body}}, agent_id=uuid.uuid4()
         )
 
         assert resources[SKILL_BODIES_RESOURCE] == {}
@@ -467,3 +474,15 @@ def test_a_use_names_its_run_skill_and_whether_it_loaded() -> None:
     assert repr(RunSkillUse(run_id=run, skill_id=REFUNDS, loaded=True)) == (
         f"<RunSkillUse(run={run}, skill={REFUNDS}, loaded=True)>"
     )
+
+
+def test_an_agent_pinned_itself_reads_its_stored_skill_while_its_specialist_reads_the_candidate():
+    """A check of main reaches an agent through a specialist that follows main; the agent's
+    own pinned reading is not what applying the change would move."""
+    body = SkillBody("Ships.", "New shipping rules.")
+    run = {SHIPPING: body}
+
+    agent = _on_line([SkillBindingSpec(skill_id=SHIPPING, version=1)], run)
+    specialist = _on_line([], run)
+
+    assert (agent, specialist) == ({}, {SHIPPING: body})
