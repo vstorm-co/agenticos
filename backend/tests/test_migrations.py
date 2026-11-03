@@ -964,8 +964,10 @@ class TestRunSkillUsesBackfill:
         The runs stay unrecorded - an old transcript proves a load, never the
         absence of one - while a run written after the upgrade is recorded.
         """
-        down = _alembic("upgrade", "0248_merge_self_improvement")
-        assert down.returncode == 0, down.stderr
+        reset = _alembic("downgrade", "base")
+        assert reset.returncode == 0, reset.stderr
+        before = _alembic("upgrade", "0248_merge_self_improvement")
+        assert before.returncode == 0, before.stderr
         engine = create_engine(_url(MIGRATION_DATABASE))
         org, agent = uuid4(), uuid4()
         refunds, shipping, renamed = uuid4(), uuid4(), uuid4()
