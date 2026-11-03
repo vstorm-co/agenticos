@@ -729,8 +729,8 @@ values.
 
 ## Languages
 
-The console speaks English, Polish and German, all of it except the legal
-pages, which stay in English. The walkthrough's first card offers the three, and
+The console speaks English, Polish, German and Turkish. The walkthrough's first
+card offers the four, and
 the account menu changes the language at any time; the choice is kept on your
 account, so the console opens in it on every device you sign in on. You can also
 ask an agent - "switch to English" - and the page changes as it answers, without a

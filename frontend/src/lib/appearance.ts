@@ -41,7 +41,7 @@ export const SHELL_WINDOW_ATTRIBUTE = "data-shell-window";
 /** Present when the window draws a real material behind a glass console. */
 export const VIBRANCY_ATTRIBUTE = "data-vibrancy";
 export const DESKTOP_SETUP_ATTRIBUTE = "data-desktop-setup";
-const DESKTOP_SETUP_PATH = /^\/(?:(?:en|pl|de)\/)?desktop\/readiness\/?$/;
+const DESKTOP_SETUP_PATH = /^\/(?:(?:en|pl|de|tr)\/)?desktop\/readiness\/?$/;
 export function isDesktopSetupPath(path: string | null): boolean {
   return DESKTOP_SETUP_PATH.test(path ?? "");
 }

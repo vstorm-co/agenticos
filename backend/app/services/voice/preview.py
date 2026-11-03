@@ -37,12 +37,13 @@ from app.services.voice.settings import resolve_voice
 
 logger = logging.getLogger(__name__)
 
-PreviewLocale = Literal["en", "pl", "de"]
+PreviewLocale = Literal["en", "pl", "de", "tr"]
 
 PREVIEW_LINES: dict[PreviewLocale, str] = {
     "en": "Hi, this is how I sound. Ask me anything, and I'll answer out loud.",
     "pl": "Cześć, tak brzmi mój głos. Zapytaj mnie o cokolwiek, a odpowiem na głos.",
     "de": "Hallo, so klingt meine Stimme. Frag mich etwas, und ich antworte laut.",
+    "tr": "Merhaba, sesim böyle. Bana istediğini sor, sana sesli cevap vereyim.",
 }
 
 CACHE_SECONDS = 7 * 24 * 3600

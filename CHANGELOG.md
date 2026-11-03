@@ -36,6 +36,9 @@ Two things are versioned separately from this file and worth knowing about:
 
   The migration then finds the indexes valid and leaves those collections alone. Let the statement finish before you upgrade: if the migration finds a build still running, it stops with an error, and you run the upgrade again after the build ends. If a concurrent build fails, it leaves an invalid index. Drop it with `DROP INDEX CONCURRENTLY <name>` and run the statement again. If you upgrade with an invalid index in place, the migration drops and rebuilds it, and searches in that collection also wait until the upgrade commits.
 
+### Added
+
+- Add Turkish console translations, account language selection and Turkish voice previews.
 
 ## [1.39.0] - 2026-11-03
 

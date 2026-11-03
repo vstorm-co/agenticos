@@ -57,6 +57,7 @@ export function getLocaleLabel(locale: Locale): string {
     en: "English",
     pl: "Polski",
     de: "Deutsch",
+    tr: "Türkçe",
   };
   return labels[locale];
 }
@@ -66,6 +67,7 @@ export function getLocaleFlag(locale: Locale): string {
     en: "🇬🇧",
     pl: "🇵🇱",
     de: "🇩🇪",
+    tr: "🇹🇷",
   };
   return flags[locale];
 }

@@ -302,7 +302,7 @@ class VoicePreviewRequest(BaseSchema):
     """What to listen to: the draft's Voice section, and the console's language."""
 
     voice: VoiceSpec = Field(description="The Voice section as the Builder holds it, unpublished")
-    locale: Literal["en", "pl", "de"] = Field(
+    locale: Literal["en", "pl", "de", "tr"] = Field(
         default="en",
         description="The console's language: the sentence is said in it unless the section names one",
     )
