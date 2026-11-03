@@ -7,10 +7,11 @@ import { ContinueSession } from "@/components/improvement/continue-session";
 import { useReadOnly } from "@/components/improvement/read-only";
 import { Button, Checkbox, Input, Label } from "@/components/ui";
 import { useSkillAccept } from "@/hooks/use-skill-improvement";
-import { getErrorMessage } from "@/lib/api-error";
+import { ApiError, getErrorMessage } from "@/lib/api-error";
 import type { CheckOutcome, SkillCheck } from "@/types/skill-checks";
 import type { SkillImprovement } from "@/types/skill-improvement";
 import { AddTestQuestions } from "./add-test-questions";
+import { CheckAgain } from "./check-again";
 
 /** The outcomes that change the skill, each held until the person confirms it. */
 const WRITES: CheckOutcome[] = ["apply", "apply_and_pin", "fork_for_helped"];
@@ -19,7 +20,9 @@ const WRITES: CheckOutcome[] = ["apply", "apply_and_pin", "fork_for_helped"];
  * What to do with a measured attempt. The check decides what may be done: applying
  * when nobody is worse, pinning the agents it made worse or forking it for the ones
  * it helped when somebody is, improving further, or discarding it. A reader who may
- * not edit the skill sees the verdict and none of the decisions.
+ * not edit the skill sees the verdict and none of the decisions. A result whose line or
+ * agents moved since its check offers Check again in place of the decisions it no longer
+ * backs.
  */
 export function SkillAccept({
   session,
@@ -48,6 +51,7 @@ export function SkillAccept({
   const [confirmed, setConfirmed] = useState(false);
   const [forkName, setForkName] = useState(helped?.agent.name ?? "");
   const [refusal, setRefusal] = useState<string | null>(null);
+  const [lineMoved, setLineMoved] = useState(false);
   const blockedOnFork =
     check.verdict === "blocked" &&
     session.fork_id !== null &&
@@ -55,12 +59,14 @@ export function SkillAccept({
     !session.outcomes.includes("fork_for_helped");
   const writes = session.outcomes.some((outcome) => WRITES.includes(outcome));
   const held = !confirmed || (unknown > 0 && !acknowledged);
+  const recheck = session.stale === true || lineMoved;
 
   async function decide(write: () => Promise<unknown>) {
     setRefusal(null);
     try {
       await write();
     } catch (failure) {
+      if (failure instanceof ApiError && failure.code === "CONCURRENT_CHANGE") setLineMoved(true);
       setRefusal(getErrorMessage(failure, tErrors));
     }
   }
@@ -94,7 +100,7 @@ export function SkillAccept({
       {blockedOnFork && <p className="text-muted-foreground text-sm">{t("forkLineOnly")}</p>}
       {readOnly ? null : (
         <>
-          {unknown > 0 && (
+          {!recheck && unknown > 0 && (
             <div className="space-y-2 rounded-lg border p-3">
               <div className="flex items-start gap-2">
                 <Checkbox
@@ -113,7 +119,7 @@ export function SkillAccept({
               <AddTestQuestions skillId={session.skill_id} />
             </div>
           )}
-          {writes && (
+          {!recheck && writes && (
             <div className="flex items-start gap-2">
               <Checkbox
                 id="skill-accept-confirm"
@@ -125,7 +131,7 @@ export function SkillAccept({
               </Label>
             </div>
           )}
-          {session.outcomes.includes("fork_for_helped") && helped && (
+          {!recheck && session.outcomes.includes("fork_for_helped") && helped && (
             <div className="max-w-md space-y-2">
               <Label htmlFor="skill-accept-fork">{t("forkName")}</Label>
               <Input
@@ -153,9 +159,10 @@ export function SkillAccept({
               {refusal}
             </p>
           )}
+          {recheck && <CheckAgain session={session} onStarted={onStarted} />}
           <ContinueSession
             session={session}
-            lead={decisions}
+            lead={recheck ? undefined : decisions}
             emphasis={{ again: "outline", end: "ghost" }}
             onStarted={onStarted}
           />

@@ -44,6 +44,7 @@ vi.mock("@/components/improvement/tried-changes", () => ({
   TriedChanges: () => <p>tried changes</p>,
 }));
 vi.mock("./skill-start", () => ({ SkillStart: () => <p>start a session</p> }));
+vi.mock("./check-again", () => ({ CheckAgain: () => <p>check again</p> }));
 vi.mock("@/components/improvement/next-step", () => ({
   NextStep: ({ detail }: { detail?: (quote: SkillContinuationEstimate) => ReactNode }) => (
     <div>
@@ -256,5 +257,23 @@ describe("SkillImprovementPage", () => {
     mount();
 
     expect(await screen.findByText("Down")).toBeVisible();
+  });
+
+  it("offers Check again at a result its line moved past", async () => {
+    state.step = "result";
+    state.session = skillSession({ stale: true });
+    mount();
+
+    expect(await screen.findByText("check again")).toBeVisible();
+  });
+
+  it("offers a reader no Check again", async () => {
+    state.canEdit = false;
+    state.step = "result";
+    state.session = skillSession({ stale: true });
+    mount();
+
+    expect(await screen.findByText("How each agent did")).toBeVisible();
+    expect(screen.queryByText("check again")).toBeNull();
   });
 });

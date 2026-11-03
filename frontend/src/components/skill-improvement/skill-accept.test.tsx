@@ -16,6 +16,7 @@ vi.mock("@/lib/api-client", async (original) => ({
   ...(await original<typeof import("@/lib/api-client")>()),
   apiClient: { get: vi.fn(), post: vi.fn(), patch: vi.fn(), put: vi.fn(), delete: vi.fn() },
 }));
+vi.mock("./check-again", () => ({ CheckAgain: () => <p>check again</p> }));
 vi.mock("@/components/improvement/continue-session", () => ({
   ContinueSession: ({ lead }: { lead: ReactNode }) => (
     <div>
@@ -149,8 +150,8 @@ describe("SkillAccept", () => {
 
   it("names what refused the decision", async () => {
     vi.mocked(apiClient.post).mockRejectedValue(
-      new ApiError(409, "The line moved", {
-        error: { code: "CONCURRENT_CHANGE", message: "The line moved" },
+      new ApiError(409, "This check was already decided", {
+        error: { code: "ALREADY_EXISTS", message: "This check was already decided" },
       }),
     );
     mount(skillCheck({ warnings: ["within_noise"] }));
@@ -161,7 +162,8 @@ describe("SkillAccept", () => {
       screen.getByRole("button", { name: "Apply as the next version of main" }),
     );
 
-    expect(await screen.findByRole("alert")).toHaveTextContent("The line moved");
+    expect(await screen.findByRole("alert")).toHaveTextContent("This check was already decided");
+    expect(screen.queryByText("check again")).toBeNull();
   });
 
   it("holds a change until the person confirms they reviewed it", async () => {
@@ -190,5 +192,32 @@ describe("SkillAccept", () => {
     expect(screen.queryByRole("button")).toBeNull();
     expect(screen.queryByRole("checkbox")).toBeNull();
     expect(screen.queryByLabelText("Name of the new fork")).toBeNull();
+  });
+
+  it("offers Check again in place of the decisions on a result its line moved past", () => {
+    mount(skillCheck(), skillSession({ stale: true }));
+
+    expect(screen.getByText("check again")).toBeVisible();
+    expect(screen.queryByRole("button", { name: /Apply/ })).toBeNull();
+    expect(screen.queryByRole("checkbox")).toBeNull();
+    expect(screen.getByRole("button", { name: "Try again" })).toBeVisible();
+  });
+
+  it("offers Check again once a decision is refused because the line moved", async () => {
+    vi.mocked(apiClient.post).mockRejectedValue(
+      new ApiError(409, "Changed since this was checked", {
+        error: { code: "CONCURRENT_CHANGE", message: "Changed since this was checked" },
+      }),
+    );
+    mount(skillCheck());
+
+    await confirm();
+    await userEvent.click(
+      screen.getByRole("button", { name: "Apply as the next version of main" }),
+    );
+
+    expect(await screen.findByText("check again")).toBeVisible();
+    expect(screen.getByRole("alert")).toHaveTextContent("Changed since this was checked");
+    expect(screen.queryByRole("button", { name: /Apply/ })).toBeNull();
   });
 });

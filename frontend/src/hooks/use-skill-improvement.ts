@@ -6,13 +6,16 @@ import { qk } from "@/lib/query-keys";
 import {
   applySkillImprovement,
   estimateSkillImprovement,
+  estimateSkillRecheck,
   forkSkillImprovement,
   getSkillProblems,
   listSkillImprovements,
   listSkillImprovementsAwaiting,
+  recheckSkillImprovement,
   startSkillImprovement,
   type SkillImprovementOrigin,
 } from "@/lib/skill-improvement-api";
+import type { SkillContinuationEstimate } from "@/types/skill-improvement";
 
 /** One line's sessions, and starting a new one on it. */
 export function useSkillImprovements(skillId: string, origin: SkillImprovementOrigin) {
@@ -84,4 +87,16 @@ export function useSkillAccept(skillId: string, sessionId: string) {
     onSuccess: settle,
   });
   return { apply, fork };
+}
+
+/** Pricing Check again on a stale result, and starting it at that price. */
+export function useSkillRecheck(skillId: string, sessionId: string) {
+  const queryClient = useQueryClient();
+  const estimate = useMutation({ mutationFn: () => estimateSkillRecheck(skillId, sessionId) });
+  const recheck = useMutation({
+    mutationFn: (quote: SkillContinuationEstimate) =>
+      recheckSkillImprovement(skillId, sessionId, quote),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: qk.improvements.all() }),
+  });
+  return { estimate, recheck };
 }

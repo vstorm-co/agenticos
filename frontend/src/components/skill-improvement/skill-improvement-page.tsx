@@ -21,6 +21,7 @@ import { ROUTES } from "@/lib/constants";
 import { isActive, isClosed, isReachable, stopOf } from "@/lib/improvement-steps";
 import { Perm } from "@/types/permissions";
 import type { SkillImprovement } from "@/types/skill-improvement";
+import { CheckAgain } from "./check-again";
 import { CheckAgents } from "./check-agents";
 import { CheckEstimate } from "./check-estimate";
 import { SkillAccept } from "./skill-accept";
@@ -164,6 +165,9 @@ function SkillSession({
             <section className="space-y-4 rounded-xl border p-6">
               <h2 className="font-medium">{t("resultTitle")}</h2>
               {measured}
+              {session.stale && readOnly === null && (
+                <CheckAgain session={session} onStarted={followCurrent} />
+              )}
               {isReachable(views.accept) ? (
                 <Button onClick={() => goTo("accept")}>{t("toAccept")}</Button>
               ) : (

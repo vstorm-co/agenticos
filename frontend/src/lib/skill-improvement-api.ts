@@ -7,6 +7,7 @@
 
 import { apiClient } from "./api-client";
 import type {
+  SkillContinuationEstimate,
   SkillImprovement,
   SkillImprovementAwaiting,
   SkillImprovementEstimate,
@@ -78,6 +79,31 @@ export function forkSkillImprovement(
   return apiClient.post<{ session: SkillImprovement }>(`${root(skillId)}/${sessionId}/fork`, {
     confirmed: true,
     ...body,
+  });
+}
+
+/** The price of checking the result's chosen changes again on the line as it is now. */
+export function estimateSkillRecheck(
+  skillId: string,
+  sessionId: string,
+): Promise<SkillContinuationEstimate> {
+  return apiClient.post<SkillContinuationEstimate>(
+    `${root(skillId)}/${sessionId}/recheck/estimate`,
+    {},
+  );
+}
+
+/** Check the result's chosen changes again, at the quoted price. */
+export function recheckSkillImprovement(
+  skillId: string,
+  sessionId: string,
+  quote: SkillContinuationEstimate,
+): Promise<SkillImprovement> {
+  return apiClient.post<SkillImprovement>(`${root(skillId)}/${sessionId}/recheck`, {
+    confirmed: true,
+    budget_usd: quote.budget_usd,
+    estimate_usd: quote.total_usd,
+    candidate_hash: quote.candidate_hash,
   });
 }
 

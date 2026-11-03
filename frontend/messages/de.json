@@ -15120,6 +15120,14 @@
       "unchecked": "{name} kann nicht geprüft werden: {reason, select, no_questions {keine Testfragen, bei denen er den Skill geladen hat} no_access {Sie dürfen ihn nicht ausführen} no_budget {sein Budget ist aufgebraucht} no_published_version {keine veröffentlichte Version} inconclusive {sein Run konnte nicht jede Antwort bewerten} other {die Prüfung ist fehlgeschlagen}}.",
       "hidden": "{count, plural, =1 {1 weiterer Agent, den Sie nicht sehen, nutzt diese Linie.} other {# weitere Agents, die Sie nicht sehen, nutzen diese Linie.}}",
       "thorough": "Die Beschreibung hat sich geändert, und sie entscheidet, wann Agents den Skill öffnen, deshalb werden auch die eigenen Fragen jedes Agents gestellt."
+    },
+    "checkAgain": {
+      "why": "Die Linie oder ihre Agents haben sich seit der Prüfung dieses Ergebnisses geändert, es gilt also womöglich nicht mehr. Prüfen Sie dieselben Änderungen vor der Entscheidung erneut an der Linie, wie sie jetzt ist.",
+      "pricing": "Die Prüfung wird bepreist…",
+      "priceMoved": "Der Preis hat sich geändert: jetzt bis zu {cost}. Drücken Sie erneut, um zu prüfen.",
+      "overLimit": "Die Prüfung kostet mehr, als die Sitzung noch übrig hat. Versuchen Sie es mit einem höheren Limit erneut oder beenden Sie die Sitzung.",
+      "go": "Erneut prüfen · bis zu {cost}",
+      "goUnpriced": "Erneut prüfen"
     }
   }
 }

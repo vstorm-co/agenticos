@@ -15448,6 +15448,14 @@
       "unchecked": "{name} cannot be checked: {reason, select, no_questions {it has no test questions where it loaded the skill} no_access {you may not run it} no_budget {its budget is spent} no_published_version {it has no published version} inconclusive {its run could not grade every answer} other {its check failed}}.",
       "hidden": "{count, plural, =1 {1 more agent you can't see uses this line.} other {# more agents you can't see use this line.}}",
       "thorough": "The description changed, which decides when agents open the skill, so every agent's own questions are asked too."
+    },
+    "checkAgain": {
+      "why": "The line or its agents changed since this result was checked, so it may no longer hold. Check the same changes again on the line as it is now before deciding.",
+      "pricing": "Pricing the check…",
+      "priceMoved": "The price changed to up to {cost}. Press again to check.",
+      "overLimit": "The check costs more than this session has left. Try again with a higher limit, or end the session.",
+      "go": "Check again · up to {cost}",
+      "goUnpriced": "Check again"
     }
   }
 }

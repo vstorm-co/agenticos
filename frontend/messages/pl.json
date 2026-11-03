@@ -15222,6 +15222,14 @@
       "unchecked": "{name} nie da się sprawdzić: {reason, select, no_questions {nie ma pytań testowych tam, gdzie wczytał skill} no_access {nie możesz go uruchamiać} no_budget {jego budget jest wyczerpany} no_published_version {nie ma opublikowanej wersji} inconclusive {run nie ocenił wszystkich odpowiedzi} other {sprawdzenie się nie powiodło}}.",
       "hidden": "{count, plural, one {Tej linii używa jeszcze # agent, którego nie widzisz.} few {Tej linii używa jeszcze # agentów, których nie widzisz.} many {Tej linii używa jeszcze # agentów, których nie widzisz.} other {Tej linii używa jeszcze # agenta, którego nie widzisz.}}",
       "thorough": "Opis się zmienił, a on decyduje, kiedy agenci otwierają skill, więc zadawane są też własne pytania każdego agenta."
+    },
+    "checkAgain": {
+      "why": "Linia albo jej agenci zmienili się od sprawdzenia tego wyniku, więc może już nie być aktualny. Przed decyzją sprawdź te same zmiany jeszcze raz na linii w obecnym stanie.",
+      "pricing": "Wyceniamy sprawdzenie…",
+      "priceMoved": "Cena zmieniła się: teraz do {cost}. Naciśnij jeszcze raz, aby sprawdzić.",
+      "overLimit": "Sprawdzenie kosztuje więcej, niż zostało w limicie sesji. Spróbuj ponownie z wyższym limitem albo zakończ sesję.",
+      "go": "Sprawdź ponownie · do {cost}",
+      "goUnpriced": "Sprawdź ponownie"
     }
   }
 }

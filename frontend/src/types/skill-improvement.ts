@@ -39,6 +39,8 @@ export interface SkillImprovement extends Omit<Improvement, "iterations"> {
   check: SkillCheck | null;
   /** What may be done with the measured attempt, as its check decided. */
   outcomes: CheckOutcome[];
+  /** The line moved past the version the result was checked on: check again before deciding. */
+  stale?: boolean;
   outcome: "applied" | "applied_pinned" | "forked" | "discarded" | null;
   applied_version_id: string | null;
   agents: number;
