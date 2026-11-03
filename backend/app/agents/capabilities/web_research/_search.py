@@ -1,6 +1,6 @@
 """Searching the public web, through whichever service the agent was given.
 
-Four providers behind one payload. The payload is the point: every provider
+Five providers behind one payload. The payload is the point: every provider
 returns the same `WebSearchResults` JSON, so the chat renders clickable titles
 and domains whoever did the searching, and swapping Tavily for Brave is a
 dropdown rather than a change to how results look.
@@ -16,6 +16,8 @@ Which one to use is a real decision, not a preference:
   if you care where the answers come from.
 - **Exa** searches by meaning rather than keywords; better for "find companies
   doing X", worse for "what does Y cost".
+- **Keenable** needs no key either: a keyless public endpoint, with an optional
+  key for the keyed endpoint and higher rate limits.
 
 Provider-native search - the model provider doing the searching itself - is not
 here. It is not an HTTP call we make; it is a capability the model runs with, so
@@ -31,7 +33,7 @@ from pydantic import BaseModel, Field, ValidationError
 
 logger = logging.getLogger(__name__)
 
-SearchProvider = Literal["duckduckgo", "tavily", "brave", "exa"]
+SearchProvider = Literal["duckduckgo", "tavily", "brave", "exa", "keenable"]
 
 # Long enough for a slow index, short enough that a hung search does not hold a
 # conversation open while somebody watches a spinner.
@@ -132,6 +134,8 @@ async def search(
         results = await _tavily(query, capped, _require_key(api_key, "Tavily"))
     elif provider == "brave":
         results = await _brave(query, capped, _require_key(api_key, "Brave Search"))
+    elif provider == "keenable":
+        results = await _keenable(query, capped, api_key)
     else:
         results = await _exa(query, capped, _require_key(api_key, "Exa"))
     return WebSearchResults(query=query, provider=provider, results=results)
@@ -255,6 +259,37 @@ async def _exa(query: str, max_results: int, api_key: str) -> list[WebSearchResu
     return [
         _hit(row.get("title"), row.get("url"), row.get("text"), row.get("score"))
         for row in payload.get("results", [])[:max_results]
+    ]
+
+
+async def _keenable(query: str, max_results: int, api_key: str | None) -> list[WebSearchResult]:
+    """Keenable, keyless by default; a key switches to the keyed endpoint.
+
+    The snippet is the result's `description` when it has one, else its page
+    `snippet` (which `_hit` trims). A result without a URL is dropped.
+    """
+    headers = {"Content-Type": "application/json", "X-Keenable-Title": "AgenticOS"}
+    url = "https://api.keenable.ai/v1/search/public"
+    if api_key:
+        headers["X-API-Key"] = api_key
+        url = "https://api.keenable.ai/v1/search"
+    try:
+        response = await _http().post(
+            url,
+            json={"query": query, "max_results": max_results},
+            headers=headers,
+            timeout=_TIMEOUT_SECONDS,
+        )
+        response.raise_for_status()
+        payload = response.json()
+    except Exception as exc:
+        logger.exception("Keenable search failed")
+        raise SearchUnavailable(_unavailable("Keenable", exc)) from exc
+
+    return [
+        _hit(row.get("title"), row["url"], row.get("description") or row.get("snippet"))
+        for row in payload.get("results", [])[:max_results]
+        if row.get("url")
     ]
 
 

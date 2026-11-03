@@ -122,6 +122,39 @@ class TestProviderNormalisation:
         assert results.results[0].content == "body"
 
     @pytest.mark.anyio
+    async def test_keenable_works_without_a_key(self):
+        """Keyless public endpoint; description wins, URL-less rows are dropped."""
+        client = _http_client(
+            "post",
+            {
+                "results": [
+                    {"title": "T", "url": "https://k.dev", "description": "d", "snippet": "s"},
+                    {"title": "No URL", "description": "dropped"},
+                    {"title": "U", "url": "https://k2.dev", "snippet": "page text"},
+                ]
+            },
+        )
+        with patch("httpx.AsyncClient", return_value=client):
+            results = await search("q", provider="keenable", api_key=None, max_results=5)
+
+        url, kwargs = client.post.call_args.args[0], client.post.call_args.kwargs
+        assert url == "https://api.keenable.ai/v1/search/public"
+        assert kwargs["json"] == {"query": "q", "max_results": 5}
+        assert kwargs["headers"]["X-Keenable-Title"] == "AgenticOS"
+        assert "X-API-Key" not in kwargs["headers"]
+        assert [r.url for r in results.results] == ["https://k.dev", "https://k2.dev"]
+        assert [r.content for r in results.results] == ["d", "page text"]
+
+    @pytest.mark.anyio
+    async def test_keenable_uses_the_keyed_endpoint_when_given_a_key(self):
+        client = _http_client("post", {"results": []})
+        with patch("httpx.AsyncClient", return_value=client):
+            await search("q", provider="keenable", api_key="kn", max_results=5)
+
+        assert client.post.call_args.args[0] == "https://api.keenable.ai/v1/search"
+        assert client.post.call_args.kwargs["headers"]["X-API-Key"] == "kn"
+
+    @pytest.mark.anyio
     async def test_duckduckgo_needs_no_key_at_all(self):
         """The default, and the reason it is the default."""
         client = MagicMock()
@@ -207,6 +240,7 @@ class TestConfiguration:
         definition = get("web_research")
         assert definition.needs_secret(WebResearchConfig(method="duckduckgo")) is False
         assert definition.needs_secret(WebResearchConfig(method="native")) is False
+        assert definition.needs_secret(WebResearchConfig(method="keenable")) is False
 
     def test_a_capability_that_declares_no_key_never_asks_for_one(self):
         """Most builtins take no credential at all. The same question is asked of

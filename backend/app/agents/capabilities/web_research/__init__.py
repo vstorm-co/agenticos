@@ -23,6 +23,8 @@ __all__ = ["WebResearch", "WebResearchConfig"]
 
 # Which methods authenticate. `native` uses the model provider's own search and
 # DuckDuckGo needs no account, so a key is neither required nor read for either.
+# Keenable needs no account either; a key, when one is bound, is used but never
+# required.
 KEYED_METHODS = frozenset({"tavily", "brave", "exa"})
 
 
@@ -34,7 +36,7 @@ class WebResearchConfig(BaseModel):
     the model - none of it is something to type correctly.
     """
 
-    method: Literal["duckduckgo", "native", "tavily", "brave", "exa"] = Field(
+    method: Literal["duckduckgo", "native", "tavily", "brave", "exa", "keenable"] = Field(
         title="Search engine",
         default="duckduckgo",
         description=(
@@ -43,7 +45,8 @@ class WebResearchConfig(BaseModel):
             "(only on models that support it). "
             "tavily: summarised for a model to read. "
             "brave: an index of its own. "
-            "exa: search by meaning rather than keywords."
+            "exa: search by meaning rather than keywords. "
+            "keenable: no account needed; an API key is optional."
         ),
         # The services' own names. Without these the picker offered `duckduckgo`
         # and `exa` in the case the value is stored in, which reads as a config
@@ -56,6 +59,7 @@ class WebResearchConfig(BaseModel):
                 "tavily": "Tavily",
                 "brave": "Brave",
                 "exa": "Exa",
+                "keenable": "Keenable",
             }
         },
     )
