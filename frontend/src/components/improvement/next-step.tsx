@@ -10,14 +10,16 @@ import { subjectOf } from "@/lib/improvement-subject";
 import { ApiError, getErrorMessage } from "@/lib/api-error";
 import { currentAttempt, stopOf } from "@/lib/improvement-steps";
 import type { ContinuationEstimate, Improvement } from "@/types/improvement";
+import { ContinueSession } from "./continue-session";
 import { useReadOnly } from "./read-only";
 
 /**
  * The footer of a stop: what the next step does and costs, and the button that
  * starts it. Pricing spends nothing, so the price is on screen before anyone asks;
  * pressing the button is the consent to that price. When the price moved before
- * the press reached the server, the new price is shown and the person presses again.
- * Only someone who may start an improvement on the agent is offered it.
+ * the press reached the server, the new price is shown and the person presses again;
+ * so is a skill line that got a newer version meanwhile, and edits that no longer
+ * apply to it leave trying again. Only someone who may start an improvement on the agent is offered it.
  */
 export function NextStep({
   session,
@@ -45,7 +47,9 @@ export function NextStep({
   const [budget, setBudget] = useState(() => limitText(session.budget_usd, locale));
   const [asked, setAsked] = useState(session.budget_usd);
   const [quote, setQuote] = useState<{ key: string; value: ContinuationEstimate } | null>(null);
-  const [moved, setMoved] = useState(false);
+  // A skill's line can get a newer version under a stop; the step is then priced on it.
+  const [moved, setMoved] = useState<"price" | "line" | null>(null);
+  const [stuck, setStuck] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // Choosing or rewording a change changes what the check measures, and so its price.
   const candidate = currentAttempt(session)?.candidate_spec_hash;
@@ -84,18 +88,20 @@ export function NextStep({
     setError(null);
     try {
       await actions.continueSession.mutateAsync(value);
-      setMoved(false);
+      setMoved(null);
       onStarted();
     } catch (failure) {
       if (!(failure instanceof ApiError && failure.status === 409)) {
         setError(getErrorMessage(failure, tErrors));
         return;
       }
+      const line = failure.code === "LINE_MOVED";
       try {
         setQuote({ key, value: await estimate(asked) });
-        setMoved(true);
+        setMoved(line ? "line" : "price");
       } catch (again) {
         setError(refusal(again));
+        setStuck(line);
       }
     }
   }
@@ -113,7 +119,9 @@ export function NextStep({
       )}
       {moved && priced && (
         <p role="alert" className="text-warning text-sm">
-          {t("priceMoved", { cost: usd(priced.total_usd, locale) })}
+          {t(moved === "line" ? "lineMoved" : "priceMoved", {
+            cost: usd(priced.total_usd, locale),
+          })}
         </p>
       )}
       {priced && !priced.affordable && (
@@ -161,6 +169,7 @@ export function NextStep({
           {refused}
         </p>
       )}
+      {stuck && <ContinueSession session={session} onStarted={onStarted} />}
     </section>
   );
 }

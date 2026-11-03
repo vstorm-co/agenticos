@@ -147,4 +147,41 @@ describe("SkillCheckDialog", () => {
     expect(onOpenChange).toHaveBeenCalledWith(false);
     expect(onOpenChange).toHaveBeenCalledTimes(1);
   });
+
+  it("points a check an improvement session started to that session", () => {
+    held.check = finishedCheck({ session_id: "sess-1" });
+    open();
+
+    expect(screen.getByText(/decided there/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Open the session" })).toHaveAttribute(
+      "href",
+      "/skills/s-1/improve/sess-1",
+    );
+    expect(screen.queryByRole("button", { name: "Apply" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Discard" })).toBeNull();
+  });
+
+  it("points to the session the server names when deciding here is refused", async () => {
+    held.check = finishedCheck();
+    held.apply.mutate.mockImplementation((_body, options) =>
+      options.onError(
+        new ApiError(409, "Decide in the session", {
+          error: {
+            code: "DECIDE_IN_SESSION",
+            message: "Decide in the session",
+            details: { session_id: "sess-2" },
+          },
+        }),
+      ),
+    );
+    open();
+
+    await userEvent.click(screen.getByRole("button", { name: "Apply" }));
+
+    expect(screen.getByRole("link", { name: "Open the session" })).toHaveAttribute(
+      "href",
+      "/skills/s-1/improve/sess-2",
+    );
+    expect(screen.queryByRole("button", { name: "Apply" })).toBeNull();
+  });
 });

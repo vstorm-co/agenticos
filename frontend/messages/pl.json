@@ -8295,7 +8295,9 @@
         "no_better": "Żaden agent nie jest lepszy, więc nie ma czego zastosować."
       },
       "unaffordable": "Budżet organizacji na ten miesiąc nie pokryje tego sprawdzenia.",
-      "cancel": "Zatrzymaj sprawdzenie"
+      "cancel": "Zatrzymaj sprawdzenie",
+      "inSession": "To sprawdzenie należy do sesji poprawiania, więc decyzja zapada w niej.",
+      "openSession": "Otwórz sesję"
     }
   },
   "states": {
@@ -15052,7 +15054,8 @@
       "hintSingle": "W razie potrzeby popraw brzmienie. Następny krok jest wyceniany, zanim go naciśniesz.",
       "saveWordingFirst": "Najpierw zapisz albo odrzuć nowe brzmienie.",
       "unmeasurable": "Tej próby nie da się przetestować: po pominięciu pytań, z których pochodzą jej przykłady, potrzeba jeszcze {count, plural, one {# odłożonego pytania} few {# odłożonych pytań} many {# odłożonych pytań} other {# odłożonego pytania}}. Ta sesja zachowuje pytania, z którymi wystartowała, więc dodanie nowych jej nie pomoże: zakończ sesję, dodaj pytania i zacznij nową.",
-      "likely": "Najpewniej ok. {cost}: wyższa kwota dotyczy tylko sytuacji, gdy odpowiedzi trzeba zadać ponownie."
+      "likely": "Najpewniej ok. {cost}: wyższa kwota dotyczy tylko sytuacji, gdy odpowiedzi trzeba zadać ponownie.",
+      "lineMoved": "Linia skilla dostała w międzyczasie nowszą wersję, więc krok wyceniono na niej ponownie: do {cost}. Naciśnij jeszcze raz, aby przejść dalej."
     },
     "waitingFor": {
       "understand": "Czeka na Ciebie: zobacz, co poszło nie tak",
@@ -15215,7 +15218,8 @@
       "summary": "{count, plural, =0 {Nie znaleziono problemu ze skillem} one {# problem ze skillem} few {# problemy ze skillem} many {# problemów ze skillem} other {# problemu ze skillem}}{elsewhere, plural, =0 {} other {, # odpowiedzi z problemem gdzie indziej}}{fine, plural, =0 {} other {, # w porządku}}.",
       "usageUnknown": "{count, plural, one {# odpowiedź jest sprzed zapisywania wczytań skilli i nie jest liczona.} few {# odpowiedzi są sprzed zapisywania wczytań skilli i nie są liczone.} many {# odpowiedzi jest sprzed zapisywania wczytań skilli i nie są liczone.} other {# odpowiedzi jest sprzed zapisywania wczytań skilli i nie są liczone.}}",
       "agent": "{name} ({runs})",
-      "occursIn": "W {runs, plural, one {# odpowiedzi} few {# odpowiedziach} many {# odpowiedziach} other {# odpowiedzi}}, u: {agents}{hidden, plural, =0 {} one { i # agenta, którego nie widzisz} few { i # agentów, których nie widzisz} many { i # agentów, których nie widzisz} other { i # agenta, którego nie widzisz}}."
+      "occursIn": "W {runs, plural, one {# odpowiedzi} few {# odpowiedziach} many {# odpowiedziach} other {# odpowiedzi}}, u: {agents}{hidden, plural, =0 {} one { i # agenta, którego nie widzisz} few { i # agentów, których nie widzisz} many { i # agentów, których nie widzisz} other { i # agenta, którego nie widzisz}}.",
+      "hiddenExamples": "{count, plural, one {+# ukryty przykład} few {+# ukryte przykłady} many {+# ukrytych przykładów} other {+# ukrytego przykładu}}"
     },
     "checkEstimate": {
       "agents": "{count, plural, =0 {Żadnego agenta tej linii nie da się sprawdzić.} one {Sprawdzimy ją na # agencie: {names}.} few {Sprawdzimy ją na # agentach: {names}.} many {Sprawdzimy ją na # agentach: {names}.} other {Sprawdzimy ją na # agenta: {names}.}}",
@@ -15231,6 +15235,7 @@
       "go": "Sprawdź ponownie · do {cost}",
       "goUnpriced": "Sprawdź ponownie",
       "raise": "Użyj tego limitu"
-    }
+    },
+    "staleChanges": "Linia dostała nowszą wersję, odkąd te zmiany powstały. Następny krok sprawdzi je na najnowszej wersji."
   }
 }

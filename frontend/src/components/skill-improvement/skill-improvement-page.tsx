@@ -137,6 +137,11 @@ function SkillSession({
           {step === "changes" &&
             (stopOf(session) === "changes" ? (
               <section className="space-y-4">
+                {session.stale && (
+                  <p role="status" className="text-warning text-sm">
+                    {t("staleChanges")}
+                  </p>
+                )}
                 <AttemptHistory session={session} />
                 <h2 className="font-medium">
                   {tImprovement("round", {

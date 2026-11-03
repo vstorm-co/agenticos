@@ -81,6 +81,8 @@ export interface SkillProblem {
   agents: { id: string; name: string; runs: number }[];
   hidden_agents: number;
   examples: ImprovementEvidenceItem[];
+  /** Examples from runs the reader may not see, counted and never shown. */
+  hidden_examples: number;
 }
 
 export interface SkillProblems {

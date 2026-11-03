@@ -39,6 +39,7 @@ const PROBLEMS: SkillProblems = {
           reason: null,
         },
       ],
+      hidden_examples: 3,
     },
   ],
   not_the_skill: 2,
@@ -67,6 +68,7 @@ describe("SkillUnderstand", () => {
       screen.getByText("In 4 answers, at Support (3) and Refunds (1) and 1 agent you can't see."),
     ).toBeVisible();
     expect(screen.getByText("Can I return this after three weeks?")).toBeVisible();
+    expect(screen.getByText("+3 hidden examples")).toBeVisible();
     expect(
       screen.getByText(
         "1 problem with the skill, 2 answers whose trouble lies elsewhere, 1 that were fine.",

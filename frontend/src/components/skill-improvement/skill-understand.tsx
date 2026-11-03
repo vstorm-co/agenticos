@@ -59,6 +59,11 @@ function Problem({ problem }: { problem: SkillProblem }) {
           {example.question}
         </blockquote>
       )}
+      {problem.hidden_examples > 0 && (
+        <p className="text-muted-foreground text-xs">
+          {t("hiddenExamples", { count: problem.hidden_examples })}
+        </p>
+      )}
     </li>
   );
 }

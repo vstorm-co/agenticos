@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
@@ -15,6 +16,7 @@ import {
 } from "@/components/ui";
 import { useSkillCheck } from "@/hooks/use-skill-check";
 import { ApiError, getErrorMessage } from "@/lib/api-error";
+import { ROUTES } from "@/lib/constants";
 import { DIALOG_FORM, DIALOG_SCROLL } from "@/lib/dialog-sizes";
 import { CheckAgents } from "./check-agents";
 import { CheckDecision } from "./check-decision";
@@ -24,7 +26,8 @@ import { CheckDecision } from "./check-decision";
  *
  * Opening it prices the check; nothing runs until Start. Each agent answers its
  * questions with the stored text and with the change, and the result per agent
- * decides what applying may do.
+ * decides what applying may do. A check an improvement session started is decided
+ * in that session, so the dialog points there instead of deciding it.
  */
 export function SkillCheckDialog({
   skillId,
@@ -44,7 +47,15 @@ export function SkillCheckDialog({
   const body = { fork_id: forkId, proposal_id: proposalId };
   const { mutate: price } = estimate;
   useEffect(() => price({ fork_id: forkId, proposal_id: proposalId }), [price, forkId, proposalId]);
-  const failed = (error: unknown) => toast.error(getErrorMessage(error, tErrors));
+  const [decidedIn, setDecidedIn] = useState<string | null>(null);
+  const failed = (error: unknown) => {
+    const session =
+      error instanceof ApiError && error.code === "DECIDE_IN_SESSION"
+        ? error.details?.session_id
+        : undefined;
+    if (typeof session === "string") setDecidedIn(session);
+    else toast.error(getErrorMessage(error, tErrors));
+  };
   // The server knows whether this very text is checked already, and says which check.
   const resumeOrFail = (error: unknown) => {
     const open = error instanceof ApiError ? error.details?.check_id : undefined;
@@ -52,6 +63,7 @@ export function SkillCheckDialog({
     else failed(error);
   };
   const shown = check ?? estimate.data ?? null;
+  const session = check?.session_id ?? decidedIn;
 
   return (
     <Dialog open onOpenChange={onOpenChange}>
@@ -87,7 +99,17 @@ export function SkillCheckDialog({
             </Button>
           </DialogFooter>
         )}
-        {check?.status === "running" && (
+        {session !== null && (
+          <DialogFooter className="items-center gap-3 sm:justify-between">
+            <p className="text-muted-foreground text-sm">{t("inSession")}</p>
+            <Button asChild>
+              <Link href={`${ROUTES.SKILL_DETAIL(skillId)}/improve/${session}`}>
+                {t("openSession")}
+              </Link>
+            </Button>
+          </DialogFooter>
+        )}
+        {session === null && check?.status === "running" && (
           <DialogFooter className="items-center gap-3 sm:justify-between">
             <p className="text-muted-foreground text-sm">{t("running")}</p>
             <Button
@@ -101,7 +123,7 @@ export function SkillCheckDialog({
             </Button>
           </DialogFooter>
         )}
-        {check?.status === "done" && (
+        {session === null && check?.status === "done" && (
           <CheckDecision
             check={check}
             busy={apply.isPending || discard.isPending}

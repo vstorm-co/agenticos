@@ -74,6 +74,8 @@ export interface SkillCheck extends SkillCheckEstimate {
   outcomes: CheckOutcome[];
   outcome: CheckOutcome | null;
   proposal_id: string | null;
+  /** The skill improvement session that started it, which decides it. */
+  session_id?: string | null;
   applied_version_id: string | null;
   created_at: string;
   finished_at: string | null;

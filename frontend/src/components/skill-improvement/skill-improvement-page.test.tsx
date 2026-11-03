@@ -276,4 +276,11 @@ describe("SkillImprovementPage", () => {
     expect(await screen.findByText("How each agent did")).toBeVisible();
     expect(screen.queryByText("check again")).toBeNull();
   });
+
+  it("says the line moved under the changes it stops at", async () => {
+    state.session = skillSession({ status: "waiting", stage: "filtering", stale: true });
+    mount();
+
+    expect(await screen.findByText(/got a newer version since these changes/)).toBeVisible();
+  });
 });

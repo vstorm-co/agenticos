@@ -8413,7 +8413,9 @@
         "no_better": "Kein Agent wurde besser, also gibt es nichts zu übernehmen."
       },
       "unaffordable": "Das restliche Monatsbudget der Organisation deckt diese Prüfung nicht.",
-      "cancel": "Prüfung anhalten"
+      "cancel": "Prüfung anhalten",
+      "inSession": "Diese Prüfung gehört zu einer Verbesserungssitzung und wird dort entschieden.",
+      "openSession": "Sitzung öffnen"
     }
   },
   "states": {
@@ -14950,7 +14952,8 @@
       "hintSingle": "Korrigieren Sie bei Bedarf den Wortlaut. Der nächste Schritt wird bepreist, bevor Sie ihn drücken.",
       "saveWordingFirst": "Speichern oder verwerfen Sie zuerst den Wortlaut.",
       "unmeasurable": "Dieser Versuch kann nicht getestet werden: Ohne die Fragen, aus denen seine Beispiele stammen, wären {count, plural, one {# weitere zurückgelegte Frage} other {# weitere zurückgelegte Fragen}} nötig. Diese Sitzung behält die Fragen, mit denen sie begann, daher hilft es nicht, welche hinzuzufügen: Beenden Sie die Sitzung, fügen Sie Fragen hinzu und starten Sie eine neue.",
-      "likely": "Wahrscheinlich etwa {cost}: Der höhere Betrag gilt nur, wenn Antworten erneut abgefragt werden müssen."
+      "likely": "Wahrscheinlich etwa {cost}: Der höhere Betrag gilt nur, wenn Antworten erneut abgefragt werden müssen.",
+      "lineMoved": "Die Linie des Skills hat inzwischen eine neuere Version, deshalb wurde der Schritt darauf neu bepreist: bis zu {cost}. Drücken Sie erneut, um fortzufahren."
     },
     "waitingFor": {
       "understand": "Wartet auf Sie: sehen Sie sich an, was schiefging",
@@ -15113,7 +15116,8 @@
       "summary": "{count, plural, =0 {Kein Problem mit dem Skill gefunden} =1 {1 Problem mit dem Skill} other {# Probleme mit dem Skill}}{elsewhere, plural, =0 {} other {, # Antworten mit dem Problem anderswo}}{fine, plural, =0 {} other {, # in Ordnung}}.",
       "usageUnknown": "{count, plural, =1 {1 Antwort stammt aus der Zeit vor der Aufzeichnung von Skill-Ladevorgängen und wird nicht gezählt.} other {# Antworten stammen aus der Zeit vor der Aufzeichnung von Skill-Ladevorgängen und werden nicht gezählt.}}",
       "agent": "{name} ({runs})",
-      "occursIn": "In {runs, plural, =1 {1 Antwort} other {# Antworten}}, bei {agents}{hidden, plural, =0 {} =1 { und 1 Agent, den Sie nicht sehen} other { und # Agents, die Sie nicht sehen}}."
+      "occursIn": "In {runs, plural, =1 {1 Antwort} other {# Antworten}}, bei {agents}{hidden, plural, =0 {} =1 { und 1 Agent, den Sie nicht sehen} other { und # Agents, die Sie nicht sehen}}.",
+      "hiddenExamples": "{count, plural, =1 {+1 verborgenes Beispiel} other {+# verborgene Beispiele}}"
     },
     "checkEstimate": {
       "agents": "{count, plural, =0 {Kein Agent dieser Linie kann geprüft werden.} =1 {Es wird auf 1 Agent geprüft: {names}.} other {Es wird auf # Agents geprüft: {names}.}}",
@@ -15129,6 +15133,7 @@
       "go": "Erneut prüfen · bis zu {cost}",
       "goUnpriced": "Erneut prüfen",
       "raise": "Dieses Limit verwenden"
-    }
+    },
+    "staleChanges": "Die Linie hat eine neuere Version, seit diese Änderungen geschrieben wurden. Der nächste Schritt prüft sie auf der neuesten Version."
   }
 }

@@ -8535,7 +8535,9 @@
         "no_better": "No agent got better, so there is nothing to apply."
       },
       "unaffordable": "The organization's budget left this month cannot cover this check.",
-      "cancel": "Stop the check"
+      "cancel": "Stop the check",
+      "inSession": "This check belongs to an improvement session, so it is decided there.",
+      "openSession": "Open the session"
     }
   },
   "states": {
@@ -15278,7 +15280,8 @@
       "hintSingle": "Correct the wording if needed. The next step is priced before you press.",
       "saveWordingFirst": "Save or discard the wording first.",
       "unmeasurable": "This attempt can't be tested: {count, plural, one {# more question} other {# more questions}} kept aside would be needed once the ones its examples came from are left out. This session keeps the questions it started with, so adding some won't help it: end the session, add questions, and start a new one.",
-      "likely": "Most likely about {cost}: the higher figure holds only if answers have to be asked again."
+      "likely": "Most likely about {cost}: the higher figure holds only if answers have to be asked again.",
+      "lineMoved": "The skill's line got a newer version meanwhile, so the step was priced again on it: up to {cost}. Press again to go on."
     },
     "waitingFor": {
       "understand": "Waiting for you: look at what went wrong",
@@ -15441,7 +15444,8 @@
       "summary": "{count, plural, =0 {No problem with the skill found} =1 {1 problem with the skill} other {# problems with the skill}}{elsewhere, plural, =0 {} other {, # answers whose trouble lies elsewhere}}{fine, plural, =0 {} other {, # that were fine}}.",
       "usageUnknown": "{count, plural, =1 {1 answer is from before skill loads were recorded and is not counted.} other {# answers are from before skill loads were recorded and are not counted.}}",
       "agent": "{name} ({runs})",
-      "occursIn": "In {runs, plural, =1 {1 answer} other {# answers}}, at {agents}{hidden, plural, =0 {} =1 { and 1 agent you can't see} other { and # agents you can't see}}."
+      "occursIn": "In {runs, plural, =1 {1 answer} other {# answers}}, at {agents}{hidden, plural, =0 {} =1 { and 1 agent you can't see} other { and # agents you can't see}}.",
+      "hiddenExamples": "{count, plural, =1 {+1 hidden example} other {+# hidden examples}}"
     },
     "checkEstimate": {
       "agents": "{count, plural, =0 {No agent on this line can be checked.} =1 {It will be checked on 1 agent: {names}.} other {It will be checked on # agents: {names}.}}",
@@ -15457,6 +15461,7 @@
       "go": "Check again · up to {cost}",
       "goUnpriced": "Check again",
       "raise": "Use this limit"
-    }
+    },
+    "staleChanges": "The line got a newer version since these changes were written. Next step checks them on the newest version."
   }
 }
