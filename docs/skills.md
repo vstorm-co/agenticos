@@ -426,7 +426,10 @@ check and marks the agent checked on that version. Moving an agent without a che
 stays possible, as any change of version is: the agent then reads "unknown" on its
 new version, and the person who moved it answers for that.
 
-**Catch up a fork.** Main's changes reach a fork in a session:
+**Catch up a fork.** Main's changes reach a fork in a session. On the skill page,
+a fork the page shows offers **Catch up** while main has moved past it and **Move
+to main** once it has a version of its own, and the dashboard card lists the forks
+main has left behind. Through the API:
 `POST /api/v1/skills/{id}/forks/{fork_id}/catch-up`, priced first by
 `…/catch-up/estimate`. The session merges three versions: the main version the fork
 is based on, the fork's newest and main's newest. A part only one side changed

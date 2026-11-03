@@ -1,5 +1,5 @@
 ---
-source_sha: "3820fd68b6d0"
+source_sha: "27f6f240aeee"
 ---
 
 # La consola { #the-console }
@@ -78,7 +78,9 @@ hasta que la nueva versión acumule las suyas. Ambos requieren `runs:view`.
 
 Debajo, **Improvements waiting for you** lista las sesiones de
 [Improve](authoring.md#the-improve-wizard) detenidas a la espera de tu siguiente
-paso o decisión, cada una abierta en su parada.
+paso o decisión, cada una abierta en su parada. Después vienen los agents fijados
+y los forks que main [ha dejado atrás](skills.md#which-version-an-agent-reads). Un
+fork se pone al día desde ahí, y un agent fijado se mueve en la página de su skill.
 
 La vista de la organización muestra las tarjetas que responden con datos,
 agrupadas en bandas. El resto - integraciones, canales, rutinas, sincronización

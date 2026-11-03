@@ -1,5 +1,5 @@
 ---
-source_sha: "18d2c0919666"
+source_sha: "75f9f14e0c04"
 ---
 
 # Skille { #skills }
@@ -441,7 +441,10 @@ sprawdzenie i oznacza agenta jako sprawdzonego na tej wersji. Przeniesienie bez
 sprawdzenia pozostaje możliwe, jak każda zmiana wersji: agent ma wtedy na nowej
 wersji stan „nie wiadomo”, a odpowiada za to osoba, która go przeniosła.
 
-**Doganianie main przez fork.** Zmiany z main trafiają do forka w sesji:
+**Doganianie main przez fork.** Zmiany z main trafiają do forka w sesji. Na stronie
+skilla pokazany fork ma przycisk doganiania, gdy main go wyprzedził, i przycisk
+przeniesienia do main, gdy ma własną wersję, a karta na pulpicie wymienia forki,
+które main zostawił w tyle. Przez API:
 `POST /api/v1/skills/{id}/forks/{fork_id}/catch-up`, z ceną podaną najpierw przez
 `…/catch-up/estimate`. Sesja scala trzy wersje: wersję main, na której fork się
 opiera, najnowszą wersję forka i najnowszą wersję main. Fragment zmieniony tylko po

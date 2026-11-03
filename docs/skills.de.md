@@ -1,5 +1,5 @@
 ---
-source_sha: "18d2c0919666"
+source_sha: "75f9f14e0c04"
 ---
 
 # Skills { #skills }
@@ -482,7 +482,10 @@ Prüfung zu verschieben bleibt möglich, wie jeder Versionswechsel: Der Agent ze
 dann auf der neuen Version „unbekannt“, und dafür steht ein, wer ihn verschoben hat.
 
 **Einen Fork aufholen lassen.** Die Änderungen von main erreichen einen Fork in einer
-Sitzung: `POST /api/v1/skills/{id}/forks/{fork_id}/catch-up`, vorher bepreist mit
+Sitzung. Auf der Seite des Skills bietet ein angezeigter Fork das Nachziehen an,
+solange main an ihm vorbeigezogen ist, und die Übernahme nach main, sobald er eine
+eigene Version hat; die Karte im Dashboard listet die Forks, die main zurückgelassen
+hat. Über die API: `POST /api/v1/skills/{id}/forks/{fork_id}/catch-up`, vorher bepreist mit
 `…/catch-up/estimate`. Die Sitzung führt drei Versionen zusammen: die main-Version,
 auf der der Fork basiert, die neueste des Forks und die neueste von main. Ein Teil,
 den nur eine Seite geändert hat, nimmt den Text dieser Seite, und ein Teil, den beide

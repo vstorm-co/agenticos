@@ -1,5 +1,5 @@
 ---
-source_sha: "18d2c0919666"
+source_sha: "75f9f14e0c04"
 ---
 
 # Skills { #skills }
@@ -454,7 +454,10 @@ comprobado en esa versión. Mover un agent sin comprobación sigue siendo posibl
 cualquier cambio de versión: el agent queda entonces como «desconocido» en su nueva
 versión, y responde de ello quien lo movió.
 
-**Poner al día un fork.** Los cambios de main llegan a un fork en una sesión:
+**Poner al día un fork.** Los cambios de main llegan a un fork en una sesión. En la
+página del skill, un fork mostrado ofrece ponerse al día mientras main lo ha dejado
+atrás y llevarlo a main en cuanto tiene una versión propia, y la tarjeta del
+dashboard lista los forks que main ha dejado atrás. Por la API:
 `POST /api/v1/skills/{id}/forks/{fork_id}/catch-up`, con el precio antes en
 `…/catch-up/estimate`. La sesión combina tres versiones: la versión de main en la que
 se basa el fork, la más reciente del fork y la más reciente de main. Una parte que

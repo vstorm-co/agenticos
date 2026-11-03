@@ -1,5 +1,5 @@
 ---
-source_sha: "3820fd68b6d0"
+source_sha: "27f6f240aeee"
 ---
 
 # Die Konsole { #the-console }
@@ -80,6 +80,9 @@ eigene sammelt. Beides erfordert `runs:view`.
 Darunter listet **Verbesserungen, die auf Sie warten** die
 [Verbessern](authoring.md#the-improve-wizard)-Sitzungen, die für Ihren nächsten
 Schritt oder Ihre Entscheidung angehalten haben, jede an ihrem Halt geöffnet.
+Danach folgen die festgesetzten Agents und die Forks, an denen main
+[vorbeigezogen ist](skills.md#which-version-an-agent-reads). Ein Fork wird von
+dort nachgezogen, ein festgesetzter Agent auf der Seite seines Skills verschoben.
 
 Die Ansicht der Organisation zeigt die Karten, die mit Daten antworten, in
 Gruppen. Der Rest - Integrationen, Kanäle, Routinen, Wissens-Sync, Abteilungen,
