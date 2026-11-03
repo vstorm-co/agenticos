@@ -56,6 +56,7 @@ def access(monkeypatch):
         (module.member_repo, "get_active", SimpleNamespace(role="member")),
         (module.membership, "is_still_member", True),
         (module.membership, "platform_says_member", True),
+        (module.membership, "platform_server", "111"),
     ]:
         mock = AsyncMock(return_value=result)
         monkeypatch.setattr(repo, name, mock)
@@ -165,6 +166,7 @@ async def test_a_room_member_the_platform_confirms_is_admitted(access):
 
     assert admission.verdict == "admitted"
     access.mocks["platform_says_member"].assert_awaited_once_with(access.bot, "C1", "U1")
+    access.mocks["platform_server"].assert_not_awaited()
 
 
 async def test_one_the_platform_says_has_left_is_refused(access):
@@ -196,12 +198,38 @@ def _discord(s, *, raw: dict[str, str]) -> IncomingMessage:
     return replace(s.incoming, platform="discord", raw=raw)
 
 
-async def test_a_discord_server_channel_is_unconfirmed_when_the_sender_carries_no_server(access):
+@pytest.mark.security
+async def test_a_rebuilt_discord_sender_is_admitted_when_its_resolved_server_is_approved(access):
     incoming = _discord(access, raw={})
 
     admission = await ChannelMessageRouter().admission(access.db, access.run, incoming)
 
-    assert admission == Admission("unconfirmed", "server_unconfirmed")
+    assert admission == Admission("admitted", "member")
+    access.mocks["platform_server"].assert_awaited_once_with(access.bot, "C1")
+
+
+@pytest.mark.security
+async def test_a_server_removed_from_the_allowlist_is_refused_even_though_the_run_was_parked(
+    access,
+):
+    incoming = _discord(access, raw={})
+    access.mocks["platform_server"].return_value = "222"
+
+    admission = await ChannelMessageRouter().admission(access.db, access.run, incoming)
+
+    assert admission == Admission("refused", "access_policy")
+    access.mocks["platform_says_member"].assert_not_awaited()
+
+
+@pytest.mark.security
+async def test_a_server_that_cannot_be_looked_up_is_refused_not_trusted(access):
+    incoming = _discord(access, raw={})
+    access.mocks["platform_server"].return_value = None
+
+    admission = await ChannelMessageRouter().admission(access.db, access.run, incoming)
+
+    assert admission == Admission("refused", "server_unconfirmed")
+    access.mocks["platform_says_member"].assert_not_awaited()
 
 
 @pytest.mark.security
@@ -241,6 +269,7 @@ async def test_a_live_discord_message_from_an_approved_server_is_admitted(access
     admission = await ChannelMessageRouter().admission(access.db, access.run, incoming)
 
     assert admission == Admission("admitted", "member")
+    access.mocks["platform_server"].assert_not_awaited()
 
 
 @pytest.mark.security
@@ -306,3 +335,34 @@ async def test_a_cached_failed_check_does_not_turn_into_a_definite_answer(monkey
 
     asked.redis.get.assert_not_awaited()
     adapter.is_channel_member.assert_awaited_once()
+
+
+class _ServerAdapter:
+    def __init__(self, result: str | BaseException | None) -> None:
+        self.channel_server = AsyncMock(
+            side_effect=result if isinstance(result, BaseException) else None,
+            return_value=None if isinstance(result, BaseException) else result,
+        )
+
+
+async def test_the_platform_names_the_server_of_a_channel(monkeypatch, asked):
+    adapter = _ServerAdapter("111")
+    monkeypatch.setattr(membership, "get_adapter", lambda _platform: adapter)
+
+    assert await membership.platform_server(asked.bot, "C1") == "111"
+
+    adapter.channel_server.assert_awaited_once_with("tok", "C1")
+
+
+@pytest.mark.parametrize("failure", [httpx.HTTPError("boom"), KeyError("discord")])
+async def test_a_server_lookup_that_fails_names_nothing(monkeypatch, asked, failure):
+    adapter = _ServerAdapter(failure)
+    monkeypatch.setattr(
+        membership,
+        "get_adapter",
+        (lambda _platform: (_ for _ in ()).throw(failure))
+        if isinstance(failure, KeyError)
+        else (lambda _platform: adapter),
+    )
+
+    assert await membership.platform_server(asked.bot, "C1") is None

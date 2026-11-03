@@ -15,7 +15,7 @@ import pytest
 
 from app.agents.ask_user import QuestionChoice, QuestionItem
 from app.core.exceptions import BadRequestError
-from app.db.models.agent_run import ApprovalStatus
+from app.db.models.agent_run import ApprovalStatus, RunStatus
 from app.db.models.channel_prompt import APPROVAL, FOLLOW_UP, QUESTION
 from app.schemas.agent import ParkedCall, ParkedQuestion
 from app.services.agent_runner import RunSegment
@@ -125,9 +125,15 @@ class _Patched:
                     return_value=MagicMock(
                         id=RUN,
                         user_id=USER,
+                        status=RunStatus.AWAITING_ANSWER.value,
                         paused_state={"messages": [], "tool_call_ids": {}, "questions": ["ask-1"]},
                     )
                 ),
+            ),
+            # Still open, unless a test says somebody decided it elsewhere.
+            patch(
+                f"{_MODULE}.agent_run_repo.get_approval",
+                new=AsyncMock(return_value=MagicMock(status=ApprovalStatus.PENDING.value)),
             ),
             patch(f"{_MODULE}.agent_run_repo.claim_parked_run", new=AsyncMock(return_value=None)),
             patch(f"{_MODULE}.channel_prompt_repo.pick", new=self._pick),
@@ -197,6 +203,9 @@ class TestAPlatformWithNoButtons:
         await adapter.settle_prompt("t", MagicMock(), "Approved.")
 
         assert adapter.sent[0].text == "Approve it?\n- Approve\n- Reject"
+
+    async def test_names_no_server_for_a_channel(self):
+        assert await _Plain().channel_server("t", "c") is None
 
 
 class TestOffering:
@@ -515,6 +524,7 @@ class TestPressingAQuestion:
         run = MagicMock(
             id=RUN,
             user_id=USER,
+            status=RunStatus.AWAITING_ANSWER.value,
             paused_state={"messages": [], "tool_call_ids": {}, "questions": parked or ["ask-1"]},
         )
         with _Patched(bot=bot, prompt=prompt, role="member") as env:
@@ -546,7 +556,11 @@ class TestPressingAQuestion:
             _Patched(bot=bot, prompt=prompt, role="member") as env,
             patch(
                 f"{_MODULE}.agent_run_repo.get_run",
-                new=AsyncMock(return_value=MagicMock(id=RUN, user_id=uuid.uuid4())),
+                new=AsyncMock(
+                    return_value=MagicMock(
+                        id=RUN, user_id=uuid.uuid4(), status=RunStatus.AWAITING_ANSWER.value
+                    )
+                ),
             ),
         ):
             await service.press(_press(prompt, 0, bot))
@@ -770,6 +784,152 @@ class TestTypingAnAnswer:
         assert not taken
         answer.assert_not_awaited()
         assert env.said() == []
+
+
+class TestAPressThatLostTheRace:
+    """A console decision that lands while a press holds the prompt row.
+
+    `settle_open` skips a row a press holds, so the press is what has to close it
+    once it finds the request decided elsewhere. A refusal for any other reason
+    leaves the buttons for whoever may use them.
+    """
+
+    async def _approval(self, *, approval_status: str, decide_raises: Exception, role="admin"):
+        bot = _bot()
+        prompt = _prompt()
+        service = ChannelPrompts(_session())
+        with (
+            _Patched(bot=bot, prompt=prompt, role=role) as env,
+            patch(
+                f"{_MODULE}.agent_run_repo.get_approval",
+                new=AsyncMock(return_value=MagicMock(status=approval_status)),
+            ),
+            patch(f"{_MODULE}.ApprovalService") as approvals_service,
+        ):
+            approvals_service.return_value.decide = AsyncMock(side_effect=decide_raises)
+            await service.press(_press(prompt, 0, bot))
+        return env, prompt
+
+    async def test_an_approval_decided_elsewhere_settles_the_row_and_says_so(self):
+        gone = BadRequestError(message="This request was already approved")
+        env, prompt = await self._approval(
+            approval_status=ApprovalStatus.APPROVED.value, decide_raises=gone
+        )
+
+        assert env.answered == [{"settled": "decided"}]
+        assert prompt.answered_at is not None
+        assert env.said() == ["This request was already approved"]
+
+    async def test_a_later_press_is_told_it_is_answered_and_changes_nothing(self):
+        bot = _bot()
+        prompt = _prompt()
+        service = ChannelPrompts(_session())
+        gone = BadRequestError(message="This request was already approved")
+        with (
+            _Patched(bot=bot, prompt=prompt, role="admin") as env,
+            patch(
+                f"{_MODULE}.agent_run_repo.get_approval",
+                new=AsyncMock(return_value=MagicMock(status=ApprovalStatus.APPROVED.value)),
+            ),
+            patch(f"{_MODULE}.ApprovalService") as approvals_service,
+        ):
+            approvals_service.return_value.decide = AsyncMock(side_effect=gone)
+            await service.press(_press(prompt, 0, bot))
+            await service.press(_press(prompt, 1, bot))
+
+        assert approvals_service.return_value.decide.await_count == 1
+        assert env.answered == [{"settled": "decided"}]
+        assert env.said() == ["This request was already approved", ALREADY]
+
+    @pytest.mark.security
+    async def test_a_refusal_for_another_reason_leaves_the_row_open(self):
+        env, prompt = await self._approval(
+            approval_status=ApprovalStatus.PENDING.value,
+            decide_raises=BadRequestError(message="This approval belongs to a live voice call"),
+        )
+
+        assert env.answered == []
+        assert prompt.answered_at is None
+
+    @pytest.mark.security
+    async def test_somebody_who_may_not_decide_leaves_the_row_open(self):
+        env, prompt = await self._approval(
+            approval_status=ApprovalStatus.PENDING.value, decide_raises=None, role="viewer"
+        )
+
+        assert env.answered == []
+        assert env.said() == [NOT_YOURS]
+
+    async def test_a_question_answered_elsewhere_settles_the_row(self):
+        bot = _bot()
+        prompt = _prompt(QUESTION)
+        service = ChannelPrompts(_session())
+        gone = BadRequestError(message="This run is not waiting for an answer")
+        with (
+            _Patched(bot=bot, prompt=prompt, role="member") as env,
+            patch(
+                f"{_MODULE}.agent_run_repo.get_run",
+                new=AsyncMock(
+                    return_value=MagicMock(id=RUN, user_id=USER, status=RunStatus.RUNNING.value)
+                ),
+            ),
+            patch.object(service, "_answer", new=AsyncMock(side_effect=gone)),
+        ):
+            await service.press(_press(prompt, 0, bot))
+
+        assert env.answered == [{"settled": "answered"}]
+        assert env.said() == ["This run is not waiting for an answer"]
+
+    async def test_a_typed_answer_to_a_question_answered_elsewhere_settles_the_row(self):
+        bot = _bot()
+        prompt = _prompt(QUESTION, allow_custom=True)
+        service = ChannelPrompts(_session())
+        gone = BadRequestError(message="This run is not waiting for an answer")
+        with (
+            _Patched(bot=bot, prompt=None, role="member") as env,
+            patch(
+                f"{_MODULE}.channel_prompt_repo.claim_typed",
+                new=AsyncMock(return_value=prompt),
+            ),
+            patch(
+                f"{_MODULE}.agent_run_repo.get_run",
+                new=AsyncMock(
+                    return_value=MagicMock(id=RUN, user_id=USER, status=RunStatus.RUNNING.value)
+                ),
+            ),
+            patch.object(service, "_answer", new=AsyncMock(side_effect=gone)),
+        ):
+            taken = await service.reply(
+                bot,
+                platform="slack",
+                platform_chat_id="C1:1.0",
+                platform_user_id="U1",
+                text="Kraków",
+            )
+
+        assert taken
+        assert env.answered == [{"settled": "answered"}]
+
+    @pytest.mark.security
+    async def test_a_question_refused_to_a_colleague_stays_open(self):
+        bot = _bot()
+        prompt = _prompt(QUESTION)
+        service = ChannelPrompts(_session())
+        with (
+            _Patched(bot=bot, prompt=prompt, role="member") as env,
+            patch(
+                f"{_MODULE}.agent_run_repo.get_run",
+                new=AsyncMock(
+                    return_value=MagicMock(
+                        id=RUN, user_id=uuid.uuid4(), status=RunStatus.AWAITING_ANSWER.value
+                    )
+                ),
+            ),
+        ):
+            await service.press(_press(prompt, 0, bot))
+
+        assert env.answered == []
+        assert env.said() == [NOT_ASKED]
 
 
 class TestPressesThatNameNothing:

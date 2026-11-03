@@ -318,16 +318,32 @@ class ChannelMessageRouter:
 
         A *definite* refusal is the policy, the binding or the chat saying no, or
         the platform saying the account has left the room. Anything that cannot
-        be answered is `unconfirmed`, not refused - the platform not replying, or
-        a Discord server channel whose server the rebuilt sender does not carry:
-        unlike `may_continue`, whose callers are optional extras, a decision a
-        person made must not be undone by what we cannot tell.
+        be answered is `unconfirmed`, not refused - the platform not replying about
+        membership: unlike `may_continue`, whose callers are optional extras, a
+        decision a person made must not be undone by what we cannot tell. The one
+        exception is the approved server of a Discord channel, which the rebuilt
+        sender does not carry: it is asked of the platform, and one that cannot be
+        named is refused, because a revoked server wins over continuity.
         """
         standing = await self._standing(db, run, incoming, strict=False)
         if isinstance(standing, str):
             return Admission("refused", standing)
         if incoming.chat_type == "private":
             return Admission("admitted", "private_chat")
+        if standing.server_unknown:
+            # A revoked server must win over the continuity of a parked run, so a
+            # server nobody can name is refused, not trusted.
+            server = await membership.platform_server(
+                standing.bot, channel_key(incoming.platform_chat_id)
+            )
+            if server is None:
+                return Admission("refused", "server_unconfirmed")
+            try:
+                self._check_access(
+                    replace(incoming, raw={**incoming.raw, "guild_id": server}), standing.bot
+                )
+            except AuthorizationError:
+                return Admission("refused", "access_policy")
         member = await membership.platform_says_member(
             standing.bot,
             channel_key(incoming.platform_chat_id),
@@ -337,8 +353,6 @@ class ChannelMessageRouter:
             return Admission("refused", "left_channel")
         if member is None:
             return Admission("unconfirmed", "membership_unconfirmed")
-        if standing.server_unknown:
-            return Admission("unconfirmed", "server_unconfirmed")
         return Admission("admitted", "member")
 
     async def _standing(

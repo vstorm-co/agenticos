@@ -8,11 +8,10 @@ from uuid import UUID, uuid4
 import httpx
 import pytest
 
-import app.services.channels as channels
 from app.agents.capabilities.channel_tools._directory import ChannelDestination
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.agent_run import CHANNEL_SURFACES
-from app.services.channels import handback
+from app.services.channels import _adapters, get_adapter, handback
 from app.services.channels.base import OutgoingMessage
 from app.services.channels.handback import (
     EXPIRED_NOTICE,
@@ -262,7 +261,7 @@ async def test_ensuring_adapters_registers_each_platform_once_and_starts_nothing
     from app.services.channels.telegram import TelegramAdapter
 
     platforms = ["slack", "telegram", "mattermost", "discord", "teams"]
-    with patch.dict(channels._adapters, {}, clear=True):
+    with patch.dict(_adapters, {}, clear=True):
         started = [
             patch.object(cls, name, AsyncMock())
             for cls in (
@@ -278,9 +277,9 @@ async def test_ensuring_adapters_registers_each_platform_once_and_starts_nothing
         mocks = [p.start() for p in started]
         try:
             ensure_channel_adapters()
-            first = {p: channels.get_adapter(p) for p in platforms}
+            first = {p: get_adapter(p) for p in platforms}
             ensure_channel_adapters()
-            second = {p: channels.get_adapter(p) for p in platforms}
+            second = {p: get_adapter(p) for p in platforms}
         finally:
             for p in started:
                 p.stop()

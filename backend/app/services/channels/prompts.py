@@ -338,6 +338,7 @@ class ChannelPrompts:
                 return
             segment = await self._settle(ctx, prompt, choice)
         except AppException as exc:
+            await self._close_if_decided_elsewhere(ctx, prompt)
             await say(exc.message)
             return
         if segment is not None:
@@ -391,6 +392,7 @@ class ChannelPrompts:
         try:
             segment = await self._settle(ctx, prompt, None, typed=text.strip())
         except AppException as exc:
+            await self._close_if_decided_elsewhere(ctx, prompt)
             await say(exc.message)
             return True
         if segment is None:
@@ -497,6 +499,32 @@ class ChannelPrompts:
         if segment is not None:
             segment = self.with_inherited(segment, previous_calls)
         return segment
+
+    async def _close_if_decided_elsewhere(self, ctx: AuthContext, prompt: ChannelPrompt) -> None:
+        """Mark the prompt answered when its request was settled outside this press.
+
+        `settle_open` skips a row a press holds, so a console decision that lands
+        meanwhile leaves this one open for ever. The approval's or the run's own
+        state says whether that happened; a refusal for any other reason (not
+        yours, link first) finds both still waiting and leaves the buttons alone.
+        """
+        if prompt.kind == APPROVAL:
+            if prompt.approval_id is None:  # pragma: no cover - the table's check constraint
+                return
+            approval = await agent_run_repo.get_approval(
+                self.db, prompt.approval_id, organization_id=ctx.organization_id
+            )
+            if approval is None or approval.status == ApprovalStatus.PENDING.value:
+                return
+            by = "decided"
+        else:
+            run = await agent_run_repo.get_run(
+                self.db, prompt.run_id, organization_id=ctx.organization_id
+            )
+            if run is None or run.status == RunStatus.AWAITING_ANSWER.value:
+                return
+            by = "answered"
+        await channel_prompt_repo.answer(self.db, prompt=prompt, value={"settled": by})
 
     @staticmethod
     def inherited_calls(run: AgentRun | None) -> list[RecordedToolCall]:

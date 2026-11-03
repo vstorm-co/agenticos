@@ -156,6 +156,22 @@ async def platform_says_member(
     return member
 
 
+async def platform_server(bot: ChannelBot, platform_chat_id: str) -> str | None:
+    """The server the platform says a channel is in now, or `None` for any way of not knowing.
+
+    Not cached: it is asked once per continuation of a run parked in a server
+    channel, and a server removed from the bot's allowlist must take effect at
+    once. Logs the bot only.
+    """
+    try:
+        return await get_adapter(bot.platform).channel_server(
+            unseal_bot_token(bot), platform_chat_id
+        )
+    except Exception:
+        logger.warning("Channel server lookup failed: bot=%s", bot.id)
+        return None
+
+
 async def _confirmed(
     db: AsyncSession, claims: list[conversation_repo.ParticipationClaim]
 ) -> set[UUID]:
