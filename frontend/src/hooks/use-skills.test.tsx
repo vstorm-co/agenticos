@@ -138,9 +138,9 @@ describe("useSkills", () => {
     expect(cancelOrder).toBeLessThan(invalidateOrder);
   });
 
-  it("says an edit reaches every agent at once", async () => {
-    // Skills are bound by reference. That is the whole point, and the person
-    // editing one should know it before they hit save.
+  it("says an edit reaches the agents on main and leaves pinned agents and forks", async () => {
+    // An edit is a new main version: the person saving it should know which agents
+    // read it next and which keep what they read.
     vi.mocked(apiClient.patch).mockResolvedValue({ name: "refunds" });
     const { result } = renderHook(() => useSkills(), { wrapper });
     await waitFor(() => expect(result.current.isLoading).toBe(false));
@@ -148,7 +148,7 @@ describe("useSkills", () => {
     await result.current.update.mutateAsync({ id: "s1", content: "# Refunds v2" });
 
     expect(apiClient.patch).toHaveBeenCalledWith("/skills/s1", { content: "# Refunds v2" });
-    expect(toastSuccess.mock.calls.at(-1)?.[0]).toMatch(/every agent/i);
+    expect(toastSuccess.mock.calls.at(-1)?.[0]).toMatch(/agents on main.*pinned agents and forks/i);
   });
 
   it("deletes a skill", async () => {
@@ -205,7 +205,7 @@ describe("useSkill", () => {
       content: "# Refunds v2",
       category: null,
     });
-    expect(toastSuccess.mock.calls.at(-1)?.[0]).toMatch(/every agent/i);
+    expect(toastSuccess.mock.calls.at(-1)?.[0]).toMatch(/agents on main.*pinned agents and forks/i);
   });
 });
 
