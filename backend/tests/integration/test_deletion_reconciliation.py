@@ -1060,14 +1060,29 @@ async def _chunk_ids(s, table: str) -> set[str]:
     return set((await s.execute(text(f"SELECT id FROM {table}"))).scalars())  # noqa: S608
 
 
+_TEARDOWN_ROUTES = pytest.mark.parametrize("route", ["kb_delete", "rag_drop"])
+"""Both teardown routes, which share one helper and so must leave the same state (#2568)."""
+
+
+async def _tear_down(s, route: str, kb_id: uuid.UUID, ctx: AuthContext) -> None:
+    """Remove a non-default base the way `DELETE /kb/{id}` or `DELETE /rag/collections/{name}` does."""
+    service = KnowledgeBaseService(s)
+    if route == "kb_delete":
+        await service.delete(kb_id, ctx=ctx)
+    else:
+        kb = await s.get(KnowledgeBase, kb_id)
+        await service.delete_for_rag_collection(kb)
+
+
 class TestADeletedBasesChunksOnAKeptTable:
     """A base deleted while another base holds its collection name leaves the shared
     table standing (#913); the chunks filed under it are read by no scope any more,
     so the queued cleanup deletes them by the base's id and leaves the survivor's
     (#2537). These run the real job against a real table."""
 
+    @_TEARDOWN_ROUTES
     async def test_deleting_a_knowledge_base_removes_its_chunks_only(
-        self, engine: AsyncEngine
+        self, engine: AsyncEngine, route: str
     ) -> None:
         factory = async_sessionmaker(engine, expire_on_commit=False)
         collection = f"kbshare{uuid.uuid4().hex[:12]}"
@@ -1089,7 +1104,7 @@ class TestADeletedBasesChunksOnAKeptTable:
 
         try:
             async with factory() as s:
-                await KnowledgeBaseService(s).delete(doomed_id, ctx=ctx)
+                await _tear_down(s, route, doomed_id, ctx)
                 await s.commit()
                 start_deferred(s)
             await drain()
@@ -1102,8 +1117,9 @@ class TestADeletedBasesChunksOnAKeptTable:
                 await s.commit()
 
     @pytest.mark.security
+    @_TEARDOWN_ROUTES
     async def test_deleting_a_knowledge_base_removes_its_tenants_unfiled_documents(
-        self, engine: AsyncEngine
+        self, engine: AsyncEngine, route: str
     ) -> None:
         """`DELETE /kb/{id}` with another organization's base on the same name: the
         delete removed only rows filed under the base, so the unfiled legacy rows
@@ -1144,7 +1160,7 @@ class TestADeletedBasesChunksOnAKeptTable:
 
         try:
             async with factory() as s:
-                await KnowledgeBaseService(s).delete(doomed_id, ctx=ctx)
+                await _tear_down(s, route, doomed_id, ctx)
                 await s.commit()
                 start_deferred(s)
             await drain()
@@ -1210,8 +1226,9 @@ class TestADeletedBasesChunksOnAKeptTable:
                 await s.commit()
 
     @pytest.mark.security
+    @_TEARDOWN_ROUTES
     async def test_dropping_a_collection_removes_its_bases_documents_and_chunks_only(
-        self, engine: AsyncEngine
+        self, engine: AsyncEngine, route: str
     ) -> None:
         """`DELETE /rag/collections/{name}` with another organization's base on the
         same name: the drop deleted every document row under the name and kept
@@ -1238,12 +1255,12 @@ class TestADeletedBasesChunksOnAKeptTable:
             s.add_all([ours, theirs])
             await _filed_table(s, table, {"doomed-0": doomed.id, "kept-0": kept.id})
             await s.commit()
+            ctx = AuthContext(user_id=owner.id, organization_id=org.id, role=OrgRoleName.OWNER)
             doomed_id, kept_id, ours_id, theirs_id = doomed.id, kept.id, ours.id, theirs.id
 
         try:
             async with factory() as s:
-                kb = await s.get(KnowledgeBase, doomed_id)
-                await KnowledgeBaseService(s).delete_for_rag_collection(kb)
+                await _tear_down(s, route, doomed_id, ctx)
                 await s.commit()
                 start_deferred(s)
             await drain()
@@ -1258,6 +1275,61 @@ class TestADeletedBasesChunksOnAKeptTable:
             assert await storage.exists(theirs_file)
         finally:
             await storage.delete(theirs_file)
+            async with factory() as s:
+                await s.execute(text(f"DROP TABLE IF EXISTS {table}"))
+                await s.commit()
+
+    @pytest.mark.security
+    @_TEARDOWN_ROUTES
+    async def test_the_last_holder_takes_every_document_row_under_the_name(
+        self, engine: AsyncEngine, route: str
+    ) -> None:
+        """With no other base on the name the table is dropped, so every document
+        row under it goes with its file - the base's own and the unfiled ones.
+        `DELETE /kb/{id}` deleted by the base's id only, so unfiled rows outlived
+        the dropped table, listed under the name with no chunks behind them and
+        their files never unlinked; the collection drop already took them (#2568)."""
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+        collection = f"kblast{uuid.uuid4().hex[:12]}"
+        table = f"rag_{collection}"
+        storage = get_file_storage()
+        filed_file = await storage.save("last-holder", "filed.txt", b"filed")
+        unfiled_file = await storage.save("last-holder", "unfiled.txt", b"unfiled")
+        async with factory() as s:
+            owner = _user()
+            s.add(owner)
+            await s.flush()
+            org = await _org(s, owner)
+            doomed = _org_collection(org.id, collection)
+            s.add(doomed)
+            await s.flush()
+            filed = _kb_document(collection, doomed.id, org.id, filed_file)
+            unfiled = _kb_document(collection, None, org.id, unfiled_file)
+            s.add_all([filed, unfiled])
+            await _filed_table(s, table, {"doomed-0": doomed.id})
+            await s.commit()
+            ctx = AuthContext(user_id=owner.id, organization_id=org.id, role=OrgRoleName.OWNER)
+            doomed_id, filed_id, unfiled_id = doomed.id, filed.id, unfiled.id
+
+        try:
+            async with factory() as s:
+                await _tear_down(s, route, doomed_id, ctx)
+                await s.commit()
+                start_deferred(s)
+            await drain()
+
+            async with factory() as s:
+                assert await s.get(KnowledgeBase, doomed_id) is None
+                assert await s.get(RAGDocument, filed_id) is None
+                assert await s.get(RAGDocument, unfiled_id) is None
+                assert (
+                    await s.execute(text("SELECT to_regclass(:t)"), {"t": table})
+                ).scalar() is None
+            assert not await storage.exists(filed_file)
+            assert not await storage.exists(unfiled_file)
+        finally:
+            await storage.delete(filed_file)
+            await storage.delete(unfiled_file)
             async with factory() as s:
                 await s.execute(text(f"DROP TABLE IF EXISTS {table}"))
                 await s.commit()

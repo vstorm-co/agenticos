@@ -1,5 +1,5 @@
 ---
-source_sha: "4ccd1e16c6dc"
+source_sha: "35092d3cb005"
 ---
 
 # Procesamiento de archivos { #file-processing }
@@ -1005,6 +1005,13 @@ archivos y fragmentos, salvo que otra base de esa organización tenga el nombre 
 las liste: la misma regla que al eliminar una colección ([#2560](https://github.com/vstorm-co/agenticos/issues/2560)). En los demás casos,
 los fragmentos sin asignar se quedan y coinciden por su tenant, y las filas de
 documentos sin asignar siguen listadas en las bases de su tenant ([#2537](https://github.com/vstorm-co/agenticos/issues/2537)).
+
+Cuando ninguna otra base tiene el nombre, ambas rutas borran todas las filas de
+documentos bajo él, incluidas las sin asignar, con sus archivos, y el trabajo de
+limpieza elimina la tabla. Antes, `DELETE /kb/{id}` borraba aquí solo las filas de la
+propia base, así que las filas sin asignar seguían listadas sin fragmentos detrás y
+sus archivos no se eliminaban
+([#2568](https://github.com/vstorm-co/agenticos/issues/2568)).
 
 Una subida o una sincronización que aún indexa un archivo para la base cuando se
 borra no deja fragmentos. La escritura toma un bloqueo sobre la fila de la base que

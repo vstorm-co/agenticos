@@ -1,5 +1,5 @@
 ---
-source_sha: "4ccd1e16c6dc"
+source_sha: "35092d3cb005"
 ---
 
 # Dateiverarbeitung { #file-processing }
@@ -1049,6 +1049,12 @@ ihren Dateien und Chunks, außer eine andere Basis dieser Organisation hält den
 und listet sie noch - dieselbe Regel wie beim Löschen einer Collection ([#2560](https://github.com/vstorm-co/agenticos/issues/2560)).
 Sonst bleiben nicht zugeordnete Chunks und passen über ihren Tenant, und nicht
 zugeordnete Dokumentzeilen bleiben in den Basen ihres Tenants gelistet ([#2537](https://github.com/vstorm-co/agenticos/issues/2537)).
+
+Hält keine andere Basis den Namen, löschen beide Wege jede Dokumentzeile unter ihm,
+auch nicht zugeordnete, mit ihren Dateien, und der Aufräumjob löscht die Tabelle.
+Vorher löschte `DELETE /kb/{id}` hier nur die eigenen Zeilen der Basis, sodass nicht
+zugeordnete Zeilen ohne Chunks gelistet blieben und ihre Dateien nicht entfernt wurden
+([#2568](https://github.com/vstorm-co/agenticos/issues/2568)).
 
 Ein Upload oder eine Synchronisierung, die beim Löschen der Basis noch eine Datei
 für sie indexiert, hinterlässt keine Chunks. Der Schreibvorgang nimmt eine

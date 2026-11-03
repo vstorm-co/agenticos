@@ -1,5 +1,5 @@
 ---
-source_sha: "4ccd1e16c6dc"
+source_sha: "35092d3cb005"
 ---
 
 # Przetwarzanie plików { #file-processing }
@@ -984,6 +984,12 @@ chyba że inna baza tej organizacji ma tę nazwę i nadal je listuje - ta sama z
 co przy usuwaniu kolekcji ([#2560](https://github.com/vstorm-co/agenticos/issues/2560)). W pozostałych przypadkach nieprzypisane chunki
 zostają i pasują po swoim tenancie, a nieprzypisane wiersze dokumentów nadal są
 listowane w bazach swojego tenanta ([#2537](https://github.com/vstorm-co/agenticos/issues/2537)).
+
+Gdy żadna inna baza nie ma tej nazwy, obie ścieżki usuwają każdy wiersz dokumentu
+pod tą nazwą, także nieprzypisane, razem z ich plikami, a zadanie czyszczące usuwa
+tabelę. Wcześniej `DELETE /kb/{id}` usuwało tu tylko wiersze samej bazy, więc
+nieprzypisane wiersze zostawały na liście bez chunków, a ich pliki nie były usuwane
+([#2568](https://github.com/vstorm-co/agenticos/issues/2568)).
 
 Przesłanie lub synchronizacja, która wciąż indeksuje plik dla bazy w chwili jej
 usunięcia, nie zostawia chunków. Zapis bierze blokadę wiersza bazy, która koliduje

@@ -428,7 +428,7 @@ class TestKBAccessControl:
             patch("app.repositories.knowledge_base_repo.lock", new=AsyncMock(return_value=kb)),
             patch("app.repositories.knowledge_base_repo.delete", new=AsyncMock(return_value=True)),
             patch(
-                "app.repositories.rag_document_repo.delete_by_knowledge_base",
+                "app.repositories.rag_document_repo.delete_by_collection",
                 new=AsyncMock(return_value=[]),
             ),
             patch(
@@ -444,6 +444,48 @@ class TestKBAccessControl:
             # session, so a rollback takes it back with the rows (#1266, #1349).
 
         dispatch.assert_awaited_once_with(mock_db, [], [kb.collection_name], base_purges=[])
+
+    @pytest.mark.anyio
+    @pytest.mark.parametrize("route", ["kb_delete", "rag_drop"])
+    async def test_the_last_holder_deletes_every_document_row_under_the_name(
+        self, mock_db, monkeypatch, route
+    ):
+        """With no other base on the name the table is dropped, so both routes
+        delete every row under the name - unfiled ones included - and unlink
+        their files. `DELETE /kb/{id}` deleted by the base's id only, leaving
+        unfiled rows behind the dropped table (#2568)."""
+        user_id = uuid.uuid4()
+        kb = _kb("personal", owner_user_id=user_id)
+        dispatch = _patch_dispatch(monkeypatch)
+        by_name = AsyncMock(return_value=["rag/docs/ours.txt", "rag/docs/unfiled.txt"])
+        by_base = AsyncMock(return_value=["rag/docs/ours.txt"])
+
+        with (
+            patch("app.repositories.knowledge_base_repo.get_by_id", new=AsyncMock(return_value=kb)),
+            patch("app.repositories.knowledge_base_repo.lock", new=AsyncMock(return_value=kb)),
+            patch("app.repositories.knowledge_base_repo.delete", new=AsyncMock(return_value=True)),
+            patch("app.repositories.rag_document_repo.delete_by_collection", new=by_name),
+            patch("app.repositories.rag_document_repo.delete_by_knowledge_base", new=by_base),
+            patch(
+                "app.repositories.knowledge_base_repo.list_by_collection_name",
+                new=AsyncMock(return_value=[kb]),
+            ),
+            patch("app.repositories.sync_source.get_all", new=AsyncMock(return_value=[])),
+        ):
+            svc = KnowledgeBaseService(mock_db)
+            if route == "kb_delete":
+                await svc.delete(kb.id, ctx=_ctx(user_id=user_id))
+            else:
+                await svc.delete_for_rag_collection(kb)
+
+        by_name.assert_awaited_once_with(mock_db, kb.collection_name)
+        by_base.assert_not_awaited()
+        dispatch.assert_awaited_once_with(
+            mock_db,
+            ["rag/docs/ours.txt", "rag/docs/unfiled.txt"],
+            [kb.collection_name],
+            base_purges=[],
+        )
 
     @pytest.mark.anyio
     async def test_deleting_a_kb_dispatches_a_durable_cleanup(self, mock_db, monkeypatch):
@@ -499,7 +541,7 @@ class TestKBAccessControl:
             patch("app.repositories.knowledge_base_repo.lock", new=lock),
             patch("app.repositories.knowledge_base_repo.delete", new=AsyncMock(return_value=True)),
             patch(
-                "app.repositories.rag_document_repo.delete_by_knowledge_base",
+                "app.repositories.rag_document_repo.delete_by_collection",
                 new=AsyncMock(return_value=[]),
             ),
             patch(
@@ -576,7 +618,7 @@ class TestKBAccessControl:
             patch("app.repositories.knowledge_base_repo.lock", new=AsyncMock(return_value=kb)),
             patch("app.repositories.knowledge_base_repo.delete", new=AsyncMock(return_value=True)),
             patch(
-                "app.repositories.rag_document_repo.delete_by_knowledge_base",
+                "app.repositories.rag_document_repo.delete_by_collection",
                 new=AsyncMock(return_value=[]),
             ),
             patch(

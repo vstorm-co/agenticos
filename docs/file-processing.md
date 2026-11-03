@@ -931,6 +931,12 @@ same rule as a collection drop ([#2560](https://github.com/vstorm-co/agenticos/i
 their tenant, and unfiled document rows stay listed under the bases of their tenant
 ([#2537](https://github.com/vstorm-co/agenticos/issues/2537)).
 
+When no other base holds the name, both routes delete every document row under it,
+unfiled rows included, with their files, and the cleanup job drops the table. Before,
+`DELETE /kb/{id}` deleted only the base's own rows here, so unfiled rows stayed listed
+with no chunks behind them and their files were not removed
+([#2568](https://github.com/vstorm-co/agenticos/issues/2568)).
+
 An upload or a sync still indexing a file for the base when it is deleted leaves
 no chunks behind. The write takes a lock on the base's row that conflicts with the
 delete's, in the transaction that inserts the chunks: a write that comes second finds the base gone, writes

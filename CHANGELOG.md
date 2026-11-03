@@ -19,6 +19,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- Deleting the last knowledge base on a collection name (`DELETE /kb/{id}`) now deletes every document row under the name with its file, unfiled rows included, as dropping the collection already did. Before, unfiled rows outlived the dropped vector table, stayed listed with no chunks behind them, and kept their stored files. Both routes now run one teardown.
+
 ## [1.38.1] - 2026-11-03
 
 ### Fixed
