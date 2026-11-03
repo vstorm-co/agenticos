@@ -1,5 +1,5 @@
 ---
-source_sha: "18d2c0919666"
+source_sha: "59baf8b19d9e"
 ---
 
 # Skills { #skills }
@@ -466,9 +466,11 @@ cualquier parte, también la del modelo (`GET …/improvements/{run_id}/merge`, 
 cambiaron de forma distinta, una persona se queda con un lado
 (`PATCH …/merge/files`); el modelo nunca escribe un archivo. La comprobación empieza
 solo cuando no queda nada sin resolver. Pregunta a los agents del fork por la
-combinación y, salvo que se desactive antes de empezar, por la versión más reciente
-de main sola. Esa segunda comprobación dice si el fork sigue haciendo falta, y la
-estimación da su precio por separado. Aceptar crea una versión del fork (`catch_up`)
+combinación y, salvo que se desactive `main_alone` al poner precio a la
+comprobación en Changes, por la versión más reciente de main sola. Esa segunda
+comprobación dice si el fork sigue haciendo falta, y la estimación da su precio en
+una línea propia (`main_alone_usd`). Se omite cuando la combinación ya es la versión
+más reciente de main. Aceptar crea una versión del fork (`catch_up`)
 que nombra la versión de main que tomó. Desde entonces el fork se basa en esa versión
 de main, así que ya no va por detrás. Si main sola no empeoró a ningún agent, el
 resultado también ofrece abandonar el fork y devolver sus agents a main.
@@ -482,7 +484,8 @@ los agents del fork pueden volver a main.
 Ambos se rechazan (409) cuando el fork está archivado, cuando no tiene versión propia
 (sus agents vuelven entonces a main) y cuando la combinación no cambiaría nada.
 Aceptar se rechaza en cuanto main o el fork tienen una versión más nueva que la que
-leyó la combinación.
+leyó la combinación, y una sesión cuyas líneas avanzaron mientras esperaba termina
+como obsoleta: empieza otra para incluir la versión más nueva.
 
 ### Borrar un skill { #deleting-a-skill }
 

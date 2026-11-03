@@ -437,8 +437,10 @@ they changed differently is a conflict, and the model proposes one text for it. 
 `…/merge/parts/{index}`). For a file both sides changed differently, a person keeps
 one side (`PATCH …/merge/files`); the model never writes a file. The check starts
 only when nothing is left unsettled. It asks the fork's agents about the merge and,
-unless that is turned off before the start, about main's newest alone. That second
-check says whether the fork is still needed, and the estimate prices it separately.
+unless `main_alone` is turned off when the check is priced at Changes, about main's
+newest alone. That second check says whether the fork is still needed, and the
+estimate prices it on a line of its own (`main_alone_usd`). It is skipped when the
+merge is main's newest anyway.
 Accepting makes a fork version (`catch_up`) that names the main version it took in.
 From then on the fork is based on that main version, so it is no longer behind.
 When main alone made no agent worse, the result also offers to drop the fork and
@@ -453,7 +455,8 @@ agents can then return to main.
 Both are refused (409) when the fork is archived, when it has no version of its own
 (its agents return to main instead), and when the merge would change nothing.
 Accepting is refused once main or the fork has a newer version than the merge
-read.
+read, and a session whose lines moved on while it waited ends as stale: start a new
+one to include the newer version.
 
 ### Deleting a skill
 

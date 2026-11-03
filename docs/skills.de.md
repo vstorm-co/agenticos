@@ -1,5 +1,5 @@
 ---
-source_sha: "18d2c0919666"
+source_sha: "59baf8b19d9e"
 ---
 
 # Skills { #skills }
@@ -493,9 +493,11 @@ geändert haben, ist ein Konflikt, und das Modell schlägt einen Text dafür vor
 `…/merge/parts/{index}`). Bei einer Datei, die beide Seiten verschieden geändert
 haben, behält eine Person eine Seite (`PATCH …/merge/files`); das Modell schreibt nie
 eine Datei. Die Prüfung startet erst, wenn nichts mehr offen ist. Sie fragt die
-Agents des Forks nach dem Ergebnis und, sofern das nicht vor dem Start abgeschaltet
-wird, nach der neuesten Version von main allein. Diese zweite Prüfung sagt, ob der
-Fork noch gebraucht wird, und die Schätzung nennt ihren Preis getrennt. Annehmen
+Agents des Forks nach dem Ergebnis und, sofern `main_alone` nicht beim Bepreisen
+der Prüfung unter Changes abgeschaltet wird, nach der neuesten Version von main
+allein. Diese zweite Prüfung sagt, ob der Fork noch gebraucht wird, und die Schätzung
+nennt ihren Preis in einer eigenen Zeile (`main_alone_usd`). Sie entfällt, wenn die
+Zusammenführung ohnehin die neueste Version von main ist. Annehmen
 erzeugt eine Fork-Version (`catch_up`), die die übernommene main-Version nennt. Ab
 dann basiert der Fork auf dieser main-Version und ist nicht mehr hinter main. Hat
 main allein keinen Agent verschlechtert, bietet das Ergebnis außerdem an, den Fork
@@ -510,7 +512,9 @@ Forks können danach zu main zurückkehren.
 Beides wird abgelehnt (409), wenn der Fork archiviert ist, wenn er keine eigene
 Version hat (seine Agents kehren dann zu main zurück) und wenn die Zusammenführung
 nichts ändern würde. Annehmen wird abgelehnt, sobald main oder der Fork eine neuere
-Version hat als die, die die Zusammenführung gelesen hat.
+Version hat als die, die die Zusammenführung gelesen hat, und eine Sitzung, deren
+Linien weitergezogen sind, während sie wartete, endet als veraltet: Starten Sie eine
+neue, um die neuere Version einzubeziehen.
 
 ### Einen Skill löschen { #deleting-a-skill }
 
