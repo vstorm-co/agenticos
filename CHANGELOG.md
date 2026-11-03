@@ -38,7 +38,7 @@ Two things are versioned separately from this file and worth knowing about:
 ### Changed
 
 - **The first desktop window opens at 80% of the screen**, centred, until a size has been saved.
-- Releases are signed on macOS with one self-signed certificate when `MACOS_SELF_SIGNED_P12` is configured (`scripts/create_macos_signing_cert.sh` makes it), so macOS keeps Screen Recording and Microphone grants across updates. Without it they stay ad-hoc, as before; neither is notarized.
+- Releases are signed on macOS with one self-signed certificate when `MACOS_SELF_SIGNED_P12` is configured (`scripts/create_macos_signing_cert.sh` makes it), so macOS keeps Screen Recording and Microphone grants across updates. With the committed publisher pin, missing signing material stops the release; neither signing mode is notarized.
 - `GET /conversations` leaves out threads a bot answers in (Slack, Mattermost, Telegram, Teams) by default, so `/chat` no longer fills with them. Pass `hide_channels=false` to list them again; they stay reachable from Runs and the channel's page.
 
 ### Fixed

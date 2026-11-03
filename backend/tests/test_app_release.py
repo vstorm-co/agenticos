@@ -475,10 +475,8 @@ esac
 def test_installer_authenticates_certificate_bytes_not_designated_requirement(
     tmp_path: Path, certificate: bytes | None
 ) -> None:
-    import hashlib
-
     trusted = b"trusted signing certificate"
-    pinned = hashlib.sha1(trusted, usedforsecurity=False).hexdigest()
+    pinned = "a619e028e78dfdff7635345c37bb4be891f5ac47"
     tools = tmp_path / "tools"
     tools.mkdir()
     codesign = tools / "codesign"
@@ -566,17 +564,11 @@ def test_pinned_releases_refuse_missing_signing_material(tmp_path: Path, pin: st
 def test_homebrew_authenticates_assets_before_publishing_checksums(
     tmp_path: Path, failure: str | None
 ) -> None:
-    import hashlib
-
     trusted = b"trusted publisher certificate"
     cert = tmp_path / "certificate"
     cert.write_bytes(b"impostor" if failure == "signer" else trusted)
     pin = tmp_path / "pin"
-    pin.write_text(
-        "malformed"
-        if failure == "pin"
-        else hashlib.sha1(trusted, usedforsecurity=False).hexdigest()
-    )
+    pin.write_text("malformed" if failure == "pin" else "114d1d66465f9e2174313defbbeb59639eafeeef")
     tools = tmp_path / "tools"
     tools.mkdir()
     (tools / "hdiutil").write_text("""#!/bin/bash

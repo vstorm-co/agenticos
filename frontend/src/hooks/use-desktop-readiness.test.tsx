@@ -3,9 +3,10 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { expect, it, vi } from "vitest";
 import { toast } from "sonner";
 import type { ReactNode } from "react";
+import { useShell } from "./use-shell";
 import { useDesktopReadiness } from "./use-desktop-readiness";
 import { readDesktopReadiness, requestDesktopPermission } from "@/lib/desktop/readiness";
-vi.mock("./use-shell", () => ({ useShell: () => ({ platform: "macos" }) }));
+vi.mock("./use-shell", () => ({ useShell: vi.fn(() => ({ platform: "macos" })) }));
 vi.mock("@/lib/desktop/readiness", () => ({
   readDesktopReadiness: vi.fn(),
   requestDesktopPermission: vi.fn(),
@@ -59,5 +60,20 @@ it("rechecks on a native window focus even when the webview stays visible", asyn
     window.dispatchEvent(new Event("focus"));
   });
   expect(readDesktopReadiness).not.toHaveBeenCalled();
+  client.clear();
+});
+
+it("does not read native permissions or refresh them on focus in a browser", () => {
+  vi.mocked(useShell).mockReturnValueOnce(null);
+  vi.mocked(readDesktopReadiness).mockClear();
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const wrapper = ({ children }: { children: ReactNode }) => (
+    <QueryClientProvider client={client}>{children}</QueryClientProvider>
+  );
+  const { result, unmount } = renderHook(useDesktopReadiness, { wrapper });
+  act(() => window.dispatchEvent(new Event("focus")));
+  expect(result.current.status.fetchStatus).toBe("idle");
+  expect(readDesktopReadiness).not.toHaveBeenCalled();
+  unmount();
   client.clear();
 });
