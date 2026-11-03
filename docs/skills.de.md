@@ -1,5 +1,5 @@
 ---
-source_sha: "2d76d0e782bd"
+source_sha: "a01a9fe89395"
 ---
 
 # Skills { #skills }
@@ -507,25 +507,21 @@ hat es sich angesehen.
 - `Fork „Returns“ · ab v7 · 2 Änderungen` - der Agent nutzt einen Fork: eine Linie
   von Versionen mit eigenen Änderungen, gestartet von einer main-Version.
 
-Eine Umgebung, die eine andere Version ausliefert, steht unter dem Agent. Ein
-[Inline-Spezialist](concepts.md#delegate-vs-inline-specialist), der den Skill selbst
-bindet, liest seine eigene Version und hat deshalb eine eigene Zeile unter dem Namen
-seines Agents; seine Version wird im Builder des Agents geändert. Ein Agent,
-der den Skill nur in seinem Entwurf bindet, ist mit **Nur im Entwurf** markiert und
+Eine Umgebung, die eine andere Version ausliefert, steht unter dem Agent, und ein
+Inline-Spezialist, der den Skill bindet, hat eine eigene Zeile - siehe
+[Welche Version ein Agent liest](#which-version-an-agent-reads). Ein Agent, der den
+Skill nur in seinem Entwurf bindet, ist mit **Nur im Entwurf** markiert und
 zählt zu keiner Linie. Agents, die Sie nicht sehen, werden gezählt, nicht genannt.
 Die Chips über der Tabelle zeigen alle, die Agents auf main, die festgesetzten oder
 einen Fork. Ein dort gewählter Fork ist auch die Linie, die der Verlauf zeigt und in
 die Bearbeiten speichert.
 
 **Version ändern** setzt einen Agent auf main, auf eine festgesetzte main-Version oder
-auf einen Fork. Es veröffentlicht eine neue Version des Agents aus seiner
-veröffentlichten Version, in der sich nur die Bindung dieses Skills ändert, und
-macht dieselbe Änderung im Entwurf des Agents. Andere unfertige Änderungen im
-Entwurf bleiben im Entwurf. Eine Version, auf der der Agent nicht ist, wurde auf ihm
-nicht geprüft, deshalb bestätigen Sie das zuerst. Das Steuerelement sehen Personen,
-die den Agent bearbeiten dürfen. Ohne das Recht zum Veröffentlichen wird die
-Änderung im Entwurf des Agents gespeichert, und wer veröffentlichen darf, tut das
-im Builder.
+auf einen Fork, wie [Welche Version ein Agent liest](#which-version-an-agent-reads)
+beschreibt: was live geht, was im Entwurf wartet und was im Builder geändert wird.
+Eine Version, auf der der Agent nicht ist, wurde auf ihm nicht geprüft, deshalb
+bestätigen Sie das zuerst. Das Steuerelement sehen Personen, die den Agent
+bearbeiten dürfen.
 
 **Verlauf** listet die Versionen der gewählten Linie, die neueste zuerst: woher jede
 kam (eine Bearbeitung, eine Dateiänderung, die Bibliothek, der Workspace eines
