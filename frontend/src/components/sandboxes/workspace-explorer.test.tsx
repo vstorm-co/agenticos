@@ -7,7 +7,12 @@ import { FileExplorer, WorkspaceExplorer, treeOf } from "./workspace-explorer";
 import type { WorkspaceFile, WorkspaceFiles } from "@/lib/sandbox-workspaces-api";
 
 vi.mock("./workspace-graph", () => ({
-  WorkspaceGraph: ({ source }: { source: { id: string } }) => <p>Graph for {source.id}</p>,
+  WorkspaceGraph: ({ source, onClose }: { source: { id: string }; onClose: () => void }) => (
+    <>
+      <p>Graph for {source.id}</p>
+      <button onClick={onClose}>Back to files</button>
+    </>
+  ),
 }));
 
 const state = vi.hoisted(() => ({
@@ -131,6 +136,10 @@ describe("the workspace explorer", () => {
     expect(
       screen.queryByRole("textbox", { name: "Search workspace files" }),
     ).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Back to files" }));
+    expect(screen.queryByText("Graph for wiki")).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Graph view" }));
+    expect(await screen.findByText("Graph for wiki")).toBeVisible();
     await userEvent.click(screen.getByRole("button", { name: "File view" }));
     expect(screen.queryByText("Graph for wiki")).not.toBeInTheDocument();
     expect(screen.getByText("report.md")).toBeVisible();

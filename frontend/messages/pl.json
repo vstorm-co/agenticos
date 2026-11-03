@@ -12275,7 +12275,7 @@
     "limits": "Skan korzysta z dostępnej listy plików: do 200 plików Markdown, 256 KiB na plik i łącznie 8 MiB. Pominięte lub nieczytelne notatki i ich linki nie są uwzględnione.",
     "skipped": "Pominięto: {path}",
     "unreadable": "Nie można odczytać: {path}",
-    "invalidFrontmatter": "Niepoprawny frontmatter YAML (metadane pominięte): {paths}",
+    "invalidFrontmatter": "Niepoprawny frontmatter YAML. Metadane tych notatek pominięto: {paths}",
     "empty": "Dodaj notatki Markdown z wikilinkami, linkami Markdown lub relacjami we frontmatter, aby utworzyć graf.",
     "open": "Otwórz notatkę",
     "notes": "Notatki",
@@ -12288,6 +12288,9 @@
     "ambiguous": "{target} — więcej niż jedna pasująca notatka",
     "zoomIn": "Przybliż",
     "zoomOut": "Oddal",
-    "reset": "Resetuj widok"
+    "reset": "Resetuj widok",
+    "overview": "Podgląd grafu",
+    "details": "Szczegóły notatki",
+    "closeDetails": "Zamknij szczegóły notatki"
   }
 }

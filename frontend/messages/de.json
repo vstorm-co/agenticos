@@ -12172,7 +12172,7 @@
     "limits": "Der Scan nutzt die verfügbare Dateiliste: bis zu 200 Markdown-Dateien, 256 KiB je Datei und insgesamt 8 MiB. Übersprungene oder unlesbare Notizen und ihre Links fehlen.",
     "skipped": "Übersprungen: {path}",
     "unreadable": "Nicht lesbar: {path}",
-    "invalidFrontmatter": "Ungültiges YAML-Frontmatter (Metadaten ignoriert): {paths}",
+    "invalidFrontmatter": "Ungültiges YAML-Frontmatter. Metadaten dieser Notizen werden ignoriert: {paths}",
     "empty": "Markdown-Notizen mit Wiki-Links, Markdown-Links oder Frontmatter-Beziehungen hinzufügen, um einen Graphen zu erstellen.",
     "open": "Notiz öffnen",
     "notes": "Notizen",
@@ -12185,6 +12185,9 @@
     "ambiguous": "{target} — mehrere passende Notizen",
     "zoomIn": "Vergrößern",
     "zoomOut": "Verkleinern",
-    "reset": "Ansicht zurücksetzen"
+    "reset": "Ansicht zurücksetzen",
+    "overview": "Graphübersicht",
+    "details": "Notizdetails",
+    "closeDetails": "Notizdetails schließen"
   }
 }

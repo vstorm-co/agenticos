@@ -9,6 +9,8 @@ import { listProjectFiles } from "@/lib/projects-api";
 import { readFileText } from "@/lib/workspace-files";
 import type { WorkspaceFiles } from "@/lib/sandbox-workspaces-api";
 
+vi.mock("@/hooks/use-resolved-theme", () => ({ useResolvedTheme: () => "light" }));
+
 vi.mock("@/lib/projects-api", () => ({ listProjectFiles: vi.fn() }));
 vi.mock("@/lib/workspace-files", () => ({
   readFileText: vi.fn(),
@@ -56,6 +58,7 @@ function mount(editor = false) {
     <QueryClientProvider client={client}>
       <WorkspaceGraph
         source={{ kind: "project", id: "p" }}
+        onClose={vi.fn()}
         renderEditor={editor ? (path) => <button>Edit {path}</button> : undefined}
       />
     </QueryClientProvider>,
@@ -73,23 +76,24 @@ describe("live workspace graph", () => {
     const { container } = render(
       <WikiCanvas graph={graph} selected={null} visible={new Set(["a.md"])} onSelect={vi.fn()} />,
     );
-    expect(container.querySelectorAll("line")).toHaveLength(0);
+    expect(container.querySelectorAll(".react-flow__edge")).toHaveLength(0);
     expect(screen.getByRole("button", { name: "A" })).toBeVisible();
   });
   it("browses links and backlinks, filters by metadata and opens the existing viewer", async () => {
     mount(true);
     await screen.findByText("3 notes · 1 link");
     const user = userEvent.setup();
-    await user.click(screen.getAllByRole("button", { name: "Alpha" })[0]!);
+    fireEvent.click(screen.getAllByRole("button", { name: "Alpha" })[0]!);
     expect(screen.getByText("Links to")).toBeVisible();
     expect(screen.getByText("missing — missing from this scan")).toBeVisible();
     expect(screen.getByRole("button", { name: "Edit a.md" })).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Notes" }));
     const gamma = screen
       .getAllByRole("button", { name: "Gamma" })
       .find((entry) => entry.tagName === "BUTTON");
     if (!gamma) throw new Error("Note list button missing");
     await user.click(gamma);
-    await user.click(screen.getAllByRole("button", { name: "Alpha" })[0]!);
+    fireEvent.click(screen.getAllByRole("button", { name: "Alpha" })[0]!);
     await user.click(screen.getByRole("button", { name: "b.md" }));
     expect(screen.getByRole("button", { name: "a.md" })).toBeVisible();
     await user.click(screen.getByRole("button", { name: "Open note" }));
@@ -104,31 +108,26 @@ describe("live workspace graph", () => {
     expect(screen.getByText("No matching notes")).toBeVisible();
   });
 
-  it("supports keyboard selection, zoom limits, reset and panning without starting an animation", async () => {
+  it("starts fullscreen, keeps navigation available and restores the shell on exit", async () => {
     const { container } = mount();
     await screen.findByText("3 notes · 1 link");
-    const node = container.querySelector('circle[role="button"]');
-    expect(node).not.toBeNull();
-    fireEvent.keyDown(node!, { key: "Enter" });
-    expect(screen.getByRole("button", { name: "Open note" })).toBeVisible();
-    fireEvent.keyDown(node!, { key: " " });
-    fireEvent.keyDown(node!, { key: "Escape" });
-    for (let i = 0; i < 8; i++) fireEvent.click(screen.getByRole("button", { name: "Zoom in" }));
-    expect(screen.getByRole("button", { name: "Zoom in" })).toBeDisabled();
-    for (let i = 0; i < 10; i++) fireEvent.click(screen.getByRole("button", { name: "Zoom out" }));
-    expect(screen.getByRole("button", { name: "Zoom out" })).toBeDisabled();
+    expect(container.querySelector("[data-expanded]")).toHaveAttribute("data-expanded", "true");
+    expect(document.body.style.overflow).toBe("hidden");
+    await userEvent.click(screen.getByRole("button", { name: "Notes" }));
+    await userEvent.click(screen.getAllByRole("button", { name: "Alpha" }).at(-1)!);
+    expect(screen.getByRole("complementary", { name: "Note details" })).toBeVisible();
+    await userEvent.click(screen.getByRole("button", { name: "Close note details" }));
+    expect(screen.queryByRole("complementary", { name: "Note details" })).not.toBeInTheDocument();
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(container.querySelector("[data-expanded]")).toHaveAttribute("data-expanded", "false");
+    expect(document.body.style.overflow).toBe("");
+    fireEvent.click(screen.getByRole("button", { name: "Alpha" }));
+    fireEvent.click(container.querySelector(".react-flow__pane")!);
+    expect(screen.queryByRole("complementary", { name: "Note details" })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Zoom in" }));
+    fireEvent.click(screen.getByRole("button", { name: "Zoom out" }));
     fireEvent.click(screen.getByRole("button", { name: "Reset view" }));
-    expect(screen.getByRole("button", { name: "Zoom in" })).toBeEnabled();
-    const svg = container.querySelector('svg[aria-label="Graph view"]')!;
-    Object.defineProperty(svg, "setPointerCapture", { value: vi.fn() });
-    vi.spyOn(svg, "getBoundingClientRect").mockReturnValue({ width: 1000 } as DOMRect);
-    fireEvent.pointerDown(node!, { pointerId: 1, clientX: 2, clientY: 3 });
-    fireEvent.pointerMove(svg, { clientX: 10, clientY: 10 });
-    fireEvent.pointerDown(svg, { pointerId: 1, clientX: 2, clientY: 3 });
-    fireEvent.pointerMove(svg, { clientX: 20, clientY: 30 });
-    fireEvent.pointerUp(svg);
-    fireEvent.pointerCancel(svg);
-    expect(svg.firstElementChild).toHaveAttribute("transform", "translate(18 27) scale(1)");
   });
 
   it("refreshes changed notes and removes deleted notes from the graph", async () => {
@@ -139,7 +138,7 @@ describe("live workspace graph", () => {
     await userEvent.click(screen.getByRole("button", { name: "Refresh" }));
     await screen.findByText("1 note · 0 links");
     expect(screen.queryByRole("button", { name: "Beta" })).not.toBeInTheDocument();
-    expect(screen.getAllByRole("button", { name: "New title" })).toHaveLength(2);
+    expect(screen.getAllByRole("button", { name: "New title" })).toHaveLength(1);
   });
 
   it("labels an incomplete graph and invalid metadata rather than claiming a complete wiki", async () => {

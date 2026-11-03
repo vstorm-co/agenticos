@@ -12508,7 +12508,7 @@
     "limits": "The scan uses the available file listing, up to 200 Markdown files, 256 KiB per file and 8 MiB in total. Skipped or unreadable notes and their links are absent.",
     "skipped": "Skipped: {path}",
     "unreadable": "Could not read: {path}",
-    "invalidFrontmatter": "Invalid YAML frontmatter (metadata ignored): {paths}",
+    "invalidFrontmatter": "Invalid YAML frontmatter. Metadata ignored for these notes: {paths}",
     "empty": "Add Markdown notes with wiki links, Markdown links or frontmatter relationships to build a graph.",
     "open": "Open note",
     "notes": "Notes",
@@ -12521,6 +12521,9 @@
     "ambiguous": "{target} — more than one matching note",
     "zoomIn": "Zoom in",
     "zoomOut": "Zoom out",
-    "reset": "Reset view"
+    "reset": "Reset view",
+    "overview": "Graph overview",
+    "details": "Note details",
+    "closeDetails": "Close note details"
   }
 }

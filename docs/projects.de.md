@@ -2,7 +2,7 @@
 title: Projekte
 seo_title: Projekte - gemeinsame Dateien und Anweisungen
 description: Ein Projekt gibt laufender Arbeit einen Container mit Dateien und eine Reihe von Anweisungen, die jeder Chat darin teilt, egal welcher Agent antwortet.
-source_sha: "bb1a4448678d"
+source_sha: "9388e65f5f9a"
 ---
 
 # Projekte { #projects }
@@ -163,6 +163,13 @@ Wähle im Dateiexplorer **Graph view**, um verknüpfte Markdown-Notizen zu erkun
 Die Ansicht funktioniert für gemeinsame Projektdateien, Sandbox-Workspaces und
 einen freigegebenen Desktop-Ordner. Jeder Ort hat seinen eigenen Graphen;
 lokale Notizen werden nicht hochgeladen.
+
+Der Graph öffnet sich als Vollbild-Canvas mit farbigen Notizkarten und gebogenen,
+gerichteten Pfeilen. Die erste Tag-Angabe bestimmt die Farbgruppe, sonst der Ordner.
+Suche, Notizliste, Details, Übersicht und Zoom-Steuerung schweben über dem Canvas.
+Verschiebe Karten, um diese Ansicht anzuordnen; Dateien und Links bleiben dabei
+unberührt. Die Vollbildsteuerung oder Escape stellt die eingebettete Ansicht
+wieder her; der Zurück-Pfeil führt zu den Dateien.
 
 Verknüpfe Notizen mit `[[notes/topic|Beschriftung]]`, Inline-Markdown-Links wie
 `[Thema](topic.md)` oder Beziehungen im Frontmatter:

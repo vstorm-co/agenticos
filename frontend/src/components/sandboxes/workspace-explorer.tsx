@@ -379,7 +379,12 @@ export function FileExplorer({
       {/* `min-h-0` on both the grid and its children, or a flex child's default
           minimum is its content and the panes grow the page instead of scrolling. */}
       {graphView ? (
-        <WorkspaceGraph key={JSON.stringify(source)} source={source} renderEditor={renderEditor} />
+        <WorkspaceGraph
+          key={JSON.stringify(source)}
+          source={source}
+          renderEditor={renderEditor}
+          onClose={() => setGraphView(false)}
+        />
       ) : (
         <div
           role="presentation"

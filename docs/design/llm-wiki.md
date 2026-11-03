@@ -76,7 +76,10 @@ fetch or traversal. Note contents and metadata are rendered as text.
 - Code examples, inline code and HTML comments are excluded. This is a linked-note
   view, not semantic extraction or an inferred knowledge graph. Graph relationships
   are not evidence that a statement is correct.
-- Search matches title, path, aliases and tags. Selecting a node shows incoming,
+- The view opens as a full-screen React Flow canvas, reusing the workflow builder
+  engine, with floating controls, a minimap and curved directional arrows. Colours
+  group notes by first tag or folder; dragging cards changes only the current view.
+  Search matches title, path, aliases and tags. Selecting a node shows incoming,
   outgoing and unresolved links. Opening uses the shared file viewer; existing
   Project edit permissions and optimistic revision checks still apply.
 

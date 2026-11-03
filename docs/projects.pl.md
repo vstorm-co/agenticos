@@ -2,7 +2,7 @@
 title: Projekty
 seo_title: Projekty - wspólne pliki i instrukcje czatów
 description: Projekt daje bieżącej pracy jeden kontener plików i jeden zestaw instrukcji, wspólne dla każdego czatu w nim, niezależnie od tego, który agent odpowiada.
-source_sha: "bb1a4448678d"
+source_sha: "9388e65f5f9a"
 ---
 
 # Projekty { #projects }
@@ -152,6 +152,13 @@ W eksploratorze plików wybierz **Graph view**, aby przeglądać powiązane nota
 Markdown. Widok działa dla współdzielonych plików projektu, workspace sandboxa
 i zatwierdzonego folderu Desktop. Każda lokalizacja ma osobny graf; lokalne
 notatki nie są wysyłane na serwer.
+
+Graf otwiera się na pełnoekranowym płótnie z kolorowymi kartami i zakrzywionymi
+strzałkami wskazującymi kierunek relacji. Kolor grupuje notatki według pierwszego
+tagu, a przy jego braku według folderu. Wyszukiwanie, lista, szczegóły notatki,
+minimapa i zoom pływają nad płótnem. Przeciąganie kart zmienia tylko ten widok,
+bez zapisywania plików lub linków. Przycisk rozwijania lub Escape przywraca widok
+osadzony, a strzałka wstecz wraca do plików.
 
 Łącz notatki przez `[[notes/topic|etykieta]]`, linki Markdown w treści, np.
 `[Temat](topic.md)`, lub relacje we frontmatter:

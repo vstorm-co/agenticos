@@ -1,148 +1,136 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, type ReactNode } from "react";
+import {
+  Background,
+  MiniMap,
+  Panel,
+  ReactFlow,
+  ReactFlowProvider,
+  useReactFlow,
+  useNodesState,
+  type NodeChange,
+} from "@xyflow/react";
 import { useTranslations } from "next-intl";
-import { Minus, Plus, RotateCcw } from "lucide-react";
+import { Minus, Plus, Scan } from "lucide-react";
 import { Button } from "@/components/ui";
-import { layoutWiki } from "@/lib/wiki-layout";
+import { useResolvedTheme } from "@/hooks/use-resolved-theme";
+import { wikiFlow, type WikiFlowNode } from "@/lib/wiki-flow";
 import type { WikiGraph } from "@/lib/wiki-graph";
+import { WikiNode } from "./wiki-node";
+import "@xyflow/react/dist/style.css";
+
+const NODE_TYPES = { wiki: WikiNode };
 
 export function WikiCanvas({
   graph,
   selected,
   visible,
   onSelect,
+  children,
 }: {
   graph: WikiGraph;
   selected: string | null;
   visible: Set<string>;
-  onSelect: (path: string) => void;
+  onSelect: (path: string | null) => void;
+  children?: ReactNode;
 }) {
+  const colourMode = useResolvedTheme();
   const t = useTranslations("wikiGraph");
-  const points = useMemo(() => layoutWiki(graph), [graph]);
-  const [zoom, setZoom] = useState(1);
-  const [pan, setPan] = useState({ x: 0, y: 0 });
-  const drag = useRef<{ x: number; y: number; px: number; py: number } | null>(null);
+  const view = useMemo(() => wikiFlow(graph, visible, selected), [graph, visible, selected]);
+  const [nodes, setNodes, onNodesChange] = useNodesState<WikiFlowNode>(view.nodes);
+  // Reconcile file refreshes with the canvas model: measurements and dragged positions
+  // belong to React Flow and must survive a new projection of the note metadata.
+  useEffect(() => {
+    setNodes((previous) => {
+      const existing = new Map(previous.map((node) => [node.id, node]));
+      return view.nodes.map((node) => ({
+        ...existing.get(node.id),
+        ...node,
+        position: existing.get(node.id)?.position ?? node.position,
+      }));
+    });
+  }, [view.nodes, setNodes]);
+  const move = (changes: NodeChange<WikiFlowNode>[]) => {
+    onNodesChange(changes);
+    for (const change of changes) {
+      if (change.type === "select" && change.selected) onSelect(change.id);
+    }
+  };
   return (
-    <div className="bg-card relative min-h-[24rem] min-w-0 overflow-hidden rounded-xl border lg:flex-1">
-      <div className="bg-background absolute top-3 right-3 z-10 flex gap-1 rounded-lg border p-1">
-        <Button
-          size="icon"
-          variant="ghost"
-          aria-label={t("zoomIn")}
-          disabled={zoom >= 3}
-          onClick={() => setZoom(Math.min(3, zoom + 0.25))}
-        >
-          <Plus className="size-4" />
-        </Button>
-        <Button
-          size="icon"
-          variant="ghost"
-          aria-label={t("zoomOut")}
-          disabled={zoom <= 0.5}
-          onClick={() => setZoom(Math.max(0.5, zoom - 0.25))}
-        >
-          <Minus className="size-4" />
-        </Button>
-        <Button
-          size="icon"
-          variant="ghost"
-          aria-label={t("reset")}
-          onClick={() => {
-            setZoom(1);
-            setPan({ x: 0, y: 0 });
-          }}
-        >
-          <RotateCcw className="size-4" />
-        </Button>
-      </div>
-      <svg
-        viewBox="0 0 1000 700"
-        className="h-full min-h-[24rem] w-full touch-none"
+    <ReactFlowProvider>
+      <ReactFlow<WikiFlowNode>
+        nodes={nodes}
+        edges={view.edges}
+        nodeTypes={NODE_TYPES}
+        onNodesChange={move}
+        onNodeClick={(_, node) => onSelect(node.id)}
+        onPaneClick={() => onSelect(null)}
+        nodesConnectable={false}
+        edgesReconnectable={false}
+        edgesFocusable={false}
+        deleteKeyCode={null}
+        minZoom={0.15}
+        maxZoom={2}
+        fitView
+        fitViewOptions={{ padding: 0.3, maxZoom: 1 }}
+        colorMode={colourMode}
+        proOptions={{ hideAttribution: true }}
         aria-label={t("title")}
-        onPointerDown={(event) => {
-          if (event.target !== event.currentTarget) return;
-          event.currentTarget.setPointerCapture(event.pointerId);
-          drag.current = { x: event.clientX, y: event.clientY, px: pan.x, py: pan.y };
-        }}
-        onPointerMove={(event) => {
-          if (!drag.current) return;
-          const scale = 1000 / event.currentTarget.getBoundingClientRect().width;
-          setPan({
-            x: drag.current.px + (event.clientX - drag.current.x) * scale,
-            y: drag.current.py + (event.clientY - drag.current.y) * scale,
-          });
-        }}
-        onPointerUp={() => {
-          drag.current = null;
-        }}
-        onPointerCancel={() => {
-          drag.current = null;
-        }}
+        className="!bg-background"
       >
-        <g
-          transform={`translate(${pan.x + 500 * (1 - zoom)} ${pan.y + 350 * (1 - zoom)}) scale(${zoom})`}
-        >
-          {graph.edges.map((edge) => {
-            const a = points.get(edge.source),
-              b = points.get(edge.target);
-            if (!a || !b) return null;
-            const active = selected === edge.source || selected === edge.target;
-            return (
-              <line
-                key={JSON.stringify([edge.source, edge.target])}
-                x1={a.x}
-                y1={a.y}
-                x2={b.x}
-                y2={b.y}
-                className={active ? "stroke-primary" : "stroke-muted-foreground/25"}
-                strokeWidth={active ? 2 : 1}
-                opacity={visible.has(edge.source) && visible.has(edge.target) ? 1 : 0.06}
-                pointerEvents="none"
-              />
-            );
-          })}
-          {[...points.values()]
-            .filter(({ page }) => visible.has(page.path))
-            .map(({ page, ...point }) => {
-              return (
-                <g key={page.path} transform={`translate(${point.x} ${point.y})`}>
-                  <circle r={selected === page.path ? 9 : 6} className="fill-primary" />
-                  <text
-                    y={-14}
-                    textAnchor="middle"
-                    className={
-                      selected === page.path
-                        ? "fill-foreground text-[34px] sm:text-[12px]"
-                        : "fill-foreground hidden text-[34px] sm:block sm:text-[12px]"
-                    }
-                    pointerEvents="none"
-                  >
-                    {page.title.slice(0, 40)}
-                  </text>
-                  <circle
-                    r={18}
-                    fill="transparent"
-                    role="button"
-                    tabIndex={0}
-                    aria-label={page.title}
-                    aria-pressed={selected === page.path}
-                    className="focus:stroke-primary cursor-pointer [r:64px] focus:outline-none sm:[r:18px]"
-                    onClick={() => onSelect(page.path)}
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter" || event.key === " ") {
-                        event.preventDefault();
-                        onSelect(page.path);
-                      }
-                    }}
-                  >
-                    <title>{page.path}</title>
-                  </circle>
-                </g>
-              );
-            })}
-        </g>
-      </svg>
+        <Background gap={24} size={1} color="var(--color-border)" />
+        <MiniMap<WikiFlowNode>
+          pannable
+          zoomable
+          nodeColor={(node) => node.data.colour}
+          nodeBorderRadius={8}
+          maskColor="color-mix(in srgb, var(--color-background) 70%, transparent)"
+          className="!bg-card !right-3 !bottom-16 !m-0 !hidden !overflow-hidden !rounded-xl !border !shadow-lg sm:!block"
+          style={{ width: 156, height: 96 }}
+          ariaLabel={t("overview")}
+        />
+        <Panel position="bottom-right">
+          <WikiViewportControls />
+        </Panel>
+        {children}
+      </ReactFlow>
+    </ReactFlowProvider>
+  );
+}
+
+function WikiViewportControls() {
+  const t = useTranslations("wikiGraph");
+  const { zoomIn, zoomOut, fitView } = useReactFlow();
+  return (
+    <div className="bg-card/95 flex gap-1 rounded-full border p-1 shadow-lg backdrop-blur-xl">
+      <Button
+        size="icon"
+        variant="ghost"
+        className="rounded-full"
+        aria-label={t("zoomIn")}
+        onClick={() => void zoomIn()}
+      >
+        <Plus className="size-4" />
+      </Button>
+      <Button
+        size="icon"
+        variant="ghost"
+        className="rounded-full"
+        aria-label={t("zoomOut")}
+        onClick={() => void zoomOut()}
+      >
+        <Minus className="size-4" />
+      </Button>
+      <Button
+        size="icon"
+        variant="ghost"
+        className="rounded-full"
+        aria-label={t("reset")}
+        onClick={() => void fitView({ padding: 0.3, maxZoom: 1 })}
+      >
+        <Scan className="size-4" />
+      </Button>
     </div>
   );
 }

@@ -2,7 +2,7 @@
 title: Proyectos
 seo_title: Proyectos - archivos e instrucciones compartidos
 description: Un proyecto da al trabajo en curso un contenedor de archivos y unas instrucciones que comparte cada chat iniciado en él, responda el agent que responda.
-source_sha: "bb1a4448678d"
+source_sha: "9388e65f5f9a"
 ---
 
 # Proyectos { #projects }
@@ -162,6 +162,13 @@ En el explorador de archivos, elige **Graph view** para explorar notas Markdown
 enlazadas. La misma vista funciona con archivos compartidos del proyecto,
 workspaces del sandbox y una carpeta Desktop autorizada. Cada ubicación conserva
 su propio grafo; las notas locales no se suben al servidor.
+
+El grafo se abre en un lienzo de pantalla completa con tarjetas de colores y flechas
+curvas que indican la dirección de cada relación. El primer tag determina el color;
+si no hay tags, se usa la carpeta. La búsqueda, lista, detalles, minimapa y zoom
+flotan sobre el lienzo. Arrastrar tarjetas solo organiza esta vista, sin modificar
+archivos ni enlaces. El control de pantalla completa o Escape restaura la vista
+incrustada; la flecha atrás vuelve a los archivos.
 
 Conecta notas con `[[notes/topic|etiqueta]]`, enlaces Markdown en línea como
 `[Tema](topic.md)` o relaciones en el frontmatter:

@@ -21,9 +21,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
-- Browse a live graph of Markdown notes in project, sandbox and Desktop folder
+- Browse a live fullscreen graph of Markdown notes in project, sandbox and Desktop folder
   file explorers. Wiki links, inline Markdown links and frontmatter relationships
-  supply the graph and backlinks, refreshed without an agent-generated App.
+  supply the graph and backlinks, refreshed without an agent-generated App. Coloured
+  note cards, directed curves and floating panels use the workflow builder canvas.
 
 ## [1.38.4] - 2026-11-03
 

@@ -150,6 +150,13 @@ In the file explorer, choose **Graph view** to browse linked Markdown notes.
 The same view works for shared project files, sandbox workspaces and an approved
 Desktop folder. Each location keeps its own graph; local notes are not uploaded.
 
+The graph opens on a full-screen canvas with coloured note cards and curved, directed
+arrows. Colours group notes by their first tag, or by folder when no tag is set.
+Search, the note list, note details, the overview and zoom controls float above the
+canvas. Drag cards to arrange this view; this does not change files or links. Use
+the expand/collapse control or Escape to return to an inline canvas, and the back
+arrow to return to files.
+
 Use `[[notes/topic|label]]`, inline Markdown links such as
 `[Topic](topic.md)`, or frontmatter relationships to connect notes:
 
