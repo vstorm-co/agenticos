@@ -91,7 +91,7 @@ export default function SkillPage({ params }: { params: Promise<{ id: string }> 
         className="space-y-4"
       >
         <TabsList>
-          <TabsTrigger value="agents">
+          <TabsTrigger value="agents" data-tour="skill-agents-tab">
             <Bot className="mr-1.5 size-4 shrink-0" aria-hidden />
             {t("tabs.agents")}
           </TabsTrigger>
@@ -151,6 +151,7 @@ export default function SkillPage({ params }: { params: Promise<{ id: string }> 
         <DeleteSkillDialog
           skill={skill}
           agents={agents.agents}
+          agentsError={agents.error}
           deleting={remove.isPending}
           onClose={() => setDeleting(false)}
           onDelete={async () => {

@@ -8381,10 +8381,12 @@
         "title": "{name} löschen?",
         "description": "Seine Versionen und Forks verschwinden mit ihm. Kein Agent verwendet ihn gerade.",
         "used": "Ein Skill, den ein Agent verwendet, kann nicht gelöscht werden. Verschieben Sie jeden Agent auf einen anderen Skill oder entfernen Sie den Skill im Builder, dann löschen Sie ihn.",
-        "usedBy": "{count, plural, =1 {Verwendet von 1 Agent} other {Verwendet von # Agents}}{named, select, yes {: {names}} other {}}{hidden, plural, =0 {.} =1 {, und 1, den Sie nicht sehen.} other {, und #, die Sie nicht sehen.}}",
+        "usedBy": "{named, select, yes {{count, plural, =1 {Verwendet von 1 Agent} other {Verwendet von # Agents}}: {names}{hidden, plural, =0 {.} =1 {, und 1, den Sie nicht sehen.} other {, und #, die Sie nicht sehen.}}} other {{hidden, plural, =1 {Verwendet von 1 Agent, den Sie nicht sehen.} other {Verwendet von # Agents, die Sie nicht sehen.}}}}",
         "close": "OK",
         "cancel": "Abbrechen",
-        "delete": "Löschen"
+        "delete": "Löschen",
+        "checking": "Es wird geprüft, welche Agents ihn verwenden…",
+        "unread": "Welche Agents ihn verwenden, konnte nicht gelesen werden. Ein Skill, den ein Agent verwendet, wird trotzdem abgelehnt."
       },
       "usage": {
         "title": "Nutzung in den letzten {days} Tagen",

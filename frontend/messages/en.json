@@ -8503,10 +8503,12 @@
         "title": "Delete {name}?",
         "description": "Its versions and forks go with it. No agent uses it now.",
         "used": "A skill an agent uses cannot be deleted. Move each agent to another skill, or remove the skill from it in the Builder, then delete it.",
-        "usedBy": "{count, plural, =1 {Used by 1 agent} other {Used by # agents}}{named, select, yes {: {names}} other {}}{hidden, plural, =0 {.} =1 {, and 1 you can't see.} other {, and # you can't see.}}",
+        "usedBy": "{named, select, yes {{count, plural, =1 {Used by 1 agent} other {Used by # agents}}: {names}{hidden, plural, =0 {.} =1 {, and 1 you can't see.} other {, and # you can't see.}}} other {{hidden, plural, =1 {Used by 1 agent you can't see.} other {Used by # agents you can't see.}}}}",
         "close": "OK",
         "cancel": "Cancel",
-        "delete": "Delete"
+        "delete": "Delete",
+        "checking": "Checking which agents use it…",
+        "unread": "Which agents use it could not be read. A skill an agent uses is still refused."
       },
       "usage": {
         "title": "Use in the last {days} days",

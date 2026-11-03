@@ -12,12 +12,17 @@ const SKILL = { id: "s1", name: "returns-policy" } as Skill;
 const row = (name: string, via: string | null = null) =>
   ({ agent: { id: name, name, slug: name }, via_specialist: via }) as SkillAgentUsage;
 
-function open(agents: SkillAgentList | undefined, onDelete = vi.fn().mockResolvedValue(undefined)) {
+function open(
+  agents: SkillAgentList | undefined,
+  onDelete = vi.fn().mockResolvedValue(undefined),
+  agentsError: unknown = null,
+) {
   const onClose = vi.fn();
   render(
     <DeleteSkillDialog
       skill={SKILL}
       agents={agents}
+      agentsError={agentsError}
       deleting={false}
       onDelete={onDelete}
       onClose={onClose}
@@ -43,7 +48,7 @@ describe("DeleteSkillDialog", () => {
 
   it("counts agents it cannot name", () => {
     open(list([], 1));
-    expect(screen.getByRole("alert")).toHaveTextContent("Used by 1 agent, and 1 you can't see.");
+    expect(screen.getByRole("alert")).toHaveTextContent("Used by 1 agent you can't see.");
   });
 
   it("deletes a skill nobody uses", async () => {
@@ -64,7 +69,7 @@ describe("DeleteSkillDialog", () => {
         },
       }),
     );
-    open(undefined, onDelete);
+    open(list([]), onDelete);
 
     await userEvent.click(screen.getByRole("button", { name: "Delete" }));
 
@@ -82,9 +87,7 @@ describe("DeleteSkillDialog", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "Delete" }));
 
-    expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Used by 3 agents, and 3 you can't see.",
-    );
+    expect(await screen.findByRole("alert")).toHaveTextContent("Used by 3 agents you can't see.");
   });
 
   it("says why any other delete failed", async () => {
@@ -100,5 +103,18 @@ describe("DeleteSkillDialog", () => {
     const { onClose } = open(list([]));
     await userEvent.keyboard("{Escape}");
     expect(onClose).toHaveBeenCalled();
+  });
+
+  it("offers no delete while it is still finding out who uses the skill", () => {
+    open(undefined);
+    expect(screen.getByRole("status")).toHaveTextContent("Checking which agents use it");
+    expect(screen.getByRole("button", { name: "Delete" })).toBeDisabled();
+  });
+
+  it("still offers a delete the server guards when the agents could not be read", async () => {
+    const { onDelete } = open(undefined, vi.fn().mockResolvedValue(undefined), new Error("down"));
+    expect(screen.getByText(/could not be read/)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Delete" }));
+    expect(onDelete).toHaveBeenCalled();
   });
 });

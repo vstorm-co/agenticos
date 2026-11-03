@@ -44,16 +44,21 @@ function refusedBy(failure: unknown): Users | null {
  * The agents table already says who uses it, so a used skill is not offered for
  * deletion at all: the dialog names the agents to move first. A refusal the server
  * still gives - an agent bound it meanwhile - is said here, under the same names.
+ * Nothing is offered while the agents are still on their way; when they could not
+ * be read, deleting is offered and the server's refusal still guards it.
  */
 export function DeleteSkillDialog({
   skill,
   agents,
+  agentsError,
   deleting,
   onDelete,
   onClose,
 }: {
   skill: Skill;
   agents: SkillAgentList | undefined;
+  /** Why the agents could not be read, when they could not. */
+  agentsError: unknown;
   deleting: boolean;
   onDelete: () => Promise<void>;
   onClose: () => void;
@@ -70,6 +75,7 @@ export function DeleteSkillDialog({
   const users = refused ?? known;
   const used = users.names.length + users.hidden > 0;
   const list = new Intl.ListFormat(locale, { type: "conjunction" });
+  const checking = agents === undefined && !agentsError && refused === null;
 
   async function confirm() {
     setError(null);
@@ -99,6 +105,14 @@ export function DeleteSkillDialog({
             })}
           </p>
         )}
+        {checking && (
+          <p role="status" className="text-muted-foreground text-sm">
+            {t("checking")}
+          </p>
+        )}
+        {agents === undefined && Boolean(agentsError) && !used && (
+          <p className="text-muted-foreground text-sm">{t("unread")}</p>
+        )}
         {error !== null && (
           <p role="alert" className="text-destructive text-sm">
             {error}
@@ -109,7 +123,12 @@ export function DeleteSkillDialog({
             {used ? t("close") : t("cancel")}
           </Button>
           {!used && (
-            <Button variant="destructive" loading={deleting} onClick={() => void confirm()}>
+            <Button
+              variant="destructive"
+              loading={deleting}
+              disabled={checking}
+              onClick={() => void confirm()}
+            >
               {t("delete")}
             </Button>
           )}

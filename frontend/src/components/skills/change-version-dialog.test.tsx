@@ -388,4 +388,19 @@ describe("ChangeVersionDialog's warnings", () => {
     await userEvent.click(screen.getByRole("button", { name: "Show changes" }));
     expect(await screen.findByRole("button", { name: "Hide changes" })).toBeInTheDocument();
   });
+
+  it("asks again for a version picked after the last one was accepted", async () => {
+    renderOnMain();
+
+    await userEvent.click(screen.getByRole("radio", { name: /Pin a main version/ }));
+    await userEvent.click(screen.getByRole("combobox", { name: "Version to pin" }));
+    await userEvent.click(screen.getByRole("option", { name: "v2" }));
+    await userEvent.click(screen.getByLabelText("I understand, change it anyway"));
+    expect(screen.getByRole("button", { name: "Change and publish" })).toBeEnabled();
+    await userEvent.click(screen.getByRole("combobox", { name: "Version to pin" }));
+    await userEvent.click(screen.getByRole("option", { name: "v1" }));
+
+    expect(screen.getByLabelText("I understand, change it anyway")).not.toBeChecked();
+    expect(screen.getByRole("button", { name: "Change and publish" })).toBeDisabled();
+  });
 });

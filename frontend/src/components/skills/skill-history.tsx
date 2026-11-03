@@ -45,6 +45,7 @@ export function SkillHistory({
   const [open, setOpen] = useState<string | null>(null);
   const [restoring, setRestoring] = useState<SkillVersionSummary | null>(null);
   const [asking, startAsking] = useTransition();
+  const [pressed, setPressed] = useState<string | null>(null);
   const { versions, total, isLoading, error } = useSkillVersions(skillId, forkId, page);
   const { restore } = useSkillVersionWrites(skillId);
   const line = forkName === null ? t("main") : t("fork", { name: forkName });
@@ -116,8 +117,11 @@ export function SkillHistory({
                     <Button
                       variant="outline"
                       size="sm"
-                      loading={asking && restoring === null}
-                      onClick={() => startAsking(() => setRestoring(version))}
+                      loading={asking && pressed === version.id}
+                      onClick={() => {
+                        setPressed(version.id);
+                        startAsking(() => setRestoring(version));
+                      }}
                       aria-label={t("restoreVersion", { version: label(version.number) })}
                     >
                       <RotateCcw className="h-4 w-4" aria-hidden />

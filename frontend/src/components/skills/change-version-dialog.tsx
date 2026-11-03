@@ -191,7 +191,10 @@ export function ChangeVersionDialog({
               target.state === "pinned" && (
                 <Select
                   value={pinned}
-                  onValueChange={(value) => setTarget({ state: "pinned", version: Number(value) })}
+                  onValueChange={(value) => {
+                    setTarget({ state: "pinned", version: Number(value) });
+                    setUnderstood(false);
+                  }}
                 >
                   <SelectTrigger className="w-56" aria-label={t("pinVersion")}>
                     <SelectValue />
