@@ -3,19 +3,12 @@
 from typing import Annotated
 from uuid import UUID
 
-from pydantic import AfterValidator, Field
+from pydantic import Field, StringConstraints
 
 from app.schemas.base import BaseSchema
 
-
-def _not_blank(value: str) -> str:
-    if not value.strip():
-        raise ValueError("Instructions must contain text")
-    return value
-
-
 type PipelineInstructions = Annotated[
-    str, Field(min_length=1, max_length=20_000), AfterValidator(_not_blank)
+    str, StringConstraints(strip_whitespace=True, min_length=1, max_length=20_000)
 ]
 
 

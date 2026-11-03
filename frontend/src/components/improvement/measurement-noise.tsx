@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { Check, Minus, X } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { useAgentsOfKind } from "@/hooks/use-agents";
 import { ROUTES } from "@/lib/constants";
 import type { Improvement, MeasurementNoise, NoisyAttempt } from "@/types/improvement";
 import { Details } from "./widgets";
@@ -57,8 +56,6 @@ export function TooFewShared({ noise }: { noise: MeasurementNoise }) {
  */
 export function NoiseActions({ session }: { session: Improvement }) {
   const t = useTranslations("improvement.noise");
-  const { agents } = useAgentsOfKind("judge");
-  const judge = agents.find((agent) => agent.system_key != null);
   const dataset = ROUTES.DATASET_DETAIL(session.dataset_id);
   const grading = `${dataset}?tab=grading`;
   const fixes = [
@@ -75,7 +72,7 @@ export function NoiseActions({ session }: { session: Improvement }) {
       }),
     },
     { key: "more", href: `${dataset}?tab=cases` },
-    { key: "judge", href: judge ? ROUTES.AGENT_DETAIL(judge.id) : `${dataset}?tab=grading` },
+    { key: "judge", href: grading },
   ];
   return (
     <div className="space-y-2">

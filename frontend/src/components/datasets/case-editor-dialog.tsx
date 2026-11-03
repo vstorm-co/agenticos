@@ -360,19 +360,12 @@ export function CaseEditorDialog({
             {description ??
               (onSave === undefined
                 ? t("caseReadOnly")
-                : !editing
-                  ? t("caseOpened")
-                  : nextVersion === undefined
-                    ? t("caseSavesVersion")
-                    : t("caseSavesVersionN", { number: nextVersion }))}
+                : nextVersion === undefined
+                  ? t("caseSavesVersion")
+                  : t("caseSavesVersionN", { number: nextVersion }))}
           </DialogDescription>
         </DialogHeader>
         <div className={cn(DIALOG_BODY, "grid content-start items-start gap-4 lg:grid-cols-2")}>
-          {!editing && viewing !== undefined && (
-            <div className="lg:col-span-2">
-              <CaseView content={viewing} />
-            </div>
-          )}
           {editing && json !== null && (
             <FormField
               className="lg:col-span-2"
@@ -546,11 +539,6 @@ export function CaseEditorDialog({
           <Button variant="outline" onClick={close}>
             {t(readOnly ? "close" : "cancel")}
           </Button>
-          {onSave !== undefined && !editing && (
-            <Button data-tour="case-edit" onClick={() => setEditing(true)}>
-              {t("editCase")}
-            </Button>
-          )}
           {!readOnly && (
             <Button
               data-tour="case-save"

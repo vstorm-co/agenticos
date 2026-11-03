@@ -61,7 +61,7 @@ rename.
 | Budget | A spending limit that stops runs when it is reached | `budget` |
 | Guardrails | Checks that redact or block what flows through a run | `guardrails` |
 | Vault | Where keys and tokens are stored, sealed and never shown again | `secret` |
-| AI assistance | The organization's switch for the models that grade answers, draft cases, propose changes and draft missing knowledge, Improve included; off until somebody turns it on | `ai_assistance_enabled` |
+| Evaluation helpers | Code-defined grading, generation and improvement pipelines configured on a dataset | `scoring.judge`, `helper_settings` |
 
 ## How it is tested
 

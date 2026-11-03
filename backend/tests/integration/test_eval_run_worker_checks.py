@@ -16,7 +16,7 @@ from pydantic_ai.exceptions import ModelHTTPError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.exceptions import BadRequestError
+from app.core.exceptions import AuthorizationError, BadRequestError
 from app.core.permissions import ROLE_PERMS, AuthContext, OrgRoleName
 from app.db.models.case_score import CaseScore
 from app.db.models.eval_run import EvalRun, EvalRunCase
@@ -251,3 +251,22 @@ async def test_an_attempt_claimed_before_its_check_was_cancelled_leaves_the_canc
     run = await _stored(db, child.id)
     assert (run.status, run.error) == ("cancelled", None)
     announced.assert_not_awaited()
+
+
+@pytest.mark.security
+async def test_a_knowledge_check_stops_when_its_parent_loses_permission(db: AsyncSession) -> None:
+    from uuid import uuid4
+
+    ctx, _, _, _, child = await _start(db)
+    await _knowledge(db, child.id)
+    row = await _stored(db, child.id)
+    assert row.proposal_check is not None
+    row.proposal_check = {**row.proposal_check, "improvement_run_id": str(uuid4())}
+    await db.flush()
+    with patch(
+        "app.services.improvement_pipeline.ImprovementPipelineService.ensure_current",
+        AsyncMock(side_effect=AuthorizationError(message="Edit grant lost")),
+    ):
+        assert await _work(db, ctx, child.id) == []
+    await db.refresh(row)
+    assert (row.status, row.error) == ("failed", _NO_LONGER_RUNS)

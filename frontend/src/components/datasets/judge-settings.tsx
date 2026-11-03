@@ -27,8 +27,6 @@ interface JudgeSettingsProps {
   referenceCoverage: string;
   /** How many have a counter-example, which the judge checks while it or the reference is on. */
   counterExampleCoverage: string;
-  /** Changed to put the cursor in the rubric's first criterion. */
-  focusRubric?: number;
   /** The dataset's rules, which a criterion a rule can check offers to add to. */
   rules?: RuleChecks;
 }
@@ -44,7 +42,6 @@ export function JudgeSettings({
   disabled,
   referenceCoverage,
   counterExampleCoverage,
-  focusRubric,
   tagGroups,
   totalCases,
   rules,
@@ -127,7 +124,6 @@ export function JudgeSettings({
           totalCases={totalCases}
           onChange={(criteria) => onJudge({ ...judge, criteria })}
           disabled={disabled}
-          focusKey={focusRubric}
         />
       </ScorerRow>
       <ScorerRow

@@ -168,3 +168,22 @@ async def test_a_waiting_session_without_a_selected_round_makes_no_authoring_dec
     await service.advance(ready.id, ctx.organization_id)
     assert (await service.read(ctx, agent.id, ready.id)).status == "ready"
     assert agent.draft_spec == before
+
+
+@pytest.mark.security
+async def test_a_session_whose_organization_disappears_refuses_steps_and_stops(
+    db: AsyncSession,
+) -> None:
+    ctx, agent, _, session = await _started(db)
+    service = ImprovementPipelineService(db)
+    row = await db.get(ImprovementRun, session.id)
+    assert row is not None
+    with patch(
+        "app.services.improvement_pipeline.organization_repo.get_by_id",
+        AsyncMock(return_value=None),
+    ):
+        with pytest.raises(AuthorizationError, match="Organization is no longer available"):
+            await service._current_inputs(ctx, row)
+        await service.advance(session.id, ctx.organization_id)
+    read = await service.read(ctx, agent.id, session.id)
+    assert (read.status, read.stop_reason) == ("stopped", "permission")

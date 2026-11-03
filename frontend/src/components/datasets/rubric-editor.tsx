@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useId } from "react";
+import { useId } from "react";
 import { Plus, Trash2 } from "lucide-react";
 import { useTranslations } from "next-intl";
 
@@ -15,8 +15,6 @@ interface RubricEditorProps {
   totalCases?: number;
   onChange: (criteria: RubricCriterion[]) => void;
   disabled?: boolean;
-  /** Changed to put the cursor in the first criterion's description, selected. */
-  focusKey?: number;
   /** The dataset's rules, under which a criterion a rule can check offers it. */
   rules?: RuleChecks;
 }
@@ -26,19 +24,12 @@ export function RubricEditor({
   criteria,
   onChange,
   disabled = false,
-  focusKey = 0,
   tagGroups = [],
   totalCases = 0,
   rules,
 }: RubricEditorProps) {
   const t = useTranslations("datasets.scoring");
   const prefix = useId();
-  const first = useRef<HTMLTextAreaElement>(null);
-  useEffect(() => {
-    if (focusKey === 0) return;
-    first.current?.focus();
-    first.current?.select();
-  }, [focusKey]);
   const change = (index: number, patch: Partial<RubricCriterion>) =>
     onChange(criteria.map((item, at) => (at === index ? { ...item, ...patch } : item)));
 
@@ -92,7 +83,6 @@ export function RubricEditor({
             description={t("criterionHelp")}
           >
             <Textarea
-              ref={index === 0 ? first : undefined}
               value={criterion.description}
               onChange={(event) => change(index, { description: event.target.value })}
               placeholder={t("criterionDescriptionPlaceholder")}

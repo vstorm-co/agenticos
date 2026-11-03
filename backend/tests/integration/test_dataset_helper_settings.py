@@ -3,11 +3,12 @@
 import asyncio
 from typing import Literal
 from unittest.mock import AsyncMock
+from uuid import uuid4
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
-from app.core.exceptions import AuthorizationError, BadRequestError
+from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
 from app.core.permissions import OrgRoleName
 from app.repositories import case_generation_repo
 from app.schemas.dataset import DatasetUpdate
@@ -67,6 +68,7 @@ async def test_generation_uses_the_admitted_model_and_instructions_after_setting
     assert row is not None and row.helper_settings["model_profile_id"] == str(first.id)
 
 
+@pytest.mark.security
 async def test_dataset_helpers_refuse_a_model_from_another_tenant(db: AsyncSession) -> None:
     owner, _, _, dataset, _ = await _setup(db)
     other_person = await world.user(db)
@@ -87,7 +89,7 @@ async def test_dataset_helpers_refuse_a_model_from_another_tenant(db: AsyncSessi
 async def test_readers_cannot_change_pipeline_instructions(db: AsyncSession) -> None:
     _, org, _, dataset, _ = await _setup(db)
     viewer = await world.member(db, org, OrgRoleName.VIEWER)
-    with pytest.raises((AuthorizationError, BadRequestError)):
+    with pytest.raises((AuthorizationError, BadRequestError, NotFoundError)):
         await DatasetService(db).update(
             viewer,
             dataset.id,
@@ -177,3 +179,70 @@ async def test_helper_instruction_patch_keeps_its_model_and_null_resets_settings
     )
     reset = await service.update(owner, dataset.id, DatasetUpdate(helper_settings=None))
     assert reset.helper_settings == DatasetHelpers()
+
+
+async def test_generation_estimate_reports_unknown_price_after_its_model_is_deleted(
+    db: AsyncSession,
+) -> None:
+    owner, org, agent, dataset, _ = await _setup(db)
+    model = await _profile(db, org)
+    await DatasetService(db).update(
+        owner,
+        dataset.id,
+        DatasetUpdate(
+            helper_settings=DatasetHelpers(generator=DatasetHelper(model_profile_id=model.id))
+        ),
+    )
+    await db.delete(model)
+    await db.flush()
+    estimate = await _service(db).estimate(owner, dataset.id, _request(agent, "agent"))
+    assert estimate.estimated_cost_usd is None
+
+
+async def test_resolving_an_inherited_generation_model_refuses_a_deleted_agent(
+    db: AsyncSession,
+) -> None:
+    owner, _, agent, _, _ = await _setup(db)
+    request = _request(agent, "agent").model_copy(update={"agent_id": uuid4()})
+    with pytest.raises(NotFoundError, match="Agent not found"):
+        await _service(db)._helper(owner, request)
+
+
+async def test_authoring_prices_the_explicit_helper_model_and_instructions(
+    db: AsyncSession,
+) -> None:
+    from app.agents.system_agents import IMPROVER
+    from app.services.authoring import AuthoringService
+    from app.services.system_agents import SystemAgentService
+
+    owner, org, _, _, _ = await _setup(db)
+    model = await _profile(db, org)
+    helper = await SystemAgentService(db).ensure(organization_id=org.id, key=IMPROVER.key)
+    price = await AuthoringService(db)._per_call(
+        owner,
+        helper,
+        120,
+        helper=DatasetHelper(model_profile_id=model.id, instructions="Use the chosen model."),
+    )
+    assert price > 0
+
+
+async def test_bootstrap_enabling_grading_keeps_existing_criteria(db: AsyncSession) -> None:
+    from app.schemas.scoring import DatasetScoringUpdate
+    from app.services.agent_test_set import AgentTestSetService
+    from app.services.scoring import ScoringService
+
+    owner, _, _, dataset, _ = await _setup(db)
+    await ScoringService(db).set_scoring(
+        owner,
+        dataset.id,
+        DatasetScoringUpdate.model_validate(
+            {"judge": {"criteria": [{"name": "Existing", "description": "Keep this criterion."}]}}
+        ),
+    )
+    row = await DatasetService(db).get(owner, dataset.id)
+    service = AgentTestSetService(db, vector_store=_service(db).sources.vector_store)
+    await service._switch_on(owner, row, None)
+    read = await DatasetService(db).read(owner, dataset.id)
+    assert [criterion.name for criterion in read.scoring.judge.criteria] == ["Existing"]
+    assert read.scoring.judge.enabled and read.scoring.reference.enabled

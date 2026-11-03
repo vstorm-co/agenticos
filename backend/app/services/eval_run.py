@@ -150,6 +150,9 @@ _CENT = Decimal("0.000001")
 def scoring_hash(scoring: DatasetScoring) -> str:
     """A fingerprint of the scoring a run used: equal only when every setting is."""
     content = scoring.model_dump(mode="json")
+    # An inherited code prompt and the same frozen prompt describe one grader.
+    if content["judge"]["instructions"] is None:
+        content["judge"]["instructions"] = JUDGE.instructions
     # An absent scope and an empty one both mean every case; preserve stored hashes.
     for criterion in content["judge"]["criteria"]:
         if not criterion["tags"]:

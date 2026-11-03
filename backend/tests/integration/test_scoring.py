@@ -18,7 +18,7 @@ import pytest
 from pydantic_ai.messages import ModelMessage, ModelResponse, TextPart
 from pydantic_ai.models.function import AgentInfo, FunctionModel
 from sqlalchemy import select, update
-from sqlalchemy.ext.asyncio import async_sessionmaker
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.agents.model_resolver import ModelRequestSpec
 from app.agents.spec import AgentSpec
@@ -2289,30 +2289,27 @@ class TestRefusals:
                 member, dataset.id, case.case_id, CaseScoreCreate(run_id=run.id)
             )
 
-    async def test_a_model_named_for_the_judge_is_accepted_and_dropped(self, db, judge) -> None:
+    @pytest.mark.security
+    async def test_a_grading_model_from_another_tenant_is_refused(self, db, judge) -> None:
         mine, theirs = await _tenant(db), await _tenant(db)
         foreign = await _model(db, theirs)
         dataset, _ = await _dataset(db, mine, scoring=DatasetScoring())
-
-        saved = await ScoringService(db).set_scoring(
-            mine.ctx,
-            dataset.id,
-            _change(
-                DatasetScoring.model_validate(
-                    {
-                        "judge": {
-                            "enabled": True,
-                            "criteria": [c.model_dump() for c in RUBRIC],
-                            "model_profile_id": str(foreign.id),
+        with pytest.raises(BadRequestError, match="this organization"):
+            await ScoringService(db).set_scoring(
+                mine.ctx,
+                dataset.id,
+                _change(
+                    DatasetScoring.model_validate(
+                        {
+                            "judge": {
+                                "enabled": True,
+                                "criteria": [c.model_dump() for c in RUBRIC],
+                                "model_profile_id": str(foreign.id),
+                            }
                         }
-                    }
-                )
-            ),
-        )
-
-        assert saved.scoring.judge.model_profile_id is None
-        row = await dataset_repo.get(db, dataset.id, organization_id=mine.organization.id)
-        assert row is not None and row.scoring["judge"]["model_profile_id"] is None
+                    )
+                ),
+            )
 
     @pytest.mark.parametrize(
         ("scoring", "field"),
@@ -2578,3 +2575,19 @@ class TestChangingTheGrading:
         assert [problem["field"] for problem in refused.value.details["fields"]] == [
             "checks.enabled"
         ]
+
+
+async def test_dataset_grading_keeps_an_explicit_chat_model_and_refuses_embedding_models(
+    db: AsyncSession, judge
+) -> None:
+    tenant = await _tenant(db)
+    profile = await _model(db, tenant)
+    dataset, _ = await _dataset(db, tenant, scoring=DatasetScoring())
+    service = ScoringService(db)
+    changed = DatasetScoringUpdate.model_validate({"judge": {"model_profile_id": str(profile.id)}})
+    saved = await service.set_scoring(tenant.ctx, dataset.id, changed)
+    assert saved.scoring.judge.model_profile_id == profile.id
+    profile.model = "text-embedding-3-small"
+    await db.flush()
+    with pytest.raises(BadRequestError, match="answers messages"):
+        await service.set_scoring(tenant.ctx, dataset.id, changed)

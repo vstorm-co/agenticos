@@ -251,7 +251,7 @@ def test_improvement_merge_upgrades_either_existing_history(starting_revision: s
             )
             assert connection.execute(
                 text("SELECT version_num FROM alembic_version")
-            ).scalar_one() == ("0251_merge_improvement_discord")
+            ).scalar_one() == ("0253_helper_snapshots")
         check = _alembic("check")
         assert check.returncode == 0, check.stderr
     finally:

@@ -337,6 +337,7 @@ describe("the dataset page", () => {
       "Grading",
       "Evals",
       "Review",
+      "Settings",
     ]);
   });
 });

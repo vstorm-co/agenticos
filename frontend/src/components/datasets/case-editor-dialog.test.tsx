@@ -406,7 +406,21 @@ describe("CaseEditorDialog", () => {
     await userEvent.click(box);
     await userEvent.paste("{ not json");
     await userEvent.click(screen.getByRole("button", { name: "Back to the form" }));
-    expect(screen.getByText("This is not valid JSON.")).toBeInTheDocument();
+    expect(
+      screen.getByText("This is not valid case JSON. Check the field names and value types."),
+    ).toBeInTheDocument();
+    await userEvent.click(save());
+    expect(onSave).not.toHaveBeenCalled();
+
+    await userEvent.clear(box);
+    await userEvent.click(box);
+    await userEvent.paste(
+      '{"input":"Valid JSON, invalid case", "history":[{"role":"tool","content":"Unsupported role"}]}',
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Back to the form" }));
+    expect(
+      screen.getByText("This is not valid case JSON. Check the field names and value types."),
+    ).toBeInTheDocument();
     await userEvent.click(save());
     expect(onSave).not.toHaveBeenCalled();
 
@@ -580,4 +594,20 @@ describe("CaseEditorDialog", () => {
     await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
     expect(screen.getByRole("dialog", { name: "You have unsaved changes" })).toBeInTheDocument();
   });
+});
+
+it("closes case details with Escape without entering its editor", async () => {
+  const close = vi.fn();
+  render(
+    <CaseEditorDialog
+      open
+      onOpenChange={close}
+      initial={draftOf(STORED)}
+      viewing={STORED}
+      title="Case"
+    />,
+  );
+  await userEvent.keyboard("{Escape}");
+  expect(close).toHaveBeenCalledWith(false);
+  expect(screen.queryByRole("button", { name: "Save case" })).toBeNull();
 });

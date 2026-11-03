@@ -315,7 +315,7 @@ describe("EvalsPanel", () => {
     expect(evalRuns.asked.at(-1)).toEqual(["agent-1", { skip: 100, limit: 100 }]);
   });
 
-  it("draws the trend, then every run by dataset with its verdict", async () => {
+  it("draws the trend and lists all runs with their comparison and model rates", async () => {
     evalRuns.value = {
       ...evalRuns.value,
       runs: [
@@ -341,17 +341,19 @@ describe("EvalsPanel", () => {
 
     expect(screen.getByRole("group", { name: "Pass rate by run" })).toBeInTheDocument();
     expect(screen.getByText(/click it to open the run/)).toBeInTheDocument();
-    expect(screen.getByText("refunds · 2 runs")).toBeInTheDocument();
-    expect(screen.getByText("shipping · 1 run")).toBeInTheDocument();
-
+    expect(screen.getByRole("table")).toBeInTheDocument();
     const compared = screen.getByRole("link", { name: /v7 vs v6/ });
     expect(compared).toHaveAttribute("href", "/agents/agent-1/evals/run-1");
-    expect(within(compared).getByText("Breaks 4")).toBeInTheDocument();
-    expect(within(compared).getByText("gpt-4.1 75%")).toBeInTheDocument();
-    expect(within(compared).getByText("claude 75%")).toBeInTheDocument();
-    expect(within(compared).queryByText("Completed")).toBeNull();
-    const first = screen.getByRole("link", { name: /^v7.*First result/ });
-    expect(first).toHaveAttribute("href", "/agents/agent-1/evals/run-0");
+    const row = compared.closest("tr");
+    if (!row) throw new Error("An evaluation has no table row");
+    expect(within(row).getAllByText("Breaks 4").length).toBeGreaterThan(0);
+    expect(within(row).getByText("gpt-4.1 75%")).toBeInTheDocument();
+    expect(within(row).getByText("claude 75%")).toBeInTheDocument();
+    expect(
+      screen
+        .getAllByRole("link")
+        .some((link) => link.getAttribute("href") === "/agents/agent-1/evals/run-0"),
+    ).toBe(true);
     const live = screen.getByRole("link", { name: /Draft vs v7/ });
     expect(within(live).getByText("Pending")).toBeInTheDocument();
     expect(within(live).getByText("Running")).toBeInTheDocument();
@@ -369,7 +371,7 @@ describe("EvalsPanel", () => {
     evalRuns.value = { ...evalRuns.value, runs: [evalRun({ status: "queued" })] };
     rerender(<EvalsPanel agentId="agent-1" canStart />);
     expect(screen.queryByRole("group", { name: "Pass rate by run" })).toBeNull();
-    expect(screen.getByText("Pending")).toBeInTheDocument();
+    expect(screen.getAllByText("Pending").length).toBeGreaterThan(0);
   });
 
   it("keys each line when runs of several datasets finished", () => {

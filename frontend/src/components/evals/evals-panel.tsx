@@ -18,7 +18,6 @@ import { useDatasets } from "@/hooks/use-datasets";
 import { useEvalRuns } from "@/hooks/use-eval-runs";
 import { getErrorMessage } from "@/lib/api-error";
 import { ROUTES } from "@/lib/constants";
-import type { EvalRun } from "@/types/eval-runs";
 import { PassRateChart, passRateLines } from "./pass-rate-chart";
 import { RunsTable } from "./runs-table";
 import { StartEvalDialog } from "./start-eval-dialog";
@@ -26,27 +25,6 @@ import { StartEvalDialog } from "./start-eval-dialog";
 /** As many runs as the trend reads back at once - the API's own ceiling - a page of them. */
 const TREND_RUNS = 100;
 
-/** Runs by dataset, each group in the order its newest run came. */
-export function byDataset(runs: EvalRun[]): { id: string; name: string; runs: EvalRun[] }[] {
-  const groups = new Map<string, { id: string; name: string; runs: EvalRun[] }>();
-  for (const run of runs) {
-    const group = groups.get(run.dataset_id) ?? {
-      id: run.dataset_id,
-      name: run.dataset_name,
-      runs: [],
-    };
-    group.runs.push(run);
-    groups.set(run.dataset_id, group);
-  }
-  return [...groups.values()];
-}
-
-/**
- * The Evals tab: how the agent's pass rate moved, version after version, on
- * each dataset - then every run, grouped by the dataset it answered, each with
- * its verdict. A run is rare and costs money, so starting one is a button here
- * rather than a control on every screen.
- */
 export function EvalsPanel({ agentId, canStart }: { agentId: string; canStart: boolean }) {
   const t = useTranslations("evals");
   const tErrors = useTranslations("errors");

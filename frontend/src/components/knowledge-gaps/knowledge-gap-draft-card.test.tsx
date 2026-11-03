@@ -55,29 +55,11 @@ describe("KnowledgeGapDraftCard", () => {
     expect(body).toHaveAttribute("data-inert-images", "true");
   });
 
-  it("points somebody who may edit the drafter at its instructions", () => {
-    state.drafters = [
-      { id: "own", system_key: null, can_edit: true },
-      { id: "d1", system_key: "knowledge_gap_drafter", can_edit: true },
-    ];
-    render(<KnowledgeGapDraftCard draft={DRAFT} />);
-    expect(screen.getByRole("link", { name: "Edit the drafter's instructions" })).toHaveAttribute(
-      "href",
-      "/agents/d1",
-    );
-  });
-
-  it("does not offer the drafter to somebody who may not edit it", () => {
-    state.drafters = [{ id: "d1", system_key: "knowledge_gap_drafter", can_edit: false }];
-    const { unmount } = render(<KnowledgeGapDraftCard draft={DRAFT} />);
-    expect(screen.queryByRole("link", { name: "Edit the drafter's instructions" })).toBeNull();
-    unmount();
-
-    state.perms = new Set();
+  it("shows the draft without offering an editable helper agent", () => {
     state.drafters = [{ id: "d1", system_key: "knowledge_gap_drafter", can_edit: true }];
     render(<KnowledgeGapDraftCard draft={DRAFT} />);
-    expect(state.enabled.at(-1)).toBe(false);
     expect(screen.queryByRole("link", { name: "Edit the drafter's instructions" })).toBeNull();
+    expect(state.enabled).toEqual([]);
   });
 
   it("labels it a draft and names what it was checked against", () => {

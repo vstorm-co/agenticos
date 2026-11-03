@@ -40,7 +40,7 @@ from app.core.exceptions import (
     NotFoundError,
 )
 from app.core.permissions import AuthContext, OrgRoleName, Perm
-from app.db.models.agent import AgentStatus
+from app.db.models.agent import AgentKind, AgentStatus
 from app.db.models.resource_grant import GrantLevel, Visibility
 from app.schemas.agent import AgentCreate, LocalCodingAgent
 from app.schemas.deployment_settings import DeploymentLimits
@@ -1341,6 +1341,13 @@ class TestMayRun:
 
 
 class TestCreate:
+    @pytest.mark.anyio
+    async def test_a_user_agent_cannot_use_the_internal_helper_creation_path(self) -> None:
+        with pytest.raises(ValueError, match="helper kind"):
+            await AgentRegistryService(_db()).create(
+                _ctx(), _spec("User"), pipeline_kind=AgentKind.AGENT
+            )
+
     @pytest.mark.anyio
     async def test_a_new_agent_starts_as_a_draft_holding_the_submitted_spec(self):
         ctx = _ctx()

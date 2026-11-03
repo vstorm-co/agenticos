@@ -215,6 +215,9 @@ _DUMP_EXEMPT = {
     "app/services/platform_mcp/_tools.py",
     "app/services/ingestion_config.py",
     "app/services/scoring.py",
+    # Dataset helper patches merge a nested JSON document after writable filters
+    # row columns. Explicit null resets its model/instructions; omission keeps it.
+    "app/services/dataset.py",
     "app/services/rag_document.py",
     "app/services/voice/transport.py",
 }

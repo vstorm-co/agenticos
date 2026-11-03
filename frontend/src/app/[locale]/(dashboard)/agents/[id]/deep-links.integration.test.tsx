@@ -306,49 +306,19 @@ describe("the detail page's way into Improve", () => {
   });
 });
 
-describe("a system agent's page", () => {
-  it("opens Build for a link naming a tab it has not", async () => {
-    allowed = new Set([Perm.runsView, Perm.agentsEdit]);
-    page.kind = "drafter";
-    page.params = "tab=gaps";
-    await mount();
-
-    expect(await screen.findByRole("tab", { name: "Build" })).toHaveAttribute(
-      "aria-selected",
-      "true",
-    );
-    for (const name of ["MCP servers", "Availability", "Evals", "Knowledge gaps"]) {
-      expect(screen.queryByRole("tab", { name })).toBeNull();
-    }
-  });
-
-  it("opens its Toolbox when a link names it", async () => {
-    allowed = new Set([Perm.agentsEdit]);
-    page.kind = "judge";
-    page.params = "tab=toolbox";
-    await mount();
-
-    expect(await screen.findByRole("tab", { name: "Toolbox" })).toHaveAttribute(
-      "aria-selected",
-      "true",
-    );
-  });
-
-  it.each(["judge", "generator"] as const)(
-    "offers a %s the same tabs as an ordinary agent, without MCP servers, exposure or evals",
-    async (kind) => {
+describe("legacy helper deep links", () => {
+  it.each(["tab=gaps", "tab=toolbox", "tab=datasets"])(
+    "keeps helpers out of the builder for %s",
+    async (query) => {
       allowed = new Set([Perm.runsView, Perm.agentsEdit]);
-      page.kind = kind;
+      page.kind = "judge";
+      page.params = query;
       await mount();
-
-      await screen.findByRole("tab", { name: "History" });
-      const tabs = screen.getAllByRole("tab").map((tab) => tab.getAttribute("data-tour"));
-      expect(tabs).toContain("agent-tab-toolbox");
-      expect(tabs).not.toContain("agent-tab-mcp");
-      expect(tabs).not.toContain("agent-tab-availability");
-      expect(tabs).not.toContain("agent-tab-evals");
-      expect(tabs).not.toContain("agent-tab-gaps");
-      expect(screen.queryByRole("tab", { name: "Datasets" }) !== null).toBe(kind === "judge");
+      expect(await screen.findByRole("link", { name: "Back to agents" })).toHaveAttribute(
+        "href",
+        "/agents",
+      );
+      expect(screen.queryByRole("tab", { name: "Build" })).toBeNull();
     },
   );
 });

@@ -15,11 +15,9 @@ imported from a file, taken from a real conversation where somebody rated
 the answer down, or drafted by the case generator and accepted by a person. The last is usually the most useful, because it is a question
 a person actually asked and an answer that actually disappointed them.
 
-Expand **Case generator** in Generate cases to choose a published generator
-instead of the organization's default. Its page shows the published model and
-instructions. The request stores `generator_agent_id` separately from the agent
-being tested and preserves it across the queued job. An unpublished, missing,
-inaccessible or wrong-kind choice is refused before a paid call.
+**Cases**, **Generated**, **Grading**, **Evals**, **Review** and **Settings** share one workspace with a full-screen control. Add case, Import, Generate cases and Add from Activity stay beside the cases table. A case opens in a side panel; Edit opens its form. Input and expected answers come first, with optional tool expectations, checks and labels in expandable sections.
+
+Choose the grader's model and instructions in **Grading**. Choose generation and improvement models and instructions in **Settings**. These use Agent Builder's model picker and Markdown editor. Helpers are code-defined; no helper agent needs to be created or published. A queued task keeps the configuration it started with.
 
 ## What a case holds
 
@@ -268,11 +266,7 @@ name rather than left out quietly:
 - knowledge reads only the knowledge bases you may read; the dialog says how
   many the agent uses that were left out;
 - conversations need `runs:view`, the permission Activity reads every run with;
-- AI assistance is off in every organization until an Owner or an Admin
-  switches it on in the organization's settings, and while it is off no
-  generation starts - the tab says so and who can change it. Drafts already
-  waiting can still be accepted or dismissed, because deciding them calls no
-  model.
+
 
 Only members who may edit the dataset see its drafts. A draft taken from a
 conversation is text the dataset's other readers have not been shown; once it is
@@ -287,32 +281,11 @@ A generation started with an API key keeps that key’s identity. Before reading
 
 ### An agent's test set { #agent-test-set }
 
-An improvement can only be measured on test questions. `POST
-/agents/{id}/test-set` builds them for an agent in one call, and the improvement
-wizard calls it when the agent has none:
+`POST /agents/{id}/test-set` creates a private dataset for the agent or adds newly rated answers to its existing editable set. A positive rating becomes a reference answer; a negative rating becomes a counter-example with the comment as its note. Only conversations the caller may open are read. Existing cases and dataset grading are retained.
 
-- the first call creates "<agent> - test questions", a private dataset that
-  names the agent, so the questions it copies reach no one else until it is
-  shared (**⋯ → Share** on its page); later calls add the newest rated answers to it as a new version and keep
-  what it held (`since` takes only the answers rated since then);
-- an answer rated up becomes a question with that answer as the good answer,
-  and one rated down a question with it as the answer to avoid and the
-  thumbs-down comment as the note. Each question comes on its own, without the
-  conversation before it, and only from conversations the caller can open; the
-  result counts those from other people's conversations;
-- the case generator is asked for more questions until five can be graded, or
-  for `more` of them. They join the test set as a new version as soon as they
-  are written - this generation alone is accepted without a person - and the
-  result says how many were asked for, for somebody to review afterwards;
-- grading compares answers with the good answer and fails one that repeats the
-  answer to avoid, on a judge running on another model than the agent's. With
-  only one model set up, AI assistance off, or a caller who may not publish the
-  judge, the result says so in words. Grading somebody already set up on the
-  test set is left as it is; the result says when it shares the agent's model.
+A new set uses the agent's model for grading, generation and improvement. The result explicitly reports when the grader shares the agent's model. Select another grading model in the dataset for an independent assessment; neither price nor an organization preference chooses it. No additional user agent is created.
 
-Fewer than three questions that can be graded is too few to measure a change,
-and the result says so. `POST /agents/{id}/test-set/estimate` prices the
-questions it would write. Both need `datasets:edit` and access to the agent.
+The generator requests enough questions to reach five gradable cases, or `more` when specified. These bootstrap drafts are accepted automatically into a new dataset version. Fewer than three gradable cases is reported as insufficient. `/test-set/estimate` prices generation; both operations require `datasets:edit` and access to the agent.
 
 ## Credentials are redacted { #credentials }
 
@@ -420,34 +393,9 @@ any override in the spec. A case written before a tool was renamed expects the
 old name.
 
 ### The judge { #judge }
+The grader is a code-defined evaluation helper. Its model, instructions, criteria, scale and pass mark belong to this dataset's **Grading** tab. Use the same provider/model/key picker and Markdown editor as Agent Builder. Editing grading requires `datasets:edit`; adding a model requires `connections:manage`. Creating or publishing a separate agent is unnecessary.
 
-A judge is an agent of the `judge` kind (see
-[Judges](concepts.md#system-agents)). A dataset grades with the **Eval judge**
-the platform adds to every organization, or with a judge of its own: **Create a
-judge for this dataset**, on the Judge card, makes one whose prompt is the Eval
-judge's, with its rules of grading, followed by the dataset's name and
-description and what you say the judge must know to grade - a policy, a price
-list - on the organization's first model or one you pick. The prompt is shown to
-edit before it is created (`GET /datasets/{id}/judge-template`). Creating it
-needs `agents:edit` as well as `datasets:edit`.
-
-The judge is as widely visible as the dataset, since its prompt holds the
-dataset's name and description, and it stays a draft for somebody who may
-publish it (`agents:publish`) when its creator may not.
-
-The model is picked in the same panel as an agent's: a provider, its full list
-of models and a key for whoever may add a model (`connections:manage`), and the
-saved models for anyone else.
-
-Where AI assistance is on, creating it switches grading on as well: the judge,
-on a starting criterion to replace when the dataset has none, and the reference
-comparison when a case has a reference answer. The criteria, the scale and the
-pass mark stay on the dataset; the judge's prompt, model and budget are edited
-on its own page, the one place its model is set; the Judge card shows it.
-
-A judge runs as the person who asked for the score: their access to it is
-checked, it is checked against its own budget and the organization's before the
-model is called, and its run appears in Activity under the `eval` surface.
+Each score keeps its model, published helper identity, rubric hash, task version and instruction hash. Changing the dataset model or instructions is allowed; grades from different configurations are not treated as directly comparable.
 
 The judge is handed the case's note, as why the case exists, its earlier turns
 and question, the reference answer when it is graded, the counter-example,
@@ -470,13 +418,6 @@ part of it, fails the criterion whatever the judge said.
 Judges start at temperature 0, so one answer is graded the same way twice; a
 model that takes no temperature, such as a reasoning model, grades without one.
 
-The judge runs only where [AI assistance](governance.md#ai-assistance) is on,
-and it is off until an admin turns it on for the organization. Until then the
-judge's and the reference answer's criteria are recorded as skipped, only the
-rule-based scorers score, and the Grading tab says so with a link to the switch
-for whoever may change it. The judge and the reference comparison cannot be
-turned on meanwhile; one already on stays on, and is skipped.
-
 Each criterion is graded from 1 to the top of the scale and passes at the pass
 mark or above. For every criterion the judge quotes the passage of the answer
 its grade rests on and names the rule the grade follows from. A grade whose
@@ -492,14 +433,6 @@ rule** adds that check to the ones every case gets, which cost nothing and grade
 the same way every time. The suggestion reads the criterion's own words and
 calls no model.
 
-When the judge cannot grade, its criteria are recorded as skipped or as errors,
-with a reason that names the cause: AI assistance is switched off, the judge
-the dataset picked no longer exists, it has no published version, it is
-archived, its model is gone or has no key, the person may not run it, its
-budget is spent, its run failed, or its answer could not be read, whose first
-2,000 characters are kept beside the reason. The rule-based scorers still
-score.
-
 Once the cause is fixed, **Score again** on a result that was not graded - or on
 every one in an eval run's group on the Review tab - grades the same answer
 anew, with the configuration it was first graded with (`POST
@@ -507,7 +440,7 @@ anew, with the configuration it was first graded with (`POST
 run again, and the score keeps its eval run and any decision a person made on
 it; one every scorer reached a verdict on is left as it is.
 
-A cause still there - AI assistance off, the judge unpublished - is refused as
+A cause still there - the judge unpublished - is refused as
 it stands, and so is an eval run's judge published anew since it failed, or a
 score of one pinned to an earlier judge prompt, whose grade would not compare
 with the rest of the run; nothing is graded then.
@@ -530,16 +463,10 @@ error, rather than whichever grade came last. The judge's run in Activity says
 which fields could not be read, never the answer, which can repeat a case of a
 dataset its reader may not see.
 
-Each score records the judge that graded it - the judge agent, its model
-profile, its spec version, a hash of the rubric and the version of the task the
-platform hands every judge - so scores from different judges are not compared as
-like for like. Changing the judge, or its model on its page, is allowed;
-switching the judge asks first, and the Judge card says that the scores graded
-before will not compare with the ones graded after.
+Each score keeps its model, published helper identity, rubric hash, task version and instruction hash. Changing the dataset model or instructions is allowed; grades from different configurations are not treated as directly comparable.
 
 ### Review { #review }
-
-Review starts as a compact list; expand an answer to inspect its evidence and grading. The decisions say **Answer is fine (the judge was wrong)** and **Answer is wrong**. After saving, the row stays in its place, collapsed, with the effective outcome and updated run/suite result where readable. Its note can become a criterion without switching to All results, and the decision can be withdrawn there.
+Review shows a compact queue with filters. Select an answer to open its evidence, grading and decision in a side panel. Saving keeps the panel open and the decided row in place; a decision can be withdrawn or undone. Review-routing policy lives in this tab. If a server-side privacy mask changes, the open panel and its unsaved note are discarded.
 
 A score waits in the **review queue** when somebody sends it there, or an eval
 run does. Once it has rerun what flipped, an eval run sends the regressions it

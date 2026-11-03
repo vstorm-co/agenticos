@@ -261,7 +261,7 @@ it("says plainly when the test cannot tell the versions apart, and how to fix it
   ).toHaveAttribute("href", "/datasets/d1?tab=cases");
   expect(screen.getByRole("link", { name: "Grade with a stronger judge model" })).toHaveAttribute(
     "href",
-    "/agents/judge-1",
+    "/datasets/d1?tab=grading",
   );
   primary("End without changes");
   const list = screen.getByText(

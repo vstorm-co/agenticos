@@ -12879,7 +12879,7 @@
       },
       "judgeCard": {
         "title": "Bewerter",
-        "description": "Bewerte die Antwortqualität mit einem Modell anhand der folgenden Anweisungen und Kriterien. Aufrufe sind kostenpflichtig und werden in Activity erfasst."
+        "description": "Bewerte die Antwortqualität mit einem Modell anhand der folgenden Anweisungen und Kriterien. Aufrufe sind kostenpflichtig und werden in Aktivität erfasst."
       },
       "reviewCard": {
         "title": "Prüfung durch eine Person",
@@ -13214,7 +13214,6 @@
     "schemaNotObject": "Ein Schema wird als JSON-Objekt geschrieben.",
     "notNumber": "Diese Prüfung nimmt eine Zahl.",
     "checkEmpty": "Sagen Sie, was jede Prüfung prüft, oder entfernen Sie sie.",
-    "caseOpened": "Bearbeiten Sie ihn, um ihn zu ändern; Speichern erzeugt eine neue Version.",
     "editCase": "Bearbeiten",
     "evals": "Evals",
     "linkedCaseGone": "Der Fall aus diesem Link ist nicht in der neuesten Version des Datasets.",
@@ -13225,7 +13224,7 @@
     "caseSavesVersionN": "Speichern erzeugt Version v{number}. Die Version davor behält diesen Fall, wie er war.",
     "caseJson": "Der Fall als JSON",
     "caseJsonHint": "Dieselben Felder, die ein Import oder Export enthält. Zurück zum Formular, um zu prüfen, dass er richtig gelesen wird.",
-    "caseJsonInvalid": "Das ist kein gültiges JSON.",
+    "caseJsonInvalid": "Dies ist kein gültiges Fall-JSON. Prüfe Feldnamen und Werttypen.",
     "editAsJson": "Als JSON bearbeiten",
     "editAsForm": "Zurück zum Formular",
     "addFromActivity": "Aus der Aktivität hinzufügen",

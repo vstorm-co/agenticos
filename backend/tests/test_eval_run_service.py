@@ -254,3 +254,14 @@ async def test_a_reevaluation_by_nobody_still_named_reads_without_a_name() -> No
     assert review is not None
     assert (review.by_user_id, review.by_name, review.verdict) == (None, None, "passed")
     db.execute.assert_not_awaited()
+
+
+def test_inherited_and_frozen_judge_instructions_share_a_scoring_fingerprint() -> None:
+    from app.agents.system_agents import JUDGE
+
+    inherited = _scoring()
+    frozen = inherited.model_copy(deep=True)
+    frozen.judge.instructions = JUDGE.instructions
+    assert scoring_hash(inherited) == scoring_hash(frozen)
+    frozen.judge.instructions = "Different grading instructions."
+    assert scoring_hash(inherited) != scoring_hash(frozen)

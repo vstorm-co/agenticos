@@ -17,8 +17,8 @@ interface CheckProps {
 /**
  * Have a model read a knowledge base's recent answers for questions it could not answer.
  *
- * Offered only where it can run: AI assistance on, somebody who may change the
- * knowledge base (the caller decides that) and run the classifier, and answers
+ * Offered to somebody who may change the knowledge base (the caller decides
+ * that) and run the classifier, with answers
  * waiting to be read.
  */
 export function CheckAnswersButton({ knowledgeBaseId, unchecked }: CheckProps) {

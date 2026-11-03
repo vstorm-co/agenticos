@@ -9,7 +9,7 @@
   and Verify adds to what is waiting instead of replacing it.
 - Check with evals runs the projection, leaves the evidence's cases out, and
   leaves the draft as it was.
-- AI assistance off, no `runs:view`, no edit access, another organization, no
+- No `runs:view`, no edit access, another organization, no
   evidence and no budget each refuse before anything is written.
 """
 
@@ -1796,3 +1796,33 @@ async def test_new_agent_reports_no_learning_evidence_without_running_a_model(db
     assert ready.has_evidence is True
     with _without_runs_view():
         assert (await service.for_agent(ctx, agent.id)).has_evidence is None
+
+
+async def test_a_helper_losing_its_publication_after_estimation_cannot_start(
+    db: AsyncSession,
+) -> None:
+    from app.db.models.authoring import AuthoringTarget
+    from app.schemas.authoring import AuthoringEstimate
+    from app.services.system_agents import SystemAgentService
+
+    ctx, agent, _ = await _setup(db)
+    helper = await SystemAgentService(db).ensure(
+        organization_id=ctx.organization_id, key=IMPROVER.key
+    )
+    helper.current_version_id = None
+    await db.flush()
+    service = AuthoringService(db)
+    with (
+        patch.object(service, "_improver", AsyncMock(return_value=helper)),
+        pytest.raises(NotFoundError, match="no published version"),
+    ):
+        await service._start(
+            ctx,
+            AuthoringEstimate(
+                runs=1, rated_down=1, calls=1, estimate_usd=Decimal("0.01"), affordable=True
+            ),
+            AuthoringStart(),
+            target=AuthoringTarget.AGENT,
+            agent_id=agent.id,
+            skill_id=None,
+        )

@@ -543,3 +543,24 @@ it("writes a length check: what it counts, its bounds and where", async () => {
     { type: "length", unit: "words", min: 10, max: 20, path: "summary" },
   ]);
 });
+
+it("edits named criteria, required status and numeric grading thresholds", async () => {
+  panel(JUDGED);
+  const name = screen.getByRole("textbox", { name: "Criterion name" });
+  await userEvent.clear(name);
+  await userEvent.type(name, "Accuracy");
+  await userEvent.click(screen.getByRole("checkbox", { name: "Must pass" }));
+  const scale = screen.getByRole("spinbutton", { name: "Top of the scale" });
+  await userEvent.clear(scale);
+  await userEvent.type(scale, "6");
+  const pass = screen.getByRole("spinbutton", { name: "Passes at" });
+  await userEvent.clear(pass);
+  await userEvent.type(pass, "5");
+  await userEvent.click(saveAll());
+  await waitFor(() => expect(state.save).toHaveBeenCalled());
+  expect(saved().judge).toMatchObject({
+    scale_max: 6,
+    pass_at: 5,
+    criteria: [{ name: "Accuracy", required: false }],
+  });
+});

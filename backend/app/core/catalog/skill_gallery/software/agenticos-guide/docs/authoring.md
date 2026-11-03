@@ -24,20 +24,9 @@ It does three things:
 - **Improve a skill** or a **context file**: suggest a new body from the runs
   that read it.
 
-The assistant is a [system agent](concepts.md#system-agents) of its own, listed with
-the organization's other system agents. An administrator edits its instructions
-like any agent's - changing a system agent takes `org:settings` - and its runs
-are ordinary runs: budgeted, priced and listed in Activity. It is never the
-agent an Improve or a Verify is about. Set to
-[search the knowledge base](concepts.md#system-agent-spec), it reads the
-knowledge bases of the agent it improves.
+In Agent Builder, **Verify my edits** saves the draft and opens the standard eval flow to compare it with the published version on a dataset. It shows the estimate before starting and records the comparison in Evals. This is distinct from the legacy evidence-based verify endpoint retained for API compatibility.
 
-Expand **Authoring assistant** in Improve or Verify to choose a published
-assistant. Changing the selection clears the previous estimate, so consent
-applies to the chosen assistant's price and budget. `improver_agent_id` is kept
-on the queued request; background improvement sessions accept the same choice.
-The worker rechecks the selected agent's kind, publication and current caller
-access. A deleted selection fails rather than reverting to the default.
+**Improve** opens the improvement session. The selected dataset's **Settings** owns the improvement model and instructions; helpers have code defaults and no editable agent-catalog page. Skill and context improvement dialogs choose a model directly. Runs retain the existing budget checks and Activity records.
 
 ## What it reads { #what-it-reads }
 
@@ -302,13 +291,9 @@ Activity retention keeps the combined cost of a session’s deleted paid runs, w
 
 Grants count: a member with an edit grant on one agent may improve that agent.
 
-## When AI assistance is off { #when-ai-assistance-is-off }
+## Availability and cost { #when-ai-assistance-is-off }
 
-With the organization's **AI assistance** switch off, the assistant does not run:
-Improve, Verify and Improve on a skill or a context file are refused by the server, and the console
-shows them disabled with a link to the switch. Suggestions already waiting can
-still be accepted, dismissed and undone, and an eval run that needs no judge
-still runs.
+Availability follows resource access, model readiness and budgets. There is no organization AI-assistance switch. Paid work requires explicit start; accepting or dismissing an existing proposal calls no model.
 
 ## Background improvement sessions { #background-improvement-sessions }
 
@@ -348,8 +333,7 @@ within its budget. Two unchanged results in a row, or an inconclusive one and it
 repeat, show on the result as a hint that another attempt is unlikely to help, not
 as a stop.
 
-Whoever may start a session on the agent - edit access, `runs:view` and AI
-assistance on - may take its next step or try again. The session records who did,
+Whoever may start a session on the agent - edit access, `runs:view`  - may take its next step or try again. The session records who did,
 and the steps after it run with that person's current permissions and credential,
 so a session the Architect started can be taken further in the console.
 

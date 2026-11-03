@@ -33,7 +33,7 @@ export function ScorerRow({
   return (
     <div className="space-y-3 border-b pb-4 last:border-b-0 last:pb-0">
       <div className="flex flex-wrap items-start gap-3">
-        <label className="flex min-w-0 flex-1 cursor-pointer items-start gap-3">
+        <label className="flex min-w-0 flex-1 basis-full cursor-pointer items-start gap-3 sm:basis-0">
           <Checkbox
             className="mt-0.5"
             checked={enabled}
@@ -50,7 +50,7 @@ export function ScorerRow({
           </span>
         </label>
         {mustPass !== undefined && enabled && (
-          <label className="flex items-center gap-2 text-xs">
+          <label className="ml-7 flex items-center gap-2 text-xs sm:ml-0">
             <Checkbox
               checked={mustPass}
               onCheckedChange={(next) => onChange({ enabled, required: next === true })}

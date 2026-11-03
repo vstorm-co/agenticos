@@ -25,6 +25,11 @@ export function RunsTable({
       header: t("table.run"),
       cell: (run) => {
         const candidate = run.arms.find((arm) => arm.role === "candidate");
+        const baseline = run.outcome?.baseline ?? run.arms.find((arm) => arm.role === "baseline");
+        const version = candidate ? sideName(candidate, t) : t(`status.${run.status}`);
+        const title = baseline
+          ? t("row.against", { candidate: version, baseline: sideName(baseline, t) })
+          : version;
         return (
           <Link
             className="block min-w-0 space-y-1 hover:underline"
@@ -34,8 +39,7 @@ export function RunsTable({
               {agentName?.(run.agent_id) ?? run.dataset_name}
             </span>
             <span className="text-muted-foreground block text-xs">
-              {candidate ? sideName(candidate, t) : t(`status.${run.status}`)} ·{" "}
-              {formatDateTime(run.created_at, locale)}
+              {title} · {formatDateTime(run.created_at, locale)}
             </span>
             <span className="flex flex-wrap gap-1 md:hidden">
               <span className="sm:hidden">
@@ -64,11 +68,21 @@ export function RunsTable({
       header: t("table.passRate"),
       align: "right",
       cell: (run) => {
-        const candidate = run.arms.find((arm) => arm.role === "candidate");
+        const candidates = run.arms.filter((arm) => arm.role === "candidate");
         return (
-          <span className="tabular-nums">
-            {candidate ? percent(candidate.summary.pass_rate, locale) : "—"}
-          </span>
+          <div className="space-y-1 text-right text-xs tabular-nums">
+            {candidates.length === 0
+              ? "—"
+              : candidates.map((candidate) => (
+                  <div key={candidate.id} className="max-w-40 break-words">
+                    {t("row.rate", {
+                      model: candidate.model_label,
+                      rate: percent(candidate.summary.pass_rate, locale),
+                      undecided: candidate.summary.incomplete + candidate.summary.ungraded,
+                    })}
+                  </div>
+                ))}
+          </div>
         );
       },
     },
