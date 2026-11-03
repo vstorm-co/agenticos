@@ -1,19 +1,22 @@
 """Agent Improve reports a skill's problems for the skill and never writes the skill into the agent."""
 
 import uuid
+from decimal import Decimal
 from unittest.mock import patch
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.agents.spec import AgentSpec
 from app.agents.system_agents import IMPROVER
+from app.core.exceptions import NotFoundError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.agent import Agent
 from app.db.models.agent_run import AgentRun
-from app.db.models.resource_grant import Visibility
+from app.db.models.resource_grant import GrantLevel, ResourceGrant, Visibility
 from app.db.models.skill import Skill
-from app.repositories import skill_usage_repo
-from app.schemas.authoring import AuthoringStart
+from app.repositories import authoring_repo, skill_usage_repo
+from app.schemas.authoring import AuthoringStart, IdeaDecision
 from app.schemas.skill import SkillUpdate
 from app.schemas.skill_usage import SkillUseRecord
 from app.services.authoring import AuthoringService
@@ -261,6 +264,135 @@ async def test_a_reader_without_runs_view_gets_a_skill_problem_without_its_quote
     assert problem["problem"] == "It says ninety days"
     assert shown is not None and shown.report is not None
     assert shown.report["skill_problems"][0]["evidence"][0]["quote"] == COMMENT
+
+
+@pytest.mark.security
+async def test_a_reader_who_may_not_see_a_skill_reads_nothing_the_improver_drew_from_it(
+    db: AsyncSession,
+):
+    ctx, agent, first = await _setup(db)
+    returns = await SkillService(db).create(
+        ctx,
+        name="returns-policy",
+        description="How returns work",
+        content=RETURNS,
+        visibility=Visibility.PRIVATE,
+    )
+    await _bound(db, agent, returns)
+    await _used(db, ctx, first, _use(returns, agent))
+    runs = [first, await _rated(db, ctx, agent), await _rated(db, ctx, agent)]
+    answered = [{"run_id": str(run.id), "quote": "You have 90 days."} for run in runs]
+    cited = [{"run_id": str(first.id), "quote": COMMENT}]
+    model = Improver(
+        db,
+        improve={
+            "summary": "The returns skill states the wrong window",
+            "expected_effect": "Answers say 30 days",
+            "instructions": [
+                {
+                    "old_text": "",
+                    "new_text": f"\n{RETURNS.upper()}",
+                    "rationale": "Readers asked how returns work",
+                    "evidence": cited,
+                }
+            ],
+            "new_skills": [
+                {
+                    "name": "return-steps",
+                    "description": "Returns, step by step",
+                    "content": RETURNS,
+                    "rationale": "Repeated in three answers",
+                    "evidence": answered,
+                }
+            ],
+            "skill_problems": [
+                {"skill": "returns-policy", "problem": "It says ninety days", "evidence": cited},
+                {"skill": "gift-wrap", "problem": "It wraps nothing", "evidence": cited},
+            ],
+        },
+    )
+    request = await _improve(db, ctx, agent, model)
+    member = await _member(db, ctx, OrgRoleName.MEMBER)
+    db.add(
+        ResourceGrant(
+            organization_id=ctx.organization_id,
+            subject_user_id=member.user_id,
+            resource_type="agent",
+            resource_id=agent.id,
+            level=GrantLevel.EDIT.value,
+        )
+    )
+    await db.flush()
+
+    hidden = (await AuthoringService(db).for_agent(member, agent.id)).latest
+    shown = (await AuthoringService(db).for_agent(ctx, agent.id)).latest
+
+    assert hidden is not None and hidden.report is not None
+    assert hidden.report["skill_problems"] == []
+    assert len(hidden.report["rejected"]) == 3
+    assert all(item["change"] == {} for item in hidden.report["rejected"])
+    assert RETURNS not in str(hidden.report) and "ninety" not in str(hidden.report)
+    assert shown is not None and shown.report is not None
+    assert [item["skill_name"] for item in shown.report["skill_problems"]] == ["returns-policy"]
+    assert all(item["change"] for item in shown.report["rejected"])
+    idea = next(
+        index
+        for index, item in enumerate(request.report["rejected"])
+        if item["kind"] == "create_skill"
+    )
+    with pytest.raises(NotFoundError):
+        await AuthoringService(db).decide_idea(
+            member, agent.id, request.id, idea, IdeaDecision(action="dismiss")
+        )
+    verify = await authoring_repo.create_request(
+        db,
+        organization_id=ctx.organization_id,
+        kind="verify",
+        target="agent",
+        agent_id=agent.id,
+        skill_id=None,
+        created_by_user_id=ctx.user_id,
+        estimate_usd=Decimal("0.01"),
+        window_days=30,
+    )
+    verify.status = "completed"
+    verify.report = {"findings": [], "proposed": 0, "recorded": 0}
+    await db.flush()
+    checked = (await AuthoringService(db).for_agent(member, agent.id)).verify
+    assert checked is not None and checked.report == verify.report
+
+
+async def test_the_improver_reads_no_skill_the_person_who_started_it_may_not_see(
+    db: AsyncSession,
+):
+    ctx, agent, run = await _setup(db)
+    returns = await SkillService(db).create(
+        ctx,
+        name="returns-policy",
+        description="How returns work",
+        content=RETURNS,
+        visibility=Visibility.PRIVATE,
+    )
+    await _bound(db, agent, returns)
+    await _used(db, ctx, run, _use(returns, agent))
+    member = await _member(db, ctx, OrgRoleName.MEMBER)
+    db.add(
+        ResourceGrant(
+            organization_id=ctx.organization_id,
+            subject_user_id=member.user_id,
+            resource_type="agent",
+            resource_id=agent.id,
+            level=GrantLevel.EDIT.value,
+        )
+    )
+    await db.flush()
+    spec = AgentSpec.model_validate(agent.draft_spec)
+
+    skills, _ = await SkillService(db).read_by_improver(member, agent.id, spec, [run.id])
+    owners, _ = await SkillService(db).read_by_improver(ctx, agent.id, spec, [run.id])
+
+    assert skills == []
+    assert [skill.id for skill in owners] == [returns.id]
 
 
 async def test_the_estimate_prices_the_skill_bodies_the_improver_will_read(db: AsyncSession):

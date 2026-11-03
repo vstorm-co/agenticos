@@ -72,6 +72,7 @@ from app.repositories import (
     dataset_repo,
     eval_run_repo,
     skill_check_repo,
+    skill_improvement_repo,
     skill_proposal_repo,
     skill_repo,
     skill_version_repo,
@@ -884,6 +885,12 @@ class SkillCheckService:
                 "finished_at": datetime.now(UTC),
             },
         )
+        if check.source == CheckSource.SESSION.value:
+            from app.services.skill_improvement import SkillImprovementService
+
+            await SkillImprovementService(self.db).wake_for_check(
+                check.id, organization_id=check.organization_id
+            )
 
     async def sweep(self, *, limit: int = 50) -> int:
         """Queue one advance per running check, so one that fails rolls back alone."""
@@ -934,6 +941,24 @@ class SkillCheckService:
                     )
                     assert run is not None, "a run just closed is there"
                     await NotificationService(self.db).eval_run_finished(run)
+
+    async def stop_for_session(self, check: SkillCheck) -> None:
+        """Stop a running check because the session that started it stopped.
+
+        The session's own access is what allows this, so the platform ends the runs
+        itself - whether the person may still read or stop them does not matter, as
+        when a check expires.
+        """
+        now = datetime.now(UTC)
+        rows = await skill_check_repo.list_agents(
+            self.db, [check.id], organization_id=check.organization_id
+        )
+        await self._end_runs(check, rows, now=now)
+        await skill_check_repo.update(
+            self.db,
+            row=check,
+            values={"status": CheckStatus.CANCELLED.value, "finished_at": now},
+        )
 
     async def after_run(self, organization_id: UUID, eval_run_id: UUID) -> None:
         """Queue the check an eval run belonged to, once the run has settled."""
@@ -991,8 +1016,25 @@ class SkillCheckService:
             )
         return await self.versions.skill_for(ctx, skill_id, Perm.SKILLS_VIEW)
 
+    async def _refuse_session_owned(self, check: SkillCheck, *, from_session: bool) -> None:
+        """Refuse deciding or stopping a check a skill session started, except from that
+        session, so the session and its check cannot end in two different decisions."""
+        if check.source != CheckSource.SESSION.value or from_session:
+            return
+        sessions = await skill_improvement_repo.sessions_of_checks(
+            self.db, [check.id], organization_id=check.organization_id
+        )
+        raise ConcurrentChangeError(
+            message="This check belongs to an improvement session; decide it in the session",
+            code="DECIDE_IN_SESSION",
+            details={"check_id": check.id, "session_id": sessions.get(check.id)},
+        )
+
     async def _reads(self, ctx: AuthContext, checks: Sequence[SkillCheck]) -> list[SkillCheckRead]:
         rows = await skill_check_repo.list_agents(
+            self.db, [check.id for check in checks], organization_id=ctx.organization_id
+        )
+        sessions = await skill_improvement_repo.sessions_of_checks(
             self.db, [check.id for check in checks], organization_id=ctx.organization_id
         )
         by_check: dict[UUID, list[SkillCheckAgent]] = {}
@@ -1036,6 +1078,7 @@ class SkillCheckService:
                     else [],
                     outcome=None if check.outcome is None else CheckOutcome(check.outcome),
                     proposal_id=check.proposal_id,
+                    session_id=sessions.get(check.id),
                     applied_version_id=check.applied_version_id,
                     created_at=check.created_at,
                     finished_at=check.finished_at,
@@ -1148,10 +1191,16 @@ class SkillCheckService:
             )
         return reads, hidden, hidden_unknown
 
-    async def cancel(self, ctx: AuthContext, skill_id: UUID, check_id: UUID) -> SkillCheckRead:
-        """Stop a running check; the runs it started are cancelled with it."""
+    async def cancel(
+        self, ctx: AuthContext, skill_id: UUID, check_id: UUID, *, from_session: bool = False
+    ) -> SkillCheckRead:
+        """Stop a running check; the runs it started are cancelled with it.
+
+        A check a skill session started is stopped through that session only.
+        """
         await self.versions.skill_for(ctx, skill_id, Perm.SKILLS_EDIT)
         check = await self._check(ctx, skill_id, check_id, lock=True)
+        await self._refuse_session_owned(check, from_session=from_session)
         if check.status != CheckStatus.RUNNING.value:
             raise AlreadyExistsError(
                 message="The check is not running", details={"check_id": check.id}
@@ -1211,7 +1260,13 @@ class SkillCheckService:
             )
 
     async def _decidable(
-        self, ctx: AuthContext, skill_id: UUID, check_id: UUID, outcome: CheckOutcome | None
+        self,
+        ctx: AuthContext,
+        skill_id: UUID,
+        check_id: UUID,
+        outcome: CheckOutcome | None,
+        *,
+        from_session: bool,
     ) -> tuple[Skill, SkillCheck, list[SkillCheckAgent]]:
         """A finished, undecided check that offers `outcome`, measured on the line as it is.
 
@@ -1238,6 +1293,7 @@ class SkillCheckService:
                 lock=True,
             )
         check = await self._check(ctx, skill_id, check_id, lock=True)
+        await self._refuse_session_owned(check, from_session=from_session)
         status = CheckStatus(check.status)
         if status.decided:
             raise AlreadyExistsError(
@@ -1340,7 +1396,13 @@ class SkillCheckService:
             )
 
     async def apply(
-        self, ctx: AuthContext, skill_id: UUID, check_id: UUID, data: SkillCheckApply
+        self,
+        ctx: AuthContext,
+        skill_id: UUID,
+        check_id: UUID,
+        data: SkillCheckApply,
+        *,
+        from_session: bool = False,
     ) -> SkillCheckApplied:
         """Make the checked text the line's newest version.
 
@@ -1353,7 +1415,9 @@ class SkillCheckService:
             BadRequestError: The result offers no apply, an agent was not acknowledged,
                 or a worse agent reads the skill through a specialist.
         """
-        skill, check, rows = await self._decidable(ctx, skill_id, check_id, None)
+        skill, check, rows = await self._decidable(
+            ctx, skill_id, check_id, None, from_session=from_session
+        )
         blocked = check.verdict == CheckVerdict.BLOCKED.value
         if blocked and not data.pin_worse:
             raise refused_field(
@@ -1473,7 +1537,13 @@ class SkillCheckService:
         return [AgentRef(id=row.agent_id, name=agents[row.agent_id].name) for row in worse]
 
     async def fork(
-        self, ctx: AuthContext, skill_id: UUID, check_id: UUID, data: SkillCheckFork
+        self,
+        ctx: AuthContext,
+        skill_id: UUID,
+        check_id: UUID,
+        data: SkillCheckFork,
+        *,
+        from_session: bool = False,
     ) -> SkillCheckForked:
         """Make the checked text a new fork, and move the agents it helped onto it.
 
@@ -1481,7 +1551,7 @@ class SkillCheckService:
         may only edit moves in its draft; one they may not edit stays on main.
         """
         skill, check, rows = await self._decidable(
-            ctx, skill_id, check_id, CheckOutcome.FORK_FOR_HELPED
+            ctx, skill_id, check_id, CheckOutcome.FORK_FOR_HELPED, from_session=from_session
         )
         self._refuse_unacknowledged(check, rows, data.acknowledge_unknown)
         created = await self.versions.create_fork(
@@ -1558,16 +1628,19 @@ class SkillCheckService:
         read = next(item for item in forks.items if item.id == fork.id)
         return SkillCheckForked(fork=read, moved=moved, draft_only=draft_only)
 
-    async def discard(self, ctx: AuthContext, skill_id: UUID, check_id: UUID) -> SkillCheckRead:
+    async def discard(
+        self, ctx: AuthContext, skill_id: UUID, check_id: UUID, *, from_session: bool = False
+    ) -> SkillCheckRead:
         """Refuse the change; a pending proposal it checked is discarded with it."""
         await self.versions.skill_for(ctx, skill_id, Perm.SKILLS_EDIT)
         check = await self._check(ctx, skill_id, check_id, lock=True)
+        await self._refuse_session_owned(check, from_session=from_session)
         if CheckStatus(check.status).decided:
             raise AlreadyExistsError(
                 message="This check was already decided", details={"check_id": check.id}
             )
         if check.status == CheckStatus.RUNNING.value:
-            await self.cancel(ctx, skill_id, check.id)
+            await self.cancel(ctx, skill_id, check.id, from_session=from_session)
         if check.proposal_id is not None:
             await self._close_proposal(ctx, check.proposal_id, applied=False)
         await skill_check_repo.update(

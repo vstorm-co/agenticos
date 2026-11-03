@@ -71,6 +71,13 @@ class Rejection(StrEnum):
     """No run a skill problem cites used that skill."""
 
 
+SKILL_PROBLEM = "skill_problem"
+"""How a report names a skill problem it did not keep, beside the hunk kinds."""
+
+SKILL_DERIVED = frozenset({Rejection.COPIES_SKILL, Rejection.DUPLICATES_SKILL})
+"""Rejections whose change repeats one of the agent's skills."""
+
+
 type EvidenceSource = Literal["test_question", "conversation"]
 """What a piece of evidence is: a dataset test question, or a conversation with a person."""
 
@@ -418,6 +425,10 @@ class HunkRead(BaseSchema):
     expected_effect: str = ""
     evidence: list[EvidenceItemRead]
     evidence_dropped: int
+    evidence_hidden: int = Field(
+        default=0,
+        description="Evidence from agents the reader may not see, counted rather than shown",
+    )
     applies: bool
     decided_at: datetime | None
 
