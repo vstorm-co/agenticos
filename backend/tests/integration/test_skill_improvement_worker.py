@@ -190,7 +190,8 @@ async def test_a_step_for_a_session_that_ended_or_a_skill_its_starter_cannot_edi
 ):
     ctx, run = await _session(db, evidence)
     assert run.analysis_request_id is not None
-    await SkillImprovementService(db).cancel(ctx, run.skill_id, run.id)
+    run.status = "stale"
+    await db.flush()
 
     request = await _work(db, ctx, run.analysis_request_id)
 

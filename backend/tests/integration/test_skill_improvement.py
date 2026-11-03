@@ -306,6 +306,7 @@ class TestEstimateAndStart:
         assert (quote.line.name, quote.agents) == ("returns", 1)
         assert evidence["versions_read"].fork.id == fork.id
 
+    @pytest.mark.security
     async def test_nothing_to_learn_from_and_a_short_budget_are_refused(self, db, evidence):
         ctx = await _owner(db)
         skill = await _skill_on_main(db, ctx)
@@ -584,6 +585,7 @@ class TestSteps:
 
 
 class TestStops:
+    @pytest.mark.security
     async def test_no_evidence_left_and_no_budget_left_stop_the_analysis(self, db, evidence):
         ctx = await _owner(db)
         skill = await _skill_on_main(db, ctx)
@@ -873,6 +875,7 @@ class TestEdges:
 
         assert kept.edited_text == "How returns work." and read.iterations[0].description_changed
 
+    @pytest.mark.security
     async def test_a_session_started_with_a_revoked_key_stops_for_permission(self, db, evidence):
         ctx = await _owner(db)
         skill = await _skill_on_main(db, ctx)
@@ -931,6 +934,7 @@ class TestEdges:
 
         assert iteration.authoring_request_id not in (None, first)
 
+    @pytest.mark.security
     async def test_a_proposal_the_budget_no_longer_covers_stops_before_it_starts(
         self, db, evidence
     ):
@@ -1619,6 +1623,7 @@ class TestCheckAgain:
         assert rechecked.check is not None and rechecked.check.id != before.check.id
         assert (run.status, run.iteration) == ("ready", 1)
 
+    @pytest.mark.security
     async def test_checking_again_needs_consent_to_its_price_and_the_budget_for_it(
         self, db, evidence, monkeypatch
     ):
