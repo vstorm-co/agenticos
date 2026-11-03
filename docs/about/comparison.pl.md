@@ -1,5 +1,5 @@
 ---
-source_sha: "5c47f2a07ac8"
+source_sha: "f8d7b221b146"
 title: "Porównaj AgenticOS"
 seo_title: "Porównania AgenticOS: suwerenna warstwa agentów AI"
 description: "Porównaj AgenticOS, suwerenną warstwę agentów AI open source, z Claude, ChatGPT, Copilot Studio, Gemini Enterprise, Dify, n8n i agentami do kodowania."
@@ -10,6 +10,8 @@ description: "Porównaj AgenticOS, suwerenną warstwę agentów AI open source, 
 Większość produktów w tej przestrzeni to jedna z pięciu rzeczy: aplikacja asystenta, builder agentów, usługa wirtualnego współpracownika, dostarczana platforma enterprise albo agent do kodowania. AgenticOS to suwerenna warstwa dla agentów firmy, którą uruchamiasz samodzielnie. Te poradniki pokazują, gdzie pasuje każda z opcji i co dodaje AgenticOS.
 
 Utrzymuje zespół AgenticOS. Źródła sprawdzono 21 października 2026, a OpenAI Frontier 14 października. Wersja bazowa AgenticOS: v1.10.0. Przegląd do 21 listopada 2026 albo wcześniej, gdy producent zmieni ofertę opisaną w poradniku. Każdy poradnik podaje swoje źródła. Na potrzeby tych poradników nie testowano żadnego konta u konkurencji.
+
+Opisy funkcji AgenticOS odświeżono 2 listopada 2026 na podstawie v1.35.0. Data sprawdzenia źródeł dostawcy powyżej pozostaje bez zmian; nie jest to nowy audyt jego cen.
 
 ## Wybierz poradnik do swojej decyzji { #pick-the-guide-for-your-decision }
 
@@ -67,7 +69,7 @@ Suwerenność oznacza tu cztery rzeczy, o których decydujesz: gdzie produkt dzi
 | Viktor | Chmura Viktora, domyślnie hostowana w USA | Modele OpenAI, Anthropic, Google i xAI albo własny klucz OpenRouter | Własnościowa | Logowanie: SAML SSO · Audyt: logi audytowe w Enterprise · Wydatki: pula kredytów z miesięcznym limitem doładowań, limity per użytkownik w Enterprise |
 | Sauna | Chmura Sauny; infrastruktura w USA dla klientów z USA | Własny model Lite albo wszystkie modele od planu Basic | Własnościowa | Logowanie: e-mail albo Google · Audyt: nie podano · Wydatki: kredyty w planie |
 | OpenAI dots | Chmura OpenAI; plan Pro na starcie niedostępny w EOG, Szwajcarii i Wielkiej Brytanii | Tylko OpenAI | Własnościowa | Logowanie: konta ChatGPT · Audyt: nie podano dla dots · Wydatki: w cenie planu |
-| Grok Bot | Chmura xAI | Tylko Grok | Własnościowa | Logowanie: konta xAI albo Cursor · Audyt: zapowiedziany · Wydatki: cena planu, bez podanego limitu |
+| Grok Bot | Chmura xAI | Usługa Grok Bot | Własnościowe | Enterprise: logi audytowe, eksport OpenTelemetry, lista dozwolonych MCP i SCIM; [aktualny zakres](grok-bot.md) |
 | OpenAI Frontier | Lokalnie, twoja chmura albo chmura OpenAI | OpenAI | Własnościowa | Logowanie, audyt i wydatki: nie podano publicznie; zapowiedziane uprawnienia per agent i dashboardy |
 | Microsoft Agent 365 | Chmura Microsoftu | Przez agentów, którymi zarządza | Własnościowa | Logowanie: Entra ID · Audyt: Purview · Wydatki: licencje Microsoft 365 |
 | Claude Managed Agents | Chmura Anthropic | Tylko Claude | Własnościowa | Logowanie: klucze API Anthropic · Audyt: nie podano · Wydatki: tokeny plus opłata za godzinę sesji, limity organizacji |
@@ -100,7 +102,7 @@ Porównanie, które ukrywa własne braki, jest reklamą. Sprawdź te punkty wzgl
 - Logowanie nie ma jeszcze SAML ani SCIM; SAML działa przez brokera tożsamości, takiego jak Keycloak. Zobacz [czego logowanie przez katalog jeszcze nie robi](../directory.md#what-this-does-not-do-yet).
 - Nie ma narzędzia do ewaluacji ani dashboardu trace'ów. Istnieją oceny i historia runów. Zobacz [gdzie nie jest skończony](index.md#where-this-one-is-not-finished).
 - Nie ma kanału rozmów przez Microsoft Teams, WhatsApp, telefon ani e-mail. [Rozmowy głosowe](../voice.md) działają w czacie webowym, widgecie i na hostowanej stronie, nie przez linię telefoniczną.
-- Nie ma wizualnego canvasu workflow. Praca wieloetapowa korzysta z delegacji, planowania i wyzwalaczy.
+- AgenticOS ma wizualny canvas workflow z typowanymi krokami. Praca wieloetapowa korzysta z delegacji, planowania i wyzwalaczy.
 - Powiązanie MCP ustawione na `writes` ufa oznaczeniom „tylko do odczytu” nadanym przez sam serwer, więc narzędzie błędnie oznaczone jako tylko do odczytu działa bez pytania; `all` wstrzymuje każde wywołanie. Zobacz [czego MCP nie daje](../mcp.md#what-mcp-does-not-get-you).
 - Wdrożenie to Docker Compose, a jeden host to dostarczana ścieżka. Zewnętrzny Postgres oraz kolejne hosty API i workery są [opisane](../scaling.md), ale manifestów Kubernetes nie ma.
 - Utrzymujesz go sam albo uzgadniasz utrzymanie z Vstorm lub innym partnerem.
@@ -140,3 +142,7 @@ Zacznij od rodzaju produktu, który rozważasz: aplikacji asystenta, buildera w 
 Biblioteka taka jak [Pydantic AI](https://ai.pydantic.dev/) pasuje do agenta wbudowanego we własną aplikację; AgenticOS na niej działa i dodaje aplikację do konfigurowania i utrzymywania agentów. [OpenClaw](https://github.com/openclaw/openclaw) opisuje wdrożenia osobiste i dla wspólnego zespołu. [Lindy](https://www.lindy.ai/) oferuje usługę wirtualnego współpracownika. To kolejni kandydaci, a nie produkty tutaj wykluczone.
 
 Zacznij od [zadania na dokumencie](../howto/first-document-agent.md), a potem przejrzyj [utrzymanie i wdrożenie](../rollout.md). Właścicielami tych poradników są opiekunowie AgenticOS.
+
+[Muse](muse.md) · [Claude Duet](claude-duet.md) — Źródła sprawdzono 2 listopada 2026; AgenticOS v1.35.0.
+
+[AgenticOS vs OpenBot](openbot.md)

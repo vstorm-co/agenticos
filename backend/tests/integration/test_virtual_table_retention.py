@@ -562,7 +562,12 @@ async def test_an_organizations_active_member_count_reaches_the_sweep_budget(db,
     )
     await db.flush()
 
-    single_result, busy_result = await _sweep(db)
+    swept = await _sweep(db)
+    assert len(swept) == 2
+    results = {result.organization_id: result for result in swept}
+    assert results.keys() == {single_member_org.id, busy_org.id}
+    single_result = results[single_member_org.id]
+    busy_result = results[busy_org.id]
 
     # One member: budget is 1 * 2 = 2 batches of 2 rows = 4, one of the five rows survives -
     # unchanged from before this fix, because this organization always had one member.

@@ -1,0 +1,468 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Trail Supply — Kit Studio</title>
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: #f7f8f2;
+        color: #243a2d;
+        font-family: Arial, Helvetica, sans-serif;
+        padding: 25px;
+      }
+      button,
+      input {
+        font: inherit;
+        color: inherit;
+      }
+      button {
+        cursor: pointer;
+      }
+      button:focus-visible,
+      input:focus-visible {
+        outline: 3px solid #bd7d3c;
+        outline-offset: 3px;
+      }
+      header {
+        display: flex;
+        justify-content: space-between;
+        gap: 20px;
+        align-items: start;
+        margin-bottom: 25px;
+      }
+      .label {
+        font-size: 9px;
+        letter-spacing: 0.15em;
+        text-transform: uppercase;
+        color: #819074;
+      }
+      .brand {
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: -0.4px;
+      }
+      h1 {
+        font:
+          normal 35px/1.1 Georgia,
+          serif;
+        letter-spacing: -1.4px;
+        margin: 8px 0;
+      }
+      header p {
+        margin: 8px 0 0;
+        font-size: 11px;
+        color: #7b886f;
+        line-height: 1.5;
+      }
+      .tag {
+        border: 1px solid #d6decd;
+        border-radius: 20px;
+        padding: 8px 12px;
+        font-size: 9px;
+        white-space: nowrap;
+      }
+      .layout {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 235px;
+        gap: 24px;
+      }
+      .cards {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 13px;
+      }
+      .card {
+        border: 1px solid #dce3d2;
+        background: #fff;
+        padding: 0;
+        text-align: left;
+        position: relative;
+      }
+      .card[aria-pressed="true"] {
+        border: 1px solid #6a8960;
+        box-shadow: 0 0 0 1px #6a8960;
+      }
+      .card img {
+        width: 100%;
+        height: 154px;
+        object-fit: cover;
+        display: block;
+      }
+      .check {
+        position: absolute;
+        right: 9px;
+        top: 9px;
+        width: 23px;
+        height: 23px;
+        border-radius: 50%;
+        background: #f6f8f1;
+        color: #8c9882;
+        display: grid;
+        place-items: center;
+        font-size: 13px;
+        border: 1px solid #cbd7bf;
+      }
+      .card[aria-pressed="true"] .check {
+        background: #2d4e36;
+        color: white;
+        border-color: #2d4e36;
+      }
+      .copy {
+        padding: 13px;
+      }
+      .copy h2 {
+        font-size: 12px;
+        margin: 0 0 7px;
+        line-height: 1.3;
+        min-height: 30px;
+      }
+      .copy p {
+        font-size: 9px;
+        line-height: 1.5;
+        color: #87937c;
+        margin: 0 0 12px;
+        min-height: 27px;
+      }
+      .bottom {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        font-size: 13px;
+        font-weight: 600;
+      }
+      .bottom small {
+        font-size: 8px;
+        font-weight: 400;
+        color: #87927d;
+      }
+      .summary {
+        padding: 19px;
+        background: #e9eee1;
+        border: 1px solid #d5dfc7;
+      }
+      .summary h2 {
+        font:
+          normal 23px Georgia,
+          serif;
+        letter-spacing: -0.6px;
+        margin: 0 0 18px;
+      }
+      .budget {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin: 0 0 14px;
+        font-size: 10px;
+      }
+      .budget input {
+        width: 68px;
+        border: 1px solid #c9d5bd;
+        border-radius: 3px;
+        background: #fff;
+        padding: 7px;
+        font-size: 12px;
+      }
+      .line {
+        display: flex;
+        justify-content: space-between;
+        gap: 10px;
+        font-size: 10px;
+        margin: 12px 0;
+      }
+      .sum {
+        border-top: 1px solid #c8d5bb;
+        margin-top: 15px;
+        padding-top: 15px;
+        font-size: 16px;
+        font-weight: 700;
+      }
+      .status {
+        font-size: 9px;
+        color: #456c3c;
+        padding: 9px 0;
+        line-height: 1.5;
+      }
+      .status.bad {
+        color: #9b4c2b;
+      }
+      .summary button {
+        width: 100%;
+        border: 0;
+        background: #294631;
+        color: white;
+        padding: 11px;
+        font-size: 10px;
+        display: flex;
+        justify-content: space-between;
+        margin-top: 4px;
+      }
+      .note {
+        font-size: 9px;
+        line-height: 1.55;
+        color: #7a876e;
+        margin: 15px 0 0;
+      }
+      footer {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        margin-top: 20px;
+        border-top: 1px solid #dce3d3;
+        padding-top: 13px;
+        font-size: 8px;
+        color: #8b967e;
+        flex-wrap: wrap;
+      }
+      dialog {
+        max-width: 430px;
+        width: calc(100% - 30px);
+        border: 1px solid #c9d4bb;
+        padding: 28px;
+        background: #f8faf2;
+        color: inherit;
+      }
+      dialog::backdrop {
+        background: #1c342777;
+        backdrop-filter: blur(3px);
+      }
+      dialog h2 {
+        font:
+          normal 28px Georgia,
+          serif;
+        margin: 0 0 15px;
+      }
+      dialog p {
+        font-size: 12px;
+        line-height: 1.6;
+      }
+      dialog button {
+        border: 0;
+        background: #294631;
+        color: white;
+        padding: 11px 18px;
+        font-size: 11px;
+      }
+      @media (max-width: 740px) {
+        body {
+          padding: 20px;
+        }
+        .layout {
+          grid-template-columns: 1fr;
+        }
+        .summary {
+          margin-top: 3px;
+        }
+        .cards {
+          gap: 10px;
+        }
+        .card img {
+          height: 135px;
+        }
+        .copy {
+          padding: 10px;
+        }
+        .tag {
+          display: none;
+        }
+      }
+      @media (max-width: 430px) {
+        header h1 {
+          font-size: 30px;
+        }
+        .cards {
+          grid-template-columns: 1fr;
+        }
+        .card {
+          display: grid;
+          grid-template-columns: 100px 1fr;
+        }
+        .card img {
+          height: 140px;
+        }
+        .copy h2,
+        .copy p {
+          min-height: 0;
+        }
+        .copy {
+          padding: 15px;
+        }
+        .check {
+          right: auto;
+          left: 8px;
+          top: 8px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div>
+        <div class="brand">
+          trail supply <span style="font-weight: 400; color: #98a08d">/ Kit Studio</span>
+        </div>
+        <h1>One day out. Your kind of kit.</h1>
+        <p>Choose your essentials. Keep the budget in view.</p>
+      </div>
+      <span class="tag">INTERACTIVE CATALOG DEMO</span>
+    </header>
+    <main class="layout">
+      <div>
+        <div class="cards">
+          <button
+            class="card"
+            data-item="ridge"
+            aria-pressed="true"
+            aria-label="Select Ridge Everyday Pack"
+          >
+            <img src="{{backpack}}" alt="Charcoal everyday backpack" /><span
+              class="check"
+              aria-hidden="true"
+              >✓</span
+            >
+            <div class="copy">
+              <h2>Ridge Everyday Pack</h2>
+              <p>22L · 16-inch laptop sleeve<br />Water-resistant, not waterproof</p>
+              <div class="bottom">€129 <small>Charcoal</small></div>
+            </div></button
+          ><button
+            class="card"
+            data-item="basket"
+            aria-pressed="false"
+            aria-label="Select Sunday Market Basket"
+          >
+            <img src="{{basket}}" alt="Natural rattan market basket" /><span
+              class="check"
+              aria-hidden="true"
+              >+</span
+            >
+            <div class="copy">
+              <h2>Sunday Market Basket</h2>
+              <p>Room for a slow market morning<br />Keep dry; not for wet trails</p>
+              <div class="bottom">€76 <small>Natural rattan</small></div>
+            </div></button
+          ><button
+            class="card"
+            data-item="bottle"
+            aria-pressed="true"
+            aria-label="Select Field Bottle"
+          >
+            <img src="{{bottle}}" alt="Fern green reusable bottle" /><span
+              class="check"
+              aria-hidden="true"
+              >✓</span
+            >
+            <div class="copy">
+              <h2>Field Bottle</h2>
+              <p>750ml · reusable stainless steel<br />Hand wash after the journey</p>
+              <div class="bottom">€28 <small>Fern</small></div>
+            </div>
+          </button>
+        </div>
+        <p class="note">
+          A pack for the day, water for the journey. Select a product to add or remove it from the
+          comparison. Prices and specifications come from the fictional Trail Supply catalog.
+        </p>
+      </div>
+      <aside class="summary" aria-label="Kit summary">
+        <h2>Your everyday kit</h2>
+        <label class="budget" for="budget"
+          >Budget, EUR<input id="budget" type="number" min="0" max="2000" value="160"
+        /></label>
+        <div id="lines"></div>
+        <div class="line"><span>Delivery</span><span id="delivery"></span></div>
+        <div class="line sum"><span>Total</span><span id="total"></span></div>
+        <div id="status" class="status" role="status"></div>
+        <button id="review">Review this kit <span aria-hidden="true">↗</span></button>
+      </aside>
+    </main>
+    <footer>
+      <span>Visuals in AgenticOS · prepared interactive example</span
+      ><span>Fictional catalog · no orders or payments · Unsplash photography</span>
+    </footer>
+    <dialog id="review-dialog">
+      <h2>A kit worth checking.</h2>
+      <p id="review-text"></p>
+      <p>
+        This is an interactive comparison, not an order. The storefront App has a separate demo bag.
+      </p>
+      <button id="close">Back to my kit</button>
+    </dialog>
+    <script>
+      const catalog = {
+        ridge: { name: "Ridge Pack", cents: 12900 },
+        basket: { name: "Market Basket", cents: 7600 },
+        bottle: { name: "Field Bottle", cents: 2800 },
+      };
+      const selected = new Set(["ridge", "bottle"]);
+      function euros(value) {
+        return new Intl.NumberFormat("en-IE", {
+          style: "currency",
+          currency: "EUR",
+          maximumFractionDigits: 0,
+        }).format(value / 100);
+      }
+      function render() {
+        const subtotal = [...selected].reduce((sum, id) => sum + catalog[id].cents, 0);
+        const delivery = selected.size === 0 || subtotal >= 15000 ? 0 : 600;
+        const total = subtotal + delivery;
+        const budget = document.getElementById("budget").valueAsNumber;
+        document.getElementById("lines").innerHTML = [...selected]
+          .map(
+            (id) =>
+              '<div class="line"><span>' +
+              catalog[id].name +
+              "</span><span>" +
+              euros(catalog[id].cents) +
+              "</span></div>",
+          )
+          .join("");
+        document.getElementById("delivery").textContent = delivery
+          ? euros(delivery)
+          : "Complimentary";
+        document.getElementById("total").textContent = euros(total);
+        const status = document.getElementById("status");
+        status.classList.remove("bad");
+        if (!Number.isFinite(budget) || budget < 0) {
+          status.textContent = "Enter a budget of zero or more.";
+          status.classList.add("bad");
+        } else if (!selected.size) {
+          status.textContent = "Choose an essential to start your kit.";
+        } else if (total <= budget * 100) {
+          status.textContent =
+            euros(budget * 100 - total) + " within your budget, delivery included.";
+        } else {
+          status.textContent =
+            euros(total - budget * 100) + " over your budget, delivery included.";
+          status.classList.add("bad");
+        }
+        document.getElementById("review").disabled = !selected.size;
+        document.getElementById("review-text").textContent =
+          [...selected].map((id) => catalog[id].name).join(" + ") +
+          " · " +
+          euros(total) +
+          " including demo delivery.";
+      }
+      for (const card of document.querySelectorAll("[data-item]"))
+        card.addEventListener("click", () => {
+          const id = card.dataset.item;
+          selected.has(id) ? selected.delete(id) : selected.add(id);
+          card.setAttribute("aria-pressed", String(selected.has(id)));
+          card.querySelector(".check").textContent = selected.has(id) ? "✓" : "+";
+          render();
+        });
+      document.getElementById("budget").addEventListener("input", render);
+      document
+        .getElementById("review")
+        .addEventListener("click", () => document.getElementById("review-dialog").showModal());
+      document
+        .getElementById("close")
+        .addEventListener("click", () => document.getElementById("review-dialog").close());
+      render();
+    </script>
+  </body>
+</html>

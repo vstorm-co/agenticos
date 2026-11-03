@@ -1,75 +1,33 @@
 ---
 title: "AgenticOS vs Grok Bot"
-seo_title: "AgenticOS vs Grok Bot: a self-hosted AI teammate alternative"
-description: "Grok Bot gives each named teammate a cloud computer on Grok. Compare it with AgenticOS: any model, an audit log, separate sign-ins, your own servers."
+description: "Grok Bot and AgenticOS: managed cloud teammates or a self-hosted AI agent platform. Compare deployment, models, controls and operation."
 ---
 
 # AgenticOS vs Grok Bot
 
-Grok Bot, from xAI with Cursor, lets you create named AI teammates. Each has a job description, memory, and a persistent cloud computer with a browser, files and a terminal; teammates run routines, hand work to each other in group chats, and learn a task from a screen recording. AgenticOS gives you teammates of the same kind - agents with a browser, a code sandbox, routines and delegation - on your own infrastructure, with any model, an audit log and a browser sign-in kept apart for each person.
+Sources checked 2 November 2026. AgenticOS baseline v1.35.0. Vendor documentation only; no Grok Bot account was tested.
 
-If you want to try a team of AI colleagues on xAI's models this week, Grok Bot is quick to start. If you need to show who did what, keep each person's logins separate and choose the model, AgenticOS is built for that.
-
-Maintained by the AgenticOS team. Sources checked 21 October 2026. AgenticOS baseline: v1.10.0. Grok Bot scope: the public beta announced 11 August 2026, as described by press and independent reviews, not a tested account. One review comes from a competing vendor and is marked as such below.
+Grok Bot is a managed AI teammate service from xAI. Its current documentation describes persistent cloud computers, connected apps, routines, approvals and enterprise administration. Old claims that it has no audit log are obsolete: audit logs and OpenTelemetry export are documented as Enterprise-only.
 
 ## At a glance
 
 | Area | Grok Bot | AgenticOS |
 | --- | --- | --- |
-| What you get | Named teammates, each with a cloud computer | Any number of agents, each a versioned spec |
-| Where it runs | xAI's cloud | Your infrastructure, with Docker Compose |
-| Source | Proprietary | Apache-2.0 |
-| Models | Grok only, no choice | 28 providers, including local models |
-| Computer | A persistent VM shared by all of an account's bots | A sandbox per conversation, or one that a [project](../projects.md)'s chats share; a browser whose sign-ins are kept per person |
-| Learning a task | Record your screen for up to ten minutes; a draft skill comes back | Skills written or installed from a gallery, bound to each agent |
-| Teamwork | Group chats of two to six bots that hand work on | [Subagents](../reference/capabilities.md#delegation): other published agents, pinned to a version; project chats where several people and agents work together |
-| Approvals | Described in prose; optional model review | Checked by the platform before a tool runs |
-| Audit | Announced as coming | A tamper-evident audit log and a record of every run |
-| Pricing | Paid plans from $120 a seat to $200 a month | No licence fee; you pay model providers and infrastructure |
+| Hosting | Vendor cloud | Your infrastructure |
+| Models | Vendor service; check the current plan | Model providers selected by the operator |
+| Team controls | Audit logs, SCIM and MCP allowlist documented for Enterprise | Roles, budgets, approvals and audit included in Apache-2.0 software |
+| Computer | Shared by the user’s bots; not isolation between bots | Configured conversation/project sandboxes; per-person kept browser sign-ins |
+| Price | Public individual plans list $30, $100 and $200/month; included weekly usage and extra usage conditions apply | No licence fee; infrastructure and model usage paid separately |
 
-## Where AgenticOS goes further
+## When to choose each
 
-### A record of what each agent did
+Choose Grok Bot if you want managed AI teammates without operating the platform. Choose AgenticOS if owning the deployment, model choice and shared agent configuration matters. Compare the exact approval policies and tool permissions your task needs; documentation alone does not prove either system prevents all unsafe actions.
 
-Reviewers note that Grok Bot's only record is each bot's transcript, with an audit view still to come, and that actions run as the user's own accounts. AgenticOS keeps every run in [Activity](../governance.md#audit), with its steps, cost and outcome, in a tamper-evident log.
-
-### Sign-ins that stay with their person
-
-All of an account's Grok bots share one computer, its files and its signed-in sessions, so one bot is not a security boundary for another. In AgenticOS a [kept sign-in](../reference/capabilities.md#browser-automation) belongs to one person and is sealed in the [vault](../secrets.md); an agent's browse starts signed in only as the person it acts for.
-
-### Rules the platform enforces
-
-Grok Bot's approvals are written as instructions and can be reviewed by a model. AgenticOS checks [approvals](../governance.md#approvals) and [budgets](../governance.md#enforcement-is-before-the-request) in the platform, before a tool runs or a model request is made.
-
-### Any model, on your servers
-
-Grok Bot runs Grok in xAI's cloud. An AgenticOS agent picks from [28 providers](../models.md#providers), including models on your own hardware, and stores its data in [your own Postgres](../data-protection.md#where-personal-data-lives).
-
-## When Grok Bot is enough
-
-- You want a team of AI colleagues on Grok with nothing to install.
-- Teaching a task by recording your screen matters more than an audit trail.
-- A shared computer for all of your bots, and xAI's cloud, meet your requirements.
-
-## Frequently asked questions
-
-### Is AgenticOS an alternative to Grok Bot?
-
-Yes, if you want AI teammates you host yourself. AgenticOS agents have a browser, a code sandbox, routines and delegation to one another, with any model, an audit log and per-person sign-ins.
-
-### Can AgenticOS agents work together like Grok's group chats?
-
-Yes. An agent [delegates](../reference/capabilities.md#delegation) to other published agents, in parallel, and the conversation shows who was asked what and what they answered.
-
-### Does AgenticOS keep a person's logins separate?
-
-Yes. A sign-in kept in the browser belongs to the person who signed in and is sealed in the vault; it is not shared with other people's agents.
-
-## Related comparisons
-
-[AgenticOS vs OpenAI dots](openai-dots.md) · [AgenticOS vs Viktor](viktor.md) · [AgenticOS vs OpenClaw](openclaw.md) · [All comparisons](comparison.md)
+[AgenticOS](comparison.md) · [Muse](muse.md) · [Claude Duet](claude-duet.md)
 
 ## Sources
 
-- [i-SCOOP: What is Grok Bot](https://www.i-scoop.eu/what-is-grok-bot-how-xais-ai-teammates-finish-real-work-in-your-apps/): teammates, the cloud computer, routines, group chats, teach a task, plans.
-- [eesel AI: Grok Bot review](https://www.eesel.ai/blog/grok-bot-review): the audit view, approvals, the shared computer and sessions. eesel AI sells a competing product.
+- [Grok Bot](https://x.ai/bot)
+- [Grok Bot overview](https://docs.x.ai/grok-bot/overview)
+- [Enterprise security](https://docs.x.ai/grok-bot/security)
+- [Approvals, security and privacy](https://docs.x.ai/grok-bot/approvals-security-and-privacy)
