@@ -48,7 +48,12 @@ beforeEach(() => {
 
 function open(onOpenChange = vi.fn()) {
   render(
-    <SkillCheckDialog skillId="s-1" proposalId="p-1" forkId={null} onOpenChange={onOpenChange} />,
+    <SkillCheckDialog
+      skillId="s-1"
+      change={{ proposalId: "p-1" }}
+      forkId={null}
+      onOpenChange={onOpenChange}
+    />,
   );
   return onOpenChange;
 }
@@ -183,5 +188,29 @@ describe("SkillCheckDialog", () => {
       "/skills/s-1/improve/sess-2",
     );
     expect(screen.queryByRole("button", { name: "Apply" })).toBeNull();
+  });
+
+  it("checks a text the editor has not saved, and says when it went live", async () => {
+    held.check = finishedCheck();
+    held.apply.mutate.mockImplementation((_body, options) => options.onSuccess());
+    const onApplied = vi.fn();
+    const onOpenChange = vi.fn();
+    render(
+      <SkillCheckDialog
+        skillId="s-1"
+        change={{ candidate: { description: "Returns.", content: "Refund within 14 days." } }}
+        forkId="f-1"
+        onOpenChange={onOpenChange}
+        onApplied={onApplied}
+      />,
+    );
+
+    expect(held.estimate.mutate).toHaveBeenCalledWith({
+      fork_id: "f-1",
+      candidate: { description: "Returns.", content: "Refund within 14 days." },
+    });
+    await userEvent.click(screen.getByRole("button", { name: "Apply" }));
+    expect(onApplied).toHaveBeenCalled();
+    expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 });

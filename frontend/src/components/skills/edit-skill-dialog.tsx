@@ -6,6 +6,8 @@ import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
 import { categorySuggestions } from "@/components/skills/category-input";
+import { SaveConfirmDialog } from "@/components/skills/save-confirm-dialog";
+import { SkillCheckDialog } from "@/components/skills/skill-check-dialog";
 import { SkillWorkbench } from "@/components/skills/skill-workbench";
 import { ErrorState } from "@/components/states";
 import {
@@ -39,6 +41,8 @@ export function EditSkillDialog({
   skill,
   fork,
   followers,
+  readers,
+  canCheck,
   onClose,
   onDelete,
 }: {
@@ -46,6 +50,10 @@ export function EditSkillDialog({
   fork: SkillFork | null;
   /** How many agents follow the line being edited, and so get the save at once. */
   followers: number;
+  /** The followers the reader may see, by name. */
+  readers: string[];
+  /** Whether the reader may check a change on the line's agents before it goes live. */
+  canCheck: boolean;
   onClose: () => void;
   onDelete: () => void;
 }) {
@@ -71,6 +79,13 @@ export function EditSkillDialog({
     setNext(written.version + 1);
   };
   const [refusal, setRefusal] = useState<string | null>(null);
+  // A text change waits here for the person to save it now or check it first.
+  const [pending, setPending] = useState<SkillEdit | null>(null);
+  const [checking, setChecking] = useState<SkillEdit | null>(null);
+  const version =
+    fork === null
+      ? t("version", { number: next })
+      : t("forkVersion", { name: fork.name, number: next });
   const forkText = useSkillVersion(skill.id, fork === null ? null : opened);
   const shown =
     fork === null || forkText.version === undefined
@@ -82,12 +97,25 @@ export function EditSkillDialog({
           resources: [],
         };
 
-  async function handleSave(change: SkillEdit) {
+  const textChanged = (change: SkillEdit) =>
+    change.description !== shown.description || change.content !== shown.content;
+
+  async function saveCategory(change: SkillEdit) {
+    // The category is the skill's, not a version's, so it is saved beside the text.
+    if (fork === null && change.category !== skill.category) {
+      await save.mutateAsync({ category: change.category });
+    }
+  }
+
+  async function handleSave(change: SkillEdit, confirmed = false) {
     setRefusal(null);
+    if (textChanged(change) && !confirmed) {
+      setPending(change);
+      return;
+    }
+    setPending(null);
     try {
-      const textChanged =
-        change.description !== shown.description || change.content !== shown.content;
-      if (textChanged) {
+      if (textChanged(change)) {
         if (baseId === null) {
           setRefusal(t("noBase"));
           return;
@@ -99,12 +127,9 @@ export function EditSkillDialog({
           content: change.content,
         });
       }
-      // The category is the skill's, not a version's, so it is saved beside the text.
-      if (fork === null && change.category !== skill.category) {
-        await save.mutateAsync({ category: change.category });
-      }
+      await saveCategory(change);
       toast.success(
-        !textChanged
+        !textChanged(change)
           ? tSkills("savedAgentsCurrent")
           : fork === null
             ? t("saved", { number: next })
@@ -163,6 +188,34 @@ export function EditSkillDialog({
           />
         )}
       </DialogContent>
+      {pending !== null && (
+        <SaveConfirmDialog
+          version={version}
+          readers={readers}
+          hidden={Math.max(0, followers - readers.length)}
+          canCheck={canCheck}
+          saving={edit.isPending || save.isPending}
+          onCheck={() => {
+            setChecking(pending);
+            setPending(null);
+          }}
+          onSave={() => void handleSave(pending, true)}
+          onCancel={() => setPending(null)}
+        />
+      )}
+      {checking !== null && (
+        <SkillCheckDialog
+          skillId={skill.id}
+          change={{ candidate: { description: checking.description, content: checking.content } }}
+          forkId={fork?.id ?? null}
+          onOpenChange={(open) => !open && setChecking(null)}
+          onApplied={() => {
+            void saveCategory(checking).then(onClose, (failure: unknown) =>
+              setRefusal(getErrorMessage(failure, tErrors)),
+            );
+          }}
+        />
+      )}
     </Dialog>
   );
 }

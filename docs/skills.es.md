@@ -1,5 +1,5 @@
 ---
-source_sha: "17b4b17a4f40"
+source_sha: "a54ad38cec06"
 ---
 
 # Skills { #skills }
@@ -576,6 +576,10 @@ tabla muestran a todos, los agents en main, los fijados, un fork o los agents so
 borrador, así que sus cuentas suman a todos. El fork que elijas ahí es también la
 línea que muestra el Historial y en la que guarda Editar.
 
+Cada fila dice si una
+[comprobación](#checking-a-change-on-every-agent) midió la versión que sirve el agent y
+con qué resultado; una versión nunca comprobada en él es **desconocida**.
+
 Debajo de la tabla, quien puede ver runs ve con qué frecuencia cada agent abrió el
 skill en los últimos 30 días y cuántos de sus archivos leyó. Los runs de evals y del
 panel de pruebas del Builder no cuentan.
@@ -583,8 +587,9 @@ panel de pruebas del Builder no cuentan.
 **Cambiar versión** mueve un agent a main, a una versión fijada de main o a un fork,
 como describe [Qué versión lee un agent](#which-version-an-agent-reads): qué se
 publica, qué espera en el borrador y qué se cambia en el Builder. Una versión distinta
-de la que el agent sirve ahora no se ha comprobado en él, así que primero lo
-confirmas. El diálogo también dice cuándo el agent dejaría de recibir versiones nuevas
+de la que el agent sirve ahora, y que ninguna comprobación midió en él, no se ha
+comprobado ahí, así que primero lo confirmas; en una medida, el diálogo da el
+resultado. El diálogo también dice cuándo el agent dejaría de recibir versiones nuevas
 de main, y fecha cada versión de main que ofrece fijar, con un enlace a sus cambios.
 El control lo ve quien puede editar el agent.
 
@@ -605,7 +610,10 @@ de ocho versiones o más, los tramos que ningún agent usa se pliegan en una sol
 
 **Editar** guarda una versión nueva en la línea en pantalla. En main, los agents que
 siguen main la reciben de inmediato; los agents fijados y los forks conservan su
-versión. Los archivos y la categoría son de main, así que editar un fork cambia solo
+versión. Un texto cambiado no se guarda al primer clic: el diálogo nombra los agents a
+los que llega en su siguiente run y ofrece, junto a guardar ahora, **Comprobar en
+agents primero**, que comprueba el texto sin guardar en ellos y lo aplica según el
+resultado. Los archivos y la categoría son de main, así que editar un fork cambia solo
 su descripción e instrucciones. Restaurar y Cambiar versión solo se muestran a
 quien puede hacer ese cambio; los demás abren el skill en modo de solo lectura.
 

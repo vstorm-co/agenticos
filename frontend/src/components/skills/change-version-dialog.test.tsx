@@ -444,4 +444,39 @@ describe("ChangeVersionDialog's warnings", () => {
 
     expect(await screen.findByText(/Edited · Anna ·/)).toBeInTheDocument();
   });
+
+  it("asks nothing about a version a check already measured on the agent", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({
+      items: [
+        {
+          id: "m11",
+          number: 11,
+          fork_id: null,
+          source: "edit",
+          restored_from: null,
+          previous: null,
+          created_by: null,
+          created_at: "2026-11-01T10:00:00Z",
+          agents: 0,
+        },
+      ],
+      total: 12,
+    });
+    const checked = {
+      check_id: "c1",
+      version_id: "m11",
+      state: "better" as const,
+      sample: null,
+      at: "2026-11-02T10:00:00Z",
+    };
+    renderOnMain({ ...ON_MAIN, checked_versions: [checked] });
+
+    await userEvent.click(screen.getByRole("radio", { name: /Pin a main version/ }));
+    await userEvent.click(screen.getByRole("combobox", { name: "Version to pin" }));
+    await userEvent.click(await screen.findByRole("option", { name: /^v11 · / }));
+
+    expect(screen.getByText(/v11 was checked on HR bot .*: Better/)).toBeInTheDocument();
+    expect(screen.queryByText(/has not been checked/)).toBeNull();
+    expect(screen.getByRole("button", { name: "Change and publish" })).toBeEnabled();
+  });
 });

@@ -149,4 +149,24 @@ describe("SkillAgents", () => {
     expect(screen.queryByText("No agent uses this skill yet.")).toBeNull();
     expect(screen.getByText("offline")).toBeInTheDocument();
   });
+
+  it("says which agents a check measured on the version they serve, and which are unknown", () => {
+    mount(
+      LIST([
+        onMain("Support"),
+        onMain("Refunds", {
+          checked: {
+            check_id: "c1",
+            version_id: "m12",
+            state: "worse",
+            sample: null,
+            at: "2026-11-02T10:00:00Z",
+          },
+        }),
+      ]),
+    );
+
+    expect(screen.getByText("Unknown: this version was never checked on it")).toBeInTheDocument();
+    expect(screen.getByText(/Checked on this version .*: Worse/)).toBeInTheDocument();
+  });
 });

@@ -1,5 +1,5 @@
 ---
-source_sha: "17b4b17a4f40"
+source_sha: "a54ad38cec06"
 ---
 
 # Skills { #skills }
@@ -606,6 +606,10 @@ die Agents nur im Entwurf, sodass ihre Zahlen zusammen alle ergeben. Ein dort
 gewählter Fork ist auch die Linie, die der Verlauf zeigt und in die Bearbeiten
 speichert.
 
+Jede Zeile sagt, ob eine [Prüfung](#checking-a-change-on-every-agent) die
+Version gemessen hat, die der Agent ausliefert, und mit welchem Ergebnis; eine nie auf
+ihm geprüfte Version ist **unbekannt**.
+
 Unter der Tabelle sieht, wer Runs ansehen darf, wie oft jeder Agent den Skill in den
 letzten 30 Tagen geöffnet und wie viele seiner Dateien er gelesen hat. Runs von Evals
 und vom Testbereich des Builders zählen nicht.
@@ -613,8 +617,9 @@ und vom Testbereich des Builders zählen nicht.
 **Version ändern** setzt einen Agent auf main, auf eine festgesetzte main-Version oder
 auf einen Fork, wie [Welche Version ein Agent liest](#which-version-an-agent-reads)
 beschreibt: was live geht, was im Entwurf wartet und was im Builder geändert wird.
-Eine andere Version als die, die der Agent gerade ausliefert, wurde auf ihm nicht
-geprüft, deshalb bestätigen Sie das zuerst. Der Dialog sagt auch, wann der Agent keine
+Eine andere Version als die, die der Agent gerade ausliefert, und die keine Prüfung
+auf ihm gemessen hat, wurde dort nicht geprüft, deshalb bestätigen Sie das zuerst;
+bei einer gemessenen nennt der Dialog das Ergebnis. Der Dialog sagt auch, wann der Agent keine
 neuen main-Versionen mehr bekäme, und datiert jede main-Version, die er zum Festsetzen
 anbietet, mit einem Link zu ihren Änderungen. Das Steuerelement sehen Personen, die
 den Agent bearbeiten dürfen.
@@ -637,7 +642,10 @@ Zeile zusammengefaltet.
 
 **Bearbeiten** speichert eine neue Version auf der angezeigten Linie. Auf main
 bekommen die Agents, die main folgen, sie sofort; festgesetzte Agents und Forks behalten
-ihre Version. Dateien und Kategorie gehören zu main, deshalb ändert das Bearbeiten
+ihre Version. Ein geänderter Text wird nicht beim ersten Klick gespeichert: Der Dialog
+nennt die Agents, die er bei ihrem nächsten Run erreicht, und bietet neben dem
+sofortigen Speichern **Zuerst an Agents prüfen** an, das den ungespeicherten Text auf
+ihnen prüft und anhand des Ergebnisses übernimmt. Dateien und Kategorie gehören zu main, deshalb ändert das Bearbeiten
 eines Forks nur seine Beschreibung und Anweisungen. Wiederherstellen und Version ändern
 sehen nur Personen, die diese Änderung vornehmen dürfen; alle anderen öffnen den
 Skill nur lesend.

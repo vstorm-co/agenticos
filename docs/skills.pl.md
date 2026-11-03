@@ -1,5 +1,5 @@
 ---
-source_sha: "17b4b17a4f40"
+source_sha: "a54ad38cec06"
 ---
 
 # Skille { #skills }
@@ -558,6 +558,10 @@ pokazują wszystkich, agentów na main, przypiętych, jeden fork albo agentów t
 drafcie, więc ich liczby sumują się do wszystkich. Fork wybrany tam jest też linią,
 którą pokazuje Historia i do której zapisuje Edycja.
 
+Każdy wiersz mówi, czy
+[sprawdzenie](#checking-a-change-on-every-agent) zmierzyło wersję, którą agent
+serwuje, i z jakim wynikiem; wersja nigdy na nim niesprawdzona jest **nieznana**.
+
 Pod tabelą osoba, która może przeglądać runy, widzi, jak często każdy agent
 otwierał skill w ostatnich 30 dniach i ile jego plików przeczytał. Runy ewaluacji i
 panelu testowego Buildera się nie liczą.
@@ -565,8 +569,9 @@ panelu testowego Buildera się nie liczą.
 **Zmień wersję** przenosi jednego agenta na main, na przypiętą wersję main albo na
 fork, tak jak opisuje [Którą wersję czyta agent](#which-version-an-agent-reads): co
 trafia na produkcję, co czeka w drafcie, a co zmienia się w Builderze. Wersja inna
-niż ta, którą agent serwuje teraz, nie była na nim sprawdzona, więc najpierw to
-potwierdzasz. Okno mówi też, kiedy agent przestałby dostawać nowe wersje main, i
+niż ta, którą agent serwuje teraz, i której żadne sprawdzenie na nim nie zmierzyło,
+nie była tam sprawdzona, więc najpierw to potwierdzasz; przy wersji zmierzonej okno
+podaje wynik. Okno mówi też, kiedy agent przestałby dostawać nowe wersje main, i
 podaje datę każdej wersji main do przypięcia, z linkiem do jej zmian. Kontrolkę
 widzą osoby, które mogą edytować agenta.
 
@@ -585,7 +590,10 @@ co najmniej ośmioma wersjami odcinki, których nie używa żaden agent, zwijaj�
 jednego wiersza.
 
 **Edytuj** zapisuje nową wersję na widocznej linii. Na main agenci podążający za
-main dostają ją od razu; przypięci agenci i forki zostają przy swojej wersji. Pliki
+main dostają ją od razu; przypięci agenci i forki zostają przy swojej wersji. Zmieniony
+tekst nie zapisuje się przy pierwszym kliknięciu: okno wymienia agentów, do których
+trafi przy ich następnym runie, i obok zapisu teraz proponuje **Najpierw sprawdź na
+agentach**, które sprawdza niezapisany tekst na nich i stosuje go na podstawie wyniku. Pliki
 i kategoria należą do main, więc edycja forka zmienia tylko jego opis i instrukcje.
 Przywróć i Zmień wersję widzą tylko osoby, które mogą tę zmianę zrobić; pozostali
 otwierają skill tylko do odczytu.

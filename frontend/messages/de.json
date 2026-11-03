@@ -8300,7 +8300,9 @@
         "environment": "{name}: {binding}",
         "draftDiffers": "Sein Entwurf nutzt eine andere Version.",
         "emptyFork": "Noch kein Agent verwendet Fork „{name}“. Verschieben Sie einen mit Version ändern dorthin.",
-        "emptyShown": "Hier ist kein Agent."
+        "emptyShown": "Hier ist kein Agent.",
+        "checked": "Auf dieser Version geprüft am {when}: {state}",
+        "notChecked": "Unbekannt: Diese Version wurde auf ihm nie geprüft"
       },
       "changeVersion": {
         "button": "Version ändern",
@@ -8327,7 +8329,8 @@
         "forkVersion": "{name} v{number}",
         "pinDetail": "{source} · {who} · {when}",
         "leavesMain": "{name} bleibt auf dieser Version und erhält keine neuen main-Versionen mehr.",
-        "leavesMainFork": "{name} erhält keine neuen main-Versionen mehr.{behind, plural, =0 {} =1 { Fork „{fork}“ liegt 1 Version hinter main und hat diese Änderung nicht.} other { Fork „{fork}“ liegt # Versionen hinter main und hat deren Änderungen nicht.}}"
+        "leavesMainFork": "{name} erhält keine neuen main-Versionen mehr.{behind, plural, =0 {} =1 { Fork „{fork}“ liegt 1 Version hinter main und hat diese Änderung nicht.} other { Fork „{fork}“ liegt # Versionen hinter main und hat deren Änderungen nicht.}}",
+        "checkedOn": "{version} wurde auf {name} am {when} geprüft: {state}."
       },
       "history": {
         "title": "Verlauf: {line}",
@@ -8391,7 +8394,18 @@
         "forkFiles": "Nur Beschreibung und Anweisungen gehören zum Fork. Seine Dateien stammen aus der main-Version, bei der er begann, und Dateien werden auf main bearbeitet.",
         "noBase": "Dieser Skill hat noch keine gespeicherte Version, auf die geschrieben werden kann. Laden Sie die Seite neu und versuchen Sie es erneut.",
         "retryFork": "Fork erneut laden",
-        "savedFork": "Als {name} v{number} gespeichert."
+        "savedFork": "Als {name} v{number} gespeichert.",
+        "version": "v{number}",
+        "forkVersion": "{name} v{number}",
+        "confirm": {
+          "title": "{version} speichern?",
+          "nobody": "Noch folgt kein Agent dieser Linie, also ändern sich keine Antworten.",
+          "reaches": "{named, select, yes {{count, plural, =1 {Erreicht 1 Agent bei seinem nächsten Run} other {Erreicht # Agents bei ihrem nächsten Run}}: {names}{hidden, plural, =0 {.} =1 {, und 1, den Sie nicht sehen.} other {, und #, die Sie nicht sehen.}}} other {{hidden, plural, =1 {Erreicht 1 Agent, den Sie nicht sehen, bei seinem nächsten Run.} other {Erreicht # Agents, die Sie nicht sehen, bei ihrem nächsten Run.}}}}",
+          "checkHint": "Jetzt zu speichern prüft die Änderung nicht auf ihnen. Zuerst an Agents prüfen stellt jedem Agent seine Fragen mit dem neuen Text und übernimmt ihn anhand des Ergebnisses.",
+          "back": "Zurück zum Bearbeiten",
+          "check": "Zuerst an Agents prüfen",
+          "save": "Jetzt speichern"
+        }
       },
       "improve": "Verbessern",
       "improveFork": "Fork „{name}“ verbessern",

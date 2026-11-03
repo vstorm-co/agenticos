@@ -8422,7 +8422,9 @@
         "environment": "{name}: {binding}",
         "draftDiffers": "Its draft uses a different version.",
         "emptyFork": "No agent uses fork “{name}” yet. Move one onto it with Change version.",
-        "emptyShown": "No agent here."
+        "emptyShown": "No agent here.",
+        "checked": "Checked on this version {when}: {state}",
+        "notChecked": "Unknown: this version was never checked on it"
       },
       "changeVersion": {
         "button": "Change version",
@@ -8449,7 +8451,8 @@
         "forkVersion": "{name} v{number}",
         "pinDetail": "{source} · {who} · {when}",
         "leavesMain": "{name} stays on this version and stops getting new main versions.",
-        "leavesMainFork": "{name} stops getting new main versions.{behind, plural, =0 {} =1 { Fork “{fork}” is 1 version behind main, so it lacks that change.} other { Fork “{fork}” is # versions behind main, so it lacks their changes.}}"
+        "leavesMainFork": "{name} stops getting new main versions.{behind, plural, =0 {} =1 { Fork “{fork}” is 1 version behind main, so it lacks that change.} other { Fork “{fork}” is # versions behind main, so it lacks their changes.}}",
+        "checkedOn": "{version} was checked on {name} {when}: {state}."
       },
       "history": {
         "title": "History of {line}",
@@ -8513,7 +8516,18 @@
         "forkFiles": "Only the description and instructions belong to the fork. Its files come from the main version it started from, and files are edited on main.",
         "noBase": "This skill has no saved version to write over yet. Reload the page and try again.",
         "retryFork": "Load the fork again",
-        "savedFork": "Saved as {name} v{number}."
+        "savedFork": "Saved as {name} v{number}.",
+        "version": "v{number}",
+        "forkVersion": "{name} v{number}",
+        "confirm": {
+          "title": "Save {version}?",
+          "nobody": "No agent follows this line yet, so no agent's answers change.",
+          "reaches": "{named, select, yes {{count, plural, =1 {It reaches 1 agent on its next run} other {It reaches # agents on their next run}}: {names}{hidden, plural, =0 {.} =1 {, and 1 you can't see.} other {, and # you can't see.}}} other {{hidden, plural, =1 {It reaches 1 agent you can't see on its next run.} other {It reaches # agents you can't see on their next run.}}}}",
+          "checkHint": "Saving now does not check the change on them. Check on agents first runs each agent's questions with the new text, and applies it from the result.",
+          "back": "Back to editing",
+          "check": "Check on agents first",
+          "save": "Save now"
+        }
       },
       "improve": "Improve",
       "improveFork": "Improve fork “{name}”",

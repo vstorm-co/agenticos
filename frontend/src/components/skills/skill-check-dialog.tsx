@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
@@ -22,7 +22,8 @@ import { CheckAgents } from "./check-agents";
 import { CheckDecision } from "./check-decision";
 
 /**
- * Check a waiting skill change on every agent of its line, then decide it.
+ * Check a skill change on every agent of its line, then decide it: a waiting
+ * change by its proposal, or a text the editor has not saved yet.
  *
  * Opening it prices the check; nothing runs until Start. Each agent answers its
  * questions with the stored text and with the change, and the result per agent
@@ -31,22 +32,38 @@ import { CheckDecision } from "./check-decision";
  */
 export function SkillCheckDialog({
   skillId,
-  proposalId,
+  change,
   forkId,
   onOpenChange,
+  onApplied,
 }: {
   skillId: string;
-  proposalId: string;
+  /** What to check: a waiting proposal, or an unsaved text. */
+  change: { proposalId: string } | { candidate: { description: string; content: string } };
   forkId: string | null;
   onOpenChange: (open: boolean) => void;
+  /** Called once the change went live from this check. */
+  onApplied?: () => void;
 }) {
   const t = useTranslations("skills.check");
   const tErrors = useTranslations("errors");
   const [checkId, setCheckId] = useState<string | null>(null);
   const { check, estimate, start, apply, discard, cancel } = useSkillCheck(skillId, checkId);
-  const body = { fork_id: forkId, proposal_id: proposalId };
+  const proposalId = "proposalId" in change ? change.proposalId : null;
+  const description = "candidate" in change ? change.candidate.description : null;
+  const content = "candidate" in change ? change.candidate.content : null;
+  const body = useMemo(
+    () =>
+      proposalId !== null
+        ? { fork_id: forkId, proposal_id: proposalId }
+        : {
+            fork_id: forkId,
+            candidate: { description: description ?? "", content: content ?? "" },
+          },
+    [forkId, proposalId, description, content],
+  );
   const { mutate: price } = estimate;
-  useEffect(() => price({ fork_id: forkId, proposal_id: proposalId }), [price, forkId, proposalId]);
+  useEffect(() => price(body), [price, body]);
   const [decidedIn, setDecidedIn] = useState<string | null>(null);
   const failed = (error: unknown) => {
     const session =
@@ -128,7 +145,13 @@ export function SkillCheckDialog({
             check={check}
             busy={apply.isPending || discard.isPending}
             onApply={(decision) =>
-              apply.mutate(decision, { onSuccess: () => onOpenChange(false), onError: failed })
+              apply.mutate(decision, {
+                onSuccess: () => {
+                  onApplied?.();
+                  onOpenChange(false);
+                },
+                onError: failed,
+              })
             }
             onDiscard={() =>
               discard.mutate(undefined, { onSuccess: () => onOpenChange(false), onError: failed })

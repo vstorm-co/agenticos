@@ -8182,7 +8182,9 @@
         "environment": "{name}: {binding}",
         "draftDiffers": "Jego draft używa innej wersji.",
         "emptyFork": "Żaden agent nie używa jeszcze forka „{name}”. Przenieś na niego agenta przez Zmień wersję.",
-        "emptyShown": "Brak agentów w tym widoku."
+        "emptyShown": "Brak agentów w tym widoku.",
+        "checked": "Sprawdzony na tej wersji {when}: {state}",
+        "notChecked": "Nie wiadomo: tej wersji nigdy na nim nie sprawdzono"
       },
       "changeVersion": {
         "button": "Zmień wersję",
@@ -8209,7 +8211,8 @@
         "forkVersion": "{name} v{number}",
         "pinDetail": "{source} · {who} · {when}",
         "leavesMain": "{name} zostaje na tej wersji i przestaje dostawać nowe wersje main.",
-        "leavesMainFork": "{name} przestaje dostawać nowe wersje main.{behind, plural, =0 {} one { Fork „{fork}” jest 1 wersję za main, więc nie ma tej zmiany.} few { Fork „{fork}” jest # wersje za main, więc nie ma ich zmian.} many { Fork „{fork}” jest # wersji za main, więc nie ma ich zmian.} other { Fork „{fork}” jest # wersji za main, więc nie ma ich zmian.}}"
+        "leavesMainFork": "{name} przestaje dostawać nowe wersje main.{behind, plural, =0 {} one { Fork „{fork}” jest 1 wersję za main, więc nie ma tej zmiany.} few { Fork „{fork}” jest # wersje za main, więc nie ma ich zmian.} many { Fork „{fork}” jest # wersji za main, więc nie ma ich zmian.} other { Fork „{fork}” jest # wersji za main, więc nie ma ich zmian.}}",
+        "checkedOn": "{version} sprawdzono na agencie {name} {when}: {state}."
       },
       "history": {
         "title": "Historia: {line}",
@@ -8273,7 +8276,18 @@
         "forkFiles": "Do forka należą tylko opis i instrukcje. Jego pliki pochodzą z wersji main, od której wystartował, a pliki edytuje się na main.",
         "noBase": "Ten skill nie ma jeszcze zapisanej wersji, na której można zapisać zmianę. Odśwież stronę i spróbuj ponownie.",
         "retryFork": "Wczytaj fork ponownie",
-        "savedFork": "Zapisano jako {name} v{number}."
+        "savedFork": "Zapisano jako {name} v{number}.",
+        "version": "v{number}",
+        "forkVersion": "{name} v{number}",
+        "confirm": {
+          "title": "Zapisać {version}?",
+          "nobody": "Żaden agent nie podąża jeszcze za tą linią, więc odpowiedzi żadnego agenta się nie zmienią.",
+          "reaches": "{named, select, yes {{count, plural, one {Trafi do 1 agenta przy jego następnym runie} few {Trafi do # agentów przy ich następnym runie} many {Trafi do # agentów przy ich następnym runie} other {Trafi do # agenta przy ich następnym runie}}: {names}{hidden, plural, =0 {.} one {, i 1, którego nie widzisz.} few {, i #, których nie widzisz.} many {, i #, których nie widzisz.} other {, i #, którego nie widzisz.}}} other {{hidden, plural, one {Trafi do 1 agenta, którego nie widzisz, przy jego następnym runie.} few {Trafi do # agentów, których nie widzisz, przy ich następnym runie.} many {Trafi do # agentów, których nie widzisz, przy ich następnym runie.} other {Trafi do # agenta, którego nie widzisz, przy ich następnym runie.}}}}",
+          "checkHint": "Zapis teraz nie sprawdza zmiany na nich. Najpierw Sprawdź na agentach uruchamia pytania każdego agenta z nowym tekstem i stosuje go na podstawie wyniku.",
+          "back": "Wróć do edycji",
+          "check": "Najpierw sprawdź na agentach",
+          "save": "Zapisz teraz"
+        }
       },
       "improve": "Popraw",
       "improveFork": "Popraw fork „{name}”",

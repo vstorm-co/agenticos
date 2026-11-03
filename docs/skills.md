@@ -545,6 +545,10 @@ everyone, the agents on main, the pinned ones, one fork, or the agents only in a
 draft, so their counts add up to everyone. A fork you pick there is also the line
 that History lists and Edit saves to.
 
+Each row says whether a
+[check](#checking-a-change-on-every-agent) measured the version the agent serves,
+and how it did; a version never checked on it is **unknown**.
+
 Under the table, a reader who may view runs sees how often each agent opened the
 skill in the last 30 days and how many of its files it read. Runs of evals and of
 the Builder's test panel are not counted.
@@ -552,8 +556,8 @@ the Builder's test panel are not counted.
 **Change version** moves one agent to main, to a pinned main version, or to a fork,
 as [Which version an agent reads](#which-version-an-agent-reads) describes: what goes
 live, what waits in the draft, and what is changed in the Builder. A version other
-than the one the agent serves now has not been checked on it, so you confirm that
-first. The dialog also says when the agent would stop getting new main versions, and
+than the one the agent serves now, and that no check measured on it, has not been
+checked there, so you confirm that first; one a check did measure says how it did. The dialog also says when the agent would stop getting new main versions, and
 dates each main version it offers to pin, with a link to what it changed. The control
 is shown to people who may edit the agent.
 
@@ -571,7 +575,10 @@ it started from, and agents at the version they use. On a line of eight versions
 more, stretches that no agent uses fold into one row.
 
 **Edit** saves a new version on the line on screen. On main, the agents following
-main get it at once; pinned agents and forks keep their version. Files and the
+main get it at once; pinned agents and forks keep their version. A changed text is
+not saved at the first press: the dialog names the agents it reaches on their next
+run, and offers **Check on agents first**, which checks the unsaved text on them
+and applies it from the result, beside saving it now. Files and the
 category belong to main, so editing a fork changes only its description and
 instructions. Restore and Change version are shown only to people who may make
 that change; anybody else opens the skill read-only.

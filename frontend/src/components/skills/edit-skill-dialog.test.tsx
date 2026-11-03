@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { toast } from "sonner";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -16,6 +16,25 @@ vi.mock("@/lib/api-client", async (original) => ({
   apiClient: { get: vi.fn(), post: vi.fn(), patch: vi.fn(), put: vi.fn(), delete: vi.fn() },
 }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), info: vi.fn(), error: vi.fn() } }));
+vi.mock("./skill-check-dialog", () => ({
+  SkillCheckDialog: ({
+    change,
+    forkId,
+    onApplied,
+    onOpenChange,
+  }: {
+    change: { candidate: { content: string } };
+    forkId: string | null;
+    onApplied: () => void;
+    onOpenChange: (open: boolean) => void;
+  }) => (
+    <div>
+      <p>{`checking ${change.candidate.content} on ${forkId ?? "main"}`}</p>
+      <button onClick={onApplied}>Apply the checked change</button>
+      <button onClick={() => onOpenChange(false)}>Close the check</button>
+    </div>
+  ),
+}));
 vi.mock("@/components/sharing/share-resource-button", () => ({
   ShareResourceButton: () => null,
 }));
@@ -57,6 +76,8 @@ function mount(fork: SkillFork | null = null) {
       skill={SKILL}
       fork={fork}
       followers={3}
+      readers={["Support", "Billing"]}
+      canCheck
       onClose={onClose}
       onDelete={onDelete}
     />,
@@ -70,6 +91,13 @@ function mount(fork: SkillFork | null = null) {
 }
 
 const description = () => screen.getByLabelText("Description");
+
+/** Save, and save now at the question an unchecked text change asks first. */
+async function save() {
+  await userEvent.click(screen.getByRole("button", { name: "Save" }));
+  const now = screen.queryByRole("button", { name: "Save now" });
+  if (now) await userEvent.click(now);
+}
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -95,7 +123,7 @@ describe("EditSkillDialog", () => {
     expect(screen.getByRole("alert")).toHaveTextContent(
       "Saving makes v13 on main. 3 agents following main get it at once.",
     );
-    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+    await save();
 
     expect(apiClient.post).toHaveBeenCalledWith("/skills/s1/versions", {
       fork_id: null,
@@ -115,7 +143,7 @@ describe("EditSkillDialog", () => {
     await userEvent.click(screen.getByLabelText("Category"));
     await userEvent.click(screen.getByRole("option", { name: "New category…" }));
     await userEvent.type(screen.getByLabelText("Category"), "support");
-    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+    await save();
 
     expect(apiClient.post).not.toHaveBeenCalled();
     expect(apiClient.patch).toHaveBeenCalledWith("/skills/s1", { category: "support" });
@@ -130,7 +158,7 @@ describe("EditSkillDialog", () => {
 
     await userEvent.clear(description());
     await userEvent.type(description(), "Mine.");
-    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+    await save();
 
     expect(await screen.findByText(/Somebody saved a newer version/)).toBeInTheDocument();
     expect(description()).toHaveValue("Mine.");
@@ -147,7 +175,7 @@ describe("EditSkillDialog", () => {
 
     await userEvent.clear(description());
     await userEvent.type(description(), "Mine.");
-    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+    await save();
 
     expect(await screen.findByText("Description too long")).toBeInTheDocument();
   });
@@ -164,7 +192,7 @@ describe("EditSkillDialog", () => {
 
     await userEvent.clear(description());
     await userEvent.type(description(), "Fork words.");
-    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+    await save();
 
     expect(apiClient.post).toHaveBeenCalledWith("/skills/s1/versions", {
       fork_id: "f1",
@@ -201,7 +229,7 @@ describe("EditSkillDialog", () => {
     expect(apiClient.get).toHaveBeenCalledWith("/skills/s1/versions/m7");
     await userEvent.clear(description());
     await userEvent.type(description(), "First fork words.");
-    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+    await save();
 
     expect(apiClient.post).toHaveBeenCalledWith(
       "/skills/s1/versions",
@@ -216,6 +244,8 @@ describe("EditSkillDialog", () => {
         skill={{ ...SKILL, latest_version_id: null }}
         fork={null}
         followers={0}
+        readers={[]}
+        canCheck={false}
         onClose={vi.fn()}
         onDelete={vi.fn()}
       />,
@@ -228,7 +258,7 @@ describe("EditSkillDialog", () => {
 
     await userEvent.clear(description());
     await userEvent.type(description(), "Mine.");
-    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+    await save();
 
     expect(screen.getByText(/no saved version to write over yet/)).toBeInTheDocument();
     expect(apiClient.post).not.toHaveBeenCalled();
@@ -271,7 +301,7 @@ describe("EditSkillDialog", () => {
     await screen.findByLabelText("Description");
     await userEvent.clear(description());
     await userEvent.type(description(), "With notes.");
-    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+    await save();
 
     expect(apiClient.post).toHaveBeenLastCalledWith(
       "/skills/s1/versions",
@@ -299,11 +329,67 @@ describe("EditSkillDialog", () => {
     await screen.findByLabelText("Description");
     await userEvent.clear(description());
     await userEvent.type(description(), "With notes.");
-    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+    await save();
 
     expect(apiClient.post).toHaveBeenLastCalledWith(
       "/skills/s1/versions",
       expect.objectContaining({ base_version_id: "m12" }),
     );
+  });
+
+  it("names the agents a text save reaches before it goes live, and goes back to editing", async () => {
+    mount();
+
+    await userEvent.clear(description());
+    await userEvent.type(description(), "When a customer returns an order.");
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(
+      screen.getByText(
+        /It reaches 3 agents on their next run: Support and Billing, and 1 you can.t see\./,
+      ),
+    ).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Back to editing" }));
+    expect(apiClient.post).not.toHaveBeenCalled();
+    expect(description()).toHaveValue("When a customer returns an order.");
+  });
+
+  it("checks the change on the line's agents instead, and closes once it is applied", async () => {
+    vi.mocked(apiClient.patch).mockResolvedValue(SKILL);
+    const { onClose } = mount();
+
+    await userEvent.clear(description());
+    await userEvent.type(description(), "When a customer returns an order.");
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+    await userEvent.click(screen.getByRole("button", { name: "Check on agents first" }));
+
+    expect(screen.getByText(`checking ${SKILL.content} on main`)).toBeInTheDocument();
+    // The mock stands outside the editor's modal, which Radix keeps from the pointer.
+    fireEvent.click(screen.getByRole("button", { name: "Close the check", hidden: true }));
+    expect(screen.queryByText(/^checking/)).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+    await userEvent.click(screen.getByRole("button", { name: "Check on agents first" }));
+    fireEvent.click(screen.getByRole("button", { name: "Apply the checked change", hidden: true }));
+
+    expect(apiClient.post).not.toHaveBeenCalled();
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+  });
+
+  it("says when the category could not follow a change its check applied", async () => {
+    vi.mocked(apiClient.patch).mockRejectedValue(new Error("Category refused"));
+    const { onClose } = mount();
+
+    await userEvent.click(screen.getByLabelText("Category"));
+    await userEvent.click(screen.getByRole("option", { name: "New category…" }));
+    await userEvent.type(screen.getByLabelText("Category"), "support");
+    await userEvent.clear(description());
+    await userEvent.type(description(), "When a customer returns an order.");
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+    await userEvent.click(screen.getByRole("button", { name: "Check on agents first" }));
+    fireEvent.click(screen.getByRole("button", { name: "Apply the checked change", hidden: true }));
+
+    expect(await screen.findByText("Category refused")).toBeInTheDocument();
+    expect(apiClient.patch).toHaveBeenCalledWith("/skills/s1", { category: "support" });
+    expect(onClose).not.toHaveBeenCalled();
   });
 });
