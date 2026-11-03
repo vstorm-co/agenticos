@@ -191,10 +191,9 @@ export function EditSkillDialog({
       {pending !== null && (
         <SaveConfirmDialog
           version={version}
+          reach={followers}
           readers={readers}
-          hidden={Math.max(0, followers - readers.length)}
           canCheck={canCheck}
-          saving={edit.isPending || save.isPending}
           onCheck={() => {
             setChecking(pending);
             setPending(null);

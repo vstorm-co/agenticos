@@ -62,6 +62,7 @@ function renderDialog() {
       usage={HR}
       forks={[RETURNS]}
       mainLatest={12}
+      seesChecks
       onClose={onClose}
     />,
     {
@@ -195,6 +196,7 @@ describe("ChangeVersionDialog's pin", () => {
         usage={{ ...HR, binding: { ...HR.binding, state: "main" } }}
         forks={[]}
         mainLatest={0}
+        seesChecks
         onClose={vi.fn()}
       />,
       {
@@ -248,6 +250,7 @@ describe("ChangeVersionDialog without publish", () => {
         usage={{ ...HR, can_publish: false }}
         forks={[RETURNS]}
         mainLatest={12}
+        seesChecks
         onClose={vi.fn()}
       />,
       {
@@ -286,6 +289,7 @@ describe("ChangeVersionDialog's warnings", () => {
         usage={usage}
         forks={forks}
         mainLatest={12}
+        seesChecks
         onClose={vi.fn()}
       />,
       {
@@ -429,6 +433,7 @@ describe("ChangeVersionDialog's warnings", () => {
         usage={ON_MAIN}
         forks={[]}
         mainLatest={120}
+        seesChecks
         onClose={vi.fn()}
       />,
       {
@@ -478,5 +483,69 @@ describe("ChangeVersionDialog's warnings", () => {
     expect(screen.getByText(/v11 was checked on HR bot .*: Better/)).toBeInTheDocument();
     expect(screen.queryByText(/has not been checked/)).toBeNull();
     expect(screen.getByRole("button", { name: "Change and publish" })).toBeEnabled();
+  });
+
+  it("does not claim a version unchecked to a reader who cannot see checks", async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <ChangeVersionDialog
+        skillId="s1"
+        skillName="returns-policy"
+        usage={ON_MAIN}
+        forks={[RETURNS]}
+        mainLatest={12}
+        seesChecks={false}
+        onClose={vi.fn()}
+      />,
+      {
+        wrapper: ({ children }: { children: ReactNode }) => (
+          <QueryClientProvider client={client}>{children}</QueryClientProvider>
+        ),
+      },
+    );
+
+    await userEvent.click(screen.getByRole("radio", { name: "Fork “Returns”, latest" }));
+
+    expect(screen.queryByText(/has not been checked/)).toBeNull();
+    expect(
+      screen.getByText(/Whether Returns v2 was checked on HR bot is not shown to you/),
+    ).toBeInTheDocument();
+  });
+
+  it("warns when a check found the version worse on the agent", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({
+      items: [
+        {
+          id: "m11",
+          number: 11,
+          fork_id: null,
+          source: "edit",
+          restored_from: null,
+          previous: null,
+          created_by: null,
+          created_at: "2026-11-01T10:00:00Z",
+          agents: 0,
+        },
+      ],
+      total: 12,
+    });
+    renderOnMain({
+      ...ON_MAIN,
+      checked_versions: [
+        {
+          check_id: "c1",
+          version_id: "m11",
+          state: "worse",
+          sample: null,
+          at: "2026-11-02T10:00:00Z",
+        },
+      ],
+    });
+
+    await userEvent.click(screen.getByRole("radio", { name: /Pin a main version/ }));
+    await userEvent.click(screen.getByRole("combobox", { name: "Version to pin" }));
+    await userEvent.click(await screen.findByRole("option", { name: /^v11 · / }));
+
+    expect(screen.getByText(/v11 was checked on HR bot .*: Worse/)).toHaveClass("text-warning");
   });
 });

@@ -15,66 +15,61 @@ import { DIALOG_CONFIRM } from "@/lib/dialog-sizes";
 
 /**
  * The last word before an edit goes live: a new version reaches the line's agents
- * on their next run, so they are named first, with the way to check the change on
- * them instead. Checking runs each agent's questions with the new text and applies
- * it from the result; saving now applies it unchecked.
+ * on their next run, so it says how many, as the server counts them, and names the
+ * ones the reader may see, with the way to check the change on them instead.
+ * Checking runs each agent's questions with the new text and applies it from the
+ * result; saving now applies it unchecked.
  */
 export function SaveConfirmDialog({
   version,
+  reach,
   readers,
-  hidden,
   canCheck,
-  saving,
   onCheck,
   onSave,
   onCancel,
 }: {
   /** The version the save makes: `v13`, or `Returns v3` on a fork. */
   version: string;
-  /** The agents following the line that the reader may see. */
+  /** How many agents the save reaches, every environment and hidden ones included. */
+  reach: number;
+  /** Those of them the reader may see, by name. */
   readers: string[];
-  /** Agents following the line that the reader may not see. */
-  hidden: number;
   /** Whether the reader may run a check, which reads the agents' runs. */
   canCheck: boolean;
-  saving: boolean;
   onCheck: () => void;
   onSave: () => void;
   onCancel: () => void;
 }) {
   const t = useTranslations("skills.page.edit.confirm");
   const locale = useLocale();
-  const count = readers.length + hidden;
   const list = new Intl.ListFormat(locale, { type: "conjunction" });
   return (
-    <Dialog open onOpenChange={(open) => !open && !saving && onCancel()}>
+    <Dialog open onOpenChange={(open) => !open && onCancel()}>
       <DialogContent className={DIALOG_CONFIRM}>
         <DialogHeader>
           <DialogTitle>{t("title", { version })}</DialogTitle>
           <DialogDescription>
-            {count === 0
+            {reach === 0
               ? t("nobody")
               : t("reaches", {
-                  count,
+                  count: reach,
                   names: list.format(readers),
                   named: readers.length > 0 ? "yes" : "no",
-                  hidden,
                 })}
           </DialogDescription>
         </DialogHeader>
-        {count > 0 && canCheck && <p className="text-muted-foreground text-sm">{t("checkHint")}</p>}
+        {reach > 0 && canCheck && <p className="text-muted-foreground text-sm">{t("checkHint")}</p>}
         <DialogFooter>
-          <Button variant="outline" disabled={saving} onClick={onCancel}>
+          <Button variant="outline" onClick={onCancel}>
             {t("back")}
           </Button>
-          {count > 0 && canCheck && (
-            <Button variant="outline" disabled={saving} onClick={onCheck}>
+          {reach > 0 && canCheck && (
+            <Button variant="outline" onClick={onCheck}>
               {t("check")}
             </Button>
           )}
-          <Button loading={saving} onClick={onSave}>
-            {t("save")}
-          </Button>
+          <Button onClick={onSave}>{t("save")}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

@@ -86,6 +86,7 @@ export function ChangeVersionDialog({
   usage,
   forks,
   mainLatest,
+  seesChecks,
   onClose,
 }: {
   skillId: string;
@@ -94,6 +95,8 @@ export function ChangeVersionDialog({
   forks: SkillFork[];
   /** Main's newest version number. */
   mainLatest: number;
+  /** Whether the reader is told what checks found, which needs `runs:view`. */
+  seesChecks: boolean;
   onClose: () => void;
 }) {
   const t = useTranslations("skills.page.changeVersion");
@@ -298,7 +301,11 @@ export function ChangeVersionDialog({
             <Alert variant="warning">
               <AlertTriangle className="h-4 w-4" />
               <AlertDescription className="space-y-2">
-                <p>{t("unchecked", { version: label, name })}</p>
+                <p>
+                  {seesChecks
+                    ? t("unchecked", { version: label, name })
+                    : t("checksUnseen", { version: label, name })}
+                </p>
                 <div className="flex items-center gap-2">
                   <Checkbox
                     id="skill-binding-understood"

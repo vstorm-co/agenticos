@@ -345,9 +345,7 @@ describe("EditSkillDialog", () => {
     await userEvent.click(screen.getByRole("button", { name: "Save" }));
 
     expect(
-      screen.getByText(
-        /It reaches 3 agents on their next run: Support and Billing, and 1 you can.t see\./,
-      ),
+      screen.getByText("It reaches 3 agents on their next run, among them Support and Billing."),
     ).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Back to editing" }));
     expect(apiClient.post).not.toHaveBeenCalled();
@@ -367,6 +365,7 @@ describe("EditSkillDialog", () => {
     // The mock stands outside the editor's modal, which Radix keeps from the pointer.
     fireEvent.click(screen.getByRole("button", { name: "Close the check", hidden: true }));
     expect(screen.queryByText(/^checking/)).toBeNull();
+    expect(description()).toHaveValue("When a customer returns an order.");
     await userEvent.click(screen.getByRole("button", { name: "Save" }));
     await userEvent.click(screen.getByRole("button", { name: "Check on agents first" }));
     fireEvent.click(screen.getByRole("button", { name: "Apply the checked change", hidden: true }));

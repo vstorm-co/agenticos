@@ -1,5 +1,5 @@
 ---
-source_sha: "a54ad38cec06"
+source_sha: "6160d148e518"
 ---
 
 # Skills { #skills }
@@ -614,15 +614,16 @@ Unter der Tabelle sieht, wer Runs ansehen darf, wie oft jeder Agent den Skill in
 letzten 30 Tagen geöffnet und wie viele seiner Dateien er gelesen hat. Runs von Evals
 und vom Testbereich des Builders zählen nicht.
 
-**Version ändern** setzt einen Agent auf main, auf eine festgesetzte main-Version oder
-auf einen Fork, wie [Welche Version ein Agent liest](#which-version-an-agent-reads)
-beschreibt: was live geht, was im Entwurf wartet und was im Builder geändert wird.
-Eine andere Version als die, die der Agent gerade ausliefert, und die keine Prüfung
-auf ihm gemessen hat, wurde dort nicht geprüft, deshalb bestätigen Sie das zuerst;
-bei einer gemessenen nennt der Dialog das Ergebnis. Der Dialog sagt auch, wann der Agent keine
-neuen main-Versionen mehr bekäme, und datiert jede main-Version, die er zum Festsetzen
-anbietet, mit einem Link zu ihren Änderungen. Das Steuerelement sehen Personen, die
-den Agent bearbeiten dürfen.
+**Version ändern** setzt einen Agent auf main, auf eine festgesetzte main-Version
+oder auf einen Fork, wie [Welche Version ein Agent
+liest](#which-version-an-agent-reads) beschreibt: was live geht, was im Entwurf
+wartet und was im Builder geändert wird. Eine andere Version als die, die der Agent
+gerade ausliefert, und die keine Prüfung auf ihm gemessen hat, wurde dort nicht
+geprüft, deshalb bestätigen Sie das zuerst; bei einer gemessenen nennt der Dialog
+das Ergebnis. Der Dialog sagt auch, wann der Agent keine neuen main-Versionen mehr
+bekäme, und datiert jede main-Version, die er zum Festsetzen anbietet, mit einem
+Link zu ihren Änderungen. Das Steuerelement sehen Personen, die den Agent bearbeiten
+dürfen.
 
 **Verlauf** listet die Versionen der gewählten Linie, die neueste zuerst: woher jede
 kam (eine Bearbeitung, eine Dateiänderung, die Bibliothek, der Workspace eines
@@ -641,14 +642,15 @@ Linie mit acht oder mehr Versionen werden Abschnitte, die kein Agent nutzt, zu e
 Zeile zusammengefaltet.
 
 **Bearbeiten** speichert eine neue Version auf der angezeigten Linie. Auf main
-bekommen die Agents, die main folgen, sie sofort; festgesetzte Agents und Forks behalten
-ihre Version. Ein geänderter Text wird nicht beim ersten Klick gespeichert: Der Dialog
-nennt die Agents, die er bei ihrem nächsten Run erreicht, und bietet neben dem
-sofortigen Speichern **Zuerst an Agents prüfen** an, das den ungespeicherten Text auf
-ihnen prüft und anhand des Ergebnisses übernimmt. Dateien und Kategorie gehören zu main, deshalb ändert das Bearbeiten
-eines Forks nur seine Beschreibung und Anweisungen. Wiederherstellen und Version ändern
-sehen nur Personen, die diese Änderung vornehmen dürfen; alle anderen öffnen den
-Skill nur lesend.
+bekommen die Agents, die main folgen, sie sofort; festgesetzte Agents und Forks
+behalten ihre Version. Ein geänderter Text wird nicht beim ersten Klick gespeichert:
+Der Dialog nennt die Agents, die er bei ihrem nächsten Run erreicht, und bietet
+neben dem sofortigen Speichern **Zuerst an Agents prüfen** an, das den
+ungespeicherten Text auf ihnen prüft und anhand des Ergebnisses übernimmt. Dateien
+und Kategorie gehören zu main, deshalb ändert das Bearbeiten eines Forks nur seine
+Beschreibung und Anweisungen. Wiederherstellen und Version ändern sehen nur
+Personen, die diese Änderung vornehmen dürfen; alle anderen öffnen den Skill nur
+lesend.
 
 **Neuer Fork** beginnt einen Fork ab der neuesten Version von main, unter einem Namen,
 den Sie vergeben, und kann sofort Agents auf ihn verschieben, jeden als Version ändern.

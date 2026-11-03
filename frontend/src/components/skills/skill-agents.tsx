@@ -20,6 +20,7 @@ export function SkillAgents({
   skillId,
   skillName,
   mainLatest,
+  seesChecks,
   agents,
   error,
   forks,
@@ -30,6 +31,8 @@ export function SkillAgents({
   skillName: string;
   /** Main's newest version number: every main version up to it can be pinned. */
   mainLatest: number;
+  /** What checks found is read only with `runs:view`; without it the server sends none. */
+  seesChecks: boolean;
   agents: SkillAgentList | undefined;
   error: unknown;
   forks: SkillFork[];
@@ -80,7 +83,7 @@ export function SkillAgents({
     {
       key: "version",
       header: t("agentsTable.version"),
-      cell: (usage) => <BindingCell usage={usage} />,
+      cell: (usage) => <BindingCell usage={usage} seesChecks={seesChecks} />,
     },
     {
       key: "change",
@@ -133,6 +136,7 @@ export function SkillAgents({
           usage={changing}
           forks={forks}
           mainLatest={mainLatest}
+          seesChecks={seesChecks}
           onClose={() => setChanging(null)}
         />
       )}
@@ -145,7 +149,7 @@ export function SkillAgents({
  * environment or the draft says otherwise. A version never checked on it is
  * unknown, said so rather than left to look as safe as a checked one.
  */
-function BindingCell({ usage }: { usage: SkillAgentUsage }) {
+function BindingCell({ usage, seesChecks }: { usage: SkillAgentUsage; seesChecks: boolean }) {
   const t = useTranslations("skills.page");
   const tCheck = useTranslations("skillImprovement.agents");
   const locale = useLocale();
@@ -155,7 +159,7 @@ function BindingCell({ usage }: { usage: SkillAgentUsage }) {
         <span>{bindingLabel(t, usage.binding)}</span>
         {usage.draft_only && <Badge variant="outline">{t("agentsTable.draftOnly")}</Badge>}
       </p>
-      {!usage.draft_only && (
+      {seesChecks && !usage.draft_only && (
         <p
           className={cn(
             "text-xs",

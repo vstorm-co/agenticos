@@ -115,6 +115,7 @@ export default function SkillPage({ params }: { params: Promise<{ id: string }> 
             skillId={id}
             skillName={skill.name}
             mainLatest={skill.version}
+            seesChecks={can(Perm.runsView)}
             agents={agents.agents}
             error={agents.error}
             forks={forks}

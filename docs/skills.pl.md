@@ -1,5 +1,5 @@
 ---
-source_sha: "a54ad38cec06"
+source_sha: "6160d148e518"
 ---
 
 # Skille { #skills }
@@ -590,13 +590,13 @@ co najmniej ośmioma wersjami odcinki, których nie używa żaden agent, zwijaj�
 jednego wiersza.
 
 **Edytuj** zapisuje nową wersję na widocznej linii. Na main agenci podążający za
-main dostają ją od razu; przypięci agenci i forki zostają przy swojej wersji. Zmieniony
-tekst nie zapisuje się przy pierwszym kliknięciu: okno wymienia agentów, do których
-trafi przy ich następnym runie, i obok zapisu teraz proponuje **Najpierw sprawdź na
-agentach**, które sprawdza niezapisany tekst na nich i stosuje go na podstawie wyniku. Pliki
-i kategoria należą do main, więc edycja forka zmienia tylko jego opis i instrukcje.
-Przywróć i Zmień wersję widzą tylko osoby, które mogą tę zmianę zrobić; pozostali
-otwierają skill tylko do odczytu.
+main dostają ją od razu; przypięci agenci i forki zostają przy swojej wersji.
+Zmieniony tekst nie zapisuje się przy pierwszym kliknięciu: okno wymienia agentów,
+do których trafi przy ich następnym runie, i obok zapisu teraz proponuje **Najpierw
+sprawdź na agentach**, które sprawdza niezapisany tekst na nich i stosuje go na
+podstawie wyniku. Pliki i kategoria należą do main, więc edycja forka zmienia tylko
+jego opis i instrukcje. Przywróć i Zmień wersję widzą tylko osoby, które mogą tę
+zmianę zrobić; pozostali otwierają skill tylko do odczytu.
 
 **Nowy fork** zaczyna fork od najnowszej wersji main, pod nadaną przez ciebie
 nazwą, i może od razu przenieść na niego agentów, każdego przez Zmień wersję. Fork

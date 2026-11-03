@@ -4,15 +4,14 @@ import { describe, expect, it, vi } from "vitest";
 
 import { SaveConfirmDialog } from "./save-confirm-dialog";
 
-function open(readers: string[], hidden: number, canCheck = true) {
+function open(readers: string[], reach: number, canCheck = true) {
   const handlers = { onCheck: vi.fn(), onSave: vi.fn(), onCancel: vi.fn() };
   render(
     <SaveConfirmDialog
       version="Returns v3"
+      reach={reach}
       readers={readers}
-      hidden={hidden}
       canCheck={canCheck}
-      saving={false}
       {...handlers}
     />,
   );
@@ -30,21 +29,28 @@ describe("SaveConfirmDialog", () => {
     expect(onSave).toHaveBeenCalled();
   });
 
-  it("counts the agents it cannot name once", () => {
-    open([], 2);
+  it("counts the reach as the server does, and names only the agents the reader sees", () => {
+    open(["Support"], 3);
     expect(
-      screen.getByText("It reaches 2 agents you can't see on their next run."),
+      screen.getByText("It reaches 3 agents on their next run, among them Support."),
     ).toBeInTheDocument();
   });
 
+  it("counts a reach of agents it cannot name", () => {
+    open([], 2);
+    expect(screen.getByText("It reaches 2 agents on their next run.")).toBeInTheDocument();
+  });
+
   it("offers no check to a reader who may not read runs", () => {
-    open(["Support"], 0, false);
-    expect(screen.getByText("It reaches 1 agent on its next run: Support.")).toBeInTheDocument();
+    open(["Support"], 1, false);
+    expect(
+      screen.getByText("It reaches 1 agent on its next run, among them Support."),
+    ).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Check on agents first" })).toBeNull();
   });
 
   it("goes back on Escape", async () => {
-    const { onCancel } = open(["Support"], 0);
+    const { onCancel } = open(["Support"], 1);
     await userEvent.keyboard("{Escape}");
     expect(onCancel).toHaveBeenCalled();
   });

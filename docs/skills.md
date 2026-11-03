@@ -554,12 +554,13 @@ skill in the last 30 days and how many of its files it read. Runs of evals and o
 the Builder's test panel are not counted.
 
 **Change version** moves one agent to main, to a pinned main version, or to a fork,
-as [Which version an agent reads](#which-version-an-agent-reads) describes: what goes
-live, what waits in the draft, and what is changed in the Builder. A version other
-than the one the agent serves now, and that no check measured on it, has not been
-checked there, so you confirm that first; one a check did measure says how it did. The dialog also says when the agent would stop getting new main versions, and
-dates each main version it offers to pin, with a link to what it changed. The control
-is shown to people who may edit the agent.
+as [Which version an agent reads](#which-version-an-agent-reads) describes: what
+goes live, what waits in the draft, and what is changed in the Builder. A version
+other than the one the agent serves now, and that no check measured on it, has not
+been checked there, so you confirm that first; one a check did measure says how it
+did. The dialog also says when the agent would stop getting new main versions, and
+dates each main version it offers to pin, with a link to what it changed. The
+control is shown to people who may edit the agent.
 
 **History** lists the chosen line's versions, newest first: where each came from
 (an edit, a file change, the library, an agent's workspace, Improve or a restore),
