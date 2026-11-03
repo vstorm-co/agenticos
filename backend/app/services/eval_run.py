@@ -192,6 +192,11 @@ def _bodies_json(
                 if isinstance(body, SkillBody) and body.resources is not None
                 else {}
             ),
+            **(
+                {"fork_id": str(body.fork_id)}
+                if isinstance(body, SkillBody) and body.fork_id is not None
+                else {}
+            ),
         }
         for key, body in bodies.items()
     }
@@ -207,6 +212,7 @@ def skill_body_from_json(body: Mapping[str, object]) -> SkillBody:
         resources=None
         if files is None
         else tuple(TypeAdapter(list[SkillBodyFile]).validate_python(files)),
+        fork_id=TypeAdapter(UUID | None).validate_python(body.get("fork_id")),
     )
 
 

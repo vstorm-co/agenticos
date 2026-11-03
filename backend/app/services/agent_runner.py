@@ -214,6 +214,7 @@ from app.agents.spec import (
     ObservabilitySpec,
     PersonalMcpServerRef,
     PlatformMcpServerRef,
+    SkillBindingSpec,
     SpecialistSpec,
     SubagentRef,
     TraceContent,
@@ -5128,11 +5129,18 @@ class AgentRunnerService:
         """
         bound = await self._bound_collections(spec, ctx)
         # An inline specialist is part of the agent being run, so a candidate skill
-        # body measured on that agent is what its specialists read too. A published
-        # delegate is another agent, served its own stored skills.
+        # body measured on that agent is what its specialists read too - where they
+        # follow the line it was written for. A published delegate is another agent,
+        # served its own stored skills.
         parent_bodies = parent_resources.get(SKILL_BODIES_RESOURCE)
         projected: dict[UUID, SkillBody] = (
-            dict(parent_bodies) if agent_id is None and isinstance(parent_bodies, dict) else {}
+            {
+                skill_id: body
+                for skill_id, body in parent_bodies.items()
+                if _reads_line(spec.skill_bindings, skill_id, body.fork_id)
+            }
+            if agent_id is None and isinstance(parent_bodies, dict)
+            else {}
         )
         skills = await self.skills.resolve_for_agent(
             ctx, spec.skill_ids, bindings=spec.skill_bindings, projected=projected or None
@@ -7770,3 +7778,12 @@ class AgentRunnerService:
             until=until,
             month_since=month_start(),
         )
+
+
+def _reads_line(bindings: Sequence[SkillBindingSpec], skill_id: UUID, fork_id: UUID | None) -> bool:
+    """Whether a reader with these bindings follows the line of `skill_id` named by
+    `fork_id` - main's newest when `None`. A reader pinned to a main version follows none."""
+    binding = next((item for item in bindings if item.skill_id == skill_id), None)
+    if binding is None:
+        return fork_id is None
+    return binding.version is None and binding.fork_id == fork_id

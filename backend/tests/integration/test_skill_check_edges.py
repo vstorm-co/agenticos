@@ -8,6 +8,7 @@ from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from types import SimpleNamespace
 from typing import Any
+from unittest.mock import AsyncMock
 
 import pytest
 from sqlalchemy import delete, func, select
@@ -979,6 +980,36 @@ class TestWhatTheCheckMeasuredIsWhatShips:
         assert read.status is CheckStatus.CANCELLED
         assert await _live_runs(db, running.id) == []
 
+    async def test_an_agent_whose_own_dataset_is_deleted_is_not_judged_on_the_skill_set_alone(
+        self, db, monkeypatch
+    ):
+        lab = await _lab(db)
+        evals = FakeEvals()
+        evals.install(monkeypatch)
+        [own] = [
+            item
+            for item in await dataset_repo.for_agent(
+                db, lab.a.id, organization_id=lab.ctx.organization_id
+            )
+            if item.skill_id is None
+        ]
+        own.latest_version = 1
+        service = SkillCheckService(db)
+        check = await service.start(lab.ctx, lab.skill.id, _start(mode="thorough"))
+        evals.outcomes = {lab.a.id: Outcome(fixed=1)}
+        evals.finish_all()
+        await service.advance(check.id, lab.ctx.organization_id)
+        skill_id, own_id, a_id = lab.skill.id, own.id, lab.a.id
+        await db.execute(delete(Dataset).where(Dataset.id == own_id))
+        db.expire_all()
+
+        evals.finish_all()
+        await service.advance(check.id, lab.ctx.organization_id)
+
+        read = await service.read(lab.ctx, skill_id, check.id)
+        a = next(row for row in read.agents if row.agent.id == a_id)
+        assert (a.state, a.unknown_reason) == (AgentState.UNKNOWN, "failed")
+
     async def test_a_check_whose_dataset_is_deleted_mid_stage_still_settles(self, db, monkeypatch):
         """Its eval runs go with the dataset; the agents running on it are unknown, and the
         check is decided on rather than waiting for runs that no longer exist."""
@@ -1055,6 +1086,7 @@ class TestWhatTheCheckMeasuredIsWhatShips:
         check = await service.start(keyed, lab.skill.id, _start(mode="thorough"))
         first = len(evals.started)
         await keys.revoke(lab.ctx, created.id)
+        monkeypatch.setattr(NotificationService, "eval_run_finished", AsyncMock())
 
         evals.finish_all()
         await service.advance(check.id, lab.ctx.organization_id)
@@ -1062,6 +1094,7 @@ class TestWhatTheCheckMeasuredIsWhatShips:
         assert len(evals.started) == first
         read = await service.read(lab.ctx, lab.skill.id, check.id)
         assert {row.unknown_reason for row in read.agents} == {"failed"}
+        assert await _live_runs(db, check.id) == []
 
     async def test_a_change_that_hurt_nobody_is_not_forked(self, db, monkeypatch):
         lab = await _lab(db)

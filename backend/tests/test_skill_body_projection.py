@@ -45,7 +45,7 @@ def test_a_candidate_without_files_keeps_the_stored_ones() -> None:
 
 
 def test_a_stored_candidate_reads_back_with_its_files() -> None:
-    body = SkillBody("New.", "New body.", resources=(FILE,))
+    body = SkillBody("New.", "New body.", resources=(FILE,), fork_id=uuid.uuid4())
 
     stored = _bodies_json({SKILL_ID: body})[str(SKILL_ID)]
 

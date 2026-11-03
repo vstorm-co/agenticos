@@ -28,7 +28,7 @@ from app.agents.capabilities.skills import (
     served_skills,
     tool_identities,
 )
-from app.agents.spec import AgentSpec, CapabilityBindingSpec
+from app.agents.spec import AgentSpec, CapabilityBindingSpec, SkillBindingSpec
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.skill import Skill, SkillResource
 from app.services.agent_runner import AgentRunnerService, PreparedRun
@@ -39,6 +39,7 @@ RUNNER = "app.services.agent_runner"
 AGENT = uuid.uuid4()
 REFUNDS = uuid.uuid4()
 SHIPPING = uuid.uuid4()
+_FORK = uuid.uuid4()
 
 
 def _log(**served: ServedSkill) -> SkillUseLog:
@@ -361,7 +362,12 @@ class TestTheRunnerWritesTheLog:
 
 
 class TestADelegateUsesSkillsUnderItsOwnName:
-    async def _resources(self, parent: dict[str, Any], agent_id: uuid.UUID | None) -> Any:
+    async def _resources(
+        self,
+        parent: dict[str, Any],
+        agent_id: uuid.UUID | None,
+        bindings: list[SkillBindingSpec] | None = None,
+    ) -> Any:
         ctx = AuthContext(
             user_id=uuid.uuid4(), organization_id=uuid.uuid4(), role=OrgRoleName.OWNER
         )
@@ -373,7 +379,7 @@ class TestADelegateUsesSkillsUnderItsOwnName:
         self.resolve = service.skills.resolve_for_agent
         return await service._delegate_resources(
             ctx,
-            AgentSpec(name="Delegate", skill_ids=[SHIPPING]),
+            AgentSpec(name="Delegate", skill_ids=[SHIPPING], skill_bindings=bindings or []),
             agent_id=agent_id,
             shared=[],
             parent_resources=parent,
@@ -390,6 +396,29 @@ class TestADelegateUsesSkillsUnderItsOwnName:
 
         assert resources[SKILL_BODIES_RESOURCE] == {SHIPPING: body}
         assert self.resolve.await_args.kwargs["projected"] == {SHIPPING: body}
+
+    @pytest.mark.parametrize(
+        ("binding", "line", "reads"),
+        [
+            ({"version": 2}, None, False),
+            ({"fork_id": _FORK}, None, False),
+            ({"fork_id": _FORK}, _FORK, True),
+            (None, _FORK, False),
+        ],
+    )
+    async def test_a_specialist_reads_a_candidate_only_on_the_line_it_was_written_for(
+        self, binding: dict[str, Any] | None, line: uuid.UUID | None, reads: bool
+    ) -> None:
+        """A check measures a change to one line; a specialist pinned to a version or on
+        another line would never be served it, so it answers with what it reads now."""
+        body = SkillBody("Ships.", "New shipping rules.", name="shipping", fork_id=line)
+        bindings = None if binding is None else [SkillBindingSpec(skill_id=SHIPPING, **binding)]
+
+        resources = await self._resources(
+            {SKILL_BODIES_RESOURCE: {SHIPPING: body}}, agent_id=None, bindings=bindings
+        )
+
+        assert (SHIPPING in resources[SKILL_BODIES_RESOURCE]) is reads
 
     async def test_a_published_delegate_reads_its_own_stored_skills(self) -> None:
         body = SkillBody("Ships.", "New shipping rules.", name="shipping")

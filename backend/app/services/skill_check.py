@@ -134,9 +134,12 @@ class Candidate:
     replaces: bool = False
     """`resources` is the whole set of files, so the line's others are dropped."""
 
-    def body(self) -> SkillBody:
+    def body(self, fork_id: UUID | None = None) -> SkillBody:
         return SkillBody(
-            description=self.description, content=self.content, resources=self.resources
+            description=self.description,
+            content=self.content,
+            resources=self.resources,
+            fork_id=fork_id,
         )
 
     def digest(self) -> str:
@@ -342,7 +345,10 @@ class SkillCheckService:
         )
         body = {
             skill.id: SkillBody(
-                description=candidate.description, content=candidate.content, resources=served
+                description=candidate.description,
+                content=candidate.content,
+                resources=served,
+                fork_id=None if fork is None else fork.id,
             )
         }
         planned: list[Planned] = []
@@ -652,7 +658,7 @@ class SkillCheckService:
                 row.agent_id,
                 _request(stage, row.agent_version),
                 purpose=EvalRunPurpose.GATE,
-                candidate_skills={check.skill_id: _candidate_of(check).body()},
+                candidate_skills={check.skill_id: _candidate_of(check).body(check.fork_id)},
                 exclude_conversations=check.excluded_conversation_ids,
                 proposal_check=ProposalCheckRecord(
                     kind="skill",
@@ -711,9 +717,11 @@ class SkillCheckService:
         rows = await skill_check_repo.list_agents(
             self.db, [check.id], organization_id=organization_id
         )
-        for row in rows:
-            if row.state != AgentState.RUNNING.value:
-                continue
+        running = [row for row in rows if row.state == AgentState.RUNNING.value]
+        if ctx is None:
+            # Nobody may carry the check on, so its runs stop spending too.
+            await self._end_runs(check, running, now=datetime.now(UTC))
+        for row in running:
             if ctx is None:
                 await self._unknown(row, UnknownReason.FAILED)
                 continue
@@ -723,6 +731,11 @@ class SkillCheckService:
     async def _advance_agent(
         self, ctx: AuthContext, check: SkillCheck, row: SkillCheckAgent
     ) -> None:
+        if row.dataset_version is not None and row.dataset_id is None:
+            # The agent's own dataset was deleted: a verdict from the skill's questions
+            # alone would pass for the check that was planned.
+            await self._unknown(row, UnknownReason.FAILED)
+            return
         current = row.dataset_run_id or row.skill_set_run_id
         run = (
             None
@@ -1412,9 +1425,9 @@ class SkillCheckService:
         if still:
             raise BadRequestError(
                 message=(
-                    "Some agents that got worse would still serve the change in an environment "
-                    "that waits for promotion. Promote their pinned version there first, or "
-                    "pick another way."
+                    "Some agents that got worse serve the skill in an environment that waits "
+                    "for promotion, which pinning does not reach. Move those environments off "
+                    "main first, or pick another way."
                 ),
                 details={"agents": still},
             )
