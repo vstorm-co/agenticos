@@ -3,12 +3,13 @@
 import { useState } from "react";
 import Link from "next/link";
 import { ArrowLeftRight } from "lucide-react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 
 import { AgentAvatar } from "@/components/agents/agent-avatar";
 import { Badge, Button, DataTable, ListCard, type Column } from "@/components/ui";
 import { getErrorMessage } from "@/lib/api-error";
 import { ROUTES } from "@/lib/constants";
+import { cn, formatDate } from "@/lib/utils";
 import type { SkillAgentList, SkillAgentUsage, SkillFork } from "@/types/skill-versions";
 import { ChangeVersionDialog } from "./change-version-dialog";
 import { LineChips } from "./line-chips";
@@ -19,6 +20,7 @@ export function SkillAgents({
   skillId,
   skillName,
   mainLatest,
+  seesChecks,
   agents,
   error,
   forks,
@@ -29,6 +31,8 @@ export function SkillAgents({
   skillName: string;
   /** Main's newest version number: every main version up to it can be pinned. */
   mainLatest: number;
+  /** What checks found is read only with `runs:view`; without it the server sends none. */
+  seesChecks: boolean;
   agents: SkillAgentList | undefined;
   error: unknown;
   forks: SkillFork[];
@@ -79,7 +83,7 @@ export function SkillAgents({
     {
       key: "version",
       header: t("agentsTable.version"),
-      cell: (usage) => <BindingCell usage={usage} />,
+      cell: (usage) => <BindingCell usage={usage} seesChecks={seesChecks} />,
     },
     {
       key: "change",
@@ -132,6 +136,7 @@ export function SkillAgents({
           usage={changing}
           forks={forks}
           mainLatest={mainLatest}
+          seesChecks={seesChecks}
           onClose={() => setChanging(null)}
         />
       )}
@@ -139,15 +144,36 @@ export function SkillAgents({
   );
 }
 
-/** The served version, then where an environment or the draft says otherwise. */
-function BindingCell({ usage }: { usage: SkillAgentUsage }) {
+/**
+ * The served version and whether a check measured it on this agent, then where an
+ * environment or the draft says otherwise. A version never checked on it is
+ * unknown, said so rather than left to look as safe as a checked one.
+ */
+function BindingCell({ usage, seesChecks }: { usage: SkillAgentUsage; seesChecks: boolean }) {
   const t = useTranslations("skills.page");
+  const tCheck = useTranslations("skillImprovement.agents");
+  const locale = useLocale();
   return (
     <div className="space-y-0.5 text-sm">
       <p className="flex flex-wrap items-center gap-1.5">
         <span>{bindingLabel(t, usage.binding)}</span>
         {usage.draft_only && <Badge variant="outline">{t("agentsTable.draftOnly")}</Badge>}
       </p>
+      {seesChecks && !usage.draft_only && (
+        <p
+          className={cn(
+            "text-xs",
+            usage.checked?.state === "worse" ? "text-warning" : "text-muted-foreground",
+          )}
+        >
+          {usage.checked
+            ? t("agentsTable.checked", {
+                state: tCheck(`state.${usage.checked.state}`),
+                when: formatDate(usage.checked.at, locale),
+              })
+            : t("agentsTable.notChecked")}
+        </p>
+      )}
       {usage.environments.map((environment) => (
         <p key={environment.id} className="text-muted-foreground text-xs">
           {t("agentsTable.environment", {

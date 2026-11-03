@@ -48,7 +48,12 @@ beforeEach(() => {
 
 function open(onOpenChange = vi.fn()) {
   render(
-    <SkillCheckDialog skillId="s-1" proposalId="p-1" forkId={null} onOpenChange={onOpenChange} />,
+    <SkillCheckDialog
+      skillId="s-1"
+      change={{ proposalId: "p-1" }}
+      forkId={null}
+      onOpenChange={onOpenChange}
+    />,
   );
   return onOpenChange;
 }
@@ -146,5 +151,93 @@ describe("SkillCheckDialog", () => {
 
     expect(onOpenChange).toHaveBeenCalledWith(false);
     expect(onOpenChange).toHaveBeenCalledTimes(1);
+  });
+
+  it("points a check an improvement session started to that session", () => {
+    held.check = finishedCheck({ session_id: "sess-1" });
+    open();
+
+    expect(screen.getByText(/decided there/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Open the session" })).toHaveAttribute(
+      "href",
+      "/skills/s-1/improve/sess-1",
+    );
+    expect(screen.queryByRole("button", { name: "Apply" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Discard" })).toBeNull();
+  });
+
+  it("points to the session the server names when deciding here is refused", async () => {
+    held.check = finishedCheck();
+    held.apply.mutate.mockImplementation((_body, options) =>
+      options.onError(
+        new ApiError(409, "Decide in the session", {
+          error: {
+            code: "DECIDE_IN_SESSION",
+            message: "Decide in the session",
+            details: { session_id: "sess-2" },
+          },
+        }),
+      ),
+    );
+    open();
+
+    await userEvent.click(screen.getByRole("button", { name: "Apply" }));
+
+    expect(screen.getByRole("link", { name: "Open the session" })).toHaveAttribute(
+      "href",
+      "/skills/s-1/improve/sess-2",
+    );
+    expect(screen.queryByRole("button", { name: "Apply" })).toBeNull();
+  });
+
+  it("checks a text the editor has not saved, and says when it went live", async () => {
+    held.check = finishedCheck();
+    held.apply.mutate.mockImplementation((_body, options) => options.onSuccess());
+    const onApplied = vi.fn();
+    const onOpenChange = vi.fn();
+    render(
+      <SkillCheckDialog
+        skillId="s-1"
+        change={{
+          candidate: { description: "Returns.", content: "Refund within 14 days." },
+          baseVersionId: "m12",
+        }}
+        forkId="f-1"
+        onOpenChange={onOpenChange}
+        onApplied={onApplied}
+      />,
+    );
+
+    expect(held.estimate.mutate).toHaveBeenCalledWith({
+      fork_id: "f-1",
+      candidate: { description: "Returns.", content: "Refund within 14 days." },
+      base_version_id: "m12",
+    });
+    await userEvent.click(screen.getByRole("button", { name: "Apply" }));
+    expect(onApplied).toHaveBeenCalled();
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it("hands a line that moved past the text back to the editor", async () => {
+    const moved = new ApiError(409, "Moved", {
+      error: { code: "CONCURRENT_CHANGE", message: "Moved", details: { version: 13 } },
+    });
+    held.estimate = mutation({ data: finishedCheck(), error: moved, isError: true });
+    held.start.mutate.mockImplementation((_body, options) => options.onError(moved));
+    const onLineMoved = vi.fn();
+    render(
+      <SkillCheckDialog
+        skillId="s-1"
+        change={{ candidate: { description: "Returns.", content: "Body" }, baseVersionId: "m12" }}
+        forkId={null}
+        onOpenChange={vi.fn()}
+        onLineMoved={onLineMoved}
+      />,
+    );
+
+    expect(onLineMoved).toHaveBeenCalledTimes(1);
+    held.estimate = mutation({ data: finishedCheck() });
+    await userEvent.click(screen.getByRole("button", { name: "Start the check" }));
+    expect(onLineMoved).toHaveBeenCalledTimes(2);
   });
 });

@@ -5,6 +5,7 @@ import { ApiError } from "@/lib/api-error";
 import { SESSION } from "@/test-utils/improvement";
 import type { ContinuationEstimate, Improvement } from "@/types/improvement";
 import { NextStep } from "./next-step";
+import { ContinueSession } from "./continue-session";
 import { ReadOnlyProvider } from "./read-only";
 
 const state = vi.hoisted(() => ({ estimate: vi.fn(), start: vi.fn(), pending: false }));
@@ -14,6 +15,8 @@ vi.mock("@/hooks/use-improvements", () => ({
     continueSession: { mutateAsync: state.start, isPending: state.pending },
   }),
 }));
+
+vi.mock("./continue-session", () => ({ ContinueSession: vi.fn(() => <p>try again</p>) }));
 
 const QUOTE: ContinuationEstimate = {
   mode: "next_step",
@@ -222,4 +225,59 @@ it("prices a check as the most it may cost, and says what it most likely costs",
   render(<NextStep session={AT_CHANGES} onStarted={vi.fn()} />);
   await screen.findByRole("button", { name: /up to \$0\.04/ });
   expect(screen.queryByText(/Most likely/)).not.toBeInTheDocument();
+});
+
+it("says what the priced step will do under its price", async () => {
+  render(
+    <NextStep
+      session={AT_UNDERSTAND}
+      detail={(quote) => <p>runs on Support for {quote.total_usd}</p>}
+      onStarted={vi.fn()}
+    />,
+  );
+
+  expect(await screen.findByText(/runs on Support for/)).toBeInTheDocument();
+});
+
+it("re-prices on a skill line that got a newer version, and says so", async () => {
+  state.start.mockRejectedValueOnce(
+    new ApiError(409, "The line moved", {
+      error: { code: "LINE_MOVED", message: "The line moved" },
+    }),
+  );
+  render(<NextStep session={AT_CHANGES} onStarted={vi.fn()} />);
+  const first = await screen.findByRole("button", {
+    name: /test the selected changes · up to \$0.04/,
+  });
+  state.estimate.mockResolvedValue({ ...QUOTE, total_usd: "0.07" });
+  await userEvent.click(first);
+
+  expect(await screen.findByRole("alert")).toHaveTextContent(
+    "got a newer version meanwhile, so the step was priced again on it: up to $0.07",
+  );
+  expect(screen.queryByText("try again")).not.toBeInTheDocument();
+});
+
+it("leaves trying again when the edits no longer apply to the moved line", async () => {
+  vi.mocked(ContinueSession).mockClear();
+  state.start.mockRejectedValueOnce(
+    new ApiError(409, "The line moved", {
+      error: { code: "LINE_MOVED", message: "The line moved" },
+    }),
+  );
+  render(<NextStep session={AT_CHANGES} onStarted={vi.fn()} />);
+  await screen.findByRole("button", { name: /test the selected changes · up to \$0.04/ });
+  state.estimate.mockRejectedValueOnce(
+    new ApiError(400, "The edits no longer apply", {
+      error: { code: "BAD_REQUEST", message: "The edits no longer apply" },
+    }),
+  );
+  await userEvent.click(screen.getByRole("button", { name: /test the selected changes/ }));
+
+  expect(await screen.findByRole("alert")).toHaveTextContent("The edits no longer apply");
+  expect(screen.getByText("try again")).toBeInTheDocument();
+  state.start.mockRejectedValueOnce(new ApiError(409, "The price changed"));
+  await userEvent.click(screen.getByRole("button", { name: /test the selected changes/ }));
+  expect(await screen.findByText(/The price changed to up to/)).toBeInTheDocument();
+  expect(screen.queryByText("try again")).not.toBeInTheDocument();
 });

@@ -29,7 +29,7 @@ import { useSkillVersions, useSkillVersionWrites } from "@/hooks/use-skill-versi
 import { getErrorMessage } from "@/lib/api-error";
 import { ROUTES } from "@/lib/constants";
 import { DIALOG_FORM } from "@/lib/dialog-sizes";
-import { formatDate, formatDateTime } from "@/lib/utils";
+import { cn, formatDate, formatDateTime } from "@/lib/utils";
 import type { BindingTarget } from "@/lib/skill-versions-api";
 import type { SkillAgentUsage, SkillFork } from "@/types/skill-versions";
 import { bindingLabel } from "./skill-lines";
@@ -44,17 +44,24 @@ function reads(
   usage: SkillAgentUsage,
   fork: SkillFork | undefined,
   mainLatest: number,
-): { number: number; fork: string | null; served: boolean } {
+  mainId: (number: number) => string | undefined,
+): { number: number; fork: string | null; served: boolean; id: string | undefined } {
   const served = usage.binding.version;
   const onMain = (number: number) => ({
     number,
     fork: null,
     served: served.fork_id === null && served.number === number,
+    id: mainId(number),
   });
   if (target.state === "main") return onMain(mainLatest);
   if (target.state === "pinned") return onMain(target.version);
   if (!fork?.latest) return onMain(fork?.base.number ?? mainLatest);
-  return { number: fork.latest.number, fork: fork.name, served: served.id === fork.latest.id };
+  return {
+    number: fork.latest.number,
+    fork: fork.name,
+    served: served.id === fork.latest.id,
+    id: fork.latest.id,
+  };
 }
 
 /** Whether two bindings name the same thing to follow. */
@@ -79,6 +86,7 @@ export function ChangeVersionDialog({
   usage,
   forks,
   mainLatest,
+  seesChecks,
   onClose,
 }: {
   skillId: string;
@@ -87,11 +95,14 @@ export function ChangeVersionDialog({
   forks: SkillFork[];
   /** Main's newest version number. */
   mainLatest: number;
+  /** Whether the reader is told what checks found, which needs `runs:view`. */
+  seesChecks: boolean;
   onClose: () => void;
 }) {
   const t = useTranslations("skills.page.changeVersion");
   const tPage = useTranslations("skills.page");
   const tHistory = useTranslations("skills.page.history");
+  const tCheck = useTranslations("skillImprovement.agents");
   const tErrors = useTranslations("errors");
   const locale = useLocale();
   const router = useRouter();
@@ -122,12 +133,14 @@ export function ChangeVersionDialog({
   const [diffing, setDiffing] = useState(false);
   const targetFork =
     target.state === "fork" ? forks.find((fork) => fork.id === target.fork_id) : undefined;
-  const read = reads(target, usage, targetFork, mainLatest);
+  const read = reads(target, usage, targetFork, mainLatest, (number) => known.get(number)?.id);
+  // A check that measured this very version on the agent answers what the warning asks.
+  const checked = usage.checked_versions?.find((ref) => ref.version_id === read.id);
   const label =
     read.fork === null
       ? t("versionOption", { number: read.number })
       : t("forkVersion", { name: read.fork, number: read.number });
-  const needsAck = !unchanged && !read.served;
+  const needsAck = !unchanged && !read.served && !checked;
   const leavesMain = !unchanged && current.state === "main" && target.state !== "main";
   const picked = target.state === "pinned" ? known.get(target.version) : undefined;
 
@@ -274,11 +287,25 @@ export function ChangeVersionDialog({
                 : t("leavesMain", { name })}
             </p>
           )}
+          {!unchanged && !read.served && checked && (
+            <p className={cn("text-sm", checked.state === "worse" && "text-warning")}>
+              {t("checkedOn", {
+                version: label,
+                name,
+                state: tCheck(`state.${checked.state}`),
+                when: formatDate(checked.at, locale),
+              })}
+            </p>
+          )}
           {needsAck && (
             <Alert variant="warning">
               <AlertTriangle className="h-4 w-4" />
               <AlertDescription className="space-y-2">
-                <p>{t("unchecked", { version: label, name })}</p>
+                <p>
+                  {seesChecks
+                    ? t("unchecked", { version: label, name })
+                    : t("checksUnseen", { version: label, name })}
+                </p>
                 <div className="flex items-center gap-2">
                   <Checkbox
                     id="skill-binding-understood"

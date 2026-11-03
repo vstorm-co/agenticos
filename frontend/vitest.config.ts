@@ -59,6 +59,7 @@ export default defineConfig({
         "src/components/agents/**/*.{ts,tsx}",
         "src/components/authoring/**/*.tsx",
         "src/components/improvement/**/*.tsx",
+        "src/components/skill-improvement/**/*.tsx",
         // The workflow editor's client-side validation mirror (#1787): pure TS
         // over the in-memory graph, held to the gate the way the agents
         // components above are.

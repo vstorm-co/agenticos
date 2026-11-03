@@ -43,6 +43,7 @@ function mount(
   error: unknown = null,
   shown: ShownAgents = "all",
   forks: SkillFork[] = [],
+  seesChecks = true,
 ) {
   const onShow = vi.fn();
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -50,6 +51,7 @@ function mount(
     <SkillAgents
       skillId="s1"
       mainLatest={12}
+      seesChecks={seesChecks}
       skillName="returns-policy"
       agents={agents}
       error={error}
@@ -148,5 +150,32 @@ describe("SkillAgents", () => {
     mount(undefined, new Error("offline"));
     expect(screen.queryByText("No agent uses this skill yet.")).toBeNull();
     expect(screen.getByText("offline")).toBeInTheDocument();
+  });
+
+  it("says which agents a check measured on the version they serve, and which are unknown", () => {
+    mount(
+      LIST([
+        onMain("Support"),
+        onMain("Refunds", {
+          checked: {
+            check_id: "c1",
+            version_id: "m12",
+            state: "worse",
+            sample: null,
+            at: "2026-11-02T10:00:00Z",
+          },
+        }),
+      ]),
+    );
+
+    expect(screen.getByText("Unknown: no check measured this version on it")).toBeInTheDocument();
+    expect(screen.getByText(/Checked on this version .*: Worse/)).toBeInTheDocument();
+  });
+
+  it("says nothing about checks to a reader who may not see them", () => {
+    mount(LIST([onMain("Support")]), null, "all", [], false);
+    expect(
+      screen.queryByText(/never checked|no check measured|Checked on this version/),
+    ).toBeNull();
   });
 });

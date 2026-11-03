@@ -2517,12 +2517,15 @@ class EvalRunService:
         arm_id: UUID | None = None,
         baseline_run_id: UUID | None = None,
         measurement_only: bool = True,
+        holdout_minimum: bool = True,
     ) -> EvalComparisonRead:
         """One candidate arm against its baseline.
 
         `arm_id` picks the candidate arm (the first when omitted).
         `baseline_run_id` compares with that run's first candidate arm instead
         of the default; it must be a run of the same agent and dataset.
+        `holdout_minimum` False leaves a measured run's held-out minimum to the
+        caller, which pools several runs' held-out questions into one result.
         """
         run = await self._readable(ctx, run_id)
         return await self._comparison(
@@ -2531,6 +2534,7 @@ class EvalRunService:
             arm_id=arm_id,
             baseline_run_id=baseline_run_id,
             measurement_only=measurement_only,
+            holdout_minimum=holdout_minimum,
         )
 
     @staticmethod
@@ -2601,6 +2605,7 @@ class EvalRunService:
         arm_id: UUID | None = None,
         baseline_run_id: UUID | None = None,
         measurement_only: bool = True,
+        holdout_minimum: bool = True,
     ) -> EvalComparisonRead:
         arms = await eval_run_repo.list_arms(self.db, [run.id], organization_id=ctx.organization_id)
         candidates = [a for a in arms if a.role == ArmRole.CANDIDATE.value]
@@ -2640,6 +2645,7 @@ class EvalRunService:
                 fixed_unconfirmed=0,
                 compared=0,
                 not_compared=len(mine),
+                gradable_holdout=None if measured is None else measured.gradable_holdout,
                 candidate_summary=_summary_read(
                     summarize([c.attempt for c in candidate_attempts], with_tags=False)
                 ),
@@ -2702,7 +2708,11 @@ class EvalRunService:
                         "Search did not return the draft for every confirmed improvement"
                     )
                     invalid_reason_code = "knowledge_not_retrieved"
-        if measured is not None and measured.gradable_holdout < measured.minimum_holdout:
+        if (
+            holdout_minimum
+            and measured is not None
+            and measured.gradable_holdout < measured.minimum_holdout
+        ):
             missing = measured.minimum_holdout - measured.gradable_holdout
             invalid_reason = f"Add {missing} more held-out test questions to measure a change"
             invalid_reason_code = None
@@ -2761,6 +2771,7 @@ class EvalRunService:
             fixed_unconfirmed=count(Flip.FIXED, False),
             compared=len(common),
             not_compared=len(set(mine) ^ set(theirs)),
+            gradable_holdout=None if measured is None else measured.gradable_holdout,
             changed=len(changed),
             baseline_rerun=confirmed_here or drift,
             candidate_summary=_summary_read(mine_summary),

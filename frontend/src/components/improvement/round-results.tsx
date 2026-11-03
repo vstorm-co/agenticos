@@ -9,6 +9,7 @@ import { ChangedAnswers } from "./changed-answers";
 import { BeforeAfter, Details, StateBadge } from "./widgets";
 import { useEvalComparison, useEvalRun } from "@/hooks/use-eval-runs";
 import { useImprovement } from "@/hooks/use-improvements";
+import { subjectOf } from "@/lib/improvement-subject";
 import { getErrorMessage } from "@/lib/api-error";
 import type { EvalComparison } from "@/types/eval-runs";
 import type {
@@ -282,7 +283,7 @@ function WhichChangeHelped({
   const t = useTranslations("improvement.eachChange");
   const tErrors = useTranslations("errors");
   const locale = useLocale();
-  const actions = useImprovement(session.agent_id, session.id);
+  const actions = useImprovement(subjectOf(session), session.id);
   const [quote, setQuote] = useState<AttributionEstimate | null>(null);
   const { mutateAsync: estimate } = actions.estimateAttribution;
   useEffect(() => {

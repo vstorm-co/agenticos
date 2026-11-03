@@ -1,5 +1,5 @@
 ---
-source_sha: "d2584012e735"
+source_sha: "8e4806fb4039"
 title: "Asistente de autoría"
 description: "El asistente de autoría lee lo que la gente valoró negativamente y cómo acabaron los runs, y sugiere cambios a las instrucciones, las herramientas, la configuración, los skills y los archivos de contexto de un agent. Una persona decide cada uno."
 ---
@@ -22,8 +22,9 @@ Hace tres cosas:
 - **Verificar** tus propios cambios: comparar el draft con la versión en la que
   se basa - la última publicada - con la misma evidencia y decir qué mejoran los
   cambios, qué arriesgan y qué quitaron.
-- **Mejorar un skill** o un **archivo de contexto**: sugerir un cuerpo nuevo a
-  partir de los runs que lo leyeron.
+- **Mejorar un archivo de contexto**: sugerir un cuerpo nuevo a partir de los
+  runs que lo leyeron. Un skill se mejora paso a paso en su propia página - ver
+  [Mejorar un skill](skills.md#improving-a-skill).
 
 El asistente es un [agent de sistema](concepts.md#system-agents) propio, que
 aparece con los demás agents de sistema de la organización. Un administrador
@@ -251,9 +252,10 @@ ejecutarla.
 
 ## Skills { #skills }
 
-Un skill se mejora desde su banco de trabajo en Skills. Lo que sugiere el
-asistente es un cuerpo nuevo completo, que espera con los demás cambios de
-[skills](skills.md) en Skills, con su justificación y evidencia.
+Un skill se mejora en su propia página en Skills. **Improve** abre allí una
+sesión para la línea en pantalla, en los mismos cinco pasos que para un agent, y
+comprueba el cambio en cada agent de esa línea antes de aplicar nada - ver
+[Mejorar un skill](skills.md#improving-a-skill).
 
 Aplicar un cambio a un skill es inmediato: cada agent que sigue la línea del skill
 lee el cuerpo nuevo en su siguiente run. Por eso un cambio a un skill solo pasa a
@@ -326,7 +328,9 @@ mejorar ese agent.
 
 Con el interruptor de **asistencia de IA** de la organización desactivado, el
 asistente no se ejecuta: el servidor rechaza Mejorar, Verificar y mejorar un
-skill o un archivo de contexto, y la consola los muestra desactivados con un enlace al interruptor. Las
+archivo de contexto, y la consola los muestra desactivados con un enlace al
+interruptor. Una sesión para mejorar un skill se detiene antes de su siguiente
+paso. Las
 sugerencias que ya esperan se pueden seguir aceptando, descartando y deshaciendo,
 y un eval run que no necesita juez sigue ejecutándose.
 

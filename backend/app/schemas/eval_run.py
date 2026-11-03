@@ -597,6 +597,13 @@ class EvalComparisonRead(BaseSchema):
     fixed_unconfirmed: int
     compared: int
     not_compared: int
+    gradable_holdout: int | None = Field(
+        default=None,
+        description=(
+            "How many held-out questions a measured run could grade, the count its minimum "
+            "is read against; null for a run that keeps no questions aside"
+        ),
+    )
     changed: int = Field(
         default=0,
         description=(

@@ -9,6 +9,7 @@ import { usd } from "@/components/evals/format";
 import { useDatasetCases } from "@/hooks/use-datasets";
 import { useEvalComparison, useEvalRun } from "@/hooks/use-eval-runs";
 import { useImprovement } from "@/hooks/use-improvements";
+import { subjectOf } from "@/lib/improvement-subject";
 import { useKnowledgeGap } from "@/hooks/use-knowledge-gaps";
 import { KnowledgeGapDraftStatus } from "@/components/knowledge-gaps/knowledge-gap-draft-status";
 import { getErrorMessage } from "@/lib/api-error";
@@ -42,7 +43,7 @@ export function KnowledgeDrafts({ session }: { session: Improvement }) {
   const t = useTranslations("improvement");
   const tErrors = useTranslations("errors");
   const locale = useLocale();
-  const actions = useImprovement(session.agent_id, session.id);
+  const actions = useImprovement(subjectOf(session), session.id);
   const readOnly = useReadOnly();
   const { topics, added, error: topicsError } = useSessionTopics(session);
   const [topicId, setTopicId] = useState("");
