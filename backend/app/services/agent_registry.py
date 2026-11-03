@@ -2417,6 +2417,39 @@ class AgentRegistryService:
                 details={"problems": problems.messages, "version_id": version.id},
             )
 
+    async def refuse_archived_forks(self, ctx: AuthContext, version: AgentVersion) -> None:
+        """Refuse to put a version in front of people that reads a skill fork archived since.
+
+        An archived fork takes no fixes, and archiving one is refused only while an
+        agent's draft or a served version reads it; an older version of the agent
+        may still name it. Promoting that version is refused here rather than
+        quietly reading main instead: the person promoting decides where it goes.
+
+        Raises:
+            BadRequestError: With the forks, when the version reads an archived one.
+        """
+        spec = AgentSpec.model_validate(version.spec)
+        config = _subagents_config(spec)
+        bindings = [*spec.skill_bindings]
+        bindings += [
+            b for specialist in (config.inline if config else []) for b in specialist.skill_bindings
+        ]
+        forks = await skill_version_repo.get_forks(
+            self.db,
+            {binding.fork_id for binding in bindings if binding.fork_id is not None},
+            organization_id=ctx.organization_id,
+        )
+        archived = sorted(fork.name for fork in forks.values() if fork.archived_at is not None)
+        if archived:
+            raise BadRequestError(
+                message=(
+                    f"Version {version.version} reads the archived skill fork "
+                    f"{', '.join(repr(name) for name in archived)}. Move it to another "
+                    "version and promote the version that publishes."
+                ),
+                details={"forks": archived, "version_id": version.id},
+            )
+
     async def _collection_problems(
         self, ctx: AuthContext, collection_ids: Sequence[UUID]
     ) -> list[str]:

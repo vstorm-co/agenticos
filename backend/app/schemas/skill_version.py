@@ -44,6 +44,9 @@ class SkillVersionSummary(BaseSchema):
     )
     created_by: PersonRef | None = None
     created_at: datetime
+    agents: int = Field(
+        description="How many agents read exactly this version in an environment that serves it"
+    )
 
 
 class VersionResourceSummary(BaseSchema):
@@ -116,6 +119,9 @@ class SkillForkRead(BaseSchema):
     )
     changes: int = Field(description="How many versions of its own it has")
     behind_main: int = Field(description="How many main versions came after its base")
+    agents: int = Field(
+        description="How many agents read it in an environment that serves it, hidden ones included"
+    )
     archive_candidate: bool = Field(
         description="No agent reads it and no run has served it for 30 days"
     )
