@@ -1046,9 +1046,6 @@ would be; an expected refusal returns an explicit error envelope naming the miss
 | `list_skill_improvements`, `get_skill_improvement` | `skills:view` and `runs:view` |
 | `estimate_skill_improvement`, `start_skill_improvement`, `estimate_next_skill_improvement_step`, `run_next_skill_improvement_step`, `accept_skill_improvement`, `end_skill_improvement` | edit access to the skill and `runs:view`; pinning the worse agents also `agents:publish` on each |
 | `change_skill_version` | edit access to the agent; going live also `agents:publish` |
-| `list_skills_behind_main`, `get_skill_check`, `get_skill_merge` | `skills:view`; a check also `runs:view` |
-| `start_skill_update_check`, `start_skill_catch_up`, `edit_skill_merge_part` | edit access to the skill and `runs:view`; an update check also access to the agent |
-| `return_fork_to_main` | edit access to each agent; going live also `agents:publish` |
 | `list_projects` | `projects:view` |
 | `get_project` | access to that project |
 | `create_project` | `projects:edit` |

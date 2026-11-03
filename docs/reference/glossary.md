@@ -25,7 +25,6 @@ rename.
 | Pinned | An agent that stays on one main version of a skill until somebody moves it | `state: pinned` |
 | Fork | A named line of a skill, started from a main version, with versions of its own for some agents | `skill_fork`, `state: fork` |
 | Behind main | How many main versions a pinned agent or a fork has not taken | `behind_main` |
-| Catch up | Bring a pinned agent or a fork onto main's newest version; only on request, and checked first | `/skills/behind-main` |
 | Context file | Standing knowledge an agent always has, such as a glossary or a policy | `context` |
 | Knowledge base | Documents an agent searches and cites | `collection` |
 | Knowledge gap | A topic of questions a knowledge base could not answer, grouped by meaning; Improve counts them as **Missing from the knowledge base** | `knowledge_gap_topic` |

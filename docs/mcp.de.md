@@ -1,5 +1,5 @@
 ---
-source_sha: "0303d8bb7aae"
+source_sha: "80aa638db8f2"
 ---
 
 # MCP — die Tools, die hier niemand schreiben muss { #mcp-the-tools-nobody-here-has-to-write }
@@ -1136,9 +1136,6 @@ Tool-Fehler zurück, der die fehlende Berechtigung nennt.
 | `list_skill_improvements`, `get_skill_improvement` | `skills:view` und `runs:view` |
 | `estimate_skill_improvement`, `start_skill_improvement`, `estimate_next_skill_improvement_step`, `run_next_skill_improvement_step`, `accept_skill_improvement`, `end_skill_improvement` | Bearbeitungszugriff auf den Skill und `runs:view`; das Festsetzen der schlechteren Agents zusätzlich `agents:publish` auf jedem |
 | `change_skill_version` | Bearbeitungszugriff auf den Agent; live gehen zusätzlich `agents:publish` |
-| `list_skills_behind_main`, `get_skill_check`, `get_skill_merge` | `skills:view`; eine Prüfung zusätzlich `runs:view` |
-| `start_skill_update_check`, `start_skill_catch_up`, `edit_skill_merge_part` | Bearbeitungszugriff auf den Skill und `runs:view`; eine Aktualisierungsprüfung zusätzlich Zugriff auf den Agent |
-| `return_fork_to_main` | Bearbeitungszugriff auf jeden Agent; live gehen zusätzlich `agents:publish` |
 | `list_projects`                                                                                                                                                                                               | `projects:view`                                                                                                                                              |
 | `get_project`                                                                                                                                                                                                 | Zugriff auf das Projekt                                                                                                                                      |
 | `create_project`                                                                                                                                                                                              | `projects:edit`                                                                                                                                              |

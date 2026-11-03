@@ -254,15 +254,6 @@ def test_a_skill_problem_found_improving_an_agent_goes_to_the_skill_s_line(
     assert "rather than copying the skill's text" in rule
 
 
-def test_catching_up_waits_for_the_person_and_shows_each_conflict(instructions: str) -> None:
-    rule = _bullet(instructions, "Catching up happens only on request")
-    assert "`start_skill_update_check`" in rule
-    assert "with its `check_id`" in rule
-    assert "fork / main / result" in rule
-    assert "use `return_to_main` on their yes" in rule
-    assert "`return_fork_to_main` moves its agents back" in rule
-
-
 def test_a_moved_line_is_priced_again_and_a_stale_result_checked_again(
     instructions: str,
 ) -> None:

@@ -1,5 +1,5 @@
 ---
-source_sha: "b37ba36230db"
+source_sha: "525439bc4593"
 ---
 
 # Glosario { #glossary }
@@ -30,7 +30,6 @@ tal como se ven en pantalla.
 | Fijado | Un agent que se queda en una versión de main de un skill hasta que alguien lo mueve | `state: pinned` |
 | Fork | Una línea con nombre de un skill, que parte de una versión de main, con versiones propias para algunos agents | `skill_fork`, `state: fork` |
 | Detrás de main | Cuántas versiones de main no ha tomado un agent fijado o un fork | `behind_main` |
-| Ponerse al día | Llevar un agent fijado o un fork a la versión más nueva de main; solo a petición y tras comprobarlo | `/skills/behind-main` |
 | Context file | Conocimiento fijo que un agent siempre tiene, como un glosario o una política | `context` |
 | Knowledge base | Documentos que un agent busca y cita | `collection` |
 | Knowledge gap | Un tema de preguntas que una knowledge base no pudo responder, agrupadas por significado; Improve las cuenta como **Missing from the knowledge base** | `knowledge_gap_topic` |

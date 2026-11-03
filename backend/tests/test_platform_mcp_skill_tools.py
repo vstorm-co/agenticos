@@ -966,83 +966,9 @@ CHECK_READ = {
     "agents": [_checked(COUNTER, "Gift shop counter", "no_change")],
     "outcomes": ["apply", "discard"],
 }
-MERGE = f"{BASE}/merges/{VERSION}"
 
 
-class TestCatchingUp:
-    async def test_pinned_agents_and_forks_behind_main_say_how_each_catches_up(
-        self, server: FastMCP, api: MagicMock
-    ) -> None:
-        skill = {"id": str(SKILL), "name": "returns-policy"}
-        api.request = _responder(
-            {
-                ("GET", "/skills/behind-main"): {
-                    "items": [
-                        {
-                            "skill": skill,
-                            "kind": "pinned",
-                            "agent": _agent(COUNTER, "Gift shop counter"),
-                            "fork": None,
-                            "agents": 1,
-                            "version": {"id": VERSION, "number": 1},
-                            "main_latest": {"id": VERSION, "number": 3},
-                            "behind_main": 2,
-                            "can_act": True,
-                        },
-                        {
-                            "skill": skill,
-                            "kind": "fork",
-                            "agent": None,
-                            "fork": ON_FORK["fork"],
-                            "agents": 1,
-                            "version": {"id": VERSION, "number": 1},
-                            "main_latest": {"id": VERSION, "number": 3},
-                            "behind_main": 2,
-                            "can_act": False,
-                        },
-                    ],
-                    "hidden": 1,
-                    "total": 3,
-                }
-            }
-        )
-
-        behind = await _call(server, "list_skills_behind_main")
-
-        pinned, fork = behind["items"]
-        assert (pinned["agent_id"], pinned["fork_id"], pinned["catch_up"]) == (
-            COUNTER,
-            None,
-            "Update Gift shop counter to v3",
-        )
-        assert (fork["agent_id"], fork["fork_id"], fork["catch_up"]) == (
-            None,
-            FORK,
-            'Catch the fork "Wholesale" up',
-        )
-        assert fork["can_act"] is False
-        assert behind["hidden_agents"] == 1
-        assert pinned["link"] == skill_link(SKILL)
-
-    @pytest.mark.parametrize(("thorough", "mode"), [(False, "quick"), (True, "thorough")])
-    async def test_an_update_check_runs_main_on_the_one_pinned_agent(
-        self, server: FastMCP, api: MagicMock, thorough: bool, mode: str
-    ) -> None:
-        path = f"{BASE}/agents/{COUNTER}/update-check"
-        api.request = _responder({("POST", path): {**CHECK_READ, "status": "running"}})
-
-        check = await _call(
-            server,
-            "start_skill_update_check",
-            skill_id=SKILL,
-            agent_id=COUNTER,
-            thorough=thorough,
-        )
-
-        assert _sent(api, "POST", path) == {"mode": mode}
-        assert check["check_id"] == CHECK_READ["id"]
-        assert check["agents"][0]["name"] == "Gift shop counter"
-
+class TestReadingACheck:
     async def test_a_check_reads_with_its_verdict_and_what_it_allows(
         self, server: FastMCP, api: MagicMock
     ) -> None:
@@ -1051,206 +977,6 @@ class TestCatchingUp:
         check = await _call(server, "get_skill_check", skill_id=SKILL, check_id=CHECK_READ["id"])
 
         assert (check["verdict"], check["outcomes"]) == ("passed", ["apply", "discard"])
-
-    @pytest.mark.parametrize(("to_main", "route"), [(False, "catch-up"), (True, "to-main")])
-    async def test_a_fork_catches_up_or_moves_to_main_as_a_session(
-        self, server: FastMCP, api: MagicMock, to_main: bool, route: str
-    ) -> None:
-        purpose = "to_main" if to_main else "catch_up"
-        api.request = _responder(
-            {
-                ("POST", f"{BASE}/forks/{FORK}/{route}"): _session(
-                    "queued",
-                    purpose=purpose,
-                    fork_id=FORK,
-                    line_name="Wholesale",
-                    merge_id=VERSION,
-                )
-            }
-        )
-
-        session = await _call(
-            server, "start_skill_catch_up", skill_id=SKILL, fork_id=FORK, to_main=to_main
-        )
-
-        assert session["purpose"] == purpose
-        assert session["merge_id"] == VERSION
-        assert session["summary"].startswith(
-            'Moving the fork "Wholesale" to main'
-            if to_main
-            else 'Catching the fork "Wholesale" up with main'
-        )
-
-    async def test_a_caught_up_result_offers_the_merge_and_dropping_the_fork(
-        self, server: FastMCP, api: MagicMock
-    ) -> None:
-        check = {**BLOCKED, "verdict": "passed", "outcomes": ["catch_up", "return_to_main"]}
-        api.request = _responder(
-            {
-                ("GET", SESSION_PATH): _session(
-                    purpose="catch_up",
-                    fork_id=FORK,
-                    line_name="Wholesale",
-                    check=check,
-                    outcomes=check["outcomes"],
-                ),
-                ("GET", f"{SESSION_PATH}/evidence"): EVIDENCE,
-            }
-        )
-
-        session = await _call(server, "get_skill_improvement", skill_id=SKILL, session_id=SESSION)
-
-        assert session["next_actions"] == [
-            'Catch the fork "Wholesale" up with main',
-            'Drop the fork "Wholesale" and return its agents to main',
-            "End the session",
-        ]
-
-    async def test_moving_a_fork_to_main_applies_to_main(
-        self, server: FastMCP, api: MagicMock
-    ) -> None:
-        check = {**BLOCKED, "verdict": "passed", "outcomes": ["apply"]}
-        api.request = _responder(
-            {
-                ("GET", SESSION_PATH): _session(
-                    purpose="to_main",
-                    fork_id=FORK,
-                    line_name="Wholesale",
-                    check=check,
-                    outcomes=check["outcomes"],
-                ),
-                ("GET", f"{SESSION_PATH}/evidence"): EVIDENCE,
-            }
-        )
-
-        session = await _call(server, "get_skill_improvement", skill_id=SKILL, session_id=SESSION)
-
-        assert session["next_actions"][0] == "Apply to main"
-
-    @pytest.mark.parametrize(
-        ("outcome", "answer", "version"),
-        [
-            ("catch_up", {"session": _session("accepted"), "version_id": VERSION, "version": 3}, 3),
-            ("return_to_main", {"session": _session("accepted")}, None),
-        ],
-    )
-    async def test_a_catch_up_is_accepted_or_dropped_through_the_session(
-        self,
-        server: FastMCP,
-        api: MagicMock,
-        outcome: str,
-        answer: dict[str, Any],
-        version: int | None,
-    ) -> None:
-        api.request = _responder({("POST", f"{SESSION_PATH}/apply"): answer})
-
-        applied = await _call(
-            server,
-            "accept_skill_improvement",
-            skill_id=SKILL,
-            session_id=SESSION,
-            outcome=outcome,
-        )
-
-        assert _sent(api, "POST", f"{SESSION_PATH}/apply") == {
-            "confirmed": True,
-            "acknowledge_unknown": False,
-            "outcome": outcome,
-        }
-        assert (applied["version"], applied["pinned"]) == (version, [])
-
-    async def test_a_merge_shows_only_its_conflicts_and_counts_the_rest(
-        self, server: FastMCP, api: MagicMock
-    ) -> None:
-        conflict = {
-            "state": "conflict",
-            "base": "b",
-            "fork": "f",
-            "main": "m",
-            "result": "r",
-            "edited": True,
-        }
-        same = {"state": "main", "base": "b", "fork": "b", "main": "m", "result": "m"}
-        api.request = _responder(
-            {
-                ("GET", MERGE): {
-                    "parts": [same, conflict, {**same, "state": "both_same"}],
-                    "unresolved": 0,
-                }
-            }
-        )
-
-        merge = await _call(server, "get_skill_merge", skill_id=SKILL, merge_id=VERSION)
-
-        assert merge == {
-            "conflicts": [{"index": 1, "fork": "f", "main": "m", "result": "r", "edited": True}],
-            "merged_by_themselves": 2,
-            "unresolved": 0,
-        }
-
-    async def test_a_part_takes_the_person_s_text(self, server: FastMCP, api: MagicMock) -> None:
-        path = f"{MERGE}/parts/1"
-        api.request = _responder(
-            {("PATCH", path): {"fork": "f", "main": "m", "result": "mine", "edited": True}}
-        )
-
-        part = await _call(
-            server,
-            "edit_skill_merge_part",
-            skill_id=SKILL,
-            merge_id=VERSION,
-            index=1,
-            result="mine",
-        )
-
-        assert _sent(api, "PATCH", path) == {"result": "mine"}
-        assert part["edited"] is True
-
-    @pytest.mark.parametrize(
-        ("agent_ids", "sent"), [(None, {}), ([COUNTER], {"agent_ids": [COUNTER]})]
-    )
-    async def test_dropping_a_fork_returns_all_its_agents_or_those_named(
-        self,
-        server: FastMCP,
-        api: MagicMock,
-        agent_ids: list[str] | None,
-        sent: dict[str, Any],
-    ) -> None:
-        path = f"{BASE}/forks/{FORK}/return-to-main"
-        api.request = _responder({("POST", path): {"moved": ["Wholesale desk"]}})
-
-        returned = await _call(
-            server, "return_fork_to_main", skill_id=SKILL, fork_id=FORK, agent_ids=agent_ids
-        )
-
-        assert api.request.await_args_list[0].kwargs["json"] == sent
-        assert returned["link"] == skill_link(SKILL)
-
-    async def test_an_updated_pinned_agent_carries_its_check(
-        self, server: FastMCP, api: MagicMock
-    ) -> None:
-        path = f"{BASE}/agents/{COUNTER}/binding"
-        api.request = _responder(
-            {
-                ("PUT", path): {
-                    "published": True,
-                    "agent_version": 5,
-                    "environments": [],
-                    "usage": _usage(COUNTER, "Gift shop counter", MAIN),
-                }
-            }
-        )
-
-        await _call(
-            server,
-            "change_skill_version",
-            skill_id=SKILL,
-            agent_id=COUNTER,
-            state="main",
-            check_id=CHECK_READ["id"],
-        )
-
-        assert _sent(api, "PUT", path) == {"state": "main", "check_id": CHECK_READ["id"]}
 
 
 READS = {
@@ -1261,9 +987,7 @@ READS = {
     "get_skill_improvement",
     "estimate_skill_improvement",
     "estimate_next_skill_improvement_step",
-    "list_skills_behind_main",
     "get_skill_check",
-    "get_skill_merge",
 }
 WRITES = {
     "start_skill_improvement",
@@ -1271,10 +995,6 @@ WRITES = {
     "accept_skill_improvement",
     "end_skill_improvement",
     "change_skill_version",
-    "start_skill_update_check",
-    "start_skill_catch_up",
-    "edit_skill_merge_part",
-    "return_fork_to_main",
 }
 
 
