@@ -16,10 +16,11 @@ import pytest
 from httpx import ASGITransport, AsyncClient
 
 from app.api import deps
-from app.core.exceptions import ConcurrentChangeError, InUseError, NotFoundError
+from app.core.exceptions import BadRequestError, ConcurrentChangeError, InUseError, NotFoundError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.skill_version import SkillVersionSource
 from app.main import app
+from app.schemas.skill_merge import MergeTextRead, SkillMergeRead
 from app.schemas.skill_version import (
     BehindMainList,
     ReturnedToMain,
@@ -38,6 +39,8 @@ pytestmark = pytest.mark.anyio
 SKILL = uuid.uuid4()
 VERSION = uuid.uuid4()
 FORK = uuid.uuid4()
+RUN = uuid.uuid4()
+MERGE = f"/api/v1/skills/{SKILL}/improvements/{RUN}/merge"
 NOW = datetime(2026, 11, 2, tzinfo=UTC)
 
 
@@ -345,3 +348,85 @@ async def test_a_forks_agents_are_returned_to_main_by_the_ones_asked_for(client,
     assert response.json()["archived"] is True
     [_, skill_id, fork_id, data] = catch_up.return_to_main.await_args.args
     assert (skill_id, fork_id, data.agent_ids) == (SKILL, FORK, [agent_id])
+
+
+def _merge() -> SkillMergeRead:
+    text = MergeTextRead(
+        state="conflict", base="b", fork="f", main="m", result=None, proposed=None, edited=False
+    )
+    ref = VersionNumberRef(id=VERSION, number=2)
+    return SkillMergeRead(
+        id=uuid.uuid4(),
+        run_id=RUN,
+        skill_id=SKILL,
+        fork_id=FORK,
+        kind="catch_up",
+        base=ref,
+        fork=ref,
+        main=ref,
+        description=text,
+        parts=[text],
+        files=[],
+        conflicts=2,
+        unresolved=2,
+    )
+
+
+@pytest.fixture
+def merges() -> MagicMock:
+    stub = MagicMock()
+    for method in ("read_merge", "edit_description", "edit_part", "pick_file"):
+        setattr(stub, method, AsyncMock(return_value=_merge()))
+    app.dependency_overrides[deps.get_skill_catch_up_service] = lambda: stub
+    return stub
+
+
+async def test_a_sessions_merge_is_read_and_each_edit_reaches_its_call(client, ctx, merges):
+    read = await client.get(MERGE)
+    described = await client.patch(f"{MERGE}/description", json={"result": "Refunds."})
+    parted = await client.patch(f"{MERGE}/parts/3", json={"result": "both"})
+    picked = await client.patch(f"{MERGE}/files", json={"name": "a.md", "take": "fork"})
+
+    assert [response.status_code for response in (read, described, parted, picked)] == [200] * 4
+    assert read.json()["unresolved"] == 2
+    merges.read_merge.assert_awaited_once_with(ctx, SKILL, RUN)
+    [_, _, _, description] = merges.edit_description.await_args.args
+    [_, _, _, index, part] = merges.edit_part.await_args.args
+    [_, _, _, pick] = merges.pick_file.await_args.args
+    assert (description.result, index, part.result) == ("Refunds.", 3, "both")
+    assert (pick.name, pick.take) == ("a.md", "fork")
+
+
+@pytest.mark.parametrize(
+    ("path", "body"),
+    [
+        ("description", {"result": ""}),
+        ("description", {"result": "x" * 501}),
+        ("files", {"name": "a.md", "take": "base"}),
+        ("parts/first", {"result": "both"}),
+    ],
+)
+async def test_an_edit_the_merge_cannot_take_is_refused_before_the_service(
+    client, merges, path, body
+):
+    response = await client.patch(f"{MERGE}/{path}", json=body)
+
+    assert response.status_code == 422
+    merges.edit_description.assert_not_awaited()
+    merges.edit_part.assert_not_awaited()
+    merges.pick_file.assert_not_awaited()
+
+
+@pytest.mark.parametrize(
+    ("refusal", "status"),
+    [
+        (NotFoundError(message="This session merges nothing"), 404),
+        (BadRequestError(message="A merge is edited only while its session waits at Changes"), 400),
+    ],
+)
+async def test_a_merge_refusal_keeps_its_status(client, merges, refusal, status):
+    merges.edit_part = AsyncMock(side_effect=refusal)
+
+    response = await client.patch(f"{MERGE}/parts/0", json={"result": "both"})
+
+    assert response.status_code == status
