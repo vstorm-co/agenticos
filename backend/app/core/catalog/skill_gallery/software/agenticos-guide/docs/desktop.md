@@ -116,11 +116,41 @@ Creating an instance opens a dedicated step with grouped workspace, owner and
 provider fields. **Cancel** returns to the instance list. Blobby stays hidden
 during setup and returns with the console, following its saved visibility setting.
 
-On macOS, **Download Docker Desktop** downloads the official installer for Apple
-silicon or Intel, shows progress and opens the disk image. Finish installation
-in the system window, then choose **Open Docker Desktop** and **Check again**.
-The app also finds Docker's per-user CLI installation. Other operating systems
-open Docker's download page. No installation starts from a status check alone.
+Choose **Set up this computer** to prepare the local runtime. AgenticOS downloads
+Docker Desktop 4.97.0 for your processor and verifies its pinned SHA-256 checksum.
+macOS checks the installer with Gatekeeper and requests system authorization.
+Windows runs the signed installer; missing WSL features are prepared with system
+authorization. Restart Windows when requested and reopen AgenticOS to continue.
+x86-64 Ubuntu, Debian and Fedora use their system package installer. Complete
+Docker's own first-run terms.
+
+On Linux, setup adds Docker's signed package source
+when missing and requests administrator authorization for packages and KVM access.
+Restart when requested. A status check alone never installs software.
+
+Before installation, AgenticOS checks for 4 GB of free storage; the local stack
+also requires at least 3 GB of memory visible to its engine. These are startup
+checks, not workload sizing guarantees. Image downloads show progress and have a
+30-minute limit. **Retry** continues the same instance with its existing keys.
+Git, Python, uv and Node.js are not required on the host for ordinary app use.
+
+New instances pin the platform version shipped with the app. Updating the desktop
+app does not silently replace a running instance's version. **Update** downloads
+the matching platform images, pauses writers and backs up the database, media and
+deployment keys under the instance's private `backups/` directory before applying
+the update. A failed backup blocks the update. Backups contain personal data and
+must be protected. A failed migration is reported; database downgrades are not
+automatic.
+
+Opening AgenticOS restarts its saved managed local workspace automatically when
+it is stopped, including its installed desktop runtime on supported systems. External servers and
+unmanaged development stacks are not started. The app passes Docker's CLI and
+credential-helper directories to child processes, including launches from Finder;
+you do not need to edit Docker's credential configuration or shell profile.
+
+Public product images use a private anonymous registry configuration, avoiding
+credential-helper and keychain prompts. Your existing Docker configuration stays
+unchanged. Local installation refuses contexts pointing at a remote engine.
 
 Choose **New instance**, name it and enter its organization and owner. The app
 assigns free loopback ports and creates a separate Compose project with its own
@@ -443,13 +473,25 @@ and about its own public address.
 
 ## Coding agents on this computer { #coding-agents-on-this-computer }
 
-**Settings → Desktop app → Coding agents on this computer** shows installed Claude Code and Codex versions and sign-in status. **Sign in** opens the agent's own command in Terminal on macOS, PowerShell on Windows or an available terminal on Linux. Return to refresh the status. AgenticOS does not read or copy credentials. Node.js 22 or later is required for the pinned ACP adapters.
+**Settings → Desktop app → Coding agents on this computer** shows versions and
+sign-in status. **Set up** prepares private Node.js 24.19.0 and the pinned coding
+adapters from a lockfile, with download integrity checks. You do not need to
+install developer tools separately. **Sign in** starts the agent's own browser
+OAuth flow; AgenticOS does not read or copy credentials. **Refresh status** checks
+sign-in explicitly. Returning focus to the app does not repeatedly probe the
+credential store; successful sign-in and setup refresh the status automatically.
 
 In desktop **Chat controls → Tools & files → Coding agent**, choose **Claude Code** or **Codex**, even when the published capability is disabled or absent. The app prepares local file tools and opens the native folder picker unless the current folder already has a full-access grant. Cancelling leaves the previous settings unchanged. **Use agent setting** restores the published configuration.
 
-The choice belongs to this chat. Existing read-only and approval rules still apply, and each task needs native confirmation. Switching to Cloud clears the conversation's local coding choice. Chat controls opens above the composer. The model is at the top, followed by Tools & files; expand **Work on** to manage folder access and **Preferences** for approvals and notifications.
+The choice belongs to this chat. Existing read-only and approval rules still apply, and native startup approval can be remembered for this agent and folder. Switching to Cloud clears the conversation's local coding choice. Chat controls opens above the composer. The model is at the top, followed by Tools & files; expand **Work on** to manage folder access and **Preferences** for approvals and notifications.
 
-Set the **Coding agent** capability to **On this computer**, choose a folder under **Work on**, and grant it full access. Every task starts with a native confirmation, with up to five minutes to answer. The adapter runs as your operating-system account: the folder selects its working directory, not an OS sandbox. Whole-computer access cannot start a coding agent. The composer names the agent, folder and access policy.
+Set the **Coding agent** capability to **On this computer**, choose a folder
+under **Work on**, and grant it full access. Native approval is remembered for
+this agent, folder, adapter version and connection. Removing or reselecting the
+folder clears its approval and stops its running agents; account and server
+changes clear approvals too. The adapter runs as your operating-system account:
+the folder selects its working directory, not an OS sandbox. Whole-computer
+access cannot start a coding agent. Task approval and OS permissions still apply.
 
 The capability's approval applies once per task. Inside it, `edit` allows requested operations and `read_only` refuses changes. Claude read-only disables bypass permissions and exposes only reading tools. Codex read-only selects its native read-only sandbox mode. Local agents use their own model settings; subscription usage is unpriced, so the run's reported cost is a floor.
 
