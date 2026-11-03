@@ -102,6 +102,8 @@ _HTTP_TIMEOUT = 20.0
 _RATE_LIMIT_RETRIES = 2
 _RATE_LIMIT_CEILING = 10.0
 _CACHE_SIZE = 10_000
+_GUILD_PAGE = 200
+"""The most servers `GET /users/@me/guilds` answers with at once; past it, `after` pages on."""
 # A close code of our own: 1000 and 1001 end the session for good, anything else
 # leaves it resumable, which is what a reconnect we start wants.
 _RESUMABLE_CLOSE = 4000
@@ -636,11 +638,25 @@ class DiscordAdapter(ChannelAdapter):
         return frozenset(str(role) for role in found.json().get("roles") or [])
 
     async def servers(self, bot_token: str) -> list[Server]:
-        """Every server the bot is in, with the roles a mapping can name, for the bot's page."""
-        found = await self._call("GET", "/users/@me/guilds", bot_token)
-        found.raise_for_status()
+        """Every server the bot is in, with the roles a mapping can name, for the bot's page.
+
+        Paged by `after`, the last server id read: Discord answers 200 at most,
+        and a server past the first page could otherwise be neither offered nor
+        mapped, since creating a mapping checks against this same list.
+        """
+        guilds: list[dict[str, Any]] = []
+        after: str | None = None
+        while True:
+            query = f"?limit={_GUILD_PAGE}" + (f"&after={after}" if after else "")
+            found = await self._call("GET", f"/users/@me/guilds{query}", bot_token)
+            found.raise_for_status()
+            page = found.json()
+            guilds.extend(page)
+            if len(page) < _GUILD_PAGE:
+                break
+            after = str(page[-1]["id"])
         servers: list[Server] = []
-        for guild in found.json():
+        for guild in guilds:
             guild_id = str(guild["id"])
             roles = await self._call("GET", f"/guilds/{guild_id}/roles", bot_token)
             roles.raise_for_status()

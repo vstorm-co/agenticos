@@ -57,6 +57,7 @@ class _Discord:
 
     def __init__(self) -> None:
         self.calls: list[tuple[str, str, Any]] = []
+        self.queries: list[tuple[str, dict[str, str]]] = []
         self.traced: list[tuple[str, bool]] = []
         self.routes: dict[tuple[str, str], list[httpx.Response]] = {}
         self._next = 1000
@@ -73,6 +74,7 @@ class _Discord:
             else:
                 body = json.loads(request.content)
         self.calls.append((request.method, path, body))
+        self.queries.append((path, dict(request.url.params)))
         self.traced.append((path, is_instrumentation_enabled()))
         queued = self.routes.get((request.method, path))
         if queued:
@@ -1925,6 +1927,26 @@ class TestServerRoles:
             ("8", "Support"),
             ("7", "Finance"),
         ]
+
+    async def test_the_servers_list_reads_past_discords_first_page(
+        self, adapter: DiscordAdapter, api: _Discord
+    ):
+        """Discord answers 200 servers at most; the 201st has to be asked for by `after`."""
+        ids = [str(1_000 + n) for n in range(201)]
+        api.answer(
+            "GET",
+            "/users/@me/guilds",
+            httpx.Response(200, json=[{"id": guild, "name": guild} for guild in ids[:200]]),
+            httpx.Response(200, json=[{"id": ids[200], "name": ids[200]}]),
+        )
+        for guild in ids:
+            api.answer("GET", f"/guilds/{guild}/roles", httpx.Response(200, json=[]))
+
+        servers = await adapter.servers("tok")
+
+        assert [server.id for server in servers] == ids
+        pages = [params for path, params in api.queries if path == "/users/@me/guilds"]
+        assert pages == [{"limit": "200"}, {"limit": "200", "after": ids[199]}]
 
     async def test_a_server_whose_roles_cannot_be_read_fails_the_list(
         self, adapter: DiscordAdapter, api: _Discord
