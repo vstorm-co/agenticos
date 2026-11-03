@@ -71,9 +71,9 @@ PLATFORM_TOOLS: dict[str, tuple[str, ...]] = {
     # The Bot Connector answers a conversation's roster, and nothing that would
     # search a tenant's channels or read what was said before the bot was asked.
     "teams": ("get_channel_info", "list_channel_members", "send_channel_file"),
-    # WhatsApp reads and sends text only for now: no history, no members and no
-    # files until the adapter can fetch and send them (#2076).
-    "whatsapp": (),
+    # WhatsApp sends files, but a bot has no directory to read: no history, no
+    # members and no channel search (#2076).
+    "whatsapp": ("send_channel_file",),
     # Discord posts a file like any reply and lets a bot read a channel's or a
     # thread's messages. A server has no member list a bot may read without the
     # privileged Server Members intent, so no roster, details or channel search yet

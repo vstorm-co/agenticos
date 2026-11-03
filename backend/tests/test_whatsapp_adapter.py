@@ -6,21 +6,27 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from pydantic_ai_backends import StateBackend
 
 from app.services.channels import get_adapter, register_adapter, whatsapp
+from app.services.channels.attachments import channel_file_sender
 from app.services.channels.base import IncomingAttachment, OutgoingAttachment, OutgoingMessage
+from app.services.channels.directory import BoundChannelDirectory
 from app.services.channels.whatsapp import (
-    FILES_NOT_YET,
+    FILE_NOT_SENT,
+    TRANSCRIPTION_MAX_BYTES,
     WhatsAppAdapter,
     whatsapp_adapter,
 )
 from app.services.channels.whatsapp_format import MAX_TEXT_UNITS, utf16_units
 from app.services.channels.whatsapp_graph import (
     TOKEN_REFUSED,
+    MediaInfo,
     WhatsAppCredentials,
     WhatsAppGraphError,
     WhatsAppTokenRefused,
 )
+from tests.workspaces import document_workspace
 
 pytestmark = pytest.mark.anyio
 
@@ -34,8 +40,20 @@ def _graph() -> MagicMock:
     graph = MagicMock()
     graph.send_text = AsyncMock(return_value="wamid.out")
     graph.mark_read = AsyncMock()
+    graph.media_info = AsyncMock(
+        return_value=MediaInfo(url="https://lookaside.fbsbx.com/x", mime_type=None, file_size=None)
+    )
+    graph.download_media = AsyncMock(return_value=b"bytes")
+    graph.upload_media = AsyncMock(return_value="media-up")
+    graph.send_media = AsyncMock(return_value="wamid.file")
     graph.aclose = AsyncMock()
     return graph
+
+
+def _workspace_with(path: str, content: bytes):
+    document = StateBackend()
+    document.write_bytes(f"/{path}", content)
+    return document_workspace(document)
 
 
 def _message(text: str = "hello", **overrides: Any) -> OutgoingMessage:
@@ -144,24 +162,255 @@ class TestSending:
 
         graph.send_text.assert_not_awaited()
 
-    async def test_files_are_announced_not_silently_dropped(self, adapter, graph):
-        picture = _message("Here it is", image_png=b"png")
-        file = _message("And a file", attachments=[OutgoingAttachment("a.csv", b"x", "text/csv")])
-        bare = _message("", image_png=b"png")
+    async def test_a_chart_with_a_short_answer_goes_as_one_captioned_image(self, adapter, graph):
+        await adapter.send_message(
+            TOKEN, _message("**Sales** up", image_png=b"png", image_filename="sales.png")
+        )
 
-        for msg in (picture, file, bare):
-            await adapter.send_message(TOKEN, msg)
+        graph.send_text.assert_not_awaited()
+        graph.upload_media.assert_awaited_once_with(
+            CREDS, content=b"png", mime_type="image/png", filename="sales.png"
+        )
+        graph.send_media.assert_awaited_once_with(
+            CREDS,
+            recipient=CHAT,
+            kind="image",
+            media_id="media-up",
+            caption="*Sales* up",
+            filename="sales.png",
+            reply_to=None,
+        )
 
-        bodies = [c.kwargs["body"] for c in graph.send_text.await_args_list]
-        assert bodies[0] == f"Here it is\n\n{FILES_NOT_YET}"
-        assert bodies[1] == f"And a file\n\n{FILES_NOT_YET}"
-        assert bodies[2] == FILES_NOT_YET
+    async def test_a_chart_with_no_text_goes_without_a_caption(self, adapter, graph):
+        await adapter.send_message(TOKEN, _message("", image_png=b"png"))
 
-    async def test_downloads_are_refused_until_slice_2(self, adapter):
-        attachment = IncomingAttachment("image.jpg", "image/jpeg", 0, "media-1")
+        graph.send_text.assert_not_awaited()
+        assert graph.send_media.await_args.kwargs["caption"] is None
 
-        with pytest.raises(NotImplementedError):
-            await adapter.download_attachment(TOKEN, attachment)
+    async def test_a_long_answer_goes_first_and_the_file_after(self, adapter, graph):
+        file = OutgoingAttachment("a.csv", b"x", "text/csv")
+
+        await adapter.send_message(TOKEN, _message("a" * 2000, attachments=[file]))
+
+        assert graph.send_text.await_count == 1
+        graph.send_media.assert_awaited_once()
+        sent = graph.send_media.await_args.kwargs
+        assert (sent["kind"], sent["caption"], sent["filename"]) == ("document", None, "a.csv")
+        order = [c[0] for c in graph.mock_calls if c[0] in {"send_text", "send_media"}]
+        assert order == ["send_text", "send_media"]
+
+    async def test_only_the_first_file_carries_the_caption(self, adapter, graph):
+        files = [OutgoingAttachment("a.csv", b"x", "text/csv"), OutgoingAttachment("b.csv", b"y")]
+
+        await adapter.send_message(TOKEN, _message("Here", image_png=b"png", attachments=files))
+
+        captions = [c.kwargs["caption"] for c in graph.send_media.await_args_list]
+        assert captions == ["Here", None, None]
+        kinds = [c.kwargs["kind"] for c in graph.send_media.await_args_list]
+        assert kinds == ["image", "document", "document"]
+
+    async def test_a_large_png_goes_as_a_document(self, adapter, graph):
+        big = OutgoingAttachment("big.png", b"x" * (6 * 1024 * 1024), "image/png")
+        small = OutgoingAttachment("small.jpg", b"x", "image/jpeg")
+        gif = OutgoingAttachment("a.gif", b"x", "image/gif")
+
+        await adapter.send_message(TOKEN, _message("", attachments=[big, small, gif]))
+
+        kinds = [c.kwargs["kind"] for c in graph.send_media.await_args_list]
+        assert kinds == ["document", "image", "document"]
+
+    async def test_a_failed_upload_still_sends_the_answer_with_a_note(self, adapter, graph):
+        graph.upload_media.side_effect = WhatsAppGraphError(code=100)
+
+        await adapter.send_message(
+            TOKEN, _message("Here it is", attachments=[OutgoingAttachment("a.csv", b"x")])
+        )
+
+        graph.send_media.assert_not_awaited()
+        [call] = graph.send_text.await_args_list
+        assert call.kwargs["body"] == f"Here it is\n\n{FILE_NOT_SENT}"
+
+    async def test_a_refused_token_during_upload_marks_the_bot_down(
+        self, adapter, graph, connection
+    ):
+        graph.upload_media.side_effect = WhatsAppTokenRefused(code=190)
+
+        with pytest.raises(WhatsAppTokenRefused):
+            await adapter.send_message(
+                TOKEN, _message("x", attachments=[OutgoingAttachment("a", b"x")])
+            )
+
+        connection.down.assert_awaited_once_with(BOT_ID, TOKEN_REFUSED)
+        graph.send_text.assert_not_awaited()
+
+    async def test_a_caption_is_counted_in_utf16_units(self, adapter, graph):
+        # 600 code points, 1200 UTF-16 units: under Meta's limit by one count, over by the other.
+        text = "\U0001f600" * 600
+        assert len(text) <= 1024 < utf16_units(text)
+
+        await adapter.send_message(
+            TOKEN, _message(text, attachments=[OutgoingAttachment("a.csv", b"x")])
+        )
+
+        assert graph.send_text.await_count >= 1
+        assert graph.send_media.await_args.kwargs["caption"] is None
+
+    async def test_a_note_alone_follows_the_files_that_did_arrive(self, adapter, graph):
+        graph.upload_media.side_effect = [WhatsAppGraphError(code=100), "ok1"]
+        files = [OutgoingAttachment("a", b"x"), OutgoingAttachment("b", b"y")]
+
+        await adapter.send_message(TOKEN, _message("", attachments=files))
+
+        [media] = graph.send_media.await_args_list
+        assert media.kwargs["caption"] is None
+        [text] = graph.send_text.await_args_list
+        assert text.kwargs["body"] == FILE_NOT_SENT
+        order = [c[0] for c in graph.mock_calls if c[0] in {"send_text", "send_media"}]
+        assert order == ["send_media", "send_text"]
+
+    async def test_a_refused_file_with_nothing_else_to_send_raises(self, adapter, graph):
+        graph.upload_media.side_effect = WhatsAppGraphError(code=100)
+
+        with pytest.raises(WhatsAppGraphError) as refused:
+            await adapter.send_message(
+                TOKEN, _message("", attachments=[OutgoingAttachment("a", b"x")])
+            )
+
+        assert refused.value.details == {"code": 100}
+        graph.send_text.assert_not_awaited()
+
+    async def test_the_file_tool_reports_a_refused_upload_as_a_failure(self, adapter, graph):
+        graph.upload_media.side_effect = WhatsAppGraphError(code=100)
+        sender = channel_file_sender(
+            _workspace_with("report.csv", b"a,b"),
+            BoundChannelDirectory(adapter=adapter, bot_token=TOKEN, channel_id=CHAT),
+        )
+
+        result = await sender("report.csv")
+
+        assert "Do not claim it was sent" in result
+        assert "accepted the attachment" not in result
+        graph.send_text.assert_not_awaited()
+
+    async def test_text_files_go_up_as_plain_text_under_their_own_name(self, adapter, graph):
+        files = [
+            OutgoingAttachment("a.csv", b"x", "text/csv"),
+            OutgoingAttachment("b.json", b"{}", "application/json"),
+            OutgoingAttachment("c.pdf", b"%PDF", "application/pdf"),
+        ]
+
+        await adapter.send_message(TOKEN, _message("", attachments=files))
+
+        uploaded = [
+            (c.kwargs["mime_type"], c.kwargs["filename"])
+            for c in graph.upload_media.await_args_list
+        ]
+        assert uploaded == [
+            ("text/plain", "a.csv"),
+            ("text/plain", "b.json"),
+            ("application/pdf", "c.pdf"),
+        ]
+
+    async def test_the_reply_context_is_on_the_first_message_only(self, adapter, graph):
+        files = [OutgoingAttachment("a.csv", b"x"), OutgoingAttachment("b.csv", b"y")]
+
+        await adapter.send_message(
+            TOKEN, _message("a" * 2000, attachments=files, reply_to_message_id="wamid.in")
+        )
+
+        text_replies = [c.kwargs["reply_to"] for c in graph.send_text.await_args_list]
+        media_replies = [c.kwargs["reply_to"] for c in graph.send_media.await_args_list]
+        assert text_replies[0] == "wamid.in"
+        assert [*text_replies[1:], *media_replies] == [None] * (len(text_replies) - 1 + 2)
+
+    async def test_the_reply_context_goes_on_the_first_file_when_there_is_no_text(
+        self, adapter, graph
+    ):
+        files = [OutgoingAttachment("a.csv", b"x"), OutgoingAttachment("b.csv", b"y")]
+
+        await adapter.send_message(
+            TOKEN, _message("", attachments=files, reply_to_message_id="wamid.in")
+        )
+
+        replies = [c.kwargs["reply_to"] for c in graph.send_media.await_args_list]
+        assert replies == ["wamid.in", None]
+
+
+class TestReadingFiles:
+    async def test_describe_fills_the_size_meta_states(self, adapter, graph):
+        graph.media_info.return_value = MediaInfo(url="u", mime_type="image/jpeg", file_size=2048)
+        found = IncomingAttachment("image.jpg", "image/jpeg", 0, "12345")
+
+        [described] = await adapter.describe_attachments(TOKEN, [found])
+
+        assert described == IncomingAttachment("image.jpg", "image/jpeg", 2048, "12345")
+        graph.media_info.assert_awaited_once_with(CREDS, media_id="12345")
+
+    async def test_describe_takes_metas_type_for_an_untyped_file(self, adapter, graph):
+        graph.media_info.return_value = MediaInfo(
+            url="u", mime_type="audio/ogg; codecs=opus", file_size=None
+        )
+        found = IncomingAttachment("audio", "application/octet-stream", 0, "12345")
+
+        [described] = await adapter.describe_attachments(TOKEN, [found])
+
+        assert (described.mime_type, described.size) == ("audio/ogg", 0)
+
+    async def test_describe_keeps_the_type_the_payload_stated(self, adapter, graph):
+        graph.media_info.return_value = MediaInfo(url="u", mime_type="audio/mpeg", file_size=5)
+        found = IncomingAttachment("a.ogg", "audio/ogg", 0, "12345")
+
+        [described] = await adapter.describe_attachments(TOKEN, [found])
+
+        assert (described.mime_type, described.size) == ("audio/ogg", 5)
+
+    async def test_describe_leaves_an_untyped_file_when_meta_names_no_type(self, adapter, graph):
+        found = IncomingAttachment("audio", "application/octet-stream", 0, "12345")
+
+        [described] = await adapter.describe_attachments(TOKEN, [found])
+
+        assert described == found
+
+    async def test_describe_leaves_a_named_unreadable_message_alone(self, adapter, graph):
+        found = IncomingAttachment("sticker message", "application/octet-stream", 0, "wamid.X")
+
+        assert await adapter.describe_attachments(TOKEN, [found]) == [found]
+        graph.media_info.assert_not_awaited()
+
+    async def test_a_lookup_failure_leaves_that_attachment_as_it_was(self, adapter, graph):
+        graph.media_info.side_effect = [WhatsAppGraphError(code=100), MediaInfo("u", None, 7)]
+        first = IncomingAttachment("a.pdf", "application/pdf", 0, "1")
+        second = IncomingAttachment("b.pdf", "application/pdf", 0, "2")
+
+        described = await adapter.describe_attachments(TOKEN, [first, second])
+
+        assert described == [first, IncomingAttachment("b.pdf", "application/pdf", 7, "2")]
+
+    async def test_a_voice_note_is_fetched_under_the_transcription_limit(self, adapter, graph):
+        found = IncomingAttachment("audio.ogg", "audio/ogg", 10, "12345")
+
+        data = await adapter.download_attachment(TOKEN, found)
+
+        assert data == b"bytes"
+        graph.media_info.assert_awaited_once_with(CREDS, media_id="12345")
+        graph.download_media.assert_awaited_once_with(
+            CREDS, url="https://lookaside.fbsbx.com/x", limit=TRANSCRIPTION_MAX_BYTES
+        )
+
+    async def test_a_document_is_fetched_under_the_upload_limit(self, adapter, graph):
+        found = IncomingAttachment("a.pdf", "application/pdf", 10, "12345")
+
+        await adapter.download_attachment(TOKEN, found)
+
+        limit = graph.download_media.await_args.kwargs["limit"]
+        assert limit == whatsapp.settings.CHAT_MAX_UPLOAD_SIZE_MB * 1024 * 1024
+
+    async def test_a_named_unreadable_message_cannot_be_downloaded(self, adapter, graph):
+        graph.media_info.side_effect = WhatsAppGraphError(code=None)
+        found = IncomingAttachment("sticker message", "application/octet-stream", 0, "wamid.X")
+
+        with pytest.raises(WhatsAppGraphError):
+            await adapter.download_attachment(TOKEN, found)
 
 
 class TestTyping:

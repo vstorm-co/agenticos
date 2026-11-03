@@ -342,7 +342,7 @@ class TestMessages:
         assert order == ["start first", "end first", "start second", "end second"]
 
     async def test_an_unreadable_message_goes_through_the_router_as_a_named_file(self):
-        """An image is not fetchable yet: it still reaches the router, which says so."""
+        """An image whose fetch fails still reaches the router, which names it in the reply."""
         bot = _bot()
         with patch(f"{ROUTE}.process_channel_events_in_order") as process:
             await _post(_payload("image"), bot=bot)
@@ -406,7 +406,7 @@ class TestMessages:
         await adapter.aclose()
 
         texts = [c.kwargs["body"] for c in graph.send_text.await_args_list]
-        assert any("image.jpg" in t and "WhatsApp" in t for t in texts), texts
+        assert any("image.jpg: could not be downloaded." in t for t in texts), texts
 
     async def test_a_redelivered_message_runs_once(self):
         class Redis:

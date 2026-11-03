@@ -192,6 +192,21 @@ def test_a_contact_card_becomes_a_named_unreadable_attachment():
     assert attachment.handle == "wamid.CON1"
 
 
+def test_a_sticker_is_a_named_message_not_a_file():
+    payload = _load("image")
+    message = payload["entry"][0]["changes"][0]["value"]["messages"][0]
+    message["type"] = "sticker"
+    message["sticker"] = {"id": "STK1", "mime_type": "image/webp"}
+    del message["image"]
+    parsed = parse_webhook(payload, phone_number_id="PNID1", account_id="WABA1", now=NOW)
+    [parsed_message] = parsed.messages
+    assert parsed_message.media_id is None
+    [attachment] = to_incoming(parsed_message, bot_id="b", organization_id=ORG).attachments
+    assert attachment.filename == "sticker message"
+    assert attachment.mime_type == "application/octet-stream"
+    assert attachment.handle == parsed_message.wamid
+
+
 def test_grouping_keeps_customers_apart_and_each_in_order():
     def msg(wamid: str, bsuid: str, minute: int) -> WhatsAppMessage:
         return WhatsAppMessage(

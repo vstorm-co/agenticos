@@ -40,6 +40,8 @@ from app.services.channels.attachments import (
 from app.services.channels.base import IncomingAttachment, IncomingMessage
 from app.services.channels.mentions import AnsweredTurn, UnaddressedMessage
 from app.services.channels.router import ChannelMessageRouter
+from app.services.channels.whatsapp import WhatsAppAdapter
+from app.services.channels.whatsapp_graph import MediaInfo, WhatsAppCredentials, WhatsAppGraphError
 from app.services.file_storage import LocalFileStorage
 from app.services.file_upload import FileUploadService
 from app.services.workflow_execution.exceptions import WorkflowAdmissionQuotaError
@@ -75,6 +77,22 @@ def _adapter(*, downloads: Any = b"month,total") -> MagicMock:
         return_value=downloads if not isinstance(downloads, Exception) else None,
     )
     return adapter
+
+
+WA_TOKEN = WhatsAppCredentials(bot_id="b", access_token="t", phone_number_id="1").encode()
+
+
+def _whatsapp_graph(*, file_size: int) -> MagicMock:
+    """A Graph that states `file_size` for any media id and serves a small CSV."""
+    return MagicMock(
+        media_info=AsyncMock(
+            return_value=MediaInfo(
+                url="https://lookaside.fbsbx.com/m", mime_type=None, file_size=file_size
+            )
+        ),
+        download_media=AsyncMock(return_value=b"month,total"),
+        aclose=AsyncMock(),
+    )
 
 
 def _service(*, uploads: Any = None) -> ChannelAttachmentService:
@@ -363,11 +381,68 @@ class TestReceivingWhatSomebodySent:
     async def test_the_refusal_names_the_platform_the_way_people_do(self):
         service = _service()
         adapter = _adapter(downloads=NotImplementedError("no"))
-        adapter.platform = "whatsapp"
+        adapter.platform = "teams"
 
         _, refused = await service.receive(adapter, "t", [_attachment()], user_id=uuid.uuid4())
 
-        assert "from WhatsApp yet" in refused[0]
+        assert "from Microsoft Teams yet" in refused[0]
+
+    async def test_an_oversized_whatsapp_file_is_refused_before_download(self):
+        """The size Meta states, filled in by the real `describe_attachments`, feeds the
+        same size gate every platform has: the file is refused without being fetched."""
+        graph = _whatsapp_graph(file_size=200 * 1024 * 1024)
+        adapter = WhatsAppAdapter(graph)
+        found = [_attachment(handle="123")]
+
+        described = await adapter.describe_attachments(WA_TOKEN, found)
+        stored, refused = await _service().receive(
+            adapter, WA_TOKEN, described, user_id=uuid.uuid4()
+        )
+
+        assert stored == []
+        assert "report.csv" in refused[0]
+        graph.download_media.assert_not_awaited()
+        await adapter.aclose()
+
+    async def test_a_whatsapp_download_failure_names_the_file(self):
+        graph = _whatsapp_graph(file_size=10)
+        graph.download_media.side_effect = WhatsAppGraphError(code=None)
+        adapter = WhatsAppAdapter(graph)
+        described = await adapter.describe_attachments(WA_TOKEN, [_attachment(handle="123")])
+
+        stored, refused = await _service().receive(
+            adapter, WA_TOKEN, described, user_id=uuid.uuid4()
+        )
+
+        assert stored == []
+        assert refused == ["report.csv: could not be downloaded."]
+        await adapter.aclose()
+
+    async def test_a_whatsapp_file_is_fetched_and_stored(self):
+        graph = _whatsapp_graph(file_size=11)
+        adapter = WhatsAppAdapter(graph)
+        described = await adapter.describe_attachments(WA_TOKEN, [_attachment(handle="123")])
+        service = _service()
+
+        stored, refused = await service.receive(adapter, WA_TOKEN, described, user_id=uuid.uuid4())
+
+        assert len(stored) == 1 and refused == []
+        assert service.uploads.upload.await_args.kwargs["file_data"] == b"month,total"
+        await adapter.aclose()
+
+    async def test_a_whatsapp_video_is_refused_without_download(self):
+        service = _service()
+        graph = _whatsapp_graph(file_size=10)
+        adapter = WhatsAppAdapter(graph)
+        video = _attachment(filename="video.mp4", mime_type="video/mp4", handle="123")
+
+        described = await adapter.describe_attachments(WA_TOKEN, [video])
+        stored, refused = await service.receive(adapter, WA_TOKEN, described, user_id=uuid.uuid4())
+
+        assert stored == []
+        assert refused == ["video.mp4: I cannot watch videos - type it out, or send a file."]
+        graph.download_media.assert_not_awaited()
+        await adapter.aclose()
 
     async def test_a_download_that_failed_is_reported_not_raised(self):
         service = _service()

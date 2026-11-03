@@ -27,6 +27,8 @@ from app.services.channels.dedupe import delivery_ref
 from app.services.channels.mattermost import MattermostAdapter
 from app.services.channels.router import TRANSCRIPTION_MAX_BYTES, ChannelMessageRouter
 from app.services.channels.slack import SlackAdapter
+from app.services.channels.whatsapp import WhatsAppAdapter
+from app.services.channels.whatsapp_graph import MediaInfo, WhatsAppCredentials
 from app.services.transcription import TranscriptionResult
 
 pytestmark = pytest.mark.anyio
@@ -317,7 +319,7 @@ class TestWhenItCannotListen:
 
     async def test_a_platform_that_cannot_fetch_files_yet_says_so_without_a_traceback(self, caplog):
         adapter = MagicMock()
-        adapter.platform = "whatsapp"
+        adapter.platform = "signal"
         adapter.download_attachment = AsyncMock(side_effect=NotImplementedError)
 
         with (
@@ -329,8 +331,42 @@ class TestWhenItCannotListen:
             )
 
         assert transcripts == []
-        assert refusals == ["a.ogg: this build cannot fetch files from WhatsApp yet."]
+        assert refusals == ["a.ogg: this build cannot fetch files from signal yet."]
         assert not [r for r in caplog.records if r.exc_info]
+
+    async def test_a_whatsapp_voice_note_reaches_transcription(self):
+        """The real adapter, a fake Graph: Meta's stated size and type feed the gates,
+        the note is fetched under the transcription limit, and its text comes back."""
+        creds = WhatsAppCredentials(bot_id="b", access_token="t", phone_number_id="1")
+        graph = MagicMock(
+            media_info=AsyncMock(
+                return_value=MediaInfo(
+                    url="https://lookaside.fbsbx.com/v", mime_type="audio/ogg", file_size=2048
+                )
+            ),
+            download_media=AsyncMock(return_value=b"ogg"),
+            aclose=AsyncMock(),
+        )
+        adapter = WhatsAppAdapter(graph)
+        note = IncomingAttachment("audio", "application/octet-stream", 0, "12345")
+        [note] = await adapter.describe_attachments(creds.encode(), [note])
+        transcribe = AsyncMock(return_value=_heard("hello there"))
+
+        with (
+            patch("app.services.channels.router.get_adapter", return_value=adapter),
+            patch("app.services.channels.router.unseal_bot_token", return_value=creds.encode()),
+            patch("app.services.channels.router.TranscriptionService.transcribe", transcribe),
+            # Meta states no length, so the container's own is what the cap reads.
+            patch("app.services.channels.router.measure_audio_seconds", return_value=3.0),
+        ):
+            transcripts, refusals = await ChannelMessageRouter()._transcribe(
+                MagicMock(), _bot(), [note], requested_by=None
+            )
+
+        assert refusals == []
+        assert transcripts == ["hello there"]
+        assert graph.download_media.await_args.kwargs["limit"] == TRANSCRIPTION_MAX_BYTES
+        await adapter.aclose()
 
     async def test_a_recording_too_large_to_transcribe_is_refused_before_it_is_fetched(self):
         """`TranscriptionService` applies its cap to bytes already in memory, so

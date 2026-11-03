@@ -407,11 +407,9 @@ class TestWhatEachPlatformCanActuallyAnswer:
             "send_channel_file",
         }
 
-    def test_whatsapp_offers_no_directory_tools_yet(self):
-        """Named, and kept out of the drift test above: `send_channel_file` maps to
-        `send_message`, which every adapter has - the WhatsApp adapter sends text only,
-        so the Builder must not offer a tool that would announce a file instead."""
-        assert PLATFORM_TOOLS["whatsapp"] == ()
+    def test_whatsapp_offers_only_the_file_tool(self):
+        """It sends files but has no directory a bot may read: no history, no members."""
+        assert PLATFORM_TOOLS["whatsapp"] == ("send_channel_file",)
         assert supported_tools(WhatsAppAdapter) == {"send_channel_file"}
 
     def test_every_registered_tool_has_a_method_that_would_answer_it(self):

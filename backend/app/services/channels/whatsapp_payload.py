@@ -25,7 +25,7 @@ IGNORED_KINDS = frozenset({"reaction", "system"})
 """A reaction asks for no answer; a `system` number-change event is logged only, because
 the new id arrives as a new customer."""
 
-_MEDIA_KINDS = frozenset({"image", "document", "audio", "video", "sticker"})
+_MEDIA_KINDS = frozenset({"image", "document", "audio", "video"})
 
 
 def verify_signature(body: bytes, header: str | None, app_secret: str) -> bool:
