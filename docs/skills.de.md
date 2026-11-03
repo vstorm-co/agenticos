@@ -1,5 +1,5 @@
 ---
-source_sha: "400dd13e7db1"
+source_sha: "1728b0ebeb2e"
 ---
 
 # Skills { #skills }
@@ -353,7 +353,7 @@ Eine neue Kategorie allein erzeugt keine, weil kein Agent sie liest.
 
 **History** auf der Skill-Seite listet die Versionen, die neueste zuerst. Jede sagt,
 was sie erzeugt hat (`backfill`, `created`, `edit`, `resources`, `library`,
-`workspace`, `improve` oder `restore`) und wann, und wer sie gespeichert hat, für
+`workspace`, `improve`, `restore`, `catch_up` oder `from_fork`) und wann, und wer sie gespeichert hat, für
 alle, die die Mitglieder der Organisation sehen dürfen. Eine Version behält ihre
 Dateien, wie sie waren; eine spätere Änderung an einer Datei ändert keine frühere
 Version.
@@ -381,7 +381,7 @@ eigene Version hat, liefert er die Main-Version aus, von der er ausging.
 - Der Name eines Forks ist innerhalb seines Skills eindeutig, archivierte Forks
   eingeschlossen.
 - Die Dateien eines Forks sind die der Version, aus der er entstand. Dateien werden
-  nur auf main bearbeitet.
+  nur auf main bearbeitet und erreichen einen Fork, wenn er aufholt.
 - **Archive** sorgt dafür, dass ein Fork keine neuen Versionen mehr annimmt. Er
   behält seine Versionen und wird nie gelöscht. Ein Fork, den 30 Tage lang kein Run
   gelesen hat, wird zum Archivieren vorgeschlagen; nichts wird automatisch
@@ -469,6 +469,37 @@ Prüfung erneut veröffentlicht wurde oder main weitergezogen ist; es schließt 
 Prüfung ab und markiert den Agent auf dieser Version als geprüft. Einen Agent ohne
 Prüfung zu verschieben bleibt möglich, wie jeder Versionswechsel: Der Agent zeigt
 dann auf der neuen Version „unbekannt“, und dafür steht ein, wer ihn verschoben hat.
+
+**Einen Fork aufholen lassen.** Die Änderungen von main erreichen einen Fork in einer
+Sitzung: `POST /api/v1/skills/{id}/forks/{fork_id}/catch-up`, vorher bepreist mit
+`…/catch-up/estimate`. Die Sitzung führt drei Versionen zusammen: die main-Version,
+auf der der Fork basiert, die neueste des Forks und die neueste von main. Ein Teil,
+den nur eine Seite geändert hat, nimmt den Text dieser Seite, und ein Teil, den beide
+gleich geändert haben, wird einmal übernommen. Ein Teil, den beide verschieden
+geändert haben, ist ein Konflikt, und das Modell schlägt einen Text dafür vor. Unter
+**Changes** kann eine Person jeden Teil umschreiben, auch den des Modells
+(`GET …/improvements/{run_id}/merge`, dann `PATCH …/merge/description` oder
+`…/merge/parts/{index}`). Bei einer Datei, die beide Seiten verschieden geändert
+haben, behält eine Person eine Seite (`PATCH …/merge/files`); das Modell schreibt nie
+eine Datei. Die Prüfung startet erst, wenn nichts mehr offen ist. Sie fragt die
+Agents des Forks nach dem Ergebnis und, sofern das nicht vor dem Start abgeschaltet
+wird, nach der neuesten Version von main allein. Diese zweite Prüfung sagt, ob der
+Fork noch gebraucht wird, und die Schätzung nennt ihren Preis getrennt. Annehmen
+erzeugt eine Fork-Version (`catch_up`), die die übernommene main-Version nennt. Ab
+dann basiert der Fork auf dieser main-Version und ist nicht mehr hinter main. Hat
+main allein keinen Agent verschlechtert, bietet das Ergebnis außerdem an, den Fork
+aufzugeben und seine Agents zu main zurückzuholen.
+
+**Einen Fork nach main übernehmen.** Dieselbe Zusammenführung in die andere Richtung,
+über `…/forks/{fork_id}/to-main`. Die Prüfung fragt die Agents von main nach der
+[Regel](#the-rule) für jede Änderung an main. Annehmen erzeugt eine main-Version
+(`from_fork`), die die übernommene Fork-Version nennt, samt Dateien. Die Agents des
+Forks können danach zu main zurückkehren.
+
+Beides wird abgelehnt (409), wenn der Fork archiviert ist, wenn er keine eigene
+Version hat (seine Agents kehren dann zu main zurück) und wenn die Zusammenführung
+nichts ändern würde. Annehmen wird abgelehnt, sobald main oder der Fork eine neuere
+Version hat als die, die die Zusammenführung gelesen hat.
 
 ### Einen Skill löschen { #deleting-a-skill }
 

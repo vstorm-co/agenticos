@@ -315,7 +315,7 @@ category alone does not, because no agent reads it.
 
 **History** on the skill page lists the versions, newest first. Each one says what
 made it (`backfill`, `created`, `edit`, `resources`, `library`, `workspace`,
-`improve` or `restore`) and when, and who saved it to a reader who may see the
+`improve`, `restore`, `catch_up` or `from_fork`) and when, and who saved it to a reader who may see the
 organization's members. A version keeps its files as they were, so changing a file
 later does not change an earlier version.
 
@@ -339,7 +339,7 @@ version it started from.
   level deep.
 - A fork's name is unique within its skill, archived forks included.
 - A fork's files are the files of the version it was made from. Files are edited
-  on main only.
+  on main only, and reach a fork when it catches up.
 - **Archive** stops a fork from taking new versions. It keeps its versions and is
   never deleted. A fork that no run has read for 30 days is offered for archiving;
   nothing is archived automatically. An older version of an agent that still reads
@@ -415,6 +415,35 @@ when the agent was published again or main moved on since the check; it closes t
 check and marks the agent checked on that version. Moving an agent without a check
 stays possible, as any change of version is: the agent then reads "unknown" on its
 new version, and the person who moved it answers for that.
+
+**Catch up a fork.** Main's changes reach a fork in a session:
+`POST /api/v1/skills/{id}/forks/{fork_id}/catch-up`, priced first by
+`…/catch-up/estimate`. The session merges three versions: the main version the fork
+is based on, the fork's newest and main's newest. A part only one side changed
+takes that side's text, and a part both changed the same way is taken once. A part
+they changed differently is a conflict, and the model proposes one text for it. At
+**Changes** a person can rewrite any part, the model's included
+(`GET …/improvements/{run_id}/merge`, then `PATCH …/merge/description` or
+`…/merge/parts/{index}`). For a file both sides changed differently, a person keeps
+one side (`PATCH …/merge/files`); the model never writes a file. The check starts
+only when nothing is left unsettled. It asks the fork's agents about the merge and,
+unless that is turned off before the start, about main's newest alone. That second
+check says whether the fork is still needed, and the estimate prices it separately.
+Accepting makes a fork version (`catch_up`) that names the main version it took in.
+From then on the fork is based on that main version, so it is no longer behind.
+When main alone made no agent worse, the result also offers to drop the fork and
+return its agents to main.
+
+**Move a fork to main.** The same merge goes the other way at
+`…/forks/{fork_id}/to-main`. The check asks main's agents, by the
+[rule](#the-rule) for every change to main. Accepting makes a main version
+(`from_fork`) that names the fork version it took in, files included. The fork's
+agents can then return to main.
+
+Both are refused (409) when the fork is archived, when it has no version of its own
+(its agents return to main instead), and when the merge would change nothing.
+Accepting is refused once main or the fork has a newer version than the merge
+read.
 
 ### Deleting a skill
 

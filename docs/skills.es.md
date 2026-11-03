@@ -1,5 +1,5 @@
 ---
-source_sha: "400dd13e7db1"
+source_sha: "1728b0ebeb2e"
 ---
 
 # Skills { #skills }
@@ -339,7 +339,7 @@ la crea, porque ningún agent la lee.
 
 **History**, en la página del skill, lista las versiones de la más nueva a la más
 antigua. Cada una dice qué la creó (`backfill`, `created`, `edit`, `resources`,
-`library`, `workspace`, `improve` o `restore`) y cuándo, y quién la guardó a quien
+`library`, `workspace`, `improve`, `restore`, `catch_up` o `from_fork`) y cuándo, y quién la guardó a quien
 puede ver a los miembros de la organización. Una versión conserva sus archivos tal
 como estaban, así que cambiar un archivo después no cambia una versión anterior.
 
@@ -363,7 +363,7 @@ versión propia, un fork sirve la versión de main de la que partió.
   un solo nivel.
 - El nombre de un fork es único dentro de su skill, incluidos los forks archivados.
 - Los archivos de un fork son los de la versión de la que se creó. Los archivos se
-  editan solo en main.
+  editan solo en main y llegan a un fork cuando se pone al día.
 - **Archive** hace que un fork no acepte versiones nuevas. Conserva sus versiones y
   nunca se borra. Un fork que ningún run ha leído en 30 días se propone para
   archivar; nada se archiva automáticamente. Una versión anterior de un agent que
@@ -442,6 +442,36 @@ main avanzó desde la comprobación; cierra la comprobación y marca al agent co
 comprobado en esa versión. Mover un agent sin comprobación sigue siendo posible, como
 cualquier cambio de versión: el agent queda entonces como «desconocido» en su nueva
 versión, y responde de ello quien lo movió.
+
+**Poner al día un fork.** Los cambios de main llegan a un fork en una sesión:
+`POST /api/v1/skills/{id}/forks/{fork_id}/catch-up`, con el precio antes en
+`…/catch-up/estimate`. La sesión combina tres versiones: la versión de main en la que
+se basa el fork, la más reciente del fork y la más reciente de main. Una parte que
+solo cambió un lado toma el texto de ese lado, y una parte que ambos cambiaron igual
+se toma una vez. Una parte que cambiaron de forma distinta es un conflicto, y el
+modelo propone un texto para ella. En **Changes** una persona puede reescribir
+cualquier parte, también la del modelo (`GET …/improvements/{run_id}/merge`, y luego
+`PATCH …/merge/description` o `…/merge/parts/{index}`). En un archivo que ambos lados
+cambiaron de forma distinta, una persona se queda con un lado
+(`PATCH …/merge/files`); el modelo nunca escribe un archivo. La comprobación empieza
+solo cuando no queda nada sin resolver. Pregunta a los agents del fork por la
+combinación y, salvo que se desactive antes de empezar, por la versión más reciente
+de main sola. Esa segunda comprobación dice si el fork sigue haciendo falta, y la
+estimación da su precio por separado. Aceptar crea una versión del fork (`catch_up`)
+que nombra la versión de main que tomó. Desde entonces el fork se basa en esa versión
+de main, así que ya no va por detrás. Si main sola no empeoró a ningún agent, el
+resultado también ofrece abandonar el fork y devolver sus agents a main.
+
+**Llevar un fork a main.** La misma combinación en el otro sentido, por
+`…/forks/{fork_id}/to-main`. La comprobación pregunta a los agents de main con la
+[regla](#the-rule) de cualquier cambio en main. Aceptar crea una versión de main
+(`from_fork`) que nombra la versión del fork que tomó, archivos incluidos. Después
+los agents del fork pueden volver a main.
+
+Ambos se rechazan (409) cuando el fork está archivado, cuando no tiene versión propia
+(sus agents vuelven entonces a main) y cuando la combinación no cambiaría nada.
+Aceptar se rechaza en cuanto main o el fork tienen una versión más nueva que la que
+leyó la combinación.
 
 ### Borrar un skill { #deleting-a-skill }
 
