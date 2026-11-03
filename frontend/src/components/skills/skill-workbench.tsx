@@ -35,6 +35,8 @@ interface SkillWorkbenchProps {
    */
   fork?: boolean;
   onSave: (edit: SkillEdit) => void;
+  /** A file was written: each such write is a new version the next save builds on. */
+  onFilesWritten: () => void;
   onCancel: () => void;
   onDelete?: () => void;
 }
@@ -64,6 +66,7 @@ export function SkillWorkbench({
   saveWarning,
   fork = false,
   onSave,
+  onFilesWritten,
   onCancel,
   onDelete,
 }: SkillWorkbenchProps) {
@@ -91,7 +94,7 @@ export function SkillWorkbench({
 
   const upload = async (picked: File[]) => {
     if (picked.length === 0) return;
-    await uploadResources.mutateAsync(picked).catch(() => null);
+    await uploadResources.mutateAsync(picked).then(onFilesWritten, () => null);
   };
 
   return (
@@ -184,6 +187,7 @@ export function SkillWorkbench({
               onCancel={() => setAdding(false)}
               onSubmit={async (draft) => {
                 await addResource.mutateAsync(draft);
+                onFilesWritten();
                 setAdding(false);
               }}
             />
@@ -194,9 +198,14 @@ export function SkillWorkbench({
               resource={selected}
               canEdit={canEdit && !fork}
               busy={saveResource.isPending}
-              onSave={(body) => saveResource.mutate({ id: selected.id, content: body })}
+              onSave={(body) =>
+                saveResource.mutate(
+                  { id: selected.id, content: body },
+                  { onSuccess: onFilesWritten },
+                )
+              }
               onDelete={async () => {
-                await removeResource.mutateAsync(selected.id).catch(() => null);
+                await removeResource.mutateAsync(selected.id).then(onFilesWritten, () => null);
                 setOpenId(null);
               }}
             />
@@ -229,7 +238,7 @@ export function SkillWorkbench({
             name={skill.name}
             canManage={canEdit}
           />
-          {canEdit && <ImproveSkillButton skillId={skill.id} />}
+          {canEdit && !fork && <ImproveSkillButton skillId={skill.id} />}
           {canEdit && onDelete && (
             <ResourceActions
               name={skill.name}

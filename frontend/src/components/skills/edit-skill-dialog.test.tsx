@@ -176,6 +176,24 @@ describe("EditSkillDialog", () => {
     expect(toast.success).toHaveBeenCalledWith("Saved as v3.");
   });
 
+  it("says when a fork's text cannot be loaded, and loads it again on request", async () => {
+    let fail = true;
+    vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
+      if (path === "/skills/s1/versions/r2") {
+        if (fail) throw new ApiError(500, "Versions are down");
+        return { id: "r2", description: "Returns, fork wording.", content: "x", resources: [] };
+      }
+      return { items: [], total: 0, categories: [], suggested_categories: [] };
+    });
+    mount(RETURNS);
+
+    expect(await screen.findByText("Versions are down")).toBeInTheDocument();
+    fail = false;
+    await userEvent.click(screen.getByRole("button", { name: "Load the fork again" }));
+
+    expect(await screen.findByDisplayValue("Returns, fork wording.")).toBeInTheDocument();
+  });
+
   it("writes a fork's first version over the main version it serves", async () => {
     vi.mocked(apiClient.post).mockResolvedValue({ id: "r1", number: 1 });
     mount({ ...RETURNS, latest: null, changes: 0 });
@@ -227,5 +245,66 @@ describe("EditSkillDialog", () => {
     const { onClose } = mount();
     await userEvent.keyboard("{Escape}");
     expect(onClose).toHaveBeenCalled();
+  });
+
+  it("saves text over the version a file written in the dialog made", async () => {
+    let written = false;
+    vi.mocked(apiClient.get).mockImplementation(async (path: string) =>
+      path === "/skills/s1"
+        ? written
+          ? { ...SKILL, version: 13, latest_version_id: "m13" }
+          : SKILL
+        : { items: [], total: 0, categories: [], suggested_categories: [] },
+    );
+    vi.mocked(apiClient.post).mockImplementation(async (path: string) => {
+      if (path === "/skills/s1/resources") {
+        written = true;
+        return { id: "res2", name: "notes.md", description: null, size_bytes: 1 };
+      }
+      return { id: "m14", number: 14 };
+    });
+    mount();
+
+    await userEvent.click(screen.getByRole("button", { name: "New" }));
+    await userEvent.type(screen.getByLabelText("Path"), "notes.md");
+    await userEvent.type(screen.getByLabelText("File contents"), "n");
+    await userEvent.click(screen.getByRole("button", { name: "Add file" }));
+    await screen.findByLabelText("Description");
+    await userEvent.clear(description());
+    await userEvent.type(description(), "With notes.");
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(apiClient.post).toHaveBeenLastCalledWith(
+      "/skills/s1/versions",
+      expect.objectContaining({ base_version_id: "m13" }),
+    );
+    expect(toast.success).toHaveBeenLastCalledWith("Saved as v14.");
+  });
+
+  it("keeps its base when the written skill could not be read back", async () => {
+    vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
+      if (path === "/skills/s1") throw new ApiError(500, "Down");
+      return { items: [], total: 0, categories: [], suggested_categories: [] };
+    });
+    vi.mocked(apiClient.post).mockImplementation(async (path: string) =>
+      path === "/skills/s1/resources"
+        ? { id: "res2", name: "notes.md", description: null, size_bytes: 1 }
+        : { id: "m13", number: 13 },
+    );
+    mount();
+
+    await userEvent.click(screen.getByRole("button", { name: "New" }));
+    await userEvent.type(screen.getByLabelText("Path"), "notes.md");
+    await userEvent.type(screen.getByLabelText("File contents"), "n");
+    await userEvent.click(screen.getByRole("button", { name: "Add file" }));
+    await screen.findByLabelText("Description");
+    await userEvent.clear(description());
+    await userEvent.type(description(), "With notes.");
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(apiClient.post).toHaveBeenLastCalledWith(
+      "/skills/s1/versions",
+      expect.objectContaining({ base_version_id: "m12" }),
+    );
   });
 });

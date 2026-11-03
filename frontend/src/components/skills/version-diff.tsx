@@ -8,7 +8,10 @@ import { useSkillVersion } from "@/hooks/use-skill-versions";
 import { getErrorMessage } from "@/lib/api-error";
 import type { SkillVersionRead, SkillVersionResource } from "@/types/skill-versions";
 
-/** Which files a version added, removed or changed against the one before it. */
+/**
+ * Which files a version added, removed or changed against the one before it. A file's
+ * description is part of the file, so a new description alone is a change.
+ */
 export function fileChanges(
   before: SkillVersionResource[],
   after: SkillVersionResource[],
@@ -21,7 +24,9 @@ export function fileChanges(
     changed: after
       .filter((file) => {
         const was = old.get(file.name);
-        return was !== undefined && was.digest !== file.digest;
+        return (
+          was !== undefined && (was.digest !== file.digest || was.description !== file.description)
+        );
       })
       .map((file) => file.name),
   };

@@ -43,6 +43,7 @@ function mount(agents: SkillAgentList | undefined, error: unknown = null) {
   render(
     <SkillAgents
       skillId="s1"
+      mainLatest={12}
       skillName="returns-policy"
       agents={agents}
       error={error}
