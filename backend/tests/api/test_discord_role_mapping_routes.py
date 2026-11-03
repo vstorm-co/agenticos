@@ -64,6 +64,7 @@ async def _call(role: str, method: str, path: str, **kwargs: object) -> tuple[Re
     return answer, service
 
 
+MAPPING_ID = uuid.UUID("5f0c1d2e-0000-4000-8000-000000000001")
 CREATE = {"guild_id": "1100", "discord_role_id": "7", "group_id": str(uuid.uuid4())}
 
 
@@ -126,7 +127,7 @@ async def test_an_id_that_is_not_discords_or_an_owner_role_is_refused(body: dict
         ("GET", "/discord-servers", {}),
         ("GET", "/role-mappings", {}),
         ("POST", "/role-mappings", {"json": CREATE}),
-        ("DELETE", f"/role-mappings/{uuid.uuid4()}", {}),
+        ("DELETE", f"/role-mappings/{MAPPING_ID}", {}),
     ],
 )
 async def test_a_viewer_is_refused_every_route(
