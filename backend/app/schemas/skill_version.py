@@ -6,7 +6,7 @@ from uuid import UUID
 
 from pydantic import Field, model_validator
 
-from app.db.models.skill_check import AgentState
+from app.db.models.skill_check import AgentState, SampleKind
 from app.db.models.skill_version import SkillVersionSource
 from app.schemas.base import BaseSchema
 from app.schemas.resource_usage import AgentUsage
@@ -179,6 +179,10 @@ class AgentCheckRef(BaseSchema):
     check_id: UUID
     version_id: UUID
     state: AgentState
+    sample: SampleKind | None = Field(
+        default=None,
+        description="`skill_set_only` when the agent was checked on the skill's questions alone",
+    )
     at: datetime
 
 

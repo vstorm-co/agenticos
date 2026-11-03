@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { SkillCheckDialog } from "./skill-check-dialog";
+import { ApiError } from "@/lib/api-error";
 import { finishedCheck } from "@/test-utils/skill-checks";
 import type { SkillCheck } from "@/types/skill-checks";
 
@@ -20,6 +21,7 @@ const held = vi.hoisted(() => ({
   start: {} as Mutation,
   apply: {} as Mutation,
   discard: {} as Mutation,
+  cancel: {} as Mutation,
   checkId: null as string | null,
 }));
 
@@ -41,6 +43,7 @@ beforeEach(() => {
   held.start = mutation();
   held.apply = mutation();
   held.discard = mutation();
+  held.cancel = mutation();
 });
 
 function open(onOpenChange = vi.fn()) {
@@ -69,6 +72,39 @@ describe("SkillCheckDialog", () => {
     await userEvent.click(screen.getByRole("button", { name: "Start the check" }));
 
     expect(held.checkId).toBeNull();
+  });
+
+  it("goes back to the check the server says this change already has", async () => {
+    held.start.mutate.mockImplementation((_body, options) =>
+      options.onError(
+        new ApiError(409, "This change is checked already", {
+          error: { code: "ALREADY_EXISTS", message: "checked", details: { check_id: "c-open" } },
+        }),
+      ),
+    );
+    open();
+
+    await userEvent.click(screen.getByRole("button", { name: "Start the check" }));
+
+    expect(held.checkId).toBe("c-open");
+  });
+
+  it("stops a running check on request", async () => {
+    held.check = finishedCheck({ status: "running", verdict: null, outcomes: [] });
+    held.cancel.mutate.mockImplementation((_body, options) => options.onSuccess());
+    const onOpenChange = open();
+
+    await userEvent.click(screen.getByRole("button", { name: "Stop the check" }));
+
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it("says why a check the organization cannot afford cannot start", () => {
+    held.estimate = mutation({ data: finishedCheck({ affordable: false }) });
+    open();
+
+    expect(screen.getByText(/budget left this month cannot cover/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Start the check" })).toBeDisabled();
   });
 
   it("says why the check cannot be priced", () => {

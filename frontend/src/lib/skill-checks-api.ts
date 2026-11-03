@@ -27,6 +27,10 @@ export function getSkillCheck(skillId: string, checkId: string) {
   return apiClient.get<SkillCheck>(`${root(skillId)}/${checkId}`);
 }
 
+export function cancelSkillCheck(skillId: string, checkId: string) {
+  return apiClient.post<SkillCheck>(`${root(skillId)}/${checkId}/cancel`, {});
+}
+
 export function applySkillCheck(skillId: string, checkId: string, body: SkillCheckApply) {
   return apiClient.post<unknown>(`${root(skillId)}/${checkId}/apply`, body);
 }

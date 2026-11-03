@@ -192,7 +192,7 @@ def upgrade() -> None:
     op.create_index(
         "uq_datasets_skill",
         "datasets",
-        ["skill_id"],
+        ["organization_id", "skill_id"],
         unique=True,
         postgresql_where=sa.text("skill_id IS NOT NULL"),
     )

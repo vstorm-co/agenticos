@@ -32,6 +32,7 @@ from app.core.excerpt import excerpt
 from app.core.permissions import AuthContext, Perm
 from app.db.models.resource_grant import Visibility
 from app.db.models.skill import Skill, SkillResource
+from app.db.models.skill_proposal import ProposalStatus
 from app.db.models.skill_version import SkillVersion, SkillVersionSource
 from app.db.updates import writable
 from app.repositories import (
@@ -792,20 +793,50 @@ class SkillService:
     async def _propose_from_library(
         self, ctx: AuthContext, skill: Skill, bundled: skill_library.LibrarySkill
     ) -> None:
-        """Leave the bundled version waiting as a proposal, once per bundled version."""
-        waiting = await skill_proposal_repo.pending_for_skill(
+        """Leave the bundled version waiting as a proposal, once per bundled version.
+
+        An earlier bundled version still waiting is withdrawn: the newer one says
+        everything it did. One a person already decided is not offered again. The
+        category is metadata no agent reads, so it follows the library at once.
+        """
+        earlier = await skill_proposal_repo.from_source(
             self.db,
             organization_id=ctx.organization_id,
             skill_id=skill.id,
             source=SkillVersionSource.LIBRARY.value,
         )
+        if skill.category != bundled.category:
+            unedited = _fingerprint_of(skill) == skill.library_fingerprint
+            skill = await skill_repo.update(
+                self.db, skill=skill, update_data={"category": bundled.category}
+            )
+            if unedited:
+                await skill_repo.update(
+                    self.db,
+                    skill=skill,
+                    update_data={"library_fingerprint": _fingerprint_of(skill)},
+                )
         resources = {resource.name: resource.content for resource in bundled.resources}
         if any(
             (item.description, item.content, item.resources)
             == (bundled.description, bundled.content, resources)
-            for item in waiting
+            for item in earlier
         ):
             return
+        from app.services.skill_check import SkillCheckService
+
+        checks = SkillCheckService(self.db)
+        for item in earlier:
+            if item.status == ProposalStatus.PENDING.value:
+                await skill_proposal_repo.decide_if(
+                    self.db,
+                    proposal_id=item.id,
+                    organization_id=ctx.organization_id,
+                    revision=item.revision,
+                    status=ProposalStatus.DISCARDED,
+                    decided_by=None,
+                )
+                await checks.stop_for_proposal(ctx, skill.id, item.id)
         proposal = await skill_proposal_repo.create(
             self.db,
             organization_id=ctx.organization_id,

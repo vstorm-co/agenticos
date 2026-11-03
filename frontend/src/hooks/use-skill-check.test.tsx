@@ -8,6 +8,7 @@ import * as api from "@/lib/skill-checks-api";
 import type { SkillCheck } from "@/types/skill-checks";
 
 vi.mock("@/lib/skill-checks-api", () => ({
+  cancelSkillCheck: vi.fn(),
   estimateSkillCheck: vi.fn(),
   startSkillCheck: vi.fn(),
   getSkillCheck: vi.fn(),
@@ -60,6 +61,15 @@ describe("useSkillCheck", () => {
 
     await waitFor(() => expect(api.getSkillCheck).toHaveBeenCalledTimes(2));
     vi.useRealTimers();
+  });
+
+  it("stops a running check", async () => {
+    vi.mocked(api.cancelSkillCheck).mockResolvedValue({} as SkillCheck);
+    const { result } = renderHook(() => useSkillCheck("s-1", "c-open"), { wrapper });
+
+    await act(() => result.current.cancel.mutateAsync());
+
+    expect(api.cancelSkillCheck).toHaveBeenCalledWith("s-1", "c-open");
   });
 
   it("prices and starts through the skill", async () => {

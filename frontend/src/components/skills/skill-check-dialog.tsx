@@ -14,7 +14,7 @@ import {
   DialogTitle,
 } from "@/components/ui";
 import { useSkillCheck } from "@/hooks/use-skill-check";
-import { getErrorMessage } from "@/lib/api-error";
+import { ApiError, getErrorMessage } from "@/lib/api-error";
 import { DIALOG_FORM, DIALOG_SCROLL } from "@/lib/dialog-sizes";
 import { CheckAgents } from "./check-agents";
 import { CheckDecision } from "./check-decision";
@@ -40,11 +40,17 @@ export function SkillCheckDialog({
   const t = useTranslations("skills.check");
   const tErrors = useTranslations("errors");
   const [checkId, setCheckId] = useState<string | null>(null);
-  const { check, estimate, start, apply, discard } = useSkillCheck(skillId, checkId);
+  const { check, estimate, start, apply, discard, cancel } = useSkillCheck(skillId, checkId);
   const body = { fork_id: forkId, proposal_id: proposalId };
   const { mutate: price } = estimate;
   useEffect(() => price({ fork_id: forkId, proposal_id: proposalId }), [price, forkId, proposalId]);
   const failed = (error: unknown) => toast.error(getErrorMessage(error, tErrors));
+  // The server knows whether this very text is checked already, and says which check.
+  const resumeOrFail = (error: unknown) => {
+    const open = error instanceof ApiError ? error.details?.check_id : undefined;
+    if (typeof open === "string") setCheckId(open);
+    else failed(error);
+  };
   const shown = check ?? estimate.data ?? null;
 
   return (
@@ -61,15 +67,20 @@ export function SkillCheckDialog({
         {check === null && estimate.data && (
           <DialogFooter className="items-center gap-3 sm:justify-between">
             <p className="text-muted-foreground text-xs">
-              {t("price", {
-                expected: estimate.data.expected_usd,
-                most: estimate.data.at_most_usd,
-              })}
+              {estimate.data.affordable
+                ? t("price", {
+                    expected: estimate.data.expected_usd,
+                    most: estimate.data.at_most_usd,
+                  })
+                : t("unaffordable")}
             </p>
             <Button
               disabled={start.isPending || !estimate.data.affordable}
               onClick={() =>
-                start.mutate(body, { onSuccess: (made) => setCheckId(made.id), onError: failed })
+                start.mutate(body, {
+                  onSuccess: (made) => setCheckId(made.id),
+                  onError: resumeOrFail,
+                })
               }
             >
               {t("start")}
@@ -77,7 +88,18 @@ export function SkillCheckDialog({
           </DialogFooter>
         )}
         {check?.status === "running" && (
-          <p className="text-muted-foreground text-sm">{t("running")}</p>
+          <DialogFooter className="items-center gap-3 sm:justify-between">
+            <p className="text-muted-foreground text-sm">{t("running")}</p>
+            <Button
+              variant="ghost"
+              disabled={cancel.isPending}
+              onClick={() =>
+                cancel.mutate(undefined, { onSuccess: () => onOpenChange(false), onError: failed })
+              }
+            >
+              {t("cancel")}
+            </Button>
+          </DialogFooter>
         )}
         {check?.status === "done" && (
           <CheckDecision

@@ -26,6 +26,12 @@ describe("the skill checks client", () => {
     expect(apiClient.get).toHaveBeenCalledWith("/skills/s-1/checks/c-1");
   });
 
+  it("stops a running check", async () => {
+    await api.cancelSkillCheck("s-1", "c-1");
+
+    expect(apiClient.post).toHaveBeenCalledWith("/skills/s-1/checks/c-1/cancel", {});
+  });
+
   it("decides a check through the check, never around it", async () => {
     await api.applySkillCheck("s-1", "c-1", { pin_worse: true });
     await api.discardSkillCheck("s-1", "c-1");

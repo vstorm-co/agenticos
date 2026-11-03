@@ -245,14 +245,15 @@ twice, with the skill as it is and with the change, and nothing else differs.
 
 A change an agent's workspace wrote, one the assistant proposed and a
 [library update](#getting-skills-into-an-organization) of a skill agents follow go live only through
-this check. A person editing the skill by hand saves a new version at once; the
-skill page names the agents on main and offers **Check on agents** beside it.
+this check. A person editing the skill by hand saves a new version at once, and
+that edit is not checked.
 
 ### What it asks { #what-a-check-asks }
 
 First the skill's own **test questions**, the same set on every agent. Each skill
-has one set, created empty or from recent answers that loaded the skill, and
-edited like any other [dataset](datasets.md). Then the agent's own questions:
+has one set, created through the API - `POST /api/v1/skills/{id}/test-set`, empty
+or from recent answers that loaded the skill - and edited like any other
+[dataset](datasets.md). Then the agent's own questions:
 
 - **Quick**, the default: at most four questions of the agent's dataset whose
   newest answer loaded the skill - the ones sharing most words with the lines the
@@ -288,12 +289,14 @@ name.
 
 ### When an agent got worse { #when-an-agent-got-worse }
 
-On main a person may still:
+**Check on agents** under Skills prices the check, runs it, shows each agent's
+result and then applies or discards the change. On main a person may still:
 
 - **apply it and keep the worse agents where they are** - each is pinned, as a new
   published version, to the version it reads now, before the change goes live, so
   none of them serves it even once. Pinning needs publishing each of them;
-- **make a fork for the agents it helped**, leaving main as it is;
+- **make a fork for the agents it helped**, leaving main as it is - through the
+  API, `POST /api/v1/skills/{id}/checks/{check_id}/fork`;
 - **discard** it.
 
 On a fork only improving further and discarding remain: a pin names a main

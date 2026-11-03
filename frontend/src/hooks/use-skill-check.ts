@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { qk } from "@/lib/query-keys";
 import {
   applySkillCheck,
+  cancelSkillCheck,
   discardSkillCheck,
   estimateSkillCheck,
   getSkillCheck,
@@ -49,6 +50,10 @@ export function useSkillCheck(skillId: string, checkId: string | null) {
     }),
     discard: useMutation({
       mutationFn: () => discardSkillCheck(skillId, checkId as string),
+      onSuccess: decided,
+    }),
+    cancel: useMutation({
+      mutationFn: () => cancelSkillCheck(skillId, checkId as string),
       onSuccess: decided,
     }),
   };

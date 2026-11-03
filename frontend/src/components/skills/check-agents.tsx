@@ -21,7 +21,7 @@ export function CheckAgents({ agents, hidden }: { agents: SkillCheckAgent[]; hid
       <ul className="divide-border divide-y rounded-md border text-sm">
         {agents.map((row) => (
           <li
-            key={row.agent.id}
+            key={`${row.agent.id}:${row.via_specialist ?? ""}`}
             className="flex flex-wrap items-center justify-between gap-2 px-3 py-2"
           >
             <div className="min-w-0 space-y-0.5">

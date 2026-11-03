@@ -1,5 +1,5 @@
 ---
-source_sha: "8a38c3142fe5"
+source_sha: "04f2dc5ba1d6"
 ---
 
 # Skills { #skills }
@@ -264,15 +264,16 @@ nada más cambia.
 Un cambio que escribió el workspace de un agent, uno que propuso el asistente y
 una [actualización de la biblioteca](#getting-skills-into-an-organization) de un
 skill que siguen agents solo pasan a producción a través de esta comprobación.
-Quien edita el skill a mano guarda una versión nueva al momento; la página del
-skill nombra a los agents en main y ofrece al lado **Check on agents**.
+Quien edita el skill a mano guarda una versión nueva al momento, y esa edición no
+se comprueba.
 
 ### Qué pregunta { #what-a-check-asks }
 
 Primero las **preguntas de prueba** propias del skill, el mismo conjunto en cada
-agent. Cada skill tiene un conjunto, creado vacío o a partir de respuestas
-recientes que cargaron el skill, y editado como cualquier otro
-[dataset](datasets.md). Después, las preguntas del propio agent:
+agent. Cada skill tiene un conjunto, creado a través de la API -
+`POST /api/v1/skills/{id}/test-set`, vacío o a partir de respuestas recientes que
+cargaron el skill - y editado como cualquier otro [dataset](datasets.md).
+Después, las preguntas del propio agent:
 
 - **Quick**, por defecto: como mucho cuatro preguntas del dataset del agent cuya
   respuesta más reciente cargó el skill - las que comparten más palabras con las
@@ -309,13 +310,16 @@ puedes ver es un número, nunca un nombre.
 
 ### Cuando un agent quedó peor { #when-an-agent-got-worse }
 
-En main una persona aún puede:
+**Check on agents** en Skills calcula el precio de la comprobación, la ejecuta,
+muestra el resultado de cada agent y luego aplica o descarta el cambio. En main
+una persona aún puede:
 
 - **aplicarlo y dejar a los agents peores donde están** - cada uno se fija, como
   versión publicada nueva, a la versión que lee ahora, antes de que el cambio
   pase a producción, así que ninguno lo sirve ni una vez. Fijarlos requiere poder
   publicar cada uno;
-- **crear un fork para los agents a los que ayudó**, dejando main como está;
+- **crear un fork para los agents a los que ayudó**, dejando main como está - a
+  través de la API, `POST /api/v1/skills/{id}/checks/{check_id}/fork`;
 - **descartarlo**.
 
 En un fork solo quedan seguir mejorando y descartar: fijar nombra una versión de

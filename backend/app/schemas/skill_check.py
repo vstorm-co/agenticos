@@ -20,20 +20,11 @@ from app.schemas.base import BaseSchema
 from app.schemas.skill_version import SkillForkRead, SkillVersionRead, VersionRef
 
 
-class CandidateFile(BaseSchema):
-    name: str = Field(min_length=1, max_length=255)
-    description: str | None = Field(default=None, max_length=500)
-    content: str
-
-
 class CandidateText(BaseSchema):
     """The text a change would leave the skill with."""
 
     description: str = Field(min_length=1, max_length=500)
     content: str
-    resources: list[CandidateFile] | None = Field(
-        default=None, description="The files in place of the line's; null keeps them"
-    )
 
 
 class SkillCheckStart(BaseSchema):
@@ -71,7 +62,7 @@ StageKind = Literal["skill_set", "dataset_sample", "dataset"]
 class CheckStage(BaseSchema):
     kind: StageKind
     dataset_id: UUID
-    dataset_name: str
+    dataset_name: str | None = Field(description="Null for a dataset the reader may not see")
     cases: int
     eval_run_id: UUID | None = None
 
