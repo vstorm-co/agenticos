@@ -29,6 +29,7 @@ import { useUrlState } from "@/hooks/use-url-state";
 import { ApiError, getErrorMessage } from "@/lib/api-error";
 import { ROUTES } from "@/lib/constants";
 import { Perm } from "@/types/permissions";
+import type { SkillFork } from "@/types/skill-versions";
 
 /** The tabs `?tab=` may open, in the order they are drawn. */
 const TABS = ["agents", "history", "tree"];
@@ -87,6 +88,7 @@ export default function SkillPage({ params }: { params: Promise<{ id: string }> 
         skill={skill}
         line={fork?.name ?? null}
         improveHref={`${ROUTES.SKILL_DETAIL(id)}/improve/new${fork === null ? "" : `?fork=${fork.id}`}`}
+        merges={mergesOf(id, fork)}
         onEdit={() => startOpening(() => setEditing(true))}
         opening={opening}
         onFork={skill.can_edit && base !== null ? () => setForkFrom(base) : null}
@@ -191,4 +193,20 @@ export default function SkillPage({ params }: { params: Promise<{ id: string }> 
       )}
     </div>
   );
+}
+
+/**
+ * Where the fork shown merges with main: catching up while main has moved past it, and
+ * moving to main once it has a version of its own. A fork without one has nothing to
+ * merge - its agents return to main instead.
+ */
+function mergesOf(skillId: string, fork: SkillFork | null) {
+  if (fork === null || fork.latest === null) return null;
+  const href = (merge: string) =>
+    `${ROUTES.SKILL_DETAIL(skillId)}/improve/new?fork=${fork.id}&merge=${merge}`;
+  return {
+    fork: fork.name,
+    catchUp: fork.behind_main > 0 ? href("catch_up") : null,
+    toMain: href("to_main"),
+  };
 }

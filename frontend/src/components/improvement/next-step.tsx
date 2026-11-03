@@ -26,6 +26,7 @@ export function NextStep({
   hint,
   detail,
   blocked,
+  body,
   onStarted,
 }: {
   session: Improvement;
@@ -35,6 +36,11 @@ export function NextStep({
   detail?: (quote: ContinuationEstimate) => ReactNode;
   /** Why the step cannot start yet, said beside the button. */
   blocked?: string;
+  /**
+   * What the step is priced and started with beside the limit. A new value prices it
+   * again, so the caller keeps it stable between renders.
+   */
+  body?: Record<string, unknown>;
   onStarted: () => void;
 }) {
   const t = useTranslations("improvement.nextUp");
@@ -53,7 +59,14 @@ export function NextStep({
   const [error, setError] = useState<string | null>(null);
   // Choosing or rewording a change changes what the check measures, and so its price.
   const candidate = currentAttempt(session)?.candidate_spec_hash;
-  const key = JSON.stringify([asked, session.status, session.stage, session.iteration, candidate]);
+  const key = JSON.stringify([
+    asked,
+    session.status,
+    session.stage,
+    session.iteration,
+    candidate,
+    body,
+  ]);
   const priced = quote?.key === key ? quote.value : null;
   const estimate = actions.estimateContinuation.mutateAsync;
   // Too few questions kept aside is final for this session: it keeps the questions it began with.
@@ -70,7 +83,7 @@ export function NextStep({
   useEffect(() => {
     if (!stop || readOnly || session.can_restart === false || blockedBy) return;
     let current = true;
-    estimate(asked).then(
+    estimate({ budget: asked, body }).then(
       (value) => {
         if (current) setQuote({ key, value });
       },
@@ -81,13 +94,13 @@ export function NextStep({
     return () => {
       current = false;
     };
-  }, [stop, readOnly, session.can_restart, blockedBy, asked, key, estimate, refusal]);
+  }, [stop, readOnly, session.can_restart, blockedBy, asked, body, key, estimate, refusal]);
   if (!stop || readOnly || session.can_restart === false) return null;
   const refused = blockedBy ? t("unmeasurable", { count: blockedBy.needed }) : error;
   async function start(value: ContinuationEstimate) {
     setError(null);
     try {
-      await actions.continueSession.mutateAsync(value);
+      await actions.continueSession.mutateAsync({ ...value, body });
       setMoved(null);
       setStuck(false);
       onStarted();
@@ -98,7 +111,7 @@ export function NextStep({
       }
       const line = failure.code === "LINE_MOVED";
       try {
-        setQuote({ key, value: await estimate(asked) });
+        setQuote({ key, value: await estimate({ budget: asked, body }) });
         setMoved(line ? "line" : "price");
         setStuck(false);
       } catch (again) {

@@ -6,6 +6,7 @@ import { TooltipProvider } from "@/components/ui";
 import type { Period } from "@/lib/dashboard/period";
 import type { ImprovementAwaiting } from "@/types/improvement";
 import type { SkillImprovementAwaiting } from "@/types/skill-improvement";
+import type { BehindMain, BehindMainList } from "@/types/skill-merge";
 import { ImprovementsWaitingWidget } from "./improvements-waiting";
 
 const state = vi.hoisted(() => ({
@@ -22,6 +23,13 @@ const skills = vi.hoisted(() => ({
   refetch: vi.fn(),
 }));
 vi.mock("@/hooks/use-skill-improvement", () => ({ useSkillImprovementsAwaiting: () => skills }));
+const behind = vi.hoisted(() => ({
+  behind: undefined as BehindMainList | undefined,
+  isLoading: false,
+  error: null as Error | null,
+  refetch: vi.fn(),
+}));
+vi.mock("@/hooks/use-skill-merge", () => ({ useBehindMain: () => behind }));
 
 const PERIOD: Period = { preset: "30d", from: "2026-09-27", to: "2026-10-26" };
 
@@ -56,6 +64,10 @@ beforeEach(() => {
   skills.isLoading = false;
   skills.error = null;
   skills.refetch = vi.fn();
+  behind.behind = undefined;
+  behind.isLoading = false;
+  behind.error = null;
+  behind.refetch = vi.fn();
 });
 
 describe("ImprovementsWaitingWidget", () => {
@@ -111,6 +123,7 @@ describe("ImprovementsWaitingWidget", () => {
     state.isLoading = false;
     state.error = new Error("Unavailable");
     skills.error = new Error("Unavailable");
+    behind.error = new Error("Unavailable");
     view.rerender(
       <TooltipProvider>
         <ImprovementsWaitingWidget title="Improvements waiting for you" hint="" period={PERIOD} />
@@ -199,4 +212,70 @@ describe("ImprovementsWaitingWidget", () => {
 
     expect(screen.getByRole("link", { name: "returns-policy · fork “main”" })).toBeVisible();
   });
+
+  it("lists what main left behind after the sessions, and catches a fork up from here", () => {
+    state.sessions = [waiting({})];
+    behind.behind = {
+      items: [
+        behindItem({
+          kind: "fork",
+          agent: null,
+          fork: { id: "f1", name: "returns", base_number: 4, changes: 2 },
+          agents: 2,
+          behind_main: 3,
+        }),
+        behindItem({}),
+        behindItem({
+          agent: { id: "a9", name: "Billing", slug: "billing" },
+          can_act: false,
+          behind_main: 1,
+        }),
+      ],
+      total: 3,
+      hidden: 0,
+    };
+    widget();
+
+    const rows = screen.getAllByRole("listitem");
+    expect(rows.map((row) => row.textContent)).toEqual([
+      "Refund deskLook at what went wrongOpen",
+      "refunds · fork “returns”From v4 · 2 agents · 3 changes behind mainCatch up",
+      "refunds · pinned in DeskOn v4 · 2 changes behind mainOpen",
+      "refunds · pinned in BillingOn v4 · 1 change behind main",
+    ]);
+    expect(within(rows[1]!).getByRole("link", { name: "Catch up" })).toHaveAttribute(
+      "href",
+      "/skills/sk1/improve/new?fork=f1&merge=catch_up",
+    );
+    expect(within(rows[2]!).getByRole("link", { name: "Open" })).toHaveAttribute(
+      "href",
+      "/skills/sk1",
+    );
+    expect(within(rows[3]!).queryByRole("link", { name: "Open" })).not.toBeInTheDocument();
+  });
+
+  it("keeps the sessions listed when what main left behind cannot be read", () => {
+    state.sessions = [waiting({})];
+    behind.error = new Error("Unavailable");
+    widget();
+
+    expect(screen.getAllByRole("listitem")).toHaveLength(1);
+    expect(screen.getByRole("alert")).toHaveTextContent("What main left behind could not be read.");
+  });
 });
+
+function behindItem(overrides: Partial<BehindMain>): BehindMain {
+  return {
+    kind: "pinned",
+    skill: { id: "sk1", name: "refunds" },
+    agent: { id: "a1", name: "Desk", slug: "desk" },
+    via_specialist: null,
+    fork: null,
+    agents: 1,
+    version: { id: "v4", number: 4 },
+    main_latest: { id: "v6", number: 6 },
+    behind_main: 2,
+    can_act: true,
+    ...overrides,
+  } as BehindMain;
+}

@@ -104,6 +104,15 @@ export function useAttemptChanges(
   return { changes: query.data ?? [], isLoading: query.isLoading, error: query.error };
 }
 
+/**
+ * What the next step is priced and started with: the limit, and whatever else the
+ * session's kind asks of it - a catch-up's check of main alone.
+ */
+export interface ContinuationRequest {
+  budget: string;
+  body?: Record<string, unknown>;
+}
+
 export function useImprovement(subject: ImprovementSubject, runId: string) {
   const queryClient = useQueryClient();
   const base = `${root(subject)}/${runId}`;
@@ -185,12 +194,22 @@ export function useImprovement(subject: ImprovementSubject, runId: string) {
     onSuccess: refresh,
   });
   const estimateContinuation = useMutation({
-    mutationFn: (budget: string) =>
-      apiClient.post<ContinuationEstimate>(`${base}/continue/estimate`, { budget_usd: budget }),
+    mutationFn: (request: string | ContinuationRequest) => {
+      const { budget, body } = typeof request === "string" ? { budget: request } : request;
+      return apiClient.post<ContinuationEstimate>(`${base}/continue/estimate`, {
+        ...body,
+        budget_usd: budget,
+      });
+    },
   });
   const continueSession = useMutation({
-    mutationFn: ({ note, ...quote }: ContinuationEstimate & { note?: string }) =>
+    mutationFn: ({
+      note,
+      body,
+      ...quote
+    }: ContinuationEstimate & { note?: string; body?: Record<string, unknown> }) =>
       apiClient.post<Improvement>(`${base}/continue`, {
+        ...body,
         confirmed: true,
         budget_usd: quote.budget_usd,
         estimate_usd: quote.total_usd,

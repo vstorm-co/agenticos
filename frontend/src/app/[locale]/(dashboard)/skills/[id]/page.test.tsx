@@ -323,6 +323,19 @@ describe("SkillPage's lines and writes", () => {
     expect(screen.getByRole("button", { name: "Edit fork “Returns”" })).toBeInTheDocument();
   });
 
+  it("offers catching the fork shown up with main and moving it to main", async () => {
+    state.show = "fork:f1";
+    await mount();
+
+    expect(
+      await screen.findByRole("link", { name: "Catch “Returns” up with main" }),
+    ).toHaveAttribute("href", "/skills/s1/improve/new?fork=f1&merge=catch_up");
+    expect(screen.getByRole("link", { name: "Move “Returns” to main" })).toHaveAttribute(
+      "href",
+      "/skills/s1/improve/new?fork=f1&merge=to_main",
+    );
+  });
+
   it("reads a link to a fork that is gone as everyone, on main", async () => {
     state.show = "fork:gone";
     await mount();

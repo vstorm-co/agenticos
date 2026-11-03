@@ -690,6 +690,14 @@ export const TOUR_STEPS: readonly TourStep[] = [
     permission: Perm.runsView,
     optional: true,
   },
+  // Drawn only for an editor on a fork the page shows, once main has moved past it.
+  {
+    id: "skill-catch-up",
+    page: SKILL_DETAIL,
+    target: "skill-catch-up",
+    permission: Perm.runsView,
+    optional: true,
+  },
   // Drawn under the agents once its numbers load.
   {
     id: "skill-usage",
@@ -729,11 +737,28 @@ export const TOUR_STEPS: readonly TourStep[] = [
     permission: Perm.skillsEdit,
     optional: true,
   },
+  // Drawn in place of the start above when the address merges a fork with main.
+  {
+    id: "skill-merge-start",
+    page: SKILL_IMPROVEMENT_START,
+    target: "skill-merge-start",
+    permission: Perm.skillsEdit,
+    optional: true,
+  },
   {
     id: "skill-improvement-steps",
     page: SKILL_IMPROVEMENT,
     target: "improvement-steps",
     permission: Perm.runsView,
+  },
+  // Only a session catching a fork up or moving it to main merges at Changes.
+  {
+    id: "skill-merge-changes",
+    page: SKILL_IMPROVEMENT,
+    target: "skill-merge-changes",
+    activate: "improvement-step-changes",
+    permission: Perm.runsView,
+    optional: true,
   },
   // Each agent's outcome exists once the line's check has run.
   {

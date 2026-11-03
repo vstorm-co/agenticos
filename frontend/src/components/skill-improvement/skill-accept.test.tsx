@@ -262,4 +262,45 @@ describe("SkillAccept", () => {
       expect(screen.queryByText("check again") !== null).toBe(offered);
     },
   );
+
+  it("takes a checked catch-up into the fork, or returns its agents to main instead", async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const check = skillCheck({ verdict: "no_better" });
+    render(
+      <SkillAccept
+        session={skillSession({
+          purpose: "catch_up",
+          fork_id: "f1",
+          line_name: "returns",
+          check,
+          outcomes: ["catch_up", "return_to_main", "discard"],
+        })}
+        check={check}
+        onStarted={vi.fn()}
+      />,
+      {
+        wrapper: ({ children }: { children: ReactNode }) => (
+          <QueryClientProvider client={client}>{children}</QueryClientProvider>
+        ),
+      },
+    );
+
+    expect(screen.getByText("No agent got worse with the merge.")).toBeVisible();
+    const take = screen.getByRole("button", { name: "Make the merge the next version of returns" });
+    expect(take).toBeDisabled();
+    await confirm();
+    await userEvent.click(take);
+    expect(apiClient.post).toHaveBeenLastCalledWith("/skills/k1/improvements/s1/apply", {
+      confirmed: true,
+      acknowledge_unknown: false,
+      pin_worse: false,
+    });
+
+    await userEvent.click(
+      screen.getByRole("button", { name: "Return the agents of returns to main instead" }),
+    );
+    expect(apiClient.post).toHaveBeenLastCalledWith("/skills/k1/improvements/s1/return-to-main", {
+      confirmed: true,
+    });
+  });
 });

@@ -7,9 +7,10 @@ import { ContinueSession } from "@/components/improvement/continue-session";
 import { useReadOnly } from "@/components/improvement/read-only";
 import { Button, Checkbox, Input, Label } from "@/components/ui";
 import { useSkillAccept } from "@/hooks/use-skill-improvement";
+import { useReturnToMain } from "@/hooks/use-skill-merge";
 import { ApiError, getErrorMessage } from "@/lib/api-error";
 import type { CheckOutcome, SkillCheck } from "@/types/skill-checks";
-import type { SkillImprovement } from "@/types/skill-improvement";
+import type { MergeOutcome, SkillImprovement } from "@/types/skill-improvement";
 import { AddTestQuestions } from "./add-test-questions";
 import { CheckAgain } from "./check-again";
 
@@ -27,7 +28,13 @@ function movedLine(failure: unknown): boolean {
 }
 
 /** The outcomes that change the skill, each held until the person confirms it. */
-const WRITES: CheckOutcome[] = ["apply", "apply_and_pin", "fork_for_helped"];
+const WRITES: (CheckOutcome | MergeOutcome)[] = [
+  "apply",
+  "apply_and_pin",
+  "fork_for_helped",
+  "catch_up",
+  "return_to_main",
+];
 
 /**
  * What to do with a measured attempt. The check decides what may be done: applying
@@ -35,7 +42,8 @@ const WRITES: CheckOutcome[] = ["apply", "apply_and_pin", "fork_for_helped"];
  * it helped when somebody is, improving further, or discarding it. A reader who may
  * not edit the skill sees the verdict and none of the decisions. A result whose line or
  * agents moved since its check offers Check again in place of the decisions it no longer
- * backs.
+ * backs. A catch-up takes the merge into the fork, or - when main alone made nobody worse
+ * - returns the fork's agents to main instead.
  */
 export function SkillAccept({
   session,
@@ -52,7 +60,9 @@ export function SkillAccept({
   const locale = useLocale();
   const readOnly = useReadOnly();
   const { apply, fork } = useSkillAccept(session.skill_id, session.id);
-  const busy = apply.isPending || fork.isPending;
+  const returnToMain = useReturnToMain(session.skill_id, session.id);
+  const busy = apply.isPending || fork.isPending || returnToMain.isPending;
+  const catchUp = session.purpose === "catch_up";
   const list = new Intl.ListFormat(locale, { type: "conjunction" });
   const names = (state: string) =>
     list.format(check.agents.filter((row) => row.state === state).map((row) => row.agent.name));
@@ -98,13 +108,30 @@ export function SkillAccept({
           {t("applyAndPin", { names: names("worse") })}
         </Button>
       )}
+      {session.outcomes.includes("catch_up") && (
+        <Button disabled={held} loading={busy} onClick={() => void applyIt(false)}>
+          {t("catchUp", { line: session.line_name })}
+        </Button>
+      )}
+      {session.outcomes.includes("return_to_main") && (
+        <Button
+          variant="outline"
+          disabled={held}
+          loading={busy}
+          onClick={() => void decide(() => returnToMain.mutateAsync())}
+        >
+          {t("returnToMain", { line: session.line_name })}
+        </Button>
+      )}
     </>
   );
 
   return (
     <section className="space-y-4 rounded-xl border p-6" data-tour="skill-improvement-accept">
       <h2 className="font-medium">{t("title")}</h2>
-      {check.verdict !== null && <p className="text-sm">{t(`verdict.${check.verdict}`)}</p>}
+      {check.verdict !== null && (
+        <p className="text-sm">{t(`${catchUp ? "catchUpVerdict" : "verdict"}.${check.verdict}`)}</p>
+      )}
       {check.warnings.map((warning) => (
         <p key={warning} className="text-warning text-sm">
           {t(`warning.${warning}`)}

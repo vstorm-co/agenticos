@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { GitBranch, Pencil, Sparkles } from "lucide-react";
+import { GitBranch, GitMerge, Pencil, Sparkles } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { PageHeader } from "@/components/dashboard/page-header";
@@ -16,13 +16,15 @@ import type { Skill } from "@/types/providers";
  *
  * Edit opens the skill's editor on the line the page is showing; a reader without
  * edit access gets it read-only as Open. Improve reads the line's runs, so it is
- * offered to an editor who may also read them. New fork starts a line of its own
- * from main's newest version.
+ * offered to an editor who may also read them, and so are catching the fork shown up
+ * with main and moving it to main, which are checked the same way. New fork starts a
+ * line of its own from main's newest version.
  */
 export function SkillPageHeader({
   skill,
   line,
   improveHref,
+  merges = null,
   onEdit,
   opening = false,
   onFork,
@@ -32,6 +34,8 @@ export function SkillPageHeader({
   line: string | null;
   /** Where Improve opens the wizard for that line. */
   improveHref: string;
+  /** Where the wizard merges the fork shown with main; each null where there is nothing to merge. */
+  merges?: { fork: string; catchUp: string | null; toMain: string | null } | null;
   onEdit: () => void;
   /** The editor is on its way after a press of Edit. */
   opening?: boolean;
@@ -57,12 +61,30 @@ export function SkillPageHeader({
       actions={
         <>
           {skill.can_edit && can(Perm.runsView) && (
-            <Button variant="outline" asChild data-tour="skill-improve">
-              <Link href={improveHref}>
-                <Sparkles className="h-4 w-4" aria-hidden />
-                {line === null ? t("improve") : t("improveFork", { name: line })}
-              </Link>
-            </Button>
+            <>
+              <Button variant="outline" asChild data-tour="skill-improve">
+                <Link href={improveHref}>
+                  <Sparkles className="h-4 w-4" aria-hidden />
+                  {line === null ? t("improve") : t("improveFork", { name: line })}
+                </Link>
+              </Button>
+              {merges?.catchUp && (
+                <Button variant="outline" asChild data-tour="skill-catch-up">
+                  <Link href={merges.catchUp}>
+                    <GitMerge className="h-4 w-4" aria-hidden />
+                    {t("catchUp", { name: merges.fork })}
+                  </Link>
+                </Button>
+              )}
+              {merges?.toMain && (
+                <Button variant="outline" asChild>
+                  <Link href={merges.toMain}>
+                    <GitMerge className="h-4 w-4" aria-hidden />
+                    {t("toMain", { name: merges.fork })}
+                  </Link>
+                </Button>
+              )}
+            </>
           )}
           {onFork && (
             <Button variant="outline" data-tour="skill-new-fork" onClick={onFork}>
