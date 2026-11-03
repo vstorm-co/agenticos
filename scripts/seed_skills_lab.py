@@ -194,9 +194,19 @@ def _regex(pattern: str) -> Check:
 
 
 REFUNDED = (_regex(r"(?i)refund"), Check(type="not_contains", value="store credit"))
-CREDITED = (_regex(r"(?i)(?<!\b(?:no|or|nor|not|any)\s(?:offer\s|give\s|provide\s)?)store credit"),)
-"""Store credit offered. A refusal names it too - "no store credit", "a return or store
-credit" - and must not pass for an offer of it."""
+STORE_CREDIT_DENIED = (
+    r"(?:\bno|\bor(?: even)?(?: (?:offer|give|provide|issue))?"
+    r"|\b(?:can(?:'t| ?not)|(?:un|not )able to|(?:won't|will not)(?: be able to)?|don't|do not)"
+    r"(?: even)?(?: (?:offer|give|provide|issue|process))?(?: you)?(?: any)?"
+    r"|\bnot(?: be)? eligible for(?: any)?) store credit"
+    r"|store credit (?:is |are )?(?:unavailable|not (?:available|possible|an option|offered))"
+    r"|store credit (?:isn't|is not|can(?:'t| ?not) be|won't be) "
+    r"(?:available|offered|given|issued|possible|an option)"
+)
+"""The ways an answer names store credit only to deny it."""
+
+CREDITED = (_regex(r"(?i)store credit"), _regex(rf"(?i)^(?![\s\S]*(?:{STORE_CREDIT_DENIED}))"))
+"""Store credit offered: named, and not only to say there is none."""
 
 GENERAL = (
     Case(

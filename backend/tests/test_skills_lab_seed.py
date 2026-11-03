@@ -20,6 +20,7 @@ from typing import Any
 import httpx
 import pytest
 
+from app.schemas.scoring import TextCheck
 from app.services.scorers import ScoredAnswer, run_checks
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -91,6 +92,12 @@ class TestTheData:
             case.question for plan in seed.AGENTS if plan.key != "B" for case in plan.cases
         ] + [case.question for case in (*seed.SKILL_SET, *seed.COUNTER_STORE)]
         assert not [question for question in others if names_them(question)]
+
+    def test_every_check_the_seed_writes_is_one_the_api_accepts(self) -> None:
+        cases = [case for plan in seed.AGENTS for case in plan.cases] + list(seed.SKILL_SET)
+        for case in cases:
+            for check in case.checks:
+                TextCheck.model_validate(check)
 
     def test_no_agent_is_told_about_the_skill(self) -> None:
         for plan in seed.AGENTS:
@@ -232,9 +239,15 @@ class TestTheWordingThatBreaksB:
         [
             ("You cannot return it for a cash refund, but you can get store credit.", True),
             ("Without a receipt we can offer you store credit only.", True),
+            ("We cannot refund it to your card, but store credit is available.", True),
             ("We won't be able to accept a return or offer store credit for it.", False),
             ("We are unable to process a return or store credit for this item.", False),
             ("Unfortunately, no store credit or refund can be offered.", False),
+            ("We cannot offer store credit for this item.", False),
+            ("Store credit is unavailable without a receipt.", False),
+            ("We are unable to accept the return or even offer store credit.", False),
+            ("You would not be eligible for store credit.", False),
+            ("We can't give you store credit without a receipt.", False),
         ],
     )
     def test_store_credit_passes_only_when_it_is_offered(self, answer: str, credited: bool) -> None:
