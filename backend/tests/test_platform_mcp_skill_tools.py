@@ -508,6 +508,57 @@ class TestReadingSessions:
         )
         assert read["next_actions"] == ["End the session"]
 
+    async def test_a_stale_result_is_checked_again_before_anything_is_applied(
+        self, server: FastMCP, api: MagicMock
+    ) -> None:
+        api.request = _responder(
+            {
+                ("GET", SESSION_PATH): _session(stale=True),
+                ("GET", f"{SESSION_PATH}/evidence"): EVIDENCE,
+            }
+        )
+
+        session = await _call(server, "get_skill_improvement", skill_id=SKILL, session_id=SESSION)
+
+        assert session["stale"] is True
+        assert session["next_actions"] == [
+            "Check again on the line as it is now",
+            "End the session",
+        ]
+        assert "moved on since this session read it" in session["summary"]
+
+    async def test_checking_again_is_priced_and_run_on_its_own_routes(
+        self, server: FastMCP, api: MagicMock
+    ) -> None:
+        api.request = _responder(
+            {
+                ("GET", SESSION_PATH): _session(stale=True),
+                ("POST", f"{SESSION_PATH}/recheck/estimate"): {**QUOTE, "check_estimate": None},
+                ("POST", f"{SESSION_PATH}/recheck"): _session("running", stage="evaluating"),
+            }
+        )
+
+        quote = await _call(
+            server,
+            "estimate_next_skill_improvement_step",
+            skill_id=SKILL,
+            session_id=SESSION,
+            recheck=True,
+        )
+        moved = await _call(
+            server,
+            "run_next_skill_improvement_step",
+            skill_id=SKILL,
+            session_id=SESSION,
+            budget_usd="1",
+            estimate_usd=quote["total_usd"],
+            candidate_hash=quote["candidate_hash"],
+            recheck=True,
+        )
+
+        assert _sent(api, "POST", f"{SESSION_PATH}/recheck")["candidate_hash"] == "c" * 64
+        assert moved["status"] == "running"
+
     async def test_a_waiting_session_whose_step_cannot_be_priced_says_why(
         self, server: FastMCP, api: MagicMock
     ) -> None:
@@ -663,14 +714,10 @@ class TestStartingAndSteps:
             "estimate_next_skill_improvement_step",
             skill_id=SKILL,
             session_id=SESSION,
-            budget_usd="2",
             thorough=True,
         )
 
-        assert _sent(api, "POST", f"{SESSION_PATH}/continue/estimate") == {
-            "budget_usd": "2",
-            "mode": "thorough",
-        }
+        assert _sent(api, "POST", f"{SESSION_PATH}/continue/estimate") == {"mode": "thorough"}
         assert estimate["agents"][0]["why_unknown"] == "no_budget"
         assert estimate["hidden_agents"] == 1
         assert estimate["waiting_for"]["next_step"] == "test the changes"
@@ -690,7 +737,7 @@ class TestStartingAndSteps:
             server, "estimate_next_skill_improvement_step", skill_id=SKILL, session_id=SESSION
         )
 
-        assert _sent(api, "POST", f"{SESSION_PATH}/continue/estimate") == {"budget_usd": "1.00"}
+        assert _sent(api, "POST", f"{SESSION_PATH}/continue/estimate") == {}
         assert estimate["agents"] is None
         assert estimate["hidden_agents"] == 0
 
@@ -741,7 +788,8 @@ class TestDeciding:
             {
                 ("POST", f"{SESSION_PATH}/apply"): {
                     "session": _session("accepted"),
-                    "version": {"number": 2},
+                    "version_id": VERSION,
+                    "version": 2,
                     "pinned": [{"id": COUNTER, "name": "Gift shop counter"}] if pin else [],
                 }
             }
@@ -1082,7 +1130,7 @@ class TestCatchingUp:
     @pytest.mark.parametrize(
         ("outcome", "answer", "version"),
         [
-            ("catch_up", {"session": _session("accepted"), "version": {"number": 3}}, 3),
+            ("catch_up", {"session": _session("accepted"), "version_id": VERSION, "version": 3}, 3),
             ("return_to_main", {"session": _session("accepted")}, None),
         ],
     )

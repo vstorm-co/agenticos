@@ -224,12 +224,10 @@ async function until(
 /** The priced Next step a person takes at a stop, with the consent agent Improve takes. */
 async function nextStep(api: APIRequestContext, headers: Record<string, string>, path: string) {
   const session = await read(api, path, headers);
-  const quote = await write(api, "post", `${path}/continue/estimate`, headers, {
-    budget_usd: session.budget_usd,
-  });
+  const quote = await write(api, "post", `${path}/continue/estimate`, headers, {});
   await write(api, "post", `${path}/continue`, headers, {
     confirmed: true,
-    budget_usd: quote.budget_usd,
+    budget_usd: session.budget_usd,
     estimate_usd: quote.total_usd,
     candidate_hash: quote.candidate_hash,
   });

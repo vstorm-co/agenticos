@@ -261,3 +261,11 @@ def test_catching_up_waits_for_the_person_and_shows_each_conflict(instructions: 
     assert "fork / main / result" in rule
     assert "use `return_to_main` on their yes" in rule
     assert "`return_fork_to_main` moves its agents back" in rule
+
+
+def test_a_moved_line_is_priced_again_and_a_stale_result_checked_again(
+    instructions: str,
+) -> None:
+    rule = _bullet(instructions, "When the line moves during a session")
+    assert "`estimate_next_skill_improvement_step` again" in rule
+    assert "(`recheck`) before anything is applied" in rule

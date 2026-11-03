@@ -733,6 +733,8 @@ def _skill_next_actions(session: dict[str, Any]) -> list[str]:
         actions.append(f"Next step: {waiting['next_step']}")
     if status == "failed":
         actions.append("Retry this step")
+    if status == "ready" and session.get("stale"):
+        return ["Check again on the line as it is now", "End the session"]
     outcomes = (session.get("outcomes") or []) if status == "ready" else []
     fork = session.get("line_name")
     on_main = session.get("fork_id") is None or session.get("purpose") == "to_main"
@@ -793,6 +795,11 @@ def _skill_summary(session: dict[str, Any]) -> str:
         sentences.append(f"It is {session['status']}.")
     elif reason := _WHY_STOPPED.get(session.get("stop_reason") or ""):
         sentences.append(reason)
+    if session.get("stale") and session["status"] not in _CLOSED:
+        sentences.append(
+            "The skill line moved on since this session read it, so its next check "
+            "measures the changes on the line as it is now."
+        )
     check = session.get("check")
     if check and session["status"] == "ready":
         results = [
@@ -861,6 +868,7 @@ def _skill_session(skill_id: UUID | str, session: dict[str, Any]) -> dict[str, A
         "expires_at": session.get("expires_at"),
         "created_at": session.get("created_at"),
         "closed": session["status"] in _CLOSED,
+        "stale": session.get("stale", False),
         "waiting_for": _waiting(session),
         "check": _skill_check(check) if check else None,
         "outcome": session.get("outcome"),
@@ -1960,7 +1968,7 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
             quote = await api.request(
                 "POST",
                 f"/skills/{skill_id}/improvements/{session['id']}/continue/estimate",
-                json={"budget_usd": str(session["budget_usd"])},
+                json={},
             )
         except ToolError as refused:
             return {"unavailable": _plain(str(refused))}
@@ -2093,27 +2101,26 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
     async def estimate_next_skill_improvement_step(
         skill_id: UUID,
         session_id: UUID,
-        budget_usd: Decimal | None = None,
         thorough: bool = False,
+        recheck: bool = False,
     ) -> dict[str, Any]:
         """What a skill session's next step, or another attempt, would cost. Needs `skills:edit`
         and `runs:view`.
 
         After Understand the next step proposes changes; after Changes it checks
-        them on every agent of the line; at the result it tries again. `agents`
-        names which agents the check runs and which cannot be checked, and why.
-        `thorough` checks each agent's whole dataset instead of a sample; a
-        changed description always does. Pass `total_usd` and `candidate_hash`
-        on to run_next_skill_improvement_step.
+        them on every agent of the line; at the result it tries again. `recheck`
+        prices checking the result's changes again on the line as it is now, for
+        a `stale` result. `agents` names which agents the check runs and which
+        cannot be checked, and why. `thorough` checks each agent's whole dataset
+        instead of a sample; a changed description always does. When it is not
+        `affordable`, a higher limit goes to run_next_skill_improvement_step as
+        its `budget_usd`. Pass `total_usd` and `candidate_hash` on to it.
         """
         path = f"/skills/{skill_id}/improvements/{session_id}"
         session = await api.request("GET", path)
-        body: dict[str, Any] = {
-            "budget_usd": str(budget_usd if budget_usd is not None else session["budget_usd"])
-        }
-        if thorough:
-            body["mode"] = "thorough"
-        estimate = await api.request("POST", f"{path}/continue/estimate", json=body)
+        body: dict[str, Any] = {"mode": "thorough"} if thorough else {}
+        route = "recheck" if recheck else "continue"
+        estimate = await api.request("POST", f"{path}/{route}/estimate", json=body)
         check = estimate.get("check_estimate")
         return {
             **{key: value for key, value in estimate.items() if key != "check_estimate"},
@@ -2131,14 +2138,18 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         candidate_hash: str,
         note: str | None = None,
         thorough: bool = False,
+        recheck: bool = False,
     ) -> dict[str, Any]:
         """Run a skill session's next step, or improve further, only when the person asked for it.
         Needs `skills:edit` and `runs:view`.
 
         Pass `estimate_usd` and `candidate_hash` from
-        estimate_next_skill_improvement_step and say the step and its price
-        before calling; a session that changed since is refused. `note` is what
-        the person wants done differently, in their words, for another attempt.
+        estimate_next_skill_improvement_step, priced the same way, and say the
+        step and its price before calling. `budget_usd` is the session's limit,
+        or a higher one the person agreed to. A session whose line moved since
+        the price is refused: price it again. `note` is what the person wants
+        done differently, in their words, for another attempt. `recheck` checks
+        a stale result's changes again instead.
         """
         consent: dict[str, Any] = {
             "confirmed": True,
@@ -2150,8 +2161,9 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
             consent["note"] = note
         if thorough:
             consent["mode"] = "thorough"
+        route = "recheck" if recheck else "continue"
         moved = await api.request(
-            "POST", f"/skills/{skill_id}/improvements/{session_id}/continue", json=consent
+            "POST", f"/skills/{skill_id}/improvements/{session_id}/{route}", json=consent
         )
         return _skill_session(skill_id, moved)
 
@@ -2204,7 +2216,7 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         applied = await api.request("POST", f"{path}/apply", json=body)
         return {
             "status": applied["session"]["status"],
-            "version": (applied.get("version") or {}).get("number"),
+            "version": applied.get("version"),
             "pinned": [agent["name"] for agent in applied.get("pinned", [])],
             "link": skill_link(skill_id),
         }
