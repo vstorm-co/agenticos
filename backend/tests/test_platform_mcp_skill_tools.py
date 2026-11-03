@@ -1298,6 +1298,21 @@ PATHS = [
     ("GET", f"{BASE}/versions"),
     ("GET", f"{BASE}/versions/{VERSION}"),
     ("PUT", f"{BASE}/agents/{COUNTER}/binding"),
+    ("GET", "/skill-improvements/awaiting"),
+    ("GET", SESSIONS),
+    ("POST", f"{SESSIONS}/estimate"),
+    ("POST", SESSIONS),
+    ("GET", SESSION_PATH),
+    ("GET", f"{SESSION_PATH}/evidence"),
+    ("POST", f"{SESSION_PATH}/continue/estimate"),
+    ("POST", f"{SESSION_PATH}/continue"),
+    ("POST", f"{SESSION_PATH}/recheck/estimate"),
+    ("POST", f"{SESSION_PATH}/recheck"),
+    ("POST", f"{SESSION_PATH}/apply"),
+    ("POST", f"{SESSION_PATH}/fork"),
+    ("POST", f"{SESSION_PATH}/discard"),
+    ("POST", f"{SESSION_PATH}/cancel"),
+    ("GET", f"{BASE}/checks/{VERSION}"),
 ]
 
 
