@@ -83,6 +83,11 @@ export function returnSkillImprovementToMain(
   );
 }
 
+/** Move a fork's agents back to main's newest version; the fork is archived once nobody reads it. */
+export function returnForkToMain(skillId: string, forkId: string): Promise<ReturnedToMain> {
+  return apiClient.post<ReturnedToMain>(`/skills/${skillId}/forks/${forkId}/return-to-main`, {});
+}
+
 /** The pinned agents and forks main has moved past, across the organization. */
 export function listBehindMain(): Promise<BehindMainList> {
   return apiClient.get<BehindMainList>("/skills/behind-main");

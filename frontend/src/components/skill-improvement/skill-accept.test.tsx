@@ -266,6 +266,7 @@ describe("SkillAccept", () => {
   it("takes a checked catch-up into the fork, or returns its agents to main instead", async () => {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     const check = skillCheck({ verdict: "no_better" });
+    const returned = vi.fn();
     render(
       <SkillAccept
         session={skillSession({
@@ -277,6 +278,7 @@ describe("SkillAccept", () => {
         })}
         check={check}
         onStarted={vi.fn()}
+        onReturned={returned}
       />,
       {
         wrapper: ({ children }: { children: ReactNode }) => (
@@ -296,12 +298,15 @@ describe("SkillAccept", () => {
       pin_worse: false,
     });
 
+    const result = { agents: [], hidden: 0, remaining: 1, archived: false };
+    vi.mocked(apiClient.post).mockResolvedValueOnce({ session: skillSession(), returned: result });
     await userEvent.click(
       screen.getByRole("button", { name: "Return the agents of returns to main instead" }),
     );
     expect(apiClient.post).toHaveBeenLastCalledWith("/skills/k1/improvements/s1/return-to-main", {
       confirmed: true,
     });
+    expect(returned).toHaveBeenCalledWith(result);
   });
 
   it("returns the agents to main without the acknowledgement a merge's decision needs", async () => {

@@ -8,6 +8,7 @@ import { useTranslations } from "next-intl";
 import { DeleteSkillDialog } from "@/components/skills/delete-skill-dialog";
 import { EditSkillDialog } from "@/components/skills/edit-skill-dialog";
 import { NewForkDialog } from "@/components/skills/new-fork-dialog";
+import { ReturnForkDialog } from "@/components/skills/return-fork-dialog";
 import { SkillAgents } from "@/components/skills/skill-agents";
 import { SkillHistory } from "@/components/skills/skill-history";
 import {
@@ -56,6 +57,7 @@ export default function SkillPage({ params }: { params: Promise<{ id: string }> 
   const [opening, startOpening] = useTransition();
   const [deleting, setDeleting] = useState(false);
   const [forkFrom, setForkFrom] = useState<string | null>(null);
+  const [returning, setReturning] = useState<SkillFork | null>(null);
   const { skill, error, remove } = useSkill(id);
   const lines = useSkillForks(id);
   const agents = useSkillAgents(id);
@@ -89,6 +91,11 @@ export default function SkillPage({ params }: { params: Promise<{ id: string }> 
         line={fork?.name ?? null}
         improveHref={`${ROUTES.SKILL_DETAIL(id)}/improve/new${fork === null ? "" : `?fork=${fork.id}`}`}
         merges={mergesOf(id, fork)}
+        onReturn={
+          fork !== null && fork.latest === null && fork.agents > 0
+            ? { fork: fork.name, open: () => setReturning(fork) }
+            : null
+        }
         onEdit={() => startOpening(() => setEditing(true))}
         opening={opening}
         onFork={skill.can_edit && base !== null ? () => setForkFrom(base) : null}
@@ -178,6 +185,9 @@ export default function SkillPage({ params }: { params: Promise<{ id: string }> 
             router.push(ROUTES.SKILLS);
           }}
         />
+      )}
+      {returning !== null && (
+        <ReturnForkDialog skillId={id} fork={returning} onClose={() => setReturning(null)} />
       )}
       {forkFrom !== null && (
         <NewForkDialog

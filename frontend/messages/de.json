@@ -8463,7 +8463,14 @@
         "hidden": "{count, plural, =1 {1 Agent, den Sie nicht sehen, hat ihn} other {# Agents, die Sie nicht sehen, haben ihn}} {loads, plural, =1 {einmal} other {# Mal}} geöffnet."
       },
       "catchUp": "„{name}“ auf main nachziehen",
-      "toMain": "„{name}“ nach main übernehmen"
+      "toMain": "„{name}“ nach main übernehmen",
+      "returnFork": {
+        "button": "„{name}“ zu main zurückholen",
+        "title": "Die Agents von „{name}“ zu main zurückholen",
+        "body": "{count, plural, =0 {Niemand liest diesen Fork, daher wird er archiviert.} =1 {Der 1 Agent, der diesen Fork liest, wechselt auf die neueste Version von main, veröffentlicht, wo Sie veröffentlichen dürfen, sonst in seinem Entwurf. Der Fork wird archiviert, sobald niemand ihn liest.} other {Die # Agents, die diesen Fork lesen, wechseln auf die neueste Version von main, jeder veröffentlicht, wo Sie veröffentlichen dürfen, sonst in seinem Entwurf. Der Fork wird archiviert, sobald niemand ihn liest.}}",
+        "confirm": "Zu main zurückholen",
+        "done": "Fertig"
+      }
     },
     "checkOnAgents": "Auf Agents prüfen",
     "checkChangeTo": "Die Änderung an {name} auf den Agents prüfen, die ihn nutzen",
@@ -15346,6 +15353,15 @@
     "mergeAgain": {
       "moved": "Der Fork oder main hat eine neuere Version als die, die diese Zusammenführung gelesen hat, daher wird sie nicht erneut geprüft.",
       "start": "Diese Zusammenführung verwerfen und neu starten"
+    },
+    "returned": {
+      "title": "Was die Rückkehr zu main bewirkt hat",
+      "live": "Zu main verschoben und veröffentlicht: {names}.",
+      "drafts": "Im Entwurf zu main verschoben, der auf die Veröffentlichung wartet: {names}.",
+      "refused": "{name} bleibt auf dem Fork: {reason}",
+      "hidden": "{count, plural, =1 {1 Agent, den Sie nicht sehen, blieb unverändert.} other {# Agents, die Sie nicht sehen, blieben unverändert.}}",
+      "archived": "Niemand liest den Fork mehr, daher wurde er archiviert.",
+      "remaining": "{count, plural, =0 {Der Fork blieb unverändert.} =1 {1 Agent liest den Fork noch, daher wurde er nicht archiviert.} other {# Agents lesen den Fork noch, daher wurde er nicht archiviert.}}"
     }
   }
 }

@@ -29,7 +29,7 @@ import {
 } from "@/lib/improvement-steps";
 import { Perm } from "@/types/permissions";
 import type { SkillImprovement } from "@/types/skill-improvement";
-import type { MergeKind } from "@/types/skill-merge";
+import type { MergeKind, ReturnedToMain } from "@/types/skill-merge";
 import { CheckAgain } from "./check-again";
 import { CheckAgents } from "./check-agents";
 import { CheckEstimate } from "./check-estimate";
@@ -37,6 +37,7 @@ import { MainAloneChoice, MainAloneResult } from "./main-alone";
 import { MergeAgain } from "./merge-again";
 import { MergeChanges } from "./merge-changes";
 import { MergeStart } from "./merge-start";
+import { ReturnedSummary } from "./returned-summary";
 import { SkillAccept } from "./skill-accept";
 import { SkillStart } from "./skill-start";
 import { SkillUnderstand } from "./skill-understand";
@@ -117,6 +118,8 @@ function SkillSession({
   const actions = useImprovement({ skillId }, sessionId);
   const [wordingOpen, setWordingOpen] = useState(false);
   const [mainAlone, setMainAlone] = useState(true);
+  // Kept here: returning to main closes the session, which takes Accept off the screen.
+  const [returned, setReturned] = useState<ReturnedToMain | null>(null);
   const session = actions.session as SkillImprovement | undefined;
   const merging = session !== undefined && isMerge(session);
   // Read once the session stops at Changes; while it works, the model is still writing.
@@ -164,11 +167,13 @@ function SkillSession({
         merging
           ? {
               hint: t(`mergeHint.${session.purpose}`),
-              blocked: !merge
-                ? t("mergeReading")
-                : merge.unresolved
-                  ? t("settleFirst", { count: merge.unresolved })
-                  : undefined,
+              blocked: session.stale
+                ? t("mergeAgain.moved")
+                : !merge
+                  ? t("mergeReading")
+                  : merge.unresolved
+                    ? t("settleFirst", { count: merge.unresolved })
+                    : undefined,
               body,
               revision: merge?.updated_at ?? null,
             }
@@ -187,10 +192,13 @@ function SkillSession({
             isActive(session) && views.changes.content === "working" ? (
               <WorkingNote>{t("mergeWorking")}</WorkingNote>
             ) : (
-              <MergeChanges
-                session={session}
-                editable={readOnly === null && stopOf(session) === "changes"}
-              />
+              <>
+                {session.stale && readOnly === null && <MergeAgain session={session} />}
+                <MergeChanges
+                  session={session}
+                  editable={readOnly === null && stopOf(session) === "changes" && !session.stale}
+                />
+              </>
             )
           ) : (
             step === "changes" &&
@@ -254,9 +262,17 @@ function SkillSession({
           )}
           {step === "accept" &&
             (check && !isClosed(session) ? (
-              <SkillAccept session={session} check={check} onStarted={followCurrent} />
+              <SkillAccept
+                session={session}
+                check={check}
+                onStarted={followCurrent}
+                onReturned={setReturned}
+              />
             ) : (
-              <p className="text-sm">{t("acceptClosed")}</p>
+              <>
+                <p className="text-sm">{t("acceptClosed")}</p>
+                {returned && <ReturnedSummary returned={returned} />}
+              </>
             ))}
         </>
       )}

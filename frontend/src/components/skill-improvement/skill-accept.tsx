@@ -12,6 +12,7 @@ import { ApiError, getErrorMessage } from "@/lib/api-error";
 import { isMerge } from "@/lib/improvement-steps";
 import type { CheckOutcome, SkillCheck } from "@/types/skill-checks";
 import type { MergeOutcome, SkillImprovement } from "@/types/skill-improvement";
+import type { ReturnedToMain } from "@/types/skill-merge";
 import { AddTestQuestions } from "./add-test-questions";
 import { CheckAgain } from "./check-again";
 import { MergeAgain } from "./merge-again";
@@ -52,10 +53,13 @@ export function SkillAccept({
   session,
   check,
   onStarted,
+  onReturned,
 }: {
   session: SkillImprovement;
   check: SkillCheck;
   onStarted: () => void;
+  /** What returning the fork's agents to main did, which outlives this view. */
+  onReturned?: (returned: ReturnedToMain) => void;
 }) {
   const t = useTranslations("skillImprovement.accept");
   const tErrors = useTranslations("errors");
@@ -121,7 +125,12 @@ export function SkillAccept({
           variant="outline"
           disabled={!confirmed}
           loading={busy}
-          onClick={() => void decide(() => returnToMain.mutateAsync())}
+          onClick={() =>
+            void decide(async () => {
+              const done = await returnToMain.mutateAsync();
+              onReturned?.(done.returned);
+            })
+          }
         >
           {t("returnToMain", { line: session.line_name })}
         </Button>

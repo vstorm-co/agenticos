@@ -9,8 +9,8 @@ import type { MergeText as MergeTextValue } from "@/types/skill-merge";
 
 /**
  * One text of a merge. A part only one side changed says which; a conflict shows both
- * sides beside what the merge says, marked when nobody has settled it yet, and a person
- * may rewrite it, starting from the assistant's proposal where it wrote one.
+ * sides beside what the merge says, marked when nobody has settled it yet. A person may
+ * rewrite either, a conflict starting from the assistant's proposal where it wrote one.
  */
 export function MergeText({
   label,
@@ -35,6 +35,31 @@ export function MergeText({
   const conflict = text.state === "conflict";
   const open = conflict && text.result === null;
   const value = draft ?? text.result ?? text.proposed ?? "";
+  // A part one side changed is taken as it is, and a person may still rewrite it.
+  const editor = (
+    <>
+      <Textarea
+        aria-label={t("resultOf", { label })}
+        className="min-h-24 font-mono text-xs"
+        value={value}
+        maxLength={maxLength}
+        required={maxLength !== undefined}
+        onChange={(event) => setDraft(event.target.value)}
+      />
+      <Button
+        size="sm"
+        disabled={
+          draft === null ||
+          draft === (text.result ?? "") ||
+          (maxLength !== undefined && draft.trim() === "")
+        }
+        loading={saving}
+        onClick={() => void onSave(value).then((saved) => saved && setDraft(null))}
+      >
+        {t("save")}
+      </Button>
+    </>
+  );
   return (
     <section
       aria-label={label}
@@ -54,34 +79,11 @@ export function MergeText({
           <Side title={t("mainSide")} text={text.main} />
           <div className="space-y-1">
             <p className="text-muted-foreground text-xs">{t("resultSide")}</p>
-            {editable ? (
-              <>
-                <Textarea
-                  aria-label={t("resultOf", { label })}
-                  className="min-h-24 font-mono text-xs"
-                  value={value}
-                  maxLength={maxLength}
-                  required={maxLength !== undefined}
-                  onChange={(event) => setDraft(event.target.value)}
-                />
-                <Button
-                  size="sm"
-                  disabled={
-                    draft === null ||
-                    draft === (text.result ?? "") ||
-                    (maxLength !== undefined && draft.trim() === "")
-                  }
-                  loading={saving}
-                  onClick={() => void onSave(value).then((saved) => saved && setDraft(null))}
-                >
-                  {t("save")}
-                </Button>
-              </>
-            ) : (
-              <Body text={text.result ?? t("unsettled")} />
-            )}
+            {editable ? editor : <Body text={text.result ?? t("unsettled")} />}
           </div>
         </div>
+      ) : editable ? (
+        editor
       ) : (
         <Body text={text.result} />
       )}

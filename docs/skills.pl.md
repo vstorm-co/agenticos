@@ -1,5 +1,5 @@
 ---
-source_sha: "29dff3e747de"
+source_sha: "44d227134bc4"
 ---
 
 # Skille { #skills }
@@ -429,7 +429,8 @@ przypięci agenci, których nie widzisz, są policzeni, a nie nazwani.
 wszystkich albo wybranych, każdego tak, jak robi to Change version. Agent, którego
 nie da się przesunąć, zostaje na forku z podanym powodem. Gdy nikt już nie czyta
 forka, fork jest archiwizowany. Agent, którego środowisko czeka na promocję, czyta
-fork do czasu promocji, więc do tego czasu fork zostaje.
+fork do czasu promocji, więc do tego czasu fork zostaje. Na stronie skilla fork bez
+własnej wersji ma ten przycisk i potem mówi, kto przeszedł, a kto został.
 
 **Aktualizacja do main.** Przypiętego agenta, który jest za main, przenosi się
 w górę po sprawdzeniu: `POST /api/v1/skills/{id}/agents/{agent_id}/update-check`

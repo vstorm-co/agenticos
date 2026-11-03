@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { Skill } from "@/types/providers";
@@ -62,5 +63,22 @@ describe("SkillPageHeader", () => {
     document.body.innerHTML = "";
     mount({ ...SKILL, can_edit: false });
     expect(screen.queryByRole("link", { name: /to main/ })).not.toBeInTheDocument();
+  });
+
+  it("offers returning a fork with nothing of its own to main", async () => {
+    const open = vi.fn();
+    render(
+      <SkillPageHeader
+        skill={SKILL}
+        line="returns"
+        improveHref="/skills/k1/improve/new?fork=f1"
+        onReturn={{ fork: "returns", open }}
+        onEdit={vi.fn()}
+        onFork={null}
+      />,
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "Return “returns” to main" }));
+    expect(open).toHaveBeenCalledOnce();
   });
 });

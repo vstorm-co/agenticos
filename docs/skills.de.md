@@ -1,5 +1,5 @@
 ---
-source_sha: "29dff3e747de"
+source_sha: "44d227134bc4"
 ---
 
 # Skills { #skills }
@@ -470,7 +470,8 @@ Main-Version, alle oder die ausgewählten, jeden so, wie Change version ihn
 verschiebt. Einer, der sich nicht verschieben lässt, bleibt mit dem Grund auf dem
 Fork. Sobald niemand den Fork mehr liest, wird er archiviert. Ein Agent, dessen
 Umgebung auf eine Beförderung wartet, liest den Fork bis dahin weiter, daher bleibt
-der Fork bis dahin bestehen.
+der Fork bis dahin bestehen. Auf der Seite des Skills bietet ein Fork ohne eigene
+Version das an und sagt danach, wer gewechselt hat und wer geblieben ist.
 
 **Auf main aktualisieren.** Ein festgesetzter Agent hinter main wird erst nach
 einer Prüfung nachgezogen: `POST /api/v1/skills/{id}/agents/{agent_id}/update-check`

@@ -11,6 +11,7 @@ const merges = vi.hoisted(() => ({
   merge: undefined as SkillMerge | undefined,
   isLoading: false,
   error: null as Error | null,
+  refetch: vi.fn(),
   editDescription: { mutateAsync: vi.fn(), isPending: false },
   editPart: { mutateAsync: vi.fn(), isPending: false },
   pickFile: { mutateAsync: vi.fn(), isPending: false },
@@ -204,13 +205,30 @@ describe("MergeChanges", () => {
     );
   });
 
+  it("lets a person rewrite a part one side changed, too", async () => {
+    mount();
+    const taken = screen.getByRole("region", { name: "Part 2" });
+    const box = within(taken).getByRole("textbox", { name: "Merged text of Part 2" });
+    expect(box).toHaveValue("THREE\n");
+
+    await userEvent.clear(box);
+    await userEvent.type(box, "Three");
+    await userEvent.click(within(taken).getByRole("button", { name: "Save" }));
+
+    expect(merges.editPart.mutateAsync).toHaveBeenCalledWith({ index: 1, result: "Three" });
+  });
+
   it("is read only once the session left Changes", () => {
     merges.merge = merge({
-      parts: [text({ state: "conflict", result: "four\n", proposed: "four\n" })],
+      parts: [
+        text({ state: "conflict", result: "four\n", proposed: "four\n" }),
+        text({ state: "main", base: "five\n", fork: "five\n", main: "FIVE\n", result: "FIVE\n" }),
+      ],
       files: [file({ name: "b.md", state: "conflict", fork: null, take: "fork" })],
       unresolved: 0,
     });
     mount(false);
+    expect(within(screen.getByRole("region", { name: "Part 2" })).getByText("FIVE")).toBeVisible();
 
     expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
@@ -241,15 +259,17 @@ describe("MergeChanges", () => {
     expect(screen.getByText("1 line neither side changed")).toBeVisible();
   });
 
-  it("waits for the merge, and says why it could not be read", () => {
+  it("waits for the merge, and says why it could not be read", async () => {
     merges.merge = undefined;
     merges.isLoading = true;
     const view = mount();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
 
     merges.isLoading = false;
-    merges.error = new ApiError(404, "This session merges nothing");
+    merges.error = new ApiError(503, "The service is busy");
     view.rerender(<MergeChanges session={skillSession()} editable />);
-    expect(screen.getByText("This session merges nothing")).toBeVisible();
+    expect(screen.getByText("The service is busy")).toBeVisible();
+    await userEvent.click(screen.getByRole("button", { name: "Try reading again" }));
+    expect(merges.refetch).toHaveBeenCalled();
   });
 });

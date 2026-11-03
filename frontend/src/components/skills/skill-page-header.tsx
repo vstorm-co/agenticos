@@ -25,6 +25,7 @@ export function SkillPageHeader({
   line,
   improveHref,
   merges = null,
+  onReturn = null,
   onEdit,
   opening = false,
   onFork,
@@ -36,6 +37,8 @@ export function SkillPageHeader({
   improveHref: string;
   /** Where the wizard merges the fork shown with main; each null where there is nothing to merge. */
   merges?: { fork: string; catchUp: string | null; toMain: string | null } | null;
+  /** Returns the fork shown to main when it has nothing of its own to merge. */
+  onReturn?: { fork: string; open: () => void } | null;
   onEdit: () => void;
   /** The editor is on its way after a press of Edit. */
   opening?: boolean;
@@ -74,6 +77,12 @@ export function SkillPageHeader({
                     <GitMerge className="h-4 w-4" aria-hidden />
                     {t("catchUp", { name: merges.fork })}
                   </Link>
+                </Button>
+              )}
+              {onReturn && (
+                <Button variant="outline" onClick={onReturn.open}>
+                  <GitMerge className="h-4 w-4" aria-hidden />
+                  {t("returnFork.button", { name: onReturn.fork })}
                 </Button>
               )}
               {merges?.toMain && (

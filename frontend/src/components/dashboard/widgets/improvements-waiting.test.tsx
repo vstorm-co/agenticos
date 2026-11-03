@@ -266,7 +266,7 @@ describe("ImprovementsWaitingWidget", () => {
     expect(within(rows[3]!).queryByRole("link", { name: "Open" })).not.toBeInTheDocument();
   });
 
-  it("reads what main left behind only for a reader of skills, and opens a fork with nothing of its own", () => {
+  it("reads what main left behind only for a reader of skills, and opens a fork with nothing of its own", async () => {
     behind.behind = {
       items: [
         behindItem({
@@ -284,8 +284,12 @@ describe("ImprovementsWaitingWidget", () => {
 
     asked.skillsView = false;
     behind.behind = undefined;
+    skills.error = new Error("Unavailable");
     widget();
     expect(asked.enabled).toBe(false);
+    await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+    expect(skills.refetch).toHaveBeenCalled();
+    expect(behind.refetch).not.toHaveBeenCalled();
   });
 
   it("keeps the sessions listed when what main left behind cannot be read", () => {

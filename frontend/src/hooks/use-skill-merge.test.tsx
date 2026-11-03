@@ -6,6 +6,7 @@ import { beforeEach, expect, it, vi } from "vitest";
 import { apiClient } from "@/lib/api-client";
 import {
   useBehindMain,
+  useReturnForkToMain,
   useReturnToMain,
   useSkillMerge,
   useSkillMergeStart,
@@ -101,4 +102,18 @@ it("reads what main left behind, and only for a card that is shown", async () =>
   vi.mocked(apiClient.get).mockClear();
   renderHook(() => useBehindMain({ enabled: false }), { wrapper });
   expect(apiClient.get).not.toHaveBeenCalled();
+});
+
+it("returns a fork's agents to main from the skill page", async () => {
+  vi.mocked(apiClient.post).mockResolvedValue({
+    agents: [],
+    hidden: 0,
+    remaining: 0,
+    archived: true,
+  });
+  const { result } = renderHook(() => useReturnForkToMain("k1", "f1"), { wrapper });
+
+  await act(() => result.current.mutateAsync());
+
+  expect(apiClient.post).toHaveBeenCalledWith("/skills/k1/forks/f1/return-to-main", {});
 });

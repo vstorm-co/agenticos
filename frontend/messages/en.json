@@ -8585,7 +8585,14 @@
         "hidden": "{count, plural, =1 {1 agent you can't see} other {# agents you can't see}} opened it {loads, plural, =1 {once} other {# times}}."
       },
       "catchUp": "Catch “{name}” up with main",
-      "toMain": "Move “{name}” to main"
+      "toMain": "Move “{name}” to main",
+      "returnFork": {
+        "button": "Return “{name}” to main",
+        "title": "Return the agents of “{name}” to main",
+        "body": "{count, plural, =0 {Nobody reads this fork, so it is archived.} =1 {The 1 agent reading this fork moves to main's newest version, published where you may publish it and in its draft otherwise. The fork is archived once nobody reads it.} other {The # agents reading this fork move to main's newest version, each published where you may publish it and in its draft otherwise. The fork is archived once nobody reads it.}}",
+        "confirm": "Return to main",
+        "done": "Done"
+      }
     },
     "checkOnAgents": "Check on agents",
     "checkChangeTo": "Check the change to {name} on the agents that use it",
@@ -15674,6 +15681,15 @@
     "mergeAgain": {
       "moved": "The fork or main has a newer version than this merge read, so it is not checked again.",
       "start": "Discard this merge and start again"
+    },
+    "returned": {
+      "title": "What returning to main did",
+      "live": "Moved to main and published: {names}.",
+      "drafts": "{count, plural, =1 {Moved to main in its draft, which waits to be published: {names}.} other {Moved to main in their drafts, which wait to be published: {names}.}}",
+      "refused": "{name} stays on the fork: {reason}",
+      "hidden": "{count, plural, =1 {1 agent you cannot see was left as it was.} other {# agents you cannot see were left as they were.}}",
+      "archived": "Nobody reads the fork any more, so it was archived.",
+      "remaining": "{count, plural, =0 {The fork was left as it was.} =1 {1 agent still reads the fork, so it was not archived.} other {# agents still read the fork, so it was not archived.}}"
     }
   }
 }

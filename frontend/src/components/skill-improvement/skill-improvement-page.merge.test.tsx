@@ -241,4 +241,60 @@ describe("a session merging a fork with main", () => {
       await screen.findByRole("button", { name: "Discard this merge and start again" }),
     ).toBeVisible();
   });
+
+  it("holds a merge whose lines moved at Changes, and offers to start it again", async () => {
+    state.session = merging("catch_up", { stale: true });
+    mount();
+
+    expect(
+      await screen.findByRole("button", { name: "Discard this merge and start again" }),
+    ).toBeVisible();
+    expect(screen.getByText("read the merge")).toBeVisible();
+    expect(
+      screen.getAllByText(
+        "The fork or main has a newer version than this merge read, so it is not checked again.",
+      ).length,
+    ).toBeGreaterThan(0);
+  });
+
+  it("says what returning to main did once the session has closed", async () => {
+    state.session = merging("catch_up", {
+      status: "ready",
+      stage: "judging",
+      check: skillCheck({ verdict: "no_better" }),
+      main_alone: "checked",
+      outcomes: ["catch_up", "return_to_main", "discard"],
+    });
+    state.step = "accept";
+    vi.mocked(apiClient.post).mockImplementation(async () => {
+      state.session = merging("catch_up", {
+        status: "accepted",
+        stage: "judging",
+        check: skillCheck(),
+        outcome: "returned_to_main",
+      });
+      return {
+        session: state.session,
+        returned: {
+          agents: [
+            { agent: { id: "a1", name: "Desk" }, published: true, agent_version: 2, refused: null },
+          ],
+          hidden: 0,
+          remaining: 0,
+          archived: true,
+        },
+      };
+    });
+    mount();
+
+    await userEvent.click(
+      await screen.findByLabelText("I have reviewed the selected changes and want to apply them."),
+    );
+    await userEvent.click(
+      screen.getByRole("button", { name: "Return the agents of returns to main instead" }),
+    );
+
+    expect(await screen.findByText("Moved to main and published: Desk.")).toBeVisible();
+    expect(screen.getByText("Nobody reads the fork any more, so it was archived.")).toBeVisible();
+  });
 });

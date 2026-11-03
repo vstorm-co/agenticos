@@ -46,12 +46,15 @@ export function ImprovementsWaitingWidget({ title, hint, options }: DashboardWid
   const skills = useSkillImprovementsAwaiting();
   // The card is gated on reading runs; what main left behind is read with skills:view.
   const { can } = usePermissions();
-  const behind = useBehindMain({ enabled: can(Perm.skillsView) });
+  const readsSkills = can(Perm.skillsView);
+  const behind = useBehindMain({ enabled: readsSkills });
   const isLoading = agents.isLoading || skills.isLoading || behind.isLoading;
   const failed = (["agents", "skills", "behind"] as const).filter(
     (source: Source) => ({ agents, skills, behind })[source].error,
   );
-  const refetch = () => Promise.all([agents.refetch(), skills.refetch(), behind.refetch()]);
+  // A manual refetch ignores `enabled`, so the read the reader may not make is left out.
+  const refetch = () =>
+    Promise.all([agents.refetch(), skills.refetch(), ...(readsSkills ? [behind.refetch()] : [])]);
   const what = (item: Parameters<typeof stopOf>[0] & { next_step_blocked?: unknown }) =>
     t(item.next_step_blocked ? "what.blocked" : `what.${stopOf(item) ?? "result"}`);
   const open = { label: t("open"), merge: false };

@@ -414,7 +414,8 @@ are counted, not named.
 or the ones you pick, each as Change version moves it. One that cannot be moved
 stays on the fork with the reason. Once nobody reads the fork, it is archived. An
 agent whose environment waits for a promotion still reads the fork until it is
-promoted, so the fork stays until then.
+promoted, so the fork stays until then. On the skill page, a fork with no version of
+its own offers it, and says afterwards who moved and who stayed.
 
 **Update to main.** A pinned agent behind main is moved up with a check first:
 `POST /api/v1/skills/{id}/agents/{agent_id}/update-check` asks that one agent, on its

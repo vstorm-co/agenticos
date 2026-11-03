@@ -1,5 +1,5 @@
 ---
-source_sha: "29dff3e747de"
+source_sha: "44d227134bc4"
 ---
 
 # Skills { #skills }
@@ -443,7 +443,8 @@ agents fijados que no ves se cuentan, sin nombrarlos.
 main, todos o los que elijas, cada uno como lo mueve Change version. El que no se
 puede mover se queda en el fork con el motivo. Cuando nadie lee ya el fork, se
 archiva. Un agent cuyo entorno espera una promoción sigue leyendo el fork hasta que
-se promueve, así que hasta entonces el fork se queda.
+se promueve, así que hasta entonces el fork se queda. En la página del skill, un fork
+sin versión propia lo ofrece y dice después quién se movió y quién se quedó.
 
 **Actualizar a main.** Un agent fijado que va por detrás de main se sube tras una
 comprobación: `POST /api/v1/skills/{id}/agents/{agent_id}/update-check` pregunta solo a

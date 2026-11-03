@@ -10,6 +10,7 @@ import {
   getSkillMerge,
   listBehindMain,
   pickMergeFile,
+  returnForkToMain,
   returnSkillImprovementToMain,
   startSkillMerge,
 } from "@/lib/skill-merge-api";
@@ -82,6 +83,15 @@ export function useReturnToMain(skillId: string, sessionId: string) {
         queryClient.invalidateQueries({ queryKey: qk.improvements.all() }),
         queryClient.invalidateQueries({ queryKey: qk.skills.all() }),
       ]),
+  });
+}
+
+/** Return a fork's agents to main from the skill page, outside any session. */
+export function useReturnForkToMain(skillId: string, forkId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => returnForkToMain(skillId, forkId),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: qk.skills.all() }),
   });
 }
 

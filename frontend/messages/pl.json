@@ -8345,7 +8345,14 @@
         "hidden": "{count, plural, one {1 agent, którego nie widzisz,} few {# agentów, których nie widzisz,} many {# agentów, których nie widzisz,} other {# agenta, którego nie widzisz,}} {count, plural, one {otworzył} other {otworzyło}} go {loads, plural, one {raz} few {# razy} many {# razy} other {# razy}}."
       },
       "catchUp": "Dogoń main w forku „{name}”",
-      "toMain": "Przenieś „{name}” do main"
+      "toMain": "Przenieś „{name}” do main",
+      "returnFork": {
+        "button": "Przenieś „{name}” z powrotem do main",
+        "title": "Przenieś agentów „{name}” z powrotem do main",
+        "body": "{count, plural, =0 {Nikt nie czyta tego forka, więc zostanie zarchiwizowany.} one {# agent czytający ten fork przejdzie na najnowszą wersję main, opublikowany tam, gdzie możesz publikować, a w szkicu w pozostałych przypadkach. Fork zostanie zarchiwizowany, gdy nikt go już nie czyta.} few {# agenty czytające ten fork przejdą na najnowszą wersję main, każdy opublikowany tam, gdzie możesz publikować, a w szkicu w pozostałych przypadkach. Fork zostanie zarchiwizowany, gdy nikt go już nie czyta.} many {# agentów czytających ten fork przejdzie na najnowszą wersję main, każdy opublikowany tam, gdzie możesz publikować, a w szkicu w pozostałych przypadkach. Fork zostanie zarchiwizowany, gdy nikt go już nie czyta.} other {# agenta czytającego ten fork przejdzie na najnowszą wersję main. Fork zostanie zarchiwizowany, gdy nikt go już nie czyta.}}",
+        "confirm": "Przenieś do main",
+        "done": "Gotowe"
+      }
     },
     "checkOnAgents": "Sprawdź na agentach",
     "checkChangeTo": "Sprawdź zmianę w {name} na agentach, które go używają",
@@ -15448,6 +15455,15 @@
     "mergeAgain": {
       "moved": "Fork albo main ma nowszą wersję niż ta, którą odczytało to scalenie, więc nie jest sprawdzane ponownie.",
       "start": "Odrzuć to scalenie i zacznij od nowa"
+    },
+    "returned": {
+      "title": "Co zrobił powrót do main",
+      "live": "Przeniesieni na main i opublikowani: {names}.",
+      "drafts": "Przeniesieni na main w szkicu, który czeka na publikację: {names}.",
+      "refused": "{name} zostaje na forku: {reason}",
+      "hidden": "{count, plural, one {# agent, którego nie widzisz, został bez zmian.} few {# agenty, których nie widzisz, zostały bez zmian.} many {# agentów, których nie widzisz, zostało bez zmian.} other {# agenta, którego nie widzisz, zostało bez zmian.}}",
+      "archived": "Nikt już nie czyta forka, więc został zarchiwizowany.",
+      "remaining": "{count, plural, =0 {Fork został bez zmian.} one {# agent nadal czyta fork, więc nie został zarchiwizowany.} few {# agenty nadal czytają fork, więc nie został zarchiwizowany.} many {# agentów nadal czyta fork, więc nie został zarchiwizowany.} other {# agenta nadal czyta fork, więc nie został zarchiwizowany.}}"
     }
   }
 }

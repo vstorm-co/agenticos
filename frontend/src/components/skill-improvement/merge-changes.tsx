@@ -25,12 +25,18 @@ export function MergeChanges({
 }) {
   const t = useTranslations("skillImprovement.merge");
   const tErrors = useTranslations("errors");
+  const tImprovement = useTranslations("improvement");
   const actions = useSkillMerge(session.skill_id, session.id, { at: standing(session) });
   const [refusal, setRefusal] = useState<string | null>(null);
   const { merge } = actions;
   if (actions.isLoading) return <LoadingState variant="skeleton-cards" rows={2} />;
   if (actions.error || !merge)
-    return <ErrorState description={getErrorMessage(actions.error, tErrors)} />;
+    return (
+      <ErrorState
+        description={getErrorMessage(actions.error, tErrors)}
+        cta={{ label: tImprovement("retryRead"), onClick: () => void actions.refetch() }}
+      />
+    );
   async function save(write: () => Promise<unknown>): Promise<boolean> {
     setRefusal(null);
     try {
