@@ -389,7 +389,7 @@ class SkillCheckService:
                 except AuthorizationError, NotFoundError:
                     row.unknown = UnknownReason.NO_ACCESS
                     break
-                row.expected += quote.total_usd
+                row.expected += rules.expected_cost(quote.total_usd, quote.rerun_ceiling_usd)
                 row.at_most += quote.total_usd + quote.rerun_ceiling_usd
                 remaining = quote.agent_remaining_usd
                 org_remaining = quote.org_remaining_usd
@@ -782,9 +782,14 @@ class SkillCheckService:
         self, ctx: AuthContext, check: SkillCheck, row: SkillCheckAgent, current: UUID
     ) -> None:
         if row.dataset_run_id is None:
-            first = await self._stage_result(ctx, current)
             stage = _next_stage(row, CheckMode(check.mode))
-            if rules.stage_state(first) is not AgentState.WORSE and stage is not None:
+            # A quick check stops at a regression on the skill's questions, which is
+            # cheap; a thorough one, paid for in full, asks the agent's own as well, so
+            # its row shows where the change broke the agent.
+            if stage is not None and (
+                check.mode == CheckMode.THOROUGH.value
+                or rules.stage_state(await self._stage_result(ctx, current)) is not AgentState.WORSE
+            ):
                 dataset = await dataset_repo.get(
                     self.db, stage[0], organization_id=ctx.organization_id
                 )
@@ -1073,7 +1078,9 @@ class SkillCheckService:
                     warnings=["within_noise"]
                     if any(row.state == AgentState.WITHIN_NOISE.value or row.noisy for row in mine)
                     else [],
-                    outcomes=rules.outcomes(verdict, fork=check.fork_id is not None)
+                    outcomes=rules.outcomes(
+                        verdict, fork=check.fork_id is not None, helped=_helped(mine)
+                    )
                     if status is CheckStatus.DONE and verdict is not None
                     else [],
                     outcome=None if check.outcome is None else CheckOutcome(check.outcome),
@@ -1303,8 +1310,11 @@ class SkillCheckService:
             raise ConcurrentChangeError(
                 message="The check has not finished", details={"check_id": check.id}
             )
+        rows = await skill_check_repo.list_agents(
+            self.db, [check.id], organization_id=ctx.organization_id
+        )
         if outcome is not None and outcome not in rules.outcomes(
-            CheckVerdict(check.verdict), fork=check.fork_id is not None
+            CheckVerdict(check.verdict), fork=check.fork_id is not None, helped=_helped(rows)
         ):
             raise BadRequestError(
                 message="This check's result does not offer that",
@@ -1314,9 +1324,6 @@ class SkillCheckService:
         if drift is not None:
             raise drift
         await self._refuse_rewritten(ctx, check)
-        rows = await skill_check_repo.list_agents(
-            self.db, [check.id], organization_id=ctx.organization_id
-        )
         return skill, check, rows
 
     async def _drift(
@@ -1425,7 +1432,7 @@ class SkillCheckService:
             )
         outcome = CheckOutcome.APPLY_AND_PIN if blocked else CheckOutcome.APPLY
         if outcome not in rules.outcomes(
-            CheckVerdict(check.verdict), fork=check.fork_id is not None
+            CheckVerdict(check.verdict), fork=check.fork_id is not None, helped=_helped(rows)
         ):
             raise BadRequestError(
                 message="This check's result does not offer that",
@@ -1780,6 +1787,10 @@ class SkillCheckService:
             await self._add_evidence(ctx, skill, created.id, window_days=data.window_days)
             return await self.datasets.read(ctx, created.id)
         return created
+
+
+def _helped(rows: Sequence[SkillCheckAgent]) -> bool:
+    return any(row.state == AgentState.BETTER.value for row in rows)
 
 
 def _per_agent(users: Sequence[LineAgent]) -> list[LineAgent]:

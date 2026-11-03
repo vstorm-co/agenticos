@@ -1,5 +1,5 @@
 ---
-source_sha: "8c4be6cbee46"
+source_sha: "64f446c47824"
 ---
 
 # Skille { #skills }
@@ -270,8 +270,11 @@ inny [dataset](datasets.md). Potem o pytania samego agenta:
 - **Quick**, domyślnie: najwyżej cztery pytania z datasetu agenta, których
   najnowsza odpowiedź otworzyła skill - te, które mają najwięcej wspólnych słów
   ze zmienianymi liniami. Agent bez takich pytań jest sprawdzany tylko na
-  zestawie skilla, a jego wiersz to mówi.
-- **Thorough**: cały dataset agenta. Zmiana opisu skilla jest zawsze sprawdzana
+  zestawie skilla, a jego wiersz to mówi. Agent, którego pytania skilla pokazały
+  jako gorszego, nie jest pytany o własne.
+- **Thorough**: cały dataset agenta, zadawany nawet wtedy, gdy pytania skilla
+  pokazały agenta jako gorszego, żeby jego wiersz mówił, gdzie zmiana go zepsuła.
+  Zmiana opisu skilla jest zawsze sprawdzana
   w ten sposób, bo opis decyduje, kiedy każdy agent w ogóle otwiera skill.
 
 !!! note "Pytania skilla mówią, co skill powinien robić"
@@ -316,7 +319,8 @@ nadal:
   zmiana trafi na żywo, więc żaden z nich nie obsłuży jej ani razu. Przypięcie
   wymaga prawa publikacji każdego z nich, a środowisko czekające na promocję musi
   najpierw dostać przypiętą wersję;
-- **zrobić fork dla agentów, którym pomogła**, zostawiając main bez zmian - przez
+- **zrobić fork dla agentów, którym pomogła**, gdy któryś wypadł lepiej,
+  zostawiając main bez zmian - przez
   API, `POST /api/v1/skills/{id}/checks/{check_id}/fork`;
 - **odrzucić** ją.
 

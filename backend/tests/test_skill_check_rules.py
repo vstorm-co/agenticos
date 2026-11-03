@@ -11,11 +11,13 @@ import pytest
 from app.db.models.skill_check import AgentState, CheckOutcome, CheckVerdict
 from app.services.improvement_states import CheckResult
 from app.services.skill_check_rules import (
+    EXPECTED_RERUN_SHARE,
     SampleCandidate,
     StageComparison,
     StageResult,
     agent_state,
     changed_words,
+    expected_cost,
     noisy,
     outcomes,
     pooled,
@@ -215,27 +217,40 @@ class TestVerdict:
         assert result is CheckVerdict.PASSED
 
 
+def test_a_stage_most_likely_costs_its_answers_and_some_of_its_re_asks() -> None:
+    """The re-ask ceiling asks every question again; a check pays for the flipped ones."""
+    expected = expected_cost(Decimal("1.00"), Decimal("2.00"))
+
+    assert Decimal("1.00") < expected < Decimal("3.00")
+    assert expected == Decimal("1.00") + Decimal("2.00") * EXPECTED_RERUN_SHARE
+
+
 class TestOutcomes:
     def test_a_blocked_change_to_main_offers_the_four(self) -> None:
-        assert outcomes(CheckVerdict.BLOCKED, fork=False) == [
+        assert outcomes(CheckVerdict.BLOCKED, fork=False, helped=True) == [
             CheckOutcome.IMPROVE_FURTHER,
             CheckOutcome.APPLY_AND_PIN,
             CheckOutcome.FORK_FOR_HELPED,
             CheckOutcome.DISCARD,
         ]
 
+    def test_a_change_that_helped_no_agent_offers_no_fork_for_the_helped(self) -> None:
+        assert CheckOutcome.FORK_FOR_HELPED not in outcomes(
+            CheckVerdict.BLOCKED, fork=False, helped=False
+        )
+
     def test_a_blocked_change_to_a_fork_has_no_pin_and_no_fork(self) -> None:
-        assert outcomes(CheckVerdict.BLOCKED, fork=True) == [
+        assert outcomes(CheckVerdict.BLOCKED, fork=True, helped=True) == [
             CheckOutcome.IMPROVE_FURTHER,
             CheckOutcome.DISCARD,
         ]
 
     def test_a_change_that_helped_nobody_cannot_be_applied(self) -> None:
-        assert CheckOutcome.APPLY not in outcomes(CheckVerdict.NO_BETTER, fork=False)
+        assert CheckOutcome.APPLY not in outcomes(CheckVerdict.NO_BETTER, fork=False, helped=False)
 
     @pytest.mark.parametrize("result", [CheckVerdict.PASSED, CheckVerdict.NEEDS_ACK])
     def test_a_passing_change_may_be_applied(self, result: CheckVerdict) -> None:
-        assert outcomes(result, fork=True)[0] is CheckOutcome.APPLY
+        assert outcomes(result, fork=True, helped=True)[0] is CheckOutcome.APPLY
 
 
 class TestSample:

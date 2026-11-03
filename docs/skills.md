@@ -258,8 +258,10 @@ or from recent answers that loaded the skill - and edited like any other
 - **Quick**, the default: at most four questions of the agent's dataset whose
   newest answer loaded the skill - the ones sharing most words with the lines the
   change touches. An agent with none is checked on the skill's set alone, and its
-  row says so.
-- **Thorough**: the agent's whole dataset. A change to the skill's description
+  row says so. An agent the skill's questions show worse is not asked its own.
+- **Thorough**: the agent's whole dataset, asked even when the skill's questions
+  showed the agent worse, so its row says where the change broke it. A change to
+  the skill's description
   is always thorough, because the description decides when every agent opens
   the skill at all.
 
@@ -302,7 +304,8 @@ result and then applies or discards the change. On main a person may still:
   published version, to the version it reads now, before the change goes live, so
   none of them serves it even once. Pinning needs publishing each of them, and an
   environment that waits for promotion must take the pinned version first;
-- **make a fork for the agents it helped**, leaving main as it is - through the
+- **make a fork for the agents it helped**, when one got better, leaving main as it
+  is - through the
   API, `POST /api/v1/skills/{id}/checks/{check_id}/fork`;
 - **discard** it.
 

@@ -36,6 +36,7 @@ from app.db.models.eval_run import (
 from app.db.models.organization import OrganizationMember
 from app.db.models.skill_check import (
     AgentState,
+    CheckOutcome,
     CheckSource,
     CheckStatus,
     CheckVerdict,
@@ -1136,6 +1137,21 @@ class TestWhatTheCheckMeasuredIsWhatShips:
         read = await service.read(lab.ctx, lab.skill.id, check.id)
         assert {row.unknown_reason for row in read.agents} == {"failed"}
         assert await _live_runs(db, check.id) == []
+
+    async def test_a_change_that_helped_nobody_offers_no_fork_for_the_helped(self, db, monkeypatch):
+        lab = await _lab(db)
+        evals = FakeEvals()
+        evals.install(monkeypatch)
+        service, check = await _finished(
+            db, lab, evals, {lab.a.id: Outcome(broken=1), lab.b.id: Outcome(broken=1)}
+        )
+
+        read = await service.read(lab.ctx, lab.skill.id, check.id)
+
+        assert read.verdict is CheckVerdict.BLOCKED
+        assert CheckOutcome.FORK_FOR_HELPED not in read.outcomes
+        with pytest.raises(BadRequestError, match="does not offer"):
+            await service.fork(lab.ctx, lab.skill.id, check.id, SkillCheckFork(name="x"))
 
     async def test_a_change_that_hurt_nobody_is_not_forked(self, db, monkeypatch):
         lab = await _lab(db)

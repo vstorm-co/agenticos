@@ -576,21 +576,32 @@ class TestTheRule:
             CheckOutcome.DISCARD,
         ]
 
-    async def test_a_regression_in_the_skill_set_stops_that_agent_early(self, db, monkeypatch):
+    @pytest.mark.parametrize(("mode", "b_stages"), [("quick", 1), ("thorough", 2)])
+    async def test_a_regression_in_the_skill_set_stops_only_a_quick_check_early(
+        self, db, monkeypatch, mode: str, b_stages: int
+    ):
+        """A quick check is cheap and stops there; a thorough one is paid for in full and
+        asks the agent's own questions too, so its row shows where the agent broke."""
         lab = await _lab(db)
         evals = FakeEvals()
         evals.install(monkeypatch)
+
+        async def sample(_self, _ctx, _skill, _agent_id, _dataset, _words, _allowed=None):
+            return [uuid.uuid4()]
+
+        monkeypatch.setattr(SkillCheckService, "_sample", sample)
         service = SkillCheckService(db)
         check = await service.start(
-            lab.ctx, lab.skill.id, SkillCheckStart(candidate=NEW, mode="thorough")
+            lab.ctx, lab.skill.id, SkillCheckStart(candidate=NEW, mode=mode)
         )
         evals.outcomes = {lab.b.id: Outcome(broken=1), lab.a.id: Outcome(fixed=1)}
 
-        await _run_to_end(service, evals, lab, check.id)
+        read = await _run_to_end(service, evals, lab, check.id)
 
-        datasets_run = [agent for agent, request in evals.started if request.case_ids is None]
-        assert datasets_run.count(lab.b.id) == 1
-        assert datasets_run.count(lab.a.id) == 2
+        started = [agent for agent, _ in evals.started]
+        assert started.count(lab.b.id) == b_stages
+        assert started.count(lab.a.id) == 2
+        assert read.verdict is CheckVerdict.BLOCKED
 
     async def test_unconfirmed_regressions_are_a_warning(self, db, monkeypatch):
         lab = await _lab(db)

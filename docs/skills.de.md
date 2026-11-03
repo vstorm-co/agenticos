@@ -1,5 +1,5 @@
 ---
-source_sha: "8c4be6cbee46"
+source_sha: "64f446c47824"
 ---
 
 # Skills { #skills }
@@ -290,8 +290,11 @@ jedes andere [Dataset](datasets.md). Dann die eigenen Fragen des Agents:
 - **Quick**, der Standard: höchstens vier Fragen aus dem Dataset des Agents,
   deren neueste Antwort den Skill geladen hat - die, die die meisten Wörter mit
   den geänderten Zeilen teilen. Ein Agent ohne solche Fragen wird nur mit dem
-  Satz des Skills geprüft, und seine Zeile sagt das.
-- **Thorough**: das ganze Dataset des Agents. Eine Änderung der Beschreibung
+  Satz des Skills geprüft, und seine Zeile sagt das. Ein Agent, den die Fragen
+  des Skills als schlechter zeigen, wird nicht nach seinen eigenen gefragt.
+- **Thorough**: das ganze Dataset des Agents, gefragt auch dann, wenn die Fragen
+  des Skills den Agent als schlechter zeigten, damit seine Zeile sagt, wo die
+  Änderung ihn gebrochen hat. Eine Änderung der Beschreibung
   des Skills wird immer so geprüft, denn die Beschreibung entscheidet, wann ein
   Agent den Skill überhaupt öffnet.
 
@@ -340,7 +343,8 @@ kann eine Person dennoch:
   ausliefert. Das Festsetzen erfordert, jeden von ihnen veröffentlichen zu dürfen,
   und eine Umgebung, die auf Beförderung wartet, muss zuerst die festgesetzte
   Version übernehmen;
-- **einen Fork für die Agents anlegen, denen sie geholfen hat**, und main lassen,
+- **einen Fork für die Agents anlegen, denen sie geholfen hat**, wenn einer
+  besser wurde, und main lassen,
   wie es ist - über die API, `POST /api/v1/skills/{id}/checks/{check_id}/fork`;
 - sie **verwerfen**.
 
