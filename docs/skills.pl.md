@@ -1,5 +1,5 @@
 ---
-source_sha: "5a462ae93444"
+source_sha: "3c469cefe28b"
 ---
 
 # Skille { #skills }
@@ -534,6 +534,48 @@ wycelowany w czyjeś repozytorium i obietnicę dotyczącą treści, której nikt
 nie przeczytał. Każdy katalog w `app/core/catalog/skills/` i
 `app/core/catalog/skill_gallery/` jest tą samą małą obietnicą, którą składa
 [katalog MCP](mcp.md#the-catalog): ktoś na to spojrzał.
+
+## Strona skilla { #a-skills-page }
+
+Otwórz skill z listy, żeby zobaczyć jego stronę. Ma trzy zakładki.
+
+**Agenci** to lista każdego agenta, który używa skilla, z wersją, którą dostaje:
+
+- `v12 · main` - agent podąża za main i od razu dostaje każdą nową wersję.
+- `v9 · przypięty · 3 za main` - agent zostaje na starszej wersji main.
+- `Fork „Returns” · od v7 · 2 zmiany` - agent używa forka: linii wersji z
+  własnymi zmianami, zaczętej od jednej wersji main.
+
+Środowisko, które serwuje inną wersję, jest podane pod agentem, a specjalista inline,
+który wiąże skill, ma osobny wiersz - zobacz
+[Którą wersję czyta agent](#which-version-an-agent-reads). Agent, który wiąże skill
+tylko w drafcie, ma oznaczenie **Tylko w drafcie** i nie liczy się do żadnej
+linii. Agentów, których nie widzisz, strona liczy, ale nie nazywa. Chipy nad
+tabelą pokazują wszystkich, agentów na main, przypiętych albo jeden fork. Fork
+wybrany tam jest też linią, którą pokazuje Historia i do której zapisuje Edycja.
+
+**Zmień wersję** przenosi jednego agenta na main, na przypiętą wersję main albo na
+fork, tak jak opisuje [Którą wersję czyta agent](#which-version-an-agent-reads): co
+trafia na produkcję, co czeka w drafcie, a co zmienia się w Builderze. Wersja, na
+której agenta nie ma, nie była na nim sprawdzona, więc najpierw to potwierdzasz.
+Kontrolkę widzą osoby, które mogą edytować agenta.
+
+**Historia** wymienia wersje wybranej linii od najnowszej: skąd się wzięła każda
+(edycja, zmiana plików, biblioteka, workspace agenta, Improve albo przywrócenie),
+kto ją zrobił i kiedy. **Pokaż zmiany** porównuje opis i instrukcje z poprzednią
+wersją - dla pierwszej wersji forka z jego bazą na main - i podaje pliki dodane,
+usunięte albo zmienione. **Przywróć** sprowadza wcześniejszą wersję jako najnowszą
+na jej własnej linii, a agenci podążający za tą linią dostają ją od razu.
+
+**Drzewo wersji** rysuje main od najnowszej wersji w dół, każdy fork odchodzący od
+wersji, od której wystartował, i agentów przy wersji, której używają. Odcinki,
+których nie używa żaden agent, zwijają się do jednego wiersza.
+
+**Edytuj** zapisuje nową wersję na widocznej linii. Na main agenci podążający za
+main dostają ją od razu; przypięci agenci i forki zostają przy swojej wersji. Pliki
+i kategoria należą do main, więc edycja forka zmienia tylko jego opis i instrukcje.
+Przywróć i Zmień wersję widzą tylko osoby, które mogą tę zmianę zrobić; pozostali
+otwierają skill tylko do odczytu.
 
 ## Skille czy wiedza? { #skills-or-knowledge }
 

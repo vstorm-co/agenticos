@@ -117,6 +117,9 @@ function servePermissions(permissions: readonly string[]) {
     if (path.startsWith("/datasets?")) {
       return Promise.resolve({ items: [{ id: "dataset-1", name: "Refunds" }], total: 1 });
     }
+    if (path.startsWith("/skills?")) {
+      return Promise.resolve({ items: [{ id: "skill-1", name: "refund-policy" }], total: 1 });
+    }
     return Promise.resolve({
       organization_id: "org-1",
       role: "member",
@@ -298,8 +301,9 @@ describe("OnboardingTour", () => {
   it("offers the section's create flow when a '?' walk runs to its end", async () => {
     // Every section's "?" ends by asking whether to make the thing the section
     // is for - the re-entry into the interactive flows.
+    // The Skills walk ends on a skill's own page, which is where the reader is.
     servePermissions(OWNER);
-    nav.pathname = "/skills";
+    nav.pathname = "/skills/skill-1";
     useOnboardingStore.setState({ isOpen: true, index: 99, mode: "page" });
     render(<OnboardingTour />, { wrapper });
     await waitFor(() => expect(spotlight.highlight).toHaveBeenCalled());
@@ -397,6 +401,7 @@ describe("OnboardingTour", () => {
     expect(asked).not.toContain("/kb");
     expect(asked).not.toContain("/orgs");
     expect(asked.some((path) => path.startsWith("/datasets?"))).toBe(false);
+    expect(asked.some((path) => path.startsWith("/skills?"))).toBe(false);
   });
 
   it("asks for them on a walk that does step into a detail view", async () => {
