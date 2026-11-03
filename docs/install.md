@@ -32,6 +32,10 @@ there is no step it takes that you cannot.
 
 ## Requirements
 
+Podman is currently unsupported, including with `--no-sandbox`. Use Docker
+Engine with Docker Compose 2.24+; see [Podman support](deploy.md#podman-support)
+for the Compose and sandbox limitations.
+
 | To | You need |
 |---|---|
 | **Run it** | Docker with the Compose plugin, 2.24 or later - Docker Desktop, OrbStack, or Engine with `docker-compose-plugin`. <https://docs.docker.com/get-docker/> |

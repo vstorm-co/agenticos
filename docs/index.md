@@ -133,6 +133,10 @@ instead.
 
 ## Requirements
 
+Podman is currently unsupported, including with `--no-sandbox`. Use Docker
+Engine with Docker Compose 2.24+; see [Podman support](deploy.md#podman-support)
+for the Compose and sandbox limitations.
+
 Docker and Docker Compose. That is the whole list — Postgres (with pgvector),
 Redis, the API, the worker and the console all come up together.
 

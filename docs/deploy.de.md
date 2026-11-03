@@ -1,5 +1,5 @@
 ---
-source_sha: "88a69af9b330"
+source_sha: "c3a0127a69c7"
 ---
 
 # Auf einem Server deployen { #deploy-to-a-server }
@@ -50,6 +50,40 @@ kann, und ein eigenes Zertifikat.
 `app.example.com` und `api.example.com` ist die Form. Es können zwei beliebige
 Namen sein; was sie nicht sein dürfen, ist ein Name mit einem Pfadpräfix, denn
 die Cookies der API und die der Website sind auf den Host begrenzt.
+
+### Podman-Unterstützung { #podman-support }
+
+**Podman wird derzeit nicht unterstützt**, mit oder ohne Sandbox. Verwenden Sie
+Docker Engine 24+ und Docker Compose 2.24+. Der Quickstart weist erkanntes
+Podman vor der Compose-Versionsprüfung zurück, auch wenn `docker` auf
+`podman-docker` verweist oder die Docker-CLI einen Server mit Podman-Kennung nutzt.
+
+`podman compose` verwendet einen externen Provider: Docker Compose und
+`podman-compose` haben getrennte Versionsnummern. `podman-compose` 1.6.0 bedeutet
+nicht Docker Compose 1.6.0. Unsere Dateien benötigen optionale `env_file`-Einträge
+und Abhängigkeitsbedingungen für gesunde Dienste und abgeschlossene Migrationen.
+Eine geänderte Versionsprüfung allein belegt keine Kompatibilität.
+
+Die Sandbox hat eine eigene Kompatibilitätsgrenze. `sandboxd` aus
+`pydantic-ai-backend` 0.2.39 verwendet Docker SDK `from_env()`, Container-Erstellung,
+exec, Ressourcenlimits und Image-Builds. Ein Podman-API-Socket kann Docker-Aufrufe
+annehmen; das bestätigt weder diese Operationen noch deren Isolation. Runtime-Builds
+nutzen Docker Buildx, falls verfügbar, andernfalls den SDK-Builder.
+
+Die gelieferten Dateien mounten `/var/run/docker.sock`. Podman verwendet üblicherweise
+`/run/podman/podman.sock` (rootful) oder `$XDG_RUNTIME_DIR/podman/podman.sock`
+(rootless). Socket-Zugriff, SELinux-Labels, UID-Zuordnung, Bind-Mounts der
+Host-Arbeitsverzeichnisse und cgroup-Limits benötigen Tests auf dem Host.
+`DOCKER_HOST` allein ändert den gelieferten Socket-Mount nicht.
+
+Weder Docker Compose gegen Podman noch `podman-compose` haben einen verifizierten
+AgenticOS-Start mit Agent-Antwort. Auch rootful und rootless `sandboxd` gegen
+Podman sind nicht verifiziert. Dies ist eine Supportentscheidung anhand der
+bestehenden Verträge, kein Bericht über getestete und fehlgeschlagene Kombinationen.
+`--no-sandbox` belegt keine Unterstützung des übrigen Compose-Stacks.
+
+Siehe die [Compose-Provider-Dokumentation](https://docs.podman.io/en/latest/markdown/podman-compose.1.html)
+und die [API-Socket-Dokumentation](https://docs.podman.io/en/latest/markdown/podman-system-service.1.html).
 
 ## Den Host dimensionieren { #sizing-the-host }
 

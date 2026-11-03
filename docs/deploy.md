@@ -42,6 +42,40 @@ name a browser can resolve and a certificate of its own.
 what they must not be is one name with a path prefix, because the API's cookies
 and the site's are scoped to the host.
 
+### Podman support
+
+**Podman is currently unsupported**, with or without the sandbox. Use Docker
+Engine 24+ and Docker Compose 2.24+. The quickstart rejects detected Podman
+before checking the Compose version, including when `docker` is `podman-docker`
+or Docker's CLI connects to a server identifying itself as Podman.
+
+`podman compose` delegates to an external provider: Docker Compose and
+`podman-compose` have separate version numbers. A `podman-compose` version such
+as 1.6.0 does not mean Docker Compose 1.6.0. Our files require optional
+`env_file` entries and dependency conditions for healthy services and completed
+migrations; changing the version check alone does not establish compatibility.
+
+The sandbox has a separate compatibility boundary. `sandboxd` from
+`pydantic-ai-backend` 0.2.39 uses Docker SDK `from_env()`, container create/exec,
+resource limits and image builds. A Podman API socket may accept Docker calls,
+but that is not verification of these operations or their isolation guarantees.
+Runtime builds use Docker Buildx when available and the SDK builder otherwise.
+
+The shipped files mount `/var/run/docker.sock`. Podman's usual sockets are
+`/run/podman/podman.sock` (rootful) and
+`$XDG_RUNTIME_DIR/podman/podman.sock` (rootless). Socket access, SELinux labels,
+UID mapping, host workspace bind mounts and cgroup limits need host-level tests.
+Changing `DOCKER_HOST` alone does not change the shipped socket mount.
+
+Neither Docker Compose against Podman nor `podman-compose` has a verified
+AgenticOS stack startup and agent response. Rootful and rootless `sandboxd`
+against Podman are also unverified. This is a support decision based on the
+current contracts, not a report that each combination was tried and failed.
+`--no-sandbox` does not establish support for the remaining Compose stack.
+
+See the upstream [Compose provider documentation](https://docs.podman.io/en/latest/markdown/podman-compose.1.html)
+and [API socket documentation](https://docs.podman.io/en/latest/markdown/podman-system-service.1.html).
+
 ## Sizing the host
 
 Measured on an idle deployment, not estimated:

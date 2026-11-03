@@ -155,11 +155,36 @@ hint_for() {
 
 MISSING=0
 
+refuse_podman() {
+  die "Podman is not supported by the AgenticOS quickstart, including with --no-sandbox.
+  Use Docker Engine with Docker Compose ${COMPOSE_MIN_MAJOR}.${COMPOSE_MIN_MINOR}+ (Docker Desktop or OrbStack on macOS).
+  If Docker is also installed, make sure 'docker' invokes Docker's CLI and targets the Docker daemon,
+  rather than podman-docker or a Podman socket/context.
+  See https://vstorm-co.github.io/agenticos/deploy/#podman-support"
+}
+
+# The CLI may be podman-docker, or a real Docker CLI may target Podman's API.
+# Check both before interpreting a Compose provider's unrelated version number.
+check_container_engine() {
+  local identity
+  identity="$(docker --version 2>/dev/null || true)"
+  if printf '%s' "$identity" | grep -qi podman; then
+    refuse_podman
+  fi
+  identity="$(docker version --format '{{.Server.Platform.Name}}' 2>/dev/null || true)"
+  if printf '%s' "$identity" | grep -qi podman; then
+    refuse_podman
+  fi
+}
+
 # `docker compose version --short` is `2.29.1` or `v2.29.1` depending on the
 # build; anything that does not parse is reported rather than assumed fine.
 check_compose_version() {
   local raw major minor
   raw="$(docker compose version --short 2>/dev/null || true)"
+  if printf '%s' "$raw" | grep -qi podman; then
+    refuse_podman
+  fi
   raw="${raw#v}"
   major="${raw%%.*}"
   minor="${raw#*.}"; minor="${minor%%.*}"
@@ -205,10 +230,14 @@ check_prerequisites() {
     *) warn "Unrecognised platform $(uname -s) — carrying on, but untested" ;;
   esac
 
+  if ! command -v docker >/dev/null 2>&1 && command -v podman >/dev/null 2>&1; then
+    refuse_podman
+  fi
   need docker
   in_clone || need curl
 
   if command -v docker >/dev/null 2>&1; then
+    check_container_engine
     if docker compose version >/dev/null 2>&1; then
       check_compose_version
     else

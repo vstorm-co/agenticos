@@ -1,5 +1,5 @@
 ---
-source_sha: "16e90e7b2f27"
+source_sha: "9bd4be8e9550"
 ---
 
 # Installation { #install }
@@ -39,6 +39,10 @@ Alles Weitere unten ist das, was es tut, falls Sie es lieber selbst machen - und
 es gibt keinen Schritt darin, den Sie nicht machen können.
 
 ## Voraussetzungen { #requirements }
+
+Podman wird derzeit nicht unterstützt, auch mit `--no-sandbox`. Verwenden Sie
+Docker Engine mit Docker Compose 2.24+; [Podman-Unterstützung](deploy.md#podman-support)
+beschreibt die Grenzen von Compose und Sandbox.
 
 | Um es zu | Brauchen Sie |
 |---|---|

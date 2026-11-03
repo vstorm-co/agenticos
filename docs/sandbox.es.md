@@ -1,5 +1,5 @@
 ---
-source_sha: "bbf935c0ed43"
+source_sha: "1b6f6314aaea"
 ---
 
 # La sandbox { #the-sandbox }
@@ -20,6 +20,10 @@ otra, y cuánto sobrevive cada cosa.
 
 [Configuración](configuration.md#the-services-own-settings) es la referencia
 variable por variable.
+
+Podman no está soportado actualmente, tampoco con `--no-sandbox`. Usa Docker
+Engine con Docker Compose 2.24+; [compatibilidad con Podman](deploy.md#podman-support)
+describe las limitaciones de Compose y sandbox.
 
 ## Qué se ejecuta dónde { #what-runs-where }
 

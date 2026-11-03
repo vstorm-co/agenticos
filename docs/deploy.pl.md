@@ -1,5 +1,5 @@
 ---
-source_sha: "88a69af9b330"
+source_sha: "c3a0127a69c7"
 ---
 
 # Wdrożenie na serwer { #deploy-to-a-server }
@@ -47,6 +47,40 @@ certyfikatu.
 `app.example.com` i `api.example.com` to ten kształt. Mogą to być dowolne dwie
 nazwy; czym być nie mogą, to jedną nazwą z prefiksem ścieżki, bo ciasteczka API i
 ciasteczka witryny są ograniczone do hosta.
+
+### Obsługa Podmana { #podman-support }
+
+**Podman nie jest obecnie wspierany**, z sandboxem ani bez niego. Użyj Docker
+Engine 24+ i Docker Compose 2.24+. Quickstart odrzuca wykrytego Podmana przed
+sprawdzeniem wersji Compose, także gdy `docker` to `podman-docker` lub CLI
+Dockera łączy się z serwerem identyfikującym się jako Podman.
+
+`podman compose` korzysta z zewnętrznego providera: Docker Compose i
+`podman-compose` mają osobne numery wersji. Wersja `podman-compose` 1.6.0 nie
+oznacza Docker Compose 1.6.0. Nasze pliki wymagają opcjonalnych wpisów
+`env_file` oraz warunków zależności dla zdrowych usług i zakończonych migracji.
+Sama zmiana kontroli wersji nie potwierdza zgodności.
+
+Sandbox ma osobną granicę zgodności. `sandboxd` z `pydantic-ai-backend` 0.2.39
+używa `from_env()` z Docker SDK, tworzenia kontenerów, exec, limitów zasobów i
+budowania obrazów. Socket API Podmana może przyjmować wywołania Dockera, ale
+nie potwierdza to działania tych operacji ani gwarancji izolacji. Obrazy runtime
+powstają przez Docker Buildx, jeśli jest dostępny, lub builder SDK.
+
+Dostarczane pliki montują `/var/run/docker.sock`. Typowe sockety Podmana to
+`/run/podman/podman.sock` (rootful) i `$XDG_RUNTIME_DIR/podman/podman.sock`
+(rootless). Dostęp do socketu, etykiety SELinux, mapowanie UID, bind mounty
+katalogów roboczych hosta i limity cgroups wymagają testów na hoście. Samo
+`DOCKER_HOST` nie zmienia montowania socketu w dostarczanych plikach.
+
+Ani Docker Compose z Podmanem, ani `podman-compose` nie mają potwierdzonego
+startu stacku AgenticOS i odpowiedzi agenta. `sandboxd` z Podmanem w trybach
+rootful i rootless również pozostaje niezweryfikowany. To decyzja o wsparciu
+oparta na obecnych kontraktach, a nie raport o przetestowaniu każdej kombinacji
+i jej awarii. `--no-sandbox` nie potwierdza wsparcia pozostałego stacku Compose.
+
+Zobacz [dokumentację providerów Compose](https://docs.podman.io/en/latest/markdown/podman-compose.1.html)
+i [socketu API](https://docs.podman.io/en/latest/markdown/podman-system-service.1.html).
 
 ## Dobór rozmiaru hosta { #sizing-the-host }
 
