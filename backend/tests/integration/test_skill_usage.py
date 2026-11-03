@@ -32,8 +32,9 @@ from app.db.models.message_rating import MessageRating
 from app.db.models.organization import Organization
 from app.db.models.skill import Skill
 from app.db.models.skill_usage import RunSkillUse
+from app.db.models.skill_version import SkillVersionSource
 from app.db.models.user import User
-from app.repositories import agent_run_repo, skill_usage_repo
+from app.repositories import agent_run_repo, skill_usage_repo, skill_version_repo
 from app.schemas.skill_usage import SkillUseRecord
 from app.services.agent_runner import AgentRunnerService, PreparedRun
 from app.services.authoring_evidence import EvidenceService
@@ -82,6 +83,25 @@ async def _skill(db: AsyncSession, org: Organization, name: str = "returns-polic
     db.add(skill)
     await db.flush()
     return skill
+
+
+async def _version(db: AsyncSession, skill: Skill, number: int) -> uuid.UUID:
+    version = await skill_version_repo.create_version(
+        db,
+        organization_id=skill.organization_id,
+        skill_id=skill.id,
+        fork_id=None,
+        number=number,
+        description=skill.description,
+        content=skill.content,
+        resources={},
+        source=SkillVersionSource.EDIT,
+        restored_from_id=None,
+        proposal_id=None,
+        library_fingerprint=None,
+        created_by_user_id=None,
+    )
+    return version.id
 
 
 async def _run(
@@ -323,7 +343,7 @@ class TestStatistics:
         org, user = await _org(db)
         desk = await _agent(db, org, user, "Desk")
         skill = await _skill(db, org)
-        v1, v2 = uuid.uuid4(), uuid.uuid4()
+        v1, v2 = await _version(db, skill, 1), await _version(db, skill, 2)
         await _used(db, await _run(db, org, desk), skill, version=v1)
         await _used(db, await _run(db, org, desk), skill, version=v2)
         await _used(db, await _run(db, org, desk), skill, version=v2)

@@ -1,5 +1,5 @@
 ---
-source_sha: "7114c0b3ea9f"
+source_sha: "cb72755e2d70"
 ---
 
 # Skills { #skills }
@@ -302,7 +302,9 @@ eigene Version hat, liefert er die Main-Version aus, von der er ausging.
 - **Archive** sorgt dafür, dass ein Fork keine neuen Versionen mehr annimmt. Er
   behält seine Versionen und wird nie gelöscht. Ein Fork, den 30 Tage lang kein Run
   gelesen hat, wird zum Archivieren vorgeschlagen; nichts wird automatisch
-  archiviert.
+  archiviert. Eine ältere Version eines Agents, die noch einen archivierten Fork
+  liest, wird in keine Umgebung befördert: Verschieben Sie den Agent auf eine
+  andere Version und befördern Sie die Version, die dabei veröffentlicht wird.
 
 ### Welche Version ein Agent liest { #which-version-an-agent-reads }
 
@@ -311,7 +313,7 @@ Jeder Agent liest einen gebundenen Skill auf eine von drei Arten:
 | Zustand | Was er liest |
 |---|---|
 | Main | Die neueste Main-Version. So liest jeder Agent, der keine andere nennt |
-| Fixiert | Eine Main-Version, bis jemand ihn verschiebt |
+| Festgesetzt | Eine Main-Version, bis jemand ihn verschiebt |
 | Fork | Die neueste Version eines Forks |
 
 Die Wahl gehört zum Spec des Agents, in `skill_bindings`, und wird daher
@@ -326,23 +328,30 @@ eingeschlossen.
 Eine neue Version erreicht nur die Agents ihrer Linie. Eine neue Main-Version
 erreicht die Agents auf main, eine neue Fork-Version die Agents dieses Forks: Ihre
 Eval-Suites laufen, die Änderung nennt die Umgebungen, in denen sie live geht, und
-ihre Besitzer werden benachrichtigt. Ein fixierter Agent wird von keiner erreicht.
+ihre Besitzer werden benachrichtigt. Ein festgesetzter Agent wird von keiner
+erreicht.
 
 **Die Agents eines Skills** sind die, die ihn ausführen: Eine Version, die eine
-ihrer Umgebungen ausliefert, bindet ihn. Die Skill-Seite listet jeden mit der
-Version, die er liest, wie viele Main-Versionen er zurückliegt und jeder Umgebung,
-die ihn anders liest. Ein Agent, der den Skill nur im Entwurf bindet, ist als
-solcher gekennzeichnet. Agents, die Sie nicht sehen, werden gezählt, nicht genannt.
+ihrer Umgebungen ausliefert, bindet ihn, selbst oder über einen Inline-Spezialisten.
+Ein Agent und jeder seiner Spezialisten lesen den Skill auf ihre eigene Art, daher
+ist jeder eine eigene Zeile: Die Skill-Seite listet ihn mit der Version, die er
+liest, wie viele Main-Versionen er zurückliegt und jeder Umgebung, die ihn anders
+liest. Ein Agent, der den Skill nur im Entwurf bindet, ist als solcher
+gekennzeichnet. Agents, die Sie nicht sehen, werden gezählt, nicht genannt.
 
 **Change version** verschiebt einen Agent auf main, eine Main-Version oder einen
-Fork, und das ist eine Änderung am Agent. Mit dem Recht, ihn zu veröffentlichen,
-geht der veröffentlichte Spec, in dem sich nur diese Bindung ändert, als nächste
-Version des Agents live, und die Umgebungen folgen ihren üblichen Follow- und
-Beförderungsregeln. Der Entwurf übernimmt dieselbe Änderung und behält seine
-übrigen unfertigen Bearbeitungen, die nicht live gehen. Mit dem Recht, den Agent
-nur zu bearbeiten, wartet die Änderung im Entwurf. Ein bereits auf dem Agent
-geöffneter Builder sieht die Änderung erst nach dem Neuladen, und ein Speichern
-davor stellt die alte Bindung wieder her.
+Fork, und das ist eine Änderung am Agent. Ob der Agent den Skill selbst nutzt,
+ergibt sich aus seinem Entwurf, wie der Builder ihn zeigt; einen Skill, den nur
+einer seiner Spezialisten bindet, ändert man im Builder. Mit dem Recht, ihn zu
+veröffentlichen, geht der neueste veröffentlichte Spec des Agents, in dem sich nur
+diese Bindung ändert, als seine nächste Version live, und die Umgebungen folgen
+ihren üblichen Follow- und Beförderungsregeln. Der Entwurf übernimmt dieselbe
+Änderung und behält seine übrigen unfertigen Bearbeitungen, die nicht live gehen.
+Mit dem Recht, den Agent nur zu bearbeiten, bei einem nie veröffentlichten Agent
+oder bei einem, dessen veröffentlichte Version den Skill noch nicht bindet, wartet
+die Änderung im Entwurf, und nur die neue Bindung wird geprüft. Ein bereits auf dem
+Agent geöffneter Builder sieht die Änderung erst nach dem Neuladen, und ein
+Speichern davor stellt die alte Bindung wieder her.
 
 ### Einen Skill löschen { #deleting-a-skill }
 
