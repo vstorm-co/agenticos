@@ -931,6 +931,21 @@ same rule as a collection drop ([#2560](https://github.com/vstorm-co/agenticos/i
 their tenant, and unfiled document rows stay listed under the bases of their tenant
 ([#2537](https://github.com/vstorm-co/agenticos/issues/2537)).
 
+When no other base holds the name, both routes and `rag-drop` delete the same rows,
+with their files, and the cleanup job drops the table: the base's own rows and the
+unfiled rows of its tenant. That is its organization's for an organization's or a
+personal base, the ones with no organization (what `rag-ingest` writes) for an
+app-scoped base, and none for a personal base outside an organization.
+
+Another tenant's unfiled rows under the name stay, with their files, because the
+caller has no authority over them. Their chunks go with the table, so they are marked
+as failed: that tenant's next base on the name lists them as failed, an uploaded
+document has to be uploaded again, and a sync indexes a synced document again.
+
+Before, `DELETE /kb/{id}` left the tenant's unfiled rows behind the dropped table,
+still listed as indexed, and the collection drop deleted every row under the name,
+whichever tenant it belonged to ([#2568](https://github.com/vstorm-co/agenticos/issues/2568)).
+
 An upload or a sync still indexing a file for the base when it is deleted leaves
 no chunks behind. The write takes a lock on the base's row that conflicts with the
 delete's, in the transaction that inserts the chunks: a write that comes second finds the base gone, writes
@@ -1095,6 +1110,12 @@ document that did not fail, or that has no stored file — one that predates
 uploads keeping theirs, or one a sync ingested — is refused with a 400 rather
 than moved to `processing`
 ([#441](https://github.com/vstorm-co/agenticos/issues/441)).
+
+The retry also refuses an organization's document filed under no knowledge base: its
+chunks would be written deployment-wide, where the organization's base that lists it
+does not read, so it has to be uploaded again. One with no organization is an
+app-scoped base's, which reads there, and is retried
+([#2568](https://github.com/vstorm-co/agenticos/issues/2568)).
 
 ### What a failed ingest says
 
