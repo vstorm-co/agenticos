@@ -474,15 +474,15 @@ Security is layered. Credentials sit in an envelope-encrypted vault. Code runs i
 
 ## 📦 What ships today
 
-<img src="docs/assets/readme/capabilities.webp" alt="29 built-in capabilities in six groups: knowledge and memory, web, files code and output, how it works, safety and limits, chat channels." width="100%">
+<img src="docs/assets/readme/capabilities.webp" alt="Selected built-in capabilities in six groups: knowledge and memory, web, files code and output, how it works, safety and limits, chat channels." width="100%">
 
 <details>
-<summary>All 31 built-in capabilities, as text</summary>
+<summary>All 36 built-in capabilities, as text</summary>
 
 - **Knowledge and memory:** knowledge search with citations, skills, context, memory, memory through mem0, past conversations.
-- **Web:** web search (DuckDuckGo by default; Tavily, Brave or Exa with a key), reading web pages, and a web browser the agent drives and you can take over.
-- **Files, code and output:** calculations in Python, a sandbox with files and a shell, a coding agent that hands work to Claude Code or Codex, charts, drawings (diagrams, calculators, 3D scenes), image generation (OpenAI or Google), speech (OpenAI, ElevenLabs or Google), video clips (Google, BytePlus, xAI or Alibaba), apps.
-- **How it works:** subagents, planning, thinking, work while tools run, tool search, date and time, instruction reminders, asking the user.
+- **Web:** web search (DuckDuckGo by default; Tavily, Brave or Exa with a key), reading web pages, a web browser the agent drives and you can take over, and computer use with your permission.
+- **Files, code and output:** calculations in Python, a sandbox with files and a shell, a coding agent that hands work to Claude Code or Codex, charts, drawings (diagrams, calculators, 3D scenes), image generation (OpenAI or Google), speech (OpenAI, ElevenLabs or Google), video clips (Google, BytePlus, xAI or Alibaba), command watches, Tables, Workflows and apps.
+- **How it works:** subagents, planning, thinking, work while tools run, tool search, date and time, instruction reminders, asking the user and follow-up suggestions.
 - **Safety and limits:** guardrails that redact secrets and personal data, long conversations, media offload, tool output limits.
 - **Chat channels:** chat channel lookup for Slack, Telegram and Mattermost bots.
 
@@ -493,10 +493,10 @@ Plus any tool from a connected MCP server, and capabilities your engineers add i
 <details>
 <summary>Where agents answer, and which models they use</summary>
 
-<img src="docs/assets/readme/eight-surfaces.webp" alt="Eight places one agent can answer." width="100%">
+<img src="docs/assets/readme/eight-surfaces.webp" alt="Examples of places one agent can answer." width="100%">
 <img src="docs/assets/readme/model-providers.webp" alt="28 model providers: hosted, your subscription, your cloud contract, or on your hardware." width="100%">
 
-**Where agents answer:** web chat, a website widget, a hosted page, the HTTP API, a streaming WebSocket, Slack, Mattermost and Telegram.
+**Where agents answer:** web chat, a website widget, a hosted page, the HTTP API, a streaming WebSocket, Slack, Teams, Discord, Mattermost and Telegram.
 
 **Model providers:**
 - **Hosted (22):** OpenAI, Anthropic, Google Gemini, OpenRouter, Mistral, DeepSeek, xAI, Cohere, Groq, Cerebras, Together, Fireworks, Hugging Face, GitHub Models, Alibaba, Moonshot, Z.AI, Nebius, OVHcloud, SambaNova, Heroku and Vercel AI Gateway.

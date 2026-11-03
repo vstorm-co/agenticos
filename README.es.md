@@ -1,4 +1,4 @@
-<!-- source_sha: f4e52fce1ab3 -->
+<!-- source_sha: 9798ad20807b -->
 
 <div align="center">
 
@@ -476,15 +476,15 @@ La seguridad funciona por capas. Las credenciales están en un vault con cifrado
 
 ## 📦 Qué incluye hoy
 
-<img src="docs/assets/readme/capabilities.webp" alt="29 capabilities integradas en seis grupos: conocimiento y memoria, web, archivos, código y resultados, cómo trabaja, seguridad y límites, canales de chat." width="100%">
+<img src="docs/assets/readme/capabilities.webp" alt="Ejemplos de capabilities integradas en seis grupos: conocimiento y memoria, web, archivos, código y resultados, cómo trabaja, seguridad y límites, canales de chat." width="100%">
 
 <details>
-<summary>Las 31 capabilities integradas, en texto</summary>
+<summary>Las 36 capabilities integradas, en texto</summary>
 
 - **Conocimiento y memoria:** búsqueda en el conocimiento con citas, skills, contexto, memoria, memoria mediante mem0, conversaciones anteriores.
-- **Web:** búsqueda web (DuckDuckGo por defecto; Tavily, Brave o Exa con una clave), lectura de páginas web y un navegador web que el agente maneja y que puedes tomar tú.
-- **Archivos, código y resultados:** cálculos en Python, una sandbox con archivos y shell, un coding agent que pasa trabajo a Claude Code o Codex, gráficos, dibujos (diagramas, calculadoras, escenas 3D), generación de imágenes (OpenAI o Google), voz (OpenAI, ElevenLabs o Google), clips de vídeo (Google, BytePlus, xAI o Alibaba), aplicaciones.
-- **Cómo trabaja:** subagentes, planificación, razonamiento, trabajo mientras corren las herramientas, búsqueda de herramientas, fecha y hora, recordatorios de instrucciones, preguntas al usuario.
+- **Web:** búsqueda web (DuckDuckGo por defecto; Tavily, Brave o Exa con una clave), lectura de páginas web y un navegador web que el agente maneja y que puedes tomar tú, y uso del ordenador con tu permiso.
+- **Archivos, código y resultados:** cálculos en Python, una sandbox con archivos y shell, un coding agent que pasa trabajo a Claude Code o Codex, gráficos, dibujos (diagramas, calculadoras, escenas 3D), generación de imágenes (OpenAI o Google), voz (OpenAI, ElevenLabs o Google), clips de vídeo (Google, BytePlus, xAI o Alibaba), seguimiento de comandos, Tables, Workflows y aplicaciones.
+- **Cómo trabaja:** subagentes, planificación, razonamiento, trabajo mientras corren las herramientas, búsqueda de herramientas, fecha y hora, recordatorios de instrucciones, preguntas al usuario y sugerencias de próximos pasos.
 - **Seguridad y límites:** guardrails que censuran secretos y datos personales, conversaciones largas, descarga de contenido multimedia, límites de salida de las herramientas.
 - **Canales de chat:** consulta de canales de chat para bots de Slack, Telegram y Mattermost.
 
@@ -495,10 +495,10 @@ Además, cualquier herramienta de un servidor MCP conectado y las capabilities q
 <details>
 <summary>Dónde responden los agentes y qué modelos usan</summary>
 
-<img src="docs/assets/readme/eight-surfaces.webp" alt="Ocho lugares donde puede responder un mismo agente." width="100%">
+<img src="docs/assets/readme/eight-surfaces.webp" alt="Ejemplos de lugares donde puede responder un mismo agente." width="100%">
 <img src="docs/assets/readme/model-providers.webp" alt="28 providers de modelos: alojados, con tu contrato en la nube o en tu hardware." width="100%">
 
-**Dónde responden los agentes:** chat web, un widget para sitios web, una página alojada, la API HTTP, un WebSocket con streaming, Slack, Mattermost y Telegram.
+**Dónde responden los agentes:** chat web, un widget para sitios web, una página alojada, la API HTTP, un WebSocket con streaming, Slack, Teams, Discord, Mattermost y Telegram.
 
 **Providers de modelos:**
 - **Alojados (22):** OpenAI, Anthropic, Google Gemini, OpenRouter, Mistral, DeepSeek, xAI, Cohere, Groq, Cerebras, Together, Fireworks, Hugging Face, GitHub Models, Alibaba, Moonshot, Z.AI, Nebius, OVHcloud, SambaNova, Heroku y Vercel AI Gateway.
