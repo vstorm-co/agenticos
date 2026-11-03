@@ -1,5 +1,5 @@
 ---
-source_sha: "07d7286f9ac9"
+source_sha: "ce58011288a1"
 ---
 
 # Dateiverarbeitung { #file-processing }
@@ -1255,10 +1255,13 @@ gescheiterte Versuch indexiert hat. Ein Dokument, das nicht gescheitert ist oder
 das keine gespeicherte Datei hat — eines, das älter ist als das Aufbewahren durch
 Uploads, oder eines, das ein Sync eingelesen hat — wird mit einer 400 abgelehnt,
 statt nach `processing` versetzt zu werden
-([#441](https://github.com/vstorm-co/agenticos/issues/441)). Ebenso ein Dokument,
-das keiner Wissensbasis zugeordnet ist: Seine Chunks würden deploymentweit
-geschrieben, wo die Basis, die es listet, nicht liest, also muss es erneut
-hochgeladen werden ([#2568](https://github.com/vstorm-co/agenticos/issues/2568)).
+([#441](https://github.com/vstorm-co/agenticos/issues/441)).
+
+Der Retry lehnt auch ein Dokument einer Organisation ab, das keiner Wissensbasis
+zugeordnet ist: Seine Chunks würden deploymentweit geschrieben, wo die Basis der
+Organisation, die es listet, nicht liest, also muss es erneut hochgeladen werden.
+Eines ohne Organisation gehört einer app-scoped Basis, die dort liest, und wird
+erneut versucht ([#2568](https://github.com/vstorm-co/agenticos/issues/2568)).
 
 ### Was eine gescheiterte Ingestion sagt { #what-a-failed-ingest-says }
 

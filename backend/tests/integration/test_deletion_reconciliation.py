@@ -1302,7 +1302,7 @@ class TestADeletedBasesChunksOnAKeptTable:
         collection = f"kblast{uuid.uuid4().hex[:12]}"
         table = f"rag_{collection}"
         storage = get_file_storage()
-        kinds = ("filed", "unfiled", "foreign", "tenantless")
+        kinds = ("filed", "unfiled", "foreign", "tenantless", "failed")
         files = [await storage.save("last-holder", f"{kind}.txt", kind.encode()) for kind in kinds]
         async with factory() as s:
             owner, other = _user(), _user()
@@ -1321,6 +1321,7 @@ class TestADeletedBasesChunksOnAKeptTable:
                 _kb_document(collection, None, org.id, files[1]),
                 _kb_document(collection, None, other_org.id, files[2]),
                 _kb_document(collection, None, None, files[3]),
+                _kb_document(collection, None, other_org.id, files[4]),
             ]
             for index, document in enumerate(documents):
                 document.status = DocumentStatus.DONE.value
@@ -1329,6 +1330,10 @@ class TestADeletedBasesChunksOnAKeptTable:
             # its attempt superseded, so its settlement cannot mark it done.
             documents[2].status = DocumentStatus.PROCESSING.value
             documents[2].vector_document_id = None
+            # Already failed, still naming the version an earlier attempt indexed:
+            # its index metadata goes too, with no attempt to supersede.
+            documents[4].status = DocumentStatus.ERROR.value
+            documents[4].chunk_count = 3
             s.add_all(documents)
             await _filed_table(s, table, {"doomed-0": doomed.id})
             await s.commit()
@@ -1360,7 +1365,9 @@ class TestADeletedBasesChunksOnAKeptTable:
                     assert kept.status == DocumentStatus.ERROR.value
                     assert kept.vector_document_id is None
                     assert kept.error_message
-                    assert kept.ingestion_attempt == 2
+                    assert kept.chunk_count == 0
+                    failed_before = document_id == documents[4].id
+                    assert kept.ingestion_attempt == (1 if failed_before else 2)
                 assert (
                     await s.execute(text("SELECT to_regclass(:t)"), {"t": table})
                 ).scalar() is None

@@ -384,9 +384,11 @@ async def test_the_tracking_row_hold_is_scoped_and_uses_key_share(found: bool) -
 
 @pytest.mark.security
 async def test_marking_rows_unindexed_waits_for_writes_and_supersedes_their_attempt() -> None:
-    """The teardown locks the rows it fails `FOR UPDATE`, which waits out a chunk
-    write holding one `FOR KEY SHARE`, and bumps their attempt, so a settlement of
-    the attempt in flight is stale and cannot mark the row done (#2568)."""
+    """The teardown locks every unfiled row left under the name `FOR UPDATE`, which
+    waits out a chunk write holding one `FOR KEY SHARE`, clears the index metadata
+    of all of them - one already failed included - and bumps the attempt of those
+    not already failed, so a settlement of the attempt in flight is stale and
+    cannot mark the row done (#2568)."""
     db = MagicMock(execute=AsyncMock(), flush=AsyncMock())
 
     await rag_document_repo.mark_unindexed(db, "docs")
@@ -396,8 +398,9 @@ async def test_marking_rows_unindexed_waits_for_writes_and_supersedes_their_atte
     )
     assert str(locked).endswith("FOR UPDATE")
     assert "rag_documents.knowledge_base_id IS NULL" in str(locked)
-    assert "rag_documents.status != " in str(locked)
-    assert "ingestion_attempt=(rag_documents.ingestion_attempt + " in str(updated)
+    assert "rag_documents.status" not in str(locked)
+    assert "ingestion_attempt=CASE WHEN (rag_documents.status != " in str(updated)
+    assert "chunk_count=" in str(updated)
     assert "vector_document_id=" in str(updated)
     assert DocumentStatus.ERROR in updated.params.values()
 

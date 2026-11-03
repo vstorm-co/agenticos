@@ -1109,9 +1109,12 @@ dispatches the parse again, replacing whatever the failed attempt indexed. A
 document that did not fail, or that has no stored file — one that predates
 uploads keeping theirs, or one a sync ingested — is refused with a 400 rather
 than moved to `processing`
-([#441](https://github.com/vstorm-co/agenticos/issues/441)). So is a document filed
-under no knowledge base: its chunks would be written deployment-wide, where the base
-that lists it does not read, so it has to be uploaded again
+([#441](https://github.com/vstorm-co/agenticos/issues/441)).
+
+The retry also refuses an organization's document filed under no knowledge base: its
+chunks would be written deployment-wide, where the organization's base that lists it
+does not read, so it has to be uploaded again. One with no organization is an
+app-scoped base's, which reads there, and is retried
 ([#2568](https://github.com/vstorm-co/agenticos/issues/2568)).
 
 ### What a failed ingest says

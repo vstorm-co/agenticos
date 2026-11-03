@@ -1,5 +1,5 @@
 ---
-source_sha: "07d7286f9ac9"
+source_sha: "ce58011288a1"
 ---
 
 # Przetwarzanie plików { #file-processing }
@@ -1177,10 +1177,13 @@ nieudana próba. Dokument, który nie zawiódł, albo taki, który nie ma zapisa
 pliku — sprzed czasu, gdy uploady zaczęły zachowywać swoje, albo wciągnięty
 przez synchronizację — jest odrzucany z 400, zamiast być przestawiony na
 `processing`
-([#441](https://github.com/vstorm-co/agenticos/issues/441)). Tak samo dokument
-nieprzypisany do żadnej bazy wiedzy: jego chunki zostałyby zapisane dla całego
-wdrożenia, gdzie baza, która go listuje, nie czyta, więc trzeba go przesłać jeszcze
-raz ([#2568](https://github.com/vstorm-co/agenticos/issues/2568)).
+([#441](https://github.com/vstorm-co/agenticos/issues/441)).
+
+Ponowienie odrzuca też dokument organizacji nieprzypisany do żadnej bazy wiedzy: jego
+chunki zostałyby zapisane dla całego wdrożenia, gdzie baza organizacji, która go
+listuje, nie czyta, więc trzeba go przesłać jeszcze raz. Dokument bez organizacji
+należy do bazy app-scoped, która tam czyta, i jest ponawiany
+([#2568](https://github.com/vstorm-co/agenticos/issues/2568)).
 
 ### Co mówi nieudana ingestia { #what-a-failed-ingest-says }
 

@@ -12,6 +12,7 @@ from sqlalchemy import (
     ColumnElement,
     String,
     and_,
+    case,
     column,
     exists,
     func,
@@ -799,23 +800,30 @@ async def mark_unindexed(db: AsyncSession, collection_name: str) -> None:
     out a chunk write holding the row `FOR KEY SHARE` (`hold_for_vector_write`),
     the bumped attempt makes that ingest's settlement stale, and a write that
     reaches its hold after this commits finds the row no longer `PROCESSING` and
-    is refused, rather than recreating the dropped table.
+    is refused, rather than recreating the dropped table. A row already failed
+    keeps its attempt but loses its index metadata too: a failed retry can still
+    name the version an earlier attempt indexed, and its chunks go with the table.
     """
-    left = (
+    left = and_(
         RAGDocument.collection_name == collection_name,
         RAGDocument.knowledge_base_id.is_(None),
-        RAGDocument.status != DocumentStatus.ERROR,
     )
-    await db.execute(select(RAGDocument.id).where(*left).with_for_update())
+    await db.execute(select(RAGDocument.id).where(left).with_for_update())
     await db.execute(
         sql_update(RAGDocument)
-        .where(*left)
+        .where(left)
         .values(
             status=DocumentStatus.ERROR,
             error_message=UNINDEXED_BY_DROP,
             vector_document_id=None,
             chunk_count=0,
-            ingestion_attempt=RAGDocument.ingestion_attempt + 1,
+            ingestion_attempt=case(
+                (
+                    RAGDocument.status != DocumentStatus.ERROR,
+                    RAGDocument.ingestion_attempt + 1,
+                ),
+                else_=RAGDocument.ingestion_attempt,
+            ),
         )
     )
     await db.flush()

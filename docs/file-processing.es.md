@@ -1,5 +1,5 @@
 ---
-source_sha: "07d7286f9ac9"
+source_sha: "ce58011288a1"
 ---
 
 # Procesamiento de archivos { #file-processing }
@@ -1201,9 +1201,12 @@ Vuelve a leer `storage_path` — la copia que la subida guardó exactamente para
 Un documento que no falló, o que no tiene archivo guardado — uno anterior a que
 las subidas guardaran el suyo, o uno que ingirió una sincronización — se rechaza
 con un 400 en vez de pasar a `processing`
-([#441](https://github.com/vstorm-co/agenticos/issues/441)). También un documento
-sin asignar a ninguna base de conocimiento: sus fragmentos se escribirían para todo
-el deployment, donde la base que lo lista no lee, así que hay que subirlo de nuevo
+([#441](https://github.com/vstorm-co/agenticos/issues/441)).
+
+El reintento también rechaza un documento de una organización sin asignar a ninguna
+base de conocimiento: sus fragmentos se escribirían para todo el deployment, donde la
+base de la organización que lo lista no lee, así que hay que subirlo de nuevo. Uno
+sin organización es de una base app-scoped, que lee ahí, y se reintenta
 ([#2568](https://github.com/vstorm-co/agenticos/issues/2568)).
 
 ### Qué dice una ingesta fallida { #what-a-failed-ingest-says }
