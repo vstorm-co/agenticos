@@ -19,6 +19,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [1.39.0] - 2026-11-03
+
 ### Added
 
 - Prepare private, checksummed coding runtimes and pinned Claude Code/Codex adapters without host developer tools. Coding-agent setup and browser sign-in are available in desktop settings.
@@ -19844,7 +19846,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.38.4...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.39.0...HEAD
+[1.39.0]: https://github.com/vstorm-co/agenticos/compare/v1.38.4...v1.39.0
 [1.38.4]: https://github.com/vstorm-co/agenticos/compare/v1.38.3...v1.38.4
 [1.38.3]: https://github.com/vstorm-co/agenticos/compare/v1.38.2...v1.38.3
 [1.38.2]: https://github.com/vstorm-co/agenticos/compare/v1.38.1...v1.38.2
