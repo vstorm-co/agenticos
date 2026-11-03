@@ -47,6 +47,7 @@ const COMMANDS: &[&str] = &[
     "local_instances",
     "set_up_local",
     "use_local",
+    "resume_local",
     "open_docker_download",
     "download_docker",
     "open_docker",
@@ -62,6 +63,8 @@ const COMMANDS: &[&str] = &[
     "local_files",
     "local_file",
     "local_agents",
+    "local_agent_prepare",
+    "local_agent_options",
     "local_agent_sign_in",
     "local_agent_sign_out",
     "local_skills",
@@ -71,6 +74,23 @@ const COMMANDS: &[&str] = &[
 ];
 
 fn main() {
+    let platform =
+        std::path::PathBuf::from(std::env::var_os("CARGO_MANIFEST_DIR").expect("Cargo sets its manifest directory"))
+            .join("../../backend/pyproject.toml");
+    println!("cargo:rerun-if-changed={}", platform.display());
+    let source = std::fs::read_to_string(platform).expect("the platform manifest exists");
+    let version = source
+        .lines()
+        .map(str::trim)
+        .skip_while(|line| *line != "[project]")
+        .skip(1)
+        .take_while(|line| !line.starts_with('['))
+        .find_map(|line| {
+            line.strip_prefix("version = \"")
+                .and_then(|value| value.strip_suffix('"'))
+        })
+        .expect("the platform has a version");
+    println!("cargo:rustc-env=AGENTICOS_PLATFORM_VERSION={version}");
     let mut attributes =
         tauri_build::Attributes::new().app_manifest(tauri_build::AppManifest::new().commands(COMMANDS));
     if std::env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("windows")

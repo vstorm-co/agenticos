@@ -1,5 +1,5 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { QueryClient, QueryClientProvider, focusManager } from "@tanstack/react-query";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { LocalAgentSettings } from "./local-agent-settings";
@@ -60,13 +60,16 @@ it("shows each agent's state and offers only what applies", async () => {
   expect(screen.getByText("Signed in")).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Sign out of Claude Code" })).toBeInTheDocument();
   expect(screen.getByText("Not installed")).toBeInTheDocument();
-  expect(screen.getByText("Codex is not installed on this computer.")).toBeInTheDocument();
+  expect(
+    screen.getByText("AgenticOS can prepare Codex for you. No developer tools are needed."),
+  ).toBeInTheDocument();
   expect(screen.queryByRole("button", { name: "Sign in to Codex" })).toBeNull();
 });
 
 it("opens the agent's own sign-in, naming it by id and sending no credential", async () => {
   invoke.mockResolvedValueOnce([{ ...claude, signed_in: false }, codex]);
   invoke.mockResolvedValueOnce(undefined);
+  invoke.mockResolvedValue([claude, codex]);
   mount();
   await userEvent.click(await screen.findByRole("button", { name: "Sign in to Claude Code" }));
   await waitFor(() =>
@@ -95,4 +98,47 @@ it("says when it cannot tell whether an installed agent is signed in", async () 
   invoke.mockResolvedValueOnce([{ ...claude, signed_in: null }, codex]);
   mount();
   expect(await screen.findByText("Status unknown")).toBeInTheDocument();
+});
+
+it("prepares a missing agent through the app and refreshes its status", async () => {
+  invoke.mockImplementation(async (command) =>
+    command === "local_agent_prepare"
+      ? { ...codex, installed: true, version: "0.165.0" }
+      : [claude, codex],
+  );
+  mount();
+  await userEvent.click(await screen.findByRole("button", { name: "Set up Codex" }));
+  await waitFor(() => expect(invoke).toHaveBeenCalledWith("local_agent_prepare", { id: "codex" }));
+  await waitFor(() =>
+    expect(
+      invoke.mock.calls.filter(([command]) => command === "local_agents").length,
+    ).toBeGreaterThan(1),
+  );
+});
+
+it("reports preparation failures and permits retry", async () => {
+  invoke.mockImplementation(async (command) => {
+    if (command === "local_agent_prepare") throw new Error("Download unavailable");
+    return [claude, codex];
+  });
+  mount();
+  await userEvent.click(await screen.findByRole("button", { name: "Set up Codex" }));
+  expect(await screen.findByRole("alert")).toHaveTextContent("Download unavailable");
+  expect(screen.getByRole("button", { name: "Set up Codex" })).toBeEnabled();
+});
+
+it("does not probe credential storage again when the app regains focus", async () => {
+  invoke.mockResolvedValue([claude, codex]);
+  mount();
+  await screen.findByText("Signed in");
+  const before = invoke.mock.calls.length;
+  await act(async () => {
+    focusManager.setFocused(false);
+    focusManager.setFocused(true);
+    await Promise.resolve();
+  });
+  expect(invoke.mock.calls).toHaveLength(before);
+  focusManager.setFocused(undefined);
+  await userEvent.click(screen.getByRole("button", { name: "Refresh status" }));
+  await waitFor(() => expect(invoke.mock.calls.length).toBeGreaterThan(before));
 });

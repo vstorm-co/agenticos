@@ -22,7 +22,7 @@ async def record(
     output_tokens: int,
     cost_usd: Decimal,
     cost_is_partial: bool,
-) -> IngestionSpend:
+) -> IngestionSpend | None:
     """Write one window's spend, against its document if that is still there.
 
     A document deleted while it was being indexed still spent what it spent, so
@@ -31,16 +31,24 @@ async def record(
     settlement that removes them could run (#2565). The row is held `FOR KEY
     SHARE` to the insert's commit: a delete arriving after the check waits, then
     sets this row's reference to `NULL` as it does every other's. The
-    organization is held first, the order an organization's purge locks the two
-    in: taken the other way round, the purge and this insert deadlocked.
+    organization is held first. An organization's purge, and an account
+    deletion (#2638), lock the two in that order; taken the other way round,
+    they and this insert deadlocked.
+
+    An organization deleted meanwhile is the one case that writes nothing and
+    returns `None`. Its spend rows `CASCADE` with it, so this row would have gone
+    had it been written a moment earlier, and the insert would otherwise fail the
+    foreign key and the ingest with it.
     """
+    if organization_id is not None:
+        held = await db.scalar(
+            select(Organization.id)
+            .where(Organization.id == organization_id)
+            .with_for_update(read=True, key_share=True)
+        )
+        if held is None:
+            return None
     if rag_document_id is not None:
-        if organization_id is not None:
-            await db.scalar(
-                select(Organization.id)
-                .where(Organization.id == organization_id)
-                .with_for_update(read=True, key_share=True)
-            )
         rag_document_id = await db.scalar(
             select(RAGDocument.id)
             .where(RAGDocument.id == rag_document_id)

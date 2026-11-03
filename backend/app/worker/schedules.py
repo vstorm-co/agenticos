@@ -65,6 +65,9 @@ class Schedule:
 
 
 SCHEDULES: tuple[Schedule, ...] = (
+    Schedule(
+        "reconcile-conversation-tasks", jobs.RECONCILE_CONVERSATION_TASKS, timedelta(seconds=15)
+    ),
     # Fire the agent triggers that have come due.
     Schedule("check-agent-triggers", jobs.CHECK_AGENT_TRIGGERS, _MINUTE),
     # Read the connected accounts nobody pushes to. Its own schedule rather than

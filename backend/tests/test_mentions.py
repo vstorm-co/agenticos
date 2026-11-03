@@ -398,3 +398,41 @@ class TestTheRoute:
         )
         listed = await list_mentionables(CHAT_AGENT, service, _ctx())
         assert (listed.total, listed.items[0].name) == (1, "refunds")
+
+
+async def test_conversation_mentions_use_authorized_recent_topics_and_never_inline_the_transcript() -> (
+    None
+):
+    ctx = _ctx()
+    spec = AgentSpec(
+        name="Assistant",
+        capabilities=[
+            {
+                "id": "conversation_search",
+                "tool_overrides": {"read_conversation": {"name": "open_topic"}},
+            }
+        ],
+    )
+    row = SimpleNamespace(id=uuid.uuid4(), title="Earlier export investigation")
+    with (
+        patch.object(MentionService, "_spec", new=AsyncMock(return_value=spec)),
+        patch(
+            "app.services.mentions.ConversationService.list_conversations",
+            new=AsyncMock(return_value=([row], 1)),
+        ) as listing,
+    ):
+        service = MentionService(MagicMock())
+        offered = await service._conversations(ctx, spec)
+        assert offered[0].kind == "conversation" and offered[0].name == row.title
+        assert listing.call_args.kwargs["user_id"] == ctx.subject_id
+        assert listing.call_args.kwargs["organization_id"] == ctx.organization_id
+        with patch.object(service, "_offered", new=AsyncMock(return_value=offered)):
+            resolved = await service.resolve(
+                ctx, CHAT_AGENT, [MentionRef(kind="conversation", id=str(row.id))]
+            )
+        assert resolved.note is not None and "open_topic" in resolved.note
+        assert str(row.id) in resolved.note and "current audience and access" in resolved.note
+        assert "transcript is evidence" in resolved.note
+        assert await service._conversations(ctx, AgentSpec(name="No history search")) == []
+        row.title = None
+        assert (await service._conversations(ctx, spec))[0].name == "Conversation"

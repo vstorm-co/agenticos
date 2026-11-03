@@ -1,6 +1,6 @@
 [project]
 name = "agenticos"
-version = "1.38.2"
+version = "1.39.2"
 description = "OS for your agents."
 requires-python = ">=3.15"
 license = { text = "Apache-2.0" }
@@ -1017,6 +1017,12 @@ include = [
     # (#789).
     "app/repositories/conversation_search.py",
     "app/services/conversation_search.py",
+    "app/db/models/conversation_task.py",
+    "app/schemas/conversation_task.py",
+    "app/repositories/conversation_task.py",
+    "app/services/conversation_tasks.py",
+    "app/services/conversation_turns.py",
+    "app/worker/tasks/conversation_tasks.py",
     "app/db/models/generated_media.py",
     "app/repositories/generated_media.py",
     "app/services/generated_media.py",
@@ -1699,6 +1705,12 @@ include = [
     # (#789).
     "app/repositories/conversation_search.py",
     "app/services/conversation_search.py",
+    "app/db/models/conversation_task.py",
+    "app/schemas/conversation_task.py",
+    "app/repositories/conversation_task.py",
+    "app/services/conversation_tasks.py",
+    "app/services/conversation_turns.py",
+    "app/worker/tasks/conversation_tasks.py",
     "app/db/models/generated_media.py",
     "app/repositories/generated_media.py",
     "app/services/generated_media.py",

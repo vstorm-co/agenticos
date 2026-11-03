@@ -1260,7 +1260,15 @@
           "setup": "Installieren oder anmelden → Desktop-Einstellungen",
           "pickFolder": "Ordner auswählen",
           "changeFolder": "Ordner ändern · {folder}",
-          "agentWithHarness": "Agenteneinstellung · {agent}"
+          "agentWithHarness": "Agenteneinstellung · {agent}",
+          "model": "Modell des Coding-Agenten",
+          "effort": "Denkaufwand",
+          "ownModel": "Einstellungen des Coding-Agenten",
+          "ownEffort": "Einstellungen des Coding-Agenten",
+          "loadingSettings": "Agent-Einstellungen werden vorbereitet…",
+          "refreshSettings": "Auswahl aktualisieren",
+          "unavailableOption": "{value} (nicht verfügbar)",
+          "effortUnsupported": "Von diesem Modell nicht angeboten"
         },
         "off": "Aus"
       },
@@ -1790,7 +1798,13 @@
       "listMonitors": "Die Beobachtungen",
       "listingMonitors": "Beobachtungen werden aufgelistet",
       "stopMonitor": "Eine Beobachtung beenden",
-      "stoppingMonitor": "Beobachtung wird beendet"
+      "stoppingMonitor": "Beobachtung wird beendet",
+      "startingBackgroundTask": "Hintergrundthema starten",
+      "backgroundTaskStarted": "Hintergrundthema gestartet",
+      "listingBackgroundTasks": "Hintergrundthemen lesen",
+      "backgroundTasks": "Hintergrundthemen",
+      "stoppingBackgroundTask": "Hintergrundthema stoppen",
+      "backgroundTaskStopped": "Hintergrundthema gestoppt"
     },
     "turnWasStopped": "gestoppt",
     "unfavourite": "Aus den Favoriten entfernen",
@@ -1922,7 +1936,8 @@
         "collection": "Wissensbasen",
         "skill": "Skills",
         "context": "Kontextdateien",
-        "project": "Projekte"
+        "project": "Projekte",
+        "conversation": "Gespräche"
       }
     },
     "hints": {
@@ -2251,6 +2266,37 @@
       "needsFolder": "{agent} läuft auf diesem Computer: Wähle unter Chat-Steuerung → Arbeiten auf → Diesem Computer einen Ordner.",
       "needsFullAccess": "{agent} läuft als du, deshalb braucht der Ordner Vollzugriff. Ändere das unter Chat-Steuerung → Arbeiten auf.",
       "chosen": "{agent} · {folder}"
+    },
+    "reasoning": {
+      "levels": {
+        "default": "Standard",
+        "none": "Keiner",
+        "minimal": "Minimal",
+        "low": "Niedrig",
+        "medium": "Mittel",
+        "high": "Hoch",
+        "xhigh": "Sehr hoch",
+        "max": "Maximum",
+        "ultra": "Ultra"
+      }
+    },
+    "backgroundTasks": {
+      "heading": "Hintergrundthemen · {count} aktiv",
+      "empty": "Bitte einen Agenten mit Hintergrundthemen um eine Delegation und setze das Gespräch fort.",
+      "retry": "Hintergrundthemen erneut laden",
+      "stop": "{title} stoppen",
+      "returnInterrupted": "Ergebnisübermittlung unterbrochen",
+      "status": {
+        "queued": "In der Warteschlange",
+        "running": "In Arbeit",
+        "awaiting_approval": "Wartet auf Freigabe",
+        "awaiting_answer": "Wartet auf deine Antwort",
+        "completed": "Abgeschlossen",
+        "failed": "Fehlgeschlagen",
+        "cancelled": "Gestoppt",
+        "interrupted": "Unterbrochen; nicht neu gestartet"
+      },
+      "emptyTitle": "Delegiere Arbeit und sprich weiter"
     }
   },
   "common": {
@@ -2998,6 +3044,10 @@
           "descriptionOff": "Ihre Organisation hat die Proaktivität ausgeschaltet."
         },
         "more": "{count, plural, =1 {1 weiterer im Posteingang} other {# weitere im Posteingang}}"
+      },
+      "background-tasks": {
+        "title": "Hintergrundthemen",
+        "description": "Deine delegierten Aufgaben und Ergebnisse"
       }
     },
     "edit": {
@@ -4921,6 +4971,14 @@
       "workflow-step-view": {
         "title": "Ein Bereich im Fokus",
         "body": "Wähle auf dem Smartphone die Schritteinstellungen, Eingabe oder Ausgabe. Der aktive Bereich erhält den verfügbaren Platz; dein Entwurf bleibt beim Wechsel erhalten."
+      },
+      "chat-coding-settings": {
+        "title": "Modell und Denktiefe",
+        "body": "Wähle Modell und Denktiefe des installierten Coding-Agenten. Die Auswahl gilt für dieses Gespräch; leere Felder behalten die eigenen Einstellungen des Agenten bei."
+      },
+      "chat-background-tasks": {
+        "title": "Hintergrundthemen",
+        "body": "Unabhängige Arbeit öffnet ein neues Thema in diesem Projekt. Sprich hier weiter; der Agent meldet sich mit dem Ergebnis. Öffne oder stoppe Aufgaben über diese Leiste."
       }
     },
     "chooseLanguage": "Sprache",
@@ -10694,6 +10752,13 @@
       "example2": "Ein Deploy-Log verfolgen und den ersten Fehler melden",
       "needs": "Ein Arbeitsbereich mit Shell, etwa die Sandbox-Capability oder ein Ordner auf deinem Computer.",
       "never": "Lässt nie einen Befehl über das Ende der Runde hinaus laufen: Jede Beobachtung endet mit dem Lauf."
+    },
+    "background_tasks": {
+      "name": "Hintergrundthemen",
+      "does": "Startet unabhängige Arbeit in einem neuen Thema, während das Gespräch weitergeht, und meldet das Ergebnis dem ursprünglichen Agenten.",
+      "needs": "Einen veröffentlichten Konsolenagenten, ein aktives Mitglied und einen freigegebenen Ordner für lokale Arbeit.",
+      "never": "Kopiert nicht das ganze Gespräch, umgeht keine Freigaben, wiederholt keine unterbrochenen Aktionen und erstellt keine Überwachungen oder Routinen.",
+      "example1": "Untersuche den Exportfehler in einem neuen Thema, während wir die Veröffentlichung weiter planen."
     }
   },
   "capabilityCategories": {
@@ -11979,7 +12044,7 @@
       "agents": {
         "title": "Coding-Agenten auf diesem Computer",
         "description": "Hier installierte Instanzen von Claude Code und Codex. Die Anmeldung gehört jedem Agenten: AgenticOS öffnet seinen eigenen Befehl im Terminal und liest oder kopiert nie seine Zugangsdaten.",
-        "installHint": "{name} ist auf diesem Computer nicht installiert.",
+        "installHint": "AgenticOS kann {name} für dich einrichten. Keine Entwicklerwerkzeuge erforderlich.",
         "notInstalled": "Nicht installiert",
         "signedIn": "Angemeldet",
         "signedOut": "Abgemeldet",
@@ -11988,7 +12053,11 @@
         "signInNamed": "Bei {name} anmelden",
         "signOut": "Abmelden",
         "signOutNamed": "Von {name} abmelden",
-        "terminalNote": "Die Anmeldung öffnet dein Systemterminal. Kehre danach zurück, um den Status zu aktualisieren."
+        "terminalNote": "Zur Anmeldung öffnet sich ein Browserfenster. AgenticOS liest oder speichert keine Zugangsdaten des Coding-Agenten.",
+        "prepare": "Einrichten",
+        "prepareNamed": "{name} einrichten",
+        "preparing": "Wird vorbereitet…",
+        "refresh": "Status aktualisieren"
       }
     },
     "welcome": {

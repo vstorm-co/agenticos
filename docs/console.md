@@ -685,6 +685,20 @@ one row, with every connection's time and cost summed. The **Voice minutes**
 dashboard card, in the Usage band for a holder of `runs:view`, shows the
 period's call minutes and calls and the top three agents.
 
+### Background topics { #background-topics }
+
+Enable **Background topics** on a published agent to ask, for example: “Investigate the export bug in a new topic while we continue the release plan”, or “Have the finance agent check these figures while we discuss the proposal”. It can use its own pinned version or a published delegate pinned in its spec. Start from a conversation you own; the fresh topic belongs to the same project and carries the agent's brief and a link back, without copying the original transcript.
+
+The **Background topics** strip above the composer shows queued, working and waiting tasks. Open the independent topic to inspect its work or answer an ordinary approval/question. **Stop** cancels further work; it cannot undo file edits or external actions already completed. The dashboard has the same tasks. Up to four may be active per person; a task and its result turn cannot spawn another background topic.
+
+When the task finishes, the original agent wakes for a result turn using the conversation's current history. It waits for foreground turns to finish and summarizes without tools, so task output cannot become permission for another action. Your selected main model and reasoning setting are retained; local inference stays local. Local coding work stays on the exact paired computer and approved folder. The child keeps its ordinary budgets and approvals. Closing the chat does not cancel it. A worker interruption is reported and external actions are not automatically replayed. Tasks waiting for an approval continue after it; missing membership or project access stops new work and result delivery.
+
+This is explicit delegation, separate from memory, watches and routines. The existing async subagent/tools modes still belong to one run; use **Background topics** for work that must outlive its source reply.
+
+### Referring to another conversation { #conversation-references }
+
+An agent with **Past conversations** offers your thirty most recent accessible conversations in the `@` menu. Pick one and ask a specific question about it. The mention identifies the topic; it does not copy its transcript or change the answering agent. The agent reads the relevant part through its existing conversation tool, with the same access and audience checks. Group-chat restrictions still apply. For an older topic, paste its link or id and ask the agent to read it.
+
 ## What each area is for
 
 The sidebar groups them. **Build** holds Agents, Routines, Apps and Activity;

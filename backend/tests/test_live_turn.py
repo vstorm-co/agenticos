@@ -1371,3 +1371,33 @@ async def test_a_full_trace_keeps_save_and_completion_markers_without_replaying_
     assert [frame["type"] for frame in frames] == [live_turn.END]
     kept = [json.loads(raw)["type"] for raw in store.lists[turn.key("trace")]]
     assert kept == ["text_delta", "message_saved", "complete", live_turn.END]
+
+
+@pytest.mark.parametrize("fails", [False, True])
+async def test_worker_owns_the_live_chat_client_until_its_jobs_have_drained(fails: bool) -> None:
+    from app.services import chat_room
+
+    client = MagicMock(connect=AsyncMock(), close=AsyncMock())
+    with (
+        patch.object(live_turn, "RedisClient", return_value=client),
+        patch.object(live_turn, "configure") as configured,
+        patch.object(chat_room, "configure") as room,
+    ):
+
+        async def serve() -> None:
+            async with live_turn.in_worker():
+                client.connect.assert_awaited_once_with()
+                configured.assert_called_once_with(client)
+                room.assert_called_once_with(client)
+                client.close.assert_not_awaited()
+                if fails:
+                    raise RuntimeError("worker failed")
+
+        if fails:
+            with pytest.raises(RuntimeError, match="worker failed"):
+                await serve()
+        else:
+            await serve()
+        assert configured.call_args.args == (None,)
+        assert room.call_args.args == (None,)
+        client.close.assert_awaited_once_with()

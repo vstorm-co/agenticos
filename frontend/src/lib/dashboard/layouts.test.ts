@@ -131,6 +131,7 @@ describe("visibleSections", () => {
 
     expect(sections.map((section) => section.id)).toEqual(["workspace", "attention"]);
     expect(sections[0]?.entries.map((entry) => entry.widget)).toEqual([
+      "background-tasks",
       "my-agents",
       "shared-with-you",
     ]);
