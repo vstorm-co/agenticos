@@ -136,6 +136,9 @@ async def test_a_source_patched_from_a_base_keeps_that_base(wired) -> None:
             "clone_source",
         ),
     ],
+    # Named, because the clone path holds a random id: xdist workers must collect
+    # the same test ids.
+    ids=["rag create", "org integration create", "rag clone"],
 )
 async def test_a_source_pointed_at_a_name_records_the_base_it_was_authorized_for(
     wired, path: str, body: dict[str, object], method: str
