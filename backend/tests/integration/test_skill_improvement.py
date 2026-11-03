@@ -120,7 +120,8 @@ def fixed_evidence(monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
         state["versions_read"] = line
         return EvidencePack(runs=list(state["runs"]), unknown_runs=2)
 
-    async def priced(self, ctx, pack):
+    async def priced(self, ctx, pack, *, improver_agent_id=None):
+        state.setdefault("helpers", []).append(improver_agent_id)
         return AuthoringEstimate(
             runs=len(pack.runs),
             rated_down=len(pack.runs),
@@ -1013,6 +1014,9 @@ class FakeChecks:
         self.conflict = False
         self.base_version_id = uuid.uuid4()
         self.agents: list[SkillCheckAgentRead] = []
+        self.files: list[Any] = []
+        self.merged_from: list[uuid.UUID | None] = []
+        self.drift: Exception | None = None
 
     def _estimate(self, data: SkillCheckStart) -> SkillCheckEstimate:
         return SkillCheckEstimate(
@@ -1028,16 +1032,19 @@ class FakeChecks:
             affordable=True,
         )
 
-    async def estimate(self, ctx, skill_id, data, *, exclude_conversations=()):
+    async def estimate(self, ctx, skill_id, data, *, exclude_conversations=(), files=None):
         self.calls.append(("estimate", data))
         self.excluded.append(list(exclude_conversations))
         return self._estimate(data)
 
-    async def start(self, ctx, skill_id, data, *, source=None, exclude_conversations=()):
+    async def start(
+        self, ctx, skill_id, data, *, source=None, exclude_conversations=(), files=None
+    ):
         if self.refuse is not None:
             raise self.refuse
         self.excluded.append(list(exclude_conversations))
         self.calls.append(("start", (data, source)))
+        self.files.append(files)
         assert data.candidate is not None
         skill = await self.db.get(Skill, skill_id)
         assert skill is not None and skill.latest_version_id is not None
@@ -1068,17 +1075,21 @@ class FakeChecks:
             **self._estimate(SkillCheckStart(candidate=_TEXT)).model_dump(),
             id=check.id,
             skill_id=skill_id,
+            source=check.source,
             status=check.status,
             verdict=check.verdict,
             outcomes=[CheckOutcome.APPLY, CheckOutcome.DISCARD] if check.verdict else [],
             created_at=check.created_at,
         )
 
-    async def apply(self, ctx, skill_id, check_id, data, *, from_session=False):
+    async def apply(
+        self, ctx, skill_id, check_id, data, *, from_session=False, merged_from_id=None
+    ):
         assert from_session
         if self.conflict:
             raise ConcurrentChangeError(message="The line's agents changed since the check")
         self.calls.append(("apply", data))
+        self.merged_from.append(merged_from_id)
         pinned = [SimpleNamespace(id=uuid.uuid4(), name="Clerk")] if data.pin_worse else []
         return SimpleNamespace(version=SimpleNamespace(id=uuid.uuid4(), number=4), pinned=pinned)
 
@@ -1108,6 +1119,17 @@ class FakeChecks:
     async def discard(self, ctx, skill_id, check_id, *, from_session=False):
         assert from_session
         self.calls.append(("discard", check_id))
+
+    async def decidable_for_session(self, ctx, skill_id, check_id):
+        if self.drift is not None:
+            raise self.drift
+        self.calls.append(("decidable", check_id))
+        check = await self.db.get(SkillCheck, check_id)
+        assert check is not None
+        return check
+
+    async def record_decision(self, ctx, check, outcome, version_id, *, acknowledged):
+        self.calls.append(("decided", (check.id, outcome, version_id, acknowledged)))
 
 
 _TEXT = CandidateText(description="How refunds work.", content="x")
@@ -2290,3 +2312,46 @@ class TestApprovedFollowUps:
         cancelled = await SkillImprovementService(db).cancel(ctx, run.skill_id, run.id)
 
         assert cancelled.iterations[0].cost_usd == cost
+
+
+class TestAChosenHelper:
+    async def test_every_step_runs_on_the_helper_the_session_was_started_with(self, db, evidence):
+        ctx = await _owner(db)
+        helper = await _published(
+            db, ctx, name="Strict helper", spec={"name": "Strict helper"}, kind="improver"
+        )
+        skill = await _skill_on_main(db, ctx)
+        service = SkillImprovementService(db)
+
+        read = await service.start(ctx, skill.id, _start(improver_agent_id=helper.id))
+        await service.advance(read.id, ctx.organization_id)
+        run = await _row(db, read)
+        assert run.analysis_request_id is not None
+        analysis = await db.get(AuthoringRequest, run.analysis_request_id)
+
+        assert read.improver_agent_id == helper.id == run.improver_agent_id
+        assert analysis is not None and analysis.improver_agent_id == helper.id
+        assert evidence["helpers"] == [helper.id, helper.id]
+
+    @pytest.mark.security
+    async def test_a_helper_of_another_organization_or_out_of_sight_is_missing(self, db, evidence):
+        ctx = await _owner(db)
+        skill = await _skill_on_main(db, ctx)
+        other = await _owner(db)
+        elsewhere = await _published(
+            db, other, name="Their helper", spec={"name": "Their helper"}, kind="improver"
+        )
+        helper = await _published(
+            db, ctx, name="Strict helper", spec={"name": "Strict helper"}, kind="improver"
+        )
+        blind = replace(ctx, key_scopes=frozenset(Perm) - {Perm.AGENTS_VIEW})
+        service = SkillImprovementService(db)
+
+        with pytest.raises(NotFoundError):
+            await service.estimate(
+                ctx, skill.id, SkillImprovementTarget(improver_agent_id=elsewhere.id)
+            )
+        with pytest.raises(NotFoundError):
+            await service.start(ctx, skill.id, _start(improver_agent_id=uuid.uuid4()))
+        with pytest.raises(NotFoundError):
+            await service.start(blind, skill.id, _start(improver_agent_id=helper.id))

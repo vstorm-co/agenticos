@@ -18,7 +18,7 @@ from httpx import ASGITransport, AsyncClient
 
 from app.api import deps
 from app.core.config import settings
-from app.core.exceptions import AlreadyExistsError, NotFoundError
+from app.core.exceptions import AlreadyExistsError, BadRequestError, NotFoundError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.main import app
 from app.schemas.skill_check import (
@@ -64,6 +64,7 @@ def _check(**overrides: Any) -> SkillCheckRead:
         **_estimate().model_dump(),
         "id": CHECK,
         "skill_id": SKILL,
+        "source": "proposal",
         "status": "done",
         "verdict": "passed",
         "outcomes": ["apply", "improve_further", "discard"],
@@ -93,6 +94,10 @@ def service() -> MagicMock:
     stub = MagicMock()
     stub.estimate = AsyncMock(return_value=_estimate())
     stub.start = AsyncMock(return_value=_check(status="running", verdict=None, outcomes=[]))
+    stub.estimate_update = AsyncMock(return_value=_estimate())
+    stub.start_update = AsyncMock(
+        side_effect=BadRequestError(message="Not pinned", details={"agent_id": "a"})
+    )
     stub.list_checks = AsyncMock(return_value=SkillCheckList(items=[_check()], total=1))
     stub.read = AsyncMock(return_value=_check())
     stub.cancel = AsyncMock(return_value=_check(status="cancelled"))
@@ -104,6 +109,7 @@ def service() -> MagicMock:
                 skill_id=SKILL,
                 name="online",
                 base=VersionNumberRef(id=BASE.id, number=3),
+                started_from=VersionNumberRef(id=BASE.id, number=3),
                 latest=None,
                 changes=1,
                 behind_main=0,
@@ -170,6 +176,24 @@ class TestStarting:
             )
 
         assert response.status_code == 422
+
+
+class TestAPinnedAgentsUpdate:
+    async def test_its_estimate_names_the_skill_and_the_agent(self, client, service):
+        agent = uuid.uuid4()
+        async with client() as opened:
+            response = await opened.post(
+                _url(f"/agents/{agent}/update-check/estimate"), json={"mode": "thorough"}
+            )
+        assert response.status_code == 200
+        assert service.estimate_update.await_args.args[1:3] == (SKILL, agent)
+        assert service.estimate_update.await_args.args[3].mode == "thorough"
+
+    async def test_a_refused_start_keeps_its_400_and_a_bare_body_is_quick(self, client, service):
+        async with client() as opened:
+            response = await opened.post(_url(f"/agents/{uuid.uuid4()}/update-check"), json={})
+        assert response.status_code == 400
+        assert service.start_update.await_args.args[3].mode == "quick"
 
 
 class TestReading:

@@ -1,5 +1,5 @@
 ---
-source_sha: "ed5319c36e55"
+source_sha: "2f3bbfa1aea6"
 ---
 
 # Skille { #skills }
@@ -342,7 +342,7 @@ pliku, odświeżenie z biblioteki oraz zastosowana zmiana z workspace agenta alb
 
 **History** na stronie skilla pokazuje wersje od najnowszej. Przy każdej widać, co
 ją utworzyło (`backfill`, `created`, `edit`, `resources`, `library`, `workspace`,
-`improve` albo `restore`) i kiedy, a temu, kto może widzieć członków organizacji,
+`improve`, `restore`, `catch_up` albo `from_fork`) i kiedy, a temu, kto może widzieć członków organizacji,
 także kto ją zapisał. Wersja zachowuje swoje pliki takie, jakie były, więc
 późniejsza zmiana pliku nie zmienia wcześniejszej wersji.
 
@@ -365,7 +365,8 @@ wystartował.
 - Fork startuje tylko z main. Fork forka jest odrzucany, więc drzewo ma jeden
   poziom.
 - Nazwa forka jest unikalna w obrębie skilla, łącznie z forkami zarchiwizowanymi.
-- Pliki forka to pliki wersji, z której powstał. Pliki edytuje się tylko na main.
+- Pliki forka to pliki wersji, z której powstał. Pliki edytuje się tylko na main,
+  a do forka trafiają, gdy dogania main.
 - **Archive** sprawia, że fork nie przyjmuje nowych wersji. Zachowuje swoje wersje
   i nigdy nie jest usuwany. Fork, którego żaden run nie czytał od 30 dni, jest
   proponowany do archiwizacji; nic nie archiwizuje się samo. Starsza wersja agenta,
@@ -416,6 +417,68 @@ opublikowana wersja jeszcze nie wiąże skilla, zmiana czeka w wersji roboczej i
 sprawdzane jest tylko nowe wiązanie. Builder otwarty już na tym agencie nie widzi
 zmiany do odświeżenia, a zapis przed odświeżeniem przywraca stare wiązanie.
 
+**W tyle za main.** To, że main idzie dalej, nie przesuwa przypiętego agenta ani
+forka: nic nie nadgania samo, bo nadganianie kosztuje sprawdzenie na agentach, które
+przesuwa. `GET /api/v1/skills/behind-main` wypisuje przypiętych agentów i forki, które
+main wyprzedził, w całej organizacji, od najdalej w tyle. Przypięty agent jest
+liczony według tego, co serwuje jego domyślne środowisko, a fork tylko wtedy, gdy
+czyta go jakiś agent. Skille, których nie możesz zobaczyć, są pominięte, a
+przypięci agenci, których nie widzisz, są policzeni, a nie nazwani.
+
+**Powrót do main** przesuwa agentów forka z powrotem na najnowszą wersję main,
+wszystkich albo wybranych, każdego tak, jak robi to Change version. Agent, którego
+nie da się przesunąć, zostaje na forku z podanym powodem. Gdy nikt już nie czyta
+forka, fork jest archiwizowany. Agent, którego środowisko czeka na promocję, czyta
+fork do czasu promocji, więc do tego czasu fork zostaje.
+
+**Aktualizacja do main.** Przypiętego agenta, który jest za main, przenosi się
+w górę po sprawdzeniu: `POST /api/v1/skills/{id}/agents/{agent_id}/update-check`
+pyta tylko tego agenta, na jego własnych pytaniach i pytaniach skilla, z wersją, na
+której stoi, i z najnowszą wersją main razem z jej plikami, a koszt idzie z budżetu
+agenta; `…/update-check/estimate` najpierw podaje cenę. Sprawdzenie wymaga prawa
+edycji skilla i czytania runów. Akceptuje się je, przenosząc agenta:
+`PUT …/agents/{agent_id}/binding` ze `state: main` i jego `check_id`. To przeniesienie
+jest odrzucane, gdy nowsza wersja pogorszyła agenta, gdy wynik, którego nie dało się
+zmierzyć, nie został potwierdzony (`acknowledge_unknown`), i gdy agent został
+opublikowany ponownie albo main poszedł dalej od czasu sprawdzenia; zamyka ono
+sprawdzenie i oznacza agenta jako sprawdzonego na tej wersji. Przeniesienie bez
+sprawdzenia pozostaje możliwe, jak każda zmiana wersji: agent ma wtedy na nowej
+wersji stan „nie wiadomo”, a odpowiada za to osoba, która go przeniosła.
+
+**Doganianie main przez fork.** Zmiany z main trafiają do forka w sesji:
+`POST /api/v1/skills/{id}/forks/{fork_id}/catch-up`, z ceną podaną najpierw przez
+`…/catch-up/estimate`. Sesja scala trzy wersje: wersję main, na której fork się
+opiera, najnowszą wersję forka i najnowszą wersję main. Fragment zmieniony tylko po
+jednej stronie bierze tekst tej strony, a fragment zmieniony po obu stronach tak samo
+jest brany raz. Fragment zmieniony po obu stronach różnie to konflikt, dla którego
+model proponuje jeden tekst. Na kroku **Changes** osoba może przepisać każdy
+fragment, także propozycję modelu (`GET …/improvements/{run_id}/merge`, a potem
+`PATCH …/merge/description` albo `…/merge/parts/{index}`). Dla pliku zmienionego po
+obu stronach różnie osoba wybiera jedną stronę (`PATCH …/merge/files`); model nigdy
+nie pisze pliku. Sprawdzenie startuje dopiero, gdy nic nie zostało nierozstrzygnięte.
+Pyta agentów forka o wynik scalenia i, jeśli nie wyłączy się `main_alone` przy
+wycenie sprawdzenia na kroku Changes, o samą najnowszą wersję main. To drugie
+sprawdzenie mówi, czy fork jest jeszcze potrzebny, a wycena podaje jego cenę
+w osobnej pozycji (`main_alone_usd`). Jest pomijane, gdy scalenie i tak jest
+najnowszą wersją main. Akceptacja tworzy wersję forka
+(`catch_up`), która wskazuje wersję main, którą przyjęła. Od tej chwili fork opiera
+się na tej wersji main, więc nie jest już za main. Gdy sama main nie pogorszyła
+żadnego agenta, wynik proponuje też porzucenie forka i powrót jego agentów do main.
+
+**Przeniesienie forka do main.** To samo scalenie w drugą stronę, przez
+`…/forks/{fork_id}/to-main`. Sprawdzenie pyta agentów main według
+[reguły](#the-rule) obowiązującej każdą zmianę main. Akceptacja tworzy wersję main
+(`from_fork`), która wskazuje przyjętą wersję forka, razem z plikami. Agenci forka
+mogą potem wrócić do main.
+
+Oba są odrzucane (409), gdy fork jest zarchiwizowany, gdy nie ma własnej wersji (jego
+agenci wracają wtedy do main) i gdy scalenie niczego by nie zmieniło. Są też
+odrzucane (422), gdy tekst jest zbyt długi albo zbyt często powtarza linie, żeby
+scalić go linia po linii w rozsądnym czasie; zmiany przenosi się wtedy ręcznie. Akceptacja jest
+odrzucana, gdy main albo fork ma nowszą wersję niż ta, którą odczytało scalenie,
+a sesja, której linie poszły dalej, gdy czekała, kończy się jako nieaktualna: zacznij
+nową, żeby objąć nowszą wersję.
+
 ### Usuwanie skilla { #deleting-a-skill }
 
 Skilla, którego używa agent, nie można usunąć. Chodzi o skill związany przez
@@ -435,6 +498,9 @@ jego wersjami i forkami.
 | `PATCH /api/v1/skills/{id}/forks/{fork_id}`, `POST …/archive` | Zmienia nazwę forka albo go archiwizuje |
 | `GET /api/v1/skills/{id}/agents` | Agenci skilla, wersja, którą czyta każdy z nich, i liczba ukrytych |
 | `PUT /api/v1/skills/{id}/agents/{agent_id}/binding` | Przesuwa agenta na main, wersję main albo fork |
+| `GET /api/v1/skills/behind-main` | Przypięci agenci i forki, które main wyprzedził, w całej organizacji |
+| `POST /api/v1/skills/{id}/forks/{fork_id}/return-to-main` | Przesuwa agentów forka z powrotem na main i archiwizuje fork, gdy nikt go już nie czyta |
+| `POST /api/v1/skills/{id}/agents/{agent_id}/update-check`, `…/estimate` | Sprawdza najnowszą wersję main na jednym przypiętym agencie albo wycenia to sprawdzenie |
 | `POST /api/v1/skills/{id}/improvements/estimate`, `POST /api/v1/skills/{id}/improvements` | Wycenia i zaczyna sesję Popraw na main albo na forku |
 | `POST /api/v1/skills/{id}/improvements/{session_id}/apply`, `…/fork`, `…/discard` | Stosuje wynik sesji, z przypięciem gorszych agentów albo bez, robi z niego fork dla agentów, którym pomógł, albo go odrzuca |
 | `POST /api/v1/skills/{id}/improvements/{session_id}/recheck` | Sprawdza wynik ponownie na linii w obecnym stanie |

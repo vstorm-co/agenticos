@@ -328,7 +328,7 @@ category alone does not, because no agent reads it.
 
 **History** on the skill page lists the versions, newest first. Each one says what
 made it (`backfill`, `created`, `edit`, `resources`, `library`, `workspace`,
-`improve` or `restore`) and when, and who saved it to a reader who may see the
+`improve`, `restore`, `catch_up` or `from_fork`) and when, and who saved it to a reader who may see the
 organization's members. A version keeps its files as they were, so changing a file
 later does not change an earlier version.
 
@@ -352,7 +352,7 @@ version it started from.
   level deep.
 - A fork's name is unique within its skill, archived forks included.
 - A fork's files are the files of the version it was made from. Files are edited
-  on main only.
+  on main only, and reach a fork when it catches up.
 - **Archive** stops a fork from taking new versions. It keeps its versions and is
   never deleted. A fork that no run has read for 30 days is offered for archiving;
   nothing is archived automatically. An older version of an agent that still reads
@@ -402,6 +402,67 @@ the skill yet, the change waits in the draft, and only the new binding is checke
 Builder already open on the agent does not see the change until it is reloaded, and
 saving it before then puts the old binding back.
 
+**Behind main.** Main moving on does not move a pinned agent or a fork: nothing
+catches up by itself, because catching up costs a check on the agents it moves.
+`GET /api/v1/skills/behind-main` lists the pinned agents and the forks that main has
+moved past, across the organization, furthest behind first. A pinned agent is
+listed by what its default environment serves, and a fork only while an agent
+reads it. Skills you cannot view are left out, and pinned agents you cannot see
+are counted, not named.
+
+**Return to main** moves a fork's agents back to main's newest version, all of them
+or the ones you pick, each as Change version moves it. One that cannot be moved
+stays on the fork with the reason. Once nobody reads the fork, it is archived. An
+agent whose environment waits for a promotion still reads the fork until it is
+promoted, so the fork stays until then.
+
+**Update to main.** A pinned agent behind main is moved up with a check first:
+`POST /api/v1/skills/{id}/agents/{agent_id}/update-check` asks that one agent, on its
+own questions and the skill's, with the version it stays on and with main's newest
+version and its files, billed to the agent; `…/update-check/estimate` prices it
+first. The check needs permission to edit the skill and to read runs. It is accepted
+by moving the agent: `PUT …/agents/{agent_id}/binding` with `state: main` and its
+`check_id`. That move is refused when the newer version made the agent worse, when a
+result that could not be measured is not acknowledged (`acknowledge_unknown`), and
+when the agent was published again or main moved on since the check; it closes the
+check and marks the agent checked on that version. Moving an agent without a check
+stays possible, as any change of version is: the agent then reads "unknown" on its
+new version, and the person who moved it answers for that.
+
+**Catch up a fork.** Main's changes reach a fork in a session:
+`POST /api/v1/skills/{id}/forks/{fork_id}/catch-up`, priced first by
+`…/catch-up/estimate`. The session merges three versions: the main version the fork
+is based on, the fork's newest and main's newest. A part only one side changed
+takes that side's text, and a part both changed the same way is taken once. A part
+they changed differently is a conflict, and the model proposes one text for it. At
+**Changes** a person can rewrite any part, the model's included
+(`GET …/improvements/{run_id}/merge`, then `PATCH …/merge/description` or
+`…/merge/parts/{index}`). For a file both sides changed differently, a person keeps
+one side (`PATCH …/merge/files`); the model never writes a file. The check starts
+only when nothing is left unsettled. It asks the fork's agents about the merge and,
+unless `main_alone` is turned off when the check is priced at Changes, about main's
+newest alone. That second check says whether the fork is still needed, and the
+estimate prices it on a line of its own (`main_alone_usd`). It is skipped when the
+merge is main's newest anyway.
+Accepting makes a fork version (`catch_up`) that names the main version it took in.
+From then on the fork is based on that main version, so it is no longer behind.
+When main alone made no agent worse, the result also offers to drop the fork and
+return its agents to main.
+
+**Move a fork to main.** The same merge goes the other way at
+`…/forks/{fork_id}/to-main`. The check asks main's agents, by the
+[rule](#the-rule) for every change to main. Accepting makes a main version
+(`from_fork`) that names the fork version it took in, files included. The fork's
+agents can then return to main.
+
+Both are refused (409) when the fork is archived, when it has no version of its own
+(its agents return to main instead), and when the merge would change nothing. They
+are also refused (422) when a text is too long or repeats its lines too often to be
+merged line by line in reasonable time; the changes are then brought over by hand.
+Accepting is refused once main or the fork has a newer version than the merge
+read, and a session whose lines moved on while it waited ends as stale: start a new
+one to include the newer version.
+
 ### Deleting a skill
 
 A skill that an agent uses cannot be deleted. That is a skill bound by a live
@@ -420,6 +481,9 @@ others. A skill that nobody uses is deleted with its versions and forks.
 | `PATCH /api/v1/skills/{id}/forks/{fork_id}`, `POST …/archive` | Renames a fork, or archives it |
 | `GET /api/v1/skills/{id}/agents` | The skill's agents, the version each reads, and how many are hidden |
 | `PUT /api/v1/skills/{id}/agents/{agent_id}/binding` | Moves an agent to main, a main version or a fork |
+| `GET /api/v1/skills/behind-main` | Pinned agents and forks that main has moved past, across the organization |
+| `POST /api/v1/skills/{id}/forks/{fork_id}/return-to-main` | Moves a fork's agents back to main, and archives the fork once nobody reads it |
+| `POST /api/v1/skills/{id}/agents/{agent_id}/update-check`, `…/estimate` | Checks main's newest version on one pinned agent, or prices that check |
 | `POST /api/v1/skills/{id}/improvements/estimate`, `POST /api/v1/skills/{id}/improvements` | Prices and starts an Improve session on main or on a fork |
 | `POST /api/v1/skills/{id}/improvements/{session_id}/apply`, `…/fork`, `…/discard` | Applies a session's result, with or without pinning the worse agents, forks it for the agents it helped, or discards it |
 | `POST /api/v1/skills/{id}/improvements/{session_id}/recheck` | Checks a result again on the line as it is now |

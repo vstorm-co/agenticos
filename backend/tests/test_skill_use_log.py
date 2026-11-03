@@ -486,3 +486,17 @@ def test_an_agent_pinned_itself_reads_its_stored_skill_while_its_specialist_read
     specialist = _on_line([], run)
 
     assert (agent, specialist) == ({}, {SHIPPING: body})
+
+
+def test_a_body_over_the_pin_reaches_the_pinned_agent_and_not_its_pinned_specialist():
+    """Checking a pinned agent's move to main serves main's text to the agent itself; a
+    specialist pinned on its own is not moved by that, and a fork reader is on another line."""
+    body = SkillBody("Ships.", "Main's newest rules.", over_pin=True)
+    run = {SHIPPING: body}
+    pinned = [SkillBindingSpec(skill_id=SHIPPING, version=1)]
+
+    agent = _on_line(pinned, run, own=True)
+    specialist = _on_line(pinned, run)
+    forked = _on_line([SkillBindingSpec(skill_id=SHIPPING, fork_id=uuid.uuid4())], run, own=True)
+
+    assert (agent, specialist, forked) == ({SHIPPING: body}, {}, {})

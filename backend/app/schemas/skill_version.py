@@ -40,6 +40,13 @@ class SkillVersionSummary(BaseSchema):
         )
     )
     restored_from: VersionRef | None = None
+    merged_from: VersionRef | None = Field(
+        default=None,
+        description=(
+            "The other line's version it took in: main's for a fork catching up, the "
+            "fork's for its changes moved to main"
+        ),
+    )
     proposal_id: UUID | None = Field(
         default=None, description="The skill change it applied, when it came from one"
     )
@@ -114,7 +121,10 @@ class SkillForkRead(BaseSchema):
     id: UUID
     skill_id: UUID
     name: str
-    base: VersionNumberRef = Field(description="The main version the fork started from")
+    base: VersionNumberRef = Field(
+        description="The main version the fork is based on: where it started, or last caught up"
+    )
+    started_from: VersionNumberRef = Field(description="The main version the fork started from")
     latest: VersionNumberRef | None = Field(
         description="Its newest own version; null while it has none and serves its base"
     )
@@ -238,6 +248,74 @@ class SkillAgentList(BaseSchema):
     hidden: int = Field(description="Agents using the skill that the caller may not see")
 
 
+class SkillRef(BaseSchema):
+    id: UUID
+    name: str
+
+
+class BehindMain(BaseSchema):
+    """A pinned agent or a fork that main has moved past."""
+
+    kind: Literal["pinned", "fork"]
+    skill: SkillRef
+    agent: AgentUsage | None = Field(default=None, description="The pinned agent; null for a fork")
+    via_specialist: str | None = Field(
+        default=None, description="The inline specialist that pins it, when the agent does not"
+    )
+    fork: ForkRef | None = Field(default=None, description="The fork; null for a pinned agent")
+    agents: int = Field(
+        description="How many agents read it: 1 for a pinned agent, every reader of a fork"
+    )
+    version: VersionNumberRef = Field(
+        description="The main version it is on: the pinned one, or the one the fork started from"
+    )
+    main_latest: VersionNumberRef
+    behind_main: int = Field(description="How many main versions came after `version`")
+    can_act: bool = Field(
+        description=(
+            "The caller may start bringing it along: edit the agent for a pinned one, "
+            "edit the skill for a fork. Never for a pin in a specialist "
+            "(`via_specialist`), which changes in the agent's Builder"
+        )
+    )
+
+
+class BehindMainList(BaseSchema):
+    items: list[BehindMain]
+    total: int
+    hidden: int = Field(description="Pinned agents behind main that the caller may not see")
+
+
+class ReturnToMain(BaseSchema):
+    agent_ids: list[UUID] | None = Field(
+        default=None,
+        description="Which of the fork's agents to move; every one the caller can see when omitted",
+    )
+
+
+class ReturnedAgent(BaseSchema):
+    agent: AgentUsage
+    published: bool = Field(description="A new agent version went live; otherwise only its draft")
+    agent_version: int | None = None
+    refused: str | None = Field(
+        default=None, description="Why it stayed on the fork; it was not moved"
+    )
+
+
+class ReturnedToMain(BaseSchema):
+    """What moving a fork's agents back to main did, agent by agent."""
+
+    agents: list[ReturnedAgent]
+    hidden: int = Field(description="The fork's agents the caller may not see, left as they were")
+    remaining: int = Field(
+        description=(
+            "Agents still reading the fork, hidden ones included: a move that waits in a "
+            "draft leaves the served version on the fork until it is published"
+        )
+    )
+    archived: bool = Field(description="Nobody reads the fork any more, so it was archived")
+
+
 class SkillBindingChange(BaseSchema):
     """Which version an agent should read: main's newest, a main version, or a fork."""
 
@@ -245,6 +323,14 @@ class SkillBindingChange(BaseSchema):
     version: int | None = Field(default=None, ge=1, description="The main version, for `pinned`")
     fork_id: UUID | None = Field(default=None, description="The fork, for `fork`")
     note: str | None = Field(default=None, max_length=500)
+    check_id: UUID | None = Field(
+        default=None,
+        description="For a pinned agent moving to `main`: the finished check of main's newest "
+        "version on it, which marks the agent checked rather than unknown",
+    )
+    acknowledge_unknown: bool = Field(
+        default=False, description="Required with a `check_id` that could not check the agent"
+    )
 
     @model_validator(mode="after")
     def _names_what_its_state_needs(self) -> SkillBindingChange:
@@ -253,6 +339,8 @@ class SkillBindingChange(BaseSchema):
             raise ValueError(
                 "`pinned` takes a version, `fork` takes a fork_id, and `main` takes neither"
             )
+        if self.check_id is not None and self.state != "main":
+            raise ValueError("A check is given only for an update to `main`")
         return self
 
 

@@ -22,7 +22,7 @@ from app.db.models.improvement import (
     StopReason,
 )
 from app.db.models.skill_check import CheckMode, CheckOutcome
-from app.db.models.skill_improvement import SkillImprovementOutcome
+from app.db.models.skill_improvement import SkillImprovementOutcome, SkillImprovementPurpose
 from app.schemas.authoring import EvidenceQuote
 from app.schemas.base import BaseSchema
 from app.schemas.improvement import (
@@ -39,7 +39,7 @@ from app.schemas.skill_check import (
     SkillCheckFork,
     SkillCheckRead,
 )
-from app.schemas.skill_version import SkillForkRead
+from app.schemas.skill_version import ReturnedToMain, SkillForkRead
 
 
 class SkillLine(BaseSchema):
@@ -68,10 +68,54 @@ class SkillImprovementTarget(BaseSchema):
         "problems are read beside the line's evidence, and its agent's line is the one "
         "improved. Read on the server; nothing else about it is taken from the request",
     )
+    improver_agent_id: UUID | None = Field(
+        default=None,
+        description="The helper that groups the problems and proposes the edits; the "
+        "organization's own when null",
+    )
 
 
 class SkillImprovementStart(SkillImprovementTarget):
     budget_usd: Decimal = Field(gt=0, max_digits=12, decimal_places=6)
+
+
+type MergeOutcome = Literal["catch_up", "return_to_main"]
+"""What a person may do with a merge session's result, beside a check's own outcomes:
+take the merge into the fork, or move the fork's agents back to main."""
+
+type MainAlone = Literal["off", "same", "checked"]
+"""Whether a catch-up also checked main's newest version alone on the fork's agents: not
+asked for, not needed because the merge is main, or checked."""
+
+
+class SkillMergeStart(BaseSchema):
+    budget_usd: Decimal = Field(
+        ge=0,
+        max_digits=12,
+        decimal_places=6,
+        description="The spending limit for the session; its check is priced at Changes",
+    )
+
+
+class SkillMergeEstimate(BaseSchema):
+    """What a catch-up or a move to main would merge, and what it costs before Changes."""
+
+    line: SkillLine = Field(description="The line the merge becomes a new version of")
+    source_fork: SkillLine | None = Field(
+        default=None, description="For a move to main, the fork whose changes it takes"
+    )
+    base_version: SkillVersionRef = Field(description="The line's newest version, as merged")
+    conflicts: int = Field(
+        description="Parts both lines changed differently; the assistant proposes a text "
+        "for each, and a person may change it"
+    )
+    total_usd: Decimal = Field(
+        description="Proposing the conflicts' texts, zero without conflicts; the check is "
+        "priced at Changes"
+    )
+    agents: int
+    hidden_agents: int
+    affordable: bool
 
 
 class SkillImprovementEstimate(BaseSchema):
@@ -150,6 +194,17 @@ class SkillImprovementRead(BaseSchema):
     id: UUID
     skill_id: UUID
     fork_id: UUID | None
+    purpose: SkillImprovementPurpose = SkillImprovementPurpose.IMPROVE
+    improver_agent_id: UUID | None = Field(
+        default=None, description="The helper the session's steps run on; null for the default"
+    )
+    source_fork_id: UUID | None = Field(
+        default=None, description="For a move to main, the fork whose changes it takes"
+    )
+    merge_id: UUID | None = Field(
+        default=None,
+        description="For a catch-up or a move to main, the merge Changes shows and edits",
+    )
     line_name: str = ""
     base_version: SkillVersionRef | None = None
     created_by_user_id: UUID | None
@@ -185,10 +240,17 @@ class SkillImprovementRead(BaseSchema):
         "Result, Check again (`POST …/recheck`) does. A decision refused with 409 because "
         "the line's agents changed since the check means the same",
     )
-    outcomes: list[CheckOutcome] = Field(
+    main_alone: MainAlone | None = Field(
+        default=None,
+        description="A catch-up's second check, of main's newest version alone; `off` and "
+        "`same` say why Return to main is not offered",
+    )
+    main_alone_check: SkillCheckRead | None = None
+    outcomes: list[CheckOutcome | MergeOutcome] = Field(
         default_factory=list,
         description="What a person may do with the result now: the check's outcomes while "
-        "the session waits on it, Try again included as `improve_further`",
+        "the session waits on it, Try again included as `improve_further`. A catch-up "
+        "offers `catch_up` and, when main alone made nobody worse, `return_to_main`",
     )
     iterations: list[SkillImprovementIterationRead] = Field(default_factory=list)
     timeline: list[ImprovementEvent] = Field(default_factory=list)
@@ -254,6 +316,11 @@ class SkillContinue(BaseSchema):
         description="For a check: quick (the default) or thorough. A changed description "
         "is always checked thoroughly",
     )
+    main_alone: bool = Field(
+        default=True,
+        description="For a catch-up's check: also check main's newest version alone, so "
+        "the result can offer returning the fork's agents to main",
+    )
 
 
 class SkillContinuationEstimate(ContinuationEstimate):
@@ -263,6 +330,11 @@ class SkillContinuationEstimate(ContinuationEstimate):
         default=None,
         description="For the check: each agent it runs, and the ones it cannot, before it starts",
     )
+    main_alone_usd: Decimal | None = Field(
+        default=None,
+        description="For a catch-up: what checking main alone adds, included in `total_usd`",
+    )
+    main_alone_estimate: SkillCheckEstimate | None = None
 
 
 class SkillContinuationConsent(ContinuationConsent):
@@ -271,6 +343,7 @@ class SkillContinuationConsent(ContinuationConsent):
         description="For a check: quick (the default) or thorough. A changed description "
         "is always checked thoroughly",
     )
+    main_alone: bool = True
 
 
 class SkillImprovementApply(SkillCheckApply):
@@ -288,6 +361,13 @@ class SkillImprovementApplied(BaseSchema):
     version_id: UUID
     version: int
     pinned: list[AgentRef]
+
+
+class SkillImprovementReturned(BaseSchema):
+    """What returning a fork's agents to main did; the session is accepted with it."""
+
+    session: SkillImprovementRead
+    returned: ReturnedToMain
 
 
 class SkillImprovementForked(BaseSchema):
@@ -355,3 +435,22 @@ class SkillEdits(BaseModel):
         ),
     )
     description_rationale: str = ""
+
+
+MERGE_ASK = (
+    "Two lines of a skill changed the same passages differently. For each numbered "
+    "conflict below, write the passage as it should read with both changes kept - the "
+    "fork's and main's - or, where they cannot both stand, the one that keeps the skill "
+    "correct. Answer with one text per conflict, in order, keeping each passage's line "
+    "breaks. A description stays one line of at most 500 characters.\n\n"
+)
+"""What the improver is asked before a merge's numbered conflicts."""
+
+
+class MergeTexts(BaseModel):
+    """The improver's combined text for each conflict of a merge, in the order asked."""
+
+    texts: list[str] = Field(
+        description="One text per numbered conflict, in order: the passage as it should "
+        "read with both sides' changes kept"
+    )

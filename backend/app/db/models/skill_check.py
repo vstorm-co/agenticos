@@ -64,6 +64,8 @@ class CheckSource(StrEnum):
     MANUAL = "manual"
     PROPOSAL = "proposal"
     SESSION = "session"
+    CATCH_UP = "catch_up"
+    """Main's newest version, checked on one agent pinned to an older one."""
 
 
 class CheckStatus(StrEnum):
@@ -159,7 +161,16 @@ class SkillCheck(Base):
     fork_id: Mapped[uuid.UUID | None] = mapped_column(PG_UUID(as_uuid=True), nullable=True)
     """The fork the change is to, or `None` for main."""
     base_version_id: Mapped[uuid.UUID] = mapped_column(PG_UUID(as_uuid=True), nullable=False)
-    """The line's newest version when the check started; the baseline every agent ran."""
+    """The line's newest version when the check started; the baseline every agent ran.
+
+    For a pinned agent's update, the version it is pinned to.
+    """
+    agent_id: Mapped[uuid.UUID | None] = mapped_column(PG_UUID(as_uuid=True), nullable=True)
+    """The one pinned agent an update is checked on; `None` for a line's change."""
+    candidate_version_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True), nullable=True
+    )
+    """The main version a pinned agent's update would move it to; `None` for a new text."""
     candidate_description: Mapped[str] = mapped_column(String(500), nullable=False)
     candidate_content: Mapped[str] = mapped_column(Text, nullable=False)
     candidate_resources: Mapped[dict[str, Any] | None] = mapped_column(
@@ -224,9 +235,18 @@ class SkillCheck(Base):
             ["skill_versions.id", "skill_versions.organization_id"],
             ondelete="CASCADE",
         ),
+        ForeignKeyConstraint(["agent_id"], ["agents.id"], ondelete="CASCADE"),
+        ForeignKeyConstraint(
+            ["candidate_version_id", "organization_id"],
+            ["skill_versions.id", "skill_versions.organization_id"],
+            ondelete="CASCADE",
+        ),
         ForeignKeyConstraint(["applied_version_id"], ["skill_versions.id"], ondelete="SET NULL"),
         UniqueConstraint("id", "organization_id", name="uq_skill_checks_tenant"),
         Index("ix_skill_checks_skill", "organization_id", "skill_id", "created_at"),
+        # Deleting an agent or a version cascades into these; unindexed, each scans the table.
+        Index("ix_skill_checks_agent", "agent_id"),
+        Index("ix_skill_checks_candidate_version", "candidate_version_id"),
         Index(
             "ix_skill_checks_running",
             "status",

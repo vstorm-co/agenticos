@@ -364,11 +364,36 @@ class AuthoringService:
         pack = await self.evidence.for_context(ctx, file.id, window_days=body.window_days)
         return await self._estimate(ctx, improver, pack, None if pack.runs else "no_evidence")
 
-    async def estimate_pack(self, ctx: AuthContext, pack: EvidencePack) -> AuthoringEstimate:
-        """What the improver would cost to read this pack, for a caller with its own evidence."""
+    async def estimate_pack(
+        self, ctx: AuthContext, pack: EvidencePack, *, improver_agent_id: UUID | None = None
+    ) -> AuthoringEstimate:
+        """What the improver would cost to read this pack, for a caller with its own evidence.
+
+        `improver_agent_id` picks a helper other than the seeded one, as a session chose it.
+        """
         self._require_runs_view(ctx)
-        improver = await self._improver(ctx)
+        improver = await self._improver(ctx, improver_agent_id)
         return await self._estimate(ctx, improver, pack, None if pack.runs else "no_evidence")
+
+    async def estimate_call(
+        self, ctx: AuthContext, *, chars: int, improver_agent_id: UUID | None = None
+    ) -> AuthoringEstimate:
+        """What one improver call reading `chars` of text would cost, for a session's step
+        that reads no runs."""
+        self._require_runs_view(ctx)
+        improver = await self._improver(ctx, improver_agent_id)
+        total = (await self._per_call(ctx, improver, chars)).quantize(_CENT)
+        improver_left = await self._improver_left(ctx, improver)
+        org_left = await self._org_left(ctx)
+        return AuthoringEstimate(
+            runs=0,
+            rated_down=0,
+            calls=1,
+            estimate_usd=total,
+            affordable=(improver_left is None or total <= improver_left)
+            and (org_left is None or total <= org_left),
+            reason=None,
+        )
 
     async def start_for_skill_session(
         self,
@@ -379,6 +404,7 @@ class AuthoringService:
         session_id: UUID,
         estimate_usd: Decimal,
         window_days: int,
+        improver_agent_id: UUID | None = None,
     ) -> AuthoringRequest:
         """Queue a skill session's analysis or proposal, priced and consented to by the session."""
         request = await authoring_repo.create_request(
@@ -393,6 +419,7 @@ class AuthoringService:
             estimate_usd=estimate_usd,
             window_days=window_days,
             skill_improvement_run_id=session_id,
+            improver_agent_id=improver_agent_id,
         )
         await enqueue(
             self.db,

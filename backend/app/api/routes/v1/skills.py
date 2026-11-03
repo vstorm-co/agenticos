@@ -15,8 +15,15 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, Query, UploadFile, status
 
-from app.api.deps import Auth, SkillAgentSvc, SkillSvc, SkillVersionSvc, require
-from app.api.public_api import PUBLIC
+from app.api.deps import (
+    Auth,
+    SkillAgentSvc,
+    SkillCatchUpSvc,
+    SkillSvc,
+    SkillVersionSvc,
+    require,
+)
+from app.api.public_api import ASSISTANT, PUBLIC
 from app.core.permissions import Perm
 from app.repositories.skill import SkillSort
 from app.schemas.skill import (
@@ -32,8 +39,17 @@ from app.schemas.skill import (
     SkillResourceUpdate,
     SkillUpdate,
 )
+from app.schemas.skill_merge import (
+    MergeDescriptionEdit,
+    MergeFilePick,
+    MergePartEdit,
+    SkillMergeRead,
+)
 from app.schemas.skill_usage import SkillUsageRead
 from app.schemas.skill_version import (
+    BehindMainList,
+    ReturnedToMain,
+    ReturnToMain,
     SkillAgentList,
     SkillBindingChange,
     SkillBindingChanged,
@@ -100,6 +116,22 @@ async def create_skill(data: SkillCreate, service: SkillSvc, ctx: Auth) -> Any:
         user_ids=data.user_ids,
     )
     return await service.read(ctx, skill)
+
+
+@router.get(
+    "/behind-main",
+    response_model=BehindMainList,
+    dependencies=[Depends(require(Perm.SKILLS_VIEW))],
+)
+async def skills_behind_main(service: SkillCatchUpSvc, ctx: Auth) -> Any:
+    """The pinned agents and the forks main has moved past, across the organization.
+
+    Nothing catches up by itself: each item is one a person may bring along. Skills
+    the caller may not view are left out, and pinned agents it may not view are
+    counted in `hidden`. Declared before `/{skill_id}`, which would read the path as
+    a malformed id.
+    """
+    return await service.behind_main(ctx)
 
 
 @router.get(
@@ -346,6 +378,75 @@ async def rename_fork(
 async def archive_fork(skill_id: UUID, fork_id: UUID, service: SkillVersionSvc, ctx: Auth) -> Any:
     """Archive a fork. It keeps its versions; it is never deleted."""
     return await service.archive_fork(ctx, skill_id, fork_id)
+
+
+@router.post("/{skill_id}/forks/{fork_id}/return-to-main", response_model=ReturnedToMain)
+async def return_fork_to_main(
+    skill_id: UUID, fork_id: UUID, data: ReturnToMain, service: SkillCatchUpSvc, ctx: Auth
+) -> Any:
+    """Move a fork's agents back to main's newest version, and archive the fork once
+    nobody reads it.
+
+    Each agent moves as Change version moves it, and one that cannot be moved stays on
+    the fork with the reason. Agents the caller may not see are counted and left alone.
+    """
+    return await service.return_to_main(ctx, skill_id, fork_id, data)
+
+
+@router.get(
+    "/{skill_id}/improvements/{run_id}/merge",
+    response_model=SkillMergeRead,
+    dependencies=[ASSISTANT],
+)
+async def get_skill_merge(skill_id: UUID, run_id: UUID, service: SkillCatchUpSvc, ctx: Auth) -> Any:
+    """The three-way merge a session catching a fork up, or moving it to main, works on.
+
+    Each text says which side it comes from; a conflict nobody has settled has no
+    result, and the check waits until none is left.
+    """
+    return await service.read_merge(ctx, skill_id, run_id)
+
+
+@router.patch(
+    "/{skill_id}/improvements/{run_id}/merge/description",
+    response_model=SkillMergeRead,
+    dependencies=[ASSISTANT],
+)
+async def edit_skill_merge_description(
+    skill_id: UUID, run_id: UUID, data: MergeDescriptionEdit, service: SkillCatchUpSvc, ctx: Auth
+) -> Any:
+    """Write the merged description, while the session waits at Changes."""
+    return await service.edit_description(ctx, skill_id, run_id, data)
+
+
+@router.patch(
+    "/{skill_id}/improvements/{run_id}/merge/parts/{index}",
+    response_model=SkillMergeRead,
+    dependencies=[ASSISTANT],
+)
+async def edit_skill_merge_part(
+    skill_id: UUID,
+    run_id: UUID,
+    index: int,
+    data: MergePartEdit,
+    service: SkillCatchUpSvc,
+    ctx: Auth,
+) -> Any:
+    """Write one part of the merged instructions, while the session waits at Changes."""
+    return await service.edit_part(ctx, skill_id, run_id, index, data)
+
+
+@router.patch(
+    "/{skill_id}/improvements/{run_id}/merge/files",
+    response_model=SkillMergeRead,
+    dependencies=[ASSISTANT],
+)
+async def pick_skill_merge_file(
+    skill_id: UUID, run_id: UUID, data: MergeFilePick, service: SkillCatchUpSvc, ctx: Auth
+) -> Any:
+    """Keep one side's version of a file, while the session waits at Changes. Taking the
+    side the file is absent from drops it."""
+    return await service.pick_file(ctx, skill_id, run_id, data)
 
 
 @router.get("/{skill_id}/agents", response_model=SkillAgentList)

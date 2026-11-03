@@ -117,6 +117,11 @@ class SkillImprovementRun(Base):
         server_default=SkillImprovementPurpose.IMPROVE.value,
     )
     source_fork_id: Mapped[uuid.UUID | None] = mapped_column(PG_UUID(as_uuid=True), nullable=True)
+    improver_agent_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True), nullable=True
+    )
+    """The system agent chosen to improve, as on an agent's session. No foreign key: a
+    deleted choice is refused as missing rather than quietly replaced."""
     # The line's latest version at the start, kept without a foreign key as an agent
     # session keeps its base: a line that moved on makes the session stale.
     base_version_id: Mapped[uuid.UUID] = mapped_column(PG_UUID(as_uuid=True), nullable=False)
@@ -290,6 +295,14 @@ class SkillImprovementIteration(Base):
         ForeignKey("skill_checks.id", ondelete="SET NULL"),
         nullable=True,
     )
+    main_alone_check_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("skill_checks.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    """A catch-up's second check: main's newest alone, on the fork's agents, which says
+    whether the fork is still needed."""
     check_verdict: Mapped[str | None] = mapped_column(String(16), nullable=True)
     verdict: Mapped[str | None] = mapped_column(String(16), nullable=True)
     cost_usd: Mapped[Decimal] = mapped_column(

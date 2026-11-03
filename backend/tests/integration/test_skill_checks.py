@@ -16,6 +16,7 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.agents.capabilities.skills import SkillBodyFile
 from app.agents.spec import AgentSpec
 from app.core.exceptions import (
     AlreadyExistsError,
@@ -85,6 +86,7 @@ class FakeEvals:
     """The gradable held-out questions a stage's run compares when it asks a whole
     dataset; one asking named questions compares those."""
     started: list[tuple[uuid.UUID, Any]] = field(default_factory=list)
+    served: list[Any] = field(default_factory=list)
 
     def install(self, monkeypatch: pytest.MonkeyPatch) -> None:
         fake = self
@@ -99,7 +101,7 @@ class FakeEvals:
                 org_remaining_usd=fake.org_left,
             )
 
-        async def start(_self, ctx, agent_id, request, **_):
+        async def start(_self, ctx, agent_id, request, *, candidate_skills=None, **_):
             if agent_id in fake.refuse_start:
                 raise BadRequestError(message="Cannot start")
             dataset = await dataset_repo.get(
@@ -137,6 +139,7 @@ class FakeEvals:
                 held_out=len(request.case_ids) if request.case_ids else fake.held_out,
             )
             fake.started.append((agent_id, request))
+            fake.served.append(candidate_skills)
             return SimpleNamespace(id=run_id)
 
         async def compare(_self, _ctx, run_id, *, holdout_minimum=True, **_):
@@ -909,6 +912,42 @@ class TestTestSet:
         assert created.improvement_holdout_share == 1
         with pytest.raises(AlreadyExistsError):
             await service.create_test_set(ctx, skill.id, SkillTestSetStart())
+
+
+class TestAMergedText:
+    async def test_its_files_are_the_whole_set_the_check_serves(self, db, monkeypatch):
+        lab = await _lab(db)
+        FakeEvals().install(monkeypatch)
+        files = (SkillBodyFile(name="merged.md", description="Merged", content="both sides"),)
+
+        read = await SkillCheckService(db).start(
+            lab.ctx, lab.skill.id, _start(), source=CheckSource.SESSION, files=files
+        )
+
+        check = await skill_check_repo.get(db, read.id, organization_id=lab.ctx.organization_id)
+        assert check is not None
+        assert check.candidate_resources == {
+            "merged.md": {"description": "Merged", "content": "both sides"}
+        }
+
+
+class TestASessionsDecision:
+    async def test_only_a_finished_undecided_check_is_decided_by_its_session(self, db, monkeypatch):
+        lab = await _lab(db)
+        evals = FakeEvals()
+        evals.install(monkeypatch)
+        service = SkillCheckService(db)
+        read = await service.start(lab.ctx, lab.skill.id, _start(), source=CheckSource.SESSION)
+
+        with pytest.raises(ConcurrentChangeError):
+            await service.decidable_for_session(lab.ctx, lab.skill.id, read.id)
+        await _run_to_end(service, evals, lab, read.id)
+        check = await service.decidable_for_session(lab.ctx, lab.skill.id, read.id)
+        await service.discard(lab.ctx, lab.skill.id, read.id, from_session=True)
+
+        assert check.id == read.id
+        with pytest.raises(AlreadyExistsError):
+            await service.decidable_for_session(lab.ctx, lab.skill.id, read.id)
 
 
 class TestASessionsCheckStops:
