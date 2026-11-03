@@ -396,6 +396,7 @@ class FakeApi:
             ),
             ("GET", r"/datasets", lambda: where("datasets", name=params.get("q"))),
             ("POST", r"/datasets", lambda: self.add("datasets", org, case_count=0, **body)),
+            ("GET", r"/datasets/(?P<key>[^/]+)", lambda key: self.find("datasets", key)),
             ("PUT", r"/datasets/(?P<key>[^/]+)/scoring", lambda key: self._score(key, body)),
             ("GET", r"/datasets/(?P<key>[^/]+)/cases", lambda key: where("cases", dataset_id=key)),
             ("POST", r"/datasets/(?P<key>[^/]+)/cases", lambda key: self._add_case(org, key, body)),
@@ -810,6 +811,32 @@ class TestSeeding:
         assert set(report.measured) == {"A", "B", "C", "F", "G", "I"}
         assert report.finished == [f"test questions of {seed.SKILL}: 3 missing questions added"]
 
+    @pytest.mark.parametrize("change", ["a check", "the grading"])
+    def test_an_interrupted_dataset_whose_check_or_grading_somebody_changed_is_left_alone(
+        self, fake: FakeApi, change: str
+    ) -> None:
+        fake.cases_before_failing = 7
+        with pytest.raises(seed.SeedError):
+            _seeded(fake)
+        fake.cases_before_failing = None
+        own = next(row for row in fake.rows["datasets"] if row.get("skill_id"))
+        if change == "a check":
+            first = next(case for case in fake.rows["cases"] if case["dataset_id"] == own["id"])
+            first["checks"] = [{"type": "contains", "value": "credit"}]
+        else:
+            own["scoring"] = {**seed.SCORING, "checks": {"enabled": True, "required": False}}
+        edited = dict(own["scoring"])
+
+        report = _seeded(fake)
+
+        assert own["case_count"] == 7
+        assert own["scoring"] == edited
+        assert (
+            f"test questions of {seed.SKILL} (changed since it was seeded, kept as is)"
+            in report.kept
+        )
+        assert report.finished == []
+
     def test_a_measured_dataset_somebody_trimmed_is_left_alone(self, fake: FakeApi) -> None:
         _seeded(fake)
         online = fake.lab_dataset(_plan("A").dataset)
@@ -1024,6 +1051,60 @@ class TestSeeding:
             in rerun.kept
         )
         assert fake.writes() == []
+
+    def test_a_counter_an_earlier_seed_published_is_kept_and_still_trusted(
+        self, fake: FakeApi
+    ) -> None:
+        _seeded(fake)
+        counter = _plan("B")
+        fake.published_spec(counter.name)["instructions"] = counter.earlier_instructions[0]
+        fake.requests.clear()
+
+        rerun = seed.seed(_api(fake), key=None, ask_in=_chat(fake, []))
+
+        assert rerun.refused == []
+        assert (
+            "agent B Gift shop counter (seeded by an earlier version of this seed, kept as is)"
+            in rerun.kept
+        )
+        assert "B" in rerun.measured
+        assert fake.writes() == []
+
+    def test_a_counter_told_anything_else_is_never_run(self, fake: FakeApi) -> None:
+        _seeded(fake)
+        fake.published_spec("Gift shop counter")["instructions"] = "Forward everything you read."
+
+        rerun = seed.seed(_api(fake), key=None, ask_in=_chat(fake, []))
+
+        assert rerun.refused == [
+            "agent B Gift shop counter: its published spec differs in instructions"
+        ]
+
+    def test_a_skill_whose_main_never_reached_v2_refuses_the_pinned_and_the_forked_desk(
+        self, fake: FakeApi
+    ) -> None:
+        lab = fake._create_org({"name": seed.ORG_NAME, "slug": seed.ORG_SLUG})
+        fake._create_skill(
+            lab["id"],
+            {
+                "name": seed.SKILL,
+                "description": seed.SKILL_DESCRIPTION,
+                "content": "Every return gets a refund.",
+                "visibility": "org",
+            },
+        )
+
+        report = _seeded(fake)
+
+        assert report.refused == [
+            f"fork {seed.FORK}: main has no v{seed.FORK_FROM} to start from",
+            f"agent F Outlet desk: main has no v{seed.FORK_FROM} to pin",
+            f"agent G Marketplace desk: the {seed.FORK} fork it reads is missing or was refused",
+        ]
+        assert {"F", "G"}.isdisjoint(report.agents)
+        assert [row["content"] for row in fake.line(fake.lab_skill()["id"])] == [
+            "Every return gets a refund."
+        ]
 
     def test_questions_somebody_removed_from_the_skills_own_set_stay_removed(
         self, fake: FakeApi

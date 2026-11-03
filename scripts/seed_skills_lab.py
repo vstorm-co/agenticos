@@ -64,7 +64,7 @@ import os
 import re
 import sys
 import time
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Collection, Mapping, Sequence
 from dataclasses import asdict, dataclass, field
 from typing import Any, Literal, TypedDict
 
@@ -343,6 +343,10 @@ class AgentPlan:
     line: Line = "main"
     """Main, latest; main version `FORK_FROM`, pinned; or the Marketplace fork, latest."""
     budget_usd: float = AGENT_BUDGET_USD
+    earlier_instructions: tuple[str, ...] = ()
+    """Instructions an earlier version of this seed published. An agent still holding them
+    is the seed's, kept as it is: its measured questions are never rewritten, so only a
+    fresh lab gets the current ones."""
 
     @property
     def cases(self) -> tuple[Case, ...]:
@@ -377,6 +381,11 @@ AGENTS = (
         dataset="Gift shop counter - test questions",
         rule=COUNTER_RULE,
         other=COUNTER_STORE,
+        earlier_instructions=(
+            "You are the counter of Acme's gift shop in the city mall. Customers pay at the "
+            "till and get a paper receipt; there are no online orders and no order numbers. "
+            "Never guess a store rule. Answer in at most three sentences.",
+        ),
     ),
     AgentPlan(
         key="C",
@@ -977,7 +986,13 @@ def differences(spec: JsonObject, planned: JsonObject) -> list[str]:
 
 
 def distrust(
-    api: Api, org: str, agent_id: str, planned: JsonObject, *, me: str
+    api: Api,
+    org: str,
+    agent_id: str,
+    planned: JsonObject,
+    *,
+    me: str,
+    earlier: Collection[str] = (),
 ) -> tuple[str | None, JsonObject]:
     """Why an agent found under a planned name must not be run as the seed's, if it must not,
     and the spec that would run.
@@ -985,7 +1000,8 @@ def distrust(
     The seed asks and measures as the signed-in owner, so an agent somebody else owns, or
     one whose spec gained a model, a capability or a reach the plan does not give it, could
     read what the owner may read. Its published version is what would run; an agent never
-    published is judged by its draft, which publishing would freeze.
+    published is judged by its draft, which publishing would freeze. Instructions in
+    `earlier`, an earlier seed's, are the seed's own too.
     """
     agent = api.call("GET", f"/agents/{agent_id}", org=org)
     if str(agent.get("owner_user_id")) != me:
@@ -997,6 +1013,8 @@ def distrust(
         else agent.get("draft_spec") or {}
     )
     changed = differences(spec, planned)
+    if changed == ["instructions"] and str(spec.get("instructions")) in earlier:
+        changed = []
     if not changed:
         return None, spec
     return f"its {'published' if version else 'draft'} spec differs in {', '.join(changed)}", spec
@@ -1009,6 +1027,7 @@ def ensure_agents(
     *,
     model: str,
     skill: str,
+    main: Sequence[str],
     fork: str | None,
     me: str,
     report: Report,
@@ -1017,7 +1036,8 @@ def ensure_agents(
 
     One found under a planned name is used only when `distrust` finds nothing, and an agent
     that hands work to a refused one is refused with it; a refused agent is reported, never
-    changed, and never asked or measured. A plan on the fork line waits for the fork. One an
+    changed, and never asked or measured. A plan on the fork line waits for the fork, and a
+    pinned one for main's v`FORK_FROM`, which a line somebody changed may not have. One an
     interrupted run created and never published is published now; a published one is left
     exactly as it is.
     """
@@ -1033,6 +1053,9 @@ def ensure_agents(
         if plan.line == "fork" and fork is None:
             report.refuse(f"{label}: the {FORK} fork it reads is missing or was refused")
             continue
+        if plan.line == "pinned" and len(main) < FORK_FROM:
+            report.refuse(f"{label}: main has no v{FORK_FROM} to pin")
+            continue
         delegate = None
         if plan.delegates_to is not None:
             target = ids[plan.delegates_to]
@@ -1046,15 +1069,18 @@ def ensure_agents(
             agent_id = str(api.call("POST", "/agents", org=org, body={"spec": planned})["id"])
             report.note(label, made=True)
         else:
-            reason, spec = distrust(api, org, agent_id, planned, me=me)
+            reason, spec = distrust(
+                api, org, agent_id, planned, me=me, earlier=plan.earlier_instructions
+            )
             if reason is not None:
                 report.refuse(f"{label}: {reason}")
                 continue
-            moved = _bindings(spec) != _bindings(planned)
-            report.note(
-                f"{label}{' (moved to another line of the skill, kept as is)' if moved else ''}",
-                made=False,
-            )
+            kept = ""
+            if str(spec.get("instructions")) in plan.earlier_instructions:
+                kept = " (seeded by an earlier version of this seed, kept as is)"
+            elif _bindings(spec) != _bindings(planned):
+                kept = " (moved to another line of the skill, kept as is)"
+            report.note(f"{label}{kept}", made=False)
         if api.call("GET", f"/agents/{agent_id}", org=org).get("current_version_id") is None:
             api.call(
                 "POST",
@@ -1070,10 +1096,11 @@ def ensure_agents(
 
 
 SCORING = {
-    "checks": {"enabled": True, "required": True},
+    "checks": {"enabled": True, "required": True, "defaults": []},
     "trajectory": {"enabled": False},
     "judge": {"enabled": False},
     "reference": {"enabled": False},
+    "review": {"select": "none"},
 }
 
 
@@ -1105,26 +1132,38 @@ def started_runs(api: Api, org: str, dataset: str) -> list[JsonObject]:
     ]
 
 
+def _graded_as_planned(api: Api, org: str, dataset: str) -> bool:
+    scoring = api.call("GET", f"/datasets/{dataset}", org=org).get("scoring") or {}
+    return all(
+        (scoring.get(scorer) or {}).get(name) == value
+        for scorer, settings in SCORING.items()
+        for name, value in settings.items()
+    )
+
+
 def complete_dataset(
     api: Api, org: str, dataset: str, cases: Sequence[Case], *, label: str, report: Report
 ) -> None:
     """Give a dataset the seed began, and nothing has measured, its grading and the rest of
     its questions.
 
-    It is the seed's own only while the questions it holds are the plan's first ones, in
-    order - what an interrupted run leaves. A question removed, added or reworded since
-    makes it somebody's, and it is left as it is, grading included. The grading is set
-    before the first question, so a dataset holding every planned question already has it.
+    It is the seed's own only while it holds the plan's first questions, in order and with
+    their checks, graded as `SCORING` grades them - what an interrupted run leaves. A
+    question removed, added or reworded since, a check or the grading changed, makes it
+    somebody's, and it is left as it is. The grading is set before the first question, so
+    an empty dataset is still the seed's to grade.
     """
     held = [
-        row.get("input")
+        (row.get("input"), row.get("checks"))
         for row in api.items(f"/datasets/{dataset}/cases", org=org, params={"limit": 100})
     ]
-    planned = [case.question for case in cases]
-    if held != planned[: len(held)]:
+    planned = [(case.question, list(case.checks)) for case in cases]
+    missing = cases[len(held) :]
+    if held != planned[: len(held)] or (
+        held and missing and not _graded_as_planned(api, org, dataset)
+    ):
         report.note(f"{label} (changed since it was seeded, kept as is)", made=False)
         return
-    missing = cases[len(held) :]
     if not missing:
         return
     api.call("PUT", f"/datasets/{dataset}/scoring", org=org, body=SCORING)
@@ -1332,7 +1371,7 @@ def seed(api: Api, *, key: str | None, ask_in: Callable[[str], Ask]) -> Report:
     report.fork_id = fork or ""
     report.skill_set_id = ensure_skill_set(api, org, skill, report=report)
     agents = ensure_agents(
-        api, org, AGENTS, model=model, skill=skill, fork=fork, me=me, report=report
+        api, org, AGENTS, model=model, skill=skill, main=main, fork=fork, me=me, report=report
     )
     measure(api, org, agents, report=report)
     ask = ask_in(org)
@@ -1414,7 +1453,7 @@ def probe(
     skill_set = ensure_skill_set(api, org, skill, report=report)
     probed = [plan for plan in AGENTS if plan.key in PROBED]
     agents = ensure_agents(
-        api, org, probed, model=model, skill=skill, fork=None, me=me, report=report
+        api, org, probed, model=model, skill=skill, main=(), fork=None, me=me, report=report
     )
     if report.refused:
         raise SeedError(
