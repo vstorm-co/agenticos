@@ -18,6 +18,7 @@ import {
   DialogHeader,
   DialogTitle,
   Label,
+  PAGE_SIZE,
   Select,
   SelectContent,
   SelectItem,
@@ -110,8 +111,14 @@ export function ChangeVersionDialog({
   // Main numbers its versions from 1 without gaps, so every one of them can be pinned.
   const pinnable = Array.from({ length: mainLatest }, (_, index) => mainLatest - index);
   const firstPin = current.state === "pinned" ? current.version : pinnable[0];
-  const { versions } = useSkillVersions(skillId, null, 0);
-  const known = new Map(versions.map((version) => [version.number, version]));
+  // Main's versions run newest first, so the page holding a picked one is known from its number.
+  const pickedPage =
+    target.state === "pinned" ? Math.floor((mainLatest - target.version) / PAGE_SIZE) : 0;
+  const newest = useSkillVersions(skillId, null, 0);
+  const around = useSkillVersions(skillId, null, pickedPage);
+  const known = new Map(
+    [...newest.versions, ...around.versions].map((version) => [version.number, version]),
+  );
   const [diffing, setDiffing] = useState(false);
   const targetFork =
     target.state === "fork" ? forks.find((fork) => fork.id === target.fork_id) : undefined;

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { toast } from "sonner";
 
 import {
@@ -27,8 +27,11 @@ import { bindingLabel } from "./skill-lines";
  * Start a fork from main's newest version, and move agents onto it if asked.
  *
  * The fork serves that version unchanged until it is edited, so moving an agent
- * changes nothing it reads yet. Each move is a Change version: a new published
- * version of the agent, or a draft change where the person may not publish it.
+ * that reads it already changes nothing yet; an agent pinned to an older version
+ * or on another fork reads new content, and the person accepts that first. Each
+ * move is a Change version: a new published version of the agent, or a draft
+ * change where the person may not publish it. Main is read again before the fork
+ * is made, so one saved meanwhile is said rather than skipped.
  */
 export function NewForkDialog({
   skill,
@@ -48,7 +51,10 @@ export function NewForkDialog({
   const t = useTranslations("skills.page.newFork");
   const tPage = useTranslations("skills.page");
   const tErrors = useTranslations("errors");
-  const { createFork, changeBinding } = useSkillVersionWrites(skill.id);
+  const locale = useLocale();
+  const { createFork, changeBinding, mainLatest } = useSkillVersionWrites(skill.id);
+  const [base, setBase] = useState({ id: baseId, number: skill.version });
+  const [understood, setUnderstood] = useState(false);
   const [name, setName] = useState("");
   const [moving, setMoving] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -56,18 +62,32 @@ export function NewForkDialog({
     (usage) => usage.can_change && !usage.draft_only && usage.via_specialist === null,
   );
   const busy = createFork.isPending || changeBinding.isPending;
+  const moves = movable.filter((usage) => moving.includes(usage.agent.id));
+  // Everyone but the agents already reading main's newest version gets new content.
+  const changing = moves.filter(
+    (usage) =>
+      usage.binding.version.fork_id !== null || usage.binding.version.number !== base.number,
+  );
+  const list = new Intl.ListFormat(locale, { type: "conjunction" });
 
   async function create() {
     setError(null);
     let forkId: string;
     try {
-      forkId = (await createFork.mutateAsync({ name: name.trim(), fromVersionId: baseId })).id;
+      const now = await mainLatest();
+      if (now.id !== null && now.id !== base.id) {
+        setBase({ id: now.id, number: now.number });
+        setUnderstood(false);
+        setError(t("mainMoved", { number: now.number }));
+        return;
+      }
+      forkId = (await createFork.mutateAsync({ name: name.trim(), fromVersionId: base.id })).id;
     } catch (failure) {
       setError(getErrorMessage(failure, tErrors));
       return;
     }
     let moved = 0;
-    for (const usage of movable.filter((one) => moving.includes(one.agent.id))) {
+    for (const usage of moves) {
       try {
         await changeBinding.mutateAsync({
           agentId: usage.agent.id,
@@ -89,7 +109,7 @@ export function NewForkDialog({
       <DialogContent className={DIALOG_FORM}>
         <DialogHeader>
           <DialogTitle>{t("title", { name: skill.name })}</DialogTitle>
-          <DialogDescription>{t("description", { number: skill.version })}</DialogDescription>
+          <DialogDescription>{t("description", { number: base.number })}</DialogDescription>
         </DialogHeader>
         <div className="space-y-1.5">
           <Label htmlFor="new-fork-name">{t("name")}</Label>
@@ -131,6 +151,22 @@ export function NewForkDialog({
             </>
           )}
         </fieldset>
+        {changing.length > 0 && (
+          <div className="flex items-start gap-2 rounded-lg border p-3">
+            <Checkbox
+              id="new-fork-understood"
+              checked={understood}
+              onCheckedChange={(checked) => setUnderstood(checked === true)}
+            />
+            <Label htmlFor="new-fork-understood" className="leading-snug font-normal">
+              {t("changesContent", {
+                names: list.format(changing.map((usage) => usage.agent.name)),
+                count: changing.length,
+                number: base.number,
+              })}
+            </Label>
+          </div>
+        )}
         {error !== null && (
           <p role="alert" className="text-destructive text-sm">
             {error}
@@ -140,7 +176,11 @@ export function NewForkDialog({
           <Button variant="outline" disabled={busy} onClick={onClose}>
             {t("cancel")}
           </Button>
-          <Button loading={busy} disabled={name.trim() === ""} onClick={() => void create()}>
+          <Button
+            loading={busy}
+            disabled={name.trim() === "" || (changing.length > 0 && !understood)}
+            onClick={() => void create()}
+          >
             {t("create")}
           </Button>
         </DialogFooter>

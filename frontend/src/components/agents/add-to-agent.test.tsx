@@ -74,7 +74,7 @@ describe("AddToAgent", () => {
     expect(toast.info).toHaveBeenCalledWith("Support already has refunds.", expect.anything());
   });
 
-  it("marks the agents that already have it, and offers only the rest", async () => {
+  it("marks the agents that already use it, and still offers them", async () => {
     agents.mockReturnValue({
       agents: [SUPPORT, { ...SUPPORT, id: "a2", slug: "sales", name: "Sales" }],
       isLoading: false,
@@ -83,7 +83,7 @@ describe("AddToAgent", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "Add to an agent" }));
 
-    expect(screen.getByRole("button", { name: /Support.*Has it/ })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /Support.*Uses it/ })).toBeEnabled();
     expect(screen.getByRole("button", { name: "Sales" })).toBeEnabled();
   });
 

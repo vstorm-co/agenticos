@@ -81,6 +81,16 @@ export function getSkillUsage(skillId: string, days: number): Promise<SkillUsage
   return apiClient.get<SkillUsage>(`/skills/${skillId}/usage?days=${days}`);
 }
 
+/** Main's newest version as the server has it now: what a fork started now starts from. */
+export async function getMainLatest(
+  skillId: string,
+): Promise<{ id: string | null; number: number }> {
+  const skill = await apiClient.get<{ latest_version_id: string | null; version: number }>(
+    `/skills/${skillId}`,
+  );
+  return { id: skill.latest_version_id, number: skill.version };
+}
+
 export function listSkillAgents(skillId: string): Promise<SkillAgentList> {
   return apiClient.get<SkillAgentList>(`/skills/${skillId}/agents`);
 }

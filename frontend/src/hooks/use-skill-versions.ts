@@ -8,6 +8,7 @@ import { qk } from "@/lib/query-keys";
 import {
   changeSkillBinding,
   createSkillFork,
+  getMainLatest,
   createSkillVersion,
   getSkillUsage,
   getSkillVersion,
@@ -99,5 +100,7 @@ export function useSkillVersionWrites(skillId: string) {
     mutationFn: (fork: { name: string; fromVersionId: string }) => createSkillFork(skillId, fork),
     onSettled: settle,
   });
-  return { edit, restore, changeBinding, createFork };
+  /** Read main's newest version fresh, so a fork is not started from one superseded meanwhile. */
+  const mainLatest = useCallback(() => getMainLatest(skillId), [skillId]);
+  return { edit, restore, changeBinding, createFork, mainLatest };
 }

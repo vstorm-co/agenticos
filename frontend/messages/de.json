@@ -1098,7 +1098,7 @@
     "backendComputerDetail": "Den Computer der Person nutzen, separat im Desktop-Chat erlaubt.",
     "backendComputerConsent": "Jede Person wählt einen Ordner oder Gesamter Computer in den Chat-Einstellungen. Diese Einstellung gewährt keinen Zugriff und speichert keinen persönlichen Pfad. Dieser Workspace benötigt die Desktop-App.",
     "workflowTablesViaMcp": "Workflows und Tables sind Werkzeuge des AgenticOS-MCP-Servers. Füge ihn unter MCP-Server hinzu und wähle die benötigten Werkzeuge. Bestehende Capability-Bindungen behalten ihre gespeicherten Freigaben.",
-    "alreadyHasIt": "Hat ihn schon"
+    "alreadyHasIt": "Verwendet ihn"
   },
   "auth": {
     "agreeToTerms": "Mit dem Anlegen eines Kontos stimmen Sie unseren <terms>AGB</terms> und der <privacy>Datenschutzerklärung</privacy> zu.",
@@ -8418,7 +8418,9 @@
         "cancel": "Abbrechen",
         "create": "Fork anlegen",
         "created": "Fork „{name}“ angelegt.{moved, plural, =0 {} =1 { 1 Agent wurde verschoben.} other { # Agents wurden verschoben.}}",
-        "moveFailed": "{name} wurde nicht auf den Fork verschoben: {reason}"
+        "moveFailed": "{name} wurde nicht auf den Fork verschoben: {reason}",
+        "changesContent": "{count, plural, =1 {{names} liest gerade eine andere Version und bekommt} other {{names} lesen gerade andere Versionen und bekommen}} auf dem Fork den Inhalt von v{number}, der auf {count, plural, =1 {ihm} other {ihnen}} nicht geprüft wurde. Trotzdem verschieben.",
+        "mainMoved": "Main hat seit dem Öffnen eine neuere Version, v{number}. Der Fork beginnt dort: Drücken Sie erneut Fork anlegen."
       },
       "deleteSkill": {
         "title": "{name} löschen?",

@@ -403,4 +403,45 @@ describe("ChangeVersionDialog's warnings", () => {
     expect(screen.getByLabelText("I understand, change it anyway")).not.toBeChecked();
     expect(screen.getByRole("button", { name: "Change and publish" })).toBeDisabled();
   });
+
+  it("reads the details of a version older than the newest page", async () => {
+    const summary = (number: number) => ({
+      id: `m${number}`,
+      number,
+      fork_id: null,
+      source: "edit",
+      restored_from: null,
+      previous: null,
+      created_by: { id: "u1", name: "Anna" },
+      created_at: "2026-01-01T10:00:00Z",
+      agents: 0,
+    });
+    vi.mocked(apiClient.get).mockImplementation(async (path: string) =>
+      path.includes("skip=100")
+        ? { items: [summary(1)], total: 120 }
+        : { items: [summary(120)], total: 120 },
+    );
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <ChangeVersionDialog
+        skillId="s1"
+        skillName="returns-policy"
+        usage={ON_MAIN}
+        forks={[]}
+        mainLatest={120}
+        onClose={vi.fn()}
+      />,
+      {
+        wrapper: ({ children }: { children: ReactNode }) => (
+          <QueryClientProvider client={client}>{children}</QueryClientProvider>
+        ),
+      },
+    );
+
+    await userEvent.click(screen.getByRole("radio", { name: /Pin a main version/ }));
+    await userEvent.click(screen.getByRole("combobox", { name: "Version to pin" }));
+    await userEvent.click(screen.getByRole("option", { name: "v1" }));
+
+    expect(await screen.findByText(/Edited · Anna ·/)).toBeInTheDocument();
+  });
 });

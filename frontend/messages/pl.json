@@ -1098,7 +1098,7 @@
     "backendComputerDetail": "Używaj komputera użytkownika, zatwierdzanego osobno w czacie desktopowym.",
     "backendComputerConsent": "Każda osoba wybiera folder lub Cały komputer w ustawieniach czatu. To ustawienie nie przyznaje dostępu i nie zapisuje prywatnej ścieżki. Ten obszar roboczy wymaga aplikacji desktopowej.",
     "workflowTablesViaMcp": "Workflows i Tables są narzędziami serwera AgenticOS MCP. Dodaj go w sekcji serwerów MCP i wybierz narzędzia potrzebne agentowi. Istniejące capabilities zachowują zapisane uprawnienia.",
-    "alreadyHasIt": "Już ma"
+    "alreadyHasIt": "Używa"
   },
   "auth": {
     "agreeToTerms": "Tworząc konto, akceptujesz nasz <terms>Regulamin</terms> i <privacy>Politykę prywatności</privacy>.",
@@ -8300,7 +8300,9 @@
         "cancel": "Anuluj",
         "create": "Utwórz fork",
         "created": "Utworzono fork „{name}”.{moved, plural, =0 {} one { Przeniesiono na niego 1 agenta.} few { Przeniesiono na niego # agentów.} many { Przeniesiono na niego # agentów.} other { Przeniesiono na niego # agenta.}}",
-        "moveFailed": "Nie przeniesiono agenta {name} na fork: {reason}"
+        "moveFailed": "Nie przeniesiono agenta {name} na fork: {reason}",
+        "changesContent": "{count, plural, one {{names} czyta teraz inną wersję i na forku dostanie} other {{names} czytają teraz inne wersje i na forku dostaną}} treść v{number}, której na {count, plural, one {nim} other {nich}} nie sprawdzono. Przenieś mimo to.",
+        "mainMoved": "Od otwarcia tego okna main ma nowszą wersję, v{number}. Fork zacznie od niej: naciśnij Utwórz fork jeszcze raz."
       },
       "deleteSkill": {
         "title": "Usunąć {name}?",

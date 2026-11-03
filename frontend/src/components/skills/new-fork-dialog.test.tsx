@@ -70,6 +70,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(apiClient.post).mockResolvedValue({ id: "f9", name: "Marketplace" });
   vi.mocked(apiClient.put).mockResolvedValue({ published: true, environments: [] });
+  vi.mocked(apiClient.get).mockResolvedValue({ latest_version_id: "m5", version: 5 });
 });
 
 describe("NewForkDialog", () => {
@@ -141,5 +142,42 @@ describe("NewForkDialog", () => {
     await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
     await userEvent.keyboard("{Escape}");
     expect(onClose).toHaveBeenCalledTimes(2);
+  });
+
+  it("asks before moving an agent onto content it does not read now", async () => {
+    open([
+      usage("Desk", {
+        binding: {
+          state: "pinned",
+          version: { id: "m2", number: 2, fork_id: null },
+          fork: null,
+          behind_main: 3,
+        },
+      }),
+    ]);
+
+    await userEvent.type(screen.getByLabelText("Name"), "Marketplace");
+    await userEvent.click(screen.getByLabelText(/Desk · now/));
+    const create = screen.getByRole("button", { name: "Create fork" });
+    expect(create).toBeDisabled();
+    await userEvent.click(screen.getByLabelText(/Desk reads another version now/));
+    expect(create).toBeEnabled();
+  });
+
+  it("starts from a main saved since it opened, after saying so", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({ latest_version_id: "m6", version: 6 });
+    open([]);
+
+    await userEvent.type(screen.getByLabelText("Name"), "Marketplace");
+    await userEvent.click(screen.getByRole("button", { name: "Create fork" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Main has a newer version, v6");
+    expect(apiClient.post).not.toHaveBeenCalled();
+    expect(screen.getByText(/It starts from v6/)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Create fork" }));
+    expect(apiClient.post).toHaveBeenCalledWith("/skills/s1/forks", {
+      name: "Marketplace",
+      from_version_id: "m6",
+    });
   });
 });

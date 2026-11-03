@@ -32,7 +32,10 @@ interface AddToAgentProps {
   name: string;
   size?: "sm" | "default";
   className?: string;
-  /** Agents already bound to it, which the list marks rather than offers. */
+  /**
+   * Agents a served version already binds it in. Marked, still offered: a draft may
+   * have dropped it since, and adding says so when it has not.
+   */
   has?: string[];
 }
 
@@ -86,7 +89,7 @@ export function AgentChoices({
 }: {
   resource: AgentResourceRef;
   name: string;
-  /** Agents already bound to it: marked, and not offered again. */
+  /** Agents a served version already binds it in: marked, still offered. */
   has?: string[];
   onDone: () => void;
 }) {
@@ -126,7 +129,7 @@ export function AgentChoices({
           <button
             key={agent.id}
             type="button"
-            disabled={add.isPending || has.includes(agent.id)}
+            disabled={add.isPending}
             onClick={() => pick(agent.id, agent.name)}
             className="hover:bg-accent flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm focus-visible:outline-offset-[-2px] disabled:opacity-50"
           >
