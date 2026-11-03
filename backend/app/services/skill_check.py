@@ -1628,9 +1628,7 @@ class SkillCheckService:
             source=version_source(proposal) if proposal is not None else _source_of(check),
             proposal_id=check.proposal_id,
         )
-        helped = [
-            row for row in rows if row.state == AgentState.BETTER.value and not row.via_specialist
-        ]
+        helped = [row for row in rows if _movable_helped(row)]
         agents = await agent_repo.get_many(
             self.db, [row.agent_id for row in helped], organization_id=ctx.organization_id
         )
@@ -1814,8 +1812,14 @@ class SkillCheckService:
         return created
 
 
+def _movable_helped(row: SkillCheckAgent) -> bool:
+    """An agent the change helped that a fork can move: one reading the skill through a
+    specialist is moved in its Builder."""
+    return row.state == AgentState.BETTER.value and not row.via_specialist
+
+
 def _helped(rows: Sequence[SkillCheckAgent]) -> bool:
-    return any(row.state == AgentState.BETTER.value for row in rows)
+    return any(_movable_helped(row) for row in rows)
 
 
 def _per_agent(users: Sequence[LineAgent]) -> list[LineAgent]:

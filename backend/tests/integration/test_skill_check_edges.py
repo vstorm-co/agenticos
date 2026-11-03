@@ -1154,6 +1154,30 @@ class TestWhatTheCheckMeasuredIsWhatShips:
         with pytest.raises(BadRequestError, match="does not offer"):
             await service.fork(lab.ctx, lab.skill.id, check.id, SkillCheckFork(name="x"))
 
+    async def test_a_change_that_helped_only_through_a_specialist_offers_no_fork(
+        self, db, monkeypatch
+    ):
+        """A fork moves only agents that bind the skill themselves; one helped through a
+        specialist is moved in its Builder, so it is no reason to offer the fork."""
+        lab = await _lab(db)
+        evals = FakeEvals()
+        evals.install(monkeypatch)
+        service, check = await _finished(
+            db, lab, evals, {lab.a.id: Outcome(fixed=1), lab.b.id: Outcome(broken=1)}
+        )
+        rows = await skill_check_repo.list_agents(
+            db, [check.id], organization_id=lab.ctx.organization_id
+        )
+        next(row for row in rows if row.agent_id == lab.a.id).via_specialist = "reader"
+        await db.flush()
+
+        read = await service.read(lab.ctx, lab.skill.id, check.id)
+
+        assert read.verdict is CheckVerdict.BLOCKED
+        assert CheckOutcome.FORK_FOR_HELPED not in read.outcomes
+        with pytest.raises(BadRequestError, match="does not offer"):
+            await service.fork(lab.ctx, lab.skill.id, check.id, SkillCheckFork(name="x"))
+
     async def test_a_change_that_hurt_nobody_is_not_forked(self, db, monkeypatch):
         lab = await _lab(db)
         evals = FakeEvals()
