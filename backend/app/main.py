@@ -312,6 +312,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[LifespanState]:
     from app.services.channels.mattermost import MattermostAdapter
     from app.services.channels.slack import SlackAdapter
     from app.services.channels.email import EmailAdapter
+    from app.services.channels.imessage import ImessageAdapter
     from app.services.channels.sms import SmsAdapter
     from app.services.channels import teams as channel_teams
     from app.services.channels.teams import TeamsAdapter
@@ -350,6 +351,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[LifespanState]:
     # E-mail arrives through a relay's webhook and leaves through the e-mail provider (#2082).
     _email_adapter = EmailAdapter()
     register_adapter(_email_adapter)
+
+    _imessage_adapter = ImessageAdapter()
+    register_adapter(_imessage_adapter)
 
     _slack_adapter = SlackAdapter()
     register_adapter(_slack_adapter)
@@ -410,6 +414,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[LifespanState]:
         _teams_adapter,
         _sms_adapter,
         _email_adapter,
+        _imessage_adapter,
     ):
         await _adapter.aclose()
     # The shared outbound clients web search and the model-catalog listings reuse,

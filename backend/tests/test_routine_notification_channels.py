@@ -9,7 +9,7 @@ from pydantic import BaseModel, ValidationError
 from app.schemas.agent_trigger import TriggerCreate, TriggerRead, TriggerUpdate
 from app.schemas.watch import WatchCreate, WatchRead, WatchUpdate
 
-CHANNELS = ["email", "push", "slack", "telegram", "mattermost", "teams", "sms"]
+CHANNELS = ["email", "push", "slack", "telegram", "mattermost", "teams", "sms", "imessage"]
 NOW = datetime(2026, 11, 3, tzinfo=UTC)
 
 CASES: list[tuple[type[BaseModel], dict[str, object]]] = [

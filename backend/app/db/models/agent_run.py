@@ -117,6 +117,7 @@ class RunSurface(enum.StrEnum):
     TEAMS = "teams"
     SMS = "sms"
     EMAIL = "email"
+    IMESSAGE = "imessage"
     # A run nobody typed into: the agent-triggers heartbeat fired it on a
     # schedule. The one member here assigned by a machine rather than a surface a
     # person reached the agent through (agenticos#44).

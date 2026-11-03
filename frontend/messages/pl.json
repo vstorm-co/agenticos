@@ -2310,7 +2310,14 @@
       "emailEndpointHint": "Niech Twój przekaźnik (Cloudflare Email Worker, trasa przychodząca Postmark lub Mailgun) wysyła każdą wiadomość tutaj jako JSON przez POST, podpisaną sekretem poniżej.",
       "emailRelaySecret": "Sekret podpisu przekaźnika",
       "emailRelaySecretHint": "Przekaźnik podpisuje każde żądanie tym sekretem (HMAC-SHA256 z timestamp.body). Skopiuj go do przekaźnika; nie jest pokazywany ponownie.",
-      "emailGenerateSecret": "Wygeneruj"
+      "emailGenerateSecret": "Wygeneruj",
+      "imessageServerUrl": "URL serwera BlueBubbles",
+      "imessageServerUrlHint": "Adres HTTP BlueBubbles na firmowym Macu. Zaloguj się tam do Wiadomości i włącz REST API. Podaj hasło serwera jako token bota; po zapisaniu zarejestruj webhook. Private API jest opcjonalne i potrzebne do reakcji.",
+      "botTokenHintImessage": "Hasło serwera BlueBubbles. Zostanie zapisane w sejfie; nie umieszczaj go w adresie serwera.",
+      "imessageRegisterWebhook": "Zarejestruj webhook iMessage",
+      "imessageWebhookHint": "Najpierw zapisz zmiany adresu lub hasła. Rejestracja utworzy uwierzytelniony callback na zapisanym serwerze BlueBubbles. Jeśli AgenticOS działa w sieci prywatnej, administrator BlueBubbles musi zezwolić webhookom API na dostęp do adresów lokalnych.",
+      "imessageWebhookRegistered": "Zarejestrowano webhook iMessage",
+      "imessageReactionHint": "Opcjonalne. Reakcje iMessage wymagają Private API BlueBubbles; pozostaw wyłączone, jeśli używasz tylko AppleScript."
     },
     "invitations": {
       "acceptInvitation": "Przyjmij zaproszenie",
@@ -3230,7 +3237,8 @@
       "mattermostChannel": "Mattermost",
       "teamsChannel": "Microsoft Teams",
       "smsChannel": "SMS",
-      "chatChannelPreferences": "Preferencje kanału czatu"
+      "chatChannelPreferences": "Preferencje kanału czatu",
+      "imessageChannel": "iMessage"
     },
     "tables": {
       "title": "Tabele",
@@ -12335,6 +12343,7 @@
     "telegram": "Telegram",
     "mattermost": "Mattermost",
     "teams": "Microsoft Teams",
-    "sms": "SMS"
+    "sms": "SMS",
+    "imessage": "iMessage"
   }
 }

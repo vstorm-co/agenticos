@@ -177,6 +177,7 @@ HOUSE_STYLE: dict[str, str] = {
     "teams": _TEAMS.strip(),
     "sms": _SMS.strip(),
     "email": _EMAIL.strip(),
+    "imessage": "Reply as plain text in Messages. Keep paragraphs short; use numbered options rather than Markdown tables or interactive buttons.",
 }
 """Per platform, because the differences are not preferences - they are what the
 client will and will not draw.

@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { AnswerStyleFields, REACTION_PATTERN } from "@/components/channels/answer-style-fields";
 import { ChannelPlatformIcon } from "@/components/channels/channel-platform-icon";
 import { SlackTransport } from "@/components/channels/slack-transport";
+import { ImessageSetup } from "@/components/channels/imessage-setup";
 import {
   Button,
   Dialog,
@@ -45,6 +46,7 @@ const PLATFORM_LABEL: Record<ChannelPlatform, string> = {
   sms: "SMS (Twilio)",
   // i18n-exempt: the name of the protocol, written the same in every language
   email: "Email",
+  imessage: "iMessage",
 };
 
 const MAX_NAME = 255;
@@ -93,13 +95,15 @@ export function botPatch(bot: ChannelBot, draft: ChannelBotDraft): ChannelBotUpd
   const token = draft.token.trim();
   if (token) patch.token = token;
 
-  if (bot.platform === "mattermost") {
+  if (bot.platform === "mattermost" || bot.platform === "imessage") {
     const serverUrl = draft.serverUrl.trim();
     if (serverUrl && serverUrl !== bot.api_base_url) patch.api_base_url = serverUrl;
-    const webhookSecret = draft.webhookSecret.trim();
-    if (webhookSecret) patch.webhook_secret = webhookSecret;
-    const commandToken = draft.commandToken.trim();
-    if (commandToken) patch.command_token = commandToken;
+    if (bot.platform === "mattermost") {
+      const webhookSecret = draft.webhookSecret.trim();
+      if (webhookSecret) patch.webhook_secret = webhookSecret;
+      const commandToken = draft.commandToken.trim();
+      if (commandToken) patch.command_token = commandToken;
+    }
   }
 
   if (bot.platform === "slack") {
@@ -353,6 +357,28 @@ function BotEditForm({ bot, onOpenChange, onSubmit, isPending }: BotEditFormProp
         {bot.platform === "slack" && <SlackManifest botId={bot.id} />}
 
         {bot.platform === "teams" && <TeamsSetup bot={bot} />}
+        {bot.platform === "imessage" && (
+          <FormField
+            label={t("imessageServerUrl")}
+            htmlFor="edit-imessage-server-url"
+            description={t("imessageServerUrlHint")}
+            error={errors.api_base_url}
+            required
+          >
+            <Input
+              id="edit-imessage-server-url"
+              value={draft.serverUrl}
+              onChange={(event) => set("serverUrl", event.target.value)}
+              maxLength={MAX_URL}
+            />
+          </FormField>
+        )}
+        {bot.platform === "imessage" && (
+          <ImessageSetup
+            botId={bot.id}
+            unsaved={draft.serverUrl.trim() !== bot.api_base_url || draft.token.trim() !== ""}
+          />
+        )}
         {bot.platform === "sms" && <SmsSetup bot={bot} />}
         {bot.platform === "email" && (
           <EmailSetup

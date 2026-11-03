@@ -11,6 +11,7 @@ const MARKS = {
   teams: brandMark("microsoftteams"),
   sms: Smartphone,
   email: Mail,
+  imessage: MessageSquare,
 } as const;
 
 /**

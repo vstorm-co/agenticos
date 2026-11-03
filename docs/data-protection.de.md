@@ -1,5 +1,5 @@
 ---
-source_sha: "cc427d6789f7"
+source_sha: "3dd430a73814"
 ---
 
 # Datenschutz { #data-protection }
@@ -531,3 +531,9 @@ Adresse, `https://analytics-agenticos.testapp.ovh`. Die
 [Diagnosekonfiguration](configuration.md#diagnostics) beschreibt Felder,
 Aufbewahrung, wie Sie ihn auf einen eigenen Kollektor richten und wie Sie ihn mit
 `DIAGNOSTICS_ENABLED=false` abschalten.
+
+## Daten der iMessage-Bridge { #imessage-bridge-data }
+
+Der optionale iMessage-Kanal überträgt Nachrichtentext und ausdrücklich angehängte Dateien über den konfigurierten BlueBubbles-Mac der Organisation und Apple Nachrichten. Auf dem Mac und im Apple-Konto können weitere Kopien verbleiben. AgenticOS speichert verknüpfte Adressen, Kanalunterhaltungen, Durchläufe und Uploads gemäß den bestehenden Aufbewahrungs- und Löschregeln für Kanäle; eine Löschung hier entfernt keine Kopien auf dem Mac oder in Nachrichten. Private Benachrichtigungen benötigen ein ausdrücklich gewähltes Ziel; Gruppen übernehmen keinen privaten Profilspeicher.
+
+Serverpasswort und separates Callback-Geheimnis liegen verschlüsselt im Tresor. Der HTTP-Client verbirgt das Passwort in sichtbaren Anfrageadressen; die Bridge erhält dennoch ihren erforderlichen Authentifizierungsparameter. Ihr Betreiber muss daher eigene Protokolle und Netzwerk schützen.

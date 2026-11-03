@@ -116,6 +116,7 @@ const CHANNEL_LABEL: Record<NotificationChannel, string> = {
   mattermost: "mattermostChannel",
   teams: "teamsChannel",
   sms: "smsChannel",
+  imessage: "imessageChannel",
 };
 
 const PREFERENCE_EVENTS: readonly PreferenceEvent[] = [

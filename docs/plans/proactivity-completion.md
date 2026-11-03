@@ -49,7 +49,7 @@ Provider tests use deterministic fakes unless a dedicated test account is availa
 | Chat management | Trusted private-chat provenance, routine/watch source delivery, live destination authorization, durable source-chat delivery after approval/question resume, explicit unavailable-delivery status and management cards, shared global/agent watch forms, MCP end/budget controls and end-time form control | Complete responsibility flow and remaining external-channel continuation |
 | Standing authority | Version/intent-bound capability and account-specific MCP action consent, per-call audit, default action approvals including local writes and delegation; admitted MCP accounts and aliases retained across resume/delegation; immutable-pin consent and live routine/actor/run-grant checks before root, delegate and resumed tools; persistent native routine/device/folder/operation grants and durable offline admission | Bounded source authority beyond read-only watches |
 | Follow-through | Existing workflow engine retained as the durability owner; independent minute-based end cleanup, including paused routines/watches and long cadences | Event/deadline presets, matching replies, restart/cancellation/idempotency acceptance |
-| Outcomes | Runtime/source/delivery incidents, resumed terminal callbacks, ordering/retry guards and automatic recovery; monthly budget-pause notices and automatic case recovery; shared finding/Inbox/chat settlement, explicit restore without resending, acknowledged findings excluded from briefings; live per-routine e-mail/push limits inherited from personal preferences, quiet monitoring versus requested no-change reports, retry-safe report activations | Automatic-stop escalation policy and remaining channel integration (private Slack/Telegram/Mattermost/Teams/SMS notification routes now implemented; iMessage and external continuation remain) |
+| Outcomes | Runtime/source/delivery incidents, resumed terminal callbacks, ordering/retry guards and automatic recovery; monthly budget-pause notices and automatic case recovery; shared finding/Inbox/chat settlement, explicit restore without resending, acknowledged findings excluded from briefings; live per-routine e-mail/push limits inherited from personal preferences, quiet monitoring versus requested no-change reports, retry-safe report activations | Automatic-stop escalation policy and remaining channel integration (private Slack/Telegram/Mattermost/Teams/SMS/iMessage notification routes implemented; external continuation remains) |
 | Memory | Admitted audience retained in jobs, scoped channel/routine capture, erasure serialization, no false starter-version attribution | Decision episodes and Improve evidence integration with #2172 |
 | Voice | Existing realtime path retained | Twilio inbound/outbound PSTN, transfer/contact policies, limits and source-chat cards |
 
@@ -112,3 +112,53 @@ deferral retires the old handoff token. Timeout/crash/unknown outcomes remain
 terminal. Existing send-time resource/outcome/preferences/route checks apply on
 every retry. Migration `0273_notification_safe_retries.py` defaults old rows closed.
 iMessage and the other outstanding integration blocks remain required.
+
+
+## iMessage / BlueBubbles — implemented
+
+The Mac bridge now implements the existing channel contract: text, files,
+optional Private API tapbacks, separate private/group context, linked primary
+conversation continuity, numbered approvals and explicit private notification
+routes. The console can configure its endpoint/password and register its webhook;
+unsaved credentials block registration. Migration `0274_imessage_notifications.py`
+expands exposure and notification channel checks without enabling any opt-in.
+
+The bounded webhook authenticates a separate vault-sealed Basic credential before
+reading its body and dispatches through the ordinary channel handlers after
+commit. Incoming self echoes, system events and tapbacks cannot start a turn.
+Bridge HTTP requests and downloads have a 30-second total deadline, bounded bodies,
+no redirects and credential-free client-visible URLs; only the wire transport
+adds the bridge's mandatory query password. Unknown send outcomes remain failures,
+not automatic retries. Provider acceptance is distinct from recipient acknowledgement.
+
+Verification includes 108 focused receiver/notification/coverage checks and a
+154-test regression batch covering the bridge contract, shared history, source
+attribution and routine channel selectors. The new receiver service and route
+have 100% statement/branch coverage. Console configuration/notification tests,
+backend lint, migration down/up/model-drift checks and four-language docs are
+checked locally. No live Apple account was contacted; a real company Mac remains
+an operator acceptance check.
+
+Primary protocol evidence was read from BlueBubblesApp/bluebubbles-server on
+2026-11-03: API v1 message/webhook validators, routers and serializers, query-only
+auth middleware, webhook dispatch and URL guard. The API currently supports no
+custom webhook headers. Register the callback URL with Basic Auth userinfo so
+Axios sends an Authorization header rather than putting its callback credential
+in the request URI; `webhook_secret` stays separately vault-sealed. BlueBubbles
+allows userinfo in webhook URLs. Preserve callback ownership when deleting hooks.
+
+Reuse the existing Teams-style ephemeral credential envelope pattern to carry
+bridge endpoint, bot UUID and callback secret beside the decrypted API password;
+this avoids global mutable endpoint state or widening every adapter signature.
+No new dependency or provider upgrade is authorized. Basic text/attachments use
+AppleScript with a fresh tempGuid; tapbacks require the optional Private API and
+must never decide an approval. Numbered prompts use existing shared sms_prompts
+under the imessage namespace. Group membership needs live bridge confirmation.
+Inbound self echoes, receipts, reactions and ambiguous/malformed chat scopes must
+not become ordinary agent turns. Files are fetched only from the configured
+bridge by bounded, encoded attachment GUID; do not follow arbitrary media URLs.
+
+Still required: workflow/table presets and durable matching
+reply/deadline follow-through; broader stop/escalation policies; decision episodes
+with the actual open Improve PR #2172; Twilio PSTN/contact/quiet-hours/budget/call
+cards; remaining routine-wide source ceilings. Continue in PR #2606, no CI polling.

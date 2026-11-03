@@ -143,6 +143,61 @@ async def test_a_conversation_first_reached_from_a_channel_is_named_for_the_agen
     assert conversation is not None and conversation.title == "Support"
 
 
+@pytest.mark.parametrize("private", [True, False])
+async def test_imessage_shares_only_the_linked_private_primary_conversation(
+    db: AsyncSession,
+    private: bool,
+) -> None:
+    import httpx
+
+    from app.db.models.agent_exposure import AgentExposure
+    from app.db.models.channel_bot import ChannelBot
+    from app.db.models.channel_identity import ChannelIdentity
+    from app.services.channels.imessage import ImessageAdapter
+    from app.services.channels.router import ChannelMessageRouter
+
+    org, users, agents, ctxs = await _world(db)
+    bot = ChannelBot(
+        organization_id=org.id, platform="imessage", name="Mac", token_encrypted="sealed"
+    )
+    identity = ChannelIdentity(
+        platform="imessage", platform_user_id="ada@example.com", user_id=users[0].id
+    )
+    db.add_all([bot, identity])
+    await db.flush()
+    db.add(
+        AgentExposure(
+            organization_id=org.id, agent_id=agents[0].id, channel_bot_id=bot.id, surface="imessage"
+        )
+    )
+    await db.flush()
+    console = await PrimaryConversationService(db).open(ctxs[0], agents[0].id)
+    adapter = ImessageAdapter(httpx.MockTransport(lambda _request: httpx.Response(200)))
+    try:
+        incoming = adapter.parse_incoming(
+            {
+                "type": "new-message",
+                "data": {
+                    "guid": "message",
+                    "text": "Hello",
+                    "isFromMe": False,
+                    "handle": {"address": "ada@example.com"},
+                    "chats": [
+                        {"guid": "iMessage;-;ada@example.com" if private else "iMessage;+;group"}
+                    ],
+                },
+            },
+            str(bot.id),
+        )
+        assert incoming is not None
+        chosen = await ChannelMessageRouter._first_conversation(incoming, bot, identity, db)
+    finally:
+        await adapter.aclose()
+    assert (chosen == console) is private
+    assert await PrimaryConversationService(db).open(ctxs[0], agents[0].id) == console
+    assert await PrimaryConversationService(db).open(ctxs[1], agents[0].id) != console
+
+
 def _backfill(session: Session) -> None:
     path = Path(__file__).parents[2] / "alembic/versions/0258_primary_channel_history.py"
     spec = importlib.util.spec_from_file_location("primary_channel_history", path)

@@ -2693,7 +2693,7 @@ Downgrading restores the preceding release’s stored channel defaults while pre
 ## Notifications through linked channels { #linked-notifications }
 
 Choose a private destination per platform and organization in **Settings →
-Notifications**: Slack, Telegram, Mattermost, Teams and SMS use the existing linked
+Notifications**: Slack, Telegram, Mattermost, Teams, SMS and iMessage use the existing linked
 bot account. Email and push keep their own setup. Event preferences and routine
 overrides apply at send time, together with resource permissions and the shared
 case's current state. Linking a chat account alone does not enable delivery.
@@ -2709,3 +2709,15 @@ permits a bounded retry after `Retry-After`. The notification client disables
 unknown outcomes remain visible failures instead of duplicate submissions. See
 [notification policy](governance.md) for route revocation, approval degradation
 and migration details.
+
+## iMessage through a company Mac { #imessage }
+
+A company-owned Mac running Messages and [BlueBubbles](https://docs.bluebubbles.app/server/developer-guides/rest-api-and-webhooks) provides this transport. Keep it signed in and online, grant BlueBubbles the macOS permissions it requests, and enable its REST API. In **Channels**, register **iMessage** with the bridge's HTTP URL and its server password as the bot token. The password is sealed in the organization's vault; the URL must contain no credentials, query or fragment.
+
+Bind the published agent, then edit the channel and choose **Register iMessage webhook** after saving any changes. Replacing the endpoint or password revokes the previous callback credential; register again. AgenticOS registers only `new-message` at `/api/v1/imessage/{bot_id}/webhook`. It generates a separate callback credential and registers it as HTTP Basic authentication. Configure HTTPS for traffic crossing an untrusted network. If AgenticOS has a private address, the BlueBubbles administrator must explicitly allow API webhooks to reach local addresses. Removing the webhook removes only callbacks naming this bot on this deployment.
+
+Text and files use BlueBubbles' AppleScript transport. Optional tapback acknowledgements need its Private API. A linked private sender continues the same primary conversation as the console; groups retain their separate conversation and require the usual agent mention. Approvals use the existing numbered prompts: answer with the displayed number. Self echoes, tapbacks and system events do not start another turn. Incoming attachments are fetched only by GUID from the configured bridge and remain subject to the upload limit.
+
+Select the linked private conversation in **Settings → Notifications** to opt in. A group is never a private notification destination. Bridge acceptance records submission, not Apple's delivery or the recipient's acknowledgement. An offline bridge produces a visible failure; an uncertain submission is not retried automatically.
+
+[Apple Messages for Business](https://www.apple.com/legal/privacy/data/en/messages-for-business/) is a separate business service. Its [provider setup](https://learn.microsoft.com/en-us/dynamics365/customer-service/administer/configure-apple-messages-for-business-channel) requires a Messages for Business account and messaging provider; this Mac adapter does not provision that integration.

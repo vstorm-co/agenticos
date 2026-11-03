@@ -21,6 +21,7 @@ const PLATFORMS: readonly ExposureSurface[] = [
   "mattermost",
   "sms",
   "email",
+  "imessage",
 ];
 
 export const SURFACE_LABEL: Record<ExposureSurface, string> = {
@@ -33,6 +34,7 @@ export const SURFACE_LABEL: Record<ExposureSurface, string> = {
   sms: "SMS (Twilio)",
   // i18n-exempt: the name of the protocol, written the same in every language
   email: "Email",
+  imessage: "iMessage",
 };
 
 const TILE =

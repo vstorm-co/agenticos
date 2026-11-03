@@ -6110,7 +6110,14 @@
       "emailEndpointHint": "Have your relay (a Cloudflare Email Worker, a Postmark or Mailgun inbound route) POST each message here as JSON, signed with the secret below.",
       "emailRelaySecret": "Relay signing secret",
       "emailRelaySecretHint": "The relay signs each request with this secret (HMAC-SHA256 of timestamp.body). Copy it into the relay; it is not shown again.",
-      "emailGenerateSecret": "Generate"
+      "emailGenerateSecret": "Generate",
+      "imessageServerUrl": "BlueBubbles server URL",
+      "imessageServerUrlHint": "The company Mac’s BlueBubbles HTTP endpoint. Sign in to Messages on that Mac and enable its REST API. Use the server password as the bot token; after saving, register the webhook. Private API is optional for reactions.",
+      "botTokenHintImessage": "The BlueBubbles server password. It is stored in the vault; do not put it in the server URL.",
+      "imessageRegisterWebhook": "Register iMessage webhook",
+      "imessageWebhookHint": "Save any endpoint or password changes first. This registers an authenticated callback on the saved BlueBubbles server. For an AgenticOS address on a private network, its BlueBubbles administrator must allow API webhooks to reach local addresses.",
+      "imessageWebhookRegistered": "iMessage webhook registered",
+      "imessageReactionHint": "Optional. iMessage tapbacks require BlueBubbles Private API; leave this off when using AppleScript only."
     },
     "invitations": {
       "acceptInvitation": "Accept invitation",
@@ -6843,7 +6850,8 @@
       "mattermostChannel": "Mattermost",
       "teamsChannel": "Microsoft Teams",
       "smsChannel": "SMS",
-      "chatChannelPreferences": "Chat channel preferences"
+      "chatChannelPreferences": "Chat channel preferences",
+      "imessageChannel": "iMessage"
     },
     "skills": {
       "agentsBoundSkillWill": "Agents bound to this skill will run without it from their next run. This cannot be undone.",
@@ -12559,6 +12567,7 @@
     "telegram": "Telegram",
     "mattermost": "Mattermost",
     "teams": "Microsoft Teams",
-    "sms": "SMS"
+    "sms": "SMS",
+    "imessage": "iMessage"
   }
 }

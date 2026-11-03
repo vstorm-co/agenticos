@@ -482,3 +482,9 @@ older `.env` files, and the default collector is a remote address,
 `https://analytics-agenticos.testapp.ovh`. See [diagnostic configuration](configuration.md#diagnostics)
 for the exact fields, retention, how to point it at your own collector, and how to
 turn it off with `DIAGNOSTICS_ENABLED=false`.
+
+## iMessage bridge data { #imessage-bridge-data }
+
+The optional iMessage channel sends message text and explicitly attached files through the organization's configured BlueBubbles Mac and Apple Messages. The Mac and its Apple account are additional places where copies can remain. AgenticOS stores linked addresses, channel conversations, runs and uploads under the existing channel retention and erasure rules; deleting them here does not delete copies on the Mac or in Messages. Private notifications require an explicit route; group conversations never inherit private profile memory.
+
+The server password and a separate callback credential are vault-sealed. The HTTP client keeps its password out of client-visible request URLs; the bridge itself still receives its required query credential, so its operator must protect its own logs and network.

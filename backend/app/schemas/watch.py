@@ -19,7 +19,7 @@ WatchStopped = Literal["watches_off", "connection_disabled", "needs_agent"]
 
 class WatchCreate(BaseSchema):
     notification_channels: list[ExternalNotificationChannel] | None = Field(
-        default=None, max_length=7
+        default=None, max_length=8
     )
     report_mode: WatchReportMode = "changes"
     agent_id: UUID = Field(
@@ -55,7 +55,7 @@ class WatchUpdate(BaseSchema):
     """Partial changes; only the environment, pin and end can be cleared."""
 
     notification_channels: list[ExternalNotificationChannel] | None = Field(
-        default=None, max_length=7
+        default=None, max_length=8
     )
     report_mode: WatchReportMode | None = None
     title: str | None = Field(default=None, min_length=1, max_length=120)
@@ -106,7 +106,7 @@ class WatchUpdate(BaseSchema):
 
 class WatchRead(BaseSchema):
     notification_channels: list[ExternalNotificationChannel] | None = Field(
-        default=None, max_length=7
+        default=None, max_length=8
     )
     report_mode: WatchReportMode = "changes"
     id: UUID

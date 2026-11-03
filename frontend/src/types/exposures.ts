@@ -13,7 +13,8 @@ import type { UsageReporting } from "@/types/channels";
 export type SessionScope = "run" | "conversation" | "channel" | "user" | "agent";
 
 /** A place an agent can be made available. Mirrors the backend's ExposureSurface. */
-export type ExposureSurface = "slack" | "telegram" | "mattermost" | "teams" | "sms" | "email";
+export type ExposureSurface =
+  "slack" | "telegram" | "mattermost" | "teams" | "sms" | "email" | "imessage";
 
 export interface Exposure {
   id: string;

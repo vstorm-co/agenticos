@@ -66,10 +66,21 @@ export function AnswerStyleFields({
   const reaction = value.ack_reaction;
   // A reaction stored before this list existed is still offered, so opening
   // the form never silently changes it.
-  const options =
-    reaction !== null && !REACTIONS.some(([name]) => name === reaction)
-      ? [...REACTIONS, [reaction, ""] as const]
+  const supported =
+    platform === "imessage"
+      ? ([
+          ["emphasize", "‼️"],
+          ["love", "❤️"],
+          ["like", "👍"],
+          ["dislike", "👎"],
+          ["laugh", "😄"],
+          ["question", "❓"],
+        ] as const)
       : REACTIONS;
+  const options =
+    reaction !== null && !supported.some(([name]) => name === reaction)
+      ? [...supported, [reaction, ""] as const]
+      : supported;
 
   return (
     <div className="space-y-4">
@@ -77,7 +88,7 @@ export function AnswerStyleFields({
       <FormField
         label={t("ackReaction")}
         htmlFor={`${idPrefix}-ack-reaction`}
-        description={t("ackReactionHint")}
+        description={t(platform === "imessage" ? "imessageReactionHint" : "ackReactionHint")}
       >
         <Select
           value={reaction ?? NONE}

@@ -229,6 +229,15 @@ def get_channel_bot_service(db: DBSession) -> ChannelBotService:
 
 ChannelBotSvc = Annotated[ChannelBotService, Depends(get_channel_bot_service)]
 
+from app.services.imessage_webhook import ImessageWebhookService
+
+
+def get_imessage_webhook_service(db: DBSession) -> ImessageWebhookService:
+    return ImessageWebhookService(db)
+
+
+ImessageWebhookSvc = Annotated[ImessageWebhookService, Depends(get_imessage_webhook_service)]
+
 from app.services.channels.sms_media import SmsMediaService
 
 

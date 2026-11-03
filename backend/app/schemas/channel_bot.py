@@ -84,8 +84,8 @@ class ChannelBotCreate(BaseSchema):
         default=None,
         max_length=500,
         description=(
-            "The bot's own Mattermost server, e.g. https://mattermost.acme.internal. "
-            "Required for Mattermost and refused for the others, which have one "
+            "The bot's own Mattermost or BlueBubbles server URL. "
+            "Required for Mattermost/iMessage and refused for platforms with one "
             "address for everybody."
         ),
     )
@@ -157,7 +157,7 @@ class ChannelBotCreate(BaseSchema):
         pattern=ACK_REACTION_PATTERN,
         description=(
             "The emoji the bot reacts to a question with as it arrives, by the "
-            "platform's name for it (`eyes`). Slack and Mattermost; null for none."
+            "platform's name for it (`eyes`). Slack, Mattermost and optional iMessage tapbacks; null for none."
         ),
     )
     transcribe_voice_notes: bool = Field(
@@ -255,16 +255,23 @@ class ChannelBotCreate(BaseSchema):
         Telegram and Slack have one address for everybody, so a server URL on
         one of those is a value nothing will ever read.
         """
-        if self.platform == "mattermost" and self.api_base_url is None:
+        if self.platform in {"mattermost", "imessage"} and self.api_base_url is None:
             raise ValueError(
-                "A Mattermost bot needs its server's URL - it is self-hosted, so "
+                "A self-hosted bot needs its server's URL - "
                 "there is no default address to fall back to"
             )
-        if self.platform != "mattermost" and self.api_base_url is not None:
+        if self.platform not in {"mattermost", "imessage"} and self.api_base_url is not None:
             raise ValueError(
                 f"A server URL is for a self-hosted platform - a {self.platform} bot "
                 "has one address for everybody"
             )
+        if self.platform == "imessage":
+            from urllib.parse import urlsplit
+
+            endpoint = urlsplit(self.api_base_url or "")
+            if endpoint.query or endpoint.fragment:
+                raise ValueError("An iMessage bridge endpoint cannot contain query or fragment")
+            self.webhook_mode = True
         return self
 
 

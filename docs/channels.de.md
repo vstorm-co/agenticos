@@ -1,5 +1,5 @@
 ---
-source_sha: "101a0d367e89"
+source_sha: "27196700eb8c"
 ---
 
 # Einen Agent dorthin bringen, wo die Menschen schon sind { #putting-an-agent-where-people-already-are }
@@ -2992,7 +2992,7 @@ Ein Downgrade stellt die gespeicherten Kanalvorgaben der vorherigen Version wied
 ## Benachrichtigungen über verknüpfte Kanäle { #linked-notifications }
 
 Unter **Einstellungen → Benachrichtigungen** ein privates Ziel pro Plattform
-und Organisation wählen: Slack, Telegram, Mattermost, Teams und SMS verwenden
+und Organisation wählen: Slack, Telegram, Mattermost, Teams, SMS und iMessage verwenden
 den bestehenden verknüpften Bot. E-Mail und Push behalten ihre Einrichtung.
 Ereigniseinstellungen und Routine-Auswahl werden beim Versand zusammen mit
 Ressourcenrechten und aktuellem Fallstatus geprüft. Die Kontoverknüpfung allein
@@ -3009,3 +3009,15 @@ erlaubt begrenzte Wiederholung nach `Retry-After`. Der Client deaktiviert
 Timeouts und unbekannte Ergebnisse sichtbare Fehler bleiben statt doppelte
 Sendungen auszulösen. Die [Benachrichtigungsrichtlinie](governance.md) beschreibt
 Widerruf, eingeschränkte Genehmigungshinweise und Migrationen.
+
+## iMessage über einen Firmen-Mac { #imessage }
+
+Ein Firmen-Mac mit Nachrichten und [BlueBubbles](https://docs.bluebubbles.app/server/developer-guides/rest-api-and-webhooks) stellt den Transport bereit. Er muss angemeldet und erreichbar bleiben. Gewähren Sie BlueBubbles die benötigten macOS-Berechtigungen und aktivieren Sie die REST API. Registrieren Sie unter **Kanäle** einen **iMessage**-Bot mit der HTTP-Adresse der Bridge und ihrem Serverpasswort als Bot-Token. Das Passwort liegt verschlüsselt im Organisationstresor; die Adresse darf keine Zugangsdaten, Abfrageparameter oder Fragmente enthalten.
+
+Binden Sie den veröffentlichten Agenten, öffnen Sie die Kanalbearbeitung und wählen Sie nach dem Speichern **iMessage-Webhook registrieren**. Ein Wechsel von Adresse oder Passwort widerruft das bisherige Callback-Geheimnis; registrieren Sie den Webhook erneut. AgenticOS registriert ausschließlich `new-message` unter `/api/v1/imessage/{bot_id}/webhook`. Ein separat erzeugtes Callback-Geheimnis authentifiziert den Aufruf per HTTP Basic. Verwenden Sie HTTPS über nicht vertrauenswürdige Netze. Für private AgenticOS-Adressen muss der BlueBubbles-Administrator API-Webhooks zu lokalen Adressen ausdrücklich erlauben. Das Entfernen betrifft nur Callbacks dieses Bots auf dieser Bereitstellung.
+
+Text und Dateien verwenden BlueBubbles' AppleScript-Transport. Optionale Tapback-Bestätigungen benötigen die Private API. Verknüpfte private Absender setzen dieselbe Hauptunterhaltung wie in der Konsole fort; Gruppen behalten eigene Unterhaltungen und benötigen die übliche Agentenerwähnung. Genehmigungen verwenden vorhandene nummerierte Fragen: Antworten Sie mit der angezeigten Zahl. Eigene Echos, Tapbacks und Systemereignisse starten keinen neuen Durchlauf. Anhänge werden nur anhand ihrer GUID von der konfigurierten Bridge abgerufen und unterliegen dem Uploadlimit.
+
+Wählen Sie die verknüpfte private Unterhaltung unter **Einstellungen → Benachrichtigungen**. Gruppen sind keine privaten Benachrichtigungsziele. Die Annahme durch die Bridge bestätigt die Übergabe, nicht Apples Zustellung oder die Bestätigung des Empfängers. Eine unerreichbare Bridge erzeugt einen sichtbaren Fehler; ungewisse Übertragungen werden nicht automatisch wiederholt.
+
+[Apple Messages for Business](https://www.apple.com/legal/privacy/data/en/messages-for-business/) ist ein eigener Geschäftsdienst. Die [Einrichtung beim Anbieter](https://learn.microsoft.com/en-us/dynamics365/customer-service/administer/configure-apple-messages-for-business-channel) benötigt ein Messages-for-Business-Konto und einen Messaging-Anbieter; dieser Mac-Adapter richtet diese Integration nicht ein.

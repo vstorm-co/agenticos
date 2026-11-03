@@ -53,7 +53,7 @@ class NotificationChannelPreference(Base, TimestampMixin):
             name="ck_notification_preferences_event_type",
         ),
         CheckConstraint(
-            "channel IN ('in_app', 'email', 'push', 'slack', 'telegram', 'mattermost', 'teams', 'sms')",
+            "channel IN ('in_app', 'email', 'push', 'slack', 'telegram', 'mattermost', 'teams', 'sms', 'imessage')",
             name="ck_notification_preferences_channel",
         ),
         # `PATCH` is an upsert against this constraint (`INSERT ... ON CONFLICT

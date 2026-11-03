@@ -253,6 +253,12 @@ class NotificationRouteService:
                 sms = SmsAdapter()
                 stack.push_async_callback(sms.aclose)
                 adapter = sms
+            elif bot.platform == "imessage":
+                from app.services.channels.imessage import ImessageAdapter
+
+                imessage = ImessageAdapter()
+                stack.push_async_callback(imessage.aclose)
+                adapter = imessage
             else:
                 raise ValueError("Unsupported notification transport")
             url = absolute_context_url(context_url)

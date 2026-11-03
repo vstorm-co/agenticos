@@ -1,5 +1,5 @@
 ---
-source_sha: "101a0d367e89"
+source_sha: "27196700eb8c"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -2805,7 +2805,7 @@ Cofnięcie migracji przywraca zapisane domyślne instrukcje kanałów z poprzedn
 ## Powiadomienia przez połączone kanały { #linked-notifications }
 
 W **Ustawienia → Powiadomienia** wybierz prywatne miejsce docelowe na platformę
-i organizację: Slack, Telegram, Mattermost, Teams i SMS używają istniejącego
+i organizację: Slack, Telegram, Mattermost, Teams, SMS i iMessage używają istniejącego
 połączonego bota. E-mail i push zachowują własną konfigurację. Preferencje zdarzeń
 i ustawienia rutyny są sprawdzane przy wysyłce wraz z uprawnieniami do zasobu
 i aktualnym stanem wspólnej sprawy. Samo połączenie konta czatu nie włącza wysyłek.
@@ -2821,3 +2821,15 @@ pozwala na ograniczone ponowienie po `Retry-After`. Klient powiadomień wyłącz
 i nieznany wynik pozostają widocznym błędem zamiast podwójnej wysyłki.
 [Polityka powiadomień](governance.md) opisuje cofanie zgód, ograniczenie informacji
 o zatwierdzeniu i migracje.
+
+## iMessage przez firmowego Maca { #imessage }
+
+Transport zapewnia firmowy Mac z Wiadomościami i [BlueBubbles](https://docs.bluebubbles.app/server/developer-guides/rest-api-and-webhooks). Mac musi być zalogowany i dostępny; nadaj BlueBubbles wymagane uprawnienia macOS i włącz REST API. W **Kanałach** zarejestruj **iMessage**, podając adres HTTP mostu i hasło serwera jako token bota. Hasło trafia do sejfu organizacji; adres nie może zawierać danych logowania, parametrów ani fragmentu.
+
+Przypisz opublikowanego agenta, następnie otwórz edycję kanału i po zapisaniu zmian wybierz **Zarejestruj webhook iMessage**. Zmiana adresu lub hasła unieważnia poprzedni sekret callbacku; zarejestruj webhook ponownie. AgenticOS rejestruje tylko `new-message` pod `/api/v1/imessage/{bot_id}/webhook`. Generuje osobny sekret callbacku i rejestruje uwierzytelnianie HTTP Basic. Dla ruchu przez niezaufaną sieć skonfiguruj HTTPS. Przy prywatnym adresie AgenticOS administrator BlueBubbles musi jawnie zezwolić webhookom API na adresy lokalne. Usunięcie webhooka usuwa wyłącznie callbacki tego bota na tym wdrożeniu.
+
+Tekst i pliki korzystają z AppleScript w BlueBubbles. Opcjonalne potwierdzenia reakcją wymagają Private API. Powiązany nadawca prywatny kontynuuje tę samą główną rozmowę co w konsoli; grupy mają osobne rozmowy i wymagają zwykłego wspomnienia agenta. Zgody korzystają z istniejących numerowanych pytań: odpowiedz wyświetlonym numerem. Własne wiadomości, reakcje i zdarzenia systemowe nie uruchamiają kolejnej tury. Załączniki są pobierane wyłącznie po GUID ze skonfigurowanego mostu, z limitem rozmiaru wysyłanych plików.
+
+W **Ustawienia → Powiadomienia** wybierz powiązaną rozmowę prywatną, aby włączyć dostarczanie. Grupa nigdy nie jest prywatnym miejscem docelowym. Akceptacja przez most oznacza przekazanie, nie dostarczenie przez Apple ani potwierdzenie odbiorcy. Niedostępność mostu daje widoczny błąd; niepewna wysyłka nie jest ponawiana automatycznie.
+
+[Apple Messages for Business](https://www.apple.com/legal/privacy/data/en/messages-for-business/) to osobna usługa biznesowa. Jej [konfiguracja u dostawcy](https://learn.microsoft.com/en-us/dynamics365/customer-service/administer/configure-apple-messages-for-business-channel) wymaga konta Messages for Business i dostawcy wiadomości; adapter Maca nie tworzy tej integracji.

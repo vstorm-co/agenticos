@@ -20,6 +20,7 @@ const PLATFORM_LABEL: Record<ChannelPlatform, string> = {
   sms: "SMS (Twilio)",
   // i18n-exempt: the name of the protocol, written the same in every language
   email: "Email",
+  imessage: "iMessage",
 };
 
 interface ChannelBotsTableProps {

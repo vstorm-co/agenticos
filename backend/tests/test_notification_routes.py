@@ -89,6 +89,7 @@ class Transport:
         ("mattermost", "MattermostAdapter"),
         ("teams", "TeamsAdapter"),
         ("sms", "SmsAdapter"),
+        ("imessage", "ImessageAdapter"),
     ],
 )
 @pytest.mark.parametrize("fail", [False, True])

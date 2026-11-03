@@ -5411,7 +5411,14 @@
       "emailEndpointHint": "Lassen Sie Ihr Relay (einen Cloudflare Email Worker, eine Postmark- oder Mailgun-Inbound-Route) jede Nachricht als JSON hierher POSTen, signiert mit dem Geheimnis unten.",
       "emailRelaySecret": "Signaturgeheimnis des Relays",
       "emailRelaySecretHint": "Das Relay signiert jede Anfrage mit diesem Geheimnis (HMAC-SHA256 über timestamp.body). Kopieren Sie es ins Relay; es wird nicht erneut angezeigt.",
-      "emailGenerateSecret": "Erzeugen"
+      "emailGenerateSecret": "Erzeugen",
+      "imessageServerUrl": "BlueBubbles-Server-URL",
+      "imessageServerUrlHint": "Der HTTP-Endpunkt von BlueBubbles auf dem Firmen-Mac. Dort bei Nachrichten anmelden und die REST API aktivieren. Das Serverpasswort als Bot-Token eintragen und nach dem Speichern den Webhook registrieren. Private API ist nur für Reaktionen erforderlich.",
+      "botTokenHintImessage": "Das BlueBubbles-Serverpasswort. Es wird im Tresor gespeichert; nicht in die Server-URL eintragen.",
+      "imessageRegisterWebhook": "iMessage-Webhook registrieren",
+      "imessageWebhookHint": "Änderungen an Adresse oder Passwort zuerst speichern. Die Registrierung erstellt einen authentifizierten Callback auf dem gespeicherten BlueBubbles-Server. Für AgenticOS in einem privaten Netzwerk muss dessen Administrator API-Webhooks zu lokalen Adressen erlauben.",
+      "imessageWebhookRegistered": "iMessage-Webhook registriert",
+      "imessageReactionHint": "Optional. iMessage-Tapbacks benötigen die BlueBubbles Private API; bei reinem AppleScript-Betrieb ausgeschaltet lassen."
     },
     "invitations": {
       "acceptInvitation": "Einladung annehmen",
@@ -6144,7 +6151,8 @@
       "mattermostChannel": "Mattermost",
       "teamsChannel": "Microsoft Teams",
       "smsChannel": "SMS",
-      "chatChannelPreferences": "Einstellungen für den Chatkanal"
+      "chatChannelPreferences": "Einstellungen für den Chatkanal",
+      "imessageChannel": "iMessage"
     },
     "skills": {
       "agentsBoundSkillWill": "An diesen Skill gebundene Agents laufen ab ihrem nächsten Run ohne ihn. Das lässt sich nicht rückgängig machen.",
@@ -12231,6 +12239,7 @@
     "telegram": "Telegram",
     "mattermost": "Mattermost",
     "teams": "Microsoft Teams",
-    "sms": "SMS"
+    "sms": "SMS",
+    "imessage": "iMessage"
   }
 }

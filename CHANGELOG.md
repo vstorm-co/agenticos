@@ -37,6 +37,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- iMessage through an explicitly configured company BlueBubbles Mac: authenticated webhook, text/files, separate group context, numbered approvals, optional tapbacks and explicit private notification routes. Configure the bridge in Channels and register its webhook after saving. API/workers must be updated together for migration `0274_imessage_notifications.py`.
+
 - Routine owners can select individual MCP action exceptions on a concrete account together with capability actions. Version, intent, endpoint and authorization generation remain bound; explicit agent/binding approvals cannot be waived. The console shows account identity, unavailable tool inventories and refreshed reviews after rejected saves.
 
 - Unattended routines honor granted internal Virtual Table writes without a routine exception; explicit agent approval policies still apply.

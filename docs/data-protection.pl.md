@@ -1,5 +1,5 @@
 ---
-source_sha: "cc427d6789f7"
+source_sha: "3dd430a73814"
 ---
 
 # Ochrona danych { #data-protection }
@@ -495,3 +495,9 @@ starszym `.env`, a domyślny kolektor to zdalny adres,
 `https://analytics-agenticos.testapp.ovh`. [Konfiguracja diagnostyki](configuration.md#diagnostics)
 opisuje pola, retencję, wskazanie własnego kolektora i wyłączenie przez
 `DIAGNOSTICS_ENABLED=false`.
+
+## Dane mostu iMessage { #imessage-bridge-data }
+
+Opcjonalny kanał iMessage przesyła tekst wiadomości i jawnie dołączone pliki przez skonfigurowanego Maca organizacji z BlueBubbles oraz Wiadomości Apple. Mac i jego konto Apple to dodatkowe miejsca przechowywania kopii. AgenticOS zapisuje powiązane adresy, rozmowy kanałowe, uruchomienia i pliki zgodnie z istniejącymi zasadami retencji i usuwania kanałów; usunięcie danych tutaj nie usuwa kopii na Macu ani w Wiadomościach. Prywatne powiadomienia wymagają jawnej trasy; rozmowy grupowe nie dziedziczą prywatnej pamięci profilu.
+
+Hasło serwera i osobny sekret callbacku są szyfrowane w sejfie. Klient HTTP nie ujawnia hasła w widocznych adresach żądań; sam most otrzymuje wymagany parametr uwierzytelnienia, więc jego operator musi chronić własne logi i sieć.

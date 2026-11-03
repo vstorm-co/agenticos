@@ -48,6 +48,7 @@ const PLATFORMS: readonly ChannelPlatform[] = [
   "telegram",
   "sms",
   "email",
+  "imessage",
 ];
 
 const PLATFORM_LABEL: Record<ChannelPlatform, string> = {
@@ -60,6 +61,7 @@ const PLATFORM_LABEL: Record<ChannelPlatform, string> = {
   sms: "SMS (Twilio)",
   // i18n-exempt: the name of the protocol, written the same in every language
   email: "Email",
+  imessage: "iMessage",
 };
 
 /** Where each platform's token comes from - the one thing people get stuck on. */
@@ -70,6 +72,7 @@ const TOKEN_HINT: Record<ChannelPlatform, string> = {
   teams: "botTokenHintTeams",
   sms: "botTokenHintSms",
   email: "botTokenHintEmail",
+  imessage: "botTokenHintImessage",
 };
 
 /** The shortest secret the backend accepts for a relay to sign with. */
@@ -160,7 +163,8 @@ export function AddChannelDialog({
   // Mattermost is self-hosted: without its server's address a bot cannot reply,
   // cannot open its event stream and cannot fetch an attachment, so the backend
   // refuses to save one. Said here rather than after the round trip.
-  const missingServerUrl = platform === "mattermost" && serverUrl.trim() === "";
+  const missingServerUrl =
+    (platform === "mattermost" || platform === "imessage") && serverUrl.trim() === "";
   // A Teams bot cannot sign in, nor recognise a token meant for it, without both.
   const missingTeamsIds =
     platform === "teams" && !(GUID.test(teamsAppId.trim()) && GUID.test(teamsTenantId.trim()));
@@ -212,7 +216,7 @@ export function AddChannelDialog({
         token: token.trim(),
         // Absent rather than empty, like the token itself: the backend applies
         // what it was sent, and a blank string is a value.
-        ...(platform === "mattermost" && serverUrl.trim()
+        ...((platform === "mattermost" || platform === "imessage") && serverUrl.trim()
           ? { api_base_url: serverUrl.trim() }
           : {}),
         ...((platform === "mattermost" || platform === "email") && webhookSecret.trim()
@@ -222,7 +226,9 @@ export function AddChannelDialog({
         // verified with the signing secret, us connecting out uses the app token.
         ...(platform === "slack" ? { webhook_mode: slackWebhook } : {}),
         // A text arrives by webhook only: there is no connection to open.
-        ...(platform === "sms" || platform === "email" ? { webhook_mode: true } : {}),
+        ...(platform === "sms" || platform === "email" || platform === "imessage"
+          ? { webhook_mode: true }
+          : {}),
         ...(platform === "slack" && slackWebhook && signingSecret.trim()
           ? { slack_signing_secret: signingSecret.trim() }
           : {}),
@@ -386,6 +392,24 @@ export function AddChannelDialog({
                 />
               </FormField>
             </div>
+          )}
+
+          {platform === "imessage" && (
+            <FormField
+              label={t("imessageServerUrl")}
+              htmlFor="imessage-server-url"
+              description={t("imessageServerUrlHint")}
+              error={errors.api_base_url}
+              required
+            >
+              <Input
+                id="imessage-server-url"
+                value={serverUrl}
+                onChange={(event) => setServerUrl(event.target.value)}
+                maxLength={MAX_URL}
+                placeholder="http://mac-bridge:1234"
+              />
+            </FormField>
           )}
 
           {platform === "email" && (

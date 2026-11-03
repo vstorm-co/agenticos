@@ -33,10 +33,11 @@ INBOUND_PATHS: dict[str, str] = {
     "teams": "/api/v1/teams/{bot_id}/messages",
     "sms": "/api/v1/sms/{bot_id}/webhook",
     "email": "/api/v1/email/{bot_id}/inbound",
+    "imessage": "/api/v1/imessage/{bot_id}/webhook",
 }
 
 
-SECRET_MINTED_BY_US: frozenset[str] = frozenset({"telegram"})
+SECRET_MINTED_BY_US: frozenset[str] = frozenset({"telegram", "imessage"})
 """Platforms we hand a webhook secret to, rather than being handed one.
 
 `setWebhook` takes the secret as a parameter, so for Telegram the deployment
