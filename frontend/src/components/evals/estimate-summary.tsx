@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
 
 import { ROUTES } from "@/lib/constants";
-import { formatDateTime } from "@/lib/utils";
+import { cn, formatDateTime } from "@/lib/utils";
 import type { ArmEstimate, EvalRunEstimate, ProposalCheckRecord } from "@/types/eval-runs";
 import type { DatasetScoring } from "@/types/scoring";
 import { usd } from "./format";
@@ -129,14 +129,28 @@ export function EstimateSummary({
       <p className="text-muted-foreground text-xs">
         {t("reruns", { amount: usd(estimate.rerun_ceiling_usd, locale) })}
       </p>
-      <p className="text-xs">
-        {t.rich("after", {
-          agent:
-            estimate.agent_after_usd === null ? t("noCap") : usd(estimate.agent_after_usd, locale),
-          org: estimate.org_after_usd === null ? t("noCap") : usd(estimate.org_after_usd, locale),
-          b: (chunk) => <strong>{chunk}</strong>,
-        })}
-      </p>
+      <dl className="space-y-1 text-xs">
+        {[
+          { label: "budgetAgentAfter", balance: estimate.agent_after_usd },
+          { label: "budgetOrgAfter", balance: estimate.org_after_usd },
+        ].map(({ label, balance }) => (
+          <div key={label} className="flex items-baseline justify-between gap-3">
+            <dt className="text-muted-foreground min-w-0 flex-1">{t(label)}</dt>
+            <dd
+              className={cn(
+                "max-w-[60%] text-right font-medium tabular-nums",
+                balance !== null && Number(balance) < 0 && "text-destructive",
+              )}
+            >
+              {balance === null
+                ? t("noCap")
+                : Number(balance) < 0
+                  ? t("overBudget", { amount: usd(String(-Number(balance)), locale) })
+                  : usd(balance, locale)}
+            </dd>
+          </div>
+        ))}
+      </dl>
       {judgedOwnModel && (
         <p className="text-warning text-xs">
           {t("judgeSameModel", { model: judgedOwnModel.model_label })}

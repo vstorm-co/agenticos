@@ -443,6 +443,32 @@ describe("EvalsPanel", () => {
 });
 
 describe("EstimateSummary", () => {
+  it.each([
+    { agent: "-0.12", org: "98", exceeded: "$0.12" },
+    { agent: "2", org: "-0.30", exceeded: "$0.30" },
+    { agent: "0", org: "0", exceeded: null },
+  ])(
+    "distinguishes remaining funds from exceeding a budget: $agent / $org",
+    ({ agent, org, exceeded }) => {
+      render(
+        <EstimateSummary
+          agentId="agent-1"
+          judgeName={null}
+          scoring={null}
+          estimate={{ ...ESTIMATE, agent_after_usd: agent, org_after_usd: org }}
+        />,
+      );
+      expect(screen.getByText("Agent budget after this run")).toBeInTheDocument();
+      expect(screen.getByText("Organization budget after this run")).toBeInTheDocument();
+      if (exceeded) {
+        expect(screen.getByText(`Over by ${exceeded}`)).toHaveClass("text-destructive");
+        expect(screen.queryByText(`-${exceeded}`)).not.toBeInTheDocument();
+      } else {
+        expect(screen.queryByText(/Over by/)).not.toBeInTheDocument();
+      }
+    },
+  );
+
   it("warns when the judge would grade on the model it grades", () => {
     const { unmount } = render(
       <EstimateSummary agentId="agent-1" judgeName={null} estimate={ESTIMATE} scoring={null} />,

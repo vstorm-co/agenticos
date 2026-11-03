@@ -1449,7 +1449,7 @@ class ConversationService:
             parts=(
                 None
                 if data.parts is None
-                else [part.model_dump(exclude_none=True) for part in data.parts]
+                else [part.model_dump(mode="json", exclude_none=True) for part in data.parts]
             ),
             model_name=data.model_name,
             tokens_used=data.tokens_used,

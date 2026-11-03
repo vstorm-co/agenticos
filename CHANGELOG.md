@@ -183,6 +183,10 @@ environment without a person's decision.
 
 ### Fixed
 
+- Preserve assistant replies with file origins in chat history by serializing
+  their UUID references before writing JSONB.
+- Show an exceeded eval budget explicitly instead of describing a negative
+  amount as money left after the run.
 - Deleting the last knowledge base on a collection name deletes the same rows on every path (`DELETE /kb/{id}`, `DELETE /rag/collections/{name}` and `rag-drop`): the base's own document rows and its tenant's unfiled rows, with their files, before the vector table is dropped. A tenant is the base's organization, or, for an app-scoped base, the rows with no organization that `rag-ingest` writes. `DELETE /kb/{id}` used to leave the tenant's unfiled rows and files behind the dropped table, for its next base on the name to list again; for an app-scoped base it now deletes the `rag-ingest` rows under the name. The collection drop used to delete every row under the name whichever tenant it belonged to, including another organization's unfiled rows and files, which the caller had no authority over. Another tenant's rows now stay, marked as failed because their chunks went with the table: an upload has to be uploaded again, and a sync indexes a synced document again. `POST /rag/documents/{id}/retry` refuses an organization's document filed under no knowledge base, whose retry would index it where its base does not read. After a drop by an organization's base, `rag-drop` of the same name, which no base then holds, removes the `rag-ingest` rows left under it. The three paths run one teardown.
 
 - Clearing the Architect's uploaded avatar restores its generated face, just as
