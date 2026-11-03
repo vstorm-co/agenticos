@@ -715,10 +715,21 @@ export async function walkPageTour(
     await next.click();
     if (finishing) break;
     await expect
-      .poll(async () => ((await popover.isVisible()) ? await title.textContent() : null), {
-        message: `the walk did not move on from "${current}"`,
-        timeout: 15_000,
-      })
+      .poll(
+        () =>
+          popover.evaluateAll((elements) => {
+            const visible = elements.find(
+              (element) =>
+                element.getClientRects().length > 0 &&
+                getComputedStyle(element).visibility !== "hidden",
+            );
+            return visible?.querySelector(".driver-popover-title")?.textContent ?? null;
+          }),
+        {
+          message: `the walk did not move on from "${current}"`,
+          timeout: 15_000,
+        },
+      )
       .not.toBe(current);
     if (!(await popover.isVisible())) break;
   }

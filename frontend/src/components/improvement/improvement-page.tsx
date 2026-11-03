@@ -5,7 +5,7 @@ import { ChevronLeft, ChevronRight, CircleDot, Loader2 } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { ErrorState, LoadingState } from "@/components/states";
-import { Button } from "@/components/ui";
+import { Button, Checkbox } from "@/components/ui";
 import { WizardSteps } from "@/components/ui/wizard-steps";
 import { usd } from "@/components/evals/format";
 import { ChangeSelection } from "./change-selection";
@@ -388,10 +388,10 @@ function Session({
                       className="flex items-start gap-2 text-sm"
                       data-tour="improvement-automatic-check"
                     >
-                      <input
-                        type="checkbox"
+                      <Checkbox
+                        className="mt-0.5"
                         checked={automatic}
-                        onChange={(e) => setAutomatic(e.target.checked)}
+                        onCheckedChange={(checked) => setAutomatic(checked === true)}
                       />
                       {t("automatic")}
                     </label>
@@ -405,10 +405,10 @@ function Session({
                     <p className="text-muted-foreground text-sm">{t("publishNeedsPermission")}</p>
                   )}
                   <label className="flex items-start gap-2 text-sm">
-                    <input
-                      type="checkbox"
+                    <Checkbox
+                      className="mt-0.5"
                       checked={confirm}
-                      onChange={(e) => setConfirm(e.target.checked)}
+                      onCheckedChange={(checked) => setConfirm(checked === true)}
                     />
                     {t("confirmation")}
                   </label>

@@ -1971,3 +1971,30 @@ async def test_the_listing_finds_the_datasets_already_testing_an_agent(db):
     found = await DatasetService(db).list_readable(ctx, agent_id=agent.id)
 
     assert {item.id for item in found.items} == {guarded.id, once_run.id}
+
+
+@pytest.mark.parametrize(
+    ("details", "reason"),
+    [
+        ({"reason": "no_scorer"}, "no_scorer"),
+        ({"reason": "unrecognized"}, "not_runnable"),
+        (None, "not_runnable"),
+    ],
+)
+async def test_a_start_refused_after_pricing_is_skipped_without_pausing_the_suite(
+    db: AsyncSession, details: dict[str, str] | None, reason: str
+) -> None:
+    ctx = await _owner(db)
+    agent, _ = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx)
+    service = EvalSuiteService(db)
+    suite = await service.create(ctx, agent.id, _suite_data(dataset, on_publish=True))
+    await AgentRegistryService(db).publish(ctx, agent.id)
+    refusal = BadRequestError(message="The case set changed after pricing.", details=details)
+    with patch.object(EvalRunService, "start", AsyncMock(side_effect=refusal)):
+        await service.start_due(now=datetime.now(UTC))
+    [result] = await _results(db, suite.id)
+    assert (result.status, result.reason) == ("skipped", reason)
+    assert result.summary is not None and result.summary["message"] == refusal.message
+    current = await db.get(EvalSuite, suite.id)
+    assert current is not None and current.is_active
