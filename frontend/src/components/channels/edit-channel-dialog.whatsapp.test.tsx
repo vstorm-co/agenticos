@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { botPatch, EditChannelDialog, type ChannelBotDraft } from "./edit-channel-dialog";
@@ -153,7 +153,9 @@ describe("setting up a WhatsApp bot (#2076)", () => {
   it("lists Meta's steps as a numbered list", () => {
     show(bot());
 
-    expect(screen.getAllByRole("listitem").length).toBeGreaterThanOrEqual(4);
+    const [steps, ...others] = screen.getAllByRole("list").filter((list) => list.tagName === "OL");
+    expect(others).toEqual([]);
+    expect(within(steps!).getAllByRole("listitem")).toHaveLength(4);
   });
 
   it("says a down bot cannot send replies, with the reason on its own line", () => {

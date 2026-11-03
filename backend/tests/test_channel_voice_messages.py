@@ -30,6 +30,7 @@ from app.services.channels.slack import SlackAdapter
 from app.services.channels.whatsapp import WhatsAppAdapter
 from app.services.channels.whatsapp_graph import MediaInfo, WhatsAppCredentials
 from app.services.transcription import TranscriptionResult
+from tests.recordings import ogg_opus
 
 pytestmark = pytest.mark.anyio
 
@@ -344,7 +345,7 @@ class TestWhenItCannotListen:
                     url="https://lookaside.fbsbx.com/v", mime_type="audio/ogg", file_size=2048
                 )
             ),
-            download_media=AsyncMock(return_value=b"ogg"),
+            download_media=AsyncMock(return_value=ogg_opus(3.0)),
             aclose=AsyncMock(),
         )
         adapter = WhatsAppAdapter(graph)
@@ -356,8 +357,6 @@ class TestWhenItCannotListen:
             patch("app.services.channels.router.get_adapter", return_value=adapter),
             patch("app.services.channels.router.unseal_bot_token", return_value=creds.encode()),
             patch("app.services.channels.router.TranscriptionService.transcribe", transcribe),
-            # Meta states no length, so the container's own is what the cap reads.
-            patch("app.services.channels.router.measure_audio_seconds", return_value=3.0),
         ):
             transcripts, refusals = await ChannelMessageRouter()._transcribe(
                 MagicMock(), _bot(), [note], requested_by=None

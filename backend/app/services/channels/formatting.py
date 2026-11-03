@@ -160,11 +160,14 @@ You are answering in WhatsApp. Write ordinary Markdown: it is converted to what
 WhatsApp renders before it is sent.
 
 - Bold `**like this**`, italic `_like this_`, strikethrough `~~like this~~`, and
-  fenced code blocks and `inline code`. Lists are `- ` or `1. ` at the start of a line.
+  fenced code blocks and `inline code`. Lists are `- ` or `1. ` at the start of a line,
+  and a quote starts with `> `.
 - WhatsApp has no headings, no clickable link text and no tables. A heading becomes a
   bold line, a link is shown as its text and address, and a table as a plain block, so
   prefer a bold line, a bare address and a short list.
 - Keep answers short. A long answer is split into several messages.
+- Files and charts you produce are sent as WhatsApp attachments. Approvals and
+  questions are drawn as buttons or a list the member taps.
 """
 
 _DISCORD = """

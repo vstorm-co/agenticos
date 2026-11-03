@@ -622,3 +622,5 @@ async def test_a_next_step_tap_with_a_delivery_id_reaches_the_run_once():
     run.assert_awaited_once()
     assert run.await_args.args[0].text == "Make it a table"
     assert adapter.settle_prompt.await_count == 1
+    assert adapter.acknowledge.await_count == 1
+    assert any(key.startswith("channel:pressed:") for key in seen)

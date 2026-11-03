@@ -163,7 +163,8 @@ class ChannelLinkService:
         this person to confirm: the token is unknown or expired (the two answer
         the same way, because the difference is not something the person
         clicking can act on differently), somebody else already confirmed it, or
-        another confirmer won the claim at the same moment.
+        another person won the claim at the same moment. When the same person
+        won it, in another tab, this call gets that request and its code.
 
         For a `CODE_CONFIRMED_PLATFORMS` request nothing is linked here: the
         request records who confirmed and a fresh code, and is returned unspent.
@@ -191,10 +192,19 @@ class ChannelLinkService:
                 code=f"{secrets.randbelow(10**_CODE_LENGTH):0{_CODE_LENGTH}d}",
                 expires_at=datetime.now(UTC) + CODE_TTL,
             )
-            if not claimed:
+            if claimed:
+                await self.db.refresh(request)
+                return request
+            # Lost to another confirmer. Read the row again: the winner's commit is
+            # not in this session's copy, and the chat side may have deleted the
+            # request meanwhile. The same person's other tab won it: its code is theirs too.
+            self.db.expire(request)
+            current = await channel_link_request_repo.get_valid(
+                self.db, token=token, now=datetime.now(UTC)
+            )
+            if current is None or current.confirmed_user_id != user_id:
                 return None
-            await self.db.refresh(request)
-            return request
+            return current
 
         # Claim the single-use request before relinking. Two authenticated users
         # confirming the same token both read it as valid, so consuming it first

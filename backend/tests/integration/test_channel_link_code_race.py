@@ -101,6 +101,61 @@ async def test_two_confirmers_one_code(engine: AsyncEngine) -> None:
         assert identity.user_id == request.confirmed_user_id
 
 
+async def test_one_user_losing_the_claim_to_their_other_tab_gets_the_same_code(
+    engine: AsyncEngine,
+) -> None:
+    """Two tabs of one person. The first confirm is held uncommitted, so the second
+    reads the request as unconfirmed, blocks on the row lock, loses the claim once the
+    first commits, and reads the winner's code back instead of a 404."""
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+    token = uuid.uuid4().hex
+    user = User(
+        id=uuid.uuid4(),
+        email=f"{uuid.uuid4().hex}@example.com",
+        hashed_password="x",
+        is_active=True,
+    )
+    async with factory() as setup:
+        setup.add(user)
+        await channel_link_request_repo.create(
+            setup,
+            token=token,
+            platform="whatsapp",
+            platform_user_id=f"{uuid.uuid4()}:{uuid.uuid4().hex}",
+            platform_username=None,
+            platform_display_name=None,
+            expires_at=datetime.now(UTC) + timedelta(minutes=5),
+        )
+        await setup.commit()
+
+    session_a = factory()
+    second: asyncio.Task[str | None] | None = None
+    try:
+        won = await ChannelLinkService(session_a).confirm(token, user.id)
+        assert won is not None and won.confirm_code is not None  # held: uncommitted
+
+        async def confirm_in_the_other_tab() -> str | None:
+            async with factory() as session_b:
+                issued = await ChannelLinkService(session_b).confirm(token, user.id)
+                await session_b.commit()
+                return None if issued is None else issued.confirm_code
+
+        second = asyncio.create_task(confirm_in_the_other_tab())
+        await asyncio.sleep(0.4)
+        assert not second.done()  # blocked on A's row lock
+
+        code = won.confirm_code
+        await session_a.commit()
+        assert await second == code
+        second = None
+    finally:
+        if second is not None:
+            second.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await second
+        await session_a.close()
+
+
 async def test_the_second_claim_waits_for_the_first_and_then_loses(engine: AsyncEngine) -> None:
     """The first claim is held uncommitted; the second blocks on the row lock and,
     once the first commits, re-checks `confirmed_user_id IS NULL` and matches

@@ -401,6 +401,7 @@ class TestReceivingWhatSomebodySent:
 
         assert stored == []
         assert "report.csv" in refused[0]
+        assert "File too large" in refused[0]
         graph.download_media.assert_not_awaited()
         await adapter.aclose()
 

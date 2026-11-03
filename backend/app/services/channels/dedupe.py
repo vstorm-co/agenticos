@@ -18,7 +18,8 @@ takes a message's claim at the top of `route`, the one point all six inbound
 paths cross, and gives it back if the run under it does not finish. A button
 press that a platform may deliver twice is claimed by `process_channel_press`
 and, a press being a quick decision, never given back, in a namespace of its own
-(`pressed`): a tap is routed afterwards as a message under the same id.
+(`pressed`). A next-step tap is then routed as a message under the same id; the
+other taps are not.
 """
 
 import hashlib

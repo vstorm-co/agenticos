@@ -95,12 +95,12 @@ export interface ChannelBot extends AnswerStyle {
   /**
    * Whether the socket this bot receives on is actually up.
    *
-   * `null` for a webhook bot, which holds no connection (a WhatsApp bot reports a send-health
-   * state instead), and for a polling bot
-   * nothing is known about - no Redis, or no supervisor has touched it since the
-   * entry expired. Unknown is its own answer: a polling bot whose stream never
-   * opened used to look identical to a working one, and claiming the reverse
-   * would put a fault on every bot in a deployment that cannot report.
+   * `null` for a webhook bot, which holds no connection (a WhatsApp bot reports a
+   * send-health state instead), and for a polling bot nothing is known about - no
+   * Redis, or no supervisor has touched it since the entry expired. Unknown is its own
+   * answer: a polling bot whose stream never opened used to look identical to a working
+   * one, and claiming the reverse would put a fault on every bot in a deployment that
+   * cannot report.
    */
   connection: ChannelConnection | null;
   /** Whether voice notes are transcribed here at all; off wins over every pair. */

@@ -58,7 +58,7 @@ FILE_NOT_SENT = "(A file that came with this answer could not be sent.)"
 """Said instead of dropping a file silently when Meta refused its upload."""
 
 CAPTION_MAX = 1024
-"""Meta's limit on a caption, in characters."""
+"""Meta's limit on a caption, counted in UTF-16 code units like a text message's."""
 
 IMAGE_MAX_BYTES = 5 * 1024 * 1024
 """Meta shows a JPEG or PNG up to this size as a picture; anything else is a document."""

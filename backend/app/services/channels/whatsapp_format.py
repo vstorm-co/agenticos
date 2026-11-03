@@ -10,12 +10,18 @@ must survive character for character.
 import re
 import unicodedata
 from bisect import bisect_right
+from dataclasses import dataclass
 from itertools import accumulate
 
 MAX_TEXT_UNITS = 4096
 """What one WhatsApp text message may hold, counted in UTF-16 code units."""
 
-_FENCE = re.compile(r"```[^\n]*\n(.*?)```", re.S)
+_RUN = re.compile(r"`{3,}")
+_TAG = re.compile(r"[ \t]*(?:[\w+#-]+(?:\.[\w+#-]+)*)?[ \t]*(?=\n)")
+"""What may follow an opening fence on its line: nothing, or one language tag - which
+never ends in sentence punctuation, so "``` done." is prose, not a tag."""
+_LINE_LEAD = re.compile(r"[ \t>]*(?:(?:[-*+]|\d+[.)])[ \t]+)?[ \t>]*")
+"""What may stand before a closing fence on its line: indentation, quote marks, a list marker."""
 _INLINE_CODE = re.compile(r"`[^`\n]+`")
 _TABLE = re.compile(r"(?:^[ \t]*\|.*\|[ \t]*\n?){2,}", re.M)
 _LINK = re.compile(r"\[([^\]\n]+)\]\((https?://[^)\s]+)\)")
@@ -36,6 +42,63 @@ def utf16_units(text: str) -> int:
     return len(text.encode("utf-16-le", errors="surrogatepass")) // 2
 
 
+@dataclass(frozen=True)
+class _Code:
+    """Code the model fenced: `text[start:end]`, from its first backtick to its last.
+
+    `body` is what a block holds between its opening line and its closing marker;
+    `None` marks a one-line fence ("```cmd```"), which is kept exactly as written.
+    """
+
+    start: int
+    end: int
+    body: str | None
+
+
+def _code_spans(text: str) -> list[_Code]:
+    """Every fence in `text`, paired in one left-to-right pass over the backtick runs.
+
+    One pass, so an opener can never be taken for a closer and the words after it lost:
+    - a run with another run later on its line is a one-line fence, kept as written;
+    - a run followed on its line by nothing, or by one language tag, opens a block -
+      wherever it stands on the line - which closes at the next run at least as long
+      that starts its line (after indentation, quote marks or a list marker). Text
+      after that closer stays, as prose; a run inside a line never closes a block, so
+      code that quotes a fence stays code;
+    - any other run (prose after it, or no closer anywhere) is a literal and stays.
+
+    Nothing is consumed but the markers and a language tag, so no word is ever lost.
+    """
+    spans: list[_Code] = []
+    position = 0
+    while opener := _RUN.search(text, position):
+        line_end = text.find("\n", opener.end())
+        line_end = len(text) if line_end == -1 else line_end
+        if (pair := _RUN.search(text, opener.end(), line_end)) is not None:
+            spans.append(_Code(opener.start(), pair.end(), None))
+            position = pair.end()
+            continue
+        closer = None
+        if _TAG.match(text, opener.end()):
+            closer = next(
+                (
+                    run
+                    for run in _RUN.finditer(text, line_end + 1)
+                    if len(run[0]) >= len(opener[0])
+                    and _LINE_LEAD.fullmatch(
+                        text, text.rfind("\n", 0, run.start()) + 1, run.start()
+                    )
+                ),
+                None,
+            )
+        if closer is None:
+            position = opener.end()
+            continue
+        spans.append(_Code(opener.start(), closer.end(), text[line_end + 1 : closer.start()]))
+        position = closer.end()
+    return spans
+
+
 def to_whatsapp(markdown: str) -> str:
     """The answer in WhatsApp's own syntax; code, tables and URLs come through verbatim."""
     lifted: list[str] = []
@@ -45,7 +108,15 @@ def to_whatsapp(markdown: str) -> str:
         return f"\x00{len(lifted) - 1}\x00"
 
     text = markdown.replace("\x00", "").replace(_BOLD_MARK, "")
-    text = _FENCE.sub(lambda m: lift(f"```\n{m.group(1).rstrip()}\n```"), text)
+    pieces: list[str] = []
+    done = 0
+    for code in _code_spans(text):
+        literal = (
+            text[code.start : code.end] if code.body is None else f"```\n{code.body.rstrip()}\n```"
+        )
+        pieces += [text[done : code.start], lift(literal)]
+        done = code.end
+    text = "".join([*pieces, text[done:]])
     text = _INLINE_CODE.sub(lambda m: lift(m.group(0)), text)
     text = _TABLE.sub(lambda m: lift(f"```\n{m.group(0).strip()}\n```") + "\n", text)
     text = _LINK.sub(
@@ -105,7 +176,7 @@ def cluster_ends(text: str) -> list[int]:
 
 
 _BREAKS = (
-    re.compile(r"\n[ \t]*\n\s*"),
+    re.compile(r"\n[ \t]*\n(?:[ \t]*\n)*"),
     re.compile(r"(?P<keep>[.!?…][\"')\]]*)[ \t]+|\n"),
     re.compile(r"\s+"),
 )
@@ -114,13 +185,33 @@ _BREAKS = (
 `keep` is a sentence's closing punctuation, which stays with the chunk it ends."""
 
 
+_FENCE_OPEN = "```\n"
+_FENCE_CLOSE = "\n```"
+_FENCE_ROOM = len(_FENCE_OPEN) + len(_FENCE_CLOSE)
+"""What a cut inside a fence adds to a chunk: the closing fence, and the next one's reopening."""
+
+_BLANK_LINES = re.compile(r"(?:[ \t]*\n)*")
+_BLANKS = {
+    (_BREAKS[0], True): _BLANK_LINES,
+    (_BREAKS[1], True): _BLANK_LINES,
+    (_BREAKS[1], False): re.compile(r"[ \t]*"),
+    (_BREAKS[2], False): re.compile(r"[ \t]*(?:\n(?:[ \t]*\n)*)?"),
+}
+"""What a cut also skips past the match, by break and whether the match ended in a
+newline: the blank lines or the spaces that follow it. The next line's own indentation
+is never in it. A whitespace break never ends in a newline: a newline in the window
+is the better break before it."""
+
+
 def split_message(text: str, limit: int = MAX_TEXT_UNITS) -> list[str]:
     """The answer as messages of at most `limit` UTF-16 units, cut at the kindest spot.
 
     A paragraph break is preferred, then a sentence or line end, then any space,
     and only a word longer than the limit is cut hard - at a character boundary,
     never inside an emoji sequence. Only the whitespace a cut lands on is dropped, so
-    no chunk is empty or starts with the whitespace it was cut at. Text that is
+    no chunk is empty or starts with the whitespace it was cut at, and a chunk keeps its
+    own indentation. A cut inside a fenced code block closes the fence at the end of the
+    chunk and reopens it at the start of the next. Text that is
     empty once stripped gives no chunks: there is nothing to send.
 
     Raises:
@@ -132,9 +223,20 @@ def split_message(text: str, limit: int = MAX_TEXT_UNITS) -> list[str]:
         return []
     if utf16_units(text) <= limit:
         return [text]
+    # The same pairing `to_whatsapp` lifts a fence by, so every fence is judged as it
+    # was converted. Below `_FENCE_ROOM` plus one character there is no room to keep a
+    # fence whole.
+    spans = (
+        [(code.start, code.end) for code in _code_spans(text) if code.body is not None]
+        if limit >= 2 + _FENCE_ROOM
+        else []
+    )
+    if spans:
+        limit -= _FENCE_ROOM
     ends = cluster_ends(text)
     prefix = [0, *accumulate(utf16_units(char) for char in text)]
-    chunks: list[str] = []
+    spans_by_start = {(a, 0) for a, _ in spans}
+    ranges: list[tuple[int, int]] = []
     start = 0
     while prefix[-1] - prefix[start] > limit:
         fits = bisect_right(ends, prefix[start] + limit, key=lambda end: prefix[end])
@@ -143,21 +245,57 @@ def split_message(text: str, limit: int = MAX_TEXT_UNITS) -> list[str]:
         reach = ends[fits - 1] if fits and ends[fits - 1] > start else start + limit // 2
         window = text[start : reach + 1]
         cut = resume = None
+        # A chunk that begins at an opening fence must keep some of its body: a cut
+        # right after the opener would leave the fence empty.
+        floor = text.index("\n", start) + 1 - start if (start, 0) in spans_by_start else 0
         for pattern in _BREAKS:
-            found = [m for m in pattern.finditer(window) if 0 < m.start() <= reach - start]
+            found = [m for m in pattern.finditer(window) if floor < m.start() <= reach - start]
             if found:
                 last = found[-1]
                 kept = last.end("keep") if "keep" in pattern.groupindex and last["keep"] else None
                 cut = start + (kept if kept is not None else last.start())
                 resume = start + last.end()
+                # The window ends one character past the limit, so a long run of
+                # blanks is only partly inside it.
+                resume = next(_BLANKS[pattern, last[0][-1] == "\n"].finditer(text, resume)).end()
                 break
         if cut is None or resume is None:
             cut = resume = reach
-        chunks.append(text[start:cut])
+        fence = _fence_around(spans, cut)
+        if fence and start < fence[0] and not text[fence[0] : cut].strip("`\n").strip():
+            # The cut would leave an opening fence alone at the end of the chunk.
+            cut = resume = fence[0]
+        ranges.append((start, cut))
         start = resume
-        while start < len(text) and text[start].isspace():
-            start += 1
     if text[start:]:
-        chunks.append(text[start:])
+        ranges.append((start, len(text)))
     # A leading blank run can be cut off alone; sending it would stop the answer there.
+    ranges = [(a, b) for a, b in ranges if text[a:b].strip()]
+    chunks = [_with_fences_whole(text, spans, a, b) for a, b in ranges]
     return [chunk for chunk in chunks if chunk.strip()]
+
+
+def _fence_around(spans: list[tuple[int, int]], offset: int) -> tuple[int, int] | None:
+    """The fence `offset` is inside of, not at its edge, or None."""
+    index = bisect_right(spans, (offset, 0)) - 1
+    return spans[index] if index >= 0 and spans[index][0] < offset < spans[index][1] else None
+
+
+def _with_fences_whole(text: str, spans: list[tuple[int, int]], start: int, cut: int) -> str:
+    """`text[start:cut]`, its code fence closed if the cut left it open and reopened if the
+    chunk starts inside one.
+
+    Only the markers added here come and go, with one exception: a chunk that would
+    begin with nothing but a closing fence loses that marker, because the chunk
+    before it was already closed. The words after it stay.
+    """
+    chunk = text[start:cut]
+    opened = _fence_around(spans, start)
+    if opened:
+        marker = opened[1] - len("```")
+        if not text[start:marker].strip():
+            chunk = text[start:marker] + text[opened[1] : cut].lstrip(" \t").removeprefix("\n")
+            closing = _fence_around(spans, cut)
+            return f"{chunk}{_FENCE_CLOSE}" if closing and closing != opened else chunk
+        chunk = f"{_FENCE_OPEN}{chunk}"
+    return f"{chunk}{_FENCE_CLOSE}" if _fence_around(spans, cut) else chunk

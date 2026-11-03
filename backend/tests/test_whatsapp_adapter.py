@@ -6,6 +6,7 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from pydantic_ai.workspaces import Workspace
 from pydantic_ai_backends import StateBackend
 
 from app.services.channels import get_adapter, register_adapter, whatsapp
@@ -59,7 +60,7 @@ def _graph() -> MagicMock:
     return graph
 
 
-def _workspace_with(path: str, content: bytes):
+def _workspace_with(path: str, content: bytes) -> Workspace:
     document = StateBackend()
     document.write_bytes(f"/{path}", content)
     return document_workspace(document)
@@ -277,6 +278,22 @@ class TestSending:
         order = [c[0] for c in graph.mock_calls if c[0] in {"send_text", "send_media"}]
         assert order == ["send_media", "send_text"]
 
+    async def test_the_not_sent_note_appears_once_however_many_uploads_are_refused(
+        self, adapter, graph
+    ):
+        graph.upload_media.side_effect = [
+            WhatsAppGraphError(code=100),
+            "ok",
+            WhatsAppGraphError(code=100),
+        ]
+        files = [OutgoingAttachment(name, b"x") for name in ("a", "b", "c")]
+
+        await adapter.send_message(TOKEN, _message("Here", attachments=files))
+
+        [media] = graph.send_media.await_args_list
+        assert media.kwargs["caption"] == f"Here\n\n{FILE_NOT_SENT}"
+        graph.send_text.assert_not_awaited()
+
     async def test_a_refused_file_with_nothing_else_to_send_raises(self, adapter, graph):
         graph.upload_media.side_effect = WhatsAppGraphError(code=100)
 
@@ -297,6 +314,7 @@ class TestSending:
 
         result = await sender("report.csv")
 
+        graph.upload_media.assert_awaited_once()
         assert "Do not claim it was sent" in result
         assert "accepted the attachment" not in result
         graph.send_text.assert_not_awaited()

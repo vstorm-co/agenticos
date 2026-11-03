@@ -122,10 +122,11 @@ export function ChannelBotsTable({
               {missing && <Badge variant="secondary">{t(missing)}</Badge>}
               {/* Only "down", and only on a live bot. A paused one has no
                   connection by design and already says so on the next line, and
-                  an unknown state is not a fault to report. */}
+                  an unknown state is not a fault to report. A WhatsApp bot has
+                  no socket: its "down" is Meta refusing a send. */}
               {bot.is_active && bot.connection?.state === "down" && (
                 <Badge variant="destructive" title={bot.connection.reason ?? undefined}>
-                  {t("connectionDown")}
+                  {bot.platform === "whatsapp" ? t("whatsappSendDown") : t("connectionDown")}
                 </Badge>
               )}
               {!bot.is_active && <Badge variant="secondary">{t("paused")}</Badge>}

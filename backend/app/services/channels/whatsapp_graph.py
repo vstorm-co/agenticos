@@ -112,6 +112,9 @@ class WhatsAppCredentials:
     def decode(cls, token: str) -> WhatsAppCredentials:
         """Read what `encode` wrote.
 
+        Only the envelope's shape is checked: a field that is present but empty
+        reads back as empty, as it does for a bot row with no phone number id.
+
         Raises:
             ValueError: If the string is not an envelope `encode` wrote, for
                 example one that is not JSON or lacks a field.

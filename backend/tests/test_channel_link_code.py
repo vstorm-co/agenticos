@@ -111,6 +111,37 @@ class TestConfirmingIssuesACode:
         ):
             assert await ChannelLinkService(_db()).confirm("tok", USER_ID) is None
 
+    async def test_a_lost_claim_to_the_same_user_gets_the_winners_code(self):
+        request = _request()
+        winner = _awaiting("654321")
+        db = _db()
+        with (
+            patch(f"{REPO}.get_valid", new=AsyncMock(side_effect=[request, winner])),
+            patch(f"{REPO}.claim_for_code", new=AsyncMock(return_value=False)),
+        ):
+            result = await ChannelLinkService(db).confirm("tok", USER_ID)
+
+        assert result is winner
+        assert result.confirm_code == "654321"
+        db.expire.assert_called_once_with(request)
+        db.refresh.assert_not_awaited()
+
+    async def test_a_lost_claim_to_another_user_still_gives_nothing(self):
+        other = _request(confirmed_user_id=uuid.uuid4(), confirm_code="654321")
+        with (
+            patch(f"{REPO}.get_valid", new=AsyncMock(side_effect=[_request(), other])),
+            patch(f"{REPO}.claim_for_code", new=AsyncMock(return_value=False)),
+        ):
+            assert await ChannelLinkService(_db()).confirm("tok", USER_ID) is None
+
+    async def test_a_lost_claim_whose_request_is_gone_gives_nothing(self):
+        """The chat side can delete the request while the confirm waits on the row lock."""
+        with (
+            patch(f"{REPO}.get_valid", new=AsyncMock(side_effect=[_request(), None])),
+            patch(f"{REPO}.claim_for_code", new=AsyncMock(return_value=False)),
+        ):
+            assert await ChannelLinkService(_db()).confirm("tok", USER_ID) is None
+
     async def test_an_unknown_token_issues_nothing(self):
         with (
             patch(f"{REPO}.get_valid", new=AsyncMock(return_value=None)),

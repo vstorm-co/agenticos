@@ -6,6 +6,7 @@ stubbed, as `test_teams_channel.py` does; what the signature check itself accept
 """
 
 import asyncio
+import enum
 import hashlib
 import hmac
 import json
@@ -32,7 +33,13 @@ from tests.test_whatsapp_payload import FIXTURES
 pytestmark = pytest.mark.anyio
 
 ROUTE = "app.api.routes.v1.whatsapp_webhook"
-_SIGNED: Any = object()
+
+
+class _Sentinel(enum.Enum):
+    SIGNED = enum.auto()
+
+
+_SIGNED = _Sentinel.SIGNED
 APP_SECRET = "meta-app-secret"
 VERIFY_TOKEN = "the-verify-token"
 ORG = uuid.UUID("11111111-1111-1111-1111-111111111111")
@@ -89,7 +96,7 @@ async def _post(
     body: bytes | dict[str, Any],
     *,
     bot: MagicMock | None = None,
-    signature: str | None = _SIGNED,
+    signature: str | _Sentinel | None = _SIGNED,
     secret: str | None = APP_SECRET,
     headers: dict[str, str] | None = None,
     spawn: MagicMock | None = None,
@@ -99,7 +106,7 @@ async def _post(
     sent = (
         {}
         if signature is None
-        else {"x-hub-signature-256": _sign(raw) if signature is _SIGNED else signature}
+        else {"x-hub-signature-256": _sign(raw) if signature is _Sentinel.SIGNED else signature}
     )
     request = _request(raw, {**sent, **(headers or {})})
     with (

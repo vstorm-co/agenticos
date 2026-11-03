@@ -14,6 +14,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from pydantic import ValidationError
 
+from app.core.config import settings
 from app.core.exceptions import BadRequestError
 from app.core.vault import VaultScope, unseal
 from app.db.models.channel_bot import ChannelBot
@@ -121,7 +122,7 @@ class TestRegistering:
         fields = _whatsapp()
         del fields[missing]
 
-        with pytest.raises(ValidationError):
+        with pytest.raises(ValidationError, match="A WhatsApp bot needs its phone number ID"):
             ChannelBotCreate(**fields)
 
         assert ChannelBotCreate(**_whatsapp()).platform == "whatsapp"
@@ -140,9 +141,9 @@ class TestRegistering:
 
     @pytest.mark.parametrize("bad", ["1234", "12ab5678", "1" * 33])
     async def test_the_number_and_account_ids_are_digits(self, bad):
-        with pytest.raises(ValidationError):
+        with pytest.raises(ValidationError, match="whatsapp_phone_number_id"):
             ChannelBotCreate(**_whatsapp(whatsapp_phone_number_id=bad))
-        with pytest.raises(ValidationError):
+        with pytest.raises(ValidationError, match="whatsapp_account_id"):
             ChannelBotCreate(**_whatsapp(whatsapp_account_id=bad))
 
     async def test_a_whatsapp_bot_is_always_a_webhook_bot(self):
@@ -252,8 +253,12 @@ class TestUnsealing:
 
 
 class TestUpdating:
-    async def test_an_update_seals_a_new_verify_token_at_the_rows_key_version(self):
+    async def test_an_update_seals_a_new_verify_token_at_the_rows_key_version(self, monkeypatch):
+        monkeypatch.setattr(settings, "VAULT_MASTER_KEYS", {1: "k1" * 20, 2: "k2" * 20})
+        # The row stays at version 1 while the current key is 2: sealing at the
+        # current version instead of the row's would be unreadable at the row's.
         bot = _row()
+        assert bot.secret_key_version == 1
 
         data = await _updated(bot, whatsapp_verify_token="another-verify-token")
 
