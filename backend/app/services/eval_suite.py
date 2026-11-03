@@ -579,7 +579,7 @@ class EvalSuiteService:
                 details={"agent_id": agent_id},
             )
         self._require_runs_view(ctx)
-        agent = await self.registry.get(ctx, agent_id)
+        agent = await self.registry.get(ctx, agent_id, for_update=True)
         refuse_system_agent(agent, action="have eval suites")
         if not await resolve_access(self.db, ctx, agent, Perm.AGENTS_EDIT, resource_type=AGENT):
             raise AuthorizationError(

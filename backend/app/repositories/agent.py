@@ -13,6 +13,7 @@ from pydantic import TypeAdapter
 from sqlalchemy import Float, and_, bindparam, cast, false, func, literal, or_, select, text
 from sqlalchemy.dialects.postgresql import JSONPATH
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
+from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import InstrumentedAttribute
 from sqlalchemy.sql.elements import ColumnElement
@@ -105,6 +106,28 @@ async def get(
         )
     result = await db.execute(statement)
     return result.scalar_one_or_none()
+
+
+async def try_lock(db: AsyncSession, agent_id: UUID, *, organization_id: UUID) -> Agent | None:
+    """Refresh the agent under its mutation lock; return None if missing or busy.
+
+    A settlement may hold result rows a foreground suite edit needs. Never
+    wait for that edit's agent lock: the periodic promotion sweep can retry.
+    A savepoint keeps a busy row from aborting the result's transaction.
+    """
+    try:
+        async with db.begin_nested():
+            result = await db.execute(
+                select(Agent)
+                .where(Agent.id == agent_id, Agent.organization_id == organization_id)
+                .with_for_update(key_share=True, nowait=True)
+                .execution_options(populate_existing=True)
+            )
+            return result.scalar_one_or_none()
+    except DBAPIError as exc:
+        if getattr(exc.orig, "sqlstate", None) != "55P03":
+            raise
+        return None
 
 
 async def lock(db: AsyncSession, agent_id: UUID, *, organization_id: UUID) -> Agent | None:

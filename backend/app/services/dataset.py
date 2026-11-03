@@ -674,7 +674,7 @@ class DatasetService:
             EvalSuiteInUseError: An eval suite checking it guards an environment;
                 its suites would go with it and leave that environment unguarded.
         """
-        dataset = await self.get(ctx, dataset_id, perm=Perm.DATASETS_EDIT)
+        dataset = await self._locked(ctx, dataset_id)
         name = dataset.name
         guarded = await promotion_gate_repo.guarded_by_dataset(
             self.db, dataset.id, organization_id=ctx.organization_id
