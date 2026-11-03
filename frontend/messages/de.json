@@ -5359,11 +5359,11 @@
       },
       "improvement-details": {
         "title": "Details anzeigen",
-        "body": "Wählen Sie andere Testfragen, ändern Sie das Ausgabenlimit oder den Hilfsagenten, oder testen Sie, wie der Agent heute antwortet."
+        "body": "Passen Sie das Ausgabenlimit an, prüfen Sie die Testfragen oder testen Sie die heutigen Antworten. Modell und Anweisungen des Helfers stehen in den Dataset-Einstellungen."
       },
       "flow-improvement-details": {
         "title": "Details anzeigen",
-        "body": "Wählen Sie andere Testfragen, ändern Sie das Ausgabenlimit oder den Hilfsagenten, oder testen Sie, wie der Agent heute antwortet."
+        "body": "Passen Sie das Ausgabenlimit an, prüfen Sie die Testfragen oder testen Sie die heutigen Antworten. Modell und Anweisungen des Helfers stehen in den Dataset-Einstellungen."
       },
       "agent-system-toolbox": {
         "title": "Was er liest",
@@ -14372,7 +14372,7 @@
     "trainQuestion": "Zum Schreiben der Änderungen verwendet",
     "holdoutQuestion": "Nicht zum Schreiben der Änderungen verwendet",
     "sourceSignals": "Quellen zum Lernen",
-    "signalWindow": "Bewertungen und fehlgeschlagene Runs der letzten 30 Tage sowie Testfragen, die im letzten Test schlecht beantwortet wurden: zusammen die Antworten mit Feedback.",
+    "signalWindow": "Feedback und fehlgeschlagene Runs der letzten 30 Tage sowie Fehler aus dem letzten Test.",
     "ratedSignals": "Negativ bewertete Antworten",
     "failedSignals": "Fehlgeschlagene Runs",
     "noLearningExamples": "Noch nichts zum Lernen: In den letzten 30 Tagen hat niemand eine Antwort bewertet. Bewerten Sie zuerst eine Antwort oder schreiben Sie Testfragen.",
@@ -14403,8 +14403,7 @@
     "title": "{name} verbessern",
     "heading": "Verbessern",
     "intro": "Wir lesen, was schiefging, und halten dann an, damit Sie es ansehen. Änderungen schreiben und sie testen warten jeweils, bis Sie Nächster Schritt drücken, und jeder Schritt wird vorher bepreist. Nichts geht live, bevor Sie es annehmen und veröffentlichen.",
-    "testSet": "Testfragen",
-    "chooseQuestions": "Testfragen auswählen",
+    "chooseQuestions": "Dataset auswählen",
     "writeQuestions": "Testfragen für mich schreiben",
     "reviewQuestions": "Fragen prüfen",
     "baseline": "Heutige Antworten des Agenten testen",
@@ -14923,7 +14922,12 @@
     "trainSignals": "Fehlgeschlagene Testantworten",
     "tryAgainNothingToLearn": "Der letzte Versuch hat jede Frage behoben, aus der er lernt, daher hat ein weiterer Versuch nichts mehr zu lernen. Übernehmen Sie ihn oder beenden Sie die Sitzung.",
     "tryAgainUnmeasurable": "Ein weiterer Versuch hätte zu wenige Fragen zum Messen: {count, plural, one {# weitere ist} other {# weitere sind}} nötig, und die Fragen dieser Sitzung stehen fest. Beenden Sie sie, fügen Sie Fragen hinzu und starten Sie eine neue.",
-    "pipelineSettings": "Modell und Anweisungen im Datensatz konfigurieren"
+    "pipelineSettings": "Modell und Anweisungen im Datensatz konfigurieren",
+    "startDescription": "Schlagen Sie Verbesserungen anhand von Feedback und Testfällen vor. Prüfen Sie jeden Schritt, bevor Änderungen übernommen werden.",
+    "startDataset": "Dataset",
+    "startDatasetHint": "Wählen Sie die Fälle zur Prüfung der Antworten dieses Agents.",
+    "analysisEstimate": "Geschätzte Analysekosten",
+    "startCostHint": "Zuerst kommt die Analyse. Jeder weitere Versuch wird separat geschätzt, etwa {cost}, innerhalb des Sitzungslimits."
   },
   "unsaved": {
     "title": "Du hast ungespeicherte Änderungen",

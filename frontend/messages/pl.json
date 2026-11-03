@@ -6849,11 +6849,11 @@
       },
       "improvement-details": {
         "title": "Pokaż szczegóły",
-        "body": "Wybierz inne pytania testowe, zmień limit wydatków albo agenta pomocniczego lub sprawdź, jak agent odpowiada dziś."
+        "body": "Dostosuj limit wydatków, przejrzyj pytania testowe lub sprawdź dzisiejsze odpowiedzi. Model i instrukcje pomocnika znajdziesz w ustawieniach datasetu."
       },
       "flow-improvement-details": {
         "title": "Pokaż szczegóły",
-        "body": "Wybierz inne pytania testowe, zmień limit wydatków albo agenta pomocniczego lub sprawdź, jak agent odpowiada dziś."
+        "body": "Dostosuj limit wydatków, przejrzyj pytania testowe lub sprawdź dzisiejsze odpowiedzi. Model i instrukcje pomocnika znajdziesz w ustawieniach datasetu."
       },
       "agent-system-toolbox": {
         "title": "Co czyta",
@@ -14473,7 +14473,7 @@
     "trainQuestion": "Posłużyło do pisania zmian",
     "holdoutQuestion": "Nie posłużyło do pisania zmian",
     "sourceSignals": "Źródła do nauki",
-    "signalWindow": "Oceny i nieudane runy z ostatnich 30 dni oraz pytania testowe z błędną odpowiedzią w ostatnim teście: razem to odpowiedzi z oceną.",
+    "signalWindow": "Feedback i nieudane runy z ostatnich 30 dni oraz błędy z ostatniego testu.",
     "ratedSignals": "Odpowiedzi ocenione negatywnie",
     "failedSignals": "Nieudane runy",
     "noLearningExamples": "Na razie nie ma z czego się uczyć: nikt nie ocenił odpowiedzi w ostatnich 30 dniach. Najpierw oceń odpowiedź albo napisz pytania testowe.",
@@ -14504,8 +14504,7 @@
     "title": "Popraw {name}",
     "heading": "Popraw",
     "intro": "Przeczytamy, co poszło nie tak, i zatrzymamy się, żebyś to obejrzał. Pisanie zmian i ich test czekają, aż naciśniesz Następny krok, a każdy krok wyceniamy wcześniej. Nic nie trafia na produkcję, dopóki nie zaakceptujesz i nie opublikujesz.",
-    "testSet": "Pytania testowe",
-    "chooseQuestions": "Wybierz pytania testowe",
+    "chooseQuestions": "Wybierz dataset",
     "writeQuestions": "Napisz dla mnie pytania testowe",
     "reviewQuestions": "Przejrzyj pytania",
     "baseline": "Sprawdź, jak agent odpowiada dzisiaj",
@@ -15024,7 +15023,12 @@
     "trainSignals": "Nieudane odpowiedzi testowe",
     "tryAgainNothingToLearn": "Ostatnia próba naprawiła każde pytanie, z którego się uczy, więc kolejna próba nie ma się z czego uczyć. Zaakceptuj ją albo zakończ sesję.",
     "tryAgainUnmeasurable": "Kolejna próba miałaby za mało pytań do zmierzenia: potrzeba jeszcze {count, plural, one {# pytania} few {# pytań} many {# pytań} other {# pytania}}, a pytania tej sesji są ustalone. Zakończ ją, dodaj pytania i zacznij nową.",
-    "pipelineSettings": "Ustaw model i instrukcje w datasecie"
+    "pipelineSettings": "Ustaw model i instrukcje w datasecie",
+    "startDescription": "Zaproponuj ulepszenia na podstawie feedbacku i przypadków testowych. Przejrzysz każdy krok przed zastosowaniem zmian.",
+    "startDataset": "Dataset",
+    "startDatasetHint": "Wybierz przypadki, na których sprawdzimy odpowiedzi agenta.",
+    "analysisEstimate": "Szacowany koszt analizy",
+    "startCostHint": "Najpierw analiza. Każda kolejna próba ma osobną wycenę, około {cost}, w ramach limitu sesji."
   },
   "unsaved": {
     "title": "Masz niezapisane zmiany",

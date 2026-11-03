@@ -19,7 +19,7 @@ import { useOrgStore } from "@/stores/org-store";
 import type { Improvement } from "@/types/improvement";
 import { Perm } from "@/types/permissions";
 import { ContinueSession } from "./continue-session";
-import { StartSession } from "./start-session";
+import { ImprovementStartRedirect } from "./improvement-start-redirect";
 import { KnowledgeDrafts } from "./knowledge-drafts";
 import { TestQuestions } from "./session-inputs";
 import { Understand } from "./understand";
@@ -75,24 +75,21 @@ export function ImprovementPage({ agentId, sessionId }: { agentId: string; sessi
         </Link>
       </div>
     );
+  if (sessionId === "new") return <ImprovementStartRedirect agentId={agentId} />;
   return (
     <div className="w-full min-w-0 space-y-4 pb-8 sm:space-y-6 sm:pb-12">
       <PageHeader
         title={t("title", { name: agent.name })}
         breadcrumbs={[{ label: agent.name, href: `/agents/${agentId}` }, { label: t("heading") }]}
       />
-      {sessionId === "new" ? (
-        <StartSession key={`${orgId}:${agentId}`} agentId={agentId} />
-      ) : (
-        <Session
-          key={`${orgId}:${agentId}:${sessionId}`}
-          agentId={agentId}
-          sessionId={sessionId}
-          agentName={agent.name}
-          canPublish={agent.can_publish === true}
-          canEdit={agent.can_edit === true}
-        />
-      )}
+      <Session
+        key={`${orgId}:${agentId}:${sessionId}`}
+        agentId={agentId}
+        sessionId={sessionId}
+        agentName={agent.name}
+        canPublish={agent.can_publish === true}
+        canEdit={agent.can_edit === true}
+      />
     </div>
   );
 }

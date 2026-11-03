@@ -5,7 +5,7 @@ import { isRendered } from "@/lib/rendered";
 import "driver.js/dist/driver.css";
 
 import { useCallback, useEffect, useMemo, useRef } from "react";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
 import { toast } from "sonner";
 import type { AllowedButtons, DriveStep, Driver } from "driver.js";
@@ -100,6 +100,8 @@ export function OnboardingTour() {
   const t = useTranslations("onboarding");
   const router = useRouter();
   const pathname = usePathname();
+  const improve = useSearchParams().get("improve");
+  const tourPath = pathname + (improve === null ? "" : `?improve=${encodeURIComponent(improve)}`);
   const locale = useLocale() as Locale;
   const chooseLocale = useChooseLocale();
   const saveContext = useSaveAgentContext();
@@ -133,10 +135,10 @@ export function OnboardingTour() {
     if (mode === "tour") {
       openOffer("create-agent");
     } else if (mode === "page") {
-      const flow = flowForPage(pageKey(stripLocale(pathname)), systemAgentPage);
+      const flow = flowForPage(pageKey(stripLocale(tourPath)), systemAgentPage);
       if (flow) openOffer(flow);
     }
-  }, [closeWalk, mode, openOffer, pathname, systemAgentPage]);
+  }, [closeWalk, mode, openOffer, tourPath, systemAgentPage]);
 
   // The arrows walk the tour, which is what a reader who has already read the
   // caption reaches for rather than moving a mouse to a pinned button. Capture
@@ -176,7 +178,7 @@ export function OnboardingTour() {
     spotlightRef.current ??= createTourSpotlight(prefersReducedMotion());
     const light = spotlightRef.current;
 
-    const here = stripLocale(pathname);
+    const here = stripLocale(tourPath);
     if (arrivedRef.current.path !== here)
       arrivedRef.current = { path: here, at: performance.now() };
     const detail = step.page ? detailTargets[step.page] : undefined;
@@ -353,7 +355,7 @@ export function OnboardingTour() {
     steps.length,
     isFirst,
     isLast,
-    pathname,
+    tourPath,
     router,
     next,
     back,

@@ -16,7 +16,7 @@ import { openImprovement } from "@/lib/improvement-steps";
 
 /**
  * Open the Improve wizard for this agent from a link. A link cannot know which
- * session is open, so the start screen it lands on forwards to one when there is.
+ * session is open, so the start modal forwards to one when there is.
  */
 export function ImproveLink({
   agentId,
@@ -31,7 +31,7 @@ export function ImproveLink({
 }) {
   return (
     <Link
-      href={`${ROUTES.AGENT_DETAIL(agentId)}/improve/new?resume=1`}
+      href={`${ROUTES.AGENT_DETAIL(agentId)}?improve=resume`}
       className={className}
       aria-label={label}
     >
@@ -50,12 +50,14 @@ export function ImproveLink({
 export function ImproveButton({
   agentId,
   persist,
+  onStart,
   size,
   tour,
 }: {
   agentId: string;
   /** Store the page's draft first; false when it did not store. */
   persist?: () => Promise<boolean>;
+  onStart?: () => void;
   size?: "sm";
   tour?: string;
 }) {
@@ -82,7 +84,9 @@ export function ImproveButton({
       onClick={() =>
         void (async () => {
           if (persist && !(await persist())) return;
-          router.push(`${ROUTES.AGENT_DETAIL(agentId)}/improve/${open?.id ?? "new"}`);
+          if (open) router.push(`${ROUTES.AGENT_DETAIL(agentId)}/improve/${open.id}`);
+          else if (onStart) onStart();
+          else router.push(`${ROUTES.AGENT_DETAIL(agentId)}?improve=new`);
         })()
       }
     >

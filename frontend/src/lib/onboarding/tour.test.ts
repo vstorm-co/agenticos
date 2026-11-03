@@ -741,3 +741,8 @@ it("describes every stage of an improvement on its own page", () => {
     ],
   );
 });
+
+it("uses the improvement walkthrough while the start modal is open over an agent", () => {
+  expect(pageKey("/agents/a1?improve=new")).toBe(IMPROVEMENT_START);
+  expect(pageKey("/agents/a1?tab=evals&improve=baseline")).toBe(IMPROVEMENT_START);
+});

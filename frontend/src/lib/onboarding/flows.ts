@@ -1048,6 +1048,7 @@ export const FLOWS: Record<FlowId, CreationFlow> = {
         page: IMPROVEMENT_START,
         target: "improvement-details",
         permission: Perm.runsView,
+        optional: true,
       },
     ],
   },

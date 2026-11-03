@@ -308,8 +308,8 @@ test("test questions, review and improvement publish keep a guarded environment 
   });
 
   await page.goto(`/agents/${id(agent)}/improve/new`);
-  await page.getByText("Show details", { exact: true }).click();
-  const testQuestions = page.getByLabel("Test questions", { exact: true });
+  await expect(page.getByRole("dialog")).toBeVisible();
+  const testQuestions = page.getByLabel("Dataset", { exact: true });
   const questionSet = page.getByRole("option", { name: String(dataset.name), exact: true });
   // Every spec's question sets are listed, so on a phone the one wanted can sit
   // outside the viewport; focused and chosen with Enter, it is picked wherever it is.
@@ -321,6 +321,7 @@ test("test questions, review and improvement publish keep a guarded environment 
     await page.keyboard.press("Enter");
     await expect(testQuestions).toContainText(String(dataset.name), { timeout: 2_000 });
   }).toPass({ timeout: 30_000 });
+  await page.getByText("Show details", { exact: true }).click();
   const estimate = page.getByText(/^Up to .+ \(estimate\) to sort the \d+ answers? with feedback/);
   await expect(
     page.getByRole("link", { name: "Configure model and instructions in the dataset" }),

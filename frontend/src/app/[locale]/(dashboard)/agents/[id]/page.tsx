@@ -33,6 +33,7 @@ import {
 
 import { PinAgentButton } from "@/components/agents/pin-agent-button";
 import { AgentAvatar } from "@/components/agents/agent-avatar";
+import { StartImprovementDialog } from "@/components/improvement/start-improvement-dialog";
 import { ImprovementHistory } from "@/components/improvement/improvement-history";
 import { JudgeDatasetsCard } from "@/components/agents/judge-datasets-card";
 import {
@@ -189,7 +190,7 @@ import { applySpecFix, type SpecFix } from "@/lib/spec-fixes";
 import { toolsForBinding } from "@/lib/binding-tools";
 import { ROUTES } from "@/lib/constants";
 import { useAgentSelectionStore, useConversationStore } from "@/stores";
-import { cn } from "@/lib/utils";
+import { cn, setUrlParam } from "@/lib/utils";
 import type { AgentSpec, CapabilityBindingSpec, McpServerRef } from "@/types/agents";
 import type { OrgMcpConnectionRecord } from "@/lib/org-mcp-connections-api";
 import { forSystemAgent, isSystemAgent, verdictKind } from "@/lib/system-agents";
@@ -355,6 +356,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
   // In the address, so a reload or a shared link lands on the same tab.
   const [tabParam, changeTab] = useUrlState("tab");
   const [gapTopic, gapTopicView] = useUrlOverlay("topic");
+  const [improveMode, improveView] = useUrlOverlay("improve");
   const [gapStatusParam, setGapStatusParam] = useUrlState("status");
   const setTab = (next: string) => changeTab(next === "build" ? null : next);
   // The Model card, which "No model selected" takes its reader to (#2483).
@@ -1135,7 +1137,12 @@ export default function AgentBuilderPage({ params }: PageProps) {
           secondaryActions={
             <>
               {canEdit && canViewRuns && (
-                <ImproveButton agentId={id} persist={persist} tour="agent-improve" />
+                <ImproveButton
+                  agentId={id}
+                  persist={persist}
+                  onStart={() => improveView.open("new")}
+                  tour="agent-improve"
+                />
               )}
               {/* Trying the agent happens in the chat, which streams, keeps the
                 conversation and can hand a tool call to the approval queue.
@@ -1567,7 +1574,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
             <Button
               size="sm"
               onClick={() => {
-                router.push(`/agents/${id}/improve/new?baseline=1`);
+                improveView.open("baseline");
                 setFirstPublished(false);
               }}
             >
@@ -2198,6 +2205,16 @@ export default function AgentBuilderPage({ params }: PageProps) {
           )}
         </Tabs>
       </div>
+      {improveMode !== null && (
+        <StartImprovementDialog
+          agent={agent}
+          allowed={canEdit && canViewRuns}
+          onClose={() => {
+            setUrlParam("improveDataset", null);
+            improveView.close();
+          }}
+        />
+      )}
       {resourceCreation.dialogs}
       {testing && canEdit && (
         <TestPanel

@@ -8,6 +8,7 @@ import { Button } from "@/components/ui";
 import { useImprovementEvidence } from "@/hooks/use-improvements";
 import { useDataset, useDatasetCases } from "@/hooks/use-datasets";
 import { useAgentAttention } from "@/hooks/use-usage-stats";
+import { cn } from "@/lib/utils";
 import { getErrorMessage } from "@/lib/api-error";
 import type { Improvement } from "@/types/improvement";
 import type { Dataset, DatasetCase } from "@/types/datasets";
@@ -37,7 +38,7 @@ export function StartSignals({ agentId, datasetId }: { agentId: string; datasetI
         <p role="status">{t("loading")}</p>
       ) : (
         <>
-          <dl className="bg-card divide-y rounded-xl border px-4">
+          <dl className="grid grid-cols-2 gap-2">
             {[
               {
                 label: t("ratedSignals"),
@@ -59,10 +60,25 @@ export function StartSignals({ agentId, datasetId }: { agentId: string; datasetI
                   ]
                 : []),
             ].map(({ label, value, icon: Icon }) => (
-              <div key={label} className="flex items-center gap-3 py-4">
-                <Icon className="text-muted-foreground size-4 shrink-0" aria-hidden />
-                <dt className="min-w-0 flex-1 text-sm">{label}</dt>
-                <dd className="text-lg font-semibold tabular-nums">{value}</dd>
+              <div
+                key={label}
+                className={cn(
+                  "flex flex-col gap-2 rounded-lg border p-3 sm:flex-row sm:items-center",
+                  Icon === ListX && "col-span-2 flex-row items-center",
+                )}
+              >
+                <dt className="text-muted-foreground flex min-w-0 flex-1 items-start gap-2 text-xs">
+                  <Icon className="size-4 shrink-0" aria-hidden />
+                  <span>{label}</span>
+                </dt>
+                <dd
+                  className={cn(
+                    "mt-auto text-lg font-semibold tabular-nums sm:mt-0",
+                    Icon === ListX && "mt-0",
+                  )}
+                >
+                  {value}
+                </dd>
               </div>
             ))}
           </dl>

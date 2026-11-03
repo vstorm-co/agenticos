@@ -112,7 +112,9 @@ vi.mock("@/hooks/use-datasets", () => ({
 vi.mock("@/hooks/use-agent-environments", () => ({
   useAgentEnvironments: () => ({ environments: state.environments }),
 }));
-vi.mock("./start-session", () => ({ StartSession: () => <p>Start fixture</p> }));
+vi.mock("./improvement-start-redirect", () => ({
+  ImprovementStartRedirect: () => <p>Start redirect fixture</p>,
+}));
 vi.mock("@/hooks/use-eval-runs", () => ({
   useEvalRun: () => ({ run: null, error: null }),
   useEvalComparison: () => ({ comparison: null }),
@@ -642,7 +644,7 @@ it("ends a waiting session from the wizard, and says a later attempt starts afre
 
 it("opens the start screen for an authorized editor", () => {
   render(<ImprovementPage agentId="a1" sessionId="new" />);
-  expect(screen.getByText("Start fixture")).toBeInTheDocument();
+  expect(screen.getByText("Start redirect fixture")).toBeInTheDocument();
 });
 it("keeps a provider failure and recorded round visible without a selected best round", () => {
   state.session!.status = "failed";

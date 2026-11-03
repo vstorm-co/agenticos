@@ -5481,11 +5481,11 @@
       },
       "improvement-details": {
         "title": "Show details",
-        "body": "Choose other test questions, change the spending limit or the helper, or test how the agent answers today."
+        "body": "Adjust the spending limit, inspect the test questions or check today’s answers. The helper’s model and instructions live in the dataset’s Settings."
       },
       "flow-improvement-details": {
         "title": "Show details",
-        "body": "Choose other test questions, change the spending limit or the helper, or test how the agent answers today."
+        "body": "Adjust the spending limit, inspect the test questions or check today’s answers. The helper’s model and instructions live in the dataset’s Settings."
       },
       "agent-system-toolbox": {
         "title": "What it reads",
@@ -14700,7 +14700,7 @@
     "trainQuestion": "Used to write the changes",
     "holdoutQuestion": "Not used to write the changes",
     "sourceSignals": "Sources to learn from",
-    "signalWindow": "Ratings and failed runs from the last 30 days, and test questions answered badly in the latest test: together, the answers with feedback.",
+    "signalWindow": "Feedback and failed runs from the last 30 days, plus failures from the latest test.",
     "ratedSignals": "Answers rated down",
     "failedSignals": "Runs that failed",
     "noLearningExamples": "Nothing to learn from yet: nobody rated an answer in the last 30 days. Rate an answer or write test questions first.",
@@ -14731,8 +14731,7 @@
     "title": "Improve {name}",
     "heading": "Improve",
     "intro": "We’ll read what went wrong, then stop for you to look. Writing changes and testing them each wait for you to press Next step, and each is priced first. Nothing goes live until you accept and publish it.",
-    "testSet": "Test questions",
-    "chooseQuestions": "Choose test questions",
+    "chooseQuestions": "Choose a dataset",
     "writeQuestions": "Write test questions for me",
     "reviewQuestions": "Review the questions",
     "baseline": "Test how the agent answers today",
@@ -15251,7 +15250,12 @@
     "trainSignals": "Test answers failing",
     "tryAgainNothingToLearn": "The last attempt fixed every question it learns from, so another attempt has nothing to learn from. Accept it or end the session.",
     "tryAgainUnmeasurable": "Another attempt would have too few questions to measure: {count, plural, one {# more is} other {# more are}} needed, and this session's questions are fixed. End it, add questions and start a new one.",
-    "pipelineSettings": "Configure model and instructions in the dataset"
+    "pipelineSettings": "Configure model and instructions in the dataset",
+    "startDescription": "Use feedback and test cases to propose improvements. Review each step before applying changes.",
+    "startDataset": "Dataset",
+    "startDatasetHint": "Choose the cases used to check this agent’s answers.",
+    "analysisEstimate": "Estimated analysis cost",
+    "startCostHint": "Analysis comes first. Each later attempt is estimated separately, around {cost}, within the session limit."
   },
   "unsaved": {
     "title": "You have unsaved changes",

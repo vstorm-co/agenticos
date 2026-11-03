@@ -11,7 +11,10 @@ import { Perm, type Permission } from "@/types/permissions";
 
 // The pathname the arrived-signal reads; a test moves it to fake a navigation.
 const nav = vi.hoisted(() => ({ pathname: "/dashboard" }));
-vi.mock("next/navigation", () => ({ usePathname: () => nav.pathname }));
+vi.mock("next/navigation", () => ({
+  useSearchParams: () => new URLSearchParams(window.location.search),
+  usePathname: () => nav.pathname,
+}));
 
 // Mutable state the mocked hooks read, so a test can grow a list between renders.
 const rig = vi.hoisted(() => ({

@@ -34,7 +34,7 @@ it("starts a new session when none is open, after storing the page's draft", asy
   expect(icon.closest('[aria-hidden="true"]')).not.toBeNull();
   await userEvent.click(button);
   expect(persist).toHaveBeenCalled();
-  expect(state.push).toHaveBeenCalledWith("/agents/a1/improve/new");
+  expect(state.push).toHaveBeenCalledWith("/agents/a1?improve=new");
 });
 
 it("reopens the session still open, marking an agent that needs it without leading", async () => {
@@ -66,7 +66,7 @@ it("links to the start screen, which forwards to a session still open", () => {
   render(<ImproveLink agentId="a1">Improve</ImproveLink>);
   expect(screen.getByRole("link", { name: "Improve" })).toHaveAttribute(
     "href",
-    "/agents/a1/improve/new?resume=1",
+    "/agents/a1?improve=resume",
   );
 });
 
@@ -76,7 +76,7 @@ it.each(["accepted", "published", "rejected", "cancelled", "stale"])(
     state.sessions = [{ id: "over", status, created_at: "2026-10-25T10:00:00Z" }];
     render(<ImproveButton agentId="a1" />);
     await userEvent.click(screen.getByRole("button", { name: "Improve" }));
-    expect(state.push).toHaveBeenCalledWith("/agents/a1/improve/new");
+    expect(state.push).toHaveBeenCalledWith("/agents/a1?improve=new");
   },
 );
 
@@ -85,4 +85,14 @@ it.each(["stopped", "failed"])("takes a %s session back for its decision", async
   render(<ImproveButton agentId="a1" />);
   await userEvent.click(screen.getByRole("button", { name: "Improve" }));
   expect(state.push).toHaveBeenCalledWith("/agents/a1/improve/waiting");
+});
+
+it("opens the modal in place after saving the draft when the builder supplies a callback", async () => {
+  const persist = vi.fn().mockResolvedValue(true);
+  const onStart = vi.fn();
+  render(<ImproveButton agentId="a1" persist={persist} onStart={onStart} />);
+  await userEvent.click(screen.getByRole("button", { name: "Improve" }));
+  expect(persist).toHaveBeenCalled();
+  expect(onStart).toHaveBeenCalled();
+  expect(state.push).not.toHaveBeenCalled();
 });

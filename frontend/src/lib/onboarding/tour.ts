@@ -204,6 +204,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
     page: IMPROVEMENT_START,
     target: "improvement-details",
     permission: Perm.runsView,
+    optional: true,
   },
   {
     id: "improvement-steps",
@@ -1427,8 +1428,12 @@ const SECTION_FLOWS: readonly (readonly string[])[] = [
 const WORKFLOW_RUNS_PATH = /^\/workflows\/[^/]+\/runs$/;
 const WORKFLOW_LOGS_PATH = /^\/workflows\/[^/]+\/logs$/;
 
-/** The page identity a real pathname belongs to; detail routes collapse onto their pseudo-page. */
+/** The page or modal identity for a pathname with an optional query string. */
 export function pageKey(path: string): string {
+  const [pathname = "", query] = path.split("?");
+  if (/^\/agents\/[^/]+\/?$/.test(pathname) && new URLSearchParams(query).has("improve"))
+    return IMPROVEMENT_START;
+  path = pathname;
   if (/^\/agents\/[^/]+\/improve\/new(\/|$)/.test(path)) return IMPROVEMENT_START;
   if (/^\/agents\/[^/]+\/improve\/[^/]+/.test(path)) return IMPROVEMENT;
   if (/^\/agents\/[^/]+\/evals\/[^/]+/.test(path)) return EVAL_RUN;
