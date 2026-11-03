@@ -136,6 +136,55 @@ async def test_verdict_ignores_training_results_but_preserves_them_for_the_next_
     assert all(result.compared == 5 for result in comparisons)
 
 
+async def test_a_run_too_small_to_judge_alone_can_be_compared_for_a_pool(db):
+    """A skill check pools several runs' held-out questions; each run's own comparison
+    leaves the minimum to it and says how many it could grade."""
+    ctx, agent, _ = await _setup(db)
+    dataset = await _dataset(db, ctx, cases=7)
+    revisions = list(
+        await db.scalars(
+            select(DatasetCase)
+            .where(DatasetCase.dataset_id == dataset.id, DatasetCase.removed_in.is_(None))
+            .order_by(DatasetCase.position)
+        )
+    )
+    for row in revisions[:4]:
+        row.improvement_partition = "train"
+    await db.flush()
+    service = EvalRunService(db)
+    baseline = AgentSpec.model_validate(agent.draft_spec)
+    candidate = baseline.model_copy(update={"instructions": baseline.instructions + " 30 days"})
+    started = await service.start(
+        ctx,
+        agent.id,
+        EvalRunRequest(dataset_id=dataset.id, paired_baseline=True),
+        candidate_spec=candidate,
+        baseline_spec=baseline,
+        proposal_check=ProposalCheckRecord(
+            kind="agent", base_version=None, on_draft=True, suggestions=1
+        ),
+    )
+    model = Answers(db, train_passes=True)
+
+    async def execute(runner, *args, **kwargs):
+        return await model.execute(runner, *args, **kwargs)
+
+    with (
+        patch.object(AgentRunnerService, "execute", new=execute),
+        patch("app.services.eval_run_worker.settings.EVAL_RUN_CONCURRENCY", 1),
+    ):
+        await EvalRunWorker(
+            started.id, ctx.organization_id, sessions=_sessions(db), sleep=AsyncMock()
+        ).run()
+
+    alone = await service.compare(ctx, started.id)
+    pooled = await service.compare(ctx, started.id, holdout_minimum=False)
+
+    assert (alone.verdict, alone.gradable_holdout) == ("invalid", 3)
+    assert (pooled.verdict, pooled.invalid_reason, pooled.gradable_holdout) == ("better", None, 3)
+    assert pooled.fixed_confirmed == pooled.compared == 3
+
+
 async def test_hand_entered_and_generated_evidence_copies_cannot_become_holdout(db):
     ctx, agent, source = await _setup(db)
     service = DatasetService(db)

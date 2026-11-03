@@ -29,7 +29,14 @@ from app.db.models.agent import Agent
 from app.db.models.agent_environment import AgentEnvironment
 from app.db.models.eval_run import EvalRun, EvalRunStatus
 from app.db.models.skill import Skill
-from app.db.models.skill_check import AgentState, CheckOutcome, CheckStatus, CheckVerdict
+from app.db.models.skill_check import (
+    AgentState,
+    CheckOutcome,
+    CheckSource,
+    CheckStatus,
+    CheckVerdict,
+    UnknownReason,
+)
 from app.repositories import dataset_repo, eval_run_repo, skill_check_repo, skill_proposal_repo
 from app.schemas.resource_usage import ProposalDecision
 from app.schemas.skill_check import (
@@ -41,6 +48,7 @@ from app.schemas.skill_check import (
 )
 from app.services import skill_check as skill_check_module
 from app.services.eval_run import EvalRunService
+from app.services.improvement_data import MIN_HOLDOUT_CASES
 from app.services.skill_agents import SkillAgentService
 from app.services.skill_check import SkillCheckService
 from app.services.skill_proposal import SkillProposalService
@@ -73,6 +81,8 @@ class FakeEvals:
     agent_left: Decimal | None = None
     org_left: Decimal | None = None
     refuse_start: set[uuid.UUID] = field(default_factory=set)
+    held_out: int = 5
+    """The gradable held-out questions each stage's run compares."""
     started: list[tuple[uuid.UUID, Any]] = field(default_factory=list)
 
     def install(self, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -125,8 +135,9 @@ class FakeEvals:
             fake.started.append((agent_id, request))
             return SimpleNamespace(id=run_id)
 
-        async def compare(_self, _ctx, run_id, **_):
+        async def compare(_self, _ctx, run_id, *, holdout_minimum=True, **_):
             outcome = fake.outcomes.get(fake.runs[run_id].agent_id, Outcome())
+            too_few = holdout_minimum and fake.held_out < MIN_HOLDOUT_CASES
             summary = SimpleNamespace(
                 incomplete=outcome.incomplete, ungraded=0, crashed=0, pass_rate=0.5
             )
@@ -137,12 +148,13 @@ class FakeEvals:
                 candidate_summary=better if outcome.fixed else summary,
                 baseline_summary=summary,
                 baseline=object(),
-                verdict="better",
+                verdict="invalid" if too_few else "better",
                 regressions_confirmed=outcome.broken,
                 fixed_confirmed=outcome.fixed,
                 fixed_unconfirmed=0,
                 regressions_unconfirmed=outcome.unconfirmed_broken,
-                compared=4,
+                compared=fake.held_out,
+                gradable_holdout=fake.held_out,
             )
 
         async def cancel(_self, _ctx, run_id):
@@ -387,6 +399,59 @@ class TestWhoIsChecked:
             ("skill_set", 4),
             ("dataset_sample", 2),
         ]
+
+    @pytest.mark.parametrize(
+        ("outcomes", "states", "result"),
+        [
+            (
+                {"a": Outcome(fixed=1), "b": Outcome(broken=2)},
+                {"A": AgentState.BETTER, "B": AgentState.WORSE},
+                CheckVerdict.BLOCKED,
+            ),
+            (
+                {"a": Outcome(fixed=1)},
+                {"A": AgentState.BETTER, "B": AgentState.NO_CHANGE},
+                CheckVerdict.PASSED,
+            ),
+        ],
+    )
+    async def test_stages_too_small_alone_are_judged_together(
+        self, db, monkeypatch, outcomes, states, result
+    ):
+        """Three held-out questions per stage are too few for any stage, and six for the
+        agent are enough: a confirmed regression blocks, a confirmed fix passes."""
+        lab = await _lab(db)
+        evals = FakeEvals(held_out=3)
+        evals.install(monkeypatch)
+        service = SkillCheckService(db)
+        check = await service.start(
+            lab.ctx,
+            lab.skill.id,
+            _start(mode="thorough"),
+            source=CheckSource.SESSION,
+            only=[lab.a.id, lab.b.id],
+        )
+        evals.outcomes = {getattr(lab, key).id: value for key, value in outcomes.items()}
+
+        read = await _run_to_end(service, evals, lab, check.id)
+
+        assert {row.agent.name: row.state for row in read.agents} == states
+        assert read.verdict is result
+
+    async def test_one_stage_too_small_on_its_own_leaves_the_agent_unknown(self, db, monkeypatch):
+        lab = await _lab(db)
+        evals = FakeEvals(held_out=3)
+        evals.install(monkeypatch)
+        service = SkillCheckService(db)
+        check = await service.start(
+            lab.ctx, lab.skill.id, _start(), source=CheckSource.SESSION, only=[lab.c.id]
+        )
+        evals.outcomes = {lab.c.id: Outcome(fixed=1)}
+
+        read = await _run_to_end(service, evals, lab, check.id)
+
+        [c] = read.agents
+        assert (c.state, c.unknown_reason) == (AgentState.UNKNOWN, UnknownReason.INCONCLUSIVE)
 
     async def test_a_changed_description_is_always_checked_thoroughly(self, db, monkeypatch):
         lab = await _lab(db)
@@ -824,5 +889,7 @@ class TestTestSet:
         created = await service.create_test_set(ctx, skill.id, SkillTestSetStart())
 
         assert (await service.test_set(ctx, skill.id)).id == created.id
+        # Every question it gets is held out: it measures changes, nothing learns from it.
+        assert created.improvement_holdout_share == 1
         with pytest.raises(AlreadyExistsError):
             await service.create_test_set(ctx, skill.id, SkillTestSetStart())

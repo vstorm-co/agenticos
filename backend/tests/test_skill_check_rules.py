@@ -11,11 +11,12 @@ from app.db.models.skill_check import AgentState, CheckOutcome, CheckVerdict
 from app.services.improvement_states import CheckResult
 from app.services.skill_check_rules import (
     SampleCandidate,
+    StageComparison,
     StageResult,
     changed_words,
-    combined,
     noisy,
     outcomes,
+    pooled,
     sample,
     stage_state,
     total,
@@ -79,24 +80,79 @@ class TestStage:
         assert stage_state(_stage(incomplete=1)) is AgentState.UNKNOWN
 
 
-class TestCombined:
-    @pytest.mark.parametrize(
-        ("states", "expected"),
-        [
-            ([AgentState.BETTER, AgentState.WORSE], AgentState.WORSE),
-            ([AgentState.UNKNOWN, AgentState.WORSE], AgentState.WORSE),
-            ([AgentState.BETTER, AgentState.UNKNOWN], AgentState.UNKNOWN),
-            ([AgentState.BETTER, AgentState.NO_CHANGE], AgentState.BETTER),
-            ([AgentState.WITHIN_NOISE, AgentState.BETTER], AgentState.BETTER),
-            ([AgentState.WITHIN_NOISE, AgentState.NO_CHANGE], AgentState.WITHIN_NOISE),
-            ([AgentState.NO_CHANGE], AgentState.NO_CHANGE),
-            ([], AgentState.UNKNOWN),
-        ],
+def _compared(
+    *,
+    held_out: int,
+    fixed: int = 0,
+    broken: int = 0,
+    broken_unconfirmed: int = 0,
+    candidate: float | None = 0.5,
+    baseline: float | None = 0.5,
+    comparable: bool = True,
+) -> StageComparison:
+    return StageComparison(
+        comparable=comparable,
+        gradable_holdout=held_out,
+        incomplete=0,
+        ungraded=0,
+        crashed=0,
+        regressions_confirmed=broken,
+        fixed_confirmed=fixed,
+        regressions_unconfirmed=broken_unconfirmed,
+        fixed_unconfirmed=0,
+        compared=held_out,
+        candidate_pass_rate=candidate,
+        baseline_pass_rate=baseline,
     )
-    def test_an_agents_result_from_its_stages(
-        self, states: list[AgentState], expected: AgentState
-    ) -> None:
-        assert combined(states) is expected
+
+
+class TestPooled:
+    """The held-out minimum is the agent's: its stages are one measurement."""
+
+    def test_a_sample_and_a_skill_set_too_small_alone_make_a_result_together(self) -> None:
+        sample = _compared(held_out=4, fixed=1, candidate=0.75, baseline=0.5)
+        skill_set = _compared(held_out=2, candidate=0.5, baseline=0.5)
+
+        result = pooled([sample, skill_set], minimum=5)
+
+        assert result.check.comparable and result.compared == 6
+        assert result.check.candidate_pass_rate == pytest.approx((0.75 * 4 + 0.5 * 2) / 6)
+        assert stage_state(result) is AgentState.BETTER
+
+    def test_too_few_held_out_questions_in_all_is_unknown(self) -> None:
+        result = pooled([_compared(held_out=2, broken=1), _compared(held_out=2)], minimum=5)
+
+        assert stage_state(result) is AgentState.UNKNOWN
+
+    def test_a_regression_confirmed_in_one_stage_makes_the_agent_worse(self) -> None:
+        result = pooled(
+            [_compared(held_out=4, fixed=1, candidate=0.75), _compared(held_out=6, broken=4)],
+            minimum=5,
+        )
+
+        assert stage_state(result) is AgentState.WORSE
+        assert result.check.regressions_confirmed == 4
+
+    def test_a_stage_invalid_for_another_reason_leaves_the_agent_unknown(self) -> None:
+        result = pooled(
+            [_compared(held_out=10, fixed=2), _compared(held_out=4, comparable=False)],
+            minimum=5,
+        )
+
+        assert stage_state(result) is AgentState.UNKNOWN
+
+    def test_unconfirmed_flips_anywhere_make_the_agent_noisy(self) -> None:
+        result = pooled(
+            [_compared(held_out=6), _compared(held_out=4, broken_unconfirmed=1)], minimum=5
+        )
+
+        assert stage_state(result) is AgentState.WITHIN_NOISE and noisy(result)
+
+    def test_no_stage_or_no_pass_rate_measures_nothing(self) -> None:
+        assert stage_state(pooled([], minimum=5)) is AgentState.UNKNOWN
+        result = pooled([_compared(held_out=6, fixed=1, baseline=None)], minimum=5)
+        assert result.check.baseline_pass_rate is None
+        assert stage_state(result) is AgentState.UNKNOWN
 
 
 class TestVerdict:
