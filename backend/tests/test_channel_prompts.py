@@ -810,6 +810,7 @@ class TestAPressThatLostTheRace:
             await service.press(_press(prompt, 0, bot))
         return env, prompt
 
+    @pytest.mark.security
     async def test_an_approval_decided_elsewhere_settles_the_row_and_says_so(self):
         gone = BadRequestError(message="This request was already approved")
         env, prompt = await self._approval(
