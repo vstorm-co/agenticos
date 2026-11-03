@@ -241,11 +241,13 @@ A skill is improved from its workbench under Skills. What the assistant suggests
 is a whole new body, and it waits with the other [skill](skills.md) changes
 under Skills, with its rationale and evidence.
 
-Applying a skill change is live: every agent bound to the skill reads the new
-body on its next run. So a skill change can be checked with evals first, on an
-agent that uses the skill: both sides run that agent's published version, and
-only the skill's body differs. A change written against an older version of the
-skill is refused once somebody has changed the skill since.
+Applying a skill change is live: every agent following the skill's line reads the
+new body on its next run. So a skill change goes live only through a
+[check on every agent of its line](skills.md#checking-a-change-on-every-agent):
+each one's published version answers with the skill as it is and with the
+change, and the change is applied from that check's result. A change written
+against an older version of the skill is refused once somebody has changed the
+skill since.
 
 ## Context files { #context-files }
 

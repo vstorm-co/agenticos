@@ -26,6 +26,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import record_audit
 from app.core.exceptions import AlreadyExistsError, ConcurrentChangeError, NotFoundError
+from app.core.field_errors import refused_field
 from app.core.permissions import AuthContext, Perm
 from app.db.models.skill import Skill
 from app.db.models.skill_proposal import ProposalStatus, SkillProposal
@@ -239,7 +240,12 @@ class SkillProposalService:
         return proposal
 
     async def apply(
-        self, ctx: AuthContext, proposal_id: UUID, decision: ProposalDecision
+        self,
+        ctx: AuthContext,
+        proposal_id: UUID,
+        decision: ProposalDecision,
+        *,
+        checked: bool = False,
     ) -> SkillProposal:
         """Accept a change: mark it applied at the revision read, then write it to the skill.
 
@@ -253,20 +259,35 @@ class SkillProposalService:
         written against: a body reviewed against v3 must not silently replace a v4
         somebody wrote meanwhile.
 
+        A change to an existing skill goes live only through a check of it on
+        every agent of its line: `decision.check_id` names that check, and the
+        change is applied by it, under its rule. `checked` is the check itself
+        applying the change.
+
         Raises:
             AlreadyExistsError: If it was already decided.
             NotFoundError: If the proposal is not this organization's.
             ConcurrentChangeError: If the skill moved past the version it was written
                 against, or the proposal since the reviewer read it.
+            BadRequestError: A change to a skill with no check of it, or one whose
+                check does not allow applying it as it stands.
         """
         proposal = await self.get(ctx, proposal_id)
         self._refuse_second_decision(proposal, decision.revision)
+        if proposal.skill_id is not None and not checked:
+            from app.schemas.skill_check import SkillCheckApply
+            from app.services.skill_check import SkillCheckService
 
-        source = (
-            SkillVersionSource.WORKSPACE
-            if proposal.authoring_request_id is None
-            else SkillVersionSource.IMPROVE
-        )
+            if decision.check_id is None:
+                raise refused_field(
+                    "check_id", "Check this change on the agents of its line before applying it"
+                )
+            checks = SkillCheckService(self.db)
+            check = await checks.passed_for(ctx, proposal, decision.check_id)
+            await checks.apply(ctx, check.skill_id, check.id, SkillCheckApply())
+            return await self.get(ctx, proposal_id)
+
+        source = version_source(proposal)
         fork = None
         if proposal.skill_id is not None:
             current = await self.skills.get(ctx, proposal.skill_id, perm=Perm.SKILLS_EDIT)
@@ -301,6 +322,11 @@ class SkillProposalService:
         files = [
             (name, content.encode("utf-8")) for name, content in sorted(proposal.resources.items())
         ]
+        removed: list[str] = []
+        if fork is None and proposal.skill_id is not None and replaces_files(proposal):
+            removed = await self.skills.drop_resources(
+                ctx, proposal.skill_id, keep=set(proposal.resources)
+            )
         if fork is not None:
             skill = current
             await self._apply_to_fork(ctx, fork, proposal, source)
@@ -318,13 +344,15 @@ class SkillProposalService:
                 ctx,
                 proposal.skill_id,
                 SkillUpdate(description=proposal.description, content=proposal.content),
-                source=None if files else source,
+                source=None if files or removed else source,
                 proposal_id=proposal.id,
             )
         if files and fork is None:
             await self.skills.put_resources(
                 ctx, skill.id, files, source=source, proposal_id=proposal.id
             )
+        elif removed:
+            await self.skills.record_files(ctx, skill.id, source=source, proposal_id=proposal.id)
 
         reaches = (
             await proposal_reach.reach(
@@ -408,6 +436,10 @@ class SkillProposalService:
         proposal = await self.get(ctx, proposal_id)
         self._refuse_second_decision(proposal, decision.revision)
         decided = await self._claim(ctx, proposal, decision, ProposalStatus.DISCARDED)
+        if proposal.skill_id is not None:
+            from app.services.skill_check import SkillCheckService
+
+            await SkillCheckService(self.db).stop_for_proposal(ctx, proposal.skill_id, proposal_id)
         await record_audit(
             self.db,
             actor_user_id=ctx.subject_id,
@@ -420,6 +452,24 @@ class SkillProposalService:
                 "proposal_id": str(proposal_id),
                 "revision": decided.revision,
             },
+        )
+        return decided
+
+    async def mark_forked(
+        self, ctx: AuthContext, proposal_id: UUID, decision: ProposalDecision
+    ) -> SkillProposal:
+        """Decide a change that a check made a fork of instead of applying it to its line."""
+        proposal = await self.get(ctx, proposal_id)
+        self._refuse_second_decision(proposal, decision.revision)
+        decided = await self._claim(ctx, proposal, decision, ProposalStatus.APPLIED)
+        await record_audit(
+            self.db,
+            actor_user_id=ctx.subject_id,
+            organization_id=ctx.organization_id,
+            action="skill.change_forked",
+            target_type="skill",
+            target_id=str(proposal.skill_id) if proposal.skill_id else None,
+            details={"proposal_id": str(proposal_id), "revision": decided.revision},
         )
         return decided
 
@@ -455,6 +505,23 @@ class SkillProposalService:
             )
         if proposal.revision != revision:
             raise _changed(proposal)
+
+
+def replaces_files(proposal: SkillProposal) -> bool:
+    """Whether the proposal's files are the skill's whole set rather than changes to it.
+
+    A library update carries every file the bundled skill has, so one it dropped goes.
+    """
+    return proposal.source == SkillVersionSource.LIBRARY.value
+
+
+def version_source(proposal: SkillProposal) -> SkillVersionSource:
+    """What a version made from this proposal says it came from."""
+    if proposal.source is not None:
+        return SkillVersionSource(proposal.source)
+    if proposal.authoring_request_id is None:
+        return SkillVersionSource.WORKSPACE
+    return SkillVersionSource.IMPROVE
 
 
 def _moved_since(proposal: SkillProposal, skill: Skill, latest: UUID | None) -> bool:

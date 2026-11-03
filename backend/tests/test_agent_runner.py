@@ -1987,7 +1987,7 @@ def _skill() -> SimpleNamespace:
         latest_version_id=uuid.uuid4(),
         description="Match the ledger",
         content="Run reconcile.py.",
-        resources=[SimpleNamespace(name="reconcile.py", content="print('ok')")],
+        resources=[SimpleNamespace(name="reconcile.py", description=None, content="print('ok')")],
     )
 
 

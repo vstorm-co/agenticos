@@ -8224,6 +8224,49 @@
     "bodyPlaceholder": "# Erstattungen\n\nNutzen Sie dies, wenn ein Kunde sein Geld zurückmöchte.\n\n## Schritte\n\n1. Prüfen Sie das Bestelldatum.\n2. Innerhalb von 14 Tagen ohne Nachfrage erstatten.\n3. Danach eine Person um Freigabe bitten.",
     "whoCanUseIt": "Wer es nutzen darf",
     "expectedEffect": "Erwartete Wirkung:",
+    "checkOnAgents": "Auf Agents prüfen",
+    "checkChangeTo": "Die Änderung an {name} auf den Agents prüfen, die ihn nutzen",
+    "check": {
+      "title": "Diese Änderung auf jedem Agent prüfen, der den Skill nutzt",
+      "description": "Jeder Agent beantwortet seine Fragen mit dem Skill, wie er ist, und mit dieser Änderung. Nichts ändert sich, bevor du entscheidest.",
+      "price": "Wahrscheinlich ${expected}, höchstens ${most}. Der Anteil jedes Agents geht auf sein Budget.",
+      "start": "Prüfung starten",
+      "running": "Wird geprüft. Das dauert einige Minuten; du kannst das Fenster schließen und später zurückkommen.",
+      "asked": "{count, plural, =1 {1 Frage gestellt} other {# Fragen gestellt}}",
+      "skillSetOnly": "Nur mit den Fragen des Skills geprüft: keine Frage dieses Agents hat den Skill geöffnet.",
+      "hidden": "{count, plural, =1 {1 weiterer Agent nutzt diesen Skill, den du nicht sehen kannst.} other {# weitere Agents nutzen diesen Skill, die du nicht sehen kannst.}}",
+      "noisy": "Einige Ergebnisse lagen im Rauschen: die Prüfung sah einen Unterschied, den sie nicht bestätigen konnte.",
+      "forkLine": "Diese Änderung betrifft einen Fork, der weder festgesetzt noch erneut geforkt werden kann. Verbessere sie weiter oder verwirf sie.",
+      "acknowledge": "Mir ist klar, dass einige Agents nicht geprüft werden konnten.",
+      "discard": "Verwerfen",
+      "apply": "Übernehmen",
+      "applyAndPin": "Übernehmen und schlechtere Agents auf ihrer Version lassen",
+      "reason": {
+        "no_questions": "Nicht geprüft: es gibt keine Fragen.",
+        "no_access": "Nicht geprüft: du darfst diesen Agent nicht ausführen.",
+        "no_budget": "Nicht geprüft: sein Budget deckt die Prüfung nicht.",
+        "no_published_version": "Nicht geprüft: er hat keine veröffentlichte Version.",
+        "inconclusive": "Nicht geprüft: nicht jede Antwort ließ sich bewerten.",
+        "failed": "Nicht geprüft: sein Run ist fehlgeschlagen."
+      },
+      "state": {
+        "queued": "Wartet",
+        "running": "Läuft",
+        "better": "Besser",
+        "no_change": "Unverändert",
+        "within_noise": "Im Rauschen",
+        "worse": "Schlechter",
+        "unknown": "Unbekannt"
+      },
+      "verdict": {
+        "passed": "Kein Agent wurde schlechter, mindestens einer besser.",
+        "needs_ack": "Kein geprüfter Agent wurde schlechter, aber einige konnten nicht geprüft werden.",
+        "blocked": "Ein Agent wurde schlechter. Du kannst die Änderung trotzdem übernehmen und ihn auf seiner jetzigen Version lassen.",
+        "no_better": "Kein Agent wurde besser, also gibt es nichts zu übernehmen."
+      },
+      "unaffordable": "Das restliche Monatsbudget der Organisation deckt diese Prüfung nicht.",
+      "cancel": "Prüfung anhalten"
+    },
     "page": {
       "skills": "Skills",
       "mainVersion": "v{number} auf main",
