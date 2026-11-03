@@ -1,5 +1,5 @@
 ---
-source_sha: "ab571df6c0c2"
+source_sha: "5c0f217fe9b6"
 ---
 
 # Skille { #skills }
@@ -472,7 +472,9 @@ się na tej wersji main, więc nie jest już za main. Gdy sama main nie pogorszy
 mogą potem wrócić do main.
 
 Oba są odrzucane (409), gdy fork jest zarchiwizowany, gdy nie ma własnej wersji (jego
-agenci wracają wtedy do main) i gdy scalenie niczego by nie zmieniło. Akceptacja jest
+agenci wracają wtedy do main) i gdy scalenie niczego by nie zmieniło. Są też
+odrzucane (422), gdy tekst jest zbyt długi albo zbyt często powtarza linie, żeby
+scalić go linia po linii w rozsądnym czasie; zmiany przenosi się wtedy ręcznie. Akceptacja jest
 odrzucana, gdy main albo fork ma nowszą wersję niż ta, którą odczytało scalenie,
 a sesja, której linie poszły dalej, gdy czekała, kończy się jako nieaktualna: zacznij
 nową, żeby objąć nowszą wersję.

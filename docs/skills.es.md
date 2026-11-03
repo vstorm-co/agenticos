@@ -1,5 +1,5 @@
 ---
-source_sha: "ab571df6c0c2"
+source_sha: "5c0f217fe9b6"
 ---
 
 # Skills { #skills }
@@ -488,6 +488,9 @@ los agents del fork pueden volver a main.
 
 Ambos se rechazan (409) cuando el fork está archivado, cuando no tiene versión propia
 (sus agents vuelven entonces a main) y cuando la combinación no cambiaría nada.
+También se rechazan (422) cuando un texto es demasiado largo o repite sus líneas
+demasiado para combinarlo línea a línea en un tiempo razonable; los cambios se llevan
+entonces a mano.
 Aceptar se rechaza en cuanto main o el fork tienen una versión más nueva que la que
 leyó la combinación, y una sesión cuyas líneas avanzaron mientras esperaba termina
 como obsoleta: empieza otra para incluir la versión más nueva.

@@ -29,6 +29,7 @@ from app.core.exceptions import (
     ConflictError,
     NotFoundError,
 )
+from app.core.exceptions import ValidationError as TooLargeToMerge
 from app.core.field_errors import refused_field
 from app.core.permissions import AuthContext, Perm
 from app.db.models.agent import Agent, AgentStatus, AgentVersion
@@ -70,7 +71,16 @@ from app.schemas.skill_version import (
 from app.services.access import AGENT, SKILL, accessible_ids, resolve_access
 from app.services.agent_registry import delegation_binding
 from app.services.skill_agents import Line, SkillAgentService, lines_of
-from app.services.skill_merge import MergePart, PartState, merge_files, merge_text, merge_value
+from app.services.skill_merge import (
+    MAX_LINES,
+    MAX_PAIRS,
+    MergePart,
+    MergeTooLarge,
+    PartState,
+    merge_files,
+    merge_text,
+    merge_value,
+)
 from app.services.skill_versions import SkillVersionService, changes_since
 
 
@@ -246,6 +256,7 @@ class SkillCatchUpService:
         Raises:
             ConflictError: The fork is archived, has no version of its own - its agents
                 return to main instead - or the merge would change nothing.
+            TooLargeToMerge: The texts are too long or too repetitive to merge (422).
         """
         self.versions.refuse_archived(fork)
         if fork.latest_version_id is None:
@@ -275,6 +286,16 @@ class SkillCatchUpService:
                 ),
                 details={"fork_id": fork.id},
             )
+        try:
+            parts = merge_text(base.content, ours.content, main.content)
+        except MergeTooLarge as exc:
+            raise TooLargeToMerge(
+                message=(
+                    f"The fork '{fork.name}' and main are too long or too repetitive to merge "
+                    "automatically. Bring the changes over by hand in the editor."
+                ),
+                details={"fork_id": fork.id, "max_lines": MAX_LINES, "max_pairs": MAX_PAIRS},
+            ) from exc
         return MergeSides(
             base=base,
             fork=ours,
@@ -282,9 +303,7 @@ class SkillCatchUpService:
             description=_text_row(
                 merge_value(base.description, ours.description, main.description)
             ),
-            parts=[
-                _text_row(part) for part in merge_text(base.content, ours.content, main.content)
-            ],
+            parts=[_text_row(part) for part in parts],
             files=_file_rows(base, ours, main),
         )
 
