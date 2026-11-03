@@ -4970,7 +4970,7 @@
         "description": "Co asystent tworzenia zasugerował dla Twoich agentów, skilli i plików kontekstu, czekając na Twoją decyzję.",
         "empty": {
           "title": "Nic nie czeka",
-          "description": "Otwórz Evals, aby ulepszyć agenta na podstawie wyników."
+          "description": "Otwórz zakładkę Ewaluacje, aby ulepszyć agenta na podstawie wyników."
         },
         "counts": "{instructions, plural, =0 {} one {# zmiana instrukcji} few {# zmiany instrukcji} many {# zmian instrukcji} other {# zmian instrukcji}}{tools, plural, =0 {} other { · {tools, plural, one {# zmiana narzędzia} few {# zmiany narzędzi} many {# zmian narzędzi} other {# zmian narzędzi}}}}{fields, plural, =0 {} other { · {fields, plural, one {# zmiana ustawień} few {# zmiany ustawień} many {# zmian ustawień} other {# zmian ustawień}}}}",
         "skillChanges": "Skill · {count, plural, one {1 zmiana} few {# zmiany} many {# zmian} other {# zmiany}}",
@@ -6773,7 +6773,7 @@
       },
       "agent-assistant-strip": {
         "title": "Sugestie",
-        "body": "Przeglądaj proponowane zmiany w Evals, sprawdzaj je na datasecie i akceptuj do draftu. Improve uruchomisz z paska akcji Evals."
+        "body": "Przeglądaj proponowane zmiany w zakładce Ewaluacje, sprawdzaj je na datasecie i zapisuj w wersji roboczej. Popraw uruchomisz z paska akcji tej zakładki."
       },
       "agent-environment-guards": {
         "title": "Strażnicy",

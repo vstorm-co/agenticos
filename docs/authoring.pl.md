@@ -25,7 +25,7 @@ Robi trzy rzeczy:
 - **Ulepsza skill** albo **plik kontekstowy**: sugeruje nową treść na podstawie
   runów, które go czytały.
 
-W Agent Builderze **Budowa** zawiera konfigurację, a **Test** otwiera interaktywny panel wersji roboczej. Otwórz **Evals**, aby porównać draft z opublikowaną wersją na datasecie lub uruchomić **Popraw**. Wycena pojawia się przed wykonaniem. Dawny endpoint sprawdzania na podstawie dowodów pozostaje dostępny dla zgodności API.
+W Agent Builderze **Budowa** zawiera konfigurację, a **Test** otwiera interaktywny panel wersji roboczej. Otwórz **Ewaluacje**, aby porównać wersję roboczą z opublikowaną wersją na datasecie lub uruchomić **Popraw**. Wycena pojawia się przed wykonaniem. Dawny endpoint sprawdzania na podstawie dowodów pozostaje dostępny dla zgodności API.
 
 **Improve** otwiera sesję ulepszania. Model i instrukcje ulepszania należą do **Ustawień** wybranego datasetu; pomocnicy mają domyślne instrukcje w kodzie i nie mają strony edycji w katalogu agentów. Dialogi ulepszania skilli i kontekstu wybierają model bezpośrednio. Nadal obowiązują budżety i zapisy runów w Aktywności.
 
@@ -66,7 +66,7 @@ pokazuje ją nad cytatami ustalenia, żeby czytelnik ocenił, czy go popierają.
 Ustalenie, że edycja ma poparcie, któremu nie został żaden cytat do sprawdzenia,
 nie jest pokazywane.
 
-Gdy żądanie asystenta - Sprawdź albo Ulepsz przez API - kończy się przy otwartej zakładce Evals, dialog wyniku pokazuje liczbę przejrzanych odpowiedzi, zaproponowane i zapisane zmiany oraz odrzucone propozycje z powodami. Można otworzyć go ponownie przyciskiem **Zobacz wynik**. Pusty wynik informuje, że niczego nie można zastosować, bez oczekiwanego efektu. Opis efektu zawierający surowe identyfikatory runów jest zastępowany opisem z liczbą podlinkowanych odpowiedzi źródłowych.
+Gdy żądanie asystenta - Sprawdź albo Ulepsz przez API - kończy się przy otwartej zakładce Ewaluacje, dialog wyniku pokazuje liczbę przejrzanych odpowiedzi, zaproponowane i zapisane zmiany oraz odrzucone propozycje z powodami. Można otworzyć go ponownie przyciskiem **Zobacz wynik**. Pusty wynik informuje, że niczego nie można zastosować, bez oczekiwanego efektu. Opis efektu zawierający surowe identyfikatory runów jest zastępowany opisem z liczbą podlinkowanych odpowiedzi źródłowych.
 
 Każdy zmieniony tekst - instrukcje, opis narzędzia, plik kontekstowy - jest pokazany jako diff: usunięte i dodane linie z zaznaczonymi zmienionymi słowami, kilka niezmienionych linii wokół każdej zmiany i zwinięta reszta, jednolicie albo obok siebie na szerokim ekranie. Każda zmiana zachowuje uzasadnienie i linki do materiału źródłowego; każdy element materiału źródłowego jest nazwany tym, czym jest - pytaniem testowym z datasetu (**Pytanie testowe 2**) albo prawdziwą rozmową (**Rozmowa 1**) - razem z zadanym pytaniem, a pomocnik ma polecenie cytować go dokładnie pod tą etykietą. Identyfikatory runów w uzasadnieniu są pokazane pod tą samą etykietą.
 
@@ -75,7 +75,7 @@ Po zakończeniu sprawdzenia osoby z `runs:view` mogą porównać odpowiedzi obu 
 ## Sugestie { #suggestions }
 
 Sugestie z sesji poprawy, ze Sprawdź albo z API czekają na sekcji **Sugestie** na
-zakładce **Evals** agenta. Każda
+zakładce **Ewaluacje** agenta. Każda
 sugestia pokazuje zmieniany fragment w jego otoczeniu, powód i dowody, a o
 każdej decyduje się osobno:
 
@@ -418,7 +418,7 @@ próby.
 
 ### Kreator Popraw { #the-improve-wizard }
 
-Otwórz **Popraw** z paska narzędzi zakładki **Evals** agenta, z plakietki **Wymaga uwagi** na liście agentów, z karty na dashboardzie albo z zakładki **Luki w wiedzy**. Gdy bieżąca opublikowana wersja miała w ostatnich 30 dniach odpowiedzi ocenione negatywnie lub nieudane runy, przycisk Popraw ma kropkę uwagi. Karta **Poprawki czekające na Ciebie** na dashboardzie pokazuje sesje czekające na decyzję.
+Otwórz **Popraw** z paska narzędzi zakładki **Ewaluacje** agenta, z plakietki **Wymaga uwagi** na liście agentów, z karty na dashboardzie albo z zakładki **Luki w wiedzy**. Gdy bieżąca opublikowana wersja miała w ostatnich 30 dniach odpowiedzi ocenione negatywnie lub nieudane runy, przycisk Popraw ma kropkę uwagi. Karta **Poprawki czekające na Ciebie** na dashboardzie pokazuje sesje czekające na decyzję.
 
 Każde **Popraw** otwiera otwartą sesję agenta - pracującą, czekającą na Ciebie, na wyniku albo zatrzymaną lub nieudaną - a nową zaczyna, gdy ta sesja zostanie zachowana jako wersja robocza, opublikowana, odrzucona, anulowana albo zamknięta; zostaje wtedy w [historii usprawnień](#improvement-history) agenta. **Zakończ ją i zacznij nową** obok otwartej sesji najpierw ją kończy.
 
