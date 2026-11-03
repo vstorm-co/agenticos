@@ -11,14 +11,26 @@ from decimal import Decimal
 from typing import Any, get_args
 from uuid import UUID
 
-from sqlalchemy import ColumnElement, Integer, and_, column, exists, func, or_, select, true, values
+from sqlalchemy import (
+    ColumnElement,
+    Integer,
+    and_,
+    case,
+    column,
+    exists,
+    func,
+    or_,
+    select,
+    true,
+    values,
+)
 from sqlalchemy import update as update_rows
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.permissions import Scope
 from app.db.models.dataset import Dataset, DatasetCase, DatasetVersion
-from app.db.models.eval_run import EvalRun
+from app.db.models.eval_run import EvalRun, EvalRunStatus
 from app.db.models.eval_suite import EvalSuite
 from app.repositories._search import contains_ci
 from app.repositories._visibility import reached_by_scope, shared_with_caller, visible_to_caller
@@ -196,22 +208,7 @@ async def list_visible(
             else picked == str(judge_id)
         )
     if agent_id is not None:
-        where.append(
-            or_(
-                Dataset.agent_id == agent_id,
-                Dataset.id.in_(
-                    select(EvalSuite.dataset_id).where(
-                        EvalSuite.agent_id == agent_id,
-                        EvalSuite.organization_id == organization_id,
-                    )
-                ),
-                Dataset.id.in_(
-                    select(EvalRun.dataset_id).where(
-                        EvalRun.agent_id == agent_id, EvalRun.organization_id == organization_id
-                    )
-                ),
-            )
-        )
+        where.append(_tests_agent(agent_id, organization_id=organization_id))
     if asking is not None:
         where.append(
             # The newest version holds exactly the revisions no change has removed yet.
@@ -262,6 +259,63 @@ async def create(
     await db.flush()
     await db.refresh(dataset)
     return dataset
+
+
+def _in_suite_of(agent_id: UUID, *, organization_id: UUID) -> ColumnElement[bool]:
+    return Dataset.id.in_(
+        select(EvalSuite.dataset_id).where(
+            EvalSuite.agent_id == agent_id, EvalSuite.organization_id == organization_id
+        )
+    )
+
+
+def _tests_agent(agent_id: UUID, *, organization_id: UUID) -> ColumnElement[bool]:
+    """A dataset that tests the agent: made for it, watched by one of its suites, or run
+    against it."""
+    return or_(
+        Dataset.agent_id == agent_id,
+        _in_suite_of(agent_id, organization_id=organization_id),
+        Dataset.id.in_(
+            select(EvalRun.dataset_id).where(
+                EvalRun.agent_id == agent_id, EvalRun.organization_id == organization_id
+            )
+        ),
+    )
+
+
+async def testing_agent(
+    db: AsyncSession, agent_id: UUID, *, organization_id: UUID
+) -> list[Dataset]:
+    """The datasets that test this agent, as the `agent` filter of `list_visible` reads it.
+
+    The one made for it first, then its suites', then the one it last finished an eval
+    run on, so the first is the agent's own questions when it has any.
+    """
+    last_run = (
+        select(func.max(EvalRun.ended_at))
+        .where(
+            EvalRun.dataset_id == Dataset.id,
+            EvalRun.agent_id == agent_id,
+            EvalRun.organization_id == organization_id,
+            EvalRun.status == EvalRunStatus.COMPLETED.value,
+        )
+        .scalar_subquery()
+    )
+    result = await db.execute(
+        select(Dataset)
+        .where(
+            Dataset.organization_id == organization_id,
+            _tests_agent(agent_id, organization_id=organization_id),
+        )
+        .order_by(
+            case((Dataset.agent_id == agent_id, 0), else_=1),
+            case((_in_suite_of(agent_id, organization_id=organization_id), 0), else_=1),
+            last_run.desc().nulls_last(),
+            func.coalesce(Dataset.updated_at, Dataset.created_at).desc(),
+            Dataset.id,
+        )
+    )
+    return list(result.scalars().all())
 
 
 async def for_agent(db: AsyncSession, agent_id: UUID, *, organization_id: UUID) -> list[Dataset]:
