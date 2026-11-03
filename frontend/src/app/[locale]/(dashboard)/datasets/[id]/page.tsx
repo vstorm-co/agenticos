@@ -200,17 +200,6 @@ export default function DatasetPage({ params }: PageProps) {
         }
       />
 
-      {(version === null || version === dataset.latest_version) &&
-        dataset.stats?.train_cases !== undefined &&
-        dataset.stats.holdout_cases !== undefined &&
-        (dataset.stats.train_cases > 0 || dataset.stats.holdout_cases > 0) && (
-          <p className="text-muted-foreground text-sm">
-            {t("improvementSplit.counts", {
-              train: dataset.stats.train_cases,
-              holdout: dataset.stats.holdout_cases,
-            })}
-          </p>
-        )}
       {copies !== null && copies.length > 0 && (
         <UnsavedCopiesBanner
           copies={copies}
@@ -279,6 +268,7 @@ export default function DatasetPage({ params }: PageProps) {
             <ListCard
               fill
               namedByPage
+              contentClassName="p-0"
               title={t("cases")}
               counted={t("caseCount", { count: cases.total })}
               controls={

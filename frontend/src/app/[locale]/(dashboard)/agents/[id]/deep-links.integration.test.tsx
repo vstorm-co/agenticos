@@ -134,12 +134,16 @@ vi.mock("@/hooks/use-eval-runs", () => ({
 }));
 vi.mock("@/components/evals/draft-eval-note", () => ({ DraftEvalNote: () => null }));
 vi.mock("@/components/evals/evals-panel", () => ({
-  EvalsPanel: () => <div data-testid="eval-results" />,
+  EvalsPanel: ({ actions }: { actions?: ReactNode }) => (
+    <div data-testid="eval-results">{actions}</div>
+  ),
 }));
 vi.mock("@/components/evals/suites/eval-suites-card", () => ({
   EvalSuitesCard: () => <div data-testid="eval-suites" />,
 }));
-vi.mock("@/components/authoring/assistant-strip", () => ({ AssistantStrip: () => null }));
+vi.mock("@/components/authoring/assistant-strip", () => ({
+  AssistantStrip: () => <div data-testid="suggestions">Suggestions</div>,
+}));
 vi.mock("@/components/evals/start-eval-dialog", () => ({ StartEvalDialog: () => null }));
 vi.mock("@/components/knowledge-gaps/knowledge-gaps-panel", () => ({
   KnowledgeGapsPanel: () => null,
@@ -274,18 +278,27 @@ describe("the detail page's Knowledge gaps tab", () => {
 });
 
 describe("the detail page's way into Improve", () => {
-  it("sits among the header's other actions, Publish staying the primary one", async () => {
+  it("keeps Build focused on instructions and puts Improve and suggestions in Evals", async () => {
     allowed = new Set([Perm.runsView]);
     await mount();
-    const improve = await screen.findByRole("button", { name: "Improve" });
-    expect(improve).not.toHaveClass("bg-action");
-    expect(improve.querySelector("svg.lucide-trending-up")).toBeInTheDocument();
-    expect(improve.className).toBe(screen.getByRole("button", { name: "Share" }).className);
+    await screen.findByRole("tab", { name: "Build" });
+    expect(screen.queryByRole("button", { name: "Improve" })).toBeNull();
+    expect(screen.queryByTestId("suggestions")).toBeNull();
     expect(screen.getByRole("button", { name: "Publish" })).toHaveClass("bg-action");
+  });
+
+  it("offers one Improve entry in Evals", async () => {
+    allowed = new Set([Perm.runsView]);
+    page.params = "tab=evals";
+    await mount();
+    expect(await screen.findByRole("button", { name: "Improve" })).not.toHaveClass("bg-action");
+    expect(screen.getAllByRole("button", { name: "Improve" })).toHaveLength(1);
+    expect(screen.getByTestId("suggestions")).toBeVisible();
   });
 
   it("says why when people rated answers down, without taking the lead from Publish", async () => {
     allowed = new Set([Perm.runsView]);
+    page.params = "tab=evals";
     page.attention = [{ agent_id: "a1", rated_down: 7, failed_runs: 1 }];
     await mount();
     const improve = await screen.findByRole("button", {

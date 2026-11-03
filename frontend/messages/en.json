@@ -3170,7 +3170,7 @@
         "description": "What the authoring assistant suggested for your agents, skills and context files, waiting on your decision.",
         "empty": {
           "title": "Nothing waiting",
-          "description": "Ask the assistant to improve an agent from its Build tab."
+          "description": "Open Evals to improve an agent from real results."
         },
         "counts": "{instructions, plural, =0 {} =1 {1 instruction change} other {# instruction changes}}{tools, plural, =0 {} other { · {tools, plural, =1 {1 tool change} other {# tool changes}}}}{fields, plural, =0 {} other { · {fields, plural, =1 {1 setting change} other {# setting changes}}}}",
         "skillChanges": "Skill · {count, plural, =1 {1 change} other {# changes}}",
@@ -5404,8 +5404,8 @@
         "body": "Hold the agent to a dataset without remembering to: run it every night, on every publish or promotion, or when a skill, knowledge base or context file it reads changes. You are told when a case breaks."
       },
       "agent-assistant-strip": {
-        "title": "The authoring assistant",
-        "body": "Improve opens the improvement wizard, the same as in the header. Here you review what the assistant suggested, ask it to check your own edits, and accept each suggestion into the draft."
+        "title": "Suggestions",
+        "body": "Review proposed changes in Evals, check them against a dataset, and accept each one into the draft. Start Improve from the Evals toolbar."
       },
       "agent-environment-guards": {
         "title": "Guards",
@@ -13587,7 +13587,7 @@
     "improvementSplit": {
       "share": "Share of new questions kept aside (%)",
       "shareHint": "The split is assigned once per question. This setting affects new questions; existing questions keep their part across edits and versions. Improve needs at least five gradable questions kept aside.",
-      "counts": "{train} help write the changes · {holdout} kept aside",
+      "counts": "{train} training · {holdout} holdout",
       "train": "Helps write the changes",
       "holdout": "Kept aside",
       "shareInvalid": "Enter a percentage from 0 to 100 in steps of 0.1."
@@ -13662,7 +13662,8 @@
     "noMatchingDatasets": "No datasets match your search.",
     "viewSourceMessages": "View source messages",
     "sourceUserMessage": "User message",
-    "sourceAgentAnswer": "Agent answer"
+    "sourceAgentAnswer": "Agent answer",
+    "moreSources": "More ways to add"
   },
   "knowledgeGaps": {
     "tab": "Knowledge gaps",
@@ -14307,18 +14308,20 @@
       "status": "Status",
       "result": "Result",
       "passRate": "Pass rate",
-      "cost": "Cost"
+      "cost": "Cost",
+      "model": "Model",
+      "passedCount": "{passed} of {total} passed",
+      "undecidedCount": "{count} undecided"
     },
-    "resultTitle": "Evaluation result"
+    "resultTitle": "Evaluation result",
+    "trendTitle": "Pass-rate trend"
   },
   "authoring": {
     "strip": {
-      "title": "Authoring assistant",
+      "title": "Suggestions",
       "chip": "{count, plural, =1 {1 suggestion} other {# suggestions}} · from {ratedDown, plural, =1 {1 rated-down answer} other {# rated-down answers}} across {runs, plural, =1 {1 run} other {# runs}}",
-      "verify": "Verify my edits",
       "check": "Check with evals",
       "dismissAll": "Dismiss all",
-      "empty": "The assistant reads what people rated down and how runs ended, and suggests changes to the instructions and tool descriptions. Nothing changes until you accept it, and nothing goes live until you publish.",
       "verifyReport": "What the assistant made of your edits",
       "skillCreated": "Skill {name} created and added to the draft",
       "working": "Reading the runs…"

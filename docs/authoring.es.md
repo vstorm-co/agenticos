@@ -1,5 +1,5 @@
 ---
-source_sha: "4f6ede4e7ba2"
+source_sha: "f30353327843"
 title: "Asistente de autoría"
 description: "El asistente de autoría lee lo que la gente valoró negativamente y cómo acabaron los runs, y sugiere cambios a las instrucciones, las herramientas, la configuración, los skills y los archivos de contexto de un agent. Una persona decide cada uno."
 ---
@@ -25,7 +25,7 @@ Hace tres cosas:
 - **Mejorar un skill** o un **archivo de contexto**: sugerir un cuerpo nuevo a
   partir de los runs que lo leyeron.
 
-En Agent Builder, **Verify my edits** guarda el borrador y abre el flujo normal de evals para compararlo con la versión publicada en un dataset. Muestra el coste antes de comenzar y registra el resultado en Evals. El antiguo endpoint de verificación basada en evidencias se conserva por separado para compatibilidad de API.
+En Agent Builder, **Build** contiene la configuración y **Test** abre el panel interactivo del borrador. Abre **Evals** para comparar un borrador con una versión publicada en un dataset o iniciar **Improve**. La estimación aparece antes de la ejecución. El antiguo endpoint de verificación basada en evidencias sigue disponible por compatibilidad de API.
 
 **Improve** abre una sesión de mejora. El modelo y las instrucciones pertenecen a **Settings** del dataset elegido; los ayudantes tienen valores definidos en código y no tienen página editable en el catálogo. Los diálogos de skills y contexto eligen un modelo directamente. Se conservan controles de budget y registros en Activity.
 
@@ -66,16 +66,16 @@ que formar parte de la edición. La barra muestra esa línea encima de las citas
 del hallazgo, para que el lector juzgue si la respaldan. Un hallazgo de que la
 edición está respaldada sin ninguna cita que se pueda comprobar no se muestra.
 
-Cuando termina una solicitud al asistente - Verificar, o Mejorar por la API - con el Builder abierto, un diálogo muestra la cantidad de respuestas revisadas, cambios propuestos y guardados, y propuestas rechazadas con sus motivos. **Ver resultado** permite abrirlo de nuevo. Un resultado vacío explica que no se pudo aplicar nada, sin efecto esperado. El texto del efecto que contiene identificadores de runs se sustituye por una descripción con la cantidad de respuestas fuente enlazadas.
+Cuando termina una solicitud al asistente - Verificar, o Mejorar por la API - con la pestaña Evals abierta, un diálogo muestra la cantidad de respuestas revisadas, cambios propuestos y guardados, y propuestas rechazadas con sus motivos. **Ver resultado** permite abrirlo de nuevo. Un resultado vacío explica que no se pudo aplicar nada, sin efecto esperado. El texto del efecto que contiene identificadores de runs se sustituye por una descripción con la cantidad de respuestas fuente enlazadas.
 
 Cada texto cambiado - instrucciones, la descripción de una herramienta, un archivo de contexto - aparece como diff: líneas eliminadas y añadidas con las palabras cambiadas marcadas, unas pocas líneas sin cambios alrededor de cada cambio y el resto plegado, unificado o lado a lado en una pantalla ancha. Cada cambio conserva su justificación y la evidencia enlazada; cada elemento de evidencia se nombra por lo que es - una pregunta de prueba del dataset (**Test question 2**) o un chat real (**Conversation 1**) - con la pregunta que se hizo, y se indica al asistente que lo cite exactamente con esa etiqueta. Los identificadores de runs en una justificación aparecen con la misma etiqueta.
 
-Tras completar una comprobación, las personas con `runs:view` pueden comparar respuestas de ambos lados en el diálogo y abrir la comprobación completa. Antes, el diálogo propone ejecutarla. Un agente sin chats valorados ni evidencia de entrenamiento muestra una línea compacta del asistente sobre sus instrucciones.
+Tras completar una comprobación, las personas con `runs:view` pueden comparar respuestas de ambos lados en el diálogo y abrir la comprobación completa. Antes, el diálogo propone ejecutarla. Un agente sin sugerencias no muestra la tarjeta de sugerencias.
 
 ## Sugerencias { #suggestions }
 
 Las sugerencias de una sesión de mejora, de Verificar o de la API esperan en la
-**barra del asistente** de la pestaña Build del agent. Cada sugerencia muestra el fragmento que cambia en su contexto, el porqué
+sección **Sugerencias** de la pestaña **Evals** del agent. Cada sugerencia muestra el fragmento que cambia en su contexto, el porqué
 y la evidencia, y cada una se decide por separado:
 
 | Acción | Qué ocurre |
@@ -427,7 +427,7 @@ intento.
 
 ### El asistente Improve { #the-improve-wizard }
 
-Abra **Improve** en la cabecera del agente o en la barra del asistente de la pestaña Build, desde la insignia **Needs attention** de la lista de agentes, desde la tarjeta del dashboard o desde la pestaña **Knowledge gaps** del agente. Está entre las demás acciones de la cabecera; cuando la versión que el agente sirve ahora tuvo respuestas valoradas negativamente o runs fallidos en los últimos 30 días, lleva un punto y su nombre dice por qué. La tarjeta **Improvements waiting for you** del dashboard lista las sesiones detenidas a la espera de una decisión.
+Abre **Improve** desde la barra de herramientas de **Evals** del agente, desde la insignia **Needs attention** en la lista de agentes, desde la tarjeta del dashboard o desde **Knowledge gaps**. Si la versión publicada actual tuvo respuestas valoradas negativamente o runs fallidos en los últimos 30 días, Improve muestra un punto de atención. La tarjeta **Improvements waiting for you** del dashboard muestra sesiones que esperan una decisión.
 
 Cada **Improve** abre la sesión abierta del agente - trabajando, esperándole, en su resultado o detenida o fallida - y empieza una nueva cuando esa sesión se guarda como borrador, se publica, se descarta, se cancela o se cierra; queda entonces en el [historial de mejoras](#improvement-history) del agente. **End it and start a new one**, junto a una sesión abierta, la termina primero.
 

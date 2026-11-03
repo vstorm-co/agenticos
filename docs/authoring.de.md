@@ -1,5 +1,5 @@
 ---
-source_sha: "4f6ede4e7ba2"
+source_sha: "f30353327843"
 title: "Authoring-Assistent"
 description: "Der Authoring-Assistent liest, was Leute negativ bewertet haben und wie Runs endeten, und schlägt Änderungen an Anweisungen, Tools, Konfiguration, Skills und Context-Dateien eines Agents vor. Über jede entscheidet ein Mensch."
 ---
@@ -25,7 +25,7 @@ Er tut drei Dinge:
 - **Einen Skill** oder **eine Context-Datei verbessern**: einen neuen Inhalt aus
   den Runs vorschlagen, die sie gelesen haben.
 
-In Agent Builder speichert **Verify my edits** den Entwurf und öffnet den normalen Eval-Ablauf zum Vergleich mit der veröffentlichten Version auf einem Dataset. Vor dem Start wird der Preis gezeigt; das Ergebnis steht in Evals. Der ältere evidenzbasierte Verify-Endpunkt bleibt separat für API-Kompatibilität erhalten.
+Im Agent Builder enthält **Bauen** die Konfiguration und **Test** öffnet das interaktive Testpanel für den Entwurf. Öffnen Sie **Evals**, um einen Entwurf mit einer veröffentlichten Version auf einem Dataset zu vergleichen oder **Verbessern** zu starten. Vor der Ausführung erscheint die Kostenschätzung. Der ältere evidenzbasierte Verify-Endpunkt bleibt für API-Kompatibilität verfügbar.
 
 **Improve** öffnet eine Verbesserungssitzung. Modell und Anweisungen stehen in den **Einstellungen** des gewählten Datasets; Helfer haben Code-Vorgaben und keine bearbeitbare Katalogseite. Skill- und Kontextdialoge wählen ein Modell direkt. Budgetprüfungen und Aktivität-Aufzeichnungen bleiben bestehen.
 
@@ -68,16 +68,16 @@ Zeile muss Teil der Änderung sein. Die Leiste zeigt sie über den Zitaten des
 Befunds, damit der Leser beurteilen kann, ob sie sie stützen. Ein Befund, die
 Änderung sei belegt, dem kein prüfbares Zitat bleibt, wird nicht gezeigt.
 
-Endet eine Anfrage an den Assistenten - Prüfen oder Verbessern über die API - bei geöffnetem Builder, zeigt ein Ergebnisdialog die Anzahl geprüfter Antworten, vorgeschlagene und gespeicherte Änderungen sowie abgelehnte Vorschläge mit Gründen. **Ergebnis ansehen** öffnet ihn erneut. Ein leeres Ergebnis erklärt, dass nichts anwendbar war, ohne erwartete Wirkung. Wirkungstext mit rohen Run-Kennungen wird durch eine Beschreibung mit der Anzahl verlinkter Quellantworten ersetzt.
+Endet eine Anfrage an den Assistenten - Prüfen oder Verbessern über die API - bei geöffnetem Evals-Tab, zeigt ein Ergebnisdialog die Anzahl geprüfter Antworten, vorgeschlagene und gespeicherte Änderungen sowie abgelehnte Vorschläge mit Gründen. **Ergebnis ansehen** öffnet ihn erneut. Ein leeres Ergebnis erklärt, dass nichts anwendbar war, ohne erwartete Wirkung. Wirkungstext mit rohen Run-Kennungen wird durch eine Beschreibung mit der Anzahl verlinkter Quellantworten ersetzt.
 
 Jeder geänderte Text - Anweisungen, eine Tool-Beschreibung, eine Context-Datei - erscheint als Diff: entfernte und hinzugefügte Zeilen mit markierten geänderten Wörtern, einige unveränderte Zeilen um jede Änderung und der Rest eingeklappt, einheitlich oder auf einem breiten Bildschirm nebeneinander. Jede Änderung behält Begründung und verlinkte Belege; jeder Beleg ist nach dem benannt, was er ist - eine Testfrage aus dem Dataset (**Testfrage 2**) oder ein echtes Gespräch (**Gespräch 1**) - mit der gestellten Frage, und der Helfer wird angewiesen, ihn genau unter dieser Bezeichnung zu zitieren. Run-Kennungen in einer Begründung erscheinen unter derselben Bezeichnung.
 
-Nach einer abgeschlossenen Prüfung können Leser mit `runs:view` Antworten beider Seiten im Dialog vergleichen und die vollständige Prüfung öffnen. Vorher fordert der Dialog zum Prüfen auf. Ohne bewertete Chats oder Trainingsbelege erscheint der Assistent als kompakte Zeile über den Anweisungen.
+Nach einer abgeschlossenen Prüfung können Leser mit `runs:view` Antworten beider Seiten im Dialog vergleichen und die vollständige Prüfung öffnen. Vorher fordert der Dialog zum Prüfen auf. Ohne Vorschläge wird keine Vorschlagskarte angezeigt.
 
 ## Vorschläge { #suggestions }
 
 Vorschläge aus einer Verbesserungssitzung, aus Prüfen oder aus der API warten in der
-**Assistentenleiste** auf dem Tab **Bauen** (Build) des Agents. Jeder Vorschlag zeigt die Passage, die er ändert, in ihrem Umfeld, die
+Sektion **Vorschläge** auf dem Tab **Evals** des Agents. Jeder Vorschlag zeigt die Passage, die er ändert, in ihrem Umfeld, die
 Begründung und die Belege, und über jeden wird einzeln entschieden:
 
 | Aktion | Was passiert |
@@ -445,7 +445,7 @@ nicht das gemeinsame Urteil des Versuchs.
 
 ### Der Verbessern-Assistent { #the-improve-wizard }
 
-Öffnen Sie **Verbessern** im Agentenkopf oder in der Assistentenleiste auf dem Tab Bauen, über das Abzeichen **Braucht Aufmerksamkeit** in der Agentenliste, über die Dashboard-Karte oder über den Tab **Wissenslücken** des Agents. Es steht zwischen den anderen Aktionen im Kopf; hatte die Version, die der Agent jetzt ausliefert, in den letzten 30 Tagen negativ bewertete Antworten oder fehlgeschlagene Runs, trägt es einen Punkt und sein Name sagt, warum. Die Dashboard-Karte **Verbesserungen, die auf Sie warten** listet die Sitzungen, die für eine Entscheidung angehalten haben.
+Öffnen Sie **Verbessern** in der Werkzeugleiste des Agententabs **Evals**, über das Abzeichen **Braucht Aufmerksamkeit** in der Agentenliste, über die Dashboard-Karte oder über **Wissenslücken**. Hatte die aktuelle veröffentlichte Version in den letzten 30 Tagen negativ bewertete Antworten oder fehlgeschlagene Runs, trägt Verbessern einen Hinweispunkt. Die Dashboard-Karte **Verbesserungen, die auf Sie warten** zeigt Sitzungen, die auf eine Entscheidung warten.
 
 Jedes **Verbessern** öffnet die offene Sitzung des Agents - laufend, auf Sie wartend, beim Ergebnis oder angehalten oder fehlgeschlagen - und startet eine neue, sobald diese Sitzung als Entwurf behalten, veröffentlicht, verworfen, abgebrochen oder geschlossen wurde; sie bleibt dann im [Verbesserungsverlauf](#improvement-history) des Agents. **Beenden und eine neue starten** neben einer offenen Sitzung beendet sie zuerst.
 

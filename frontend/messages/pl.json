@@ -4970,7 +4970,7 @@
         "description": "Co asystent tworzenia zasugerował dla Twoich agentów, skilli i plików kontekstu, czekając na Twoją decyzję.",
         "empty": {
           "title": "Nic nie czeka",
-          "description": "Poproś asystenta o ulepszenie agenta na jego zakładce Budowa."
+          "description": "Otwórz Evals, aby ulepszyć agenta na podstawie wyników."
         },
         "counts": "{instructions, plural, =0 {} one {# zmiana instrukcji} few {# zmiany instrukcji} many {# zmian instrukcji} other {# zmian instrukcji}}{tools, plural, =0 {} other { · {tools, plural, one {# zmiana narzędzia} few {# zmiany narzędzi} many {# zmian narzędzi} other {# zmian narzędzi}}}}{fields, plural, =0 {} other { · {fields, plural, one {# zmiana ustawień} few {# zmiany ustawień} many {# zmian ustawień} other {# zmian ustawień}}}}",
         "skillChanges": "Skill · {count, plural, one {1 zmiana} few {# zmiany} many {# zmian} other {# zmiany}}",
@@ -6772,8 +6772,8 @@
         "body": "Sprawdzaj agenta na datasecie bez pamiętania o tym: co noc, przy każdej publikacji albo promocji, albo po zmianie skilla, bazy wiedzy lub pliku kontekstu, z których korzysta. Dostaniesz wiadomość, gdy jakiś przypadek przestanie przechodzić."
       },
       "agent-assistant-strip": {
-        "title": "Asystent tworzenia",
-        "body": "Popraw otwiera kreator poprawy, tak jak w nagłówku. Tutaj przeglądasz sugestie asystenta, prosisz go o sprawdzenie własnych zmian i przyjmujesz każdą sugestię do wersji roboczej."
+        "title": "Sugestie",
+        "body": "Przeglądaj proponowane zmiany w Evals, sprawdzaj je na datasecie i akceptuj do draftu. Improve uruchomisz z paska akcji Evals."
       },
       "agent-environment-guards": {
         "title": "Strażnicy",
@@ -13360,7 +13360,7 @@
     "improvementSplit": {
       "share": "Udział nowych pytań odkładanych do sprawdzenia (%)",
       "shareHint": "Podział jest przypisywany raz na pytanie. Ustawienie dotyczy nowych pytań; istniejące zachowują część po edycjach i między wersjami. Poprawianie wymaga co najmniej pięciu odłożonych pytań, które da się ocenić.",
-      "counts": "{train} pomaga pisać zmiany · {holdout} odłożonych",
+      "counts": "Treningowe: {train} · Kontrolne: {holdout}",
       "train": "Pomaga pisać zmiany",
       "holdout": "Odłożone",
       "shareInvalid": "Wpisz procent od 0 do 100 z dokładnością do 0,1."
@@ -13435,7 +13435,8 @@
     "noMatchingDatasets": "Żaden dataset nie pasuje do wyszukiwania.",
     "viewSourceMessages": "Pokaż wiadomości źródłowe",
     "sourceUserMessage": "Wiadomość użytkownika",
-    "sourceAgentAnswer": "Odpowiedź agenta"
+    "sourceAgentAnswer": "Odpowiedź agenta",
+    "moreSources": "Inne sposoby dodania"
   },
   "knowledgeGaps": {
     "tab": "Luki w wiedzy",
@@ -14080,18 +14081,20 @@
       "status": "Status",
       "result": "Wynik",
       "passRate": "Zdawalność",
-      "cost": "Koszt"
+      "cost": "Koszt",
+      "model": "Model",
+      "passedCount": "Zaliczone: {passed} z {total}",
+      "undecidedCount": "Bez rozstrzygnięcia: {count}"
     },
-    "resultTitle": "Wynik ewaluacji"
+    "resultTitle": "Wynik ewaluacji",
+    "trendTitle": "Trend wyników"
   },
   "authoring": {
     "strip": {
-      "title": "Asystent tworzenia",
+      "title": "Sugestie",
       "chip": "{count, plural, one {1 sugestia} few {# sugestie} many {# sugestii} other {# sugestii}} · z {ratedDown, plural, one {1 ocenionej negatywnie odpowiedzi} other {# ocenionych negatywnie odpowiedzi}} w {runs, plural, one {1 runie} other {# runach}}",
-      "verify": "Sprawdź moje zmiany",
       "check": "Sprawdź w ewaluacji",
       "dismissAll": "Odrzuć wszystkie",
-      "empty": "Asystent czyta, co ludzie ocenili negatywnie i jak kończyły się runy, i sugeruje zmiany w instrukcjach i opisach narzędzi. Nic się nie zmienia, dopóki tego nie zaakceptujesz, i nic nie trafia do użytkowników, dopóki nie opublikujesz.",
       "verifyReport": "Co asystent sądzi o Twoich zmianach",
       "skillCreated": "Utworzono skill {name} i dodano go do wersji roboczej",
       "working": "Czytam runy…"

@@ -339,6 +339,8 @@ describe("EvalsPanel", () => {
     };
     render(<EvalsPanel agentId="agent-1" canStart />);
 
+    expect(screen.queryByRole("group", { name: "Pass rate by run" })).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Pass-rate trend" }));
     expect(screen.getByRole("group", { name: "Pass rate by run" })).toBeInTheDocument();
     expect(screen.getByText(/click it to open the run/)).toBeInTheDocument();
     expect(screen.getByRole("table")).toBeInTheDocument();
@@ -347,8 +349,9 @@ describe("EvalsPanel", () => {
     const row = compared.closest("tr");
     if (!row) throw new Error("An evaluation has no table row");
     expect(within(row).getAllByText("Breaks 4").length).toBeGreaterThan(0);
-    expect(within(row).getByText("gpt-4.1 75%")).toBeInTheDocument();
-    expect(within(row).getByText("claude 75%")).toBeInTheDocument();
+    expect(within(row).getAllByText("gpt-4.1").length).toBeGreaterThan(0);
+    expect(within(row).getAllByText("75%")).toHaveLength(2);
+    expect(within(row).getAllByText("claude").length).toBeGreaterThan(0);
     expect(
       screen
         .getAllByRole("link")
@@ -363,9 +366,10 @@ describe("EvalsPanel", () => {
     expect(screen.queryByText("start-dialog")).not.toBeInTheDocument();
   });
 
-  it("says one run is not yet a trend, and draws none while nothing has finished", () => {
+  it("says one run is not yet a trend, and draws none while nothing has finished", async () => {
     evalRuns.value = { ...evalRuns.value, runs: [evalRun()] };
     const { rerender } = render(<EvalsPanel agentId="agent-1" canStart />);
+    await userEvent.click(screen.getByRole("button", { name: "Pass-rate trend" }));
     expect(screen.getByText("One run so far. Run another to see a trend.")).toBeInTheDocument();
 
     evalRuns.value = { ...evalRuns.value, runs: [evalRun({ status: "queued" })] };
@@ -374,14 +378,26 @@ describe("EvalsPanel", () => {
     expect(screen.getAllByText("Pending").length).toBeGreaterThan(0);
   });
 
-  it("keys each line when runs of several datasets finished", () => {
+  it("keys each line when runs of several datasets finished", async () => {
     evalRuns.value = {
       ...evalRuns.value,
       runs: [evalRun(), evalRun({ id: "run-2", dataset_id: "ds-2", dataset_name: "shipping" })],
     };
     render(<EvalsPanel agentId="agent-1" canStart />);
+    await userEvent.click(screen.getByRole("button", { name: "Pass-rate trend" }));
     expect(screen.getByText("refunds", { selector: "li" })).toBeInTheDocument();
     expect(screen.getByText("shipping", { selector: "li" })).toBeInTheDocument();
+  });
+
+  it("shows unresolved cases separately from a model's pass rate", () => {
+    evalRuns.value = {
+      ...evalRuns.value,
+      runs: [
+        evalRun({ arms: [arm({ summary: { ...arm().summary, incomplete: 1, ungraded: 1 } })] }),
+      ],
+    };
+    render(<EvalsPanel agentId="agent-1" canStart />);
+    expect(screen.getByText("2 undecided")).toBeInTheDocument();
   });
 
   it("lists a run that has no candidate side without naming one", () => {

@@ -482,8 +482,6 @@ export default function AgentBuilderPage({ params }: PageProps) {
   const canStartEvals = canViewRuns && couldStartEvals && runsADataset;
   // Testing the draft runs it - the editors' work in progress - on a dataset.
   const canTestDraft = canStartEvals && canEdit;
-  // An editor who could test it but for reading runs sees why they cannot.
-  const testNeedsRunsView = !canViewRuns && couldStartEvals && runsADataset && canEdit;
   const [testingDraft, setTestingDraft] = useState(false);
   const resourceCreation = useResourceCreation({
     mayCreateSkill: canEdit && can(Perm.skillsEdit),
@@ -1107,8 +1105,6 @@ export default function AgentBuilderPage({ params }: PageProps) {
                 agentId={id}
                 production={environments.find((environment) => environment.is_default)}
                 draftSpec={agent.draft_spec}
-                onTest={canTestDraft ? () => setTestingDraft(true) : undefined}
-                testNeedsRunsView={testNeedsRunsView}
               />
               {/* And this one: is my edit stored. The draft saves itself; this
                 says where that stands. Quiet when everything is stored -
@@ -1136,14 +1132,6 @@ export default function AgentBuilderPage({ params }: PageProps) {
           breadcrumbs={[{ label: t("agents"), href: ROUTES.AGENTS }, { label: agent.name }]}
           secondaryActions={
             <>
-              {canEdit && canViewRuns && (
-                <ImproveButton
-                  agentId={id}
-                  persist={persist}
-                  onStart={() => improveView.open("new")}
-                  tour="agent-improve"
-                />
-              )}
               {/* Trying the agent happens in the chat, which streams, keeps the
                 conversation and can hand a tool call to the approval queue.
                 Only a published agent has a version to run - the chat's own
@@ -1637,16 +1625,6 @@ export default function AgentBuilderPage({ params }: PageProps) {
           </TabsList>
 
           <TabsContent value="build" className="mt-4 space-y-4">
-            {canEdit && (
-              <AssistantStrip
-                agentId={id}
-                storedDraft={agent.draft_spec}
-                canCheck={canTestDraft}
-                checkNeedsRunsView={testNeedsRunsView}
-                persist={persist}
-                onDraft={setSpec}
-              />
-            )}
             <Card data-tour="agent-instructions">
               <CardContent className="p-4 sm:p-5">
                 <InstructionsEditor
@@ -2166,7 +2144,29 @@ export default function AgentBuilderPage({ params }: PageProps) {
             <TabsContent value="evals" className="mt-6 flex flex-1 flex-col gap-6">
               {canViewRuns ? (
                 <>
-                  <EvalsPanel agentId={id} canStart={canStartEvals} />
+                  {canEdit && (
+                    <AssistantStrip
+                      agentId={id}
+                      storedDraft={agent.draft_spec}
+                      canCheck={canTestDraft}
+                      persist={persist}
+                      onDraft={setSpec}
+                    />
+                  )}
+                  <EvalsPanel
+                    agentId={id}
+                    canStart={canStartEvals}
+                    actions={
+                      canEdit ? (
+                        <ImproveButton
+                          agentId={id}
+                          persist={persist}
+                          onStart={() => improveView.open("new")}
+                          tour="agent-improve"
+                        />
+                      ) : undefined
+                    }
+                  />
                   <EvalSuitesCard agentId={id} canManage={canStartEvals && canEdit} />
                 </>
               ) : (

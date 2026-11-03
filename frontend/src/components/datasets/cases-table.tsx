@@ -24,7 +24,7 @@ export function CasesTable({
     {
       key: "input",
       header: t("table.question"),
-      className: "min-w-0 md:w-[45%]",
+      className: "min-w-0 md:w-[48%]",
       cell: (item) => (
         <button
           type="button"
@@ -32,17 +32,17 @@ export function CasesTable({
           className="focus-visible:ring-ring w-full min-w-0 rounded-sm text-left outline-none focus-visible:ring-2"
         >
           <span className="line-clamp-2 text-sm font-medium break-words">{question(item)}</span>
-          <span className="text-muted-foreground mt-1 block text-xs md:hidden">
-            {t(`source.${item.source}`)} · {t("checkCount", { count: item.checks.length })}
+          <span className="text-muted-foreground mt-1 block text-xs">
+            {item.source !== "manual" && t(`source.${item.source}`)}
+            {item.checks.length > 0 && (
+              <>
+                {item.source !== "manual" && " · "}
+                {t("checkCount", { count: item.checks.length })}
+              </>
+            )}
           </span>
         </button>
       ),
-    },
-    {
-      key: "source",
-      header: t("table.source"),
-      hideBelow: "md",
-      cell: (item) => <Badge variant="secondary">{t(`source.${item.source}`)}</Badge>,
     },
     {
       key: "expectations",
@@ -63,9 +63,22 @@ export function CasesTable({
       header: t("table.tags"),
       hideBelow: "lg",
       cell: (item) => (
-        <span className="text-muted-foreground text-xs">
-          {item.masked ? "—" : item.tags.join(", ") || "—"}
-        </span>
+        <div
+          className="flex max-w-52 flex-wrap gap-1"
+          title={item.masked ? undefined : item.tags.join(", ")}
+        >
+          {item.masked || item.tags.length === 0 ? (
+            "—"
+          ) : (
+            <>
+              {item.tags.map((tag) => (
+                <Badge key={tag} variant="outline" className="max-w-40 truncate font-normal">
+                  {tag}
+                </Badge>
+              ))}
+            </>
+          )}
+        </div>
       ),
     },
   ];
@@ -87,5 +100,12 @@ export function CasesTable({
       ),
     });
   }
-  return <DataTable columns={columns} rows={cases} getRowKey={(item) => item.id} />;
+  return (
+    <DataTable
+      className="rounded-none border-0"
+      columns={columns}
+      rows={cases}
+      getRowKey={(item) => item.id}
+    />
+  );
 }

@@ -19,7 +19,7 @@ the same run, so the two meet the same provider on the same day.
 
 ## In the console { #in-the-console }
 
-An agent's **Evals** tab opens on a line chart of its pass rate run by run,
+An agent's **Evals** tab opens on its run history. Each row names the compared versions, status, verdict, model, pass rate and passed/total case count. The **Pass-rate trend** control below the table expands a line chart of its pass rate run by run,
 oldest on the left, a line per dataset, each with its own dash. A point is red
 where the run broke cases, green where it fixed them, amber where it did both,
 and hollow for a draft; hovering it says what ran, against what and when, and
@@ -30,7 +30,7 @@ date before, once for a day of runs. Past 10 runs a switch above the chart shows
 the last 10, the last 30 or every run; it opens on the last 10, and the choice
 stays in the page's address, so Back and a link keep it.
 
-Below it are its runs, grouped by dataset, each naming what was tested against
+The table lists runs newest first, each naming what was tested against
 what, its verdict (Breaks 2, Worse overall · 4 broke, First result, Pending) and
 each model's pass rate, with the first answers' rate on hover.
 

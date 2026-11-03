@@ -2,10 +2,16 @@
 
 import { useRef, useState } from "react";
 import Link from "next/link";
-import { History, Plus, Sparkles, Upload } from "lucide-react";
+import { ChevronDown, History, Plus, Sparkles, Upload } from "lucide-react";
 import { useTranslations } from "next-intl";
 
-import { Button } from "@/components/ui";
+import {
+  Button,
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+} from "@/components/ui";
 import { ROUTES } from "@/lib/constants";
 import { ImportCasesDialog } from "./import-cases-dialog";
 import { useDatasetFiles } from "./use-dataset-files";
@@ -32,20 +38,30 @@ export function CasesToolbar({
         <Plus className="size-4" />
         {t("addCase")}
       </Button>
-      <Button size="sm" variant="outline" onClick={() => setImporting(true)}>
-        <Upload className="size-4" />
-        {t("import")}
-      </Button>
-      <Button size="sm" variant="outline" onClick={onGenerate}>
-        <Sparkles className="size-4" />
-        {t("generateCases")}
-      </Button>
-      <Button size="sm" variant="outline" asChild>
-        <Link href={`${ROUTES.RUNS}?${new URLSearchParams({ dataset: datasetId })}`}>
-          <History className="size-4" />
-          {t("addFromActivity")}
-        </Link>
-      </Button>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button size="sm" variant="outline">
+            {t("moreSources")}
+            <ChevronDown className="size-4" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuItem onSelect={() => setImporting(true)}>
+            <Upload className="size-4" />
+            {t("import")}
+          </DropdownMenuItem>
+          <DropdownMenuItem onSelect={onGenerate}>
+            <Sparkles className="size-4" />
+            {t("generateCases")}
+          </DropdownMenuItem>
+          <DropdownMenuItem asChild>
+            <Link href={`${ROUTES.RUNS}?${new URLSearchParams({ dataset: datasetId })}`}>
+              <History className="size-4" />
+              {t("addFromActivity")}
+            </Link>
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
       <input
         ref={picker}
         type="file"

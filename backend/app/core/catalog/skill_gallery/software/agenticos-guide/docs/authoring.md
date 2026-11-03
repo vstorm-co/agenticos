@@ -24,7 +24,7 @@ It does three things:
 - **Improve a skill** or a **context file**: suggest a new body from the runs
   that read it.
 
-In Agent Builder, **Verify my edits** saves the draft and opens the standard eval flow to compare it with the published version on a dataset. It shows the estimate before starting and records the comparison in Evals. This is distinct from the legacy evidence-based verify endpoint retained for API compatibility.
+In Agent Builder, **Build** contains the configuration and **Test** opens the interactive draft panel. Open **Evals** to compare a draft with a published version on a dataset or start **Improve**. The estimate appears before execution. The legacy evidence-based verify endpoint remains available for API compatibility.
 
 **Improve** opens the improvement session. The selected dataset's **Settings** owns the improvement model and instructions; helpers have code defaults and no editable agent-catalog page. Skill and context improvement dialogs choose a model directly. Runs retain the existing budget checks and Activity records.
 
@@ -64,16 +64,16 @@ that line above the finding's quotes, for the reader to judge whether they back
 it. A finding that the edit is supported, left with no quote that could be
 checked, is not shown.
 
-When an assistant request - a Verify, or an Improve through the API - finishes while the Builder is open, a result dialog shows the reviewed answer count, proposed and recorded changes, and rejected proposals with their reasons. You can reopen it with **Review result**. An empty result says that nothing could be applied and shows no expected effect. Expected-effect prose containing raw run identifiers is replaced with a description counting the linked source answers.
+When an assistant request - a Verify, or an Improve through the API - finishes while the Evals tab is open, a result dialog shows the reviewed answer count, proposed and recorded changes, and rejected proposals with their reasons. You can reopen it with **Review result**. An empty result says that nothing could be applied and shows no expected effect. Expected-effect prose containing raw run identifiers is replaced with a description counting the linked source answers.
 
 Every changed text - instructions, a tool description, a context file - shows as a diff: removed and added lines with the changed words marked, a few unchanged lines around each change and the rest folded, unified or side by side on a wide screen. Each change keeps its rationale and linked evidence; each piece of evidence is named by what it is - a test question from the dataset (**Test question 2**) or a real chat (**Conversation 1**) - with the question that was asked, and the improver is told to cite it by exactly that label. Run identifiers in a rationale show under the same label.
 
-After a check completes, readers with `runs:view` can compare answers from both arms in the dialog and open the full check. Before a check, it asks you to run one. An agent with no rated chat or training evidence has a compact assistant line above its instructions.
+After a check completes, readers with `runs:view` can compare answers from both arms in the dialog and open the full check. Before a check, it asks you to run one. An agent with no suggestions shows no Suggestions card.
 
 ## Suggestions { #suggestions }
 
 Suggestions from an improvement session, a Verify or the API wait on the
-**assistant strip** on the agent's Build tab. Each
+**Suggestions** section on the agent's **Evals** tab. Each
 suggestion shows the passage it changes in its surroundings, why, and the
 evidence, and each is decided on its own:
 
@@ -402,7 +402,7 @@ not accept, publish or replace the attempt's combined verdict.
 
 ### The Improve wizard { #the-improve-wizard }
 
-Open **Improve** in the agent header or on the Build tab's assistant strip, from the **Needs attention** badge on the agent list, from the dashboard card or from the agent's **Knowledge gaps** tab. It sits among the header's other actions; when the version it serves now had answers rated down or failed runs in the last 30 days, it wears a dot and its name says why. The dashboard card **Improvements waiting for you** lists the sessions stopped for a decision.
+Open **Improve** from the agent’s **Evals** toolbar, from the **Needs attention** badge on the agent list, from the dashboard card or from the agent’s **Knowledge gaps** tab. When the current published version had answers rated down or failed runs in the last 30 days, Improve carries an attention dot. The dashboard card **Improvements waiting for you** lists sessions waiting for a decision.
 
 Every **Improve** opens the agent's open session - working, waiting for you, at its result, or stopped or failed - and starts a new one once that session is kept as a draft, published, discarded, cancelled or closed, after which it stays in the agent's [improvement history](#improvement-history). **End it and start a new one** beside an open session ends it first.
 

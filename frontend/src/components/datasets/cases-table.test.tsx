@@ -43,3 +43,42 @@ it("never renders masked questions, answers or tags", () => {
     screen.getByRole("button", { name: /From a conversation you cannot open/ }),
   ).toBeInTheDocument();
 });
+
+it("keeps meaningful tags visible and omits repetitive manual source labels", () => {
+  render(
+    <CasesTable
+      cases={[{ ...item, source: "manual", tags: ["qa", "hard", "returns-vs-archive"] }]}
+      onOpen={vi.fn()}
+    />,
+  );
+  expect(screen.getByText("returns-vs-archive")).toBeInTheDocument();
+  expect(screen.queryByText("Written")).toBeNull();
+  expect(screen.queryByText("0 checks")).toBeNull();
+});
+it("keeps anonymisation and available expectations clear across case types", () => {
+  render(
+    <CasesTable
+      cases={[
+        { ...item, id: "anon", anonymised_at: "2026-11-03T00:00:00Z", tags: [] },
+        {
+          ...item,
+          id: "counter",
+          reference_answer: null,
+          counter_example: "A bad answer",
+          checks: [{ type: "contains", value: "policy" }],
+        },
+        {
+          ...item,
+          id: "checks",
+          source: "manual",
+          reference_answer: null,
+          checks: [{ type: "contains", value: "policy" }],
+        },
+      ]}
+      onOpen={vi.fn()}
+    />,
+  );
+  expect(screen.getByText("A bad answer")).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: /^Private question$/ })).toBeNull();
+  expect(screen.getAllByText(/1 check/).length).toBeGreaterThan(0);
+});

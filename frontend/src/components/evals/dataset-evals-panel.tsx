@@ -12,7 +12,8 @@ import { getErrorMessage } from "@/lib/api-error";
 import type { Agent } from "@/types/agents";
 import type { EvalRun } from "@/types/eval-runs";
 import { NeedsRunsView } from "./needs-runs-view";
-import { PassRateChart, passRateLines } from "./pass-rate-chart";
+import { EvalTrend } from "./eval-trend";
+import { passRateLines } from "./pass-rate-chart";
 import { RunsTable } from "./runs-table";
 import { StartEvalDialog } from "./start-eval-dialog";
 
@@ -83,7 +84,7 @@ export function DatasetEvalsPanel({ datasetId, title }: { datasetId: string; tit
         ? t("runCount", { count: total })
         : t("dataset.counted", { runs: total, agents: groups.length });
   return (
-    <ListCard fill title={title} counted={counted}>
+    <ListCard fill namedByPage title={title} counted={counted} contentClassName="p-0">
       {isLoading ? (
         <LoadingState variant="skeleton-list" rows={3} />
       ) : (
@@ -151,8 +152,14 @@ function Groups({
     );
   }
   return (
-    <div className="space-y-4" data-tour="dataset-evals">
-      <PassRateChart
+    <div className="min-w-0" data-tour="dataset-evals">
+      <RunsTable
+        runs={groups
+          .flatMap((group) => group.runs)
+          .sort((a, b) => b.created_at.localeCompare(a.created_at))}
+        agentName={(id) => known.get(id)?.name ?? t("dataset.unnamedAgent")}
+      />
+      <EvalTrend
         compact
         rangeKey={`dataset-${datasetId}`}
         lines={passRateLines(
@@ -164,12 +171,6 @@ function Groups({
           t,
           locale,
         )}
-      />
-      <RunsTable
-        runs={groups
-          .flatMap((group) => group.runs)
-          .sort((a, b) => b.created_at.localeCompare(a.created_at))}
-        agentName={(id) => known.get(id)?.name ?? t("dataset.unnamedAgent")}
       />
     </div>
   );

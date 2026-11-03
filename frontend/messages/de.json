@@ -3170,7 +3170,7 @@
         "description": "Was der Authoring-Assistent für Ihre Agents, Skills und Kontextdateien vorgeschlagen hat und auf Ihre Entscheidung wartet.",
         "empty": {
           "title": "Nichts wartet",
-          "description": "Bitten Sie den Assistenten auf dem Tab Bauen eines Agents um Verbesserungen."
+          "description": "Öffnen Sie Evals, um einen Agenten anhand seiner Ergebnisse zu verbessern."
         },
         "counts": "{instructions, plural, =0 {} =1 {1 Änderung an Anweisungen} other {# Änderungen an Anweisungen}}{tools, plural, =0 {} other { · {tools, plural, =1 {1 Tool-Änderung} other {# Tool-Änderungen}}}}{fields, plural, =0 {} other { · {fields, plural, =1 {1 Einstellungsänderung} other {# Einstellungsänderungen}}}}",
         "skillChanges": "Skill · {count, plural, =1 {1 Änderung} other {# Änderungen}}",
@@ -5282,8 +5282,8 @@
         "body": "Miss den Agent an einem Dataset, ohne daran denken zu müssen: jede Nacht, bei jeder Veröffentlichung oder Promotion, oder wenn sich ein Skill, eine Wissensbasis oder eine Kontextdatei ändert, die er liest. Du wirst benachrichtigt, wenn ein Fall bricht."
       },
       "agent-assistant-strip": {
-        "title": "Der Authoring-Assistent",
-        "body": "Verbessern öffnet den Verbesserungs-Assistenten, wie im Kopfbereich. Hier prüfen Sie die Vorschläge des Assistenten, lassen ihn Ihre eigenen Änderungen prüfen und übernehmen jeden Vorschlag in den Entwurf."
+        "title": "Vorschläge",
+        "body": "Prüfe vorgeschlagene Änderungen unter Evals, teste sie mit einem Dataset und übernimm sie in den Entwurf. Starte Improve über die Evals-Aktionsleiste."
       },
       "agent-environment-guards": {
         "title": "Wächter",
@@ -13259,7 +13259,7 @@
     "improvementSplit": {
       "share": "Anteil neuer Fragen, die zurückgelegt werden (%)",
       "shareHint": "Die Zuordnung erfolgt einmal pro Frage. Die Einstellung gilt für neue Fragen; vorhandene behalten ihren Teil über Bearbeitungen und Versionen. Eine Verbesserung benötigt mindestens fünf bewertbare zurückgelegte Fragen.",
-      "counts": "{train} helfen beim Schreiben · {holdout} zurückgelegt",
+      "counts": "{train} Training · {holdout} Kontrollfälle",
       "train": "Hilft beim Schreiben",
       "holdout": "Zurückgelegt",
       "shareInvalid": "Geben Sie einen Prozentsatz von 0 bis 100 in Schritten von 0,1 ein."
@@ -13334,7 +13334,8 @@
     "noMatchingDatasets": "Keine Datasets entsprechen Ihrer Suche.",
     "viewSourceMessages": "Quellnachrichten anzeigen",
     "sourceUserMessage": "Nutzernachricht",
-    "sourceAgentAnswer": "Agentenantwort"
+    "sourceAgentAnswer": "Agentenantwort",
+    "moreSources": "Weitere Möglichkeiten"
   },
   "knowledgeGaps": {
     "tab": "Wissenslücken",
@@ -13979,18 +13980,20 @@
       "status": "Status",
       "result": "Ergebnis",
       "passRate": "Erfolgsquote",
-      "cost": "Kosten"
+      "cost": "Kosten",
+      "model": "Modell",
+      "passedCount": "{passed} von {total} bestanden",
+      "undecidedCount": "{count} unentschieden"
     },
-    "resultTitle": "Evaluierungsergebnis"
+    "resultTitle": "Evaluierungsergebnis",
+    "trendTitle": "Ergebnisverlauf"
   },
   "authoring": {
     "strip": {
-      "title": "Authoring-Assistent",
+      "title": "Vorschläge",
       "chip": "{count, plural, =1 {1 Vorschlag} other {# Vorschläge}} · aus {ratedDown, plural, =1 {1 negativ bewerteten Antwort} other {# negativ bewerteten Antworten}} in {runs, plural, =1 {1 Run} other {# Runs}}",
-      "verify": "Meine Änderungen prüfen",
       "check": "Mit Evals prüfen",
       "dismissAll": "Alle verwerfen",
-      "empty": "Der Assistent liest, was Leute negativ bewertet haben und wie Runs endeten, und schlägt Änderungen an Anweisungen und Tool-Beschreibungen vor. Nichts ändert sich, bevor Sie es annehmen, und nichts geht live, bevor Sie veröffentlichen.",
       "verifyReport": "Was der Assistent zu Ihren Änderungen sagt",
       "skillCreated": "Skill {name} erstellt und zum Entwurf hinzugefügt",
       "working": "Lese die Runs…"
