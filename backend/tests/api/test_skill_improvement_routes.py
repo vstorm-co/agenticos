@@ -43,6 +43,18 @@ _HASH = "a" * 64
             {"confirmed": True, "pin_worse": True, "acknowledge_unknown": True},
         ),
         ("POST", f"{_ONE}/fork", "fork", {"confirmed": True, "name": "Returns"}),
+        ("POST", f"{_ONE}/recheck/estimate", "estimate_recheck", None),
+        (
+            "POST",
+            f"{_ONE}/recheck",
+            "recheck",
+            {
+                "confirmed": True,
+                "estimate_usd": "0.30",
+                "candidate_hash": _HASH,
+                "budget_usd": "5",
+            },
+        ),
         (
             "POST",
             f"{_ONE}/continue",
@@ -139,5 +151,5 @@ def test_the_platforms_own_tools_reach_every_skill_session_route() -> None:
 
     routes = [*skill_improvements.router.routes, *skill_improvements.sessions.routes]
 
-    assert len(routes) == 16
+    assert len(routes) == 18
     assert all(is_assistant_route(route) for route in routes)

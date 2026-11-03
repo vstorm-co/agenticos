@@ -218,3 +218,29 @@ async def fork_skill_improvement(
     Only a session on main forks. 409 while the check runs or once the result was decided.
     """
     return await service.fork(ctx, skill_id, run_id, data)
+
+
+@router.post("/{run_id}/recheck/estimate", response_model=SkillContinuationEstimate)
+async def estimate_skill_improvement_recheck(
+    skill_id: UUID,
+    run_id: UUID,
+    service: SkillImprovementSvc,
+    ctx: Auth,
+    data: SkillContinue | None = None,
+) -> Any:
+    """The price of Check again: the result's changes measured on the line as it is now."""
+    return await service.estimate_recheck(ctx, skill_id, run_id, data or SkillContinue())
+
+
+@router.post("/{run_id}/recheck", response_model=SkillImprovementRead)
+async def recheck_skill_improvement(
+    skill_id: UUID,
+    run_id: UUID,
+    data: SkillContinuationConsent,
+    service: SkillImprovementSvc,
+    ctx: Auth,
+) -> Any:
+    """Check the result's changes again, for a result marked `stale` or one whose decision was
+    refused because the line or its agents changed. Writes no new proposal; 409 when the price
+    moved since the quote."""
+    return await service.recheck(ctx, skill_id, run_id, data)

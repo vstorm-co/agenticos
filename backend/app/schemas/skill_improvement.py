@@ -178,6 +178,11 @@ class SkillImprovementRead(BaseSchema):
         default=None,
         description="The current attempt's check across the line's agents, once it started",
     )
+    stale: bool = Field(
+        default=False,
+        description="The result's line moved on since its check: decide after Check again "
+        "(`POST …/recheck`), which measures the same changes on the line as it is now",
+    )
     outcomes: list[CheckOutcome] = Field(
         default_factory=list,
         description="What a person may do with the result now: the check's outcomes while "

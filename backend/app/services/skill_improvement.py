@@ -660,6 +660,107 @@ class SkillImprovementService:
             draft_only=forked.draft_only,
         )
 
+    async def estimate_recheck(
+        self, ctx: AuthContext, skill_id: UUID, run_id: UUID, data: SkillContinue
+    ) -> SkillContinuationEstimate:
+        """The price of checking the result's changes again, on the line as it is now."""
+        line, run = await self._editable_row(ctx, skill_id, run_id)
+        return await self._recheck_quote(ctx, line, run, data.mode)
+
+    async def recheck(
+        self, ctx: AuthContext, skill_id: UUID, run_id: UUID, consent: SkillContinuationConsent
+    ) -> SkillImprovementRead:
+        """Check the result's chosen changes again, on the line's current version.
+
+        For a result its line moved past, or whose agents changed since its check - the
+        decision then refuses with a conflict. No new proposal is written: the same
+        edits are applied to what the line serves now, and measured on its agents.
+
+        Raises:
+            BadRequestError: The session has no result, or its changes no longer apply
+                to the line as it is now.
+            ConcurrentChangeError: The price or the text moved since it was quoted.
+            PaymentRequiredError: The spending limit does not cover the check.
+        """
+        line, run = await self._editable_row(ctx, skill_id, run_id, lock=True)
+        quote = await self._recheck_quote(ctx, line, run, consent.mode)
+        if consent.candidate_hash != quote.candidate_hash or consent.estimate_usd < quote.total_usd:
+            raise ConcurrentChangeError(
+                message="The check's price changed since it was quoted; review it again",
+                details={"estimate_usd": str(quote.total_usd)},
+            )
+        spent = await skill_improvement_repo.spent(
+            self.db, run.id, organization_id=ctx.organization_id
+        )
+        budget = max(run.budget_usd, consent.budget_usd)
+        if not rules.affordable(spent=spent, step_estimate=quote.total_usd, budget=budget):
+            raise PaymentRequiredError(
+                message="The spending limit does not cover this check",
+                details={"estimate_usd": str(quote.total_usd), "budget_usd": str(budget)},
+            )
+        previous = await self._check(run)
+        assert previous is not None, "a result is the outcome of its check"
+        if previous.status == CheckStatus.DONE.value:
+            await self.checks.discard(ctx, skill_id, previous.id)
+        base = await self._base(line)
+        iteration = await self._iteration(run)
+        await skill_improvement_repo.update_iteration(
+            self.db,
+            iteration=iteration,
+            values={
+                "candidate_hash": quote.candidate_hash,
+                "check_verdict": None,
+                "verdict": None,
+                "ended_at": None,
+            },
+        )
+        await skill_improvement_repo.update_run(
+            self.db,
+            run=run,
+            values={
+                "base_version_id": base.id,
+                "budget_usd": budget,
+                "actor_user_id": ctx.user_id,
+                "actor_api_key_id": ctx.api_key_id,
+            },
+        )
+        await self._start_check(ctx, run, line, consent.mode, base=base)
+        return await self._read(ctx, run, line)
+
+    async def _recheck_quote(
+        self, ctx: AuthContext, line: SessionLine, run: SkillImprovementRun, mode: CheckMode | None
+    ) -> SkillContinuationEstimate:
+        if run.status != Status.READY:
+            raise BadRequestError(
+                message="Only a result is checked again", details={"status": run.status}
+            )
+        base = await self._base(line)
+        iteration = await self._iteration(run)
+        start = await self._check_start(ctx, run, line, iteration, mode, base=base)
+        assert start.candidate is not None, "a session checks a text it wrote"
+        check = await self.checks.estimate(
+            ctx,
+            run.skill_id,
+            start,
+            exclude_conversations=await self._evidence_conversations(iteration),
+        )
+        spent = await skill_improvement_repo.spent(
+            self.db, run.id, organization_id=ctx.organization_id
+        )
+        return SkillContinuationEstimate(
+            mode="next_step",
+            number=run.iteration,
+            total_usd=check.at_most_usd,
+            expected_usd=check.expected_usd,
+            budget_usd=run.budget_usd,
+            affordable=check.affordable
+            and rules.affordable(
+                spent=spent, step_estimate=check.at_most_usd, budget=run.budget_usd
+            ),
+            candidate_hash=candidate_hash(start.candidate.description, start.candidate.content),
+            check_estimate=check,
+        )
+
     async def retry(self, ctx: AuthContext, skill_id: UUID, run_id: UUID) -> SkillImprovementRead:
         """Run a failed step again, within the session's spending limit."""
         line, run = await self._editable_row(ctx, skill_id, run_id, lock=True)
@@ -915,13 +1016,19 @@ class SkillImprovementService:
         await self._move(run, rules.after_filtering(kept=len(kept)))
 
     async def _start_check(
-        self, ctx: AuthContext, run: SkillImprovementRun, line: SessionLine, mode: CheckMode | None
+        self,
+        ctx: AuthContext,
+        run: SkillImprovementRun,
+        line: SessionLine,
+        mode: CheckMode | None,
+        *,
+        base: SkillVersion | None = None,
     ) -> None:
         iteration = await self._iteration(run)
         check = await self.checks.start(
             ctx,
             run.skill_id,
-            await self._check_start(ctx, run, line, iteration, mode),
+            await self._check_start(ctx, run, line, iteration, mode, base=base),
             source=CheckSource.SESSION,
             exclude_conversations=await self._evidence_conversations(iteration),
         )
@@ -939,8 +1046,10 @@ class SkillImprovementService:
         line: SessionLine,
         iteration: SkillImprovementIteration,
         mode: CheckMode | None,
+        *,
+        base: SkillVersion | None = None,
     ) -> SkillCheckStart:
-        text = candidate_text(await self.base_of(run), await self._chosen(ctx, iteration))
+        text = candidate_text(base or await self.base_of(run), await self._chosen(ctx, iteration))
         if text is None:
             raise refused_field(
                 "hunk_ids", "The chosen changes no longer apply together; choose them again"
@@ -979,7 +1088,7 @@ class SkillImprovementService:
                 values={
                     "check_verdict": "failed",
                     "verdict": ImprovementVerdict.INCONCLUSIVE.value,
-                    "cost_usd": cost,
+                    "cost_usd": iteration.cost_usd + cost,
                     "ended_at": datetime.now(UTC),
                 },
             )
@@ -994,7 +1103,7 @@ class SkillImprovementService:
             values={
                 "check_verdict": verdict.value,
                 "verdict": _VERDICTS[verdict].value,
-                "cost_usd": cost,
+                "cost_usd": iteration.cost_usd + cost,
                 "ended_at": datetime.now(UTC),
             },
         )
@@ -1173,6 +1282,7 @@ class SkillImprovementService:
             result.check = await self.checks.read(ctx, run.skill_id, check.id)
             if run.status == Status.READY:
                 result.outcomes = result.check.outcomes
+        result.stale = run.status == Status.READY and line.latest != run.base_version_id
         return result
 
     async def _timeline(self, ctx: AuthContext, run: SkillImprovementRun) -> list[ImprovementEvent]:

@@ -992,6 +992,7 @@ class FakeChecks:
         self.price = Decimal("0.30")
         self.refuse: Exception | None = None
         self.excluded: list[list[uuid.UUID]] = []
+        self.conflict = False
 
     def _estimate(self, data: SkillCheckStart) -> SkillCheckEstimate:
         return SkillCheckEstimate(
@@ -1054,6 +1055,8 @@ class FakeChecks:
         )
 
     async def apply(self, ctx, skill_id, check_id, data):
+        if self.conflict:
+            raise ConcurrentChangeError(message="The line's agents changed since the check")
         self.calls.append(("apply", data))
         pinned = [SimpleNamespace(id=uuid.uuid4(), name="Clerk")] if data.pin_worse else []
         return SimpleNamespace(version=SimpleNamespace(id=uuid.uuid4(), number=4), pinned=pinned)
@@ -1480,3 +1483,141 @@ class TestErasingAPerson:
         assert run.seed["problems"] == ["The window is wrong"]
         assert other_session.seed is not None
         assert other_session.seed["quotes"] == ["Quoted from that run"]
+
+
+async def _recheck(
+    db: AsyncSession, ctx: AuthContext, run: SkillImprovementRun, **consent: Any
+) -> SkillImprovementRead:
+    service = SkillImprovementService(db)
+    quote = await service.estimate_recheck(ctx, run.skill_id, run.id, SkillContinue())
+    return await service.recheck(
+        ctx,
+        run.skill_id,
+        run.id,
+        SkillContinuationConsent(
+            **{
+                "confirmed": True,
+                "estimate_usd": quote.total_usd,
+                "candidate_hash": quote.candidate_hash,
+                "budget_usd": run.budget_usd,
+                **consent,
+            }
+        ),
+    )
+
+
+async def _with_result(
+    db: AsyncSession, ctx: AuthContext, monkeypatch: pytest.MonkeyPatch
+) -> tuple[FakeChecks, SkillImprovementRun]:
+    fake = _checked(db, monkeypatch)
+    run = await _at_changes(db, ctx)
+    await _check_now(db, ctx, run)
+    return fake, await _settle(db, run, status="done", verdict="passed")
+
+
+class TestCheckAgain:
+    async def test_a_result_its_line_moved_past_is_stale_and_checked_again_on_the_new_text(
+        self, db, evidence, monkeypatch
+    ):
+        ctx = await _owner(db)
+        fake, run = await _with_result(db, ctx, monkeypatch)
+        service = SkillImprovementService(db)
+        first = (await service.read(ctx, run.skill_id, run.id)).check
+        assert first is not None and not (await service.read(ctx, run.skill_id, run.id)).stale
+        await SkillService(db).update(ctx, run.skill_id, SkillUpdate(content=f"{_BODY}\nBe brief."))
+
+        stale = await service.read(ctx, run.skill_id, run.id)
+        rechecked = await _recheck(db, ctx, run)
+
+        assert stale.stale and stale.status == "ready"
+        assert (rechecked.status, rechecked.stage) == ("running", "evaluating")
+        assert rechecked.check is not None and rechecked.check.id != first.id
+        assert not rechecked.stale and rechecked.base_version is not None
+        assert rechecked.base_version.number == stale.base_version.number + 1
+        [*_, (_, (started, _))] = [call for call in fake.calls if call[0] == "start"]
+        assert started.candidate.content.endswith("Be brief.")
+        assert started.candidate.content.startswith("Refunds take 30 days.")
+        assert [name for name, _ in fake.calls if name == "discard"] == ["discard"]
+
+    async def test_a_decision_refused_for_a_changed_line_is_checked_again(
+        self, db, evidence, monkeypatch
+    ):
+        ctx = await _owner(db)
+        fake, run = await _with_result(db, ctx, monkeypatch)
+        fake.conflict = True
+        service = SkillImprovementService(db)
+
+        with pytest.raises(ConcurrentChangeError):
+            await service.apply(ctx, run.skill_id, run.id, SkillImprovementApply(confirmed=True))
+        before = await service.read(ctx, run.skill_id, run.id)
+        rechecked = await _recheck(db, ctx, run)
+        run = await _settle(db, run, status="done", verdict="passed")
+
+        assert before.status == "ready" and before.check is not None
+        assert rechecked.check is not None and rechecked.check.id != before.check.id
+        assert (run.status, run.iteration) == ("ready", 1)
+
+    async def test_checking_again_needs_consent_to_its_price_and_the_budget_for_it(
+        self, db, evidence, monkeypatch
+    ):
+        ctx = await _owner(db)
+        fake, run = await _with_result(db, ctx, monkeypatch)
+
+        with pytest.raises(ConcurrentChangeError):
+            await _recheck(db, ctx, run, candidate_hash="0" * 64)
+        with pytest.raises(ConcurrentChangeError):
+            await _recheck(db, ctx, run, estimate_usd=Decimal("0.01"))
+        fake.price = Decimal("5")
+        with pytest.raises(PaymentRequiredError):
+            await _recheck(db, ctx, run)
+        assert (await _row(db, SkillImprovementRead.model_validate(run))).status == "ready"
+
+    async def test_only_a_result_of_this_organization_is_checked_again(
+        self, db, evidence, monkeypatch
+    ):
+        ctx = await _owner(db)
+        _, run = await _with_result(db, ctx, monkeypatch)
+        stranger = await _owner(db)
+        service = SkillImprovementService(db)
+
+        with pytest.raises(NotFoundError):
+            await service.estimate_recheck(stranger, run.skill_id, run.id, SkillContinue())
+        other = await _at_changes(db, ctx)
+        with pytest.raises(BadRequestError):
+            await service.estimate_recheck(ctx, other.skill_id, other.id, SkillContinue())
+
+    async def test_every_check_of_an_attempt_counts_toward_what_it_spent(
+        self, db, evidence, monkeypatch
+    ):
+        ctx = await _owner(db)
+        _, run = await _with_result(db, ctx, monkeypatch)
+        iteration = await skill_improvement_repo.get_iteration(
+            db, organization_id=ctx.organization_id, run_id=run.id, number=1
+        )
+        assert iteration is not None
+        iteration.cost_usd = Decimal("0.10")
+        await db.flush()
+
+        await _recheck(db, ctx, run)
+        await _settle(db, run, status="done", verdict="passed")
+        await db.refresh(iteration)
+
+        assert iteration.cost_usd == Decimal("0.10")
+
+    async def test_a_check_decided_elsewhere_is_not_discarded_by_checking_again(
+        self, db, evidence, monkeypatch
+    ):
+        ctx = await _owner(db)
+        fake, run = await _with_result(db, ctx, monkeypatch)
+        iteration = await skill_improvement_repo.get_iteration(
+            db, organization_id=ctx.organization_id, run_id=run.id, number=1
+        )
+        assert iteration is not None and iteration.skill_check_id is not None
+        decided = await db.get(SkillCheck, iteration.skill_check_id)
+        assert decided is not None
+        decided.status = CheckStatus.DISCARDED.value
+        await db.flush()
+
+        await _recheck(db, ctx, run)
+
+        assert [name for name, _ in fake.calls if name == "discard"] == []
