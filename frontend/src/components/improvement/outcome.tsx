@@ -6,7 +6,7 @@ import { useLocale, useTranslations } from "next-intl";
 import { KnowledgeGapDialog } from "@/components/knowledge-gaps/knowledge-gap-dialog";
 import { Skeleton } from "@/components/ui";
 import { useAgentEnvironments } from "@/hooks/use-agent-environments";
-import { useEvalComparison } from "@/hooks/use-eval-runs";
+import { useEvalComparison, useEvalRun } from "@/hooks/use-eval-runs";
 import { useImprovement, useImprovementEvidence } from "@/hooks/use-improvements";
 import { useKnowledgeGaps } from "@/hooks/use-knowledge-gaps";
 import { getErrorMessage } from "@/lib/api-error";
@@ -201,12 +201,14 @@ function AgentSentence({
   const t = useTranslations("improvement");
   const locale = useLocale();
   const { comparison, error, refetch } = useEvalComparison(runId);
+  const measured = useEvalRun(runId);
   if (error) return <StepError error={error} retry={refetch} />;
-  if (!comparison) return <p role="status">{t("loading")}</p>;
+  if (measured.error) return <StepError error={measured.error} retry={measured.refetch} />;
+  if (!comparison || !measured.run) return <p role="status">{t("loading")}</p>;
   const before = comparison.baseline_summary;
   const after = comparison.candidate_summary;
-  const total = after.cases;
-  const heldOut = measuredHoldout ?? total;
+  const total = measured.run.cases;
+  const heldOut = measuredHoldout ?? after.cases;
   const perAnswer = (cost: string, cases: number) => Number(cost) / Math.max(1, cases);
   const change =
     before && after && perAnswer(before.cost_usd, before.cases) > 0
@@ -252,7 +254,7 @@ function AgentSentence({
       />
       {change !== null && (
         <p className="text-muted-foreground text-xs">
-          {t("costExplained", { cost, count: total })}
+          {t("costExplained", { cost, heldOut: after.cases })}
         </p>
       )}
     </div>
