@@ -792,6 +792,9 @@ include = [
     "app/services/notification_catalog.py",
     "app/services/notification_center.py",
     "app/services/notification_delivery.py",
+    "app/services/notification_routes.py",
+    "app/repositories/notification_route.py",
+    "app/schemas/notification_route.py",
     "app/repositories/notification.py",
     "app/api/routes/v1/notifications.py",
     # The one action in this feature no organization-scoped role can reach.
@@ -1496,6 +1499,9 @@ include = [
     "app/services/notification_catalog.py",
     "app/services/notification_center.py",
     "app/services/notification_delivery.py",
+    "app/services/notification_routes.py",
+    "app/repositories/notification_route.py",
+    "app/schemas/notification_route.py",
     "app/repositories/notification.py",
     "app/api/routes/v1/notifications.py",
     # The one action in this feature no organization-scoped role can reach.

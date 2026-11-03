@@ -78,6 +78,7 @@ from app.db.models.outcome import Outcome, OutcomeStatus
 from app.db.models.notification import Notification, NotificationChannel, NotificationEventType
 from app.db.models.notification_delivery import DeliveryStatus, NotificationDelivery
 from app.db.models.notification_preference import NotificationChannelPreference
+from app.db.models.notification_route import NotificationRoute
 from app.db.models.push_subscription import PushSubscription
 from app.db.models.apns_device import ApnsDevice
 from app.db.models.announcement import Announcement
@@ -264,6 +265,7 @@ __all__ = [
     "NotificationDelivery",
     "DeliveryStatus",
     "NotificationChannelPreference",
+    "NotificationRoute",
     "PushSubscription",
     "ApnsDevice",
     "Announcement",

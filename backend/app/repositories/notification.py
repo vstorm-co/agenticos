@@ -9,7 +9,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.announcement import Announcement
-from app.db.models.notification import Notification
+from app.db.models.notification import CHAT_NOTIFICATION_CHANNELS, Notification
 from app.db.models.notification_delivery import DeliveryStatus, NotificationDelivery
 from app.db.models.notification_preference import NotificationChannelPreference
 from app.db.models.user import NotificationPreference, User
@@ -47,10 +47,10 @@ async def insert_notification_if_new(db: AsyncSession, notification: Notificatio
 
 
 async def insert_delivery(
-    db: AsyncSession, *, notification_id: uuid.UUID, channel: str
+    db: AsyncSession, *, notification_id: uuid.UUID, channel: str, route_id: uuid.UUID | None = None
 ) -> NotificationDelivery:
     delivery = NotificationDelivery(
-        id=uuid.uuid4(), notification_id=notification_id, channel=channel
+        id=uuid.uuid4(), notification_id=notification_id, channel=channel, route_id=route_id
     )
     db.add(delivery)
     await db.flush()
@@ -348,7 +348,14 @@ async def get_notification(db: AsyncSession, notification_id: uuid.UUID) -> Noti
 
 
 async def get_delivery(db: AsyncSession, delivery_id: uuid.UUID) -> NotificationDelivery | None:
-    return await db.get(NotificationDelivery, delivery_id)
+    """Own the bounded send transaction; duplicate claim handoffs cannot both send."""
+    result = await db.execute(
+        select(NotificationDelivery)
+        .where(NotificationDelivery.id == delivery_id)
+        .with_for_update(skip_locked=True)
+        .execution_options(populate_existing=True)
+    )
+    return result.scalar_one_or_none()
 
 
 async def claim_pending_deliveries(
@@ -386,7 +393,11 @@ async def claim_pending_deliveries(
         .join(Notification, Notification.id == NotificationDelivery.notification_id)
         .where(
             NotificationDelivery.status == DeliveryStatus.PENDING.value,
-            NotificationDelivery.attempts < max_attempts,
+            NotificationDelivery.attempts
+            < case(
+                (NotificationDelivery.channel.in_(list(CHAT_NOTIFICATION_CHANNELS)), 1),
+                else_=max_attempts,
+            ),
             (NotificationDelivery.claimed_until.is_(None))
             | (NotificationDelivery.claimed_until <= now),
             Notification.created_at >= outer_cutoff,
@@ -440,7 +451,11 @@ async def reap_exhausted_deliveries(
         update(NotificationDelivery)
         .where(
             NotificationDelivery.status == DeliveryStatus.PENDING.value,
-            NotificationDelivery.attempts >= max_attempts,
+            NotificationDelivery.attempts
+            >= case(
+                (NotificationDelivery.channel.in_(list(CHAT_NOTIFICATION_CHANNELS)), 1),
+                else_=max_attempts,
+            ),
             NotificationDelivery.claimed_until < now,
         )
         .values(

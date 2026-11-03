@@ -1,5 +1,5 @@
 ---
-source_sha: "ce8386d0c609"
+source_sha: "b5ce66ffe849"
 ---
 
 # Ochrona danych { #data-protection }
@@ -106,6 +106,7 @@ przez sprawdzenie rodzica.
 | `app_admin_audit_logs` | Kto zmienił dostęp albo wydał pieniądze — ślad organizacji i ślad administratora wdrożenia dzielą jedną tabelę | Aktor, podszywający się, adres IP, akcja i mapa `details`. Mapa przeważnie nazywa pola, ale niektóre wpisy trzymają wartości: e-mail konta, pod które się podszyto, e-mail konta usuniętego przez administratora, notatka publikacji | Rozliczalność. Zobacz [Nadzór](governance.md#audit) |
 | `notifications`, `notification_deliveries` | Każde powiadomienie zaadresowane do kogoś oraz jego dostarczenie mailem. Wiersz powstaje nawet wtedy, gdy odbiorca wyłączył dla tego zdarzenia wszystkie kanały — to on nie pozwala zapisać tego samego wystąpienia dwa razy — i po prostu nigdy nie jest pokazywany ani wysyłany; warunkowy jest tylko wiersz dostawy | Odbiorca, wyrenderowane wcześniej podsumowanie (nigdy surowy komentarz albo wartość sekretu) oraz otypowane zmienne, z których e-mail się odtwarza; wiersz dostawy dodaje swój kanał, status, liczbę prób i oczyszczony powód niepowodzenia — nigdy tekst błędu od providera | Alerty, które ktoś czyta raz, bez asysty. Zobacz [Nadzór](governance.md#alerts) |
 | `notification_preferences`, `announcements` | Przełączniki kanału per zdarzenie oraz własne ogłoszenia administratora aplikacji | Id użytkownika na przełącznik; nadawca ogłoszenia, jego treść oraz organizacje i rola, do których było zaadresowane — nigdy rozwiązana lista odbiorców, którą można odtworzyć z `notifications` tylko dopóki ten wiersz nie wypadnie w ramach [zamiatania retencji powiadomień](governance.md#alerts) — po czym wpis audytowy zachowuje tylko liczbę, nigdy odbiorców | Rezygnacja z powiadomień i własny zapis autora |
+| `notification_routes` | Jawnie wybrany prywatny czat danej platformy w jednej organizacji | Identyfikatory osoby, organizacji, sesji prywatnej i generacji autoryzacji; bez danych logowania i treści wiadomości | Powiadomienia po wyrażeniu zgody. Zmiana odwołuje stare kolejki. Eksport obejmuje metadane; usunięcie osoby, sesji lub organizacji usuwa wpis |
 | `embed_visitors`, `channel_identities`, `channel_sessions` | Obcy na hostowanej stronie oraz ludzie na Slacku, Teams, Telegramie albo Mattermoście | Losowy klucz odwiedzającego; id użytkownika platformy, nazwa użytkownika i nazwa wyświetlana; id czatu | Wznowienie właściwego wątku |
 | `message_ratings` | Kciuki i komentarze pod odpowiedziami | Oceniający i jego komentarz | Przegląd jakości |
 | `suggestions` | Co [praca z własnej inicjatywy](governance.md#proactive-work) zaproponowała osobie i czy to przyjęła | Osoba, tytuł i linijka opisu wzięte z jej ostatnich próśb, prompt rutyny albo profil, który by ustawiła, i klucz, który nie pozwala zaproponować ponownie czegoś odrzuconego | Propozycje, o których osoba decyduje |

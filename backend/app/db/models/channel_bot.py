@@ -2,7 +2,7 @@
 
 import uuid
 
-from sqlalchemy import JSON, Boolean, CheckConstraint, ForeignKey, Integer, String, true
+from sqlalchemy import JSON, Boolean, CheckConstraint, ForeignKey, Integer, String, text, true
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -16,6 +16,12 @@ class ChannelBot(Base, TimestampMixin):
     __tablename__ = "channel_bots"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    authorization_generation: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        nullable=False,
+        default=uuid.uuid4,
+        server_default=text("gen_random_uuid()"),
+    )
     # A bot belongs to exactly one organization: every conversation it opens is
     # stamped with this org, which is what lets conversations.organization_id be
     # NOT NULL even though channel conversations have no user.

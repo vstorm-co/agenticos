@@ -26,6 +26,7 @@ from app.core.config import settings
 from app.core.exceptions import AppException
 from app.core.permissions import ROLE_PERMS, AuthContext, Perm
 from app.db.models.notification import (
+    CHAT_NOTIFICATION_CHANNELS,
     NOTIFICATION_OUTER_RETENTION_DAYS,
     NOTIFICATION_READ_RETENTION_DAYS,
     Notification,
@@ -42,6 +43,7 @@ from app.services.deployment_settings import DeploymentSettingsService
 from app.services.email.service import EmailKey, get_email_service
 from app.services.notification_catalog import is_mandatory
 from app.services.notification_center import NotificationCenterService, absolute_context_url
+from app.services.notification_routes import NotificationRouteService
 from app.services.push import PushService
 from app.services.routine_notifications import allowed_channels as routine_channels
 from app.services.web_push import PushMessage
@@ -156,7 +158,11 @@ class NotificationDeliveryService:
         opening its own transaction to act on it.
         """
         delivery = await notification_repo.get_delivery(self.db, delivery_id)
-        if delivery is None or delivery.claimed_at != claimed_at:
+        if (
+            delivery is None
+            or delivery.claimed_at != claimed_at
+            or delivery.status != DeliveryStatus.PENDING.value
+        ):
             return "lost_claim"
 
         notification = await notification_repo.get_notification(self.db, delivery.notification_id)
@@ -179,6 +185,7 @@ class NotificationDeliveryService:
             return "skipped"
 
         push = delivery.channel == NotificationChannel.PUSH.value
+        chat = NotificationChannel(delivery.channel) in CHAT_NOTIFICATION_CHANNELS
         if not is_mandatory(event_type):
             allowed = await routine_channels(
                 self.db,
@@ -189,11 +196,14 @@ class NotificationDeliveryService:
             if allowed is not None and NotificationChannel(delivery.channel) not in allowed:
                 await self._skip(delivery, claimed_at)
                 return "skipped"
-            enabled = await (
-                self._center.push_channel_enabled(recipient.id, event_type)
-                if push
-                else self._center.email_channel_enabled(recipient.id, event_type)
-            )
+            if chat:
+                enabled = await self._center.chat_channel_enabled(
+                    recipient.id, event_type, NotificationChannel(delivery.channel)
+                )
+            elif push:
+                enabled = await self._center.push_channel_enabled(recipient.id, event_type)
+            else:
+                enabled = await self._center.email_channel_enabled(recipient.id, event_type)
             if not enabled:
                 await self._skip(delivery, claimed_at)
                 return "skipped"
@@ -225,6 +235,32 @@ class NotificationDeliveryService:
 
         if push:
             return await self._push(delivery, claimed_at, notification)
+        if chat:
+            try:
+                async with asyncio.timeout(SEND_TIMEOUT_SECONDS):
+                    outcome = await NotificationRouteService(self.db).deliver(
+                        delivery,
+                        notification,
+                        summary=gate.summary_override or notification.summary,
+                        context_url=None if gate.strip_context_url else notification.context_url,
+                    )
+            except Exception as exc:
+                logger.exception(
+                    "notification_chat_failed", extra={"delivery_id": str(delivery.id)}
+                )
+                await self._fail(
+                    delivery, claimed_at, _safe_send_failure(exc, provider="chat transport")
+                )
+                return "failed"
+            await notification_repo.settle_delivery(
+                self.db,
+                delivery_id=delivery.id,
+                claimed_at=claimed_at,
+                status=DeliveryStatus.SENT.value
+                if outcome == "sent"
+                else DeliveryStatus.SKIPPED.value,
+            )
+            return outcome
 
         email_key, context = self._render(notification, recipient=recipient, role=role)
         # Resolved now, not frozen at write time with the rest of
@@ -409,6 +445,7 @@ class NotificationDeliveryService:
         status = (
             DeliveryStatus.FAILED.value
             if delivery.attempts >= MAX_ATTEMPTS
+            or NotificationChannel(delivery.channel) in CHAT_NOTIFICATION_CHANNELS
             else DeliveryStatus.PENDING.value
         )
         await notification_repo.settle_delivery(

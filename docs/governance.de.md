@@ -1,5 +1,5 @@
 ---
-source_sha: "ad202c38945a"
+source_sha: "500149f4165e"
 ---
 
 # Governance { #governance }
@@ -696,17 +696,41 @@ bleibt im Job; der Berichtsmarker wird mit den Ergebnissen gespeichert. Eine
 Wiederholung derselben abgeschlossenen Aktivierung sendet keinen zweiten Bericht
 und bezahlt keine zweite Prüfung. Ein weiterer Klassifikationsaufruf entfällt.
 
-Zeitpläne und Beobachtungen erben die persönlichen Benachrichtigungseinstellungen.
-**Benachrichtigungen für diese Routine** schränkt auf E-Mail, Geräte-Push, beides
-oder nur die App ein. `notification_channels: null` erbt; eine leere Liste
-unterbindet externe Zustellung. Ein persönlich deaktivierter Kanal bleibt aus.
-Wartende Zustellungen prüfen die aktuelle Richtlinie vor dem Senden erneut;
-Pause oder Löschen stoppt wartende externe Sendungen. Verpflichtende Sicherheits-
-und Konfigurationshinweise bleiben unverändert. Eine vom Anbieter bereits
-angenommene Sendung lässt sich nicht zurückrufen.
+Zeitpläne und Beobachtungen erben deine Benachrichtigungseinstellungen.
+**Benachrichtigungen für diese Routine** erlaubt beliebige Kombinationen aus
+E-Mail, Geräte-Push, Slack, Telegram, Mattermost, Microsoft Teams und SMS oder nur
+die App. `notification_channels: null` erbt; eine leere Liste verhindert externe
+Zustellung. Persönlich ausgeschaltete Kanäle bleiben aus. Wartende Sendungen
+prüfen die aktuelle Richtlinie; Pause oder Löschen stoppt sie. Verpflichtende
+Sicherheits-/Konfigurationshinweise bleiben verpflichtend. Bereits vom Anbieter
+angenommene Nachrichten lassen sich nicht zurückrufen.
 
-`0263_routine_notification_policy.py` ergänzt diese Einstellungen. Bestehende
-Routinen erben weiter ihre Einstellungen; Beobachtungen bleiben standardmäßig still.
+Wähle unter **Einstellungen → Benachrichtigungen** ausdrücklich einen verknüpften
+privaten Chat je Plattform für die aktuelle Organisation. Eine Kontoverknüpfung
+allein aktiviert nichts. Gruppenchats, fremde Konten und Bots anderer Organisationen
+sind ausgeschlossen. E-Mail und Push behalten ihre Einrichtung. Die Chatauswahl
+bei den Ereigniseinstellungen bestimmt, welche Plattform du gerade bearbeitest.
+
+Ein Ziel bindet die konkrete Kontoverknüpfung und Bot-Autorisierung. Entknüpfen,
+erneutes Verknüpfen oder ein anderer Bot-Token/Server erfordern eine neue Auswahl.
+Wartende Sendungen wechseln nie automatisch das Ziel. Vor dem Senden werden
+Mitgliedschaft, Kontostatus, Bot-Richtlinie, SMS-Verknüpfungsfrist, Einstellungen,
+Ressourcenzugriff und gemeinsamer Fallstatus erneut geprüft. Ohne Entscheidungsrecht
+enthält ein Genehmigungshinweis nur die Tatsache des Wartens, keinen Entscheidungslink.
+
+Chatplattformen bieten keinen gemeinsamen idempotenten Sendevertrag. Jede
+Chatzustellung erhält einen persistenten Versuch. Timeout, Anbieterfehler oder
+Worker-Ausfall hinterlassen einen sichtbaren Fehler/unbestätigten Versand, statt
+automatisch eine Kopie zu senden. Das Ergebnis bleibt in der App; E-Mail und Push
+behalten ihre Wiederholungsregeln. Der Status bezeichnet Plattformannahme, nicht
+den bestätigten Empfang durch die Person.
+
+Migration `0271_notification_routes.py` ergänzt Ziele und Autorisierungsidentitäten.
+Leere die Worker und aktualisiere API/Worker gemeinsam, bevor du neue Kanäle wählst.
+Bestehende Konten bleiben aus. Ein Downgrade entfernt Chatziele, deren Versandhistorie
+und Einstellungen und begrenzt Routineauswahlen auf E-Mail/Push; externe Sendungen
+bleiben bestehen. `0263_routine_notification_policy.py` führte die ursprünglichen
+Routineeinstellungen ein.
 
 ### Budgetpausen { #routine-budget-pauses }
 

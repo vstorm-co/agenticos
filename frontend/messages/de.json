@@ -5997,7 +5997,7 @@
       "noMarketingEmail": "Keine Marketing-E-Mails.",
       "notOptional": "Nicht optional –",
       "notificationPreferences": "Benachrichtigungseinstellungen",
-      "notificationPreferencesDescription": "Feiner als die E-Mails oben – in der App und per E-Mail, pro Ereignis, für die Momente, in denen Ihre Agents irgendwo laufen, wo niemand live zusieht. Ein nicht gesetzter Schalter steht standardmäßig auf an.",
+      "notificationPreferencesDescription": "Wähle Ereignisse für jeden Kanal. Die Chatauswahl ändert die zusätzliche Spalte unten; ein privates Ziel muss auch oben aktiviert sein. Nicht gesetzte Ereignisschalter sind standardmäßig an.",
       "nothingChanged": "Nichts geändert",
       "nothingHereChargesYou": "Nichts hier stellt Ihnen etwas in Rechnung, es gibt also keine Verlängerungen, fehlgeschlagenen Zahlungen oder Guthabenwarnungen.",
       "optionalApprovals": "Freigabeanfragen",
@@ -6138,7 +6138,13 @@
           "turnOff": "Auf diesem iPhone ausschalten"
         }
       },
-      "whoReceivesThis": "Wer erhält diese Nachricht?"
+      "whoReceivesThis": "Wer erhält diese Nachricht?",
+      "slackChannel": "Slack",
+      "telegramChannel": "Telegram",
+      "mattermostChannel": "Mattermost",
+      "teamsChannel": "Microsoft Teams",
+      "smsChannel": "SMS",
+      "chatChannelPreferences": "Einstellungen für den Chatkanal"
     },
     "skills": {
       "agentsBoundSkillWill": "An diesen Skill gebundene Agents laufen ab ihrem nächsten Run ohne ihn. Das lässt sich nicht rückgängig machen.",
@@ -12195,6 +12201,24 @@
     "none": "Nur in der App",
     "email": "Nur E-Mail",
     "push": "Nur Gerätebenachrichtigungen",
-    "both": "E-Mail und Gerätebenachrichtigungen"
+    "both": "E-Mail und Gerätebenachrichtigungen",
+    "custom": "Kanäle wählen"
+  },
+  "notificationRoutes": {
+    "title": "Benachrichtigungen in privaten Chats",
+    "description": "Wähle, wohin diese Organisation deine Benachrichtigungen senden darf. Nur deine verknüpften privaten Chats sind verfügbar. Ereignis- und Routineeinstellungen gelten weiterhin. E-Mail und Push werden separat eingerichtet.",
+    "off": "Aus",
+    "unavailable": "Ziel nicht verfügbar — erneut wählen oder ausschalten",
+    "connect": "Schreibe zuerst einem Bot dieser Organisation privat und verknüpfe dein Konto.",
+    "destination": "{bot} · {account} · {id}",
+    "loadFailed": "Benachrichtigungsziele konnten nicht geladen werden",
+    "saveFailed": "Benachrichtigungsziel konnte nicht gespeichert werden",
+    "email": "E-Mail",
+    "push": "Gerätebenachrichtigungen",
+    "slack": "Slack",
+    "telegram": "Telegram",
+    "mattermost": "Mattermost",
+    "teams": "Microsoft Teams",
+    "sms": "SMS"
   }
 }

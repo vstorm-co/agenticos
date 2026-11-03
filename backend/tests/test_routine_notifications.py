@@ -19,7 +19,14 @@ MODULE = "app.services.routine_notifications"
         (None, None),
         ([], {NotificationChannel.IN_APP}),
         (["email"], {NotificationChannel.IN_APP, NotificationChannel.EMAIL}),
-        (["push", "email"], set(NotificationChannel)),
+        (
+            ["push", "email"],
+            {NotificationChannel.IN_APP, NotificationChannel.EMAIL, NotificationChannel.PUSH},
+        ),
+        (
+            ["sms", "slack"],
+            {NotificationChannel.IN_APP, NotificationChannel.SMS, NotificationChannel.SLACK},
+        ),
     ],
 )
 def test_channel_selection_only_narrows_inherited_preferences(selection, expected):

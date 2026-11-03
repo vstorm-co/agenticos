@@ -605,17 +605,39 @@ report. The scheduled activation travels with the queued job; its report marker
 commits with the result writes, so retrying a completed activation cannot replay
 the report or pay for another read. No second classification call is needed.
 
-Schedules and watches inherit the person's notification preferences. Their
-**Notifications for this routine** control can narrow delivery to e-mail, device
-push, both, or the app alone. `notification_channels: null` inherits; an empty
-list disables external delivery. A selection cannot re-enable a channel disabled
-in the person's preferences. Pending deliveries recheck current routine policy
-before sending; pausing or deleting the routine cancels its pending external
-sends. Mandatory security/configuration alerts are unaffected. A send the provider
-already accepted cannot be recalled.
+Schedules and watches inherit your notification preferences. **Notifications for
+this routine** can select any combination of e-mail, device push, Slack, Telegram,
+Mattermost, Microsoft Teams and SMS, or the app alone. `notification_channels:
+null` inherits; an empty list disables external delivery. A routine cannot enable
+a channel disabled in your preferences. Pending sends recheck the live policy;
+pausing or deleting the routine stops them. Mandatory security/configuration
+alerts remain mandatory. Provider-accepted messages cannot be recalled.
 
-`0263_routine_notification_policy.py` adds these settings. Existing routines keep
-their delivery preferences, and existing watches retain quiet monitoring by default.
+In **Settings → Notifications**, explicitly choose one linked private chat per
+platform for the current organization. Linking an account alone never enables
+notifications. Group chats, another person's account and another organization's
+bots are excluded. E-mail and push keep their existing setup. The chat selector
+in the event preferences changes which platform's switches you edit.
+
+Destinations bind the particular account link and bot authorization. Unlinking,
+relinking, replacing the bot's token/server or changing the destination requires
+another choice. Previously queued deliveries are not redirected. Sending rechecks
+membership, account activity, bot access policy, SMS link expiry, event preferences,
+resource access and shared outcome state. A reader who can no longer decide an
+approval receives only the waiting fact, without a decision link.
+
+Chat platforms have no shared idempotent-send contract. Each chat delivery gets
+one persisted attempt. A timeout, provider failure or worker loss leaves a visible
+failed/unconfirmed delivery instead of automatically sending another copy. The
+in-app result remains available; e-mail and push retain their existing retry rules.
+This describes submission to the platform, not confirmed receipt by the person.
+
+Migration `0271_notification_routes.py` adds explicit routes and authorization
+identities. Drain workers and update API/workers together before selecting the
+new channels. No existing account opts in on upgrade. Downgrade removes chat
+routes, chat delivery history and chat preferences, and narrows routine selections
+to e-mail/push; it cannot undo external sends. Migration
+`0263_routine_notification_policy.py` introduced the original routine controls.
 
 ### Budget pauses { #routine-budget-pauses }
 

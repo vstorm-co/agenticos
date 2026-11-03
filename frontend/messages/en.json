@@ -6696,7 +6696,7 @@
       "noMarketingEmail": "No marketing email.",
       "notOptional": "Not optional -",
       "notificationPreferences": "Notification preferences",
-      "notificationPreferencesDescription": "More granular than the emails above - in-app and email, per event, for the moments your agents run somewhere nobody is watching live. An unset switch defaults to on.",
+      "notificationPreferencesDescription": "Choose which events reach each channel. The chat selector changes the additional column below; a private destination must also be enabled above. An unset event switch defaults to on.",
       "nothingChanged": "Nothing changed",
       "nothingHereChargesYou": "Nothing here charges you, so there are no renewals, payment failures or credit warnings.",
       "optionalApprovals": "Approval requests",
@@ -6837,7 +6837,13 @@
           "turnOff": "Turn off on this iPhone"
         }
       },
-      "whoReceivesThis": "Who receives this?"
+      "whoReceivesThis": "Who receives this?",
+      "slackChannel": "Slack",
+      "telegramChannel": "Telegram",
+      "mattermostChannel": "Mattermost",
+      "teamsChannel": "Microsoft Teams",
+      "smsChannel": "SMS",
+      "chatChannelPreferences": "Chat channel preferences"
     },
     "skills": {
       "agentsBoundSkillWill": "Agents bound to this skill will run without it from their next run. This cannot be undone.",
@@ -12523,6 +12529,24 @@
     "none": "In the app only",
     "email": "E-mail only",
     "push": "Device notifications only",
-    "both": "E-mail and device notifications"
+    "both": "E-mail and device notifications",
+    "custom": "Choose channels"
+  },
+  "notificationRoutes": {
+    "title": "Private chat notifications",
+    "description": "Choose where this organization may send your notifications. Only your linked private chats are eligible. Per-event and routine preferences still apply. Email and push are configured separately.",
+    "off": "Off",
+    "unavailable": "Destination unavailable — choose again or turn off",
+    "connect": "Message and link one of this organization’s bots in a private chat first.",
+    "destination": "{bot} · {account} · {id}",
+    "loadFailed": "Could not load notification destinations",
+    "saveFailed": "Could not save notification destination",
+    "email": "E-mail",
+    "push": "Device notifications",
+    "slack": "Slack",
+    "telegram": "Telegram",
+    "mattermost": "Mattermost",
+    "teams": "Microsoft Teams",
+    "sms": "SMS"
   }
 }

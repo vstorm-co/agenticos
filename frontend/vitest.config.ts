@@ -112,6 +112,7 @@ export default defineConfig({
         "src/components/settings/create-api-key-dialog.tsx",
         "src/components/settings/scope-picker.tsx",
         "src/components/settings/connected-apps.tsx",
+        "src/components/settings/notification-routes.tsx",
         "src/components/settings/api-reference/**",
         "src/components/settings/api-usage.tsx",
         // What the MCP catalog check found, on a server's card (#2103).

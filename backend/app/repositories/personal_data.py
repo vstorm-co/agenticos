@@ -32,6 +32,7 @@ from app.db.models.memory_claim import MemoryClaim
 from app.db.models.message_rating import MessageRating
 from app.db.models.notification import Notification
 from app.db.models.notification_preference import NotificationChannelPreference
+from app.db.models.notification_route import NotificationRoute
 from app.db.models.oauth import OAuthGrant
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.routine_delivery import RoutineDelivery
@@ -318,6 +319,11 @@ async def notification_preferences_of(
             NotificationChannelPreference.user_id == user_id
         )
     )
+    return list(result.scalars().all())
+
+
+async def notification_routes_of(db: AsyncSession, user_id: UUID) -> list[NotificationRoute]:
+    result = await db.execute(select(NotificationRoute).where(NotificationRoute.user_id == user_id))
     return list(result.scalars().all())
 
 

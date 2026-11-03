@@ -4,7 +4,9 @@ from typing import Literal
 
 from pydantic import TypeAdapter
 
-ExternalNotificationChannel = Literal["email", "push"]
+ExternalNotificationChannel = Literal[
+    "email", "push", "slack", "telegram", "mattermost", "teams", "sms"
+]
 WatchReportMode = Literal["changes", "every_check"]
 
 

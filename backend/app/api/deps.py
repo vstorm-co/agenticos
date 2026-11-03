@@ -2042,6 +2042,14 @@ def get_notification_center_service(db: DBSession) -> NotificationCenterService:
 NotificationCenterSvc = Annotated[
     NotificationCenterService, Depends(get_notification_center_service)
 ]
+from app.services.notification_routes import NotificationRouteService
+
+
+def get_notification_route_service(db: DBSession) -> NotificationRouteService:
+    return NotificationRouteService(db)
+
+
+NotificationRouteSvc = Annotated[NotificationRouteService, Depends(get_notification_route_service)]
 from app.services.notification_delivery import NotificationDeliveryService
 
 

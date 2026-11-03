@@ -10,7 +10,7 @@ organization, so that was a tenant boundary with nothing behind it.
 import logging
 import secrets
 from typing import Any
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -669,6 +669,11 @@ class ChannelBotService:
                 "Say true or false - a null pair is what inherits now",
             )
         update_data = writable(data, over=ChannelBot)
+        if update_data.get("token") is not None or any(
+            field in update_data and update_data[field] != getattr(bot, field)
+            for field in ("api_base_url", "teams_app_id", "teams_tenant_id")
+        ):
+            update_data["authorization_generation"] = uuid4()
         if "api_base_url" in update_data:
             self._check_server_url(bot.platform, update_data["api_base_url"])
         await self._check_transcription(bot, update_data)

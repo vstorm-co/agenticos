@@ -591,6 +591,8 @@ export const qk = {
   notifications: {
     all: () => ["notifications"] as const,
     preferences: () => ["notifications", "preferences"] as const,
+    destinations: (organizationId: string | null) =>
+      ["notifications", "destinations", organizationId] as const,
     inbox: () => ["notifications", "inbox"] as const,
     unreadCount: () => ["notifications", "unread-count"] as const,
   },

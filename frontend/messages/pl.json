@@ -3091,7 +3091,7 @@
       "noMarketingEmail": "Bez e-maili marketingowych.",
       "notOptional": "Nieopcjonalne -",
       "notificationPreferences": "Ustawienia powiadomień",
-      "notificationPreferencesDescription": "Dokładniej niż e-maile powyżej - w aplikacji i e-mailem, per zdarzenie, na chwile, gdy Twoi agenci działają tam, gdzie nikt nie patrzy na żywo. Nieustawiony przełącznik jest domyślnie włączony.",
+      "notificationPreferencesDescription": "Wybierz zdarzenia dla poszczególnych kanałów. Selektor czatu zmienia dodatkową kolumnę poniżej; prywatne miejsce trzeba też włączyć powyżej. Nieustawiony przełącznik zdarzenia jest domyślnie włączony.",
       "nothingChanged": "Nic się nie zmieniło",
       "nothingHereChargesYou": "Nic tutaj Cię nie obciąża, więc nie ma odnowień, nieudanych płatności ani ostrzeżeń o kredytach.",
       "optionalApprovals": "Prośby o zatwierdzenie",
@@ -3224,7 +3224,13 @@
           "turnOff": "Wyłącz na tym iPhonie"
         }
       },
-      "whoReceivesThis": "Kto otrzymuje powiadomienie?"
+      "whoReceivesThis": "Kto otrzymuje powiadomienie?",
+      "slackChannel": "Slack",
+      "telegramChannel": "Telegram",
+      "mattermostChannel": "Mattermost",
+      "teamsChannel": "Microsoft Teams",
+      "smsChannel": "SMS",
+      "chatChannelPreferences": "Preferencje kanału czatu"
     },
     "tables": {
       "title": "Tabele",
@@ -12299,6 +12305,24 @@
     "none": "Tylko w aplikacji",
     "email": "Tylko e-mail",
     "push": "Tylko powiadomienia na urządzeniu",
-    "both": "E-mail i powiadomienia na urządzeniu"
+    "both": "E-mail i powiadomienia na urządzeniu",
+    "custom": "Wybierz kanały"
+  },
+  "notificationRoutes": {
+    "title": "Powiadomienia w prywatnych czatach",
+    "description": "Wybierz, gdzie ta organizacja może wysyłać powiadomienia. Dostępne są tylko Twoje połączone prywatne czaty. Preferencje zdarzeń i rutyn nadal obowiązują. E-mail i push konfigurujesz osobno.",
+    "off": "Wyłączone",
+    "unavailable": "Miejsce niedostępne — wybierz ponownie lub wyłącz",
+    "connect": "Najpierw napisz prywatnie do bota tej organizacji i połącz konto.",
+    "destination": "{bot} · {account} · {id}",
+    "loadFailed": "Nie udało się wczytać miejsc powiadomień",
+    "saveFailed": "Nie udało się zapisać miejsca powiadomień",
+    "email": "E-mail",
+    "push": "Powiadomienia na urządzeniu",
+    "slack": "Slack",
+    "telegram": "Telegram",
+    "mattermost": "Mattermost",
+    "teams": "Microsoft Teams",
+    "sms": "SMS"
   }
 }

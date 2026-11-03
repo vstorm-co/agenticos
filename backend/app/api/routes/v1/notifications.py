@@ -15,7 +15,13 @@ from uuid import UUID
 
 from fastapi import APIRouter, Query, Response, status
 
-from app.api.deps import Auth, CurrentAppAdmin, NotificationCenterSvc, NotificationDeliverySvc
+from app.api.deps import (
+    Auth,
+    CurrentAppAdmin,
+    NotificationCenterSvc,
+    NotificationDeliverySvc,
+    NotificationRouteSvc,
+)
 from app.schemas.notification import (
     ClearInboxResult,
     FailedDeliveryList,
@@ -28,6 +34,7 @@ from app.schemas.notification import (
     NotificationRead,
     UnreadCountRead,
 )
+from app.schemas.notification_route import NotificationRouteList, NotificationRouteUpdate
 from app.services.notification_center import PreferenceItem, decode_cursor, encode_cursor
 
 router = APIRouter()
@@ -89,6 +96,28 @@ async def update_notification_preference(
     return NotificationPreferenceRead(
         event_type=item.event_type.value, channel=item.channel.value, enabled=item.enabled
     )
+
+
+@router.get("/notifications/destinations", response_model=NotificationRouteList)
+async def list_notification_destinations(service: NotificationRouteSvc, ctx: Auth) -> Any:
+    """Your routes, up to 100 recent eligible sessions and still-eligible selected ones.
+
+    A linked account alone never enables chat notifications. Groups, unlinked,
+    expired and inaccessible accounts are excluded. Console sessions only.
+    """
+    return await service.list(ctx)
+
+
+@router.put("/notifications/destinations", response_model=NotificationRouteList)
+async def replace_notification_destination(
+    data: NotificationRouteUpdate, service: NotificationRouteSvc, ctx: Auth
+) -> Any:
+    """Choose one private destination per platform in this organization, or null to revoke.
+
+    Replacement revokes pending deliveries to the old grant; they never move to
+    the new destination. Personal per-event and per-routine preferences still apply.
+    """
+    return await service.replace(ctx, data)
 
 
 @router.patch("/notifications/{notification_id}", response_model=NotificationRead)

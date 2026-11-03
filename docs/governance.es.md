@@ -1,5 +1,5 @@
 ---
-source_sha: "ad202c38945a"
+source_sha: "500149f4165e"
 ---
 
 # Governance { #governance }
@@ -658,17 +658,40 @@ marcador se confirma con los resultados, de modo que reintentar una activación
 completada no repite el informe ni paga otra lectura. No requiere una segunda
 llamada de clasificación.
 
-Horarios y vigilancias heredan las preferencias de notificación personales.
-**Notificaciones de esta rutina** limita la entrega a correo, push del dispositivo,
-ambos o solo la app. `notification_channels: null` hereda; una lista vacía desactiva
-la entrega externa. No puede reactivar un canal desactivado por la persona.
-Las entregas pendientes revisan la política actual antes de enviar; pausar o
-eliminar la rutina detiene sus envíos externos pendientes. Los avisos obligatorios
-de seguridad/configuración no cambian. Un envío ya aceptado por el proveedor no
-puede retirarse.
+Horarios y vigilancias heredan tus preferencias de notificación.
+**Notificaciones de esta rutina** permite combinar correo, push del dispositivo,
+Slack, Telegram, Mattermost, Microsoft Teams y SMS, o solo la app.
+`notification_channels: null` hereda; una lista vacía impide envíos externos.
+La rutina no activa un canal desactivado en tus preferencias. Los envíos pendientes
+revisan la política actual; pausar o eliminar la rutina los detiene. Los avisos
+obligatorios de seguridad/configuración siguen siendo obligatorios. Un mensaje
+aceptado por el proveedor no se puede retirar.
 
-`0263_routine_notification_policy.py` añade estos ajustes. Las rutinas existentes
-conservan sus preferencias y las vigilancias siguen siendo silenciosas por defecto.
+En **Ajustes → Notificaciones**, elige expresamente un chat privado vinculado por
+plataforma para la organización actual. Vincular una cuenta no activa notificaciones.
+Se excluyen grupos, cuentas ajenas y bots de otras organizaciones. Correo y push
+conservan su configuración. El selector de chat en las preferencias de eventos
+cambia la plataforma cuyos interruptores estás editando.
+
+El destino queda ligado a la vinculación concreta y la autorización del bot.
+Desvincular, volver a vincular o cambiar el token/servidor del bot exige elegir de
+nuevo. Los envíos pendientes nunca se redirigen. Antes de enviar se comprueban
+membresía, actividad, política del bot, caducidad del vínculo SMS, preferencias,
+acceso al recurso y estado compartido del caso. Quien ya no puede decidir una
+aprobación recibe solo el aviso de espera, sin enlace de decisión.
+
+Las plataformas de chat no comparten un contrato de envío idempotente. Cada
+entrega dispone de un intento persistido. Un timeout, fallo del proveedor o pérdida
+del worker deja un fallo/envío no confirmado visible, en vez de reenviar una copia.
+El resultado sigue en la app; correo y push mantienen sus reglas de reintento.
+El estado indica aceptación por la plataforma, no recepción confirmada por la persona.
+
+La migración `0271_notification_routes.py` añade destinos e identidades de
+autorización. Drena los workers y actualiza API/workers juntos antes de elegir los
+nuevos canales. Ninguna cuenta existente se activa al actualizar. El downgrade
+elimina destinos, historial de entregas y preferencias de chat, y limita las
+selecciones de rutinas a correo/push; no deshace envíos externos.
+`0263_routine_notification_policy.py` introdujo los controles originales.
 
 ### Pausas por presupuesto { #routine-budget-pauses }
 

@@ -1,7 +1,7 @@
 """ChannelIdentity repository (PostgreSQL async)."""
 
 from collections.abc import Collection
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
@@ -136,6 +136,8 @@ async def update(
     update_data: dict,
 ) -> ChannelIdentity:
     """Update a channel identity."""
+    if "user_id" in update_data:
+        db_identity.authorization_generation = uuid4()
     for field, value in update_data.items():
         setattr(db_identity, field, value)
     db.add(db_identity)

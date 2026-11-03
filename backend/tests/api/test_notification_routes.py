@@ -549,3 +549,29 @@ class TestFailedDeliveries:
         async with admin_client() as http:
             response = await http.get(_admin_url(), params={"status": "sent"})
         assert response.status_code == 422
+
+
+async def test_private_notification_destinations_have_a_separate_typed_endpoint(
+    client: OpenClient,
+) -> None:
+    from app.schemas.notification_route import NotificationRouteList
+
+    service = MagicMock()
+    service.list = AsyncMock(return_value=NotificationRouteList(items=[], destinations=[]))
+    service.replace = AsyncMock(return_value=NotificationRouteList(items=[], destinations=[]))
+    app.dependency_overrides[deps.get_notification_route_service] = lambda: service
+    async with client() as http:
+        listed = await http.get(_url("/destinations"))
+        revoked = await http.put(
+            _url("/destinations"), json={"channel": "telegram", "session_id": None}
+        )
+        invalid = await http.put(
+            _url("/destinations"), json={"channel": "unknown", "session_id": None}
+        )
+        omitted = await http.put(_url("/destinations"), json={"channel": "telegram"})
+    assert listed.status_code == revoked.status_code == 200
+    assert listed.json() == {"items": [], "destinations": []}
+    assert invalid.status_code == omitted.status_code == 422
+    service.replace.assert_awaited_once()
+    assert service.replace.await_args.args[1].session_id is None
+    assert service.list.await_args.args[0].organization_id == _ORGANIZATION_ID

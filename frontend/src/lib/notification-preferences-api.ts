@@ -11,7 +11,45 @@
 
 import { apiClient } from "./api-client";
 
-export type NotificationChannel = "in_app" | "email" | "push";
+export const CHAT_NOTIFICATION_CHANNELS = [
+  "slack",
+  "telegram",
+  "mattermost",
+  "teams",
+  "sms",
+] as const;
+export type ChatNotificationChannel = (typeof CHAT_NOTIFICATION_CHANNELS)[number];
+export type NotificationChannel = "in_app" | "email" | "push" | ChatNotificationChannel;
+
+export interface NotificationDestination {
+  session_id: string;
+  channel: ChatNotificationChannel;
+  bot_name: string;
+  account_name: string;
+}
+
+export interface NotificationRoute {
+  id: string;
+  channel: ChatNotificationChannel;
+  session_id: string;
+  available: boolean;
+}
+
+export interface NotificationRoutes {
+  items: NotificationRoute[];
+  destinations: NotificationDestination[];
+}
+
+export function listNotificationRoutes(): Promise<NotificationRoutes> {
+  return apiClient.get<NotificationRoutes>("/notifications/destinations");
+}
+
+export function replaceNotificationRoute(input: {
+  channel: ChatNotificationChannel;
+  session_id: string | null;
+}): Promise<NotificationRoutes> {
+  return apiClient.put<NotificationRoutes>("/notifications/destinations", input);
+}
 
 export interface NotificationPreference {
   event_type: string;

@@ -240,6 +240,10 @@ class PersonalDataService:
                 await personal_data_repo.notification_preferences_of(self.db, user_id),
                 _NOTIFICATION_PREFERENCE_FIELDS,
             ),
+            notification_routes=personal_data_repo.as_rows(
+                await personal_data_repo.notification_routes_of(self.db, user_id),
+                ("id", "organization_id", "channel", "session_id", "created_at"),
+            ),
             browser_sign_ins=personal_data_repo.as_rows(
                 await personal_data_repo.browser_sign_ins_of(self.db, user_id), _SIGN_IN_FIELDS
             ),

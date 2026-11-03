@@ -28,3 +28,26 @@ describe("routine notification channels", () => {
     expect(change).toHaveBeenLastCalledWith(["email", "push"]);
   });
 });
+
+it("can combine supported chat channels without expanding personal preferences", async () => {
+  const change = vi.fn();
+  const { rerender } = render(
+    <NotificationChannelsField value={["sms", "teams"]} onChange={change} />,
+  );
+  expect(screen.getByRole("combobox")).toHaveTextContent("Choose channels");
+  expect(screen.getByRole("checkbox", { name: "SMS" })).toBeChecked();
+  await userEvent.click(screen.getByRole("checkbox", { name: "Telegram" }));
+  expect(change).toHaveBeenLastCalledWith(["telegram", "teams", "sms"]);
+  rerender(<NotificationChannelsField value={["telegram", "teams", "sms"]} onChange={change} />);
+  await userEvent.click(screen.getByRole("checkbox", { name: "SMS" }));
+  expect(change).toHaveBeenLastCalledWith(["telegram", "teams"]);
+});
+
+it("opens a custom selection from inherited preferences", async () => {
+  const change = vi.fn();
+  render(<NotificationChannelsField value={null} onChange={change} />);
+  await userEvent.click(screen.getByRole("combobox"));
+  await userEvent.click(await screen.findByRole("option", { name: "Choose channels" }));
+  expect(change).toHaveBeenLastCalledWith([]);
+  expect(screen.getByRole("checkbox", { name: "Slack" })).not.toBeChecked();
+});

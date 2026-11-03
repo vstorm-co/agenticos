@@ -1,5 +1,5 @@
 ---
-source_sha: "ad202c38945a"
+source_sha: "500149f4165e"
 ---
 
 # Governance { #governance }
@@ -645,17 +645,40 @@ zmian. Termin aktywacji pozostaje w zadaniu; znacznik raportu jest zatwierdzany
 z wynikami, więc ponowienie ukończonej aktywacji nie powtarza raportu ani płatnego
 odczytu. Nie ma drugiego wywołania klasyfikującego.
 
-Harmonogramy i obserwacje dziedziczą preferencje powiadomień osoby. Pole
-**Powiadomienia dla tej rutyny** zawęża dostawę do e-maila, powiadomień urządzenia,
-obu kanałów lub samej aplikacji. `notification_channels: null` dziedziczy;
-pusta lista wyłącza dostawę zewnętrzną. Wybór nie włącza kanału wyłączonego
-w preferencjach osoby. Oczekujące dostarczenia ponownie sprawdzają aktualną
-politykę przed wysyłką; pauza lub usunięcie rutyny zatrzymuje jej oczekujące
-wysyłki zewnętrzne. Obowiązkowe alerty bezpieczeństwa i konfiguracji nie zmieniają
-się. Wysyłki już przyjętej przez dostawcę nie można wycofać.
+Harmonogramy i obserwacje dziedziczą Twoje preferencje powiadomień. Pole
+**Powiadomienia dla tej rutyny** pozwala wybrać dowolne połączenie e-maila, push,
+Slacka, Telegrama, Mattermosta, Microsoft Teams i SMS albo samą aplikację.
+`notification_channels: null` dziedziczy; pusta lista wyłącza wysyłki zewnętrzne.
+Rutyna nie włącza kanału wyłączonego w Twoich preferencjach. Oczekujące wysyłki
+sprawdzają aktualną politykę; pauza lub usunięcie rutyny je zatrzymuje. Obowiązkowe
+alerty bezpieczeństwa i konfiguracji pozostają obowiązkowe. Wiadomości przyjętej
+przez dostawcę nie można wycofać.
 
-`0263_routine_notification_policy.py` dodaje te ustawienia. Istniejące rutyny
-zachowują preferencje dostarczania, a obserwacje domyślnie nadal milczą bez zmian.
+W **Ustawienia → Powiadomienia** jawnie wybierasz jeden połączony prywatny czat
+na platformę w bieżącej organizacji. Samo połączenie konta nie włącza powiadomień.
+Czaty grupowe, cudze konta i boty innych organizacji są wykluczone. E-mail i push
+zachowują obecną konfigurację. Selektor czatu przy preferencjach zdarzeń zmienia
+platformę, której przełączniki edytujesz.
+
+Miejsce jest związane z konkretnym połączeniem konta i autoryzacją bota.
+Odłączenie, ponowne połączenie, zmiana tokenu/serwera bota lub miejsca wymaga
+ponownego wyboru. Stare wysyłki nie są przekierowywane. Przed wysyłką sprawdzane
+są członkostwo, aktywność konta, polityka bota, ważność połączenia SMS, preferencje,
+dostęp do zasobu i wspólny stan sprawy. Osoba bez prawa decyzji o zatwierdzeniu
+otrzymuje tylko informację o oczekiwaniu, bez odnośnika do decyzji.
+
+Platformy czatu nie mają wspólnego kontraktu idempotentnej wysyłki. Każde
+dostarczenie ma jedną trwale zapisaną próbę. Timeout, błąd dostawcy lub utrata
+workera pozostawia widoczny błąd/niepotwierdzoną wysyłkę zamiast automatycznego
+wysłania kopii. Wynik pozostaje w aplikacji; e-mail i push zachowują dotychczasowe
+ponowienia. Status oznacza przyjęcie przez platformę, nie odbiór przez osobę.
+
+Migracja `0271_notification_routes.py` dodaje jawne miejsca i identyfikatory
+autoryzacji. Opróżnij workery i zaktualizuj API/workery razem przed wyborem nowych
+kanałów. Aktualizacja nie włącza żadnego istniejącego konta. Downgrade usuwa miejsca,
+historię dostarczeń i preferencje czatów oraz zawęża wybory rutyn do e-maila/push;
+nie cofa zewnętrznych wysyłek. Migracja `0263_routine_notification_policy.py`
+wprowadziła pierwotne ustawienia rutyn.
 
 ### Wstrzymanie przez budżet { #routine-budget-pauses }
 

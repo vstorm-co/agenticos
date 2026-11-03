@@ -87,6 +87,9 @@ class PersonalDataExport(BaseModel):
     notification_preferences: list[dict[str, Any]] = Field(
         description="Which events they chose to hear about, per channel."
     )
+    notification_routes: list[dict[str, Any]] = Field(
+        default_factory=list, description="Their explicit private notification destinations."
+    )
     browser_sign_ins: list[dict[str, Any]] = Field(
         description=(
             "The sites they kept a browser sign-in to, and when it was last used. "
