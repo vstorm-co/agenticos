@@ -25,8 +25,7 @@ where the run broke cases, green where it fixed them, amber where it did both,
 and hollow for a draft; hovering it says what ran, against what and when, and
 clicking it opens the run.
 
-The axis names the runs by when they started - the time for a run today, the
-date before, once for a day of runs. Past 10 runs a switch above the chart shows
+The axis uses times when the history fits within one day, including a past day. Across days it shows dates for older runs and times for today, printing each repeated label once. The tooltip keeps the full start date and time. Past 10 runs a switch above the chart shows
 the last 10, the last 30 or every run; it opens on the last 10, and the choice
 stays in the page's address, so Back and a link keep it.
 

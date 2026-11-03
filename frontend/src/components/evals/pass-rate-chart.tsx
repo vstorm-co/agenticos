@@ -8,7 +8,7 @@ import type { PassRateLine, PassRatePoint } from "@/components/charts/pass-rate-
 import { ChoiceGroup } from "@/components/settings/choice-group";
 import { useUrlState } from "@/hooks/use-url-state";
 import { ROUTES } from "@/lib/constants";
-import { CHART_MIN_HEIGHT, LINE_WIDTH } from "@/lib/dashboard/system";
+import { CHART_MIN_HEIGHT, LINE_WIDTH, STROKE_TOKEN } from "@/lib/dashboard/system";
 import { cn, formatDateTime } from "@/lib/utils";
 import type { EvalRun, Verdict } from "@/types/eval-runs";
 import { percent } from "./format";
@@ -35,7 +35,7 @@ export function trendRange(param: string | null): Range {
 /**
  * A verdict worth a colour of its own: what the run did to the cases. These
  * three colours belong to verdicts alone, so lines are told apart by their dash
- * and a run with no verdict is drawn in the lines' own neutral ink.
+ * and a run with no verdict is drawn in the lines' own chart ink.
  */
 const VERDICT_COLOR: Partial<Record<Verdict, string>> = {
   worse: "var(--color-destructive)",
@@ -44,17 +44,17 @@ const VERDICT_COLOR: Partial<Record<Verdict, string>> = {
 };
 
 /** The lines' ink, and a run's when it has no verdict to colour it. */
-const NEUTRAL = "var(--color-muted-foreground)";
+const SERIES_INK = STROKE_TOKEN;
 
 /** One dash per line, so a second dataset never borrows a verdict's colour. */
 const DASHES = [undefined, "6 4", "2 3", "10 3 2 3", "1 5"];
 
 type Translate = (key: string, values?: Record<string, string | number>) => string;
 
-/** When a run started, as short as an axis has room for: the time today, the date before. */
-function tickWhen(createdAt: string, locale: string, today: string): string {
+/** Times distinguish runs within one day; dates give context when history spans days. */
+function tickWhen(createdAt: string, locale: string, today: string, oneDay: boolean): string {
   const at = new Date(createdAt);
-  return at.toDateString() === today
+  return oneDay || at.toDateString() === today
     ? at.toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" })
     : at.toLocaleDateString(locale, { month: "short", day: "numeric" });
 }
@@ -75,19 +75,25 @@ export function passRateLines(
   const lines = new Map<string, PassRateLine>();
   const finished = runs
     .filter((run) => run.status === "completed")
-    .sort((a, b) => a.created_at.localeCompare(b.created_at));
+    .sort((a, b) => a.created_at.localeCompare(b.created_at))
+    .flatMap((run) => {
+      const arm =
+        run.arms.find((item) => item.id === run.outcome?.candidate_arm_id) ??
+        run.arms.find((item) => item.role === "candidate");
+      return arm === undefined || arm.summary.pass_rate === null
+        ? []
+        : [{ run, arm, rate: arm.summary.pass_rate }];
+    });
   const today = new Date().toDateString();
+  const oneDay =
+    new Set(finished.map(({ run }) => new Date(run.created_at).toDateString())).size === 1;
   let index = 0;
-  for (const run of finished) {
-    const arm =
-      run.arms.find((item) => item.id === run.outcome?.candidate_arm_id) ??
-      run.arms.find((item) => item.role === "candidate");
-    if (arm === undefined || arm.summary.pass_rate === null) continue;
+  for (const { run, arm, rate } of finished) {
     const { key, name } = group(run);
     const line = lines.get(key) ?? {
       key,
       name,
-      color: NEUTRAL,
+      color: SERIES_INK,
       dash: DASHES[lines.size % DASHES.length],
       points: [],
     };
@@ -97,15 +103,15 @@ export function passRateLines(
     const baseline = run.outcome?.baseline ?? null;
     line.points.push({
       index: index++,
-      rate: arm.summary.pass_rate,
-      tick: tickWhen(run.created_at, locale, today),
+      rate,
+      tick: tickWhen(run.created_at, locale, today, oneDay),
       draft,
-      color: (verdict && VERDICT_COLOR[verdict]) ?? NEUTRAL,
+      color: (verdict && VERDICT_COLOR[verdict]) ?? SERIES_INK,
       href: `${ROUTES.AGENTS}/${run.agent_id}/evals/${run.id}`,
       title: t("sideModel", { name: sideName(arm, t), model: arm.model_label }),
       details: [
         ...(baseline ? [t("trend.comparedWith", { name: sideName(baseline, t) })] : []),
-        t("trend.rate", { rate: percent(arm.summary.pass_rate, locale) }),
+        t("trend.rate", { rate: percent(rate, locale) }),
         t("trend.verdict", { verdict: verdict ?? "none" }),
         formatDateTime(run.created_at, locale),
       ],

@@ -1,5 +1,5 @@
 ---
-source_sha: "87337c2961e1"
+source_sha: "54fdb34c23f6"
 title: "Eval-Runs"
 description: "Ein Eval-Run beantwortet jeden Fall eines Datasets mit einer Agent-Version oder ihrem Entwurf, bewertet jede Antwort und vergleicht das Ergebnis mit einer Baseline."
 ---
@@ -28,8 +28,7 @@ eigener Strichart. Ein Punkt ist rot, wo der Run Fälle verschlechtert hat, grü
 wo er sie behoben hat, bernsteinfarben, wo beides, und hohl für einen Entwurf; der
 Hover sagt, was lief, wogegen und wann, und ein Klick öffnet den Run.
 
-Die Achse benennt die Runs nach ihrem Start - mit der Uhrzeit für einen Run von
-heute, mit dem Datum für frühere, einmal je Tag. Ab mehr als 10 Runs zeigt ein
+Die Achse zeigt Uhrzeiten, wenn die Historie innerhalb eines Tages liegt, auch eines vergangenen. Über mehrere Tage zeigt sie Daten für ältere Runs und Uhrzeiten für heutige, ohne gleiche Beschriftungen zu wiederholen. Der Tooltip enthält das vollständige Startdatum mit Uhrzeit. Ab mehr als 10 Runs zeigt ein
 Schalter über dem Diagramm die letzten 10, die letzten 30 oder alle Runs; er
 öffnet mit den letzten 10, und die Wahl bleibt in der Adresse der Seite, sodass
 Zurück und ein Link sie behalten.

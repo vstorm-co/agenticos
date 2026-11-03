@@ -192,10 +192,10 @@ describe("passRateLines", () => {
       "en",
     );
 
-    // Verdict colours are the verdicts' alone: lines share a neutral ink and differ by dash.
+    // Verdict colours are the verdicts' alone: lines share the dashboard ink and differ by dash.
     expect(lines.map((line) => [line.name, line.color, line.dash])).toEqual([
-      ["refunds", "var(--color-muted-foreground)", undefined],
-      ["shipping", "var(--color-muted-foreground)", "6 4"],
+      ["refunds", "var(--color-chart)", undefined],
+      ["shipping", "var(--color-chart)", "6 4"],
     ]);
     const [refunds, shipping] = lines;
     expect(refunds?.points.map((p) => [p.index, p.draft, p.color])).toEqual([
@@ -208,9 +208,7 @@ describe("passRateLines", () => {
       expect.stringMatching(/^\d{2}:\d{2}/),
     ]);
     // A first result has no verdict, so nothing to colour it with.
-    expect(shipping?.points.map((p) => [p.index, p.color])).toEqual([
-      [1, "var(--color-muted-foreground)"],
-    ]);
+    expect(shipping?.points.map((p) => [p.index, p.color])).toEqual([[1, "var(--color-chart)"]]);
     const late = refunds?.points[1];
     expect(late?.href).toBe("/agents/agent-1/evals/late");
     expect(late?.title).toBe("sideModel:version:7|gpt-4.1");
@@ -224,6 +222,26 @@ describe("passRateLines", () => {
       "trend.rate:75%",
       "trend.verdict:none",
     ]);
+  });
+  it("keeps past runs within the same day distinguishable by time", () => {
+    vi.useFakeTimers({ now: new Date(2026, 10, 4, 12), toFake: ["Date"] });
+    const lines = passRateLines(
+      [
+        evalRun({ id: "morning", created_at: new Date(2026, 10, 3, 9, 30).toISOString() }),
+        evalRun({ id: "afternoon", created_at: new Date(2026, 10, 3, 14, 45).toISOString() }),
+        evalRun({
+          id: "unmeasured-other-day",
+          created_at: new Date(2026, 10, 2, 12).toISOString(),
+          arms: [],
+        }),
+      ],
+      (run) => ({ key: run.dataset_id, name: run.dataset_name }),
+      t,
+      "en",
+    );
+    const ticks = lines.flatMap((line) => line.points.map((point) => point.tick));
+    expect(new Set(ticks).size).toBe(2);
+    expect(ticks.every((tick) => /\d{2}:\d{2}/.test(tick))).toBe(true);
   });
 });
 

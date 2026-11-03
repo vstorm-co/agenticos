@@ -1,5 +1,5 @@
 ---
-source_sha: "87337c2961e1"
+source_sha: "54fdb34c23f6"
 title: "Runy ewaluacji"
 description: "Run ewaluacji odpowiada na każdy przypadek datasetu wersją agenta albo jego wersją roboczą, ocenia każdą odpowiedź i porównuje wynik z baseline'em."
 ---
@@ -27,8 +27,7 @@ kreską. Punkt jest czerwony, gdy run zepsuł przypadki, zielony, gdy je naprawi
 bursztynowy, gdy zrobił jedno i drugie, a pusty dla wersji roboczej; najechanie na punkt
 mówi, co uruchomiono, z czym porównano i kiedy, a kliknięcie otwiera run.
 
-Oś podpisuje runy chwilą ich startu - godziną dla dzisiejszego runu, datą dla
-wcześniejszych, raz na dzień runów. Powyżej 10 runów przełącznik nad wykresem
+Oś pokazuje godziny, gdy historia mieści się w jednym dniu, także minionym. Przy historii obejmującej kilka dni pokazuje daty starszych runów i godziny dzisiejszych, bez powtarzania identycznych etykiet. Podpowiedź zachowuje pełną datę i godzinę startu. Powyżej 10 runów przełącznik nad wykresem
 pokazuje ostatnie 10, ostatnie 30 albo wszystkie runy; otwiera się na ostatnich
 10, a wybór zostaje w adresie strony, więc Wstecz i link go zachowują.
 
