@@ -2689,3 +2689,23 @@ A channel post containing only the bot mention or whitespace is ignored after me
 Channel formatting and conversation guidance come from the current deployment on every run. A binding prompt stores only custom additions. Upgrades remove exact recognized copies of previously shipped defaults while preserving surrounding custom text; edited or unknown text is left alone. Clearing the custom prompt keeps the platform defaults and channel context. No runtime compatibility rewrite of old prompt strings is needed.
 
 Downgrading restores the preceding release’s stored channel defaults while preserving custom additions, including bindings created after the upgrade. Other surfaces remain unchanged.
+
+## Notifications through linked channels { #linked-notifications }
+
+Choose a private destination per platform and organization in **Settings →
+Notifications**: Slack, Telegram, Mattermost, Teams and SMS use the existing linked
+bot account. Email and push keep their own setup. Event preferences and routine
+overrides apply at send time, together with resource permissions and the shared
+case's current state. Linking a chat account alone does not enable delivery.
+
+Slack receives plain-text Block Kit notices with a link to the existing case.
+Opening the link uses normal console authorization. Acknowledging or resolving
+the case stops pending external notices across channels. A message's sent status
+records platform acceptance; the case retains its own acknowledgement state.
+
+A confirmed [Slack HTTP 429](https://docs.slack.dev/apis/web-api/rate-limits/)
+permits a bounded retry after `Retry-After`. The notification client disables
+[SDK retries](https://docs.slack.dev/tools/python-slack-sdk/web/), so timeouts and
+unknown outcomes remain visible failures instead of duplicate submissions. See
+[notification policy](governance.md) for route revocation, approval degradation
+and migration details.

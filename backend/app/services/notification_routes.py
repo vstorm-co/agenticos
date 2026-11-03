@@ -1,10 +1,10 @@
 """Opt-in private chat notifications using the existing channel transports.
 
-Route replacement revokes the old grant, including queued deliveries. Chat sends
-have one durable claim: an unacknowledged provider request is never blindly resent.
+Route replacement revokes the old grant, including queued deliveries. An
+unacknowledged provider request is never blindly resent. Confirmed non-acceptance
+may defer through the shared queue; the next claim clears that retry authority.
 """
 
-import html
 from contextlib import AsyncExitStack
 from datetime import UTC, datetime, timedelta
 from typing import Literal
@@ -256,15 +256,12 @@ class NotificationRouteService:
             else:
                 raise ValueError("Unsupported notification transport")
             url = absolute_context_url(context_url)
-            text = "\n\n".join(part for part in (summary, url) if part)
-            if bot.platform == "slack":
-                # Names and summaries cannot create Slack mention/link markup.
-                text = html.escape(text, quote=False)
-            await adapter.send_message(
+            await adapter.send_notification(
                 unseal_bot_token(bot),
                 OutgoingMessage(
                     platform_chat_id=session.platform_chat_id,
-                    text=text,
+                    text=summary,
                     api_base_url=bot.api_base_url,
                 ),
+                context_url=url,
             )

@@ -23,7 +23,7 @@ Two things are versioned separately from this file and worth knowing about:
 
 - **Breaking:** local routines require native grants bound to their routine, owner, organization, device, folder and operation limits. Create paused, confirm on the desktop and then activate. Offline activations wait durably without model calls; changed authority cancels old work and three failed pre-admission dispatches stop the routine. Update API, workers and desktop together and review legacy local routines.
 
-- **Breaking:** private notification routes now support Slack, Telegram, Mattermost, Microsoft Teams and SMS alongside email/push. Explicit personal opt-in is required per organization; account relinking or bot credential/server replacement invalidates the route. Chat sends use one durable attempt to avoid replaying unconfirmed submissions. Drain workers and update API/workers together before using new channel selections.
+- **Breaking:** private notification routes now support Slack, Telegram, Mattermost, Microsoft Teams and SMS alongside email/push. Explicit personal opt-in is required per organization; account relinking or bot credential/server replacement invalidates the route. Unconfirmed chat sends use one durable attempt; explicit Slack HTTP 429 refusals may retry after the requested delay with a five-claim bound. Slack notifications use plain-text blocks linked to the shared case. Drain workers and update API/workers together before using new channel selections.
 
 - **Breaking:** resumed routines and delegates retain their admitted MCP accounts and original tool aliases. New defaults, credential replacements and renamed accounts cannot retarget existing approvals. Start a new run for old parked routines without account-admission state.
 

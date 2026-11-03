@@ -17,7 +17,7 @@ directly against a real database.
 import asyncio
 import logging
 import uuid
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -39,6 +39,7 @@ from app.repositories import member as member_repo
 from app.repositories import notification as notification_repo
 from app.repositories import outcome as outcome_repo
 from app.repositories import user as user_repo
+from app.services.channels.notification_send import NotificationRateLimited
 from app.services.deployment_settings import DeploymentSettingsService
 from app.services.email.service import EmailKey, get_email_service
 from app.services.notification_catalog import is_mandatory
@@ -134,6 +135,7 @@ class NotificationDeliveryService:
             delivery.claimed_at = now
             delivery.claimed_until = now + CLAIM_LEASE
             delivery.attempts += 1
+            delivery.retry_safe = False
         await self.db.flush()
         return claimed
 
@@ -244,6 +246,24 @@ class NotificationDeliveryService:
                         summary=gate.summary_override or notification.summary,
                         context_url=None if gate.strip_context_url else notification.context_url,
                     )
+            except NotificationRateLimited as exc:
+                if delivery.attempts >= MAX_ATTEMPTS:
+                    await self._fail(delivery, claimed_at, exc.message)
+                else:
+                    await notification_repo.settle_delivery(
+                        self.db,
+                        delivery_id=delivery.id,
+                        claimed_at=claimed_at,
+                        status=DeliveryStatus.PENDING.value,
+                        last_error=exc.message,
+                        retry_safe=True,
+                        retry_at=datetime.now(UTC) + timedelta(seconds=exc.retry_after_seconds),
+                    )
+                logger.info(
+                    "notification_chat_rate_limited",
+                    extra={"delivery_id": str(delivery.id), "attempt": delivery.attempts},
+                )
+                return "failed"
             except Exception as exc:
                 logger.exception(
                     "notification_chat_failed", extra={"delivery_id": str(delivery.id)}
@@ -437,11 +457,9 @@ class NotificationDeliveryService:
     async def _fail(
         self, delivery: NotificationDelivery, claimed_at: datetime, last_error: str
     ) -> None:
-        # `pending` is the only retryable state (Decision 3): a failure with
-        # attempts remaining goes back to `pending` for the next tick to
-        # claim; only one with none remaining settles `failed`. `attempts` was
-        # already incremented at claim time, so this reads the same value the
-        # claim bound itself against.
+        # Email/push retain their bounded retries. A chat's unknown outcome is
+        # terminal: only confirmed non-acceptance above may authorize another
+        # claim. Attempts were spent at claim time, before any provider I/O.
         status = (
             DeliveryStatus.FAILED.value
             if delivery.attempts >= MAX_ATTEMPTS

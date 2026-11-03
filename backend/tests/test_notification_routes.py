@@ -66,6 +66,15 @@ class Transport:
     async def aclose(self) -> None:
         self.closed = True
 
+    async def send_notification(
+        self, token: str, message: OutgoingMessage, *, context_url: str | None
+    ) -> None:
+        from dataclasses import replace
+
+        if context_url:
+            message = replace(message, text=f"{message.text}\n\n{context_url}")
+        await self.send_message(token, message)
+
     async def send_message(self, token: str, message: OutgoingMessage) -> None:
         self.messages.append((token, message))
         if self.fail:
@@ -123,7 +132,7 @@ async def test_transport_reuses_platform_contract_and_closes_resources(
     assert message.platform_chat_id == source[0].platform_chat_id
     assert message.api_base_url == "https://chat.example.com"
     assert "https://console.example.com/runs" in message.text
-    assert ("&lt;@someone&gt;" if platform == "slack" else "<@someone>") in message.text
+    assert "<@someone>" in message.text
     assert len(transport.messages) == 1
     if platform == "teams":
         assert transport.ref is not None and transport.ref.conversation_type == "personal"

@@ -1,5 +1,5 @@
 ---
-source_sha: "500149f4165e"
+source_sha: "a96b2362cc2c"
 ---
 
 # Governance { #governance }
@@ -667,11 +667,21 @@ są członkostwo, aktywność konta, polityka bota, ważność połączenia SMS,
 dostęp do zasobu i wspólny stan sprawy. Osoba bez prawa decyzji o zatwierdzeniu
 otrzymuje tylko informację o oczekiwaniu, bez odnośnika do decyzji.
 
-Platformy czatu nie mają wspólnego kontraktu idempotentnej wysyłki. Każde
-dostarczenie ma jedną trwale zapisaną próbę. Timeout, błąd dostawcy lub utrata
-workera pozostawia widoczny błąd/niepotwierdzoną wysyłkę zamiast automatycznego
-wysłania kopii. Wynik pozostaje w aplikacji; e-mail i push zachowują dotychczasowe
-ponowienia. Status oznacza przyjęcie przez platformę, nie odbiór przez osobę.
+Platformy czatu nie mają wspólnego kontraktu idempotentnej wysyłki.
+Niepotwierdzona wysyłka ma jedną trwałą próbę: timeout, błąd dostawcy lub utrata
+workera pozostawia widoczny błąd. HTTP 429 Slacka, jawnie odrzucające żądanie,
+pozwala ponowić po `Retry-After`, do pięciu prób łącznie. Każde wysłanie najpierw
+usuwa zgodę na retry, więc awaria tej próby nie powoduje powtórzenia. Odroczenie
+unieważnia stary token przekazania. Inne błędy czatu są końcowe. E-mail i push
+zachowują swoje reguły ponawiania.
+
+Powiadomienia Slack używają ograniczonych bloków zwykłego tekstu i przycisku
+**Open in AgenticOS** do tej samej autoryzowanej sprawy w konsoli. Nazwy i treść
+nie tworzą wzmianek ani automatycznych podglądów. Osoba bez prawa decyzji otrzymuje
+tylko informację o oczekiwaniu, bez odnośnika do decyzji. Dostarczenie oznacza
+przyjęcie przez platformę; potwierdzenie pozostaje jawną decyzją we wspólnej sprawie.
+Migracja `0273_notification_safe_retries.py` nie nadaje istniejącym wierszom prawa
+ponowienia. Cofnięcie przywraca jedną próbę dostarczenia na czat.
 
 Migracja `0271_notification_routes.py` dodaje jawne miejsca i identyfikatory
 autoryzacji. Opróżnij workery i zaktualizuj API/workery razem przed wyborem nowych

@@ -1,5 +1,5 @@
 ---
-source_sha: "e2d30005e314"
+source_sha: "101a0d367e89"
 ---
 
 # Einen Agent dorthin bringen, wo die Menschen schon sind { #putting-an-agent-where-people-already-are }
@@ -2988,3 +2988,24 @@ Eine Kanalnachricht, die nur die Bot-Erwähnung oder Leerraum enthält, wird nac
 Formatierung und Gesprächsregeln kommen bei jedem Lauf aus dem aktuellen Deployment. Der Bindungs-Prompt speichert nur eigene Ergänzungen. Upgrades entfernen exakt erkannte Kopien früherer Standardanweisungen und erhalten den umgebenden eigenen Text; bearbeiteter oder unbekannter Text bleibt unverändert. Das Leeren des eigenen Prompts erhält Plattformvorgaben und Kanalkontext. Eine Umschreibung alter Prompt-Zeichenfolgen zur Laufzeit ist nicht erforderlich.
 
 Ein Downgrade stellt die gespeicherten Kanalvorgaben der vorherigen Version wieder her und erhält eigene Ergänzungen, auch bei nach dem Upgrade angelegten Bindungen. Andere Oberflächen bleiben unverändert.
+
+## Benachrichtigungen über verknüpfte Kanäle { #linked-notifications }
+
+Unter **Einstellungen → Benachrichtigungen** ein privates Ziel pro Plattform
+und Organisation wählen: Slack, Telegram, Mattermost, Teams und SMS verwenden
+den bestehenden verknüpften Bot. E-Mail und Push behalten ihre Einrichtung.
+Ereigniseinstellungen und Routine-Auswahl werden beim Versand zusammen mit
+Ressourcenrechten und aktuellem Fallstatus geprüft. Die Kontoverknüpfung allein
+aktiviert keinen Versand.
+
+Slack erhält Klartextblöcke mit einem Link zum bestehenden Fall. Der Link nutzt
+die normale Konsolenautorisierung. Bestätigen oder Lösen des Falls stoppt wartende
+externe Hinweise über alle Kanäle. Der Versandstatus bezeichnet Plattformannahme;
+der Fall behält seinen eigenen Bestätigungsstatus.
+
+Ein bestätigter [Slack-HTTP-429](https://docs.slack.dev/apis/web-api/rate-limits/)
+erlaubt begrenzte Wiederholung nach `Retry-After`. Der Client deaktiviert
+[SDK-Wiederholungen](https://docs.slack.dev/tools/python-slack-sdk/web/), damit
+Timeouts und unbekannte Ergebnisse sichtbare Fehler bleiben statt doppelte
+Sendungen auszulösen. Die [Benachrichtigungsrichtlinie](governance.md) beschreibt
+Widerruf, eingeschränkte Genehmigungshinweise und Migrationen.

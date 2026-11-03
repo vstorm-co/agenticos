@@ -57,7 +57,7 @@ Completed increments are not acceptance of the whole area. The PR closing refere
 
 ## Current continuation — 2026-11-03
 
-The user requested all six remaining feature blocks and notification delivery through every supported channel. Explicit per-organization private Slack/Telegram/Mattermost/Teams/SMS routes now use existing transports and the shared notification queue, current preferences/outcomes/access checks, immutable route/account/bot grants and one durable chat send attempt. E-mail/push retain existing setup and retry semantics. Other unchecked acceptance work above remains required in PR #2606.
+The user requested all six remaining feature blocks and notification delivery through every supported channel. Explicit per-organization private Slack/Telegram/Mattermost/Teams/SMS routes now use existing transports and the shared notification queue, current preferences/outcomes/access checks, immutable route/account/bot grants and one durable attempt for unconfirmed chat submissions. Confirmed Slack HTTP 429 refusals now permit bounded delayed retries. E-mail/push retain existing setup and retry semantics. Other unchecked acceptance work above remains required in PR #2606.
 
 ## Native routine grants and durable offline admission — implemented
 
@@ -104,7 +104,11 @@ in focused runs. Full suites and CI polling are deliberately not run locally.
 After this vertical feature, continue all remaining blocks, including workflow
 reply/deadline follow-through, stop escalation, decision episodes with the actual
 Improve PR #2172 contract, Twilio PSTN voice, iMessage and Slack notification
-acceptance. The current Slack notification transport is plain text with a link;
-#2236 still requests blocks, shared outcome actions/links, channel docs and safe
-retry behavior for confirmed pre-acceptance rejection. One-attempt handling for
-unconfirmed sends must remain; never blindly replay an uncertain send.
+acceptance. Slack notifications now use bounded plain-text blocks and a canonical shared-case
+link, with documented private destination policy in four languages. The SDK makes
+one explicit submission. A confirmed HTTP 429 refusal permits up to five total
+claims after Retry-After; each claim clears retry authority before I/O and each
+deferral retires the old handoff token. Timeout/crash/unknown outcomes remain
+terminal. Existing send-time resource/outcome/preferences/route checks apply on
+every retry. Migration `0273_notification_safe_retries.py` defaults old rows closed.
+iMessage and the other outstanding integration blocks remain required.

@@ -626,11 +626,21 @@ membership, account activity, bot access policy, SMS link expiry, event preferen
 resource access and shared outcome state. A reader who can no longer decide an
 approval receives only the waiting fact, without a decision link.
 
-Chat platforms have no shared idempotent-send contract. Each chat delivery gets
-one persisted attempt. A timeout, provider failure or worker loss leaves a visible
-failed/unconfirmed delivery instead of automatically sending another copy. The
-in-app result remains available; e-mail and push retain their existing retry rules.
-This describes submission to the platform, not confirmed receipt by the person.
+Chat platforms have no shared idempotent-send contract. An unconfirmed submission
+has one persisted attempt: a timeout, provider failure or worker loss leaves a
+visible failed/unconfirmed delivery. A Slack HTTP 429 explicitly refusing the
+submission may retry after `Retry-After`, up to five total claims. Before each
+send, the claim clears retry permission; a crash on that attempt cannot replay
+it. The old handoff token is retired on deferral. Other chat failures remain
+terminal. E-mail and push keep their existing retry rules.
+
+Slack notifications use bounded plain-text blocks and an **Open in AgenticOS**
+button leading to the same authorized case in the console. Names and summaries
+cannot create mentions or automatic previews. A degraded approval notice keeps
+only its waiting fact and has no decision link. Delivery records platform
+acceptance; acknowledgement remains an explicit decision on the shared case.
+Migration `0273_notification_safe_retries.py` defaults existing rows to no retry
+authority. Downgrade returns to one-attempt chat delivery.
 
 Migration `0271_notification_routes.py` adds explicit routes and authorization
 identities. Drain workers and update API/workers together before selecting the

@@ -1,5 +1,5 @@
 ---
-source_sha: "e2d30005e314"
+source_sha: "101a0d367e89"
 ---
 
 # Poner un agent donde la gente ya está { #putting-an-agent-where-people-already-are }
@@ -2828,3 +2828,24 @@ Una publicación que solo contiene la mención del bot o espacios se ignora desp
 El formato y las pautas de conversación proceden del despliegue actual en cada ejecución. El prompt del vínculo guarda solo añadidos propios. La migración elimina copias exactas reconocidas de instrucciones anteriores y conserva el texto propio que las rodea; el texto modificado o desconocido permanece intacto. Vaciar el prompt propio conserva las pautas de la plataforma y el contexto del canal. No se reescriben cadenas antiguas de prompts durante la ejecución.
 
 Al revertir la migración, se restauran las pautas de canal guardadas de la versión anterior y se conservan los añadidos propios, incluso en vínculos creados tras actualizar. Las demás superficies permanecen intactas.
+
+## Notificaciones mediante canales vinculados { #linked-notifications }
+
+En **Ajustes → Notificaciones** elige un destino privado por plataforma
+y organización: Slack, Telegram, Mattermost, Teams y SMS utilizan el bot
+vinculado existente. Correo y push conservan su configuración. Las preferencias
+de eventos y selecciones de rutina se comprueban al enviar, junto con permisos
+del recurso y estado del caso compartido. Vincular la cuenta de chat no activa
+por sí solo las entregas.
+
+Slack recibe bloques de texto plano con un enlace al caso existente. Abrirlo
+utiliza la autorización normal de consola. Reconocer o resolver el caso detiene
+avisos externos pendientes en todos los canales. El estado de envío registra
+aceptación por la plataforma; el caso conserva su propio reconocimiento.
+
+Un [HTTP 429 de Slack](https://docs.slack.dev/apis/web-api/rate-limits/) confirmado
+permite un reintento acotado tras `Retry-After`. El cliente desactiva los
+[reintentos del SDK](https://docs.slack.dev/tools/python-slack-sdk/web/), por lo que
+timeouts y resultados desconocidos permanecen como fallos visibles en vez de
+envíos duplicados. La [política de notificaciones](governance.md) explica
+revocaciones, avisos de aprobación limitados y migraciones.

@@ -1,5 +1,5 @@
 ---
-source_sha: "500149f4165e"
+source_sha: "a96b2362cc2c"
 ---
 
 # Governance { #governance }
@@ -718,12 +718,22 @@ Mitgliedschaft, Kontostatus, Bot-Richtlinie, SMS-Verknüpfungsfrist, Einstellung
 Ressourcenzugriff und gemeinsamer Fallstatus erneut geprüft. Ohne Entscheidungsrecht
 enthält ein Genehmigungshinweis nur die Tatsache des Wartens, keinen Entscheidungslink.
 
-Chatplattformen bieten keinen gemeinsamen idempotenten Sendevertrag. Jede
-Chatzustellung erhält einen persistenten Versuch. Timeout, Anbieterfehler oder
-Worker-Ausfall hinterlassen einen sichtbaren Fehler/unbestätigten Versand, statt
-automatisch eine Kopie zu senden. Das Ergebnis bleibt in der App; E-Mail und Push
-behalten ihre Wiederholungsregeln. Der Status bezeichnet Plattformannahme, nicht
-den bestätigten Empfang durch die Person.
+Chatplattformen bieten keinen gemeinsamen idempotenten Sendevertrag. Ein
+unbestätigter Versand erhält einen persistenten Versuch: Timeout, Anbieterfehler
+oder Worker-Ausfall bleiben als sichtbarer Fehler erhalten. Ein Slack-HTTP-429,
+der die Anfrage ausdrücklich ablehnt, erlaubt nach `Retry-After` einen erneuten
+Versuch, höchstens fünf Claims insgesamt. Jeder Versand löscht zunächst die
+Retry-Freigabe; ein Absturz dieses Versuchs wiederholt ihn nicht. Das Zurückstellen
+entwertet das alte Übergabe-Token. Andere Chatfehler sind endgültig. E-Mail und
+Push behalten ihre Wiederholungsregeln.
+
+Slack-Hinweise nutzen begrenzte Klartextblöcke und **Open in AgenticOS** zum selben
+autorisierten Fall in der Konsole. Namen und Inhalte erzeugen keine Erwähnungen
+oder automatischen Vorschauen. Ohne Entscheidungsrecht bleibt nur der Wartehinweis
+ohne Entscheidungslink. Zustellung bezeichnet Plattformannahme; Bestätigung bleibt
+eine ausdrückliche Entscheidung im gemeinsamen Fall. Migration
+`0273_notification_safe_retries.py` gewährt bestehenden Zeilen keine Retry-Freigabe.
+Ein Downgrade stellt einen Chatversuch wieder her.
 
 Migration `0271_notification_routes.py` ergänzt Ziele und Autorisierungsidentitäten.
 Leere die Worker und aktualisiere API/Worker gemeinsam, bevor du neue Kanäle wählst.

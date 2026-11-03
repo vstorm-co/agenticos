@@ -546,3 +546,128 @@ async def test_an_older_selected_chat_is_not_misreported_as_unavailable(db: Asyn
     result = await service.list(ctx)
     assert not result.items[0].available
     assert session.id not in {item.session_id for item in result.destinations}
+
+
+async def test_confirmed_rate_limit_retries_after_its_delay_and_retires_the_old_handoff(
+    db: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from app.services.channels.notification_send import NotificationRateLimited
+
+    user, org, ctx = await person(db)
+    session, _, _ = await destination(db, user=user, org=org)
+    await NotificationRouteService(db).replace(
+        ctx, NotificationRouteUpdate(channel="slack", session_id=session.id)
+    )
+    delivery = next(row for row in await queue(db, ctx) if row.channel == "slack")
+    sweep = NotificationDeliveryService(db)
+    now = datetime.now(UTC)
+    await sweep.claim_and_advance(now=now)
+    send = AsyncMock(side_effect=[NotificationRateLimited(retry_after_seconds=30), None])
+    monkeypatch.setattr(NotificationRouteService, "_send", send)
+    assert await sweep.send_and_settle(delivery.id, claimed_at=now) == "failed"
+    await db.refresh(delivery)
+    assert delivery.status == "pending" and delivery.retry_safe
+    assert delivery.claimed_at is None
+    assert delivery.claimed_until >= now + timedelta(seconds=30)
+    assert await sweep.send_and_settle(delivery.id, claimed_at=now) == "lost_claim"
+    send.assert_awaited_once()
+    assert delivery.id not in {
+        row.id
+        for row in await sweep.claim_and_advance(now=delivery.claimed_until - timedelta(seconds=1))
+    }
+    next_claim = delivery.claimed_until + timedelta(seconds=1)
+    assert delivery.id in {row.id for row in await sweep.claim_and_advance(now=next_claim)}
+    assert delivery.attempts == 2 and not delivery.retry_safe
+    assert await sweep.send_and_settle(delivery.id, claimed_at=next_claim) == "sent"
+    await db.refresh(delivery)
+    assert delivery.status == "sent" and not delivery.retry_safe
+    assert send.await_count == 2
+
+
+@pytest.mark.parametrize("after_retry", ["uncertain", "crash", "revoked"])
+async def test_a_safe_refusal_does_not_make_the_next_submission_replayable(
+    db: AsyncSession, monkeypatch: pytest.MonkeyPatch, after_retry: str
+) -> None:
+    from app.services.channels.notification_send import NotificationRateLimited
+
+    user, org, ctx = await person(db)
+    session, _, _ = await destination(db, user=user, org=org)
+    routes = NotificationRouteService(db)
+    await routes.replace(ctx, NotificationRouteUpdate(channel="slack", session_id=session.id))
+    delivery = next(row for row in await queue(db, ctx) if row.channel == "slack")
+    sweep = NotificationDeliveryService(db)
+    now = datetime.now(UTC)
+    await sweep.claim_and_advance(now=now)
+    send = AsyncMock(side_effect=NotificationRateLimited(retry_after_seconds=1))
+    monkeypatch.setattr(NotificationRouteService, "_send", send)
+    await sweep.send_and_settle(delivery.id, claimed_at=now)
+    await db.refresh(delivery)
+    later = delivery.claimed_until + timedelta(seconds=1)
+    if after_retry == "revoked":
+        await routes.replace(ctx, NotificationRouteUpdate(channel="slack", session_id=None))
+    await sweep.claim_and_advance(now=later)
+    assert not delivery.retry_safe
+    if after_retry == "crash":
+        assert delivery.id not in {
+            row.id
+            for row in await sweep.claim_and_advance(now=later + CLAIM_LEASE + timedelta(seconds=1))
+        }
+        await sweep.reap_exhausted(now=later + CLAIM_LEASE + timedelta(seconds=1))
+        await db.refresh(delivery)
+        assert delivery.status == "failed"
+    else:
+        send.side_effect = TimeoutError("unconfirmed request")
+        assert await sweep.send_and_settle(delivery.id, claimed_at=later) == (
+            "skipped" if after_retry == "revoked" else "failed"
+        )
+        await db.refresh(delivery)
+        assert delivery.status == ("skipped" if after_retry == "revoked" else "failed")
+    assert send.await_count == (2 if after_retry == "uncertain" else 1)
+
+
+async def test_repeated_confirmed_refusals_stop_after_five_claims(
+    db: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from app.services.channels.notification_send import NotificationRateLimited
+
+    user, org, ctx = await person(db)
+    session, _, _ = await destination(db, user=user, org=org)
+    await NotificationRouteService(db).replace(
+        ctx, NotificationRouteUpdate(channel="slack", session_id=session.id)
+    )
+    delivery = next(row for row in await queue(db, ctx) if row.channel == "slack")
+    sweep = NotificationDeliveryService(db)
+    now = datetime.now(UTC)
+    send = AsyncMock(side_effect=NotificationRateLimited(retry_after_seconds=1))
+    monkeypatch.setattr(NotificationRouteService, "_send", send)
+    for attempt in range(1, 6):
+        assert delivery.id in {row.id for row in await sweep.claim_and_advance(now=now)}
+        assert await sweep.send_and_settle(delivery.id, claimed_at=now) == "failed"
+        await db.refresh(delivery)
+        assert delivery.attempts == attempt
+        assert delivery.status == ("pending" if attempt < 5 else "failed")
+        now = max(now, delivery.claimed_until) + CLAIM_LEASE
+    assert delivery.id not in {row.id for row in await sweep.claim_and_advance(now=now)}
+    assert send.await_count == 5
+
+
+@pytest.mark.parametrize("invalid", ["terminal", "old-handoff", "no-deadline"])
+async def test_safe_retry_database_contract_refuses_ambiguous_states(
+    db: AsyncSession, invalid: str
+) -> None:
+    user, org, ctx = await person(db)
+    session, _, _ = await destination(db, user=user, org=org)
+    await NotificationRouteService(db).replace(
+        ctx, NotificationRouteUpdate(channel="slack", session_id=session.id)
+    )
+    delivery = next(row for row in await queue(db, ctx) if row.channel == "slack")
+    delivery.retry_safe = True
+    delivery.claimed_until = datetime.now(UTC) + timedelta(minutes=1)
+    if invalid == "terminal":
+        delivery.status = "sent"
+    elif invalid == "old-handoff":
+        delivery.claimed_at = datetime.now(UTC)
+    else:
+        delivery.claimed_until = None
+    with pytest.raises(IntegrityError):
+        await db.flush()

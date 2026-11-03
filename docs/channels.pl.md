@@ -1,5 +1,5 @@
 ---
-source_sha: "e2d30005e314"
+source_sha: "101a0d367e89"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -2801,3 +2801,23 @@ Wiadomość kanałowa zawierająca tylko wzmiankę bota lub białe znaki jest po
 Formatowanie i zasady rozmowy w kanale pochodzą z bieżącego wdrożenia przy każdym uruchomieniu. Prompt powiązania przechowuje tylko własne dodatki. Migracja usuwa dokładnie rozpoznane kopie wcześniej dostarczonych instrukcji, zachowując otaczający je własny tekst; zmieniony lub nieznany tekst pozostaje bez zmian. Wyczyszczenie własnego promptu zachowuje domyślne zasady platformy i kontekst kanału. Nie potrzeba przepisywania starych promptów podczas działania agenta.
 
 Cofnięcie migracji przywraca zapisane domyślne instrukcje kanałów z poprzedniej wersji i zachowuje własne dodatki, także dla powiązań utworzonych po aktualizacji. Pozostałe powierzchnie pozostają bez zmian.
+
+## Powiadomienia przez połączone kanały { #linked-notifications }
+
+W **Ustawienia → Powiadomienia** wybierz prywatne miejsce docelowe na platformę
+i organizację: Slack, Telegram, Mattermost, Teams i SMS używają istniejącego
+połączonego bota. E-mail i push zachowują własną konfigurację. Preferencje zdarzeń
+i ustawienia rutyny są sprawdzane przy wysyłce wraz z uprawnieniami do zasobu
+i aktualnym stanem wspólnej sprawy. Samo połączenie konta czatu nie włącza wysyłek.
+
+Slack otrzymuje bloki zwykłego tekstu z linkiem do istniejącej sprawy. Otwarcie
+linku korzysta z normalnej autoryzacji konsoli. Potwierdzenie lub rozwiązanie
+sprawy zatrzymuje oczekujące powiadomienia we wszystkich kanałach. Status wysłania
+oznacza przyjęcie przez platformę; sprawa zachowuje własny stan potwierdzenia.
+
+Potwierdzone [HTTP 429 Slacka](https://docs.slack.dev/apis/web-api/rate-limits/)
+pozwala na ograniczone ponowienie po `Retry-After`. Klient powiadomień wyłącza
+[retry SDK](https://docs.slack.dev/tools/python-slack-sdk/web/), więc timeouty
+i nieznany wynik pozostają widocznym błędem zamiast podwójnej wysyłki.
+[Polityka powiadomień](governance.md) opisuje cofanie zgód, ograniczenie informacji
+o zatwierdzeniu i migracje.

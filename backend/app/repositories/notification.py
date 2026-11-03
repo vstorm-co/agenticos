@@ -395,7 +395,11 @@ async def claim_pending_deliveries(
             NotificationDelivery.status == DeliveryStatus.PENDING.value,
             NotificationDelivery.attempts
             < case(
-                (NotificationDelivery.channel.in_(list(CHAT_NOTIFICATION_CHANNELS)), 1),
+                (
+                    NotificationDelivery.channel.in_(list(CHAT_NOTIFICATION_CHANNELS))
+                    & NotificationDelivery.retry_safe.is_(False),
+                    1,
+                ),
                 else_=max_attempts,
             ),
             (NotificationDelivery.claimed_until.is_(None))
@@ -417,6 +421,8 @@ async def settle_delivery(
     claimed_at: datetime,
     status: str,
     last_error: str | None = None,
+    retry_safe: bool = False,
+    retry_at: datetime | None = None,
 ) -> bool:
     """Write a claimed delivery's outcome - but only while still holding the claim.
 
@@ -425,12 +431,23 @@ async def settle_delivery(
     sweep matches zero rows here and its late outcome is discarded, rather
     than overwriting the second worker's.
     """
+    if retry_safe and (retry_at is None or status != DeliveryStatus.PENDING.value):
+        raise ValueError("A safe notification retry needs a pending state and retry time")
+    values: dict[str, object] = {
+        "status": status,
+        "last_error": last_error,
+        "retry_safe": retry_safe,
+    }
+    if retry_safe:
+        # Retire the old handoff token before another claim; a duplicate callback
+        # from that attempt must not bypass the provider's requested delay.
+        values.update(claimed_at=None, claimed_until=retry_at)
     result = await db.execute(
         update(NotificationDelivery)
         .where(
             NotificationDelivery.id == delivery_id, NotificationDelivery.claimed_at == claimed_at
         )
-        .values(status=status, last_error=last_error)
+        .values(**values)
     )
     return bool(result.rowcount)  # ty: ignore[unresolved-attribute]
 
@@ -453,7 +470,11 @@ async def reap_exhausted_deliveries(
             NotificationDelivery.status == DeliveryStatus.PENDING.value,
             NotificationDelivery.attempts
             >= case(
-                (NotificationDelivery.channel.in_(list(CHAT_NOTIFICATION_CHANNELS)), 1),
+                (
+                    NotificationDelivery.channel.in_(list(CHAT_NOTIFICATION_CHANNELS))
+                    & NotificationDelivery.retry_safe.is_(False),
+                    1,
+                ),
                 else_=max_attempts,
             ),
             NotificationDelivery.claimed_until < now,

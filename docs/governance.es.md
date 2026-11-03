@@ -1,5 +1,5 @@
 ---
-source_sha: "500149f4165e"
+source_sha: "a96b2362cc2c"
 ---
 
 # Governance { #governance }
@@ -680,11 +680,21 @@ membresía, actividad, política del bot, caducidad del vínculo SMS, preferenci
 acceso al recurso y estado compartido del caso. Quien ya no puede decidir una
 aprobación recibe solo el aviso de espera, sin enlace de decisión.
 
-Las plataformas de chat no comparten un contrato de envío idempotente. Cada
-entrega dispone de un intento persistido. Un timeout, fallo del proveedor o pérdida
-del worker deja un fallo/envío no confirmado visible, en vez de reenviar una copia.
-El resultado sigue en la app; correo y push mantienen sus reglas de reintento.
-El estado indica aceptación por la plataforma, no recepción confirmada por la persona.
+Las plataformas de chat no comparten un contrato de envío idempotente. Un envío
+sin confirmar tiene un intento persistido: timeout, fallo del proveedor o pérdida
+del worker deja un fallo visible. Un HTTP 429 de Slack que rechaza expresamente
+la petición permite reintentar tras `Retry-After`, hasta cinco intentos en total.
+Antes de enviar se elimina el permiso de reintento; una caída en ese intento no
+lo repite. El aplazamiento invalida el token anterior de entrega. Otros errores
+de chat son terminales. Correo y push conservan sus reglas de reintento.
+
+Slack utiliza bloques de texto plano acotados y **Open in AgenticOS** al mismo
+caso autorizado en consola. Nombres y resúmenes no crean menciones ni vistas
+previas automáticas. Sin derecho a decidir solo aparece el aviso de espera,
+sin enlace de decisión. La entrega registra aceptación por la plataforma;
+el reconocimiento sigue siendo una decisión explícita del caso compartido.
+La migración `0273_notification_safe_retries.py` no concede reintentos a filas
+existentes. Revertirla restaura un intento por entrega de chat.
 
 La migración `0271_notification_routes.py` añade destinos e identidades de
 autorización. Drena los workers y actualiza API/workers juntos antes de elegir los
