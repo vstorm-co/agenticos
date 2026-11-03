@@ -16,6 +16,8 @@ it, `candidate_version_id` the main version it would move to, and the source
 A session catching a fork up, or moving it to main, keeps its three-way merge in
 `skill_merges`, one row per session: the three versions it merged and the parts. A
 catch-up also checks main's newest alone, in `main_alone_check_id` of its attempt.
+A skill session also remembers the system agent chosen to improve, as an agent's
+session does in `improvement_runs.improver_agent_id`, without a foreign key.
 
 **Downgrade** drops the merges, forgets which versions were merges - their source reads `edit` - and a
 fork stays based where its last catch-up left it. A pinned agent's checks are
@@ -126,6 +128,9 @@ def upgrade() -> None:
         ["main_alone_check_id"],
         unique=False,
     )
+    op.add_column(
+        "skill_improvement_runs", sa.Column("improver_agent_id", sa.UUID(), nullable=True)
+    )
 
 
 def _create_merges() -> None:
@@ -211,6 +216,7 @@ def _create_merges() -> None:
 
 
 def downgrade() -> None:
+    op.drop_column("skill_improvement_runs", "improver_agent_id")
     op.drop_index(
         op.f("skill_improvement_iterations_main_alone_check_id_idx"),
         table_name="skill_improvement_iterations",
