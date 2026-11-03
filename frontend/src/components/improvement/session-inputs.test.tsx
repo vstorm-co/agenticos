@@ -581,3 +581,26 @@ it("counts what the newest attempt is measured on, and about the share before", 
     screen.getByRole("img", { name: /^Each attempt keeps about 1 question aside/ }),
   ).toBeInTheDocument();
 });
+it("names the skills an example's runs used, each once", () => {
+  const used = { skill_id: "s1", name: "refunds" };
+  const example = {
+    run_id: "r1",
+    conversation_id: "c1",
+    kind: "chat" as const,
+    status: "completed",
+    rating: -1,
+    question: "Can I return shoes?",
+    answer: "No.",
+    comments: [],
+    branch: "agent" as const,
+    reason: null,
+    skills: [used],
+  };
+  state.sources = {
+    items: [example, { ...example, run_id: "r2", conversation_id: "c2" }],
+    sample_limit: 20,
+    training_failures: 0,
+  };
+  render(<Understand session={SESSION} />);
+  expect(screen.getAllByText("Used skill refunds")).toHaveLength(1);
+});

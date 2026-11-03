@@ -240,6 +240,14 @@ export const TOUR_STEPS: readonly TourStep[] = [
     optional: true,
   },
   {
+    id: "improvement-skill-handoffs",
+    page: IMPROVEMENT,
+    target: "improvement-skill-handoffs",
+    activate: "improvement-step-changes",
+    permission: Perm.runsView,
+    optional: true,
+  },
+  {
     id: "improvement-next-step",
     page: IMPROVEMENT,
     target: "improvement-next-step",
