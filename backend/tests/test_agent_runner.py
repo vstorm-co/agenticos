@@ -7040,6 +7040,10 @@ class TestPerRunLocalServices:
         session = uuid.uuid4()
         target = LocalTarget(
             folder=None if browser_only else "/approved",
+            mode="full_access",
+            coding_agent="codex" if model_selected else None,
+            coding_model="selected-coder" if model_selected else None,
+            coding_effort="low" if model_selected else None,
             model_service="model" if model_selected else None,
             mcp_services=[] if browser_only else ["files", "files"],
             browser=browser_selected,
@@ -7152,6 +7156,14 @@ class TestPerRunLocalServices:
         assert build.call_args.kwargs["resources"]["background_tasks.local"].device_id == session
         if model_selected:
             assert run.model_label == "Local model" and run.secret_id is None
+            from app.agents.capabilities.coding_agent import (
+                LOCAL_CODING_PREFERENCES,
+                CodingPreferences,
+            )
+
+            assert build.call_args.kwargs["resources"][
+                LOCAL_CODING_PREFERENCES
+            ] == CodingPreferences(model="selected-coder", effort="low")
 
     @pytest.mark.anyio
     @pytest.mark.parametrize(
@@ -7838,3 +7850,60 @@ async def test_task_result_execution_keeps_the_profile_without_becoming_a_user_a
     assert run.call_args.kwargs["user_prompt"] == "Task result data"
     assert run.call_args.kwargs["said"] == ""
     assert run.call_args.kwargs["on_run_open"] is opened
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("refused", [False, True])
+async def test_background_run_is_linked_before_commit_and_model_and_settled_on_failure(
+    refused: bool,
+) -> None:
+    from app.core.exceptions import AlreadyExistsError
+    from app.db.models.agent_run import AgentRun
+    from app.services.conversation_tasks import ConversationTaskService
+
+    db = _db()
+    prepared = _prepared()
+    service = AgentRunnerService(db)
+    task_id = uuid.uuid4()
+    events: list[str] = []
+
+    async def commit() -> None:
+        events.append("commit")
+
+    async def opened(run: AgentRun) -> None:
+        assert run is prepared.run
+        events.append("linked")
+        if refused:
+            raise AlreadyExistsError(message="Stopped before opening")
+
+    async def model(*args: object, **kwargs: object) -> MagicMock:
+        assert events[:2] == ["linked", "commit"]
+        events.append("model")
+        return MagicMock(output="done")
+
+    db.commit.side_effect = commit
+    prepared.built.agent.run = AsyncMock(side_effect=model)
+    with (
+        patch.object(service, "prepare", new=AsyncMock(return_value=prepared)),
+        patch(
+            "app.services.agent_runner.agent_run_repo.finish_run",
+            new=AsyncMock(return_value=prepared.run),
+        ) as finished,
+        patch.object(ConversationTaskService, "settle", new=AsyncMock()) as settle,
+    ):
+        if refused:
+            with pytest.raises(AlreadyExistsError, match="Stopped before opening"):
+                await service.execute(
+                    _ctx(), uuid.uuid4(), "work", on_run_open=opened, conversation_task_id=task_id
+                )
+        else:
+            output, _run = await service.execute(
+                _ctx(), uuid.uuid4(), "work", on_run_open=opened, conversation_task_id=task_id
+            )
+            assert output == "done"
+        settle.assert_awaited_once_with(prepared.run)
+        assert finished.call_args.kwargs["status"] == (
+            RunStatus.FAILED.value if refused else RunStatus.COMPLETED.value
+        )
+    assert events == (["linked", "commit"] if refused else ["linked", "commit", "model", "commit"])
+    assert prepared.built.agent.run.await_count == (0 if refused else 1)
