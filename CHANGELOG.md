@@ -23,6 +23,21 @@ Two things are versioned separately from this file and worth knowing about:
 
 - Deleting the last knowledge base on a collection name deletes the same rows on every path (`DELETE /kb/{id}`, `DELETE /rag/collections/{name}` and `rag-drop`): the base's own document rows and its tenant's unfiled rows, with their files, before the vector table is dropped. A tenant is the base's organization, or, for an app-scoped base, the rows with no organization that `rag-ingest` writes. `DELETE /kb/{id}` used to leave the tenant's unfiled rows and files behind the dropped table, for its next base on the name to list again; for an app-scoped base it now deletes the `rag-ingest` rows under the name. The collection drop used to delete every row under the name whichever tenant it belonged to, including another organization's unfiled rows and files, which the caller had no authority over. Another tenant's rows now stay, marked as failed because their chunks went with the table: an upload has to be uploaded again, and a sync indexes a synced document again. `POST /rag/documents/{id}/retry` refuses an organization's document filed under no knowledge base, whose retry would index it where its base does not read. After a drop by an organization's base, `rag-drop` of the same name, which no base then holds, removes the `rag-ingest` rows left under it. The three paths run one teardown.
 
+## [1.38.3] - 2026-11-03
+
+### Fixed
+
+- Background-job audit and table-retention integration tests no longer depend on
+  PostgreSQL returning rows in insertion order.
+- Clearing the Architect's uploaded avatar restores its generated face, just as
+  it does for other agents. The special mark no longer overrides an empty avatar.
+
+## [1.38.2] - 2026-11-03
+
+### Fixed
+
+- Initialize the desktop TLS crypto provider before plugins and background connections start. Paired computers can connect to the server again instead of leaving local Claude Code or Codex chats waiting for the computer.
+
 ## [1.38.1] - 2026-11-03
 
 ### Fixed
@@ -19816,7 +19831,9 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.38.1...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.38.3...HEAD
+[1.38.3]: https://github.com/vstorm-co/agenticos/compare/v1.38.2...v1.38.3
+[1.38.2]: https://github.com/vstorm-co/agenticos/compare/v1.38.1...v1.38.2
 [1.38.1]: https://github.com/vstorm-co/agenticos/compare/v1.38.0...v1.38.1
 [1.38.0]: https://github.com/vstorm-co/agenticos/compare/v1.37.0...v1.38.0
 [1.37.0]: https://github.com/vstorm-co/agenticos/compare/v1.36.1...v1.37.0
