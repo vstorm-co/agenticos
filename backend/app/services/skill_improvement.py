@@ -151,8 +151,6 @@ logger = logging.getLogger(__name__)
 
 _AWAITING_PERSON = (Status.WAITING.value, Status.READY.value)
 _AWAITING_LIMIT = 20
-_DESCRIPTION_CHARS = 500
-"""As long as a skill's description may be."""
 _MERGE_WINDOW_DAYS = 30
 """A merge reads no runs; the column holds what an Improve on the line would read."""
 _LINE_VERSIONS = 500
@@ -1997,12 +1995,6 @@ class SkillImprovementService:
             raise BadRequestError(
                 message="Resolve every conflict before checking the merge",
                 details={"unresolved": merge.unresolved},
-            )
-        if not 1 <= len(merged.description.strip()) <= _DESCRIPTION_CHARS:
-            raise refused_field(
-                "description",
-                f"The merged description must be 1 to {_DESCRIPTION_CHARS} characters; "
-                "edit it at Changes",
             )
         mode = mode or CheckMode.QUICK
         starts = [

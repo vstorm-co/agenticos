@@ -873,7 +873,7 @@ class TestReviewFixes:
         await db.refresh(run)
         assert run.status == "ready" and run.outcome is None
 
-    async def test_a_merged_description_past_its_limit_is_refused_by_its_field(
+    async def test_a_merged_description_past_its_limit_waits_for_a_person(
         self, db, call_price, monkeypatch
     ):
         _checked(db, monkeypatch)
@@ -895,7 +895,8 @@ class TestReviewFixes:
                 ctx, skill.id, run.id, SkillContinue()
             )
 
-        assert refused.value.details["fields"][0]["field"] == "description"
+        assert refused.value.details == {"unresolved": 1}
+        assert merge.description["result"] is None
 
     async def test_both_checks_lead_back_to_the_session(self, db, call_price, monkeypatch):
         _checked(db, monkeypatch)
