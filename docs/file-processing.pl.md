@@ -1,5 +1,5 @@
 ---
-source_sha: "35092d3cb005"
+source_sha: "4275ec642434"
 ---
 
 # Przetwarzanie plików { #file-processing }
@@ -985,10 +985,12 @@ co przy usuwaniu kolekcji ([#2560](https://github.com/vstorm-co/agenticos/issues
 zostają i pasują po swoim tenancie, a nieprzypisane wiersze dokumentów nadal są
 listowane w bazach swojego tenanta ([#2537](https://github.com/vstorm-co/agenticos/issues/2537)).
 
-Gdy żadna inna baza nie ma tej nazwy, obie ścieżki usuwają każdy wiersz dokumentu
-pod tą nazwą, także nieprzypisane, razem z ich plikami, a zadanie czyszczące usuwa
-tabelę. Wcześniej `DELETE /kb/{id}` usuwało tu tylko wiersze samej bazy, więc
-nieprzypisane wiersze zostawały na liście bez chunków, a ich pliki nie były usuwane
+Gdy żadna inna baza nie ma tej nazwy, obie ścieżki i `rag-drop` usuwają każdy
+wiersz dokumentu pod tą nazwą, we wszystkich organizacjach i także nieprzypisane,
+razem z ich plikami, a zadanie porządkowe usuwa tabelę: po jej usunięciu żadnego
+wiersza nie da się odczytać. Wcześniej `DELETE /kb/{id}` usuwało tu tylko wiersze
+samej bazy, więc nieprzypisane wiersze zachowywały swoje pliki, a następna baza
+tenanta o tej nazwie znowu je listowała
 ([#2568](https://github.com/vstorm-co/agenticos/issues/2568)).
 
 Przesłanie lub synchronizacja, która wciąż indeksuje plik dla bazy w chwili jej

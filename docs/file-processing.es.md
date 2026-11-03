@@ -1,5 +1,5 @@
 ---
-source_sha: "35092d3cb005"
+source_sha: "4275ec642434"
 ---
 
 # Procesamiento de archivos { #file-processing }
@@ -1006,11 +1006,12 @@ las liste: la misma regla que al eliminar una colección ([#2560](https://github
 los fragmentos sin asignar se quedan y coinciden por su tenant, y las filas de
 documentos sin asignar siguen listadas en las bases de su tenant ([#2537](https://github.com/vstorm-co/agenticos/issues/2537)).
 
-Cuando ninguna otra base tiene el nombre, ambas rutas borran todas las filas de
-documentos bajo él, incluidas las sin asignar, con sus archivos, y el trabajo de
-limpieza elimina la tabla. Antes, `DELETE /kb/{id}` borraba aquí solo las filas de la
-propia base, así que las filas sin asignar seguían listadas sin fragmentos detrás y
-sus archivos no se eliminaban
+Cuando ninguna otra base tiene el nombre, ambas rutas y `rag-drop` borran todas las
+filas de documentos bajo él, en todas las organizaciones e incluidas las sin asignar,
+con sus archivos, y el trabajo de limpieza elimina la tabla: sin ella ninguna fila se
+puede leer. Antes, `DELETE /kb/{id}` borraba aquí solo las filas de la propia base,
+así que las filas sin asignar conservaban sus archivos y la siguiente base del tenant
+con ese nombre volvía a listarlas
 ([#2568](https://github.com/vstorm-co/agenticos/issues/2568)).
 
 Una subida o una sincronización que aún indexa un archivo para la base cuando se

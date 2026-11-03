@@ -21,7 +21,7 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
-- Deleting the last knowledge base on a collection name (`DELETE /kb/{id}`) now deletes every document row under the name with its file, unfiled rows included, as dropping the collection already did. Before, unfiled rows outlived the dropped vector table, stayed listed with no chunks behind them, and kept their stored files. Both routes now run one teardown.
+- Deleting the last knowledge base on a collection name (`DELETE /kb/{id}`) now deletes every document row under the name with its file, in every organization and unfiled rows included, as dropping the collection already did. None of them can be read once the vector table is dropped. Before, unfiled rows outlived the table with their stored files, and the tenant's next knowledge base on the name listed them again. `DELETE /kb/{id}`, `DELETE /rag/collections/{name}` and `rag-drop` now run one teardown.
 
 ## [1.38.1] - 2026-11-03
 

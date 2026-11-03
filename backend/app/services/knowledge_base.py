@@ -319,11 +319,12 @@ class KnowledgeBaseService:
         would otherwise go on listing and serving them, and a deleted base would
         hand them to its tenant's next base on the name.
 
-        If no other base holds the name, every row under it goes - unfiled ones
-        included, with their files - and so does the table: nothing can read a
-        row once its table is dropped. `delete` used to delete by the base's id
-        here, so unfiled rows outlived the dropped table, listed with no chunks
-        behind them and their files never unlinked (#2568).
+        If no other base holds the name, every row under it goes, in every
+        organization - unfiled ones included, with their files - and so does the
+        table: nothing can read a row once its table is dropped. `delete` used to
+        delete by the base's id here, so unfiled rows outlived the dropped table
+        with their files, to be listed again by the tenant's next base on the
+        name (#2568).
 
         The stored files, the purge and the drop are a cleanup job queued in this
         transaction (`queue_external_state_cleanup`), not run in the request, so
@@ -349,7 +350,8 @@ class KnowledgeBaseService:
         # sync inserting a row cannot slip in between the delete and the commit and
         # survive detached under `ON DELETE SET NULL` (#1266).
         await knowledge_base_repo.lock(self.db, kb.id)
-        # A default keeps its own row, so it is filtered out by id.
+        # This base is excluded by id: a kept default's row would otherwise count
+        # as another holder.
         others = [
             ref
             for ref in await knowledge_base_repo.list_by_collection_name(self.db, collection)
