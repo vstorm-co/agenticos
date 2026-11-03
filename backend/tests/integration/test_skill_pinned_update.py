@@ -96,6 +96,23 @@ class TestTheCheck:
         assert stored.candidate_version_id == lab.skill.latest_version_id
         assert stored.candidate_content == "v3 text"
 
+    async def test_the_candidate_is_main_newest_with_its_files_served_over_the_pin(
+        self, db, monkeypatch
+    ):
+        """Its baseline is the agent as published, on its pinned version; the candidate is
+        what moving it to main would leave it reading, which the pin alone would refuse."""
+        lab = await _lab(db)
+        evals = FakeEvals()
+        evals.install(monkeypatch)
+
+        await SkillCheckService(db).start_update(lab.ctx, lab.skill.id, lab.pinned.id, QUICK)
+
+        assert evals.served
+        for bodies in evals.served:
+            body = bodies[lab.skill.id]
+            assert (body.content, body.fork_id, body.over_pin) == ("v3 text", None, True)
+            assert [(item.name, item.content) for item in body.resources] == [("a.md", "first")]
+
     async def test_only_a_pinned_agent_behind_main_has_an_update_to_check(self, db, monkeypatch):
         lab = await _lab(db)
         FakeEvals().install(monkeypatch)

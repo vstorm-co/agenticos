@@ -71,6 +71,10 @@ class SkillBody:
     fork_id: UUID | None = None
     """The line the body was written for: a fork, or `None` for main. An inline
     specialist binding the skill another way does not read it."""
+    over_pin: bool = False
+    """Served to the run's own agent even where it is pinned to a main version, as
+    moving it to main would leave it. Its inline specialists still read the skill as
+    they are bound."""
 
 
 def served_files(skill: Skill, body: SkillBody | None = None) -> list[SkillBodyFile]:

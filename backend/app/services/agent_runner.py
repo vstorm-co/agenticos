@@ -3666,7 +3666,7 @@ class AgentRunnerService:
             collections=_searched_bases(bound),
             found=None if knowledge is None else knowledge.found,
         )
-        own_bodies = _on_line(spec.skill_bindings, skill_bodies or {})
+        own_bodies = _on_line(spec.skill_bindings, skill_bodies or {}, own=True)
         skills = await self.skills.resolve_for_agent(
             ctx, spec.skill_ids, bindings=spec.skill_bindings, projected=own_bodies or None
         )
@@ -7784,13 +7784,17 @@ class AgentRunnerService:
 
 
 def _on_line(
-    bindings: Sequence[SkillBindingSpec], bodies: Mapping[UUID, SkillBody]
+    bindings: Sequence[SkillBindingSpec], bodies: Mapping[UUID, SkillBody], *, own: bool = False
 ) -> dict[UUID, SkillBody]:
-    """The bodies a reader with these bindings is served: those of the line it follows."""
+    """The bodies a reader with these bindings is served: those of the line it follows.
+
+    `own` is the run's agent itself, which a body measuring its move off a pin reaches.
+    """
     return {
         skill_id: body
         for skill_id, body in bodies.items()
         if _reads_line(bindings, skill_id, body.fork_id)
+        or (own and body.over_pin and _pinned(bindings, skill_id))
     }
 
 
@@ -7801,3 +7805,7 @@ def _reads_line(bindings: Sequence[SkillBindingSpec], skill_id: UUID, fork_id: U
     if binding is None:
         return fork_id is None
     return binding.version is None and binding.fork_id == fork_id
+
+
+def _pinned(bindings: Sequence[SkillBindingSpec], skill_id: UUID) -> bool:
+    return any(item.skill_id == skill_id and item.version is not None for item in bindings)

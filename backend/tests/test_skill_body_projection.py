@@ -55,6 +55,15 @@ def test_a_stored_candidate_reads_back_with_its_files() -> None:
     )
 
 
+def test_a_stored_candidate_keeps_whether_it_is_served_over_a_pin() -> None:
+    body = SkillBody("a", "b", over_pin=True)
+
+    stored = _bodies_json({SKILL_ID: body})[str(SKILL_ID)]
+
+    assert skill_body_from_json(stored) == body
+    assert "over_pin" not in _bodies_json({SKILL_ID: SkillBody("a", "b")})[str(SKILL_ID)]
+
+
 def test_two_candidates_differing_only_in_a_file_are_measured_apart() -> None:
     """The fingerprint decides whether a cached arm stands in for a run; a changed
     file is a different candidate."""
