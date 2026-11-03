@@ -1,5 +1,5 @@
 ---
-source_sha: "ede22781bf78"
+source_sha: "6666bbc954c8"
 ---
 
 # Die Desktop-App { #the-desktop-app }
@@ -509,6 +509,14 @@ Geladene Skill- und Anweisungstexte gelangen über deinen Server zum konfigurier
 ## Diagnose { #diagnostics }
 
 **Help → Export Diagnostics…** schreibt eine JSON-Datei an einen Ort deiner Wahl, zum Anhängen an einen Fehlerbericht. Sie enthält die Version, das Betriebssystem, was macOS erlaubt hat, ob Claude Code und Codex installiert und angemeldet sind, die Adresse des Servers (nur Schema, Host und Port) und die letzten Abstürze. Sie enthält keine Zugangsdaten, Tokens, Unterhaltungen oder Pfade unter deinem Home-Ordner, und nichts wird irgendwohin gesendet. Ein Absturz wird beim Auftreten in `crash.log` im Datenordner der App festgehalten.
+
+Wenn die Desktop-App 1.38.1 bei **Linked — reconnecting…** bleibt und lokale
+Chats **Waiting for your computer** anzeigen, prüfe die Absturzstellen in der
+exportierten Diagnose auf `rustls` / `crypto/mod.rs`. Dieser Fehler beim TLS-Start
+ist in einer neueren Desktop-Version behoben. Installiere diese und öffne die
+App erneut; ein Update nur des Servers ersetzt den Desktop-Client nicht.
+Die bestehende Kopplung und die Ordnerfreigaben müssen für diese Korrektur
+nicht zurückgesetzt werden.
 
 ## Lokaler Browser, Modelle und MCP { #local-browser-models-and-mcp }
 
