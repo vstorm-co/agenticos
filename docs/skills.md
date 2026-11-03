@@ -590,6 +590,11 @@ What Accept offers comes from the result:
   test questions** beside them writes the skill's own questions from answers
   where agents loaded it, so they can be checked next time.
 
+When the line gets a new version, or its agents change, after the check, the
+result no longer holds and offers **Check again** in place of applying: the same
+chosen changes, measured on the line as it is now, at a price shown first.
+Improving further and discarding stay offered.
+
 ## Skills or knowledge?
 
 They answer different questions, and the difference matters when an agent gets the

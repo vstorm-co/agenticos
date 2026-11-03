@@ -1,5 +1,5 @@
 ---
-source_sha: "6e402ad88455"
+source_sha: "68cd14bf3b4e"
 ---
 
 # Skills { #skills }
@@ -655,6 +655,12 @@ Was Annehmen anbietet, folgt aus dem Ergebnis:
   **Testfragen hinzufügen** daneben schreibt die eigenen Fragen des Skills aus
   Antworten, in denen Agents ihn geladen haben, damit sie beim nächsten Mal
   geprüft werden können.
+
+Bekommt die Linie nach der Prüfung eine neue Version oder ändern sich ihre
+Agents, gilt das Ergebnis nicht mehr und bietet statt des Anwendens **Erneut
+prüfen** an: dieselben gewählten Änderungen, gemessen an der Linie, wie sie
+jetzt ist, zu einem Preis, der zuerst angezeigt wird. Weiterverbessern und
+Verwerfen bleiben möglich.
 
 ## Skills oder Knowledge? { #skills-or-knowledge }
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "6e402ad88455"
+source_sha: "68cd14bf3b4e"
 ---
 
 # Skille { #skills }
@@ -605,6 +605,11 @@ To, co proponuje Akceptacja, wynika z wyniku:
   zastosowane. **Dodaj pytania testowe** obok zapisuje własne pytania skilla z
   odpowiedzi, w których agenci go wczytali, żeby następnym razem dało się ich
   sprawdzić.
+
+Gdy po sprawdzeniu linia dostanie nową wersję albo zmienią się jej agenci, wynik
+przestaje obowiązywać i zamiast zastosowania proponuje **Sprawdź ponownie**: te
+same wybrane zmiany, zmierzone na linii w obecnym stanie, w cenie pokazanej
+najpierw. Dalsze poprawianie i odrzucenie zostają dostępne.
 
 ## Skille czy wiedza? { #skills-or-knowledge }
 

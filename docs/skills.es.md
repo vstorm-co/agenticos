@@ -1,5 +1,5 @@
 ---
-source_sha: "6e402ad88455"
+source_sha: "68cd14bf3b4e"
 ---
 
 # Skills { #skills }
@@ -627,6 +627,12 @@ Lo que ofrece Aceptar depende del resultado:
   preguntas de prueba**, al lado, escribe las preguntas propias del skill a partir
   de respuestas en las que los agents lo cargaron, para poder comprobarlos la
   próxima vez.
+
+Cuando la línea recibe una versión nueva, o cambian sus agents, después de la
+comprobación, el resultado deja de valer y ofrece **Check again** en lugar de
+aplicar: los mismos cambios elegidos, medidos en la línea tal como está ahora, a
+un precio que se muestra primero. Seguir mejorando y descartar siguen
+disponibles.
 
 ## ¿Skills o conocimiento? { #skills-or-knowledge }
 
