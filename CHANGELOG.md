@@ -19,6 +19,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- Keep dashboard bar lists at their natural height so ranked agents and provider costs do not overlap idle-agent chips, monthly spend or other card content. Small cards scroll instead of compressing rows.
+
 ## [1.38.0] - 2026-11-03
 
 ### Added
