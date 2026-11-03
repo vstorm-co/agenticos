@@ -1023,6 +1023,9 @@ class SkillCheckService:
                 SkillCheckRead(
                     id=check.id,
                     skill_id=check.skill_id,
+                    source=CheckSource(check.source),
+                    agent_id=check.agent_id,
+                    candidate_version_id=check.candidate_version_id,
                     status=status,
                     verdict=verdict,
                     warnings=["within_noise"]
@@ -1295,14 +1298,29 @@ class SkillCheckService:
     async def _update_drift(
         self, ctx: AuthContext, skill: Skill, check: SkillCheck
     ) -> ConcurrentChangeError | None:
-        """Why a pinned agent's update no longer measures what it would do, or `None`."""
+        """Why a pinned agent's update no longer measures what it would do, or `None`.
+
+        Takes the agent's lock after the check's, so nothing publishes or promotes it
+        between this reading and the move. Accepting publishes from the agent's newest
+        version, so a newer one than its served version is a change nobody measured.
+        """
         assert check.agent_id is not None
+        await agent_repo.get(
+            self.db, check.agent_id, organization_id=ctx.organization_id, for_update=True
+        )
         found = await self.agents.pinned_agent(skill, check.agent_id)
+        newest = await agent_repo.newest_version(
+            self.db, agent_id=check.agent_id, organization_id=ctx.organization_id
+        )
         rows = await skill_check_repo.list_agents(
             self.db, [check.id], organization_id=ctx.organization_id
         )
         measured = {row.agent_id: row.agent_version for row in rows}
-        if found is not None:
+        if (
+            found is not None
+            and newest is not None
+            and newest.version == measured.get(check.agent_id)
+        ):
             user, number = found
             pinned = await skill_version_repo.get_by_numbers(
                 self.db,

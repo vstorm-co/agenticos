@@ -4,8 +4,10 @@ The skill, its versions, the agents and their bindings, the check and the move a
 real; the eval runs are scripted as in `test_skill_checks`.
 """
 
+import uuid
 from dataclasses import replace
 from typing import Any
+from unittest.mock import AsyncMock
 
 import pytest
 from pydantic import ValidationError
@@ -31,14 +33,23 @@ from app.db.models.skill_check import (
 )
 from app.repositories import agent_environment_repo, agent_repo, skill_check_repo
 from app.schemas.skill import SkillUpdate
-from app.schemas.skill_check import SkillCheckApply, SkillUpdateCheck
+from app.schemas.skill_check import SkillCheckApply, SkillCheckFork, SkillUpdateCheck
 from app.schemas.skill_version import SkillBindingChange
+from app.services.agent_registry import AgentRegistryService
 from app.services.skill_agents import SkillAgentService
 from app.services.skill_check import SkillCheckService
 from app.services.skills import SkillService
 from tests.integration.test_authoring import _owner
-from tests.integration.test_skill_bindings import _runnable, _serving, _skill
-from tests.integration.test_skill_checks import FakeEvals, Lab, Outcome, _lab, _run_to_end, _start
+from tests.integration.test_skill_bindings import _runnable, _serving, _skill, _with_specialist
+from tests.integration.test_skill_checks import (
+    FakeEvals,
+    Lab,
+    Outcome,
+    _dataset,
+    _lab,
+    _run_to_end,
+    _start,
+)
 
 pytestmark = pytest.mark.anyio
 
@@ -214,37 +225,52 @@ class TestRefusals:
             )
 
     @pytest.mark.parametrize(
-        "moved",
-        [{"state": "pinned", "version": 2}, {"state": "main"}],
-        ids=["pinned elsewhere", "on main already"],
+        ("moved", "promoted"),
+        [
+            ({"state": "pinned", "version": 2}, True),
+            ({"state": "main"}, True),
+            ({"state": "main"}, False),
+        ],
+        ids=["pinned elsewhere", "on main already", "published, not promoted"],
     )
-    async def test_a_check_is_stale_once_the_agent_is_published_again(self, db, monkeypatch, moved):
+    async def test_a_check_is_stale_once_the_agent_is_published_again(
+        self, db, monkeypatch, moved, promoted
+    ):
+        """Accepting publishes from the agent's newest version, so a newer one than the
+        measured version is stale even while its default environment still serves the old."""
         lab, _, read = await _checked(db, monkeypatch)
         agents = SkillAgentService(db)
         await agents.change_binding(
             lab.ctx, lab.skill.id, lab.pinned.id, SkillBindingChange(**moved)
         )
-        [environment] = await agent_environment_repo.list_for_agent(
-            db, agent_id=lab.pinned.id, organization_id=lab.ctx.organization_id
-        )
-        newest = await agent_repo.newest_version(
-            db, agent_id=lab.pinned.id, organization_id=lab.ctx.organization_id
-        )
-        assert newest is not None and newest.id != environment.version_id
-        environment.version_id = newest.id
-        await db.flush()
+        if promoted:
+            [environment] = await agent_environment_repo.list_for_agent(
+                db, agent_id=lab.pinned.id, organization_id=lab.ctx.organization_id
+            )
+            newest = await agent_repo.newest_version(
+                db, agent_id=lab.pinned.id, organization_id=lab.ctx.organization_id
+            )
+            assert newest is not None
+            environment.version_id = newest.id
+            await db.flush()
 
         with pytest.raises(ConcurrentChangeError):
             await agents.change_binding(lab.ctx, lab.skill.id, lab.pinned.id, _to_main(read.id))
 
     async def test_a_check_moves_only_the_agent_it_measured(self, db, monkeypatch):
-        lab, service, read = await _checked(db, monkeypatch)
+        lab = await _lab(db)
+        evals = FakeEvals()
+        evals.install(monkeypatch)
+        service = SkillCheckService(db)
+        update = await service.start_update(lab.ctx, lab.skill.id, lab.pinned.id, QUICK)
         line_check = await service.start(lab.ctx, lab.skill.id, _start())
+        read = await _run_to_end(service, evals, lab, update.id)
+        await _run_to_end(service, evals, lab, line_check.id)
         agents = SkillAgentService(db)
 
         with pytest.raises(BadRequestError):
             await agents.change_binding(lab.ctx, lab.skill.id, lab.on_fork.id, _to_main(read.id))
-        with pytest.raises(ConcurrentChangeError):
+        with pytest.raises(BadRequestError):
             await agents.change_binding(
                 lab.ctx, lab.skill.id, lab.pinned.id, _to_main(line_check.id)
             )
@@ -252,8 +278,12 @@ class TestRefusals:
     async def test_an_update_check_never_changes_the_skill(self, db, monkeypatch):
         lab, service, read = await _checked(db, monkeypatch)
 
+        assert (read.source, read.agent_id) == (CheckSource.CATCH_UP, lab.pinned.id)
+        assert read.candidate_version_id == lab.skill.latest_version_id
         with pytest.raises(BadRequestError):
             await service.apply(lab.ctx, lab.skill.id, read.id, SkillCheckApply())
+        with pytest.raises(BadRequestError):
+            await service.fork(lab.ctx, lab.skill.id, read.id, SkillCheckFork(name="pinned"))
         with pytest.raises(ValidationError):
             SkillBindingChange(state="pinned", version=1, check_id=read.id)
 
@@ -285,3 +315,54 @@ async def test_an_agent_served_on_main_twice_is_reached_once_at_its_defaults_ver
     [reached] = await SkillAgentService(db).line_agents(skill, None)
 
     assert (reached.agent.id, reached.via_specialist) == (agent.id, None)
+
+
+class TestOnce:
+    async def test_a_check_moves_its_agent_once(self, db, monkeypatch):
+        lab, _, read = await _checked(db, monkeypatch)
+        agents = SkillAgentService(db)
+        await agents.change_binding(lab.ctx, lab.skill.id, lab.pinned.id, _to_main(read.id))
+
+        with pytest.raises(AlreadyExistsError):
+            await agents.change_binding(lab.ctx, lab.skill.id, lab.pinned.id, _to_main(read.id))
+
+    async def test_a_move_that_does_not_publish_leaves_the_check_open(self, db, monkeypatch):
+        lab, service, read = await _checked(db, monkeypatch)
+        refused = AsyncMock(side_effect=BadRequestError(message="Does not publish"))
+        monkeypatch.setattr(AgentRegistryService, "publish_spec", refused)
+
+        with pytest.raises(BadRequestError):
+            async with db.begin_nested():
+                await SkillAgentService(db).change_binding(
+                    lab.ctx, lab.skill.id, lab.pinned.id, _to_main(read.id)
+                )
+
+        reread = await service.read(lab.ctx, lab.skill.id, read.id)
+        assert (reread.status, reread.outcome) == (CheckStatus.DONE, None)
+
+    async def test_an_agent_nobody_may_reach_is_not_found(self, db, monkeypatch):
+        lab = await _lab(db)
+        FakeEvals().install(monkeypatch)
+
+        with pytest.raises(NotFoundError):
+            await SkillCheckService(db).start_update(lab.ctx, lab.skill.id, uuid.uuid4(), QUICK)
+        with pytest.raises(NotFoundError):
+            await SkillAgentService(db).change_binding(
+                lab.ctx, lab.skill.id, uuid.uuid4(), _to_main(uuid.uuid4())
+            )
+
+
+async def test_an_agent_reading_a_line_itself_and_through_a_specialist_is_checked_once(
+    db, monkeypatch
+):
+    ctx = await _owner(db)
+    skill = await _skill(db, ctx)
+    both = await _serving(db, ctx, "Desk", _with_specialist(await _runnable(db, ctx, skill), skill))
+    await _dataset(db, ctx, "skill-set", skill=skill)
+    FakeEvals().install(monkeypatch)
+
+    [reached] = await SkillAgentService(db).line_agents(skill, None)
+    started = await SkillCheckService(db).start(ctx, skill.id, _start())
+
+    assert (reached.agent.id, reached.via_specialist) == (both.id, None)
+    assert [row.agent.id for row in started.agents] == [both.id]

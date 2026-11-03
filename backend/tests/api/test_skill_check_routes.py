@@ -64,6 +64,7 @@ def _check(**overrides: Any) -> SkillCheckRead:
         **_estimate().model_dump(),
         "id": CHECK,
         "skill_id": SKILL,
+        "source": "proposal",
         "status": "done",
         "verdict": "passed",
         "outcomes": ["apply", "improve_further", "discard"],
@@ -187,7 +188,7 @@ class TestAPinnedAgentsUpdate:
         assert service.estimate_update.await_args.args[1:3] == (SKILL, agent)
         assert service.estimate_update.await_args.args[3].mode == "thorough"
 
-    async def test_an_agent_that_is_not_pinned_is_refused_with_400(self, client, service):
+    async def test_a_refused_start_keeps_its_400_and_a_bare_body_is_quick(self, client, service):
         async with client() as opened:
             response = await opened.post(_url(f"/agents/{uuid.uuid4()}/update-check"), json={})
         assert response.status_code == 400

@@ -250,21 +250,28 @@ class SkillAgentService:
     async def line_agents(self, skill: Skill, fork_id: UUID | None) -> list[LineAgent]:
         """The agents a change to this line reaches: main's followers, or the fork's.
 
-        An agent counts when a served version reads the line - its default
-        environment's first, else the first environment that does. Pinned agents,
-        other lines and agents bound in a draft alone are not reached.
+        An agent counts once, when a served version reads the line - its default
+        environment's first, else the first environment that does, and as itself
+        before as one of its specialists. Pinned agents, other lines and agents bound
+        in a draft alone are not reached.
         """
         found: list[LineAgent] = []
         for use in await self._uses(skill):
-            readers: dict[str | None, tuple[bool, int]] = {}
-            for environment, number, lines in use.served:
-                for line in lines:
-                    if not (line.state == "main" if fork_id is None else line.fork_id == fork_id):
-                        continue
-                    held = readers.get(line.via_specialist)
-                    if held is None or (environment.is_default and not held[0]):
-                        readers[line.via_specialist] = (environment.is_default, number)
-            found += [LineAgent(use.agent, number, via) for via, (_, number) in readers.items()]
+            on_line = [
+                (environment, number, line)
+                for environment, number, lines in use.served
+                for line in lines
+                if (line.state == "main" if fork_id is None else line.fork_id == fork_id)
+            ]
+            if not on_line:
+                continue
+            # One measurement per agent: a candidate replaces the skill for every reader
+            # of one run, so the agent itself and its specialists are asked together.
+            _, number, line = min(
+                on_line,
+                key=lambda item: (not item[0].is_default, item[2].via_specialist is not None),
+            )
+            found.append(LineAgent(use.agent, number, line.via_specialist))
         return found
 
     async def pinned_agent(self, skill: Skill, agent_id: UUID) -> tuple[LineAgent, int] | None:
@@ -413,8 +420,10 @@ class SkillAgentService:
             # Imported here: the check service reads the agents of a skill through this one.
             from app.services.skill_check import SkillCheckService
 
-            # Before the agent's lock: a decision takes the skill's first, as every
-            # write to a skill's versions does.
+            # Read unlocked first, so an agent the caller may not edit is not found
+            # before anything about its check is said. The decision then locks the
+            # skill, the check and the agent, the order every write to a skill takes.
+            await self.registry.get(ctx, agent_id, perm=Perm.AGENTS_EDIT)
             checks = SkillCheckService(self.db)
             check = await checks.checked_update(
                 ctx, skill.id, agent_id, data.check_id, acknowledged=data.acknowledge_unknown
