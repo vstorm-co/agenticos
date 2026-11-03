@@ -954,6 +954,10 @@ class TestSkillBindingAvailability:
             upgraded_again = _alembic("upgrade", "0180_remove_skill_enabled")
             assert upgraded_again.returncode == 0, upgraded_again.stderr
         finally:
+            # Their organization was never written, so a later upgrade past 0250,
+            # which gives every skill a version in its organization, would fail on them.
+            with engine.begin() as connection:
+                connection.execute(text("DELETE FROM skills WHERE id IN (:a, :b)"), selected)
             engine.dispose()
 
 

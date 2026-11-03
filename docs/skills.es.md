@@ -1,5 +1,5 @@
 ---
-source_sha: "52980ac92bb7"
+source_sha: "62dfc1407890"
 ---
 
 # Skills { #skills }
@@ -399,7 +399,9 @@ uno de sus especialistas leen el skill a su manera, así que cada uno es una fil
 página del skill lo muestra con la versión que lee, cuántas versiones de main lleva
 de retraso y cualquier entorno que lo lea de otra forma. Un agent que vincula el
 skill solo en su borrador aparece marcado como tal. Los agents que no puedes ver se
-cuentan, no se nombran.
+cuentan, no se nombran. «Por detrás de main» cuenta las versiones de main
+posteriores que cambiaron lo que dice el skill: restaurar de nuevo el mismo texto no
+es un cambio, y si main vuelve al texto que lee, no lleva ningún retraso.
 
 **Change version** mueve un agent a main, a una versión de main o a un fork, y es un
 cambio del agent. Si el agent usa el skill por sí mismo se lee de su borrador, tal

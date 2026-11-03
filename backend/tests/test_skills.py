@@ -788,6 +788,7 @@ class TestSkillManagement:
             "agents": [{"id": seen.id, "name": "Refund desk"}],
             "hidden": 1,
         }
+        assert "'Refund desk' and 1 more you cannot see" in refused.value.message
         delete.assert_not_awaited()
 
 
