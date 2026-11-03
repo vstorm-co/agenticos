@@ -1,5 +1,5 @@
 ---
-source_sha: "75d8ff4c4e85"
+source_sha: "4f6ede4e7ba2"
 title: "Asistente de autoría"
 description: "El asistente de autoría lee lo que la gente valoró negativamente y cómo acabaron los runs, y sugiere cambios a las instrucciones, las herramientas, la configuración, los skills y los archivos de contexto de un agent. Una persona decide cada uno."
 ---
@@ -45,6 +45,8 @@ del panel de pruebas del Builder ni el run de un delegado.
 
 Cuando hay más que leer de lo que cabe en una petición, los runs se leen primero
 en grupos y las sugerencias se escriben a partir de lo que mostró cada grupo.
+
+Si se elimina la cuenta de una persona cuyos datos sirven como evidencia mientras trabaja el modelo, se descarta todo el resultado generado, incluidos los resúmenes, los contenidos propuestos y las entradas y salidas del modelo registradas por el ayudante. La solicitud termina con una explicación y puede iniciarse de nuevo con evidencias actuales. Los costes ya incurridos siguen registrados.
 
 ### Cada cita se comprueba { #every-quote-is-checked }
 

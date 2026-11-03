@@ -60,6 +60,7 @@ from app.repositories import (
     authoring_repo,
     context_proposal_repo,
     context_repo,
+    personal_data_repo,
     skill_proposal_repo,
     skill_repo,
 )
@@ -497,6 +498,17 @@ class AuthoringRun:
         else:
             await self._improve_agent()
 
+    async def _checked_evidence(self, pack: EvidencePack) -> EvidencePack:
+        retained = await self.evidence.forget_erased(pack)
+        if len(retained.runs) != len(pack.runs):
+            # Any part of the output can paraphrase a removed source, including
+            # uncited summaries and the helper's own recorded model requests.
+            await personal_data_repo.forget_knowledge_runs(self.db, self.run_ids)
+            raise Stopped(
+                "An evidence source was erased while the assistant worked. Start again with current evidence."
+            )
+        return retained
+
     async def _target_agent(self) -> Agent | None:
         agent_id = self.request.agent_id
         org = self.ctx.organization_id
@@ -543,13 +555,17 @@ class AuthoringRun:
                 excluded_message_ids=self.request.excluded_message_ids,
             )
         self._record_evidence(pack)
-        digests = await self._digests(pack, f'the agent "{agent.name}"')
-        configuration = await self.configuration.describe(self.ctx, spec)
-        proposal = await self._ask(
-            _improve_prompt(agent.name, spec, configuration, pack, digests, note),
-            ImprovementProposal,
-        )
-        pack = await self.evidence.forget_erased(pack)
+        try:
+            digests = await self._digests(pack, f'the agent "{agent.name}"')
+            configuration = await self.configuration.describe(self.ctx, spec)
+            proposal = await self._ask(
+                _improve_prompt(agent.name, spec, configuration, pack, digests, note),
+                ImprovementProposal,
+            )
+        except Exception:
+            await self._checked_evidence(pack)
+            raise
+        pack = await self._checked_evidence(pack)
         hunks = [
             *self._instruction_hunks(spec, pack, proposal.instructions, HunkOrigin.IMPROVE),
             *self._tool_hunks(spec, pack, proposal.tools, HunkOrigin.IMPROVE),
@@ -591,13 +607,17 @@ class AuthoringRun:
             excluded_message_ids=self.request.excluded_message_ids,
         )
         self._record_evidence(pack)
-        digests = await self._digests(pack, f'the agent "{agent.name}"')
-        configuration = await self.configuration.describe(self.ctx, draft)
-        report = await self._ask(
-            _verify_prompt(agent.name, published, draft, configuration, pack, digests),
-            VerifyReport,
-        )
-        pack = await self.evidence.forget_erased(pack)
+        try:
+            digests = await self._digests(pack, f'the agent "{agent.name}"')
+            configuration = await self.configuration.describe(self.ctx, draft)
+            report = await self._ask(
+                _verify_prompt(agent.name, published, draft, configuration, pack, digests),
+                VerifyReport,
+            )
+        except Exception:
+            await self._checked_evidence(pack)
+            raise
+        pack = await self._checked_evidence(pack)
         findings = self._findings(report.findings, pack, _edited(published, draft))
         hunks = [
             *self._instruction_hunks(draft, pack, report.instructions, HunkOrigin.VERIFY),
@@ -633,9 +653,13 @@ class AuthoringRun:
             self.ctx, skill.name, window_days=self.request.window_days
         )
         self._record_evidence(pack)
-        digests = await self._digests(pack, f'agents using the skill "{skill.name}"')
-        proposal = await self._ask(_skill_prompt(skill, pack, digests), SkillImprovement)
-        pack = await self.evidence.forget_erased(pack)
+        try:
+            digests = await self._digests(pack, f'agents using the skill "{skill.name}"')
+            proposal = await self._ask(_skill_prompt(skill, pack, digests), SkillImprovement)
+        except Exception:
+            await self._checked_evidence(pack)
+            raise
+        pack = await self._checked_evidence(pack)
         content = _unwrapped(proposal.content, "skill", skill.content)
         if _same_text(content, skill.content) and _same_text(
             proposal.description[:500], skill.description
@@ -705,9 +729,13 @@ class AuthoringRun:
             self.ctx, file.id, window_days=self.request.window_days
         )
         self._record_evidence(pack)
-        digests = await self._digests(pack, f'agents using the context file "{file.name}"')
-        proposal = await self._ask(_context_prompt(file, pack, digests), ContextImprovement)
-        pack = await self.evidence.forget_erased(pack)
+        try:
+            digests = await self._digests(pack, f'agents using the context file "{file.name}"')
+            proposal = await self._ask(_context_prompt(file, pack, digests), ContextImprovement)
+        except Exception:
+            await self._checked_evidence(pack)
+            raise
+        pack = await self._checked_evidence(pack)
         content = _unwrapped(proposal.content, "context", file.content)
         if _same_text(content, file.content) and _same_text(
             proposal.description[:500], file.description

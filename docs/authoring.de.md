@@ -1,5 +1,5 @@
 ---
-source_sha: "75d8ff4c4e85"
+source_sha: "4f6ede4e7ba2"
 title: "Authoring-Assistent"
 description: "Der Authoring-Assistent liest, was Leute negativ bewertet haben und wie Runs endeten, und schlägt Änderungen an Anweisungen, Tools, Konfiguration, Skills und Context-Dateien eines Agents vor. Über jede entscheidet ein Mensch."
 ---
@@ -47,6 +47,8 @@ Delegierten.
 
 Gibt es mehr zu lesen, als in eine Anfrage passt, werden die Runs zuerst in
 Gruppen gelesen, und die Vorschläge entstehen aus dem, was jede Gruppe zeigte.
+
+Wird das Konto einer Person, deren Daten als Beleg dienen, während der Modellverarbeitung gelöscht, wird das gesamte erzeugte Ergebnis verworfen: Zusammenfassungen, vorgeschlagene Inhalte und die aufgezeichneten Modelleingaben und -ausgaben des Helfers. Der Auftrag endet mit einer Erklärung und kann mit aktuellen Belegen neu gestartet werden. Bereits entstandene Kosten bleiben erfasst.
 
 ### Jedes Zitat wird geprüft { #every-quote-is-checked }
 

@@ -45,6 +45,8 @@ a test from the Builder's test panel, nor a delegate's run.
 When there is more to read than fits one request, the runs are read in groups
 first and the suggestions are written from what each group showed.
 
+If an evidence source account is erased while the model is working, the entire generated result is discarded, including summaries, proposed bodies and the helper's recorded model input/output. The request fails with an explanation so it can be started again using current evidence. Already incurred costs remain recorded.
+
 ### Every quote is checked { #every-quote-is-checked }
 
 Each suggestion carries a rationale and the evidence behind it: the runs it rests

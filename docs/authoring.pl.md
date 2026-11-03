@@ -1,5 +1,5 @@
 ---
-source_sha: "75d8ff4c4e85"
+source_sha: "4f6ede4e7ba2"
 title: "Asystent tworzenia"
 description: "Asystent tworzenia czyta, co ludzie ocenili negatywnie i jak kończyły się runy, i sugeruje zmiany w instrukcjach agenta, jego narzędziach, konfiguracji, skillach i plikach kontekstowych. O każdej decyduje człowiek."
 ---
@@ -46,6 +46,8 @@ test z panelu testowego Buildera ani run delegata.
 
 Gdy do przeczytania jest więcej, niż mieści jedno zapytanie, runy są najpierw
 czytane grupami, a sugestie powstają z tego, co pokazała każda grupa.
+
+Jeśli konto osoby będącej źródłem danych zostanie usunięte podczas pracy modelu, cały wygenerowany wynik jest odrzucany, łącznie z podsumowaniami, proponowaną treścią i zapisem wejścia oraz wyjścia modelu pomocnika. Żądanie kończy się błędem z wyjaśnieniem; można uruchomić je ponownie na aktualnych danych. Poniesione koszty pozostają zapisane.
 
 ### Każdy cytat jest sprawdzany { #every-quote-is-checked }
 
