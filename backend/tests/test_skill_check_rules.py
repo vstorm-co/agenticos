@@ -2,6 +2,7 @@
 person may do next, and which of an agent's own questions a quick check asks."""
 
 import uuid
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
@@ -11,10 +12,13 @@ from app.db.models.skill_check import AgentState, CheckOutcome, CheckVerdict
 from app.services.improvement_states import CheckResult
 from app.services.skill_check_rules import (
     SampleCandidate,
+    StageComparison,
     StageResult,
+    agent_state,
     changed_words,
-    combined,
+    noisy,
     outcomes,
+    pooled,
     sample,
     stage_state,
     total,
@@ -58,10 +62,18 @@ class TestStage:
     def test_nothing_moved_is_no_change(self) -> None:
         assert stage_state(_stage()) is AgentState.NO_CHANGE
 
-    def test_an_unconfirmed_regression_is_within_noise_even_beside_fixes(self) -> None:
-        assert stage_state(_stage(fixed=2, broken_unconfirmed=1, candidate=0.7)) is (
-            AgentState.WITHIN_NOISE
-        )
+    def test_a_better_stage_stays_better_beside_unconfirmed_flips_and_is_noisy(self) -> None:
+        """Noise warns and never turns a measured improvement into nothing."""
+        stage = _stage(fixed=2, broken_unconfirmed=1, candidate=0.7)
+
+        assert stage_state(stage) is AgentState.BETTER
+        assert noisy(stage)
+
+    def test_an_unconfirmed_regression_without_fixes_is_within_noise(self) -> None:
+        assert stage_state(_stage(broken_unconfirmed=1)) is AgentState.WITHIN_NOISE
+
+    def test_a_stage_with_nothing_unconfirmed_is_not_noisy(self) -> None:
+        assert not noisy(_stage(fixed=2, candidate=0.7))
 
     def test_unconfirmed_fixes_alone_are_within_noise(self) -> None:
         assert stage_state(_stage(fixed_unconfirmed=2)) is AgentState.WITHIN_NOISE
@@ -70,24 +82,119 @@ class TestStage:
         assert stage_state(_stage(incomplete=1)) is AgentState.UNKNOWN
 
 
-class TestCombined:
+def _compared(
+    *,
+    held_out: int,
+    fixed: int = 0,
+    broken: int = 0,
+    broken_unconfirmed: int = 0,
+    candidate: float | None = 0.5,
+    baseline: float | None = 0.5,
+    comparable: bool = True,
+) -> StageComparison:
+    return StageComparison(
+        comparable=comparable,
+        gradable_holdout=held_out,
+        incomplete=0,
+        ungraded=0,
+        crashed=0,
+        regressions_confirmed=broken,
+        fixed_confirmed=fixed,
+        regressions_unconfirmed=broken_unconfirmed,
+        fixed_unconfirmed=0,
+        compared=held_out,
+        candidate_pass_rate=candidate,
+        baseline_pass_rate=baseline,
+    )
+
+
+class TestPooled:
+    """The held-out minimum is the agent's: its stages are one measurement."""
+
+    def test_a_sample_and_a_skill_set_too_small_alone_make_a_result_together(self) -> None:
+        sample = _compared(held_out=4, fixed=1, candidate=0.75, baseline=0.5)
+        skill_set = _compared(held_out=2, candidate=0.5, baseline=0.5)
+
+        result = pooled([sample, skill_set], minimum=5)
+
+        assert result.check.comparable and result.compared == 6
+        assert result.check.candidate_pass_rate == pytest.approx((0.75 * 4 + 0.5 * 2) / 6)
+        assert stage_state(result) is AgentState.BETTER
+
+    def test_too_few_held_out_questions_in_all_is_unknown(self) -> None:
+        result = pooled([_compared(held_out=2, broken=1), _compared(held_out=2)], minimum=5)
+
+        assert stage_state(result) is AgentState.UNKNOWN
+
+    def test_a_regression_confirmed_in_one_stage_makes_the_agent_worse(self) -> None:
+        result = pooled(
+            [_compared(held_out=4, fixed=1, candidate=0.75), _compared(held_out=6, broken=4)],
+            minimum=5,
+        )
+
+        assert stage_state(result) is AgentState.WORSE
+        assert result.check.regressions_confirmed == 4
+
+    def test_a_stage_invalid_for_another_reason_leaves_the_agent_unknown(self) -> None:
+        result = pooled(
+            [_compared(held_out=10, fixed=2), _compared(held_out=4, comparable=False)],
+            minimum=5,
+        )
+
+        assert stage_state(result) is AgentState.UNKNOWN
+
     @pytest.mark.parametrize(
-        ("states", "expected"),
+        "unmeasured",
         [
-            ([AgentState.BETTER, AgentState.WORSE], AgentState.WORSE),
-            ([AgentState.UNKNOWN, AgentState.WORSE], AgentState.WORSE),
-            ([AgentState.BETTER, AgentState.UNKNOWN], AgentState.UNKNOWN),
-            ([AgentState.BETTER, AgentState.NO_CHANGE], AgentState.BETTER),
-            ([AgentState.WITHIN_NOISE, AgentState.BETTER], AgentState.BETTER),
-            ([AgentState.WITHIN_NOISE, AgentState.NO_CHANGE], AgentState.WITHIN_NOISE),
-            ([AgentState.NO_CHANGE], AgentState.NO_CHANGE),
-            ([], AgentState.UNKNOWN),
+            {"comparable": False},
+            {"incomplete": 1},
+            {"ungraded": 1},
         ],
     )
-    def test_an_agents_result_from_its_stages(
-        self, states: list[AgentState], expected: AgentState
+    def test_a_regression_one_stage_confirmed_is_not_hidden_by_an_unmeasured_one(
+        self, unmeasured: dict[str, int | bool]
     ) -> None:
-        assert combined(states) is expected
+        """Unknown can be applied once acknowledged and worse cannot, so a regression a
+        stage measured completely blocks whatever the stage beside it could not tell."""
+        found = _compared(held_out=6, broken=2)
+        beside = replace(_compared(held_out=4), **unmeasured)
+
+        assert agent_state([found, beside], minimum=5) is AgentState.WORSE
+        assert stage_state(pooled([found, beside], minimum=5)) is AgentState.UNKNOWN
+
+    def test_a_confirmed_regression_blocks_below_the_held_out_minimum(self) -> None:
+        """Nobody may get confirmed worse: blocking on few questions errs on the safe side,
+        while getting better still needs the minimum."""
+        assert agent_state([_compared(held_out=2, broken=1)], minimum=5) is AgentState.WORSE
+        assert agent_state([_compared(held_out=2, fixed=1, candidate=1.0)], minimum=5) is (
+            AgentState.UNKNOWN
+        )
+
+    def test_a_regression_in_a_stage_not_measured_completely_waits_for_the_pool(self) -> None:
+        partial = replace(_compared(held_out=6, broken=2), incomplete=1)
+
+        assert agent_state([partial, _compared(held_out=4)], minimum=5) is AgentState.UNKNOWN
+
+    def test_without_a_regression_the_pool_decides(self) -> None:
+        assert (
+            agent_state(
+                [_compared(held_out=3, fixed=1, candidate=0.75), _compared(held_out=3)], minimum=5
+            )
+            is AgentState.BETTER
+        )
+
+    def test_unconfirmed_flips_anywhere_make_the_agent_noisy(self) -> None:
+        result = pooled(
+            [_compared(held_out=6), _compared(held_out=4, broken_unconfirmed=1)], minimum=5
+        )
+
+        assert stage_state(result) is AgentState.WITHIN_NOISE and noisy(result)
+
+    def test_no_stage_or_no_pass_rate_measures_nothing(self) -> None:
+        assert stage_state(pooled([], minimum=5)) is AgentState.UNKNOWN
+        result = pooled([_compared(held_out=6, fixed=1, baseline=None)], minimum=5)
+        assert result.check.baseline_pass_rate is None
+        assert stage_state(result) is AgentState.UNKNOWN
 
 
 class TestVerdict:

@@ -19,17 +19,24 @@ from pydantic_ai.models.function import AgentInfo, FunctionModel
 from app.agents.capabilities._registry import CapabilityBuildContext
 from app.agents.capabilities._registry import get as get_capability
 from app.agents.capabilities.skills import (
+    SKILL_BODIES_RESOURCE,
     SKILL_USE_LOG_RESOURCE,
     ServedSkill,
     SkillBody,
     Skills,
     SkillUseLog,
     served_skills,
+    tool_identities,
 )
-from app.agents.spec import AgentSpec, CapabilityBindingSpec
+from app.agents.spec import AgentSpec, CapabilityBindingSpec, SkillBindingSpec
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.skill import Skill, SkillResource
-from app.services.agent_runner import AgentRunnerService, PreparedRun
+from app.services.agent_runner import (
+    RUN_SKILL_BODIES_RESOURCE,
+    AgentRunnerService,
+    PreparedRun,
+    _on_line,
+)
 
 pytestmark = pytest.mark.anyio
 
@@ -37,6 +44,7 @@ RUNNER = "app.services.agent_runner"
 AGENT = uuid.uuid4()
 REFUNDS = uuid.uuid4()
 SHIPPING = uuid.uuid4()
+_FORK = uuid.uuid4()
 
 
 def _log(**served: ServedSkill) -> SkillUseLog:
@@ -130,6 +138,32 @@ class TestObserve:
         assert len(log.records()) == 1
         assert log.records() == []
 
+    def test_a_renamed_skill_tool_or_listing_is_read_by_its_stable_id(self) -> None:
+        log = SkillUseLog(
+            agent_id=AGENT,
+            served={"refunds": ServedSkill(REFUNDS)},
+            tools={"open_policy_file": "read_skill_resource", "list_files": "ls", "ls": "grep"},
+        )
+        log.observe("open_policy_file", {"skill_name": "refunds", "resource_name": "a.md"})
+        log.observe("list_files", {"path": "/workspace/skills/refunds"})
+        log.observe("read_skill_resource", {"skill_name": "refunds", "resource_name": "a.md"})
+        log.observe("ls", {"pattern": "x", "path": "/workspace/skills/refunds/SKILL.md"})
+        [record] = log.records()
+        assert (record.resource_reads, record.workspace_reads) == (2, 1)
+
+    def test_tool_identities_follow_each_bindings_renames(self) -> None:
+        identities = tool_identities(
+            [
+                CapabilityBindingSpec(
+                    id="skills",
+                    tool_overrides={"read_skill_resource": {"name": "open_policy_file"}},
+                ),
+                CapabilityBindingSpec(id="no-such-capability"),
+            ]
+        )
+        assert identities["open_policy_file"] == "read_skill_resource"
+        assert "read_skill_resource" not in identities
+
     def test_no_skills_served_means_nothing_scanned(self) -> None:
         log = SkillUseLog(agent_id=AGENT, served={})
         log.observe("execute", {"command": "cat /workspace/skills/refunds/SKILL.md"})
@@ -140,7 +174,7 @@ class TestDelegates:
     def test_a_delegate_records_under_its_own_agent_on_the_shared_log(self) -> None:
         parent = _log()
         delegate_agent = uuid.uuid4()
-        delegate = parent.for_agent(delegate_agent, {"refunds": ServedSkill(REFUNDS)})
+        delegate = parent.for_agent(delegate_agent, {"refunds": ServedSkill(REFUNDS)}, {})
         parent.observe("load_capability", {"id": "refunds"})
         delegate.observe("load_capability", {"id": "refunds"})
         records = {record.agent_id: record for record in parent.records()}
@@ -149,7 +183,7 @@ class TestDelegates:
 
     def test_an_inline_specialist_uses_skills_as_the_delegating_agent(self) -> None:
         parent = _log()
-        inline = parent.for_agent(None, {"shipping": ServedSkill(SHIPPING)})
+        inline = parent.for_agent(None, {"shipping": ServedSkill(SHIPPING)}, {})
         inline.observe("load_capability", {"id": "shipping"})
         [record] = parent.records()
         assert (record.agent_id, record.skill_id) == (AGENT, SHIPPING)
@@ -168,6 +202,17 @@ class TestServedSkills:
         assert served == {
             "refunds": ServedSkill(REFUNDS, projected=True),
             "shipping": ServedSkill(SHIPPING),
+        }
+
+    def test_a_stored_skill_carries_the_version_served_and_a_candidate_none(self) -> None:
+        refunds, shipping = _skill("refunds", REFUNDS), _skill("shipping", SHIPPING)
+        refunds.latest_version_id, shipping.latest_version_id = uuid.uuid4(), uuid.uuid4()
+        served = served_skills(
+            [refunds, shipping], {REFUNDS: SkillBody(description="d", content="c")}
+        )
+        assert served == {
+            "refunds": ServedSkill(REFUNDS, projected=True),
+            "shipping": ServedSkill(SHIPPING, version_id=shipping.latest_version_id),
         }
 
 
@@ -308,9 +353,26 @@ class TestTheRunnerWritesTheLog:
         assert "skill_uses_not_written" in caplog.text
         recorded.assert_not_awaited()
 
+    async def test_a_lost_mark_is_logged_and_does_not_fail_the_run(self, caplog) -> None:
+        service = AgentRunnerService(_savepoint_db())
+        lost = AsyncMock(side_effect=RuntimeError("connection lost"))
+
+        with (
+            patch(f"{RUNNER}.skill_usage_repo.record_uses", new=lost),
+            patch(f"{RUNNER}.skill_usage_repo.mark_unrecorded", new=lost),
+        ):
+            await service._write_skill_uses(_prepared(_log()))
+
+        assert "skill_uses_not_marked" in caplog.text
+
 
 class TestADelegateUsesSkillsUnderItsOwnName:
-    async def _resources(self, parent: dict[str, Any], agent_id: uuid.UUID | None) -> Any:
+    async def _resources(
+        self,
+        parent: dict[str, Any],
+        agent_id: uuid.UUID | None,
+        bindings: list[SkillBindingSpec] | None = None,
+    ) -> Any:
         ctx = AuthContext(
             user_id=uuid.uuid4(), organization_id=uuid.uuid4(), role=OrgRoleName.OWNER
         )
@@ -319,13 +381,61 @@ class TestADelegateUsesSkillsUnderItsOwnName:
             resolve_for_agent=AsyncMock(return_value=[_skill("shipping", SHIPPING)])
         )
         service.context = MagicMock(resolve_for_agent=AsyncMock(return_value=[]))
+        self.resolve = service.skills.resolve_for_agent
         return await service._delegate_resources(
             ctx,
-            AgentSpec(name="Delegate", skill_ids=[SHIPPING]),
+            AgentSpec(name="Delegate", skill_ids=[SHIPPING], skill_bindings=bindings or []),
             agent_id=agent_id,
             shared=[],
             parent_resources=parent,
         )
+
+    async def test_an_inline_specialist_reads_the_candidate_its_agent_is_measured_with(
+        self,
+    ) -> None:
+        """A skill check projects the change onto the agent it runs; a specialist the
+        agent defines inline is part of that agent and must read the same change."""
+        body = SkillBody("Ships.", "New shipping rules.", name="shipping")
+
+        resources = await self._resources(
+            {RUN_SKILL_BODIES_RESOURCE: {SHIPPING: body}}, agent_id=None
+        )
+
+        assert resources[SKILL_BODIES_RESOURCE] == {SHIPPING: body}
+        assert self.resolve.await_args.kwargs["projected"] == {SHIPPING: body}
+
+    @pytest.mark.parametrize(
+        ("binding", "line", "reads"),
+        [
+            ({"version": 2}, None, False),
+            ({"fork_id": _FORK}, None, False),
+            ({"fork_id": _FORK}, _FORK, True),
+            (None, _FORK, False),
+        ],
+    )
+    async def test_a_specialist_reads_a_candidate_only_on_the_line_it_was_written_for(
+        self, binding: dict[str, Any] | None, line: uuid.UUID | None, reads: bool
+    ) -> None:
+        """A check measures a change to one line; a specialist pinned to a version or on
+        another line would never be served it, so it answers with what it reads now."""
+        body = SkillBody("Ships.", "New shipping rules.", name="shipping", fork_id=line)
+        bindings = None if binding is None else [SkillBindingSpec(skill_id=SHIPPING, **binding)]
+
+        resources = await self._resources(
+            {RUN_SKILL_BODIES_RESOURCE: {SHIPPING: body}}, agent_id=None, bindings=bindings
+        )
+
+        assert (SHIPPING in resources[SKILL_BODIES_RESOURCE]) is reads
+
+    async def test_a_published_delegate_reads_its_own_stored_skills(self) -> None:
+        body = SkillBody("Ships.", "New shipping rules.", name="shipping")
+
+        resources = await self._resources(
+            {RUN_SKILL_BODIES_RESOURCE: {SHIPPING: body}}, agent_id=uuid.uuid4()
+        )
+
+        assert resources[SKILL_BODIES_RESOURCE] == {}
+        assert self.resolve.await_args.kwargs["projected"] is None
 
     async def test_a_delegate_records_into_the_parents_log(self) -> None:
         log = _log()
@@ -355,3 +465,24 @@ class TestTheCapabilityTakesTheRunnersLog:
 
         assert isinstance(built, Skills)
         assert built._log is log
+
+
+def test_a_use_names_its_run_skill_and_whether_it_loaded() -> None:
+    from app.db.models.skill_usage import RunSkillUse
+
+    run = uuid.uuid4()
+    assert repr(RunSkillUse(run_id=run, skill_id=REFUNDS, loaded=True)) == (
+        f"<RunSkillUse(run={run}, skill={REFUNDS}, loaded=True)>"
+    )
+
+
+def test_an_agent_pinned_itself_reads_its_stored_skill_while_its_specialist_reads_the_candidate():
+    """A check of main reaches an agent through a specialist that follows main; the agent's
+    own pinned reading is not what applying the change would move."""
+    body = SkillBody("Ships.", "New shipping rules.")
+    run = {SHIPPING: body}
+
+    agent = _on_line([SkillBindingSpec(skill_id=SHIPPING, version=1)], run)
+    specialist = _on_line([], run)
+
+    assert (agent, specialist) == ({}, {SHIPPING: body})

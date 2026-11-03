@@ -10,11 +10,16 @@ const state = vi.hoisted(() => ({
   error: null as string | null,
   apply: vi.fn(),
   discard: vi.fn(),
+  runsView: true,
 }));
 
-vi.mock("@/components/authoring/skill-check-button", () => ({
-  SkillCheckButton: ({ proposalId }: { proposalId: string }) => (
-    <button>{`check ${proposalId}`}</button>
+vi.mock("@/hooks/use-permissions", () => ({
+  usePermissions: () => ({ can: () => state.runsView }),
+}));
+
+vi.mock("./skill-check-dialog", () => ({
+  SkillCheckDialog: ({ proposalId, forkId }: { proposalId: string; forkId: string | null }) => (
+    <p>{`checking ${proposalId} on ${forkId ?? "main"}`}</p>
   ),
 }));
 
@@ -47,6 +52,7 @@ function change(overrides: Partial<SkillChangeRecord> = {}): SkillChangeRecord {
     revision: 1,
     reaches: [],
     reaches_hidden: 0,
+    fork_id: null,
     ...overrides,
   };
 }
@@ -55,6 +61,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   state.changes = [change()];
   state.error = null;
+  state.runsView = true;
 });
 
 describe("ProposedChanges", () => {
@@ -171,11 +178,17 @@ describe("ProposedChanges", () => {
       }),
     ];
     render(<ProposedChanges canEdit />);
-    expect(screen.getByRole("button", { name: "check p-1" })).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: /Show what changed in refunds/ }));
     expect(screen.getByText("Readers corrected the window.")).toBeInTheDocument();
     expect(screen.getByText("Answers say 30 days.")).toBeInTheDocument();
     expect(screen.getByText("It is 30 days")).toBeInTheDocument();
+  });
+
+  it("shows a rationale that came without evidence", async () => {
+    state.changes = [change({ rationale: "Shorter is clearer." })];
+    render(<ProposedChanges canEdit />);
+    await userEvent.click(screen.getByRole("button", { name: /Show what changed in refunds/ }));
+    expect(screen.getByText("Shorter is clearer.")).toBeInTheDocument();
   });
 
   it("says an assistant's change cited nothing it could check", async () => {
@@ -185,15 +198,15 @@ describe("ProposedChanges", () => {
     expect(screen.getByText("No evidence that could be checked.")).toBeInTheDocument();
   });
 
-  it("offers no check and no evidence for a change an agent's workspace wrote", async () => {
+  it("shows no evidence for a change an agent's workspace wrote", async () => {
     state.changes = [change({ base_version: 4, authoring_request_id: null })];
     render(<ProposedChanges canEdit />);
-    expect(screen.queryByRole("button", { name: /check/ })).toBeNull();
     await userEvent.click(screen.getByRole("button", { name: /Show what changed in refunds/ }));
     expect(screen.queryByText("No evidence that could be checked.")).toBeNull();
   });
 
-  it("accepts and refuses through their own actions", async () => {
+  it("applies a new skill at once, and refuses a change through its own action", async () => {
+    state.changes = [change({ skill_id: null })];
     render(<ProposedChanges canEdit />);
 
     await userEvent.click(screen.getByRole("button", { name: /Apply the change to refunds/ }));
@@ -201,5 +214,26 @@ describe("ProposedChanges", () => {
 
     await userEvent.click(screen.getByRole("button", { name: /Discard the change to refunds/ }));
     expect(state.discard).toHaveBeenCalledWith(expect.objectContaining({ id: "p-1", revision: 1 }));
+  });
+
+  it("sends a change to a skill agents use through a check on them, on its line", async () => {
+    // Applying it goes live for every agent that follows the line, so it is
+    // checked there first; there is no Apply that skips the check.
+    state.changes = [change({ fork_id: "fork-1" })];
+    render(<ProposedChanges canEdit />);
+
+    expect(screen.queryByRole("button", { name: /Apply the change to refunds/ })).toBeNull();
+    await userEvent.click(
+      screen.getByRole("button", { name: /Check the change to refunds on the agents/ }),
+    );
+    expect(screen.getByText("checking p-1 on fork-1")).toBeInTheDocument();
+  });
+
+  it("explains instead of checking for somebody who may not read runs", () => {
+    state.runsView = false;
+    render(<ProposedChanges canEdit />);
+
+    const button = screen.getByRole("button", { name: /Check on agents/ });
+    expect(button).toHaveAttribute("aria-disabled", "true");
   });
 });

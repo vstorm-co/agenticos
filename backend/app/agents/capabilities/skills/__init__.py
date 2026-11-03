@@ -21,6 +21,7 @@ from app.agents.capabilities.skills._log import (
     ServedSkill,
     SkillUseLog,
     served_skills,
+    tool_identities,
 )
 
 __all__ = [
@@ -35,6 +36,7 @@ __all__ = [
     "served_files",
     "served_skills",
     "to_toolkit_skill",
+    "tool_identities",
 ]
 
 

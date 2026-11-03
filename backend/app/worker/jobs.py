@@ -140,6 +140,20 @@ class AdvanceImprovement(Payload):
     organization_id: UUID
 
 
+class AdvanceSkillImprovement(Payload):
+    """One short, restartable step of a session on a skill line; paid work runs in a child."""
+
+    run_id: UUID
+    organization_id: UUID
+
+
+class AdvanceSkillCheck(Payload):
+    """Move a skill check's agents on once their runs have settled."""
+
+    check_id: UUID
+    organization_id: UUID
+
+
 class RunEval(Payload):
     """One eval run, answered, scored and compared case by case."""
 
@@ -539,6 +553,35 @@ ADVANCE_IMPROVEMENT = Task(
     priority=Priority.INTERACTIVE,
 )
 SWEEP_IMPROVEMENTS = _sweep("sweep-improvements")
+ADVANCE_SKILL_IMPROVEMENT = Task(
+    kind="advance-skill-improvement",
+    payload_type=AdvanceSkillImprovement,
+    pool=Pool.SYSTEM,
+    max_attempts=3,
+    timeout=timedelta(minutes=2),
+    priority=Priority.INTERACTIVE,
+)
+SWEEP_SKILL_IMPROVEMENTS = _sweep("sweep-skill-improvements")
+
+ADVANCE_SKILL_CHECK = Task(
+    kind="advance-skill-check",
+    payload_type=AdvanceSkillCheck,
+    pool=Pool.SYSTEM,
+    max_attempts=3,
+    timeout=timedelta(minutes=2),
+    priority=Priority.INTERACTIVE,
+)
+SWEEP_SKILL_CHECKS = _sweep("sweep-skill-checks")
+
+ADVANCE_SKILL_CHECK = Task(
+    kind="advance-skill-check",
+    payload_type=AdvanceSkillCheck,
+    pool=Pool.SYSTEM,
+    max_attempts=3,
+    timeout=timedelta(minutes=2),
+    priority=Priority.INTERACTIVE,
+)
+SWEEP_SKILL_CHECKS = _sweep("sweep-skill-checks")
 
 CHECK_AGENT_TRIGGERS = _sweep("check-agent-triggers")
 POLL_PORTAL_GRANTS = _sweep("poll-portal-grants")
@@ -597,6 +640,10 @@ TASKS: dict[str, TaskKind] = {
         RUN_AUTHORING,
         ADVANCE_IMPROVEMENT,
         SWEEP_IMPROVEMENTS,
+        ADVANCE_SKILL_IMPROVEMENT,
+        SWEEP_SKILL_IMPROVEMENTS,
+        ADVANCE_SKILL_CHECK,
+        SWEEP_SKILL_CHECKS,
         CLASSIFY_GAPS,
         DRAFT_TOPIC,
         GENERATE_CASES,

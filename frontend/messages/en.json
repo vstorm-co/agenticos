@@ -239,7 +239,7 @@
     "disabled": "disabled",
     "documentCount": "{count, plural, =1 {1 document} other {# documents}}",
     "draft": "Draft",
-    "draftDiffersFromPublished": "Draft differs from v{version}",
+    "draftDiffersFromPublished": "Draft differs from agent v{version}",
     "draftDiffersHint": "The draft is saved and differs from v{version}, the latest published version. Publishing makes it a new version.",
     "duplicate": "Duplicate",
     "editSurface": "Edit {name}",
@@ -624,7 +624,7 @@
     "unchangedLines": "{count, plural, =1 {1 unchanged line} other {# unchanged lines}}",
     "unknownAuthor": "unknown author",
     "unnamedSpecialist": "Unnamed specialist",
-    "upToDateWithPublished": "Up to date with v{version}",
+    "upToDateWithPublished": "Up to date with agent v{version}",
     "productionOn": "production on v{version}",
     "productionWaiting": "production on v{version} (waiting for evals)",
     "productionHint": "Channels, widgets and the API answer with v{version}: production runs it until a newer version is promoted.",
@@ -1097,7 +1097,8 @@
     "backendComputerLabel": "Computer",
     "backendComputerDetail": "Use the person’s computer, approved separately in each desktop chat.",
     "backendComputerConsent": "Each person chooses a folder or Whole computer in chat settings. This setting grants no access and stores no personal path. A hosted chat must use the desktop app for this workspace.",
-    "workflowTablesViaMcp": "Workflows and Tables are tools in the AgenticOS MCP server. Add it under MCP servers and select the tools this agent needs. Existing capability bindings keep their saved grants."
+    "workflowTablesViaMcp": "Workflows and Tables are tools in the AgenticOS MCP server. Add it under MCP servers and select the tools this agent needs. Existing capability bindings keep their saved grants.",
+    "alreadyHasIt": "Uses it"
   },
   "auth": {
     "agreeToTerms": "By creating an account, you agree to our <terms>Terms</terms> and <privacy>Privacy Policy</privacy>.",
@@ -5480,6 +5481,10 @@
         "title": "Changes",
         "body": "The changes the helper wrote. The session stops here: tick the ones to test and correct any wording before they are tested."
       },
+      "improvement-skill-handoffs": {
+        "title": "Belongs to a skill",
+        "body": "Problems the helper found in one of the agent's skills. A skill is shared, so it is improved on its own, and checked on every agent that reads it."
+      },
       "flow-improvement-changes": {
         "title": "Changes",
         "body": "The changes the helper wrote. The session stops here: tick the ones to test and correct any wording before they are tested."
@@ -5499,6 +5504,38 @@
       "flow-improvement-steps": {
         "title": "Steps",
         "body": "Five steps. The session stops after Understand and after Changes for you to look and press Next step; a step opens once it has something to show."
+      },
+      "skill-agents": {
+        "title": "Who uses this skill",
+        "body": "Every agent that uses the skill, with the version it is served: main follows each new version, pinned stays on an older one, and a fork has changes of its own."
+      },
+      "skill-lines": {
+        "title": "One line at a time",
+        "body": "Show the agents on main, the pinned ones, or one fork. Picking a fork also points History and Edit at it."
+      },
+      "skill-change-version": {
+        "title": "Move an agent to another version",
+        "body": "Publishes a new version of the agent with only this change. A version never checked on the agent asks you to confirm first."
+      },
+      "skill-edit": {
+        "title": "Edit makes a new version",
+        "body": "Saving never overwrites. It adds a version to the line on screen, and only the agents following that line get it."
+      },
+      "skill-history": {
+        "title": "Every version, and the way back",
+        "body": "See what each version changed, who made it and where it came from. Restore brings an earlier one back as the newest."
+      },
+      "skill-tree": {
+        "title": "Main and its forks",
+        "body": "Main runs down from its newest version, each fork branches off the version it started from, and agents sit at the version they use."
+      },
+      "skill-new-fork": {
+        "title": "A fork for the agents that differ",
+        "body": "New fork starts a line of its own from main's newest version. Agents moved onto it read its changes, and main's agents never see them."
+      },
+      "skill-usage": {
+        "title": "How much it is used",
+        "body": "How often each agent opened the skill in the last 30 days, and the files it read. Eval and test-panel runs are left out."
       }
     },
     "chooseLanguage": "Language",
@@ -7391,7 +7428,6 @@
       "whoReceivesThis": "Who receives this?"
     },
     "skills": {
-      "agentsBoundSkillWill": "Agents bound to this skill will run without it from their next run. This cannot be undone.",
       "allCategories": "All categories",
       "askAdministratorAccessSkills": "Ask an administrator for access to skills.",
       "categoryCount": "{count, plural, =1 {1 category} other {# categories}}",
@@ -8291,8 +8327,7 @@
     "review": "Review",
     "save": "Save",
     "saveFile": "Save file",
-    "savedAgentsCurrent": "Saved. Every agent using this skill is now current.",
-    "savingReachesEveryAgent": "Saving reaches every agent bound to this skill on its next run. There is no draft and no publish step.",
+    "savedAgentsCurrent": "Saved.",
     "showWhatChangedIn": "Show what changed in {name}",
     "sizeUploadsWhenCreated": "{size} · uploads when the skill is created",
     "support": "support",
@@ -8323,7 +8358,217 @@
     "moreFiles": "{count, plural, =1 {+1 file} other {+# files}}",
     "bodyPlaceholder": "# Refunds\n\nUse this when a customer asks for their money back.\n\n## Steps\n\n1. Check the order date.\n2. Within 14 days, refund without asking.\n3. After that, ask a person to approve it.",
     "whoCanUseIt": "Who can use it",
-    "expectedEffect": "Expected effect:"
+    "expectedEffect": "Expected effect:",
+    "checkOnAgents": "Check on agents",
+    "checkChangeTo": "Check the change to {name} on the agents that use it",
+    "check": {
+      "title": "Check this change on every agent that uses it",
+      "description": "Each agent answers its questions with the skill as it is and with this change. Nothing changes until you decide.",
+      "price": "Most likely ${expected}, at most ${most}. Each agent's share is billed to that agent.",
+      "start": "Start the check",
+      "running": "Checking. This takes a few minutes; you can close this and come back.",
+      "asked": "{count, plural, =1 {Asked 1 question} other {Asked # questions}}",
+      "skillSetOnly": "Checked on the skill's own questions only: none of this agent's questions opened the skill.",
+      "hidden": "{count, plural, =1 {1 more agent uses this skill that you cannot see.} other {# more agents use this skill that you cannot see.}}",
+      "noisy": "Some results were within noise: the check saw a difference it could not confirm.",
+      "forkLine": "This change is to a fork, which cannot be pinned or forked again. Improve it further or discard it.",
+      "acknowledge": "I understand some agents could not be checked.",
+      "discard": "Discard",
+      "apply": "Apply",
+      "applyAndPin": "Apply, and keep the worse agents on their version",
+      "reason": {
+        "no_questions": "Not checked: it has no questions to ask.",
+        "no_access": "Not checked: you may not run this agent.",
+        "no_budget": "Not checked: its budget cannot cover the check.",
+        "no_published_version": "Not checked: it has no published version.",
+        "inconclusive": "Not checked: the check could not grade every answer.",
+        "failed": "Not checked: its run failed."
+      },
+      "state": {
+        "queued": "Waiting",
+        "running": "Running",
+        "better": "Better",
+        "no_change": "No change",
+        "within_noise": "Within noise",
+        "worse": "Worse",
+        "unknown": "Unknown"
+      },
+      "verdict": {
+        "passed": "No agent got worse and at least one got better.",
+        "needs_ack": "No agent that was checked got worse, but some could not be checked.",
+        "blocked": "An agent got worse. You can still apply the change and keep that agent on the version it uses now.",
+        "no_better": "No agent got better, so there is nothing to apply."
+      },
+      "unaffordable": "The organization's budget left this month cannot cover this check.",
+      "cancel": "Stop the check"
+    },
+    "page": {
+      "skills": "Skills",
+      "mainVersion": "v{number} on main",
+      "forkCount": "{count, plural, =1 {1 fork} other {# forks}}",
+      "editSkill": "Edit",
+      "editFork": "Edit fork “{name}”",
+      "open": "Open",
+      "tabs": {
+        "agents": "Agents",
+        "history": "History",
+        "tree": "Version tree"
+      },
+      "agentCount": "{count, plural, =0 {No agents} =1 {1 agent} other {# agents}}",
+      "state": {
+        "main": "v{number} · main",
+        "pinned": "v{number} · pinned{behind, plural, =0 {} other { · # behind main}}",
+        "fork": "Fork “{name}” · from v{base}{changes, plural, =0 { · no changes yet} =1 { · 1 change} other { · # changes}}{behind, plural, =0 {} other { · # behind main}}"
+      },
+      "show": {
+        "label": "Which agents to show",
+        "all": "All ({count})",
+        "main": "Main ({count})",
+        "pinned": "Pinned ({count})",
+        "fork": "Fork “{name}” ({count})",
+        "draft": "Only in the draft ({count})"
+      },
+      "agentsTable": {
+        "agent": "Agent",
+        "version": "Version",
+        "actions": "Actions",
+        "viaSpecialist": "Through its specialist {name}",
+        "empty": "No agent uses this skill yet.",
+        "hidden": "{count, plural, =1 {1 more agent you can't see uses this skill.} other {# more agents you can't see use this skill.}}",
+        "draftOnly": "Only in the draft",
+        "environment": "{name}: {binding}",
+        "draftDiffers": "Its draft uses a different version.",
+        "emptyFork": "No agent uses fork “{name}” yet. Move one onto it with Change version.",
+        "emptyShown": "No agent here."
+      },
+      "changeVersion": {
+        "button": "Change version",
+        "for": "Change the version of the skill for {name}",
+        "title": "Change the version of {skill} for {name}",
+        "now": "Now: {binding}",
+        "legend": "Version to use",
+        "followMain": "Main, latest: follows every new version",
+        "pin": "Pin a main version: stays on it when main moves",
+        "pinVersion": "Version to pin",
+        "versionOption": "v{number}",
+        "fork": "Fork “{name}”, latest",
+        "unchecked": "{version} has not been checked on {name}. Its answers may change.",
+        "understood": "I understand, change it anyway",
+        "publishes": "This publishes a new version of {name} with only this change. Unfinished changes in its draft stay in the draft.",
+        "cancel": "Cancel",
+        "submit": "Change and publish",
+        "published": "Published. {count, plural, =0 {{name} has a new version.} other {{environments} now serve{count, plural, =1 {s} other {}} the new version of {name}.}}",
+        "savedInDraft": "Saved in the draft of {name}. Publish it in the Builder.",
+        "openBuilder": "Open the Builder",
+        "savesToDraft": "You may edit {name} but not publish it, so this change goes into its draft. Somebody who may publish it does that from the Builder.",
+        "submitDraft": "Save to the draft",
+        "versionWhen": "v{number} · {when}",
+        "forkVersion": "{name} v{number}",
+        "pinDetail": "{source} · {who} · {when}",
+        "leavesMain": "{name} stays on this version and stops getting new main versions.",
+        "leavesMainFork": "{name} stops getting new main versions.{behind, plural, =0 {} =1 { Fork “{fork}” is 1 version behind main, so it lacks that change.} other { Fork “{fork}” is # versions behind main, so it lacks their changes.}}"
+      },
+      "history": {
+        "title": "History of {line}",
+        "versionCount": "{count, plural, =1 {1 version} other {# versions}}",
+        "main": "main",
+        "fork": "fork “{name}”",
+        "lines": "Line to show",
+        "showChanges": "Show changes",
+        "hideChanges": "Hide changes",
+        "restore": "Restore",
+        "restoreVersion": "Restore {version}",
+        "restoreTitle": "Restore {version}?",
+        "restoreMain": "{version} comes back as the newest version on main. Agents following main get it at once; pinned agents and forks keep their version.",
+        "restoreFork": "{version} comes back as the newest version of fork “{name}”. The fork's agents get it at once.",
+        "restored": "{version} is back as {made}.",
+        "restoredFrom": "Restored from {version}",
+        "source": {
+          "backfill": "As it was when versions began",
+          "created": "Created",
+          "edit": "Edited",
+          "resources": "Files changed",
+          "library": "From the library",
+          "workspace": "Written back by an agent",
+          "improve": "Improve",
+          "restore": "Restored"
+        },
+        "madeBy": "{who} · {when}{agents, plural, =0 {} =1 { · used by 1 agent} other { · used by # agents}}",
+        "unknownAuthor": "Unknown",
+        "loadingChanges": "Loading the changes",
+        "description": "Description",
+        "body": "Instructions",
+        "bodyUnchanged": "The instructions did not change.",
+        "files": "Files",
+        "file": {
+          "added": "added",
+          "removed": "removed",
+          "changed": "changed"
+        },
+        "versionLabel": "{fork, select, yes {{name} v{number}} other {v{number}}}",
+        "forkEmpty": "No version of its own yet: the fork reads v{number} on main. Edit the fork to make its first change.",
+        "forkStarts": "Fork “{name}” starts here"
+      },
+      "tree": {
+        "title": "Version tree",
+        "summary": "{versions, plural, =1 {1 version on main} other {# versions on main}}{forks, plural, =0 {} =1 { · 1 fork} other { · # forks}}",
+        "folded": "{count, plural, other {# versions}} (v{from}–v{to})",
+        "number": "v{number}",
+        "latest": "latest",
+        "fork": "Fork “{name}”",
+        "forkFacts": "{changes, plural, =0 {no changes yet} =1 {1 change} other {# changes}}{behind, plural, =0 {} other { · # behind main}}",
+        "moreAgents": "+{count}",
+        "forkNumber": "{name} v{number}"
+      },
+      "edit": {
+        "saved": "Saved as v{number}.",
+        "forkTitle": "{skill} · fork “{name}”",
+        "nameHowModelRefers": "The name is how the model refers to this skill.",
+        "warnMain": "Saving makes v{number} on main. {count, plural, =0 {No agent follows main yet.} =1 {1 agent following main gets it at once.} other {# agents following main get it at once.}} Pinned agents and forks keep their version.",
+        "warnFork": "Saving makes v{number} of fork “{name}”. {count, plural, =0 {No agent uses the fork yet.} =1 {Its 1 agent gets it at once.} other {Its # agents get it at once.}}",
+        "lineMoved": "Somebody saved a newer version since you opened this. Your text is still here: copy it, close, and open the newest version to apply it there.",
+        "forkFiles": "Only the description and instructions belong to the fork. Its files come from the main version it started from, and files are edited on main.",
+        "noBase": "This skill has no saved version to write over yet. Reload the page and try again.",
+        "retryFork": "Load the fork again",
+        "savedFork": "Saved as {name} v{number}."
+      },
+      "newFork": {
+        "button": "New fork",
+        "title": "New fork of {name}",
+        "description": "A fork is a line of versions with changes of its own, for the agents that need them. It starts from v{number}, main's newest version, and reads the same until it is edited.",
+        "name": "Name",
+        "agents": "Agents to move onto it (optional)",
+        "agentsHint": "Each agent moved gets a new published version that reads the fork, or the change waits in its draft where you may not publish it.",
+        "noAgents": "No agent can be moved onto it from here. Move agents later with Change version.",
+        "agentNow": "{name} · now {binding}",
+        "cancel": "Cancel",
+        "create": "Create fork",
+        "created": "Fork “{name}” created.{moved, plural, =0 {} =1 { 1 agent moved onto it.} other { # agents moved onto it.}}",
+        "moveFailed": "{name} was not moved onto the fork: {reason}",
+        "changesContent": "{count, plural, =1 {{names} reads} other {{names} read}} another version now, and on the fork {count, plural, =1 {gets} other {get}} v{number}'s content, which has not been checked on {count, plural, =1 {it} other {them}}. Move {count, plural, =1 {it} other {them}} anyway.",
+        "mainMoved": "Main has a newer version, v{number}, since this opened. The fork will start from it: press Create fork again."
+      },
+      "deleteSkill": {
+        "title": "Delete {name}?",
+        "description": "Its versions and forks go with it. No agent uses it now.",
+        "used": "A skill an agent uses cannot be deleted. Move each agent to another skill, or remove the skill from it in the Builder, then delete it.",
+        "usedBy": "{named, select, yes {{count, plural, =1 {Used by 1 agent} other {Used by # agents}}: {names}{hidden, plural, =0 {.} =1 {, and 1 you can't see.} other {, and # you can't see.}}} other {{hidden, plural, =1 {Used by 1 agent you can't see.} other {Used by # agents you can't see.}}}}",
+        "close": "OK",
+        "cancel": "Cancel",
+        "delete": "Delete",
+        "checking": "Checking which agents use it…",
+        "unread": "Which agents use it could not be read. A skill an agent uses is still refused."
+      },
+      "usage": {
+        "title": "Use in the last {days} days",
+        "loads": "{count, plural, =0 {Not opened} =1 {Opened once} other {Opened # times}}",
+        "none": "No agent opened this skill in the last {days} days. Runs of evals and the test panel are not counted.",
+        "agent": "{loads, plural, =1 {opened once} other {opened # times}}{files, plural, =0 {} =1 { · 1 file read} other { · # files read}}{seen, select, yes { · last {last}} other {}}",
+        "hidden": "{count, plural, =1 {1 agent you can't see} other {# agents you can't see}} opened it {loads, plural, =1 {once} other {# times}}."
+      }
+    },
+    "savedMainVersion": "Saved as a new main version. Agents on main read it from their next run; pinned agents and forks keep theirs.",
+    "instructions": "Instructions"
   },
   "states": {
     "loading": "Loading"
@@ -14211,7 +14456,8 @@
         "tool_override": "Tool",
         "spec_field": "Setting",
         "finding": "Finding",
-        "create_skill": "New skill"
+        "create_skill": "New skill",
+        "skill_problem": "Skill problem"
       },
       "reason": {
         "unanchored": "The passage it changes is not in the instructions",
@@ -14231,7 +14477,11 @@
         "unsupported": "Said the edit is supported, with no evidence that could be checked",
         "edit_not_in_diff": "The line it names is not part of the edit",
         "superseded": "A request started later had already replaced the suggestions",
-        "insufficient_evidence": "Fewer than three different answers asked for this, so it was not added on its own."
+        "insufficient_evidence": "Fewer than three different answers asked for this, so it was not added on its own.",
+        "copies_skill": "It copies one of the agent's skills, which the agent already reads",
+        "duplicates_skill": "The agent already has a skill with this name or text",
+        "unknown_skill": "The agent has no such skill",
+        "skill_not_used": "None of the answers it cites used this version of the skill"
       },
       "about": "About: {line}",
       "decide": "{count, plural, =1 {1 more idea needs your decision} other {# more ideas need your decision}}",
@@ -15130,7 +15380,21 @@
     "freshAttempt": "Each attempt starts from the current version; changes from earlier attempts aren't carried over.",
     "trainSignals": "Test answers failing",
     "tryAgainNothingToLearn": "The last attempt fixed every question it learns from, so another attempt has nothing to learn from. Accept it or end the session.",
-    "tryAgainUnmeasurable": "Another attempt would have too few questions to measure: {count, plural, one {# more is} other {# more are}} needed, and this session's questions are fixed. End it, add questions and start a new one."
+    "tryAgainUnmeasurable": "Another attempt would have too few questions to measure: {count, plural, one {# more is} other {# more are}} needed, and this session's questions are fixed. End it, add questions and start a new one.",
+    "skills": {
+      "title": "Belongs to a skill",
+      "intro": "A skill is shared by other agents, so these are not changed here. Improve the skill itself, where the change is checked on every agent that reads it.",
+      "mainLine": "Main · {count, plural, =1 {1 agent} other {# agents}}",
+      "forkLine": "Fork \"{fork}\" · {count, plural, =1 {1 agent} other {# agents}}",
+      "hidden": "{count, plural, =1 {1 more agent you cannot see uses this skill.} other {# more agents you cannot see use this skill.}}",
+      "improve": "Improve {name}",
+      "improveFork": "Improve {name}, fork \"{fork}\"",
+      "askEditor": "Ask someone who can edit {name} to improve it.",
+      "behind": "This agent is {count, plural, =1 {1 version} other {# versions}} behind main.",
+      "updatePinned": "Update to v{version}",
+      "catchUp": "Catch up the fork"
+    },
+    "usedSkill": "Used skill {name}"
   },
   "unsaved": {
     "title": "You have unsaved changes",

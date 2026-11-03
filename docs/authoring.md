@@ -241,13 +241,13 @@ A skill is improved from its workbench under Skills. What the assistant suggests
 is a whole new body, and it waits with the other [skill](skills.md) changes
 under Skills, with its rationale and evidence.
 
-Applying a skill change makes a new main version, which only the agents on main
-read; pinned agents and forks keep theirs (see
-[Versions and forks](skills.md#versions-and-forks)). A skill change can be checked
-with evals first: both sides run an agent's published version, and only the
-skill's body differs. A change written against an older version of the skill is
-refused once somebody has changed the skill since. To improve a skill that several
-agents read, checked on all of them, use [Improve](#improving-a-skill).
+Applying a skill change is live: every agent following the skill's line reads the
+new body on its next run. So a skill change goes live only through a
+[check on every agent of its line](skills.md#checking-a-change-on-every-agent):
+each one's published version answers with the skill as it is and with the
+change, and the change is applied from that check's result. A change written
+against an older version of the skill is refused once somebody has changed the
+skill since.
 
 ## Context files { #context-files }
 
@@ -481,47 +481,6 @@ actions as you, so the same checks apply: a changed agent refuses the
 acceptance, a guarded environment waits for its check, and the audit log records
 you, with the Architect's credential named beside you.
 
-### Improving a skill { #improving-a-skill }
-
-A skill that several agents read is improved from its own page, with **Improve**.
-A session improves one line of the skill, main or one fork, in the same wizard as
-an agent's. It has the same five steps, the same stops after Understand, after
-Changes and at the result, **Next step** with its price, **Try again** with a note,
-and the same seven-day expiry.
-
-- **Understand** reads only answers in which an agent opened a version of this
-  line of the skill, from every agent on the line. It sorts the bad ones into
-  problems in the skill and problems that are not the skill's, such as an agent's
-  instructions or missing knowledge. Each problem names the agents it occurs in.
-- **Changes** proposes edits to parts of the skill's body and at most one change
-  to its description, never its files. Each can be chosen, reworded or left out,
-  as for an agent.
-- **Check** runs the chosen changes on every agent of the line, by the rule in
-  [Improving a skill](skills.md#improving-a-skill). A quick check uses the
-  skill's test questions and up to four of each agent's own questions in which it
-  opened the skill. A changed description always gets the thorough check, each
-  agent's whole set of test questions, because the description decides when an
-  agent opens the skill. Each agent's share is billed to that agent's budget, and
-  agents with no budget left are named before the step starts.
-- **Result** shows each agent as better, no change, within noise, worse or
-  unknown.
-- **Accept** applies the change, applies it with the worse agents pinned, or makes
-  a fork for the agents it helped, as the result allows. No agent reads anything
-  new before that.
-
-Accepting needs edit access to the skill, and pinning a worse agent needs
-permission to publish that agent. Agents you cannot see are counted, never named.
-
-When an agent's own Improve session finds a problem in a skill the agent reads,
-it does not copy the skill's text into the agent's instructions. It offers
-**Improve skill**, which starts a session on the agent's line of that skill, its
-fork when it is on one, with those problems already in Understand.
-
-Skill sessions waiting for a person are listed in **Improvements waiting for you**. The
-[Architect](#asking-the-architect) reads a skill's agents, versions and sessions.
-It starts a session, runs a step, accepts a result, ends a session or moves an
-agent to another version only when you ask, each through an approval card.
-
 ### Proposing a new skill { #proposing-a-new-skill }
 
 The assistant can propose **Worth creating a skill** when a reusable procedure appears in at least three distinct evidence answers. Each supporting passage must occur in the answer itself; reader comments alone do not establish a repeated procedure. The card shows its name, description, full body, rationale and verified evidence. A check binds a temporary skill to the candidate only: no skill row or published version is created.
@@ -531,6 +490,16 @@ The assistant can propose **Worth creating a skill** when a reusable procedure a
 A procedure drawn from fewer than three distinct answers is not proposed as a suggestion. It waits in **To review**, under New skills, with its full text. **Dismiss** moves it to **Decided**, and Undo brings it back. **Create skill** opens a preview: the name, description and body can be edited, and a warning says how many answers it is based on. **Create skill** in the preview creates the skill in the library and binds it to the agent's draft, never to a published version. It needs the same permissions as Accept and makes no model call. A second click returns the skill already created.
 
 The estimate reserves the full proposed body for each candidate answer and its confirming reruns, in addition to the historical per-answer price.
+
+### When the fault is in a skill { #when-the-fault-is-in-a-skill }
+
+Other agents may read the same skill, so agent Improve never changes one. The helper reads the agent's skills: each one's name, description and version, and the full text of those the evidence used. When the runs show that a skill is wrong, the helper reports the problem for that skill. It does not write the skill's text into the agent's instructions. The estimate counts the skill text the helper reads.
+
+A change that repeats a 200-character passage of a bound skill is refused, and so is a new skill with a bound skill's name or text. A reported problem is kept only when it names one of the agent's skills and quotes a run that used the version the agent reads now; quotes from other runs are dropped from it. A run served an older version, or another fork, is not evidence against the text the helper reads.
+
+The Changes step lists these problems under **Belongs to a skill**. Each card shows the problems with their quotes, and how many agents read the same line of the skill. **Improve X** opens the skill's own Improve, with this session's problems as its starting evidence. If the agent follows a fork, that Improve works on the fork; a pinned agent's problems go to main. Without edit access to the skill, the card says to ask someone who has it.
+
+When the agent is behind main, an **Update to vN** or **Catch up the fork** card opens the skill's page. If the skills cannot be read, the section says so instead of disappearing.
 
 ### Checking a knowledge draft { #checking-a-knowledge-draft }
 

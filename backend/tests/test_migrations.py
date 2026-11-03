@@ -954,6 +954,10 @@ class TestSkillBindingAvailability:
             upgraded_again = _alembic("upgrade", "0180_remove_skill_enabled")
             assert upgraded_again.returncode == 0, upgraded_again.stderr
         finally:
+            # Their organization was never written, so a later upgrade past 0250,
+            # which gives every skill a version in its organization, would fail on them.
+            with engine.begin() as connection:
+                connection.execute(text("DELETE FROM skills WHERE id IN (:a, :b)"), selected)
             engine.dispose()
 
 
@@ -964,8 +968,10 @@ class TestRunSkillUsesBackfill:
         The runs stay unrecorded - an old transcript proves a load, never the
         absence of one - while a run written after the upgrade is recorded.
         """
-        down = _alembic("upgrade", "0248_merge_self_improvement")
-        assert down.returncode == 0, down.stderr
+        reset = _alembic("downgrade", "base")
+        assert reset.returncode == 0, reset.stderr
+        before = _alembic("upgrade", "0248_merge_self_improvement")
+        assert before.returncode == 0, before.stderr
         engine = create_engine(_url(MIGRATION_DATABASE))
         org, agent = uuid4(), uuid4()
         refunds, shipping, renamed = uuid4(), uuid4(), uuid4()
@@ -1005,14 +1011,19 @@ class TestRunSkillUsesBackfill:
                     )
                 calls = {
                     loaded: [
-                        ("load_capability", {"id": "refunds"}),
-                        ("read_skill_resource", {"skill_name": "refunds"}),
-                        ("read_skill_resource", {"skill_name": "refunds"}),
-                        ("load_skill", {"skill_name": "shipping"}),
-                        ("load_capability", {"id": "returns"}),
-                        ("search_documents", {"query": "refunds"}),
+                        ("load_capability", {"id": "refunds"}, "completed"),
+                        ("read_skill_resource", {"skill_name": "refunds"}, "completed"),
+                        ("read_skill_resource", {"skill_name": "refunds"}, "completed"),
+                        ("load_skill", {"skill_name": "shipping"}, "completed"),
+                        ("load_capability", {"id": "returns"}, "completed"),
+                        ("search_documents", {"query": "refunds"}, "completed"),
                     ],
-                    quiet: [],
+                    # Calls that never ran opened nothing.
+                    quiet: [
+                        ("load_capability", {"id": "refunds"}, "failed"),
+                        ("read_skill_resource", {"skill_name": "refunds"}, "awaiting_approval"),
+                        ("read_skill_resource", {"skill_name": "refunds"}, "rejected"),
+                    ],
                 }
                 for run_id, made in calls.items():
                     connection.execute(
@@ -1031,12 +1042,12 @@ class TestRunSkillUsesBackfill:
                         ),
                         {"id": message, "conversation": uuid4(), "run": run_id},
                     )
-                    for index, (tool, args) in enumerate(made):
+                    for index, (tool, args, status) in enumerate(made):
                         connection.execute(
                             text(
                                 "INSERT INTO tool_calls (id, message_id, tool_call_id, tool_name, "
                                 "args, status, started_at) VALUES "
-                                "(:id, :message, :call, :tool, CAST(:args AS jsonb), 'completed', :at)"
+                                "(:id, :message, :call, :tool, CAST(:args AS jsonb), :status, :at)"
                             ),
                             {
                                 "id": uuid4(),
@@ -1044,6 +1055,7 @@ class TestRunSkillUsesBackfill:
                                 "call": f"c{index}",
                                 "tool": tool,
                                 "args": json.dumps(args),
+                                "status": status,
                                 "at": now,
                             },
                         )

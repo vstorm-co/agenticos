@@ -20,6 +20,7 @@ from sqlalchemy import (
 )
 from sqlalchemy import delete as sql_delete
 from sqlalchemy import update as sql_update
+from sqlalchemy.dialects.postgresql import distinct_on
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import defer, load_only, raiseload, selectinload
@@ -1485,6 +1486,26 @@ async def first_user_turns(
         .order_by(Message.run_id, Message.ordinal)
     )
     return {run_id: content for run_id, content in result.tuples().all() if run_id}
+
+
+async def last_answers_of_runs(
+    db: AsyncSession, run_ids: Collection[UUID], *, organization_id: UUID
+) -> dict[UUID, UUID]:
+    """The id of the last assistant turn each of this organization's runs recorded."""
+    if not run_ids:
+        return {}
+    result = await db.execute(
+        select(Message.run_id, Message.id)
+        .join(AgentRun, AgentRun.id == Message.run_id)
+        .where(
+            Message.run_id.in_(run_ids),
+            Message.role == "assistant",
+            AgentRun.organization_id == organization_id,
+        )
+        .ext(distinct_on(Message.run_id))
+        .order_by(Message.run_id, Message.ordinal.desc())
+    )
+    return {run_id: message_id for run_id, message_id in result.tuples().all() if run_id}
 
 
 async def last_answer_of_run(db: AsyncSession, run_id: UUID) -> str | None:

@@ -51,12 +51,14 @@ async def create_request(
     excluded_message_ids: Sequence[UUID] = (),
     improvement_run_id: UUID | None = None,
     improver_agent_id: UUID | None = None,
+    skill_improvement_run_id: UUID | None = None,
 ) -> AuthoringRequest:
     request = AuthoringRequest(
         organization_id=organization_id,
         kind=kind,
         improver_agent_id=improver_agent_id,
         improvement_run_id=improvement_run_id,
+        skill_improvement_run_id=skill_improvement_run_id,
         target=target,
         agent_id=agent_id,
         skill_id=skill_id,
@@ -73,6 +75,21 @@ async def create_request(
     await db.flush()
     await db.refresh(request)
     return request
+
+
+async def requests_of_improvement(
+    db: AsyncSession, improvement_run_id: UUID, *, organization_id: UUID
+) -> list[AuthoringRequest]:
+    """The requests an Improve session's attempts made, newest first."""
+    result = await db.execute(
+        select(AuthoringRequest)
+        .where(
+            AuthoringRequest.organization_id == organization_id,
+            AuthoringRequest.improvement_run_id == improvement_run_id,
+        )
+        .order_by(AuthoringRequest.created_at.desc(), AuthoringRequest.id)
+    )
+    return list(result.scalars().all())
 
 
 async def get_request(
@@ -233,6 +250,38 @@ async def create_batch(
     return batch
 
 
+async def create_skill_batch(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    skill_id: UUID,
+    fork_id: UUID | None,
+    base_skill_version_id: UUID,
+    skill_improvement_run_id: UUID,
+    request_id: UUID,
+    source_started_at: datetime,
+    expected_effect: str,
+    evidence_conversation_ids: Sequence[UUID],
+) -> SpecProposalBatch:
+    """A skill session's candidate: edits to one line's text, never an agent's open batch."""
+    batch = SpecProposalBatch(
+        organization_id=organization_id,
+        skill_id=skill_id,
+        fork_id=fork_id,
+        base_skill_version_id=base_skill_version_id,
+        skill_improvement_run_id=skill_improvement_run_id,
+        request_id=request_id,
+        source_started_at=source_started_at,
+        status=BatchStatus.CANDIDATE.value,
+        expected_effect=expected_effect,
+        evidence_conversation_ids=list(evidence_conversation_ids),
+    )
+    db.add(batch)
+    await db.flush()
+    await db.refresh(batch)
+    return batch
+
+
 async def update_batch(
     db: AsyncSession, *, batch: SpecProposalBatch, values: dict[str, Any]
 ) -> SpecProposalBatch:
@@ -363,6 +412,7 @@ async def pending_counts(
     )
     counts: dict[UUID, dict[str, int]] = {}
     for agent_id, kind, count in result.all():
+        assert agent_id is not None, "filtered on agent_id"
         counts.setdefault(agent_id, {})[kind] = int(count)
     return counts
 
@@ -585,6 +635,7 @@ async def split_candidate(
     The source request still names its original batch. The split is attributed
     through the shared improvement run, so lookup by request remains unique.
     """
+    assert batch.agent_id is not None, "only an agent session's candidate is split"
     separate = await create_batch(
         db,
         organization_id=batch.organization_id,

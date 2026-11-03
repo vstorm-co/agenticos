@@ -1,5 +1,5 @@
 ---
-source_sha: "377be0837e65"
+source_sha: "8c4be6cbee46"
 ---
 
 # Skille { #skills }
@@ -197,8 +197,10 @@ temu, kto może edytować ten skill - jego właścicielowi albo komuś z grantem
 na nim - a dla skilla, którego jeszcze nie ma, każdemu, kto może tworzyć skille.
 Nikt inny jej nie widzi:
 
-- **Apply** zapisuje zmianę jako następną wersję linii, dla której powstała, a
-  ta dociera do agentów tej linii przy ich następnym runie.
+- **Check on agents** uruchamia zmianę na każdym agencie linii, dla której
+  powstała, a jej zastosowanie - następna wersja tej linii, którą ci agenci
+  przeczytają przy następnym runie - odbywa się z wyniku sprawdzenia. Zobacz
+  [Sprawdzanie zmiany na każdym agencie](#checking-a-change-on-every-agent).
 - **Discard** zachowuje zapis. Agent proponujący w kółko tę samą zmianę mówi
   komuś coś o skillu, a usunięty wiersz czyni to niewidocznym.
 
@@ -232,17 +234,96 @@ zmiana czekała, nie zostaje nadpisana. Porównaj obie wersje i popraw skill
 ręcznie albo poproś jeszcze raz.
 
 [Asystent tworzenia](authoring.md#skills) proponuje zmiany skilli w ten sam
-sposób, razem z uzasadnieniem i runami, na których się opiera, a Apply odrzuca
-je tak samo.
+sposób, razem z uzasadnieniem i runami, na których się opiera, a zastosowanie
+odrzuca je tak samo.
 
-Każda zmiana mówi, obok **Apply**, opublikowane wersje których agentów czytają
-skill, które suity evali ustawi w kolejce jej zastosowanie i którzy strażnicy
-sprawdzą ją dopiero przy następnej promocji, a pierwsze jest
-**Check with evals**. Zastosowanie powiadamia właścicieli tych agentów. Decyzja
-wskazuje wersję zmiany, którą przeczytałeś: zmiana przepisana od tego czasu -
-przez późniejszą turę albo nową prośbę - jest odrzucana z komunikatem „The
-proposal changed since you opened it”, a z dwóch decyzji podjętych naraz liczy
-się tylko jedna.
+Każda zmiana mówi, opublikowane wersje których agentów czytają skill, które
+suity evali ustawi w kolejce jej zastosowanie i którzy strażnicy sprawdzą ją
+dopiero przy następnej promocji. Zastosowanie powiadamia właścicieli tych
+agentów. Decyzja wskazuje wersję zmiany, którą przeczytałeś: zmiana przepisana
+od tego czasu - przez późniejszą turę albo nową prośbę - jest odrzucana z
+komunikatem „The proposal changed since you opened it”, a z dwóch decyzji
+podjętych naraz liczy się tylko jedna. Skill, który agent napisał od zera, nie ma
+jeszcze agentów, więc **Apply** tworzy go od razu.
+
+## Sprawdzanie zmiany na każdym agencie { #checking-a-change-on-every-agent }
+
+Skill jest współdzielony, więc zmianę ocenia się na każdym agencie, który by ją
+przeczytał: na main - na agentach podążających za najnowszą wersją main; na
+forku - na agentach tego forka. Agenci przypięci do starszej wersji i agenci
+innych forków nie są uruchamiani - zmiana do nich nie dociera. Opublikowana
+wersja każdego agenta odpowiada na swoje pytania dwa razy, ze skillem takim, jaki
+jest, i ze zmianą, a poza tym nic się nie różni.
+
+Zmiana zapisana przez workspace agenta, zmiana zaproponowana przez asystenta i
+[aktualizacja z biblioteki](#getting-skills-into-an-organization) skilla, którego
+używają agenci, trafiają na żywo tylko przez to sprawdzenie. Osoba edytująca
+skill ręcznie od razu zapisuje nową wersję, a ta edycja nie jest sprawdzana.
+
+### O co pyta { #what-a-check-asks }
+
+Najpierw o własne **pytania testowe** skilla, ten sam zestaw na każdym agencie.
+Każdy skill ma jeden zestaw, tworzony przez API - `POST /api/v1/skills/{id}/test-set`,
+pusty albo z ostatnich odpowiedzi, które otworzyły skill - i edytowany jak każdy
+inny [dataset](datasets.md). Potem o pytania samego agenta:
+
+- **Quick**, domyślnie: najwyżej cztery pytania z datasetu agenta, których
+  najnowsza odpowiedź otworzyła skill - te, które mają najwięcej wspólnych słów
+  ze zmienianymi liniami. Agent bez takich pytań jest sprawdzany tylko na
+  zestawie skilla, a jego wiersz to mówi.
+- **Thorough**: cały dataset agenta. Zmiana opisu skilla jest zawsze sprawdzana
+  w ten sposób, bo opis decyduje, kiedy każdy agent w ogóle otwiera skill.
+
+!!! note "Pytania skilla mówią, co skill powinien robić"
+
+    Są oceniane tak samo na każdym agencie, więc łapią zmianę, która psuje
+    regułę samego skilla. Zmiana, która szkodzi jednemu agentowi z powodu jego
+    własnej sytuacji, wychodzi na jego własnych pytaniach. A celowa zmiana
+    reguły nie przejdzie żadnego pytania, które wciąż oczekuje starej
+    odpowiedzi: najpierw zaktualizuj pytania testowe.
+
+### Reguła { #the-rule }
+
+- Żaden agent nie może być **gorszy** o regresję potwierdzoną ponownymi
+  pytaniami.
+- Co najmniej jeden agent musi być **lepszy**.
+- Różnica, której sprawdzenie nie potwierdziło, jest **w granicach szumu**: to
+  ostrzeżenie, nie blokada.
+- Agent, którego nie dało się sprawdzić - brak pytań, brak dostępu, brak
+  budżetu, brak opublikowanej wersji, nieudany run - jest **nieznany**, a
+  osoba potwierdza to przed zastosowaniem.
+
+Agent jest oceniany raz, na pytaniach held-out ze wszystkich swoich etapów
+razem: wynik wymaga pięciu takich pytań na agenta, a nie pięciu na etap, a
+regresja potwierdzona przez jeden etap sam się liczy, cokolwiek pokazał drugi. Każde
+pytanie zestawu skilla jest held-out, a szybkie sprawdzenie losuje tylko pytania
+held-out agenta.
+
+Część każdego agenta to jego własne runy evali, rozliczane z jego budżetu.
+Estymacja podaje jedną cenę, najpewniej i najwyżej, i przed startem wymienia
+agentów, których budżet jej nie pokryje. Start wymaga `runs:view` i prawa edycji
+skilla. Agent, którego nie możesz uruchomić, nie jest uruchamiany, a ten, którego
+nie widzisz, jest liczbą, nigdy nazwą.
+
+### Gdy agent wypadł gorzej { #when-an-agent-got-worse }
+
+**Check on agents** w zakładce Skille wycenia sprawdzenie, uruchamia je, pokazuje
+wynik każdego agenta, a potem stosuje albo odrzuca zmianę. Na main osoba może
+nadal:
+
+- **zastosować zmianę i zostawić gorszych agentów tam, gdzie są** - każdy jest
+  przypinany, jako nowa opublikowana wersja, do wersji, którą czyta teraz, zanim
+  zmiana trafi na żywo, więc żaden z nich nie obsłuży jej ani razu. Przypięcie
+  wymaga prawa publikacji każdego z nich, a środowisko czekające na promocję musi
+  najpierw dostać przypiętą wersję;
+- **zrobić fork dla agentów, którym pomogła**, zostawiając main bez zmian - przez
+  API, `POST /api/v1/skills/{id}/checks/{check_id}/fork`;
+- **odrzucić** ją.
+
+Na forku zostają tylko dalsze ulepszanie i odrzucenie: przypięcie wskazuje
+wersję main, a fork nigdy nie zaczyna się od innego forka. Sprawdzenie odmawia
+zastosowania, gdy linia ma już nowszą wersję albo zaczął za nią podążać nowy
+agent, bo nie zmierzyło żadnego z nich.
 
 ## Wersje i forki { #versions-and-forks }
 
@@ -280,7 +361,9 @@ wystartował.
 - Pliki forka to pliki wersji, z której powstał. Pliki edytuje się tylko na main.
 - **Archive** sprawia, że fork nie przyjmuje nowych wersji. Zachowuje swoje wersje
   i nigdy nie jest usuwany. Fork, którego żaden run nie czytał od 30 dni, jest
-  proponowany do archiwizacji; nic nie archiwizuje się samo.
+  proponowany do archiwizacji; nic nie archiwizuje się samo. Starsza wersja agenta,
+  która wciąż czyta zarchiwizowany fork, nie zostanie promowana do środowiska:
+  przesuń agenta na inną wersję i promuj wersję, która się opublikuje.
 
 ### Którą wersję czyta agent { #which-version-an-agent-reads }
 
@@ -305,73 +388,26 @@ suite'y evali, zmiana wymienia środowiska, w których wchodzi, a właściciele
 dostają powiadomienie. Przypięty agent nie dostaje żadnej z nich.
 
 **Agenci skilla** to ci, którzy go uruchamiają: wiąże go wersja serwowana przez
-jedno z ich środowisk. Strona skilla pokazuje każdego z nich z wersją, którą
-czyta, liczbą wersji main, o które jest w tyle, i środowiskami, które czytają go
-inaczej. Agent, który wiąże skill tylko w wersji roboczej, jest oznaczony osobno.
-Agentów, których nie widzisz, strona tylko liczy.
+jedno z ich środowisk, sam agent albo jego specjalista inline. Agent i każdy z jego
+specjalistów czytają skill po swojemu, więc każdy jest osobnym wierszem: strona
+skilla pokazuje go z wersją, którą czyta, liczbą wersji main, o które jest w tyle, i
+środowiskami, które czytają go inaczej. Agent, który wiąże skill tylko w wersji
+roboczej, jest oznaczony osobno. Agentów, których nie widzisz, strona tylko liczy.
+„W tyle za main” liczy wersje main po niej, które zmieniły treść skilla: ponowne
+przywrócenie tego samego tekstu nie jest zmianą, a gdy main wróci do treści, którą
+agent czyta, agent nie jest w tyle wcale.
 
 **Change version** przesuwa jednego agenta na main, wersję main albo fork, i jest to
-zmiana agenta. Z prawem publikacji opublikowany spec, w którym zmienia się tylko to
-wiązanie, wchodzi jako następna wersja agenta, a środowiska przesuwają się według
-zwykłych reguł follow i promocji. Wersja robocza dostaje tę samą zmianę i zachowuje
-pozostałe niedokończone edycje, które nie wchodzą. Z samym prawem edycji agenta
-zmiana czeka w wersji roboczej. Builder otwarty już na tym agencie nie widzi zmiany
-do odświeżenia, a zapis przed odświeżeniem przywraca stare wiązanie.
-
-### Ulepszanie skilla { #improving-a-skill }
-
-**Popraw** na stronie skilla ulepsza jedną linię skilla: main albo jeden fork.
-Działa w tym samym kreatorze co [Popraw agenta](authoring.md#improving-a-skill),
-z tymi samymi krokami, postojami, cenami i wygasaniem.
-
-Sprawdzenie uruchamia zmianę na każdym agencie tej linii i na żadnym innym: na
-agentach main dla main, na agentach forka dla tego forka. Agenci przypięci i
-agenci na innym forku nie są sprawdzani, bo zmiana do nich nie trafia. Każdy agent
-odpowiada na pytania testowe samego skilla, potem na część własnych, a jego część
-kosztu sprawdzenia idzie z jego własnego budżetu.
-
-Zmiana jest lepsza, gdy:
-
-- żaden agent nie ma potwierdzonej regresji;
-- co najmniej jeden agent jest lepszy.
-
-Wynik w granicach szumu to ostrzeżenie, nie blokada. Agent, którego nie dało się
-sprawdzić, jest pokazany jako **nieznany**, z powodem, a osoba potwierdza go przed
-zastosowaniem zmiany.
-
-Gdy agent wychodzi gorzej, osoba wybiera jedną z czterech opcji:
-
-| Wybór | Co się dzieje |
-|---|---|
-| Popraw dalej | Kolejna próba, z notatką własnymi słowami tej osoby |
-| Zastosuj i przypnij | Main dostaje nową wersję; gorsi agenci zostają przypięci do wersji, którą czytają |
-| Fork dla agentów, którym pomogła | Main zostaje bez zmian; nowy fork ze zmianą przejmuje agentów, którzy wyszli lepiej |
-| Odrzuć | Nic się nie zmienia |
-
-Na forku, gdy agent wychodzi gorzej, dostępne są tylko **Popraw dalej** i
-**Odrzuć**: forki zaczynają się wyłącznie od main, a przypięcie to stan na linii
-main.
-
-### Nadganianie main { #catching-up-with-main }
-
-Nic nie nadgania main samo, bo każde nadgonienie kosztuje sprawdzenie. Gdy main
-idzie dalej, agenci przypięci i forki pokazują, o ile wersji są w tyle, i trafiają
-na kartę **Poprawki czekające na Ciebie**.
-
-- **Agent przypięty:** **Aktualizuj do vN** sprawdza najnowszą wersję main tylko
-  na tym agencie, według tej samej reguły. Gdy przejdzie, akceptacja przesuwa
-  agenta na main, a agent jest pokazany jako sprawdzony, nie nieznany.
-- **Fork:** **Nadgoń** scala trzy wersje: wersję main, od której fork wystartował,
-  najnowszą wersję forka i najnowszą wersję main. Fragmenty zmienione tylko po
-  jednej stronie scalają się same. Gdzie obie strony zmieniły ten sam fragment,
-  sesja proponuje połączony tekst, pokazany jako fork, main i wynik, a osoba może
-  wynik poprawić. Potem sprawdzani są agenci forka. Akceptacja robi z połączonego
-  tekstu nową wersję forka i przesuwa jego start na najnowszą wersję main. Gdy
-  samo main nie jest dla agentów forka gorsze od forka, wynik proponuje też
-  **Porzuć fork i wróć na main**.
-- **Zmiany forka na main:** **Przenieś na main** scala zmiany forka z najnowszą
-  wersją main i sprawdza je na każdym agencie main według pełnej reguły. Potem
-  agenci forka mogą wrócić na main.
+zmiana agenta. To, czy agent używa skilla sam, wynika z jego wersji roboczej, tak
+jak pokazuje ją Builder; skill, który wiąże tylko jeden z jego specjalistów, zmienia
+się w Builderze. Z prawem publikacji najnowszy opublikowany spec agenta, w którym
+zmienia się tylko to wiązanie, wchodzi jako jego następna wersja, a środowiska
+przesuwają się według zwykłych reguł follow i promocji. Wersja robocza dostaje tę
+samą zmianę i zachowuje pozostałe niedokończone edycje, które nie wchodzą. Z samym
+prawem edycji agenta, dla agenta nigdy nieopublikowanego albo takiego, którego
+opublikowana wersja jeszcze nie wiąże skilla, zmiana czeka w wersji roboczej i
+sprawdzane jest tylko nowe wiązanie. Builder otwarty już na tym agencie nie widzi
+zmiany do odświeżenia, a zapis przed odświeżeniem przywraca stare wiązanie.
 
 ### Usuwanie skilla { #deleting-a-skill }
 
@@ -392,14 +428,6 @@ jego wersjami i forkami.
 | `PATCH /api/v1/skills/{id}/forks/{fork_id}`, `POST …/archive` | Zmienia nazwę forka albo go archiwizuje |
 | `GET /api/v1/skills/{id}/agents` | Agenci skilla, wersja, którą czyta każdy z nich, i liczba ukrytych |
 | `PUT /api/v1/skills/{id}/agents/{agent_id}/binding` | Przesuwa agenta na main, wersję main albo fork |
-| `POST /api/v1/skills/{id}/improvements/estimate`, `POST /api/v1/skills/{id}/improvements` | Wycenia i zaczyna sesję Popraw na main albo na forku |
-| `POST /api/v1/skills/{id}/improvements/{session_id}/apply`, `…/fork`, `…/discard` | Stosuje wynik sesji, z przypięciem gorszych agentów albo bez, robi z niego fork dla agentów, którym pomógł, albo go odrzuca |
-| `GET /api/v1/skill-improvements/awaiting` | Sesje skilli czekające na człowieka |
-| `GET /api/v1/skills/behind-main` | Agenci przypięci i forki, które main wyprzedził, w całej organizacji |
-| `POST /api/v1/skills/{id}/agents/{agent_id}/update-check` | Sprawdza najnowszą wersję main na jednym przypiętym agencie |
-| `POST /api/v1/skills/{id}/forks/{fork_id}/catch-up`, `…/to-main` | Nadgania fork do main albo przenosi jego zmiany na main, jako sesja |
-| `GET /api/v1/skills/{id}/merges/{merge_id}`, `PATCH …/parts/{index}` | Fragmenty scalenia i tekst osoby dla jednego z nich |
-| `POST /api/v1/skills/{id}/forks/{fork_id}/return-to-main` | Przesuwa agentów forka z powrotem na main |
 
 ## Jak skille trafiają do organizacji { #getting-skills-into-an-organization }
 
@@ -445,6 +473,9 @@ Instaluje to, czego brakuje, i **odświeża to, czego nikt nie edytował**. Każ
 kopia zapamiętuje, z której wersji dołączonego skilla została zapisana, więc gdy
 wydanie ulepsza dołączony skill, nieruszana kopia w organizacji jest zastępowana
 nową — razem z plikami, jako nowa wersja, z wpisem audytu `skill.refreshed`.
+Chyba że podążają za nią agenci: wtedy dołączona wersja czeka w zakładce Skille
+jako zmiana i trafia na żywo, gdy pozwoli na to
+[sprawdzenie na tych agentach](#checking-a-change-on-every-agent).
 
 Kopia edytowana na miejscu zostaje dokładnie taka, jaka jest, więc edytowana
 polityka zwrotów przeżywa ponowny seed; `--replace` to jedyny sposób, żeby wziąć
@@ -512,6 +543,67 @@ wycelowany w czyjeś repozytorium i obietnicę dotyczącą treści, której nikt
 nie przeczytał. Każdy katalog w `app/core/catalog/skills/` i
 `app/core/catalog/skill_gallery/` jest tą samą małą obietnicą, którą składa
 [katalog MCP](mcp.md#the-catalog): ktoś na to spojrzał.
+
+## Strona skilla { #a-skills-page }
+
+Otwórz skill z listy, żeby zobaczyć jego stronę. Ma trzy zakładki.
+
+**Agenci** to lista każdego agenta, który używa skilla, z wersją, którą dostaje:
+
+- `v12 · main` - agent podąża za main i od razu dostaje każdą nową wersję.
+- `v9 · przypięty · 3 za main` - agent zostaje na starszej wersji main.
+- `Fork „Returns” · od v7 · 2 zmiany` - agent używa forka: linii wersji z
+  własnymi zmianami, zaczętej od jednej wersji main.
+
+Środowisko, które serwuje inną wersję, jest podane pod agentem, a specjalista inline,
+który wiąże skill, ma osobny wiersz - zobacz
+[Którą wersję czyta agent](#which-version-an-agent-reads). Agent, który wiąże skill
+tylko w drafcie, ma oznaczenie **Tylko w drafcie** i nie podąża za żadną linią.
+Agentów, których nie widzisz, strona liczy, ale nie nazywa. Chipy nad tabelą
+pokazują wszystkich, agentów na main, przypiętych, jeden fork albo agentów tylko w
+drafcie, więc ich liczby sumują się do wszystkich. Fork wybrany tam jest też linią,
+którą pokazuje Historia i do której zapisuje Edycja.
+
+Pod tabelą osoba, która może przeglądać runy, widzi, jak często każdy agent
+otwierał skill w ostatnich 30 dniach i ile jego plików przeczytał. Runy ewaluacji i
+panelu testowego Buildera się nie liczą.
+
+**Zmień wersję** przenosi jednego agenta na main, na przypiętą wersję main albo na
+fork, tak jak opisuje [Którą wersję czyta agent](#which-version-an-agent-reads): co
+trafia na produkcję, co czeka w drafcie, a co zmienia się w Builderze. Wersja inna
+niż ta, którą agent serwuje teraz, nie była na nim sprawdzona, więc najpierw to
+potwierdzasz. Okno mówi też, kiedy agent przestałby dostawać nowe wersje main, i
+podaje datę każdej wersji main do przypięcia, z linkiem do jej zmian. Kontrolkę
+widzą osoby, które mogą edytować agenta.
+
+**Historia** wymienia wersje wybranej linii od najnowszej: skąd się wzięła każda
+(edycja, zmiana plików, biblioteka, workspace agenta, Improve albo przywrócenie),
+kto ją zrobił i kiedy. **Pokaż zmiany** porównuje opis i instrukcje z poprzednią
+wersją - dla pierwszej wersji forka z jego bazą na main - i podaje pliki dodane,
+usunięte albo zmienione. **Przywróć** sprowadza wcześniejszą wersję jako najnowszą
+na jej własnej linii, a agenci podążający za tą linią dostają ją od razu. Fork
+numeruje wersje od 1 tak jak main, więc noszą jego nazwę - „Returns v2” - a
+historia main zaznacza wersję, od której startuje każdy fork.
+
+**Drzewo wersji** rysuje main od najnowszej wersji w dół, każdy fork odchodzący od
+wersji, od której wystartował, i agentów przy wersji, której używają. Na linii z
+co najmniej ośmioma wersjami odcinki, których nie używa żaden agent, zwijają się do
+jednego wiersza.
+
+**Edytuj** zapisuje nową wersję na widocznej linii. Na main agenci podążający za
+main dostają ją od razu; przypięci agenci i forki zostają przy swojej wersji. Pliki
+i kategoria należą do main, więc edycja forka zmienia tylko jego opis i instrukcje.
+Przywróć i Zmień wersję widzą tylko osoby, które mogą tę zmianę zrobić; pozostali
+otwierają skill tylko do odczytu.
+
+**Nowy fork** zaczyna fork od najnowszej wersji main, pod nadaną przez ciebie
+nazwą, i może od razu przenieść na niego agentów, każdego przez Zmień wersję. Fork
+czyta się tak samo jak jego baza, dopóki ktoś go nie edytuje.
+
+**Usuń**, w menu edytora, usuwa skill, którego nikt nie używa, razem z jego
+wersjami i forkami. Dopóki agenci go używają, okno ich wymienia i nie oferuje
+usunięcia: najpierw przenieś każdego na inny skill albo usuń z niego skill w
+Builderze.
 
 ## Skille czy wiedza? { #skills-or-knowledge }
 

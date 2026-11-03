@@ -48,6 +48,15 @@ def upgrade() -> None:
         sa.Column("mode", sa.String(length=16), nullable=False),
         sa.Column("source", sa.String(length=16), nullable=False),
         sa.Column("proposal_id", postgresql.UUID(as_uuid=True), nullable=True),
+        sa.Column(
+            "excluded_conversation_ids",
+            postgresql.ARRAY(postgresql.UUID(as_uuid=True)),
+            server_default="{}",
+            nullable=False,
+        ),
+        sa.Column(
+            "skill_set_case_ids", postgresql.ARRAY(postgresql.UUID(as_uuid=True)), nullable=True
+        ),
         sa.Column("status", sa.String(length=16), nullable=False),
         sa.Column("verdict", sa.String(length=16), nullable=True),
         sa.Column("outcome", sa.String(length=24), nullable=True),
@@ -56,6 +65,7 @@ def upgrade() -> None:
         sa.Column("expected_usd", sa.Numeric(precision=12, scale=6), nullable=False),
         sa.Column("at_most_usd", sa.Numeric(precision=12, scale=6), nullable=False),
         sa.Column("created_by_user_id", postgresql.UUID(as_uuid=True), nullable=True),
+        sa.Column("created_by_api_key_id", postgresql.UUID(as_uuid=True), nullable=True),
         sa.Column(
             "created_at",
             sa.DateTime(timezone=True),
@@ -131,6 +141,7 @@ def upgrade() -> None:
             "sample_case_ids", postgresql.ARRAY(postgresql.UUID(as_uuid=True)), nullable=True
         ),
         sa.Column("dataset_id", postgresql.UUID(as_uuid=True), nullable=True),
+        sa.Column("dataset_version", sa.Integer(), nullable=True),
         sa.Column("skill_set_run_id", postgresql.UUID(as_uuid=True), nullable=True),
         sa.Column("dataset_run_id", postgresql.UUID(as_uuid=True), nullable=True),
         sa.Column("fixed", sa.Integer(), nullable=False),
@@ -183,7 +194,7 @@ def upgrade() -> None:
     op.create_index(
         "uq_datasets_skill",
         "datasets",
-        ["skill_id"],
+        ["organization_id", "skill_id"],
         unique=True,
         postgresql_where=sa.text("skill_id IS NOT NULL"),
     )

@@ -14,9 +14,11 @@ from app.db.models.improvement import (
     ImprovementVerdict,
     StopReason,
 )
+from app.schemas.authoring import EvidenceItemRead
 from app.schemas.base import BaseSchema
 from app.schemas.knowledge_gap import CauseBranch
 from app.schemas.scoring import ScorerKind, ScorerStatus
+from app.schemas.skill_version import SkillBindingRead
 
 
 class ImprovementTarget(BaseSchema):
@@ -403,6 +405,13 @@ class EvidenceGrade(BaseSchema):
     reason: str
 
 
+class EvidenceSkill(BaseSchema):
+    """A skill one example's run used."""
+
+    skill_id: UUID
+    name: str
+
+
 class ImprovementEvidenceItem(BaseSchema):
     run_id: UUID
     conversation_id: UUID | None
@@ -426,6 +435,10 @@ class ImprovementEvidenceItem(BaseSchema):
         default=None,
         description="For an answer missing knowledge, the document added since to its topic: "
         "nothing is left to draft for it",
+    )
+    skills: list[EvidenceSkill] = Field(
+        default_factory=list,
+        description="The skills the agent itself used in its run, where the reader may see them",
     )
 
 
@@ -463,3 +476,44 @@ class SelectionConsent(ImprovementSelection):
     confirmed: Literal[True]
     estimate_usd: Decimal = Field(ge=0, max_digits=12, decimal_places=6)
     candidate_hash: str = Field(min_length=64, max_length=64)
+
+
+class ImprovementSkillProblem(BaseSchema):
+    """A problem the session's improver found in a skill rather than in the agent."""
+
+    problem: str
+    evidence: list[EvidenceItemRead] = Field(default_factory=list)
+
+
+class ImprovementSkillNewVersion(BaseSchema):
+    """A newer main version the agent could move to, through the skill's own flow."""
+
+    kind: Literal["update_pinned", "catch_up_fork"] = Field(
+        description="Move a pinned agent up, or bring the fork it follows up to main"
+    )
+    to_version: int = Field(description="Main's newest version")
+
+
+class ImprovementSkill(BaseSchema):
+    """One skill the agent reads, as an Improve session on the agent sees it."""
+
+    skill_id: UUID
+    name: str
+    binding: SkillBindingRead | None = Field(
+        description="The version the agent's served version reads, or its draft's while none "
+        "is served; null where only an inline specialist binds the skill"
+    )
+    agents_on_line: int | None = Field(
+        description="Agents the caller may see that read the line an Improve of this skill "
+        "changes - the fork the agent follows, or main; null as `binding` is"
+    )
+    hidden_agents: int = Field(
+        default=0, description="Agents using the skill, on any line, that the caller may not see"
+    )
+    problems: list[ImprovementSkillProblem] = Field(default_factory=list)
+    can_improve: bool = Field(description="The caller may edit the skill, so may improve it")
+    update: ImprovementSkillNewVersion | None = None
+
+
+class ImprovementSkills(BaseSchema):
+    items: list[ImprovementSkill]

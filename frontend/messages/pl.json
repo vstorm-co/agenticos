@@ -239,7 +239,7 @@
     "disabled": "wyłączone",
     "documentCount": "{count, plural, =1 {1 dokument} few {# dokumenty} many {# dokumentów} other {# dokumentu}}",
     "draft": "Wersja robocza",
-    "draftDiffersFromPublished": "Wersja robocza różni się od v{version}",
+    "draftDiffersFromPublished": "Wersja robocza różni się od wersji agenta v{version}",
     "draftDiffersHint": "Wersja robocza jest zapisana i różni się od v{version}, najnowszej opublikowanej wersji. Publikacja zrobi z niej nową wersję.",
     "duplicate": "Duplikuj",
     "editSurface": "Edytuj {name}",
@@ -624,7 +624,7 @@
     "unchangedLines": "{count, plural, =1 {1 niezmieniony wiersz} few {# niezmienione wiersze} many {# niezmienionych wierszy} other {# niezmienionego wiersza}}",
     "unknownAuthor": "nieznany autor",
     "unnamedSpecialist": "Specjalista bez nazwy",
-    "upToDateWithPublished": "Aktualny z v{version}",
+    "upToDateWithPublished": "Aktualny z wersją agenta v{version}",
     "productionOn": "produkcja na v{version}",
     "productionWaiting": "produkcja na v{version} (czeka na ewaluacje)",
     "productionHint": "Kanały, widgety i API odpowiadają wersją v{version}: produkcja działa na niej, dopóki nowsza wersja nie zostanie wypromowana.",
@@ -1097,7 +1097,8 @@
     "backendComputerLabel": "Komputer",
     "backendComputerDetail": "Używaj komputera użytkownika, zatwierdzanego osobno w czacie desktopowym.",
     "backendComputerConsent": "Każda osoba wybiera folder lub Cały komputer w ustawieniach czatu. To ustawienie nie przyznaje dostępu i nie zapisuje prywatnej ścieżki. Ten obszar roboczy wymaga aplikacji desktopowej.",
-    "workflowTablesViaMcp": "Workflows i Tables są narzędziami serwera AgenticOS MCP. Dodaj go w sekcji serwerów MCP i wybierz narzędzia potrzebne agentowi. Istniejące capabilities zachowują zapisane uprawnienia."
+    "workflowTablesViaMcp": "Workflows i Tables są narzędziami serwera AgenticOS MCP. Dodaj go w sekcji serwerów MCP i wybierz narzędzia potrzebne agentowi. Istniejące capabilities zachowują zapisane uprawnienia.",
+    "alreadyHasIt": "Używa"
   },
   "auth": {
     "agreeToTerms": "Tworząc konto, akceptujesz nasz <terms>Regulamin</terms> i <privacy>Politykę prywatności</privacy>.",
@@ -5248,6 +5249,10 @@
         "title": "Zmiany",
         "body": "Zmiany napisane przez pomocnika. Sesja zatrzymuje się tu: zaznacz te do przetestowania i popraw sformułowania, zanim zostaną przetestowane."
       },
+      "improvement-skill-handoffs": {
+        "title": "Należy do skilla",
+        "body": "Problemy, które pomocnik znalazł w jednym ze skilli agenta. Skill jest współdzielony, więc poprawia się go osobno i sprawdza na każdym agencie, który go czyta."
+      },
       "flow-improvement-changes": {
         "title": "Zmiany",
         "body": "Zmiany napisane przez pomocnika. Sesja zatrzymuje się tu: zaznacz te do przetestowania i popraw sformułowania, zanim zostaną przetestowane."
@@ -5267,6 +5272,38 @@
       "flow-improvement-steps": {
         "title": "Kroki",
         "body": "Pięć kroków. Sesja zatrzymuje się po Zrozumieniu i po Zmianach, żebyś je obejrzał i nacisnął Następny krok; krok otwiera się, gdy ma coś do pokazania."
+      },
+      "skill-agents": {
+        "title": "Kto używa tego skilla",
+        "body": "Każdy agent, który używa skilla, z wersją, którą dostaje: main podąża za każdą nową wersją, przypięty zostaje na starszej, a fork ma własne zmiany."
+      },
+      "skill-lines": {
+        "title": "Jedna linia naraz",
+        "body": "Pokaż agentów na main, przypiętych albo jeden fork. Wybór forka kieruje na niego też Historię i Edycję."
+      },
+      "skill-change-version": {
+        "title": "Przenieś agenta na inną wersję",
+        "body": "Publikuje nową wersję agenta tylko z tą zmianą. Wersja, która nie była sprawdzona na agencie, najpierw prosi o potwierdzenie."
+      },
+      "skill-edit": {
+        "title": "Edycja tworzy nową wersję",
+        "body": "Zapis niczego nie nadpisuje. Dodaje wersję do widocznej linii i dostają ją tylko agenci podążający za tą linią."
+      },
+      "skill-history": {
+        "title": "Każda wersja i droga powrotu",
+        "body": "Zobacz, co zmieniła każda wersja, kto ją zrobił i skąd się wzięła. Przywróć sprowadza wcześniejszą jako najnowszą."
+      },
+      "skill-tree": {
+        "title": "Main i jego forki",
+        "body": "Main biegnie w dół od najnowszej wersji, każdy fork odchodzi od wersji, od której wystartował, a agenci stoją przy wersji, której używają."
+      },
+      "skill-new-fork": {
+        "title": "Fork dla agentów, którzy się różnią",
+        "body": "Nowy fork zaczyna własną linię od najnowszej wersji main. Agenci przeniesieni na niego czytają jego zmiany, a agenci na main ich nie widzą."
+      },
+      "skill-usage": {
+        "title": "Jak często jest używany",
+        "body": "Jak często każdy agent otwierał skill w ostatnich 30 dniach i jakie pliki z niego czytał. Runy ewaluacji i panelu testowego się nie liczą."
       }
     },
     "chooseLanguage": "Język",
@@ -7399,7 +7436,6 @@
       "loading": "Sprawdzanie wersji…"
     },
     "skills": {
-      "agentsBoundSkillWill": "Agenci związani z tym skillem będą od następnego runu działać bez niego. Tego nie da się cofnąć.",
       "allCategories": "Wszystkie kategorie",
       "askAdministratorAccessSkills": "Poproś administratora o dostęp do skilli.",
       "categoryCount": "{count, plural, one {1 kategoria} few {# kategorie} many {# kategorii} other {# kategorii}}",
@@ -8051,8 +8087,7 @@
     "review": "Przejrzyj",
     "save": "Zapisz",
     "saveFile": "Zapisz plik",
-    "savedAgentsCurrent": "Zapisano. Każdy agent używający tego skilla jest teraz aktualny.",
-    "savingReachesEveryAgent": "Zapis dosięga każdego związanego z tym skillem agenta przy jego następnym runie. Nie ma wersji roboczej ani kroku publikacji.",
+    "savedAgentsCurrent": "Zapisano.",
     "showWhatChangedIn": "Pokaż, co zmieniło się w {name}",
     "sizeUploadsWhenCreated": "{size} · zostanie przesłany przy tworzeniu skilla",
     "support": "support",
@@ -8083,7 +8118,217 @@
     "moreFiles": "{count, plural, one {+1 plik} few {+# pliki} many {+# plików} other {+# pliku}}",
     "bodyPlaceholder": "# Zwroty\n\nUżyj tego, gdy klient prosi o zwrot pieniędzy.\n\n## Kroki\n\n1. Sprawdź datę zamówienia.\n2. W ciągu 14 dni zwróć bez pytania.\n3. Później poproś człowieka o zatwierdzenie.",
     "whoCanUseIt": "Kto może z tego korzystać",
-    "expectedEffect": "Oczekiwany efekt:"
+    "expectedEffect": "Oczekiwany efekt:",
+    "checkOnAgents": "Sprawdź na agentach",
+    "checkChangeTo": "Sprawdź zmianę w {name} na agentach, które go używają",
+    "check": {
+      "title": "Sprawdź tę zmianę na każdym agencie, który używa skilla",
+      "description": "Każdy agent odpowiada na swoje pytania ze skillem w obecnej wersji i z tą zmianą. Nic się nie zmienia, dopóki nie zdecydujesz.",
+      "price": "Najpewniej ${expected}, najwyżej ${most}. Część każdego agenta idzie z jego budżetu.",
+      "start": "Uruchom sprawdzenie",
+      "running": "Trwa sprawdzanie. To zajmie kilka minut; możesz zamknąć okno i wrócić później.",
+      "asked": "{count, plural, one {Zadano 1 pytanie} few {Zadano # pytania} many {Zadano # pytań} other {Zadano # pytania}}",
+      "skillSetOnly": "Sprawdzono tylko na pytaniach skilla: żadne pytanie tego agenta nie otworzyło skilla.",
+      "hidden": "{count, plural, one {Tego skilla używa jeszcze 1 agent, którego nie widzisz.} few {Tego skilla używa jeszcze # agentów, których nie widzisz.} many {Tego skilla używa jeszcze # agentów, których nie widzisz.} other {Tego skilla używa jeszcze # agenta, którego nie widzisz.}}",
+      "noisy": "Część wyników mieści się w szumie: sprawdzenie zobaczyło różnicę, której nie mogło potwierdzić.",
+      "forkLine": "Ta zmiana dotyczy forka, którego nie da się przypiąć ani znowu sforkować. Popraw ją dalej albo odrzuć.",
+      "acknowledge": "Rozumiem, że części agentów nie dało się sprawdzić.",
+      "discard": "Odrzuć",
+      "apply": "Zastosuj",
+      "applyAndPin": "Zastosuj i zostaw gorszych agentów na ich wersji",
+      "reason": {
+        "no_questions": "Nie sprawdzono: nie ma pytań do zadania.",
+        "no_access": "Nie sprawdzono: nie możesz uruchomić tego agenta.",
+        "no_budget": "Nie sprawdzono: jego budżet nie pokryje sprawdzenia.",
+        "no_published_version": "Nie sprawdzono: nie ma opublikowanej wersji.",
+        "inconclusive": "Nie sprawdzono: nie udało się ocenić każdej odpowiedzi.",
+        "failed": "Nie sprawdzono: jego run się nie powiódł."
+      },
+      "state": {
+        "queued": "Czeka",
+        "running": "W toku",
+        "better": "Lepiej",
+        "no_change": "Bez zmian",
+        "within_noise": "W granicach szumu",
+        "worse": "Gorzej",
+        "unknown": "Nie wiadomo"
+      },
+      "verdict": {
+        "passed": "Żaden agent nie jest gorszy, a co najmniej jeden jest lepszy.",
+        "needs_ack": "Żaden sprawdzony agent nie jest gorszy, ale części nie dało się sprawdzić.",
+        "blocked": "Któryś agent jest gorszy. Nadal możesz zastosować zmianę i zostawić go na wersji, której używa teraz.",
+        "no_better": "Żaden agent nie jest lepszy, więc nie ma czego zastosować."
+      },
+      "unaffordable": "Budżet organizacji na ten miesiąc nie pokryje tego sprawdzenia.",
+      "cancel": "Zatrzymaj sprawdzenie"
+    },
+    "page": {
+      "skills": "Skille",
+      "mainVersion": "v{number} na main",
+      "forkCount": "{count, plural, one {# fork} few {# forki} many {# forków} other {# forka}}",
+      "editSkill": "Edytuj",
+      "editFork": "Edytuj fork „{name}”",
+      "open": "Otwórz",
+      "tabs": {
+        "agents": "Agenci",
+        "history": "Historia",
+        "tree": "Drzewo wersji"
+      },
+      "agentCount": "{count, plural, =0 {Brak agentów} one {# agent} few {# agentów} many {# agentów} other {# agenta}}",
+      "state": {
+        "main": "v{number} · main",
+        "pinned": "v{number} · przypięty{behind, plural, =0 {} other { · # za main}}",
+        "fork": "Fork „{name}” · od v{base}{changes, plural, =0 { · jeszcze bez zmian} one { · # zmiana} few { · # zmiany} many { · # zmian} other { · # zmiany}}{behind, plural, =0 {} other { · # za main}}"
+      },
+      "show": {
+        "label": "Których agentów pokazać",
+        "all": "Wszyscy ({count})",
+        "main": "Main ({count})",
+        "pinned": "Przypięci ({count})",
+        "fork": "Fork „{name}” ({count})",
+        "draft": "Tylko w drafcie ({count})"
+      },
+      "agentsTable": {
+        "agent": "Agent",
+        "version": "Wersja",
+        "actions": "Akcje",
+        "viaSpecialist": "Przez specjalistę {name}",
+        "empty": "Żaden agent nie używa jeszcze tego skilla.",
+        "hidden": "{count, plural, one {Jeszcze # agent, którego nie widzisz, używa tego skilla.} few {Jeszcze # agentów, których nie widzisz, używa tego skilla.} many {Jeszcze # agentów, których nie widzisz, używa tego skilla.} other {Jeszcze # agenta, którego nie widzisz, używa tego skilla.}}",
+        "draftOnly": "Tylko w drafcie",
+        "environment": "{name}: {binding}",
+        "draftDiffers": "Jego draft używa innej wersji.",
+        "emptyFork": "Żaden agent nie używa jeszcze forka „{name}”. Przenieś na niego agenta przez Zmień wersję.",
+        "emptyShown": "Brak agentów w tym widoku."
+      },
+      "changeVersion": {
+        "button": "Zmień wersję",
+        "for": "Zmień wersję skilla dla {name}",
+        "title": "Zmień wersję {skill} dla {name}",
+        "now": "Teraz: {binding}",
+        "legend": "Wersja do użycia",
+        "followMain": "Main, najnowsza: podąża za każdą nową wersją",
+        "pin": "Przypnij wersję main: zostaje na niej, gdy main idzie dalej",
+        "pinVersion": "Wersja do przypięcia",
+        "versionOption": "v{number}",
+        "fork": "Fork „{name}”, najnowsza",
+        "unchecked": "{version} nie była sprawdzona na agencie {name}. Jego odpowiedzi mogą się zmienić.",
+        "understood": "Rozumiem, zmień mimo to",
+        "publishes": "To publikuje nową wersję {name} tylko z tą zmianą. Niedokończone zmiany w jego drafcie zostają w drafcie.",
+        "cancel": "Anuluj",
+        "submit": "Zmień i opublikuj",
+        "published": "Opublikowano. {count, plural, =0 {{name} ma nową wersję.} other {Nową wersję {name} serwuje teraz: {environments}.}}",
+        "savedInDraft": "Zapisano w drafcie {name}. Opublikuj go w Builderze.",
+        "openBuilder": "Otwórz Builder",
+        "savesToDraft": "Możesz edytować {name}, ale nie możesz go publikować, więc ta zmiana trafi do jego draftu. Opublikuje ją w Builderze ktoś, kto ma takie prawo.",
+        "submitDraft": "Zapisz w drafcie",
+        "versionWhen": "v{number} · {when}",
+        "forkVersion": "{name} v{number}",
+        "pinDetail": "{source} · {who} · {when}",
+        "leavesMain": "{name} zostaje na tej wersji i przestaje dostawać nowe wersje main.",
+        "leavesMainFork": "{name} przestaje dostawać nowe wersje main.{behind, plural, =0 {} one { Fork „{fork}” jest 1 wersję za main, więc nie ma tej zmiany.} few { Fork „{fork}” jest # wersje za main, więc nie ma ich zmian.} many { Fork „{fork}” jest # wersji za main, więc nie ma ich zmian.} other { Fork „{fork}” jest # wersji za main, więc nie ma ich zmian.}}"
+      },
+      "history": {
+        "title": "Historia: {line}",
+        "versionCount": "{count, plural, one {# wersja} few {# wersje} many {# wersji} other {# wersji}}",
+        "main": "main",
+        "fork": "fork „{name}”",
+        "lines": "Linia do pokazania",
+        "showChanges": "Pokaż zmiany",
+        "hideChanges": "Ukryj zmiany",
+        "restore": "Przywróć",
+        "restoreVersion": "Przywróć {version}",
+        "restoreTitle": "Przywrócić {version}?",
+        "restoreMain": "{version} wraca jako najnowsza wersja na main. Agenci podążający za main dostaną ją od razu; przypięci agenci i forki zostają przy swojej wersji.",
+        "restoreFork": "{version} wraca jako najnowsza wersja forka „{name}”. Agenci forka dostaną ją od razu.",
+        "restored": "{version} wróciła jako {made}.",
+        "restoredFrom": "Przywrócona z {version}",
+        "source": {
+          "backfill": "Stan z początku wersjonowania",
+          "created": "Utworzona",
+          "edit": "Edycja",
+          "resources": "Zmiana plików",
+          "library": "Z biblioteki",
+          "workspace": "Zapisana przez agenta",
+          "improve": "Improve",
+          "restore": "Przywrócona"
+        },
+        "madeBy": "{who} · {when}{agents, plural, =0 {} one { · używa # agent} few { · używa # agentów} many { · używa # agentów} other { · używa # agenta}}",
+        "unknownAuthor": "Nieznany",
+        "loadingChanges": "Wczytywanie zmian",
+        "description": "Opis",
+        "body": "Instrukcje",
+        "bodyUnchanged": "Instrukcje się nie zmieniły.",
+        "files": "Pliki",
+        "file": {
+          "added": "dodany",
+          "removed": "usunięty",
+          "changed": "zmieniony"
+        },
+        "versionLabel": "{fork, select, yes {{name} v{number}} other {v{number}}}",
+        "forkEmpty": "Fork nie ma jeszcze własnej wersji: czyta v{number} z main. Edytuj forka, żeby wprowadzić pierwszą zmianę.",
+        "forkStarts": "Tu zaczyna się fork „{name}”"
+      },
+      "tree": {
+        "title": "Drzewo wersji",
+        "summary": "{versions, plural, one {# wersja na main} few {# wersje na main} many {# wersji na main} other {# wersji na main}}{forks, plural, =0 {} one { · # fork} few { · # forki} many { · # forków} other { · # forka}}",
+        "folded": "{count, plural, one {# wersja} few {# wersje} many {# wersji} other {# wersji}} (v{from}–v{to})",
+        "number": "v{number}",
+        "latest": "najnowsza",
+        "fork": "Fork „{name}”",
+        "forkFacts": "{changes, plural, =0 {jeszcze bez zmian} one {# zmiana} few {# zmiany} many {# zmian} other {# zmiany}}{behind, plural, =0 {} other { · # za main}}",
+        "moreAgents": "+{count}",
+        "forkNumber": "{name} v{number}"
+      },
+      "edit": {
+        "saved": "Zapisano jako v{number}.",
+        "forkTitle": "{skill} · fork „{name}”",
+        "nameHowModelRefers": "Pod tą nazwą model odwołuje się do skilla.",
+        "warnMain": "Zapis tworzy v{number} na main. {count, plural, =0 {Żaden agent jeszcze nie podąża za main.} one {# agent podążający za main dostanie ją od razu.} few {# agentów podążających za main dostanie ją od razu.} many {# agentów podążających za main dostanie ją od razu.} other {# agenta podążającego za main dostanie ją od razu.}} Przypięci agenci i forki zostają przy swojej wersji.",
+        "warnFork": "Zapis tworzy v{number} forka „{name}”. {count, plural, =0 {Żaden agent jeszcze nie używa forka.} one {Jego # agent dostanie ją od razu.} few {Jego # agentów dostanie ją od razu.} many {Jego # agentów dostanie ją od razu.} other {Jego # agenta dostanie ją od razu.}}",
+        "lineMoved": "Ktoś zapisał nowszą wersję, odkąd to otworzyłeś. Twój tekst nadal tu jest: skopiuj go, zamknij i otwórz najnowszą wersję, żeby go tam wprowadzić.",
+        "forkFiles": "Do forka należą tylko opis i instrukcje. Jego pliki pochodzą z wersji main, od której wystartował, a pliki edytuje się na main.",
+        "noBase": "Ten skill nie ma jeszcze zapisanej wersji, na której można zapisać zmianę. Odśwież stronę i spróbuj ponownie.",
+        "retryFork": "Wczytaj fork ponownie",
+        "savedFork": "Zapisano jako {name} v{number}."
+      },
+      "newFork": {
+        "button": "Nowy fork",
+        "title": "Nowy fork skilla {name}",
+        "description": "Fork to linia wersji z własnymi zmianami, dla agentów, którzy ich potrzebują. Startuje od v{number}, najnowszej wersji main, i czyta się tak samo, dopóki ktoś go nie edytuje.",
+        "name": "Nazwa",
+        "agents": "Agenci do przeniesienia na fork (opcjonalnie)",
+        "agentsHint": "Każdy przeniesiony agent dostaje nową opublikowaną wersję, która czyta fork, albo zmiana czeka w jego drafcie, jeśli nie możesz go publikować.",
+        "noAgents": "Stąd nie da się przenieść żadnego agenta. Przenieś agentów później przez Zmień wersję.",
+        "agentNow": "{name} · teraz {binding}",
+        "cancel": "Anuluj",
+        "create": "Utwórz fork",
+        "created": "Utworzono fork „{name}”.{moved, plural, =0 {} one { Przeniesiono na niego 1 agenta.} few { Przeniesiono na niego # agentów.} many { Przeniesiono na niego # agentów.} other { Przeniesiono na niego # agenta.}}",
+        "moveFailed": "Nie przeniesiono agenta {name} na fork: {reason}",
+        "changesContent": "{count, plural, one {{names} czyta teraz inną wersję i na forku dostanie} other {{names} czytają teraz inne wersje i na forku dostaną}} treść v{number}, której na {count, plural, one {nim} other {nich}} nie sprawdzono. Przenieś mimo to.",
+        "mainMoved": "Od otwarcia tego okna main ma nowszą wersję, v{number}. Fork zacznie od niej: naciśnij Utwórz fork jeszcze raz."
+      },
+      "deleteSkill": {
+        "title": "Usunąć {name}?",
+        "description": "Razem z nim znikną jego wersje i forki. Żaden agent go teraz nie używa.",
+        "used": "Nie można usunąć skilla, którego używa agent. Przenieś każdego agenta na inny skill albo usuń z niego ten skill w Builderze, a potem go usuń.",
+        "usedBy": "{named, select, yes {{count, plural, one {Używa go 1 agent} few {Używają go # agenci} many {Używa go # agentów} other {Używa go # agenta}}: {names}{hidden, plural, =0 {.} one {, i 1, którego nie widzisz.} few {, i #, których nie widzisz.} many {, i #, których nie widzisz.} other {, i #, którego nie widzisz.}}} other {{hidden, plural, one {Używa go 1 agent, którego nie widzisz.} few {Używają go # agenci, których nie widzisz.} many {Używa go # agentów, których nie widzisz.} other {Używa go # agenta, którego nie widzisz.}}}}",
+        "close": "OK",
+        "cancel": "Anuluj",
+        "delete": "Usuń",
+        "checking": "Sprawdzamy, którzy agenci go używają…",
+        "unread": "Nie udało się odczytać, którzy agenci go używają. Skilla używanego przez agenta i tak nie da się usunąć."
+      },
+      "usage": {
+        "title": "Użycie w ostatnich {days} dniach",
+        "loads": "{count, plural, =0 {Nie otwierany} one {Otwarty raz} few {Otwarty # razy} many {Otwarty # razy} other {Otwarty # razy}}",
+        "none": "Żaden agent nie otworzył tego skilla w ostatnich {days} dniach. Runy ewaluacji i panelu testowego się nie liczą.",
+        "agent": "{loads, plural, one {otwarty raz} few {otwarty # razy} many {otwarty # razy} other {otwarty # razy}}{files, plural, =0 {} one { · przeczytany 1 plik} few { · przeczytane # pliki} many { · przeczytanych # plików} other { · przeczytano # pliku}}{seen, select, yes { · ostatnio {last}} other {}}",
+        "hidden": "{count, plural, one {1 agent, którego nie widzisz,} few {# agentów, których nie widzisz,} many {# agentów, których nie widzisz,} other {# agenta, którego nie widzisz,}} {count, plural, one {otworzył} other {otworzyło}} go {loads, plural, one {raz} few {# razy} many {# razy} other {# razy}}."
+      }
+    },
+    "savedMainVersion": "Zapisano jako nową wersję main. Agenci na main czytają ją od następnego uruchomienia; przypięci agenci i forki zostają przy swoich.",
+    "instructions": "Instrukcje"
   },
   "states": {
     "loading": "Wczytywanie"
@@ -13985,7 +14230,8 @@
         "tool_override": "Narzędzie",
         "spec_field": "Ustawienie",
         "finding": "Ustalenie",
-        "create_skill": "Nowy skill"
+        "create_skill": "Nowy skill",
+        "skill_problem": "Problem skilla"
       },
       "reason": {
         "unanchored": "Fragmentu, który zmienia, nie ma w instrukcjach",
@@ -14005,7 +14251,11 @@
         "unsupported": "Mówi, że edycja ma poparcie, ale bez dowodu, który dałoby się sprawdzić",
         "edit_not_in_diff": "Linii, którą wskazuje, nie ma w edycji",
         "superseded": "Późniejsza prośba zdążyła już zastąpić sugestie",
-        "insufficient_evidence": "Prosiły o to mniej niż trzy różne odpowiedzi, więc nie dodano go automatycznie."
+        "insufficient_evidence": "Prosiły o to mniej niż trzy różne odpowiedzi, więc nie dodano go automatycznie.",
+        "copies_skill": "Kopiuje jeden ze skilli agenta, który agent i tak już czyta",
+        "duplicates_skill": "Agent ma już skill o tej nazwie lub treści",
+        "unknown_skill": "Agent nie ma takiego skilla",
+        "skill_not_used": "Żadna z cytowanych odpowiedzi nie użyła tej wersji skilla"
       },
       "about": "Dotyczy: {line}",
       "decide": "{count, plural, one {1 pomysł czeka na Twoją decyzję} few {# pomysły czekają na Twoją decyzję} many {# pomysłów czeka na Twoją decyzję} other {# pomysłu czeka na Twoją decyzję}}",
@@ -14904,7 +15154,21 @@
     "freshAttempt": "Każda próba zaczyna od bieżącej wersji; zmiany z wcześniejszych prób nie są przenoszone.",
     "trainSignals": "Nieudane odpowiedzi testowe",
     "tryAgainNothingToLearn": "Ostatnia próba naprawiła każde pytanie, z którego się uczy, więc kolejna próba nie ma się z czego uczyć. Zaakceptuj ją albo zakończ sesję.",
-    "tryAgainUnmeasurable": "Kolejna próba miałaby za mało pytań do zmierzenia: potrzeba jeszcze {count, plural, one {# pytania} few {# pytań} many {# pytań} other {# pytania}}, a pytania tej sesji są ustalone. Zakończ ją, dodaj pytania i zacznij nową."
+    "tryAgainUnmeasurable": "Kolejna próba miałaby za mało pytań do zmierzenia: potrzeba jeszcze {count, plural, one {# pytania} few {# pytań} many {# pytań} other {# pytania}}, a pytania tej sesji są ustalone. Zakończ ją, dodaj pytania i zacznij nową.",
+    "skills": {
+      "title": "Należy do skilla",
+      "intro": "Skilla używają też inni agenci, więc tu go nie zmieniamy. Popraw sam skill: zmiana zostanie sprawdzona na każdym agencie, który go czyta.",
+      "mainLine": "Main · {count, plural, one {1 agent} few {# agenty} many {# agentów} other {# agenta}}",
+      "forkLine": "Fork „{fork}” · {count, plural, one {1 agent} few {# agenty} many {# agentów} other {# agenta}}",
+      "hidden": "{count, plural, one {Tego skilla używa jeszcze 1 agent, którego nie widzisz.} few {Tego skilla używa jeszcze # agentów, których nie widzisz.} many {Tego skilla używa jeszcze # agentów, których nie widzisz.} other {Tego skilla używa jeszcze # agenta, których nie widzisz.}}",
+      "improve": "Popraw {name}",
+      "improveFork": "Popraw {name}, fork „{fork}”",
+      "askEditor": "Poproś osobę, która może edytować {name}, o poprawienie go.",
+      "behind": "Ten agent jest {count, plural, one {1 wersję} few {# wersje} many {# wersji} other {# wersji}} za main.",
+      "updatePinned": "Zaktualizuj do v{version}",
+      "catchUp": "Dogoń main w forku"
+    },
+    "usedSkill": "Użył skilla {name}"
   },
   "unsaved": {
     "title": "Masz niezapisane zmiany",

@@ -76,6 +76,10 @@ class ProposalCheckRecord(BaseSchema):
     on_draft: bool = False
     suggestions: int = Field(ge=1)
     improvement_run_id: UUID | None = None
+    skill_check_id: UUID | None = Field(
+        default=None,
+        description="The check of a skill change on every agent this run is one stage of",
+    )
     evidence_run_ids: list[UUID] = Field(default_factory=list)
     attempt_holdout: list[UUID] | None = Field(
         default=None,
@@ -593,6 +597,13 @@ class EvalComparisonRead(BaseSchema):
     fixed_unconfirmed: int
     compared: int
     not_compared: int
+    gradable_holdout: int | None = Field(
+        default=None,
+        description=(
+            "How many held-out questions a measured run could grade, the count its minimum "
+            "is read against; null for a run that keeps no questions aside"
+        ),
+    )
     changed: int = Field(
         default=0,
         description=(

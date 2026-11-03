@@ -6,6 +6,7 @@ from uuid import UUID
 
 from pydantic import Field, model_validator
 
+from app.db.models.skill_check import AgentState, SampleKind
 from app.db.models.skill_version import SkillVersionSource
 from app.schemas.base import BaseSchema
 from app.schemas.resource_usage import AgentUsage
@@ -21,7 +22,7 @@ class VersionRef(BaseSchema):
 
 class PersonRef(BaseSchema):
     id: UUID
-    name: str
+    name: str | None = Field(description="Null for somebody who is no longer a member")
 
 
 class SkillVersionSummary(BaseSchema):
@@ -45,7 +46,7 @@ class SkillVersionSummary(BaseSchema):
     created_by: PersonRef | None = None
     created_at: datetime
     agents: int = Field(
-        default=0, description="How many agents' served versions read exactly this version"
+        description="How many agents read exactly this version in an environment that serves it"
     )
 
 
@@ -118,9 +119,14 @@ class SkillForkRead(BaseSchema):
         description="Its newest own version; null while it has none and serves its base"
     )
     changes: int = Field(description="How many versions of its own it has")
-    behind_main: int = Field(description="How many main versions came after its base")
+    behind_main: int = Field(
+        description=(
+            "How many main versions after its base changed what the skill says; 0 when main "
+            "says what its base says"
+        )
+    )
     agents: int = Field(
-        default=0, description="How many agents' served versions read it, hidden ones included"
+        description="How many agents read it in an environment that serves it, hidden ones included"
     )
     archive_candidate: bool = Field(
         description="No agent reads it and no run has served it for 30 days"
@@ -162,7 +168,12 @@ class SkillBindingRead(BaseSchema):
     )
     version: VersionRef = Field(description="The version it serves now")
     fork: ForkRef | None = None
-    behind_main: int = Field(description="How many main versions it is behind; 0 on main")
+    behind_main: int = Field(
+        description=(
+            "How many main versions after the one it reads changed what the skill says; 0 on "
+            "main, and when main says what it reads"
+        )
+    )
 
 
 class AgentEnvironmentBinding(BaseSchema):
@@ -170,6 +181,19 @@ class AgentEnvironmentBinding(BaseSchema):
     name: str
     agent_version: int
     binding: SkillBindingRead
+
+
+class AgentCheckRef(BaseSchema):
+    """What a check found on one agent, for the version that check made."""
+
+    check_id: UUID
+    version_id: UUID
+    state: AgentState
+    sample: SampleKind | None = Field(
+        default=None,
+        description="`skill_set_only` when the agent was checked on the skill's questions alone",
+    )
+    at: datetime
 
 
 class SkillAgentUsage(BaseSchema):
@@ -192,8 +216,19 @@ class SkillAgentUsage(BaseSchema):
     draft_differs: bool = Field(description="The draft reads the skill differently")
     can_change: bool = Field(description="The caller may change the binding, in the draft at least")
     can_publish: bool = Field(description="The caller may publish, so a change goes live")
-    checked: bool | None = Field(
-        default=None, description="Whether this version was checked on this agent; not known yet"
+    checked: AgentCheckRef | None = Field(
+        default=None,
+        description=(
+            "The newest check of the version this agent uses now, as it found this agent; "
+            "null when that version was never checked on it"
+        ),
+    )
+    checked_versions: list[AgentCheckRef] = Field(
+        default_factory=list,
+        description=(
+            "Every version of the skill a check made after measuring it on this agent, "
+            "newest check first - so moving the agent to one says whether it was checked"
+        ),
     )
 
 

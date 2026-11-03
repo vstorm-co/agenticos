@@ -2,12 +2,14 @@
 
 "Uses" has one definition here, shared with the skill page and the line counts: a
 version that one of the agent's environments serves binds the skill, itself or
-through an inline specialist. An agent that binds it only in its draft is listed
-as such and counted on no line.
+through an inline specialist. An agent and its specialists each read their own
+binding, so one spec can read the skill on more than one line. An agent that binds
+it only in its draft is listed as such and counted on no line.
 
 Moving an agent to another version is a change to the agent, so it is the agent's
-to make: the published spec with only that binding changed is published, the same
-change goes into the draft, and the draft's other unfinished edits stay unpublished.
+to make: its newest published spec with only that binding changed is published, the
+same change goes into the draft, and the draft's other unfinished edits stay
+unpublished.
 """
 
 import json
@@ -28,9 +30,15 @@ from app.db.models.agent import Agent, AgentStatus
 from app.db.models.agent_environment import AgentEnvironment
 from app.db.models.skill import Skill
 from app.db.models.skill_version import SkillFork, SkillVersion
-from app.repositories import agent_environment_repo, agent_repo, skill_version_repo
+from app.repositories import (
+    agent_environment_repo,
+    agent_repo,
+    skill_check_repo,
+    skill_version_repo,
+)
 from app.schemas.resource_usage import AgentUsage
 from app.schemas.skill_version import (
+    AgentCheckRef,
     AgentEnvironmentBinding,
     ForkRef,
     SkillAgentList,
@@ -43,7 +51,7 @@ from app.schemas.skill_version import (
 )
 from app.services.access import AGENT, accessible_ids
 from app.services.agent_registry import AgentRegistryService, delegation_binding
-from app.services.skill_versions import SkillVersionService
+from app.services.skill_versions import SkillVersionService, changes_since
 
 
 @dataclass(frozen=True)
@@ -56,19 +64,19 @@ class Line:
     via_specialist: str | None = None
 
 
-def line_of(spec: dict[str, object], skill_id: UUID) -> Line | None:
-    """How a stored spec reads the skill, or `None` when it does not bind it.
+def lines_of(spec: dict[str, object], skill_id: UUID) -> list[Line]:
+    """Every way a stored spec reads the skill: the agent's own binding first, then
+    each inline specialist that binds it, in the order they are defined.
 
-    The agent's own binding first, then the first inline specialist that binds it.
-    Only a spec that names the skill is parsed, and one that no longer parses reads
-    nothing that can be shown.
+    Only a spec that names the skill is parsed. One that no longer parses reads
+    nothing that can be shown, and specialists that no longer parse add nothing.
     """
     if str(skill_id) not in json.dumps(spec):
-        return None
+        return []
     try:
         parsed = AgentSpec.model_validate(spec)
     except ValidationError:
-        return None
+        return []
 
     def read(
         skill_ids: list[UUID], bindings: list[SkillBindingSpec], via: str | None
@@ -83,28 +91,35 @@ def line_of(spec: dict[str, object], skill_id: UUID) -> Line | None:
         return Line("fork", fork_id=binding.fork_id, via_specialist=via)
 
     own = read(parsed.skill_ids, parsed.skill_bindings, None)
+    lines = [] if own is None else [own]
     delegation = delegation_binding(parsed)
-    if own is not None or delegation is None:
-        return own
+    if delegation is None:
+        return lines
     try:
         inline = SubagentsConfig.model_validate(delegation.config).inline
     except ValidationError:
-        return None
-    return next(
-        (
-            found
-            for specialist in inline
-            if (found := read(specialist.skill_ids, specialist.skill_bindings, specialist.name))
-        ),
-        None,
-    )
+        return lines
+    return lines + [
+        found
+        for specialist in inline
+        if (found := read(specialist.skill_ids, specialist.skill_bindings, specialist.name))
+    ]
+
+
+@dataclass(frozen=True)
+class LineAgent:
+    """An agent whose served version follows a line: the version that runs, and how."""
+
+    agent: Agent
+    agent_version: int
+    via_specialist: str | None
 
 
 @dataclass
 class _Uses:
     agent: Agent
-    served: list[tuple[AgentEnvironment, int, Line]]
-    draft: Line | None
+    served: list[tuple[AgentEnvironment, int, list[Line]]]
+    draft: list[Line]
 
 
 @dataclass
@@ -114,6 +129,12 @@ class _Resolver:
     forks: dict[UUID, SkillFork]
     changes: dict[UUID, int]
     versions: dict[UUID, SkillVersion]
+    behind_main: dict[int, int]
+    """How many main versions after each one changed what the skill says, from the
+    oldest any line here is on."""
+
+    def behind(self, number: int) -> int:
+        return self.behind_main.get(number, 0)
 
     def read(self, line: Line) -> SkillBindingRead | None:
         """The binding as the page shows it, or `None` for a version or fork that is gone."""
@@ -133,7 +154,7 @@ class _Resolver:
             return SkillBindingRead(
                 state="pinned",
                 version=VersionRef(id=version.id, number=version.number, fork_id=None),
-                behind_main=skill.version - version.number,
+                behind_main=self.behind(version.number),
             )
         assert line.fork_id is not None, "a fork line names its fork"
         fork = self.forks.get(line.fork_id)
@@ -150,7 +171,7 @@ class _Resolver:
                 base_number=base.number,
                 changes=self.changes.get(fork.id, 0),
             ),
-            behind_main=skill.version - base.number,
+            behind_main=self.behind(base.number),
         )
 
 
@@ -165,27 +186,26 @@ class SkillAgentService:
     async def _uses(self, skill: Skill) -> list[_Uses]:
         """Every live agent that binds the skill in a served version or its draft."""
         org = skill.organization_id
-        served: dict[UUID, list[tuple[AgentEnvironment, int, Line]]] = {}
-        for environment, version in await agent_environment_repo.served(
-            self.db, organization_id=org
+        served: dict[UUID, list[tuple[AgentEnvironment, int, list[Line]]]] = {}
+        for environment, version in await agent_environment_repo.served_mentioning(
+            self.db, [str(skill.id)], organization_id=org
         ):
-            line = line_of(version.spec, skill.id)
-            if line is not None:
+            if lines := lines_of(version.spec, skill.id):
                 served.setdefault(environment.agent_id, []).append(
-                    (environment, version.version, line)
+                    (environment, version.version, lines)
                 )
         drafts = {
-            agent.id: line
+            agent.id: lines
             for agent in await agent_repo.drafts_mentioning(
                 self.db, str(skill.id), organization_id=org
             )
-            if (line := line_of(agent.draft_spec, skill.id)) is not None
+            if (lines := lines_of(agent.draft_spec, skill.id))
         }
         agents = await agent_repo.get_many(
             self.db, sorted(served.keys() | drafts.keys()), organization_id=org
         )
         return [
-            _Uses(agent, served.get(agent.id, []), drafts.get(agent.id))
+            _Uses(agent, served.get(agent.id, []), drafts.get(agent.id, []))
             for agent in sorted(agents.values(), key=lambda agent: agent.name)
             if agent.status != AgentStatus.ARCHIVED.value
         ]
@@ -215,30 +235,75 @@ class SkillAgentService:
             | {fork.latest_version_id for fork in forks.values() if fork.latest_version_id},
             organization_id=skill.organization_id,
         )
-        return _Resolver(skill, pinned, forks, changes, versions)
+        oldest = [version.number for version in pinned.values()]
+        oldest += [versions[fork.base_version_id].number for fork in forks.values()]
+        behind = changes_since(
+            await skill_version_repo.main_digests(
+                self.db,
+                organization_id=skill.organization_id,
+                skill_id=skill.id,
+                first=min(oldest),
+                last=skill.version,
+            )
+            if oldest
+            else []
+        )
+        return _Resolver(skill, pinned, forks, changes, versions, behind)
 
     async def counts(self, skill: Skill) -> tuple[Counter[UUID], Counter[UUID]]:
-        """How many agents' served versions read each skill version, and each fork."""
+        """How many agents' served versions read each skill version, and each fork.
+
+        An agent counts once on each version and fork it reads in any environment that
+        serves it, its specialists' included.
+        """
         uses = [use for use in await self._uses(skill) if use.served]
-        default = [_default(use) for use in uses]
-        reader = await self._reader(skill, [line for _, _, line in default])
+        reader = await self._reader(
+            skill, [line for use in uses for _, _, lines in use.served for line in lines]
+        )
         by_version: Counter[UUID] = Counter()
         by_fork: Counter[UUID] = Counter()
-        for _, _, line in default:
-            binding = reader.read(line)
-            if binding is not None:
-                by_version[binding.version.id] += 1
-                if binding.fork is not None:
-                    by_fork[binding.fork.id] += 1
+        for use in uses:
+            bindings = [
+                binding
+                for _, _, lines in use.served
+                for line in lines
+                if (binding := reader.read(line)) is not None
+            ]
+            by_version.update({binding.version.id for binding in bindings})
+            by_fork.update({binding.fork.id for binding in bindings if binding.fork is not None})
         return by_version, by_fork
 
+    async def line_agents(self, skill: Skill, fork_id: UUID | None) -> list[LineAgent]:
+        """The agents a change to this line reaches: main's followers, or the fork's.
+
+        An agent counts when a served version reads the line - its default
+        environment's first, else the first environment that does. Pinned agents,
+        other lines and agents bound in a draft alone are not reached.
+        """
+        found: list[LineAgent] = []
+        for use in await self._uses(skill):
+            on_line = [
+                (environment, number, line)
+                for environment, number, lines in use.served
+                for line in lines
+                if (line.state == "main" if fork_id is None else line.fork_id == fork_id)
+            ]
+            if not on_line:
+                continue
+            _, number, line = next(
+                (served for served in on_line if served[0].is_default), on_line[0]
+            )
+            found.append(LineAgent(use.agent, number, line.via_specialist))
+        return found
+
     async def fork_users(self, skill: Skill, fork_id: UUID) -> list[Agent]:
-        """The agents that read a fork, in a served version or their draft."""
+        """The agents that read a fork, themselves or through a specialist, in a served
+        version or their draft."""
         return [
             use.agent
             for use in await self._uses(skill)
-            if any(line.fork_id == fork_id for _, _, line in use.served)
-            or (use.draft is not None and use.draft.fork_id == fork_id)
+            if any(line.fork_id == fork_id for _, _, lines in use.served for line in lines)
+            or any(line.fork_id == fork_id for line in use.draft)
         ]
 
     async def agents(self, ctx: AuthContext, skill_id: UUID) -> SkillAgentList:
@@ -255,7 +320,7 @@ class SkillAgentService:
         return SkillAgentList(
             main_latest=VersionNumberRef(id=skill.latest_version_id, number=skill.version),
             items=items,
-            hidden=len(uses) - len(shown),
+            hidden=len(uses) - len({item.agent.id for item in items}),
         )
 
     async def _rows(
@@ -266,47 +331,82 @@ class SkillAgentService:
         publishable = await accessible_ids(
             self.db, ctx, agents, Perm.AGENTS_PUBLISH, resource_type=AGENT
         )
-        lines = [line for use in uses for _, _, line in use.served]
-        lines += [use.draft for use in uses if use.draft is not None]
+        lines = [line for use in uses for _, _, served in use.served for line in served]
+        lines += [line for use in uses for line in use.draft]
         reader = await self._reader(skill, lines)
+        checks: dict[UUID, dict[UUID, AgentCheckRef]] = {}
+        # What a check found on an agent is eval results, read like a check itself.
+        checked = [] if not ctx.has(Perm.RUNS_VIEW) else agents
+        for agent_id, version_id, found, at in await skill_check_repo.checked_versions(
+            self.db,
+            organization_id=skill.organization_id,
+            skill_id=skill.id,
+            agent_ids=[agent.id for agent in checked],
+        ):
+            checks.setdefault(agent_id, {}).setdefault(
+                version_id,
+                AgentCheckRef(
+                    check_id=found.check_id,
+                    version_id=version_id,
+                    state=found.state,
+                    sample=found.sample,
+                    at=at,
+                ),
+            )
         rows: list[SkillAgentUsage] = []
         for use in uses:
-            if use.served:
-                environment, number, line = _default(use)
-                agent_version: int | None = number
-            else:
-                assert use.draft is not None, "an agent is listed for a served or a draft binding"
-                line, agent_version = use.draft, None
-            binding = reader.read(line)
-            if binding is None:
-                continue
-            others = [
-                AgentEnvironmentBinding(
-                    id=other.id, name=other.name, agent_version=other_number, binding=read
-                )
-                for other, other_number, other_line in use.served
-                if other_line != line and (read := reader.read(other_line)) is not None
-            ]
-            agent = use.agent
-            rows.append(
-                SkillAgentUsage(
-                    agent=AgentUsage(
-                        id=agent.id,
-                        name=agent.name,
-                        slug=agent.slug,
-                        has_avatar=agent.has_avatar,
-                        avatar_color=agent.avatar_color,
+            # The default environment first: a reader's row shows what it serves there.
+            served = sorted(use.served, key=lambda entry: not entry[0].is_default)
+            draft = {line.via_specialist: line for line in use.draft}
+            readers = [line.via_specialist for _, _, lines in served for line in lines]
+            for via in dict.fromkeys([*readers, *draft]):
+                primary = next(
+                    (
+                        (environment, number, found)
+                        for environment, number, lines in served
+                        if (found := _by_reader(lines, via)) is not None
                     ),
-                    via_specialist=line.via_specialist,
-                    draft_only=not use.served,
-                    binding=binding,
-                    agent_version=agent_version,
-                    environments=others,
-                    draft_differs=use.draft != line,
-                    can_change=agent.id in editable,
-                    can_publish=agent.id in publishable,
+                    None,
                 )
-            )
+                if primary is None:
+                    shown, agent_version, line = None, None, draft[via]
+                else:
+                    shown, agent_version, line = primary
+                binding = reader.read(line)
+                if binding is None:
+                    continue
+                others = [
+                    AgentEnvironmentBinding(
+                        id=other.id, name=other.name, agent_version=other_number, binding=read
+                    )
+                    for other, other_number, other_lines in served
+                    if other is not shown
+                    and (other_line := _by_reader(other_lines, via)) is not None
+                    and other_line != line
+                    and (read := reader.read(other_line)) is not None
+                ]
+                agent = use.agent
+                rows.append(
+                    SkillAgentUsage(
+                        agent=AgentUsage(
+                            id=agent.id,
+                            name=agent.name,
+                            slug=agent.slug,
+                            has_avatar=agent.has_avatar,
+                            avatar_color=agent.avatar_color,
+                        ),
+                        via_specialist=via,
+                        draft_only=primary is None,
+                        binding=binding,
+                        agent_version=agent_version,
+                        environments=others,
+                        draft_differs=draft.get(via) != line,
+                        can_change=agent.id in editable and via is None and None in draft,
+                        can_publish=agent.id in publishable,
+                        checked=checks.get(agent.id, {}).get(binding.version.id),
+                        checked_versions=list(checks.get(agent.id, {}).values()),
+                    )
+                )
         return rows
 
     async def change_binding(
@@ -314,33 +414,32 @@ class SkillAgentService:
     ) -> SkillBindingChanged:
         """Move one agent to main's newest version, a main version, or a fork.
 
-        With `agents:publish`, the published spec with only this binding changed is
-        validated and published as the agent's next version, and environments move
-        by their own follow and promotion rules; the draft takes the same change and
-        keeps its other edits. With `agents:edit` alone, only the draft changes.
+        The agent's draft says whether it uses the skill itself, as the Builder shows
+        it. With `agents:publish`, and when its newest published version binds the
+        skill too, that version's spec with only this binding changed is validated
+        and published as the agent's next version, and environments move by their own
+        follow and promotion rules; the draft takes the same change and keeps its
+        other edits. Otherwise - `agents:edit` alone, an agent never published, or a
+        skill not published yet - only the draft changes, and only the new binding is
+        checked, since a draft is allowed to be unfinished.
 
         Raises:
             NotFoundError: The skill, or the agent, is not one the caller may reach.
-            BadRequestError: The agent does not bind the skill itself - only through an
-                inline specialist, which is changed in the Builder - or the new spec
-                does not publish, with the reasons.
+            BadRequestError: The draft does not bind the skill itself - only through an
+                inline specialist, which is changed in the Builder, or not at all - or
+                the version or fork cannot be bound, or the new spec does not publish,
+                with the reasons.
         """
         skill = await self.versions.skill_for(ctx, skill_id, Perm.SKILLS_VIEW)
         agent = await self.registry.get(ctx, agent_id, perm=Perm.AGENTS_EDIT, for_update=True)
         draft = AgentSpec.model_validate(agent.draft_spec)
-        current = (
-            None
-            if agent.current_version_id is None
-            else await agent_repo.get_version(
-                self.db, agent.current_version_id, organization_id=ctx.organization_id
-            )
-        )
-        published = None if current is None else AgentSpec.model_validate(current.spec)
-        if skill.id not in (draft.skill_ids if published is None else published.skill_ids):
+        if skill.id not in draft.skill_ids:
             raise BadRequestError(
                 message=(
                     f"'{agent.name}' does not use '{skill.name}' itself. A skill one of its "
                     "specialists uses is changed in the agent's Builder."
+                    if lines_of(agent.draft_spec, skill.id)
+                    else f"'{agent.name}' does not use '{skill.name}'."
                 ),
                 details={"agent_id": agent.id, "skill_id": skill.id},
             )
@@ -350,11 +449,26 @@ class SkillAgentService:
             else SkillBindingSpec(skill_id=skill.id, version=data.version, fork_id=data.fork_id)
         )
         moved_draft = _rebound(draft, skill.id, binding)
-        may_publish = published is not None and agent.id in await accessible_ids(
-            self.db, ctx, [agent], Perm.AGENTS_PUBLISH, resource_type=AGENT
+        newest = await agent_repo.newest_version(
+            self.db, agent_id=agent.id, organization_id=ctx.organization_id
         )
-        if published is None or not may_publish:
-            await self.registry.validate_spec(ctx, moved_draft, agent_id=agent.id)
+        published = None if newest is None else AgentSpec.model_validate(newest.spec)
+        if (
+            published is None
+            or skill.id not in published.skill_ids
+            or agent.id
+            not in await accessible_ids(
+                self.db, ctx, [agent], Perm.AGENTS_PUBLISH, resource_type=AGENT
+            )
+        ):
+            problems = await self.registry.skill_problems(
+                ctx, [skill.id], [] if binding is None else [binding]
+            )
+            if problems:
+                raise BadRequestError(
+                    message=f"'{skill.name}' cannot be bound that way",
+                    details={"problems": problems},
+                )
             await self.registry.save_draft(ctx, agent.id, moved_draft)
             return SkillBindingChanged(published=False, usage=await self._row(ctx, skill, agent.id))
         version = await self.registry.publish_spec(
@@ -375,17 +489,15 @@ class SkillAgentService:
         )
 
     async def _row(self, ctx: AuthContext, skill: Skill, agent_id: UUID) -> SkillAgentUsage | None:
+        """The agent's own row as it reads now, or `None` once it no longer reads the skill."""
         uses = [use for use in await self._uses(skill) if use.agent.id == agent_id]
         rows = await self._rows(ctx, skill, uses)
-        return rows[0] if rows else None
+        return next((row for row in rows if row.via_specialist is None), None)
 
 
-def _default(use: _Uses) -> tuple[AgentEnvironment, int, Line]:
-    """The served binding a row shows: the default environment's, else the first one's."""
-    return next(
-        (served for served in use.served if served[0].is_default),
-        use.served[0],
-    )
+def _by_reader(lines: Sequence[Line], via_specialist: str | None) -> Line | None:
+    """The line the agent itself, or one of its specialists, reads."""
+    return next((line for line in lines if line.via_specialist == via_specialist), None)
 
 
 def _rebound(spec: AgentSpec, skill_id: UUID, binding: SkillBindingSpec | None) -> AgentSpec:

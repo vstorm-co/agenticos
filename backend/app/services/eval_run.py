@@ -192,6 +192,11 @@ def _bodies_json(
                 if isinstance(body, SkillBody) and body.resources is not None
                 else {}
             ),
+            **(
+                {"fork_id": str(body.fork_id)}
+                if isinstance(body, SkillBody) and body.fork_id is not None
+                else {}
+            ),
         }
         for key, body in bodies.items()
     }
@@ -207,6 +212,7 @@ def skill_body_from_json(body: Mapping[str, object]) -> SkillBody:
         resources=None
         if files is None
         else tuple(TypeAdapter(list[SkillBodyFile]).validate_python(files)),
+        fork_id=TypeAdapter(UUID | None).validate_python(body.get("fork_id")),
     )
 
 
@@ -433,25 +439,56 @@ class EvalRunService:
         A skill's text is not part of the agent version that binds it: an agent on
         main reads whatever main's newest version is when it runs. So two runs of
         one agent version answered from the same skill text only when these match.
+        Keyed by reader and skill - `":<skill>"` for the agent, `"<specialist>:<skill>"`
+        for an inline specialist - since each may bind the skill differently. A
+        published delegate is another agent with versions of its own, and is not read.
         """
         from app.agents.capabilities.subagents import SubagentsConfig
         from app.services.skills import SkillService
 
-        readers = [(spec.skill_ids, spec.skill_bindings)]
+        readers = [("", spec.skill_ids, spec.skill_bindings)]
         binding = delegation_binding(spec)
         if binding is not None:
             try:
                 inline = SubagentsConfig.model_validate(binding.config).inline
             except ValidationError:
                 inline = []
-            readers += [(item.skill_ids, item.skill_bindings) for item in inline]
+            readers += [(item.name, item.skill_ids, item.skill_bindings) for item in inline]
         served: dict[str, str] = {}
         skills = SkillService(self.db)
-        for skill_ids, bindings in readers:
+        for reader, skill_ids, bindings in readers:
             for skill in await skills.resolve_for_agent(ctx, skill_ids, bindings=bindings):
                 if skill.latest_version_id is not None:
-                    served[str(skill.id)] = str(skill.latest_version_id)
+                    served[f"{reader}:{skill.id}"] = str(skill.latest_version_id)
         return served or None
+
+    async def forget_moved_skills(self, ctx: AuthContext | None, run: EvalRun) -> None:
+        """Unmark the arms of a finished run whose skills moved while it answered.
+
+        `skill_versions` is what lets an arm stand in as a cached baseline, and it is
+        read when the run is planned; the runner reads each skill's newest version when
+        a case runs. An arm whose skills advanced in between answered with a mix, so it
+        stands for no versions: `{}`, which no lookup asks for. Without a context to
+        read with - the starter left - nothing is assumed and every arm is unmarked.
+        """
+        for arm in await eval_run_repo.list_arms(
+            self.db, [run.id], organization_id=run.organization_id
+        ):
+            if not arm.skill_versions:
+                continue
+            if ctx is not None:
+                if arm.agent_version_id is not None:
+                    version = await agent_repo.get_version(
+                        self.db, arm.agent_version_id, organization_id=run.organization_id
+                    )
+                    spec = None if version is None else AgentSpec.model_validate(version.spec)
+                else:
+                    spec = AgentSpec.model_validate(arm.spec)
+                if spec is not None and await self.served_skill_versions(ctx, spec) == dict(
+                    arm.skill_versions
+                ):
+                    continue
+            await eval_run_repo.update_arm(self.db, arm=arm, values={"skill_versions": {}})
 
     async def plan(
         self,
@@ -2478,12 +2515,15 @@ class EvalRunService:
         arm_id: UUID | None = None,
         baseline_run_id: UUID | None = None,
         measurement_only: bool = True,
+        holdout_minimum: bool = True,
     ) -> EvalComparisonRead:
         """One candidate arm against its baseline.
 
         `arm_id` picks the candidate arm (the first when omitted).
         `baseline_run_id` compares with that run's first candidate arm instead
         of the default; it must be a run of the same agent and dataset.
+        `holdout_minimum` False leaves a measured run's held-out minimum to the
+        caller, which pools several runs' held-out questions into one result.
         """
         run = await self._readable(ctx, run_id)
         return await self._comparison(
@@ -2492,6 +2532,7 @@ class EvalRunService:
             arm_id=arm_id,
             baseline_run_id=baseline_run_id,
             measurement_only=measurement_only,
+            holdout_minimum=holdout_minimum,
         )
 
     @staticmethod
@@ -2562,6 +2603,7 @@ class EvalRunService:
         arm_id: UUID | None = None,
         baseline_run_id: UUID | None = None,
         measurement_only: bool = True,
+        holdout_minimum: bool = True,
     ) -> EvalComparisonRead:
         arms = await eval_run_repo.list_arms(self.db, [run.id], organization_id=ctx.organization_id)
         candidates = [a for a in arms if a.role == ArmRole.CANDIDATE.value]
@@ -2601,6 +2643,7 @@ class EvalRunService:
                 fixed_unconfirmed=0,
                 compared=0,
                 not_compared=len(mine),
+                gradable_holdout=None if measured is None else measured.gradable_holdout,
                 candidate_summary=_summary_read(
                     summarize([c.attempt for c in candidate_attempts], with_tags=False)
                 ),
@@ -2663,7 +2706,11 @@ class EvalRunService:
                         "Search did not return the draft for every confirmed improvement"
                     )
                     invalid_reason_code = "knowledge_not_retrieved"
-        if measured is not None and measured.gradable_holdout < measured.minimum_holdout:
+        if (
+            holdout_minimum
+            and measured is not None
+            and measured.gradable_holdout < measured.minimum_holdout
+        ):
             missing = measured.minimum_holdout - measured.gradable_holdout
             invalid_reason = f"Add {missing} more held-out test questions to measure a change"
             invalid_reason_code = None
@@ -2722,6 +2769,7 @@ class EvalRunService:
             fixed_unconfirmed=count(Flip.FIXED, False),
             compared=len(common),
             not_compared=len(set(mine) ^ set(theirs)),
+            gradable_holdout=None if measured is None else measured.gradable_holdout,
             changed=len(changed),
             baseline_rerun=confirmed_here or drift,
             candidate_summary=_summary_read(mine_summary),

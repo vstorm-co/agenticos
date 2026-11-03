@@ -36,7 +36,7 @@ from app.db.models.skill_version import (
     SkillVersion,
     SkillVersionSource,
 )
-from app.repositories import skill_repo, skill_version_repo, user_repo
+from app.repositories import member_repo, skill_repo, skill_version_repo
 from app.schemas.skill import SkillUpdate
 from app.schemas.skill_version import (
     PersonRef,
@@ -55,6 +55,7 @@ from app.schemas.skill_version import (
     VersionResourceSummary,
 )
 from app.services.access import AGENT, SKILL, accessible_ids, resolve_access
+from app.services.resource_usage import in_use_by
 
 ARCHIVE_AFTER = timedelta(days=30)
 """How long a fork goes unread before it is offered for archiving. Never archived by itself."""
@@ -78,6 +79,24 @@ def manifest_of(
         )
         bodies[sha256] = content
     return manifest, bodies
+
+
+def changes_since(main: Sequence[tuple[int, str]]) -> dict[int, int]:
+    """For each of main's versions, how many after it changed what the skill says.
+
+    `main` is main's versions with the hash of what each says, oldest first, up to the
+    newest. A version saying what the one before it said - a restore of the same text -
+    is no change, and a version saying what the newest says is behind by none.
+    """
+    behind: dict[int, int] = {}
+    changes = 0
+    later: str | None = None
+    for number, said in reversed(main):
+        if later is not None and said != later:
+            changes += 1
+        later = said
+        behind[number] = 0 if said == main[-1][1] else changes
+    return behind
 
 
 def _ref(version: SkillVersion | None) -> VersionRef | None:
@@ -223,6 +242,14 @@ class SkillVersionService:
     async def _fork(
         self, ctx: AuthContext, skill: Skill, fork_id: UUID, *, lock: bool = False
     ) -> SkillFork:
+        """The skill's fork, or 404. Locked, it is taken after the skill itself.
+
+        Applying a proposal locks the skill and then the fork, so every writer of a
+        fork takes the two in that order: two of them wait for each other instead of
+        deadlocking.
+        """
+        if lock:
+            await skill_repo.lock(self.db, skill.id)
         fork = await skill_version_repo.get_fork(
             self.db, fork_id, organization_id=ctx.organization_id, skill_id=skill.id, lock=lock
         )
@@ -233,15 +260,15 @@ class SkillVersionService:
     async def _people(
         self, ctx: AuthContext, user_ids: Sequence[UUID | None]
     ) -> dict[UUID, PersonRef]:
-        """Who made what, for a caller who may read the member directory."""
+        """Who made what, for a caller who may read the member directory. Somebody who
+        is no longer a member keeps their id and loses their name."""
         wanted = sorted({user_id for user_id in user_ids if user_id is not None})
         if not wanted or not ctx.has(Perm.MEMBERS_VIEW):
             return {}
-        users = await user_repo.get_many(self.db, wanted)
-        return {
-            user_id: PersonRef(id=user_id, name=user.full_name or user.email)
-            for user_id, user in users.items()
-        }
+        names = await member_repo.get_names_for_users(
+            self.db, organization_id=ctx.organization_id, user_ids=wanted
+        )
+        return {user_id: PersonRef(id=user_id, name=names.get(user_id)) for user_id in wanted}
 
     async def _summaries(
         self, ctx: AuthContext, skill: Skill, versions: Sequence[SkillVersion]
@@ -499,6 +526,17 @@ class SkillVersionService:
         )
         people = await self._people(ctx, [fork.created_by_user_id for fork in forks])
         _, by_fork = await self._counts(skill)
+        behind = changes_since(
+            await skill_version_repo.main_digests(
+                self.db,
+                organization_id=ctx.organization_id,
+                skill_id=skill.id,
+                first=min(versions[fork.base_version_id].number for fork in forks),
+                last=skill.version,
+            )
+            if forks
+            else []
+        )
         reads = []
         for fork in forks:
             base = versions[fork.base_version_id]
@@ -513,7 +551,7 @@ class SkillVersionService:
                     if latest is None
                     else VersionNumberRef(id=latest.id, number=latest.number),
                     changes=changes[fork.id],
-                    behind_main=skill.version - base.number,
+                    behind_main=behind.get(base.number, 0),
                     agents=by_fork[fork.id],
                     archive_candidate=(
                         fork.archived_at is None
@@ -567,7 +605,6 @@ class SkillVersionService:
         skill = await self.skill_for(ctx, skill_id, Perm.SKILLS_EDIT)
         fork = await self._fork(ctx, skill, fork_id, lock=True)
         if data.name != fork.name:
-            await skill_repo.lock(self.db, skill.id)
             await self._refuse_taken(ctx, skill, data.name)
             fork = await skill_version_repo.update_fork(
                 self.db, fork=fork, update_data={"name": data.name}
@@ -591,18 +628,15 @@ class SkillVersionService:
             visible = await accessible_ids(
                 self.db, ctx, using, Perm.AGENTS_VIEW, resource_type=AGENT
             )
+            named = [agent for agent in using if agent.id in visible]
             raise InUseError(
                 message=(
-                    f"'{fork.name}' is read by {len(using)} agent(s). Move them to another "
-                    "version before archiving it."
+                    f"'{fork.name}' is read by {in_use_by(named, len(using) - len(named))}. "
+                    "Move them to another version before archiving it."
                 ),
                 details={
-                    "agents": [
-                        {"id": agent.id, "name": agent.name}
-                        for agent in using
-                        if agent.id in visible
-                    ],
-                    "hidden": len(using) - len(visible),
+                    "agents": [{"id": agent.id, "name": agent.name} for agent in named],
+                    "hidden": len(using) - len(named),
                 },
             )
         if fork.archived_at is None:

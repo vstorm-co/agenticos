@@ -242,7 +242,7 @@ class TestAgentBinding:
         could not open in the UI. The agent still reads it, exactly as it still
         searches a collection nobody shared with the person asking: the publisher
         was checked when the version was frozen
-        (`AgentRegistryService._skill_problems`), and re-checking per runner would
+        (`AgentRegistryService.skill_problems`), and re-checking per runner would
         make one published version answer differently for two colleagues.
         """
         ctx = _ctx(OrgRoleName.MEMBER)
@@ -788,6 +788,7 @@ class TestSkillManagement:
             "agents": [{"id": seen.id, "name": "Refund desk"}],
             "hidden": 1,
         }
+        assert "'Refund desk' and 1 more you cannot see" in refused.value.message
         delete.assert_not_awaited()
 
 

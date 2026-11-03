@@ -21,6 +21,7 @@ import { Perm } from "@/types/permissions";
 import { ContinueSession } from "./continue-session";
 import { StartSession } from "./start-session";
 import { KnowledgeDrafts } from "./knowledge-drafts";
+import { SkillHandoffs } from "./skill-handoffs";
 import { TestQuestions } from "./session-inputs";
 import { Understand } from "./understand";
 import { AttemptChanges } from "./attempt-changes";
@@ -273,6 +274,7 @@ function Session({
                     editable={!readOnly}
                     onEditing={setWordingOpen}
                   />
+                  <SkillHandoffs session={session} />
                 </section>
               ) : chosen && selectedBatch?.hunks.length && !isClosed(session) ? (
                 <ChangeSelection

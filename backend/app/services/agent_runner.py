@@ -176,6 +176,7 @@ from app.agents.capabilities.skills import (
     SkillBody,
     SkillUseLog,
     served_skills,
+    tool_identities,
 )
 from app.agents.capabilities.subagents import SubagentsConfig, acting_delegate
 from app.agents.capabilities.tool_output_limits import SPILL_LOG_RESOURCE
@@ -213,6 +214,7 @@ from app.agents.spec import (
     ObservabilitySpec,
     PersonalMcpServerRef,
     PlatformMcpServerRef,
+    SkillBindingSpec,
     SpecialistSpec,
     SubagentRef,
     TraceContent,
@@ -379,6 +381,11 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+#: Every candidate skill body of the run, whichever line each was written for. The
+#: agent reads its own share as `SKILL_BODIES_RESOURCE`; each inline specialist takes
+#: its share from this, since it may follow a line the agent does not.
+RUN_SKILL_BODIES_RESOURCE = "run_skill_bodies"
+
 _PREVIEW_CHARS = 80
 
 _ORIGIN_KINDS: dict[str, Literal["grader", "improve", "knowledge_gaps", "test_questions"]] = {
@@ -407,6 +414,27 @@ Three of the six, and no fourth added for delegation: a delegated run ends the
 same three ways any run ends, and a `delegated` status would answer "how did it
 end" with "it was delegated". `parent_run_id` answers that.
 """
+
+
+def _bound_forks(spec: AgentSpec) -> dict[UUID, UUID]:
+    """The fork each skill a run reads is bound to, its inline specialists' included.
+
+    The agent's own binding wins: a skill it reads itself from main is not credited to
+    a fork one of its specialists reads.
+    """
+    delegation = _delegation_config(spec)
+    forks = {
+        binding.skill_id: binding.fork_id
+        for specialist in ([] if delegation is None else delegation.inline)
+        for binding in specialist.skill_bindings
+        if binding.fork_id is not None and binding.skill_id not in spec.skill_ids
+    }
+    forks.update(
+        (binding.skill_id, binding.fork_id)
+        for binding in spec.skill_bindings
+        if binding.fork_id is not None
+    )
+    return forks
 
 
 def _delegation_config(spec: AgentSpec) -> SubagentsConfig | None:
@@ -3638,10 +3666,15 @@ class AgentRunnerService:
             collections=_searched_bases(bound),
             found=None if knowledge is None else knowledge.found,
         )
+        own_bodies = _on_line(spec.skill_bindings, skill_bodies or {})
         skills = await self.skills.resolve_for_agent(
-            ctx, spec.skill_ids, bindings=spec.skill_bindings, projected=skill_bodies
+            ctx, spec.skill_ids, bindings=spec.skill_bindings, projected=own_bodies or None
         )
-        skill_log = SkillUseLog(agent_id=agent.id, served=served_skills(skills, skill_bodies or {}))
+        skill_log = SkillUseLog(
+            agent_id=agent.id,
+            served=served_skills(skills, own_bodies),
+            tools=tool_identities(spec.capabilities),
+        )
         resources: dict[str, Any] = {
             **bound,
             KNOWLEDGE_SEARCH_LOG_RESOURCE: search_log,
@@ -3653,7 +3686,8 @@ class AgentRunnerService:
                 projected=context_bodies,
                 config=context_config(spec.capabilities),
             ),
-            SKILL_BODIES_RESOURCE: dict(skill_bodies or {}),
+            SKILL_BODIES_RESOURCE: own_bodies,
+            RUN_SKILL_BODIES_RESOURCE: dict(skill_bodies or {}),
             CONTEXT_BODIES_RESOURCE: dict(context_bodies or {}),
         }
         # What an earlier turn of this thread wrote down. Read here rather than
@@ -3851,9 +3885,10 @@ class AgentRunnerService:
                 is_test=is_test,
                 test_spec=test_spec,
             )
-            run.skill_version_ids = await self._served_skill_versions(
-                ctx, spec, resources["skills"]
-            )
+        # A resumed run serves what its lines say now, which may be newer than what it
+        # started on, so it keeps both.
+        served = await self._served_skill_versions(ctx, spec, resources["skills"])
+        run.skill_version_ids = list(dict.fromkeys([*(run.skill_version_ids or []), *served]))
 
         # Two lookups, because the caps they feed meter two different things. The
         # agent's own cap used to read the organization-wide number below, which
@@ -5100,8 +5135,17 @@ class AgentRunnerService:
         delegate reaches a durable workspace at all.
         """
         bound = await self._bound_collections(spec, ctx)
+        # An inline specialist is part of the agent being run, so a candidate skill
+        # body measured on that agent is what its specialists read too - where they
+        # follow the line it was written for. A published delegate is another agent,
+        # served its own stored skills.
+        parent_bodies = parent_resources.get(RUN_SKILL_BODIES_RESOURCE)
+        run_bodies: dict[UUID, SkillBody] = (
+            dict(parent_bodies) if agent_id is None and isinstance(parent_bodies, dict) else {}
+        )
+        projected = _on_line(spec.skill_bindings, run_bodies)
         skills = await self.skills.resolve_for_agent(
-            ctx, spec.skill_ids, bindings=spec.skill_bindings
+            ctx, spec.skill_ids, bindings=spec.skill_bindings, projected=projected or None
         )
         resources: dict[str, Any] = {
             **bound,
@@ -5109,13 +5153,15 @@ class AgentRunnerService:
             CONTEXT_FILES_RESOURCE: await self.context.resolve_for_agent(
                 ctx, spec.context_ids, config=context_config(spec.capabilities)
             ),
+            SKILL_BODIES_RESOURCE: projected,
+            RUN_SKILL_BODIES_RESOURCE: run_bodies,
         }
         parent_skills = parent_resources.get(SKILL_USE_LOG_RESOURCE)
         if isinstance(parent_skills, SkillUseLog):
             # Recorded on the run that delegated, under the delegate's own agent:
             # the answer somebody rates is that run's, and the skill is the delegate's.
             resources[SKILL_USE_LOG_RESOURCE] = parent_skills.for_agent(
-                agent_id, served_skills(skills, {})
+                agent_id, served_skills(skills, projected), tool_identities(spec.capabilities)
             )
         parent_log = parent_resources.get(KNOWLEDGE_SEARCH_LOG_RESOURCE)
         if isinstance(parent_log, KnowledgeSearchLog):
@@ -5388,9 +5434,10 @@ class AgentRunnerService:
         """Write the skills the run and its delegates used, and mark the run recorded.
 
         Never raises, for the reason :meth:`_write_knowledge_searches` gives. Both
-        writes share one savepoint, so a write that fails leaves the run as it
-        was inserted - unrecorded, read as "unknown" rather than as a run that
-        used no skill.
+        writes share one savepoint. A run parked on an approval comes here once per
+        segment, so a write that fails marks the run unrecorded for good: what that
+        segment used is lost, and it reads "unknown" rather than as a run that used
+        no skill, whichever segment's write comes after it.
         """
         log = prepared.skill_uses
         records = [] if log is None else log.records()
@@ -5409,6 +5456,13 @@ class AgentRunnerService:
                 )
         except Exception:
             logger.exception("skill_uses_not_written", extra={"run_id": str(run.id)})
+            try:
+                async with self.db.begin_nested():
+                    await skill_usage_repo.mark_unrecorded(
+                        self.db, organization_id=run.organization_id, run_id=run.id
+                    )
+            except Exception:
+                logger.exception("skill_uses_not_marked", extra={"run_id": str(run.id)})
 
     async def _may_record_about(self, user_id: UUID) -> bool:
         """Whether a search made answering this person may still be written.
@@ -5624,6 +5678,7 @@ class AgentRunnerService:
                         changes,
                         agent_id=agent_id,
                         conversation_id=conversation_id,
+                        forks=_bound_forks(prepared.spec),
                     )
         except Exception:
             logger.exception("skill_proposal_record_failed", extra={"run_id": run_id})
@@ -7726,3 +7781,23 @@ class AgentRunnerService:
             until=until,
             month_since=month_start(),
         )
+
+
+def _on_line(
+    bindings: Sequence[SkillBindingSpec], bodies: Mapping[UUID, SkillBody]
+) -> dict[UUID, SkillBody]:
+    """The bodies a reader with these bindings is served: those of the line it follows."""
+    return {
+        skill_id: body
+        for skill_id, body in bodies.items()
+        if _reads_line(bindings, skill_id, body.fork_id)
+    }
+
+
+def _reads_line(bindings: Sequence[SkillBindingSpec], skill_id: UUID, fork_id: UUID | None) -> bool:
+    """Whether a reader with these bindings follows the line of `skill_id` named by
+    `fork_id` - main's newest when `None`. A reader pinned to a main version follows none."""
+    binding = next((item for item in bindings if item.skill_id == skill_id), None)
+    if binding is None:
+        return fork_id is None
+    return binding.version is None and binding.fork_id == fork_id

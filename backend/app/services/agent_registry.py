@@ -816,6 +816,13 @@ def delegation_binding(spec: AgentSpec) -> CapabilityBindingSpec | None:
     return None
 
 
+def bound_skill_ids(spec: AgentSpec) -> set[UUID]:
+    """Every skill a spec binds, its inline specialists' included."""
+    config = _subagents_config(spec)
+    inline = [] if config is None else config.inline
+    return set(spec.skill_ids).union(*(specialist.skill_ids for specialist in inline))
+
+
 def _subagents_config(spec: AgentSpec) -> SubagentsConfig | None:
     """The delegation policy this spec runs under, or None when it cannot delegate.
 
@@ -1934,6 +1941,7 @@ class AgentRegistryService:
         """
         agent = await self.get(ctx, agent_id, perm=Perm.AGENTS_EDIT, for_update=True)
         spec = _without_unselectable(spec)
+        await skill_repo.hold(self.db, bound_skill_ids(spec), organization_id=ctx.organization_id)
         if agent.kind != AgentKind.AGENT.value:
             _refuse_system_parts(unusable_parts(spec))
         return await agent_repo.update(
@@ -1999,6 +2007,7 @@ class AgentRegistryService:
                 it does not hold, and delegation itself. A client ignores a code
                 it does not know.
         """
+        await skill_repo.hold(self.db, bound_skill_ids(spec), organization_id=ctx.organization_id)
         problems = _SpecProblems()
 
         for binding in spec.capabilities:
@@ -2025,7 +2034,7 @@ class AgentRegistryService:
                 problems.add([f"Reviewer '{reviewer.name}': say what it looks for"])
 
         problems.add(await self._collection_problems(ctx, spec.collection_ids))
-        problems.add(await self._skill_problems(ctx, spec.skill_ids, spec.skill_bindings))
+        problems.add(await self.skill_problems(ctx, spec.skill_ids, spec.skill_bindings))
         problems.add(await self._context_problems(ctx, spec.context_ids))
 
         problems.add(await self._mcp_problems(ctx, spec.mcp_servers))
@@ -2408,6 +2417,39 @@ class AgentRegistryService:
                 details={"problems": problems.messages, "version_id": version.id},
             )
 
+    async def refuse_archived_forks(self, ctx: AuthContext, version: AgentVersion) -> None:
+        """Refuse to put a version in front of people that reads a skill fork archived since.
+
+        An archived fork takes no fixes, and archiving one is refused only while an
+        agent's draft or a served version reads it; an older version of the agent
+        may still name it. Promoting that version is refused here rather than
+        quietly reading main instead: the person promoting decides where it goes.
+
+        Raises:
+            BadRequestError: With the forks, when the version reads an archived one.
+        """
+        spec = AgentSpec.model_validate(version.spec)
+        config = _subagents_config(spec)
+        bindings = [*spec.skill_bindings]
+        bindings += [
+            b for specialist in (config.inline if config else []) for b in specialist.skill_bindings
+        ]
+        forks = await skill_version_repo.get_forks(
+            self.db,
+            {binding.fork_id for binding in bindings if binding.fork_id is not None},
+            organization_id=ctx.organization_id,
+        )
+        archived = sorted(fork.name for fork in forks.values() if fork.archived_at is not None)
+        if archived:
+            raise BadRequestError(
+                message=(
+                    f"Version {version.version} reads the archived skill fork "
+                    f"{', '.join(repr(name) for name in archived)}. Move it to another "
+                    "version and promote the version that publishes."
+                ),
+                details={"forks": archived, "version_id": version.id},
+            )
+
     async def _collection_problems(
         self, ctx: AuthContext, collection_ids: Sequence[UUID]
     ) -> list[str]:
@@ -2432,7 +2474,7 @@ class AgentRegistryService:
                 problems.append(f"Collection not found: {collection_id}")
         return problems
 
-    async def _skill_problems(
+    async def skill_problems(
         self,
         ctx: AuthContext,
         skill_ids: Sequence[UUID],
@@ -2502,7 +2544,8 @@ class AgentRegistryService:
                 )
                 if binding.version not in versions:
                     problems.append(f"Skill '{skill.name}' has no version {binding.version}")
-            elif binding.fork_id is not None:
+            else:
+                assert binding.fork_id is not None, "a binding names a version or a fork"
                 fork = await skill_version_repo.get_fork(
                     self.db,
                     binding.fork_id,
@@ -2981,7 +3024,7 @@ class AgentRegistryService:
             problems.merge(await self._binding_problems(ctx, binding))
         problems.add(await self._collection_problems(ctx, specialist.collection_ids))
         problems.add(
-            await self._skill_problems(ctx, specialist.skill_ids, specialist.skill_bindings)
+            await self.skill_problems(ctx, specialist.skill_ids, specialist.skill_bindings)
         )
         problems.add(await self._context_problems(ctx, specialist.context_ids))
         # A specialist naming no profile runs on the parent's, which publish has

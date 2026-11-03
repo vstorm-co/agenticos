@@ -14,7 +14,8 @@ in its skill's organization by schema rather than by every writer.
 
 `skill_proposals` gains `base_version_id` and `fork_id`: the exact version a change
 was written against and the line it is for. `agent_runs.skill_version_ids` records
-the versions a run served.
+the versions a run served, and `run_skill_uses.skill_version_id`, kept without a key
+by the revision before this one, gets its key to `skill_versions`.
 
 **Backfill.** Each skill's text and files as they stand become its main v1, with
 source `backfill` - earlier texts were never kept, so there is nothing truer to
@@ -23,14 +24,16 @@ the version the skill is at now is re-pointed at v1; any other pending proposal 
 written against a text that is gone, keeps its old number and no `base_version_id`,
 and is refused on apply as written against a skill that has moved. Re-numbering it
 instead would let an old proposal with `base_version = 1` overwrite the backfilled
-v1 as if nothing had changed.
+v1 as if nothing had changed. A skill whose organization is gone - a row written
+past its keys - is left without a version rather than failing the upgrade.
 
 **Downgrade** drops the history: the skills keep the text of their newest main
 version and its number. Specs written by the binding that comes with versions
-(`skill_bindings`) lose it, so every agent reads its skills' main text again.
+(`skill_bindings`) lose it, so every agent reads its skills' main text again. The
+skill uses recorded since keep their rows and lose the version they were served.
 
 Revision ID: 0250_skill_versions
-Revises: 0248_merge_self_improvement
+Revises: 0249_run_skill_uses
 Create Date: 2026-11-02
 """
 
@@ -44,7 +47,7 @@ from sqlalchemy.dialects import postgresql
 from alembic import op
 
 revision: str = "0250_skill_versions"
-down_revision: str | Sequence[str] | None = "0248_merge_self_improvement"
+down_revision: str | Sequence[str] | None = "0249_run_skill_uses"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
@@ -281,6 +284,14 @@ def upgrade() -> None:
     op.add_column(
         "agent_runs", sa.Column("skill_version_ids", postgresql.ARRAY(sa.UUID()), nullable=True)
     )
+    op.create_foreign_key(
+        op.f("run_skill_uses_skill_version_id_fkey"),
+        "run_skill_uses",
+        "skill_versions",
+        ["skill_version_id"],
+        ["id"],
+        ondelete="SET NULL",
+    )
     # Deleting a skill cascades through these keys, and deleting a version or a fork
     # sets them; unindexed, each would scan the whole table it sits in.
     op.create_index(
@@ -310,6 +321,12 @@ def upgrade() -> None:
     op.create_index(
         op.f("skill_proposals_fork_id_idx"), "skill_proposals", ["fork_id"], unique=False
     )
+    op.create_index(
+        op.f("run_skill_uses_skill_version_id_idx"),
+        "run_skill_uses",
+        ["skill_version_id"],
+        unique=False,
+    )
 
     _backfill()
 
@@ -319,7 +336,9 @@ def _backfill() -> None:
         f"""
         INSERT INTO skill_files (skill_id, sha256, organization_id, content)
         SELECT DISTINCT ON (r.skill_id, {_SHA}) r.skill_id, {_SHA}, s.organization_id, r.content
-        FROM skill_resources r JOIN skills s ON s.id = r.skill_id
+        FROM skill_resources r
+        JOIN skills s ON s.id = r.skill_id
+        JOIN organizations o ON o.id = s.organization_id
         """
     )
     op.execute(
@@ -345,7 +364,7 @@ def _backfill() -> None:
                 '{{}}'::jsonb
             ),
             'backfill', s.library_fingerprint, COALESCE(s.updated_at, s.created_at)
-        FROM skills s
+        FROM skills s JOIN organizations o ON o.id = s.organization_id
         """
     )
     # Before `skills.version` restarts: the comparison is with the number it has now.
@@ -394,6 +413,11 @@ def downgrade() -> None:
     _strip_bindings("agents", "draft_spec")
     _strip_bindings("agent_versions", "spec")
 
+    _forget_served_versions()
+    op.drop_index(op.f("run_skill_uses_skill_version_id_idx"), table_name="run_skill_uses")
+    op.drop_constraint(
+        op.f("run_skill_uses_skill_version_id_fkey"), "run_skill_uses", type_="foreignkey"
+    )
     op.drop_column("agent_runs", "skill_version_ids")
     op.drop_index(op.f("skill_forks_base_version_id_idx"), table_name="skill_forks")
     op.drop_index(op.f("skill_forks_latest_version_id_idx"), table_name="skill_forks")
@@ -430,3 +454,9 @@ def downgrade() -> None:
     op.drop_table("skill_forks")
     op.drop_column("skills", "latest_version_id")
     op.drop_constraint("uq_skills_tenant", "skills", type_="unique")
+
+
+def _forget_served_versions() -> None:
+    """Clear the version each skill use was served: the column outlives the versions it
+    names, and an id of a version that is gone would read as one that exists."""
+    op.execute("UPDATE run_skill_uses SET skill_version_id = NULL")

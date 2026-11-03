@@ -1,5 +1,5 @@
 ---
-source_sha: "b308ba6c2440"
+source_sha: "d2584012e735"
 title: "Asystent tworzenia"
 description: "Asystent tworzenia czyta, co ludzie ocenili negatywnie i jak kończyły się runy, i sugeruje zmiany w instrukcjach agenta, jego narzędziach, konfiguracji, skillach i plikach kontekstowych. O każdej decyduje człowiek."
 ---
@@ -250,13 +250,13 @@ Skill ulepsza się z jego workbencha w zakładce Skille. Asystent sugeruje cał�
 nową treść, która czeka razem z innymi zmianami [skilli](skills.md) w zakładce
 Skille, z uzasadnieniem i dowodami.
 
-Zastosowanie zmiany skilla tworzy nową wersję main, którą czytają tylko agenci na
-main; agenci przypięci i forki zostają przy swoich (zobacz
-[Wersje i forki](skills.md#versions-and-forks)). Zmianę skilla można najpierw
-sprawdzić w ewaluacji: obie strony uruchamiają opublikowaną wersję agenta, a różni
-się tylko treść skilla. Zmiana napisana dla starszej wersji skilla jest odrzucana,
-jeśli ktoś w międzyczasie zmienił skill. Skill czytany przez kilku agentów ulepsza
-się, ze sprawdzeniem na każdym z nich, przez [Popraw](#improving-a-skill).
+Zastosowanie zmiany skilla działa od razu: każdy agent podążający za linią
+skilla czyta nową treść przy następnym runie. Dlatego zmiana skilla trafia na
+żywo tylko przez
+[sprawdzenie na każdym agencie jej linii](skills.md#checking-a-change-on-every-agent):
+opublikowana wersja każdego z nich odpowiada ze skillem takim, jaki jest, i ze
+zmianą, a zmianę stosuje się z wyniku tego sprawdzenia. Zmiana napisana dla
+starszej wersji skilla jest odrzucana, jeśli ktoś w międzyczasie zmienił skill.
 
 ## Pliki kontekstowe { #context-files }
 
@@ -498,47 +498,6 @@ obowiązują te same sprawdzenia: zmieniony agent odmawia przyjęcia, chronione
 środowisko czeka na swój check, a dziennik audytu zapisuje Ciebie, z
 poświadczeniem Architekta obok.
 
-### Ulepszanie skilla { #improving-a-skill }
-
-Skill czytany przez kilku agentów ulepsza się z jego własnej strony, przyciskiem
-**Popraw**. Sesja ulepsza jedną linię skilla, main albo jeden fork, w tym samym
-kreatorze co sesja agenta. Ma te same pięć kroków, te same postoje po
-**Zrozumieniu**, po **Zmianach** i na wyniku, **Następny krok** z ceną,
-**Spróbuj ponownie** z notatką i to samo wygaśnięcie po siedmiu dniach.
-
-- **Zrozumienie** czyta tylko odpowiedzi, w których agent otworzył wersję tej
-  linii skilla, od każdego agenta na tej linii. Dzieli złe odpowiedzi na problemy
-  w skillu i problemy, które nie są winą skilla, na przykład instrukcje agenta
-  albo brakującą wiedzę. Każdy problem wymienia agentów, u których występuje.
-- **Zmiany** proponują edycje fragmentów treści skilla i najwyżej jedną zmianę
-  jego opisu, nigdy jego plików. Każdą można wybrać, przeredagować albo pominąć,
-  tak jak u agenta.
-- **Sprawdzenie** uruchamia wybrane zmiany na każdym agencie linii, według reguły
-  z [Ulepszania skilla](skills.md#improving-a-skill). Szybkie sprawdzenie używa
-  pytań testowych skilla i najwyżej czterech własnych pytań każdego agenta, w
-  których otworzył skill. Zmieniony opis zawsze dostaje dokładne sprawdzenie, na
-  całym zestawie pytań testowych każdego agenta, bo opis decyduje, kiedy agent
-  otwiera skill. Część kosztu każdego agenta idzie z budżetu tego agenta, a agenci
-  bez budżetu są wymienieni przed startem kroku.
-- **Wynik** pokazuje każdego agenta jako lepszego, bez zmian, w granicach szumu,
-  gorszego albo nieznanego.
-- **Akceptacja** stosuje zmianę, stosuje ją z przypięciem gorszych agentów albo
-  robi fork dla agentów, którym pomogła, zależnie od tego, na co pozwala wynik. Do
-  tego momentu żaden agent nie czyta niczego nowego.
-
-Akceptacja wymaga prawa edycji skilla, a przypięcie gorszego agenta - prawa do
-jego publikacji. Agenci, których nie widzisz, są policzeni, nigdy wymienieni.
-
-Gdy sesja Popraw agenta znajdzie problem w skillu, który agent czyta, nie kopiuje
-tekstu skilla do instrukcji agenta. Proponuje **Popraw skill**, które zaczyna sesję
-na linii agenta w tym skillu - na jego forku, jeśli jest na forku - z tymi
-problemami już w **Zrozumieniu**.
-
-Sesje skilli czekające na człowieka są na karcie **Poprawki czekające na Ciebie**.
-[Architekt](#asking-the-architect) czyta agentów skilla, jego wersje i sesje.
-Zaczyna sesję, uruchamia krok, akceptuje wynik, kończy sesję albo przesuwa agenta
-na inną wersję tylko na Twoją prośbę, każde przez kartę akceptacji.
-
 ### Propozycja nowego skilla { #proposing-a-new-skill }
 
 Asystent może zaproponować **Warto utworzyć skill**, gdy procedura występuje w co najmniej trzech różnych odpowiedziach stanowiących materiał źródłowy. Każdy cytat musi występować w samej odpowiedzi; komentarze czytelników nie dowodzą powtarzającej się procedury. Karta pokazuje nazwę, opis, pełną treść, uzasadnienie i zweryfikowane cytaty. Ewaluacja przypina tymczasowy skill tylko do kandydata: nie tworzy rekordu skilla ani opublikowanej wersji.
@@ -548,6 +507,16 @@ Asystent może zaproponować **Warto utworzyć skill**, gdy procedura występuje
 Procedura z mniej niż trzech różnych odpowiedzi nie trafia do sugestii. Czeka w zakładce **Do decyzji**, w grupie Nowe skille, z pełną treścią. **Odrzuć** przenosi go do **Zdecydowane**, a Cofnij przywraca. **Create skill** otwiera podgląd: nazwę, opis i treść można edytować, a ostrzeżenie mówi, na ilu odpowiedziach się opiera. **Create skill** w podglądzie tworzy skill w bibliotece i przypina go do wersji roboczej agenta, nigdy do opublikowanej wersji. Wymaga tych samych uprawnień co Accept i nie wywołuje modelu. Drugie kliknięcie zwraca już utworzony skill.
 
 Szacowany koszt uwzględnia pełną proponowaną treść dla każdej odpowiedzi kandydata i jej powtórzeń potwierdzających, oprócz historycznego kosztu odpowiedzi.
+
+### Gdy błąd jest w skillu { #when-the-fault-is-in-a-skill }
+
+Ten sam skill mogą czytać inni agenci, więc agent Improve nigdy go nie zmienia. Pomocnik czyta skille agenta: nazwę, opis i wersję każdego z nich oraz pełny tekst tych, których użyły dowody. Gdy runy pokazują, że skill jest błędny, pomocnik zgłasza problem dla tego skilla. Nie przepisuje tekstu skilla do instrukcji agenta. Wycena uwzględnia tekst skilli, który czyta pomocnik.
+
+Zmiana, która powtarza 200-znakowy fragment powiązanego skilla, zostaje odrzucona, tak samo jak nowy skill z nazwą lub tekstem powiązanego skilla. Zgłoszony problem zostaje tylko wtedy, gdy wskazuje skill agenta i cytuje run, który użył wersji czytanej teraz przez agenta; cytaty z innych runów są z niego usuwane. Run, który dostał starszą wersję albo inny fork, nie jest dowodem przeciw tekstowi, który czyta pomocnik.
+
+Krok Changes pokazuje te problemy w sekcji **Należy do skilla**. Każda karta zawiera problemy z cytatami oraz liczbę agentów czytających tę samą linię skilla. **Popraw X** otwiera Improve samego skilla z problemami z tej sesji jako dowodami startowymi. Jeśli agent korzysta z forka, ten Improve pracuje na forku; problemy przypiętego agenta trafiają do main. Bez prawa edycji skilla karta mówi, kogo poprosić.
+
+Gdy agent jest za main, karta **Zaktualizuj do vN** albo **Dogoń main w forku** otwiera stronę skilla. Jeśli skilli nie da się odczytać, sekcja mówi o tym zamiast znikać.
 
 ### Sprawdzanie szkicu wiedzy { #checking-a-knowledge-draft }
 

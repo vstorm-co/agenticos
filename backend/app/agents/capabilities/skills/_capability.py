@@ -68,6 +68,9 @@ class SkillBody:
     """A name marks a new skill projected for this run only, with no stored row."""
     resources: tuple[SkillBodyFile, ...] | None = None
     """The files in place of the stored ones; `None` keeps the stored files."""
+    fork_id: UUID | None = None
+    """The line the body was written for: a fork, or `None` for main. An inline
+    specialist binding the skill another way does not read it."""
 
 
 def served_files(skill: Skill, body: SkillBody | None = None) -> list[SkillBodyFile]:

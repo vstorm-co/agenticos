@@ -40,6 +40,8 @@ from app.repositories import pending_sandbox_destroy as pending_sandbox_destroy_
 from app.repositories import sandbox_connection as sandbox_connection_repo
 from app.repositories import sandbox_operation as sandbox_operation_repo
 from app.repositories import skill_proposal as skill_proposal_repo
+from app.repositories import skill_improvement as skill_improvement_repo
+from app.repositories import skill_check as skill_check_repo
 from app.repositories import skill_usage as skill_usage_repo
 from app.repositories import authoring as authoring_repo
 from app.repositories import audit_log as audit_log_repo
@@ -171,6 +173,8 @@ __all__ = [
     "promotion_gate_repo",
     "knowledge_gap_repo",
     "skill_usage_repo",
+    "skill_improvement_repo",
+    "skill_check_repo",
     "artifact_share_request_repo",
     "virtual_table_repo",
     "table_view_repo",

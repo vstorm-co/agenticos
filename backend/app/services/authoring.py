@@ -75,8 +75,12 @@ from app.repositories import (
     improvement_repo,
     organization_repo,
     skill_proposal_repo,
+    skill_repo,
 )
+from app.repositories.personal_data import REPORT_EVIDENCE
 from app.schemas.authoring import (
+    SKILL_DERIVED,
+    SKILL_PROBLEM,
     AgentAuthoringRead,
     AgentWaiting,
     AuthoringEstimate,
@@ -114,7 +118,7 @@ from app.services.context import ContextService
 from app.services.eval_run import EvalRunService, spec_hash
 from app.services.eval_suite import EvalSuiteService
 from app.services.model_profile import ModelProfileService
-from app.services.skills import SkillService
+from app.services.skills import SkillService, improver_skill_chars
 from app.services.spend import month_start, organization_monthly_spend
 from app.services.system_agent_runner import SystemAgentRunner
 from app.worker.jobs import RUN_AUTHORING, RunAuthoring
@@ -317,7 +321,18 @@ class AuthoringService:
                 excluded_message_ids=excluded_message_ids,
                 train_case_ids=train_case_ids,
             )
-        return await self._estimate(ctx, improver, pack, None if pack.runs else "no_evidence")
+        skill_chars = 0
+        if body.kind == AuthoringKind.IMPROVE.value and pack.runs:
+            skills, used = await self.skills.read_by_improver(
+                ctx,
+                agent.id,
+                AgentSpec.model_validate(agent.draft_spec),
+                [run.run_id for run in pack.runs],
+            )
+            skill_chars = improver_skill_chars(skills, used)
+        return await self._estimate(
+            ctx, improver, pack, None if pack.runs else "no_evidence", skill_chars=skill_chars
+        )
 
     async def estimate_skill(
         self, ctx: AuthContext, skill_id: UUID, body: AuthoringStart
@@ -349,14 +364,63 @@ class AuthoringService:
         pack = await self.evidence.for_context(ctx, file.id, window_days=body.window_days)
         return await self._estimate(ctx, improver, pack, None if pack.runs else "no_evidence")
 
+    async def estimate_pack(self, ctx: AuthContext, pack: EvidencePack) -> AuthoringEstimate:
+        """What the improver would cost to read this pack, for a caller with its own evidence."""
+        self._require_runs_view(ctx)
+        improver = await self._improver(ctx)
+        return await self._estimate(ctx, improver, pack, None if pack.runs else "no_evidence")
+
+    async def start_for_skill_session(
+        self,
+        ctx: AuthContext,
+        *,
+        kind: AuthoringKind,
+        skill_id: UUID,
+        session_id: UUID,
+        estimate_usd: Decimal,
+        window_days: int,
+    ) -> AuthoringRequest:
+        """Queue a skill session's analysis or proposal, priced and consented to by the session."""
+        request = await authoring_repo.create_request(
+            self.db,
+            organization_id=ctx.organization_id,
+            kind=kind.value,
+            target=AuthoringTarget.SKILL.value,
+            agent_id=None,
+            skill_id=skill_id,
+            created_by_user_id=ctx.user_id,
+            created_by_api_key_id=ctx.api_key_id,
+            estimate_usd=estimate_usd,
+            window_days=window_days,
+            skill_improvement_run_id=session_id,
+        )
+        await enqueue(
+            self.db,
+            RUN_AUTHORING,
+            RunAuthoring(request_id=request.id, organization_id=ctx.organization_id),
+            organization_id=ctx.organization_id,
+        )
+        return request
+
     async def _estimate(
-        self, ctx: AuthContext, improver: Agent, pack: EvidencePack, reason: str | None
+        self,
+        ctx: AuthContext,
+        improver: Agent,
+        pack: EvidencePack,
+        reason: str | None,
+        *,
+        skill_chars: int = 0,
     ) -> AuthoringEstimate:
+        """`skill_chars` is the skill text the call proposing the change reads beside the runs."""
         groups = pack.groups()
         calls = 0 if not groups else (1 if len(groups) == 1 else len(groups) + 1)
         evidence_chars = sum(len(run.render()) for run in pack.runs) + len(pack.training_feedback)
-        per_call = await self._per_call(ctx, improver, evidence_chars // max(1, len(groups)))
-        total = (per_call * calls).quantize(_CENT)
+        share = evidence_chars // max(1, len(groups))
+        per_call = await self._per_call(ctx, improver, share)
+        proposing = (
+            await self._per_call(ctx, improver, share + skill_chars) if skill_chars else per_call
+        )
+        total = (per_call * (calls - 1) + proposing if calls else Decimal(0)).quantize(_CENT)
         improver_left = await self._improver_left(ctx, improver)
         org_left = await self._org_left(ctx)
         return AuthoringEstimate(
@@ -542,7 +606,7 @@ class AuthoringService:
         )
         return AuthoringRequestRead.model_validate(request)
 
-    async def _settled(self, request: AuthoringRequest) -> AuthoringRequest:
+    async def settled(self, request: AuthoringRequest) -> AuthoringRequest:
         """The request, marked failed when the worker stopped without saying so."""
         if request.status not in (AuthoringStatus.QUEUED.value, AuthoringStatus.RUNNING.value):
             return request
@@ -637,7 +701,7 @@ class AuthoringService:
         """The newest requests on one skill, for its page."""
         skill = await self.skills.get(ctx, skill_id)
         return [
-            AuthoringRequestRead.model_validate(await self._settled(request))
+            AuthoringRequestRead.model_validate(await self.settled(request))
             for request in await authoring_repo.list_requests(
                 self.db, organization_id=ctx.organization_id, skill_id=skill.id
             )
@@ -647,7 +711,7 @@ class AuthoringService:
         """The newest requests on one context file, for its page."""
         file = await self.contexts.get(ctx, context_id)
         return [
-            AuthoringRequestRead.model_validate(await self._settled(request))
+            AuthoringRequestRead.model_validate(await self.settled(request))
             for request in await authoring_repo.list_requests(
                 self.db, organization_id=ctx.organization_id, context_id=file.id
             )
@@ -669,7 +733,7 @@ class AuthoringService:
         requests = [
             request
             for request in [
-                await self._settled(request)
+                await self.settled(request)
                 for request in await authoring_repo.list_requests(
                     self.db, organization_id=ctx.organization_id, agent_id=agent.id
                 )
@@ -706,25 +770,74 @@ class AuthoringService:
         return AgentAuthoringRead(
             has_evidence=has_evidence,
             batch=None if batch is None else await self._batch(ctx, agent, batch),
-            latest=None if not requests else self._request(requests[0], quotes=quotes),
-            verify=None if verify is None else self._request(verify, quotes=quotes),
+            latest=(
+                None
+                if not requests
+                else await self._request(ctx, agent, requests[0], quotes=quotes)
+            ),
+            verify=None
+            if verify is None
+            else await self._request(ctx, agent, verify, quotes=quotes),
         )
 
-    @staticmethod
-    def _request(request: AuthoringRequest, *, quotes: bool) -> AuthoringRequestRead:
-        """A request as a reader sees it - a verify's quotes only for a reader of runs."""
+    async def _request(
+        self, ctx: AuthContext, agent: Agent, request: AuthoringRequest, *, quotes: bool
+    ) -> AuthoringRequestRead:
+        """A request as a reader sees it - the runs' quotes only for a reader of runs, and
+        nothing drawn from one of the agent's skills the reader may not see."""
         read = AuthoringRequestRead.model_validate(request)
-        findings = None if read.report is None else read.report.get("findings")
-        if quotes or read.report is None or not isinstance(findings, list):
+        if read.report is None:
             return read
-        redacted = [
-            {
-                **finding,
-                "evidence": [{"run_id": item["run_id"]} for item in finding.get("evidence", [])],
+        report = await self._without_hidden_skills(ctx, agent, read.report)
+        if not quotes:
+            report |= {
+                key: [
+                    {
+                        **item,
+                        "evidence": [
+                            {"run_id": quote["run_id"]} for quote in item.get("evidence", [])
+                        ],
+                    }
+                    for item in items
+                ]
+                for key in REPORT_EVIDENCE
+                if isinstance(items := report.get(key), list)
             }
-            for finding in findings
-        ]
-        return read.model_copy(update={"report": {**read.report, "findings": redacted}})
+        return read.model_copy(update={"report": report})
+
+    async def _without_hidden_skills(
+        self, ctx: AuthContext, agent: Agent, report: dict[str, Any]
+    ) -> dict[str, Any]:
+        """The report less what the improver drew from a skill the reader may not see.
+
+        The improver reads the agent's skills as the agent does, so its problems name
+        them and a rejected change may repeat their text. A rejection keeps no skill
+        id, so with any skill hidden every rejection drawn from a skill loses its
+        change, in place: an idea is decided by its position in the list.
+        """
+        problems = report.get("skill_problems")
+        named = [UUID(item["skill_id"]) for item in problems] if isinstance(problems, list) else []
+        spec = AgentSpec.model_validate(agent.draft_spec)
+        ids = list(dict.fromkeys([*spec.skill_ids, *named]))
+        rows = await skill_repo.get_many(self.db, ids, organization_id=ctx.organization_id)
+        visible = await accessible_ids(
+            self.db, ctx, list(rows.values()), Perm.SKILLS_VIEW, resource_type=SKILL
+        )
+        if all(skill_id in visible for skill_id in ids):
+            return dict(report)
+        shown = dict(report)
+        if isinstance(problems, list):
+            shown["skill_problems"] = [
+                item for item in problems if UUID(item["skill_id"]) in visible
+            ]
+        if isinstance(rejected := report.get("rejected"), list):
+            shown["rejected"] = [
+                {**item, "change": {}}
+                if item.get("kind") == SKILL_PROBLEM or item.get("reason") in SKILL_DERIVED
+                else item
+                for item in rejected
+            ]
+        return shown
 
     async def _batch(self, ctx: AuthContext, agent: Agent, batch: SpecProposalBatch) -> BatchRead:
         spec = AgentSpec.model_validate(agent.draft_spec)
@@ -768,7 +881,7 @@ class AuthoringService:
             )
         return BatchRead(
             id=batch.id,
-            agent_id=batch.agent_id,
+            agent_id=agent.id,
             status=batch.status,
             expected_effect=batch.expected_effect,
             request_id=batch.request_id,
@@ -1132,7 +1245,10 @@ class AuthoringService:
     async def _idea(
         self, ctx: AuthContext, agent: Agent, request_id: UUID, index: int
     ) -> tuple[AuthoringRequest, dict[str, Any], list[dict[str, Any]], dict[str, Any]]:
-        """A request's new-skill idea at `index`, with the report and list it sits in."""
+        """A request's new-skill idea at `index`, with the report and list it sits in.
+
+        An idea drawn from a skill the caller may not see is not there for them.
+        """
         request = await authoring_repo.get_request(
             self.db, request_id, organization_id=ctx.organization_id
         )
@@ -1143,7 +1259,8 @@ class AuthoringService:
         report = dict(request.report or {})
         ideas = list(report.get("rejected") or [])
         idea = ideas[index] if 0 <= index < len(ideas) else None
-        if idea is None or idea.get("kind") != HunkKind.CREATE_SKILL.value:
+        shown = (await self._without_hidden_skills(ctx, agent, report)).get("rejected") or []
+        if idea is None or idea.get("kind") != HunkKind.CREATE_SKILL.value or shown[index] != idea:
             raise NotFoundError(message="No new skill was proposed there", details={"index": index})
         return request, report, ideas, idea
 
@@ -1530,7 +1647,13 @@ class AuthoringService:
             )
         )
         evidence = [] if request is None else request.evidence.get("conversation_ids", [])
-        bodies = {skill.id: SkillBody(description=proposal.description, content=proposal.content)}
+        bodies = {
+            skill.id: SkillBody(
+                description=proposal.description,
+                content=proposal.content,
+                fork_id=proposal.fork_id,
+            )
+        }
         checked = await self._check_request(ctx, agent.id, body)
         pinned = checked.request.model_copy(
             update={"version": version.version, "baseline_version": version.version}

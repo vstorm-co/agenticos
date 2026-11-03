@@ -1,5 +1,5 @@
 ---
-source_sha: "377be0837e65"
+source_sha: "8c4be6cbee46"
 ---
 
 # Skills { #skills }
@@ -208,8 +208,11 @@ der Liste auf der Seite Skills für alle, die diesen Skill bearbeiten dürfen - 
 Besitzer oder wer eine Bearbeitungsfreigabe darauf hat - und bei einem Skill, den
 es noch nicht gibt, für alle, die Skills anlegen dürfen. Sonst sieht ihn niemand:
 
-- **Apply** speichert die Änderung als nächste Version der Linie, für die sie
-  geschrieben wurde, und erreicht deren Agents bei ihrem nächsten Run.
+- **Check on agents** führt die Änderung auf jedem Agent der Linie aus, für die
+  sie geschrieben wurde, und angewendet wird sie - als nächste Version dieser
+  Linie, die deren Agents beim nächsten Run lesen - aus dem Ergebnis dieser
+  Prüfung. Siehe
+  [Eine Änderung auf jedem Agent prüfen](#checking-a-change-on-every-agent).
 - **Discard** behält den Eintrag. Ein Agent, der wiederholt dieselbe Änderung
   vorschlägt, sagt jemandem etwas über den Skill, und eine gelöschte Zeile macht
   das unsichtbar.
@@ -248,16 +251,103 @@ Skill von Hand, oder frage erneut.
 
 Der [Authoring-Assistent](authoring.md#skills) schlägt Skill-Änderungen auf
 dieselbe Weise vor, mit seiner Begründung und den Runs, auf die sie sich stützt,
-und Apply lehnt sie auf dieselbe Weise ab.
+und das Anwenden lehnt sie auf dieselbe Weise ab.
 
-Jede Änderung sagt neben **Apply**, welche veröffentlichten Agent-Versionen den
-Skill lesen, welche Eval-Suites ihr Anwenden in die Warteschlange stellt und
-welche Wächter sie erst bei der nächsten Promotion prüfen, und
-**Check with evals** kommt zuerst. Das Anwenden benachrichtigt die Besitzer
-dieser Agents. Eine Entscheidung nennt die Version der Änderung, die Sie gelesen
-haben: Eine seitdem umgeschriebene Änderung - durch eine spätere Runde oder eine
-neue Anfrage - wird mit „The proposal changed since you opened it“ abgelehnt,
-und von zwei gleichzeitig getroffenen Entscheidungen zählt nur eine.
+Jede Änderung sagt, welche veröffentlichten Agent-Versionen den Skill lesen,
+welche Eval-Suites ihr Anwenden in die Warteschlange stellt und welche Wächter
+sie erst bei der nächsten Promotion prüfen. Das Anwenden benachrichtigt die
+Besitzer dieser Agents. Eine Entscheidung nennt die Version der Änderung, die Sie
+gelesen haben: Eine seitdem umgeschriebene Änderung - durch eine spätere Runde
+oder eine neue Anfrage - wird mit „The proposal changed since you opened it“
+abgelehnt, und von zwei gleichzeitig getroffenen Entscheidungen zählt nur eine.
+Ein Skill, den der Agent neu geschrieben hat, hat noch keine Agents, also legt
+**Apply** ihn sofort an.
+
+## Eine Änderung auf jedem Agent prüfen { #checking-a-change-on-every-agent }
+
+Ein Skill wird geteilt, also wird eine Änderung auf jedem Agent beurteilt, der sie
+lesen würde: auf main an den Agents, die der neuesten main-Version folgen; auf
+einem Fork an den Agents dieses Forks. Agents, die auf eine ältere Version
+festgesetzt sind, und die Agents anderer Forks werden nicht ausgeführt - die
+Änderung erreicht sie nicht. Die veröffentlichte Version jedes Agents beantwortet
+ihre Fragen zweimal, mit dem Skill, wie er ist, und mit der Änderung, und sonst
+unterscheidet sich nichts.
+
+Eine Änderung, die der Workspace eines Agents geschrieben hat, eine, die der
+Assistent vorgeschlagen hat, und ein
+[Bibliotheks-Update](#getting-skills-into-an-organization) eines Skills, dem
+Agents folgen, gehen nur über diese Prüfung live. Wer den Skill von Hand
+bearbeitet, speichert sofort eine neue Version, und diese Bearbeitung wird nicht
+geprüft.
+
+### Was sie fragt { #what-a-check-asks }
+
+Zuerst die eigenen **Testfragen** des Skills, auf jedem Agent dieselben. Jeder
+Skill hat einen Satz, angelegt über die API - `POST /api/v1/skills/{id}/test-set`,
+leer oder aus jüngsten Antworten, die den Skill geladen haben - und bearbeitet wie
+jedes andere [Dataset](datasets.md). Dann die eigenen Fragen des Agents:
+
+- **Quick**, der Standard: höchstens vier Fragen aus dem Dataset des Agents,
+  deren neueste Antwort den Skill geladen hat - die, die die meisten Wörter mit
+  den geänderten Zeilen teilen. Ein Agent ohne solche Fragen wird nur mit dem
+  Satz des Skills geprüft, und seine Zeile sagt das.
+- **Thorough**: das ganze Dataset des Agents. Eine Änderung der Beschreibung
+  des Skills wird immer so geprüft, denn die Beschreibung entscheidet, wann ein
+  Agent den Skill überhaupt öffnet.
+
+!!! note "Die Fragen des Skills sagen, was der Skill tun soll"
+
+    Sie werden auf jedem Agent gleich bewertet, also fangen sie eine Änderung,
+    die die eigene Regel des Skills bricht. Eine Änderung, die einem Agent wegen
+    seiner eigenen Lage schadet, zeigt sich an dessen eigenen Fragen. Und eine
+    gewollte Regeländerung besteht keine Frage, die noch die alte Antwort
+    erwartet: Aktualisieren Sie zuerst die Testfragen.
+
+### Die Regel { #the-rule }
+
+- Kein Agent darf **schlechter** werden, durch eine Regression, die erneutes
+  Fragen bestätigt hat.
+- Mindestens ein Agent muss **besser** werden.
+- Ein Unterschied, den die Prüfung nicht bestätigen konnte, liegt **im
+  Rauschen**: eine Warnung, keine Sperre.
+- Ein Agent, der nicht geprüft werden konnte - keine Fragen, kein Zugriff, kein
+  Budget mehr, keine veröffentlichte Version, ein fehlgeschlagener Run - ist
+  **unbekannt**, und eine Person bestätigt das vor dem Anwenden.
+
+Ein Agent wird einmal beurteilt, auf den Held-out-Fragen aller seiner Stufen
+zusammen: Ein Ergebnis braucht fünf davon für den Agent, nicht fünf pro Stufe,
+und eine Regression, die eine Stufe allein bestätigt, zählt, was immer die andere
+fand.
+Jede Frage des Skill-Sets ist held-out, und eine schnelle Prüfung zieht nur die
+Held-out-Fragen des Agents.
+
+Der Anteil jedes Agents sind seine eigenen Eval-Runs, abgerechnet über sein
+Budget. Die Schätzung nennt einen Preis, wahrscheinlich und höchstens, und vor
+dem Start die Agents, deren Budget ihn nicht deckt. Starten braucht `runs:view`
+und Bearbeitungszugriff auf den Skill. Ein Agent, den Sie nicht ausführen dürfen,
+wird nicht ausgeführt, und einer, den Sie nicht sehen dürfen, ist eine Zahl, nie
+ein Name.
+
+### Wenn ein Agent schlechter wurde { #when-an-agent-got-worse }
+
+**Check on agents** unter Skills schätzt die Prüfung, führt sie aus, zeigt das
+Ergebnis jedes Agents und wendet die Änderung dann an oder verwirft sie. Auf main
+kann eine Person dennoch:
+
+- **die Änderung anwenden und die schlechteren Agents lassen, wo sie sind** -
+  jeder wird, als neue veröffentlichte Version, auf die Version festgesetzt, die
+  er jetzt liest, bevor die Änderung live geht, sodass keiner sie auch nur einmal
+  ausliefert. Das Festsetzen erfordert, jeden von ihnen veröffentlichen zu dürfen,
+  und eine Umgebung, die auf Beförderung wartet, muss zuerst die festgesetzte
+  Version übernehmen;
+- **einen Fork für die Agents anlegen, denen sie geholfen hat**, und main lassen,
+  wie es ist - über die API, `POST /api/v1/skills/{id}/checks/{check_id}/fork`;
+- sie **verwerfen**.
+
+Auf einem Fork bleiben nur Weiterverbessern und Verwerfen: Ein Festsetzen nennt
+eine main-Version, und ein Fork beginnt nie bei einem anderen Fork. Eine Prüfung
+verweigert das Anwenden, sobald die Linie eine neuere Version hat oder ein Agent
+ihr zu folgen begonnen hat, denn sie hat keines von beiden gemessen.
 
 ## Versionen und Forks { #versions-and-forks }
 
@@ -302,7 +392,9 @@ eigene Version hat, liefert er die Main-Version aus, von der er ausging.
 - **Archive** sorgt dafür, dass ein Fork keine neuen Versionen mehr annimmt. Er
   behält seine Versionen und wird nie gelöscht. Ein Fork, den 30 Tage lang kein Run
   gelesen hat, wird zum Archivieren vorgeschlagen; nichts wird automatisch
-  archiviert.
+  archiviert. Eine ältere Version eines Agents, die noch einen archivierten Fork
+  liest, wird in keine Umgebung befördert: Verschieben Sie den Agent auf eine
+  andere Version und befördern Sie die Version, die dabei veröffentlicht wird.
 
 ### Welche Version ein Agent liest { #which-version-an-agent-reads }
 
@@ -326,84 +418,33 @@ eingeschlossen.
 Eine neue Version erreicht nur die Agents ihrer Linie. Eine neue Main-Version
 erreicht die Agents auf main, eine neue Fork-Version die Agents dieses Forks: Ihre
 Eval-Suites laufen, die Änderung nennt die Umgebungen, in denen sie live geht, und
-ihre Besitzer werden benachrichtigt. Ein festgesetzter Agent wird von keiner erreicht.
+ihre Besitzer werden benachrichtigt. Ein festgesetzter Agent wird von keiner
+erreicht.
 
 **Die Agents eines Skills** sind die, die ihn ausführen: Eine Version, die eine
-ihrer Umgebungen ausliefert, bindet ihn. Die Skill-Seite listet jeden mit der
-Version, die er liest, wie viele Main-Versionen er zurückliegt und jeder Umgebung,
-die ihn anders liest. Ein Agent, der den Skill nur im Entwurf bindet, ist als
-solcher gekennzeichnet. Agents, die Sie nicht sehen, werden gezählt, nicht genannt.
+ihrer Umgebungen ausliefert, bindet ihn, selbst oder über einen Inline-Spezialisten.
+Ein Agent und jeder seiner Spezialisten lesen den Skill auf ihre eigene Art, daher
+ist jeder eine eigene Zeile: Die Skill-Seite listet ihn mit der Version, die er
+liest, wie viele Main-Versionen er zurückliegt und jeder Umgebung, die ihn anders
+liest. Ein Agent, der den Skill nur im Entwurf bindet, ist als solcher
+gekennzeichnet. Agents, die Sie nicht sehen, werden gezählt, nicht genannt. „Hinter
+main“ zählt die Main-Versionen danach, die geändert haben, was der Skill sagt:
+Denselben Text erneut wiederherzustellen ist keine Änderung, und ist main zu dem
+Text zurückgekehrt, den er liest, liegt er gar nicht zurück.
 
 **Change version** verschiebt einen Agent auf main, eine Main-Version oder einen
-Fork, und das ist eine Änderung am Agent. Mit dem Recht, ihn zu veröffentlichen,
-geht der veröffentlichte Spec, in dem sich nur diese Bindung ändert, als nächste
-Version des Agents live, und die Umgebungen folgen ihren üblichen Follow- und
-Beförderungsregeln. Der Entwurf übernimmt dieselbe Änderung und behält seine
-übrigen unfertigen Bearbeitungen, die nicht live gehen. Mit dem Recht, den Agent
-nur zu bearbeiten, wartet die Änderung im Entwurf. Ein bereits auf dem Agent
-geöffneter Builder sieht die Änderung erst nach dem Neuladen, und ein Speichern
-davor stellt die alte Bindung wieder her.
-
-### Einen Skill verbessern { #improving-a-skill }
-
-**Verbessern** auf der Seite des Skills verbessert eine Linie des Skills: main oder
-einen Fork. Es läuft im selben Assistenten wie
-[das Verbessern eines Agents](authoring.md#improving-a-skill), mit denselben
-Schritten, Halten, Preisen und derselben Ablauffrist.
-
-Die Prüfung führt die Änderung auf jedem Agent dieser Linie aus und auf keinem
-anderen: auf den Agents von main für main, auf den Agents eines Forks für diesen
-Fork. Festgesetzte Agents und Agents auf einem anderen Fork werden nicht geprüft, weil
-die Änderung sie nicht erreicht. Jeder Agent beantwortet die eigenen Testfragen
-des Skills, dann einige seiner eigenen, und sein Anteil an der Prüfung geht auf
-sein eigenes Budget.
-
-Eine Änderung ist besser, wenn:
-
-- kein Agent eine bestätigte Regression hat;
-- mindestens ein Agent besser ist.
-
-Ein Ergebnis im Rauschen ist eine Warnung, keine Sperre. Ein Agent, der sich nicht
-prüfen ließ, erscheint als **unbekannt**, mit dem Grund, und die Person bestätigt
-ihn, bevor sie die Änderung anwendet.
-
-Wird ein Agent schlechter, wählt die Person eine von vier Möglichkeiten:
-
-| Wahl | Was geschieht |
-|---|---|
-| Weiter verbessern | Ein weiterer Versuch, mit einer Notiz in den Worten der Person |
-| Anwenden und festsetzen | Main bekommt die neue Version; die schlechteren Agents bleiben auf der Version festgesetzt, die sie lesen |
-| Fork für die Agents, denen es half | Main bleibt, wie es ist; ein neuer Fork mit der Änderung übernimmt die Agents, die besser wurden |
-| Verwerfen | Nichts ändert sich |
-
-Auf einem Fork gibt es, wenn ein Agent schlechter wird, nur **Weiter verbessern**
-und **Verwerfen**: Forks gehen nur von main aus, und Festsetzen ist ein Zustand auf
-der Main-Linie.
-
-### Zu main aufholen { #catching-up-with-main }
-
-Nichts holt von selbst zu main auf, denn jedes Aufholen kostet eine Prüfung.
-Wenn main weitergeht, zeigen festgesetzte Agents und Forks, wie viele Versionen
-sie zurückliegen, und erscheinen auf der Karte
-**Verbesserungen, die auf Sie warten**.
-
-- **Ein festgesetzter Agent:** **Auf vN aktualisieren** prüft die neueste
-  Main-Version nur an diesem Agent, nach derselben Regel. Besteht sie, verschiebt
-  das Annehmen den Agent auf main, und er gilt als geprüft statt unbekannt.
-- **Ein Fork:** **Aufholen** führt drei Versionen zusammen: die Main-Version, von
-  der der Fork ausging, die neueste des Forks und die neueste von main. Teile, die
-  nur auf einer Seite geändert wurden, werden von selbst zusammengeführt. Wo beide
-  Seiten denselben Teil geändert haben, schlägt die Sitzung den kombinierten Text
-  vor, gezeigt als Fork, main und Ergebnis, und die Person kann das Ergebnis
-  bearbeiten. Danach werden die Agents des Forks geprüft. Das Annehmen macht den
-  zusammengeführten Text zur neuen Version des Forks und verschiebt seinen
-  Ausgangspunkt auf die neueste Main-Version. Ist main allein für seine Agents
-  nicht schlechter als der Fork, bietet das Ergebnis auch
-  **Fork aufgeben und zu main zurückkehren** an.
-- **Die Änderungen eines Forks nach main:** **Nach main übernehmen** führt die
-  Änderungen des Forks auf der neuesten Main-Version zusammen und prüft sie an
-  jedem Main-Agent nach der vollen Regel. Danach können seine Agents zu main
-  zurückkehren.
+Fork, und das ist eine Änderung am Agent. Ob der Agent den Skill selbst nutzt,
+ergibt sich aus seinem Entwurf, wie der Builder ihn zeigt; einen Skill, den nur
+einer seiner Spezialisten bindet, ändert man im Builder. Mit dem Recht, ihn zu
+veröffentlichen, geht der neueste veröffentlichte Spec des Agents, in dem sich nur
+diese Bindung ändert, als seine nächste Version live, und die Umgebungen folgen
+ihren üblichen Follow- und Beförderungsregeln. Der Entwurf übernimmt dieselbe
+Änderung und behält seine übrigen unfertigen Bearbeitungen, die nicht live gehen.
+Mit dem Recht, den Agent nur zu bearbeiten, bei einem nie veröffentlichten Agent
+oder bei einem, dessen veröffentlichte Version den Skill noch nicht bindet, wartet
+die Änderung im Entwurf, und nur die neue Bindung wird geprüft. Ein bereits auf dem
+Agent geöffneter Builder sieht die Änderung erst nach dem Neuladen, und ein
+Speichern davor stellt die alte Bindung wieder her.
 
 ### Einen Skill löschen { #deleting-a-skill }
 
@@ -424,14 +465,6 @@ den niemand verwendet, wird mit seinen Versionen und Forks gelöscht.
 | `PATCH /api/v1/skills/{id}/forks/{fork_id}`, `POST …/archive` | Benennt einen Fork um oder archiviert ihn |
 | `GET /api/v1/skills/{id}/agents` | Die Agents des Skills, die Version, die jeder liest, und wie viele verborgen sind |
 | `PUT /api/v1/skills/{id}/agents/{agent_id}/binding` | Verschiebt einen Agent auf main, eine Main-Version oder einen Fork |
-| `POST /api/v1/skills/{id}/improvements/estimate`, `POST /api/v1/skills/{id}/improvements` | Berechnet den Preis einer Verbessern-Sitzung auf main oder einem Fork und startet sie |
-| `POST /api/v1/skills/{id}/improvements/{session_id}/apply`, `…/fork`, `…/discard` | Übernimmt das Ergebnis einer Sitzung, mit oder ohne Festsetzen der schlechteren Agents, macht daraus einen Fork für die Agents, denen es half, oder verwirft es |
-| `GET /api/v1/skill-improvements/awaiting` | Die Skill-Sitzungen, die auf einen Menschen warten |
-| `GET /api/v1/skills/behind-main` | Festgesetzte Agents und Forks, an denen main vorbeigezogen ist, in der ganzen Organisation |
-| `POST /api/v1/skills/{id}/agents/{agent_id}/update-check` | Prüft die neueste Main-Version an einem festgesetzten Agent |
-| `POST /api/v1/skills/{id}/forks/{fork_id}/catch-up`, `…/to-main` | Holt einen Fork zu main auf oder übernimmt seine Änderungen nach main, als Sitzung |
-| `GET /api/v1/skills/{id}/merges/{merge_id}`, `PATCH …/parts/{index}` | Die Teile einer Zusammenführung und der Text der Person für einen davon |
-| `POST /api/v1/skills/{id}/forks/{fork_id}/return-to-main` | Verschiebt die Agents eines Forks zurück auf main |
 
 ## Skills in eine Organisation bekommen { #getting-skills-into-an-organization }
 
@@ -480,7 +513,9 @@ Er installiert, was fehlt, und **aktualisiert, was niemand bearbeitet hat**. Jed
 Kopie hält fest, aus welcher mitgelieferten Version sie geschrieben wurde;
 verbessert ein Release einen mitgelieferten Skill, wird die unberührte Kopie einer
 Organisation durch die neue ersetzt — samt Dateien, als neue Version und mit einem
-Audit-Eintrag `skill.refreshed`.
+Audit-Eintrag `skill.refreshed`. Es sei denn, Agents folgen ihr: Dann wartet die
+mitgelieferte Version unter Skills als Änderung und geht live, sobald eine
+[Prüfung auf diesen Agents](#checking-a-change-on-every-agent) es erlaubt.
 
 Eine hier bearbeitete Kopie bleibt genau so, wie sie ist, sodass eine bearbeitete
 Rückerstattungsregel ein erneutes Seeding überlebt; `--replace` ist der einzige
@@ -555,6 +590,72 @@ ist, und ein Versprechen über Inhalte, die hier niemand gelesen hat. Jeder Ordn
 in `app/core/catalog/skills/` und `app/core/catalog/skill_gallery/` ist dasselbe
 kleine Versprechen, das auch der [MCP-Katalog](mcp.md#the-catalog) gibt: jemand
 hat es sich angesehen.
+
+## Die Seite eines Skills { #a-skills-page }
+
+Öffnen Sie einen Skill in der Liste, um seine Seite zu sehen. Sie hat drei Tabs.
+
+**Agents** listet jeden Agent, der den Skill nutzt, mit der Version, die er bekommt:
+
+- `v12 · main` - der Agent folgt main und bekommt jede neue Version sofort.
+- `v9 · festgesetzt · 3 hinter main` - der Agent bleibt auf einer älteren main-Version.
+- `Fork „Returns“ · ab v7 · 2 Änderungen` - der Agent nutzt einen Fork: eine Linie
+  von Versionen mit eigenen Änderungen, gestartet von einer main-Version.
+
+Eine Umgebung, die eine andere Version ausliefert, steht unter dem Agent, und ein
+Inline-Spezialist, der den Skill bindet, hat eine eigene Zeile - siehe
+[Welche Version ein Agent liest](#which-version-an-agent-reads). Ein Agent, der den
+Skill nur in seinem Entwurf bindet, ist mit **Nur im Entwurf** markiert und folgt
+keiner Linie. Agents, die Sie nicht sehen, werden gezählt, nicht genannt. Die Chips
+über der Tabelle zeigen alle, die Agents auf main, die festgesetzten, einen Fork oder
+die Agents nur im Entwurf, sodass ihre Zahlen zusammen alle ergeben. Ein dort
+gewählter Fork ist auch die Linie, die der Verlauf zeigt und in die Bearbeiten
+speichert.
+
+Unter der Tabelle sieht, wer Runs ansehen darf, wie oft jeder Agent den Skill in den
+letzten 30 Tagen geöffnet und wie viele seiner Dateien er gelesen hat. Runs von Evals
+und vom Testbereich des Builders zählen nicht.
+
+**Version ändern** setzt einen Agent auf main, auf eine festgesetzte main-Version oder
+auf einen Fork, wie [Welche Version ein Agent liest](#which-version-an-agent-reads)
+beschreibt: was live geht, was im Entwurf wartet und was im Builder geändert wird.
+Eine andere Version als die, die der Agent gerade ausliefert, wurde auf ihm nicht
+geprüft, deshalb bestätigen Sie das zuerst. Der Dialog sagt auch, wann der Agent keine
+neuen main-Versionen mehr bekäme, und datiert jede main-Version, die er zum Festsetzen
+anbietet, mit einem Link zu ihren Änderungen. Das Steuerelement sehen Personen, die
+den Agent bearbeiten dürfen.
+
+**Verlauf** listet die Versionen der gewählten Linie, die neueste zuerst: woher jede
+kam (eine Bearbeitung, eine Dateiänderung, die Bibliothek, der Workspace eines
+Agents, Improve oder eine Wiederherstellung), wer sie gemacht hat und wann.
+**Änderungen zeigen** vergleicht Beschreibung und Anweisungen mit der Version davor -
+bei der ersten Version eines Forks mit seiner Basis auf main - und nennt die
+hinzugefügten, entfernten oder geänderten Dateien. **Wiederherstellen** holt eine
+frühere Version als neueste auf ihre eigene Linie zurück, und die Agents, die dieser
+Linie folgen, bekommen sie sofort. Ein Fork nummeriert seine Versionen ab 1 wie
+main, deshalb tragen sie seinen Namen - „Returns v2“ -, und der Verlauf von main
+markiert die Version, bei der jeder Fork beginnt.
+
+**Versionsbaum** zeichnet main von der neuesten Version abwärts, jeden Fork von der
+Version, bei der er begann, und die Agents bei der Version, die sie nutzen. Auf einer
+Linie mit acht oder mehr Versionen werden Abschnitte, die kein Agent nutzt, zu einer
+Zeile zusammengefaltet.
+
+**Bearbeiten** speichert eine neue Version auf der angezeigten Linie. Auf main
+bekommen die Agents, die main folgen, sie sofort; festgesetzte Agents und Forks behalten
+ihre Version. Dateien und Kategorie gehören zu main, deshalb ändert das Bearbeiten
+eines Forks nur seine Beschreibung und Anweisungen. Wiederherstellen und Version ändern
+sehen nur Personen, die diese Änderung vornehmen dürfen; alle anderen öffnen den
+Skill nur lesend.
+
+**Neuer Fork** beginnt einen Fork ab der neuesten Version von main, unter einem Namen,
+den Sie vergeben, und kann sofort Agents auf ihn verschieben, jeden als Version ändern.
+Der Fork liest sich wie seine Basis, bis er bearbeitet wird.
+
+**Löschen**, im Menü des Editors, löscht einen Skill, den niemand verwendet, mit
+seinen Versionen und Forks. Solange Agents ihn verwenden, nennt der Dialog sie und
+bietet kein Löschen an: Verschieben Sie zuerst jeden auf einen anderen Skill oder
+entfernen Sie den Skill im Builder.
 
 ## Skills oder Knowledge? { #skills-or-knowledge }
 

@@ -6,15 +6,18 @@ skill's history and its agents read - checked here rather than through mocks,
 because numbering, the tenant keys and the cascades are the database's to enforce.
 """
 
+import asyncio
+import contextlib
 import uuid
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import pytest
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
+from app.agents.spec import AgentSpec
 from app.core.exceptions import (
     AlreadyExistsError,
     BadRequestError,
@@ -27,10 +30,12 @@ from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.agent import Agent
 from app.db.models.agent_environment import AgentEnvironment
 from app.db.models.agent_run import AgentRun
+from app.db.models.organization import OrganizationMember
 from app.db.models.resource_grant import Visibility
 from app.db.models.skill import Skill
 from app.db.models.skill_proposal import SkillProposal
 from app.db.models.skill_version import SkillFile, SkillFork, SkillVersion, SkillVersionSource
+from app.repositories import skill_repo, skill_version_repo
 from app.schemas.resource_usage import ProposalDecision
 from app.schemas.skill import SkillUpdate
 from app.schemas.skill_version import (
@@ -40,6 +45,7 @@ from app.schemas.skill_version import (
     SkillVersionRestore,
 )
 from app.services import skill_library
+from app.services.agent_registry import AgentRegistryService
 from app.services.skill_proposal import SkillProposalService
 from app.services.skill_versions import SkillVersionService
 from app.services.skills import SkillService
@@ -177,7 +183,9 @@ class TestEveryChangeIsAVersion:
         db.add(proposal)
         await db.flush()
 
-        await SkillProposalService(db).apply(ctx, proposal.id, ProposalDecision(revision=1))
+        await SkillProposalService(db).apply(
+            ctx, proposal.id, ProposalDecision(revision=1), checked=True
+        )
 
         _, applied = await _versions(db, skill)
         assert (applied.source, applied.proposal_id) == ("workspace", proposal.id)
@@ -241,6 +249,26 @@ class TestEditingAndRestoring:
         assert newest.previous is not None and newest.previous.id == oldest.id
         assert oldest.previous is None
         assert newest.created_by is not None and newest.created_by.id == ctx.user_id
+
+    async def test_somebody_who_left_keeps_their_versions_and_loses_their_name(self, db):
+        ctx = await _owner(db)
+        skill = await _skill(db, ctx)
+        builder = await _member(db, ctx, OrgRoleName.BUILDER)
+        await SkillService(db).update(builder, skill.id, SkillUpdate(content="Second."))
+        await db.execute(
+            delete(OrganizationMember).where(
+                OrganizationMember.organization_id == ctx.organization_id,
+                OrganizationMember.user_id == builder.user_id,
+            )
+        )
+
+        newest, oldest = (
+            await SkillVersionService(db).list_versions(ctx, skill.id, fork_id=None)
+        ).items
+
+        assert newest.created_by is not None
+        assert (newest.created_by.id, newest.created_by.name) == (builder.user_id, None)
+        assert oldest.created_by is not None and oldest.created_by.name is not None
 
     async def test_a_version_keeps_its_files_after_main_changed_them(self, db):
         ctx = await _owner(db)
@@ -319,6 +347,34 @@ class TestForks:
         return await SkillVersionService(db).create_fork(
             ctx, skill.id, SkillForkCreate(name=name, from_version_id=skill.latest_version_id)
         )
+
+    async def test_behind_main_counts_changes_to_what_main_says_not_versions(self, db):
+        """Restoring the newest text again is a version and no change; a main line back
+        at what the fork started from is behind by none."""
+        ctx = await _owner(db)
+        skill = await _skill(db, ctx)
+        versions = SkillVersionService(db)
+        read = await self._fork(db, ctx, skill)
+        started = read.base.id
+        await SkillService(db).update(ctx, skill.id, SkillUpdate(content="One more rule."))
+        changed = skill.latest_version_id
+        assert changed is not None
+        for _ in range(2):
+            assert skill.latest_version_id is not None
+            await versions.restore(
+                ctx, skill.id, changed, SkillVersionRestore(base_version_id=skill.latest_version_id)
+            )
+
+        [after_restores] = (await versions.list_forks(ctx, skill.id)).items
+        assert (skill.version, after_restores.behind_main) == (4, 1)
+
+        assert skill.latest_version_id is not None
+        await versions.restore(
+            ctx, skill.id, started, SkillVersionRestore(base_version_id=skill.latest_version_id)
+        )
+
+        [back] = (await versions.list_forks(ctx, skill.id)).items
+        assert (skill.version, back.behind_main) == (5, 0)
 
     async def test_a_fork_serves_its_base_until_it_has_a_version_of_its_own(self, db):
         ctx = await _owner(db)
@@ -411,6 +467,67 @@ class TestForks:
         assert [
             item.id for item in (await versions.list_forks(ctx, skill.id, archived=True)).items
         ] == [read.id]
+
+    @pytest.mark.parametrize("change", ["rename", "edit", "archive"])
+    async def test_a_fork_change_takes_the_skill_before_the_fork(
+        self, db: AsyncSession, engine: AsyncEngine, change: str
+    ):
+        """Applying a proposal to a fork locks the skill, then the fork.
+
+        Held here half-way, with the skill locked: a change that locked the fork
+        first would hold it while waiting for the skill, and the apply's turn for
+        the fork would deadlock.
+        """
+        ctx = await _owner(db)
+        skill = await _skill(db, ctx)
+        read = await self._fork(db, ctx, skill)
+        await db.commit()
+        changes = {
+            "rename": lambda versions: versions.rename_fork(
+                ctx, skill.id, read.id, SkillForkUpdate(name="eu")
+            ),
+            "edit": lambda versions: versions.edit(
+                ctx,
+                skill.id,
+                SkillVersionCreate(
+                    fork_id=read.id,
+                    base_version_id=read.base.id,
+                    description=skill.description,
+                    content="Returns only.",
+                ),
+            ),
+            "archive": lambda versions: versions.archive_fork(ctx, skill.id, read.id),
+        }
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+
+        async def change_fork() -> None:
+            async with factory() as session:
+                await changes[change](SkillVersionService(session))
+                await session.commit()
+
+        task: asyncio.Task[None] | None = None
+        async with factory() as applying:
+            try:
+                await skill_repo.lock(applying, skill.id)
+                task = asyncio.create_task(change_fork())
+                await asyncio.sleep(0.4)
+                assert not task.done()
+
+                await skill_version_repo.get_fork(
+                    applying,
+                    read.id,
+                    organization_id=ctx.organization_id,
+                    skill_id=skill.id,
+                    lock=True,
+                )
+                await applying.commit()
+                await task
+                task = None
+            finally:
+                if task is not None:
+                    task.cancel()
+                    with contextlib.suppress(asyncio.CancelledError):
+                        await task
 
     async def test_restoring_a_fork_version_stays_on_the_fork(self, db):
         ctx = await _owner(db)
@@ -574,6 +691,24 @@ class TestDeleting:
 
         assert [agent["name"] for agent in refused.value.details["agents"]] == ["Clerk"]
         assert refused.value.details["hidden"] == 0
+        assert "is used by 'Clerk'." in refused.value.message
+
+    async def test_an_agent_the_caller_cannot_see_is_counted_and_never_named(self, db):
+        owner = await _owner(db)
+        member = await _member(db, owner, OrgRoleName.MEMBER)
+        skill = await _skill(db, member)
+        secret = await _published(
+            db, owner, name="Secret", spec={"name": "Secret", "skill_ids": [str(skill.id)]}
+        )
+        secret.visibility = "private"
+        await db.flush()
+
+        with pytest.raises(InUseError) as refused:
+            await SkillService(db).delete(member, skill.id)
+
+        assert refused.value.details == {"agents": [], "hidden": 1}
+        assert "is used by 1 agent you cannot see." in refused.value.message
+        assert "Secret" not in refused.value.message
 
     async def test_a_skill_a_served_specialist_binds_is_not_deleted(self, db):
         """The draft moved on; production still serves a version whose specialist reads it."""
@@ -707,3 +842,62 @@ class TestTheSkillPage:
             skill.latest_version_id,
         )
         assert theirs.can_edit is False
+
+    async def test_an_edit_in_progress_does_not_hold_up_an_agent_binding_the_skill(
+        self, db: AsyncSession, engine: AsyncEngine
+    ):
+        """An edit or a decision locks the skill and then the agents it moves; an agent's
+        save holds the agent and then the skill. The two locks must not wait for each
+        other, or the pair deadlocks."""
+        ctx = await _owner(db)
+        skill = await _skill(db, ctx)
+        agent = await _published(db, ctx, name="Clerk", spec={"name": "Clerk"})
+        await db.commit()
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+        bound = AgentSpec.model_validate({"name": "Clerk", "skill_ids": [str(skill.id)]})
+
+        async with factory() as editing, factory() as binding:
+            try:
+                await skill_repo.lock(editing, skill.id)
+
+                await asyncio.wait_for(
+                    AgentRegistryService(binding).save_draft(ctx, agent.id, bound), timeout=3
+                )
+                await binding.commit()
+            finally:
+                await editing.rollback()
+
+    async def test_a_binding_saved_while_a_delete_waits_stops_the_delete(
+        self, db: AsyncSession, engine: AsyncEngine
+    ):
+        """Held here half-way: the draft binds the skill and has not committed yet. The
+        delete waits for it rather than deleting a skill a live draft now names."""
+        ctx = await _owner(db)
+        skill = await _skill(db, ctx)
+        agent = await _published(db, ctx, name="Clerk", spec={"name": "Clerk"})
+        await db.commit()
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+        bound = AgentSpec.model_validate({"name": "Clerk", "skill_ids": [str(skill.id)]})
+
+        async def delete_skill() -> None:
+            async with factory() as session:
+                await SkillService(session).delete(ctx, skill.id)
+                await session.commit()
+
+        task: asyncio.Task[None] | None = None
+        async with factory() as binding:
+            try:
+                await AgentRegistryService(binding).save_draft(ctx, agent.id, bound)
+                task = asyncio.create_task(delete_skill())
+                await asyncio.sleep(0.4)
+                assert not task.done()
+
+                await binding.commit()
+                with pytest.raises(InUseError):
+                    await task
+                task = None
+            finally:
+                if task is not None:
+                    task.cancel()
+                    with contextlib.suppress(asyncio.CancelledError):
+                        await task

@@ -13,14 +13,18 @@ from types import ModuleType
 import pytest
 from alembic.migration import MigrationContext
 from alembic.operations import Operations
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
 
 from app.db.models.skill import Skill, SkillResource
 from app.db.models.skill_proposal import SkillProposal
+from app.db.models.skill_usage import RunSkillUse
 from app.db.models.skill_version import SkillFile, SkillVersion
 from tests.integration.test_authoring import _owner, _published
+from tests.integration.test_skill_usage import _agent, _org, _used, _version
+from tests.integration.test_skill_usage import _run as _agent_run
+from tests.integration.test_skill_usage import _skill as _usage_skill
 
 pytestmark = pytest.mark.anyio
 
@@ -127,3 +131,50 @@ async def test_the_downgrade_takes_the_binding_out_of_every_stored_spec(db: Asyn
     assert agent.draft_spec["skill_ids"] == [skill_id]
     await db.refresh(untouched)
     assert untouched.draft_spec == {"name": "Plain"}
+
+
+async def test_a_downgrade_forgets_the_version_each_use_was_served(db: AsyncSession):
+    """The uses outlive the versions, so none may keep naming one that is gone."""
+    org, user = await _org(db)
+    skill = await _usage_skill(db, org)
+    version = await _version(db, skill, 1)
+    run = await _agent_run(db, org, await _agent(db, org, user, "Desk"))
+    await _used(db, run, skill, version=version)
+
+    await db.run_sync(_run, "_forget_served_versions")
+
+    stored = await db.execute(select(RunSkillUse.skill_version_id))
+    assert stored.scalars().all() == [None]
+
+
+async def test_a_skill_whose_organization_is_gone_gets_no_version_and_stops_nothing(
+    db: AsyncSession,
+):
+    """Only a row written past its keys can be such a skill; the upgrade goes on without it."""
+    ctx = await _owner(db)
+    orphan = uuid.uuid4()
+    await db.execute(text("SET LOCAL session_replication_role = replica"))
+    await db.execute(
+        text(
+            "INSERT INTO skills (id, organization_id, name, description, content, version, "
+            "visibility) VALUES (:id, :org, 'orphan', 'd', 'c', 1, 'org')"
+        ),
+        {"id": orphan, "org": uuid.uuid4()},
+    )
+    await db.execute(
+        text(
+            "INSERT INTO skill_resources (id, skill_id, name, content) "
+            "VALUES (:id, :skill, 'a.md', 'text')"
+        ),
+        {"id": uuid.uuid4(), "skill": orphan},
+    )
+    await db.execute(text("SET LOCAL session_replication_role = DEFAULT"))
+    kept = Skill(organization_id=ctx.organization_id, name="refunds", description="d", content="c")
+    db.add(kept)
+    await db.flush()
+
+    await db.run_sync(_run, "_backfill")
+
+    versions = (await db.execute(select(SkillVersion.skill_id))).scalars().all()
+    assert versions == [kept.id]
+    assert (await db.execute(select(SkillFile.skill_id))).scalars().all() == []

@@ -173,6 +173,14 @@ class SkillCheck(Base):
     proposal_id: Mapped[uuid.UUID | None] = mapped_column(
         PG_UUID(as_uuid=True), ForeignKey("skill_proposals.id", ondelete="SET NULL"), nullable=True
     )
+    excluded_conversation_ids: Mapped[list[uuid.UUID]] = mapped_column(
+        ARRAY(PG_UUID(as_uuid=True)), nullable=False, default=list, server_default="{}"
+    )
+    """Conversations a change learned from; questions taken from them are not asked."""
+    skill_set_case_ids: Mapped[list[uuid.UUID] | None] = mapped_column(
+        ARRAY(PG_UUID(as_uuid=True)), nullable=True
+    )
+    """The skill's test questions a session kept aside for this check; `None` asks them all."""
     status: Mapped[str] = mapped_column(String(16), nullable=False)
     verdict: Mapped[str | None] = mapped_column(String(16), nullable=True)
     outcome: Mapped[str | None] = mapped_column(String(24), nullable=True)
@@ -187,6 +195,12 @@ class SkillCheck(Base):
     at_most_usd: Mapped[Decimal] = mapped_column(Numeric(12, 6), nullable=False)
     created_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
         PG_UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    # The key the check was started with, which each later stage is narrowed to as the
+    # key stands then. No foreign key: keys are hard-deleted, and a reference set to
+    # null would let the check fall back to the issuer's full role.
+    created_by_api_key_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True), nullable=True
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
@@ -260,11 +274,15 @@ class SkillCheckAgent(Base):
     sample_case_ids: Mapped[list[uuid.UUID] | None] = mapped_column(
         ARRAY(PG_UUID(as_uuid=True)), nullable=True
     )
-    """The agent's own questions a quick check asked, in the order they were picked."""
+    """The agent's own questions the second stage asks: a quick check's sample, in the
+    order it was picked, or a session's held-out draw; `None` asks the whole dataset."""
     dataset_id: Mapped[uuid.UUID | None] = mapped_column(
         PG_UUID(as_uuid=True), ForeignKey("datasets.id", ondelete="SET NULL"), nullable=True
     )
     """The agent's own dataset, the second stage's questions."""
+    dataset_version: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    """The version of `dataset_id` the check sampled and priced, which the second stage
+    asks even when the dataset was edited while the first stage ran."""
     skill_set_run_id: Mapped[uuid.UUID | None] = mapped_column(
         PG_UUID(as_uuid=True), ForeignKey("eval_runs.id", ondelete="SET NULL"), nullable=True
     )

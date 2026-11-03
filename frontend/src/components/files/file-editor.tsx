@@ -28,6 +28,7 @@ import { useTranslations } from "next-intl";
  */
 export function FileEditor({
   name,
+  label,
   content,
   loading,
   canEdit,
@@ -40,6 +41,8 @@ export function FileEditor({
   className,
 }: {
   name: string;
+  /** What the pane calls the file, where its name is not what a reader knows it by. */
+  label?: string;
   content: string;
   loading?: boolean;
   canEdit: boolean;
@@ -67,11 +70,14 @@ export function FileEditor({
   const t = useTranslations("files");
   const tc = useTranslations("common");
   const [mode, setMode] = useState<"preview" | "source">(initialMode);
+  const called = label ?? name;
 
   return (
     <div className={cn("flex min-h-0 flex-1 flex-col rounded-md border", className)}>
       <div className="flex flex-wrap items-center gap-2 border-b px-3 py-2">
-        <span className="min-w-0 flex-1 truncate font-mono text-xs">{name}</span>
+        <span className={cn("min-w-0 flex-1 truncate text-xs", label === undefined && "font-mono")}>
+          {called}
+        </span>
         <div className="flex items-center gap-0.5 rounded-md border p-0.5">
           <ModeButton
             icon={Eye}
@@ -90,7 +96,7 @@ export function FileEditor({
           <Button
             variant="ghost"
             size="icon"
-            aria-label={tc("removeNamed", { name })}
+            aria-label={tc("removeNamed", { name: called })}
             onClick={onDelete}
           >
             <Trash2 className="h-4 w-4" />
@@ -114,7 +120,7 @@ export function FileEditor({
             readOnly={!canEdit}
             placeholder={placeholder}
             name={name}
-            aria-label={t("namedSource", { name })}
+            aria-label={t("namedSource", { name: called })}
             className="min-h-[14rem]"
           />
         ) : (

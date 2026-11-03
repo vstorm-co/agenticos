@@ -30,6 +30,12 @@ export const KB_DETAIL = "kb-detail";
 export const DATASET_DETAIL = "dataset-detail";
 
 /**
+ * A skill's own page, `/skills/<id>`, collapsed the same way: its agents, its
+ * history and its version tree. The walk opens the first skill the reader can see.
+ */
+export const SKILL_DETAIL = "skill-detail";
+
+/**
  * The two organization detail routes, collapsed the same way. Unlike the builder
  * and the collection — one detail route each — an organization opens onto two,
  * `/orgs/<id>/members` and `/orgs/<id>/roles`, so it takes two identities chained
@@ -229,6 +235,14 @@ export const TOUR_STEPS: readonly TourStep[] = [
     id: "improvement-changes",
     page: IMPROVEMENT,
     target: "improvement-changes",
+    activate: "improvement-step-changes",
+    permission: Perm.runsView,
+    optional: true,
+  },
+  {
+    id: "improvement-skill-handoffs",
+    page: IMPROVEMENT,
+    target: "improvement-skill-handoffs",
     activate: "improvement-step-changes",
     permission: Perm.runsView,
     optional: true,
@@ -579,7 +593,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
     optional: true,
     agentKind: "ordinary",
   },
-  // Beside "Draft differs from vN", which only a changed draft shows. Gated as
+  // Beside "Draft differs from agent vN", which only a changed draft shows. Gated as
   // the Evals tab is: the run it starts is read there.
   {
     id: "agent-test-draft",
@@ -645,6 +659,54 @@ export const TOUR_STEPS: readonly TourStep[] = [
     target: "group-filter",
     permission: Perm.skillsView,
     optional: true,
+  },
+  { id: "skill-agents", page: SKILL_DETAIL, target: "skill-agents", permission: Perm.skillsView },
+  // Rendered once the agents load, and the button only on rows the caller may publish.
+  {
+    id: "skill-lines",
+    page: SKILL_DETAIL,
+    target: "skill-lines",
+    permission: Perm.skillsView,
+    optional: true,
+  },
+  {
+    id: "skill-change-version",
+    page: SKILL_DETAIL,
+    target: "skill-change-version",
+    permission: Perm.agentsEdit,
+    optional: true,
+  },
+  { id: "skill-edit", page: SKILL_DETAIL, target: "skill-edit", permission: Perm.skillsView },
+  // Drawn under the agents once its numbers load.
+  {
+    id: "skill-usage",
+    page: SKILL_DETAIL,
+    target: "skill-usage",
+    activate: "skill-agents-tab",
+    permission: Perm.runsView,
+    optional: true,
+  },
+  // New fork is drawn only for an editor of this skill, which a role cannot tell.
+  {
+    id: "skill-new-fork",
+    page: SKILL_DETAIL,
+    target: "skill-new-fork",
+    permission: Perm.skillsEdit,
+    optional: true,
+  },
+  {
+    id: "skill-history",
+    page: SKILL_DETAIL,
+    target: "skill-history",
+    activate: "skill-history-tab",
+    permission: Perm.skillsView,
+  },
+  {
+    id: "skill-tree",
+    page: SKILL_DETAIL,
+    target: "skill-tree",
+    activate: "skill-tree-tab",
+    permission: Perm.skillsView,
   },
 
   // Standing context — the files an organization injects into every agent's
@@ -1329,6 +1391,7 @@ const SECTION_FLOWS: readonly (readonly string[])[] = [
   [ROUTES.AGENTS, AGENT_BUILDER],
   [ROUTES.RAG, KB_DETAIL],
   [ROUTES.DATASETS, DATASET_DETAIL],
+  [ROUTES.SKILLS, SKILL_DETAIL],
   [ROUTES.ORGS, ORG_MEMBERS, ORG_ROLES],
 ];
 
@@ -1344,6 +1407,7 @@ export function pageKey(path: string): string {
   if (path.startsWith(`${ROUTES.AGENTS}/`)) return AGENT_BUILDER;
   if (path.startsWith(`${ROUTES.RAG}/`)) return KB_DETAIL;
   if (path.startsWith(`${ROUTES.DATASETS}/`)) return DATASET_DETAIL;
+  if (path.startsWith(`${ROUTES.SKILLS}/`)) return SKILL_DETAIL;
   if (path.startsWith(`${ROUTES.ORGS}/`)) {
     if (path.endsWith("/roles")) return ORG_ROLES;
     if (path.endsWith("/retention")) return ORG_RETENTION;
