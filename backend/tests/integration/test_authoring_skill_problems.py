@@ -1,16 +1,34 @@
 """Agent Improve reports a skill's problems for the skill and never writes the skill into the agent."""
 
 import uuid
+from unittest.mock import patch
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.permissions import AuthContext
+from app.agents.system_agents import IMPROVER
+from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.agent import Agent
+from app.db.models.agent_run import AgentRun
+from app.db.models.resource_grant import Visibility
 from app.db.models.skill import Skill
 from app.repositories import skill_usage_repo
+from app.schemas.authoring import AuthoringStart
+from app.schemas.skill import SkillUpdate
 from app.schemas.skill_usage import SkillUseRecord
-from tests.integration.test_authoring import COMMENT, Improver, _clerk, _improve, _rated, _setup
+from app.services.authoring import AuthoringService
+from app.services.skills import SKILL_BODY_CHARS, SkillService
+from tests.integration.test_authoring import (
+    COMMENT,
+    Improver,
+    _clerk,
+    _improve,
+    _member,
+    _owner,
+    _published,
+    _rated,
+    _setup,
+)
 from tests.integration.test_authoring import _environment as _environment
 
 pytestmark = [pytest.mark.anyio, pytest.mark.usefixtures("_environment")]
@@ -23,17 +41,9 @@ RETURNS = (
 
 
 async def _skill(db: AsyncSession, ctx: AuthContext, name: str, content: str) -> Skill:
-    skill = Skill(
-        id=uuid.uuid4(),
-        organization_id=ctx.organization_id,
-        name=name,
-        description=f"How {name} works",
-        content=content,
-        visibility="org",
+    return await SkillService(db).create(
+        ctx, name=name, description=f"How {name} works", content=content, visibility=Visibility.ORG
     )
-    db.add(skill)
-    await db.flush()
-    return skill
 
 
 async def _bound(db: AsyncSession, agent: Agent, *skills: Skill) -> None:
@@ -41,8 +51,23 @@ async def _bound(db: AsyncSession, agent: Agent, *skills: Skill) -> None:
     await db.flush()
 
 
-def _use(skill: Skill, agent: Agent) -> SkillUseRecord:
-    return SkillUseRecord(agent_id=agent.id, skill_id=skill.id, loaded=True)
+def _use(skill: Skill, agent: Agent, version_id: uuid.UUID | None = None) -> SkillUseRecord:
+    return SkillUseRecord(
+        agent_id=agent.id,
+        skill_id=skill.id,
+        skill_version_id=version_id or skill.latest_version_id,
+        loaded=True,
+    )
+
+
+async def _used(db: AsyncSession, ctx: AuthContext, run: AgentRun, *uses: SkillUseRecord) -> None:
+    await skill_usage_repo.record_uses(
+        db,
+        list(uses),
+        organization_id=ctx.organization_id,
+        run_id=run.id,
+        started_at=run.started_at,
+    )
 
 
 def _improve_prompt(model: Improver) -> str:
@@ -56,13 +81,7 @@ async def test_a_problem_is_kept_only_for_a_bound_skill_the_cited_runs_used(db: 
     await _bound(db, agent, returns, shipping)
     # A delegate opened shipping in the same run: that is the delegate's use, not the agent's.
     delegate = await _clerk(db, ctx)
-    await skill_usage_repo.record_uses(
-        db,
-        [_use(returns, agent), _use(shipping, delegate)],
-        organization_id=ctx.organization_id,
-        run_id=run.id,
-        started_at=run.started_at,
-    )
+    await _used(db, ctx, run, _use(returns, agent), _use(shipping, delegate))
     cited = [{"run_id": str(run.id), "quote": COMMENT}]
     model = Improver(
         db,
@@ -152,3 +171,122 @@ async def test_instructions_that_copy_a_skill_and_a_new_skill_that_repeats_one_a
     assert request.report["dropped"] == {"copies_skill": 1, "duplicates_skill": 2}
     assert request.report["recorded"] == 1
     assert request.report["skill_problems"] == []
+
+
+async def test_a_problem_keeps_only_the_quotes_of_runs_that_used_the_skill(db: AsyncSession):
+    ctx, agent, run = await _setup(db)
+    returns = await _skill(db, ctx, "returns-policy", RETURNS)
+    await _bound(db, agent, returns)
+    await _used(db, ctx, run, _use(returns, agent))
+    other = await _rated(db, ctx, agent, comment="Where is my parcel")
+    model = Improver(
+        db,
+        improve={
+            "summary": "The returns skill states the wrong window",
+            "expected_effect": "Answers say 30 days",
+            "skill_problems": [
+                {
+                    "skill": "returns-policy",
+                    "problem": "It says ninety days",
+                    "evidence": [
+                        {"run_id": str(run.id), "quote": COMMENT},
+                        {"run_id": str(other.id), "quote": "Where is my parcel"},
+                    ],
+                },
+            ],
+        },
+    )
+
+    request = await _improve(db, ctx, agent, model)
+
+    [problem] = request.report["skill_problems"]
+    assert [item["run_id"] for item in problem["evidence"]] == [str(run.id)]
+    assert problem["evidence_dropped"] == 1
+
+
+async def test_a_run_served_another_version_of_the_skill_is_not_its_evidence(db: AsyncSession):
+    ctx, agent, run = await _setup(db)
+    returns = await _skill(db, ctx, "returns-policy", RETURNS)
+    older = returns.latest_version_id
+    await SkillService(db).update(ctx, returns.id, SkillUpdate(content="Returns: thirty days."))
+    await _bound(db, agent, returns)
+    await _used(db, ctx, run, _use(returns, agent, older))
+    cited = [{"run_id": str(run.id), "quote": COMMENT}]
+    model = Improver(
+        db,
+        improve={
+            "summary": "The returns skill states the wrong window",
+            "expected_effect": "Answers say 30 days",
+            "skill_problems": [
+                {"skill": "returns-policy", "problem": "It says ninety days", "evidence": cited}
+            ],
+        },
+    )
+
+    request = await _improve(db, ctx, agent, model)
+
+    assert request.report["skill_problems"] == []
+    assert request.report["dropped"] == {"skill_not_used": 1}
+    assert '<skill name="returns-policy">' not in _improve_prompt(model)
+
+
+@pytest.mark.security
+async def test_a_reader_without_runs_view_gets_a_skill_problem_without_its_quotes(
+    db: AsyncSession,
+):
+    ctx, agent, run = await _setup(db)
+    returns = await _skill(db, ctx, "returns-policy", RETURNS)
+    await _bound(db, agent, returns)
+    await _used(db, ctx, run, _use(returns, agent))
+    cited = [{"run_id": str(run.id), "quote": COMMENT}]
+    model = Improver(
+        db,
+        improve={
+            "summary": "The returns skill states the wrong window",
+            "expected_effect": "Answers say 30 days",
+            "skill_problems": [
+                {"skill": "returns-policy", "problem": "It says ninety days", "evidence": cited}
+            ],
+        },
+    )
+    await _improve(db, ctx, agent, model)
+
+    member = await _member(db, ctx, OrgRoleName.MEMBER)
+    hidden = (await AuthoringService(db).for_agent(member, agent.id)).latest
+    shown = (await AuthoringService(db).for_agent(ctx, agent.id)).latest
+
+    assert hidden is not None and hidden.report is not None
+    [problem] = hidden.report["skill_problems"]
+    assert problem["evidence"] == [{"run_id": str(run.id)}]
+    assert problem["problem"] == "It says ninety days"
+    assert shown is not None and shown.report is not None
+    assert shown.report["skill_problems"][0]["evidence"][0]["quote"] == COMMENT
+
+
+async def test_the_estimate_prices_the_skill_bodies_the_improver_will_read(db: AsyncSession):
+    ctx = await _owner(db)
+    await _published(
+        db,
+        ctx,
+        name="Authoring assistant",
+        spec={"name": "Authoring assistant", "model_profile_id": str(uuid.uuid4())},
+        kind="improver",
+        system_key=IMPROVER.key,
+    )
+    agent = await _clerk(db, ctx)
+    run = await _rated(db, ctx, agent)
+    returns = await _skill(db, ctx, "returns-policy", RETURNS * 40)
+    await _bound(db, agent, returns)
+    service = AuthoringService(db)
+
+    with patch(
+        "app.services.authoring.price_request",
+        side_effect=lambda usage, *_: usage.input_tokens / 10_000,
+    ):
+        unused = await service.estimate_agent(ctx, agent.id, AuthoringStart())
+        await _used(db, ctx, run, _use(returns, agent))
+        read = await service.estimate_agent(ctx, agent.id, AuthoringStart())
+
+    assert float(read.estimate_usd - unused.estimate_usd) == pytest.approx(
+        SKILL_BODY_CHARS / 4 / 10_000, abs=0.011
+    )

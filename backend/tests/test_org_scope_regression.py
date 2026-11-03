@@ -244,6 +244,7 @@ TENANT_REQUIRED = [
     (skill_usage_repo, "usage_by_agent"),
     (skill_usage_repo, "usage_by_version"),
     (skill_usage_repo, "uses_in_runs"),
+    (skill_usage_repo, "skills_in_runs"),
     (skill_usage_repo, "unknown_runs"),
     (skill_usage_repo, "agents_involved"),
     (agent_repo, "drafts_mentioning"),

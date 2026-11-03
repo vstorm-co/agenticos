@@ -4,9 +4,12 @@ import { SESSION } from "@/test-utils/improvement";
 import type { ImprovementSkill, ImprovementSkills } from "@/types/improvement";
 import { SkillHandoffs } from "./skill-handoffs";
 
-const state = vi.hoisted(() => ({ skills: undefined as ImprovementSkills | undefined }));
+const state = vi.hoisted(() => ({
+  skills: undefined as ImprovementSkills | undefined,
+  error: null as Error | null,
+}));
 vi.mock("@/hooks/use-improvements", () => ({
-  useImprovementSkills: () => ({ skills: state.skills, error: null }),
+  useImprovementSkills: () => ({ skills: state.skills, error: state.error }),
 }));
 
 const MAIN: ImprovementSkill = {
@@ -35,6 +38,7 @@ const MAIN: ImprovementSkill = {
 
 beforeEach(() => {
   state.skills = undefined;
+  state.error = null;
 });
 
 it("hands a skill's problems to the skill's own Improve, on main", () => {
@@ -69,7 +73,10 @@ it("hands a forked agent's problems to its fork, and a reader who cannot edit as
   };
   render(<SkillHandoffs session={SESSION} />);
   expect(screen.getByText('Fork "Returns" · 1 agent')).toBeInTheDocument();
-  expect(screen.getByRole("link", { name: 'Improve refunds, fork "Returns"' })).toBeVisible();
+  expect(screen.getByRole("link", { name: 'Improve refunds, fork "Returns"' })).toHaveAttribute(
+    "href",
+    `/skills/s1/improve/new?from_run=${SESSION.id}`,
+  );
   expect(screen.getByText("Ask someone who can edit shipping to improve it.")).toBeVisible();
   expect(screen.queryByRole("link", { name: "Improve shipping" })).not.toBeInTheDocument();
 });
@@ -126,4 +133,12 @@ it("names an unseen skill's problems without its line", () => {
   render(<SkillHandoffs session={SESSION} />);
   expect(screen.getByRole("heading", { name: "refunds" })).toBeInTheDocument();
   expect(screen.queryByText(/Main ·/)).not.toBeInTheDocument();
+});
+
+it("says the skills could not be read instead of hiding the section", () => {
+  state.error = new Error("Network down");
+  render(<SkillHandoffs session={SESSION} />);
+  expect(screen.getByRole("heading", { name: "Belongs to a skill" })).toBeInTheDocument();
+  expect(screen.getByRole("alert")).toHaveTextContent("Network down");
+  expect(screen.queryByText(/is shared by other agents/)).not.toBeInTheDocument();
 });

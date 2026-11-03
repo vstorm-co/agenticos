@@ -23,9 +23,9 @@ from app.repositories import authoring_repo, skill_repo
 from app.schemas.authoring import EvidenceItemRead
 from app.schemas.improvement import (
     ImprovementSkill,
+    ImprovementSkillNewVersion,
     ImprovementSkillProblem,
     ImprovementSkills,
-    ImprovementSkillUpdate,
 )
 from app.schemas.skill_version import SkillAgentList, SkillBindingRead
 from app.services.access import SKILL, accessible_ids, resolve_access
@@ -153,32 +153,44 @@ class ImprovementSkillService:
 
 
 def _binding_of(listed: SkillAgentList, agent_id: UUID) -> SkillBindingRead | None:
-    """What the agent's served version reads - its draft's, while it has none served."""
-    return next((row.binding for row in listed.items if row.agent.id == agent_id), None)
+    """What the agent's served version reads - its draft's, while it has none served.
+
+    The agent's own reading, before any of its inline specialists' rows.
+    """
+    rows = sorted(
+        (row for row in listed.items if row.agent.id == agent_id),
+        key=lambda row: row.via_specialist is not None,
+    )
+    return rows[0].binding if rows else None
 
 
 def _on_line(listed: SkillAgentList, binding: SkillBindingRead) -> int:
     """How many listed agents an Improve of the skill would change: its fork's, or main's.
 
+    An agent counts once, however many of its specialists read the line too.
+
     A pinned agent hands its problems to main, whose agents on main's newest version
     are the ones that change.
     """
     fork_id = binding.fork.id if binding.fork is not None else None
-    return sum(
-        not row.draft_only
-        and (
-            row.binding.state == "main"
-            if fork_id is None
-            else row.binding.fork is not None and row.binding.fork.id == fork_id
-        )
-        for row in listed.items
+    return len(
+        {
+            row.agent.id
+            for row in listed.items
+            if not row.draft_only
+            and (
+                row.binding.state == "main"
+                if fork_id is None
+                else row.binding.fork is not None and row.binding.fork.id == fork_id
+            )
+        }
     )
 
 
-def _update(listed: SkillAgentList, binding: SkillBindingRead) -> ImprovementSkillUpdate | None:
+def _update(listed: SkillAgentList, binding: SkillBindingRead) -> ImprovementSkillNewVersion | None:
     if binding.state == "main" or binding.behind_main == 0:
         return None
-    return ImprovementSkillUpdate(
+    return ImprovementSkillNewVersion(
         kind="update_pinned" if binding.state == "pinned" else "catch_up_fork",
         to_version=listed.main_latest.number,
     )
