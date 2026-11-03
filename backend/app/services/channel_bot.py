@@ -15,8 +15,9 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.background import spawn_after_commit
-from app.core.exceptions import BadRequestError, NotFoundError
+from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
 from app.core.field_errors import refused_field
+from app.core.permissions import AuthContext, Perm, assignable_roles
 from app.core.vault import SealedSecret, VaultScope, seal, unseal
 from app.db.models.channel_bot import ChannelBot
 from app.db.models.teams_conversation import TeamsConversation
@@ -25,6 +26,7 @@ from app.repositories import (
     agent_exposure_repo,
     channel_bot_repo,
     channel_session_repo,
+    discord_role_mapping_repo,
     teams_conversation_repo,
 )
 from app.schemas.channel_bot import (
@@ -718,9 +720,31 @@ class ChannelBotService:
         self._reopen_stream(updated)
         return updated
 
-    async def delete(self, bot_id: UUID) -> None:
-        """Delete a channel bot, and close the connection it was reached over."""
+    async def delete(self, bot_id: UUID, ctx: AuthContext) -> None:
+        """Delete a channel bot, and close the connection it was reached over.
+
+        Raises:
+            AuthorizationError: The bot holds Discord role mappings the caller
+                could not delete one by one (#2569): they cascade with it, and
+                the next sync takes back everything they gave, so deleting the
+                bot takes `members:manage` and, for a mapping that admits with
+                a role, the ceiling `DiscordRoleMappingService.delete` applies.
+        """
         bot = await self.get(bot_id)
+        for mapping in await discord_role_mapping_repo.list_for_bot(self.db, channel_bot_id=bot.id):
+            if not ctx.has(Perm.MEMBERS_MANAGE) or (
+                mapping.role is not None
+                and (
+                    not ctx.has(Perm.ROLES_MANAGE) or mapping.role not in assignable_roles(ctx.role)
+                )
+            ):
+                raise AuthorizationError(
+                    message=(
+                        "This bot's Discord role mappings place people you could not remove "
+                        "yourself; someone who may remove those mappings has to delete them first"
+                    ),
+                    details={"bot_id": bot_id, "role": mapping.role},
+                )
         platform = bot.platform
         await channel_bot_repo.delete(self.db, bot_id, organization_id=self._org_id)
         # After the commit, and read out first: the row is gone by then, so the

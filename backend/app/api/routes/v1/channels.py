@@ -150,9 +150,14 @@ async def update_bot(
 async def delete_bot(
     bot_id: UUID,
     service: OrgChannelBotSvc,
+    ctx: Auth,
 ) -> None:
-    """Delete a channel bot and stop any active polling."""
-    await service.delete(bot_id)
+    """Delete a channel bot and stop any active polling.
+
+    Refused when the bot's Discord role mappings place people the caller could
+    not remove one mapping at a time.
+    """
+    await service.delete(bot_id, ctx)
 
 
 @router.post(

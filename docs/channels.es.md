@@ -1,5 +1,5 @@
 ---
-source_sha: "065755ced3dc"
+source_sha: "1344c41b7d3a"
 ---
 
 # Poner un agent donde la gente ya está { #putting-an-agent-where-people-already-are }
@@ -1639,10 +1639,13 @@ sobre lo que la sincronización nunca toca son las de la
 - La sincronización cambia solo las filas que ella misma creó, marcadas **Discord**
   en la página de miembros y en un grupo. Una pertenencia a un grupo añadida a mano
   se queda cuando se quita el rol, una pertenencia que creó un administrador
-  conserva su rol, y a un propietario nunca se le degrada ni se le quita.
-- Cuando no se puede preguntar a Discord, nada cambia. Solo la propia respuesta de
-  Discord de que el miembro no está en el servidor, o ya no tiene el rol, quita
-  algo.
+  conserva su rol, y a un propietario nunca se le degrada ni se le quita. Quien
+  entró en la organización por la sincronización sale de todos sus grupos cuando
+  la sincronización lo quita, como quien se quita a mano.
+- Cuando no se puede preguntar a Discord por un servidor, se conserva lo que
+  dieron las asignaciones de ese servidor, y lo que respondieron los demás
+  servidores se aplica igualmente. Solo la propia respuesta de Discord de que el
+  miembro no está en el servidor, o ya no tiene el rol, quita algo.
 
 Desvincular la cuenta de Discord retira lo que dieron sus roles, salvo que otra
 cuenta de Discord vinculada lo siga ganando. Borrar una asignación retira lo que dio

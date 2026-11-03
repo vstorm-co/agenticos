@@ -422,6 +422,12 @@ class ChannelMessageRouter:
             identity = await self._resolve_identity(incoming, bot, db)
         except AuthorizationError as exc:
             return exc.message
+        if incoming.platform == DISCORD_PLATFORM:
+            # The turn's own sync runs only after this has posted the text, so
+            # the membership checked here has to be brought up to date first:
+            # a role taken away a moment ago must not have its holder's words
+            # posted as the bot, and one just given must not be told to link.
+            await DiscordRoleSync(db).on_turn(bot, identity, incoming.raw)
         if not self._admits_unlinked(incoming, bot) and not await self._sender_is_active_member(
             db, bot, identity
         ):
@@ -1664,9 +1670,12 @@ class ChannelMessageRouter:
             admitted, _issuer = await _admission()
             if not admitted:
                 return await self._invite_to_link(incoming, db)
+            previous = identity.user_id
             await channel_identity_repo.update(
                 db, db_identity=identity, update_data={"user_id": None}
             )
+            if incoming.platform == DISCORD_PLATFORM and previous is not None:
+                await DiscordRoleSync(db).release(previous)
             return "Your account has been unlinked."
 
         return None

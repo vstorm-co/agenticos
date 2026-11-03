@@ -1,5 +1,5 @@
 ---
-source_sha: "065755ced3dc"
+source_sha: "1344c41b7d3a"
 ---
 
 # Einen Agent dorthin bringen, wo die Menschen schon sind { #putting-an-agent-where-people-already-are }
@@ -1729,10 +1729,13 @@ der [Verzeichnissynchronisierung](directory.md#what-the-sync-never-touches):
   Mitgliederseite und in einer Gruppe mit **Discord** markiert. Eine von Hand
   hinzugefügte Gruppenmitgliedschaft bleibt, wenn die Rolle entzogen wird, eine
   Mitgliedschaft, die ein Administrator angelegt hat, behält ihre Rolle, und ein
-  Eigentümer wird nie herabgestuft oder entfernt.
-- Kann Discord nicht gefragt werden, ändert sich nichts. Nur Discords eigene
-  Antwort, dass das Mitglied nicht auf dem Server ist oder die Rolle nicht mehr
-  hat, nimmt etwas weg.
+  Eigentümer wird nie herabgestuft oder entfernt. Wen die Synchronisierung in die
+  Organisation aufgenommen hat, verlässt alle ihre Gruppen, wenn sie ihn wieder
+  entfernt, wie jemand, der von Hand entfernt wird.
+- Kann Discord zu einem Server nicht gefragt werden, bleibt, was die Zuordnungen
+  dieses Servers gegeben haben, und was die anderen Server geantwortet haben, wird
+  trotzdem angewendet. Nur Discords eigene Antwort, dass das Mitglied nicht auf dem
+  Server ist oder die Rolle nicht mehr hat, nimmt etwas weg.
 
 Wer die Verknüpfung des Discord-Kontos löst, verliert, was dessen Rollen gegeben
 haben, es sei denn, ein anderes verknüpftes Discord-Konto verdient es noch. Eine

@@ -15,9 +15,11 @@ no mapping matches any more. The directory sync's rules hold here unchanged:
 - **An owner is never demoted or removed by it**, and no mapping can name
   `owner`.
 - **A personal organization is never joined** - `list_for_org` excludes them.
-- **Not knowing is not losing.** When Discord cannot be asked - a revoked
-  token, an outage - nothing changes. Only Discord's own answer that the account
-  is not in the server, or the bot no longer is, takes the roles away.
+- **Not knowing is not losing.** When Discord cannot be asked about a server -
+  a revoked token, an outage - what that server's mappings gave is kept. Only
+  Discord's own answer that the account is not in the server, or the bot no
+  longer is, takes the roles away. One unreadable server does not hold up the
+  others: what the servers that answered say is applied.
 
 It runs at two moments: before each turn the person takes with a bot of the
 organization, in that turn's transaction, so somebody given `@Finance` a moment
@@ -40,6 +42,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import record_audit
+from app.core.exceptions import BadRequestError
 from app.core.permissions import OrgRoleName
 from app.db.models.channel_bot import ChannelBot
 from app.db.models.channel_identity import ChannelIdentity
@@ -108,8 +111,8 @@ class DiscordRoleSync:
                 asking Discord again.
 
         Returns:
-            Whether the memberships were reconciled; `False` when Discord could
-            not be asked and nothing was changed.
+            Whether every mapped server answered; `False` when Discord could not
+            be asked about one, whose mappings then kept what they gave.
         """
         mappings = await discord_role_mapping_repo.list_for_org(
             self.db, organization_id=organization_id
@@ -125,21 +128,34 @@ class DiscordRoleSync:
             for identity in await channel_identity_repo.list_for_user(self.db, user_id=user_id)
             if identity.platform == PLATFORM and identity.is_active
         ]
-        matched: list[DiscordRoleMapping] = []
+        held: dict[tuple[UUID, str], frozenset[str]] = {}
+        unknown: set[tuple[UUID, str]] = set()
         if mappings and accounts:
-            held = await self._held(mappings, accounts, seen or {})
-            if held is None:
-                return False
-            matched = [
-                mapping
-                for mapping in mappings
-                if mapping.discord_role_id
-                in held.get((mapping.channel_bot_id, mapping.guild_id), frozenset())
-            ]
+            held, unknown = await self._held(mappings, accounts, seen or {})
+        unread = [m for m in mappings if (m.channel_bot_id, m.guild_id) in unknown]
+        matched = [
+            mapping
+            for mapping in mappings
+            if (mapping.channel_bot_id, mapping.guild_id) not in unknown
+            and mapping.discord_role_id
+            in held.get((mapping.channel_bot_id, mapping.guild_id), frozenset())
+        ]
         roles = [mapping.role for mapping in matched if mapping.role is not None]
-        if await self._place(user_id, organization_id, winning_role(roles) if roles else None):
-            await self._sync_groups(user_id, organization_id, {m.group_id for m in matched})
-        return True
+        if await self._place(
+            user_id,
+            organization_id,
+            winning_role(roles) if roles else None,
+            # A role an unread server's mapping may still be giving: the
+            # membership stays as it is rather than follow half an answer.
+            keep=any(mapping.role is not None for mapping in unread),
+        ):
+            await self._sync_groups(
+                user_id,
+                organization_id,
+                wanted={m.group_id for m in matched},
+                keep={m.group_id for m in unread},
+            )
+        return not unknown
 
     async def on_turn(
         self, bot: ChannelBot, identity: ChannelIdentity, raw: dict[str, Any]
@@ -172,17 +188,19 @@ class DiscordRoleSync:
 
     async def _held(
         self, mappings: list[DiscordRoleMapping], accounts: list[str], seen: Seen
-    ) -> dict[tuple[UUID, str], frozenset[str]] | None:
+    ) -> tuple[dict[tuple[UUID, str], frozenset[str]], set[tuple[UUID, str]]]:
         """The roles held in each `(bot, server)` the mappings name, across the person's accounts.
 
-        `None` when Discord could not be asked for one of them: a partial answer
-        would read the unasked server as every role taken away.
+        Also returns the pairs Discord could not be asked about for one of the
+        accounts: a partial answer would read the unasked account as every role
+        taken away, so such a pair is unknown rather than empty.
         """
         bots = await channel_bot_repo.get_by_ids(
             self.db, {mapping.channel_bot_id for mapping in mappings}
         )
         adapter = discord_adapter()
         held: dict[tuple[UUID, str], frozenset[str]] = defaultdict(frozenset)
+        unknown: set[tuple[UUID, str]] = set()
         for bot_id, guild_id in sorted({(m.channel_bot_id, m.guild_id) for m in mappings}):
             bot = bots.get(bot_id)
             if bot is None:
@@ -192,16 +210,26 @@ class DiscordRoleSync:
                 if roles is None:
                     roles = await self._ask(adapter, bot, guild_id, account)
                     if roles is None:
-                        return None
+                        unknown.add((bot_id, guild_id))
+                        break
                 held[(bot_id, guild_id)] |= roles
-        return held
+        return held, unknown
 
     async def _ask(
         self, adapter: DiscordAdapter, bot: ChannelBot, guild_id: str, account: str
     ) -> frozenset[str] | None:
         """One account's roles in one server, empty when it is not there, `None` when unknown."""
         try:
-            roles = await adapter.member_roles(unseal_bot_token(bot), guild_id, account)
+            token = unseal_bot_token(bot)
+        except BadRequestError:
+            # A token that no longer unseals is this bot's problem, reported
+            # wherever it is used; it must not fail every other bot's turns.
+            logger.warning(
+                "discord_bot_token_unreadable", exc_info=True, extra={"bot_id": str(bot.id)}
+            )
+            return None
+        try:
+            roles = await adapter.member_roles(token, guild_id, account)
         except httpx.HTTPError:
             logger.warning(
                 "discord_roles_unreadable",
@@ -211,11 +239,14 @@ class DiscordRoleSync:
             return None
         return roles if roles is not None else frozenset()
 
-    async def _place(self, user_id: UUID, organization_id: UUID, role: str | None) -> bool:
+    async def _place(
+        self, user_id: UUID, organization_id: UUID, role: str | None, *, keep: bool
+    ) -> bool:
         """Admit, update or remove the Discord-managed membership. Returns whether one is held after.
 
         With no role to admit by, a membership somebody else made still takes
-        the mapped groups; a Discord-managed one ends.
+        the mapped groups; a Discord-managed one ends. With `keep`, one that is
+        already held is left as it is.
         """
         membership = await member_repo.get(
             self.db, organization_id=organization_id, user_id=user_id, for_update=True
@@ -245,7 +276,11 @@ class DiscordRoleSync:
             await ProactiveService(self.db).queue_welcome(organization_id, user_id)
             await self._audit("discord.member_added", user_id, organization_id, {"role": role})
             return True
-        if membership.source != MembershipSource.DISCORD or membership.role == OrgRoleName.OWNER:
+        if (
+            keep
+            or membership.source != MembershipSource.DISCORD
+            or membership.role == OrgRoleName.OWNER
+        ):
             return True
         if role is None:
             previous = membership.role
@@ -262,14 +297,16 @@ class DiscordRoleSync:
             )
         return True
 
-    async def _sync_groups(self, user_id: UUID, organization_id: UUID, wanted: set[UUID]) -> None:
-        """Add the Discord group memberships `wanted` names and drop the ones it does not."""
+    async def _sync_groups(
+        self, user_id: UUID, organization_id: UUID, *, wanted: set[UUID], keep: set[UUID]
+    ) -> None:
+        """Add the Discord group memberships `wanted` names and drop the ones neither it nor `keep` does."""
         current = await group_repo.list_memberships_in_org(
             self.db, organization_id=organization_id, user_id=user_id
         )
         held = {member.group_id for member in current}
         for member in current:
-            if member.source == MembershipSource.DISCORD and member.group_id not in wanted:
+            if member.source == MembershipSource.DISCORD and member.group_id not in wanted | keep:
                 await group_repo.remove_member(self.db, member)
                 await self._audit(
                     "discord.group_left",
@@ -313,23 +350,32 @@ SessionFactory = Callable[[], AbstractAsyncContextManager[AsyncSession]]
 
 
 async def sweep_discord_roles(sessions: SessionFactory) -> dict[str, int]:
-    """Look again at everybody the Discord sync placed, one organization per transaction.
+    """Look again at everybody the Discord sync placed, one person per transaction.
 
-    Returns how many people were reconciled and how many could not be, because
-    Discord did not answer for them - those keep what they hold until it does.
+    One person at a time, not one organization: the sync locks the person's
+    membership row, and a transaction spanning the organization would hold
+    each lock through every later person's calls to Discord, stalling that
+    person's turns and any administrator changing their role.
+
+    Returns how many people were reconciled, how many had a server Discord did
+    not answer for - those keep what it gave until it does - and how many
+    failed outright, which is logged and does not stop the rest.
     """
     async with sessions() as db:
         placed = await discord_role_mapping_repo.synced_people(db)
-    by_organization: dict[UUID, set[UUID]] = defaultdict(set)
-    for organization_id, user_id in placed:
-        by_organization[organization_id].add(user_id)
-    counts = {"synced": 0, "unreadable": 0}
-    for organization_id, people in sorted(by_organization.items()):
-        async with sessions() as db:
-            sync = DiscordRoleSync(db)
-            for user_id in sorted(people):
-                if await sync.sync(organization_id, user_id):
-                    counts["synced"] += 1
-                else:
-                    counts["unreadable"] += 1
+    counts = {"synced": 0, "unreadable": 0, "failed": 0}
+    for organization_id, user_id in sorted(set(placed)):
+        try:
+            async with sessions() as db:
+                answered = await DiscordRoleSync(db).sync(organization_id, user_id)
+        except Exception:
+            # The job's one isolation boundary: whatever broke one person's
+            # reconciliation, the next person's is independent of it.
+            logger.exception(
+                "discord_role_sync_failed",
+                extra={"organization_id": str(organization_id), "user_id": str(user_id)},
+            )
+            counts["failed"] += 1
+            continue
+        counts["synced" if answered else "unreadable"] += 1
     return counts

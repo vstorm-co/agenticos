@@ -1559,10 +1559,12 @@ and the rules about what the sync never touches, are the ones the
 - The sync changes only rows it made, marked **Discord** on the members page and
   in a group. A group membership added by hand stays when the role is taken away,
   a membership an administrator made keeps its role, and an owner is never
-  demoted or removed.
-- When Discord cannot be asked, nothing changes. Only Discord's own answer that
-  the member is not in the server, or no longer holds the role, takes anything
-  away.
+  demoted or removed. Somebody the sync admitted to the organization leaves all of
+  its groups when the sync removes them, as somebody removed by hand does.
+- When Discord cannot be asked about a server, what that server's mappings gave is
+  kept, and what the other servers answered is still applied. Only Discord's own
+  answer that the member is not in the server, or no longer holds the role, takes
+  anything away.
 
 Unlinking the Discord account takes back what its roles gave, unless another linked
 Discord account still earns it. Deleting a mapping takes back what it gave at each

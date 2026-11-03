@@ -32,6 +32,7 @@ from app.repositories import (
     artifact_repo,
     context_repo,
     directory_mapping_repo,
+    discord_role_mapping_repo,
     group_repo,
     knowledge_base_repo,
     mcp_connection_repo,
@@ -241,10 +242,11 @@ class GroupService:
         """Delete a group, and with it every grant made to it and every mapping naming it.
 
         Raises:
-            AuthorizationError: A directory mapping naming the group maps to a
-                role the requester's does not outrank. The mapping cascades with
-                the group, and deleting it demotes everybody it placed - which
-                `DirectoryMappingService.delete` refuses this requester, so
+            AuthorizationError: A directory or Discord role mapping naming the
+                group maps to a role the requester's does not outrank. The
+                mapping cascades with the group, and deleting it demotes
+                everybody it placed - which `DirectoryMappingService.delete` and
+                `DiscordRoleMappingService.delete` refuse this requester, so
                 deleting the group must not do it by the back door.
         """
         membership = await self._membership(organization_id, requester_id)
@@ -260,6 +262,17 @@ class GroupService:
                         "in this group; it has to be removed by someone who outranks it first"
                     ),
                     details={"role": mapping.role},
+                )
+        for discord_mapping in await discord_role_mapping_repo.list_for_group(
+            self.db, group_id=group.id
+        ):
+            if discord_mapping.role is not None and discord_mapping.role not in ceiling:
+                raise AuthorizationError(
+                    message=(
+                        "A Discord role mapping to a role your own does not outrank places "
+                        "people in this group; it has to be removed by someone who outranks it first"
+                    ),
+                    details={"role": discord_mapping.role},
                 )
         name = group.name
         await group_repo.delete_group(self.db, group)

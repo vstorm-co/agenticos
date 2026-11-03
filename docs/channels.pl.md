@@ -1,5 +1,5 @@
 ---
-source_sha: "065755ced3dc"
+source_sha: "1344c41b7d3a"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -1606,9 +1606,13 @@ nie dotyka, są takie same jak w
 - Synchronizacja zmienia tylko wiersze, które sama utworzyła, oznaczone **Discord**
   na stronie członków i w grupie. Członkostwo w grupie dodane ręcznie zostaje, gdy
   rola zostanie odebrana, członkostwo utworzone przez administratora zachowuje swoją
-  rolę, a właściciel nigdy nie jest degradowany ani usuwany.
-- Gdy nie da się zapytać Discorda, nic się nie zmienia. Tylko odpowiedź samego
-  Discorda, że członka nie ma na serwerze albo nie ma już roli, cokolwiek odbiera.
+  rolę, a właściciel nigdy nie jest degradowany ani usuwany. Ktoś, kogo
+  synchronizacja przyjęła do organizacji, opuszcza wszystkie jej grupy, gdy
+  synchronizacja go usuwa, tak jak ktoś usunięty ręcznie.
+- Gdy nie da się zapytać Discorda o serwer, to, co dały mapowania tego serwera,
+  zostaje, a odpowiedzi pozostałych serwerów są nadal stosowane. Tylko odpowiedź
+  samego Discorda, że członka nie ma na serwerze albo nie ma już roli, cokolwiek
+  odbiera.
 
 Odłączenie konta Discorda odbiera to, co dały jego role, chyba że nadal zapewnia to
 inne połączone konto Discorda. Usunięcie mapowania odbiera to, co ono dało, przy

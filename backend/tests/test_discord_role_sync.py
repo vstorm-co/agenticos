@@ -11,6 +11,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from sqlalchemy.exc import IntegrityError
 
+from app.core.exceptions import BadRequestError
 from app.db.models.discord_role_mapping import DiscordRoleMapping
 from app.services import channels
 from app.services.channels.base import IncomingMessage
@@ -84,6 +85,68 @@ class TestWhereItRunsInATurn:
 
         on_turn.assert_not_awaited()
         assert order == ["command"]
+
+
+class TestThePreflightBeforeAsk:
+    """`/ask` posts the sender's words before the turn runs, so its check syncs first."""
+
+    async def _preflight(self, platform: str, *, member: bool) -> tuple[str | None, list[str]]:
+        order: list[str] = []
+        bot = MagicMock(is_active=True, access_policy={})
+
+        async def sender_is_member(*_: object) -> bool:
+            order.append("membership")
+            return member
+
+        with (
+            patch(
+                "app.services.channels.router.channel_bot_repo.get_for_inbound",
+                new=AsyncMock(return_value=bot),
+            ),
+            patch.object(ChannelMessageRouter, "_check_access"),
+            patch.object(
+                ChannelMessageRouter,
+                "_resolve_identity",
+                new=AsyncMock(return_value=MagicMock(user_id=uuid.uuid4())),
+            ),
+            patch.object(
+                DiscordRoleSync,
+                "on_turn",
+                new=AsyncMock(side_effect=lambda *_: order.append("roles")),
+            ),
+            patch.object(ChannelMessageRouter, "_admits_unlinked", return_value=False),
+            patch.object(ChannelMessageRouter, "_sender_is_active_member", new=sender_is_member),
+        ):
+            refusal = await ChannelMessageRouter().refusal_before_publishing(
+                _incoming(platform), MagicMock()
+            )
+        return refusal, order
+
+    async def test_roles_are_reconciled_before_the_membership_is_checked(self):
+        refusal, order = await self._preflight("discord", member=True)
+
+        assert refusal is None
+        assert order == ["roles", "membership"]
+
+    async def test_another_platform_is_checked_without_asking_discord(self):
+        _, order = await self._preflight("mattermost", member=True)
+
+        assert order == ["membership"]
+
+
+class TestABotTokenThatDoesNotUnseal:
+    async def test_is_unknown_rather_than_an_error(self):
+        """One bot's broken token must not fail every turn the organization's other bots take."""
+        bot = MagicMock(id=uuid.uuid4())
+        adapter = MagicMock(member_roles=AsyncMock())
+        with patch(
+            f"{SYNC}.unseal_bot_token",
+            side_effect=BadRequestError(message="Stored secret is malformed"),
+        ):
+            roles = await DiscordRoleSync(_db())._ask(adapter, bot, "1100", "1234")
+
+        assert roles is None
+        adapter.member_roles.assert_not_awaited()
 
 
 class TestTheAdapter:
@@ -203,7 +266,8 @@ class TestABotDeletedUnderTheSync:
 
         ask.assert_not_awaited()
         assert place.await_args.args == (user_id, org_id, None)
-        assert groups.await_args.args == (user_id, org_id, set())
+        assert place.await_args.kwargs == {"keep": False}
+        assert groups.await_args.kwargs == {"wanted": set(), "keep": set()}
 
 
 class TestTheSweepTask:
@@ -211,22 +275,24 @@ class TestTheSweepTask:
         with patch.object(
             channel_tasks,
             "sweep_discord_roles",
-            new=AsyncMock(return_value={"synced": 3, "unreadable": 2}),
+            new=AsyncMock(return_value={"synced": 3, "unreadable": 2, "failed": 1}),
         ):
             counts = await channel_tasks.sync_discord_roles()
 
-        assert counts == {"synced": 3, "unreadable": 2}
+        assert counts == {"synced": 3, "unreadable": 2, "failed": 1}
         assert "2 person(s) could not be checked" in caplog.text
+        assert "1 person(s) failed" in caplog.text
 
     async def test_a_clean_sweep_says_nothing(self, caplog):
         with patch.object(
             channel_tasks,
             "sweep_discord_roles",
-            new=AsyncMock(return_value={"synced": 3, "unreadable": 0}),
+            new=AsyncMock(return_value={"synced": 3, "unreadable": 0, "failed": 0}),
         ):
             await channel_tasks.sync_discord_roles()
 
         assert "could not be checked" not in caplog.text
+        assert "failed" not in caplog.text
 
 
 def test_a_mapping_row_says_which_role_it_maps():

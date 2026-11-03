@@ -75,6 +75,16 @@ async def list_for_bot(db: AsyncSession, *, channel_bot_id: UUID) -> list[Discor
     return list(result.scalars().all())
 
 
+async def list_for_group(db: AsyncSession, *, group_id: UUID) -> list[DiscordRoleMapping]:
+    """Every mapping that places people in one group, across the organization's bots."""
+    result = await db.execute(
+        select(DiscordRoleMapping)
+        .where(DiscordRoleMapping.group_id == group_id)
+        .order_by(DiscordRoleMapping.created_at, DiscordRoleMapping.id)
+    )
+    return list(result.scalars().all())
+
+
 async def list_for_org(db: AsyncSession, *, organization_id: UUID) -> list[DiscordRoleMapping]:
     """Every mapping of every Discord bot in one organization.
 

@@ -36,12 +36,16 @@ from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.user import User
 from app.repositories import discord_role_mapping_repo, member_repo
 from app.schemas.discord_role_mapping import DiscordRoleMappingCreate
+from app.services.channel_bot import ChannelBotService
 from app.services.channel_link import ChannelLinkService
 from app.services.channels import discord_roles
+from app.services.channels.base import IncomingMessage
 from app.services.channels.discord_protocol import Server, ServerRole
 from app.services.channels.discord_roles import DiscordRoleSync, sweep_discord_roles
+from app.services.channels.router import ChannelMessageRouter
 from app.services.directory import DirectorySyncService
 from app.services.discord_role_mapping import DiscordRoleMappingService
+from app.services.group import GroupService
 
 pytestmark = pytest.mark.anyio
 
@@ -385,6 +389,37 @@ class TestTheSync:
         assert (await _membership(db, org, bob)).source == "discord"
         assert await _groups(db, bob) == {finance.id: "discord"}
 
+    async def test_one_server_not_answering_does_not_hold_up_the_others(self, db, discord):
+        org, _ = await _org(db)
+        broken, working = await _bot(db, org), await _bot(db, org)
+        finance, support = await _group(db, org), await _group(db, org, "Support")
+        await _mapping(db, broken, finance, role="member")
+        await _mapping(db, working, support, discord_role=SUPPORT, guild=OTHER_GUILD)
+        bob = await _user(db)
+        account = await _linked(db, bob)
+        discord.give(account.platform_user_id, FINANCE)
+        discord.give(account.platform_user_id, SUPPORT, guild=OTHER_GUILD)
+        sync = DiscordRoleSync(db)
+        assert await sync.sync(org.id, bob.id)
+        assert await _groups(db, bob) == {finance.id: "discord", support.id: "discord"}
+
+        # The first bot's server stops answering; the second says Support is gone.
+        answer = discord.member_roles
+
+        async def member_roles(token: str, guild: str, who: str) -> frozenset[str] | None:
+            if guild == GUILD:
+                raise httpx.ConnectError("revoked")
+            return await answer(token, guild, who)
+
+        discord.member_roles = member_roles  # type: ignore[method-assign] - one server fails
+        discord.give(account.platform_user_id, guild=OTHER_GUILD)
+
+        assert not await sync.sync(org.id, bob.id)
+        # What the server that answered took away is gone; what the unread one
+        # gave - the group and the membership it admitted - is kept.
+        assert await _groups(db, bob) == {finance.id: "discord"}
+        assert (await _membership(db, org, bob)).role == "member"
+
     async def test_a_personal_organization_is_never_joined(self, db, discord):
         org, _ = await _org(db, personal=True)
         bot = await _bot(db, org)
@@ -471,6 +506,56 @@ class TestUnlinkingAndTheSweep:
         assert await _membership(db, org, bob) is None
         assert discord.asked == []
 
+    async def test_unlinking_in_the_chat_takes_back_what_its_roles_gave(self, db, discord):
+        org, _ = await _org(db)
+        bot = await _bot(db, org)
+        finance = await _group(db, org)
+        await _mapping(db, bot, finance, role="member")
+        bob = await _user(db)
+        account = await _linked(db, bob)
+        await DiscordRoleSync(db).on_turn(bot, account, _turn(account, FINANCE))
+        incoming = IncomingMessage(
+            platform="discord",
+            bot_id=str(bot.id),
+            platform_user_id=account.platform_user_id,
+            platform_chat_id="dm-1",
+            chat_type="private",
+            text="/unlink",
+        )
+
+        reply = await ChannelMessageRouter()._handle_command(
+            "/unlink", incoming, bot, db, account, False
+        )
+
+        assert reply == "Your account has been unlinked."
+        assert await _membership(db, org, bob) is None
+        assert await _groups(db, bob) == {}
+
+    async def test_linking_the_account_to_somebody_else_releases_the_first(self, db, discord):
+        org, _ = await _org(db)
+        bot = await _bot(db, org)
+        finance = await _group(db, org)
+        await _mapping(db, bot, finance, role="member")
+        bob, carol = await _user(db), await _user(db)
+        account = await _linked(db, bob)
+        await DiscordRoleSync(db).on_turn(bot, account, _turn(account, FINANCE))
+        url = await ChannelLinkService(db).request(
+            IncomingMessage(
+                platform="discord",
+                bot_id=str(bot.id),
+                platform_user_id=account.platform_user_id,
+                platform_chat_id="dm-1",
+                chat_type="private",
+                text="/link",
+            )
+        )
+
+        assert await ChannelLinkService(db).confirm(url.rsplit("/", 1)[1], carol.id)
+
+        assert await _membership(db, org, bob) is None
+        # Carol holds the account now; the role places her at her next turn.
+        assert await _membership(db, org, carol) is None
+
     async def test_unlinking_another_platform_leaves_discord_alone(self, db, discord):
         org, _ = await _org(db)
         bot = await _bot(db, org)
@@ -512,10 +597,36 @@ class TestUnlinkingAndTheSweep:
 
         counts = await sweep_discord_roles(sessions)
 
-        assert counts == {"synced": 2, "unreadable": 1}
+        assert counts == {"synced": 2, "unreadable": 1, "failed": 0}
         assert (await _membership(db, org, stays)).source == "discord"
         assert await _membership(db, org, leaves) is None
         assert (await _membership(db, org, unknown)).source == "discord"
+
+    async def test_one_person_failing_does_not_stop_the_sweep(self, db, discord):
+        org, _ = await _org(db)
+        bot = await _bot(db, org)
+        finance = await _group(db, org)
+        await _mapping(db, bot, finance, role="member")
+        broken, leaves = await _user(db), await _user(db)
+        for user in (broken, leaves):
+            account = await _linked(db, user)
+            await DiscordRoleSync(db).on_turn(bot, account, _turn(account, FINANCE))
+        real_sync = DiscordRoleSync.sync
+
+        async def sync(self: DiscordRoleSync, organization_id, user_id, **kwargs):
+            if user_id == broken.id:
+                raise RuntimeError("one person's rows are broken")
+            return await real_sync(self, organization_id, user_id, **kwargs)
+
+        @asynccontextmanager
+        async def sessions():
+            yield db
+
+        with patch.object(DiscordRoleSync, "sync", new=sync):
+            counts = await sweep_discord_roles(sessions)
+
+        assert counts == {"synced": 1, "unreadable": 0, "failed": 1}
+        assert await _membership(db, org, leaves) is None
 
 
 class TestMappings:
@@ -684,6 +795,47 @@ class TestMappings:
         assert await discord_role_mapping_repo.list_for_bot(db, channel_bot_id=bot.id) == []
         with pytest.raises(NotFoundError):
             await service.delete(self._ctx(org, owner), bot.id, plain.id)
+
+    async def test_deleting_the_group_takes_the_ceiling_its_mappings_took(self, db, discord):
+        org, owner = await _org(db)
+        bot = await _bot(db, org)
+        finance = await _group(db, org)
+        await _mapping(db, bot, finance, role="admin")
+        admin = await _member(db, org, role="admin")
+        groups = GroupService(db)
+
+        with pytest.raises(AuthorizationError):
+            await groups.delete(org.id, finance.id, admin.id)
+        await groups.delete(org.id, finance.id, owner.id)
+
+        assert await discord_role_mapping_repo.list_for_bot(db, channel_bot_id=bot.id) == []
+
+    @pytest.mark.parametrize(
+        ("requester", "role"),
+        [
+            ("admin", "admin"),  # the mapping admits peers the admin cannot demote
+            ("builder", None),  # its placements take members:manage to undo
+        ],
+    )
+    async def test_deleting_the_bot_takes_what_deleting_its_mappings_takes(
+        self, db, discord, requester, role
+    ):
+        org, owner = await _org(db)
+        bot = await _bot(db, org)
+        await _mapping(db, bot, await _group(db, org), role=role)
+        person = await _member(db, org, role=requester)
+
+        with pytest.raises(AuthorizationError):
+            await ChannelBotService(db, organization_id=org.id).delete(
+                bot.id, self._ctx(org, person, requester)
+            )
+        with patch("app.services.channel_bot.spawn_after_commit") as deferred:
+            await ChannelBotService(db, organization_id=org.id).delete(
+                bot.id, self._ctx(org, owner)
+            )
+        deferred.call_args.args[1].close()
+
+        assert await discord_role_mapping_repo.list_for_bot(db, channel_bot_id=bot.id) == []
 
     async def test_deleting_the_bot_or_the_group_deletes_its_mappings(self, db, discord):
         org, _ = await _org(db)

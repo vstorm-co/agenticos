@@ -178,9 +178,14 @@ class ChannelLinkService:
             user_id=user_id,
         )
         if identity.user_id != user_id:
+            previous = identity.user_id
             await channel_identity_repo.update(
                 self.db, db_identity=identity, update_data={"user_id": user_id}
             )
+            if identity.platform == DISCORD_PLATFORM and previous is not None:
+                # Re-linked to somebody else: the account no longer says who
+                # the previous person is, so its roles stop placing them.
+                await DiscordRoleSync(self.db).release(previous)
 
         await message_rating_repo.adopt_channel_ratings(
             self.db, identity_id=identity.id, user_id=user_id

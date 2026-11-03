@@ -13,4 +13,6 @@ async def sync_discord_roles() -> dict[str, int]:
     counts = await sweep_discord_roles(get_db_context)
     if counts["unreadable"]:
         logger.warning("Discord role sync: %d person(s) could not be checked", counts["unreadable"])
+    if counts["failed"]:
+        logger.error("Discord role sync: %d person(s) failed", counts["failed"])
     return counts
