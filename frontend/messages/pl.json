@@ -1402,7 +1402,10 @@
       "needsFolder": "{agent} działa na tym komputerze: wybierz folder w Ustawieniach czatu → Pracuj na → Ten komputer.",
       "needsFullAccess": "{agent} działa jako Ty, więc folder wymaga pełnego dostępu. Zmień to w Ustawieniach czatu → Pracuj na.",
       "chosen": "{agent} · {folder}"
-    }
+    },
+    "continuesInTheChat": "Zdecydowano. Gdy nic innego nie czeka, agent kontynuuje i odpowie w czacie, w którym o to poproszono.",
+    "continuedInTheChat": "Kontynuowano w czacie, w którym o to poproszono",
+    "answerAlsoInTheChat": "Odpowiedź trafi też do czatu, w którym o to poproszono."
   },
   "errors": {
     "authorizationFailed": "Autoryzacja nie powiodła się",
@@ -2824,7 +2827,11 @@
       "stepApprovalEdited": "Zmieniono",
       "surfaceProactive": "Proaktywność",
       "standaloneRequest": "Żądanie do modelu",
-      "standaloneResponse": "Odpowiedź modelu"
+      "standaloneResponse": "Odpowiedź modelu",
+      "decisionApprovedInChat": "Zatwierdzono. Gdy nic innego nie czeka, agent kontynuuje w czacie, w którym o to poproszono.",
+      "decisionRejectedInChat": "Odrzucono. Gdy nic innego nie czeka, agent odpowie w czacie, w którym o to poproszono.",
+      "runResumedInChat": "Run wznowiony. Odpowiedź trafi też do czatu, w którym o to poproszono.",
+      "alreadyContinuing": "Ten run jest już kontynuowany w swoim czacie."
     },
     "sandboxes": {
       "addConnection": "Dodaj połączenie",

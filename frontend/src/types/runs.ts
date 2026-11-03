@@ -25,6 +25,11 @@ export interface VoiceChain {
 export interface AgentRun {
   id: string;
   agent_id: string;
+  /**
+   * The server posts this run's continuation to the chat it was asked in, so the
+   * console must not resume it too.
+   */
+  continues_in_chat?: boolean;
   agent_version_id: string | null;
   user_id: string | null;
   surface: string;
@@ -310,6 +315,11 @@ export interface ManifestCodeRun {
 export interface ToolApproval {
   id: string;
   run_id: string;
+  /**
+   * The server posts this run's continuation to the chat it was asked in, so the
+   * console must not resume it too.
+   */
+  continues_in_chat?: boolean;
   /** Whose *run* this is - the agent the queue is scoped by, never who is acting. */
   agent_id: string;
   /**
@@ -532,6 +542,8 @@ export interface SettledCall {
 
 export interface ResumedRun {
   run_id: string;
+  /** The run goes on in the chat it was asked in, which also gets its answer. */
+  continues_in_chat?: boolean;
   output: string;
   status: RunStatus;
   /**

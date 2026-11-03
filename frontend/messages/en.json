@@ -2245,7 +2245,10 @@
       "needsFolder": "{agent} runs on this computer: choose a folder under Chat controls → Work on → This computer.",
       "needsFullAccess": "{agent} runs as you, so the folder needs full access. Change it under Chat controls → Work on.",
       "chosen": "{agent} · {folder}"
-    }
+    },
+    "continuesInTheChat": "Decided. Once nothing else is waiting, the agent goes on in the chat this was asked in and answers there.",
+    "continuedInTheChat": "Continued in the chat this was asked in",
+    "answerAlsoInTheChat": "The answer is also sent to the chat this was asked in."
   },
   "common": {
     "archiveNamedConfirm": "Archive {name}?",
@@ -6662,7 +6665,11 @@
       "stepApprovalEdited": "Edited",
       "surfaceProactive": "Proactive",
       "standaloneRequest": "Model request",
-      "standaloneResponse": "Model response"
+      "standaloneResponse": "Model response",
+      "decisionApprovedInChat": "Approved. Once nothing else is waiting, the agent goes on in the chat it was asked in.",
+      "decisionRejectedInChat": "Rejected. Once nothing else is waiting, the agent answers in the chat it was asked in.",
+      "runResumedInChat": "Run resumed. Its answer is also sent to the chat it was asked in.",
+      "alreadyContinuing": "This run is already continuing in its chat."
     },
     "sandboxes": {
       "addConnection": "Add connection",
