@@ -44,12 +44,14 @@ from app.db.models.skill_check import (
 )
 from app.repositories import (
     dataset_repo,
+    eval_run_repo,
     skill_check_repo,
     skill_proposal_repo,
     skill_usage_repo,
     skill_version_repo,
 )
 from app.schemas.api_key import ApiKeyCreate
+from app.schemas.authoring import ProposalCheck
 from app.schemas.dataset import DatasetCaseCreate, DatasetCreate
 from app.schemas.resource_usage import ProposalDecision
 from app.schemas.skill_check import (
@@ -62,6 +64,7 @@ from app.schemas.skill_usage import SkillUseRecord
 from app.schemas.skill_version import SkillVersionCreate
 from app.services import skill_check as skill_check_module
 from app.services.api_key import ApiKeyService
+from app.services.authoring import AuthoringService
 from app.services.dataset import DatasetService
 from app.services.notifications import NotificationService
 from app.services.skill_agents import SkillAgentService
@@ -332,6 +335,41 @@ class TestWhatCannotBeChecked:
         )
 
         assert [row.agent.name for row in check.agents] == ["A"]
+
+
+@pytest.mark.anyio
+async def test_a_fork_change_checked_on_one_agent_is_served_on_its_fork(db) -> None:
+    """A change written for a fork names the fork, so the agent following that fork reads
+    it in the candidate arm instead of its stored text."""
+    lab = await _lab(db)
+    fork = await skill_version_repo.get_fork(
+        db, lab.fork_id, organization_id=lab.ctx.organization_id, skill_id=lab.skill.id
+    )
+    assert fork is not None
+    proposal = await _proposal(db, lab, base_version_id=fork.base_version_id, fork_id=lab.fork_id)
+    datasets = DatasetService(db)
+    dataset = await datasets.create(lab.ctx, DatasetCreate(name="fork-cases"))
+    await datasets.add_case(
+        lab.ctx,
+        dataset.id,
+        DatasetCaseCreate(input="Q", checks=[{"type": "contains", "value": "x"}]),
+    )
+
+    started = await AuthoringService(db).check_skill(
+        lab.ctx,
+        lab.skill.id,
+        ProposalCheck(dataset_id=dataset.id, agent_id=lab.on_fork.id, proposal_id=proposal.id),
+    )
+
+    [candidate] = [
+        arm
+        for arm in await eval_run_repo.list_arms(
+            db, [started.id], organization_id=lab.ctx.organization_id
+        )
+        if arm.role == "candidate"
+    ]
+    assert candidate.skill_bodies is not None
+    assert candidate.skill_bodies[str(lab.skill.id)]["fork_id"] == str(lab.fork_id)
 
 
 class TestRunning:
