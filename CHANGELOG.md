@@ -23,6 +23,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Prepare the local runtime from the macOS setup wizard and restart saved local workspaces when the desktop app opens. Pass Docker credential-helper paths to subprocesses so installations launched from Finder can download images.
+
 - Background-job audit and table-retention integration tests no longer depend on
   PostgreSQL returning rows in insertion order.
 - Clearing the Architect's uploaded avatar restores its generated face, just as

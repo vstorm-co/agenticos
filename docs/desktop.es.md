@@ -1,5 +1,5 @@
 ---
-source_sha: "6666bbc954c8"
+source_sha: "2657ad3833a9"
 ---
 
 # La app de escritorio { #the-desktop-app }
@@ -123,12 +123,20 @@ propietario y proveedor. **Cancel** vuelve a la lista de instancias. Blobby se
 oculta durante la configuración y regresa con la consola según su preferencia
 de visibilidad guardada.
 
-En macOS, **Download Docker Desktop** descarga el instalador oficial para Apple
-silicon o Intel, muestra el progreso y abre la imagen de disco. Termina la
-instalación en la ventana del sistema y elige **Open Docker Desktop** y **Check
-again**. La aplicación también detecta la CLI de Docker instalada para el usuario.
-Otros sistemas abren la página de descarga de Docker. Una comprobación de estado
-por sí sola no inicia la instalación.
+En macOS, elige **Set up this computer**. AgenticOS descarga el instalador oficial
+de Docker Desktop para tu procesador, lo verifica con macOS, lo instala mediante
+una autorización del sistema e inicia el entorno local. Completa los avisos del
+primer inicio, incluidos los términos de Docker; la configuración continúa
+automáticamente cuando el entorno está listo. Un entorno instalado se inicia con
+**Start workspace**. Windows y Linux abren la página de descarga de Docker si hace
+falta instalarlo. Una comprobación de estado nunca instala software por sí sola.
+
+Al abrir AgenticOS se inicia automáticamente el espacio local administrado y
+guardado si está detenido, incluido su entorno en macOS y Windows. No se inician
+servidores externos ni entornos de desarrollo no administrados. La app transmite
+a los procesos secundarios los directorios de la CLI y de los asistentes de
+credenciales de Docker, incluso al abrirla desde Finder; no necesitas editar la
+configuración de credenciales de Docker ni el perfil de tu shell.
 
 Elige **New instance**, asígnale un nombre e introduce la organización y su
 propietario. La aplicación asigna puertos loopback libres y crea un proyecto Compose

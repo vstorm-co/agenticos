@@ -129,11 +129,13 @@ localForm.addEventListener("submit", async (event) => {
 async function start() {
   await listen("docker:download", ({ payload }) => {
     const label = document.querySelector("[data-local-message]");
-    if (payload && typeof payload.received === "number") {
+    if (payload && typeof payload.message === "string") {
+      label.textContent = payload.message;
+    } else if (payload && typeof payload.received === "number") {
       label.textContent =
         payload.total > 0
-          ? `Downloading Docker Desktop… ${Math.min(100, Math.floor((payload.received / payload.total) * 100))}%`
-          : `Downloading Docker Desktop… ${Math.floor(payload.received / 1024 / 1024)} MB`;
+          ? `Preparing AgenticOS… ${Math.min(100, Math.floor((payload.received / payload.total) * 100))}%`
+          : `Preparing AgenticOS… ${Math.floor(payload.received / 1024 / 1024)} MB`;
     }
   });
   await listen("local:progress", ({ payload }) => {
@@ -149,6 +151,9 @@ async function start() {
   // stopped answering - is asked where, not welcomed again.
   if (notice) {
     show(state.deployment === "local" ? "local" : "server");
+    if (state.deployment === "local") {
+      await checkLocal.resume();
+    }
     if (state.deployment !== "local") showError(serverForm, notice);
     return;
   }

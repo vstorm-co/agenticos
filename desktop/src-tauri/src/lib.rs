@@ -23,6 +23,7 @@ mod context;
 mod device;
 mod diagnostics;
 mod docker_install;
+mod docker_runtime;
 mod dropped;
 mod local_agents;
 mod local_browser;
@@ -551,6 +552,37 @@ async fn set_up_local(app: AppHandle, window: WebviewWindow, owner: local_stack:
         .await
         .map_err(|e| e.to_string())??;
     arrive(&app, &window, console, Deployment::Local).await
+}
+
+/// Resume only the saved managed instance, preserving its connection and session.
+#[tauri::command]
+async fn resume_local(app: AppHandle, window: WebviewWindow) -> Result<bool, String> {
+    let settings = settings::current(&app);
+    if settings.deployment != Some(Deployment::Local) {
+        return Ok(false);
+    }
+    let Some(instance) = local_instances::selected(&app)?.filter(|instance| instance.installed) else {
+        return Ok(false);
+    };
+    let url = instance.url();
+    managed::check(&app, &url)?;
+    let handle = app.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        local_stack::control_instance(&handle, &instance, local_stack::Control::Start)?;
+        local_stack::wait_for_console(&instance.url())?;
+        local_stack::verify_instance_sessions(&instance)
+    })
+    .await
+    .map_err(|e| e.to_string())??;
+    let _transition = device::transition(&app).await;
+    if settings::current(&app).connection_revision != settings.connection_revision {
+        return Err("The connection changed while the workspace was starting.".into());
+    }
+    managed::check(&app, &url)?;
+    console::grant(&app, &url)?;
+    window.navigate(home(&url)).map_err(|e| e.to_string())?;
+    start_companions(&app, &url, &settings);
+    Ok(true)
 }
 
 /// Use the AgenticOS already answering on this computer - a `make dev` stack, or one set up before.
@@ -1421,6 +1453,7 @@ pub fn run() {
             local_instances,
             set_up_local,
             use_local,
+            resume_local,
             open_docker_download,
             docker_install::download_docker,
             docker_install::open_docker,

@@ -2,14 +2,15 @@
 
 const VIEWS = {
   no_docker: {
-    title: "Install Docker to get started",
-    message: "Open Docker Desktop after installing it, then check again.",
-    actions: ["docker", "open-docker", "check"],
+    title: "Prepare this computer",
+    message:
+      "AgenticOS will install what it needs to run on this computer. Approve any system prompts that appear.",
+    actions: ["docker"],
   },
   docker_stopped: {
-    title: "Docker is ready to open",
-    message: "Start Docker Desktop, then check again to set up your workspace.",
-    actions: ["open-docker", "check"],
+    title: "Start your local workspace",
+    message: "AgenticOS will start everything it needs for you.",
+    actions: ["open-docker"],
   },
   running: {
     title: "Your local workspace is ready",
@@ -30,7 +31,7 @@ const VIEWS = {
  * @param {HTMLElement} root
  * @param {Invoke} invoke
  * @param {(message: unknown) => void} report
- * @returns {() => Promise<void>}
+ * @returns {(() => Promise<void>) & { resume: () => Promise<void> }}
  */
 export function localComputerStep(root, invoke, report) {
   const card = root.querySelector("[data-local-instance]");
@@ -150,6 +151,7 @@ export function localComputerStep(root, invoke, report) {
   });
   let generation = 0;
   let connecting = false;
+  let preparing = false;
   function setBusy(busy) {
     card.setAttribute("aria-busy", String(busy));
   }
@@ -170,7 +172,7 @@ export function localComputerStep(root, invoke, report) {
     card.dataset.state = "checking";
     setBusy(true);
     title.textContent = "Checking this computer";
-    message.textContent = "Looking for AgenticOS and Docker…";
+    message.textContent = "Checking your local workspace…";
     showActions([]);
     form.hidden = true;
     try {
@@ -200,27 +202,38 @@ export function localComputerStep(root, invoke, report) {
     const action = button?.dataset.action;
     if (action === "check") await refresh();
     if (action === "create") showForm(null);
-    if (action === "docker") {
-      button.disabled = true;
-      message.textContent = "Downloading Docker Desktop…";
+    if (action === "docker" || action === "open-docker") {
+      if (preparing) return;
+      preparing = true;
+      showActions([]);
+      setBusy(true);
+      title.textContent =
+        action === "docker"
+          ? "Preparing this computer"
+          : "Starting your workspace";
+      message.textContent =
+        "Approve any system installation or first-run prompts. AgenticOS will continue automatically.";
       try {
-        await invoke("download_docker");
-        message.textContent =
-          "Finish installing Docker Desktop, then open it and check again.";
+        await invoke(action === "docker" ? "download_docker" : "open_docker");
+        await refresh();
+        if (card.dataset.state === "ready") showForm(null);
+        else if (card.dataset.state === "no_docker") {
+          message.textContent =
+            "Complete the runtime installation, then choose Check again to continue.";
+          showActions(["docker", "check"]);
+        }
       } catch (error) {
+        title.textContent = "Setup needs your attention";
         message.textContent = String(error);
+        showActions(
+          action === "open-docker"
+            ? ["open-docker", "docker", "check"]
+            : ["docker", "check"],
+        );
         report(error);
       } finally {
-        button.disabled = false;
-      }
-    }
-    if (action === "open-docker") {
-      try {
-        await invoke("open_docker");
-        message.textContent =
-          "Finish Docker Desktop's setup, then check again.";
-      } catch (error) {
-        message.textContent = String(error);
+        preparing = false;
+        setBusy(false);
       }
     }
     if (action !== "use" || connecting) return;
@@ -244,5 +257,32 @@ export function localComputerStep(root, invoke, report) {
       setBusy(false);
     }
   });
+  refresh.resume = async () => {
+    ++generation;
+    showOverview();
+    connecting = true;
+    setBusy(true);
+    showActions([]);
+    list.hidden = true;
+    title.textContent = "Starting AgenticOS";
+    message.textContent =
+      "Opening your saved workspace. This may take a few minutes.";
+    try {
+      const resumed = await invoke("resume_local");
+      if (resumed === false) {
+        connecting = false;
+        await refresh();
+      } else if (resumed !== true) {
+        throw new Error("The app could not read its workspace startup result.");
+      }
+    } catch (error) {
+      connecting = false;
+      await refresh();
+      title.textContent = "Your workspace could not start";
+      message.textContent = String(error);
+    } finally {
+      setBusy(false);
+    }
+  };
   return refresh;
 }

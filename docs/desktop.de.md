@@ -1,5 +1,5 @@
 ---
-source_sha: "6666bbc954c8"
+source_sha: "2657ad3833a9"
 ---
 
 # Die Desktop-App { #the-desktop-app }
@@ -126,12 +126,20 @@ Arbeitsbereich, Eigentümer und Anbieter. **Cancel** führt zur Instanzliste zur
 Blobby bleibt während der Einrichtung verborgen und kehrt mit der Konsole
 gemäß seiner gespeicherten Sichtbarkeit zurück.
 
-Unter macOS lädt **Download Docker Desktop** den offiziellen Installer für Apple
-silicon oder Intel herunter, zeigt den Fortschritt und öffnet das Disk-Image.
-Schließe die Installation im Systemfenster ab und wähle **Open Docker Desktop**
-und **Check again**. Die App findet auch eine benutzerspezifische Docker-CLI.
-Andere Betriebssysteme öffnen Dockers Downloadseite. Eine Statusprüfung allein
-startet keine Installation.
+Wähle unter macOS **Set up this computer**. AgenticOS lädt den offiziellen
+Docker-Desktop-Installer für deinen Prozessor, prüft ihn mit macOS, installiert ihn
+über eine Systemautorisierung und startet die lokale Laufzeit. Bestätige mögliche
+Dialoge beim ersten Start, einschließlich der Docker-Bedingungen; die Einrichtung
+wird automatisch fortgesetzt, sobald die Laufzeit bereit ist. Eine installierte
+Laufzeit startet über **Start workspace**. Windows und Linux öffnen bei Bedarf
+Dockers Downloadseite. Eine Statusprüfung allein installiert keine Software.
+
+Beim Öffnen startet AgenticOS den gespeicherten verwalteten lokalen Arbeitsbereich
+automatisch, wenn er gestoppt ist, einschließlich der Laufzeit unter macOS und
+Windows. Externe Server und nicht verwaltete Entwicklungsumgebungen werden nicht
+gestartet. Die App übergibt Dockers CLI- und Anmeldehilfsprogramm-Verzeichnisse an
+Kindprozesse, auch beim Start aus dem Finder. Du musst weder Dockers
+Anmeldekonfiguration noch dein Shell-Profil bearbeiten.
 
 Wähle **New instance**, gib einen Namen sowie Organisation und Eigentümerkonto an.
 Die App vergibt freie Loopback-Ports und erstellt ein eigenes Compose-Projekt mit

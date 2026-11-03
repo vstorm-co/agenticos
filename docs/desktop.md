@@ -116,11 +116,19 @@ Creating an instance opens a dedicated step with grouped workspace, owner and
 provider fields. **Cancel** returns to the instance list. Blobby stays hidden
 during setup and returns with the console, following its saved visibility setting.
 
-On macOS, **Download Docker Desktop** downloads the official installer for Apple
-silicon or Intel, shows progress and opens the disk image. Finish installation
-in the system window, then choose **Open Docker Desktop** and **Check again**.
-The app also finds Docker's per-user CLI installation. Other operating systems
-open Docker's download page. No installation starts from a status check alone.
+On macOS, choose **Set up this computer**. AgenticOS downloads the official
+Docker Desktop installer for your processor, checks it with macOS, installs it
+through a system authorization prompt and starts the local runtime. Complete any
+first-run prompts, including Docker's terms; setup continues automatically when
+the runtime is ready. An installed runtime starts through **Start workspace**.
+Windows and Linux open Docker's download page when installation is needed.
+A status check alone never installs software.
+
+Opening AgenticOS restarts its saved managed local workspace automatically when
+it is stopped, including its runtime on macOS and Windows. External servers and
+unmanaged development stacks are not started. The app passes Docker's CLI and
+credential-helper directories to child processes, including launches from Finder;
+you do not need to edit Docker's credential configuration or shell profile.
 
 Choose **New instance**, name it and enter its organization and owner. The app
 assigns free loopback ports and creates a separate Compose project with its own

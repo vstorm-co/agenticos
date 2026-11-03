@@ -1,5 +1,5 @@
 ---
-source_sha: "6666bbc954c8"
+source_sha: "2657ad3833a9"
 ---
 
 # Aplikacja desktopowa { #the-desktop-app }
@@ -121,11 +121,19 @@ Tworzenie instancji otwiera osobny krok z pogrupowanymi polami przestrzeni,
 właściciela i dostawcy. **Cancel** wraca do listy instancji. Blobby jest ukryty
 podczas konfiguracji i wraca razem z konsolą zgodnie z zapisanym ustawieniem.
 
-Na macOS **Download Docker Desktop** pobiera oficjalny instalator dla Apple silicon
-lub Intela, pokazuje postęp i otwiera obraz dysku. Dokończ instalację w oknie
-systemowym, a potem wybierz **Open Docker Desktop** i **Check again**. Aplikacja
-wykrywa też CLI Dockera zainstalowane dla użytkownika. Na innych systemach otwiera
-stronę pobierania Dockera. Samo sprawdzenie stanu nie uruchamia instalacji.
+Na macOS wybierz **Set up this computer**. AgenticOS pobiera oficjalny instalator
+Docker Desktop dla Twojego procesora, sprawdza go przez macOS, instaluje przez
+systemowe okno autoryzacji i uruchamia lokalne środowisko. Dokończ ewentualne
+komunikaty pierwszego uruchomienia, w tym akceptację warunków Dockera; konfiguracja
+kontynuuje się automatycznie, gdy środowisko jest gotowe. Zainstalowane środowisko
+uruchomisz przez **Start workspace**. Windows i Linux otwierają stronę pobierania
+Dockera, jeśli potrzebna jest instalacja. Samo sprawdzenie stanu nie instaluje oprogramowania.
+
+Otwarcie AgenticOS automatycznie uruchamia zapisaną, zarządzaną lokalną instancję,
+jeśli jest zatrzymana, wraz ze środowiskiem na macOS i Windows. Serwery zewnętrzne
+i niezarządzane środowiska deweloperskie nie są uruchamiane. Aplikacja przekazuje
+procesom potomnym katalogi CLI i narzędzi poświadczeń Dockera, także po uruchomieniu
+z Findera; nie musisz edytować konfiguracji poświadczeń Dockera ani profilu powłoki.
 
 Wybierz **New instance**, nadaj nazwę i podaj organizację oraz konto właściciela.
 Aplikacja przydziela wolne porty loopback i tworzy osobny projekt Compose z własną

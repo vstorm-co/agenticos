@@ -15,12 +15,13 @@
 
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Output, Stdio};
+use std::process::{Command, Output};
 use std::time::{Duration, Instant};
 
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, Url};
 
+use crate::docker_runtime;
 use crate::local_instances::{self, Instance};
 static OPERATIONS: std::sync::Mutex<()> = std::sync::Mutex::new(());
 const COMPOSE: &str = include_str!("../../../docker-compose.yml");
@@ -32,40 +33,7 @@ const READY_DEADLINE: Duration = Duration::from_secs(600);
 const READY_POLL: Duration = Duration::from_secs(2);
 const PROVIDERS: [&str; 4] = ["anthropic", "openai", "google", "openrouter"];
 
-/// Where Docker's CLI usually lives. An app opened from the Finder does not get
-/// the login shell's `PATH`, so `docker` alone is found only from a terminal.
-const DOCKER_CANDIDATES: [&str; 4] = [
-    "/usr/local/bin/docker",
-    "/opt/homebrew/bin/docker",
-    "/Applications/Docker.app/Contents/Resources/bin/docker",
-    "/usr/bin/docker",
-];
-
-/// The Docker CLI, from the usual places and then the `PATH`.
-pub fn docker() -> Option<PathBuf> {
-    let on_path = std::env::var_os("PATH")
-        .map(|path| {
-            std::env::split_paths(&path)
-                .map(|dir| dir.join(docker_name()))
-                .collect::<Vec<_>>()
-        })
-        .unwrap_or_default();
-    let user_cli = std::env::var_os("HOME").map(|home| PathBuf::from(home).join(".docker/bin").join(docker_name()));
-    DOCKER_CANDIDATES
-        .iter()
-        .map(PathBuf::from)
-        .chain(user_cli)
-        .chain(on_path)
-        .find(|candidate| candidate.is_file())
-}
-
-fn docker_name() -> &'static str {
-    if cfg!(windows) {
-        "docker.exe"
-    } else {
-        "docker"
-    }
-}
+use crate::docker_runtime::docker;
 
 /// Where the stack is, as far as onboarding and the tray need to know.
 #[derive(Serialize, Clone, Copy, PartialEq, Eq, Debug)]
@@ -88,14 +56,10 @@ pub fn status(console_answers: bool) -> Status {
     if console_answers {
         return Status::Running;
     }
-    let daemon = Command::new(docker)
-        .arg("info")
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .status();
-    match daemon {
-        Ok(exit) if exit.success() => Status::Ready,
-        _ => Status::DockerStopped,
+    if docker_runtime::ready(&docker).unwrap_or(false) {
+        Status::Ready
+    } else {
+        Status::DockerStopped
     }
 }
 
@@ -191,13 +155,13 @@ fn write_files(app: &AppHandle, instance: &Instance) -> Result<PathBuf, String> 
     }
     Ok(dir)
 }
-fn compose(docker: &Path, dir: &Path, instance: &Instance) -> Command {
-    let mut command = Command::new(docker);
+fn compose(docker: &Path, dir: &Path, instance: &Instance) -> Result<Command, String> {
+    let mut command = docker_runtime::command(docker)?;
     command
         .current_dir(dir)
         .args(["compose", "--project-name", &instance.project()])
         .args(["--file", "docker-compose.yml", "--file", "docker-compose.desktop.yml"]);
-    command
+    Ok(command)
 }
 
 fn run(mut command: Command, what: &str) -> Result<Output, String> {
@@ -272,8 +236,9 @@ pub fn set_up(app: &AppHandle, owner: &Owner) -> Result<Url, String> {
     let _operation = OPERATIONS
         .try_lock()
         .map_err(|_| "Another local instance operation is still running.")?;
-    let docker = docker().ok_or("Docker is not installed.")?;
-    let mut version = Command::new(&docker);
+    docker_runtime::ensure_running()?;
+    let docker = docker().ok_or("The local runtime is not installed. Prepare this computer first.")?;
+    let mut version = docker_runtime::command(&docker)?;
     version.args(["compose", "version"]);
     run(
         version,
@@ -304,19 +269,19 @@ pub fn set_up(app: &AppHandle, owner: &Owner) -> Result<Url, String> {
     let dir = write_files(app, &instance)?;
 
     report(app, Step::Download, None);
-    let mut pull = compose(&docker, &dir, &instance);
+    let mut pull = compose(&docker, &dir, &instance)?;
     pull.args(["pull", "--quiet"]);
     run(pull, "download AgenticOS")?;
 
     report(app, Step::Start, None);
-    let mut up = compose(&docker, &dir, &instance);
+    let mut up = compose(&docker, &dir, &instance)?;
     up.args(["up", "--detach"]);
     run(up, "start AgenticOS")?;
     wait_for_console(&console)?;
     verify_instance_sessions(&instance)?;
 
     report(app, Step::Owner, None);
-    let mut bootstrap = compose(&docker, &dir, &instance);
+    let mut bootstrap = compose(&docker, &dir, &instance)?;
     bootstrap.args(["exec", "-T"]);
     // The key travels in the environment, named here and valued only in the
     // Docker CLI's own, so it is never on a command line.
@@ -357,24 +322,27 @@ pub fn control_instance(app: &AppHandle, instance: &Instance, control: Control) 
     let _operation = OPERATIONS
         .try_lock()
         .map_err(|_| "Another local instance operation is still running.")?;
-    let docker = docker().ok_or("Docker is not installed.")?;
+    if !matches!(control, Control::Stop) {
+        docker_runtime::ensure_running()?;
+    }
+    let docker = docker().ok_or("The local runtime is not installed. Prepare this computer first.")?;
     let dir = write_files(app, instance)?;
     match control {
         Control::Start => {
-            let mut up = compose(&docker, &dir, instance);
+            let mut up = compose(&docker, &dir, instance)?;
             up.args(["up", "--detach"]);
             run(up, "start AgenticOS").map(|_| ())
         }
         Control::Stop => {
-            let mut stop = compose(&docker, &dir, instance);
+            let mut stop = compose(&docker, &dir, instance)?;
             stop.arg("stop");
             run(stop, "stop AgenticOS").map(|_| ())
         }
         Control::Update => {
-            let mut pull = compose(&docker, &dir, instance);
+            let mut pull = compose(&docker, &dir, instance)?;
             pull.args(["pull", "--quiet"]);
             run(pull, "download the new version")?;
-            let mut up = compose(&docker, &dir, instance);
+            let mut up = compose(&docker, &dir, instance)?;
             up.args(["up", "--detach"]);
             run(up, "restart AgenticOS").map(|_| ())
         }

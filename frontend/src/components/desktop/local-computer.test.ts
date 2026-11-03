@@ -64,7 +64,7 @@ it("reports a failed probe and exposes a working check-again action", async () =
   await refresh();
   invoke.mockResolvedValueOnce("docker_stopped");
   fireEvent.click(screen.getByRole("button", { name: "Check again" }));
-  await screen.findByText("Docker is ready to open");
+  await screen.findByText("Start your local workspace");
 });
 it("ignores a stale probe result after a newer check", async () => {
   let resolveOld: ((value: unknown) => void) | undefined;
@@ -135,14 +135,14 @@ it("resumes a partial installation and offers a fresh instance beside an existin
   expect(root.querySelector('[name="instance-id"]')).toHaveValue("");
   expect(screen.getByLabelText("Instance name")).toHaveValue("");
 });
-it("downloads Docker only after the explicit download action", async () => {
+it("prepares the runtime only after setup, then opens the workspace form automatically", async () => {
   invoke.mockResolvedValueOnce("no_docker");
   const { refresh } = mount();
   await refresh();
   expect(invoke.mock.calls.some(([name]) => name === "download_docker")).toBe(false);
-  fireEvent.click(screen.getByRole("button", { name: "Download Docker Desktop" }));
+  fireEvent.click(screen.getByRole("button", { name: "Set up this computer" }));
   await waitFor(() => expect(invoke).toHaveBeenCalledWith("download_docker"));
-  expect(screen.getByRole("status")).toHaveTextContent("Finish installing Docker Desktop");
+  await screen.findByRole("heading", { name: "Create a local instance" });
 });
 
 it("shows a separate, grouped creation step with one action bar and restores the overview on Cancel", async () => {
@@ -162,4 +162,81 @@ it("shows a separate, grouped creation step with one action bar and restores the
   expect(screen.getByRole("button", { name: "Connect and continue" })).toBeVisible();
   expect(screen.queryByRole("button", { name: "Create instance" })).not.toBeInTheDocument();
   expect(root).toHaveAttribute("data-view", "overview");
+});
+
+it("starts an installed runtime and continues without a manual status check", async () => {
+  invoke.mockResolvedValueOnce("docker_stopped");
+  const { refresh } = mount();
+  await refresh();
+  fireEvent.click(screen.getByRole("button", { name: "Start workspace" }));
+  await screen.findByRole("heading", { name: "Create a local instance" });
+  expect(invoke).toHaveBeenCalledWith("open_docker");
+});
+
+it("refuses duplicate preparation and restores a retry after cancellation", async () => {
+  invoke.mockResolvedValueOnce("no_docker");
+  const { refresh } = mount();
+  await refresh();
+  let rejectPreparation: ((error: Error) => void) | undefined;
+  invoke.mockImplementationOnce(
+    () =>
+      new Promise((_resolve, reject) => {
+        rejectPreparation = reject;
+      }),
+  );
+  const button = screen.getByRole("button", { name: "Set up this computer" });
+  fireEvent.click(button);
+  fireEvent.click(button);
+  expect(invoke.mock.calls.filter(([name]) => name === "download_docker")).toHaveLength(1);
+  rejectPreparation?.(new Error("Installation cancelled"));
+  await screen.findByText("Setup needs your attention");
+  expect(screen.getByRole("button", { name: "Set up this computer" })).toBeEnabled();
+  expect(screen.getByRole("status")).toHaveTextContent("Installation cancelled");
+});
+
+it("resumes the saved local workspace without sending owner secrets or creating an instance", async () => {
+  invoke.mockResolvedValueOnce(true);
+  const { root, refresh } = mount();
+  await refresh.resume();
+  expect(invoke).toHaveBeenCalledExactlyOnceWith("resume_local");
+  expect(screen.getByText("Starting AgenticOS")).toBeVisible();
+  expect(root.querySelector("[data-local-instance]")).toHaveAttribute("aria-busy", "false");
+});
+
+it("offers recovery when automatic startup fails", async () => {
+  invoke.mockRejectedValueOnce(new Error("Runtime could not start"));
+  const { refresh } = mount();
+  await refresh.resume();
+  expect(screen.getByText("Your workspace could not start")).toBeVisible();
+  expect(screen.getByRole("status")).toHaveTextContent("Runtime could not start");
+  expect(screen.getByRole("button", { name: "New instance" })).toBeEnabled();
+});
+
+it("keeps an explicit continuation for platforms using an external installer", async () => {
+  invoke.mockImplementation(async (command) => (command === "local_instances" ? [] : "no_docker"));
+  const { refresh } = mount();
+  await refresh();
+  fireEvent.click(screen.getByRole("button", { name: "Set up this computer" }));
+  await waitFor(() =>
+    expect(screen.getByRole("status")).toHaveTextContent("Complete the runtime installation"),
+  );
+  expect(screen.getByRole("button", { name: "Check again" })).toBeEnabled();
+});
+
+it("offers installation if an installed CLI cannot start its runtime", async () => {
+  invoke.mockResolvedValueOnce("docker_stopped");
+  const { refresh } = mount();
+  await refresh();
+  invoke.mockRejectedValueOnce(new Error("The local runtime needs installation"));
+  fireEvent.click(screen.getByRole("button", { name: "Start workspace" }));
+  await screen.findByText("Setup needs your attention");
+  expect(screen.getByRole("button", { name: "Set up this computer" })).toBeEnabled();
+});
+
+it("leaves unmanaged development stacks to the regular connection flow", async () => {
+  invoke.mockResolvedValueOnce(false);
+  const { refresh } = mount();
+  await refresh.resume();
+  expect(screen.getByText("Ready to create your workspace")).toBeVisible();
+  expect(invoke).not.toHaveBeenCalledWith("set_up_local");
 });
