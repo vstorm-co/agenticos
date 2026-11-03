@@ -25,6 +25,7 @@ from app.db.vector_tables import (
     VECTOR_KB_INDEX_SUFFIX,
     VECTOR_ORG_INDEX_SUFFIX,
     VECTOR_ORGUNIT_INDEX_SUFFIX,
+    VECTOR_PARENT_INDEX_SUFFIX,
     VECTOR_SOURCE_INDEX_SUFFIX,
     VECTOR_SOURCE_PATH_INDEX_SUFFIX,
     VECTOR_TABLE_PREFIX,
@@ -814,6 +815,15 @@ class PgVectorStore(BaseVectorStore):
                         f"ON {table} USING hash ((metadata->>'{key}'))"
                     )
                 )
+            # The document key the per-document reads and deletes filter by
+            # (#2552); `0252_index_rag_parent_doc_id` says why it is plain and
+            # builds it on collections that predate it.
+            await session.execute(
+                text(
+                    f"CREATE INDEX IF NOT EXISTS {table}{VECTOR_PARENT_INDEX_SUFFIX} "
+                    f"ON {table} (parent_doc_id)"
+                )
+            )
             # The base key the scope narrows to (#2537). A btree rather than a hash:
             # the value is a UUID, so bounded, and one table usually holds a
             # handful of bases - a hash bucket of one value grows an overflow
@@ -1406,13 +1416,18 @@ class PgVectorStore(BaseVectorStore):
 
         The order makes a fallback that matches several rows pick the one the
         reference scan would, rather than whichever the heap returns (#548).
+        It sorts by `parent_doc_id || ''`, the same order, so the btree on
+        `parent_doc_id` (#2552) cannot serve it: with `LIMIT 1` the planner
+        would otherwise walk that whole index in order when the key value is
+        common elsewhere in the table and absent from the scope, instead of
+        reading the key's own index.
         `where` is built from literals here and every value it reads is bound,
         so the only interpolation is the already-validated `table`.
         """
         result = await session.execute(
             text(
                 f"SELECT parent_doc_id, metadata FROM {table} "
-                f"WHERE {where} ORDER BY parent_doc_id, id LIMIT 1"
+                f"WHERE {where} ORDER BY parent_doc_id || '', id LIMIT 1"
             ),
             params,
         )

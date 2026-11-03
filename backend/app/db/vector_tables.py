@@ -84,6 +84,10 @@ the longest of them all, so a suffix that outgrew it would tighten the bound
 rather than silently truncate into the collision below.
 """
 
+VECTOR_PARENT_INDEX_SUFFIX = "_parent_idx"
+"""The btree on the `parent_doc_id` column, which every per-document op filters by
+(`delete_document`, `get_document_chunks`, `get_chunks_around`, #2552)."""
+
 VECTOR_ORG_INDEX_SUFFIX = "_org_idx"
 VECTOR_KB_INDEX_SUFFIX = "_kb_idx"
 VECTOR_SOURCE_INDEX_SUFFIX = "_source_idx"
@@ -104,6 +108,7 @@ _INDEX_SUFFIXES = (
     VECTOR_SOURCE_PATH_INDEX_SUFFIX,
     VECTOR_FILENAME_INDEX_SUFFIX,
     VECTOR_CONTENT_HASH_INDEX_SUFFIX,
+    VECTOR_PARENT_INDEX_SUFFIX,
     VECTOR_ORG_INDEX_SUFFIX,
     VECTOR_KB_INDEX_SUFFIX,
     VECTOR_SOURCE_INDEX_SUFFIX,
