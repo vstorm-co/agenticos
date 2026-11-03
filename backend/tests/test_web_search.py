@@ -188,6 +188,16 @@ class TestFailures:
             await search("q", provider="tavily", api_key="k", max_results=5)
 
     @pytest.mark.anyio
+    async def test_a_failing_keenable_request_raises(self):
+        client = MagicMock()
+        client.post = AsyncMock(side_effect=RuntimeError("503 Service Unavailable"))
+        with (
+            patch("httpx.AsyncClient", return_value=client),
+            pytest.raises(SearchUnavailable, match="Keenable search is unavailable"),
+        ):
+            await search("q", provider="keenable", api_key=None, max_results=5)
+
+    @pytest.mark.anyio
     async def test_a_providers_own_message_stays_in_the_log(self, caplog):
         """The vendor's text names the failing endpoint, and an SDK puts the key in
         its query string. On the model's last attempt `steer` returns this message

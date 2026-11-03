@@ -10743,7 +10743,7 @@
       "does": "Lets the agent search the internet for current information.",
       "example1": "What changed in this regulation this year?",
       "example2": "Find three competitors and their prices",
-      "needs": "Nothing, with DuckDuckGo. Brave, Exa or Tavily need their API key in the vault.",
+      "needs": "Nothing, with DuckDuckGo or Keenable (a Keenable key in the vault is optional). Brave, Exa or Tavily need their API key in the vault.",
       "never": "Never sends your documents to the search engine, only the search words."
     },
     "visuals": {
@@ -11253,7 +11253,7 @@
     "web_research": {
       "method": {
         "title": "Search engine",
-        "description": "duckduckgo: free, no account, results rendered as clickable sources. native: the model provider searches with its own index and citations (only on models that support it). tavily: summarised for a model to read. brave: an index of its own. exa: search by meaning rather than keywords."
+        "description": "duckduckgo: free, no account, results rendered as clickable sources. native: the model provider searches with its own index and citations (only on models that support it). tavily: summarised for a model to read. brave: an index of its own. exa: search by meaning rather than keywords. keenable: no account needed; an API key is optional."
       },
       "max_results": {
         "title": "Results per search",

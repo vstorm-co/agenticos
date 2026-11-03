@@ -27,6 +27,15 @@
     "icon": "exa"
   },
   {
+    "id": "keenable",
+    "label": "Keenable",
+    "category": "search",
+    "kind": "api_key",
+    "help_url": "https://keenable.ai",
+    "description": "Web search that works without a key; a key lifts the rate limit.",
+    "icon": "keenable"
+  },
+  {
     "id": "logfire",
     "label": "Logfire",
     "category": "observability",

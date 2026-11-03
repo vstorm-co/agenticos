@@ -569,7 +569,7 @@ gibt keine Einstellung, die den Korpus erweitert.
 
 | Konfiguration | Standard | Werte |
 |---|---|---|
-| `method` | `duckduckgo` | `duckduckgo`, `native`, `tavily`, `brave`, `exa` |
+| `method` | `duckduckgo` | `duckduckgo`, `native`, `tavily`, `brave`, `exa`, `keenable` |
 | `max_results` | 5 | 1–10, von `native` ignoriert |
 
 Die Konsole benennt jede Methode, statt den gespeicherten Wert auszugeben, und
@@ -586,6 +586,7 @@ liest statt wie ein Produkt, das man auswählt.
 - **`tavily`** — Ergebnisse, zusammengefasst für ein Modell zum Lesen.
 - **`brave`** — ein eigener Index.
 - **`exa`** — Suche nach Bedeutung statt nach Schlagwort.
+- **`keenable`** — ohne Konto; ein optionaler API-Schlüssel aus den Secrets der Organisation schaltet auf den Endpunkt mit Schlüssel um.
 
 Die drei kostenpflichtigen Methoden brauchen einen API-Schlüssel aus den
 [Secrets](../secrets.md) der Organisation, benannt durch die `secret_id` der

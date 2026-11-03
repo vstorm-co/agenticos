@@ -539,7 +539,7 @@ które poszerzałoby korpus.
 
 | Konfiguracja | Domyślnie | Wartości |
 |---|---|---|
-| `method` | `duckduckgo` | `duckduckgo`, `native`, `tavily`, `brave`, `exa` |
+| `method` | `duckduckgo` | `duckduckgo`, `native`, `tavily`, `brave`, `exa`, `keenable` |
 | `max_results` | 5 | 1–10, ignorowane przez `native` |
 
 Konsola nazywa każdą metodę zamiast wypisywać przechowywaną wartość i rysuje obok
@@ -554,6 +554,7 @@ konfiguracyjny do rozpoznania, a nie jak produkt do wybrania.
 - **`tavily`** — wyniki streszczone pod kątem czytania przez model.
 - **`brave`** — własny indeks.
 - **`exa`** — wyszukiwanie po znaczeniu, a nie po słowie kluczowym.
+- **`keenable`** — bez konta; opcjonalny klucz API z sekretów organizacji przełącza na endpoint z kluczem.
 
 Trzy płatne metody wymagają klucza API z [sekretów](../secrets.md) organizacji,
 wskazanego przez `secret_id` powiązania. Wymóg jest warunkowy, a nie sztywny:

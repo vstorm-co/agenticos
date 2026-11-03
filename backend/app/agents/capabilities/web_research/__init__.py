@@ -93,6 +93,8 @@ class WebResearchConfig(BaseModel):
         # the free default behind an account, or let a Tavily agent publish with
         # nothing to authenticate with and fail on its first search.
         required_when=SecretCondition(field="method", equals=tuple(sorted(KEYED_METHODS))),
+        # Keenable works keyless; a bound key switches it to the keyed endpoint.
+        optional_when=SecretCondition(field="method", equals=("keenable",)),
     ),
     provider_executed=ProviderExecuted(tools=("web_search",), field="method", equals=("native",)),
 )
