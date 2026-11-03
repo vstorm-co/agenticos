@@ -333,6 +333,36 @@ async function bindingOf(
   return row ? record(row.binding) : null;
 }
 
+/** An agent's row in the skill page's table, by its name. */
+function agentRow(page: Page, agent: Record<string, unknown>) {
+  return page.getByRole("row").filter({ hasText: String(agent.name) });
+}
+
+/**
+ * The skill page tells each agent's line apart, and Improve prices one line from
+ * the rated answers in which its versions were loaded. Nothing here needs the
+ * helper, so it runs on the stub without one.
+ */
+test("a shared skill's page shows each agent's line, and Improve prices the line", async ({
+  page,
+}) => {
+  test.setTimeout(600_000);
+  const { skill, online, counter, wholesale } = await seedSkillsLab(page);
+  const skillId = id(skill);
+
+  await page.goto(`/skills/${skillId}`);
+  await expect(agentRow(page, online.agent)).toContainText("v1 · main");
+  await expect(agentRow(page, counter.agent)).toContainText("v1 · main");
+  await expect(agentRow(page, wholesale.agent)).toContainText(
+    "Fork “Wholesale” · from v1 · 1 change",
+  );
+
+  await page.goto(`/skills/${skillId}/improve/new`);
+  await expect(page.getByRole("heading", { name: "Start improving" })).toBeVisible();
+  await expect(page.getByText(/It reads \d+ answers/)).toBeVisible();
+  await expect(page.getByRole("button", { name: "Start", exact: true })).toBeEnabled();
+});
+
 /**
  * One skill, several agents: a change one agent fails is applied with that
  * agent pinned, and a change that helps and breaks nothing passes.
@@ -345,8 +375,7 @@ test("a shared skill improves on main and pins the agent a change breaks", async
     await seedSkillsLab(page);
   const skillId = id(skill);
 
-  await test.step("the skill page lists each agent on its line", async () => {
-    await page.goto(`/skills/${skillId}`);
+  await test.step("the skill's agents start on its lines", async () => {
     expect(await bindingOf(api, headers, skillId, id(online.agent))).toMatchObject({
       state: "main",
       version: { number: 1 },
@@ -369,12 +398,22 @@ test("a shared skill improves on main and pins the agent a change breaks", async
     });
     expect(record(session.check).verdict).toBe("blocked");
     expect(session.outcomes).toEqual(expect.arrayContaining(["apply_and_pin", "fork_for_helped"]));
-    const applied = await write(api, "post", `${path}/apply`, headers, {
-      confirmed: true,
-      acknowledge_unknown: false,
-      pin_worse: true,
-    });
-    expect(applied.version).toBe(2);
+    await page.goto(`/skills/${skillId}/improve/${id(session)}`);
+    await expect(page.getByRole("heading", { name: "How each agent did" })).toBeVisible();
+    await expect(
+      page.getByRole("listitem").filter({ hasText: String(online.agent.name) }),
+    ).toContainText("Better");
+    await expect(
+      page.getByRole("listitem").filter({ hasText: String(counter.agent.name) }),
+    ).toContainText("Worse");
+    await page.getByRole("button", { name: "Decide what to do" }).click();
+    await page.getByLabel("I have reviewed the selected changes and want to apply them.").check();
+    await page
+      .getByRole("button", {
+        name: `Apply, and keep ${String(counter.agent.name)} on the version it has`,
+      })
+      .click();
+    await expect.poll(async () => (await read(api, path, headers)).outcome).toBe("applied_pinned");
     expect(await bindingOf(api, headers, skillId, id(counter.agent))).toMatchObject({
       state: "pinned",
       version: { number: 1 },
