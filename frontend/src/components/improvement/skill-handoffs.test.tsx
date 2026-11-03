@@ -41,16 +41,16 @@ beforeEach(() => {
   state.error = null;
 });
 
-it("hands a skill's problems to the skill's own page, where it is improved", () => {
+it("hands a skill's problems to the skill's own Improve, on main", () => {
   state.skills = { items: [MAIN] };
   render(<SkillHandoffs session={SESSION} />);
   expect(screen.getByRole("heading", { name: "Belongs to a skill" })).toBeInTheDocument();
   expect(screen.getByText("Main · 5 agents")).toBeInTheDocument();
   expect(screen.getByText("2 more agents you cannot see use this skill.")).toBeInTheDocument();
   expect(screen.getByText("You said 90 days")).toBeInTheDocument();
-  expect(screen.getByRole("link", { name: "Open refunds" })).toHaveAttribute(
+  expect(screen.getByRole("link", { name: "Improve refunds" })).toHaveAttribute(
     "href",
-    "/skills?skill=s1",
+    `/skills/s1/improve/new?from_run=${SESSION.id}`,
   );
 });
 
@@ -73,9 +73,12 @@ it("hands a forked agent's problems to its fork, and a reader who cannot edit as
   };
   render(<SkillHandoffs session={SESSION} />);
   expect(screen.getByText('Fork "Returns" · 1 agent')).toBeInTheDocument();
-  expect(screen.getByRole("link", { name: "Open refunds" })).toBeVisible();
+  expect(screen.getByRole("link", { name: 'Improve refunds, fork "Returns"' })).toHaveAttribute(
+    "href",
+    `/skills/s1/improve/new?from_run=${SESSION.id}`,
+  );
   expect(screen.getByText("Ask someone who can edit shipping to improve it.")).toBeVisible();
-  expect(screen.queryByRole("link", { name: "Open shipping" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("link", { name: "Improve shipping" })).not.toBeInTheDocument();
 });
 
 it("offers a pinned agent the newer version and a fork the catch-up", () => {
@@ -104,13 +107,10 @@ it("offers a pinned agent the newer version and a fork the catch-up", () => {
   };
   render(<SkillHandoffs session={SESSION} />);
   expect(screen.getByText("This agent is 3 versions behind main.")).toBeVisible();
-  expect(screen.getByRole("link", { name: "Update to v4" })).toHaveAttribute(
-    "href",
-    "/skills?skill=s1",
-  );
+  expect(screen.getByRole("link", { name: "Update to v4" })).toHaveAttribute("href", "/skills/s1");
   expect(screen.getByRole("link", { name: "Catch up the fork" })).toHaveAttribute(
     "href",
-    "/skills?skill=s2",
+    "/skills/s2",
   );
 });
 

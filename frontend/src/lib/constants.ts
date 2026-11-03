@@ -64,8 +64,6 @@ export const ROUTES = {
   DOCUMENTS: "/documents",
   DOCUMENT_FOLDER: (id: string) => `/documents/${id}`,
   SKILLS: "/skills",
-  /** The skills page with one skill open. */
-  SKILL_DETAIL: (id: string) => `/skills?skill=${id}`,
   CONTEXT: "/context",
   DATASETS: "/datasets",
   EVALS: "/evals",

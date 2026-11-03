@@ -1,5 +1,5 @@
 ---
-source_sha: "c68b7b841996"
+source_sha: "df315c0f1895"
 title: "Asystent tworzenia"
 description: "Asystent tworzenia czyta, co ludzie ocenili negatywnie i jak kończyły się runy, i sugeruje zmiany w instrukcjach agenta, jego narzędziach, konfiguracji, skillach i plikach kontekstowych. O każdej decyduje człowiek."
 ---
@@ -513,7 +513,9 @@ Ten sam skill mogą czytać inni agenci, więc agent Improve nigdy go nie zmieni
 
 Zmiana, która powtarza 200-znakowy fragment powiązanego skilla, zostaje odrzucona, tak samo jak nowy skill z nazwą lub tekstem powiązanego skilla. Zgłoszony problem zostaje tylko wtedy, gdy wskazuje skill agenta i cytuje run, który użył wersji czytanej teraz przez agenta; cytaty z innych runów są z niego usuwane. Run, który dostał starszą wersję albo inny fork, nie jest dowodem przeciw tekstowi, który czyta pomocnik.
 
-Krok Changes pokazuje te problemy w sekcji **Należy do skilla**. Każda karta zawiera problemy z cytatami oraz liczbę agentów czytających tę samą linię skilla. **Otwórz X** otwiera skill na stronie Skills, gdzie się go poprawia. Bez prawa edycji skilla karta mówi, kogo poprosić. Gdy agent jest za main, karta **Zaktualizuj do vN** albo **Dogoń main w forku** otwiera tę samą stronę. Jeśli skilli nie da się odczytać, sekcja mówi o tym zamiast znikać.
+Krok Changes pokazuje te problemy w sekcji **Należy do skilla**. Każda karta zawiera problemy z cytatami oraz liczbę agentów czytających tę samą linię skilla. **Popraw X** otwiera Improve samego skilla z problemami z tej sesji jako dowodami startowymi. Jeśli agent korzysta z forka, ten Improve pracuje na forku; problemy przypiętego agenta trafiają do main. Bez prawa edycji skilla karta mówi, kogo poprosić.
+
+Gdy agent jest za main, karta **Zaktualizuj do vN** albo **Dogoń main w forku** otwiera stronę skilla. Jeśli skilli nie da się odczytać, sekcja mówi o tym zamiast znikać.
 
 ### Sprawdzanie szkicu wiedzy { #checking-a-knowledge-draft }
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "c68b7b841996"
+source_sha: "df315c0f1895"
 title: "Authoring-Assistent"
 description: "Der Authoring-Assistent liest, was Leute negativ bewertet haben und wie Runs endeten, und schlägt Änderungen an Anweisungen, Tools, Konfiguration, Skills und Context-Dateien eines Agents vor. Über jede entscheidet ein Mensch."
 ---
@@ -541,7 +541,9 @@ Andere Agents können denselben Skill lesen, deshalb ändert Agent-Improve nie e
 
 Eine Änderung, die eine Passage von 200 Zeichen eines gebundenen Skills wiederholt, wird abgelehnt, ebenso ein neuer Skill mit dem Namen oder Text eines gebundenen Skills. Ein gemeldetes Problem bleibt nur, wenn es einen Skill des Agents nennt und einen Run zitiert, der die Version genutzt hat, die der Agent jetzt liest; Zitate aus anderen Runs werden daraus entfernt. Ein Run, der eine ältere Version oder einen anderen Fork bekam, ist kein Beleg gegen den Text, den der Helfer liest.
 
-Der Schritt Changes listet diese Probleme unter **Gehört zu einem Skill**. Jede Karte zeigt die Probleme mit ihren Zitaten und wie viele Agents dieselbe Linie des Skills lesen. **X öffnen** öffnet den Skill auf der Seite Skills, wo er verbessert wird. Ohne Bearbeitungsrecht für den Skill sagt die Karte, wen man fragen kann. Liegt der Agent hinter Main, öffnet eine Karte **Auf vN aktualisieren** oder **Fork auf Main bringen** dieselbe Seite. Lassen sich die Skills nicht lesen, sagt der Abschnitt das, statt zu verschwinden.
+Der Schritt Changes listet diese Probleme unter **Gehört zu einem Skill**. Jede Karte zeigt die Probleme mit ihren Zitaten und wie viele Agents dieselbe Linie des Skills lesen. **X verbessern** öffnet das Improve des Skills selbst, mit den Problemen dieser Session als Startbelegen. Folgt der Agent einem Fork, arbeitet dieses Improve am Fork; die Probleme eines gepinnten Agents gehen an Main. Ohne Bearbeitungsrecht für den Skill sagt die Karte, wen man fragen kann.
+
+Liegt der Agent hinter Main, öffnet eine Karte **Auf vN aktualisieren** oder **Fork auf Main bringen** die Seite des Skills. Lassen sich die Skills nicht lesen, sagt der Abschnitt das, statt zu verschwinden.
 
 ### Einen Wissensentwurf prüfen { #checking-a-knowledge-draft }
 

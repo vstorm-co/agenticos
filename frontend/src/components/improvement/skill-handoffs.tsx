@@ -31,7 +31,7 @@ export function SkillHandoffs({ session }: { session: Improvement }) {
         <>
           <p className="text-muted-foreground text-sm">{t("intro")}</p>
           {shown.map((skill) => (
-            <SkillCard key={skill.skill_id} skill={skill} />
+            <SkillCard key={skill.skill_id} skill={skill} sessionId={session.id} />
           ))}
         </>
       )}
@@ -39,10 +39,9 @@ export function SkillHandoffs({ session }: { session: Improvement }) {
   );
 }
 
-function SkillCard({ skill }: { skill: ImprovementSkill }) {
+function SkillCard({ skill, sessionId }: { skill: ImprovementSkill; sessionId: string }) {
   const t = useTranslations("improvement.skills");
   const fork = skill.binding?.fork;
-  const page = ROUTES.SKILL_DETAIL(skill.skill_id);
   return (
     <article className="space-y-2 rounded-lg border p-4">
       <h4 className="font-medium">{skill.name}</h4>
@@ -77,7 +76,11 @@ function SkillCard({ skill }: { skill: ImprovementSkill }) {
           </ul>
           {skill.can_improve ? (
             <Button asChild size="sm">
-              <Link href={page}>{t("open", { name: skill.name })}</Link>
+              <Link href={`${ROUTES.SKILLS}/${skill.skill_id}/improve/new?from_run=${sessionId}`}>
+                {fork
+                  ? t("improveFork", { name: skill.name, fork: fork.name })
+                  : t("improve", { name: skill.name })}
+              </Link>
             </Button>
           ) : (
             <p className="text-muted-foreground text-sm">{t("askEditor", { name: skill.name })}</p>
@@ -88,7 +91,7 @@ function SkillCard({ skill }: { skill: ImprovementSkill }) {
         <div className="flex flex-wrap items-center gap-3 text-sm">
           <span>{t("behind", { count: skill.binding.behind_main })}</span>
           <Button asChild size="sm" variant="outline">
-            <Link href={page}>
+            <Link href={`${ROUTES.SKILLS}/${skill.skill_id}`}>
               {skill.update.kind === "update_pinned"
                 ? t("updatePinned", { version: skill.update.to_version })
                 : t("catchUp")}

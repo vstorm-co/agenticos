@@ -1,5 +1,5 @@
 ---
-source_sha: "c68b7b841996"
+source_sha: "df315c0f1895"
 title: "Asistente de autoría"
 description: "El asistente de autoría lee lo que la gente valoró negativamente y cómo acabaron los runs, y sugiere cambios a las instrucciones, las herramientas, la configuración, los skills y los archivos de contexto de un agent. Una persona decide cada uno."
 ---
@@ -523,7 +523,9 @@ Otros agentes pueden leer el mismo skill, así que el Improve del agente nunca c
 
 Se rechaza un cambio que repite un pasaje de 200 caracteres de un skill vinculado, y también un skill nuevo con el nombre o el texto de un skill vinculado. Un problema informado solo se conserva si nombra un skill del agente y cita un run que usó la versión que el agente lee ahora; las citas de otros runs se eliminan. Un run que recibió una versión anterior, u otro fork, no es evidencia contra el texto que lee el asistente.
 
-El paso Changes muestra estos problemas en **Belongs to a skill**. Cada tarjeta muestra los problemas con sus citas y cuántos agentes leen la misma línea del skill. **Open X** abre el skill en la página Skills, donde se mejora. Sin permiso de edición sobre el skill, la tarjeta indica a quién pedírselo. Cuando el agente va por detrás de main, una tarjeta **Update to vN** o **Catch up the fork** abre la misma página. Si no se pueden leer los skills, la sección lo dice en lugar de desaparecer.
+El paso Changes muestra estos problemas en **Belongs to a skill**. Cada tarjeta muestra los problemas con sus citas y cuántos agentes leen la misma línea del skill. **Improve X** abre el Improve del propio skill, con los problemas de esta sesión como evidencia inicial. Si el agente sigue un fork, ese Improve trabaja sobre el fork; los problemas de un agente fijado van a main. Sin permiso de edición sobre el skill, la tarjeta indica a quién pedírselo.
+
+Cuando el agente va por detrás de main, una tarjeta **Update to vN** o **Catch up the fork** abre la página del skill. Si no se pueden leer los skills, la sección lo dice en lugar de desaparecer.
 
 ### Comprobar un borrador de conocimiento { #checking-a-knowledge-draft }
 

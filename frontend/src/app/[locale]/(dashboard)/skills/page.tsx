@@ -105,17 +105,8 @@ export default function SkillsPage() {
   const { can, isLoading: isLoadingPermissions } = usePermissions();
 
   const [selected, setSelected] = useState<SkillSummary | null>(null);
-  // A skill another page links to opens here: `?skill=<id>`.
-  const [linkedId, setLinkedId] = useUrlState("skill");
-  const [pendingDelete, setPendingDelete] = useState<Pick<SkillSummary, "id" | "name"> | null>(
-    null,
-  );
-  const openId = selected?.id ?? linkedId;
-  const { skill, save } = useSkill(openId);
-  const close = () => {
-    setSelected(null);
-    if (linkedId !== null) setLinkedId(null);
-  };
+  const [pendingDelete, setPendingDelete] = useState<SkillSummary | null>(null);
+  const { skill, save } = useSkill(selected?.id ?? null);
 
   const [createOpen, setCreateOpen] = useState(false);
   const [galleryOpen, setGalleryOpen] = useState(false);
@@ -135,7 +126,7 @@ export default function SkillsPage() {
 
   async function handleSave(edit: SkillEdit) {
     await save.mutateAsync(edit);
-    close();
+    setSelected(null);
   }
 
   const isBusy = isLoading || isLoadingPermissions;
@@ -378,15 +369,15 @@ export default function SkillsPage() {
       </ListCard>
 
       <Dialog
-        open={openId !== null}
+        open={selected !== null}
         onOpenChange={(open) => {
-          if (!open) close();
+          if (!open) setSelected(null);
         }}
       >
-        {openId !== null && (
+        {selected !== null && (
           <DialogContent className={cn(DIALOG_FILL, DIALOG_CANVAS, "max-md:overflow-y-auto")}>
             <DialogHeader>
-              <DialogTitle className="font-mono">{selected?.name ?? skill?.name}</DialogTitle>
+              <DialogTitle className="font-mono">{selected.name}</DialogTitle>
               <DialogDescription>{t("nameHowModelRefers")}</DialogDescription>
             </DialogHeader>
             {skill === undefined ? (
@@ -413,11 +404,11 @@ export default function SkillsPage() {
                 categorySuggestions={categorySuggestions(categories, suggestedCategories)}
                 key={skill.id}
                 skill={skill}
-                canEdit={(selected ?? skill).can_edit === true}
+                canEdit={selected.can_edit === true}
                 isSaving={save.isPending}
                 onSave={handleSave}
-                onCancel={close}
-                onDelete={() => setPendingDelete(skill)}
+                onCancel={() => setSelected(null)}
+                onDelete={() => setPendingDelete(selected)}
               />
             )}
           </DialogContent>
@@ -438,7 +429,7 @@ export default function SkillsPage() {
           loading={remove.isPending}
           onConfirm={async () => {
             await remove.mutateAsync(pendingDelete.id);
-            if (openId === pendingDelete.id) close();
+            if (selected?.id === pendingDelete.id) setSelected(null);
             setPendingDelete(null);
           }}
         />
