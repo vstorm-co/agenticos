@@ -1,9 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 export function useCopyToClipboard(resetMs = 2000) {
   const [copied, setCopied] = useState(false);
+  const reset = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+  useEffect(() => () => clearTimeout(reset.current), []);
 
   /**
    * Copy `text`, and `html` beside it when there is a richer form to offer.
@@ -25,7 +28,8 @@ export function useCopyToClipboard(resetMs = 2000) {
         await navigator.clipboard.writeText(text);
       }
       setCopied(true);
-      setTimeout(() => setCopied(false), resetMs);
+      clearTimeout(reset.current);
+      reset.current = setTimeout(() => setCopied(false), resetMs);
       return true;
     } catch {
       return false;
