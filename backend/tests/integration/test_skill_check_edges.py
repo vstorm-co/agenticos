@@ -1271,7 +1271,10 @@ class TestSampleAndTestSet:
         lab = await _lab(db)
         ctx = lab.ctx
         datasets = DatasetService(db)
-        own = await datasets.create(ctx, DatasetCreate(name=f"a-{uuid.uuid4().hex[:6]}"))
+        own = await datasets.create(
+            ctx,
+            DatasetCreate(name=f"a-{uuid.uuid4().hex[:6]}", improvement_holdout_share=Decimal(1)),
+        )
         for text in ("Lost receipt, order 1", "Opening hours?", "Receipt gone, order 2"):
             await datasets.add_case(
                 ctx, own.id, DatasetCaseCreate(input=text, reference_answer="y")
@@ -1363,6 +1366,14 @@ class TestSampleAndTestSet:
             await SkillCheckService(db)._sample(ctx, lab.skill, lab.a.id, dataset, {"receipt"}, one)
             == one
         )
+        # A training question is never compared, so it is never sampled.
+        trained = next(case for case in cases if case.case_id in one)
+        trained.improvement_partition = "train"
+        await db.flush()
+        rest = await SkillCheckService(db)._sample(
+            ctx, lab.skill, lab.a.id, dataset, {"receipt", "order"}
+        )
+        assert set(rest) == loaded - set(one)
 
     async def test_the_skills_test_questions_can_start_from_recent_answers(self, db, monkeypatch):
         lab = await _lab(db)
