@@ -19,7 +19,7 @@ export function layoutWiki(graph: WikiGraph): Map<string, WikiPosition> {
   const points = new Map<string, Particle>(
     graph.pages.map((page, index) => {
       const angle = index * 2.399963229728653;
-      const radius = 90 * Math.sqrt(index + 1);
+      const radius = 28 * Math.sqrt(index + 1);
       return [
         page.path,
         {
@@ -33,30 +33,17 @@ export function layoutWiki(graph: WikiGraph): Map<string, WikiPosition> {
     }),
   );
   const entries = [...points.values()];
-  for (let step = 0; step < 100; step++) {
+  for (let step = 0; step < 240; step++) {
     for (const point of entries) {
-      point.fx = (500 - point.x) * 0.025;
-      point.fy = (350 - point.y) * 0.025;
+      point.fx = (500 - point.x) * 0.004;
+      point.fy = (350 - point.y) * 0.004;
     }
     for (const [index, a] of entries.entries()) {
       for (const b of entries.slice(index + 1)) {
         const dx = a.x - b.x,
           dy = a.y - b.y;
         const distance = Math.max(16, Math.hypot(dx, dy));
-        const strength = 750 / (distance * distance);
-        const overlapX = 280 - Math.abs(dx);
-        const overlapY = 160 - Math.abs(dy);
-        if (overlapX > 0 && overlapY > 0) {
-          if (overlapX < overlapY) {
-            const push = Math.sign(dx) * overlapX * 0.3;
-            a.fx += push;
-            b.fx -= push;
-          } else {
-            const push = Math.sign(dy) * overlapY * 0.3;
-            a.fy += push;
-            b.fy -= push;
-          }
-        }
+        const strength = 220 / (distance * distance);
         a.fx += dx * strength;
         a.fy += dy * strength;
         b.fx -= dx * strength;
@@ -70,7 +57,7 @@ export function layoutWiki(graph: WikiGraph): Map<string, WikiPosition> {
       const dx = b.x - a.x,
         dy = b.y - a.y;
       const distance = Math.max(1, Math.hypot(dx, dy));
-      const strength = ((distance - 280) * 0.025) / distance;
+      const strength = ((distance - 55) * 0.045) / distance;
       a.fx += dx * strength;
       a.fy += dy * strength;
       b.fx -= dx * strength;

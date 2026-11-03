@@ -12295,6 +12295,22 @@
     "reset": "Resetuj widok",
     "overview": "Podgląd grafu",
     "details": "Szczegóły notatki",
-    "closeDetails": "Zamknij szczegóły notatki"
+    "closeDetails": "Zamknij szczegóły notatki",
+    "showLabels": "Pokaż wszystkie etykiety",
+    "showArrows": "Pokaż kierunek połączeń",
+    "fileBrowser": "Pliki",
+    "allFiles": "Wszystkie pliki",
+    "clearFolder": "Wyczyść filtr folderu",
+    "filterFolder": "Filtruj graf do {path}",
+    "fileBrowserHint": "Na grafie są tylko zindeksowane notatki Markdown. Pozostałe pliki otwierają się w podglądzie.",
+    "groups": "Grupy",
+    "resetFilters": "Resetuj filtry",
+    "groupBy": "Grupuj według",
+    "folders": "Foldery",
+    "tags": "Tagi",
+    "toggleGroup": "Przełącz grupę {group}",
+    "rootFolder": "Folder główny",
+    "untagged": "Bez tagów",
+    "visibleNotes": "Widoczne notatki: {visible} z {total}"
   }
 }

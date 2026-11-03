@@ -2,7 +2,7 @@
 title: Projekte
 seo_title: Projekte - gemeinsame Dateien und Anweisungen
 description: Ein Projekt gibt laufender Arbeit einen Container mit Dateien und eine Reihe von Anweisungen, die jeder Chat darin teilt, egal welcher Agent antwortet.
-source_sha: "9388e65f5f9a"
+source_sha: "6add263cbcdc"
 ---
 
 # Projekte { #projects }
@@ -164,12 +164,18 @@ Die Ansicht funktioniert für gemeinsame Projektdateien, Sandbox-Workspaces und
 einen freigegebenen Desktop-Ordner. Jeder Ort hat seinen eigenen Graphen;
 lokale Notizen werden nicht hochgeladen.
 
-Der Graph öffnet sich als Vollbild-Canvas mit farbigen Notizkarten und gebogenen,
-gerichteten Pfeilen. Die erste Tag-Angabe bestimmt die Farbgruppe, sonst der Ordner.
-Suche, Notizliste, Details, Übersicht und Zoom-Steuerung schweben über dem Canvas.
-Verschiebe Karten, um diese Ansicht anzuordnen; Dateien und Links bleiben dabei
-unberührt. Die Vollbildsteuerung oder Escape stellt die eingebettete Ansicht
-wieder her; der Zurück-Pfeil führt zu den Dateien.
+Der Graph öffnet sich im Vollbild mit farbigen Punkten, dünnen Verbindungen und
+Beschriftungen beim Vergrößern oder Auswählen einer Notiz. Richtungspfeile und
+ständige Beschriftungen sind optional. Suche, Dateien, Details und Zoom befinden
+sich in schwebenden Panels. Gruppen färben Notizen standardmäßig nach Ordner,
+wahlweise nach dem ersten Tag. Gruppen lassen sich ausblenden, Ordner einschließlich
+Unterordner filtern und Filter zurücksetzen.
+
+Der Dateibrowser verwendet denselben Ordnerbaum und dieselben Symbole wie andere Arbeitsbereiche. Nur indexierte
+Markdown-Notizen werden Knoten; andere Dateien öffnen sich in der gemeinsamen
+Vorschau. Das Verschieben von Punkten ändert nur die Ansicht, keine Dateien oder
+Links. Die Vollbildsteuerung oder Escape stellt die eingebettete Ansicht wieder
+her; der Zurück-Pfeil führt zu den Dateien.
 
 Verknüpfe Notizen mit `[[notes/topic|Beschriftung]]`, Inline-Markdown-Links wie
 `[Thema](topic.md)` oder Beziehungen im Frontmatter:

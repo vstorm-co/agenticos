@@ -16,7 +16,15 @@ it("polls only the mounted view, rereads on focus and cancels when leaving", asy
   const signals: AbortSignal[] = [];
   vi.mocked(readWikiWorkspace).mockImplementation(async (_, signal) => {
     signals.push(signal);
-    return { pages: [], edges: [], unresolved: [], failed: [], skipped: [], truncated: false };
+    return {
+      files: [],
+      pages: [],
+      edges: [],
+      unresolved: [],
+      failed: [],
+      skipped: [],
+      truncated: false,
+    };
   });
   const client = new QueryClient();
   const wrapper = ({ children }: { children: ReactNode }) => (

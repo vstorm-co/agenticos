@@ -3,12 +3,12 @@ import { MarkerType } from "@xyflow/react";
 import { buildWikiGraph, parseWikiPage } from "./wiki-graph";
 import { wikiColour, wikiFlow, wikiGroup, wikiGroups } from "./wiki-flow";
 
-it("colours notes by their first tag, then folder, while keeping colours stable", () => {
+it("groups notes by folder or first tag", () => {
   const tagged = parseWikiPage("notes/a.md", "---\ntags: [research]\n---\n");
-  expect(wikiGroup(tagged)).toBe("research");
-  expect(wikiGroups([tagged, tagged, parseWikiPage("sources/b.md", "")])).toEqual([
+  expect(wikiGroup(tagged, "tag")).toBe("research");
+  expect(wikiGroups([tagged, tagged, parseWikiPage("sources/b.md", "")], "tag")).toEqual([
+    "/",
     "research",
-    "sources",
   ]);
   expect(wikiGroup(parseWikiPage("notes/a.md", ""))).toBe("notes");
   expect(wikiGroup(parseWikiPage("a.md", ""))).toBe("/");
@@ -27,7 +27,7 @@ it("draws directed arrows, dims unrelated notes, filters endpoints and preserves
     parseWikiPage("c.md", ""),
     parseWikiPage("d.md", ""),
   ]);
-  const view = wikiFlow(graph, new Set(["a.md", "b.md", "c.md"]), "a.md");
+  const view = wikiFlow(graph, new Set(["a.md", "b.md", "c.md"]), "a.md", { showArrows: true });
   expect(view.nodes[0]).toMatchObject({
     id: "a.md",
     selected: true,
@@ -42,7 +42,7 @@ it("draws directed arrows, dims unrelated notes, filters endpoints and preserves
     selected: true,
     markerEnd: { type: MarkerType.ArrowClosed },
   });
-  expect(view.edges[1]?.style?.opacity).toBe(0.12);
+  expect(view.edges[1]?.style?.opacity).toBe(0.06);
   const filtered = wikiFlow(graph, new Set(["a.md"]), "b.md");
   expect(filtered.edges.every((edge) => edge.hidden)).toBe(true);
   expect(

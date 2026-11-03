@@ -14,7 +14,7 @@ vi.mock("@xyflow/react", async (original) => ({
       <button
         onClick={() =>
           onNodesChange?.([
-            { id: "a.md", type: "dimensions", dimensions: { width: 236, height: 112 } },
+            { id: "a.md", type: "dimensions", dimensions: { width: 20, height: 20 } },
           ])
         }
       >
@@ -45,14 +45,14 @@ vi.mock("@xyflow/react", async (original) => ({
   ),
 }));
 
-it("keeps a dragged card's position when selection and refreshed graph data change", () => {
+it("keeps a dragged point's position when selection and refreshed graph data change", () => {
   const graph = buildWikiGraph([parseWikiPage("a.md", "# A")]);
   const onSelect = vi.fn();
   const { rerender } = render(
     <WikiCanvas graph={graph} visible={new Set(["a.md"])} selected={null} onSelect={onSelect} />,
   );
   fireEvent.click(screen.getByRole("button", { name: "Measure note" }));
-  expect(screen.getByLabelText("Measurements")).toHaveTextContent('{"width":236,"height":112}');
+  expect(screen.getByLabelText("Measurements")).toHaveTextContent('{"width":20,"height":20}');
   fireEvent.click(screen.getByRole("button", { name: "Drag note" }));
   expect(screen.getByLabelText("Position")).toHaveTextContent('{"x":120,"y":240}');
   fireEvent.click(screen.getByRole("button", { name: "Select with keyboard" }));
@@ -67,6 +67,6 @@ it("keeps a dragged card's position when selection and refreshed graph data chan
     />,
   );
   expect(screen.getByLabelText("Position")).toHaveTextContent('{"x":120,"y":240}');
-  expect(screen.getByLabelText("Measurements")).toHaveTextContent('{"width":236,"height":112}');
+  expect(screen.getByLabelText("Measurements")).toHaveTextContent('{"width":20,"height":20}');
   expect(onSelect).toHaveBeenCalledTimes(1);
 });

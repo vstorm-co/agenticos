@@ -12192,6 +12192,22 @@
     "reset": "Ansicht zurücksetzen",
     "overview": "Graphübersicht",
     "details": "Notizdetails",
-    "closeDetails": "Notizdetails schließen"
+    "closeDetails": "Notizdetails schließen",
+    "showLabels": "Alle Beschriftungen anzeigen",
+    "showArrows": "Richtungspfeile anzeigen",
+    "fileBrowser": "Dateien",
+    "allFiles": "Alle Dateien",
+    "clearFolder": "Ordnerfilter löschen",
+    "filterFolder": "Graph auf {path} filtern",
+    "fileBrowserHint": "Nur indexierte Markdown-Notizen erscheinen im Graph. Andere Dateien öffnen sich in der Dateivorschau.",
+    "groups": "Gruppen",
+    "resetFilters": "Filter zurücksetzen",
+    "groupBy": "Gruppieren nach",
+    "folders": "Ordner",
+    "tags": "Tags",
+    "toggleGroup": "Gruppe {group} umschalten",
+    "rootFolder": "Stammordner",
+    "untagged": "Ohne Tags",
+    "visibleNotes": "{visible} von {total} Notizen sichtbar"
   }
 }

@@ -1,7 +1,8 @@
 "use client";
 import type { ReactNode } from "react";
-import { ArrowUpRight, FileText, X } from "lucide-react";
+import { ArrowUpRight, X } from "lucide-react";
 import { useTranslations } from "next-intl";
+import { FileIcon } from "@/components/files";
 import { Button } from "@/components/ui";
 import type { WikiGraph, WikiPage } from "@/lib/wiki-graph";
 import { Connections } from "./wiki-connections";
@@ -35,7 +36,7 @@ export function WikiInspector({
           // i18n-exempt: CSS colour and shadow expressions, never user-facing text.
           style={{ color: colour, background: `color-mix(in srgb, ${colour} 12%, transparent)` }}
         >
-          <FileText className="size-5" aria-hidden />
+          <FileIcon name={page.path} className="size-5" />
         </span>
         <div className="min-w-0 flex-1">
           <p className="text-muted-foreground text-[10px] font-medium tracking-wider uppercase">

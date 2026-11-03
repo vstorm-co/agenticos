@@ -2,7 +2,7 @@
 title: Proyectos
 seo_title: Proyectos - archivos e instrucciones compartidos
 description: Un proyecto da al trabajo en curso un contenedor de archivos y unas instrucciones que comparte cada chat iniciado en él, responda el agent que responda.
-source_sha: "9388e65f5f9a"
+source_sha: "6add263cbcdc"
 ---
 
 # Proyectos { #projects }
@@ -163,12 +163,17 @@ enlazadas. La misma vista funciona con archivos compartidos del proyecto,
 workspaces del sandbox y una carpeta Desktop autorizada. Cada ubicación conserva
 su propio grafo; las notas locales no se suben al servidor.
 
-El grafo se abre en un lienzo de pantalla completa con tarjetas de colores y flechas
-curvas que indican la dirección de cada relación. El primer tag determina el color;
-si no hay tags, se usa la carpeta. La búsqueda, lista, detalles, minimapa y zoom
-flotan sobre el lienzo. Arrastrar tarjetas solo organiza esta vista, sin modificar
-archivos ni enlaces. El control de pantalla completa o Escape restaura la vista
-incrustada; la flecha atrás vuelve a los archivos.
+El grafo se abre a pantalla completa con puntos de colores, enlaces finos y etiquetas
+al ampliar o seleccionar una nota. Las flechas de dirección y etiquetas permanentes
+son opcionales. La búsqueda, archivos, detalles y zoom están en paneles flotantes.
+Los grupos colorean las notas por carpeta de forma predeterminada o por su primera
+etiqueta. Puedes ocultar grupos, filtrar una carpeta con sus subcarpetas y restablecer
+los filtros. El explorador usa el mismo árbol de carpetas e iconos que otros espacios.
+
+Solo las notas Markdown indexadas son nodos; los demás archivos se abren en el visor
+compartido. Arrastrar puntos solo organiza la vista, sin modificar archivos ni enlaces.
+El control de pantalla completa o Escape restaura la vista incrustada; la flecha
+atrás vuelve a los archivos.
 
 Conecta notas con `[[notes/topic|etiqueta]]`, enlaces Markdown en línea como
 `[Tema](topic.md)` o relaciones en el frontmatter:

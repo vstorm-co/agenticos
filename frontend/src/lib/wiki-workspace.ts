@@ -8,6 +8,7 @@ import { buildWikiGraph, parseWikiPage, type WikiGraph } from "./wiki-graph";
 export const WIKI_LIMITS = { pages: 200, fileBytes: 256 * 1024, totalBytes: 8 * 1024 * 1024 };
 
 export interface WikiSnapshot extends WikiGraph {
+  files: WorkspaceFile[];
   skipped: string[];
   failed: string[];
   truncated: boolean;
@@ -23,7 +24,12 @@ async function listing(source: FileSource) {
       return readConversationWorkspace(source.id).then((files) => ({ ...files, truncated: false }));
     case "local":
       return listLocalFiles(source.root).then((items) => ({
-        items,
+        items: items.map((file): WorkspaceFile => ({
+          path: file.path,
+          size: file.size,
+          is_dir: file.is_dir,
+          modified_at: file.modified === null ? null : new Date(file.modified * 1000).toISOString(),
+        })),
         truncated: items.length >= 500,
         unreadable_reason: null,
       }));
@@ -102,6 +108,7 @@ export async function readWikiWorkspace(
   );
   return {
     ...buildWikiGraph(results.filter((page) => page !== null)),
+    files: files.items,
     skipped: skipped.sort(),
     failed: failed.sort(),
     truncated: files.truncated,

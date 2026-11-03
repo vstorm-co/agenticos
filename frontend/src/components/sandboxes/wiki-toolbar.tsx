@@ -1,5 +1,5 @@
 "use client";
-import { ArrowLeft, List, Network, RefreshCw, Search } from "lucide-react";
+import { ArrowLeft, FolderTree, Layers, Network, RefreshCw, Search } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { Button, Input } from "@/components/ui";
 import { WorkspaceFullscreenButton } from "@/components/ui/workspace-fullscreen-button";
@@ -12,6 +12,8 @@ export function WikiToolbar({
   busy,
   notesOpen,
   onNotes,
+  groupsOpen,
+  onGroups,
   onRefresh,
   expanded,
   onExpand,
@@ -24,6 +26,8 @@ export function WikiToolbar({
   busy: boolean;
   notesOpen: boolean;
   onNotes: () => void;
+  groupsOpen: boolean;
+  onGroups: () => void;
   onRefresh: () => void;
   expanded: boolean;
   onExpand: () => void;
@@ -31,7 +35,7 @@ export function WikiToolbar({
 }) {
   const t = useTranslations("wikiGraph");
   return (
-    <div className="bg-card/95 flex w-full flex-wrap items-center gap-2 rounded-2xl border p-2 shadow-lg backdrop-blur-xl sm:w-auto">
+    <div className="bg-card/95 flex w-full flex-wrap items-center gap-1 rounded-2xl border p-2 shadow-lg backdrop-blur-xl sm:w-auto sm:gap-2">
       <Button
         size="icon"
         variant="ghost"
@@ -41,8 +45,8 @@ export function WikiToolbar({
       >
         <ArrowLeft className="size-4" />
       </Button>
-      <div className="mr-2 flex items-center gap-2">
-        <Network className="size-4 text-violet-500" aria-hidden />
+      <div className="flex items-center gap-2 sm:mr-2">
+        <Network className="hidden size-4 text-violet-500 sm:block" aria-hidden />
         <div>
           <h2 className="text-xs font-semibold">{t("title")}</h2>
           <p className="text-muted-foreground text-[10px]">
@@ -68,7 +72,7 @@ export function WikiToolbar({
         aria-pressed={notesOpen}
         onClick={onNotes}
       >
-        <List className="size-4" />
+        <FolderTree className="size-4" />
       </Button>
       <Button
         size="icon"
@@ -80,6 +84,16 @@ export function WikiToolbar({
         onClick={onRefresh}
       >
         <RefreshCw className={busy ? "size-4 animate-spin motion-reduce:animate-none" : "size-4"} />
+      </Button>
+      <Button
+        size="icon"
+        variant={groupsOpen ? "secondary" : "ghost"}
+        className="rounded-xl"
+        aria-label={t("groups")}
+        aria-pressed={groupsOpen}
+        onClick={onGroups}
+      >
+        <Layers className="size-4" />
       </Button>
       <WorkspaceFullscreenButton expanded={expanded} onToggle={onExpand} />
     </div>

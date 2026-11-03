@@ -2,7 +2,7 @@
 title: Projekty
 seo_title: Projekty - wspólne pliki i instrukcje czatów
 description: Projekt daje bieżącej pracy jeden kontener plików i jeden zestaw instrukcji, wspólne dla każdego czatu w nim, niezależnie od tego, który agent odpowiada.
-source_sha: "9388e65f5f9a"
+source_sha: "6add263cbcdc"
 ---
 
 # Projekty { #projects }
@@ -153,12 +153,16 @@ Markdown. Widok działa dla współdzielonych plików projektu, workspace sandbo
 i zatwierdzonego folderu Desktop. Każda lokalizacja ma osobny graf; lokalne
 notatki nie są wysyłane na serwer.
 
-Graf otwiera się na pełnoekranowym płótnie z kolorowymi kartami i zakrzywionymi
-strzałkami wskazującymi kierunek relacji. Kolor grupuje notatki według pierwszego
-tagu, a przy jego braku według folderu. Wyszukiwanie, lista, szczegóły notatki,
-minimapa i zoom pływają nad płótnem. Przeciąganie kart zmienia tylko ten widok,
-bez zapisywania plików lub linków. Przycisk rozwijania lub Escape przywraca widok
-osadzony, a strzałka wstecz wraca do plików.
+Graf otwiera się na pełnym ekranie z kolorowymi punktami, cienkimi połączeniami
+i etykietami widocznymi po przybliżeniu lub wybraniu notatki. Strzałki kierunku
+i stałe etykiety można włączyć. Wyszukiwanie, pliki, szczegóły i zoom są w pływających
+panelach. Grupy kolorują notatki domyślnie według folderu, opcjonalnie pierwszego tagu.
+Możesz ukrywać grupy, filtrować folder wraz z podfolderami i resetować filtry.
+
+Przeglądarka plików używa wspólnego drzewa folderów i ikon. Węzłami są tylko
+zindeksowane notatki Markdown; pozostałe pliki otwierają się we wspólnym podglądzie.
+Przeciąganie punktów zmienia tylko widok, bez zapisywania plików lub linków.
+Przycisk rozwijania lub Escape przywraca widok osadzony, a strzałka wstecz wraca do plików.
 
 Łącz notatki przez `[[notes/topic|etykieta]]`, linki Markdown w treści, np.
 `[Temat](topic.md)`, lub relacje we frontmatter:

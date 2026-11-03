@@ -77,8 +77,11 @@ fetch or traversal. Note contents and metadata are rendered as text.
   view, not semantic extraction or an inferred knowledge graph. Graph relationships
   are not evidence that a statement is correct.
 - The view opens as a full-screen React Flow canvas, reusing the workflow builder
-  engine, with floating controls, a minimap and curved directional arrows. Colours
-  group notes by first tag or folder; dragging cards changes only the current view.
+  engine, with floating controls, a minimap and an Obsidian-style point graph. Links are
+  thin straight lines; arrows and permanent labels are optional. Colours group
+  notes by folder or first tag, with per-group visibility and recursive folder
+  filters. The shared PathTree and FileIcon browse all listed files; only indexed
+  Markdown notes become graph nodes. Dragging points changes only the current view.
   Search matches title, path, aliases and tags. Selecting a node shows incoming,
   outgoing and unresolved links. Opening uses the shared file viewer; existing
   Project edit permissions and optimistic revision checks still apply.

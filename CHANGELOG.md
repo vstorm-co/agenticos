@@ -24,7 +24,8 @@ Two things are versioned separately from this file and worth knowing about:
 - Browse a live fullscreen graph of Markdown notes in project, sandbox and Desktop folder
   file explorers. Wiki links, inline Markdown links and frontmatter relationships
   supply the graph and backlinks, refreshed without an agent-generated App. Coloured
-  note cards, directed curves and floating panels use the workflow builder canvas.
+  points, thin links and optional arrows fill the canvas, with floating panels,
+  folder/tag groups and the shared file tree for notes and attachments.
 
 ### Changed
 

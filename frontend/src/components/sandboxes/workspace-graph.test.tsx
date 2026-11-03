@@ -18,7 +18,8 @@ vi.mock("@/lib/workspace-files", () => ({
   bytesKey: (_source: unknown, path: string) => ["bytes", path],
   workspaceFileAccess: (_source: unknown, path: string) => ({ path }),
 }));
-vi.mock("@/components/files", () => ({
+vi.mock("@/components/files", async (original) => ({
+  ...(await original<typeof import("@/components/files")>()),
   FileViewer: ({ file, onClose }: { file: { path: string }; onClose: () => void }) => (
     <div role="dialog" aria-label={file.path}>
       <button onClick={onClose}>Close viewer</button>
@@ -76,7 +77,7 @@ describe("live workspace graph", () => {
     const { container } = render(
       <WikiCanvas graph={graph} selected={null} visible={new Set(["a.md"])} onSelect={vi.fn()} />,
     );
-    expect(container.querySelectorAll(".react-flow__edge")).toHaveLength(0);
+    expect(container.querySelectorAll(".react-flow__edge-path")).toHaveLength(0);
     expect(screen.getByRole("button", { name: "A" })).toBeVisible();
   });
   it("browses links and backlinks, filters by metadata and opens the existing viewer", async () => {
@@ -89,19 +90,23 @@ describe("live workspace graph", () => {
     expect(screen.getByRole("button", { name: "Edit a.md" })).toBeVisible();
     await user.click(screen.getByRole("button", { name: "Notes" }));
     const gamma = screen
-      .getAllByRole("button", { name: "Gamma" })
+      .getAllByRole("button", { name: "c.md" })
       .find((entry) => entry.tagName === "BUTTON");
     if (!gamma) throw new Error("Note list button missing");
     await user.click(gamma);
     fireEvent.click(screen.getAllByRole("button", { name: "Alpha" })[0]!);
-    await user.click(screen.getByRole("button", { name: "b.md" }));
-    expect(screen.getByRole("button", { name: "a.md" })).toBeVisible();
+    await user.click(
+      within(screen.getByRole("complementary", { name: "Note details" })).getByRole("button", {
+        name: "b.md",
+      }),
+    );
+    expect(screen.getAllByRole("button", { name: "a.md" }).length).toBeGreaterThan(0);
     await user.click(screen.getByRole("button", { name: "Open note" }));
     expect(await screen.findByRole("dialog", { name: "b.md" })).toBeVisible();
     await user.click(screen.getByRole("button", { name: "Close viewer" }));
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     await user.type(screen.getByRole("textbox"), "#research");
-    expect(screen.getAllByRole("button", { name: "Alpha" })).toHaveLength(2);
+    expect(screen.getAllByRole("button", { name: "Alpha" })).toHaveLength(1);
     expect(screen.queryByRole("button", { name: "Gamma" })).not.toBeInTheDocument();
     await user.clear(screen.getByRole("textbox"));
     await user.type(screen.getByRole("textbox"), "absent");
@@ -114,7 +119,7 @@ describe("live workspace graph", () => {
     expect(container.querySelector("[data-expanded]")).toHaveAttribute("data-expanded", "true");
     expect(document.body.style.overflow).toBe("hidden");
     await userEvent.click(screen.getByRole("button", { name: "Notes" }));
-    await userEvent.click(screen.getAllByRole("button", { name: "Alpha" }).at(-1)!);
+    await userEvent.click(screen.getByRole("button", { name: "a.md" }));
     expect(screen.getByRole("complementary", { name: "Note details" })).toBeVisible();
     await userEvent.click(screen.getByRole("button", { name: "Close note details" }));
     expect(screen.queryByRole("complementary", { name: "Note details" })).not.toBeInTheDocument();
@@ -125,9 +130,44 @@ describe("live workspace graph", () => {
     fireEvent.click(container.querySelector(".react-flow__pane")!);
     expect(screen.queryByRole("complementary", { name: "Note details" })).not.toBeInTheDocument();
 
+    fireEvent.click(screen.getByRole("button", { name: "Show all labels" }));
+    expect(screen.getByRole("button", { name: "Show all labels" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Show direction arrows" }));
+    expect(screen.getByRole("button", { name: "Show direction arrows" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
     fireEvent.click(screen.getByRole("button", { name: "Zoom in" }));
     fireEvent.click(screen.getByRole("button", { name: "Zoom out" }));
     fireEvent.click(screen.getByRole("button", { name: "Reset view" }));
+  });
+
+  it("switches grouping, hides groups, resets filters and opens non-Markdown files", async () => {
+    vi.mocked(listProjectFiles).mockResolvedValue({
+      ...listing,
+      items: [...listing.items, file("assets/report.pdf")],
+    });
+    mount();
+    await screen.findByText("3 notes · 1 link");
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Tags" }));
+    await user.click(screen.getByRole("button", { name: "Toggle group research" }));
+    expect(screen.queryByRole("button", { name: "Alpha" })).not.toBeInTheDocument();
+    expect(screen.getByText("2 of 3 notes visible")).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Reset filters" }));
+    expect(screen.getByRole("button", { name: "Alpha" })).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Notes" }));
+    await user.click(screen.getByRole("button", { name: "Filter graph to assets" }));
+    expect(screen.getByText("0 of 3 notes visible")).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "report.pdf" }));
+    expect(await screen.findByRole("dialog", { name: "assets/report.pdf" })).toBeVisible();
+    expect(vi.mocked(readFileText).mock.calls.every(([, path]) => path.endsWith(".md"))).toBe(true);
+    await user.click(screen.getByRole("button", { name: "Close viewer" }));
+    await user.click(screen.getByRole("button", { name: "All files" }));
+    expect(screen.getByText("3 of 3 notes visible")).toBeVisible();
   });
 
   it("refreshes changed notes and removes deleted notes from the graph", async () => {

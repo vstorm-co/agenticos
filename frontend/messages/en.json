@@ -12528,6 +12528,22 @@
     "reset": "Reset view",
     "overview": "Graph overview",
     "details": "Note details",
-    "closeDetails": "Close note details"
+    "closeDetails": "Close note details",
+    "showLabels": "Show all labels",
+    "showArrows": "Show direction arrows",
+    "fileBrowser": "Files",
+    "allFiles": "All files",
+    "clearFolder": "Clear folder filter",
+    "filterFolder": "Filter graph to {path}",
+    "fileBrowserHint": "Only indexed Markdown notes appear in the graph. Other files open in the file viewer.",
+    "groups": "Groups",
+    "resetFilters": "Reset filters",
+    "groupBy": "Group by",
+    "folders": "Folders",
+    "tags": "Tags",
+    "toggleGroup": "Toggle group {group}",
+    "rootFolder": "Root folder",
+    "untagged": "Untagged",
+    "visibleNotes": "{visible} of {total} notes visible"
   }
 }

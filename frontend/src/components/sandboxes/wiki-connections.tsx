@@ -1,5 +1,6 @@
 "use client";
 import { useTranslations } from "next-intl";
+import { FileIcon } from "@/components/files";
 import type { WikiGraph } from "@/lib/wiki-graph";
 export function Connections({
   graph,
@@ -27,10 +28,21 @@ export function Connections({
                   <li key={target}>
                     <button
                       type="button"
-                      className="text-primary break-all hover:underline"
+                      className="hover:bg-accent flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left"
+                      title={target}
+                      aria-label={target}
                       onClick={() => onSelect(target)}
                     >
-                      {target}
+                      <FileIcon name={target} className="text-muted-foreground size-4 shrink-0" />
+                      <span className="min-w-0">
+                        <span className="block truncate text-xs">
+                          {graph.pages.find((page) => page.path === target)?.title ??
+                            target.split("/").at(-1)}
+                        </span>
+                        <span className="text-muted-foreground block truncate text-[10px]">
+                          {target}
+                        </span>
+                      </span>
                     </button>
                   </li>
                 );

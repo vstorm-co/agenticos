@@ -1,8 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
-  Background,
   MiniMap,
   Panel,
   ReactFlow,
@@ -12,15 +11,17 @@ import {
   type NodeChange,
 } from "@xyflow/react";
 import { useTranslations } from "next-intl";
-import { Minus, Plus, Scan } from "lucide-react";
+import { ArrowUpRight, CaseSensitive, Minus, Plus, Scan } from "lucide-react";
 import { Button } from "@/components/ui";
 import { useResolvedTheme } from "@/hooks/use-resolved-theme";
-import { wikiFlow, type WikiFlowNode } from "@/lib/wiki-flow";
+import { wikiFlow, type WikiFlowNode, type WikiGrouping } from "@/lib/wiki-flow";
 import type { WikiGraph } from "@/lib/wiki-graph";
 import { WikiNode } from "./wiki-node";
+import { WikiEdge } from "./wiki-edge";
 import "@xyflow/react/dist/style.css";
 
 const NODE_TYPES = { wiki: WikiNode };
+const EDGE_TYPES = { wiki: WikiEdge };
 
 export function WikiCanvas({
   graph,
@@ -28,16 +29,23 @@ export function WikiCanvas({
   visible,
   onSelect,
   children,
+  grouping = "folder",
 }: {
   graph: WikiGraph;
   selected: string | null;
   visible: Set<string>;
   onSelect: (path: string | null) => void;
   children?: ReactNode;
+  grouping?: WikiGrouping;
 }) {
   const colourMode = useResolvedTheme();
   const t = useTranslations("wikiGraph");
-  const view = useMemo(() => wikiFlow(graph, visible, selected), [graph, visible, selected]);
+  const [showLabels, setShowLabels] = useState(false);
+  const [showArrows, setShowArrows] = useState(false);
+  const view = useMemo(
+    () => wikiFlow(graph, visible, selected, { showLabels, showArrows, grouping }),
+    [graph, visible, selected, showLabels, showArrows, grouping],
+  );
   const [nodes, setNodes, onNodesChange] = useNodesState<WikiFlowNode>(view.nodes);
   // Reconcile file refreshes with the canvas model: measurements and dragged positions
   // belong to React Flow and must survive a new projection of the note metadata.
@@ -63,6 +71,7 @@ export function WikiCanvas({
         nodes={nodes}
         edges={view.edges}
         nodeTypes={NODE_TYPES}
+        edgeTypes={EDGE_TYPES}
         onNodesChange={move}
         onNodeClick={(_, node) => onSelect(node.id)}
         onPaneClick={() => onSelect(null)}
@@ -71,27 +80,31 @@ export function WikiCanvas({
         edgesFocusable={false}
         deleteKeyCode={null}
         minZoom={0.15}
-        maxZoom={2}
+        maxZoom={4}
         fitView
-        fitViewOptions={{ padding: 0.3, maxZoom: 1 }}
+        fitViewOptions={{ padding: 0.3, maxZoom: 1.8 }}
         colorMode={colourMode}
         proOptions={{ hideAttribution: true }}
         aria-label={t("title")}
         className="!bg-background"
       >
-        <Background gap={24} size={1} color="var(--color-border)" />
         <MiniMap<WikiFlowNode>
           pannable
           zoomable
           nodeColor={(node) => node.data.colour}
-          nodeBorderRadius={8}
+          nodeBorderRadius={100}
           maskColor="color-mix(in srgb, var(--color-background) 70%, transparent)"
           className="!bg-card !right-3 !bottom-16 !m-0 !hidden !overflow-hidden !rounded-xl !border !shadow-lg sm:!block"
           style={{ width: 156, height: 96 }}
           ariaLabel={t("overview")}
         />
         <Panel position="bottom-right">
-          <WikiViewportControls />
+          <WikiViewportControls
+            showLabels={showLabels}
+            showArrows={showArrows}
+            onLabels={() => setShowLabels(!showLabels)}
+            onArrows={() => setShowArrows(!showArrows)}
+          />
         </Panel>
         {children}
       </ReactFlow>
@@ -99,15 +112,45 @@ export function WikiCanvas({
   );
 }
 
-function WikiViewportControls() {
+function WikiViewportControls({
+  showLabels,
+  showArrows,
+  onLabels,
+  onArrows,
+}: {
+  showLabels: boolean;
+  showArrows: boolean;
+  onLabels: () => void;
+  onArrows: () => void;
+}) {
   const t = useTranslations("wikiGraph");
   const { zoomIn, zoomOut, fitView } = useReactFlow();
   return (
-    <div className="bg-card/95 flex gap-1 rounded-full border p-1 shadow-lg backdrop-blur-xl">
+    <div className="bg-card/95 grid grid-cols-6 gap-1 rounded-2xl border p-1 shadow-lg backdrop-blur-xl sm:flex sm:rounded-full">
+      <Button
+        size="icon"
+        variant={showLabels ? "secondary" : "ghost"}
+        className="col-span-3 rounded-full"
+        aria-label={t("showLabels")}
+        aria-pressed={showLabels}
+        onClick={onLabels}
+      >
+        <CaseSensitive className="size-4" />
+      </Button>
+      <Button
+        size="icon"
+        variant={showArrows ? "secondary" : "ghost"}
+        className="col-span-3 rounded-full"
+        aria-label={t("showArrows")}
+        aria-pressed={showArrows}
+        onClick={onArrows}
+      >
+        <ArrowUpRight className="size-4" />
+      </Button>
       <Button
         size="icon"
         variant="ghost"
-        className="rounded-full"
+        className="col-span-2 rounded-full"
         aria-label={t("zoomIn")}
         onClick={() => void zoomIn()}
       >
@@ -116,7 +159,7 @@ function WikiViewportControls() {
       <Button
         size="icon"
         variant="ghost"
-        className="rounded-full"
+        className="col-span-2 rounded-full"
         aria-label={t("zoomOut")}
         onClick={() => void zoomOut()}
       >
@@ -125,9 +168,9 @@ function WikiViewportControls() {
       <Button
         size="icon"
         variant="ghost"
-        className="rounded-full"
+        className="col-span-2 rounded-full"
         aria-label={t("reset")}
-        onClick={() => void fitView({ padding: 0.3, maxZoom: 1 })}
+        onClick={() => void fitView({ padding: 0.3, maxZoom: 1.8 })}
       >
         <Scan className="size-4" />
       </Button>
