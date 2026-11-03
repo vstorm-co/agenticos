@@ -291,7 +291,9 @@ name.
 ### When an agent got worse { #when-an-agent-got-worse }
 
 **Check on agents** under Skills prices the check, runs it, shows each agent's
-result and then applies or discards the change. On main a person may still:
+result and then applies or discards the change. A check an
+[Improve session](#improving-a-skill) started is decided in that session, and Check
+on agents links there instead. On main a person may still:
 
 - **apply it and keep the worse agents where they are** - each is pinned, as a new
   published version, to the version it reads now, before the change goes live, so
@@ -593,7 +595,9 @@ What Accept offers comes from the result:
 When the line gets a new version, or its agents change, after the check, the
 result no longer holds and offers **Check again** in place of applying: the same
 chosen changes, measured on the line as it is now, at a price shown first.
-Improving further and discarding stay offered.
+Improving further and discarding stay offered. A line that moves while the session
+waits at Changes is priced again: Next step checks the changes on the newest
+version.
 
 ## Skills or knowledge?
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "68cd14bf3b4e"
+source_sha: "bcb4edd305ed"
 ---
 
 # Skille { #skills }
@@ -303,8 +303,9 @@ nie widzisz, jest liczbą, nigdy nazwą.
 ### Gdy agent wypadł gorzej { #when-an-agent-got-worse }
 
 **Check on agents** w zakładce Skille wycenia sprawdzenie, uruchamia je, pokazuje
-wynik każdego agenta, a potem stosuje albo odrzuca zmianę. Na main osoba może
-nadal:
+wynik każdego agenta, a potem stosuje albo odrzuca zmianę. Sprawdzenie, które
+uruchomiła [sesja Popraw](#improving-a-skill), rozstrzyga się w tej sesji, a Check
+on agents prowadzi do niej. Na main osoba może nadal:
 
 - **zastosować zmianę i zostawić gorszych agentów tam, gdzie są** - każdy jest
   przypinany, jako nowa opublikowana wersja, do wersji, którą czyta teraz, zanim
@@ -609,7 +610,9 @@ To, co proponuje Akceptacja, wynika z wyniku:
 Gdy po sprawdzeniu linia dostanie nową wersję albo zmienią się jej agenci, wynik
 przestaje obowiązywać i zamiast zastosowania proponuje **Sprawdź ponownie**: te
 same wybrane zmiany, zmierzone na linii w obecnym stanie, w cenie pokazanej
-najpierw. Dalsze poprawianie i odrzucenie zostają dostępne.
+najpierw. Dalsze poprawianie i odrzucenie zostają dostępne. Gdy linia zmieni się,
+kiedy sesja czeka na Changes, krok jest wyceniany ponownie: Następny krok sprawdza
+zmiany na najnowszej wersji.
 
 ## Skille czy wiedza? { #skills-or-knowledge }
 

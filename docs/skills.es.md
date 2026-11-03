@@ -1,5 +1,5 @@
 ---
-source_sha: "68cd14bf3b4e"
+source_sha: "bcb4edd305ed"
 ---
 
 # Skills { #skills }
@@ -313,8 +313,9 @@ puedes ver es un número, nunca un nombre.
 ### Cuando un agent quedó peor { #when-an-agent-got-worse }
 
 **Check on agents** en Skills calcula el precio de la comprobación, la ejecuta,
-muestra el resultado de cada agent y luego aplica o descarta el cambio. En main
-una persona aún puede:
+muestra el resultado de cada agent y luego aplica o descarta el cambio. Una
+comprobación que inició una [sesión de Improve](#improving-a-skill) se decide en
+esa sesión, y Check on agents lleva a ella. En main una persona aún puede:
 
 - **aplicarlo y dejar a los agents peores donde están** - cada uno se fija, como
   versión publicada nueva, a la versión que lee ahora, antes de que el cambio
@@ -632,7 +633,9 @@ Cuando la línea recibe una versión nueva, o cambian sus agents, después de la
 comprobación, el resultado deja de valer y ofrece **Check again** en lugar de
 aplicar: los mismos cambios elegidos, medidos en la línea tal como está ahora, a
 un precio que se muestra primero. Seguir mejorando y descartar siguen
-disponibles.
+disponibles. Si la línea cambia mientras la sesión espera en Changes, se vuelve a
+calcular el precio: el siguiente paso comprueba los cambios en la versión más
+reciente.
 
 ## ¿Skills o conocimiento? { #skills-or-knowledge }
 

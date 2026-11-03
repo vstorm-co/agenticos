@@ -1,5 +1,5 @@
 ---
-source_sha: "68cd14bf3b4e"
+source_sha: "bcb4edd305ed"
 ---
 
 # Skills { #skills }
@@ -325,8 +325,10 @@ ein Name.
 ### Wenn ein Agent schlechter wurde { #when-an-agent-got-worse }
 
 **Check on agents** unter Skills schätzt die Prüfung, führt sie aus, zeigt das
-Ergebnis jedes Agents und wendet die Änderung dann an oder verwirft sie. Auf main
-kann eine Person dennoch:
+Ergebnis jedes Agents und wendet die Änderung dann an oder verwirft sie. Eine
+Prüfung, die eine [Verbessern-Sitzung](#improving-a-skill) gestartet hat, wird in
+dieser Sitzung entschieden, und Check on agents verweist dorthin. Auf main kann
+eine Person dennoch:
 
 - **die Änderung anwenden und die schlechteren Agents lassen, wo sie sind** -
   jeder wird, als neue veröffentlichte Version, auf die Version festgesetzt, die
@@ -660,7 +662,9 @@ Bekommt die Linie nach der Prüfung eine neue Version oder ändern sich ihre
 Agents, gilt das Ergebnis nicht mehr und bietet statt des Anwendens **Erneut
 prüfen** an: dieselben gewählten Änderungen, gemessen an der Linie, wie sie
 jetzt ist, zu einem Preis, der zuerst angezeigt wird. Weiterverbessern und
-Verwerfen bleiben möglich.
+Verwerfen bleiben möglich. Ändert sich die Linie, während die Sitzung bei Changes
+wartet, wird neu bepreist: Der nächste Schritt prüft die Änderungen auf der
+neuesten Version.
 
 ## Skills oder Knowledge? { #skills-or-knowledge }
 
