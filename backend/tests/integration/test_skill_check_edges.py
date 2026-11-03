@@ -3,6 +3,7 @@ person may not run or see, a run that has not settled, a line that gained an
 agent, a pin nobody may publish, and the skill's questions taken from evidence."""
 
 import uuid
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from types import SimpleNamespace
@@ -35,6 +36,7 @@ from app.db.models.skill_check import (
     AgentState,
     CheckSource,
     CheckStatus,
+    CheckVerdict,
     SkillCheck,
     SkillCheckAgent,
 )
@@ -58,6 +60,7 @@ from app.schemas.skill_version import SkillVersionCreate
 from app.services import skill_check as skill_check_module
 from app.services.dataset import DatasetService
 from app.services.notifications import NotificationService
+from app.services.skill_agents import SkillAgentService
 from app.services.skill_check import SkillCheckService
 from app.services.skill_proposal import SkillProposalService
 from app.services.skill_versions import SkillVersionService
@@ -221,6 +224,58 @@ class TestWhatCannotBeChecked:
         FakeEvals(agent_left=Decimal("0.01")).install(monkeypatch)
         with pytest.raises(BadRequestError, match="No agent"):
             await service.start(lab.ctx, lab.skill.id, _start())
+
+    async def test_an_agent_and_its_specialist_on_one_line_are_one_agent_to_check(
+        self, db, monkeypatch
+    ):
+        """An agent's eval answers through the agent and its specialists at once, so two
+        readers of one line in one agent are checked, judged and decided as one."""
+        lab = await _lab(db)
+        evals = FakeEvals()
+        evals.install(monkeypatch)
+        real = SkillAgentService.line_agents
+
+        async def per_reader(self, skill, fork_id):
+            found = await real(self, skill, fork_id)
+            twice = [user for user in found if user.agent.id == lab.a.id]
+            specialist = [replace(user, via_specialist="reader") for user in twice]
+            return [*specialist, *found]
+
+        monkeypatch.setattr(SkillAgentService, "line_agents", per_reader)
+        service = SkillCheckService(db)
+
+        check = await service.start(lab.ctx, lab.skill.id, _start())
+
+        assert [row.agent.name for row in check.agents].count("A") == 1
+        a = next(row for row in check.agents if row.agent.name == "A")
+        assert a.via_specialist is None
+        evals.outcomes = {lab.a.id: Outcome(fixed=1)}
+        read = await _run_to_end(service, evals, lab, check.id)
+        assert read.verdict is CheckVerdict.PASSED
+        await service.apply(lab.ctx, lab.skill.id, check.id, SkillCheckApply())
+
+    async def test_an_agent_only_a_specialist_of_reads_the_skill_through_is_checked_once(
+        self, db, monkeypatch
+    ):
+        lab = await _lab(db)
+        FakeEvals().install(monkeypatch)
+        real = SkillAgentService.line_agents
+
+        async def specialists_only(self, skill, fork_id):
+            found = await real(self, skill, fork_id)
+            return [
+                replace(user, via_specialist=name)
+                for user in found
+                for name in ("reader", "writer")
+            ]
+
+        monkeypatch.setattr(SkillAgentService, "line_agents", specialists_only)
+
+        estimate = await SkillCheckService(db).estimate(lab.ctx, lab.skill.id, _start())
+
+        names = [row.agent.name for row in estimate.agents]
+        assert sorted(names) == ["A", "B", "C"]
+        assert {row.via_specialist for row in estimate.agents} == {"reader"}
 
     async def test_only_the_agents_named_are_checked(self, db, monkeypatch):
         lab = await _lab(db)

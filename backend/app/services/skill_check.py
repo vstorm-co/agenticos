@@ -317,7 +317,7 @@ class SkillCheckService:
             )
         changed = candidate.description != base.description
         mode = CheckMode.THOROUGH if changed else data.mode
-        users = await self.agents.line_agents(skill, None if fork is None else fork.id)
+        users = _per_agent(await self.agents.line_agents(skill, None if fork is None else fork.id))
         if only is not None:
             users = [user for user in users if user.agent.id in set(only)]
         runnable = await accessible_ids(
@@ -1177,7 +1177,9 @@ class SkillCheckService:
         measured = {row.agent_id: row.agent_version for row in rows}
         now = {
             user.agent.id: (user.agent, user.agent_version)
-            for user in await self.agents.line_agents(skill, None if fork is None else fork.id)
+            for user in _per_agent(
+                await self.agents.line_agents(skill, None if fork is None else fork.id)
+            )
         }
         changed = [
             agent for agent_id, (agent, version) in now.items() if measured.get(agent_id) != version
@@ -1582,6 +1584,21 @@ class SkillCheckService:
             await self._add_evidence(ctx, skill, created.id, window_days=data.window_days)
             return await self.datasets.read(ctx, created.id)
         return created
+
+
+def _per_agent(users: Sequence[LineAgent]) -> list[LineAgent]:
+    """One reader per agent: its own binding, else the first specialist that reads the skill.
+
+    A check measures an agent - its eval answers through the agent and every
+    specialist it defines at once - so an agent and its specialist reading the same
+    line are one agent to check, not two.
+    """
+    chosen: dict[UUID, LineAgent] = {}
+    for user in users:
+        held = chosen.get(user.agent.id)
+        if held is None or (held.via_specialist is not None and user.via_specialist is None):
+            chosen[user.agent.id] = user
+    return list(chosen.values())
 
 
 def _from_text(text: CandidateText) -> Candidate:
