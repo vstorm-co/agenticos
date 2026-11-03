@@ -5480,6 +5480,10 @@
         "title": "Changes",
         "body": "The changes the helper wrote. The session stops here: tick the ones to test and correct any wording before they are tested."
       },
+      "improvement-skill-handoffs": {
+        "title": "Belongs to a skill",
+        "body": "Problems the helper found in one of the agent's skills. A skill is shared, so it is improved on its own, and checked on every agent that reads it."
+      },
       "flow-improvement-changes": {
         "title": "Changes",
         "body": "The changes the helper wrote. The session stops here: tick the ones to test and correct any wording before they are tested."
@@ -14398,7 +14402,8 @@
         "tool_override": "Tool",
         "spec_field": "Setting",
         "finding": "Finding",
-        "create_skill": "New skill"
+        "create_skill": "New skill",
+        "skill_problem": "Skill problem"
       },
       "reason": {
         "unanchored": "The passage it changes is not in the instructions",
@@ -14418,7 +14423,11 @@
         "unsupported": "Said the edit is supported, with no evidence that could be checked",
         "edit_not_in_diff": "The line it names is not part of the edit",
         "superseded": "A request started later had already replaced the suggestions",
-        "insufficient_evidence": "Fewer than three different answers asked for this, so it was not added on its own."
+        "insufficient_evidence": "Fewer than three different answers asked for this, so it was not added on its own.",
+        "copies_skill": "It copies one of the agent's skills, which the agent already reads",
+        "duplicates_skill": "The agent already has a skill with this name or text",
+        "unknown_skill": "The agent has no such skill",
+        "skill_not_used": "None of the answers it cites used this version of the skill"
       },
       "about": "About: {line}",
       "decide": "{count, plural, =1 {1 more idea needs your decision} other {# more ideas need your decision}}",
@@ -15317,7 +15326,21 @@
     "freshAttempt": "Each attempt starts from the current version; changes from earlier attempts aren't carried over.",
     "trainSignals": "Test answers failing",
     "tryAgainNothingToLearn": "The last attempt fixed every question it learns from, so another attempt has nothing to learn from. Accept it or end the session.",
-    "tryAgainUnmeasurable": "Another attempt would have too few questions to measure: {count, plural, one {# more is} other {# more are}} needed, and this session's questions are fixed. End it, add questions and start a new one."
+    "tryAgainUnmeasurable": "Another attempt would have too few questions to measure: {count, plural, one {# more is} other {# more are}} needed, and this session's questions are fixed. End it, add questions and start a new one.",
+    "skills": {
+      "title": "Belongs to a skill",
+      "intro": "A skill is shared by other agents, so these are not changed here. Improve the skill itself, where the change is checked on every agent that reads it.",
+      "mainLine": "Main · {count, plural, =1 {1 agent} other {# agents}}",
+      "forkLine": "Fork \"{fork}\" · {count, plural, =1 {1 agent} other {# agents}}",
+      "hidden": "{count, plural, =1 {1 more agent you cannot see uses this skill.} other {# more agents you cannot see use this skill.}}",
+      "improve": "Improve {name}",
+      "improveFork": "Improve {name}, fork \"{fork}\"",
+      "askEditor": "Ask someone who can edit {name} to improve it.",
+      "behind": "This agent is {count, plural, =1 {1 version} other {# versions}} behind main.",
+      "updatePinned": "Update to v{version}",
+      "catchUp": "Catch up the fork"
+    },
+    "usedSkill": "Used skill {name}"
   },
   "unsaved": {
     "title": "You have unsaved changes",
