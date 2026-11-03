@@ -241,11 +241,13 @@ A skill is improved from its workbench under Skills. What the assistant suggests
 is a whole new body, and it waits with the other [skill](skills.md) changes
 under Skills, with its rationale and evidence.
 
-Applying a skill change is live: every agent bound to the skill reads the new
-body on its next run. So a skill change can be checked with evals first, on an
-agent that uses the skill: both sides run that agent's published version, and
-only the skill's body differs. A change written against an older version of the
-skill is refused once somebody has changed the skill since.
+Applying a skill change is live: every agent following the skill's line reads the
+new body on its next run. So a skill change goes live only through a
+[check on every agent of its line](skills.md#checking-a-change-on-every-agent):
+each one's published version answers with the skill as it is and with the
+change, and the change is applied from that check's result. A change written
+against an older version of the skill is refused once somebody has changed the
+skill since.
 
 ## Context files { #context-files }
 
@@ -488,6 +490,16 @@ The assistant can propose **Worth creating a skill** when a reusable procedure a
 A procedure drawn from fewer than three distinct answers is not proposed as a suggestion. It waits in **To review**, under New skills, with its full text. **Dismiss** moves it to **Decided**, and Undo brings it back. **Create skill** opens a preview: the name, description and body can be edited, and a warning says how many answers it is based on. **Create skill** in the preview creates the skill in the library and binds it to the agent's draft, never to a published version. It needs the same permissions as Accept and makes no model call. A second click returns the skill already created.
 
 The estimate reserves the full proposed body for each candidate answer and its confirming reruns, in addition to the historical per-answer price.
+
+### When the fault is in a skill { #when-the-fault-is-in-a-skill }
+
+Other agents may read the same skill, so agent Improve never changes one. The helper reads the agent's skills: each one's name, description and version, and the full text of those the evidence used. When the runs show that a skill is wrong, the helper reports the problem for that skill. It does not write the skill's text into the agent's instructions. The estimate counts the skill text the helper reads.
+
+A change that repeats a 200-character passage of a bound skill is refused, and so is a new skill with a bound skill's name or text. A reported problem is kept only when it names one of the agent's skills and quotes a run that used the version the agent reads now; quotes from other runs are dropped from it. A run served an older version, or another fork, is not evidence against the text the helper reads.
+
+The Changes step lists these problems under **Belongs to a skill**. Each card shows the problems with their quotes, and how many agents read the same line of the skill. **Improve X** opens the skill's own Improve, with this session's problems as its starting evidence. If the agent follows a fork, that Improve works on the fork; a pinned agent's problems go to main. Without edit access to the skill, the card says to ask someone who has it.
+
+When the agent is behind main, an **Update to vN** or **Catch up the fork** card opens the skill's page. If the skills cannot be read, the section says so instead of disappearing.
 
 ### Checking a knowledge draft { #checking-a-knowledge-draft }
 

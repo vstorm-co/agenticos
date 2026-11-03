@@ -1,5 +1,5 @@
 ---
-source_sha: "e2344fe1861a"
+source_sha: "d2584012e735"
 title: "Asistente de autoría"
 description: "El asistente de autoría lee lo que la gente valoró negativamente y cómo acabaron los runs, y sugiere cambios a las instrucciones, las herramientas, la configuración, los skills y los archivos de contexto de un agent. Una persona decide cada uno."
 ---
@@ -255,12 +255,14 @@ Un skill se mejora desde su banco de trabajo en Skills. Lo que sugiere el
 asistente es un cuerpo nuevo completo, que espera con los demás cambios de
 [skills](skills.md) en Skills, con su justificación y evidencia.
 
-Aplicar un cambio a un skill es inmediato: cada agent vinculado al skill lee el
-cuerpo nuevo en su siguiente run. Por eso un cambio a un skill se puede comprobar
-antes con evals, en un agent que lo usa: los dos lados ejecutan la versión
-publicada de ese agent, y solo cambia el cuerpo del skill. Un cambio escrito para
-una versión anterior del skill se rechaza si alguien ha cambiado el skill desde
-entonces.
+Aplicar un cambio a un skill es inmediato: cada agent que sigue la línea del skill
+lee el cuerpo nuevo en su siguiente run. Por eso un cambio a un skill solo pasa a
+producción a través de una
+[comprobación en cada agent de su línea](skills.md#checking-a-change-on-every-agent):
+la versión publicada de cada uno responde con el skill tal como está y con el
+cambio, y el cambio se aplica desde el resultado de esa comprobación. Un cambio
+escrito para una versión anterior del skill se rechaza si alguien ha cambiado el
+skill desde entonces.
 
 ## Archivos de contexto { #context-files }
 
@@ -516,6 +518,16 @@ El asistente puede proponer **Worth creating a skill** cuando un procedimiento r
 Un procedimiento que procede de menos de tres respuestas distintas no se propone como sugerencia. Espera en **To review**, en el grupo New skills, con su texto completo. **Dismiss** lo pasa a **Decided** y Deshacer lo devuelve. **Create skill** abre una vista previa: el nombre, la descripción y el contenido se pueden editar, y un aviso indica en cuántas respuestas se basa. **Create skill** en la vista previa crea el skill en la biblioteca y lo vincula al borrador del agente, nunca a una versión publicada. Requiere los mismos permisos que Accept y no llama a ningún modelo. Un segundo clic devuelve el skill ya creado.
 
 La estimación reserva el contenido completo propuesto para cada respuesta candidata y sus repeticiones de confirmación, además del precio histórico por respuesta.
+
+### Cuando el fallo está en un skill { #when-the-fault-is-in-a-skill }
+
+Otros agentes pueden leer el mismo skill, así que el Improve del agente nunca cambia uno. El asistente lee los skills del agente: el nombre, la descripción y la versión de cada uno, y el texto completo de los que usaron las evidencias. Cuando los runs muestran que un skill es incorrecto, el asistente informa del problema para ese skill. No copia el texto del skill en las instrucciones del agente. La estimación cuenta el texto de los skills que lee el asistente.
+
+Se rechaza un cambio que repite un pasaje de 200 caracteres de un skill vinculado, y también un skill nuevo con el nombre o el texto de un skill vinculado. Un problema informado solo se conserva si nombra un skill del agente y cita un run que usó la versión que el agente lee ahora; las citas de otros runs se eliminan. Un run que recibió una versión anterior, u otro fork, no es evidencia contra el texto que lee el asistente.
+
+El paso Changes muestra estos problemas en **Belongs to a skill**. Cada tarjeta muestra los problemas con sus citas y cuántos agentes leen la misma línea del skill. **Improve X** abre el Improve del propio skill, con los problemas de esta sesión como evidencia inicial. Si el agente sigue un fork, ese Improve trabaja sobre el fork; los problemas de un agente fijado van a main. Sin permiso de edición sobre el skill, la tarjeta indica a quién pedírselo.
+
+Cuando el agente va por detrás de main, una tarjeta **Update to vN** o **Catch up the fork** abre la página del skill. Si no se pueden leer los skills, la sección lo dice en lugar de desaparecer.
 
 ### Comprobar un borrador de conocimiento { #checking-a-knowledge-draft }
 

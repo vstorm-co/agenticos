@@ -114,6 +114,8 @@ from app.db.models.virtual_table import (
 from app.db.models.table_view import TableView
 from app.db.models.skill import Skill, SkillResource
 from app.db.models.skill_usage import RunSkillUse
+from app.db.models.skill_improvement import SkillImprovementIteration, SkillImprovementRun
+from app.db.models.skill_check import SkillCheck, SkillCheckAgent
 from app.db.models.skill_proposal import ProposalStatus, SkillProposal
 from app.db.models.skill_version import SkillFile, SkillFork, SkillVersion, SkillVersionSource
 from app.db.models.resource_grant import GrantLevel, ResourceGrant, Visibility
@@ -343,9 +345,13 @@ __all__ = [
     "TableView",
     "RunSkillUse",
     "Skill",
+    "SkillImprovementIteration",
+    "SkillImprovementRun",
     "SkillProposal",
     "ProposalStatus",
     "SkillResource",
+    "SkillCheck",
+    "SkillCheckAgent",
     "SkillVersion",
     "SkillVersionSource",
     "SkillFork",

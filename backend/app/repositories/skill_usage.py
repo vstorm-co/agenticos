@@ -1,6 +1,6 @@
 """Which skills runs used: written by the runner, read for a skill's evidence and statistics."""
 
-from collections.abc import Collection, Sequence
+from collections.abc import Collection, Mapping, Sequence
 from datetime import datetime
 from typing import NamedTuple
 from uuid import UUID
@@ -183,6 +183,38 @@ async def uses_in_runs(
         )
     )
     return list(rows.scalars().all())
+
+
+async def skills_in_runs(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    agent_id: UUID,
+    run_ids: Collection[UUID],
+    versions: Mapping[UUID, UUID | None] | None = None,
+) -> dict[UUID, set[UUID]]:
+    """For each skill the agent itself used in these runs, from a workspace path too, the runs.
+
+    A delegate's use is the delegate's: it is not counted for the agent that delegated.
+    With `versions`, a use counts only where the run was served the version named for
+    its skill; a use whose version nobody recorded matches none.
+    """
+    if not run_ids:
+        return {}
+    rows = await db.execute(
+        select(RunSkillUse.skill_id, RunSkillUse.run_id, RunSkillUse.skill_version_id).where(
+            RunSkillUse.organization_id == organization_id,
+            RunSkillUse.agent_id == agent_id,
+            RunSkillUse.run_id.in_(list(run_ids)),
+            or_(used(), RunSkillUse.workspace_reads > 0),
+        )
+    )
+    found: dict[UUID, set[UUID]] = {}
+    for skill_id, run_id, version_id in rows.tuples():
+        if versions is not None and (version_id is None or versions.get(skill_id) != version_id):
+            continue
+        found.setdefault(skill_id, set()).add(run_id)
+    return found
 
 
 async def unknown_runs(

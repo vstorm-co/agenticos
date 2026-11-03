@@ -1127,6 +1127,38 @@ async def recent_usage(
     return int(count), float(input_tokens or 0), float(output_tokens or 0)
 
 
+async def agents_of_runs(
+    db: AsyncSession, run_ids: Sequence[UUID], *, organization_id: UUID
+) -> dict[UUID, UUID]:
+    """The agent each of these runs belongs to; a run retention has removed is absent."""
+    if not run_ids:
+        return {}
+    result = await db.execute(
+        select(AgentRun.id, AgentRun.agent_id).where(
+            AgentRun.id.in_(list(run_ids)), AgentRun.organization_id == organization_id
+        )
+    )
+    return {row.id: row.agent_id for row in result.all()}
+
+
+async def conversations_of_runs(
+    db: AsyncSession, run_ids: Sequence[UUID], *, organization_id: UUID
+) -> list[UUID]:
+    """The conversations these runs answered in; a run without one names none."""
+    if not run_ids:
+        return []
+    result = await db.scalars(
+        select(AgentRun.conversation_id)
+        .where(
+            AgentRun.id.in_(list(run_ids)),
+            AgentRun.organization_id == organization_id,
+            AgentRun.conversation_id.is_not(None),
+        )
+        .distinct()
+    )
+    return [conversation_id for conversation_id in result.all() if conversation_id is not None]
+
+
 async def cost_of_runs(
     db: AsyncSession, run_ids: Sequence[UUID], *, organization_id: UUID
 ) -> tuple[Decimal, bool]:

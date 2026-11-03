@@ -19,7 +19,7 @@ import difflib
 import json
 import logging
 from collections import Counter
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Collection, Mapping, Sequence
 from contextlib import AbstractAsyncContextManager
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -52,6 +52,7 @@ from app.db.models.authoring import (
     HunkStatus,
 )
 from app.db.models.context import ContextFile
+from app.db.models.improvement import ImprovementStatus
 from app.db.models.skill import Skill
 from app.db.session import get_worker_db_context
 from app.repositories import (
@@ -74,11 +75,13 @@ from app.schemas.authoring import (
     Rejection,
     RunFindings,
     SkillImprovement,
+    SkillProblem,
     ToolChange,
     VerifyFinding,
     VerifyReport,
 )
 from app.schemas.skill import SkillCreate, skill_name_refusal
+from app.schemas.skill_improvement import SkillEdits, SkillProblems
 from app.services import authoring_hunks
 from app.services.access import AGENT, CONTEXT, SKILL, resolve_access
 from app.services.api_key import job_context
@@ -90,6 +93,7 @@ from app.services.authoring_evidence import (
     render_runs,
 )
 from app.services.improvement_pipeline import ImprovementPipelineService
+from app.services.skills import SKILL_BODY_CHARS, SkillService
 from app.services.system_agent_runner import SystemAgentRunner
 
 logger = logging.getLogger(__name__)
@@ -235,6 +239,7 @@ def _improve_prompt(
     pack: EvidencePack,
     digests: Sequence[RunFindings] | None,
     note: str | None = None,
+    skills: str = "",
 ) -> str:
     tools = _tool_lines(spec)
     asked = (
@@ -248,6 +253,7 @@ def _improve_prompt(
         f"# Its current instructions\n<instructions>\n{spec.instructions}\n</instructions>\n\n"
         f"# Its tools (capability_id / tool_id: name - description)\n{tools or '(none)'}\n\n"
         f"{configuration}\n\n"
+        f"{skills}"
         "Propose a new skill only for a reusable procedure repeated in at least three "
         "distinct answers. Cite exact passages from those answers. Skills contain written "
         "instructions only: they cannot grant tools or widen access. Propose any required "
@@ -257,12 +263,109 @@ def _improve_prompt(
     )
 
 
+SKILL_PROBLEM = "skill_problem"
+"""How a report names a skill problem it did not keep, beside the hunk kinds."""
+
+
+def _skills_section(spec: AgentSpec, skills: Sequence[Skill], used: Collection[UUID]) -> str:
+    """The agent's skills, with the bodies of those the runs used, and what not to do with them."""
+    if not skills:
+        return ""
+    bindings = {binding.skill_id: binding for binding in spec.skill_bindings}
+
+    def line(skill: Skill) -> str:
+        binding = bindings.get(skill.id)
+        if binding is None:
+            return "main"
+        return "a fork" if binding.version is None else f"pinned to v{binding.version}"
+
+    listed = "\n".join(f"- {skill.name} ({line(skill)}): {skill.description}" for skill in skills)
+    bodies = "".join(
+        f'<skill name="{skill.name}">\n{skill.content[:SKILL_BODY_CHARS]}\n</skill>\n'
+        for skill in skills
+        if skill.id in used
+    )
+    return (
+        "# Its skills\n"
+        "Each skill is a resource of its own that other agents may read too. Never copy "
+        "a skill's text into the instructions, and never propose a new skill that repeats "
+        "one. Where the runs show that a skill is wrong or misses a step, report it under "
+        "skill_problems, naming the skill, and change nothing in the agent for it.\n"
+        f"{listed}\n\n"
+        + (f"# The skills the runs below used, read only\n{bodies}\n" if bodies else "")
+    )
+
+
 def _skill_prompt(skill: Skill, pack: EvidencePack, digests: Sequence[RunFindings] | None) -> str:
     return (
         f'Propose an improved body for the skill "{skill.name}".\n\n'
         f"# Its description\n{skill.description}\n\n"
         f"# Its current body\n<skill>\n{skill.content}\n</skill>\n\n"
         f"# Runs that opened it\n{_evidence_section(pack, digests)}"
+    )
+
+
+def _seed_section(seed: Mapping[str, Any] | None) -> str:
+    """What an agent's own Improve found in the skill when it handed the skill over."""
+    if not seed:
+        return ""
+    problems = "\n".join(f"- {problem}" for problem in seed.get("problems", []))
+    quotes = "\n".join(f"> {quote}" for quote in seed.get("quotes", []))
+    return (
+        "\n\n# What an agent's own Improve found in this skill\n"
+        f"{problems}\n\nQuoted from its runs:\n{quotes or '(none)'}"
+    )
+
+
+def _skill_problems_prompt(
+    name: str,
+    line: str,
+    description: str,
+    content: str,
+    pack: EvidencePack,
+    digests: Sequence[RunFindings] | None,
+    seed: Mapping[str, Any] | None,
+) -> str:
+    return (
+        f'Group the bad answers of agents that opened the skill "{name}" ({line}) '
+        "into problems. For each, say whether the skill's text leads to it, whether the "
+        "agent's own instructions or knowledge do, or whether the answer was fine. Propose "
+        "no change.\n\n"
+        f"# Its description\n{description}\n\n"
+        f"# Its body\n<skill>\n{content}\n</skill>\n\n"
+        f"# Runs that opened it\n{_evidence_section(pack, digests)}"
+        f"{_seed_section(seed)}"
+    )
+
+
+def _skill_edits_prompt(
+    name: str,
+    line: str,
+    description: str,
+    content: str,
+    problems: Sequence[dict[str, Any]],
+    pack: EvidencePack,
+    digests: Sequence[RunFindings] | None,
+    note: str | None,
+) -> str:
+    found = "\n".join(f"- {item.get('title')}: {item.get('summary')}" for item in problems)
+    asked = (
+        "\n\n# What the person who asked for this attempt wants you to keep in mind\n"
+        f"<note>\n{note}\n</note>\n{_NOTE_RULE}"
+        if note
+        else ""
+    )
+    return (
+        f'Propose edits to the skill "{name}" ({line}) that fix the problems below. Every '
+        "agent on this line reads the skill, so change only the passages the problems "
+        "point at, as edits to passages of the body - never a whole new body. Change the "
+        "description only when agents open the skill when they should not, or do not when "
+        "they should.\n\n"
+        f"# Its description\n{description}\n\n"
+        f"# Its current body\n<skill>\n{content}\n</skill>\n\n"
+        f"# The problems the skill's text leads to\n{found}\n\n"
+        f"# Runs that opened it\n{_evidence_section(pack, digests)}"
+        f"{asked}"
     )
 
 
@@ -496,7 +599,9 @@ class AuthoringRun:
         # asked may have been taken away while the request waited.
         if not self.ctx.has(Perm.RUNS_VIEW):
             raise Stopped("Whoever started this may no longer read runs.")
-        if self.request.target == AuthoringTarget.SKILL.value:
+        if self.request.skill_improvement_run_id is not None:
+            await self._skill_session()
+        elif self.request.target == AuthoringTarget.SKILL.value:
             await self._improve_skill()
         elif self.request.target == AuthoringTarget.CONTEXT.value:
             await self._improve_context()
@@ -553,17 +658,29 @@ class AuthoringRun:
         self._record_evidence(pack)
         digests = await self._digests(pack, f'the agent "{agent.name}"')
         configuration = await self.configuration.describe(self.ctx, spec)
+        skills, used = await self._skills(agent.id, spec, pack)
         proposal = await self._ask(
-            _improve_prompt(agent.name, spec, configuration, pack, digests, note),
+            _improve_prompt(
+                agent.name,
+                spec,
+                configuration,
+                pack,
+                digests,
+                note,
+                skills=_skills_section(spec, skills, used),
+            ),
             ImprovementProposal,
         )
         pack = await self.evidence.forget_erased(pack)
         hunks = [
-            *self._instruction_hunks(spec, pack, proposal.instructions, HunkOrigin.IMPROVE),
+            *self._instruction_hunks(
+                spec, pack, proposal.instructions, HunkOrigin.IMPROVE, skills=skills
+            ),
             *self._tool_hunks(spec, pack, proposal.tools, HunkOrigin.IMPROVE),
             *await self._field_hunks(agent.id, spec, pack, proposal.fields, HunkOrigin.IMPROVE),
-            *self._new_skill_hunks(pack, proposal.new_skills),
+            *self._new_skill_hunks(pack, proposal.new_skills, skills=skills),
         ]
+        problems = self._skill_problems(pack, proposal.skill_problems, skills, used)
         recorded = await self._supersede_with(agent.id, pack, proposal.expected_effect, hunks)
         await self._finish(
             {
@@ -574,6 +691,7 @@ class AuthoringRun:
                 + len(proposal.fields)
                 + len(proposal.new_skills),
                 "recorded": recorded,
+                "skill_problems": problems,
                 **self._rejections(),
             }
         )
@@ -601,6 +719,7 @@ class AuthoringRun:
         self._record_evidence(pack)
         digests = await self._digests(pack, f'the agent "{agent.name}"')
         configuration = await self.configuration.describe(self.ctx, draft)
+        skills, _ = await self._skills(agent.id, draft, pack)
         report = await self._ask(
             _verify_prompt(agent.name, published, draft, configuration, pack, digests),
             VerifyReport,
@@ -608,7 +727,9 @@ class AuthoringRun:
         pack = await self.evidence.forget_erased(pack)
         findings = self._findings(report.findings, pack, _edited(published, draft))
         hunks = [
-            *self._instruction_hunks(draft, pack, report.instructions, HunkOrigin.VERIFY),
+            *self._instruction_hunks(
+                draft, pack, report.instructions, HunkOrigin.VERIFY, skills=skills
+            ),
             *self._tool_hunks(draft, pack, report.tools, HunkOrigin.VERIFY),
             *await self._field_hunks(agent.id, draft, pack, report.fields, HunkOrigin.VERIFY),
         ]
@@ -687,6 +808,7 @@ class AuthoringRun:
                 "evidence_dropped": dropped,
                 "expected_effect": proposal.expected_effect,
                 "authoring_request_id": self.request.id,
+                "source": "improve",
             },
         )
         await self._finish(
@@ -696,6 +818,151 @@ class AuthoringRun:
                 "skill_proposal_id": str(proposal_row.id),
             }
         )
+
+    async def _skill_session(self) -> None:
+        """A skill session's step: group the problems, or propose edits to the line's text."""
+        from app.repositories import skill_improvement_repo
+        from app.services.skill_improvement import SkillImprovementService
+
+        assert self.request.skill_improvement_run_id is not None
+        org = self.ctx.organization_id
+        session = await skill_improvement_repo.get_run(
+            self.db, self.request.skill_improvement_run_id, organization_id=org
+        )
+        if session is None or not ImprovementStatus(session.status).active:
+            raise Stopped("The improvement session stopped.")
+        sessions = SkillImprovementService(self.db)
+        line = await sessions.line_for_session(self.ctx, session)
+        base = await sessions.base_of(session)
+        skill = line.skill
+        if not await resolve_access(
+            self.db, self.ctx, skill, Perm.SKILLS_EDIT, resource_type=SKILL
+        ):
+            raise Stopped("Whoever started this may no longer edit the skill.")
+        pack = await sessions.evidence_of(self.ctx, line, session)
+        self._record_evidence(pack)
+        digests = await self._digests(pack, f'agents using the skill "{skill.name}"')
+        if self.request.kind == AuthoringKind.ANALYZE.value:
+            found = await self._ask(
+                _skill_problems_prompt(
+                    skill.name,
+                    line.name,
+                    base.description,
+                    base.content,
+                    pack,
+                    digests,
+                    session.seed,
+                ),
+                SkillProblems,
+            )
+            pack = await self.evidence.forget_erased(pack)
+            known = {run.run_id for run in pack.runs}
+            problems = []
+            for problem in found.problems:
+                kept, _ = pack.verify(problem.evidence)
+                problems.append(
+                    {
+                        "title": problem.title[:200],
+                        "summary": problem.summary,
+                        "cause": problem.cause,
+                        "run_ids": [str(run_id) for run_id in problem.run_ids if run_id in known],
+                        "evidence": kept,
+                    }
+                )
+            await self._finish({"problems": problems, "usage_unknown": pack.unknown_runs})
+            return
+        analysis = (
+            None
+            if session.analysis_request_id is None
+            else await authoring_repo.get_request(
+                self.db, session.analysis_request_id, organization_id=org
+            )
+        )
+        problems = [
+            item
+            for item in ((analysis.report or {}) if analysis else {}).get("problems", [])
+            if item.get("cause") == "skill"
+        ]
+        attempt = await skill_improvement_repo.get_iteration(
+            self.db, organization_id=org, run_id=session.id, number=session.iteration
+        )
+        edits = await self._ask(
+            _skill_edits_prompt(
+                skill.name,
+                line.name,
+                base.description,
+                base.content,
+                problems,
+                pack,
+                digests,
+                None if attempt is None else attempt.note,
+            ),
+            SkillEdits,
+        )
+        pack = await self.evidence.forget_erased(pack)
+        hunks = self._skill_hunks(base.content, base.description, pack, edits)
+        batch = await authoring_repo.create_skill_batch(
+            self.db,
+            organization_id=org,
+            skill_id=skill.id,
+            fork_id=session.fork_id,
+            base_skill_version_id=base.id,
+            skill_improvement_run_id=session.id,
+            request_id=self.request.id,
+            source_started_at=self.request.started_at or self.request.created_at,
+            expected_effect=edits.expected_effect,
+            evidence_conversation_ids=pack.conversation_ids,
+        )
+        await authoring_repo.add_hunks(self.db, organization_id=org, batch_id=batch.id, hunks=hunks)
+        await self._finish(
+            {
+                "summary": edits.summary,
+                "expected_effect": edits.expected_effect,
+                "proposed": len(edits.edits) + (edits.description is not None),
+                "recorded": len(hunks),
+                **self._rejections(),
+            }
+        )
+
+    def _skill_hunks(
+        self, content: str, description: str, pack: EvidencePack, edits: SkillEdits
+    ) -> list[dict[str, Any]]:
+        hunks: list[dict[str, Any]] = []
+        for edit in edits.edits:
+            columns = authoring_hunks.anchor_change(
+                content, InstructionChange.model_validate(edit.model_dump())
+            )
+            if isinstance(columns, Rejection):
+                self._reject(
+                    HunkKind.SKILL_BODY,
+                    columns,
+                    {"old_text": edit.old_text, "new_text": edit.new_text, "after": edit.after},
+                )
+                continue
+            kept, dropped = pack.verify(edit.evidence)
+            hunks.append(
+                {
+                    **columns,
+                    "kind": HunkKind.SKILL_BODY.value,
+                    "origin": HunkOrigin.IMPROVE.value,
+                    "rationale": edit.rationale,
+                    "evidence": kept,
+                    "evidence_dropped": dropped,
+                }
+            )
+        if edits.description is not None and edits.description[:500] != description:
+            hunks.append(
+                {
+                    "kind": HunkKind.SKILL_DESCRIPTION.value,
+                    "origin": HunkOrigin.IMPROVE.value,
+                    "base_description": description,
+                    "new_description": edits.description[:500],
+                    "rationale": edits.description_rationale,
+                    "evidence": [],
+                    "evidence_dropped": 0,
+                }
+            )
+        return hunks
 
     async def _improve_context(self) -> None:
         context_id = self.request.context_id
@@ -769,7 +1036,11 @@ class AuthoringRun:
             )
 
     def _new_skill_hunks(
-        self, pack: EvidencePack, changes: Sequence[NewSkillChange]
+        self,
+        pack: EvidencePack,
+        changes: Sequence[NewSkillChange],
+        *,
+        skills: Sequence[Skill] = (),
     ) -> list[dict[str, object]]:
         hunks: list[dict[str, object]] = []
         for change in changes:
@@ -783,7 +1054,15 @@ class AuthoringRun:
             refusal = (
                 Rejection.INSUFFICIENT_EVIDENCE
                 if len(cited) < 3
-                else (Rejection.INVALID_CONFIG if skill_name_refusal(change.name) else None)
+                else Rejection.INVALID_CONFIG
+                if skill_name_refusal(change.name)
+                else Rejection.DUPLICATES_SKILL
+                if any(
+                    skill.name.casefold() == change.name.casefold()
+                    or authoring_hunks.copies(change.content, skill.content)
+                    for skill in skills
+                )
+                else None
             )
             if refusal is not None:
                 # The skill as written stays, so a person may still create it by hand.
@@ -823,10 +1102,17 @@ class AuthoringRun:
         pack: EvidencePack,
         changes: Sequence[InstructionChange],
         origin: HunkOrigin,
+        *,
+        skills: Sequence[Skill] = (),
     ) -> list[dict[str, Any]]:
         hunks: list[dict[str, Any]] = []
         for change in changes:
             columns = authoring_hunks.anchor_change(spec.instructions, change)
+            if not isinstance(columns, Rejection) and any(
+                authoring_hunks.copies(change.new_text, skill.content, already=spec.instructions)
+                for skill in skills
+            ):
+                columns = Rejection.COPIES_SKILL
             if isinstance(columns, Rejection):
                 self._reject(
                     HunkKind.INSTRUCTIONS,
@@ -968,6 +1254,51 @@ class AuthoringRun:
             )
         return kept_findings
 
+    async def _skills(
+        self, agent_id: UUID, spec: AgentSpec, pack: EvidencePack
+    ) -> tuple[list[Skill], dict[UUID, set[UUID]]]:
+        """The skills the agent reads, as its bindings name them, and which runs used each."""
+        return await SkillService(self.db).read_by_improver(
+            self.ctx, agent_id, spec, [run.run_id for run in pack.runs]
+        )
+
+    def _skill_problems(
+        self,
+        pack: EvidencePack,
+        problems: Sequence[SkillProblem],
+        skills: Sequence[Skill],
+        used: Mapping[UUID, set[UUID]],
+    ) -> list[dict[str, object]]:
+        """The problems that name one of the agent's skills and cite runs that used it."""
+        by_name = {skill.name.casefold(): skill for skill in skills}
+        found: list[dict[str, object]] = []
+        for problem in problems:
+            change = {"skill": problem.skill, "problem": problem.problem}
+            skill = by_name.get(problem.skill.casefold())
+            if skill is None:
+                self._reject(SKILL_PROBLEM, Rejection.UNKNOWN_SKILL, change)
+                continue
+            checked, dropped = pack.verify(problem.evidence)
+            if not checked:
+                self._reject(SKILL_PROBLEM, Rejection.INSUFFICIENT_EVIDENCE, change)
+                continue
+            runs = used.get(skill.id, set())
+            kept = [item for item in checked if UUID(item["run_id"]) in runs]
+            if not kept:
+                self._reject(SKILL_PROBLEM, Rejection.SKILL_NOT_USED, change)
+                continue
+            dropped += len(checked) - len(kept)
+            found.append(
+                {
+                    "skill_id": str(skill.id),
+                    "skill_name": skill.name,
+                    "problem": problem.problem,
+                    "evidence": kept,
+                    "evidence_dropped": dropped,
+                }
+            )
+        return found
+
     def _reject(self, kind: str, reason: Rejection, change: dict[str, Any]) -> None:
         self.rejected.append({"kind": kind, "reason": reason.value, "change": change})
 
@@ -1000,7 +1331,6 @@ class AuthoringRun:
         started = self.request.started_at or self.request.created_at
         await self._serialize(agent_id)
         if self.request.improvement_run_id is not None:
-            from app.db.models.improvement import ImprovementStatus
             from app.repositories import improvement_repo
 
             session = await improvement_repo.get_run(
@@ -1201,6 +1531,13 @@ class AuthoringWorker:
 
 
 async def _wake_session(db: AsyncSession, request: AuthoringRequest) -> None:
+    if request.skill_improvement_run_id is not None:
+        from app.services.skill_improvement import SkillImprovementService
+
+        await SkillImprovementService(db).wake(
+            request.skill_improvement_run_id, organization_id=request.organization_id
+        )
+        return
     if request.improvement_run_id is None:
         return
     await ImprovementPipelineService(db).wake(

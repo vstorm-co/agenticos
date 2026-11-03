@@ -5358,6 +5358,10 @@
         "title": "Änderungen",
         "body": "Die Änderungen, die der Helfer geschrieben hat. Die Sitzung hält hier an: Haken Sie die zu testenden an und korrigieren Sie Formulierungen, bevor sie getestet werden."
       },
+      "improvement-skill-handoffs": {
+        "title": "Gehört zu einem Skill",
+        "body": "Probleme, die der Helfer in einem Skill des Agents gefunden hat. Ein Skill wird geteilt, deshalb wird er für sich verbessert und an jedem Agent geprüft, der ihn liest."
+      },
       "flow-improvement-changes": {
         "title": "Änderungen",
         "body": "Die Änderungen, die der Helfer geschrieben hat. Die Sitzung hält hier an: Haken Sie die zu testenden an und korrigieren Sie Formulierungen, bevor sie getestet werden."
@@ -5377,6 +5381,30 @@
       "flow-improvement-steps": {
         "title": "Schritte",
         "body": "Fünf Schritte. Die Sitzung hält nach Verstehen und nach Änderungen an, damit Sie sie ansehen und Nächster Schritt drücken; ein Schritt öffnet sich, sobald er etwas zu zeigen hat."
+      },
+      "skill-agents": {
+        "title": "Wer diesen Skill nutzt",
+        "body": "Jeder Agent, der den Skill nutzt, mit der Version, die er bekommt: main folgt jeder neuen Version, festgesetzt bleibt auf einer älteren, und ein Fork hat eigene Änderungen."
+      },
+      "skill-lines": {
+        "title": "Eine Linie nach der anderen",
+        "body": "Zeigen Sie die Agents auf main, die festgesetzten oder einen Fork. Ein gewählter Fork gilt auch für Verlauf und Bearbeiten."
+      },
+      "skill-change-version": {
+        "title": "Einen Agent auf eine andere Version setzen",
+        "body": "Veröffentlicht eine neue Version des Agents nur mit dieser Änderung. Eine nie auf dem Agent geprüfte Version fragt zuerst nach."
+      },
+      "skill-edit": {
+        "title": "Bearbeiten erzeugt eine neue Version",
+        "body": "Speichern überschreibt nichts. Es fügt der angezeigten Linie eine Version hinzu, und nur die Agents, die dieser Linie folgen, bekommen sie."
+      },
+      "skill-history": {
+        "title": "Jede Version und der Weg zurück",
+        "body": "Sehen Sie, was jede Version geändert hat, wer sie gemacht hat und woher sie kam. Wiederherstellen holt eine frühere als neueste zurück."
+      },
+      "skill-tree": {
+        "title": "Main und seine Forks",
+        "body": "Main läuft von der neuesten Version nach unten, jeder Fork zweigt von seiner Startversion ab, und Agents stehen bei der Version, die sie nutzen."
       }
     },
     "chooseLanguage": "Sprache",
@@ -6692,7 +6720,6 @@
       "whoReceivesThis": "Wer erhält diese Nachricht?"
     },
     "skills": {
-      "agentsBoundSkillWill": "An diesen Skill gebundene Agents laufen ab ihrem nächsten Run ohne ihn. Das lässt sich nicht rückgängig machen.",
       "allCategories": "Alle Kategorien",
       "askAdministratorAccessSkills": "Bitten Sie einen Administrator um Zugriff auf die Skills.",
       "categoryCount": "{count, plural, =1 {1 Kategorie} other {# Kategorien}}",
@@ -8169,8 +8196,7 @@
     "review": "Prüfen",
     "save": "Speichern",
     "saveFile": "Datei speichern",
-    "savedMainVersion": "Als neue Main-Version gespeichert. Agents auf main lesen sie ab ihrem nächsten Run; festgesetzte Agents und Forks behalten ihre.",
-    "savingReachesEveryAgent": "Das Speichern erreicht jeden an diesen Skill gebundenen Agent beim nächsten Run. Es gibt keinen Entwurf und keinen Veröffentlichungsschritt.",
+    "savedAgentsCurrent": "Gespeichert.",
     "showWhatChangedIn": "Zeigen, was sich in {name} geändert hat",
     "sizeUploadsWhenCreated": "{size} · wird beim Erstellen des Skills hochgeladen",
     "support": "support",
@@ -8201,7 +8227,172 @@
     "moreFiles": "{count, plural, =1 {+1 Datei} other {+# Dateien}}",
     "bodyPlaceholder": "# Erstattungen\n\nNutzen Sie dies, wenn ein Kunde sein Geld zurückmöchte.\n\n## Schritte\n\n1. Prüfen Sie das Bestelldatum.\n2. Innerhalb von 14 Tagen ohne Nachfrage erstatten.\n3. Danach eine Person um Freigabe bitten.",
     "whoCanUseIt": "Wer es nutzen darf",
-    "expectedEffect": "Erwartete Wirkung:"
+    "expectedEffect": "Erwartete Wirkung:",
+    "checkOnAgents": "Auf Agents prüfen",
+    "checkChangeTo": "Die Änderung an {name} auf den Agents prüfen, die ihn nutzen",
+    "check": {
+      "title": "Diese Änderung auf jedem Agent prüfen, der den Skill nutzt",
+      "description": "Jeder Agent beantwortet seine Fragen mit dem Skill, wie er ist, und mit dieser Änderung. Nichts ändert sich, bevor du entscheidest.",
+      "price": "Wahrscheinlich ${expected}, höchstens ${most}. Der Anteil jedes Agents geht auf sein Budget.",
+      "start": "Prüfung starten",
+      "running": "Wird geprüft. Das dauert einige Minuten; du kannst das Fenster schließen und später zurückkommen.",
+      "asked": "{count, plural, =1 {1 Frage gestellt} other {# Fragen gestellt}}",
+      "skillSetOnly": "Nur mit den Fragen des Skills geprüft: keine Frage dieses Agents hat den Skill geöffnet.",
+      "hidden": "{count, plural, =1 {1 weiterer Agent nutzt diesen Skill, den du nicht sehen kannst.} other {# weitere Agents nutzen diesen Skill, die du nicht sehen kannst.}}",
+      "noisy": "Einige Ergebnisse lagen im Rauschen: die Prüfung sah einen Unterschied, den sie nicht bestätigen konnte.",
+      "forkLine": "Diese Änderung betrifft einen Fork, der weder festgesetzt noch erneut geforkt werden kann. Verbessere sie weiter oder verwirf sie.",
+      "acknowledge": "Mir ist klar, dass einige Agents nicht geprüft werden konnten.",
+      "discard": "Verwerfen",
+      "apply": "Übernehmen",
+      "applyAndPin": "Übernehmen und schlechtere Agents auf ihrer Version lassen",
+      "reason": {
+        "no_questions": "Nicht geprüft: es gibt keine Fragen.",
+        "no_access": "Nicht geprüft: du darfst diesen Agent nicht ausführen.",
+        "no_budget": "Nicht geprüft: sein Budget deckt die Prüfung nicht.",
+        "no_published_version": "Nicht geprüft: er hat keine veröffentlichte Version.",
+        "inconclusive": "Nicht geprüft: nicht jede Antwort ließ sich bewerten.",
+        "failed": "Nicht geprüft: sein Run ist fehlgeschlagen."
+      },
+      "state": {
+        "queued": "Wartet",
+        "running": "Läuft",
+        "better": "Besser",
+        "no_change": "Unverändert",
+        "within_noise": "Im Rauschen",
+        "worse": "Schlechter",
+        "unknown": "Unbekannt"
+      },
+      "verdict": {
+        "passed": "Kein Agent wurde schlechter, mindestens einer besser.",
+        "needs_ack": "Kein geprüfter Agent wurde schlechter, aber einige konnten nicht geprüft werden.",
+        "blocked": "Ein Agent wurde schlechter. Du kannst die Änderung trotzdem übernehmen und ihn auf seiner jetzigen Version lassen.",
+        "no_better": "Kein Agent wurde besser, also gibt es nichts zu übernehmen."
+      },
+      "unaffordable": "Das restliche Monatsbudget der Organisation deckt diese Prüfung nicht.",
+      "cancel": "Prüfung anhalten"
+    },
+    "page": {
+      "skills": "Skills",
+      "mainVersion": "v{number} auf main",
+      "forkCount": "{count, plural, =1 {1 Fork} other {# Forks}}",
+      "editSkill": "Bearbeiten",
+      "editFork": "Fork „{name}“ bearbeiten",
+      "open": "Öffnen",
+      "tabs": {
+        "agents": "Agents",
+        "history": "Verlauf",
+        "tree": "Versionsbaum"
+      },
+      "agentCount": "{count, plural, =0 {Keine Agents} =1 {1 Agent} other {# Agents}}",
+      "delete": "Löschen",
+      "deleteDescription": "Agents, die diesen Skill nutzen, finden ihn nicht mehr. Seine Versionen gehen mit ihm.",
+      "state": {
+        "main": "v{number} · main",
+        "pinned": "v{number} · festgesetzt{behind, plural, =0 {} other { · # hinter main}}",
+        "fork": "Fork „{name}“ · ab v{base}{changes, plural, =0 { · noch keine Änderungen} =1 { · 1 Änderung} other { · # Änderungen}}{behind, plural, =0 {} other { · # hinter main}}"
+      },
+      "show": {
+        "label": "Welche Agents angezeigt werden",
+        "all": "Alle ({count})",
+        "main": "Main ({count})",
+        "pinned": "Festgesetzt ({count})",
+        "fork": "Fork „{name}“ ({count})"
+      },
+      "agentsTable": {
+        "agent": "Agent",
+        "version": "Version",
+        "actions": "Aktionen",
+        "viaSpecialist": "Über seinen Spezialisten {name}",
+        "empty": "Kein Agent hier nutzt diesen Skill.",
+        "hidden": "{count, plural, =1 {1 weiterer Agent, den Sie nicht sehen, nutzt diesen Skill.} other {# weitere Agents, die Sie nicht sehen, nutzen diesen Skill.}}",
+        "draftOnly": "Nur im Entwurf",
+        "environment": "{name}: {binding}",
+        "draftDiffers": "Sein Entwurf nutzt eine andere Version."
+      },
+      "changeVersion": {
+        "button": "Version ändern",
+        "for": "Version des Skills für {name} ändern",
+        "title": "Version von {skill} für {name} ändern",
+        "now": "Jetzt: {binding}",
+        "legend": "Zu nutzende Version",
+        "followMain": "Main, neueste: folgt jeder neuen Version",
+        "pin": "Auf eine main-Version festsetzen: bleibt darauf, wenn main weitergeht",
+        "pinVersion": "Version zum Festsetzen",
+        "versionOption": "v{number}",
+        "fork": "Fork „{name}“, neueste",
+        "unchecked": "Diese Version wurde auf {name} nicht geprüft. Seine Antworten können sich ändern.",
+        "understood": "Verstanden, trotzdem ändern",
+        "publishes": "Das veröffentlicht eine neue Version von {name} nur mit dieser Änderung. Unfertige Änderungen in seinem Entwurf bleiben im Entwurf.",
+        "cancel": "Abbrechen",
+        "submit": "Ändern und veröffentlichen",
+        "published": "Veröffentlicht. {count, plural, =0 {{name} hat eine neue Version.} other {Die neue Version von {name} läuft jetzt in: {environments}.}}",
+        "savedInDraft": "Im Entwurf von {name} gespeichert. Veröffentlichen Sie ihn im Builder.",
+        "openBuilder": "Builder öffnen",
+        "savesToDraft": "Sie dürfen {name} bearbeiten, aber nicht veröffentlichen, deshalb geht diese Änderung in seinen Entwurf. Wer veröffentlichen darf, tut das im Builder.",
+        "submitDraft": "Im Entwurf speichern"
+      },
+      "history": {
+        "title": "Verlauf: {line}",
+        "versionCount": "{count, plural, =1 {1 Version} other {# Versionen}}",
+        "main": "main",
+        "fork": "Fork „{name}“",
+        "lines": "Anzuzeigende Linie",
+        "showChanges": "Änderungen zeigen",
+        "hideChanges": "Änderungen ausblenden",
+        "restore": "Wiederherstellen",
+        "restoreVersion": "v{number} wiederherstellen",
+        "restoreTitle": "v{number} wiederherstellen?",
+        "restoreMain": "v{number} kommt als neueste Version auf main zurück. Agents, die main folgen, erhalten sie sofort; festgesetzte Agents und Forks behalten ihre Version.",
+        "restoreFork": "v{number} kommt als neueste Version von Fork „{name}“ zurück. Die Agents des Forks erhalten sie sofort.",
+        "restored": "v{number} ist als v{made} zurück.",
+        "number": "v{number}",
+        "restoredFrom": "Wiederhergestellt aus v{number}",
+        "source": {
+          "backfill": "Stand zu Beginn der Versionierung",
+          "created": "Erstellt",
+          "edit": "Bearbeitet",
+          "resources": "Dateien geändert",
+          "library": "Aus der Bibliothek",
+          "workspace": "Von einem Agent zurückgeschrieben",
+          "improve": "Improve",
+          "restore": "Wiederhergestellt"
+        },
+        "madeBy": "{who} · {when}{agents, plural, =0 {} =1 { · von 1 Agent genutzt} other { · von # Agents genutzt}}",
+        "unknownAuthor": "Unbekannt",
+        "loadingChanges": "Änderungen werden geladen",
+        "description": "Beschreibung",
+        "body": "Anweisungen",
+        "bodyUnchanged": "Die Anweisungen haben sich nicht geändert.",
+        "files": "Dateien",
+        "file": {
+          "added": "hinzugefügt",
+          "removed": "entfernt",
+          "changed": "geändert"
+        }
+      },
+      "tree": {
+        "title": "Versionsbaum",
+        "summary": "{versions, plural, =1 {1 Version auf main} other {# Versionen auf main}}{forks, plural, =0 {} =1 { · 1 Fork} other { · # Forks}}",
+        "folded": "{count, plural, other {# Versionen}} (v{from}–v{to})",
+        "number": "v{number}",
+        "latest": "neueste",
+        "fork": "Fork „{name}“",
+        "forkFacts": "{changes, plural, =0 {noch keine Änderungen} =1 {1 Änderung} other {# Änderungen}}{behind, plural, =0 {} other { · # hinter main}}",
+        "moreAgents": "+{count}"
+      },
+      "edit": {
+        "saved": "Als v{number} gespeichert.",
+        "forkTitle": "{skill} · Fork „{name}“",
+        "nameHowModelRefers": "Unter diesem Namen spricht das Modell den Skill an.",
+        "warnMain": "Speichern erzeugt v{number} auf main. {count, plural, =0 {Noch folgt kein Agent main.} =1 {1 Agent, der main folgt, erhält sie sofort.} other {# Agents, die main folgen, erhalten sie sofort.}} Festgesetzte Agents und Forks behalten ihre Version.",
+        "warnFork": "Speichern erzeugt v{number} von Fork „{name}“. {count, plural, =0 {Noch nutzt kein Agent den Fork.} =1 {Sein 1 Agent erhält sie sofort.} other {Seine # Agents erhalten sie sofort.}}",
+        "lineMoved": "Seit Sie dies geöffnet haben, hat jemand eine neuere Version gespeichert. Ihr Text ist noch hier: kopieren Sie ihn, schließen Sie und öffnen Sie die neueste Version, um ihn dort einzufügen.",
+        "forkFiles": "Nur Beschreibung und Anweisungen gehören zum Fork. Seine Dateien stammen aus der main-Version, bei der er begann, und Dateien werden auf main bearbeitet.",
+        "noBase": "Dieser Skill hat noch keine gespeicherte Version, auf die geschrieben werden kann. Laden Sie die Seite neu und versuchen Sie es erneut.",
+        "retryFork": "Fork erneut laden"
+      }
+    },
+    "savedMainVersion": "Als neue Main-Version gespeichert. Agents auf main lesen sie ab ihrem nächsten Run; festgesetzte Agents und Forks behalten ihre."
   },
   "states": {
     "loading": "Wird geladen"
@@ -13883,7 +14074,8 @@
         "tool_override": "Tool",
         "spec_field": "Einstellung",
         "finding": "Befund",
-        "create_skill": "Neuer Skill"
+        "create_skill": "Neuer Skill",
+        "skill_problem": "Skill-Problem"
       },
       "reason": {
         "unanchored": "Die Stelle, die sie ändert, steht nicht in den Anweisungen",
@@ -13903,7 +14095,11 @@
         "unsupported": "Sagt, die Änderung sei belegt, ohne einen prüfbaren Beleg",
         "edit_not_in_diff": "Die Zeile, die er nennt, gehört nicht zur Änderung",
         "superseded": "Eine später gestartete Anfrage hatte die Vorschläge schon ersetzt",
-        "insufficient_evidence": "Weniger als drei verschiedene Antworten haben danach gefragt, daher wurde er nicht automatisch hinzugefügt."
+        "insufficient_evidence": "Weniger als drei verschiedene Antworten haben danach gefragt, daher wurde er nicht automatisch hinzugefügt.",
+        "copies_skill": "Es kopiert einen Skill des Agents, den der Agent bereits liest",
+        "duplicates_skill": "Der Agent hat bereits einen Skill mit diesem Namen oder Text",
+        "unknown_skill": "Der Agent hat keinen solchen Skill",
+        "skill_not_used": "Keine der zitierten Antworten hat diese Version des Skills verwendet"
       },
       "about": "Betrifft: {line}",
       "decide": "{count, plural, =1 {1 weitere Idee wartet auf Ihre Entscheidung} other {# weitere Ideen warten auf Ihre Entscheidung}}",
@@ -14802,7 +14998,21 @@
     "freshAttempt": "Jeder Versuch beginnt bei der aktuellen Version; Änderungen aus früheren Versuchen werden nicht übernommen.",
     "trainSignals": "Fehlgeschlagene Testantworten",
     "tryAgainNothingToLearn": "Der letzte Versuch hat jede Frage behoben, aus der er lernt, daher hat ein weiterer Versuch nichts mehr zu lernen. Übernehmen Sie ihn oder beenden Sie die Sitzung.",
-    "tryAgainUnmeasurable": "Ein weiterer Versuch hätte zu wenige Fragen zum Messen: {count, plural, one {# weitere ist} other {# weitere sind}} nötig, und die Fragen dieser Sitzung stehen fest. Beenden Sie sie, fügen Sie Fragen hinzu und starten Sie eine neue."
+    "tryAgainUnmeasurable": "Ein weiterer Versuch hätte zu wenige Fragen zum Messen: {count, plural, one {# weitere ist} other {# weitere sind}} nötig, und die Fragen dieser Sitzung stehen fest. Beenden Sie sie, fügen Sie Fragen hinzu und starten Sie eine neue.",
+    "skills": {
+      "title": "Gehört zu einem Skill",
+      "intro": "Andere Agents nutzen den Skill auch, deshalb wird er hier nicht geändert. Verbessern Sie den Skill selbst: Die Änderung wird an jedem Agent geprüft, der ihn liest.",
+      "mainLine": "Main · {count, plural, =1 {1 Agent} other {# Agents}}",
+      "forkLine": "Fork „{fork}“ · {count, plural, =1 {1 Agent} other {# Agents}}",
+      "hidden": "{count, plural, =1 {1 weiterer Agent, den Sie nicht sehen, nutzt diesen Skill.} other {# weitere Agents, die Sie nicht sehen, nutzen diesen Skill.}}",
+      "improve": "{name} verbessern",
+      "improveFork": "{name} verbessern, Fork „{fork}“",
+      "askEditor": "Bitten Sie jemanden, der {name} bearbeiten darf, ihn zu verbessern.",
+      "behind": "Dieser Agent liegt {count, plural, =1 {1 Version} other {# Versionen}} hinter Main.",
+      "updatePinned": "Auf v{version} aktualisieren",
+      "catchUp": "Fork auf Main bringen"
+    },
+    "usedSkill": "Hat Skill {name} genutzt"
   },
   "unsaved": {
     "title": "Du hast ungespeicherte Änderungen",

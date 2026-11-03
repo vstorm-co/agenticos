@@ -31,6 +31,7 @@ from app.schemas.authoring import (
     NewSkillChange,
     RunFindings,
     SkillImprovement,
+    SkillProblem,
     ToolChange,
     VerifyFinding,
     VerifyReport,
@@ -47,7 +48,9 @@ ANSWERS = {
         "tools",
         "fields",
         "new_skills",
+        "skill_problems",
     },
+    SkillProblem: {"skill", "problem", "evidence"},
     NewSkillChange: {"name", "description", "content", "rationale", "evidence"},
     VerifyReport: {"findings", "instructions", "tools", "fields"},
     FieldChange: {"path", "op", "value", "rationale", "expected_effect", "evidence"},
@@ -110,21 +113,23 @@ SPEC_FIELDS = {
 }
 
 
-def test_a_hunk_changes_instructions_a_tool_or_one_allowed_field_only():
+def test_a_hunk_changes_instructions_a_tool_one_allowed_field_or_a_skill_body_only():
     assert {kind.value for kind in HunkKind} == {
         "instructions",
         "tool_override",
         "spec_field",
         "create_skill",
+        "skill_body",
+        "skill_description",
     }
     (check,) = [
         constraint
         for constraint in SpecProposalHunk.__table__.constraints
         if constraint.name == "spec_proposal_hunks_ck_spec_proposal_hunk_kind_check"
     ]
-    assert (
-        str(check.sqltext)
-        == "kind IN ('instructions', 'tool_override', 'spec_field', 'create_skill')"
+    assert str(check.sqltext) == (
+        "kind IN ('instructions', 'tool_override', 'spec_field', 'create_skill', "
+        "'skill_body', 'skill_description')"
     )
     assert set(ToolOverride.model_fields) == {"name", "description"}
     assert {op.value for op in FieldOp} == {"set", "add", "remove"}

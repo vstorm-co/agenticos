@@ -186,8 +186,10 @@ So a write becomes a **proposal**, and it appears above the list on the Skills p
 for whoever may edit that skill - its owner, or anybody granted edit on it - and,
 for a skill not written yet, for anyone who may create skills. Nobody else sees it:
 
-- **Apply** saves the change as the next version of the line it was written
-  for, which reaches that line's agents on their next run.
+- **Check on agents** runs the change on every agent of the line it was written
+  for, and applying it - the next version of that line, which those agents read
+  on their next run - happens from the check's result. See
+  [Checking a change on every agent](#checking-a-change-on-every-agent).
 - **Discard** keeps the record. An agent proposing the same edit repeatedly is
   telling somebody something about the skill, and a deleted row makes that
   invisible.
@@ -217,21 +219,91 @@ while the change waited is not overwritten. Compare the two and edit the skill b
 hand, or ask again.
 
 The [authoring assistant](authoring.md#skills) proposes skill changes the same way,
-with its rationale and the runs behind it, and Apply refuses them the same way.
+with its rationale and the runs behind it, and applying refuses them the same way.
 
-Each change says, beside **Apply**, which agents' published versions read the
-skill, which eval suites applying it queues and which guards check it only at
-the next promotion, and **Check with evals** comes first.
+Each change says which agents' published versions read the skill, which eval
+suites applying it queues and which guards check it only at the next promotion.
 Applying tells those agents' owners. A decision names the version of the change
 you read: a change rewritten since - by a later turn or a new request - is
 refused with "The proposal changed since you opened it", and of two decisions
-made at once only one counts.
+made at once only one counts. A skill the agent wrote from nothing has no agents
+yet, so **Apply** creates it at once.
 
 Workspace proposals use the same metadata limits as stored skills: a name of
 1–64 characters and a description up to 500 characters. A change outside these
 limits is skipped with a warning; its original workspace files stay intact.
 Proposal writes run in a savepoint, so a refused proposal cannot roll back the
 turn or prevent its status and spend from being recorded.
+
+## Checking a change on every agent { #checking-a-change-on-every-agent }
+
+A skill is shared, so a change is judged on every agent that would read it: on
+main, the agents following main's newest version; on a fork, that fork's agents.
+Agents pinned to an older version and the agents of other forks are not run - the
+change does not reach them. Each agent's published version answers its questions
+twice, with the skill as it is and with the change, and nothing else differs.
+
+A change an agent's workspace wrote, one the assistant proposed and a
+[library update](#getting-skills-into-an-organization) of a skill agents follow go live only through
+this check. A person editing the skill by hand saves a new version at once, and
+that edit is not checked.
+
+### What it asks { #what-a-check-asks }
+
+First the skill's own **test questions**, the same set on every agent. Each skill
+has one set, created through the API - `POST /api/v1/skills/{id}/test-set`, empty
+or from recent answers that loaded the skill - and edited like any other
+[dataset](datasets.md). Then the agent's own questions:
+
+- **Quick**, the default: at most four questions of the agent's dataset whose
+  newest answer loaded the skill - the ones sharing most words with the lines the
+  change touches. An agent with none is checked on the skill's set alone, and its
+  row says so.
+- **Thorough**: the agent's whole dataset. A change to the skill's description
+  is always thorough, because the description decides when every agent opens
+  the skill at all.
+
+!!! note "The skill's questions say what the skill should do"
+
+    They are graded the same way on every agent, so they catch a change that
+    breaks the skill's own rule. A change that hurts one agent because of that
+    agent's own situation shows on its own questions. And a deliberate change of
+    rule fails every question still expecting the old answer: update the test
+    questions first.
+
+### The rule { #the-rule }
+
+- No agent may get **worse**, by a regression its re-asks confirmed.
+- At least one agent must get **better**.
+- A difference the check could not confirm is **within noise**: a warning, not a
+  block.
+- An agent that could not be checked - no questions, no access, no budget left,
+  no published version, a run that failed - is **unknown**, and a person
+  acknowledges it before applying.
+
+Each agent's share is its own eval runs, billed to that agent. The estimate gives
+one price, most likely and at most, and names before the start the agents whose
+budget cannot cover it. Starting needs `runs:view` and edit access to the skill.
+An agent you may not run is not run, and one you may not see is a count, never a
+name.
+
+### When an agent got worse { #when-an-agent-got-worse }
+
+**Check on agents** under Skills prices the check, runs it, shows each agent's
+result and then applies or discards the change. On main a person may still:
+
+- **apply it and keep the worse agents where they are** - each is pinned, as a new
+  published version, to the version it reads now, before the change goes live, so
+  none of them serves it even once. Pinning needs publishing each of them, and an
+  environment that waits for promotion must take the pinned version first;
+- **make a fork for the agents it helped**, leaving main as it is - through the
+  API, `POST /api/v1/skills/{id}/checks/{check_id}/fork`;
+- **discard** it.
+
+On a fork only improving further and discarding remain: a pin names a main
+version, and a fork never starts from another fork. A check refuses to apply
+once the line has a newer version, or an agent started following it, since it
+measured neither.
 
 ## Versions and forks
 
@@ -393,7 +465,10 @@ uv run agenticos cmd seed-skills --replace          # also overwrite copies edit
 It installs what is missing and **refreshes what nobody has edited**. Every copy
 records which bundled version it was written from, so when a release improves a
 bundled skill, an organization's untouched copy is replaced with the new one —
-files and all, as a new version, with a `skill.refreshed` audit entry.
+files and all, as a new version, with a `skill.refreshed` audit entry. Unless
+agents follow it: then the bundled version waits under Skills as a change, and
+goes live once a [check on those agents](#checking-a-change-on-every-agent)
+allows it.
 
 A copy edited here is left exactly as it is, so an edited refund policy survives a
 reseed; `--replace` is the one way to take the bundled version over such edits,
@@ -461,6 +536,48 @@ backend, a parser pointed at somebody else's repository, and a promise about con
 nobody here has read. Each folder in `app/core/catalog/skills/` and
 `app/core/catalog/skill_gallery/` is the same small promise the
 [MCP catalog](mcp.md#the-catalog) makes: somebody looked at it.
+
+## A skill's page
+
+Open a skill from the list to see its page. It has three tabs.
+
+**Agents** lists every agent that uses the skill, and the version it is served:
+
+- `v12 · main` - the agent follows main and gets each new version at once.
+- `v9 · pinned · 3 behind main` - the agent stays on an older main version.
+- `Fork "Returns" · from v7 · 2 changes` - the agent uses a fork: a line of
+  versions with changes of its own, started from one main version.
+
+An environment that serves a different version is named under the agent, and an
+inline specialist that binds the skill has a row of its own - see
+[Which version an agent reads](#which-version-an-agent-reads). An agent that binds
+the skill only in its draft is marked **Only in the draft** and counts on
+no line. Agents you cannot see are counted, not named. The chips above the table
+show everyone, the agents on main, the pinned ones, or one fork. A fork you pick
+there is also the line that History lists and Edit saves to.
+
+**Change version** moves one agent to main, to a pinned main version, or to a fork,
+as [Which version an agent reads](#which-version-an-agent-reads) describes: what goes
+live, what waits in the draft, and what is changed in the Builder. A version the agent
+is not on has not been checked on it, so you confirm that first. The control is shown
+to people who may edit the agent.
+
+**History** lists the chosen line's versions, newest first: where each came from
+(an edit, a file change, the library, an agent's workspace, Improve or a restore),
+who made it and when. **Show changes** compares the description and instructions
+with the version before - for a fork's first version, its base on main - and names
+the files added, removed or changed. **Restore** brings an earlier version back as
+the newest on its own line, and the agents following that line get it at once.
+
+**Version tree** draws main from its newest version down, each fork off the version
+it started from, and agents at the version they use. Stretches that no agent uses
+fold into one row.
+
+**Edit** saves a new version on the line on screen. On main, the agents following
+main get it at once; pinned agents and forks keep their version. Files and the
+category belong to main, so editing a fork changes only its description and
+instructions. Restore and Change version are shown only to people who may make
+that change; anybody else opens the skill read-only.
 
 ## Skills or knowledge?
 

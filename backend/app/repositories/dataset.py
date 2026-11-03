@@ -245,6 +245,7 @@ async def create(
     description: str | None,
     visibility: str,
     agent_id: UUID | None = None,
+    skill_id: UUID | None = None,
     improvement_holdout_share: Decimal = Decimal("0.5"),
 ) -> Dataset:
     dataset = Dataset(
@@ -254,6 +255,7 @@ async def create(
         description=description,
         visibility=visibility,
         agent_id=agent_id,
+        skill_id=skill_id,
         improvement_holdout_share=improvement_holdout_share,
     )
     db.add(dataset)
@@ -270,6 +272,16 @@ async def for_agent(db: AsyncSession, agent_id: UUID, *, organization_id: UUID) 
         .order_by(func.coalesce(Dataset.updated_at, Dataset.created_at).desc(), Dataset.id)
     )
     return list(result.scalars().all())
+
+
+async def for_skill(db: AsyncSession, skill_id: UUID, *, organization_id: UUID) -> Dataset | None:
+    """The skill's own test questions, when it has them."""
+    result = await db.execute(
+        select(Dataset).where(
+            Dataset.organization_id == organization_id, Dataset.skill_id == skill_id
+        )
+    )
+    return result.scalar_one_or_none()
 
 
 async def update(db: AsyncSession, *, dataset: Dataset, update_data: dict[str, Any]) -> Dataset:

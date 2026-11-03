@@ -19,6 +19,7 @@ export const qk = {
     detail: (agentId: string, runId: string) => ["improvements", agentId, runId] as const,
     changes: (agentId: string, runId: string) =>
       ["improvements", agentId, runId, "changes"] as const,
+    skills: (agentId: string, runId: string) => ["improvements", agentId, runId, "skills"] as const,
     attemptChanges: (agentId: string, runId: string, attempt: number) =>
       ["improvements", agentId, runId, "changes", attempt] as const,
   },
@@ -422,6 +423,12 @@ export const qk = {
     gallery: () => ["skills", "gallery"] as const,
     resource: (skillId: string, resourceId: string) =>
       ["skills", skillId, "resources", resourceId] as const,
+    versions: (skillId: string, forkId: string | null, skip: number) =>
+      ["skills", skillId, "versions", forkId ?? "main", skip] as const,
+    version: (skillId: string, versionId: string) =>
+      ["skills", skillId, "version", versionId] as const,
+    forks: (skillId: string) => ["skills", skillId, "forks"] as const,
+    agents: (skillId: string) => ["skills", skillId, "agents"] as const,
   },
   mcpOauth: {
     request: (orgId: string, requestId: string) =>
@@ -733,6 +740,9 @@ export const qk = {
     // holds the same file's text - they are two different bodies.
     bytes: (id: string, path: string) => ["sandbox-workspaces", "bytes", id, path] as const,
     file: (id: string, path: string) => ["sandbox-workspaces", "file", id, path] as const,
+  },
+  skillChecks: {
+    detail: (skillId: string, checkId: string) => ["skill-checks", skillId, checkId] as const,
   },
   skillChanges: {
     all: () => ["skill-changes"] as const,

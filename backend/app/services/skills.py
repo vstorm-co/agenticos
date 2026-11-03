@@ -7,7 +7,7 @@ read is the skills *capability*.
 """
 
 import logging
-from collections.abc import Mapping, Sequence
+from collections.abc import Collection, Mapping, Sequence
 from datetime import UTC, datetime, timedelta
 from enum import StrEnum
 from typing import Annotated
@@ -18,7 +18,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.capabilities.skills import SkillBody
-from app.agents.spec import SkillBindingSpec
+from app.agents.spec import AgentSpec, SkillBindingSpec
 from app.core import catalog
 from app.core.audit import record_audit
 from app.core.exceptions import (
@@ -32,11 +32,13 @@ from app.core.excerpt import excerpt
 from app.core.permissions import AuthContext, Perm
 from app.db.models.resource_grant import Visibility
 from app.db.models.skill import Skill, SkillResource
+from app.db.models.skill_proposal import ProposalStatus
 from app.db.models.skill_version import SkillVersion, SkillVersionSource
 from app.db.updates import writable
 from app.repositories import (
     agent_repo,
     resource_grant_repo,
+    skill_proposal_repo,
     skill_repo,
     skill_usage_repo,
     skill_version_repo,
@@ -81,6 +83,14 @@ SUGGESTED_CATEGORIES: tuple[str, ...] = catalog.load(
 # it cannot read is not a smaller feature - it is a file the agent is told
 # about and then cannot use.
 MAX_RESOURCE_BYTES = 512 * 1024
+
+SKILL_BODY_CHARS = 4000
+"""How much of one skill's body an agent's improver reads."""
+
+
+def improver_skill_chars(skills: Sequence[Skill], used: Mapping[UUID, set[UUID]]) -> int:
+    """How much skill text an agent's improver is shown: the bodies its evidence used."""
+    return sum(min(len(skill.content), SKILL_BODY_CHARS) for skill in skills if skill.id in used)
 
 
 def _summary(skill: Skill, bundled_names: frozenset[str]) -> SkillSummary:
@@ -168,6 +178,8 @@ class LibraryRefresh(StrEnum):
     """Edited here since it was copied; left alone."""
     UNTRACKED = "untracked"
     """Copied before fingerprints were kept and different now; left alone."""
+    WAITING = "waiting"
+    """An update agents follow: it waits as a proposal until it is checked on them."""
 
 
 def _fingerprint_of(skill: Skill) -> str:
@@ -486,6 +498,25 @@ class SkillService:
             resolved.append(served)
         return resolved
 
+    async def read_by_improver(
+        self, ctx: AuthContext, agent_id: UUID, spec: AgentSpec, run_ids: Sequence[UUID]
+    ) -> tuple[list[Skill], dict[UUID, set[UUID]]]:
+        """The skills an agent's improver reads, and the runs that used each as the agent reads it.
+
+        A run served another version of a skill - before a pin moved, on an older
+        main or on another fork - does not count for it: the body the improver reads
+        is not the one that run answered with.
+        """
+        skills = await self.resolve_for_agent(ctx, spec.skill_ids, bindings=spec.skill_bindings)
+        used = await skill_usage_repo.skills_in_runs(
+            self.db,
+            organization_id=ctx.organization_id,
+            agent_id=agent_id,
+            run_ids=run_ids,
+            versions={skill.id: skill.latest_version_id for skill in skills},
+        )
+        return skills, used
+
     async def _as_bound(self, skill: Skill, binding: SkillBindingSpec) -> Skill | None:
         """The skill as a pinned main version or a fork's newest says it, detached."""
         if binding.version is not None:
@@ -685,7 +716,14 @@ class SkillService:
             NotFoundError: If no such skill ships with this deployment.
         """
         bundled, existing = await self._library_pair(ctx, key)
-        return _refresh_plan(existing, bundled, replace_edited=replace_edited)
+        plan = _refresh_plan(existing, bundled, replace_edited=replace_edited)
+        if (
+            plan is LibraryRefresh.UPDATE
+            and existing is not None
+            and await self._followed(existing)
+        ):
+            return LibraryRefresh.WAITING
+        return plan
 
     async def refresh_from_library(
         self, ctx: AuthContext, key: str, *, replace_edited: bool = False
@@ -695,7 +733,9 @@ class SkillService:
         Missing, it is installed. An unedited copy of an earlier version - one
         that still matches the fingerprint it was written with - is replaced,
         files and all, as a new main version, because nobody chose what it
-        says: the platform did, and the platform now says something better. A
+        says: the platform did, and the platform now says something better.
+        Unless agents follow its main line: then the update waits as a proposal,
+        and goes live once a check on those agents allows it. A
         copy edited here is the organization's and is left alone unless
         `replace_edited` says to take the bundled version over the edits, and so
         is one copied before fingerprints were kept, since nothing can tell
@@ -707,12 +747,19 @@ class SkillService:
                 and the copy - the listing's top-up, racing a seed.
         """
         bundled, existing = await self._library_pair(ctx, key)
-        return await self._refresh_bundled(ctx, bundled, existing, replace_edited=replace_edited)
+        return await self._refresh_bundled(
+            ctx, bundled, existing, replace_edited=replace_edited, wait_for_check=True
+        )
 
     async def refresh_gallery(
         self, ctx: AuthContext, key: str, *, dry_run: bool = False, replace_edited: bool = False
     ) -> LibraryRefresh:
-        """Refresh a gallery copy using the same edit protection as seeded skills."""
+        """Refresh a gallery copy using the same edit protection as seeded skills.
+
+        Written at once even when agents follow it: the one caller is the Architect's
+        refresh, whose guide travels with the platform's own template and has no
+        test questions an organization wrote.
+        """
         bundled = skill_library.gallery_get(key)
         if bundled is None:
             raise NotFoundError(message="No such gallery skill", details={"key": key})
@@ -723,7 +770,15 @@ class SkillService:
             await self.get(ctx, existing.id, perm=Perm.SKILLS_EDIT)
         if dry_run:
             return _refresh_plan(existing, bundled, replace_edited=replace_edited)
-        return await self._refresh_bundled(ctx, bundled, existing, replace_edited=replace_edited)
+        return await self._refresh_bundled(
+            ctx, bundled, existing, replace_edited=replace_edited, wait_for_check=False
+        )
+
+    async def _followed(self, skill: Skill) -> bool:
+        """Whether any agent's served version follows the skill's main line."""
+        from app.services.skill_agents import SkillAgentService
+
+        return bool(await SkillAgentService(self.db).line_agents(skill, None))
 
     async def _refresh_bundled(
         self,
@@ -732,6 +787,7 @@ class SkillService:
         existing: Skill | None,
         *,
         replace_edited: bool,
+        wait_for_check: bool,
     ) -> LibraryRefresh:
         if existing is not None:
             # Locked and re-read before deciding: an edit a member commits between
@@ -742,6 +798,9 @@ class SkillService:
         plan = _refresh_plan(existing, bundled, replace_edited=replace_edited)
         if existing is None:
             await self._copy_library_skill(ctx, bundled, seeded=True)
+        elif plan is LibraryRefresh.UPDATE and wait_for_check and await self._followed(existing):
+            await self._propose_from_library(ctx, existing, bundled)
+            return LibraryRefresh.WAITING
         elif plan is LibraryRefresh.UPDATE:
             await self._overwrite_from_library(
                 ctx,
@@ -757,6 +816,71 @@ class SkillService:
                 self.db, skill=existing, update_data={"library_fingerprint": bundled.fingerprint}
             )
         return plan
+
+    async def _propose_from_library(
+        self, ctx: AuthContext, skill: Skill, bundled: skill_library.LibrarySkill
+    ) -> None:
+        """Leave the bundled version waiting as a proposal, once per bundled version.
+
+        An earlier bundled version still waiting is withdrawn: the newer one says
+        everything it did. One a person already decided is not offered again. The
+        category is metadata no agent reads, so it follows the library at once.
+        """
+        earlier = await skill_proposal_repo.from_source(
+            self.db,
+            organization_id=ctx.organization_id,
+            skill_id=skill.id,
+            source=SkillVersionSource.LIBRARY.value,
+        )
+        if skill.category != bundled.category:
+            unedited = _fingerprint_of(skill) == skill.library_fingerprint
+            skill = await skill_repo.update(
+                self.db, skill=skill, update_data={"category": bundled.category}
+            )
+            if unedited:
+                await skill_repo.update(
+                    self.db,
+                    skill=skill,
+                    update_data={"library_fingerprint": _fingerprint_of(skill)},
+                )
+        resources = {resource.name: resource.content for resource in bundled.resources}
+        if any(
+            (item.description, item.content, item.resources)
+            == (bundled.description, bundled.content, resources)
+            for item in earlier
+        ):
+            return
+        from app.services.skill_check import SkillCheckService
+
+        checks = SkillCheckService(self.db)
+        for item in earlier:
+            if item.status == ProposalStatus.PENDING.value:
+                await skill_proposal_repo.decide_if(
+                    self.db,
+                    proposal_id=item.id,
+                    organization_id=ctx.organization_id,
+                    revision=item.revision,
+                    status=ProposalStatus.DISCARDED,
+                    decided_by=None,
+                )
+                await checks.stop_for_proposal(ctx, skill.id, item.id)
+        proposal = await skill_proposal_repo.create(
+            self.db,
+            organization_id=ctx.organization_id,
+            skill_id=skill.id,
+            agent_id=None,
+            conversation_id=None,
+            name=skill.name,
+            description=bundled.description,
+            content=bundled.content,
+            resources=resources,
+            base_version=skill.version,
+            base_version_id=skill.latest_version_id,
+            fork_id=None,
+        )
+        await skill_proposal_repo.annotate(
+            self.db, proposal=proposal, values={"source": SkillVersionSource.LIBRARY.value}
+        )
 
     async def _library_pair(
         self, ctx: AuthContext, key: str
@@ -1123,6 +1247,45 @@ class SkillService:
             target_id=str(skill.id),
             details={"name": skill.name, "resource": name},
         )
+
+    async def drop_resources(
+        self, ctx: AuthContext, skill_id: UUID, *, keep: Collection[str]
+    ) -> list[str]:
+        """Delete every file not named in `keep`, recording no version: the caller writes
+        the rest of the change and records it, so the set is one version.
+
+        For a library update, whose files are the whole set the skill should have.
+        """
+        skill = await self.get(ctx, skill_id, perm=Perm.SKILLS_EDIT)
+        stale = [resource for resource in skill.resources if resource.name not in keep]
+        for resource in stale:
+            await skill_repo.delete_resource(self.db, resource)
+        if not stale:
+            return []
+        self.db.expire(skill, ["resources"])
+        names = sorted(resource.name for resource in stale)
+        await record_audit(
+            self.db,
+            actor_user_id=ctx.subject_id,
+            organization_id=ctx.organization_id,
+            action="skill.resources_removed",
+            target_type="skill",
+            target_id=str(skill.id),
+            details={"name": skill.name, "resources": names},
+        )
+        return names
+
+    async def record_files(
+        self,
+        ctx: AuthContext,
+        skill_id: UUID,
+        *,
+        source: SkillVersionSource,
+        proposal_id: UUID | None,
+    ) -> None:
+        """Record the skill's files as they stand as a main version."""
+        skill = await self.get(ctx, skill_id, perm=Perm.SKILLS_EDIT)
+        await self._files_changed(ctx, skill, source=source, proposal_id=proposal_id)
 
     async def _files_changed(
         self,

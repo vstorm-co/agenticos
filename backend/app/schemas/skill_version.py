@@ -6,6 +6,7 @@ from uuid import UUID
 
 from pydantic import Field, model_validator
 
+from app.db.models.skill_check import AgentState, SampleKind
 from app.db.models.skill_version import SkillVersionSource
 from app.schemas.base import BaseSchema
 from app.schemas.resource_usage import AgentUsage
@@ -182,6 +183,19 @@ class AgentEnvironmentBinding(BaseSchema):
     binding: SkillBindingRead
 
 
+class AgentCheckRef(BaseSchema):
+    """What a check found on one agent, for the version that check made."""
+
+    check_id: UUID
+    version_id: UUID
+    state: AgentState
+    sample: SampleKind | None = Field(
+        default=None,
+        description="`skill_set_only` when the agent was checked on the skill's questions alone",
+    )
+    at: datetime
+
+
 class SkillAgentUsage(BaseSchema):
     """One agent that uses a skill, and which version it reads where."""
 
@@ -202,8 +216,19 @@ class SkillAgentUsage(BaseSchema):
     draft_differs: bool = Field(description="The draft reads the skill differently")
     can_change: bool = Field(description="The caller may change the binding, in the draft at least")
     can_publish: bool = Field(description="The caller may publish, so a change goes live")
-    checked: bool | None = Field(
-        default=None, description="Whether this version was checked on this agent; not known yet"
+    checked: AgentCheckRef | None = Field(
+        default=None,
+        description=(
+            "The newest check of the version this agent uses now, as it found this agent; "
+            "null when that version was never checked on it"
+        ),
+    )
+    checked_versions: list[AgentCheckRef] = Field(
+        default_factory=list,
+        description=(
+            "Every version of the skill a check made after measuring it on this agent, "
+            "newest check first - so moving the agent to one says whether it was checked"
+        ),
     )
 
 
