@@ -7,12 +7,13 @@ result the test scripts per agent.
 """
 
 import uuid
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from decimal import Decimal
 from types import SimpleNamespace
 from typing import Any
 
 import pytest
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.spec import AgentSpec
@@ -23,8 +24,9 @@ from app.core.exceptions import (
     ConcurrentChangeError,
     NotFoundError,
 )
-from app.core.permissions import AuthContext, OrgRoleName
+from app.core.permissions import AuthContext, OrgRoleName, Perm
 from app.db.models.agent import Agent
+from app.db.models.agent_environment import AgentEnvironment
 from app.db.models.eval_run import EvalRun, EvalRunStatus
 from app.db.models.skill import Skill
 from app.db.models.skill_check import (
@@ -224,6 +226,15 @@ async def _lab(db: AsyncSession) -> Lab:
     return Lab(ctx, skill, a, b, c, pinned, on_fork, fork.id)
 
 
+async def _follow_publishes(db: AsyncSession, agent: Agent) -> None:
+    """Have the agent's environments take each version it publishes."""
+    for environment in (
+        await db.scalars(select(AgentEnvironment).where(AgentEnvironment.agent_id == agent.id))
+    ).all():
+        environment.tracks_latest = True
+    await db.flush()
+
+
 def _start(**values: Any) -> SkillCheckStart:
     return SkillCheckStart(candidate=NEW, **values)
 
@@ -306,6 +317,7 @@ class TestWhoIsChecked:
         a = next(row for row in estimate.agents if row.agent.name == "A")
         assert [stage.kind for stage in a.stages] == ["skill_set", "dataset"]
 
+    @pytest.mark.security
     async def test_an_agent_without_budget_is_named_before_the_start(self, db, monkeypatch):
         lab = await _lab(db)
         FakeEvals(agent_left=Decimal("0.01")).install(monkeypatch)
@@ -492,6 +504,7 @@ class TestDeciding:
 
         with pytest.raises(BadRequestError):
             await service.apply(lab.ctx, lab.skill.id, check.id, SkillCheckApply())
+        await _follow_publishes(db, lab.b)
         applied = await service.apply(
             lab.ctx, lab.skill.id, check.id, SkillCheckApply(pin_worse=True)
         )
@@ -504,9 +517,11 @@ class TestDeciding:
         with pytest.raises(AlreadyExistsError):
             await service.discard(lab.ctx, lab.skill.id, check.id)
 
+    @pytest.mark.security
     async def test_an_agent_is_told_which_versions_were_checked_on_it(self, db, monkeypatch):
         """Change version asks whether a version was checked on that agent; a version
-        that came out of a check says so, one written by hand does not."""
+        that came out of a check says so, one written by hand does not. Only a caller who
+        may read eval results learns either."""
         lab = await _lab(db)
         evals = FakeEvals()
         evals.install(monkeypatch)
@@ -526,6 +541,12 @@ class TestDeciding:
         )
         assert [ref.check_id for ref in rows["B"].checked_versions] == [check.id]
         assert rows["Pinned"].checked is None and rows["Pinned"].checked_versions == []
+
+        blind = replace(lab.ctx, key_scopes=frozenset(Perm) - {Perm.RUNS_VIEW})
+        unseen = await SkillAgentService(db).agents(blind, lab.skill.id)
+        assert unseen.items and all(
+            row.checked is None and row.checked_versions == [] for row in unseen.items
+        )
 
     async def test_fork_for_the_helped_moves_them_and_leaves_main(self, db, monkeypatch):
         lab = await _lab(db)
@@ -569,6 +590,24 @@ class TestDeciding:
 
         with pytest.raises(ConcurrentChangeError):
             await service.apply(lab.ctx, lab.skill.id, check.id, SkillCheckApply())
+
+    async def test_a_worse_agent_whose_environment_waits_for_promotion_is_not_pinned(
+        self, db, monkeypatch
+    ):
+        """Pinning publishes a new agent version; an environment that waits for promotion
+        keeps the old one, which follows main and would serve the change at once."""
+        lab = await _lab(db)
+        evals = FakeEvals()
+        evals.install(monkeypatch)
+        service = SkillCheckService(db)
+        check = await service.start(lab.ctx, lab.skill.id, _start())
+        evals.outcomes = {lab.a.id: Outcome(fixed=2), lab.b.id: Outcome(broken=1)}
+        await _run_to_end(service, evals, lab, check.id)
+
+        with pytest.raises(BadRequestError, match="waits for promotion") as refused:
+            await service.apply(lab.ctx, lab.skill.id, check.id, SkillCheckApply(pin_worse=True))
+
+        assert refused.value.details == {"agents": ["B"]}
 
     async def test_a_fork_line_never_offers_pin_or_fork(self, db, monkeypatch):
         lab = await _lab(db)

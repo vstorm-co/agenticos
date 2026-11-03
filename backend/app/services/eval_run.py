@@ -192,6 +192,11 @@ def _bodies_json(
                 if isinstance(body, SkillBody) and body.resources is not None
                 else {}
             ),
+            **(
+                {"fork_id": str(body.fork_id)}
+                if isinstance(body, SkillBody) and body.fork_id is not None
+                else {}
+            ),
         }
         for key, body in bodies.items()
     }
@@ -207,6 +212,7 @@ def skill_body_from_json(body: Mapping[str, object]) -> SkillBody:
         resources=None
         if files is None
         else tuple(TypeAdapter(list[SkillBodyFile]).validate_python(files)),
+        fork_id=TypeAdapter(UUID | None).validate_python(body.get("fork_id")),
     )
 
 
@@ -455,6 +461,34 @@ class EvalRunService:
                 if skill.latest_version_id is not None:
                     served[f"{reader}:{skill.id}"] = str(skill.latest_version_id)
         return served or None
+
+    async def forget_moved_skills(self, ctx: AuthContext | None, run: EvalRun) -> None:
+        """Unmark the arms of a finished run whose skills moved while it answered.
+
+        `skill_versions` is what lets an arm stand in as a cached baseline, and it is
+        read when the run is planned; the runner reads each skill's newest version when
+        a case runs. An arm whose skills advanced in between answered with a mix, so it
+        stands for no versions: `{}`, which no lookup asks for. Without a context to
+        read with - the starter left - nothing is assumed and every arm is unmarked.
+        """
+        for arm in await eval_run_repo.list_arms(
+            self.db, [run.id], organization_id=run.organization_id
+        ):
+            if not arm.skill_versions:
+                continue
+            if ctx is not None:
+                if arm.agent_version_id is not None:
+                    version = await agent_repo.get_version(
+                        self.db, arm.agent_version_id, organization_id=run.organization_id
+                    )
+                    spec = None if version is None else AgentSpec.model_validate(version.spec)
+                else:
+                    spec = AgentSpec.model_validate(arm.spec)
+                if spec is not None and await self.served_skill_versions(ctx, spec) == dict(
+                    arm.skill_versions
+                ):
+                    continue
+            await eval_run_repo.update_arm(self.db, arm=arm, values={"skill_versions": {}})
 
     async def plan(
         self,

@@ -316,11 +316,13 @@ class SkillAgentService:
         lines += [line for use in uses for line in use.draft]
         reader = await self._reader(skill, lines)
         checks: dict[UUID, dict[UUID, AgentCheckRef]] = {}
+        # What a check found on an agent is eval results, read like a check itself.
+        checked = [] if not ctx.has(Perm.RUNS_VIEW) else agents
         for agent_id, version_id, found, at in await skill_check_repo.checked_versions(
             self.db,
             organization_id=skill.organization_id,
             skill_id=skill.id,
-            agent_ids=[agent.id for agent in agents],
+            agent_ids=[agent.id for agent in checked],
         ):
             checks.setdefault(agent_id, {}).setdefault(
                 version_id,

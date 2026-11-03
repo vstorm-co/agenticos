@@ -322,6 +322,11 @@ class SkillProposalService:
         files = [
             (name, content.encode("utf-8")) for name, content in sorted(proposal.resources.items())
         ]
+        removed: list[str] = []
+        if fork is None and proposal.skill_id is not None and replaces_files(proposal):
+            removed = await self.skills.drop_resources(
+                ctx, proposal.skill_id, keep=set(proposal.resources)
+            )
         if fork is not None:
             skill = current
             await self._apply_to_fork(ctx, fork, proposal, source)
@@ -339,13 +344,15 @@ class SkillProposalService:
                 ctx,
                 proposal.skill_id,
                 SkillUpdate(description=proposal.description, content=proposal.content),
-                source=None if files else source,
+                source=None if files or removed else source,
                 proposal_id=proposal.id,
             )
         if files and fork is None:
             await self.skills.put_resources(
                 ctx, skill.id, files, source=source, proposal_id=proposal.id
             )
+        elif removed:
+            await self.skills.record_files(ctx, skill.id, source=source, proposal_id=proposal.id)
 
         reaches = (
             await proposal_reach.reach(
@@ -429,6 +436,10 @@ class SkillProposalService:
         proposal = await self.get(ctx, proposal_id)
         self._refuse_second_decision(proposal, decision.revision)
         decided = await self._claim(ctx, proposal, decision, ProposalStatus.DISCARDED)
+        if proposal.skill_id is not None:
+            from app.services.skill_check import SkillCheckService
+
+            await SkillCheckService(self.db).stop_for_proposal(ctx, proposal.skill_id, proposal_id)
         await record_audit(
             self.db,
             actor_user_id=ctx.subject_id,
@@ -494,6 +505,14 @@ class SkillProposalService:
             )
         if proposal.revision != revision:
             raise _changed(proposal)
+
+
+def replaces_files(proposal: SkillProposal) -> bool:
+    """Whether the proposal's files are the skill's whole set rather than changes to it.
+
+    A library update carries every file the bundled skill has, so one it dropped goes.
+    """
+    return proposal.source == SkillVersionSource.LIBRARY.value
 
 
 def version_source(proposal: SkillProposal) -> SkillVersionSource:
