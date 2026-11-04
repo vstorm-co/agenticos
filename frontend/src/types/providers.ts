@@ -15,6 +15,9 @@ import type { SecretKind } from "./secrets";
 /** Which of OpenAI's two APIs a profile's requests go to. */
 export type ModelApi = "chat" | "responses";
 
+/** Where a profile's requests may run, for a provider that takes a region (Stav). */
+export type ModelRegion = "eu" | "eea" | "global";
+
 /** One selectable provider, as the credential form reads it. */
 export interface ProviderInfo {
   id: string;
@@ -41,6 +44,16 @@ export interface ProviderInfo {
    * implements. Null where `apis` is empty.
    */
   native_api: ModelApi | null;
+  /**
+   * Where a profile on this provider may run its requests, for a provider that
+   * takes a region. The first is the default. Empty for every other provider.
+   */
+  regions?: ModelRegion[];
+  /**
+   * Whether the API is chosen from the model's own listing (Stav.ai) rather
+   * than by the person adding it. The form shows the choice instead of asking.
+   */
+  api_from_model?: boolean;
 }
 
 export interface ProviderCatalog {
@@ -74,6 +87,8 @@ export interface ModelProfile {
   base_url?: string | null;
   /** Which API the requests go to. Null on every provider that serves one. */
   api?: ModelApi | null;
+  /** Where the requests may run. Null on every provider that takes no region. */
+  region?: ModelRegion | null;
   params: Record<string, unknown>;
   fallback_profile_ids: string[];
   /**

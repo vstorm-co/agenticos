@@ -19,6 +19,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- Connect Stav models with a vault API key and an EU (default), EEA or global region. Region restrictions remain enforced when request settings include custom headers; existing profiles retain their settings. Model catalogs choose Chat Completions or Responses from the model’s advertised surfaces. Custom Stav catalogs use the selected visible vault key, with credential-isolated caching.
+
 ## [1.40.0] - 2026-11-03
 
 ### Added
