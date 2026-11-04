@@ -1,5 +1,5 @@
 ---
-source_sha: "2fa7dfb57e50"
+source_sha: "59cdf11dca18"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -1575,10 +1575,69 @@ wrzucone przez samego bota są pomijane. Potrzebne jest **Read Message History**
 a `read_channel_history` czyta wątek albo kanał tak samo, gdy pozwala na to
 powiązanie.
 
+### Role serwera jako grupy { #discord-roles }
+
+Administrator może zmapować rolę z jednego z serwerów bota na grupę organizacji
+(#2569). Otwórz **Kanały**, a potem akcję **Role Discorda** w wierszu bota. Serwer i
+rolę wybiera się spośród tego, co bot sam odczytuje z Discorda, więc `@everyone` i
+role, którymi Discord zarządza dla bota, nie są oferowane. Utworzenie mapowania
+wymaga `members:manage`, a trasy wymagają też `channels:manage`.
+
+Połączony członek, który ma tę rolę, trafia do grupy przed każdą wiadomością wysłaną
+do któregokolwiek z botów Discorda organizacji, a także przy zadaniu
+`sync-discord-roles` co 15 minut. Opuszcza grupę, gdy rola zostanie mu odebrana, a
+zadanie zauważa to u kogoś, kto przestał pisać do bota. Bot pyta Discorda o role
+jednego członka naraz, więc nie potrzebuje uprzywilejowanego intentu, a nowe
+mapowanie umieszcza ludzi przy ich następnej wiadomości, nie od razu.
+
+Te sprawdzenia przed wiadomością liczą się do `rate_limit_rpm` nadawcy w osobnym
+limicie, łącznie z poleceniami takimi jak `/help`. Nadawca, który go przekroczy,
+dostaje prośbę o zwolnienie, a Discord nie jest pytany ponownie, dopóki minuta
+nie minie.
+
+Mapowanie może też wskazać rolę w organizacji. Połączona osoba z tą rolą, która nie
+jest jeszcze członkiem, dołącza wtedy do organizacji z tą rolą, co oszczędza
+zapraszania po kolei każdego z serwera społeczności. Wskazanie roli wymaga
+`roles:manage` i tylko roli, którą własna rola wywołującego ściśle przewyższa.
+Kolejność między kilkoma pasującymi rolami i zasady tego, czego synchronizacja nigdy
+nie dotyka, są takie same jak w
+[synchronizacji katalogu](directory.md#what-the-sync-never-touches):
+
+- Liczy się tylko połączone konto. Użytkownik Discorda, który nigdy nie uruchomił
+  `/link`, nie trafia nigdzie, jakiekolwiek ma role.
+- Rola pasuje tylko na serwerze, który wskazuje mapowanie, odczytana przez bota,
+  do którego mapowanie należy. Ten sam identyfikator roli na serwerze innego bota
+  nie pasuje do niczego.
+- Synchronizacja zmienia tylko wiersze, które sama utworzyła, oznaczone **Discord**
+  na stronie członków i w grupie. Członkostwo w grupie dodane ręcznie zostaje, gdy
+  rola zostanie odebrana, członkostwo utworzone przez administratora zachowuje swoją
+  rolę, a właściciel nigdy nie jest degradowany ani usuwany. Ktoś, kogo
+  synchronizacja przyjęła do organizacji, opuszcza wszystkie jej grupy, gdy
+  synchronizacja go usuwa, tak jak ktoś usunięty ręcznie.
+- Gdy nie można odczytać serwera, jego grupy zostają. Możliwe role organizacji zachowują tylko uprawnienia, które osoba już miała; nieczytelne mapowanie `viewer` nie zachowa `admin`. Potwierdzone nadania nadal działają.
+
+Cała synchronizacja ma wspólny limit dziesięciu sekund na sieć. Odczyty REST dzielą limit `rate_limit_rpm` bota dla użytkownika między wszystkie jego konta, osobno od limitu sprawdzeń przed wiadomością. Usunięcie zmapowanej grupy wymaga też `channels:manage`.
+
+Odczyt listy serwerów dopuszcza jedno równoczesne żądanie na organizację. Stronicowanie i role dzielą dziesięciosekundowy budżet, a role są pobierane dla najwyżej ośmiu serwerów naraz. Przekroczenie obsługiwanego limitu 2500 serwerów lub niepełna odpowiedź kończy się jawnym błędem.
+
+Odłączenie konta Discorda odbiera to, co dały jego role, chyba że nadal zapewnia to
+inne połączone konto Discorda. Usunięcie mapowania odbiera to, co ono dało, przy
+następnej wiadomości danej osoby albo przy następnym przebiegu zadania. Usunięcie
+bota lub zmapowanej grupy albo nowy token bota odbiera to samo, więc wymaga tego,
+czego wymaga usunięcie każdego z tych mapowań. Każda zmiana
+trafia do dziennika audytu jako `discord.member_added`, `discord.role_changed`,
+`discord.member_removed`, `discord.group_joined` lub `discord.group_left`, a
+utworzenie lub usunięcie mapowania jako `discord.mapping_created` lub
+`discord.mapping_deleted`.
+
 Jeszcze nie: jedno połączenie obsługuje bota na najwyżej 2500 serwerach, powyżej
 których Discord wymaga shardingu, a bot zatrzymuje się z tym powodem. Narzędzia
 członków kanału, jego szczegółów i wyszukiwania kanałów nie są oferowane na
-Discordzie, a role serwera nie są mapowane na grupy organizacji.
+Discordzie.
+
+Gdy obie ścieżki dają członkostwo, przy logowaniu pierwszeństwo ma katalog.
+Po utracie dostępu z katalogu aktywna rola Discorda przejmuje ten sam wiersz bez
+cofania kluczy. Zobacz [przekazywanie członkostwa](directory.md#what-the-sync-never-touches).
 
 ## Bot, który nie może wystartować, zatrzymuje się, zamiast ponawiać { #a-bot-that-cannot-start-stops-rather-than-retrying }
 

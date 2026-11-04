@@ -105,6 +105,9 @@ SCHEDULES: tuple[Schedule, ...] = (
     # Renew OAuth tokens near expiry and dial every organization server: often
     # enough that a dead grant is noticed within a coffee break.
     Schedule("sweep-mcp-connections", jobs.SWEEP_MCP_CONNECTIONS, timedelta(minutes=15)),
+    # Take back what a Discord role gave somebody who lost it or left the server
+    # (#2569). Their next turn would, but somebody who left stops taking turns.
+    Schedule("sync-discord-roles", jobs.SYNC_DISCORD_ROLES, timedelta(minutes=15)),
     # Hourly, against thresholds measured in hours or days: an approval or an
     # invitation expiring forty minutes late has cost nobody anything.
     # The platform's look at each person's week (#2301): hourly, because who is

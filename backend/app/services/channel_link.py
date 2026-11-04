@@ -41,6 +41,8 @@ from app.repositories import (
 from app.schemas.channel_bot import LinkedAgent, LinkedPlace
 from app.services.access import AGENT, resolve_access
 from app.services.channels.base import IncomingMessage
+from app.services.channels.discord_roles import PLATFORM as DISCORD_PLATFORM
+from app.services.channels.discord_roles import DiscordRoleSync
 from app.services.impersonation import refuse_binding_while_impersonating
 
 REQUEST_TTL = timedelta(minutes=15)
@@ -176,9 +178,14 @@ class ChannelLinkService:
             user_id=user_id,
         )
         if identity.user_id != user_id:
+            previous = identity.user_id
             await channel_identity_repo.update(
                 self.db, db_identity=identity, update_data={"user_id": user_id}
             )
+            if identity.platform == DISCORD_PLATFORM and previous is not None:
+                # Re-linked to somebody else: the account no longer says who
+                # the previous person is, so its roles stop placing them.
+                await DiscordRoleSync(self.db).release(previous)
 
         await message_rating_repo.adopt_channel_ratings(
             self.db, identity_id=identity.id, user_id=user_id
@@ -307,5 +314,9 @@ class ChannelLinkService:
                 await channel_identity_repo.update(
                     self.db, db_identity=identity, update_data={"user_id": None}
                 )
+                if identity.platform == DISCORD_PLATFORM:
+                    # The account no longer says who this is, so a role it holds
+                    # no longer places them anywhere (#2569).
+                    await DiscordRoleSync(self.db).release(user_id)
                 return True
         return False

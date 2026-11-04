@@ -182,7 +182,7 @@ class TestEnteringWebhookMode:
             ) as repo_update,
         ):
             service = ChannelBotService(MagicMock(), organization_id=bot.organization_id)
-            await service.update(bot.id, ChannelBotUpdate(**fields))
+            await service.update(bot.id, ChannelBotUpdate(**fields), MagicMock())
         return repo_update.call_args.kwargs["update_data"]
 
     async def test_switching_a_telegram_bot_to_webhook_mode_mints_a_secret(self):
@@ -473,9 +473,13 @@ class TestUpdatingKeepsTheRowsKeyVersion:
                 "app.services.channel_bot.channel_bot_repo.update",
                 new=AsyncMock(return_value=bot),
             ) as repo_update,
+            patch(
+                "app.services.channel_bot.discord_role_mapping_repo.list_for_bot",
+                new=AsyncMock(return_value=[]),
+            ),
         ):
             service = ChannelBotService(MagicMock(), organization_id=org_id)
-            await service.update(bot.id, ChannelBotUpdate(token="a-new-bot-token"))
+            await service.update(bot.id, ChannelBotUpdate(token="a-new-bot-token"), MagicMock())
 
         # Sealing at the row's version is only safe while the row is held from
         # the read - unlocked, a rotation commits in between and the new
@@ -519,7 +523,7 @@ class TestUpdatingKeepsTheRowsKeyVersion:
             ) as repo_update,
         ):
             service = ChannelBotService(MagicMock(), organization_id=org_id)
-            await service.update(bot.id, ChannelBotUpdate(token=None, name="renamed"))
+            await service.update(bot.id, ChannelBotUpdate(token=None, name="renamed"), MagicMock())
 
         update_data = repo_update.call_args.kwargs["update_data"]
         assert "token_encrypted" not in update_data
