@@ -1081,6 +1081,7 @@ URL shown for the bot after saving:
 
 ```json
 {"from": "ada@acme.com", "subject": "Invoice", "text": "Please send it",
+ "sender_authentication": {"dmarc": "pass", "from": "ada@acme.com"},
  "message_id": "<1@acme>", "in_reply_to": "<0@acme>", "references": ["<0@acme>"],
  "attachments": [{"filename": "a.pdf", "content_type": "application/pdf",
                   "content_base64": "..."}]}
@@ -1094,8 +1095,12 @@ seen before is ignored, so a relay's retry runs the agent once.
 
 **Who is writing.** The signature proves the relay sent the request, not who wrote the mail: an
 address is a claim. A person acts with their own permissions only once they have linked that address to
-their account like any other channel identity. A relay should drop mail that fails the sender's SPF or
-DKIM before posting it.
+their account like any other channel identity. Every message must include
+`sender_authentication: {"dmarc": "pass", "from": "ada@acme.com"}`, attesting to an aligned DMARC
+pass for that exact header From address. The relay must derive this verdict from its trusted receiving
+mail server, never from authentication headers supplied by the sender. Missing, failed or mismatched
+attestations are ignored before account lookup, attachment storage or approval processing. Existing
+relays must add this field before upgrading; an HMAC signature alone no longer admits a message.
 
 **What comes back.** The webhook answers at once and the agent replies by mail as the answer to the
 sender's last message: `Re:` and the same subject, with `In-Reply-To` and `References` set so a mail client

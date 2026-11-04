@@ -496,3 +496,29 @@ async def test_an_old_permission_refusal_does_not_disable_the_reconfigured_routi
     assert w.trigger.is_active
     assert (await repo.get(db, activation)).status == "cancelled"
     assert (await repo.get(db, activation)).event_context is None
+
+
+async def test_old_offline_waits_rotate_out_so_another_organizations_device_is_inspected(
+    db: AsyncSession,
+) -> None:
+    from sqlalchemy import update
+
+    offline = await world(db, event=True)
+    online = await world(db, event=True)
+    old = [await park(db, offline, context=f"Event {index}") for index in range(100)]
+    ready = await park(db, online, context="Online device's event")
+    await db.execute(
+        update(RoutineDeviceWait)
+        .where(RoutineDeviceWait.id.in_(old))
+        .values(created_at=datetime.now(UTC) - timedelta(hours=2), updated_at=None)
+    )
+    await db.execute(
+        update(RoutineDeviceWait)
+        .where(RoutineDeviceWait.id == ready)
+        .values(created_at=datetime.now(UTC) - timedelta(hours=1), updated_at=None)
+    )
+    first = await repo.pending(db, limit=100)
+    second = await repo.pending(db, limit=100)
+    assert ready not in {wait.id for wait, _ in first}
+    assert ready in {wait.id for wait, _ in second}
+    assert all(wait.status == "waiting" for wait, _ in [*first, *second])

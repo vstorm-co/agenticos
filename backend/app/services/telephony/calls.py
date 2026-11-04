@@ -222,6 +222,21 @@ class PhoneCallService:
                 client_message_id=f"phone:{row.id}",
                 parts=[{"type": "phone_call", "phone_call_id": str(row.id)}],
             )
+        from app.services.change_feed import announce_conversation
+
+        announce_conversation(
+            self.db,
+            organization_id=ctx.organization_id,
+            conversation_id=conversation.id,
+            actor_user_id=ctx.user_id,
+        )
+        if data.source_conversation_id is not None:
+            announce_conversation(
+                self.db,
+                organization_id=ctx.organization_id,
+                conversation_id=data.source_conversation_id,
+                actor_user_id=ctx.user_id,
+            )
         await enqueue(
             self.db,
             DIAL_PHONE,

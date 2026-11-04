@@ -8,7 +8,8 @@ same access policy and the same budgets. This module is only the transport.
 the mail - a Cloudflare Email Worker, a Postmark or Mailgun inbound route, a small script
 on a mail server - posts one JSON document per message to the bot's webhook:
 
-    {"from": "ada@acme.com", "subject": "...", "text": "...", "message_id": "<id@host>",
+    {"from": "ada@acme.com", "sender_authentication": {"dmarc": "pass", "from": "ada@acme.com"},
+     "subject": "...", "text": "...", "message_id": "<id@host>",
      "in_reply_to": "<id@host>", "references": ["<id@host>"],
      "attachments": [{"filename": "a.pdf", "content_type": "application/pdf",
                       "content_base64": "..."}]}
@@ -17,8 +18,11 @@ and signs it: `X-AgenticOS-Timestamp` (unix seconds) and `X-AgenticOS-Signature`
 (`sha256=` + hex HMAC-SHA256 of `timestamp.body` under the bot's webhook secret). The
 signature proves the relay sent it; it is *not* proof of who the sender is. A sender's
 address is a claim, so a person acts with their AgenticOS permissions only once they have
-linked that address to their account through the ordinary channel link. A relay should
-drop mail that fails the sender's SPF and DKIM before posting it.
+linked that address to their account through the ordinary channel link. The relay must
+attest a passing, aligned DMARC verdict for this message's exact header From in the
+signed `sender_authentication` object. Compute it from trusted receiver results, never
+sender-supplied headers. Missing, failed or mismatched proofs are ignored before identity,
+prompt or attachment handling.
 
 **Outbound** goes through the deployment's e-mail provider, from the bot's address, as
 the reply to the sender's last message. A deployment on the `log` provider delivers
@@ -38,7 +42,9 @@ import logging
 import re
 import time
 from collections.abc import AsyncIterable
-from typing import Any
+from typing import Any, Literal
+
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from app.services.channels import email_state, sms_prompts
 from app.services.channels.base import (
@@ -69,6 +75,14 @@ _ADDRESS = re.compile(r"^[^@\s<>]+@[^@\s<>]+\.[^@\s<>]+$")
 _ATTRIBUTION = re.compile(
     r"^(on .{5,200} wrote:|-{2,}\s*original message\s*-{2,}|from:\s.+)$", re.I
 )
+
+
+class _SenderAuthentication(BaseModel):
+    """A trusted relay's per-message DMARC verdict for the exact header From."""
+
+    model_config = ConfigDict(extra="forbid", strict=True)
+    dmarc: Literal["pass"]
+    header_from: str = Field(alias="from", min_length=3, max_length=320)
 
 
 def is_address(value: str) -> bool:
@@ -225,6 +239,12 @@ class EmailAdapter(ChannelAdapter):
         """A mail from an address. One with no sender, or neither text nor files, is ignored."""
         sender = str(raw_payload.get("from") or "").strip().lower()
         if not is_address(sender):
+            return None
+        try:
+            proof = _SenderAuthentication.model_validate(raw_payload.get("sender_authentication"))
+        except ValidationError:
+            return None
+        if proof.header_from.strip().lower() != sender:
             return None
         text = reply_body(str(raw_payload.get("text") or ""))
         message_id = str(raw_payload.get("message_id") or "") or None

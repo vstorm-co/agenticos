@@ -1,5 +1,5 @@
 ---
-source_sha: "6316a161e13d"
+source_sha: "31a5ece71bdd"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -1115,6 +1115,7 @@ JSON na wiadomość pod adres pokazany przy bocie po zapisaniu:
 
 ```json
 {"from": "ada@acme.com", "subject": "Invoice", "text": "Please send it",
+ "sender_authentication": {"dmarc": "pass", "from": "ada@acme.com"},
  "message_id": "<1@acme>", "in_reply_to": "<0@acme>", "references": ["<0@acme>"],
  "attachments": [{"filename": "a.pdf", "content_type": "application/pdf",
                   "content_base64": "..."}]}
@@ -1129,8 +1130,13 @@ agenta raz.
 
 **Kto pisze.** Podpis dowodzi, że żądanie wysłał przekaźnik, a nie kto napisał maila: adres to tylko
 deklaracja. Osoba działa z własnymi uprawnieniami dopiero po powiązaniu tego adresu ze swoim kontem
-jak każdej innej tożsamości kanału. Przekaźnik powinien odrzucać pocztę, która nie przechodzi SPF
-ani DKIM nadawcy, zanim ją wyśle.
+jak każdej innej tożsamości kanału. Każda wiadomość musi zawierać
+`sender_authentication: {"dmarc": "pass", "from": "ada@acme.com"}`, potwierdzające poprawny, zgodny
+z domeną nagłówka From wynik DMARC dla dokładnie tego adresu. Przekaźnik musi pobrać wynik z zaufanego
+serwera odbierającego pocztę, nigdy z nagłówków uwierzytelniania dostarczonych przez nadawcę. Brak,
+niepowodzenie lub niezgodność potwierdzenia powoduje pominięcie wiadomości przed ustaleniem konta,
+zapisaniem załączników lub obsługą zatwierdzenia. Istniejące przekaźniki muszą dodać to pole przed
+aktualizacją; sam podpis HMAC nie wystarcza już do przyjęcia wiadomości.
 
 **Co wraca.** Webhook odpowiada od razu, a agent odpowiada mailem jako odpowiedź na ostatnią wiadomość
 nadawcy: `Re:` i ten sam temat, z ustawionymi `In-Reply-To` i `References`, żeby klient poczty

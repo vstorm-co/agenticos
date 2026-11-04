@@ -1,5 +1,5 @@
 ---
-source_sha: "6316a161e13d"
+source_sha: "31a5ece71bdd"
 ---
 
 # Poner un agent donde la gente ya está { #putting-an-agent-where-people-already-are }
@@ -1138,6 +1138,7 @@ a la URL que se muestra en el bot tras guardarlo:
 
 ```json
 {"from": "ada@acme.com", "subject": "Invoice", "text": "Please send it",
+ "sender_authentication": {"dmarc": "pass", "from": "ada@acme.com"},
  "message_id": "<1@acme>", "in_reply_to": "<0@acme>", "references": ["<0@acme>"],
  "attachments": [{"filename": "a.pdf", "content_type": "application/pdf",
                   "content_base64": "..."}]}
@@ -1151,8 +1152,13 @@ mensaje ya visto se ignora, de modo que un reintento del relay ejecuta el agente
 
 **Quién escribe.** La firma prueba que el relay envió la petición, no quién escribió el correo: una
 dirección es una afirmación. Una persona actúa con sus propios permisos solo cuando ha vinculado esa
-dirección a su cuenta como cualquier otra identidad de canal. Un relay debería descartar el correo que
-no pase el SPF o el DKIM del remitente antes de enviarlo.
+dirección a su cuenta como cualquier otra identidad de canal. Cada mensaje debe incluir
+`sender_authentication: {"dmarc": "pass", "from": "ada@acme.com"}`, que confirme un resultado DMARC
+válido y alineado para esa dirección exacta del encabezado From. El relay debe obtener el resultado
+de su servidor de correo receptor de confianza, nunca de encabezados de autenticación proporcionados
+por el remitente. Las confirmaciones ausentes, fallidas o discordantes se ignoran antes de buscar
+la cuenta, guardar adjuntos o procesar aprobaciones. Los relays existentes deben añadir este campo
+antes de actualizar; una firma HMAC por sí sola ya no permite admitir un mensaje.
 
 **Qué vuelve.** El webhook responde de inmediato y el agente contesta por correo como respuesta al
 último mensaje del remitente: `Re:` y el mismo asunto, con `In-Reply-To` y `References` para que el

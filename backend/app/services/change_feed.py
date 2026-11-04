@@ -41,6 +41,7 @@ from starlette.datastructures import Headers
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from app.clients.redis import RedisClient
+from app.core.background import spawn_after_commit
 from app.core.config import settings
 from app.core.exceptions import AuthenticationError, AuthorizationError, NotFoundError
 from app.core.permissions import AuthContext, Perm
@@ -333,6 +334,39 @@ def run_event(run: AgentRun, action: ChangeAction) -> ChangeEvent:
     )
 
 
+def conversation_event(
+    *, organization_id: UUID, conversation_id: UUID, actor_user_id: UUID | None
+) -> ChangeEvent:
+    return ChangeEvent(
+        organization_id=organization_id,
+        resource="conversation",
+        id=conversation_id,
+        action="updated",
+        surface="run",
+        actor_user_id=actor_user_id,
+        actor_name=None,
+    )
+
+
+def announce_conversation(
+    db: AsyncSession, *, organization_id: UUID, conversation_id: UUID, actor_user_id: UUID | None
+) -> None:
+    """Announce a transcript write only after its owning transaction commits."""
+    if _redis is None:
+        return
+    spawn_after_commit(
+        db,
+        publish(
+            conversation_event(
+                organization_id=organization_id,
+                conversation_id=conversation_id,
+                actor_user_id=actor_user_id,
+            )
+        ),
+        name="conversation-change",
+    )
+
+
 async def publish_run(run: AgentRun, action: ChangeAction) -> None:
     """Tell open consoles a run started, parked or finished. Called after the
     commit that made the state readable, so a page that refetches sees it.
@@ -342,6 +376,14 @@ async def publish_run(run: AgentRun, action: ChangeAction) -> None:
     if _redis is None:
         return
     await publish(run_event(run, action))
+    if run.conversation_id is not None:
+        await publish(
+            conversation_event(
+                organization_id=run.organization_id,
+                conversation_id=run.conversation_id,
+                actor_user_id=run.user_id,
+            )
+        )
 
 
 async def publish(event: ChangeEvent) -> None:

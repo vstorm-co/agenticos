@@ -155,6 +155,14 @@ class WorkflowRunSocket:
             await conversation_repo.create_message(
                 db, conversation_id=conversation.id, role="user", content=frame.message
             )
+            from app.services.change_feed import announce_conversation
+
+            announce_conversation(
+                db,
+                organization_id=ctx.organization_id,
+                conversation_id=conversation.id,
+                actor_user_id=ctx.user_id,
+            )
             return await runs.start(
                 ctx,
                 frame.workflow_id,

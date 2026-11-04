@@ -110,7 +110,13 @@ class WatchUpdate(BaseSchema):
             for name in self.model_fields_set
             if getattr(self, name) is None
             and name
-            not in {"environment_id", "pinned_version_id", "ends_at", "notification_channels"}
+            not in {
+                "environment_id",
+                "pinned_version_id",
+                "ends_at",
+                "notification_channels",
+                "max_failures",
+            }
         )
         if sent_null:
             raise ValueError(f"Cannot be null: {', '.join(sent_null)}")

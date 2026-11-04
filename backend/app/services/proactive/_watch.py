@@ -471,6 +471,14 @@ class WatchLook:
                 model_name=run.model_label,
                 run_id=run.id,
             )
+            from app.services.change_feed import announce_conversation
+
+            announce_conversation(
+                self.db,
+                organization_id=watch.organization_id,
+                conversation_id=target,
+                actor_user_id=watch.user_id,
+            )
         if watch.report_mode == "every_check" and updates:
             await check(run.agent_id)
             agent = await agent_repo.get(

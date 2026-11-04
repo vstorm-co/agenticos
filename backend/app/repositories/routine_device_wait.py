@@ -4,7 +4,7 @@ from datetime import UTC, datetime
 from typing import Literal
 from uuid import UUID
 
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -60,17 +60,28 @@ async def park(
 async def pending(
     db: AsyncSession, *, limit: int = 100
 ) -> list[tuple[RoutineDeviceWait, AgentTrigger]]:
-    """Lock parents first, consistently with pause/edit/fire, across organizations."""
+    """Lock parents and rotate inspected rows so offline devices cannot starve others."""
     result = await db.execute(
         select(RoutineDeviceWait, AgentTrigger)
         .join(AgentTrigger, AgentTrigger.id == RoutineDeviceWait.trigger_id)
         .where(RoutineDeviceWait.status == "waiting")
-        .order_by(RoutineDeviceWait.created_at, RoutineDeviceWait.id)
+        .order_by(
+            func.coalesce(RoutineDeviceWait.updated_at, RoutineDeviceWait.created_at),
+            RoutineDeviceWait.id,
+        )
         .limit(limit)
         .with_for_update(of=AgentTrigger, skip_locked=True)
         .execution_options(populate_existing=True)
     )
-    return [(wait, trigger) for wait, trigger in result.all()]
+    rows = [(wait, trigger) for wait, trigger in result.all()]
+    if rows:
+        await db.execute(
+            update(RoutineDeviceWait)
+            .where(RoutineDeviceWait.id.in_([wait.id for wait, _ in rows]))
+            .values(updated_at=datetime.now(UTC))
+        )
+        await db.flush()
+    return rows
 
 
 async def settle(

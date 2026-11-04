@@ -697,3 +697,21 @@ async def test_membership_removed_during_extraction_prevents_writing(
     monkeypatch.setattr(_thinker.ProactiveThinker, "think", answer)
     assert await extraction.extract(db, org.id, run.id) == 0
     assert await db.scalar(select(MemoryClaim).where(MemoryClaim.source_run_id == run.id)) is None
+
+
+async def test_memory_extraction_reads_the_end_of_a_long_run_in_chronological_order(
+    db: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    user, org, agent, version, model, ctx = await _world(db)
+    run, conversation = await _chat_run(db, org, agent, version, user)
+    await _transcript(
+        db, conversation, run, [("user", f"Fact number {index:03d}") for index in range(75)]
+    )
+    think = _think(monkeypatch, [])
+    assert await extraction.extract(db, org.id, run.id) == 0
+    prompt = think.await_args.kwargs["prompt"]
+    assert "Fact number 000" not in prompt
+    assert "Fact number 014" not in prompt
+    assert "Fact number 015" in prompt
+    assert "Fact number 074" in prompt
+    assert prompt.index("Fact number 015") < prompt.index("Fact number 074")

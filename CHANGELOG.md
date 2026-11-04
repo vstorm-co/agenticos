@@ -38,6 +38,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Changed
 
+- **Breaking:** inbound email relays must attest to an aligned DMARC pass for the exact From address in `sender_authentication`. Upgrade relays to supply the trusted receiver verdict before updating the API; signed messages without it are ignored.
+
 - Refresh shipped AgenticOS and Architect defaults on console open while preserving custom prompts, tool settings, models, budgets and unpublished edits. New console agents retain the same AgenticOS baseline; apply `0284_shipped_agent_defaults.py` before starting the updated API.
 
 - Offer watch setup cards in chat, show confirmed claim writes and corrections, and group routine/watch execution and delivery settings under advanced options.
@@ -143,6 +145,8 @@ Two things are versioned separately from this file and worth knowing about:
 - **Planning cache and history migration:** Harness 0.64 returns framed plans with tool metadata and records a missing or changed visible plan as user-channel run history. It no longer inserts a planning cache breakpoint. Existing `planning.cache_ttl` values still load but are ignored: move custom retention to `cache` in the agent or model profile's model settings, for example `cache: "1h"`. Platform prompt caching remains enabled by default.
 
 ### Fixed
+
+- Reject timezone-less memory corrections, allow disabling a watch failure limit, extract facts from the newest conversation turns, rotate parked device work fairly, and announce committed conversation updates across chat, workflows, watches and phone calls.
 
 - Reject malformed or nonpositive routine budgets instead of silently removing their spending limit.
 

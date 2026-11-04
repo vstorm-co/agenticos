@@ -216,7 +216,7 @@ async def extract(
     ctx = await member_context(db, organization_id=organization_id, user_id=run.user_id)
     if ctx is None or await _erased_since(db, run):
         return 0
-    messages = await conversation_repo.get_messages_by_run(db, run.id, limit=60)
+    messages = await conversation_repo.get_messages_by_run(db, run.id, limit=60, newest=True)
     turns = [f"{m.role}: {m.content.strip()}" for m in messages if m.role in ("user", "assistant")]
     transcript = "\n\n".join(turns)[-MAX_TRANSCRIPT_CHARS:]
     if not transcript.strip():

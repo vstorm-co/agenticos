@@ -1468,8 +1468,9 @@ async def get_messages_by_run(
     skip: int = 0,
     limit: int = 100,
     include_tool_calls: bool = False,
+    newest: bool = False,
 ) -> list[Message]:
-    """The turns one run produced, oldest first.
+    """The turns one run produced, chronologically; optionally select its newest page.
 
     Narrowed by `messages.run_id` rather than by a time window over the
     conversation: two runs started in one thread interleave, so windowing by the
@@ -1482,9 +1483,14 @@ async def get_messages_by_run(
     query = query.options(
         selectinload(Message.files).load_only(*_MESSAGE_FILE_COLUMNS, raiseload=True)
     )
-    query = query.order_by(Message.ordinal.asc()).offset(skip).limit(limit)
+    query = (
+        query.order_by(Message.ordinal.desc() if newest else Message.ordinal.asc())
+        .offset(skip)
+        .limit(limit)
+    )
     result = await db.execute(query)
-    return list(result.scalars().all())
+    rows = list(result.scalars().all())
+    return list(reversed(rows)) if newest else rows
 
 
 async def last_answer_of_run(db: AsyncSession, run_id: UUID) -> str | None:

@@ -1470,6 +1470,15 @@ class ConversationService:
             reply_to_message_id=data.reply_to_message_id,
         )
 
+        from app.services.change_feed import announce_conversation
+
+        announce_conversation(
+            self.db,
+            organization_id=organization_id,
+            conversation_id=conversation_id,
+            actor_user_id=user_id,
+        )
+
         if data.role == "assistant" and run_id is not None and data.content.strip():
             # Only IDs cross the commit boundary; a failed transcript write must
             # not start a paid suggestion request for an answer nobody can read.

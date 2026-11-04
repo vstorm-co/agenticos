@@ -151,6 +151,7 @@ class TestParsing:
     def test_a_mail_is_a_private_message_from_its_lowercased_sender(self) -> None:
         payload = {
             "from": "Ada@Acme.com",
+            "sender_authentication": {"dmarc": "pass", "from": "ada@acme.com"},
             "text": "Hello\n> old",
             "message_id": "<1@acme>",
             "attachments": [
@@ -180,7 +181,12 @@ class TestParsing:
         assert EmailAdapter().parse_incoming(payload, "b") is None
 
     def test_files_alone_are_a_message_and_unnamed_ones_get_a_name(self) -> None:
-        payload = {"from": "a@b.co", "attachments": [{"content_base64": "aGk="}], "text": ""}
+        payload = {
+            "from": "a@b.co",
+            "sender_authentication": {"dmarc": "pass", "from": "a@b.co"},
+            "attachments": [{"content_base64": "aGk="}],
+            "text": "",
+        }
 
         incoming = EmailAdapter().parse_incoming(payload, "b")
 
@@ -408,6 +414,7 @@ class TestTheWebhook:
         bot = self._bot()
         body = {
             "from": "ada@acme.com",
+            "sender_authentication": {"dmarc": "pass", "from": "ada@acme.com"},
             "subject": "Invoice",
             "text": "Please send it",
             "message_id": "<1@acme>",
@@ -432,11 +439,48 @@ class TestTheWebhook:
         await sms_prompts.remember(
             str(bot.id), "ada@acme.com", ["aos:a:0"], start=1, platform="email"
         )
-        body = {"from": "ada@acme.com", "text": "1\n> Send it?", "message_id": "<9>"}
+        body = {
+            "from": "ada@acme.com",
+            "sender_authentication": {"dmarc": "pass", "from": "ada@acme.com"},
+            "text": "1\n> Send it?",
+            "message_id": "<9>",
+        }
         async with self._wired(bot) as spawned, _client(bot) as client:
             await client.post(f"{self.ROOT}/{bot.id}/inbound", **_post(body))
 
         assert spawned == [f"email_press:{bot.id}"]
+
+    @pytest.mark.parametrize(
+        "proof",
+        [
+            None,
+            {"dmarc": "fail", "from": "ada@acme.com"},
+            {"dmarc": "pass", "from": "attacker@elsewhere.com"},
+            {"dmarc": True, "from": "ada@acme.com"},
+        ],
+    )
+    async def test_signed_but_unauthenticated_senders_cannot_press_a_linked_members_choices(
+        self, redis: _Redis, proof: object
+    ) -> None:
+        bot = self._bot()
+        await sms_prompts.remember(
+            str(bot.id), "ada@acme.com", ["aos:a:0"], start=1, platform="email"
+        )
+        body = {
+            "from": "ada@acme.com",
+            "text": "1",
+            "message_id": "<spoofed>",
+            "sender_authentication": proof,
+        }
+        async with self._wired(bot) as spawned, _client(bot) as client:
+            response = await client.post(f"{self.ROOT}/{bot.id}/inbound", **_post(body))
+        assert response.status_code == 200
+        assert spawned == []
+        assert (
+            await sms_prompts.answer(str(bot.id), "ada@acme.com", "1", platform="email")
+            == "aos:a:0"
+        )
+        assert await email_state.thread_of(BOT_ADDRESS.lower(), "ada@acme.com") is None
 
     async def test_a_forged_unsigned_or_secretless_request_is_refused_and_runs_nothing(
         self, redis: _Redis

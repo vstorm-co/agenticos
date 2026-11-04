@@ -1,5 +1,5 @@
 ---
-source_sha: "6316a161e13d"
+source_sha: "31a5ece71bdd"
 ---
 
 # Einen Agent dorthin bringen, wo die Menschen schon sind { #putting-an-agent-where-people-already-are }
@@ -1194,6 +1194,7 @@ JSON-Dokument per POST an die nach dem Speichern beim Bot angezeigte URL:
 
 ```json
 {"from": "ada@acme.com", "subject": "Invoice", "text": "Please send it",
+ "sender_authentication": {"dmarc": "pass", "from": "ada@acme.com"},
  "message_id": "<1@acme>", "in_reply_to": "<0@acme>", "references": ["<0@acme>"],
  "attachments": [{"filename": "a.pdf", "content_type": "application/pdf",
                   "content_base64": "..."}]}
@@ -1209,7 +1210,13 @@ Versuch des Relays den Agenten nur einmal startet.
 **Wer schreibt.** Die Signatur beweist, dass das Relay die Anfrage gesendet hat, nicht wer die Mail
 geschrieben hat: Eine Adresse ist eine Behauptung. Eine Person handelt erst dann mit ihren eigenen
 Berechtigungen, wenn sie diese Adresse wie jede andere Kanalidentität mit ihrem Konto verknüpft hat.
-Ein Relay sollte Mail, die SPF oder DKIM des Absenders nicht besteht, verwerfen, bevor es sie sendet.
+Jede Nachricht muss `sender_authentication: {"dmarc": "pass", "from": "ada@acme.com"}` enthalten,
+als Bestätigung eines DMARC-Erfolgs mit Domain-Abgleich für genau diese Adresse im From-Header.
+Das Relay muss das Ergebnis vom vertrauenswürdigen empfangenden Mailserver beziehen, niemals aus
+vom Absender gelieferten Authentifizierungsheadern. Fehlende, fehlgeschlagene oder abweichende
+Bestätigungen werden vor Kontozuordnung, Anhangspeicherung und Freigabeverarbeitung ignoriert.
+Bestehende Relays müssen dieses Feld vor dem Upgrade ergänzen; eine HMAC-Signatur allein reicht
+nicht mehr zur Annahme einer Nachricht.
 
 **Was zurückkommt.** Der Webhook antwortet sofort, und der Agent antwortet per Mail auf die letzte
 Nachricht des Absenders: `Re:` und derselbe Betreff, mit gesetzten `In-Reply-To` und `References`, damit

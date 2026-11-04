@@ -14,7 +14,7 @@ from datetime import datetime
 from typing import Literal
 from uuid import UUID
 
-from pydantic import ConfigDict, Field
+from pydantic import AwareDatetime, ConfigDict, Field
 
 from app.schemas.base import BaseSchema
 from app.schemas.decision_episode import DecisionEpisode
@@ -115,5 +115,5 @@ class MemoryClaimCorrect(BaseSchema):
     """A person's correction: the new statement, and when it began to hold."""
 
     statement: str = Field(min_length=1, max_length=600)
-    effective_from: datetime | None = None
+    effective_from: AwareDatetime | None = None
     episode: DecisionEpisode | None = None
