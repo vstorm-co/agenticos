@@ -6,7 +6,6 @@ import { MessagesSquare, Plus } from "lucide-react";
 
 import { PageHeader } from "@/components/dashboard/page-header";
 import { AddChannelDialog } from "@/components/channels/add-channel-dialog";
-import { PhoneSettings } from "@/components/phone/phone-settings";
 import { ChannelBotsTable } from "@/components/channels/channel-bots-table";
 import { DiscordRoleMappingsDialog } from "@/components/channels/discord-role-mappings-dialog";
 import { EditChannelDialog } from "@/components/channels/edit-channel-dialog";
@@ -149,8 +148,6 @@ export default function ChannelsPage() {
           />
         )}
       </BotsCard>
-
-      <PhoneSettings administration />
 
       <AddChannelDialog
         open={adding}
