@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowUpRight, Inbox, GitBranch } from "lucide-react";
+import { ArrowUpRight, GitBranch } from "lucide-react";
+import { InboxIcon as Inbox } from "@/components/icons/product-icons";
 import { useTranslations } from "next-intl";
 
 import { useSuggestions } from "@/hooks/use-suggestions";

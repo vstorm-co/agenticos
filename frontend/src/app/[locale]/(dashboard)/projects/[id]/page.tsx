@@ -2,7 +2,12 @@
 
 import { use } from "react";
 import Link from "next/link";
-import { FolderKanban, Plus, Files, MessageSquare, AppWindow, FileText } from "lucide-react";
+import { Plus, AppWindow, FileText } from "lucide-react";
+import {
+  ProjectIcon as FolderKanban,
+  DocumentIcon as Files,
+  ChatIcon as MessageSquare,
+} from "@/components/icons/product-icons";
 import { useTranslations } from "next-intl";
 
 import { PageHeader } from "@/components/dashboard/page-header";

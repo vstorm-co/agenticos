@@ -12,8 +12,8 @@ import {
   MoreHorizontal,
   Trash2,
   Users,
-  Workflow,
 } from "lucide-react";
+import { WorkflowIcon as Workflow } from "@/components/icons/product-icons";
 import { useLocale, useTranslations } from "next-intl";
 
 import { WorkflowRunStatusBadge } from "@/components/workflows/runs/run-status";

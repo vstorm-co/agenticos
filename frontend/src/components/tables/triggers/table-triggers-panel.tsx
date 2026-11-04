@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { History, Workflow } from "lucide-react";
+import { History } from "lucide-react";
+import { WorkflowIcon as Workflow } from "@/components/icons/product-icons";
 import { useLocale, useTranslations } from "next-intl";
 
 import { LoadingState } from "@/components/states";

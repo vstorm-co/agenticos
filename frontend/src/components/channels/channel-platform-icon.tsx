@@ -1,4 +1,5 @@
-import { Mail, MessageSquare, Smartphone } from "lucide-react";
+import { Mail, Smartphone } from "lucide-react";
+import { ChatIcon as MessageSquare } from "@/components/icons/product-icons";
 
 import { brandMark } from "@/components/icons/brand-icon";
 import { cn } from "@/lib/utils";

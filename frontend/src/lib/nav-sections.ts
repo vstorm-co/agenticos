@@ -1,29 +1,31 @@
+import { BackgroundIcon } from "@/components/icons/product-icons";
 import {
   MessagesSquare,
-  GitBranch,
-  PanelsTopLeft,
   Activity,
   Boxes,
-  NotebookTabs,
-  FolderKanban,
-  Files,
-  Inbox,
-  Waypoints,
-  BotMessageSquare,
   Building2,
-  LibraryBig,
   KeyRound,
   LayoutDashboard,
-  MessageSquare,
   Network,
   Plug,
-  Workflow,
-  TimerReset,
   ShieldCheck,
-  Table2,
   UsersRound,
   type LucideIcon,
 } from "lucide-react";
+import {
+  AppIcon as PanelsTopLeft,
+  ContextIcon as NotebookTabs,
+  ProjectIcon as FolderKanban,
+  DocumentIcon as Files,
+  InboxIcon as Inbox,
+  SkillIcon as Waypoints,
+  AgentIcon as BotMessageSquare,
+  KnowledgeIcon as LibraryBig,
+  ChatIcon as MessageSquare,
+  WorkflowIcon as Workflow,
+  RoutineIcon as TimerReset,
+  TableIcon as Table2,
+} from "@/components/icons/product-icons";
 
 import { stripLocale } from "@/lib/active-route";
 import { ROUTES } from "@/lib/constants";
@@ -90,7 +92,7 @@ export const NAV_GROUPS: NavGroup[] = [
         dataTour: "nav-inbox",
         count: "inbox",
       },
-      { labelKey: "backgroundWork", href: ROUTES.WORK, icon: GitBranch },
+      { labelKey: "backgroundWork", href: ROUTES.WORK, icon: BackgroundIcon },
       {
         labelKey: "agents",
         href: ROUTES.AGENTS,

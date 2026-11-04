@@ -4,7 +4,6 @@ import {
   Camera,
   ChevronRight,
   FileUp,
-  FolderKanban,
   Image as ImageIcon,
   Mic,
   Paperclip,
@@ -12,6 +11,7 @@ import {
   SquareSlash,
   X,
 } from "lucide-react";
+import { ProjectIcon as FolderKanban } from "@/components/icons/product-icons";
 import { useState, type ReactNode } from "react";
 import { useTranslations } from "next-intl";
 

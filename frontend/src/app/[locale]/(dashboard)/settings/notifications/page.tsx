@@ -22,9 +22,9 @@ import {
   UserPlus,
   GitPullRequest,
   UserRoundCog,
-  Workflow,
   XCircle,
 } from "lucide-react";
+import { WorkflowIcon as Workflow } from "@/components/icons/product-icons";
 import type { LucideIcon } from "lucide-react";
 import { toast } from "sonner";
 

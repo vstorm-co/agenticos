@@ -1,6 +1,9 @@
 "use client";
 
-import { FolderKanban, MessageSquare } from "lucide-react";
+import {
+  ProjectIcon as FolderKanban,
+  ChatIcon as MessageSquare,
+} from "@/components/icons/product-icons";
 import { useLocale, useTranslations } from "next-intl";
 import Link from "next/link";
 

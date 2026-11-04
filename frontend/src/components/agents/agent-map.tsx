@@ -10,7 +10,6 @@ import {
   GitBranch,
   Library,
   Maximize,
-  MessageSquare,
   Network,
   Plug,
   Radio,
@@ -19,6 +18,7 @@ import {
   ZoomIn,
   ZoomOut,
 } from "lucide-react";
+import { ChatIcon as MessageSquare } from "@/components/icons/product-icons";
 import type { LucideIcon } from "lucide-react";
 
 import {

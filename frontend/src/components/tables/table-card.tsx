@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { Building2, Lock, Table2, Users } from "lucide-react";
+import { Building2, Lock, Users } from "lucide-react";
+import { TableIcon as Table2 } from "@/components/icons/product-icons";
 import { useLocale, useTranslations } from "next-intl";
 
 import { Badge } from "@/components/ui";

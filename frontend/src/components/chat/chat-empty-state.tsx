@@ -9,8 +9,8 @@ import {
   MapPinned,
   Plane,
   Sparkles,
-  Table2,
 } from "lucide-react";
+import { TableIcon as Table2 } from "@/components/icons/product-icons";
 
 import { useTranslations } from "next-intl";
 

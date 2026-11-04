@@ -150,6 +150,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Give console modules a shared set of product icons, consistent optical weight and quieter icon surfaces across navigation, chat and resource cards.
+
 - Persist telephone cleanup before provider requests, immediately finish cancellations accepted during dialing, and retain SMS credentials until all calls finish.
 
 - Invalidate unattended action exceptions after bound instruction edits, preserve unfinished telephone calls during account/organization deletion, export all personal outcomes with full size accounting, and reject malformed email reply references.

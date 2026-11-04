@@ -37,7 +37,6 @@ import {
   ListChecks,
   ListEnd,
   Mail,
-  MessageSquare,
   MessageSquareText,
   MessagesSquare,
   PhoneIncoming,
@@ -55,7 +54,6 @@ import {
   Sigma,
   Siren,
   Split,
-  Table2,
   TableProperties,
   Terminal,
   type LucideIcon,
@@ -65,7 +63,6 @@ import {
   Users,
   WandSparkles,
   Webhook,
-  Workflow,
   Zap,
   BookPlus,
   Languages,
@@ -73,6 +70,11 @@ import {
   Sparkles,
   Tags,
 } from "lucide-react";
+import {
+  ChatIcon as MessageSquare,
+  TableIcon as Table2,
+  WorkflowIcon as Workflow,
+} from "@/components/icons/product-icons";
 
 /**
  * How a node looks wherever the editor shows one - its card on the canvas, its

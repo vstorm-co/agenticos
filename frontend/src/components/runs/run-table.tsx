@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
-import { MessageSquare, ThumbsDown } from "lucide-react";
+import { ThumbsDown } from "lucide-react";
+import { ChatIcon as MessageSquare } from "@/components/icons/product-icons";
 
 import { AgentAvatar } from "@/components/agents/agent-avatar";
 import { RunStatusBadge } from "@/components/agents/status-badge";

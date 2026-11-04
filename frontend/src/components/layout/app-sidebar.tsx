@@ -115,7 +115,7 @@ function NavIcon({ icon: Icon }: { icon: NavItem["icon"] }) {
   return pending ? (
     <Loader2 className="h-4 w-4 shrink-0 animate-spin motion-reduce:animate-none" aria-hidden />
   ) : (
-    <Icon className="h-4 w-4 shrink-0" strokeWidth={1.7} aria-hidden />
+    <Icon className="h-[18px] w-[18px] shrink-0" strokeWidth={1.75} aria-hidden />
   );
 }
 

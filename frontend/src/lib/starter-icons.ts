@@ -1,5 +1,4 @@
 import {
-  MessageSquare,
   Compass,
   Search,
   CalendarClock,
@@ -13,6 +12,7 @@ import {
   Sparkles,
   type LucideIcon,
 } from "lucide-react";
+import { ChatIcon as MessageSquare } from "@/components/icons/product-icons";
 import type { StarterIcon } from "@/types/agents";
 
 /** Stable icon ids are shared with the agent spec; SVG components stay in the console. */

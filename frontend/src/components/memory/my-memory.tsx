@@ -1,6 +1,7 @@
 "use client";
 
-import { Brain, Files } from "lucide-react";
+import { Brain } from "lucide-react";
+import { DocumentIcon as Files } from "@/components/icons/product-icons";
 import { useTranslations } from "next-intl";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui";
 import { useOrgStore } from "@/stores";

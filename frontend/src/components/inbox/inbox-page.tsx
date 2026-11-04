@@ -1,14 +1,8 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import {
-  CheckCheck,
-  CircleAlert,
-  Inbox as InboxIcon,
-  Radar,
-  Sparkles,
-  type LucideIcon,
-} from "lucide-react";
+import { CheckCheck, CircleAlert, Radar, Sparkles, type LucideIcon } from "lucide-react";
+import { InboxIcon as InboxIcon } from "@/components/icons/product-icons";
 import { useLocale, useTranslations } from "next-intl";
 import { toast } from "sonner";
 

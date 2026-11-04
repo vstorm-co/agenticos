@@ -18,11 +18,11 @@ import {
   Settings2,
   Share2,
   SquareKanban,
-  Table2,
   Upload,
   Users,
   Zap,
 } from "lucide-react";
+import { TableIcon as Table2 } from "@/components/icons/product-icons";
 
 import { cn } from "@/lib/utils";
 import { PageHeader } from "@/components/dashboard/page-header";

@@ -1,7 +1,11 @@
 "use client";
 
 import { FileIcon } from "@/components/files/file-icon";
-import { BookOpen, Database, FolderKanban, MessageSquare, Wrench } from "lucide-react";
+import { BookOpen, Database, Wrench } from "lucide-react";
+import {
+  ProjectIcon as FolderKanban,
+  ChatIcon as MessageSquare,
+} from "@/components/icons/product-icons";
 
 import { AgentAvatar } from "@/components/agents/agent-avatar";
 import { BrandMark } from "@/components/branding/brand-mark";

@@ -16,17 +16,19 @@ import {
   FlaskConical,
   History,
   ImagePlus,
-  MessageSquare,
   MoreHorizontal,
   Network,
   Plug,
   Trash2,
   Upload,
-  Workflow,
   Radio,
   UserPlus,
   X,
 } from "lucide-react";
+import {
+  ChatIcon as MessageSquare,
+  WorkflowIcon as Workflow,
+} from "@/components/icons/product-icons";
 
 import { PinAgentButton } from "@/components/agents/pin-agent-button";
 import { AgentAvatar } from "@/components/agents/agent-avatar";

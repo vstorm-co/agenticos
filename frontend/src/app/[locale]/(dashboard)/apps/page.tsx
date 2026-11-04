@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Lock, PanelsTopLeft } from "lucide-react";
+import { Lock } from "lucide-react";
+import { AppIcon as PanelsTopLeft } from "@/components/icons/product-icons";
 import { useTranslations } from "next-intl";
 
 import { AgentFilter } from "@/components/artifacts/agent-filter";

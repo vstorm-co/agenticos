@@ -6,7 +6,8 @@ import { useMemo, useState } from "react";
 import { ListFilters } from "@/components/ui/list-filters";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Activity, Library, Plus, Upload, Workflow } from "lucide-react";
+import { Activity, Library, Plus, Upload } from "lucide-react";
+import { WorkflowIcon as Workflow } from "@/components/icons/product-icons";
 import { useTranslations } from "next-intl";
 
 import { ErrorState } from "@/components/states";

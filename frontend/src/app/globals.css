@@ -2935,3 +2935,11 @@ body .tour-spotlight {
     display: none;
   }
 }
+
+/* Default UI glyphs share a quieter optical weight. Explicit weights (status
+   marks, loaders, diagrams) and provider logos retain their own treatment. */
+@layer base {
+  :where(svg.lucide[stroke-width="2"]) {
+    stroke-width: 1.75;
+  }
+}

@@ -1,9 +1,11 @@
 "use client";
 
+import { BackgroundIcon } from "@/components/icons/product-icons";
+
 import { useState } from "react";
 import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
-import { ArrowUpRight, Check, Circle, GitBranch, Loader2, Square } from "lucide-react";
+import { ArrowUpRight, Check, Circle, Loader2, Square } from "lucide-react";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { ErrorState, LoadingState } from "@/components/states";
 import { Button } from "@/components/ui/button";
@@ -125,7 +127,7 @@ export default function WorkPage() {
         ) : (
           <div className="mx-auto flex w-full max-w-lg flex-1 flex-col items-center justify-center px-4 py-16 text-center">
             <div className="bg-muted text-muted-foreground mb-5 flex size-12 items-center justify-center rounded-2xl">
-              <GitBranch className="size-5" aria-hidden />
+              <BackgroundIcon className="size-5" aria-hidden />
             </div>
             <h2 className="text-lg font-medium">
               {t(view === "active" ? "nothingRunning" : "noHistory")}

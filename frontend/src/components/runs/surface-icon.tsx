@@ -3,15 +3,17 @@ import {
   CalendarClock,
   Code2,
   Globe,
-  MessageSquare,
   Mic,
   Network,
   Mail,
   Smartphone,
   Sparkles,
-  Workflow,
   Zap,
 } from "lucide-react";
+import {
+  ChatIcon as MessageSquare,
+  WorkflowIcon as Workflow,
+} from "@/components/icons/product-icons";
 import { useTranslations } from "next-intl";
 
 import { brandMark } from "@/components/icons/brand-icon";

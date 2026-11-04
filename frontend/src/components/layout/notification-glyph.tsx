@@ -7,7 +7,6 @@ import {
   KeyRound,
   Lightbulb,
   Megaphone,
-  PanelsTopLeft,
   PauseCircle,
   Plug,
   PlugZap,
@@ -19,6 +18,7 @@ import {
   Wallet,
   type LucideIcon,
 } from "lucide-react";
+import { AppIcon as PanelsTopLeft } from "@/components/icons/product-icons";
 
 import { AgentAvatar } from "@/components/agents/agent-avatar";
 import type { Notification } from "@/lib/notifications-api";

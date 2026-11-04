@@ -4,7 +4,8 @@ import { RoutineAutoPause } from "@/components/triggers/failure-policy-field";
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Inbox, Pencil, Radar, Trash2 } from "lucide-react";
+import { Pencil, Radar, Trash2 } from "lucide-react";
+import { InboxIcon as Inbox } from "@/components/icons/product-icons";
 import { useLocale, useTranslations } from "next-intl";
 import { toast } from "sonner";
 

@@ -1,6 +1,7 @@
 "use client";
 
-import { Bot, Cog, KeyRound, Workflow } from "lucide-react";
+import { Bot, Cog, KeyRound } from "lucide-react";
+import { WorkflowIcon as Workflow } from "@/components/icons/product-icons";
 import { EntityAvatar } from "@/components/ui";
 import { AgentAvatar } from "@/components/agents/agent-avatar";
 import { useAuthStore } from "@/stores/auth-store";

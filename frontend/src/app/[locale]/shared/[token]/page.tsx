@@ -1,4 +1,4 @@
-import { MessageSquare } from "lucide-react";
+import { ChatIcon as MessageSquare } from "@/components/icons/product-icons";
 
 import { formatDateTime } from "@/lib/utils";
 import { getTranslations } from "next-intl/server";

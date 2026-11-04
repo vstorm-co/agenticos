@@ -5,16 +5,8 @@ import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useQuery } from "@tanstack/react-query";
 import { Command } from "cmdk";
-import {
-  ArrowRight,
-  BookOpen,
-  Bot,
-  Database,
-  LogOut,
-  MessageSquare,
-  Plus,
-  Search,
-} from "lucide-react";
+import { ArrowRight, BookOpen, Bot, Database, LogOut, Plus, Search } from "lucide-react";
+import { ChatIcon as MessageSquare } from "@/components/icons/product-icons";
 import type { LucideIcon } from "lucide-react";
 
 import { ADMIN_TABS } from "@/app/[locale]/(dashboard)/admin/admin-tabs";

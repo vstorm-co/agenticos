@@ -2,7 +2,8 @@
 
 import { useMemo } from "react";
 import Link from "next/link";
-import { MessageSquare, Plus } from "lucide-react";
+import { Plus } from "lucide-react";
+import { ChatIcon as MessageSquare } from "@/components/icons/product-icons";
 import { useLocale, useTranslations } from "next-intl";
 
 import { ConversationAgents } from "@/components/agents/conversation-agents";

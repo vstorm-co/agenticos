@@ -26,9 +26,7 @@ import {
   ChevronLeft,
   ChevronDown,
   ChevronRight,
-  Inbox,
   Loader2,
-  MessageSquare,
   MoreVertical,
   Pencil,
   Search,
@@ -37,6 +35,7 @@ import {
   SquarePen,
   Trash2,
 } from "lucide-react";
+import { InboxIcon as Inbox, ChatIcon as MessageSquare } from "@/components/icons/product-icons";
 import type { Conversation } from "@/types";
 import {
   ConversationFilters,

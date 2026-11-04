@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { AlertTriangle, Plus, Table2 } from "lucide-react";
+import { AlertTriangle, Plus } from "lucide-react";
+import { TableIcon as Table2 } from "@/components/icons/product-icons";
 import { useTranslations } from "next-intl";
 
 import { CapabilityDetail } from "@/components/agents/capability-settings";

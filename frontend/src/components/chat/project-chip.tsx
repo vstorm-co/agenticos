@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { FolderKanban, X } from "lucide-react";
+import { X } from "lucide-react";
+import { ProjectIcon as FolderKanban } from "@/components/icons/product-icons";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { useSearchParams } from "next/navigation";

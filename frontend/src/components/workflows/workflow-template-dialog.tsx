@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { ArrowLeft, Database, FlaskConical, Workflow } from "lucide-react";
+import { ArrowLeft, Database, FlaskConical } from "lucide-react";
+import { WorkflowIcon as Workflow } from "@/components/icons/product-icons";
 import { useTranslations } from "next-intl";
 import {
   Button,

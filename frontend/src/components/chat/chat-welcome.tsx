@@ -102,7 +102,7 @@ export function ChatWelcome({
             >
               {/* Off in a narrow column, where it took a third of a card's
                   width and wrapped the title onto two lines. */}
-              <span className="bg-card text-foreground shadow-card flex h-9 w-9 shrink-0 items-center justify-center rounded-xl @max-xl:hidden">
+              <span className="bg-foreground/[0.045] text-foreground/80 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl @max-xl:hidden">
                 <suggestion.icon className="h-4 w-4" />
               </span>
               <span className="min-w-0 flex-1">

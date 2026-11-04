@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { Check, FolderKanban, Plus } from "lucide-react";
+import { Check, Plus } from "lucide-react";
+import { ProjectIcon as FolderKanban } from "@/components/icons/product-icons";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
 

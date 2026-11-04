@@ -3,7 +3,8 @@
 import { useEffect, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { Bot, Check, ChevronDown, Star, Workflow } from "lucide-react";
+import { Bot, Check, ChevronDown, Star } from "lucide-react";
+import { WorkflowIcon as Workflow } from "@/components/icons/product-icons";
 
 import { AgentAvatar } from "@/components/agents/agent-avatar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui";

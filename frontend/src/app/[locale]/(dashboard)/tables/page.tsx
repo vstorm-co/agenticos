@@ -6,7 +6,8 @@ import { useState } from "react";
 import { ListFilters } from "@/components/ui/list-filters";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { Plus, Table2 } from "lucide-react";
+import { Plus } from "lucide-react";
+import { TableIcon as Table2 } from "@/components/icons/product-icons";
 
 import { ErrorState } from "@/components/states";
 import { PageHeader } from "@/components/dashboard/page-header";
