@@ -15277,6 +15277,7 @@
         "title": "Diese Änderung als Fork speichern",
         "description": "Main bleibt, wie es ist. Die gewählten Agents wechseln auf den Fork; ohne Auswahl wartet er, bis einer zu ihm wechselt.",
         "agents": "Agents, die auf den Fork wechseln",
+        "stays": "Sie können ihn nicht ändern: bleibt auf seiner Version",
         "defaultName": "Versuch {attempt}",
         "throughSpecialist": "{count, plural, =1 {1 Agent liest den Skill über einen Spezialisten und wird in seinem Builder verschoben.} other {# Agents lesen den Skill über einen Spezialisten und werden in ihrem Builder verschoben.}}",
         "hidden": "{count, plural, =1 {1 Agent, den Sie nicht sehen, bleibt, wo er ist.} other {# Agents, die Sie nicht sehen, bleiben, wo sie sind.}}",

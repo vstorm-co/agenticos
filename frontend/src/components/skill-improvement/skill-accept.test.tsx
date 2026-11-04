@@ -154,6 +154,36 @@ describe("SkillAccept", () => {
     }
   });
 
+  it("shows a helped agent the reader may not change but never sends it", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({
+      main_latest: { id: "v1", number: 1, fork_id: null },
+      items: [
+        { agent: { id: "support", name: "Support", slug: "support" }, can_change: true },
+        { agent: { id: "billing", name: "Billing", slug: "billing" }, can_change: false },
+      ],
+      hidden: 0,
+    });
+    mount({
+      ...BLOCKED,
+      agents: [
+        checkAgent("Support", "better"),
+        checkAgent("Billing", "better"),
+        checkAgent("Refunds", "worse"),
+      ],
+    });
+
+    await userEvent.click(screen.getByRole("button", { name: "Save as a fork…" }));
+    await waitFor(() => expect(screen.getByLabelText("Billing")).toBeDisabled());
+    expect(screen.getByLabelText("Billing")).not.toBeChecked();
+    expect(screen.getByText("You cannot change it: stays on its version")).toBeVisible();
+    await userEvent.click(screen.getByRole("button", { name: "Make the fork and move 1 agent" }));
+
+    expect(apiClient.post).toHaveBeenCalledWith(
+      "/skills/k1/improvements/s1/fork",
+      expect.objectContaining({ agent_ids: ["support"] }),
+    );
+  });
+
   it("leaves out of the pick the agents it may not move here, and says why", async () => {
     mount({
       ...BLOCKED,

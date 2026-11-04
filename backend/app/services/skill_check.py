@@ -1864,9 +1864,10 @@ class SkillCheckService:
         if data.agent_ids is not None and (
             refused := [row.agent_id for row in chosen if row.agent_id not in editable]
         ):
+            named = sorted(agents[agent_id].name for agent_id in refused)
             raise AuthorizationError(
-                message="You may not edit some of the agents you picked",
-                details={"agent_ids": refused},
+                message=f"You may not edit {', '.join(named)}. Pick only agents you may edit",
+                details={"agent_ids": refused, "agents": named},
             )
         created = await self.versions.create_fork(
             ctx, skill.id, SkillForkCreate(name=data.name, from_version_id=check.base_version_id)

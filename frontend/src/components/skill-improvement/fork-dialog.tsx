@@ -30,8 +30,8 @@ export interface ForkChoice {
  * Saving a checked change as a fork, offered whatever the check found. The person
  * names it and picks the agents that move onto it - the ones it helped to begin with,
  * any others, or none. An agent reading the skill through a specialist moves in its
- * Builder, so it is not offered here, and agents the reader may not see stay where
- * they are.
+ * Builder, so it is not offered here; one the reader may not change is shown but
+ * stays on its version, and agents the reader may not see stay where they are.
  */
 export function ForkDialog({
   skillId,
@@ -88,7 +88,7 @@ function ForkForm({
 }) {
   const t = useTranslations("skillImprovement.accept");
   const tState = useTranslations("skillImprovement.agents.state");
-  const { agents: usages } = useSkillAgents(skillId);
+  const { agents: usages, isLoading } = useSkillAgents(skillId);
   const movable = check.agents.filter((row) => row.via_specialist === null);
   const throughSpecialist = check.agents.length - movable.length;
   const helped = movable.filter((row) => row.state === "better");
@@ -101,7 +101,9 @@ function ForkForm({
       else next.delete(id);
       return next;
     });
-  const face = (id: string) => usages?.items.find((usage) => usage.agent.id === id)?.agent;
+  const usageOf = (id: string) => usages?.items.find((usage) => usage.agent.id === id);
+  const locked = (id: string) => usageOf(id)?.can_change === false;
+  const moving = [...picked].filter((id) => !locked(id));
 
   return (
     <>
@@ -122,13 +124,15 @@ function ForkForm({
         <fieldset className="space-y-2">
           <legend className="mb-2 text-sm font-medium">{t("fork.agents")}</legend>
           {movable.map((row) => {
-            const usage = face(row.agent.id);
+            const usage = usageOf(row.agent.id)?.agent;
             const id = `skill-accept-fork-${row.agent.id}`;
+            const stays = locked(row.agent.id);
             return (
               <div key={row.agent.id} className="flex items-center gap-2">
                 <Checkbox
                   id={id}
-                  checked={picked.has(row.agent.id)}
+                  checked={picked.has(row.agent.id) && !stays}
+                  disabled={stays}
                   onCheckedChange={(checked) => toggle(row.agent.id, checked === true)}
                 />
                 <AgentAvatar
@@ -141,7 +145,9 @@ function ForkForm({
                 <Label htmlFor={id} className="flex-1 font-normal">
                   {row.agent.name}
                 </Label>
-                <span className="text-muted-foreground text-xs">{tState(row.state)}</span>
+                <span className="text-muted-foreground text-xs">
+                  {stays ? t("fork.stays") : tState(row.state)}
+                </span>
               </div>
             );
           })}
@@ -159,11 +165,11 @@ function ForkForm({
       </div>
       <DialogFooter>
         <Button
-          disabled={name.trim() === ""}
+          disabled={name.trim() === "" || isLoading}
           loading={busy}
-          onClick={() => void onFork({ name: name.trim(), agent_ids: [...picked] })}
+          onClick={() => void onFork({ name: name.trim(), agent_ids: moving })}
         >
-          {t("fork.submit", { count: picked.size })}
+          {t("fork.submit", { count: moving.length })}
         </Button>
       </DialogFooter>
     </>

@@ -1248,7 +1248,8 @@ class TestWhatTheCheckMeasuredIsWhatShips:
                 check.id,
                 SkillCheckFork(name="x", acknowledge_unknown=True, agent_ids=[lab.a.id, lab.b.id]),
             )
-        assert refused.value.details == {"agent_ids": [lab.b.id]}
+        assert refused.value.details == {"agent_ids": [lab.b.id], "agents": ["B"]}
+        assert "You may not edit B" in refused.value.message
 
     async def test_an_agent_helped_through_a_specialist_is_moved_in_its_builder(
         self, db, monkeypatch

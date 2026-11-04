@@ -15379,6 +15379,7 @@
         "title": "Zapisz tę zmianę jako fork",
         "description": "Main zostaje bez zmian. Wybrani agenci przechodzą na fork; bez wybranych fork czeka, aż ktoś na niego przejdzie.",
         "agents": "Agenci, którzy przejdą na fork",
+        "stays": "Nie możesz go zmienić: zostaje na swojej wersji",
         "defaultName": "Próba {attempt}",
         "throughSpecialist": "{count, plural, =1 {1 agent czyta skill przez specjalistę i przenosi się go w jego Builderze.} few {# agentów czyta skill przez specjalistę i przenosi się ich w ich Builderze.} many {# agentów czyta skill przez specjalistę i przenosi się ich w ich Builderze.} other {# agenta czyta skill przez specjalistę i przenosi się ich w ich Builderze.}}",
         "hidden": "{count, plural, =1 {1 agent, którego nie widzisz, zostaje tam, gdzie jest.} few {# agentów, których nie widzisz, zostaje tam, gdzie są.} many {# agentów, których nie widzisz, zostaje tam, gdzie są.} other {# agenta, których nie widzisz, zostaje tam, gdzie są.}}",

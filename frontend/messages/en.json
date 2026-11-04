@@ -15605,6 +15605,7 @@
         "title": "Save this change as a fork",
         "description": "Main stays as it is. The agents you pick move onto the fork; with none picked it waits until one moves to it.",
         "agents": "Agents to move onto the fork",
+        "stays": "You cannot change it: stays on its version",
         "defaultName": "Attempt {attempt}",
         "throughSpecialist": "{count, plural, =1 {1 agent reads the skill through a specialist and is moved in its Builder.} other {# agents read the skill through a specialist and are moved in their Builder.}}",
         "hidden": "{count, plural, =1 {1 agent you cannot see stays where it is.} other {# agents you cannot see stay where they are.}}",
