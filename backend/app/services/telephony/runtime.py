@@ -383,7 +383,7 @@ async def media(
     async def ready(frame: ReadyFrame) -> None:
         async with sessions() as db:
             row = await repo.call(db, call_id, lock=True)
-            if row is None or row.status in repo.TERMINAL:
+            if row is None or row.status not in {"dialing", "unknown", "ringing", "active"}:
                 raise WebSocketDisconnect(1008)
             row.voice_call_id = frame.call_id
             row.conversation_id = frame.conversation_id
@@ -395,10 +395,12 @@ async def media(
         websocket, account_sid=auth.account, call_sid=sid, nonce=nonce, ready=ready
     )
     session_started = False
+    claimed = False
     try:
         await stream.start()
         assert stream.call is not None
         caller = await _claim_stream(call_id, sessions, provider_sid=stream.call)
+        claimed = True
 
         async def reauthorize(db: AsyncSession) -> AuthContext | None:
             try:
@@ -406,7 +408,7 @@ async def media(
                 if (
                     current is None
                     or current.status in repo.TERMINAL
-                    or current.status in {"transferring", "transferred"}
+                    or current.status in {"ending", "transferring", "transferred"}
                 ):
                     return None
                 endpoint, _, _ = await PhonePolicyService(db).load_endpoint(
@@ -436,9 +438,10 @@ async def media(
     finally:
         with anyio.CancelScope(shield=True):
             try:
-                await end_media(
-                    call_id, provider=adapter, sessions=sessions, end_reason=stream.ended_reason
-                )
+                if claimed:
+                    await end_media(
+                        call_id, provider=adapter, sessions=sessions, end_reason=stream.ended_reason
+                    )
             except AppException:
                 logger.warning("phone_cleanup_pending", extra={"call_id": str(call_id)})
             finally:

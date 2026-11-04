@@ -370,7 +370,7 @@ async def test_inbound_stream_is_anonymous_and_receipt_replays_do_not_restart_it
     import json
     from unittest.mock import AsyncMock, MagicMock
 
-    from fastapi import WebSocket
+    from fastapi import WebSocket, WebSocketDisconnect
 
     from app.agents.spec import AgentSpec, VoiceSpec
     from app.db.models.agent_embed import AgentEmbed
@@ -473,6 +473,13 @@ async def test_inbound_stream_is_anonymous_and_receipt_replays_do_not_restart_it
             return None
 
     monkeypatch.setattr(runtime, "VoiceCallSession", Session)
+    # A rejected competing claim must not tear down the accepted provider call.
+    with monkeypatch.context() as competing:
+        competing.setattr(
+            runtime, "_claim_stream", AsyncMock(side_effect=WebSocketDisconnect(1008))
+        )
+        await runtime.media(raw, call_id, provider=provider, sessions=sessions(db))
+        assert provider.stops == [] and callers == []
     await runtime.media(raw, call_id, provider=provider, sessions=sessions(db))
     assert len(callers) == 1 and callers[0].anonymous and callers[0].user_id is None
     assert callers[0].surface == "embed" and callers[0].ctx.subject_is_publisher_fallback
