@@ -1,5 +1,5 @@
 ---
-source_sha: "f8b0ccd7e54f"
+source_sha: "27e31adcbb5e"
 ---
 
 # Die Desktop-App { #the-desktop-app }
@@ -543,6 +543,8 @@ Die Capability-Freigabe gilt einmal pro Aufgabe. `edit` erlaubt angefragte Aktio
 Weitere Aufgaben setzen die Harness-Sitzung für dieselbe Unterhaltung, denselben Agent, Ordner, Account und dieselbe Zugriffsrichtlinie fort. `fresh_session` beginnt ausdrücklich neu. Sitzungskennungen bleiben in den Desktop-Einstellungen außerhalb des Repositorys und werden beim Trennen oder Accountwechsel gelöscht. Kann eine gespeicherte Sitzung nicht geladen werden, schlägt die Aufgabe ausdrücklich fehl. Starte bei Bedarf neu. Eine Trennung stoppt den Prozess; gespeicherte Harness-Verläufe bleiben fortsetzbar.
 
 Eine während der lokalen Aufgabe gesendete Korrektur unterbricht den aktuellen ACP-Turn. Sobald der Adapter den Stopp bestätigt, setzt dieselbe Sitzung mit der Korrektur fort. Das Transkript hält die angewendete Korrektur fest. Nach Abschluss eingehende Nachrichten bleiben für den übergeordneten Agent verfügbar.
+
+Nach Auswahl des Coding-Agenten und eines freigegebenen Ordners zeigen **Coding-Modell** und **Denktiefe** die vom installierten Agenten gemeldeten Optionen. Sie gelten für dieses Gespräch und werden vor neuen oder fortgesetzten Aufgaben angewandt. Leere Felder behalten die eigenen Einstellungen des Agenten bei. Ein Agentenwechsel entfernt inkompatible Vorgaben. Aktualisiere die Optionen nach einer Änderung von Anmeldung oder Konfiguration ausdrücklich; ein weiteres Fenster prüft das Konto nicht erneut. Entfernte oder nicht unterstützte Optionen werden angezeigt und abgewiesen, statt still ersetzt. Das Lesen der Optionen startet keine Modellantwort und erteilt keine Werkzeugfreigabe.
 
 ## Eigene Skills und Anweisungen { #your-own-skills-and-instructions }
 

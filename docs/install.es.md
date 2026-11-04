@@ -1,5 +1,5 @@
 ---
-source_sha: "16e90e7b2f27"
+source_sha: "3e5746cd74c2"
 ---
 
 # Instalación { #install }
@@ -38,6 +38,10 @@ Todo lo de abajo es lo que hace, por si prefieres hacerlo tú — y no hay ning�
 paso suyo que tú no puedas dar.
 
 ## Requisitos { #requirements }
+
+Los despliegues Podman usan la [ruta manual con Docker Compose](deploy.md#podman-support)
+y un override adicional para el socket sandbox y los permisos del workspace.
+El inicio rápido admite Docker; `podman-compose` 1.6.0 no está soportado.
 
 | Para | Necesitas |
 |---|---|

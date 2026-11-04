@@ -603,6 +603,11 @@ export function useChat(options: UseChatOptions = {}) {
         // A turn somebody else in the room asked: their question, drawn before the
         // answer that follows it. Skipped when the transcript already holds it -
         // a person who came back mid-turn read it there.
+        case "background_task_turn": {
+          const data = wsEvent.data as { conversation_id: string; agent_id: string };
+          if (followingRef.current === data.conversation_id) turnAgentIdRef.current = data.agent_id;
+          break;
+        }
         case "turn_prompt": {
           const data = wsEvent.data as {
             conversation_id: string;
@@ -1469,6 +1474,9 @@ export function useChat(options: UseChatOptions = {}) {
       const localBrowser = useWorkOnStore.getState().browserFor(conversationId || null);
       const localComputer = useWorkOnStore.getState().computerFor(conversationId || null);
       const localCoding = useWorkOnStore.getState().codingFor(conversationId || null);
+      const codingPreferences = useWorkOnStore
+        .getState()
+        .codingPreferencesFor(conversationId || null);
       // Chosen per chat and never inherited, so it is read here and not from the target.
       const localSkills = useWorkOnStore.getState().skillsFor(conversationId || null);
       const target: Record<string, unknown> | null = local
@@ -1487,7 +1495,13 @@ export function useChat(options: UseChatOptions = {}) {
         payload.local = {
           ...target,
           ...(localSkills.length > 0 ? { skills: localSkills } : {}),
-          ...(localCoding ? { coding_agent: localCoding } : {}),
+          ...(localCoding
+            ? {
+                coding_agent: localCoding,
+                coding_model: codingPreferences.model,
+                coding_effort: codingPreferences.effort,
+              }
+            : {}),
         };
       const test = testingRef.current;
       if (test) {

@@ -159,6 +159,9 @@ fn spawn(program: &Path, args: &[String], cwd: &Path, path_env: Option<String>) 
     command
         .args(args)
         .current_dir(cwd)
+        // The adapter must use the same managed CLI that supplied its options.
+        .env_remove("CLAUDE_CODE_EXECUTABLE")
+        .env_remove("CODEX_PATH")
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())

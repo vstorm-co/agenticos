@@ -1,5 +1,5 @@
 ---
-source_sha: "1d030f179cfb"
+source_sha: "67159a2b0696"
 ---
 
 # La consola { #the-console }
@@ -731,6 +731,22 @@ que se reconectó sigue siendo una fila, con el tiempo y el coste de todas sus
 conexiones sumados. La tarjeta de panel **Voice minutes**, en la banda de Uso
 para quien tenga `runs:view`, muestra los minutos de llamada y las llamadas del
 periodo y los tres agents principales.
+
+### Temas en segundo plano { #background-topics }
+
+Activa **Temas en segundo plano** en un agente publicado y pide, por ejemplo: «Investiga el error de exportación en otro tema mientras seguimos planificando la versión» o «Que el agente financiero revise estas cifras mientras comentamos la propuesta». Puede usar su propia versión fijada o un delegado publicado fijado en su especificación. Empieza desde una conversación propia; el tema nuevo pertenece al mismo proyecto e incluye el encargo del agente y un enlace al origen, sin copiar la transcripción original.
+
+La barra **Temas en segundo plano**, encima del cuadro de mensaje, muestra tareas en cola, en marcha y pendientes. Abre el tema independiente para revisar el trabajo o responder a una aprobación o pregunta habitual. **Detener** cancela el trabajo posterior; no revierte cambios de archivos ni acciones externas ya realizadas. El panel muestra las mismas tareas. Cada persona puede tener cuatro tareas activas; una tarea y su respuesta de resultado no pueden crear más temas en segundo plano.
+
+Al terminar, el agente original responde con el historial actual de la conversación. Espera a que terminen las respuestas en curso y resume sin herramientas: el resultado de una tarea no concede permiso para otra acción.
+
+Conserva el modelo principal y el nivel de razonamiento seleccionados; la inferencia local sigue siendo local. El trabajo local de programación permanece en el ordenador emparejado concreto y en la carpeta autorizada. Se mantienen los presupuestos y aprobaciones del hijo. Cerrar el chat no cancela la tarea. Se informa de una interrupción del worker y no se repiten automáticamente las acciones externas. Las aprobaciones reanudan las tareas pausadas; perder la pertenencia o el acceso al proyecto detiene el trabajo nuevo y la entrega del resultado.
+
+Es delegación explícita, separada de memoria, observaciones y rutinas. Los modos asíncronos existentes de subagentes y herramientas siguen ligados a una ejecución; usa **Temas en segundo plano** para trabajo que dure más que la respuesta de origen.
+
+### Referirse a otra conversación { #conversation-references }
+
+Un agente con **Conversaciones anteriores** ofrece las treinta conversaciones accesibles más recientes en el menú `@`. Elige una y plantea una pregunta concreta. La mención identifica el tema, sin copiar su transcripción ni cambiar al agente que responde. El agente lee el fragmento pertinente mediante la herramienta existente, con las mismas comprobaciones de acceso y audiencia. Siguen aplicándose las restricciones de los chats grupales. Para un tema anterior, pega su enlace o identificador y pide al agente que lo lea.
 
 ## Para qué sirve cada área { #what-each-area-is-for }
 

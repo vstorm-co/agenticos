@@ -1,5 +1,5 @@
 ---
-source_sha: "1d030f179cfb"
+source_sha: "67159a2b0696"
 ---
 
 # Konsola { #the-console }
@@ -711,6 +711,20 @@ która się ponownie połączyła, to nadal jeden wiersz, z czasem i kosztem
 wszystkich połączeń zsumowanymi. Karta pulpitu **Minuty rozmów (Voice minutes)**,
 w pasie Użycie dla posiadacza `runs:view`, pokazuje minuty i liczbę rozmów w
 okresie oraz trzech najczęstszych agentów.
+
+### Tematy w tle { #background-topics }
+
+Włącz **Tematy w tle** u opublikowanego agenta i poproś np.: „Zbadaj błąd eksportu w nowym temacie, a my kontynuujmy plan wydania” albo „Niech agent finansowy sprawdzi te liczby, gdy omawiamy ofertę”. Agent może użyć swojej przypiętej wersji albo opublikowanego delegata przypiętego w specyfikacji. Zacznij z rozmowy, której jesteś właścicielem; nowy temat należy do tego samego projektu i zawiera brief agenta oraz odnośnik do źródła, bez kopiowania pierwotnego transkryptu.
+
+Pasek **Tematy w tle** nad polem wiadomości pokazuje zadania w kolejce, pracujące i oczekujące. Otwórz osobny temat, aby sprawdzić pracę lub odpowiedzieć na zwykłą prośbę o zgodę albo pytanie. **Zatrzymaj** anuluje dalszą pracę; nie cofa wykonanych zmian plików ani działań w usługach. Te same zadania znajdziesz na pulpicie. Jedna osoba może mieć do czterech aktywnych zadań; zadanie i odpowiedź z jego wynikiem nie mogą tworzyć kolejnych tematów w tle.
+
+Po zakończeniu zadania pierwotny agent budzi się, korzystając z aktualnej historii rozmowy. Czeka na koniec odpowiedzi dla użytkownika i podsumowuje bez narzędzi, aby wynik zadania nie stał się zgodą na kolejne działanie. Zachowuje wybrany model główny i ustawienie myślenia; lokalne wnioskowanie pozostaje lokalne. Lokalna praca kodująca pozostaje na konkretnym sparowanym komputerze i w zatwierdzonym folderze. Dziecko zachowuje zwykłe budżety i zgody. Zamknięcie czatu go nie anuluje. Przerwanie workera jest raportowane, a działania zewnętrzne nie są automatycznie powtarzane. Zadanie czekające na zgodę kontynuuje po jej udzieleniu; utrata członkostwa lub dostępu do projektu zatrzymuje nową pracę i przekazanie wyniku.
+
+To jawna delegacja, oddzielona od pamięci, watchów i rutyn. Istniejące tryby asynchroniczne subagentów i narzędzi nadal należą do jednego uruchomienia; do pracy dłuższej niż odpowiedź źródłowa użyj **Tematów w tle**.
+
+### Odwołanie do innej rozmowy { #conversation-references }
+
+Agent z funkcją **Poprzednie rozmowy** oferuje w menu `@` trzydzieści najnowszych rozmów, do których masz dostęp. Wybierz rozmowę i zadaj konkretne pytanie. Wzmianka wskazuje temat; nie kopiuje transkryptu ani nie zmienia odpowiadającego agenta. Agent czyta odpowiedni fragment przez istniejące narzędzie rozmów, z tymi samymi kontrolami dostępu i odbiorców. Ograniczenia czatów grupowych nadal obowiązują. Przy starszym temacie wklej odnośnik lub identyfikator i poproś agenta o przeczytanie.
 
 ## Do czego służy każdy obszar { #what-each-area-is-for }
 

@@ -32,6 +32,10 @@ there is no step it takes that you cannot.
 
 ## Requirements
 
+Podman deployments use the [manual Docker Compose provider path](deploy.md#podman-support),
+with an additional override for sandbox socket and workspace permissions. The
+quickstart supports Docker; `podman-compose` 1.6.0 is unsupported.
+
 | To | You need |
 |---|---|
 | **Run it** | Docker with the Compose plugin, 2.24 or later - Docker Desktop, OrbStack, or Engine with `docker-compose-plugin`. <https://docs.docker.com/get-docker/> |

@@ -1,5 +1,5 @@
 ---
-source_sha: "1d030f179cfb"
+source_sha: "67159a2b0696"
 ---
 
 # Die Konsole { #the-console }
@@ -778,6 +778,20 @@ Anruf, der sich neu verbunden hat, ist weiterhin eine Zeile, mit Zeit und Kosten
 aller Verbindungen summiert. Die Dashboard-Karte **Sprachminuten (Voice
 minutes)**, im Nutzungsband für jemanden mit `runs:view`, zeigt die
 Anrufminuten und Anrufe des Zeitraums und die drei häufigsten Agents.
+
+### Hintergrundthemen { #background-topics }
+
+Aktiviere **Hintergrundthemen** bei einem veröffentlichten Agenten und bitte etwa: „Untersuche den Exportfehler in einem neuen Thema, während wir den Release planen“ oder „Lass den Finanzagenten diese Zahlen prüfen, während wir das Angebot besprechen“. Der Agent verwendet seine eigene festgelegte Version oder einen im Spec festgelegten veröffentlichten Delegaten. Starte aus einem eigenen Gespräch; das neue Thema gehört zum selben Projekt und enthält den Auftrag des Agenten und einen Rücklink, ohne das ursprüngliche Protokoll zu kopieren.
+
+Die Leiste **Hintergrundthemen** über dem Eingabefeld zeigt wartende, arbeitende und pausierte Aufgaben. Öffne das eigene Thema, um die Arbeit zu prüfen oder eine gewöhnliche Freigabe bzw. Frage zu beantworten. **Stoppen** beendet weitere Arbeit, macht aber bereits erfolgte Dateiänderungen oder externe Aktionen nicht rückgängig. Dieselben Aufgaben stehen im Dashboard. Pro Person sind vier aktive Aufgaben möglich; Aufgaben und ihre Ergebnisantworten können keine weiteren Hintergrundthemen starten.
+
+Nach Abschluss antwortet der ursprüngliche Agent mit der aktuellen Gesprächshistorie. Er wartet laufende Antworten ab und fasst ohne Werkzeuge zusammen: Aufgabenausgaben erteilen keine neue Handlungserlaubnis. Gewähltes Hauptmodell und Denktiefe bleiben erhalten; lokale Inferenz bleibt lokal. Lokale Coding-Arbeit bleibt auf dem konkreten gekoppelten Computer und im freigegebenen Ordner. Budgets und Freigaben des Kindes gelten weiter. Das Schließen des Chats beendet die Aufgabe nicht. Ein Worker-Abbruch wird gemeldet; externe Aktionen werden nicht automatisch wiederholt. Freigaben setzen pausierte Aufgaben fort; verlorene Mitgliedschaft oder Projektberechtigung stoppt neue Arbeit und Ergebnisübermittlung.
+
+Das ist ausdrückliche Delegation, getrennt von Gedächtnis, Überwachungen und Routinen. Vorhandene asynchrone Subagenten und Werkzeuge bleiben an einen Lauf gebunden; für Arbeit über dessen Antwort hinaus nutze **Hintergrundthemen**.
+
+### Auf ein anderes Gespräch verweisen { #conversation-references }
+
+Ein Agent mit **Frühere Gespräche** bietet im `@`-Menü die dreißig jüngsten zugänglichen Gespräche an. Wähle eines und stelle eine konkrete Frage dazu. Die Erwähnung benennt das Thema, kopiert aber kein Protokoll und wechselt den antwortenden Agenten nicht. Der Agent liest passende Ausschnitte mit dem bestehenden Gesprächswerkzeug und dessen Zugriffs- und Empfängerprüfung. Einschränkungen für Gruppenchats bleiben bestehen. Für ältere Themen füge Link oder ID ein und bitte den Agenten, sie zu lesen.
 
 ## Wofür jeder Bereich da ist { #what-each-area-is-for }
 

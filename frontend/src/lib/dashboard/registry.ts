@@ -24,6 +24,7 @@ export type WidgetId =
   | "summary"
   | "platform"
   | "health"
+  | "background-tasks"
   | "background-jobs"
   | "top-orgs"
   | "platform-ratings"
@@ -235,6 +236,14 @@ const holds =
 const everyone: Gate = () => true;
 
 export const WIDGETS: Record<WidgetId, WidgetDef> = {
+  "background-tasks": {
+    id: "background-tasks",
+    gate: everyone,
+    defaultSpan: "s6",
+    defaultRows: "r3",
+    category: "workspace",
+    seeAll: ROUTES.CHAT,
+  },
   "activity-rhythm": {
     id: "activity-rhythm",
     gate: holds(Perm.runsView),

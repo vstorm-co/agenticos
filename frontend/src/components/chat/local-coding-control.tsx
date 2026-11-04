@@ -21,6 +21,7 @@ import { useAgentSelectionStore, useConversationStore } from "@/stores";
 import { useAgents } from "@/hooks/use-agents";
 import { useWorkOnStore } from "@/stores/work-on-store";
 import type { CodingHarness } from "@/types/chat";
+import { LocalCodingSettings } from "./local-coding-settings";
 
 /** A personal coding harness for this conversation, without changing the agent. */
 export function LocalCodingControl() {
@@ -173,6 +174,7 @@ export function LocalCodingControl() {
           {getErrorMessage(selection.error, tErrors)}
         </p>
       )}
+      {effective !== null && !missingFolder && <LocalCodingSettings harness={effective} />}
     </div>
   );
 }
