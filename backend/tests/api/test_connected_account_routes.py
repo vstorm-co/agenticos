@@ -21,7 +21,7 @@ from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.mcp_connection import McpConnection
 from app.main import app
 
-pytestmark = pytest.mark.anyio
+pytestmark = [pytest.mark.anyio, pytest.mark.security]
 
 
 def _account() -> McpConnection:

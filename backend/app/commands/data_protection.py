@@ -129,6 +129,10 @@ OUTBOUND_CAPABILITIES: dict[str, str] = {
     "knowledge": "the collection's embedding endpoint",
     "memory_mem0": "the mem0 host the binding names (MEM0_ALLOWED_HOSTS bounds it)",
     "sandbox": "the sandbox runtime this deployment configures",
+    "mirage": (
+        "the mounted services' APIs; author-specified hosts must be on MIRAGE_ALLOWED_HOSTS; "
+        "RAM folders stay in the API process"
+    ),
     "text_to_speech": "the speech provider named in the binding",
     "video_generation": "the video provider named in the binding, with any starting image",
     # A drawing's pictures by address, only for an agent that already reads the

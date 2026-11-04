@@ -19,7 +19,7 @@ from app.core.secret_kinds import SecretKind
 from app.services import agent_runner
 from app.services.agent_registry import AgentRegistryService
 
-pytestmark = pytest.mark.anyio
+pytestmark = [pytest.mark.anyio, pytest.mark.security]
 
 TOKEN = uuid.uuid4()
 APP = uuid.uuid4()

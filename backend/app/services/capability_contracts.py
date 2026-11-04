@@ -40,6 +40,14 @@ from app.agents.capabilities._registry import (
     get,
 )
 from app.agents.capabilities.channel_tools import CHANNEL_DIRECTORY_RESOURCE
+from app.agents.capabilities.mirage import (
+    MIRAGE_MOUNTS_RESOURCE,
+    ResolvedMount,
+    ResolvedTerminal,
+)
+from app.agents.capabilities.mirage import (
+    catalog as mirage_catalog,
+)
 from app.agents.deps import AgentDeps
 from app.agents.subagent_runtime import (
     SUBAGENT_RUNTIME_RESOURCE,
@@ -54,6 +62,9 @@ logger = logging.getLogger(__name__)
 # Enough for a builder that refuses to build with nothing to work with. The
 # names are never shown and never searched; only the tools' own shape is read.
 _DOCUMENTATION_STUB: dict[str, Any] = {
+    MIRAGE_MOUNTS_RESOURCE: ResolvedTerminal(
+        (ResolvedMount("/scratch/", "ram", "write", False, {}, "Scratch space"),)
+    ),
     "kb_collection_names": ["documentation-probe"],
     # A `link`-mode file, because that is the arrangement that offers tools at
     # all: `context` contributes nothing without files, so without this the
@@ -117,6 +128,7 @@ _DOCUMENTATION_STUB: dict[str, Any] = {
 # so the widest setting is the one worth documenting: a tool nobody can describe
 # is exactly the one somebody reaching for this page needs described.
 _DOCUMENTATION_CONFIGS: dict[str, dict[str, Any]] = {
+    "mirage": {"mounts": [{"path": "/scratch/", "backend": "ram"}]},
     "channel_tools": {"tools": sorted(get("channel_tools").tool_ids)},
     # Granted no table, it builds only to create one; that is the widest list.
     "virtual_tables": {"allow_create": True},
@@ -255,6 +267,8 @@ def real_tool_definition(tool: Any) -> Any:
 
 
 async def _contracts_for(definition: Any) -> dict[str, ToolContract]:
+    if definition.id == "mirage" and not mirage_catalog():
+        return {}
     blob = _DOCUMENTATION_CONFIGS.get(definition.id, {})
     built = definition.builder(
         CapabilityBuildContext(

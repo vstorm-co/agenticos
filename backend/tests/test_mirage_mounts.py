@@ -22,7 +22,7 @@ from app.services.mcp_connection import AccountGrant
 from app.services.mirage_mounts import MirageMountService, hosts_of
 from app.services.portals import google_oauth
 
-pytestmark = pytest.mark.anyio
+pytestmark = [pytest.mark.anyio, pytest.mark.security]
 
 TOKEN = uuid4()
 DSN = uuid4()

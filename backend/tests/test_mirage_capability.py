@@ -36,7 +36,7 @@ from app.agents.capabilities.mirage import (
 from app.agents.capabilities.mirage._capability import Mirage, instructions
 from app.agents.deps import AgentDeps
 
-pytestmark = pytest.mark.anyio
+pytestmark = [pytest.mark.anyio, pytest.mark.security]
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -656,3 +656,17 @@ async def test_scratch_survives_two_other_capability_approvals_without_reopening
         if call_id == "c1":
             assert isinstance(parked.output, DeferredToolRequests)
     assert isinstance(parked.output, str) and "retained-result" in parked.output
+
+
+async def test_a_run_parking_before_using_mirage_does_not_invent_scratch() -> None:
+    from app.agents.capabilities.mirage._scratch import KEY
+
+    agent = _agent(Mirage(mounts=(_ram("/scratch/"),)), _calls(("review", {})))
+
+    @agent.tool_plain(requires_approval=True)
+    def review() -> str:
+        return "approved"
+
+    parked = await agent.run("go", deps=AgentDeps())
+    assert isinstance(parked.output, DeferredToolRequests)
+    assert not any(KEY in (message.metadata or {}) for message in parked.all_messages())

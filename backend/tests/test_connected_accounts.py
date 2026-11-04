@@ -24,7 +24,7 @@ from app.services import mcp_connection as service_module
 from app.services.mcp_connection import McpConnectionService, connection_scope
 from app.services.portals import google_oauth
 
-pytestmark = pytest.mark.anyio
+pytestmark = [pytest.mark.anyio, pytest.mark.security]
 NONCE = "n" * 43
 INITIATOR = uuid4()
 

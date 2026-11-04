@@ -15,7 +15,7 @@ from app.agents.capabilities.mirage import _backend, _scratch
 from app.agents.capabilities.mirage._scratch import ScratchFolder, ScratchState
 from app.services.mirage_mounts import hosts_of
 
-pytestmark = pytest.mark.anyio
+pytestmark = [pytest.mark.anyio, pytest.mark.security]
 
 
 async def test_streaming_output_stops_pulling_and_closes_at_the_limit(
