@@ -9092,7 +9092,7 @@
         "noChanges": "Görev hiçbir dosyayı değiştirmedi.",
         "changeStatus": "{status, select, added {Eklendi} deleted {Silindi} renamed {Yeniden adlandırıldı} other {Değiştirildi}}",
         "renamedPath": "{from} → {to}",
-        "changesTruncated": "{omitted, plural, =0 {Yama platformun sakladığından uzun, bu yüzden kısaltıldı.} other {Yama platformun sakladığından uzun, bu yüzden kısaltıldı. # dosya daha listelenmedi.}}",
+        "changesTruncated": "{omitted, plural, =0 {Yama platformun sakladığından uzun, bu yüzden kısaltıldı.} =1 {Yama platformun sakladığından uzun, bu yüzden kısaltıldı. 1 dosya daha listelenmedi.} other {Yama platformun sakladığından uzun, bu yüzden kısaltıldı. # dosya daha listelenmedi.}}",
         "copyPatch": "Yamayı kopyala",
         "patchCopied": "Yama kopyalandı",
         "binary": "ikili",
