@@ -943,7 +943,7 @@ class TestConcurrentSelfDeletes:
     ) -> None:
         """Memberships are not locked, so the two heir reads can disagree.
 
-        `_lock_for_delete` discovers heirs without a lock and locks them;
+        `_lock_user_rows` discovers heirs without a lock and locks them;
         `_release_owned_rows` re-reads authoritatively. An owner promoted between
         the two names an heir whose row was never locked, and `reassign_creator`
         would take their FK lock outside the ascending sequence - the cycle

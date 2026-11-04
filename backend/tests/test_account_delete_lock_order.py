@@ -9,28 +9,39 @@ import itertools
 import uuid
 from collections.abc import Callable
 from types import SimpleNamespace, TracebackType
-from unittest.mock import AsyncMock, MagicMock, patch
+from typing import cast
+from unittest.mock import ANY, AsyncMock, MagicMock, patch
 
 import pytest
 from sqlalchemy.exc import DBAPIError
 
-from app.core.exceptions import AuthorizationError, ConcurrentChangeError, NotFoundError
+from app.core.exceptions import ConcurrentChangeError, NotFoundError
+from app.db.models.user import User
 from app.services.rag_document import RAGDocumentService
-from app.services.user import _ACCOUNT_LOCK_ATTEMPTS, UserService, _LockedAccount
+from app.services.user import UserService, _LockedAccount
 
 pytestmark = pytest.mark.anyio
 
 Step = tuple[str, object]
 
+_BUSY = "55P03"
+_DEADLOCK = "40P01"
 
-def _base(collection_name: str) -> SimpleNamespace:
-    return SimpleNamespace(collection_name=collection_name)
+
+class _PostgresError(Exception):
+    """The driver error a `DBAPIError` wraps; asyncpg's carries the SQLSTATE."""
+
+    def __init__(self, sqlstate: str) -> None:
+        super().__init__(sqlstate)
+        self.sqlstate = sqlstate
 
 
 def _db_error(sqlstate: str) -> DBAPIError:
-    orig = Exception("lock")
-    orig.sqlstate = sqlstate  # type: ignore[attr-defined] - asyncpg's error carries it
-    return DBAPIError("SELECT", {}, orig)
+    return DBAPIError("SELECT", {}, _PostgresError(sqlstate))
+
+
+def _base(collection_name: str) -> SimpleNamespace:
+    return SimpleNamespace(collection_name=collection_name)
 
 
 class _Savepoint:
@@ -61,13 +72,15 @@ class _Savepoint:
 class _Account:
     """A deletion's lock phase against mocked repositories, recording each step.
 
-    `busy` says, per call of the user-row lock, whether `NOWAIT` finds it taken.
+    `user_row` answers each call of the user's own row lock, numbered from 1,
+    given whether it waits: `None` grants it, `"gone"` finds no row, and any
+    other string is the SQLSTATE of the error it raises.
     """
 
     def __init__(
         self,
         *,
-        busy: Callable[[int], bool] = lambda _call: False,
+        user_row: Callable[[int, bool], str | None] = lambda _call, _nowait: None,
         personal: list[SimpleNamespace] | None = None,
         org_scoped: list[list[SimpleNamespace]] | None = None,
         heir: uuid.UUID | None = None,
@@ -78,7 +91,7 @@ class _Account:
         self.user = SimpleNamespace(id=self.user_id, is_app_admin=False)
         self.organization = SimpleNamespace(id=uuid.uuid4(), is_personal=True)
         self.shared = SimpleNamespace(id=uuid.uuid4(), is_personal=False)
-        self.busy = busy
+        self.user_row = user_row
         self.personal = personal or []
         self.org_scoped = iter(org_scoped) if org_scoped else itertools.repeat([])
         self.heir = heir
@@ -89,18 +102,31 @@ class _Account:
         self.service = UserService(db)
 
     def _step(self, name: str, result: object = None) -> AsyncMock:
-        async def called(*args: object, **kwargs: object) -> object:
-            self.order.append((name, kwargs.get("nowait", args[-1])))
+        """A lock on a name or an organization, recorded with what it locks."""
+
+        async def called(*args: object, **_: object) -> object:
+            self.order.append((name, args[-1]))
             return result
 
         return AsyncMock(side_effect=called)
 
-    async def _user(self, _db: object, user_id: uuid.UUID, *, nowait: bool = False) -> object:
+    def _row_step(self, name: str, result: object = None) -> AsyncMock:
+        """A user-row lock, recorded with whether it waits."""
+
+        async def called(*_: object, nowait: bool) -> object:
+            self.order.append((name, "nowait" if nowait else "wait"))
+            return result
+
+        return AsyncMock(side_effect=called)
+
+    async def _user(self, _db: object, _user_id: uuid.UUID, *, nowait: bool) -> object:
         self.user_calls += 1
-        if nowait and self.busy(self.user_calls):
-            self.order.append(("user busy", user_id))
-            raise _db_error("55P03")
-        self.order.append(("user", nowait))
+        outcome = self.user_row(self.user_calls, nowait)
+        self.order.append(("user", outcome or ("nowait" if nowait else "wait")))
+        if outcome == "gone":
+            return None
+        if outcome is not None:
+            raise _db_error(outcome)
         return self.user
 
     async def lock(self, *, app_admins: bool = False) -> _LockedAccount:
@@ -120,9 +146,12 @@ class _Account:
             organizations.get_by_id_for_update = self._step("organization")
             members.other_owner_id = AsyncMock(return_value=self.heir)
             users.get_by_id_for_update = AsyncMock(side_effect=self._user)
-            users.get_by_id_for_no_key_update = self._step("heir")
-            users.app_admin_ids_for_update = self._step("app admins", [self.user_id])
+            users.get_by_id_for_no_key_update = self._row_step("heir")
+            users.app_admin_ids_for_no_key_update = self._row_step("app admins", [self.user_id])
             return await self.service._lock_account(self.user_id, app_admins=app_admins)
+
+    def user_steps(self) -> list[Step]:
+        return [step for step in self.order if step[0] == "user"]
 
 
 async def test_names_then_organization_then_the_user_row_without_waiting() -> None:
@@ -136,15 +165,18 @@ async def test_names_then_organization_then_the_user_row_without_waiting() -> No
         ("name", "alpha"),
         ("name", "delta"),
         ("organization", account.organization.id),
-        ("user", True),
+        ("user", "nowait"),
         ("release", None),
     ]
 
 
 async def test_a_busy_user_row_lets_everything_go_waits_for_it_and_starts_again() -> None:
     """The writer holding the user row may be waiting for the organization this
-    holds, so the phase rolls back and waits for the row holding nothing."""
-    account = _Account(busy=lambda call: call == 1, personal=[_base("alpha")])
+    holds, so the phase rolls back and waits for the row in a savepoint that
+    holds nothing else."""
+    account = _Account(
+        user_row=lambda call, _nowait: _BUSY if call == 1 else None, personal=[_base("alpha")]
+    )
 
     await account.lock()
 
@@ -152,48 +184,67 @@ async def test_a_busy_user_row_lets_everything_go_waits_for_it_and_starts_again(
         ("savepoint", None),
         ("name", "alpha"),
         ("organization", account.organization.id),
-        ("user busy", account.user_id),
+        ("user", _BUSY),
         ("rollback", None),
         ("savepoint", None),
-        ("user", False),
+        ("user", "wait"),
         ("rollback", None),
         ("savepoint", None),
         ("name", "alpha"),
         ("organization", account.organization.id),
-        ("user", True),
+        ("user", "nowait"),
         ("release", None),
     ]
 
 
-async def test_a_user_row_busy_at_every_attempt_refuses_and_deletes_nothing() -> None:
-    account = _Account(busy=lambda _call: True)
+async def test_rows_still_busy_when_the_time_is_up_refuse_without_waiting_again() -> None:
+    """Busy at every attempt: once the time is up the deletion refuses at once,
+    rather than waiting for a row it would not use."""
+    account = _Account(user_row=lambda _call, nowait: _BUSY if nowait else None)
+    # Read for the deadline, then after each busy attempt.
+    clock = iter([0.0, 1.0, 11.0])
 
-    with pytest.raises(ConcurrentChangeError) as refused:
+    with (
+        patch("app.services.user.time.monotonic", side_effect=lambda: next(clock)),
+        pytest.raises(ConcurrentChangeError) as refused,
+    ):
         await account.lock()
 
-    assert refused.value.details == {
-        "user_id": account.user_id,
-        "attempts": _ACCOUNT_LOCK_ATTEMPTS,
-    }
-    assert account.order.count(("user busy", account.user_id)) == _ACCOUNT_LOCK_ATTEMPTS
+    assert refused.value.details == {"user_id": account.user_id}
+    assert account.user_steps() == [("user", _BUSY), ("user", "wait"), ("user", _BUSY)]
     assert account.order[-1] == ("rollback", None)
 
 
+async def test_a_deadlock_while_waiting_for_the_rows_is_one_more_round() -> None:
+    """The wait takes the rows one after another and can meet a writer taking
+    two of them the other way round; Postgres aborts the wait, not the deletion."""
+    outcomes = iter([_BUSY, _DEADLOCK, None])
+    account = _Account(user_row=lambda _call, _nowait: next(outcomes))
+
+    locked = await account.lock()
+
+    assert locked.user is account.user
+    assert account.user_steps() == [("user", _BUSY), ("user", _DEADLOCK), ("user", "nowait")]
+
+
 async def test_a_database_error_other_than_a_busy_row_is_not_retried() -> None:
-    account = _Account()
-    serialization = _db_error("40001")
-
-    async def failing(*_args: object, **_kwargs: object) -> object:
-        raise serialization
-
-    account._user = failing  # type: ignore[method-assign]
+    account = _Account(user_row=lambda _call, _nowait: "40001")
 
     with pytest.raises(DBAPIError) as raised:
         await account.lock()
 
-    assert raised.value is serialization
-    assert account.order[-1] == ("rollback", None)
-    assert ("savepoint", None) not in account.order[1:]
+    assert getattr(raised.value.orig, "sqlstate", None) == "40001"
+    assert account.order.count(("savepoint", None)) == 1
+
+
+async def test_a_database_error_while_waiting_other_than_a_deadlock_is_raised() -> None:
+    account = _Account(user_row=lambda call, _nowait: _BUSY if call == 1 else "40001")
+
+    with pytest.raises(DBAPIError) as raised:
+        await account.lock()
+
+    assert getattr(raised.value.orig, "sqlstate", None) == "40001"
+    assert account.user_steps() == [("user", _BUSY), ("user", "40001")]
 
 
 async def test_heirs_and_the_app_admin_set_are_taken_without_waiting_after_the_organization() -> (
@@ -207,18 +258,13 @@ async def test_heirs_and_the_app_admin_set_are_taken_without_waiting_after_the_o
     assert locked.heirs == frozenset({heir})
     assert locked.app_admins == (account.user_id,)
     rows = account.order[account.order.index(("organization", account.organization.id)) + 1 :]
-    assert rows[0] == ("app admins", True)
-    assert set(rows[1:3]) == {("user", True), ("heir", True)}
+    assert rows[0] == ("app admins", "nowait")
+    assert set(rows[1:3]) == {("user", "nowait"), ("heir", "nowait")}
     assert rows[3] == ("release", None)
 
 
 async def test_a_vanished_user_is_not_found_and_the_savepoint_is_rolled_back() -> None:
-    account = _Account()
-
-    async def gone(*_args: object, **_kwargs: object) -> None:
-        account.order.append(("user", None))
-
-    account._user = gone  # type: ignore[method-assign]
+    account = _Account(user_row=lambda _call, _nowait: "gone")
 
     with pytest.raises(NotFoundError):
         await account.lock()
@@ -235,7 +281,7 @@ async def test_a_base_found_only_under_the_locks_is_taken_without_waiting() -> N
         ("savepoint", None),
         ("name", "kept"),
         ("organization", account.organization.id),
-        ("user", True),
+        ("user", "nowait"),
         ("try name", "late"),
         ("release", None),
     ]
@@ -251,24 +297,9 @@ async def test_a_base_found_under_the_locks_on_a_busy_name_refuses() -> None:
     assert account.order[-1] == ("rollback", None)
 
 
-def _locked(user: object, *, app_admins: tuple[uuid.UUID, ...] = ()) -> _LockedAccount:
-    return _LockedAccount(user=user, heirs=frozenset(), app_admins=app_admins)  # type: ignore[arg-type]
-
-
-async def test_admin_delete_locks_the_admin_set_inside_the_phase_and_refuses_the_last() -> None:
-    target = SimpleNamespace(id=uuid.uuid4(), is_app_admin=True)
-    service = UserService(MagicMock())
-    lock = AsyncMock(return_value=_locked(target, app_admins=(target.id,)))
-
-    with (
-        patch.object(service, "_lock_account", new=lock),
-        patch.object(service, "_delete_locked", new=AsyncMock()) as deleted,
-        pytest.raises(AuthorizationError),
-    ):
-        await service.admin_delete(target.id, acting_admin_id=uuid.uuid4())
-
-    lock.assert_awaited_once_with(target.id, app_admins=True)
-    deleted.assert_not_awaited()
+def _locked(user_id: uuid.UUID, *, is_app_admin: bool) -> _LockedAccount:
+    user = cast(User, SimpleNamespace(id=user_id, is_app_admin=is_app_admin))
+    return _LockedAccount(user=user, heirs=frozenset(), app_admins=())
 
 
 async def test_delete_non_admins_skips_a_promoted_or_vanished_account_under_its_own_lock() -> None:
@@ -277,8 +308,8 @@ async def test_delete_non_admins_skips_a_promoted_or_vanished_account_under_its_
     let go of while it waits for the organization (#2682)."""
     ordinary, promoted, vanished = (SimpleNamespace(id=uuid.uuid4()) for _ in range(3))
     outcomes = {
-        ordinary.id: _locked(SimpleNamespace(id=ordinary.id, is_app_admin=False)),
-        promoted.id: _locked(SimpleNamespace(id=promoted.id, is_app_admin=True)),
+        ordinary.id: _locked(ordinary.id, is_app_admin=False),
+        promoted.id: _locked(promoted.id, is_app_admin=True),
     }
 
     async def lock(user_id: uuid.UUID) -> _LockedAccount:
@@ -298,7 +329,6 @@ async def test_delete_non_admins_skips_a_promoted_or_vanished_account_under_its_
 
     assert removed == 1
     deleted.assert_awaited_once_with(outcomes[ordinary.id])
-    users.get_by_id_for_update.assert_not_called()
 
 
 @pytest.mark.parametrize(
@@ -340,6 +370,6 @@ async def test_a_failed_ingest_holds_its_organization_and_uploader_before_its_st
 
     assert order == expected
     if organization_id is not None:
-        assert organizations.hold_key_share.await_args.args[1] == organization_id
+        organizations.hold_key_share.assert_awaited_once_with(ANY, organization_id)
     if uploader_id is not None:
-        assert users.hold_key_share.await_args.args[1] == [uploader_id]
+        users.hold_key_share.assert_awaited_once_with(ANY, [uploader_id])

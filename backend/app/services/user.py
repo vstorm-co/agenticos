@@ -2,6 +2,7 @@ import asyncio
 import contextlib
 import logging
 import secrets
+import time
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 from uuid import UUID
@@ -68,11 +69,14 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-_ACCOUNT_LOCK_ATTEMPTS = 5
-"""How many times an account deletion's lock phase starts again before refusing."""
+_ACCOUNT_LOCK_SECONDS = 10.0
+"""How long an account deletion's lock phase keeps starting again before refusing."""
 
 _LOCK_NOT_AVAILABLE = "55P03"
 """The SQLSTATE a `NOWAIT` lock raises when another transaction holds the row."""
+
+_DEADLOCK_DETECTED = "40P01"
+"""The SQLSTATE of the statement Postgres aborts to break a deadlock."""
 
 
 @dataclass(frozen=True)
@@ -182,7 +186,8 @@ class UserService:
         to keep admins, since `delete` does not re-read the flag (#1139). The
         row lock is the deletion's own (`_lock_account`), not one taken before
         it: a user row held across that lock phase is one it cannot let go of
-        while it waits for the organization (#2682).
+        while it waits for the organization (#2682). The accounts already deleted
+        in this transaction stay locked to its end; nothing else writes for them.
         """
         removed = 0
         for candidate in await user_repo.list_non_admins(self.db):
@@ -769,6 +774,10 @@ class UserService:
 
         With `app_admins`, the deployment's app-admin set first, in its own id
         order (#1208) - the rows `admin_delete` decides the last-admin rule on.
+        `FOR NO KEY UPDATE`, which serialises two deletions and a promotion as
+        `FOR UPDATE` did, but not against the `FOR KEY SHARE` every write
+        referencing an administrator takes: with `nowait` those would refuse a
+        deletion unrelated to them.
         With `nowait`, a row another transaction holds raises (SQLSTATE `55P03`)
         instead of waiting: see `_lock_account`.
 
@@ -807,7 +816,7 @@ class UserService:
         """
         administrators: list[UUID] = []
         if app_admins:
-            administrators = await user_repo.app_admin_ids_for_update(self.db, nowait=nowait)
+            administrators = await user_repo.app_admin_ids_for_no_key_update(self.db, nowait=nowait)
         heir_ids: set[UUID] = set()
         for org in await organization_repo.list_created_by(self.db, user_id):
             if org.is_personal:
@@ -957,15 +966,20 @@ class UserService:
         the user first. Holding either while waiting for the other deadlocks with
         one of the two kinds, so when a user row is busy the savepoint is rolled
         back - which releases the names, the organization and any user row it
-        took - the busy rows are waited for holding nothing, and the phase starts
-        again. Blocking happens only on the names holding nothing, on the
-        organization holding only names, and on the user rows holding nothing.
+        took - the user rows are waited for in a savepoint of their own, released
+        again, and the phase starts over. That wait takes the rows one after
+        another, so it can still deadlock with a writer taking two of them the
+        other way round; Postgres then aborts the wait, which is one more round,
+        not a failure. Whatever the transaction held before this call it keeps
+        throughout - nothing for a request, the earlier accounts for
+        `delete_non_admins`.
 
         Raises:
             NotFoundError: No such user.
             ConcurrentChangeError: A base created during the deletion has a name
-                something else is working on right now, or a user row was taken
-                again at every attempt. Nothing was deleted.
+                something else is working on right now, or the user rows were
+                still being taken by other writers after `_ACCOUNT_LOCK_SECONDS`.
+                Nothing was deleted.
         """
         # Created with the account (`create_personal_org`) and never afterwards,
         # so a read before the locks is the set the locks need.
@@ -974,7 +988,8 @@ class UserService:
             for org in await organization_repo.list_created_by(self.db, user_id)
             if org.is_personal
         ]
-        for _ in range(_ACCOUNT_LOCK_ATTEMPTS):
+        deadline = time.monotonic() + _ACCOUNT_LOCK_SECONDS
+        while True:
             try:
                 async with self.db.begin_nested():
                     names = await self._teardown_names(user_id, personal_orgs)
@@ -989,18 +1004,23 @@ class UserService:
                     raise
             else:
                 return locked
+            if time.monotonic() >= deadline:
+                raise ConcurrentChangeError(
+                    message=(
+                        "This account is being changed by something else right now. "
+                        "Nothing was deleted; try again."
+                    ),
+                    details={"user_id": user_id},
+                )
             # Whoever holds a user row may be waiting for the organization just
             # let go of; it finishes, and only then does this try again.
-            async with self.db.begin_nested() as waiting:
-                await self._lock_user_rows(user_id, app_admins=app_admins, nowait=False)
-                await waiting.rollback()
-        raise ConcurrentChangeError(
-            message=(
-                "This account is being changed by something else right now. Nothing was "
-                "deleted; try again."
-            ),
-            details={"user_id": user_id, "attempts": _ACCOUNT_LOCK_ATTEMPTS},
-        )
+            try:
+                async with self.db.begin_nested() as waiting:
+                    await self._lock_user_rows(user_id, app_admins=app_admins, nowait=False)
+                    await waiting.rollback()
+            except DBAPIError as failed:
+                if getattr(failed.orig, "sqlstate", None) != _DEADLOCK_DETECTED:
+                    raise
 
     async def _hold_late_names(
         self, user_id: UUID, personal_orgs: list[Organization], names: set[str]
@@ -1111,9 +1131,9 @@ class UserService:
             raise AuthorizationError(
                 message="You cannot suspend your own account; ask another app admin to."
             )
-        # The same set `admin_delete` locks, and first for the same reason. This
-        # route updates a `users` row and then audits; a concurrent delete locks
-        # every app-admin row and then audits. Without a shared first lock the
+        # The same set `admin_delete` locks, and first among the user rows for the
+        # same reason. This route updates a `users` row and then audits; a
+        # concurrent delete locks every app-admin row and then audits. Without a shared first lock the
         # two take the target row and the admin set in opposite orders, and the
         # deadlock aborts a whole PATCH rather than one notification (#1763).
         #

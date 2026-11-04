@@ -2,8 +2,10 @@
 
 import asyncio
 import threading
+from contextlib import AbstractContextManager
+from typing import cast
 from unittest.mock import AsyncMock, MagicMock, patch
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 
@@ -14,8 +16,18 @@ from app.core.exceptions import (
     BadRequestError,
     NotFoundError,
 )
+from app.db.models.user import User
 from app.schemas.user import UserCreate, UserUpdate
 from app.services.user import _DUMMY_HASH, UserService, _LockedAccount
+
+
+def _lock_phase(
+    service: UserService, user: MockUser, *, app_admins: tuple[UUID, ...] = ()
+) -> AbstractContextManager[AsyncMock]:
+    """`_lock_account` patched to hold `user`: what it locks is tested on its own
+    in `tests/test_account_delete_lock_order.py`."""
+    locked = _LockedAccount(user=cast(User, user), heirs=frozenset(), app_admins=app_admins)
+    return patch.object(service, "_lock_account", new=AsyncMock(return_value=locked))
 
 
 class MockUser:
@@ -516,13 +528,7 @@ class TestUserServicePostgresql:
             patch("app.services.user.personal_data_repo") as mock_personal,
             patch("app.services.user.PersonalDataService") as mock_purge,
             patch("app.services.user.GeneratedMediaService") as mock_generated,
-            patch.object(
-                user_service,
-                "_lock_account",
-                new=AsyncMock(
-                    return_value=_LockedAccount(user=mock_user, heirs=frozenset(), app_admins=())
-                ),
-            ),
+            _lock_phase(user_service, mock_user),
             patch.object(user_service, "_release_owned_rows", new=AsyncMock()),
         ):
             mock_personal.attachment_paths_of = AsyncMock(return_value=[])
@@ -547,13 +553,7 @@ class TestUserServicePostgresql:
             patch("app.services.user.PersonalDataService") as mock_purge,
             patch("app.services.user.GeneratedMediaService") as mock_generated,
             patch("app.services.user.spawn_after_commit") as spawned,
-            patch.object(
-                user_service,
-                "_lock_account",
-                new=AsyncMock(
-                    return_value=_LockedAccount(user=mock_user, heirs=frozenset(), app_admins=())
-                ),
-            ),
+            _lock_phase(user_service, mock_user),
             patch.object(user_service, "_release_owned_rows", new=AsyncMock()),
         ):
             mock_repo.delete = AsyncMock(return_value=mock_user)
@@ -587,13 +587,7 @@ class TestUserServicePostgresql:
             patch("app.services.user.personal_data_repo") as mock_personal,
             patch("app.services.user.PersonalDataService") as mock_purge,
             patch("app.services.user.GeneratedMediaService") as mock_generated,
-            patch.object(
-                user_service,
-                "_lock_account",
-                new=AsyncMock(
-                    return_value=_LockedAccount(user=mock_user, heirs=frozenset(), app_admins=())
-                ),
-            ),
+            _lock_phase(user_service, mock_user),
             patch.object(user_service, "_release_owned_rows", new=released),
         ):
             mock_repo.delete = AsyncMock(return_value=mock_user)
@@ -726,15 +720,7 @@ class TestUserServicePostgresql:
             patch("app.services.user.personal_data_repo") as mock_personal,
             patch("app.services.user.PersonalDataService") as mock_purge,
             patch("app.services.user.GeneratedMediaService") as mock_generated,
-            patch.object(
-                user_service,
-                "_lock_account",
-                new=AsyncMock(
-                    return_value=_LockedAccount(
-                        user=mock_user, heirs=frozenset(), app_admins=(uuid4(), uuid4())
-                    )
-                ),
-            ),
+            _lock_phase(user_service, mock_user, app_admins=(uuid4(), uuid4())),
             patch.object(user_service, "_release_owned_rows", new=AsyncMock()),
         ):
             mock_personal.attachment_paths_of = AsyncMock(return_value=[])
@@ -756,15 +742,7 @@ class TestUserServicePostgresql:
         whichever request re-reads it after the other commits is refused."""
         with (
             patch("app.services.user.user_repo") as mock_repo,
-            patch.object(
-                user_service,
-                "_lock_account",
-                new=AsyncMock(
-                    return_value=_LockedAccount(
-                        user=mock_user, heirs=frozenset(), app_admins=(mock_user.id,)
-                    )
-                ),
-            ),
+            _lock_phase(user_service, mock_user, app_admins=(mock_user.id,)),
             patch.object(user_service, "_release_owned_rows", new=AsyncMock()),
         ):
             mock_repo.delete = AsyncMock()
@@ -790,15 +768,7 @@ class TestUserServicePostgresql:
             patch("app.services.user.personal_data_repo") as mock_personal,
             patch("app.services.user.PersonalDataService") as mock_purge,
             patch("app.services.user.GeneratedMediaService") as mock_generated,
-            patch.object(
-                user_service,
-                "_lock_account",
-                new=AsyncMock(
-                    return_value=_LockedAccount(
-                        user=mock_user, heirs=frozenset(), app_admins=(lone_admin,)
-                    )
-                ),
-            ),
+            _lock_phase(user_service, mock_user, app_admins=(lone_admin,)),
             patch.object(user_service, "_release_owned_rows", new=AsyncMock()),
         ):
             mock_personal.attachment_paths_of = AsyncMock(return_value=[])

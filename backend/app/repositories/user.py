@@ -80,18 +80,20 @@ async def hold_key_share(db: AsyncSession, user_ids: Sequence[UUID]) -> None:
 
     `FOR KEY SHARE` is exactly what a foreign key referencing these rows takes
     when it is inserted, so this acquires nothing extra - it only acquires it
-    *earlier*. That is the whole purpose: `record_audit` holds a
+    *earlier*. The first purpose: `record_audit` holds a
     transaction-scoped lock on the audit chain, and a write that reaches for a
     user row afterwards closes an ABBA cycle against `app_admin_ids_for_update`,
     which takes its rows first and the chain second (#1763). A caller about to
     write notifications inside an audited transaction takes them here instead,
-    before the chain lock, so every transaction takes user rows first.
+    before the chain lock, so every transaction takes user rows first. The
+    second: a failed ingest's settlement takes its uploader before the
+    document row, the order an account deletion takes them in (#2682).
 
     `ORDER BY id`, for the same reason `app_admin_ids_for_update` orders: two
     callers taking overlapping sets take them in the same order and one waits
     rather than both holding half. Key share conflicts with nothing another
     audited write does, so this queues only against an exclusive locker - an
-    admin deletion, which is the other side of the cycle.
+    admin update or the deleted account's own row.
     """
     if not user_ids:
         return
@@ -101,6 +103,24 @@ async def hold_key_share(db: AsyncSession, user_ids: Sequence[UUID]) -> None:
         .order_by(User.id)
         .with_for_update(read=True, key_share=True)
     )
+
+
+async def app_admin_ids_for_no_key_update(db: AsyncSession, *, nowait: bool = False) -> list[UUID]:
+    """`app_admin_ids_for_update`, one step weaker: `FOR NO KEY UPDATE`.
+
+    It still conflicts with another lock of the set and with a promotion's
+    update, so it serialises what the set's lock is for (#1208), but not with
+    the `FOR KEY SHARE` every write referencing an administrator takes. Account
+    deletion takes the set this way and without waiting (#2682), where the
+    stronger lock would refuse it for traffic that has nothing to do with it.
+    """
+    result = await db.execute(
+        select(User.id)
+        .where(User.is_app_admin.is_(True))
+        .order_by(User.id)
+        .with_for_update(key_share=True, nowait=nowait)
+    )
+    return list(result.scalars().all())
 
 
 async def app_admin_ids_for_update(db: AsyncSession, *, nowait: bool = False) -> list[UUID]:

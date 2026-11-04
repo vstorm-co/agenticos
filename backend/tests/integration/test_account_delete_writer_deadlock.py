@@ -31,6 +31,7 @@ from app.db.models.knowledge_base import KnowledgeBase
 from app.db.models.organization import Organization
 from app.db.models.rag_document import DocumentStatus, RAGDocument
 from app.db.models.user import User
+from app.repositories import organization_repo, user_repo
 from app.services import rag_document as rag_document_service
 from app.services.rag_document import RAGDocumentService
 from app.services.user import UserService
@@ -100,15 +101,6 @@ async def account(engine: AsyncEngine) -> _Account:
     return opened
 
 
-async def _key_share(
-    db: AsyncSession, model: type[User] | type[Organization], row_id: uuid.UUID
-) -> None:
-    """What a foreign key referencing the row takes when the row is inserted."""
-    await db.execute(
-        select(model.id).where(model.id == row_id).with_for_update(read=True, key_share=True)
-    )
-
-
 async def _create_a_base_while_the_account_is_deleted(
     account: _Account, *, locks: Callable[[AsyncSession], Awaitable[None]]
 ) -> str:
@@ -138,7 +130,7 @@ async def test_a_base_the_owner_creates_organization_first_is_torn_down_with_the
     locks and removes it with the account."""
 
     async def organization_then_user(writer: AsyncSession) -> None:
-        await _key_share(writer, Organization, account.organization_id)
+        await organization_repo.hold_key_share(writer, account.organization_id)
 
     name = await _create_a_base_while_the_account_is_deleted(account, locks=organization_then_user)
 
@@ -156,12 +148,26 @@ async def test_a_row_the_owner_creates_user_first_does_not_deadlock_either(
     nothing, and starts again."""
 
     async def user_first(writer: AsyncSession) -> None:
-        await _key_share(writer, User, account.user_id)
+        await user_repo.hold_key_share(writer, [account.user_id])
 
     name = await _create_a_base_while_the_account_is_deleted(account, locks=user_first)
 
     assert await account.gone()
     assert await account.bases_named(name) == []
+
+
+def _then_let_the_deletion_in[**P, R](
+    write: Callable[P, Awaitable[R]], account: _Account, deleting: list[asyncio.Task[None]]
+) -> Callable[P, Awaitable[R]]:
+    """`write`, then the account's deletion started and waiting on a lock."""
+
+    async def written(*args: P.args, **kwargs: P.kwargs) -> R:
+        result = await write(*args, **kwargs)
+        deleting.append(asyncio.create_task(account.delete()))
+        await _until_a_statement_waits_on_a_lock(account.factory)
+        return result
+
+    return written
 
 
 class _FailedIngest:
@@ -171,18 +177,12 @@ class _FailedIngest:
     def __init__(self, account: _Account, monkeypatch: pytest.MonkeyPatch) -> None:
         self.account = account
         self.deleting: list[asyncio.Task[None]] = []
-        update_status = rag_document_service.rag_document_repo.update_status
-
-        async def update_then_let_the_deletion_in(
-            db: AsyncSession, *args: object, **kwargs: object
-        ):
-            updated = await update_status(db, *args, **kwargs)  # type: ignore[arg-type]
-            self.deleting.append(asyncio.create_task(account.delete()))
-            await _until_a_statement_waits_on_a_lock(account.factory)
-            return updated
-
         monkeypatch.setattr(
-            rag_document_service.rag_document_repo, "update_status", update_then_let_the_deletion_in
+            rag_document_service.rag_document_repo,
+            "update_status",
+            _then_let_the_deletion_in(
+                rag_document_service.rag_document_repo.update_status, account, self.deleting
+            ),
         )
 
     async def settle(self, document_id: uuid.UUID) -> None:
@@ -242,3 +242,40 @@ async def test_a_failed_ingest_the_person_uploaded_to_a_shared_organization_sett
         assert settled.status == DocumentStatus.ERROR.value
         assert settled.initiated_by_user_id is None
     assert not [r for r in caplog.records if "Failed to notify" in r.getMessage()]
+
+
+async def test_writes_for_an_administrator_do_not_refuse_an_unrelated_deletion(
+    account: _Account,
+) -> None:
+    """`admin_delete` locks the app-admin set (#1208) without waiting, so it must
+    not take it in a mode every write referencing an administrator conflicts
+    with: back-to-back writes for one admin would refuse every deletion."""
+    async with account.factory() as s:
+        administrator = _user()
+        administrator.is_app_admin = True
+        s.add(administrator)
+        await s.commit()
+    stop = asyncio.Event()
+
+    async def write_for_the_administrator() -> None:
+        while not stop.is_set():
+            async with account.factory() as writer:
+                await user_repo.hold_key_share(writer, [administrator.id])
+                await asyncio.sleep(0.03)
+                await writer.commit()
+
+    writers = [asyncio.create_task(write_for_the_administrator()) for _ in range(3)]
+    try:
+        await asyncio.sleep(0.05)
+        async with account.factory() as s:
+            await asyncio.wait_for(
+                UserService(s).admin_delete(account.user_id, acting_admin_id=administrator.id),
+                timeout=15,
+            )
+            await s.commit()
+            discard_deferred(s)
+    finally:
+        stop.set()
+        await asyncio.gather(*writers)
+
+    assert await account.gone()
