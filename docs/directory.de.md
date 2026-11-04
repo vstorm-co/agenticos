@@ -1,5 +1,5 @@
 ---
-source_sha: "1a1c979b89c1"
+source_sha: "c3245b98d9c8"
 ---
 
 # Verzeichnisanmeldung und Gruppen { #directory-sign-in-and-groups }
@@ -143,7 +143,9 @@ und unabhängige Gruppenmitgliedschaften bleiben erhalten.
 
 Gewährt keine Quelle Zugang,
 wird die Mitgliedschaft regulär entfernt. Kann Discord nicht antworten oder läuft
-das Netzwerkbudget von zehn Sekunden ab, bleibt die Mitgliedschaft bis zur nächsten Anmeldung erhalten; ihre Rolle behält aber nur Befugnisse, die sowohl die bisherige Rolle als auch eine mögliche ungelesene Freigabe rechtfertigen. Manuelle Mitgliedschaften und Eigentümer werden nie übernommen.
+das Netzwerkbudget von zehn Sekunden ab, übernimmt Discord die erhaltene Mitgliedschaft, damit der periodische Abgleich sie ohne erneute Anmeldung prüft. Die Rolle behält nur Befugnisse, die sowohl die bisherige Rolle als auch eine mögliche ungelesene Freigabe rechtfertigen. Alle Organisationen einer Anmeldung teilen dieses Netzwerkbudget.
+
+Manuelle Mitgliedschaften und Eigentümer werden nie übernommen.
 Das Audit protokolliert `directory.member_taken_over` und
 `directory.member_handed_to_discord`. Gruppenmitgliedschaften behalten ihre eigene
 Quelle und ihre Abgleichregeln.

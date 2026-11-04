@@ -25,6 +25,7 @@ The sync runs in the sign-in's own transaction: the memberships it writes commit
 with the session they are for, or not at all.
 """
 
+import asyncio
 import logging
 from collections import defaultdict
 from collections.abc import Iterable
@@ -138,6 +139,7 @@ class DirectorySyncService:
                 provider=provider,
             )
 
+        handover_deadline = asyncio.get_running_loop().time() + 10
         for membership in await member_repo.list_for_user_by_source(
             self.db, user_id=user_id, source=MembershipSource.DIRECTORY
         ):
@@ -146,7 +148,7 @@ class DirectorySyncService:
             if membership.role == OrgRoleName.OWNER:
                 continue
             grant = await DiscordRoleSync(self.db).membership_grant(
-                membership.organization_id, user_id
+                membership.organization_id, user_id, deadline=handover_deadline
             )
             # Discord was read without a row lock. Re-read ownership under the lock:
             # an administrator may have taken this membership over during that call.
@@ -162,33 +164,28 @@ class DirectorySyncService:
                 or membership.role == OrgRoleName.OWNER
             ):
                 continue
-            if grant.uncertain:
-                bounded = retained_role(membership.role, grant.role, grant.unread_roles)
-                if bounded is not None and bounded != membership.role:
-                    previous = membership.role
-                    await member_repo.update_role(self.db, membership, role=bounded)
-                    await self._audit(
-                        "directory.role_changed",
-                        user_id,
-                        membership.organization_id,
-                        {
-                            "from": previous,
-                            "to": bounded,
-                            "provider": provider,
-                            "reason": "discord_unconfirmed",
-                        },
-                    )
-                continue
-            if grant.role is not None:
+            role = (
+                retained_role(membership.role, grant.role, grant.unread_roles)
+                if grant.uncertain
+                else grant.role
+            )
+            if role is not None:
                 previous = membership.role
+                # Discord owns even an uncertain handover so its sweep retries it
+                # without requiring another directory sign-in.
                 await member_repo.update_role(
-                    self.db, membership, role=grant.role, source=MembershipSource.DISCORD
+                    self.db, membership, role=role, source=MembershipSource.DISCORD
                 )
                 await self._audit(
                     "directory.member_handed_to_discord",
                     user_id,
                     membership.organization_id,
-                    {"from": previous, "to": grant.role, "provider": provider},
+                    {
+                        "from": previous,
+                        "to": role,
+                        "provider": provider,
+                        "certainty": "unconfirmed" if grant.uncertain else "confirmed",
+                    },
                 )
                 continue
             await end_membership(self.db, membership)

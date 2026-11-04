@@ -272,3 +272,35 @@ async def test_a_directory_membership_deleted_during_discord_lookup_is_not_ended
     ):
         await DirectorySyncService(_db()).apply(user, [], provider="oidc")
     end.assert_not_awaited()
+
+
+async def test_directory_handovers_share_one_deadline_across_organizations():
+    from app.services.channels.discord_roles import DiscordMembershipGrant
+
+    user = uuid.uuid4()
+    with (
+        patch(
+            "app.services.directory.sync.directory_mapping_repo.list_matching",
+            AsyncMock(return_value=[]),
+        ),
+        patch(
+            "app.services.directory.sync.member_repo.list_for_user_by_source",
+            AsyncMock(
+                return_value=[
+                    MagicMock(organization_id=uuid.uuid4(), role="member") for _ in range(3)
+                ]
+            ),
+        ),
+        patch("app.services.directory.sync.member_repo.get", AsyncMock(return_value=None)),
+        patch(
+            "app.services.directory.sync.group_repo.organizations_with_directory_groups",
+            AsyncMock(return_value=[]),
+        ),
+        patch(
+            "app.services.channels.discord_roles.DiscordRoleSync.membership_grant",
+            AsyncMock(return_value=DiscordMembershipGrant(None, frozenset())),
+        ) as lookup,
+    ):
+        await DirectorySyncService(_db()).apply(user, [], provider="oidc")
+    deadlines = [call.kwargs["deadline"] for call in lookup.await_args_list]
+    assert len(deadlines) == 3 and len(set(deadlines)) == 1

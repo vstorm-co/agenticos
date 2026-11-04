@@ -191,13 +191,13 @@ class DiscordRoleSync:
         return not unknown
 
     async def membership_grant(
-        self, organization_id: UUID, user_id: UUID
+        self, organization_id: UUID, user_id: UUID, *, deadline: float | None = None
     ) -> DiscordMembershipGrant:
         """Read a directory leaver's remaining Discord grant before any membership lock.
 
         Group-only mappings cannot admit somebody. Unread admission mappings keep
-        the current membership until Discord can answer; the whole network phase
-        gets ten seconds of the sign-in budget.
+        the membership with bounded authority until Discord can answer. Directory
+        handovers share their caller's deadline; a standalone read gets ten seconds.
         """
         mappings = [
             mapping
@@ -218,7 +218,11 @@ class DiscordRoleSync:
         if not mappings or not accounts:
             return DiscordMembershipGrant(None, frozenset())
         held, unknown = await self._held(
-            mappings, accounts, {}, user_id=user_id, deadline=asyncio.get_running_loop().time() + 10
+            mappings,
+            accounts,
+            {},
+            user_id=user_id,
+            deadline=deadline if deadline is not None else asyncio.get_running_loop().time() + 10,
         )
         roles = [
             mapping.role

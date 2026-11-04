@@ -1,5 +1,5 @@
 ---
-source_sha: "1a1c979b89c1"
+source_sha: "c3245b98d9c8"
 ---
 
 # Logowanie katalogowe i grupy { #directory-sign-in-and-groups }
@@ -132,7 +132,9 @@ zgód aplikacji ani niezależnych członkostw w grupach.
 
 Brak obu uprawnień powoduje
 zwykłe usunięcie. Gdy Discord nie odpowiada lub wyczerpie się dziesięciosekundowy
-budżet sieciowy, członkostwo zostaje do kolejnego logowania, ale jego rola zachowuje tylko uprawnienia uzasadnione poprzednią rolą i możliwym nieodczytanym nadaniem. Członkostwa
+budżet sieciowy, zachowane członkostwo przechodzi pod kontrolę Discorda, aby zadanie okresowe ponowiło sprawdzenie bez kolejnego logowania. Rola zachowuje tylko uprawnienia uzasadnione poprzednią rolą i możliwym nieodczytanym nadaniem. Wszystkie organizacje przy jednym logowaniu dzielą ten sam budżet sieciowy.
+
+Członkostwa
 ręczne i właściciele nigdy nie są przejmowani. Audyt zapisuje
 `directory.member_taken_over` i `directory.member_handed_to_discord`.
 Członkostwa w grupach zachowują własne źródło i reguły synchronizacji.

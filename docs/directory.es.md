@@ -1,5 +1,5 @@
 ---
-source_sha: "1a1c979b89c1"
+source_sha: "c3245b98d9c8"
 ---
 
 # Inicio de sesión con el directorio y grupos { #directory-sign-in-and-groups }
@@ -135,7 +135,8 @@ de aplicaciones y pertenencias independientes a grupos.
 
 Sin acceso por ninguna
 fuente, se elimina normalmente. Si Discord no responde o se agota el presupuesto
-de red de diez segundos, la pertenencia se conserva hasta otro inicio de sesión, pero su rol mantiene solo autoridad justificada por el rol anterior y una posible concesión sin leer.
+de red de diez segundos, Discord asume la pertenencia conservada para que la tarea periódica repita la comprobación sin otro inicio de sesión. Su rol mantiene solo autoridad justificada por el rol anterior y una posible concesión sin leer. Todas las organizaciones de un inicio de sesión comparten ese presupuesto de red.
+
 Nunca se asumen pertenencias manuales ni propietarios. La auditoría registra
 `directory.member_taken_over` y `directory.member_handed_to_discord`.
 Las pertenencias a grupos conservan su propia fuente y reglas de sincronización.

@@ -1174,11 +1174,17 @@ class TestDirectoryDiscordHandover:
             assert await _groups(db, bob) == {}
         else:
             assert membership.id == membership_id
-            assert (membership.source, membership.role) == (
-                ("discord", "member") if outcome == "grant" else ("directory", "member")
-            )
+            assert (membership.source, membership.role) == (("discord", "member"))
             assert key.revoked_at is None and grant.revoked_at is None
             assert await _groups(db, bob) == {finance.id: "manual"}
+            if outcome == "unreadable":
+                assert (org.id, bob.id) in await discord_role_mapping_repo.synced_people(db)
+                discord.down = False
+                await DiscordRoleSync(db).sync(org.id, bob.id)
+                assert await _membership(db, org, bob) is None
+                await db.refresh(key)
+                await db.refresh(grant)
+                assert key.revoked_at is not None and grant.revoked_at is not None
 
     @pytest.mark.parametrize(
         "source,role", [("manual", "viewer"), ("discord", "owner"), ("directory", "owner")]
@@ -1216,9 +1222,13 @@ async def test_directory_departure_rechecks_a_membership_changed_during_discord_
     original = DiscordRoleSync.membership_grant
 
     async def lookup(
-        sync: DiscordRoleSync, organization_id: uuid.UUID, user_id: uuid.UUID
+        sync: DiscordRoleSync,
+        organization_id: uuid.UUID,
+        user_id: uuid.UUID,
+        *,
+        deadline: float | None = None,
     ) -> DiscordMembershipGrant:
-        result = await original(sync, organization_id, user_id)
+        result = await original(sync, organization_id, user_id, deadline=deadline)
         looked_up.set()
         await proceed.wait()
         return result
