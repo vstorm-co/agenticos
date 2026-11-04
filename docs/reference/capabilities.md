@@ -1473,6 +1473,21 @@ changed. A task past `timeout_minutes`, and one the person stops, has its whole
 process group stopped. Detached also means a task is not cut at the sandbox
 service's ceiling for one command.
 
+**What it changed, as a diff.** At `edit` in a conversation, the workspace is
+snapshotted before the task and again after it, into a git store of the task's own
+under `/tmp` - never the repository a person cloned, whose index and history stay
+untouched. The panel then lists the files the task added, changed, removed or
+renamed, then each file's hunks, with **Copy patch**; a task that changed nothing
+says so. A failed or timed-out task keeps its diff too. Left out: `.agenticos/`,
+toolchain folders such as `.git`, `.venv` and `node_modules`, and files over 1 MiB.
+The patch is kept up to 256 KiB and 500 files, and marked where it was cut.
+
+**Who reads the diff.** It is stored with the conversation and read with the
+transcript's own access, so whoever can read the chat sees it; deleting the chat
+deletes it. In a sandbox several chats share, a task running at the same time as
+another sees that one's edits in its diff too. Reverting a task is not offered
+yet, and a task on this computer records no diff.
+
 **A conversation's tasks continue one session.** The harness's session id is kept
 in the sandbox beside the work, under `.agenticos/coding-agent/`, one per
 conversation, so the second task in a chat knows what the first one read - and a

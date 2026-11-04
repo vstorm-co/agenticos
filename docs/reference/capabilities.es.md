@@ -1,5 +1,5 @@
 ---
-source_sha: "9990e62dfb03"
+source_sha: "bbac8a46e45a"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -1571,6 +1571,22 @@ terminar, el resultado de la llamada contiene la respuesta, cada paso y los arch
 que cambió. Una tarea que pasa de `timeout_minutes`, y una que la persona detiene,
 ve detenido todo su grupo de procesos. En segundo plano significa también que una
 tarea no se corta en el límite del servicio de sandbox para un comando.
+
+**Lo que cambió, como diff.** Con `edit` en una conversación, el workspace se
+captura antes de la tarea y otra vez después, en un almacén git propio de la tarea
+bajo `/tmp` - nunca en el repositorio que alguien clonó, cuyo índice e historial
+quedan intactos. El panel enumera entonces los archivos que la tarea añadió,
+cambió, eliminó o renombró, y después los fragmentos de cada archivo, con
+**Copiar parche**; una tarea que no cambió nada lo dice. Una tarea fallida o que
+agotó su tiempo también conserva su diff. Quedan fuera `.agenticos/`, las carpetas
+de herramientas como `.git`, `.venv` y `node_modules`, y los archivos de más de
+1 MiB. El parche se guarda hasta 256 KiB y 500 archivos, y se marca donde se cortó.
+
+**Quién lee el diff.** Se guarda con la conversación y se lee con el mismo acceso
+que su transcripción, así que lo ve quien pueda leer el chat; borrar el chat lo
+borra. En una sandbox que comparten varios chats, una tarea que se ejecuta a la vez
+que otra ve también los cambios de esa en su diff. Todavía no se ofrece revertir
+una tarea, y una tarea en este ordenador no registra diff.
 
 **Las tareas de una conversación continúan una sesión.** El id de sesión del harness
 se guarda en la sandbox junto al trabajo, en `.agenticos/coding-agent/`, uno por
