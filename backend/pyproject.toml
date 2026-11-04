@@ -797,6 +797,7 @@ include = [
     "app/services/email/templates.py",
     "app/services/ingestion_config.py",
     "app/services/rag/failures.py",
+    "app/services/rag_scratch.py",
     # Who hears that a run stopped on its budget or parked on an approval. The
     # emails are the only signal for a run nobody was watching — a Slack
     # mention, a schedule — so a silent failure here is indistinguishable from
@@ -1495,6 +1496,7 @@ include = [
     # what leaves a worker for a stored column the whole organization reads —
     # the same judgement the vault and the exception handlers are held to.
     "app/services/rag/failures.py",
+    "app/services/rag_scratch.py",
     # Who hears that a run stopped on its budget or parked on an approval. The
     # emails are the only signal for a run nobody was watching — a Slack
     # mention, a schedule — so a silent failure here is indistinguishable from

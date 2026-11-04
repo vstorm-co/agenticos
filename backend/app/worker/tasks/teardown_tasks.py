@@ -385,6 +385,24 @@ async def sweep_teardown_reservations() -> dict[str, int]:
     return {"swept": len(stale), "dropped": dropped}
 
 
+async def sweep_rag_scratch() -> dict[str, int]:
+    """Remove the parse scratch copies no ingest job will read again (#2681).
+
+    The job that owns a copy removes it when it ends; this is for the copy whose
+    job was lost, whose upload rolled back after writing it, or that a
+    deployment from before #2681 left - a deleted document's content, otherwise
+    on the media volume for good.
+    """
+    from app.db.session import get_worker_db_context
+    from app.services import rag_scratch
+
+    async with get_worker_db_context() as db:
+        swept = await rag_scratch.sweep_stale(db, now=datetime.now(UTC))
+    if swept.removed:
+        logger.info("rag_scratch_swept", extra={"removed": swept.removed, "kept": swept.kept})
+    return {"removed": swept.removed, "kept": swept.kept}
+
+
 async def run_external_state_cleanup(job: CleanupExternalState) -> dict[str, int]:
     """The job `queue_external_state_cleanup` queues."""
     return await cleanup_external_state(

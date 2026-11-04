@@ -763,6 +763,16 @@ async def is_present(db: AsyncSession, doc_id: UUID) -> bool:
     return await db.scalar(select(RAGDocument.id).where(RAGDocument.id == doc_id)) is not None
 
 
+async def processing_among(db: AsyncSession, doc_ids: Sequence[UUID]) -> set[UUID]:
+    """Which of these documents are still `processing` - a job may yet parse them."""
+    result = await db.execute(
+        select(RAGDocument.id).where(
+            RAGDocument.id.in_(doc_ids), RAGDocument.status == DocumentStatus.PROCESSING
+        )
+    )
+    return set(result.scalars().all())
+
+
 async def delete_unfiled_with_vectors(db: AsyncSession, scope: CollectionScope) -> DeletedDocuments:
     """Delete the unfiled rows a base takes under its name - its tenant's.
 

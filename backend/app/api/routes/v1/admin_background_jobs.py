@@ -68,7 +68,11 @@ async def list_background_jobs(
 async def retry_background_job(
     job_id: UUID, service: BackgroundJobSvc, admin: CurrentAppAdmin
 ) -> Any:
-    """Give a dead job a fresh set of attempts."""
+    """Give a dead job a fresh set of attempts.
+
+    A workspace transfer and a document ingest are refused with 400: a transfer is
+    started again from the project, and a document is retried from its knowledge base.
+    """
     return await service.retry(job_id, actor_user_id=admin.id)
 
 

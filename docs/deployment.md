@@ -626,7 +626,9 @@ the same day as a card.
 
 Three actions, each audited with who took it:
 
-- **Retry** gives a dead job a fresh set of attempts.
+- **Retry** gives a dead job a fresh set of attempts. A dead document ingest
+  is refused: its parse copy went with it, so retry the document from its
+  knowledge base, which parses the stored file again.
 - **Cancel** withdraws a job nobody has started.
 - **Resume** lets workers claim a paused kind again.
 
@@ -636,7 +638,7 @@ out of memory. Every owner is told in the app and by email, and the
 notification cannot be switched off - work of that kind piles up until one of
 them resumes it. A pause names the organization whose jobs caused it, and the
 kind keeps running for every other. Retry the dead jobs only once the cause is fixed, or they die
-the same way. The settings are in
+the same way - a dead document ingest from its knowledge base instead. The settings are in
 [Configuration](configuration.md#background-work).
 
 ## Recap

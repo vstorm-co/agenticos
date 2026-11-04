@@ -104,6 +104,7 @@ def production() -> Handlers:
                 jobs.SWEEP_TEARDOWN_RESERVATIONS,
                 _each_tick(teardown_tasks.sweep_teardown_reservations),
             ),
+            Handler(jobs.SWEEP_RAG_SCRATCH, _each_tick(teardown_tasks.sweep_rag_scratch)),
             Handler(jobs.APPLY_RETENTION, _each_tick(rag_tasks.apply_retention)),
             Handler(jobs.SWEEP_NOTIFICATIONS, _each_tick(notification_tasks.sweep_notifications)),
             Handler(jobs.SWEEP_BACKGROUND_JOBS, _each_tick(sweep_background_jobs)),

@@ -1,5 +1,5 @@
 ---
-source_sha: "dba106dd80cc"
+source_sha: "d6e3bf78d15a"
 ---
 
 # Samo wdrożenie { #the-deployment-itself }
@@ -665,7 +665,9 @@ pokazuje ten sam dzień jako kartę.
 
 Trzy akcje, każda zapisywana w audycie z tym, kto ją wykonał:
 
-- **Retry** daje martwemu zadaniu nowy zestaw prób.
+- **Retry** daje martwemu zadaniu nowy zestaw prób. Martwy ingest dokumentu
+  jest odrzucany: jego kopia do parsowania zniknęła razem z nim, więc ponów
+  dokument z jego bazy wiedzy, co ponownie parsuje zapisany plik.
 - **Cancel** wycofuje zadanie, którego nikt jeszcze nie zaczął.
 - **Resume** pozwala workerom znowu pobierać wstrzymany rodzaj.
 
@@ -675,7 +677,7 @@ parsowanie kończy się brakiem pamięci. Każdy właściciel dostaje powiadomie
 aplikacji i e-mailem, którego nie da się wyłączyć - praca tego rodzaju gromadzi
 się, dopóki któryś z nich jej nie wznowi. Pauza podaje organizację, której
 zadania ją wywołały, a dla pozostałych ten rodzaj działa dalej. Martwe zadania ponawiaj dopiero po
-usunięciu przyczyny, inaczej zginą tak samo. Ustawienia są w
+usunięciu przyczyny, inaczej zginą tak samo - martwy ingest dokumentu ponawiaj z jego bazy wiedzy. Ustawienia są w
 [Konfiguracji](configuration.md#background-work).
 
 ## Podsumowanie { #recap }
