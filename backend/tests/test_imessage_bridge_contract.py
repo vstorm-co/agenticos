@@ -9,6 +9,7 @@ import pytest
 from pydantic import BaseModel, SecretStr, ValidationError
 
 from app.core.exceptions import BadRequestError, ExternalServiceError
+from app.core.permissions import AuthContext
 from app.core.vault import VaultScope, seal, unseal
 from app.db.models.channel_bot import ChannelBot
 from app.schemas.channel_bot import ChannelBotCreate, ChannelBotUpdate
@@ -310,6 +311,7 @@ async def test_replacing_the_mac_also_revokes_its_old_callback_credential(
     service = ChannelBotService(AsyncMock(), organization_id=org)
     monkeypatch.setattr(service, "get", AsyncMock(return_value=bot))
     monkeypatch.setattr(service, "_check_transcription", AsyncMock())
+    monkeypatch.setattr(bots.discord_role_mapping_repo, "list_for_bot", AsyncMock(return_value=[]))
     monkeypatch.setattr(service, "_reopen_stream", lambda _bot: None)
     write = AsyncMock(return_value=bot)
     monkeypatch.setattr(bots.channel_bot_repo, "update", write)
@@ -318,7 +320,9 @@ async def test_replacing_the_mac_also_revokes_its_old_callback_credential(
         if change == "server"
         else ChannelBotUpdate(token="new-bridge-password")
     )
-    await service.update(bot.id, patch)
+    await service.update(
+        bot.id, patch, AuthContext(user_id=uuid4(), organization_id=org, role="owner")
+    )
     fields = write.await_args.kwargs["update_data"]
     assert "authorization_generation" in fields
     replacement = unseal(
