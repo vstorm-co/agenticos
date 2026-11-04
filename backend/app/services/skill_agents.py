@@ -638,7 +638,9 @@ class SkillAgentService:
     async def _removal(self, ctx: AuthContext, skill: Skill, agent_id: UUID) -> _Removal | None:
         """What taking the skill out of one agent writes, or `None` for an unreadable spec.
 
-        The agent is locked, as every change to it is.
+        A served spec that does not name the skill is left alone however it reads; one
+        that names it and no longer parses may bind it, so it refuses. The agent is
+        locked, as every change to it is.
         """
         agent = await self.registry.get(ctx, agent_id, perm=Perm.AGENTS_EDIT, for_update=True)
         draft = _parsed(agent.draft_spec)
@@ -655,6 +657,8 @@ class SkillAgentService:
         serving: list[AgentEnvironment] = []
         for environment in environments:
             served = versions[environment.version_id].spec
+            if str(skill.id) not in json.dumps(served):
+                continue
             if _parsed(served) is None:
                 return None
             if lines_of(served, skill.id):

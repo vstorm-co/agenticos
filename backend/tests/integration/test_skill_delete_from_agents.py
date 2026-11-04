@@ -111,6 +111,36 @@ class TestRemovingAndDeleting:
         await db.refresh(theirs)
         assert theirs.draft_spec == _spec(skill)
 
+    async def test_an_unreadable_environment_that_never_named_it_does_not_stop_it(self, db):
+        """Only a spec that names the skill can bind it; another one is not changed."""
+        ctx = await _owner(db)
+        skill = await _skill(db, ctx)
+        agent = await _serving(db, ctx, "Clerk", {"name": "Clerk"})
+        agent.draft_spec = _spec(skill)
+        broken = AgentVersion(
+            agent_id=agent.id,
+            organization_id=ctx.organization_id,
+            version=2,
+            spec={"name": "Clerk", "skill_ids": ["not-an-id"]},
+        )
+        db.add(broken)
+        await db.flush()
+        db.add(
+            AgentEnvironment(
+                organization_id=ctx.organization_id,
+                agent_id=agent.id,
+                name="staging",
+                version_id=broken.id,
+            )
+        )
+        await db.flush()
+
+        await SkillService(db).delete(ctx, skill.id, remove_from_agents=True)
+
+        assert await _gone(db, skill)
+        await db.refresh(agent)
+        assert AgentSpec.model_validate(agent.draft_spec).skill_ids == []
+
 
 class TestRefusingTheWholeDelete:
     async def test_an_agent_the_caller_cannot_change_refuses_it(self, db):

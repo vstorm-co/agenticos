@@ -772,13 +772,15 @@ class TestStartingAndSteps:
             ),
         ],
     )
-    async def test_the_estimate_prices_the_start_and_leaves_the_checks_unpriced(
+    async def test_the_estimate_offers_a_limit_with_room_for_every_attempt_and_its_check(
         self, server: FastMCP, api: MagicMock, arguments: dict[str, Any], sent: dict[str, Any]
     ) -> None:
+        """`per_round_usd` already holds the check, so the limit is the agent wizard's."""
         api.request = _responder(
             {
                 ("POST", f"{SESSIONS}/estimate"): {
                     "total_usd": "0.012",
+                    "check_usd": "0.04",
                     "per_round_usd": "0.05",
                     "max_iterations": 3,
                 }
@@ -788,8 +790,8 @@ class TestStartingAndSteps:
         estimate = await _call(server, "estimate_skill_improvement", skill_id=SKILL, **arguments)
 
         assert _sent(api, "POST", f"{SESSIONS}/estimate") == sent
-        assert "limit_usd" not in estimate
-        assert estimate["per_round_usd"] == "0.05"
+        assert estimate["limit_usd"] == "0.17"
+        assert (estimate["per_round_usd"], estimate["check_usd"]) == ("0.05", "0.04")
 
     async def test_a_second_open_session_on_the_same_line_is_refused_with_a_link(
         self, server: FastMCP, api: MagicMock
