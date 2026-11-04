@@ -709,9 +709,10 @@ waits at Changes is priced again: Next step checks the changes on the newest
 version.
 
 The [Architect](console.md#the-assistant) reads a skill's agents, versions and
-sessions. It starts a session, runs or retries a step, accepts a result, ends a
-session or moves an agent to another version only when you ask, each through an
-approval card.
+sessions, and the pinned agents and forks main has moved past. It starts a
+session, runs or retries a step, accepts a result, ends a session, moves an agent
+to another version or catches a pinned agent or a fork up with main only when you
+ask, each through an approval card.
 
 ## Skills or knowledge?
 

@@ -266,3 +266,13 @@ def test_the_skill_start_screen_is_not_read_as_a_session(instructions: str) -> N
     """`new` is no session id, so the start screen reads the skill and prices a session."""
     assert "`/skills/<skill id>/improve/new` is the screen that starts improving" in instructions
     assert "`get_skill`, then `estimate_skill_improvement`" in instructions
+
+
+def test_catching_up_waits_for_the_person_and_offers_dropping_a_fork_only_when_main_holds(
+    instructions: str,
+) -> None:
+    rule = _bullet(instructions, "Catching up happens only on request")
+    assert "`start_skill_update_check` on their yes" in rule
+    assert "with its `check_id`" in rule
+    assert "use `return_to_main` on their yes" in rule
+    assert "`return_skill_fork_to_main` moves its agents back" in rule
