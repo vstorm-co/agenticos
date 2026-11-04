@@ -21,6 +21,7 @@ import pytest
 from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.agent_run import RunStatus, RunSurface
+from app.services.access import publisher_context
 from app.services.channels.base import (
     ROOM_HANDLES,
     channel_key,
@@ -1129,6 +1130,195 @@ class TestWhatARoomRunsAs:
             )
 
         assert execute.call_args.args[0].user_id == creator
+
+
+class TestAStrangerInAPrivateChatRunsAsTheAgent:
+    """A line that answers customers with no account runs their turn as the agent.
+
+    Not as the binding's creator, and not as anybody with a role: the context
+    holds the agent's own grants and nothing a member holds. The caller decides
+    that this is such a turn, so everything here is `as_agent=True` against a
+    sender the platform cannot name.
+    """
+
+    @staticmethod
+    def _exposure() -> MagicMock:
+        return MagicMock(
+            created_by_user_id=uuid.uuid4(), organization_id=uuid.uuid4(), agent_id=uuid.uuid4()
+        )
+
+    async def _answered(self, exposure: MagicMock, *, standing=None, **kwargs):
+        """What the runner was given for an `answer_default` turn, and `publisher_context`."""
+        agent = MagicMock(id=exposure.agent_id, slug="support")
+        with (
+            patch("app.services.channels.mentions.member_repo") as members,
+            patch("app.services.access.member_repo", new=members),
+            patch("app.services.channels.mentions.agent_exposure_repo") as exposures,
+            patch("app.services.channels.mentions.AgentRunnerService") as runner_cls,
+            patch(
+                "app.services.channels.mentions.publisher_context",
+                new=AsyncMock(
+                    side_effect=AssertionError("a stranger's turn is not the publisher's")
+                ),
+            ) as publisher,
+        ):
+            members.get_active = AsyncMock(side_effect=standing or _standing({}))
+            exposures.list_active_for_bot = AsyncMock(return_value=[(exposure, agent)])
+            execute = AsyncMock(return_value=("hello", MagicMock()))
+            runner_cls.return_value.execute = execute
+
+            turn = await ChannelAgentRouter(MagicMock()).answer_default(
+                "what is the refund window",
+                platform="whatsapp",
+                organization_id=exposure.organization_id,
+                bot_id=_BOT_ID,
+                admit_unlinked=True,
+                **kwargs,
+            )
+
+        return execute.call_args, publisher, turn
+
+    @pytest.mark.security
+    async def test_an_unlinked_customer_in_a_private_chat_runs_as_the_agent(self):
+        exposure, identity_id = self._exposure(), uuid.uuid4()
+
+        call, publisher, turn = await self._answered(
+            exposure, user_id=None, channel_identity_id=identity_id, as_agent=True
+        )
+
+        ctx = call.args[0]
+        assert ctx.principal_agent_id == exposure.agent_id
+        assert ctx.user_id is None
+        assert ctx.channel_identity_id == identity_id
+        assert ctx.organization_id == exposure.organization_id
+        assert turn.acts_as_agent is True
+        publisher.assert_not_awaited()
+
+    @pytest.mark.security
+    async def test_a_departed_member_in_a_private_chat_runs_as_the_agent_too(self):
+        exposure, departed = self._exposure(), uuid.uuid4()
+
+        call, publisher, _turn = await self._answered(
+            exposure,
+            user_id=departed,
+            channel_identity_id=uuid.uuid4(),
+            as_agent=True,
+            standing=_standing({departed: None}),
+        )
+
+        ctx = call.args[0]
+        assert ctx.principal_agent_id == exposure.agent_id
+        assert ctx.user_id is None
+        publisher.assert_not_awaited()
+
+    @pytest.mark.security
+    async def test_a_linked_member_on_a_public_line_runs_as_themselves(self):
+        exposure, member = self._exposure(), uuid.uuid4()
+
+        call, publisher, turn = await self._answered(
+            exposure,
+            user_id=member,
+            as_agent=True,
+            standing=_standing({member: MagicMock(role=OrgRoleName.OPERATOR)}),
+        )
+
+        ctx = call.args[0]
+        assert ctx.user_id == member
+        assert ctx.role == OrgRoleName.OPERATOR
+        assert ctx.principal_agent_id is None
+        assert turn.acts_as_agent is False
+        assert call.kwargs["acts_for_sender"] is True
+        publisher.assert_not_awaited()
+
+    @pytest.mark.security
+    async def test_a_stranger_is_asked_no_parked_question(self):
+        call, _publisher, _turn = await self._answered(
+            self._exposure(), user_id=None, as_agent=True
+        )
+
+        assert call.kwargs["parks_questions"] is False
+        assert call.kwargs["acts_for_sender"] is False
+
+    @pytest.mark.security
+    async def test_an_unlinked_room_sender_still_runs_under_the_binding(self):
+        """Another way into the same turn: a room admits its unlinked senders under
+        the binding, and nothing about a public line changes that."""
+        creator = uuid.uuid4()
+        exposure = MagicMock(
+            created_by_user_id=creator, organization_id=uuid.uuid4(), agent_id=uuid.uuid4()
+        )
+        agent = MagicMock(id=exposure.agent_id, slug="support")
+        with (
+            patch("app.services.channels.mentions.member_repo") as members,
+            patch("app.services.access.member_repo", new=members),
+            patch("app.services.channels.mentions.agent_exposure_repo") as exposures,
+            patch("app.services.channels.mentions.AgentRunnerService") as runner_cls,
+            patch(
+                "app.services.channels.mentions.publisher_context",
+                new=AsyncMock(wraps=publisher_context),
+            ) as publisher,
+        ):
+            members.get_active = AsyncMock(
+                side_effect=_standing({creator: MagicMock(role=OrgRoleName.BUILDER)})
+            )
+            exposures.list_active_for_bot = AsyncMock(return_value=[(exposure, agent)])
+            execute = AsyncMock(return_value=("hello", MagicMock()))
+            runner_cls.return_value.execute = execute
+
+            turn = await ChannelAgentRouter(MagicMock()).answer_default(
+                "what is the refund window",
+                platform="slack",
+                organization_id=exposure.organization_id,
+                bot_id=_BOT_ID,
+                admit_unlinked=True,
+                user_id=None,
+                as_agent=False,
+            )
+
+        publisher.assert_awaited_once()
+        ctx = execute.call_args.args[0]
+        assert ctx.user_id == creator
+        assert ctx.principal_agent_id is None
+        assert turn.acts_as_agent is False
+
+    @pytest.mark.security
+    async def test_a_mention_from_a_stranger_runs_as_the_agent_too(self):
+        exposure = self._exposure()
+        agent = MagicMock(id=exposure.agent_id, slug="support")
+        with (
+            patch("app.services.channels.mentions.member_repo") as members,
+            patch("app.services.access.member_repo", new=members),
+            patch("app.services.channels.mentions.agent_repo") as agents,
+            patch("app.services.channels.mentions.agent_exposure_repo") as exposures,
+            patch("app.services.channels.mentions.AgentRunnerService") as runner_cls,
+            patch(
+                "app.services.channels.mentions.publisher_context",
+                new=AsyncMock(
+                    side_effect=AssertionError("a stranger's turn is not the publisher's")
+                ),
+            ),
+        ):
+            members.get_active = AsyncMock(return_value=None)
+            agents.get_by_slug = AsyncMock(return_value=agent)
+            exposures.get_for_bot = AsyncMock(return_value=exposure)
+            execute = AsyncMock(return_value=("hello", MagicMock()))
+            runner_cls.return_value.execute = execute
+
+            turn = await ChannelAgentRouter(MagicMock()).answer(
+                "@support hello",
+                platform="whatsapp",
+                organization_id=exposure.organization_id,
+                bot_id=_BOT_ID,
+                user_id=None,
+                admit_unlinked=True,
+                as_agent=True,
+            )
+
+        ctx = execute.call_args.args[0]
+        assert ctx.principal_agent_id == exposure.agent_id
+        assert ctx.user_id is None
+        assert execute.call_args.kwargs["parks_questions"] is False
+        assert turn.acts_as_agent is True
 
 
 class TestTheThreadAConversationIsKeyedOn:

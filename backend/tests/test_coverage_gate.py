@@ -74,6 +74,7 @@ PLATFORM_MODULES = (
     "app/services/audit.py",
     "app/services/impersonation.py",
     "app/services/channels/mentions.py",
+    "app/services/channels/public_line.py",
     "app/services/channels/handback.py",
     "app/services/channels/continuation.py",
     "app/services/parked_runs.py",

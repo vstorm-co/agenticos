@@ -67,7 +67,9 @@ async def _created(**fields: object) -> dict:
         ) as repo_create,
         patch("app.services.channel_bot.spawn_after_commit"),
     ):
-        await ChannelBotService(MagicMock(), organization_id=uuid.uuid4()).create(data)
+        await ChannelBotService(MagicMock(), organization_id=uuid.uuid4()).create(
+            data, actor_user_id=None
+        )
     return repo_create.call_args.kwargs
 
 
@@ -84,7 +86,7 @@ async def _updated(bot: ChannelBot, data: ChannelBotUpdate) -> dict:
         patch("app.services.channel_bot.spawn_after_commit"),
     ):
         service = ChannelBotService(MagicMock(), organization_id=bot.organization_id)
-        await service.update(bot.id, data)
+        await service.update(bot.id, data, actor_user_id=None)
     return repo_update.call_args.kwargs["update_data"]
 
 

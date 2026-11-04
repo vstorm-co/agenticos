@@ -61,7 +61,7 @@ from app.db.models.chat_file import ChatFile
 from app.db.models.organization import Organization
 from app.repositories import agent_exposure_repo, agent_repo, member_repo
 from app.services import generated_media, visual_render
-from app.services.access import publisher_context
+from app.services.access import agent_context, publisher_context
 from app.services.agent_runner import AgentRunnerService, RunStream
 from app.services.channels.attachments import MAX_OUTBOUND_BYTES
 from app.services.channels.base import (
@@ -405,6 +405,7 @@ class ChannelAgentRouter:
         user_id: UUID | None,
         channel_identity_id: UUID | None = None,
         admit_unlinked: bool = False,
+        as_agent: bool = False,
         conversation_id: UUID | None = None,
         platform_chat_id: str | None = None,
         memory_room_key: str | None = None,
@@ -433,8 +434,11 @@ class ChannelAgentRouter:
                 nobody has linked an account to it.
             admit_unlinked: Whether a sender with no linked account may run under
                 the binding's creator instead of being refused. True in a room,
-                false in a private conversation - the caller decides, because
-                only the caller knows which this is.
+                false in a private conversation unless the line answers strangers -
+                the caller decides, because only the caller knows which this is.
+            as_agent: The unlinked sender is a stranger on a line that answers them,
+                so the turn runs as the agent itself rather than under the binding's
+                creator. Ignored for a sender who is a member.
             conversation_id: The channel session's conversation, so a thread
                 keeps its history.
             channel_directory: This channel, ready to be asked about, for an
@@ -500,7 +504,7 @@ class ChannelAgentRouter:
             )
 
         ctx = sender or await self._binding_context(
-            exposure, channel_identity_id=channel_identity_id
+            exposure, channel_identity_id=channel_identity_id, as_agent=as_agent
         )
 
         produced: list[OutgoingAttachment] = []
@@ -521,9 +525,10 @@ class ChannelAgentRouter:
             stream=stream,
             surface=_SURFACES.get(platform, RunSurface.API),
             # A question is asked here as buttons and answered later (#2064) - of
-            # a linked member. An unlinked sender's turn runs as the publisher,
-            # and a question parked for them could be answered only by the
-            # publisher, never by the stranger who was asked; it is declined.
+            # a linked member. An unlinked sender's turn runs as the publisher in a
+            # room and as the agent on a line that answers strangers, and a question
+            # parked for them could be answered only by somebody else, never by the
+            # stranger who was asked; it is declined.
             parks_questions=sender is not None,
             # A `/btw` answer is not part of the thread's transcript (#2087).
             conversation_id=None if is_asked_aside() else conversation_id,
@@ -542,7 +547,7 @@ class ChannelAgentRouter:
             # through that person's own MCP accounts, and the room reads the
             # answer exactly as it reads the question. `sender`, not `user_id`,
             # for the same reason - a former member's turn runs under the
-            # publisher, whose accounts must not be reached for.
+            # publisher, or as the agent, and neither has accounts to reach for.
             acts_for_sender=sender is not None,
             # The binding is what let this message through, so it is also what
             # the run is attributed to and bounded by. Resolving it here and
@@ -586,6 +591,7 @@ class ChannelAgentRouter:
         user_id: UUID | None,
         channel_identity_id: UUID | None = None,
         admit_unlinked: bool = False,
+        as_agent: bool = False,
         conversation_id: UUID | None = None,
         platform_chat_id: str | None = None,
         memory_room_key: str | None = None,
@@ -634,7 +640,7 @@ class ChannelAgentRouter:
             admit_unlinked=admit_unlinked,
         )
         ctx = sender or await self._binding_context(
-            exposure, channel_identity_id=channel_identity_id
+            exposure, channel_identity_id=channel_identity_id, as_agent=as_agent
         )
         produced: list[OutgoingAttachment] = []
         refused: list[str] = []
@@ -654,9 +660,10 @@ class ChannelAgentRouter:
             stream=stream,
             surface=_SURFACES.get(platform, RunSurface.API),
             # A question is asked here as buttons and answered later (#2064) - of
-            # a linked member. An unlinked sender's turn runs as the publisher,
-            # and a question parked for them could be answered only by the
-            # publisher, never by the stranger who was asked; it is declined.
+            # a linked member. An unlinked sender's turn runs as the publisher in a
+            # room and as the agent on a line that answers strangers, and a question
+            # parked for them could be answered only by somebody else, never by the
+            # stranger who was asked; it is declined.
             parks_questions=sender is not None,
             # A `/btw` answer is not part of the thread's transcript (#2087).
             conversation_id=None if is_asked_aside() else conversation_id,
@@ -670,8 +677,8 @@ class ChannelAgentRouter:
             # a room as much as in a direct message: the account is this
             # message's author, never the thread's. `sender`, not `user_id`: a
             # linked account whose person has left the organization runs under
-            # the binding's publisher, and the publisher's accounts are not the
-            # room's to use.
+            # the binding's publisher - or as the agent - and neither one's accounts
+            # are the room's to use.
             acts_for_sender=sender is not None,
             message_history=message_history,
             channel_author_context="" if incoming is None else authored_prompt("", incoming),
@@ -808,14 +815,26 @@ class ChannelAgentRouter:
         return None
 
     async def _binding_context(
-        self, exposure: AgentExposure, *, channel_identity_id: UUID | None
+        self, exposure: AgentExposure, *, channel_identity_id: UUID | None, as_agent: bool
     ) -> AuthContext:
-        """The context a turn nobody can name runs under: the binding creator's.
+        """The context a turn nobody can name runs under.
 
-        One line, because the rule and its `viewer` fallback are the same ones a
-        widget and a hosted page answer with - see `access.publisher_context`, which
-        is where the reasoning now lives so the two cannot drift apart (#640).
+        A stranger on a line that answers them (`as_agent`) runs as the agent
+        itself: no member, no role, only the agent's own grants. Nothing is read to
+        build it, so there is no creator standing to borrow.
+
+        Anybody else nobody can name - a room's unlinked sender - runs as the
+        binding creator, in one line, because the rule and its `viewer` fallback are
+        the same ones a widget and a hosted page answer with - see
+        `access.publisher_context`, which is where the reasoning now lives so the
+        two cannot drift apart (#640).
         """
+        if as_agent:
+            return agent_context(
+                organization_id=exposure.organization_id,
+                agent_id=exposure.agent_id,
+                channel_identity_id=channel_identity_id,
+            )
         return await publisher_context(
             self.db,
             organization_id=exposure.organization_id,

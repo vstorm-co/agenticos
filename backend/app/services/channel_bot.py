@@ -15,6 +15,7 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.audit import record_audit
 from app.core.background import spawn_after_commit
 from app.core.exceptions import BadRequestError, ExternalServiceError, NotFoundError
 from app.core.field_errors import refused_field
@@ -44,6 +45,13 @@ from app.services.channels import (
     connection_state,
     get_adapter,
     inbound_webhook_url,
+)
+from app.services.channels.public_line import (
+    PLATFORMS_THAT_ANSWER_STRANGERS,
+    answers_unlinked_on,
+    bot_answers_unlinked_direct,
+    bot_served_spec,
+    refuse_without_ceiling,
 )
 from app.services.channels.slack_manifest import slack_manifest
 from app.services.channels.supervisor import close_inbound_stream, open_inbound_stream
@@ -260,7 +268,7 @@ class ChannelBotService:
             name=f"open_channel_stream:{bot_id}",
         )
 
-    async def create(self, data: ChannelBotCreate) -> ChannelBot:
+    async def create(self, data: ChannelBotCreate, *, actor_user_id: UUID | None) -> ChannelBot:
         """Create a new channel bot with its credentials sealed, and open its stream.
 
         A polling bot is reached over a connection this process holds, and only
@@ -272,10 +280,20 @@ class ChannelBotService:
                 not a Slack bot - accepting them would store secrets nothing
                 will ever read - or a transcription pair arrives with
                 transcription off, refused as an update refuses it rather than
-                stored as a pair that can never run.
+                stored as a pair that can never run. Also a policy that opens
+                the line to strangers on a bot that cannot take it, or with no
+                spending limit to bound it.
         """
         self._check_slack_fields(data.platform, data.slack_signing_secret, data.slack_app_token)
         self._check_discord_policy(data.platform, data.access_policy)
+        self._check_public_line(data.platform, data.access_policy)
+        opens_the_line = answers_unlinked_on(data.platform, data.access_policy.model_dump())
+        if opens_the_line:
+            # No binding yet - a bot is bound after it exists - so only the
+            # organization's cap can bound it.
+            await refuse_without_ceiling(
+                self.db, organization_id=self._org_id, spec=None, channel_bot_id=None
+            )
         if data.speech_to_text_provider is not None:
             # The schema has already made the pair whole, and refused a key
             # without one, so the provider stands for all three.
@@ -324,6 +342,8 @@ class ChannelBotService:
             step_display=data.step_display,
             rate_answers=data.rate_answers,
         )
+        if opens_the_line:
+            await self._audit_public_line(bot, answers=True, actor_user_id=actor_user_id)
         self._reopen_stream(bot)
         return bot
 
@@ -534,6 +554,45 @@ class ChannelBotService:
             raise refused_field(
                 "access_policy.discord_guild_ids", "Only Discord bots use Discord server approvals"
             )
+
+    @staticmethod
+    def _check_public_line(platform: str, policy: AccessPolicy) -> None:
+        """What only a WhatsApp bot may carry, and what the open line may not combine with.
+
+        The keys that open a line to people with no account are WhatsApp's: they
+        are refused elsewhere rather than stored as a setting that does nothing,
+        since a stored `true` reads as a promise. A line that answers strangers
+        also admits no room restriction - `group_only` would name rooms a customer's
+        private chat is not in.
+        """
+        for key in ("answer_unlinked_direct", "accept_customer_files"):
+            if platform not in PLATFORMS_THAT_ANSWER_STRANGERS and getattr(policy, key):
+                raise refused_field(
+                    f"access_policy.{key}", "Only a WhatsApp bot can answer people with no account"
+                )
+        if policy.answer_unlinked_direct and policy.mode == "group_only":
+            raise refused_field(
+                "access_policy.mode",
+                "A line that answers people with no account is not limited to groups",
+            )
+
+    async def _audit_public_line(
+        self, bot: ChannelBot, *, answers: bool, actor_user_id: UUID | None
+    ) -> None:
+        """Record that the bot started or stopped answering people with no account.
+
+        The state alone, and none of the rest of the policy: a whitelist is a list
+        of numbers.
+        """
+        await record_audit(
+            self.db,
+            actor_user_id=actor_user_id,
+            organization_id=bot.organization_id,
+            action="channel.bot.public_line_changed",
+            target_type="channel_bot",
+            target_id=str(bot.id),
+            details={"answers_unlinked": answers},
+        )
 
     async def get(self, bot_id: UUID, *, for_update: bool = False) -> ChannelBot:
         """Get one of this organization's bots; raises NotFoundError if not found.
@@ -748,9 +807,20 @@ class ChannelBotService:
             )
         return await channel_bot_repo.list_for_org(self.db, organization_id=self._org_id)
 
-    async def update(self, bot_id: UUID, data: ChannelBotUpdate) -> ChannelBot:
+    async def update(
+        self, bot_id: UUID, data: ChannelBotUpdate, *, actor_user_id: UUID | None
+    ) -> ChannelBot:
         """Update a channel bot. Only the fields the caller sent are applied;
-        an explicit null clears a Slack credential, an omission leaves it."""
+        an explicit null clears a Slack credential, an omission leaves it.
+
+        Whether the bot answers people with no account is compared before and after
+        as what it *means* (`bot_answers_unlinked_direct`: the platform can take it and
+        the policy says so), not as the stored key: a mode or `require_link` change
+        opens or closes the line with the key untouched. Opening it needs a spending
+        ceiling and is audited; closing it is audited and needs nothing. So does
+        turning a bot that answers strangers back on by sending `is_active`, as
+        `activate` does.
+        """
         # Locked from the read: every credential below is sealed at the row's
         # recorded key version, and a rotation committing between an unlocked
         # read and this write would tag the new envelopes with a version they
@@ -765,8 +835,22 @@ class ChannelBotService:
             self._check_whatsapp_update(unlocked, data)
             chosen = await self._chosen_template(unlocked, data.whatsapp_late_template, data)
         bot = await self.get(bot_id, for_update=True)
+        answered_before = bot_answers_unlinked_direct(bot)
+        answers_now = answered_before
         if data.access_policy is not None:
             self._check_discord_policy(bot.platform, data.access_policy)
+            self._check_public_line(bot.platform, data.access_policy)
+            answers_now = answers_unlinked_on(bot.platform, data.access_policy.model_dump())
+        # Turning the bot back on is the same way in as `activate`, and an update can
+        # send `is_active` as well.
+        comes_back = data.is_active is True and not bot.is_active
+        if answers_now and (not answered_before or comes_back):
+            await refuse_without_ceiling(
+                self.db,
+                organization_id=self._org_id,
+                spec=await bot_served_spec(self.db, bot.id),
+                channel_bot_id=bot.id,
+            )
         # Before `writable`, which would drop it as a NOT NULL column's sentinel:
         # a null here is somebody asking for a third state that no longer
         # exists - it used to be the pair that went null for "off" - and they are
@@ -859,6 +943,8 @@ class ChannelBotService:
             if value is not None and hasattr(value, "model_dump"):
                 update_data[field] = value.model_dump()
         updated = await channel_bot_repo.update(self.db, db_bot=bot, update_data=update_data)
+        if answers_now != answered_before:
+            await self._audit_public_line(updated, answers=answers_now, actor_user_id=actor_user_id)
         self._reopen_stream(updated)
         return updated
 
@@ -876,8 +962,20 @@ class ChannelBotService:
         )
 
     async def activate(self, bot_id: UUID) -> ChannelBot:
-        """Set is_active = True, and open the stream it is reached over."""
+        """Set is_active = True, and open the stream it is reached over.
+
+        A line that answers people with no account needs its spending ceiling again
+        on the way back: the agent's budget or the organization's cap may have gone
+        while it was off.
+        """
         bot = await self.get(bot_id)
+        if bot_answers_unlinked_direct(bot):
+            await refuse_without_ceiling(
+                self.db,
+                organization_id=self._org_id,
+                spec=await bot_served_spec(self.db, bot.id),
+                channel_bot_id=bot.id,
+            )
         activated = await channel_bot_repo.update(
             self.db, db_bot=bot, update_data={"is_active": True}
         )

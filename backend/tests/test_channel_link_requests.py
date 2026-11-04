@@ -340,7 +340,7 @@ class TestWhoIsAskedToLinkAtAll:
 
     @staticmethod
     def _bot(**policy) -> MagicMock:
-        return MagicMock(access_policy=policy or {})
+        return MagicMock(platform="whatsapp", access_policy=policy or {})
 
     def test_a_direct_message_is_still_a_conversation_with_a_person(self):
         assert ChannelMessageRouter()._admits_unlinked(_incoming(), self._bot()) is False
@@ -383,6 +383,62 @@ class TestWhoIsAskedToLinkAtAll:
         bot = MagicMock(access_policy='{"mode":"jwt_linked","require_link":false}')
 
         assert ChannelMessageRouter()._admits_unlinked(_incoming("group"), bot) is False
+
+    def test_a_direct_message_is_answered_when_the_line_is_public(self):
+        bot = self._bot(mode="open", answer_unlinked_direct=True)
+
+        assert ChannelMessageRouter()._admits_unlinked(_incoming(), bot) is True
+
+    @pytest.mark.security
+    def test_jwt_linked_wins_over_a_public_line(self):
+        bot = self._bot(mode="jwt_linked", answer_unlinked_direct=True)
+
+        assert ChannelMessageRouter()._admits_unlinked(_incoming(), bot) is False
+        assert ChannelMessageRouter()._admits_unlinked(_incoming("group"), bot) is False
+
+    @pytest.mark.security
+    def test_require_link_wins_over_a_public_line(self):
+        bot = self._bot(mode="open", require_link=True, answer_unlinked_direct=True)
+
+        assert ChannelMessageRouter()._admits_unlinked(_incoming(), bot) is False
+        assert ChannelMessageRouter()._admits_unlinked(_incoming("group"), bot) is False
+
+    def test_a_policy_stored_before_the_switch_refuses(self):
+        bot = self._bot(mode="open", require_link=False)
+
+        assert ChannelMessageRouter()._admits_unlinked(_incoming(), bot) is False
+
+    def test_the_switch_is_read_from_a_policy_stored_as_a_string(self):
+        on = MagicMock(
+            platform="whatsapp", access_policy='{"mode":"open","answer_unlinked_direct":true}'
+        )
+        linked = MagicMock(
+            platform="whatsapp",
+            access_policy='{"mode":"open","require_link":true,"answer_unlinked_direct":true}',
+        )
+
+        assert ChannelMessageRouter()._admits_unlinked(_incoming(), on) is True
+        assert ChannelMessageRouter()._admits_unlinked(_incoming(), linked) is False
+
+    @pytest.mark.security
+    def test_a_room_does_not_answer_as_the_agent(self):
+        """The switch is about a private chat. A room keeps admitting its unlinked
+        senders under the binding, whatever the switch says."""
+        on = self._bot(mode="open", answer_unlinked_direct=True)
+        off = self._bot(mode="open")
+
+        assert ChannelMessageRouter()._answers_as_agent(_incoming("group"), on) is False
+        assert ChannelMessageRouter()._answers_as_agent(_incoming("supergroup"), on) is False
+        assert ChannelMessageRouter()._answers_as_agent(_incoming(), on) is True
+        assert ChannelMessageRouter()._answers_as_agent(_incoming(), off) is False
+
+    @pytest.mark.security
+    def test_a_room_is_admitted_whether_the_switch_is_on_or_off(self):
+        for bot in (
+            self._bot(mode="open", answer_unlinked_direct=True),
+            self._bot(mode="open"),
+        ):
+            assert ChannelMessageRouter()._admits_unlinked(_incoming("group"), bot) is True
 
     async def test_identity_resolution_no_longer_refuses_on_its_own(self):
         """The refusal belonged in one place. A second one here, reached only when

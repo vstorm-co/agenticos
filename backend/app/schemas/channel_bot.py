@@ -33,6 +33,20 @@ class AccessPolicy(BaseSchema):
         description="Discord server IDs explicitly approved by the operator. Empty permits DMs only.",
     )
     require_link: bool = False
+    answer_unlinked_direct: bool = Field(
+        default=False,
+        description=(
+            "Answer a private chat from somebody with no linked account, as the agent itself. "
+            "WhatsApp only, and a mode of jwt_linked or require_link still asks for a link."
+        ),
+    )
+    accept_customer_files: bool = Field(
+        default=False,
+        description=(
+            "Take files from a customer with no linked account on a line that answers them. "
+            "WhatsApp only."
+        ),
+    )
     respond_to_broadcasts: bool = Field(
         default=False,
         description="Respond to channel-wide mentions as well as direct mentions. The platform must deliver the message to this bot.",

@@ -6,9 +6,11 @@ and its account are identifiers; the verify token answers Meta's subscription
 handshake and is sealed apart from the app secret.
 """
 
+import contextlib
 import json
 import uuid
 from datetime import UTC, datetime
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
@@ -78,7 +80,9 @@ def _row(platform: str = "whatsapp") -> ChannelBot:
     )
 
 
-async def _created(data: ChannelBotCreate, org: uuid.UUID | None = None) -> dict:
+async def _created(
+    data: ChannelBotCreate, org: uuid.UUID | None = None, actor_user_id: uuid.UUID | None = None
+) -> dict:
     """The keyword arguments `create` hands the repository."""
     with (
         patch(
@@ -90,7 +94,9 @@ async def _created(data: ChannelBotCreate, org: uuid.UUID | None = None) -> dict
             side_effect=lambda _db, coro, **_: coro.close(),
         ),
     ):
-        await ChannelBotService(MagicMock(), organization_id=org or uuid.uuid4()).create(data)
+        await ChannelBotService(MagicMock(), organization_id=org or uuid.uuid4()).create(
+            data, actor_user_id=actor_user_id
+        )
     return repo_create.call_args.kwargs
 
 
@@ -110,7 +116,7 @@ async def _updated(bot: ChannelBot, **fields: object) -> dict:
         ),
     ):
         service = ChannelBotService(MagicMock(), organization_id=bot.organization_id)
-        await service.update(bot.id, ChannelBotUpdate(**fields))
+        await service.update(bot.id, ChannelBotUpdate(**fields), actor_user_id=None)
     return repo_update.call_args.kwargs["update_data"]
 
 
@@ -594,6 +600,7 @@ class TestTheTemplateIsCheckedBeforeTheRowIsLocked:
                 ChannelBotUpdate(
                     whatsapp_late_template={"name": "late_answer", "language": "en_US"}
                 ),
+                actor_user_id=None,
             )
 
         assert calls == ["read", "meta", "locked read"]
@@ -667,3 +674,502 @@ class TestTheTemplateIsCheckedBeforeTheRowIsLocked:
         assert refused.value.details == {"code": code}
         assert ACCESS_TOKEN not in text
         assert "+48123456789" not in text
+
+
+_OTHER_PLATFORMS = ["telegram", "slack", "discord", "teams", "mattermost"]
+_PUBLIC_LINE_KEYS = ["answer_unlinked_direct", "accept_customer_files"]
+_NO_CEILING = BadRequestError(message="A bot that answers people ... needs a spending limit.")
+
+
+def _other_platform(platform: str, **overrides) -> dict:
+    fields: dict = {"platform": platform, "name": "bot", "token": "t" * 20, **overrides}
+    if platform == "teams":
+        fields.update(teams_app_id=str(uuid.uuid4()), teams_tenant_id=str(uuid.uuid4()))
+    if platform == "mattermost":
+        fields.update(api_base_url="https://chat.example.com")
+    return fields
+
+
+def _bot_with_policy(policy: dict, platform: str = "whatsapp") -> ChannelBot:
+    bot = _row(platform)
+    bot.access_policy = policy
+    return bot
+
+
+@contextlib.contextmanager
+def _ceiling(*, missing: bool):
+    """The refusal a line with no spending limit gets, or a ceiling that exists."""
+    with (
+        patch("app.services.channel_bot.bot_served_spec", new=AsyncMock(return_value=None)) as spec,
+        patch(
+            "app.services.channel_bot.refuse_without_ceiling",
+            new=AsyncMock(side_effect=_NO_CEILING if missing else None),
+        ) as refuse,
+        patch("app.services.channel_bot.record_audit", new=AsyncMock()) as audit,
+    ):
+        yield SimpleNamespace(spec=spec, refuse=refuse, audit=audit)
+
+
+async def _saved(
+    bot: ChannelBot, policy: dict | None, actor_user_id: uuid.UUID | None = None, **other: object
+) -> AsyncMock:
+    """Update `bot` through the service and return what the repository was given."""
+    fields = {} if policy is None else {"access_policy": policy}
+    fields.update(other)
+    with (
+        patch(
+            "app.services.channel_bot.channel_bot_repo.get_for_org",
+            new=AsyncMock(return_value=bot),
+        ),
+        patch(
+            "app.services.channel_bot.channel_bot_repo.update", new=AsyncMock(return_value=bot)
+        ) as repo_update,
+        patch(
+            "app.services.channel_bot.spawn_after_commit",
+            side_effect=lambda _db, coro, **_: coro.close(),
+        ),
+    ):
+        await ChannelBotService(MagicMock(), organization_id=bot.organization_id).update(
+            bot.id, ChannelBotUpdate(**fields), actor_user_id=actor_user_id
+        )
+    return repo_update
+
+
+class TestThePublicLineIsWhatsAppOnly:
+    @pytest.mark.security
+    @pytest.mark.parametrize("platform", _OTHER_PLATFORMS)
+    @pytest.mark.parametrize("key", _PUBLIC_LINE_KEYS)
+    async def test_the_keys_are_refused_on_another_platform_at_create(self, platform, key):
+        data = ChannelBotCreate(**_other_platform(platform, access_policy={key: True}))
+
+        with _ceiling(missing=False), pytest.raises(BadRequestError) as refused:
+            await _created(data)
+
+        assert refused.value.details["fields"][0]["field"] == f"access_policy.{key}"
+
+    @pytest.mark.security
+    @pytest.mark.parametrize("platform", _OTHER_PLATFORMS)
+    @pytest.mark.parametrize("key", _PUBLIC_LINE_KEYS)
+    async def test_the_keys_are_refused_on_another_platform_at_update(self, platform, key):
+        bot = _bot_with_policy({}, platform)
+
+        with _ceiling(missing=False), pytest.raises(BadRequestError) as refused:
+            await _saved(bot, {key: True})
+
+        assert refused.value.details["fields"][0]["field"] == f"access_policy.{key}"
+
+    @pytest.mark.parametrize("platform", _OTHER_PLATFORMS)
+    async def test_the_keys_off_are_what_every_other_bot_carries(self, platform):
+        data = ChannelBotCreate(**_other_platform(platform))
+
+        with _ceiling(missing=False) as seen:
+            kwargs = await _created(data)
+            await _saved(_bot_with_policy({}, platform), {"mode": "open"})
+
+        assert kwargs["access_policy"]["answer_unlinked_direct"] is False
+        assert kwargs["access_policy"]["accept_customer_files"] is False
+        seen.refuse.assert_not_awaited()
+        seen.audit.assert_not_awaited()
+
+
+class TestOpeningALineToStrangers:
+    @pytest.mark.security
+    async def test_group_only_is_refused_while_the_line_is_public_at_create(self):
+        data = ChannelBotCreate(
+            **_whatsapp(access_policy={"mode": "group_only", "answer_unlinked_direct": True})
+        )
+
+        with _ceiling(missing=False), pytest.raises(BadRequestError) as refused:
+            await _created(data)
+
+        assert refused.value.details["fields"][0]["field"] == "access_policy.mode"
+
+    @pytest.mark.security
+    async def test_group_only_is_refused_while_the_line_is_public_at_update(self):
+        with _ceiling(missing=False), pytest.raises(BadRequestError) as refused:
+            await _saved(
+                _bot_with_policy({}), {"mode": "group_only", "answer_unlinked_direct": True}
+            )
+
+        assert refused.value.details["fields"][0]["field"] == "access_policy.mode"
+
+    async def test_group_only_is_fine_while_the_line_is_not_public(self):
+        with _ceiling(missing=False):
+            repo = await _saved(_bot_with_policy({}), {"mode": "group_only"})
+
+        repo.assert_awaited_once()
+
+    @pytest.mark.security
+    async def test_turning_it_on_needs_a_ceiling(self):
+        bot = _bot_with_policy({})
+
+        with _ceiling(missing=True) as seen, pytest.raises(BadRequestError):
+            await _saved(bot, {"answer_unlinked_direct": True})
+
+        seen.refuse.assert_awaited_once()
+        assert seen.refuse.await_args.kwargs["channel_bot_id"] == bot.id
+        assert seen.refuse.await_args.kwargs["organization_id"] == bot.organization_id
+        seen.audit.assert_not_awaited()
+
+    @pytest.mark.security
+    async def test_a_refused_switch_writes_nothing(self):
+        bot = _bot_with_policy({})
+        update = AsyncMock()
+
+        with (
+            _ceiling(missing=True),
+            patch("app.services.channel_bot.channel_bot_repo.update", new=update),
+            patch(
+                "app.services.channel_bot.channel_bot_repo.get_for_org",
+                new=AsyncMock(return_value=bot),
+            ),
+            pytest.raises(BadRequestError),
+        ):
+            await ChannelBotService(MagicMock(), organization_id=bot.organization_id).update(
+                bot.id,
+                ChannelBotUpdate(access_policy={"answer_unlinked_direct": True}),
+                actor_user_id=None,
+            )
+
+        update.assert_not_awaited()
+
+    @pytest.mark.security
+    async def test_opening_the_line_by_changing_the_mode_needs_a_ceiling(self):
+        """The raw key is `True` before and after: it was the mode that closed the line,
+        and the mode that opens it."""
+        bot = _bot_with_policy({"mode": "jwt_linked", "answer_unlinked_direct": True})
+
+        with _ceiling(missing=True) as seen, pytest.raises(BadRequestError):
+            await _saved(bot, {"mode": "open", "answer_unlinked_direct": True})
+
+        seen.refuse.assert_awaited_once()
+
+    @pytest.mark.security
+    async def test_opening_the_line_by_dropping_require_link_needs_a_ceiling(self):
+        bot = _bot_with_policy(
+            {"mode": "open", "require_link": True, "answer_unlinked_direct": True}
+        )
+
+        with _ceiling(missing=True) as seen, pytest.raises(BadRequestError):
+            await _saved(
+                bot, {"mode": "open", "require_link": False, "answer_unlinked_direct": True}
+            )
+
+        seen.refuse.assert_awaited_once()
+
+    @pytest.mark.security
+    async def test_opening_the_line_is_audited_with_the_actor(self):
+        bot, actor = (
+            _bot_with_policy({"mode": "jwt_linked", "answer_unlinked_direct": True}),
+            uuid.uuid4(),
+        )
+
+        with _ceiling(missing=False) as seen:
+            await _saved(bot, {"mode": "open", "answer_unlinked_direct": True}, actor_user_id=actor)
+
+        seen.audit.assert_awaited_once()
+        assert seen.audit.await_args.kwargs == {
+            "actor_user_id": actor,
+            "organization_id": bot.organization_id,
+            "action": "channel.bot.public_line_changed",
+            "target_type": "channel_bot",
+            "target_id": str(bot.id),
+            "details": {"answers_unlinked": True},
+        }
+
+    @pytest.mark.security
+    async def test_closing_the_line_with_require_link_is_audited(self):
+        bot = _bot_with_policy({"mode": "open", "answer_unlinked_direct": True})
+
+        with _ceiling(missing=False) as seen:
+            await _saved(
+                bot,
+                {"mode": "open", "require_link": True, "answer_unlinked_direct": True},
+                actor_user_id=uuid.uuid4(),
+            )
+
+        seen.refuse.assert_not_awaited()
+        seen.audit.assert_awaited_once()
+        assert seen.audit.await_args.kwargs["details"] == {"answers_unlinked": False}
+
+    @pytest.mark.security
+    async def test_turning_it_off_needs_nothing_and_is_audited(self):
+        bot = _bot_with_policy({"mode": "open", "answer_unlinked_direct": True})
+
+        with _ceiling(missing=True) as seen:
+            await _saved(bot, {"mode": "open"}, actor_user_id=uuid.uuid4())
+
+        seen.refuse.assert_not_awaited()
+        assert seen.audit.await_args.kwargs["details"] == {"answers_unlinked": False}
+
+    @pytest.mark.security
+    @pytest.mark.parametrize(
+        ("stored", "sent"),
+        [
+            (
+                {"mode": "open", "answer_unlinked_direct": True},
+                {"mode": "open", "rate_limit_rpm": 3, "answer_unlinked_direct": True},
+            ),
+            ({"mode": "open"}, {"mode": "whitelist", "whitelist": ["x"]}),
+            ({"mode": "jwt_linked", "answer_unlinked_direct": True}, {"mode": "jwt_linked"}),
+        ],
+        ids=["still open", "still closed", "closed by the mode before and after"],
+    )
+    async def test_an_update_that_does_not_change_the_effective_state_is_not_audited(
+        self, stored, sent
+    ):
+        with _ceiling(missing=True) as seen:
+            await _saved(_bot_with_policy(stored), sent, actor_user_id=uuid.uuid4())
+
+        seen.audit.assert_not_awaited()
+        seen.refuse.assert_not_awaited()
+
+    async def test_an_update_that_sends_no_policy_touches_neither(self):
+        with _ceiling(missing=True) as seen:
+            await _saved(_bot_with_policy({"mode": "open", "answer_unlinked_direct": True}), None)
+
+        seen.audit.assert_not_awaited()
+        seen.refuse.assert_not_awaited()
+
+    @pytest.mark.security
+    async def test_a_bot_created_with_the_line_open_needs_a_ceiling_and_is_audited(self):
+        data = ChannelBotCreate(**_whatsapp(access_policy={"answer_unlinked_direct": True}))
+        actor = uuid.uuid4()
+
+        with _ceiling(missing=False) as seen:
+            await _created(data, actor_user_id=actor)
+
+        seen.refuse.assert_awaited_once()
+        assert seen.refuse.await_args.kwargs["channel_bot_id"] is None
+        assert seen.audit.await_args.kwargs["actor_user_id"] == actor
+        assert seen.audit.await_args.kwargs["details"] == {"answers_unlinked": True}
+        assert seen.audit.await_args.kwargs["action"] == "channel.bot.public_line_changed"
+
+    @pytest.mark.security
+    async def test_a_bot_created_with_the_line_open_and_no_ceiling_is_not_created(self):
+        data = ChannelBotCreate(**_whatsapp(access_policy={"answer_unlinked_direct": True}))
+        create = AsyncMock()
+
+        with (
+            _ceiling(missing=True),
+            patch("app.services.channel_bot.channel_bot_repo.create", new=create),
+            pytest.raises(BadRequestError),
+        ):
+            await ChannelBotService(MagicMock(), organization_id=uuid.uuid4()).create(
+                data, actor_user_id=None
+            )
+
+        create.assert_not_awaited()
+
+    async def test_a_bot_created_with_the_line_shut_is_neither_checked_nor_audited(self):
+        with _ceiling(missing=True) as seen:
+            await _created(ChannelBotCreate(**_whatsapp()))
+
+        seen.refuse.assert_not_awaited()
+        seen.audit.assert_not_awaited()
+
+
+class TestReactivatingALine:
+    async def _activated(self, policy: dict | str) -> tuple[AsyncMock, AsyncMock]:
+        bot = _bot_with_policy(policy)
+        bot.is_active = False
+        update = AsyncMock(return_value=bot)
+        with (
+            patch(
+                "app.services.channel_bot.channel_bot_repo.get_for_org",
+                new=AsyncMock(return_value=bot),
+            ),
+            patch("app.services.channel_bot.channel_bot_repo.update", new=update),
+            patch(
+                "app.services.channel_bot.spawn_after_commit",
+                side_effect=lambda _db, coro, **_: coro.close(),
+            ),
+        ):
+            await ChannelBotService(MagicMock(), organization_id=bot.organization_id).activate(
+                bot.id
+            )
+        return update, bot
+
+    @pytest.mark.security
+    async def test_a_line_that_answers_strangers_needs_a_ceiling_to_come_back(self):
+        with _ceiling(missing=True) as seen, pytest.raises(BadRequestError):
+            await self._activated({"mode": "open", "answer_unlinked_direct": True})
+
+        seen.refuse.assert_awaited_once()
+
+    @pytest.mark.security
+    async def test_a_refused_reactivation_leaves_the_bot_off(self):
+        update = AsyncMock()
+        bot = _bot_with_policy({"mode": "open", "answer_unlinked_direct": True})
+        bot.is_active = False
+
+        with (
+            _ceiling(missing=True),
+            patch("app.services.channel_bot.channel_bot_repo.update", new=update),
+            patch(
+                "app.services.channel_bot.channel_bot_repo.get_for_org",
+                new=AsyncMock(return_value=bot),
+            ),
+            pytest.raises(BadRequestError),
+        ):
+            await ChannelBotService(MagicMock(), organization_id=bot.organization_id).activate(
+                bot.id
+            )
+
+        update.assert_not_awaited()
+        assert bot.is_active is False
+
+    async def test_a_line_that_answers_strangers_comes_back_with_a_ceiling(self):
+        with _ceiling(missing=False) as seen:
+            update, _bot = await self._activated({"mode": "open", "answer_unlinked_direct": True})
+
+        seen.refuse.assert_awaited_once()
+        update.assert_awaited_once()
+
+    @pytest.mark.security
+    @pytest.mark.parametrize(
+        "policy",
+        [
+            {"mode": "open"},
+            {"mode": "jwt_linked", "answer_unlinked_direct": True},
+            {"mode": "open", "require_link": True, "answer_unlinked_direct": True},
+        ],
+        ids=["never public", "closed by the mode", "closed by require_link"],
+    )
+    async def test_a_line_that_does_not_answer_strangers_needs_nothing_to_come_back(self, policy):
+        with _ceiling(missing=True) as seen:
+            update, _bot = await self._activated(policy)
+
+        seen.refuse.assert_not_awaited()
+        update.assert_awaited_once()
+
+
+class TestReactivatingByUpdate:
+    """`is_active` is a column an update can send, so it is the same way back as `activate`."""
+
+    @pytest.mark.security
+    async def test_a_line_that_answers_strangers_needs_a_ceiling_to_come_back(self):
+        bot = _bot_with_policy(_PUBLIC)
+        bot.is_active = False
+
+        with _ceiling(missing=True) as seen, pytest.raises(BadRequestError):
+            await _saved(bot, None, is_active=True)
+
+        seen.refuse.assert_awaited_once()
+
+    @pytest.mark.security
+    async def test_a_refused_one_stays_off(self):
+        bot = _bot_with_policy(_PUBLIC)
+        bot.is_active = False
+        update = AsyncMock()
+
+        with (
+            _ceiling(missing=True),
+            patch("app.services.channel_bot.channel_bot_repo.update", new=update),
+            patch(
+                "app.services.channel_bot.channel_bot_repo.get_for_org",
+                new=AsyncMock(return_value=bot),
+            ),
+            pytest.raises(BadRequestError),
+        ):
+            await ChannelBotService(MagicMock(), organization_id=bot.organization_id).update(
+                bot.id, ChannelBotUpdate(is_active=True), actor_user_id=None
+            )
+
+        update.assert_not_awaited()
+
+    async def test_it_comes_back_with_a_ceiling(self):
+        bot = _bot_with_policy(_PUBLIC)
+        bot.is_active = False
+
+        with _ceiling(missing=False) as seen:
+            repo = await _saved(bot, None, is_active=True)
+
+        seen.refuse.assert_awaited_once()
+        repo.assert_awaited_once()
+
+    @pytest.mark.security
+    async def test_reactivating_and_changing_the_policy_is_asked_once(self):
+        bot = _bot_with_policy({"mode": "open"})
+        bot.is_active = False
+
+        with _ceiling(missing=True) as seen, pytest.raises(BadRequestError):
+            await _saved(bot, _PUBLIC, is_active=True)
+
+        seen.refuse.assert_awaited_once()
+
+    @pytest.mark.parametrize(
+        "fields",
+        [{"is_active": False}, {"name": "renamed"}],
+        ids=["switching off", "an unrelated change"],
+    )
+    async def test_a_line_already_on_is_not_asked_again(self, fields):
+        bot = _bot_with_policy(_PUBLIC)
+
+        with _ceiling(missing=True) as seen:
+            await _saved(bot, None, **fields)
+
+        seen.refuse.assert_not_awaited()
+
+    async def test_a_closed_line_comes_back_freely(self):
+        bot = _bot_with_policy({"mode": "open"})
+        bot.is_active = False
+
+        with _ceiling(missing=True) as seen:
+            await _saved(bot, None, is_active=True)
+
+        seen.refuse.assert_not_awaited()
+
+
+class TestWhatTheCeilingIsAskedAbout:
+    @pytest.mark.security
+    async def test_activate_asks_about_the_agent_the_bot_is_bound_to(self):
+        spec = object()
+
+        with _ceiling(missing=False) as seen:
+            seen.spec.return_value = spec
+            await TestReactivatingALine()._activated(_PUBLIC)
+
+        assert seen.refuse.await_args.kwargs["spec"] is spec
+
+    @pytest.mark.security
+    async def test_update_asks_about_the_agent_the_bot_is_bound_to(self):
+        spec = object()
+
+        with _ceiling(missing=False) as seen:
+            seen.spec.return_value = spec
+            await _saved(_bot_with_policy({}), _PUBLIC)
+
+        assert seen.refuse.await_args.kwargs["spec"] is spec
+
+    @pytest.mark.security
+    @pytest.mark.parametrize(
+        "policy",
+        [
+            {"mode": "jwt_linked", "answer_unlinked_direct": True},
+            {"mode": "open", "require_link": True, "answer_unlinked_direct": True},
+        ],
+        ids=["jwt_linked", "require_link"],
+    )
+    async def test_a_bot_created_with_the_key_on_but_the_line_closed_needs_no_ceiling(self, policy):
+        with _ceiling(missing=True) as seen:
+            kwargs = await _created(ChannelBotCreate(**_whatsapp(access_policy=policy)))
+
+        seen.refuse.assert_not_awaited()
+        seen.audit.assert_not_awaited()
+        assert kwargs["access_policy"]["answer_unlinked_direct"] is True
+
+    @pytest.mark.security
+    async def test_a_policy_stored_as_json_text_is_read_not_crashed_on(self):
+        text = '{"mode": "open", "answer_unlinked_direct": true}'
+
+        with _ceiling(missing=True) as seen, pytest.raises(BadRequestError):
+            await TestReactivatingALine()._activated(text)
+        with _ceiling(missing=False) as seen:
+            await _saved(_bot_with_policy('{"mode": "open"}'), None, actor_user_id=None)
+            seen.refuse.assert_not_awaited()
+            await _saved(_bot_with_policy(text), {"mode": "open"})
+            assert seen.audit.await_args.kwargs["details"] == {"answers_unlinked": False}
+
+
+_PUBLIC = {"mode": "open", "answer_unlinked_direct": True}

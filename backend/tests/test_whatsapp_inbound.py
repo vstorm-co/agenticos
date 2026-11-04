@@ -1,5 +1,6 @@
 """What a verified WhatsApp batch does: record each customer's window, queue their messages (#2076)."""
 
+import contextlib
 import hashlib
 import hmac
 import json
@@ -16,14 +17,17 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import anyio
 import pytest
 
+from app.core.exceptions import BadRequestError, NotFoundError
 from app.services.channels import whatsapp_inbound as inbound
 from app.services.channels.base import IncomingMessage, IncomingPress, OutgoingMessage
+from app.services.channels.formatting import STRANGER_REFUSAL
 from app.services.channels.handback import (
     EXPIRED_NOTICE,
     STOPPED_NOTICE,
     STRANDED_NOTICE,
 )
-from app.services.channels.router import Admission, chat_lock
+from app.services.channels.mentions import UnaddressedMessage
+from app.services.channels.router import Admission, ChannelMessageRouter, chat_lock
 from app.services.channels.whatsapp_customers import Held, WindowStore
 from app.services.channels.whatsapp_graph import WhatsAppGraphError
 from app.services.channels.whatsapp_inbound import (
@@ -32,7 +36,12 @@ from app.services.channels.whatsapp_inbound import (
     _offer_again,
     handle_customer,
 )
-from app.services.channels.whatsapp_payload import ParsedWebhook, WhatsAppMessage, parse_webhook
+from app.services.channels.whatsapp_payload import (
+    ParsedWebhook,
+    WhatsAppMessage,
+    parse_webhook,
+    platform_user_id_for,
+)
 from app.services.channels.whatsapp_templates import LateTemplate
 from app.services.channels.whatsapp_window import FILES_NOT_DELIVERED, NUDGE_REPLY_ID, NUDGE_THANKS
 from tests.test_whatsapp_payload import FIXTURES
@@ -2119,3 +2128,369 @@ class TestTheNudgeButton:
         assert [m.text for m in world.sent] == ["the answer"]
         assert world.routed == []
         claim.assert_awaited_once()
+
+
+class _Line:
+    """One message through the real router, with everything outside the decision doubled.
+
+    What a test asks is who the turn is for: `answer_default` and `answer` record the
+    arguments the router handed them, `invited` is the link invitation, and `turns`
+    is what `_run_turn` was given.
+    """
+
+    def __init__(self, policy: dict[str, Any], *, platform: str = "whatsapp") -> None:
+        self.bot = MagicMock(
+            id=uuid.uuid4(),
+            organization_id=uuid.uuid4(),
+            platform=platform,
+            is_active=True,
+            stream_answers=False,
+            access_policy=policy,
+        )
+        self.identity = MagicMock(id=uuid.uuid4(), user_id=None)
+        self.member: MagicMock | None = None
+        self.answered = MagicMock(
+            text="answered",
+            refused=[],
+            delivery_notices=[],
+            acts_as_agent=False,
+            parked_run_id=None,
+            next_steps=None,
+            run_id=None,
+        )
+        self.answer_default = AsyncMock(return_value=self.answered)
+        # Nothing is addressed to an agent by name unless a test says so.
+        self.answer = AsyncMock(side_effect=UnaddressedMessage())
+        self.invited = AsyncMock(return_value="link first")
+        self.replies = AsyncMock()
+        self.limit = AsyncMock()
+        self.delivered = AsyncMock()
+        self.failures = AsyncMock()
+        self.files = AsyncMock(return_value=([], []))
+        self.voice = AsyncMock(return_value=([], []))
+        self.turns: list[dict[str, Any]] = []
+        self.mentions: list[dict[str, Any]] = []
+
+    def message(self, text: str = "any news?", *, chat_type: str = "private") -> IncomingMessage:
+        return IncomingMessage(
+            platform=self.bot.platform,
+            bot_id=str(self.bot.id),
+            platform_user_id=platform_user_id_for(self.bot.organization_id, "BSUID-1"),
+            platform_chat_id="chat-1",
+            chat_type=chat_type,
+            text=text,
+            addressed=True,
+            raw={"guild_id": "123"},
+        )
+
+    async def route(self, text: str = "any news?", *, chat_type: str = "private") -> None:
+
+        router = ChannelMessageRouter()
+        real_turn, real_mention = router._run_turn, router._answer_mention
+
+        async def run_turn(_self: Any, *args: Any, **kwargs: Any) -> bool:
+            self.turns.append(kwargs)
+            return await real_turn(*args, **kwargs)
+
+        async def answer_mention(_self: Any, *args: Any, **kwargs: Any) -> bool:
+            self.mentions.append(kwargs)
+            return await real_mention(*args, **kwargs)
+
+        prefix = "app.services.channels.router"
+        agent_router = MagicMock(
+            return_value=MagicMock(answer=self.answer, answer_default=self.answer_default)
+        )
+        prompts = MagicMock(return_value=MagicMock(reply=AsyncMock(return_value=False)))
+        patches = [
+            patch(f"{prefix}.channel_bot_repo.get_for_inbound", AsyncMock(return_value=self.bot)),
+            patch(
+                f"{prefix}.channel_identity_repo.get_or_create",
+                AsyncMock(return_value=self.identity),
+            ),
+            patch(f"{prefix}.member_repo.get_active", AsyncMock(return_value=self.member)),
+            patch(
+                f"{prefix}.ChannelLinkService.complete_with_code", AsyncMock(return_value="none")
+            ),
+            patch(f"{prefix}.ChannelAgentRouter", agent_router),
+            patch(f"{prefix}.ChannelPrompts", prompts),
+            patch(
+                f"{prefix}.get_adapter",
+                MagicMock(
+                    return_value=MagicMock(
+                        begin_reply=AsyncMock(return_value=None),
+                        open_answer=AsyncMock(return_value=None),
+                        resolve_addressing=AsyncMock(return_value=True),
+                    )
+                ),
+            ),
+            patch(f"{prefix}.unseal_bot_token", MagicMock(return_value="token")),
+            patch.object(ChannelMessageRouter, "_link_vouched", AsyncMock()),
+            patch.object(ChannelMessageRouter, "_invite_to_link", self.invited),
+            patch.object(ChannelMessageRouter, "_send_reply", self.replies),
+            patch.object(ChannelMessageRouter, "_check_rate_limit", self.limit),
+            patch.object(
+                ChannelMessageRouter,
+                "_resolve_session",
+                AsyncMock(return_value=MagicMock(conversation_id=uuid.uuid4(), turn_count=1)),
+            ),
+            patch.object(ChannelMessageRouter, "_channel_directory", MagicMock(return_value=None)),
+            patch.object(
+                ChannelMessageRouter, "_thread_context", AsyncMock(return_value=([], [], []))
+            ),
+            patch.object(ChannelMessageRouter, "_load_history", AsyncMock(return_value=[])),
+            patch.object(ChannelMessageRouter, "_start_workflow", AsyncMock(return_value=False)),
+            patch.object(ChannelMessageRouter, "_acknowledge", AsyncMock()),
+            patch.object(ChannelMessageRouter, "_open_reply", AsyncMock(return_value=(None, None))),
+            patch.object(ChannelMessageRouter, "_deliver", self.delivered),
+            patch.object(ChannelMessageRouter, "_post_failure", self.failures),
+            patch.object(ChannelMessageRouter, "_receive_files", self.files),
+            patch.object(ChannelMessageRouter, "_transcribe", self.voice),
+            patch.object(ChannelMessageRouter, "_run_turn", run_turn),
+            patch.object(ChannelMessageRouter, "_answer_mention", answer_mention),
+        ]
+        with contextlib.ExitStack() as stack:
+            for each in patches:
+                stack.enter_context(each)
+            await router._route_inner(self.message(text, chat_type=chat_type), MagicMock())
+
+
+def _public(**policy: Any) -> dict[str, Any]:
+    return {"mode": "open", "answer_unlinked_direct": True, **policy}
+
+
+class TestACustomerWhoNeverLinked:
+    """What the router does with a direct message from a number nobody linked.
+
+    Off, it asks for a link and runs nothing. On, the agent answers as itself.
+    """
+
+    @pytest.mark.security
+    async def test_a_public_line_answers_as_the_agent(self):
+        line = _Line(_public())
+
+        await line.route()
+
+        line.answer_default.assert_awaited_once()
+        sent = line.answer_default.await_args.kwargs
+        assert sent["as_agent"] is True
+        assert sent["admit_unlinked"] is True
+        assert sent["user_id"] is None
+        assert sent["channel_identity_id"] == line.identity.id
+        assert [turn["as_agent"] for turn in line.turns] == [True, True]
+        assert line.mentions[0]["as_agent"] is True
+        line.invited.assert_not_awaited()
+        assert line.delivered.await_args.args[2] == "answered"
+
+    @pytest.mark.security
+    async def test_a_line_that_is_not_public_asks_for_a_link_and_runs_nothing(self):
+        line = _Line({"mode": "open"})
+
+        await line.route()
+
+        line.invited.assert_awaited_once()
+        line.answer_default.assert_not_awaited()
+        line.answer.assert_not_awaited()
+        assert line.turns == []
+
+    @pytest.mark.security
+    async def test_a_switch_that_is_off_asks_for_a_link_and_runs_nothing(self):
+        line = _Line({"mode": "open", "answer_unlinked_direct": False})
+
+        await line.route()
+
+        line.invited.assert_awaited_once()
+        line.answer_default.assert_not_awaited()
+
+    @pytest.mark.security
+    @pytest.mark.parametrize(
+        "policy",
+        [
+            {"mode": "jwt_linked", "answer_unlinked_direct": True},
+            {"mode": "open", "require_link": True, "answer_unlinked_direct": True},
+        ],
+        ids=["jwt_linked", "require_link"],
+    )
+    async def test_a_link_the_policy_asks_for_wins_over_the_switch(self, policy):
+        line = _Line(policy)
+
+        await line.route()
+
+        line.invited.assert_awaited_once()
+        line.answer_default.assert_not_awaited()
+        assert line.turns == []
+
+    @pytest.mark.security
+    async def test_a_linked_member_on_a_public_line_is_not_answered_as_the_agent(self):
+        line = _Line(_public())
+        line.identity.user_id = uuid.uuid4()
+        line.member = MagicMock(role="member")
+
+        await line.route()
+
+        sent = line.answer_default.await_args.kwargs
+        # The principal is settled where the membership is read, and a member is
+        # always themselves there; the wording of a refusal follows the member.
+        assert sent["user_id"] == line.identity.user_id
+        assert sent["as_agent"] is True
+        # The mention path is handed the same unfiltered decision.
+        assert line.answer.await_args.kwargs["as_agent"] is True
+        assert [turn["as_agent"] for turn in line.turns] == [False, False]
+
+    @pytest.mark.security
+    async def test_a_departed_member_is_answered_as_the_agent(self):
+        line = _Line(_public())
+        line.identity.user_id = uuid.uuid4()
+        line.member = None
+
+        await line.route()
+
+        assert line.answer_default.await_args.kwargs["as_agent"] is True
+        assert [turn["as_agent"] for turn in line.turns] == [True, True]
+
+    @pytest.mark.security
+    async def test_a_mention_is_answered_as_the_agent_on_a_public_line(self):
+        line = _Line(_public())
+        line.answer.side_effect = None
+        line.answer.return_value = line.answered
+
+        await line.route("@support what is the refund window")
+
+        line.answer.assert_awaited_once()
+        assert line.answer.await_args.kwargs["as_agent"] is True
+        assert [turn["as_agent"] for turn in line.turns] == [True]
+        line.invited.assert_not_awaited()
+
+    @pytest.mark.security
+    async def test_an_ordinary_message_mints_no_link_request(self):
+        """The invitation is what mints a bearer link; a customer who just wrote is
+        not asked for one."""
+        line = _Line(_public())
+
+        await line.route("any news?")
+
+        line.invited.assert_not_awaited()
+
+    @pytest.mark.security
+    async def test_typing_link_still_mints_a_request(self):
+        line = _Line(_public())
+
+        await line.route("link")
+
+        line.invited.assert_awaited_once()
+        line.answer_default.assert_not_awaited()
+
+    @pytest.mark.security
+    async def test_a_refusal_on_the_ordinary_path_is_one_neutral_sentence(self):
+        """What raised is not the customer's to read: an archived agent or a missing
+        model reads the same."""
+        line = _Line(_public())
+        line.answer_default.side_effect = NotFoundError(message="Agent 'Front desk' is archived")
+
+        await line.route()
+
+        assert line.failures.await_args.args[3] == STRANGER_REFUSAL
+        assert "archived" not in line.failures.await_args.args[3]
+
+    @pytest.mark.security
+    async def test_a_member_on_a_public_line_still_reads_what_refused(self):
+        line = _Line(_public())
+        line.identity.user_id = uuid.uuid4()
+        line.member = MagicMock(role="member")
+        line.answer_default.side_effect = NotFoundError(message="Agent 'Front desk' is archived")
+
+        await line.route()
+
+        assert line.failures.await_args.args[3] == "Agent 'Front desk' is archived"
+
+    @pytest.mark.security
+    async def test_files_and_voice_are_handed_the_decision_already_made(self):
+        """Not recomputed where they are read: a member's files are not a stranger's."""
+        stranger, member = _Line(_public()), _Line(_public())
+        member.identity.user_id = uuid.uuid4()
+        member.member = MagicMock(role="member")
+
+        await stranger.route()
+        await member.route()
+
+        assert stranger.files.await_args.kwargs["as_agent"] is True
+        assert stranger.voice.await_args.kwargs["as_agent"] is True
+        assert member.files.await_args.kwargs["as_agent"] is False
+        assert member.voice.await_args.kwargs["as_agent"] is False
+
+    @pytest.mark.security
+    async def test_the_rate_limit_still_applies_per_chat_account(self):
+
+        line = _Line(_public())
+        line.limit.side_effect = BadRequestError(message="Rate limit exceeded. Please slow down.")
+
+        await line.route()
+
+        line.limit.assert_awaited_once_with(line.bot, str(line.identity.id))
+        line.answer_default.assert_not_awaited()
+        assert "Rate limit" in line.replies.await_args.args[2]
+
+    @pytest.mark.security
+    async def test_another_organizations_bot_with_the_same_customer_is_untouched(self):
+        """The customer id is namespaced by organization, and the switch is read off the
+        bot that received the message: the second organization's line is closed."""
+        open_line, closed_line = _Line(_public()), _Line({"mode": "open"})
+        closed_line.identity = MagicMock(id=uuid.uuid4(), user_id=None)
+
+        await open_line.route()
+        await closed_line.route()
+
+        assert open_line.message().platform_user_id != closed_line.message().platform_user_id
+        assert open_line.message().platform_user_id.startswith(str(open_line.bot.organization_id))
+        open_line.answer_default.assert_awaited_once()
+        closed_line.answer_default.assert_not_awaited()
+        closed_line.invited.assert_awaited_once()
+
+
+@pytest.mark.security
+class TestAnUnlinkedGroupSenderIsNotAStranger:
+    """A room admits its unlinked senders under the binding on every platform, as it
+    did before the switch existed, and the switch changes neither that nor a private
+    chat on a line without it."""
+
+    @pytest.mark.parametrize("switch", [False, True])
+    @pytest.mark.parametrize(
+        ("platform", "chat_type"),
+        [
+            ("telegram", "group"),
+            ("telegram", "supergroup"),
+            ("slack", "group"),
+            ("mattermost", "group"),
+            ("discord", "group"),
+            ("teams", "group"),
+            ("whatsapp", "group"),
+        ],
+    )
+    async def test_a_room_runs_under_the_binding_not_as_the_agent(
+        self, platform: str, chat_type: str, switch: bool
+    ):
+        policy = {"mode": "open", "answer_unlinked_direct": switch}
+        if platform == "discord":
+            policy["discord_guild_ids"] = ["123"]
+        line = _Line(policy, platform=platform)
+
+        await line.route(chat_type=chat_type)
+
+        sent = line.answer_default.await_args.kwargs
+        assert sent["admit_unlinked"] is True
+        assert sent["as_agent"] is False
+        assert line.turns[0]["as_agent"] is False
+        line.invited.assert_not_awaited()
+
+    @pytest.mark.parametrize("platform", ["telegram", "slack", "mattermost", "discord", "teams"])
+    @pytest.mark.parametrize("switch", [False, True])
+    async def test_a_private_chat_on_another_platform_still_asks_for_a_link(
+        self, platform: str, switch: bool
+    ):
+        """Even a stored policy that carries the key: the platform cannot take it."""
+        line = _Line({"mode": "open", "answer_unlinked_direct": switch}, platform=platform)
+
+        await line.route()
+
+        line.invited.assert_awaited_once()
+        line.answer_default.assert_not_awaited()
+        assert line.turns == []

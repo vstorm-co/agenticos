@@ -60,7 +60,7 @@ async def test_a_discord_bot_cannot_be_switched_to_a_webhook(webhook: dict[str, 
         pytest.raises(BadRequestError) as refused,
     ):
         service = ChannelBotService(MagicMock(), organization_id=bot.organization_id)
-        await service.update(bot.id, ChannelBotUpdate(**webhook))
+        await service.update(bot.id, ChannelBotUpdate(**webhook), actor_user_id=None)
     assert refused.value.details["fields"][0]["field"] == "webhook_mode"
     update.assert_not_awaited()
 
@@ -257,7 +257,7 @@ async def test_server_approvals_are_rejected_before_writing_a_non_discord_bot() 
     )
     with patch("app.services.channel_bot.channel_bot_repo.create", AsyncMock()) as saved:
         with pytest.raises(BadRequestError) as failure:
-            await service.create(data)
+            await service.create(data, actor_user_id=None)
         assert failure.value.details["fields"][0]["field"] == "access_policy.discord_guild_ids"
         saved.assert_not_awaited()
 
@@ -273,7 +273,9 @@ async def test_an_update_cannot_store_discord_approvals_on_another_platform() ->
     ):
         with pytest.raises(BadRequestError):
             await service.update(
-                row.id, ChannelBotUpdate(access_policy=AccessPolicy(discord_guild_ids=["100"]))
+                row.id,
+                ChannelBotUpdate(access_policy=AccessPolicy(discord_guild_ids=["100"])),
+                actor_user_id=None,
             )
         saved.assert_not_awaited()
 

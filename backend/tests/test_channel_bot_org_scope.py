@@ -121,7 +121,7 @@ class TestChannelBotServiceScope:
             new=AsyncMock(return_value=_bot(org_id)),
         ) as repo_create:
             service = ChannelBotService(MagicMock(), organization_id=org_id)
-            await service.create(data)
+            await service.create(data, actor_user_id=None)
 
         stored = repo_create.call_args.kwargs
         assert stored["organization_id"] == org_id
@@ -157,7 +157,9 @@ class TestChannelBotServiceScope:
             "app.services.channel_bot.channel_bot_repo.create",
             new=AsyncMock(return_value=_bot(org_id)),
         ) as repo_create:
-            await ChannelBotService(MagicMock(), organization_id=org_id).create(data)
+            await ChannelBotService(MagicMock(), organization_id=org_id).create(
+                data, actor_user_id=None
+            )
 
         stolen = _bot(uuid.uuid4())
         stolen.token_encrypted = repo_create.call_args.kwargs["token_encrypted"]
@@ -240,7 +242,9 @@ class TestSlackAppCredentials:
             "app.services.channel_bot.channel_bot_repo.create",
             new=AsyncMock(return_value=_bot(org_id)),
         ) as repo_create:
-            await ChannelBotService(MagicMock(), organization_id=org_id).create(data)
+            await ChannelBotService(MagicMock(), organization_id=org_id).create(
+                data, actor_user_id=None
+            )
 
         stored = repo_create.call_args.kwargs
         assert "shhh-signing" not in stored["slack_signing_secret_encrypted"]
@@ -267,7 +271,9 @@ class TestSlackAppCredentials:
         )
 
         with pytest.raises(BadRequestError, match="Slack"):
-            await ChannelBotService(MagicMock(), organization_id=uuid.uuid4()).create(data)
+            await ChannelBotService(MagicMock(), organization_id=uuid.uuid4()).create(
+                data, actor_user_id=None
+            )
 
     @pytest.mark.anyio
     async def test_an_explicit_null_clears_a_stored_credential(self):
@@ -285,7 +291,11 @@ class TestSlackAppCredentials:
                 new=AsyncMock(return_value=bot),
             ) as repo_update,
         ):
-            await service.update(bot.id, ChannelBotUpdate.model_validate({"slack_app_token": None}))
+            await service.update(
+                bot.id,
+                ChannelBotUpdate.model_validate({"slack_app_token": None}),
+                actor_user_id=None,
+            )
 
         assert repo_update.call_args.kwargs["update_data"] == {"slack_app_token_encrypted": None}
 
@@ -552,7 +562,8 @@ class TestAStreamThatOpensWithoutARestart:
                     name="Acme Support",
                     token="a-long-enough-token",
                     api_base_url="https://mattermost.acme.com",
-                )
+                ),
+                actor_user_id=None,
             )
 
         # Handed over, and not started: `spawn_after_commit` creates the task

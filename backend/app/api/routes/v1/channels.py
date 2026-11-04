@@ -11,7 +11,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, Response, status
 
-from app.api.deps import OrgChannelBotSvc, require
+from app.api.deps import Auth, OrgChannelBotSvc, require
 from app.core.permissions import Perm
 from app.schemas.channel_bot import (
     ChannelBotCreate,
@@ -49,10 +49,11 @@ async def list_bots(
 )
 async def create_bot(
     data: ChannelBotCreate,
+    ctx: Auth,
     service: OrgChannelBotSvc,
 ) -> Any:
     """Create a new channel bot. The bot token is encrypted before storage."""
-    return await service.create(data)
+    return await service.create(data, actor_user_id=ctx.subject_id)
 
 
 @router.get(
@@ -149,10 +150,11 @@ async def list_whatsapp_templates(bot_id: UUID, service: OrgChannelBotSvc) -> An
 async def update_bot(
     bot_id: UUID,
     data: ChannelBotUpdate,
+    ctx: Auth,
     service: OrgChannelBotSvc,
 ) -> Any:
     """Update a channel bot."""
-    return await service.update(bot_id, data)
+    return await service.update(bot_id, data, actor_user_id=ctx.subject_id)
 
 
 @router.delete(

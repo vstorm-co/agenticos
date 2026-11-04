@@ -97,7 +97,10 @@ class TestSealing:
         ) as repo_create:
             service = ChannelBotService(MagicMock(), organization_id=org_id)
             await service.create(
-                ChannelBotCreate(platform="telegram", name="bot", token="t" * 20, webhook_mode=True)
+                ChannelBotCreate(
+                    platform="telegram", name="bot", token="t" * 20, webhook_mode=True
+                ),
+                actor_user_id=None,
             )
 
         stored = repo_create.call_args.kwargs["webhook_secret_encrypted"]
@@ -117,7 +120,8 @@ class TestSealing:
             await service.create(
                 ChannelBotCreate(
                     platform="telegram", name="bot", token="t" * 20, webhook_mode=False
-                )
+                ),
+                actor_user_id=None,
             )
 
         assert repo_create.call_args.kwargs["webhook_secret_encrypted"] is None
@@ -132,7 +136,10 @@ class TestSealing:
         ) as repo_create:
             service = ChannelBotService(MagicMock(), organization_id=org_id)
             await service.create(
-                ChannelBotCreate(platform="telegram", name="bot", token="t" * 20, webhook_mode=True)
+                ChannelBotCreate(
+                    platform="telegram", name="bot", token="t" * 20, webhook_mode=True
+                ),
+                actor_user_id=None,
             )
 
         kwargs = repo_create.call_args.kwargs
@@ -182,7 +189,7 @@ class TestEnteringWebhookMode:
             ) as repo_update,
         ):
             service = ChannelBotService(MagicMock(), organization_id=bot.organization_id)
-            await service.update(bot.id, ChannelBotUpdate(**fields))
+            await service.update(bot.id, ChannelBotUpdate(**fields), actor_user_id=None)
         return repo_update.call_args.kwargs["update_data"]
 
     async def test_switching_a_telegram_bot_to_webhook_mode_mints_a_secret(self):
@@ -475,7 +482,9 @@ class TestUpdatingKeepsTheRowsKeyVersion:
             ) as repo_update,
         ):
             service = ChannelBotService(MagicMock(), organization_id=org_id)
-            await service.update(bot.id, ChannelBotUpdate(token="a-new-bot-token"))
+            await service.update(
+                bot.id, ChannelBotUpdate(token="a-new-bot-token"), actor_user_id=None
+            )
 
         # Sealing at the row's version is only safe while the row is held from
         # the read - unlocked, a rotation commits in between and the new
@@ -519,7 +528,9 @@ class TestUpdatingKeepsTheRowsKeyVersion:
             ) as repo_update,
         ):
             service = ChannelBotService(MagicMock(), organization_id=org_id)
-            await service.update(bot.id, ChannelBotUpdate(token=None, name="renamed"))
+            await service.update(
+                bot.id, ChannelBotUpdate(token=None, name="renamed"), actor_user_id=None
+            )
 
         update_data = repo_update.call_args.kwargs["update_data"]
         assert "token_encrypted" not in update_data

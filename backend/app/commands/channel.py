@@ -227,7 +227,7 @@ def channel_add_bot(
             whatsapp_verify_token=whatsapp_verify_token,
         )
         async with _channel_service(org_id) as svc:
-            bot = await svc.create(data)
+            bot = await svc.create(data, actor_user_id=None)
 
         success(f"Bot registered successfully! ID: {bot.id}")
         info(f"  Platform : {platform}")
