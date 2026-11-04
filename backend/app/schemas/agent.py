@@ -658,7 +658,7 @@ class McpCatalogCheck(BaseSchema):
 
 
 class McpCatalogEntry(BaseSchema):
-    """One connectable MCP server in the curated catalog."""
+    """One connectable MCP server, curated, mirrored or custom."""
 
     key: str
     name: str
@@ -694,6 +694,16 @@ class McpCatalogEntry(BaseSchema):
     )
     check: McpCatalogCheck | None = Field(
         default=None, description="What the last catalog check found; null if never checked"
+    )
+    custom: bool = Field(
+        default=False, description="A saved server with no catalog or registry entry"
+    )
+    connection_ids: list[UUID] | None = Field(
+        default=None,
+        description=(
+            "Accessible saved accounts grouped on this server in a paged listing. "
+            "Null on catalog metadata; an empty list means no accessible account."
+        ),
     )
 
 

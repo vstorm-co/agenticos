@@ -1,5 +1,5 @@
 ---
-source_sha: "ab427a229108"
+source_sha: "70e245bf2cc7"
 ---
 
 # MCP — die Tools, die hier niemand schreiben muss { #mcp-the-tools-nobody-here-has-to-write }
@@ -740,6 +740,15 @@ und keine Auflistung:
   Seitengröße von 50 — also lebt die Arithmetik in `mcp_listing.page`, mit einem
   Test auf der Grenze, denn ein Off-by-one dort überspringt einen Server oder zeigt
   ihn zweimal, in einer Liste, in der niemand merken würde, welches von beidem.
+
+  **Verbunden (Connected)** umfasst jeden zugänglichen Dienst mit einem
+  gespeicherten Organisationskonto oder persönlichen Konto, auch eigene Server
+  und Katalog- oder Registry-Einträge auf anderen Seiten. Mehrere Konten teilen
+  sich eine Serverkarte. Deaktivierte Konten und Konten mit Handlungsbedarf
+  bleiben zur Verwaltung sichtbar. Die Filter für Suche, Kategorie, Anmeldung
+  und Verbindungszustand greifen, bevor die Ergebnisse gezählt und seitenweise
+  ausgegeben werden.
+
 - **Eine Kategorie erreicht auch den Spiegel.** Die Registry hat keine
   Kategorien, also bekommt jeder Eintrag beim Sync eine aus seinem eigenen Namen
   und seiner Beschreibung, gezählt an den Wörtern, an denen man jede Kategorie

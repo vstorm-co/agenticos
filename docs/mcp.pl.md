@@ -1,5 +1,5 @@
 ---
-source_sha: "ab427a229108"
+source_sha: "70e245bf2cc7"
 ---
 
 # MCP — narzędzia, których nikt tutaj nie musi pisać { #mcp-the-tools-nobody-here-has-to-write }
@@ -704,6 +704,14 @@ wyszukiwanie, a nie wyliczanka:
   50 — więc arytmetyka mieszka w `mcp_listing.page`, z testem na tej granicy, bo
   pomyłka o jeden pomija tam serwer albo pokazuje go dwa razy na liście, na
   której nikt by nie zauważył którego.
+
+  **Podłączony (Connected)** obejmuje każdy dostępny serwis z zapisanym kontem
+  organizacji lub osobistym, w tym własne serwery oraz wpisy katalogu lub rejestru
+  na innych stronach. Wiele kont mieści się na jednej karcie serwera. Konta
+  wyłączone i wymagające uwagi pozostają widoczne, aby można było nimi zarządzać.
+  Filtry wyszukiwania, kategorii, logowania i stanu połączenia działają przed
+  zliczaniem i stronicowaniem wyników.
+
 - **Kategoria sięga też lustra.** Rejestr nie ma kategorii, więc każdy wpis
   dostaje ją przy synchronizacji z własnej nazwy i opisu, przez policzenie słów,
   po których rozpoznaje się każdą kategorię; wpis, który nie wymienia żadnego z

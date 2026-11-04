@@ -670,6 +670,14 @@ listing:
   the join — 99 curated rows against a page size of 50 — so the arithmetic lives
   in `mcp_listing.page` with a test on the boundary, because an off-by-one there
   skips a server or shows it twice on a list where nobody would notice which.
+
+  **Connected** includes every accessible service with a saved organization or
+  personal account, including custom servers and catalog or registry entries on
+  other pages. Multiple accounts share one server card. Disabled accounts and
+  accounts needing attention stay visible for management. Search, category,
+  sign-in and connection-state filters apply before counting and paging the
+  results.
+
 - **A category reaches the mirror too.** The registry has no categories, so each
   listing is given one at sync from its own name and description, counting the
   words each category is known by; a listing that names none of them is filed

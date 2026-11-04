@@ -7,8 +7,10 @@ server or shows it twice, on a list where nobody would notice which.
 """
 
 from datetime import UTC, datetime
+from unittest.mock import AsyncMock
 
 import pytest
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.repositories import mcp_registry_server_repo as repo
 from app.repositories import mcp_server_check_repo as check_repo
@@ -186,3 +188,158 @@ class TestWhatTheCheckFound:
         assert by_key["mirror/0000"].verified
         assert by_key["mirror/0001"].auth == "token", "unchecked keeps the old guess"
         assert not by_key["mirror/0001"].verified
+
+
+class TestConnectedRegistryIdentities:
+    async def test_a_registry_key_resolves_without_matching_the_publisher_name(
+        self, db: AsyncSession
+    ) -> None:
+        await repo.upsert_many(
+            db,
+            [
+                {
+                    "id": "com.example/opaque-service",
+                    "name": "Publisher Display Name",
+                    "description": "A service with an unrelated description.",
+                    "url": "https://unrelated.example.test/mcp",
+                    "host": "unrelated.example.test",
+                },
+                {
+                    "id": "com.example/opaque-service-extra",
+                    "name": "Another Display Name",
+                    "description": "A second unrelated service.",
+                    "url": "https://second.example.test/mcp",
+                    "host": "second.example.test",
+                },
+            ],
+        )
+
+        found = await mcp_listing.page(db, query="com.example/opaque-service", limit=10)
+
+        assert found.total == 1
+        assert [server.key for server in found.items] == ["com.example/opaque-service"]
+
+    async def test_only_requested_account_identities_are_resolved(self, db: AsyncSession) -> None:
+        await _mirror(db, 120)
+        await repo.upsert_many(
+            db,
+            [
+                {
+                    "id": "mirror/normalized",
+                    "name": "Normalized",
+                    "description": "",
+                    "url": "  HTTPS://INTERNAL.EXAMPLE.TEST/MCP///  ",
+                    "host": "internal.example.test",
+                }
+            ],
+        )
+
+        found = await repo.for_connections(
+            db,
+            keys={"mirror/0119"},
+            urls={"https://internal.example.test/mcp"},
+            names={"mirror/0060"},
+        )
+
+        assert [server.id for server in found] == [
+            "mirror/normalized",
+            "mirror/0060",
+            "mirror/0119",
+        ]
+
+    async def test_multiple_matching_account_identities_resolve_one_server(
+        self, db: AsyncSession
+    ) -> None:
+        await _mirror(db, 2)
+
+        found = await repo.for_connections(
+            db,
+            keys={"mirror/0001"},
+            urls={"https://mcp1.example.test/mcp"},
+            names={"mirror/0001"},
+        )
+
+        assert [server.id for server in found] == ["mirror/0001"]
+
+    async def test_an_empty_account_list_never_queries_the_mirror(self) -> None:
+        db = AsyncMock(spec=AsyncSession)
+
+        assert await repo.for_connections(db, keys=set(), urls=set(), names=set()) == []
+
+        db.execute.assert_not_called()
+
+    async def test_unknown_account_identities_resolve_nothing(self, db: AsyncSession) -> None:
+        await _mirror(db, 2)
+
+        assert (
+            await repo.for_connections(
+                db,
+                keys={"missing/key"},
+                urls={"https://missing.example.test/mcp"},
+                names={"Mirrored 0001"},
+            )
+            == []
+        )
+
+    async def test_exclusion_is_applied_before_counting_and_paging(self, db: AsyncSession) -> None:
+        await _mirror(db, 120)
+        excluded = {f"mirror/{index:04}" for index in range(65)}
+
+        first, first_total = await repo.search(db, excluded_ids=excluded, limit=50)
+        second, second_total = await repo.search(db, excluded_ids=excluded, skip=50, limit=50)
+
+        assert first_total == second_total == 55
+        assert len(first) == 50
+        assert len(second) == 5
+        assert [server.id for server, _check in first + second] == [
+            f"mirror/{index:04}" for index in range(65, 120)
+        ]
+
+    async def test_exclusion_preserves_search_category_and_auth_filters(
+        self, db: AsyncSession
+    ) -> None:
+        await repo.upsert_many(
+            db,
+            [
+                {
+                    "id": f"mirror/{name}",
+                    "name": f"Payments {name}",
+                    "description": "",
+                    "url": f"https://{name}.example.test/mcp",
+                    "host": f"{name}.example.test",
+                    "category": category,
+                }
+                for name, category in [
+                    ("connected", "finance"),
+                    ("available", "finance"),
+                    ("other", "development"),
+                ]
+            ],
+        )
+        await check_repo.upsert_many(
+            db,
+            [
+                {
+                    "key": f"mirror/{name}",
+                    "source": "registry",
+                    "outcome": "sign_in",
+                    "auth": "oauth",
+                    "tools": None,
+                    "read_only_tools": None,
+                    "duplicate_of": None,
+                    "checked_at": datetime.now(UTC),
+                }
+                for name in ["connected", "available", "other"]
+            ],
+        )
+
+        found, total = await repo.search(
+            db,
+            query="payments",
+            category="finance",
+            auth="oauth",
+            excluded_ids={"mirror/connected"},
+        )
+
+        assert total == 1
+        assert [server.id for server, _check in found] == ["mirror/available"]

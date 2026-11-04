@@ -45,6 +45,7 @@ def _matching(query: str) -> Any:
         return None
     like = f"%{needle}%"
     return or_(
+        McpRegistryServer.id == needle,
         McpRegistryServer.name.ilike(like),
         McpRegistryServer.description.ilike(like),
         McpRegistryServer.host.ilike(like),
@@ -59,6 +60,7 @@ async def search(
     auth: str = "",
     skip: int = 0,
     limit: int = 50,
+    excluded_ids: set[str] | None = None,
 ) -> tuple[list[tuple[McpRegistryServer, McpServerCheck | None]], int]:
     """One page of matching servers, best first, each with its last check, and the total.
 
@@ -85,6 +87,8 @@ async def search(
         conditions.append(McpRegistryServer.category == category)
     if auth:
         conditions.append(McpServerCheck.auth == auth)
+    if excluded_ids:
+        conditions.append(McpRegistryServer.id.not_in(excluded_ids))
 
     needle = query.strip()
     order: list[Any] = []
@@ -109,6 +113,33 @@ async def search(
     result = await db.execute(rows)
     total = await db.scalar(counted) or 0
     return [(server, check) for server, check in result.tuples().all()], total
+
+
+async def for_connections(
+    db: AsyncSession, *, keys: set[str], urls: set[str], names: set[str]
+) -> list[McpRegistryServer]:
+    """Resolve only the registry identities accessible saved accounts name.
+
+    URLs arrive normalized like the console's comparison: trim, remove trailing
+    slashes and lower-case. Matching the stored URL the same way also reaches
+    older connections without a catalog key, without loading the whole mirror.
+    Names are legacy catalog-key fallbacks, so they match the registry id rather
+    than the publisher's display name.
+    """
+    if not keys and not urls and not names:
+        return []
+    normalized_url = func.lower(func.rtrim(func.trim(McpRegistryServer.url), "/"))
+    result = await db.execute(
+        select(McpRegistryServer)
+        .where(
+            or_(
+                McpRegistryServer.id.in_(keys | names),
+                normalized_url.in_(urls),
+            )
+        )
+        .order_by(func.length(McpRegistryServer.name), McpRegistryServer.name, McpRegistryServer.id)
+    )
+    return list(result.scalars().all())
 
 
 async def listings(db: AsyncSession) -> list[tuple[str, str]]:

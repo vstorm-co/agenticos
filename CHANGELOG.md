@@ -19,6 +19,12 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- The MCP servers Connected filter includes accessible organization and personal
+  accounts across catalog pages, including custom servers, with one card per
+  service and consistent filtering, result counts and pagination.
+
 ## [1.40.0] - 2026-11-03
 
 ### Added

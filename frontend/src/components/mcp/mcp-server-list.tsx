@@ -30,7 +30,12 @@ import {
 } from "@/components/mcp/mcp-server-list-types";
 import { useMcpServers } from "@/hooks";
 import { useCreatedToast } from "@/hooks/use-created-toast";
-import { MCP_PAGE_SIZE, useMcpCatalog, useMcpCatalogPage } from "@/hooks/use-mcp-servers";
+import {
+  MCP_PAGE_SIZE,
+  useMcpCatalog,
+  useMcpCatalogPage,
+  useMcpServerEntry,
+} from "@/hooks/use-mcp-servers";
 import { getErrorMessage } from "@/lib/api-error";
 import type { McpConnectionRecord } from "@/lib/mcp-connections-api";
 import { startMcpOAuth } from "@/lib/mcp-connections-api";
@@ -43,7 +48,6 @@ import {
 import {
   connectionState,
   CUSTOM_CATEGORY,
-  matchingCustomRows,
   categoryLabel,
   customRows,
   freePrefix,
@@ -55,7 +59,7 @@ import {
 } from "@/lib/mcp-servers";
 import type { McpServerRow } from "@/lib/mcp-servers";
 import { setUrlParam } from "@/lib/utils";
-import type { McpAuthKind } from "@/types/mcp";
+import type { McpAuthKind, McpServerStateFilter } from "@/types/mcp";
 import type { AudiencePayload } from "@/types/sharing";
 import { useTranslations } from "next-intl";
 
@@ -83,9 +87,6 @@ function serverReturn(key: string): string {
   url.searchParams.set(SERVER_PARAM, key);
   return `${url.pathname}?${url.searchParams.toString()}`;
 }
-
-/** Whether a row is filtered by whether anybody has connected it. */
-type StateFilter = "all" | "connected" | "not-connected";
 
 /**
  * A name nothing in this scope holds yet, for a second account on one server.
@@ -159,7 +160,7 @@ export function McpServerList({
   // The whole curated catalog, for the category filter alone - see below.
   const catalog = useMcpCatalog();
   const [category, setCategory] = useState<string>("all");
-  const [state, setState] = useState<StateFilter>("all");
+  const [state, setState] = useState<McpServerStateFilter>("all");
   // What a server asks for, asked of the server like the category: the mirror's
   // rows say it only where the catalog check found it out (#2103).
   const [auth, setAuth] = useState<McpAuthKind | "all">("all");
@@ -175,59 +176,36 @@ export function McpServerList({
     category === "all" ? "" : category,
     auth === "all" ? "" : auth,
     page,
+    true,
+    state,
   );
 
-  // The page's catalog entries with their connections folded on. Custom rows are
-  // *not* built from a page: whether a connection is "not in the catalog" is a
-  // question about every entry, so asking it of fifty answers "yes" for a
-  // connection whose entry is on another page - which put the Notion connection
-  // at the foot of every page as an uncatalogued server, five times over, until
-  // searching "notion" brought its entry onto the page and it merged again.
-  const pageRows = useMemo(
+  // The API groups accessible accounts and applies every filter before paging,
+  // including saved custom servers and connected entries outside this page.
+  const rows = useMemo(
     () => rowsForEntries(listing.servers, organization.connections, personal.connections),
     [listing.servers, organization.connections, personal.connections],
   );
 
-  // Asked of the whole catalog, and appended once - on the last page, after
-  // everything the catalog and the mirror hold, because that is where "and these
-  // are yours" belongs in a list of five thousand.
-  const customs = useMemo(
-    () =>
-      matchingCustomRows(
-        customRows(catalog.servers, organization.connections, personal.connections),
-        query,
-        category === "all" ? "" : category,
-      ),
-    [catalog.servers, organization.connections, personal.connections, query, category],
-  );
-
-  const pageCount = Math.max(1, Math.ceil((listing.total + customs.length) / MCP_PAGE_SIZE));
-  const onLastPage = page >= pageCount - 1;
-  const rows = useMemo(
-    () => (onLastPage ? [...pageRows, ...customs] : pageRows),
-    [onLastPage, pageRows, customs],
-  );
+  const pageCount = Math.max(1, Math.ceil(listing.total / MCP_PAGE_SIZE));
+  // A disconnect may remove the last result on a page. Wait for the new answer:
+  // placeholder totals belong to the previous request while filters change.
+  if (!listing.isLoading && !listing.isPlaceholderData && page >= pageCount) {
+    setPage(pageCount - 1);
+  }
 
   // Answered by the server rather than derived from the rows on screen: a page
   // holds whichever categories landed on it, so a filter built from one offers a
   // different set on page two.
   const categories = useMemo(
-    () => [...new Set(catalog.servers.map((entry) => entry.category).filter(Boolean))].sort(),
-    [catalog.servers],
-  );
-
-  // The one filter still applied in the browser, and the only one that can be:
-  // whether anybody has connected a server is a fact the client holds and the
-  // server would have to be told. It narrows the page rather than the list, which
-  // is the honest limit of doing it here.
-  const visible = useMemo(
     () =>
-      rows.filter((row) => {
-        if (state === "all") return true;
-        const connected = row.organizations.length > 0 || row.personals.length > 0;
-        return state === "connected" ? connected : !connected;
-      }),
-    [rows, state],
+      [
+        ...new Set([
+          ...catalog.servers.map((entry) => entry.category).filter(Boolean),
+          CUSTOM_CATEGORY,
+        ]),
+      ].sort(),
+    [catalog.servers],
   );
 
   function ask(next: string) {
@@ -255,11 +233,21 @@ export function McpServerList({
     setManagingKey(key);
     if (persistSelection) setUrlParam(SERVER_PARAM, key);
   };
+  // A bookmarked custom or registry server may sit beyond the current page.
+  // Resolve that one key, while page entries continue to supply live metadata.
+  const { entry: bookmarkedEntry } = useMcpServerEntry(
+    managingKey !== null &&
+      !listing.servers.some((entry) => entry.key === managingKey) &&
+      !catalog.servers.some((entry) => entry.key === managingKey)
+      ? managingKey
+      : null,
+  );
   const managing = useMemo((): McpServerRow | null => {
     if (managingKey === null) return null;
     const entry =
       listing.servers.find((each) => each.key === managingKey) ??
-      catalog.servers.find((each) => each.key === managingKey);
+      catalog.servers.find((each) => each.key === managingKey) ??
+      bookmarkedEntry;
     if (entry) {
       return rowsForEntries([entry], organization.connections, personal.connections)[0]!;
     }
@@ -272,6 +260,7 @@ export function McpServerList({
     managingKey,
     listing.servers,
     catalog.servers,
+    bookmarkedEntry,
     organization.connections,
     personal.connections,
   ]);
@@ -612,7 +601,7 @@ export function McpServerList({
         namedByPage
         headerTour="mcp-catalog"
         title={t("servers")}
-        counted={t("serverCount", { count: listing.total + customs.length })}
+        counted={t("serverCount", { count: listing.total })}
         controls={<SearchInput value={query} onChange={ask} placeholder={t("searchServers")} />}
         contentClassName="space-y-4 p-4"
       >
@@ -654,7 +643,13 @@ export function McpServerList({
                   ))}
                 </SelectContent>
               </Select>
-              <Select value={state} onValueChange={(value) => setState(value as StateFilter)}>
+              <Select
+                value={state}
+                onValueChange={(value) => {
+                  setState(value as McpServerStateFilter);
+                  setPage(0);
+                }}
+              >
                 <SelectTrigger className="w-full min-w-0" aria-label={t("connectionState")}>
                   <SelectValue />
                 </SelectTrigger>
@@ -713,7 +708,7 @@ export function McpServerList({
          * only reason to lay a catalog out as a grid rather than as rows.
          */}
         <div className="rise-in grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {visible.map((row, index) => (
+          {rows.map((row, index) => (
             <McpServerCard
               key={row.key}
               name={row.name}
@@ -765,10 +760,10 @@ export function McpServerList({
         <Pager
           page={page}
           pageCount={pageCount}
-          matched={listing.total + customs.length}
-          total={listing.total + customs.length}
+          matched={listing.total}
+          total={listing.total}
           onPage={setPage}
-          counted={t("serverCount", { count: listing.total + customs.length })}
+          counted={t("serverCount", { count: listing.total })}
         />
       </ListCard>
 
