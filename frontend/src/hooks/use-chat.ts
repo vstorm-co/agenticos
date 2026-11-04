@@ -220,6 +220,9 @@ export function useChat(options: UseChatOptions = {}) {
   // without waiting for React's batched re-render. The handler never causes a
   // re-render based on this id, so state isn't needed.
   const currentMessageIdRef = useRef<string | null>(null);
+  // Stop ends streaming immediately, but its partial reply is saved afterwards.
+  // Keep a target for that write's failure until session_ready ends cleanup.
+  const stoppedMessageIdRef = useRef<string | null>(null);
   const currentUserMessageIdRef = useRef<string | null>(null);
   const createdConversationIdRef = useRef<string | null>(null);
   const setCurrentMessageId = useCallback((id: string | null) => {
@@ -600,6 +603,7 @@ export function useChat(options: UseChatOptions = {}) {
           }
           declinedRef.current = null;
           followingRef.current = conversation_id;
+          stoppedMessageIdRef.current = null;
           setCurrentMessageId(null);
           setLeftRunning((threads) => withoutThread(threads, conversation_id));
           setIsProcessing(true);
@@ -1057,7 +1061,10 @@ export function useChat(options: UseChatOptions = {}) {
           // With no question waiting there is nothing to answer, and it stays out.
           // A queued message refused is back in the queue saying why, instead.
           const unanswered = !refused && chatApi.getState().messages.at(-1)?.role === "user";
-          const id = currentMessageIdRef.current ?? (unanswered ? createNewMessage("") : null);
+          const id =
+            (code === "message_save_failed" ? stoppedMessageIdRef.current : null) ??
+            currentMessageIdRef.current ??
+            (unanswered ? createNewMessage("") : null);
           if (id) {
             // Into the timeline rather than onto `content` directly: the store's
             // append keeps the two in step, and it starts a parts list for a
@@ -1157,6 +1164,7 @@ export function useChat(options: UseChatOptions = {}) {
         }
 
         case "session_ready": {
+          stoppedMessageIdRef.current = null;
           sessionReadyRef.current = true;
           setSessionReady(true);
           break;
@@ -1285,6 +1293,7 @@ export function useChat(options: UseChatOptions = {}) {
   const queueAccountId = useAuthStore((state) => state.user?.id);
   useLayoutEffect(() => {
     pendingNextSteps.current.clear();
+    stoppedMessageIdRef.current = null;
   }, [queueAccountId, tenantId, activeOrgId]);
   const { wsUrl: wsOrigin } = usePublicConfig();
   const wsUrl = useMemo(() => {
@@ -1368,6 +1377,7 @@ export function useChat(options: UseChatOptions = {}) {
       files?: ChatMessageFile[],
       mentions?: Mentionable[],
     ): string => {
+      stoppedMessageIdRef.current = null;
       unconfirmedRef.current = null;
       sessionReadyRef.current = false;
       setSessionReady(false);
@@ -1755,6 +1765,7 @@ export function useChat(options: UseChatOptions = {}) {
     // away the panels of the turn still streaming, and a first turn that parks on an
     // approval is exactly that turn.
     if (previous === activeConversationId || previous === null) return;
+    stoppedMessageIdRef.current = null;
     stoppingRef.current = null;
     setIsStopping(false);
     setDelegations([]);
@@ -2417,6 +2428,7 @@ export function useChat(options: UseChatOptions = {}) {
       })();
       return;
     }
+    stoppedMessageIdRef.current ??= currentMessageIdRef.current;
     sendMessage({ type: "stop" });
     endTurnLocally();
   }, [
@@ -2509,6 +2521,7 @@ export function useChat(options: UseChatOptions = {}) {
     const returned = !wasConnected.current && isConnected;
     wasConnected.current = isConnected;
     if (returned) {
+      stoppedMessageIdRef.current = null;
       sessionReadyRef.current = true;
       setSessionReady(true);
     }

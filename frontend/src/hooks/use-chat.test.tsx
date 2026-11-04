@@ -709,6 +709,101 @@ describe("useChat - failures and interruptions", () => {
     expect(streaming()?.content).toContain("Unknown error");
   });
 
+  it("shows a late save failure on the stopped reply without restarting it", () => {
+    const { result } = renderHook(() => useChat(), { wrapper });
+    act(() => result.current.sendMessage("hello"));
+    receive("user_prompt", { message_id: "prompt-1" });
+    receive("model_request_start", {});
+    receive("text_delta", { content: "Part of the answer." });
+    const stoppedId = streaming()?.id;
+
+    act(() => result.current.stopGeneration());
+    // A second Stop while persistence unwinds must keep the same target.
+    act(() => result.current.stopGeneration());
+    receive("text_delta", { content: "Late text must not resume the stopped reply." });
+    receive("error", { code: "message_save_failed", message: "The reply could not be saved." });
+    receive("complete", { stopped: true });
+    receive("session_ready", {});
+
+    expect(streaming()).toMatchObject({ id: stoppedId, isStreaming: false, isTemporaryId: true });
+    expect(streaming()?.content).toContain("Part of the answer.");
+    expect(streaming()?.content).toContain("The reply could not be saved.");
+    expect(streaming()?.content).not.toContain("Late text");
+    expect(
+      useChatStore.getState().messages.filter((message) => message.role === "assistant"),
+    ).toHaveLength(1);
+    expect(result.current.isProcessing).toBe(false);
+  });
+
+  it("releases the stopped reply once persistence has finished", () => {
+    const { result } = renderHook(() => useChat(), { wrapper });
+    receive("model_request_start", {});
+    receive("text_delta", { content: "Stopped answer." });
+    act(() => result.current.stopGeneration());
+    receive("complete", { stopped: true });
+    receive("session_ready", {});
+
+    receive("error", { code: "message_save_failed", message: "An unrelated save failed." });
+
+    expect(streaming()?.content).toBe("Stopped answer.");
+    act(() => result.current.sendMessage("A new question"));
+    receive("user_prompt", { message_id: "prompt-2" });
+    receive("model_request_start", {});
+    receive("text_delta", { content: "New answer." });
+    receive("error", { code: "message_save_failed", message: "The new reply was not saved." });
+
+    const replies = useChatStore
+      .getState()
+      .messages.filter((message) => message.role === "assistant");
+    expect(replies[0]?.content).toBe("Stopped answer.");
+    expect(replies[1]?.content).toContain("The new reply was not saved.");
+  });
+
+  it("forgets the stopped reply when another conversation opens", () => {
+    const { result, rerender } = renderHook(({ id }) => useChat({ conversationId: id }), {
+      wrapper,
+      initialProps: { id: "c-1" },
+    });
+    receive("model_request_start", {});
+    receive("text_delta", { content: "Stopped answer." });
+    act(() => result.current.stopGeneration());
+
+    rerender({ id: "c-2" });
+    rerender({ id: "c-1" });
+    receive("error", { code: "message_save_failed", message: "An unrelated save failed." });
+
+    expect(streaming()?.content).toBe("Stopped answer.");
+  });
+
+  it.each(["reconnect", "follow"])("forgets the stopped reply after %s", (transition) => {
+    const { result, rerender } = renderHook(() => useChat({ conversationId: "c-1" }), {
+      wrapper,
+    });
+    act(() => result.current.sendMessage("hello"));
+    receive("user_prompt", { message_id: "prompt-1" });
+    receive("model_request_start", {});
+    receive("text_delta", { content: "Stopped answer." });
+    act(() => result.current.stopGeneration());
+
+    if (transition === "reconnect") {
+      socket.isConnected = false;
+      rerender();
+      socket.isConnected = true;
+      rerender();
+    } else {
+      receive("turn_attached", { conversation_id: "c-1" });
+    }
+    receive("model_request_start", {});
+    receive("text_delta", { content: "New answer." });
+    receive("error", { code: "message_save_failed", message: "The new reply was not saved." });
+
+    const replies = useChatStore
+      .getState()
+      .messages.filter((message) => message.role === "assistant");
+    expect(replies[0]?.content).toBe("Stopped answer.");
+    expect(replies[1]?.content).toContain("The new reply was not saved.");
+  });
+
   // Every ending ends the call that was already out too, not only the one still
   // being written: a colleague asked a moment before a stop kept spinning
   // "Asking …", and a planning call kept "Running…" under a finished turn (#2149).
