@@ -9,7 +9,7 @@ import contextlib
 from typing import Any
 
 import pytest
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from app.agents.spec import AgentSpec
@@ -209,6 +209,22 @@ class TestRefusingTheWholeDelete:
         assert refused.value.message.startswith("'Clerk' does not publish without 'refunds'")
 
 
+async def _waiting_for_a_lock(factory: async_sessionmaker[AsyncSession]) -> None:
+    """Return once some session of this database waits for a lock, or fail after 10s."""
+    async with factory() as session:
+        for _ in range(100):
+            waiting = await session.scalar(
+                text(
+                    "SELECT count(*) FROM pg_stat_activity "
+                    "WHERE wait_event_type = 'Lock' AND datname = current_database()"
+                )
+            )
+            if waiting:
+                return
+            await asyncio.sleep(0.1)
+    raise AssertionError("nothing waited for a lock")
+
+
 class TestBesideAnotherWriter:
     """Two sessions on one skill: the delete and a draft save or a new binding."""
 
@@ -274,7 +290,7 @@ class TestBesideAnotherWriter:
                 await skill_repo.hold(binding, [skill.id], organization_id=ctx.organization_id)
                 await _published(binding, ctx, name="Desk", spec=_spec(skill))
                 task = asyncio.create_task(delete())
-                await asyncio.sleep(0.4)
+                await _waiting_for_a_lock(factory)
                 assert not task.done()
 
                 await binding.commit()
