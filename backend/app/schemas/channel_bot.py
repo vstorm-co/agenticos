@@ -730,3 +730,33 @@ class TeamsConversationRead(BaseSchema):
 
 class TeamsConversationList(BaseSchema):
     items: list[TeamsConversationRead]
+
+
+class WhatsAppCustomerRead(BaseSchema):
+    """One customer of a WhatsApp line, as the people who manage it see them.
+
+    `phone` is the full number, digits only, and is `None` for a customer who linked
+    an account or whose number was never kept. It is returned to nobody who lacks
+    `channels:manage`.
+    """
+
+    id: UUID
+    bsuid: str
+    phone: str | None = None
+    profile_name: str | None = None
+    username: str | None = None
+    last_message_at: datetime | None = None
+    linked: bool
+
+
+class WhatsAppCustomerList(BaseSchema):
+    """A page of a line's customers."""
+
+    items: list[WhatsAppCustomerRead]
+    total: int
+
+
+class WhatsAppCustomerSearch(BaseSchema):
+    """A number to find among a line's customers. It travels in the body, never the address."""
+
+    phone: str = Field(pattern=r"^\+?[0-9 ()-]{3,24}$")

@@ -124,6 +124,7 @@ _APPROVALS_HEADER = [
     "created_at",
     "asked_in_chat_platform",
     "asked_in_chat_account",
+    "asked_in_chat_handle",
     "asked_in_chat_bot",
 ]
 
@@ -365,6 +366,7 @@ def _approval_row(row: ApprovalRow) -> list[object]:
         row.created_at,
         asker.platform if asker else None,
         asker.name if asker else None,
+        asker.handle if asker else None,
         asker.bot_name if asker else None,
     ]
 

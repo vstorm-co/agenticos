@@ -25,6 +25,8 @@ from app.schemas.channel_bot import (
     ChannelSessionList,
     TeamsConversationList,
     TeamsConversationRead,
+    WhatsAppCustomerList,
+    WhatsAppCustomerSearch,
     WhatsAppTemplateList,
     WhatsAppTemplateRead,
 )
@@ -283,3 +285,32 @@ async def list_sessions(
     """List channel sessions for this bot."""
     items, total = await service.list_sessions(bot_id, skip=skip, limit=limit)
     return ChannelSessionList(items=items, total=total)
+
+
+@router.get(
+    "/bots/{bot_id}/whatsapp-customers",
+    response_model=WhatsAppCustomerList,
+    dependencies=[Depends(require(Perm.CHANNELS_MANAGE))],
+)
+async def list_whatsapp_customers(
+    bot_id: UUID,
+    service: OrgChannelBotSvc,
+    skip: int = Query(0, ge=0, description="Items to skip"),
+    limit: int = Query(50, ge=1, le=100, description="Max items to return"),
+) -> Any:
+    """A WhatsApp bot's customers with their full numbers, for `channels:manage` only."""
+    return await service.whatsapp_customers(bot_id, skip=skip, limit=limit)
+
+
+@router.post(
+    "/bots/{bot_id}/whatsapp-customers/search",
+    response_model=WhatsAppCustomerList,
+    dependencies=[Depends(require(Perm.CHANNELS_MANAGE))],
+)
+async def search_whatsapp_customers(
+    bot_id: UUID,
+    data: WhatsAppCustomerSearch,
+    service: OrgChannelBotSvc,
+) -> Any:
+    """Find a WhatsApp bot's customers by number. The number is in the body, not the address."""
+    return await service.find_whatsapp_customers(bot_id, data.phone)

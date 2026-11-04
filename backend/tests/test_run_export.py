@@ -344,7 +344,7 @@ class TestApprovalsExport:
         stranger = self._approval(
             triggered_by_user_id=None,
             triggered_by_email=None,
-            asked_in_chat=ChatAsker("slack", "Ana", "Support"),
+            asked_in_chat=ChatAsker("slack", "Ana", "Support", handle="•••• 1234"),
         )
         member = self._approval()
         monkeypatch.setattr(
@@ -368,12 +368,13 @@ class TestApprovalsExport:
         assert header[16:] == [
             "asked_in_chat_platform",
             "asked_in_chat_account",
+            "asked_in_chat_handle",
             "asked_in_chat_bot",
         ]
-        assert rows[1][16:] == ["slack", "Ana", "Support"]
+        assert rows[1][16:] == ["slack", "Ana", "•••• 1234", "Support"]
         assert rows[1][header.index("triggered_by_user_id")] == ""
         assert rows[1][header.index("triggered_by_email")] == ""
-        assert rows[2][16:] == ["", "", ""]
+        assert rows[2][16:] == ["", "", "", ""]
 
     async def test_the_record_exports_with_its_resolved_emails(self, monkeypatch):
         service = _service(monkeypatch)
@@ -499,3 +500,30 @@ class TestSpendExport:
         # narrow a date range that would not shorten it.
         assert "date range" not in exc.value.message
         assert "agent" in exc.value.message
+
+
+@pytest.mark.security
+def test_no_schema_that_names_a_chat_account_carries_a_phone_field():
+    from app.schemas.agent_run import AgentRunRead, ApprovalRead, ChatAskerRead
+    from app.schemas.channel_bot import ChannelIdentityRead
+    from app.schemas.conversation import MessageAuthor
+
+    for schema in (ChannelIdentityRead, MessageAuthor, AgentRunRead, ApprovalRead, ChatAskerRead):
+        assert not [name for name in schema.model_fields if "phone" in name], schema.__name__
+
+
+@pytest.mark.security
+def test_the_approvals_csv_row_holds_the_masked_handle_and_no_full_number():
+    asker = ChatAsker("whatsapp", "Ana", "Support", handle="•••• 0800")
+    row = run_export._approval_row(
+        SimpleNamespace(
+            id="a", run_id="r", agent_id="g", agent_name="n", tool_id="t", tool_args={},
+            subagent_name=None, subagent_agent_id=None, status="pending",
+            triggered_by_user_id=None, triggered_by_email=None, decided_by_user_id=None,
+            decided_by_email=None, decided_at=None, note=None, created_at=_WINDOW[0],
+            asked_in_chat=asker,
+        )
+    )  # fmt: skip
+
+    assert "•••• 0800" in row
+    assert "48600700800" not in repr(row)

@@ -4,18 +4,23 @@
 is a write to the same row, so a hold or a claim and a new message serialize on it.
 """
 
+from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 from uuid import UUID
 
+from sqlalchemy import Select, String, cast, exists, func, or_, select, text
 from sqlalchemy import delete as sql_delete
-from sqlalchemy import exists, func, or_, select, text
+from sqlalchemy import update as sql_update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.agent_run import AgentRun, RunStatus
 from app.db.models.channel_bot import ChannelBot
+from app.db.models.channel_identity import ChannelIdentity
 from app.db.models.channel_session import ChannelSession
+from app.db.models.organization import OrganizationMember
+from app.db.models.user import User
 from app.db.models.whatsapp_customer import WhatsAppCustomer, WhatsAppHeldRun
 from app.services.channels.whatsapp_window import NUDGE_AFTER, WINDOW, WINDOW_MARGIN, nudge_due
 
@@ -44,6 +49,101 @@ async def record_inbound(
             },
         )
     )
+
+
+@dataclass(frozen=True)
+class CustomerRow:
+    """A customer of a bot, with the chat account row for their BSUID when there is one."""
+
+    customer: WhatsAppCustomer
+    identity: ChannelIdentity | None
+
+
+def _active_members(organization_id: UUID) -> Select[UUID]:
+    """The accounts with an active membership here: what `member_repo.get_active` accepts."""
+    return (
+        select(OrganizationMember.user_id)
+        .join(User, User.id == OrganizationMember.user_id)
+        .where(OrganizationMember.organization_id == organization_id, User.is_active.is_(True))
+    )
+
+
+async def set_phone(
+    db: AsyncSession, *, organization_id: UUID, bot_id: UUID, bsuid: str, phone: str
+) -> None:
+    """Keep a stranger's number on their record; the row is not created here."""
+    await db.execute(
+        sql_update(WhatsAppCustomer)
+        .where(
+            WhatsAppCustomer.organization_id == organization_id,
+            WhatsAppCustomer.bot_id == bot_id,
+            WhatsAppCustomer.bsuid == bsuid,
+            # A number is kept only for people with no account: never once it is linked
+            # to an active member. A departed member is a stranger again.
+            ~exists().where(
+                ChannelIdentity.platform == "whatsapp",
+                ChannelIdentity.platform_user_id == f"{organization_id}:{bsuid}",
+                ChannelIdentity.user_id.in_(_active_members(organization_id)),
+            ),
+        )
+        .values(phone=phone)
+    )
+
+
+async def clear_phone(db: AsyncSession, *, organization_id: UUID, bsuid: str) -> None:
+    """Drop the number from this customer's record on every bot of the organization."""
+    await db.execute(
+        sql_update(WhatsAppCustomer)
+        .where(
+            WhatsAppCustomer.organization_id == organization_id,
+            WhatsAppCustomer.bsuid == bsuid,
+            WhatsAppCustomer.phone.is_not(None),
+        )
+        .values(phone=None)
+    )
+
+
+def _with_identity() -> Select[tuple[WhatsAppCustomer, ChannelIdentity]]:
+    namespaced = cast(WhatsAppCustomer.organization_id, String) + ":" + WhatsAppCustomer.bsuid
+    return select(WhatsAppCustomer, ChannelIdentity).outerjoin(
+        ChannelIdentity,
+        (ChannelIdentity.platform == "whatsapp") & (ChannelIdentity.platform_user_id == namespaced),
+    )
+
+
+async def list_for_bot(
+    db: AsyncSession, *, organization_id: UUID, bot_id: UUID, skip: int, limit: int
+) -> tuple[list[CustomerRow], int]:
+    """A bot's customers, newest message first, and how many there are."""
+    where = (WhatsAppCustomer.organization_id == organization_id, WhatsAppCustomer.bot_id == bot_id)
+    total = await db.scalar(select(func.count()).select_from(WhatsAppCustomer).where(*where))
+    result = await db.execute(
+        _with_identity()
+        .where(*where)
+        .order_by(WhatsAppCustomer.last_inbound_at.desc().nulls_last(), WhatsAppCustomer.id)
+        .offset(skip)
+        .limit(limit)
+    )
+    return [CustomerRow(c, i) for c, i in result.all()], total or 0
+
+
+async def find_by_phone(
+    db: AsyncSession, *, organization_id: UUID, bot_id: UUID, phone: str
+) -> list[CustomerRow]:
+    """The customers of this bot with this number (digits only)."""
+    result = await db.execute(
+        _with_identity().where(
+            WhatsAppCustomer.organization_id == organization_id,
+            WhatsAppCustomer.bot_id == bot_id,
+            WhatsAppCustomer.phone == phone,
+            # Never confirms whose number a linked member's is.
+            or_(
+                ChannelIdentity.user_id.is_(None),
+                ChannelIdentity.user_id.not_in(_active_members(organization_id)),
+            ),
+        )
+    )
+    return [CustomerRow(c, i) for c, i in result.all()]
 
 
 async def get(db: AsyncSession, *, bot_id: UUID, bsuid: str) -> WhatsAppCustomer | None:

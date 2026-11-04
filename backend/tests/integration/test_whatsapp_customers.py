@@ -1252,3 +1252,187 @@ class TestMarkingANudge:
 
     async def test_an_unknown_customer_is_not_marked(self, sessions) -> None:
         assert not await self._mark(sessions, uuid.uuid4())
+
+
+async def _other_customer(
+    db: AsyncSession, org: Organization, bot: ChannelBot, bsuid: str, at: datetime
+) -> WhatsAppCustomer:
+    await whatsapp_customer_repo.record_inbound(
+        db, organization_id=org.id, bot_id=bot.id, bsuid=bsuid, sent_at=at
+    )
+    return await whatsapp_customer_repo.lock(db, organization_id=org.id, bot_id=bot.id, bsuid=bsuid)
+
+
+async def test_a_number_is_set_and_cleared(db: AsyncSession) -> None:
+    org, bot, _, _ = await _estate(db)
+    customer = await _customer(db, org, bot)
+
+    await whatsapp_customer_repo.set_phone(
+        db, organization_id=org.id, bot_id=bot.id, bsuid=BSUID, phone="48600700800"
+    )
+    await db.refresh(customer)
+    assert customer.phone == "48600700800"
+
+    await whatsapp_customer_repo.clear_phone(db, organization_id=org.id, bsuid=BSUID)
+    await db.refresh(customer)
+    assert customer.phone is None
+
+
+async def test_clearing_reaches_every_bot_of_the_organization_and_no_other(
+    db: AsyncSession,
+) -> None:
+    org, bot, user, _ = await _estate(db)
+    other_org, other_bot, _, _ = await _estate(db)
+    second = ChannelBot(
+        organization_id=org.id,
+        platform="whatsapp",
+        name="Second",
+        token_encrypted="x",
+        whatsapp_phone_number_id="124",
+        whatsapp_account_id="457",
+    )
+    db.add(second)
+    await db.flush()
+    rows = [
+        await _customer(db, org, bot),
+        await whatsapp_customer_repo.lock(
+            db, organization_id=org.id, bot_id=second.id, bsuid=BSUID
+        ),
+        await whatsapp_customer_repo.lock(
+            db, organization_id=other_org.id, bot_id=other_bot.id, bsuid=BSUID
+        ),
+    ]
+    for row in rows:
+        await whatsapp_customer_repo.set_phone(
+            db,
+            organization_id=row.organization_id,
+            bot_id=row.bot_id,
+            bsuid=BSUID,
+            phone="48600700800",
+        )
+
+    await whatsapp_customer_repo.clear_phone(db, organization_id=org.id, bsuid=BSUID)
+
+    for row in rows:
+        await db.refresh(row)
+    assert [row.phone for row in rows] == [None, None, "48600700800"]
+
+
+async def test_the_listing_pairs_each_customer_with_their_chat_account_and_pages(
+    db: AsyncSession,
+) -> None:
+    org, bot, _, _ = await _estate(db)
+    older = await _other_customer(db, org, bot, "US.1", T1)
+    newer = await _other_customer(db, org, bot, "US.2", T3)
+    identity = ChannelIdentity(
+        platform="whatsapp", platform_user_id=platform_user_id_for(org.id, "US.2")
+    )
+    db.add(identity)
+    await db.flush()
+
+    rows, total = await whatsapp_customer_repo.list_for_bot(
+        db, organization_id=org.id, bot_id=bot.id, skip=0, limit=10
+    )
+    assert total == 2
+    assert [(r.customer.id, r.identity and r.identity.id) for r in rows] == [
+        (newer.id, identity.id),
+        (older.id, None),
+    ]
+    page, total = await whatsapp_customer_repo.list_for_bot(
+        db, organization_id=org.id, bot_id=bot.id, skip=1, limit=1
+    )
+    assert (total, [r.customer.id for r in page]) == (2, [older.id])
+
+
+async def test_a_number_is_found_on_its_own_bot_only(db: AsyncSession) -> None:
+    org, bot, _, _ = await _estate(db)
+    customer = await _customer(db, org, bot)
+    await whatsapp_customer_repo.set_phone(
+        db, organization_id=org.id, bot_id=bot.id, bsuid=BSUID, phone="48600700800"
+    )
+    other = ChannelBot(
+        organization_id=org.id,
+        platform="whatsapp",
+        name="Other",
+        token_encrypted="x",
+        whatsapp_phone_number_id="125",
+        whatsapp_account_id="458",
+    )
+    db.add(other)
+    await db.flush()
+
+    found = await whatsapp_customer_repo.find_by_phone(
+        db, organization_id=org.id, bot_id=bot.id, phone="48600700800"
+    )
+    assert [r.customer.id for r in found] == [customer.id]
+    assert not await whatsapp_customer_repo.find_by_phone(
+        db, organization_id=org.id, bot_id=other.id, phone="48600700800"
+    )
+
+
+@pytest.mark.security
+async def test_a_number_is_not_stored_once_the_account_is_linked(db: AsyncSession) -> None:
+    from app.db.models.organization import OrganizationMember
+
+    org, bot, user, _ = await _estate(db)
+    db.add(OrganizationMember(organization_id=org.id, user_id=user.id, role="member"))
+    customer = await _customer(db, org, bot)
+    db.add(
+        ChannelIdentity(
+            platform="whatsapp",
+            platform_user_id=platform_user_id_for(org.id, BSUID),
+            user_id=user.id,
+        )
+    )
+    await db.flush()
+
+    await whatsapp_customer_repo.set_phone(
+        db, organization_id=org.id, bot_id=bot.id, bsuid=BSUID, phone="48600700800"
+    )
+    await db.refresh(customer)
+
+    assert customer.phone is None
+
+
+@pytest.mark.security
+async def test_only_an_active_members_number_is_refused_and_hidden_from_search(
+    db: AsyncSession,
+) -> None:
+    from app.db.models.organization import OrganizationMember
+
+    org, bot, active, _ = await _estate(db)
+    departed = User(email=f"{uuid.uuid4().hex}@example.com", hashed_password="x", is_active=False)
+    db.add(departed)
+    await db.flush()
+    db.add_all(
+        [
+            OrganizationMember(organization_id=org.id, user_id=active.id, role="member"),
+            OrganizationMember(organization_id=org.id, user_id=departed.id, role="member"),
+        ]
+    )
+    rows = {}
+    for bsuid, user in (("US.act", active), ("US.gone", departed)):
+        rows[bsuid] = await whatsapp_customer_repo.lock(
+            db, organization_id=org.id, bot_id=bot.id, bsuid=bsuid
+        )
+        db.add(
+            ChannelIdentity(
+                platform="whatsapp",
+                platform_user_id=platform_user_id_for(org.id, bsuid),
+                user_id=user.id,
+            )
+        )
+        await db.flush()
+        await whatsapp_customer_repo.set_phone(
+            db, organization_id=org.id, bot_id=bot.id, bsuid=bsuid, phone="48600700800"
+        )
+        await db.refresh(rows[bsuid])
+
+    assert rows["US.act"].phone is None
+    assert rows["US.gone"].phone == "48600700800"
+    rows["US.act"].phone = "48600700800"
+    await db.flush()
+    found = await whatsapp_customer_repo.find_by_phone(
+        db, organization_id=org.id, bot_id=bot.id, phone="48600700800"
+    )
+    assert [r.customer.bsuid for r in found] == ["US.gone"]

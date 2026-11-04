@@ -27,7 +27,9 @@ from app.repositories import (
     agent_exposure_repo,
     channel_bot_repo,
     channel_session_repo,
+    member_repo,
     teams_conversation_repo,
+    whatsapp_customer_repo,
 )
 from app.schemas.channel_bot import (
     AccessPolicy,
@@ -36,6 +38,8 @@ from app.schemas.channel_bot import (
     ChannelBotRead,
     ChannelBotUpdate,
     InheritedSpeechToTextRead,
+    WhatsAppCustomerList,
+    WhatsAppCustomerRead,
     WhatsAppLateTemplateChoice,
 )
 from app.services.channels import (
@@ -641,6 +645,70 @@ class ChannelBotService:
         return ChannelBotRead.model_validate(bot).model_copy(
             update={"inherited_speech_to_text": inherited}
         )
+
+    async def _whatsapp_bot(self, bot_id: UUID) -> ChannelBot:
+        bot = await self.get(bot_id)
+        if bot.platform != "whatsapp":
+            raise refused_field("bot_id", "Only a WhatsApp bot has customers", bot_id=str(bot_id))
+        return bot
+
+    async def _customers(
+        self, rows: list[whatsapp_customer_repo.CustomerRow], total: int
+    ) -> WhatsAppCustomerList:
+        """Rows as the manager's view reads them; a linked member's number is never shown."""
+        user_ids = [r.identity.user_id for r in rows if r.identity and r.identity.user_id]
+        active = await member_repo.get_active_ids(
+            self.db, organization_id=self._org_id, user_ids=user_ids
+        )
+        items = []
+        for row in rows:
+            identity = row.identity
+            linked = identity is not None and identity.user_id in active
+            items.append(
+                WhatsAppCustomerRead(
+                    id=row.customer.id,
+                    bsuid=row.customer.bsuid,
+                    phone=None if linked else row.customer.phone,
+                    profile_name=identity.platform_display_name if identity else None,
+                    username=identity.platform_username if identity else None,
+                    last_message_at=row.customer.last_inbound_at,
+                    linked=linked,
+                )
+            )
+        return WhatsAppCustomerList(items=items, total=total)
+
+    async def whatsapp_customers(
+        self, bot_id: UUID, *, skip: int, limit: int
+    ) -> WhatsAppCustomerList:
+        """A WhatsApp bot's customers, newest message first, with their full numbers.
+
+        Only a caller holding `channels:manage` reaches this; the route gates it.
+
+        Raises:
+            NotFoundError: If the bot is not this organization's.
+            BadRequestError: If it is not a WhatsApp bot.
+        """
+        bot = await self._whatsapp_bot(bot_id)
+        rows, total = await whatsapp_customer_repo.list_for_bot(
+            self.db, organization_id=self._org_id, bot_id=bot.id, skip=skip, limit=limit
+        )
+        return await self._customers(rows, total)
+
+    async def find_whatsapp_customers(self, bot_id: UUID, phone: str) -> WhatsAppCustomerList:
+        """The bot's customers with this number, however it was typed.
+
+        Raises:
+            NotFoundError: If the bot is not this organization's.
+            BadRequestError: If it is not a WhatsApp bot.
+        """
+        bot = await self._whatsapp_bot(bot_id)
+        digits = "".join(ch for ch in phone if ch.isdigit())
+        if not 1 <= len(digits) <= 15:
+            return WhatsAppCustomerList(items=[], total=0)
+        rows = await whatsapp_customer_repo.find_by_phone(
+            self.db, organization_id=self._org_id, bot_id=bot.id, phone=digits
+        )
+        return await self._customers(rows, len(rows))
 
     async def teams_app_package(self, bot_id: UUID) -> bytes:
         """The Teams app package for one bot, to upload to the tenant's app catalog.

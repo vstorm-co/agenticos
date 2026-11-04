@@ -32,8 +32,10 @@ from app.db.session import get_db_context
 from app.repositories import (
     agent_run_repo,
     channel_bot_repo,
+    channel_identity_repo,
     channel_session_repo,
     conversation_repo,
+    member_repo,
     whatsapp_customer_repo,
 )
 from app.services.channel_bot import unseal_bot_token, unseal_webhook_secret
@@ -52,6 +54,7 @@ from app.services.channels.whatsapp_payload import (
     WhatsAppMessage,
     group_by_customer,
     parse_webhook,
+    platform_user_id_for,
     to_event,
     to_incoming,
     verify_signature,
@@ -270,6 +273,64 @@ class WhatsAppInbound:
             )
 
 
+_MAX_PHONE_DIGITS = 15
+
+
+def _phone_digits(messages: list[WhatsAppMessage]) -> str | None:
+    """The newest number in the batch as one to fifteen digits, or `None`."""
+    raw = next((m.phone for m in reversed(messages) if m.phone), None)
+    digits = "".join(ch for ch in raw or "" if ch.isdigit())
+    return digits if 1 <= len(digits) <= _MAX_PHONE_DIGITS else None
+
+
+async def _keep_phone(
+    bot_id: str, organization_id: UUID, chat_id: str, messages: list[WhatsAppMessage]
+) -> None:
+    """Keep the number of a customer the line answers as a stranger; drop it for a member.
+
+    This is the only place a number is written, in the API process and after the
+    access policy has let the message through: the inbound upsert never carries one.
+    A failure leaves the customer's message to be routed and logs the bot and the
+    exception type, never the number.
+    """
+    digits = _phone_digits(messages)
+    try:
+        async with get_db_context() as db:
+            bot = await channel_bot_repo.get_for_org(
+                db, UUID(bot_id), organization_id=organization_id
+            )
+            if bot is None:
+                return
+            identity = await channel_identity_repo.get_by_platform_user(
+                db, "whatsapp", platform_user_id_for(organization_id, chat_id)
+            )
+            if (
+                identity is not None
+                and identity.user_id is not None
+                and await member_repo.get_active(
+                    db, organization_id=organization_id, user_id=identity.user_id
+                )
+                is not None
+            ):
+                await whatsapp_customer_repo.clear_phone(
+                    db, organization_id=organization_id, bsuid=chat_id
+                )
+            elif digits is not None and ChannelMessageRouter().admits_stranger(
+                to_incoming(messages[-1], bot_id=bot_id, organization_id=organization_id), bot
+            ):
+                await whatsapp_customer_repo.set_phone(
+                    db,
+                    organization_id=organization_id,
+                    bot_id=UUID(bot_id),
+                    bsuid=chat_id,
+                    phone=digits,
+                )
+    except Exception as failure:
+        logger.warning(
+            "whatsapp_phone_unsaved", extra={"bot_id": bot_id, "error": type(failure).__name__}
+        )
+
+
 async def handle_customer(
     bot_id: str,
     organization_id: UUID,
@@ -286,6 +347,7 @@ async def handle_customer(
     """
     store = store or WindowStore()
     delivered: list[Held] = []
+    await _keep_phone(bot_id, organization_id, chat_id, messages)
     try:
         if await store.has_held(bot_id, chat_id, now=_now()):
             async with chat_lock(bot_id, chat_id):

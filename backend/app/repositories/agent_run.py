@@ -1987,11 +1987,14 @@ class ChatAsker:
         name: The display name, else `@handle`, else the platform's user id.
         bot_name: The bot the chat reached the agent through, or `None` once
             the binding is gone.
+        handle: The account's handle as the platform gave it: a username, or for a
+            WhatsApp customer the masked number (`•••• 1234`). Never a full number.
     """
 
     platform: str
     name: str
     bot_name: str | None
+    handle: str | None = None
 
 
 def chat_account_name(identity: ChannelIdentity) -> str:
@@ -2207,6 +2210,7 @@ async def list_approvals(
                     platform=identity.platform,
                     name=chat_account_name(identity),
                     bot_name=bot_name,
+                    handle=identity.platform_username,
                 )
                 if stranger and identity is not None
                 else None

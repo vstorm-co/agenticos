@@ -182,7 +182,7 @@ class TestWhatTheQueueSays:
 
         assert rows[0].triggered_by_email is None
         assert rows[0].triggered_by_user_id is None
-        assert rows[0].asked_in_chat == ChatAsker("slack", "Ana", "Support")
+        assert rows[0].asked_in_chat == ChatAsker("slack", "Ana", "Support", handle=None)
 
     async def test_a_stranger_without_a_display_name_falls_back_to_the_handle(self, db) -> None:
         org, owner = await _org(db)
@@ -195,7 +195,27 @@ class TestWhatTheQueueSays:
 
         rows, _ = await ApprovalService(db).list_approvals(_ctx(org, owner))
 
-        assert rows[0].asked_in_chat == ChatAsker("slack", "@ana", None)
+        assert rows[0].asked_in_chat == ChatAsker("slack", "@ana", None, handle="ana")
+
+    @pytest.mark.security
+    async def test_a_whatsapp_strangers_call_shows_the_masked_number_and_never_the_full_one(
+        self, db
+    ) -> None:
+        org, owner = await _org(db)
+        agent = await _agent(db, org)
+        publisher = await _user(db)
+        run = await _chat_run(
+            db, org, agent, publisher=publisher, username="•••• 1234", with_bot=False
+        )
+        identity = await db.get(ChannelIdentity, run.channel_identity_id)
+        assert identity is not None
+        identity.platform = "whatsapp"
+        await db.flush()
+        await _approval(db, org, run)
+
+        rows, _ = await ApprovalService(db).list_approvals(_ctx(org, owner))
+
+        assert rows[0].asked_in_chat == ChatAsker("whatsapp", "Ana", None, handle="•••• 1234")
 
     async def test_a_stranger_with_neither_name_nor_handle_is_named_by_platform_id(
         self, db
@@ -210,7 +230,9 @@ class TestWhatTheQueueSays:
         rows, _ = await ApprovalService(db).list_approvals(_ctx(org, owner))
 
         assert identity is not None
-        assert rows[0].asked_in_chat == ChatAsker("slack", identity.platform_user_id, "Support")
+        assert rows[0].asked_in_chat == ChatAsker(
+            "slack", identity.platform_user_id, "Support", handle=None
+        )
 
     async def test_a_linked_members_call_still_names_them(self, db) -> None:
         org, owner = await _org(db)

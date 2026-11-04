@@ -295,6 +295,10 @@ class ChatAskerRead(BaseSchema):
         default=None,
         description="The bot the chat reached the agent through; null once its binding is gone",
     )
+    handle: str | None = Field(
+        default=None,
+        description="The account's handle, or a WhatsApp customer's masked number",
+    )
 
 
 class ApprovalRead(BaseSchema):

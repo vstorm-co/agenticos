@@ -6,8 +6,10 @@ row records the latest one per customer, and whether Meta has since said the
 window is closed. A run whose answer arrived outside the window is held here
 until the customer writes again.
 
-The record holds no phone number and no message content: a customer is the
-business-scoped user ID (BSUID) Meta gave this bot, and nothing else about them.
+The record holds no message content: a customer is the business-scoped user ID
+(BSUID) Meta gave this bot. The one other thing it keeps about them is the number
+of a customer the line answers with no linked account, for the people who manage
+the line.
 """
 
 import uuid
@@ -39,6 +41,12 @@ class WhatsAppCustomer(Base, TimestampMixin):
     )
     bsuid: Mapped[str] = mapped_column(String(255), nullable=False)
     """The same width as `channel_sessions.platform_chat_id`."""
+
+    phone: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    """The customer's number, digits only; set for a stranger the line answers, cleared on linking.
+
+    No index and no constraint: it is looked up only within one bot's customers, and
+    only by a manager."""
 
     last_inbound_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     """Meta's `timestamp` on the customer's latest message - never the time we received it."""

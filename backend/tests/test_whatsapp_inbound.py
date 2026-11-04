@@ -5,6 +5,7 @@ import hashlib
 import hmac
 import json
 import logging
+import re
 import time
 import uuid
 from collections.abc import AsyncGenerator, Iterator
@@ -49,6 +50,16 @@ from tests.test_whatsapp_payload import FIXTURES
 pytestmark = pytest.mark.anyio
 
 MODULE = "app.services.channels.whatsapp_inbound"
+_KEEP_PHONE = inbound._keep_phone
+
+
+@pytest.fixture(autouse=True)
+def _no_number_is_kept():
+    """The number's own tests put the real function back; every other test leaves it out."""
+    with patch(f"{MODULE}._keep_phone", AsyncMock()):
+        yield
+
+
 ORG = uuid.UUID("11111111-1111-1111-1111-111111111111")
 NOW = int(time.time())
 
@@ -2494,3 +2505,179 @@ class TestAnUnlinkedGroupSenderIsNotAStranger:
         line.invited.assert_awaited_once()
         line.answer_default.assert_not_awaited()
         assert line.turns == []
+
+
+NUMBER = "+48 600 700 800"
+
+
+class TestKeepingTheNumber:
+    """A stranger's number is written once, after the access check, and never from the upsert."""
+
+    def _world(self, *, admits: bool = True, linked: bool = False):
+        identity = MagicMock(user_id=uuid.uuid4() if linked else None)
+        router = MagicMock(admits_stranger=MagicMock(return_value=admits))
+        repo = MagicMock(set_phone=AsyncMock(), clear_phone=AsyncMock())
+
+        @asynccontextmanager
+        async def sessions() -> AsyncGenerator[MagicMock]:
+            yield MagicMock()
+
+        patches = (
+            patch(f"{MODULE}.get_db_context", sessions),
+            patch(f"{MODULE}.channel_bot_repo.get_for_org", AsyncMock(return_value=_bot())),
+            patch(
+                f"{MODULE}.channel_identity_repo.get_by_platform_user",
+                AsyncMock(return_value=identity),
+            ),
+            patch(
+                f"{MODULE}.member_repo.get_active",
+                AsyncMock(return_value=MagicMock() if linked else None),
+            ),
+            patch(f"{MODULE}.ChannelMessageRouter", MagicMock(return_value=router)),
+            patch(f"{MODULE}.whatsapp_customer_repo.set_phone", repo.set_phone),
+            patch(f"{MODULE}.whatsapp_customer_repo.clear_phone", repo.clear_phone),
+        )
+        return repo, patches
+
+    async def _keep(self, number: str | None = NUMBER, **world: bool):
+        repo, patches = self._world(**world)
+        message = replace(_text()[0], phone=number)
+        with contextlib.ExitStack() as stack:
+            for each in patches:
+                stack.enter_context(each)
+            await _KEEP_PHONE(BOT, ORG, CHAT, [message])
+        return repo
+
+    @pytest.mark.security
+    async def test_an_unlinked_customer_on_a_public_line_has_their_digits_kept(self):
+        repo = await self._keep()
+
+        assert repo.set_phone.await_args.kwargs == {
+            "organization_id": ORG,
+            "bot_id": uuid.UUID(BOT),
+            "bsuid": CHAT,
+            "phone": "48600700800",
+        }
+        repo.clear_phone.assert_not_awaited()
+
+    @pytest.mark.security
+    async def test_nothing_is_kept_when_the_line_is_closed_or_the_whitelist_refuses(self):
+        repo = await self._keep(admits=False)
+
+        repo.set_phone.assert_not_awaited()
+
+    @pytest.mark.security
+    async def test_a_linked_sender_has_the_number_cleared_and_not_kept(self):
+        repo = await self._keep(linked=True)
+
+        assert repo.clear_phone.await_args.kwargs == {"organization_id": ORG, "bsuid": CHAT}
+        repo.set_phone.assert_not_awaited()
+
+    @pytest.mark.security
+    @pytest.mark.parametrize("number", [None, "", "abc", "1" * 16])
+    async def test_a_number_that_is_not_one_to_fifteen_digits_is_not_kept(self, number):
+        repo = await self._keep(number)
+
+        repo.set_phone.assert_not_awaited()
+
+    @pytest.mark.security
+    async def test_a_failing_write_still_routes_the_batch_and_logs_no_digits(self, caplog):
+        repo, patches = self._world()
+        repo.set_phone.side_effect = RuntimeError("48600700800 refused")
+        process = AsyncMock()
+        with contextlib.ExitStack() as stack:
+            for each in patches:
+                stack.enter_context(each)
+            stack.enter_context(patch(f"{MODULE}._keep_phone", _KEEP_PHONE))
+            stack.enter_context(patch(f"{MODULE}.process_channel_events_in_order", process))
+            stack.enter_context(patch(f"{MODULE}.WindowStore", MagicMock()))
+            caplog.set_level(logging.DEBUG)
+            message = replace(_text()[0], phone=NUMBER)
+            store = MagicMock(has_held=AsyncMock(return_value=False))
+            await handle_customer(BOT, ORG, CHAT, [message], store=store)
+
+        process.assert_awaited_once()
+        unsaved = [r for r in caplog.records if r.getMessage() == "whatsapp_phone_unsaved"]
+        assert [(r.bot_id, r.error) for r in unsaved] == [(BOT, "RuntimeError")]
+        for record in caplog.records:
+            assert not {"600", "700", "800"} & set(
+                re.findall(r"\d{3}", record.getMessage() + repr(record.__dict__))
+            )
+
+    @pytest.mark.security
+    async def test_the_inbound_upsert_is_given_no_number(self):
+        import inspect
+
+        from app.repositories import whatsapp_customer as repo
+
+        assert "phone" not in inspect.signature(repo.record_inbound).parameters
+        assert "phone" not in inspect.getsource(repo.record_inbound)
+
+    @pytest.mark.security
+    async def test_the_number_is_written_before_the_batch_is_routed(self):
+        order: list[str] = []
+        keep = AsyncMock(side_effect=lambda *a, **k: order.append("keep"))
+        process = AsyncMock(side_effect=lambda *a, **k: order.append("route"))
+        store = MagicMock(has_held=AsyncMock(return_value=False))
+        with (
+            patch(f"{MODULE}._keep_phone", keep),
+            patch(f"{MODULE}.process_channel_events_in_order", process),
+        ):
+            await handle_customer(BOT, ORG, CHAT, _text(), store=store)
+
+        assert order == ["keep", "route"]
+
+
+def _line(**policy: object) -> MagicMock:
+    return MagicMock(platform="whatsapp", access_policy={"answer_unlinked_direct": True, **policy})
+
+
+def _from_customer(chat_type: str = "private") -> IncomingMessage:
+    return IncomingMessage(
+        platform="whatsapp", bot_id=BOT, platform_user_id=f"{ORG}:{CHAT}", platform_chat_id=CHAT,
+        chat_type=chat_type, text="hi",
+    )  # fmt: skip
+
+
+class TestAdmitsAStranger:
+    """The real decision, with a real access policy and nothing doubled."""
+
+    @pytest.mark.security
+    @pytest.mark.parametrize(
+        ("bot", "chat_type", "admitted"),
+        [
+            (_line(), "private", True),
+            (_line(answer_unlinked_direct=False), "private", False),
+            (_line(mode="whitelist", whitelist=["someone-else"]), "private", False),
+            (_line(mode="whitelist", whitelist=[f"{ORG}:{CHAT}"]), "private", True),
+            (_line(), "group", False),
+        ],
+    )
+    def test_the_policy_decides(self, bot, chat_type, admitted):
+        assert ChannelMessageRouter().admits_stranger(_from_customer(chat_type), bot) is admitted
+
+    @pytest.mark.security
+    async def test_a_refused_senders_number_is_not_stored(self):
+        repo = MagicMock(set_phone=AsyncMock(), clear_phone=AsyncMock())
+
+        @asynccontextmanager
+        async def sessions() -> AsyncGenerator[MagicMock]:
+            yield MagicMock()
+
+        message = replace(_text()[0], phone=NUMBER)
+        with (
+            patch(f"{MODULE}.get_db_context", sessions),
+            patch(
+                f"{MODULE}.channel_bot_repo.get_for_org",
+                AsyncMock(return_value=_line(mode="whitelist", whitelist=["someone-else"])),
+            ),
+            patch(
+                f"{MODULE}.channel_identity_repo.get_by_platform_user",
+                AsyncMock(return_value=None),
+            ),
+            patch(f"{MODULE}.whatsapp_customer_repo.set_phone", repo.set_phone),
+            patch(f"{MODULE}.whatsapp_customer_repo.clear_phone", repo.clear_phone),
+        ):
+            await _KEEP_PHONE(BOT, ORG, CHAT, [message])
+
+        repo.set_phone.assert_not_awaited()

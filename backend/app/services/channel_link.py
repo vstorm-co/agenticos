@@ -38,6 +38,7 @@ from app.repositories import (
     member_repo,
     message_rating_repo,
     user_repo,
+    whatsapp_customer_repo,
 )
 from app.schemas.channel_bot import LinkedAgent, LinkedPlace
 from app.services.access import AGENT, resolve_access
@@ -277,6 +278,16 @@ class ChannelLinkService:
         await message_rating_repo.adopt_channel_ratings(
             self.db, identity_id=identity.id, user_id=user_id
         )
+        await self._drop_number(identity)
+
+    async def _drop_number(self, identity: ChannelIdentity) -> None:
+        """A number is kept only for people with no account: drop it once the account is linked."""
+        if identity.platform != "whatsapp":
+            return
+        organization, _, bsuid = identity.platform_user_id.partition(":")
+        await whatsapp_customer_repo.clear_phone(
+            self.db, organization_id=UUID(organization), bsuid=bsuid
+        )
 
     async def link_vouched(self, identity: ChannelIdentity, email: str) -> bool:
         """Link a chat account to the member its platform's directory names, if one signed in so.
@@ -297,6 +308,7 @@ class ChannelLinkService:
         await message_rating_repo.adopt_channel_ratings(
             self.db, identity_id=identity.id, user_id=user.id
         )
+        await self._drop_number(identity)
         return True
 
     async def linked(self, user_id: UUID) -> list[ChannelIdentity]:

@@ -1055,3 +1055,27 @@ class TestSkillBindingAvailability:
             assert upgraded_again.returncode == 0, upgraded_again.stderr
         finally:
             engine.dispose()
+
+
+class TestWhatsAppCustomerPhoneColumn:
+    def test_the_column_comes_and_goes_and_the_models_match_head(self):
+        top = _alembic("upgrade", "head")
+        assert top.returncode == 0, top.stderr
+        before = _alembic("downgrade", "0259_whatsapp_public_line")
+        assert before.returncode == 0, before.stderr
+        engine = create_engine(_url(MIGRATION_DATABASE))
+        query = text(
+            "SELECT 1 FROM information_schema.columns "
+            "WHERE table_name='whatsapp_customers' AND column_name='phone'"
+        )
+        try:
+            with engine.connect() as connection:
+                assert not connection.execute(query).first()
+            up = _alembic("upgrade", "head")
+            assert up.returncode == 0, up.stderr
+            with engine.connect() as connection:
+                assert connection.execute(query).first()
+            check = _alembic("check")
+            assert check.returncode == 0, check.stderr
+        finally:
+            engine.dispose()

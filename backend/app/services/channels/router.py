@@ -1763,6 +1763,19 @@ class ChannelMessageRouter:
             return False
         return not bool(policy.get("require_link", False))
 
+    def admits_stranger(self, incoming: IncomingMessage, bot: ChannelBot) -> bool:
+        """Whether this message is from somebody the line answers as a stranger.
+
+        The access policy lets it through, and it is a private chat on a line that
+        answers people with no account. Whether the sender is in fact a member is
+        the caller's to settle from their standing.
+        """
+        try:
+            self._check_access(incoming, bot)
+        except AuthorizationError:
+            return False
+        return self._answers_as_agent(incoming, bot)
+
     def _answers_as_agent(self, incoming: IncomingMessage, bot: ChannelBot) -> bool:
         """Whether an unlinked sender here is a stranger the agent answers as itself.
 
