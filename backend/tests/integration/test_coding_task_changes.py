@@ -158,8 +158,12 @@ async def test_deleting_the_conversation_deletes_its_change_sets(db: AsyncSessio
 async def test_a_change_set_that_cannot_be_kept_leaves_its_code_out_of_the_logs(
     engine: AsyncEngine, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
-    """A conversation deleted mid-task fails the insert on its foreign key, and the
-    database error's text carries the INSERT's parameters - the workspace's code."""
+    """A conversation gone mid-task fails the insert on a foreign key - here both
+    parents are made up - and the error's text carries the INSERT's parameters.
+
+    Through the application's own `get_db_context`, which the `engine` fixture
+    points at this suite's database and disposes first.
+    """
     secret = "OPENAI_API_KEY=sk-live-do-not-log"
     changes = ChangeSet(
         files=[ChangedFile(path=".env", status="added", additions=1, patch=f"+{secret}\n")]

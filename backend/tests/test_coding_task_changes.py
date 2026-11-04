@@ -204,6 +204,26 @@ class TestWhatTheSnapshotSurvives:
 
         assert await _task(project, edit) == ChangeSet()
 
+    async def test_a_patch_past_its_ceiling_stops_git_and_is_cut(
+        self, project: Path, store_root: Path
+    ) -> None:
+        """The real script's other exit: `head` closes the pipe and git ends on it."""
+
+        def edit(root: Path) -> None:
+            for name in ("one.txt", "two.txt"):
+                lines = "".join(f"{name} line {index}\n" for index in range(12_000))
+                (root / name).write_text(lines)
+
+        changes = await _task(project, edit)
+
+        assert changes is not None and changes.truncated
+        first, second = changes.files
+        # About 240 KB each: the first whole, the second cut where the ceiling fell.
+        assert not first.truncated
+        assert second.truncated and second.patch is not None
+        assert second.patch.endswith(_changes.TRUNCATED_MARKER)
+        assert len(first.patch or "") + len(second.patch) <= _changes.MAX_PATCH_BYTES + 200
+
     async def test_a_diff_git_could_not_make_is_none_not_no_changes(
         self, project: Path, store_root: Path
     ) -> None:
@@ -398,6 +418,19 @@ class TestTheBounds:
         patch = changes.files[0].patch
         assert patch is not None
         assert len(patch) <= 100 + len(_changes.TRUNCATED_MARKER)
+
+    def test_a_count_no_column_holds_is_clamped(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(_changes, "MAX_LIST_BYTES", 10)
+        listing = _raw("M", "a.txt") + "1\t1\ta.txt\0"
+        raw, counts = (half.encode() for half in _halves(listing))
+        forged = (
+            f"{len(raw)}\n{len(counts)}\n0\n999999999999999\n"
+            f"{base64.b64encode(raw[:10]).decode()}\n{base64.b64encode(counts[:10]).decode()}\n"
+        )
+
+        changes = _changes.parse(forged)
+
+        assert changes is not None and changes.omitted == _changes.MAX_COUNT
 
     @pytest.mark.parametrize(
         "forged",

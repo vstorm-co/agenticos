@@ -572,31 +572,43 @@ async def _with_changes(
     changes = await _changes.finish(ctx, baseline)
     if changes is None:
         return report
-    async with get_db_context() as db:
-        try:
-            # A savepoint, caught inside the session: `get_db_context` logs an
-            # error that leaves it with the traceback, and this one's text holds
-            # the INSERT's parameters - the workspace's code (#2480).
-            async with db.begin_nested():
-                kept = await CodingTaskChangeService(db).record(
-                    changes,
-                    organization_id=ctx.deps.organization_id,
-                    conversation_id=ctx.deps.conversation_id,
-                    tool_call_id=ctx.tool_call_id,
-                    harness=report.harness,
-                )
-        except SQLAlchemyError as failed:
-            # The task's work is done and its report is the model's answer; a
-            # diff that could not be kept - a conversation deleted meanwhile, or
-            # the database itself failing - costs the panel its diff, not the run
-            # its result. Named by its class alone, for the reason above.
-            logger.error(
-                "A coding task's changes in conversation %s could not be recorded: %s",
-                ctx.deps.conversation_id,
-                type(failed).__name__,
-            )
-            return report
+    try:
+        async with get_db_context() as db:
+            try:
+                # A savepoint, caught inside the session: `get_db_context` logs
+                # an error that leaves it with its traceback, and an INSERT's
+                # error text holds its parameters - the workspace's code (#2480).
+                async with db.begin_nested():
+                    kept = await CodingTaskChangeService(db).record(
+                        changes,
+                        organization_id=ctx.deps.organization_id,
+                        conversation_id=ctx.deps.conversation_id,
+                        tool_call_id=ctx.tool_call_id,
+                        harness=report.harness,
+                    )
+            except SQLAlchemyError as failed:
+                return _unrecorded(ctx, report, failed)
+    except SQLAlchemyError as failed:
+        # The commit, or a connection lost on the way: no parameters in that
+        # error, and the same answer - the diff is lost, the report is not.
+        return _unrecorded(ctx, report, failed)
     return report.model_copy(update={"changes_id": str(kept.id)})
+
+
+def _unrecorded(ctx: RunContext[Any], report: CodingReport, failed: Exception) -> CodingReport:
+    """The report without a diff, when the diff could not be kept.
+
+    The task's work is done and its report is the model's answer; a diff that
+    could not be kept - a conversation deleted meanwhile, or the database itself
+    failing - costs the panel its diff, not the run its result. Named by its
+    class alone: an INSERT's error text carries the workspace's code.
+    """
+    logger.error(
+        "A coding task's changes in conversation %s could not be recorded: %s",
+        ctx.deps.conversation_id,
+        type(failed).__name__,
+    )
+    return report
 
 
 def _person(deps: object) -> UUID | None:

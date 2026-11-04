@@ -33,7 +33,7 @@ from pydantic_ai.workspaces import (
     WorkspaceUnavailableError,
     WrapperWorkspace,
 )
-from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.exc import OperationalError, SQLAlchemyError
 
 from app.agents.audience import RunAudience
 from app.agents.capabilities import get
@@ -1165,6 +1165,27 @@ class TestWhatATaskChanged:
         report = CodingReport.model_validate_json(await _call(shell))
         assert report.outcome == "completed" and report.changes_id is None
         assert shell.snapshots == ["begin", "finish", "discard"]
+
+    async def test_a_commit_that_fails_costs_only_the_diff(
+        self, recorder: _Recorder, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The connection can go at COMMIT, after the savepoint was released."""
+
+        @contextlib.asynccontextmanager
+        async def savepoint() -> Any:
+            yield
+
+        @contextlib.asynccontextmanager
+        async def lost_at_commit() -> Any:
+            yield SimpleNamespace(begin_nested=savepoint)
+            raise OperationalError("COMMIT", {}, Exception("connection lost"))
+
+        monkeypatch.setattr(_toolset, "get_db_context", lost_at_commit)
+        shell = _Snapshotting(events=_lines(_claude_stream(result=_CLAUDE_DONE)))
+
+        report = CodingReport.model_validate_json(await _call(shell))
+
+        assert report.outcome == "completed" and report.changes_id is None
 
     async def test_a_change_set_that_cannot_be_recorded_costs_only_the_diff(
         self, recorder: _Recorder, caplog: pytest.LogCaptureFixture

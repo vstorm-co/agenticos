@@ -50,7 +50,7 @@ MAX_FILE_BYTES = 1024 * 1024
 A file indexed while smaller is still read after it grows past this - its
 growth is the change. One already larger when the task began is never
 indexed, so its edit or removal is in no diff, and neither is one the task
-creates larger.
+creates larger; one the task shrinks below it reads as added.
 """
 
 MAX_PATCH_BYTES = 256 * 1024
@@ -63,7 +63,10 @@ MAX_LIST_BYTES = 512 * 1024
 """How much of each half of the file list is read back; past it, files are counted, not listed."""
 
 MAX_SIZE_DIGITS = 15
-"""The longest size line `parse` reads: `wc -c` of anything a sandbox holds fits well inside."""
+"""The longest number `parse` reads - a size line, or one file's line count: anything a sandbox holds fits well inside."""
+
+MAX_COUNT = 2**31 - 1
+"""The most files a change set says it left out - what its column holds."""
 
 SNAPSHOT_SECONDS = 120
 """How long one snapshot may take before the task goes ahead without a diff."""
@@ -92,9 +95,10 @@ _SETUP = (
     f'export GIT_DIR="${STORE_ENV}/git" GIT_INDEX_FILE="${STORE_ENV}/index" '
     'GIT_WORK_TREE="$PWD" GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null '
     "GIT_OPTIONAL_LOCKS=0 "
-    # Over whatever the store's own config was changed to while the task ran:
-    # the store is the task's user's to write, and a hook git ran in it could
-    # speak on this script's stdout.
+    # Defence in depth, not a closed channel: the store is the task's user's to
+    # write, so its config can still name a clean filter or an include. These
+    # two are the ones git runs on its own; whatever any of them prints, or any
+    # process of that user writes here, `parse` bounds.
     "GIT_CONFIG_COUNT=2 GIT_CONFIG_KEY_0=core.fsmonitor GIT_CONFIG_VALUE_0=false "
     "GIT_CONFIG_KEY_1=core.hooksPath GIT_CONFIG_VALUE_1=/dev/null; "
     # GNU find's `-readable`, where there is one: a file the sandbox user cannot
@@ -142,7 +146,8 @@ FINISH = (
 
 The lists are written to the store first, so `set -e` sees `diff-tree` fail -
 piped straight out, a failing one printed nothing and read as a task that
-changed nothing. The sizes are the bytes git wrote, before any decoding.
+changed nothing. The list sizes are the bytes git wrote; the patch's is what
+`head` kept of it, one byte past the ceiling when there was more.
 """
 
 DISCARD = f'rm -rf "${STORE_ENV}"'
@@ -235,7 +240,8 @@ def parse(stdout: str) -> ChangeSet | None:
     Bounded here as well as in the shell: the output comes out of a sandbox the
     task ran in, and whatever the task left running there can write into it. So
     no size line is read past `MAX_SIZE_DIGITS`, no list past what `head` would
-    have sent, and no patch past `MAX_PATCH_BYTES`.
+    have sent, and no patch past `MAX_PATCH_BYTES` characters - the shell's
+    bytes, as many or fewer once decoded.
     """
     head = stdout.split("\n", 6)
     if len(head) < 7:
@@ -256,7 +262,7 @@ def parse(stdout: str) -> ChangeSet | None:
     sections = _sections(patch[:MAX_PATCH_BYTES].replace("\x00", ""), cut=cut)
     _attach(entries, sections, cut=cut, listed=listed)
     kept = [entry for entry, _ in entries[:MAX_FILES]]
-    omitted = max(total if not listed else 0, len(entries)) - len(kept)
+    omitted = min(max(total if not listed else 0, len(entries)) - len(kept), MAX_COUNT)
     hunkless = any(entry.patch is None for entry in kept)
     return ChangeSet(files=kept, omitted=omitted, truncated=cut or omitted > 0 or hunkless)
 
