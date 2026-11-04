@@ -10,6 +10,9 @@ A business-scoped user id is up to 131 characters, and namespaced by organizatio
 
 A held run may also owe a fixed chat sentence (`held_notice`, its key, never its text),
 delivered when the customer writes again.
+
+A customer whose run waits on an approval is nudged once per window before it closes;
+`whatsapp_customers.nudged_at` records when.
 """
 
 from collections.abc import Sequence
@@ -35,6 +38,10 @@ def upgrade() -> None:
     op.add_column(
         "whatsapp_held_runs", sa.Column("held_notice", sa.String(length=16), nullable=True)
     )
+    op.add_column(
+        "whatsapp_customers",
+        sa.Column("nudged_at", sa.DateTime(timezone=True), nullable=True),
+    )
     for table, column in _COLUMNS:
         op.alter_column(
             table,
@@ -46,6 +53,7 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    op.drop_column("whatsapp_customers", "nudged_at")
     op.drop_column("whatsapp_held_runs", "held_notice")
     for table, column in reversed(_COLUMNS):
         op.alter_column(

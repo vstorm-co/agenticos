@@ -36,6 +36,24 @@ T3 = T1 + timedelta(hours=2)
 BSUID = "US.111"
 
 
+@pytest.fixture
+def sessions(engine: AsyncEngine) -> Callable[[], AbstractAsyncContextManager[AsyncSession]]:
+    """Sessions that commit for real, for the code under test that opens its own."""
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+
+    @asynccontextmanager
+    async def open_session() -> AsyncGenerator[AsyncSession]:
+        async with factory() as session:
+            try:
+                yield session
+                await session.commit()
+            except BaseException:
+                await session.rollback()
+                raise
+
+    return open_session
+
+
 async def _estate(db: AsyncSession) -> tuple[Organization, ChannelBot, User, Agent]:
     user = User(email=f"{uuid.uuid4().hex}@example.com", hashed_password="x", is_active=True)
     db.add(user)
@@ -239,24 +257,6 @@ async def test_an_undelivered_reason_is_written_only_within_the_organization(
 
 class TestTheStore:
     """The store opens its own sessions, so these tests commit for real."""
-
-    @pytest.fixture
-    def sessions(
-        self, engine: AsyncEngine
-    ) -> Callable[[], AbstractAsyncContextManager[AsyncSession]]:
-        factory = async_sessionmaker(engine, expire_on_commit=False)
-
-        @asynccontextmanager
-        async def open_session() -> AsyncGenerator[AsyncSession]:
-            async with factory() as session:
-                try:
-                    yield session
-                    await session.commit()
-                except BaseException:
-                    await session.rollback()
-                    raise
-
-        return open_session
 
     @pytest.fixture
     async def estate(
@@ -854,24 +854,6 @@ class TestEachOwedAnswerIsItsOwnRow:
     """A run held twice owes two answers, and each row names the saved message it owes."""
 
     @pytest.fixture
-    def sessions(
-        self, engine: AsyncEngine
-    ) -> Callable[[], AbstractAsyncContextManager[AsyncSession]]:
-        factory = async_sessionmaker(engine, expire_on_commit=False)
-
-        @asynccontextmanager
-        async def open_session() -> AsyncGenerator[AsyncSession]:
-            async with factory() as session:
-                try:
-                    yield session
-                    await session.commit()
-                except BaseException:
-                    await session.rollback()
-                    raise
-
-        return open_session
-
-    @pytest.fixture
     async def estate(self, sessions):
         async with sessions() as db:
             org, bot, user, agent = await _estate(db)
@@ -1010,3 +992,239 @@ class TestEachOwedAnswerIsItsOwnRow:
                 )
                 is None
             )
+
+
+NUDGE_NOW = datetime(2026, 11, 5, 8, tzinfo=UTC)
+WRITTEN = NUDGE_NOW - timedelta(hours=21)
+DESTINATION = {"bot_id": "b", "platform_chat_id": BSUID, "private_chat": True}
+
+
+class TestNudges:
+    """Who is nudged: a customer whose run waits on an approval in their own chat, once per window."""
+
+    async def _waiting(
+        self,
+        db: AsyncSession,
+        *,
+        status: str = "awaiting_approval",
+        paused_state: dict | str | None = "parked",
+        active: bool = True,
+        written: datetime | None = WRITTEN,
+        closed: datetime | None = None,
+        nudged: datetime | None = None,
+        surface: str = "whatsapp",
+    ) -> tuple[Organization, ChannelBot, WhatsAppCustomer, AgentRun]:
+        if paused_state == "parked":
+            paused_state = {"channel_destination": DESTINATION}
+        org, bot, user, agent = await _estate(db)
+        bot.is_active = active
+        conversation = Conversation(user_id=user.id, organization_id=org.id)
+        identity = ChannelIdentity(platform="whatsapp", platform_user_id=f"{org.id}:{BSUID}")
+        db.add_all([conversation, identity])
+        await db.flush()
+        db.add(
+            ChannelSession(
+                bot_id=bot.id,
+                identity_id=identity.id,
+                conversation_id=conversation.id,
+                platform_chat_id=BSUID,
+            )
+        )
+        run = await _run(db, org, user, agent)
+        run.conversation_id = conversation.id
+        run.status = status
+        run.surface = surface
+        run.paused_state = paused_state
+        customer = await _customer(db, org, bot)
+        customer.last_inbound_at = written
+        customer.window_closed_at = closed
+        customer.nudged_at = nudged
+        await db.flush()
+        return org, bot, customer, run
+
+    async def _candidates(self, db: AsyncSession) -> list[uuid.UUID]:
+        found = await whatsapp_customer_repo.nudge_candidates(db, now=NUDGE_NOW)
+        return [customer.id for customer in found]
+
+    async def test_a_customer_whose_run_is_parked_in_their_chat_is_a_candidate(
+        self, db: AsyncSession
+    ) -> None:
+        _, _, customer, _ = await self._waiting(db)
+        assert await self._candidates(db) == [customer.id]
+
+    async def test_a_customer_with_two_waiting_runs_is_listed_once(self, db: AsyncSession) -> None:
+        org, bot, customer, run = await self._waiting(db)
+        user = await db.get(User, run.user_id)
+        agent = await db.get(Agent, run.agent_id)
+        second = await _run(db, org, user, agent)
+        second.conversation_id = run.conversation_id
+        second.status = "awaiting_approval"
+        second.surface = "whatsapp"
+        second.paused_state = {"channel_destination": DESTINATION}
+        await db.flush()
+        assert await self._candidates(db) == [customer.id]
+
+    @pytest.mark.parametrize(
+        "kwargs",
+        [
+            {"status": "completed"},
+            {"status": "awaiting_answer"},
+            {"status": "running"},
+            {"paused_state": None},
+            {"paused_state": {}},
+            {"paused_state": {"channel_destination": None}},
+            {"surface": "web"},
+            {"active": False},
+            {"nudged": WRITTEN + timedelta(hours=20)},
+            {"closed": WRITTEN + timedelta(seconds=1)},
+            {"written": NUDGE_NOW - timedelta(hours=19, minutes=59)},
+            {"written": NUDGE_NOW - timedelta(hours=23, minutes=55)},
+            {"written": None},
+        ],
+        ids=lambda kwargs: "-".join(f"{key}={value}" for key, value in kwargs.items())[:60],
+    )
+    async def test_it_is_not_a_candidate_when(self, db: AsyncSession, kwargs) -> None:
+        await self._waiting(db, **kwargs)
+        assert await self._candidates(db) == []
+
+    async def test_the_window_edges_are_the_rules_edges(self, db: AsyncSession) -> None:
+        _, _, due, _ = await self._waiting(db, written=NUDGE_NOW - timedelta(hours=20))
+        assert await self._candidates(db) == [due.id]
+
+    async def test_a_closure_in_the_same_second_as_the_message_reads_reopened(
+        self, db: AsyncSession
+    ) -> None:
+        _, _, customer, _ = await self._waiting(db, closed=WRITTEN)
+        assert await self._candidates(db) == [customer.id]
+
+    async def test_a_nudge_from_an_earlier_window_does_not_count(self, db: AsyncSession) -> None:
+        _, _, customer, _ = await self._waiting(db, nudged=WRITTEN - timedelta(seconds=1))
+        assert await self._candidates(db) == [customer.id]
+
+    async def test_another_bots_customer_is_not_a_candidate(self, db: AsyncSession) -> None:
+        org, bot, customer, run = await self._waiting(db, written=None)
+        other = ChannelBot(
+            organization_id=org.id,
+            platform="whatsapp",
+            name="Other",
+            token_encrypted="x",
+            whatsapp_phone_number_id="999",
+            whatsapp_account_id="456",
+        )
+        db.add(other)
+        await db.flush()
+        stranger = await whatsapp_customer_repo.lock(
+            db, organization_id=org.id, bot_id=other.id, bsuid=BSUID
+        )
+        stranger.last_inbound_at = WRITTEN
+        await db.flush()
+        assert await self._candidates(db) == []
+
+    async def test_only_the_customer_with_the_waiting_run_in_their_own_chat_is_listed(
+        self, db: AsyncSession
+    ) -> None:
+        org, bot, waiting, run = await self._waiting(db)
+        user = await db.get(User, run.user_id)
+        agent = await db.get(Agent, run.agent_id)
+        # Another customer of the same bot, in a chat of their own with nothing waiting.
+        bystander = await whatsapp_customer_repo.lock(
+            db, organization_id=org.id, bot_id=bot.id, bsuid="US.222"
+        )
+        bystander.last_inbound_at = WRITTEN
+        chat = Conversation(user_id=user.id, organization_id=org.id)
+        identity = ChannelIdentity(platform="whatsapp", platform_user_id=f"{org.id}:US.222")
+        db.add_all([chat, identity])
+        await db.flush()
+        db.add(
+            ChannelSession(
+                bot_id=bot.id,
+                identity_id=identity.id,
+                conversation_id=chat.id,
+                platform_chat_id="US.222",
+            )
+        )
+        # A run waiting in an older conversation that no session points at any more.
+        older = Conversation(user_id=user.id, organization_id=org.id)
+        db.add(older)
+        await db.flush()
+        parked = await _run(db, org, user, agent)
+        parked.conversation_id = older.id
+        parked.status = "awaiting_approval"
+        parked.surface = "whatsapp"
+        parked.paused_state = {"channel_destination": DESTINATION}
+        await db.flush()
+
+        assert await self._candidates(db) == [waiting.id]
+
+    @pytest.mark.security
+    async def test_another_organizations_customer_is_not_a_candidate(
+        self, db: AsyncSession
+    ) -> None:
+        _, bot, customer, run = await self._waiting(db)
+        stranger_org = Organization(
+            name="Other", slug=f"o-{uuid.uuid4().hex[:8]}", created_by_user_id=run.user_id
+        )
+        db.add(stranger_org)
+        await db.flush()
+        run.organization_id = stranger_org.id
+        await db.flush()
+        assert await self._candidates(db) == []
+
+    async def test_the_oldest_message_comes_first_and_the_limit_holds(
+        self, db: AsyncSession
+    ) -> None:
+        _, _, newer, _ = await self._waiting(db, written=NUDGE_NOW - timedelta(hours=21))
+        _, _, older, _ = await self._waiting(db, written=NUDGE_NOW - timedelta(hours=22))
+        assert await self._candidates(db) == [older.id, newer.id]
+        limited = await whatsapp_customer_repo.nudge_candidates(db, now=NUDGE_NOW, limit=1)
+        assert [customer.id for customer in limited] == [older.id]
+
+
+class TestMarkingANudge:
+    async def _customer_id(self, sessions, *, written=WRITTEN, nudged=None) -> uuid.UUID:
+        async with sessions() as db:
+            org, bot, _, _ = await _estate(db)
+            customer = await _customer(db, org, bot)
+            customer.last_inbound_at = written
+            customer.nudged_at = nudged
+            return customer.id
+
+    async def _mark(self, sessions, customer_id: uuid.UUID, *, now=NUDGE_NOW) -> bool:
+        async with sessions() as db:
+            return await whatsapp_customer_repo.mark_nudged(db, customer_id=customer_id, now=now)
+
+    async def test_a_due_customer_is_marked_with_the_time(self, sessions) -> None:
+        customer_id = await self._customer_id(sessions)
+        assert await self._mark(sessions, customer_id)
+        async with sessions() as db:
+            assert (await db.get(WhatsAppCustomer, customer_id)).nudged_at == NUDGE_NOW
+
+    async def test_two_sweeps_racing_for_one_customer_mark_it_once(self, sessions) -> None:
+        customer_id = await self._customer_id(sessions)
+        results = await asyncio.gather(
+            self._mark(sessions, customer_id), self._mark(sessions, customer_id)
+        )
+        assert sorted(results) == [False, True]
+
+    async def test_a_customer_nudged_while_the_sweep_waited_is_not_marked_again(
+        self, sessions
+    ) -> None:
+        customer_id = await self._customer_id(sessions)
+        async with sessions() as holder:
+            await holder.execute(
+                select(WhatsAppCustomer).where(WhatsAppCustomer.id == customer_id).with_for_update()
+            )
+            second = asyncio.create_task(self._mark(sessions, customer_id))
+            await asyncio.sleep(0.2)
+            assert not second.done()
+            (await holder.get(WhatsAppCustomer, customer_id)).nudged_at = NUDGE_NOW
+        assert await second is False
+
+    async def test_a_customer_who_wrote_again_is_not_marked_for_the_old_window(
+        self, sessions
+    ) -> None:
+        customer_id = await self._customer_id(sessions, written=NUDGE_NOW - timedelta(hours=1))
+        assert not await self._mark(sessions, customer_id)
+
+    async def test_an_unknown_customer_is_not_marked(self, sessions) -> None:
+        assert not await self._mark(sessions, uuid.uuid4())

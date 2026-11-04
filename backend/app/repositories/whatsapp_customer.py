@@ -9,11 +9,15 @@ from typing import Any
 from uuid import UUID
 
 from sqlalchemy import delete as sql_delete
-from sqlalchemy import func, or_, select, text
+from sqlalchemy import exists, func, or_, select, text
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.db.models.agent_run import AgentRun, RunStatus
+from app.db.models.channel_bot import ChannelBot
+from app.db.models.channel_session import ChannelSession
 from app.db.models.whatsapp_customer import WhatsAppCustomer, WhatsAppHeldRun
+from app.services.channels.whatsapp_window import NUDGE_AFTER, WINDOW, WINDOW_MARGIN, nudge_due
 
 _CUSTOMER_KEY = "uq_whatsapp_customer_bot_bsuid"
 
@@ -210,3 +214,74 @@ async def has_held(
         .limit(1)
     )
     return result.first() is not None
+
+
+async def nudge_candidates(
+    db: AsyncSession, *, now: datetime, limit: int = 100
+) -> list[WhatsAppCustomer]:
+    """Customers of an active WhatsApp bot to nudge now, oldest message first.
+
+    A customer whose run waits on an approval and continues in their chat, whose
+    window is open and past `NUDGE_AFTER`, and who has not been nudged in it. The
+    window rule is `whatsapp_window.nudge_due` written in SQL; `mark_nudged` checks it
+    again under the row lock.
+    """
+    waiting = (
+        select(AgentRun.id)
+        .join(ChannelSession, ChannelSession.conversation_id == AgentRun.conversation_id)
+        .where(
+            AgentRun.surface == "whatsapp",
+            AgentRun.status == RunStatus.AWAITING_APPROVAL.value,
+            AgentRun.paused_state["channel_destination"].astext.is_not(None),
+            AgentRun.organization_id == WhatsAppCustomer.organization_id,
+            ChannelSession.bot_id == WhatsAppCustomer.bot_id,
+            ChannelSession.platform_chat_id == WhatsAppCustomer.bsuid,
+        )
+    )
+    result = await db.execute(
+        select(WhatsAppCustomer)
+        .join(ChannelBot, ChannelBot.id == WhatsAppCustomer.bot_id)
+        .where(
+            ChannelBot.platform == "whatsapp",
+            ChannelBot.is_active,
+            WhatsAppCustomer.last_inbound_at <= now - NUDGE_AFTER,
+            WhatsAppCustomer.last_inbound_at > now - WINDOW + WINDOW_MARGIN,
+            or_(
+                WhatsAppCustomer.window_closed_at.is_(None),
+                WhatsAppCustomer.window_closed_at <= WhatsAppCustomer.last_inbound_at,
+            ),
+            or_(
+                WhatsAppCustomer.nudged_at.is_(None),
+                WhatsAppCustomer.nudged_at < WhatsAppCustomer.last_inbound_at,
+            ),
+            exists(waiting),
+        )
+        .order_by(WhatsAppCustomer.last_inbound_at, WhatsAppCustomer.id)
+        .limit(limit)
+    )
+    return list(result.scalars().all())
+
+
+async def mark_nudged(db: AsyncSession, *, customer_id: UUID, now: datetime) -> bool:
+    """Record a nudge sent at `now`; False when another sweep got there or the window moved.
+
+    The row is locked and the rule is read again from it, so two sweeps (or a sweep
+    and a customer's new message) cannot both win the same window.
+    """
+    result = await db.execute(
+        select(WhatsAppCustomer)
+        .where(WhatsAppCustomer.id == customer_id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
+    customer = result.scalar_one_or_none()
+    if customer is None or not nudge_due(
+        last_inbound_at=customer.last_inbound_at,
+        window_closed_at=customer.window_closed_at,
+        nudged_at=customer.nudged_at,
+        now=now,
+    ):
+        return False
+    customer.nudged_at = now
+    await db.flush()
+    return True

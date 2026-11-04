@@ -29,7 +29,7 @@ from app.services.channels.whatsapp_graph import WhatsAppGraphError
 from app.services.channels.whatsapp_inbound import WhatsAppInbound, handle_customer
 from app.services.channels.whatsapp_payload import ParsedWebhook, WhatsAppMessage, parse_webhook
 from app.services.channels.whatsapp_templates import LateTemplate
-from app.services.channels.whatsapp_window import FILES_NOT_DELIVERED
+from app.services.channels.whatsapp_window import FILES_NOT_DELIVERED, NUDGE_REPLY_ID, NUDGE_THANKS
 from tests.test_whatsapp_payload import FIXTURES
 
 pytestmark = pytest.mark.anyio
@@ -488,6 +488,14 @@ def _tap(label: str = "Show me") -> list[WhatsAppMessage]:
     message = payload["entry"][0]["changes"][0]["value"]["messages"][0]
     message["timestamp"] = str(NOW - 2)
     message["button"] = {"payload": label, "text": label}
+    return list(_parse(payload).messages)
+
+
+def _nudge_tap(reply_id: str = NUDGE_REPLY_ID) -> list[WhatsAppMessage]:
+    payload = _fixture("button_reply")
+    message = payload["entry"][0]["changes"][0]["value"]["messages"][0]
+    message["timestamp"] = str(NOW - 2)
+    message["interactive"]["button_reply"] = {"id": reply_id, "title": "Keep me posted"}
     return list(_parse(payload).messages)
 
 
@@ -1833,3 +1841,66 @@ class TestLoggingAParsedBatch:
 
         [record] = caplog.records
         assert (record.levelname, record.stale, record.ignored) == ("INFO", 1, 2)
+
+
+class TestTheNudgeButton:
+    async def test_a_tap_is_thanked_once_and_not_routed(self, world):
+        with patch(f"{MODULE}.claim_delivery", AsyncMock(return_value=True)) as claim:
+            await _handle(world, world.store([]), _nudge_tap())
+
+        claim.assert_awaited_once()
+        assert claim.await_args.args[0].message_id == "wamid.TAP1"
+        [thanks] = world.sent
+        assert (thanks.text, thanks.platform_chat_id, thanks.run_id) == (NUDGE_THANKS, CHAT, None)
+        assert world.routed == []
+
+    async def test_a_redelivered_tap_is_not_thanked_again(self, world):
+        with patch(f"{MODULE}.claim_delivery", AsyncMock(return_value=False)):
+            await _handle(world, world.store([]), _nudge_tap())
+
+        assert world.sent == []
+        assert world.routed == []
+
+    async def test_a_failed_thank_you_still_routes_the_rest_of_the_batch(self, world, caplog):
+        world.adapter.send_message.side_effect = RuntimeError("to US.111")
+
+        with (
+            patch(f"{MODULE}.claim_delivery", AsyncMock(return_value=True)),
+            caplog.at_level(logging.WARNING),
+        ):
+            await _handle(world, world.store([]), [*_nudge_tap(), *_text()])
+
+        assert [e.text for e in world.routed[0]] == ["any news?"]
+        [record] = [r for r in caplog.records if r.message == "whatsapp_nudge_thanks_failed"]
+        assert (record.bot_id, record.error) == (BOT, "RuntimeError")
+        assert "US.111" not in caplog.text
+
+    async def test_another_button_reply_still_takes_the_press_path(self, world):
+        with patch(f"{MODULE}.claim_delivery", AsyncMock(return_value=True)):
+            await _handle(
+                world, world.store([]), _nudge_tap("aos:0123456789abcdef0123456789abcdef:0")
+            )
+
+        assert world.sent == []
+        [event] = world.routed[0]
+        assert isinstance(event, IncomingPress)
+
+    async def test_a_tap_for_a_bot_that_is_gone_is_not_thanked(self, world):
+        world.bot.return_value = None
+
+        with patch(f"{MODULE}.claim_delivery", AsyncMock(return_value=True)):
+            await _handle(world, world.store([]), _nudge_tap())
+
+        assert world.sent == []
+        assert world.routed == []
+
+    async def test_a_tap_that_just_released_a_held_answer_is_not_thanked(self, world):
+        run = world.run()
+        store = world.store([world.held(run)])
+
+        with patch(f"{MODULE}.claim_delivery", AsyncMock(return_value=True)) as claim:
+            await _handle(world, store, _nudge_tap())
+
+        assert [m.text for m in world.sent] == ["the answer"]
+        assert world.routed == []
+        claim.assert_awaited_once()

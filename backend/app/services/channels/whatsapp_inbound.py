@@ -55,7 +55,7 @@ from app.services.channels.whatsapp_payload import (
     to_incoming,
     verify_signature,
 )
-from app.services.channels.whatsapp_window import FILES_NOT_DELIVERED
+from app.services.channels.whatsapp_window import FILES_NOT_DELIVERED, NUDGE_REPLY_ID, NUDGE_THANKS
 from app.worker.background.channel import process_channel_events_in_order
 
 logger = logging.getLogger(__name__)
@@ -298,6 +298,16 @@ async def handle_customer(
     show_me = await _template_button(bot_id, store) if any(h.answer for h in delivered) else None
     events = []
     for message in messages:
+        if message.reply_id == NUDGE_REPLY_ID:
+            # The nudge's own button: it asks for nothing, so it is thanked and never routed.
+            await _thank_for_nudge(
+                bot_id,
+                organization_id,
+                chat_id,
+                message,
+                thank=not any(held.answer for held in delivered),
+            )
+            continue
         if (
             message.kind == "button"
             and message.reply_id is None
@@ -324,6 +334,35 @@ async def handle_customer(
         )
         for held in owing:
             await store.release(held)
+
+
+async def _thank_for_nudge(
+    bot_id: str, organization_id: UUID, chat_id: str, message: WhatsAppMessage, *, thank: bool
+) -> None:
+    """Thank the customer for a tap on the nudge's button, once however often Meta redelivers it.
+
+    The thanks is free-form: the tap has just reopened the window. It is skipped
+    (the tap is still taken) when the tap has just released the answer it promised.
+    A failure is only logged, and never costs the customer the rest of the batch.
+    """
+    try:
+        if not await claim_delivery(
+            to_incoming(message, bot_id=bot_id, organization_id=organization_id)
+        ):
+            return
+        if not thank:
+            return
+        token = await _bot_token(bot_id, organization_id)
+        if token is None:
+            return
+        await whatsapp_adapter().send_message(
+            token, OutgoingMessage(platform_chat_id=chat_id, text=NUDGE_THANKS)
+        )
+    except Exception as failure:
+        logger.warning(
+            "whatsapp_nudge_thanks_failed",
+            extra={"bot_id": bot_id, "error": type(failure).__name__},
+        )
 
 
 async def _template_button(bot_id: str, store: WindowStore) -> str | None:

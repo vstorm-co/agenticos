@@ -102,6 +102,9 @@ SCHEDULES: tuple[Schedule, ...] = (
     # Queue a look for each watch that has come due (#2301). Each watch keeps its
     # own cadence, the most often fifteen minutes; this only finds whose turn it is.
     Schedule("watch-sweep", jobs.WATCH_SWEEP, _MINUTE),
+    # A customer is nudged 20 hours into a 24-hour window: every five minutes keeps
+    # the nudge well inside the four hours left, and a missed tick costs one more.
+    Schedule("whatsapp-nudges", jobs.WHATSAPP_NUDGES, timedelta(minutes=5)),
     # Renew OAuth tokens near expiry and dial every organization server: often
     # enough that a dead grant is noticed within a coffee break.
     Schedule("sweep-mcp-connections", jobs.SWEEP_MCP_CONNECTIONS, timedelta(minutes=15)),

@@ -97,6 +97,7 @@ def production() -> Handlers:
             ),
             Handler(jobs.SWEEP_MCP_CONNECTIONS, _each_tick(mcp_tasks.sweep_mcp_connections)),
             Handler(jobs.EXPIRE_APPROVALS, _each_tick(approval_tasks.expire_approvals)),
+            Handler(jobs.WHATSAPP_NUDGES, _each_tick(channel_tasks.send_whatsapp_nudges)),
             Handler(jobs.EXPIRE_INVITATIONS, _each_tick(invitation_tasks.expire_invitations)),
             Handler(jobs.REAP_STALE_RUNS, _each_tick(run_tasks.reap_stale_runs)),
             Handler(

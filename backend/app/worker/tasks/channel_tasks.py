@@ -1,8 +1,11 @@
 """Retry required chat delivery without repeating a model or an approved action."""
 
+from datetime import UTC, datetime
+
 from app.agents.capabilities.channel_tools._directory import ChannelDestination
 from app.services.channels.continuation import ChatDelivery, deliver_in_chat
 from app.services.channels.handback import ChatNotice, ensure_channel_adapters, send_notice
+from app.services.channels.whatsapp_nudge import send_due_nudges
 from app.services.transcript import RecordedToolCall
 from app.worker.jobs import ChannelHandback
 
@@ -32,3 +35,9 @@ async def deliver_handback(job: ChannelHandback) -> None:
                 generated_files=job.generated_files,
             ),
         )
+
+
+async def send_whatsapp_nudges() -> int:
+    """Nudge the WhatsApp customers whose window is about to close while a run waits on them."""
+    ensure_channel_adapters()
+    return await send_due_nudges(datetime.now(UTC))

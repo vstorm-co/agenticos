@@ -9,6 +9,7 @@ from app.services.channels.whatsapp_window import (
     closure_is_news,
     fits,
     flatten,
+    nudge_due,
     preview,
     window_open,
 )
@@ -76,3 +77,45 @@ def test_the_preview_is_short_one_line_and_ends_with_the_invitation() -> None:
     assert utf16_units(result) <= PREVIEW_UNITS + utf16_units(PREVIEW_ENDING)
     assert result.endswith(PREVIEW_ENDING)
     assert "\n" not in result
+
+
+def _due(
+    *,
+    now: datetime = T,
+    last_inbound_at: datetime | None = T,
+    window_closed_at: datetime | None = None,
+    nudged_at: datetime | None = None,
+) -> bool:
+    return nudge_due(
+        last_inbound_at=last_inbound_at,
+        window_closed_at=window_closed_at,
+        nudged_at=nudged_at,
+        now=now,
+    )
+
+
+def test_a_nudge_is_due_twenty_hours_after_the_message_and_not_a_minute_before() -> None:
+    assert not _due(now=T + timedelta(hours=19, minutes=59))
+    assert _due(now=T + timedelta(hours=20))
+
+
+def test_no_message_means_no_nudge() -> None:
+    assert not _due(last_inbound_at=None, now=T + timedelta(hours=20))
+
+
+def test_no_nudge_is_due_inside_the_closing_margin() -> None:
+    assert _due(now=T + timedelta(hours=23, minutes=54, seconds=59))
+    assert not _due(now=T + timedelta(hours=23, minutes=55))
+
+
+def test_no_nudge_is_due_once_meta_has_closed_the_window() -> None:
+    now = T + timedelta(hours=21)
+    assert not _due(now=now, window_closed_at=T + timedelta(seconds=1))
+    assert _due(now=now, window_closed_at=T)
+
+
+def test_a_window_is_nudged_once() -> None:
+    now = T + timedelta(hours=21)
+    assert not _due(now=now, nudged_at=T + timedelta(hours=20))
+    assert not _due(now=now, nudged_at=T)  # same second as the message: still this window
+    assert _due(now=now, nudged_at=T - timedelta(seconds=1))

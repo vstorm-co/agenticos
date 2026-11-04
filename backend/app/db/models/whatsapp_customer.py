@@ -48,6 +48,9 @@ class WhatsAppCustomer(Base, TimestampMixin):
     )
     """When Meta last refused a send as outside the window; not after `last_inbound_at` means reopened."""
 
+    nudged_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    """When the last nudge was sent; a nudge is due only while it is older than `last_inbound_at`."""
+
     def __repr__(self) -> str:
         return f"<WhatsAppCustomer(bot={self.bot_id}, last_inbound_at={self.last_inbound_at})>"
 

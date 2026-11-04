@@ -17,6 +17,13 @@ WINDOW = timedelta(hours=24)
 WINDOW_MARGIN = timedelta(minutes=5)
 """The window is read as closed this early: a send that takes a while must not land after Meta's cutoff."""
 
+NUDGE_AFTER = timedelta(hours=20)
+"""How long after the customer's last message a waiting run's customer is nudged: four hours before the cutoff."""
+NUDGE_TEXT = "This is taking a little longer. Tap below to get the answer here when it's ready."
+NUDGE_BUTTON = "Keep me posted"
+NUDGE_REPLY_ID = "agenticos.keep-posted"
+NUDGE_THANKS = "Thanks, it will come here when it's ready."
+
 TEMPLATE_BODY_MAX = 1024
 """Meta's limit on a template body, counted in UTF-16 units with the fixed text and the parameter together."""
 
@@ -51,6 +58,26 @@ def window_open(
     if now >= last_inbound_at + WINDOW - WINDOW_MARGIN:
         return False
     return closed_at is None or closed_at <= last_inbound_at
+
+
+def nudge_due(
+    *,
+    last_inbound_at: datetime | None,
+    window_closed_at: datetime | None,
+    nudged_at: datetime | None,
+    now: datetime,
+) -> bool:
+    """Whether a customer whose run waits should be nudged now: once per window, while it is open.
+
+    A nudge is sent `NUDGE_AFTER` past the customer's last message and never once the
+    window reads closed. One sent at or after that message belongs to this window;
+    a newer message starts another.
+    """
+    if last_inbound_at is None or now - last_inbound_at < NUDGE_AFTER:
+        return False
+    if not window_open(last_inbound_at=last_inbound_at, closed_at=window_closed_at, now=now):
+        return False
+    return nudged_at is None or nudged_at < last_inbound_at
 
 
 def closure_is_news(

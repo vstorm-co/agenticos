@@ -481,6 +481,7 @@ RETRY_SANDBOX_DESTROYS = _sweep("retry-sandbox-destroys")
 SWEEP_SANDBOX_OPERATIONS = _sweep("sweep-sandbox-operations")
 SWEEP_MCP_CONNECTIONS = _sweep("sweep-mcp-connections")
 EXPIRE_APPROVALS = _sweep("expire-approvals")
+WHATSAPP_NUDGES = _sweep("whatsapp-nudges")
 EXPIRE_INVITATIONS = _sweep("expire-invitations")
 REAP_STALE_RUNS = _sweep("reap-stale-runs")
 SWEEP_TEARDOWN_RESERVATIONS = _sweep("sweep-teardown-reservations")
@@ -553,6 +554,7 @@ TASKS: dict[str, TaskKind] = {
         SWEEP_SANDBOX_OPERATIONS,
         SWEEP_MCP_CONNECTIONS,
         EXPIRE_APPROVALS,
+        WHATSAPP_NUDGES,
         EXPIRE_INVITATIONS,
         REAP_STALE_RUNS,
         SWEEP_TEARDOWN_RESERVATIONS,
