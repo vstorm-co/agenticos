@@ -19,6 +19,12 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- MCP connections with **Include instructions** enabled no longer abort agent
+  turns while Pydantic AI collects their instructions. Toolset IDs use the
+  connection’s safe tool prefix. (#2713)
+
 ## [1.46.0] - 2026-11-04
 
 ### Added
