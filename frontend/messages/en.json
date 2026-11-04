@@ -8611,7 +8611,9 @@
           "files": "Files read",
           "last": "Last used"
         },
-        "never": "Not yet"
+        "never": "Not yet",
+        "pick": "Agents on the chart",
+        "pickNone": "Pick an agent above to draw its line."
       },
       "catchUp": "Catch “{name}” up with main",
       "toMain": "Move “{name}” to main",

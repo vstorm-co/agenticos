@@ -8371,7 +8371,9 @@
           "files": "Odczytane pliki",
           "last": "Ostatnio"
         },
-        "never": "Jeszcze nie"
+        "never": "Jeszcze nie",
+        "pick": "Agenci na wykresie",
+        "pickNone": "Wybierz agenta powyżej, żeby narysować jego linię."
       },
       "catchUp": "Dogoń main w forku „{name}”",
       "toMain": "Przenieś „{name}” do main",

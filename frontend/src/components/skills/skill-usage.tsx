@@ -1,6 +1,5 @@
 "use client";
 
-import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
 
@@ -11,17 +10,10 @@ import { ListCard, Skeleton } from "@/components/ui";
 import { useSkillUsage } from "@/hooks/use-skill-versions";
 import { getErrorMessage } from "@/lib/api-error";
 import { ROUTES } from "@/lib/constants";
-import { CHART_MIN_HEIGHT, SERIES_TOKENS, seriesColor } from "@/lib/dashboard/system";
-import { cn, formatDate } from "@/lib/utils";
-import type { SkillAgentUsage, SkillUsage } from "@/types/skill-versions";
-
-const UsageLinesImpl = dynamic(
-  () => import("@/components/charts/usage-lines.impl").then((m) => m.UsageLinesImpl),
-  {
-    ssr: false,
-    loading: () => <div className="bg-muted h-full w-full animate-pulse rounded-md" />,
-  },
-);
+import { SERIES_TOKENS, seriesColor } from "@/lib/dashboard/system";
+import { formatDate } from "@/lib/utils";
+import type { SkillAgentUsage, SkillUsage, SkillUsageAgent } from "@/types/skill-versions";
+import { UsageChart, type Face } from "./usage-chart";
 
 /** The window the page counts use over. */
 const DAYS = 30;
@@ -59,8 +51,9 @@ export function usageDays(
 }
 
 /**
- * How often each agent used the skill in the last thirty days: a line per agent
- * by day, then each agent's runs that opened it and the files they read. Agents
+ * How often each agent used the skill in the last thirty days: one chart by day
+ * overlaying the agents picked, then each agent's runs that opened it and the
+ * files they read. Agents
  * the reader cannot see are a count. Eval and test-panel runs are left out, so
  * this is real use. Reading it needs `runs:view`, so the page draws it only for
  * such a reader.
@@ -77,6 +70,13 @@ export function SkillUsageCard({
   const tErrors = useTranslations("errors");
   const locale = useLocale();
   const { usage, isLoading, error } = useSkillUsage(skillId, DAYS);
+  const read = new Map(agents.map((row) => [row.agent.id, row.agent]));
+  // An agent the usage names without its face is drawn as the agents list has it.
+  const faceOf = (agent: SkillUsageAgent): Face => ({
+    slug: agent.slug ?? read.get(agent.agent_id)?.slug ?? agent.agent_id,
+    hasAvatar: agent.has_avatar ?? read.get(agent.agent_id)?.has_avatar,
+    colorSlot: agent.avatar_color ?? read.get(agent.agent_id)?.avatar_color,
+  });
   const chart =
     usage &&
     usageDays(usage, (day) =>
@@ -97,25 +97,29 @@ export function SkillUsageCard({
       ) : (
         <>
           {chart && (
-            <div
-              className={cn("h-56 px-2 pt-4", CHART_MIN_HEIGHT)}
-              role="img"
-              aria-label={t("chart")}
-            >
-              <UsageLinesImpl lines={chart.lines} days={chart.days} />
-            </div>
+            <UsageChart
+              agents={usage.agents}
+              lines={chart.lines}
+              days={chart.days}
+              faceOf={faceOf}
+            />
           )}
-          <UsageTable usage={usage} agents={agents} />
+          <UsageTable usage={usage} faceOf={faceOf} />
         </>
       )}
     </ListCard>
   );
 }
 
-function UsageTable({ usage, agents }: { usage: SkillUsage; agents: SkillAgentUsage[] }) {
+function UsageTable({
+  usage,
+  faceOf,
+}: {
+  usage: SkillUsage;
+  faceOf: (agent: SkillUsageAgent) => Face;
+}) {
   const t = useTranslations("skills.page.usage");
   const locale = useLocale();
-  const faces = new Map(agents.map((usage) => [usage.agent.id, usage.agent]));
   return (
     <table className="w-full text-sm">
       <thead className="text-muted-foreground text-left text-xs">
@@ -133,9 +137,9 @@ function UsageTable({ usage, agents }: { usage: SkillUsage; agents: SkillAgentUs
               <div className="flex min-w-0 items-center gap-2">
                 <AgentAvatar
                   agentId={agent.agent_id}
-                  slug={faces.get(agent.agent_id)?.slug ?? agent.agent_id}
-                  hasAvatar={faces.get(agent.agent_id)?.has_avatar}
-                  colorSlot={faces.get(agent.agent_id)?.avatar_color}
+                  slug={faceOf(agent).slug}
+                  hasAvatar={faceOf(agent).hasAvatar}
+                  colorSlot={faceOf(agent).colorSlot}
                   size="sm"
                 />
                 <Link

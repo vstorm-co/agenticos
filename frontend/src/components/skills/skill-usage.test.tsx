@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { apiClient } from "@/lib/api-client";
@@ -70,15 +71,31 @@ describe("SkillUsageCard", () => {
     expect(apiClient.get).toHaveBeenCalledWith("/skills/s1/usage?days=30");
   });
 
-  it("draws a line per agent by day once the server counts by day", async () => {
-    vi.mocked(apiClient.get).mockResolvedValue({
-      ...USAGE,
-      agents: USAGE.agents.map((agent) => ({ ...agent, daily: [] })),
-    });
+  it("overlays the agents picked on one chart, the busiest five to start with", async () => {
+    const agents = Array.from({ length: 6 }, (_, index) => ({
+      ...USAGE.agents[0]!,
+      agent_id: `a${index}`,
+      agent_name: `Agent ${index}`,
+      loads: index,
+      slug: `agent-${index}`,
+      has_avatar: false,
+      avatar_color: 3,
+      daily: [],
+    }));
+    vi.mocked(apiClient.get).mockResolvedValue({ ...USAGE, agents });
     mount();
-    expect(
-      await screen.findByRole("img", { name: "Loads per day, one line per agent" }),
-    ).toBeVisible();
+
+    const picker = await screen.findByRole("group", { name: "Agents on the chart" });
+    const chip = (name: string) => within(picker).getByRole("button", { name });
+    expect(chip("Agent 0")).toHaveAttribute("aria-pressed", "false");
+    expect(chip("Agent 5")).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("img", { name: "Loads per day, one line per agent" })).toBeVisible();
+
+    await userEvent.click(chip("Agent 0"));
+    expect(chip("Agent 0")).toHaveAttribute("aria-pressed", "true");
+    for (const index of [0, 1, 2, 3, 4, 5]) await userEvent.click(chip(`Agent ${index}`));
+    expect(screen.getByText("Pick an agent above to draw its line.")).toBeVisible();
+    expect(chip("Agent 0").querySelector("[data-agent-avatar='a0']")).not.toBeNull();
   });
 
   it("says nobody used it", async () => {

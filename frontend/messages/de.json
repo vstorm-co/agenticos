@@ -8489,7 +8489,9 @@
           "files": "Gelesene Dateien",
           "last": "Zuletzt genutzt"
         },
-        "never": "Noch nicht"
+        "never": "Noch nicht",
+        "pick": "Agents im Diagramm",
+        "pickNone": "Wähle oben einen Agent, um seine Linie zu zeichnen."
       },
       "catchUp": "„{name}“ auf main nachziehen",
       "toMain": "„{name}“ nach main übernehmen",
