@@ -23,6 +23,23 @@ Two things are versioned separately from this file and worth knowing about:
 
 - **Breaking:** A sync source now records the knowledge base it syncs into (`sync_sources.knowledge_base_id`, migration `0257_sync_source_knowledge_base`) instead of resolving one again from its collection name, which is not unique (#2551). A source added to an organization base newer than a member's personal base of the same name now stays on that base, with its runs and synced documents; a source can be added to any base of a shared name from that base's Sync tab, where it was refused with 400, but not to a member's personal base of another organization, and a `PATCH` resending a source's own collection name no longer moves it. `rag-source-add` records the organization base it checked rather than syncing into whichever base the name resolves to, and takes `--knowledge-base <id>` when several of the organization's bases hold the name. Deleting a base, or dropping it with `DELETE /rag/collections/{name}` or `rag-drop`, detaches and deactivates exactly the sources that record it, whoever else holds the name - a cleared default base included, which keeps its row but no longer its sources, so they cannot sync the dropped content back - and a source with no knowledge base is neither scheduled nor synced. The migration gives every existing source the base its sync wrote into before; a source whose collection no base of its organization or of the deployment holds was writing unfiled chunks, so the migration deactivates it and logs its id, and so it does a source whose name two bases created at the same moment hold equally, which the earlier code resolved to neither one in particular. It also logs, without moving them, sources it leaves on a member's personal base while the organization has an org base of the same name, which is where they synced before. To act on: point each deactivated source at a knowledge base and set `is_active` back to true to sync it again, move a logged source off a personal base when it belongs to the organization's, and add `--knowledge-base` to `rag-source-add` scripts whose organization holds the collection name twice. Downgrading drops the column and does not reactivate those sources; before it does, it deactivates and logs every active source that names a collection but records no base, or a base other than the one its collection name resolves to, since the earlier code would sync either of them by name.
 
+## [1.46.0] - 2026-11-04
+
+### Added
+
+- Select Otari as an LLM provider with a vault API key, hosted or self-hosted endpoint, authenticated model discovery and model-family profiles from `pydantic-ai-otari`.
+
+## [1.45.1] - 2026-11-04
+
+### Fixed
+
+- The MCP servers Connected filter includes accessible organization and personal
+  accounts across catalog pages, including custom servers, with one card per
+  service and consistent filtering, result counts and pagination.
+- Saved MCP server links reopen accounts whose registry checks failed. URL grouping
+  preserves case-sensitive paths and query values, and reauthorization uses each
+  account's saved endpoint.
+
 ## [1.45.0] - 2026-11-04
 
 ### Added
@@ -19940,7 +19957,9 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.45.0...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.46.0...HEAD
+[1.46.0]: https://github.com/vstorm-co/agenticos/compare/v1.45.1...v1.46.0
+[1.45.1]: https://github.com/vstorm-co/agenticos/compare/v1.45.0...v1.45.1
 [1.45.0]: https://github.com/vstorm-co/agenticos/compare/v1.44.0...v1.45.0
 [1.44.0]: https://github.com/vstorm-co/agenticos/compare/v1.43.0...v1.44.0
 [1.43.0]: https://github.com/vstorm-co/agenticos/compare/v1.42.0...v1.43.0

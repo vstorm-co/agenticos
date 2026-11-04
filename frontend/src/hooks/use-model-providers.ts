@@ -294,7 +294,10 @@ function providerModelsQuery(providerId: string, baseUrl?: string, secretId?: st
 export function useProviderModels(providerId: string, baseUrl?: string, secretId?: string) {
   const { data, isFetching } = useQuery({
     ...providerModelsQuery(providerId, baseUrl, secretId),
-    enabled: providerId !== "" && !(providerId === "stav" && baseUrl && !secretId),
+    enabled:
+      providerId !== "" &&
+      !(providerId === "otari" && !baseUrl) &&
+      !(["stav", "otari"].includes(providerId) && baseUrl && !secretId),
   });
 
   // Both fields this fills choose a model to talk to, so a speech or embedding

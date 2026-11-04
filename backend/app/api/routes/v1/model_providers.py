@@ -14,6 +14,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, status
 
+from app.agents.model_resolver import PROVIDERS
 from app.api.deps import Auth, ModelProfileSvc, SecretSvc, require
 from app.api.public_api import PUBLIC
 from app.core.exceptions import AuthorizationError
@@ -77,6 +78,7 @@ async def list_provider_catalog() -> Any:
             secret_kind=spec.secret_kind,
             supports_base_url=spec.supports_base_url,
             keyless=spec.keyless,
+            requires_base_url=spec.requires_base_url,
             apis=list(spec.apis),
             native_api=spec.native_api,
             regions=list(spec.regions),
@@ -397,10 +399,17 @@ async def list_provider_models(
     secret_id: UUID | None = None,
 ) -> Any:
     """List suggestions; custom authenticated endpoints require a visible selected key."""
+    if (
+        base_url is None
+        and (spec := PROVIDERS.get(provider)) is not None
+        and spec.requires_base_url
+    ):
+        return ProviderModelList(items=[], total=0, source="unlisted")
     if base_url is not None:
         if provider not in CUSTOM_LISTINGS:
             raise refused_field(
-                "base_url", "Only OpenRouter and Stav support a custom model listing endpoint"
+                "base_url",
+                "Only OpenRouter, Stav and Otari support a custom model listing endpoint",
             )
         if not ctx.has(Perm.CONNECTIONS_MANAGE):
             raise AuthorizationError(
