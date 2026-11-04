@@ -1,5 +1,7 @@
 "use client";
 
+import { ProjectAvatar } from "@/components/projects/project-avatar";
+
 import Link from "next/link";
 import { ArrowUpRight } from "lucide-react";
 import {
@@ -51,12 +53,7 @@ export function ProjectsWidget({ title, hint, seeAll, options }: DashboardWidget
                   href={ROUTES.PROJECT_DETAIL(project.id)}
                   className="hover:bg-muted/60 focus-visible:ring-ring group flex h-full items-start gap-3 rounded-lg px-1 py-2.5 transition-colors outline-none focus-visible:ring-2"
                 >
-                  <span
-                    className="bg-foreground/[0.04] text-muted-foreground flex size-9 shrink-0 items-center justify-center rounded-lg"
-                    aria-hidden
-                  >
-                    <FolderKanban className="size-4" />
-                  </span>
+                  <ProjectAvatar name={project.name} size="md" />
                   <span className="min-w-0 flex-1 space-y-1">
                     <span className="text-foreground block truncate text-sm font-medium">
                       {project.name}

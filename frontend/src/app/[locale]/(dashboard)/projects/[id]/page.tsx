@@ -1,13 +1,11 @@
 "use client";
 
+import { ProjectAvatar } from "@/components/projects/project-avatar";
+
 import { use } from "react";
 import Link from "next/link";
 import { Plus, AppWindow, FileText } from "lucide-react";
-import {
-  ProjectIcon as FolderKanban,
-  DocumentIcon as Files,
-  ChatIcon as MessageSquare,
-} from "@/components/icons/product-icons";
+import { DocumentIcon as Files, ChatIcon as MessageSquare } from "@/components/icons/product-icons";
 import { useTranslations } from "next-intl";
 
 import { PageHeader } from "@/components/dashboard/page-header";
@@ -59,9 +57,11 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
         ]}
         title={
           <span className="flex items-center gap-3">
-            <span className="bg-muted flex h-9 w-9 shrink-0 items-center justify-center rounded-xl">
-              <FolderKanban className="h-5 w-5" aria-hidden />
-            </span>
+            {project ? (
+              <ProjectAvatar name={project.name} size="lg" />
+            ) : (
+              <Skeleton className="size-10 rounded-xl" />
+            )}
             {project?.name ?? (
               <span
                 aria-hidden

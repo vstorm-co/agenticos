@@ -1,5 +1,7 @@
 "use client";
 
+import { ProjectAvatar } from "@/components/projects/project-avatar";
+
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useSearchParams } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
@@ -430,18 +432,6 @@ export function byAge(
   return AGES.filter((age) => groups.has(age)).map((age) => ({ age, rows: groups.get(age)! }));
 }
 
-/** A project's initial on a tile - the mark the main sidebar draws for it too. */
-function ProjectTile({ name }: { name: string }) {
-  return (
-    <span
-      aria-hidden
-      className="bg-foreground/[0.07] text-foreground flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-[5px] text-[10px] leading-none font-semibold"
-    >
-      {name.trim().charAt(0).toUpperCase()}
-    </span>
-  );
-}
-
 /** One band of the list: what heads it, and the threads under it. */
 interface Band {
   key: string;
@@ -744,7 +734,7 @@ function ConversationList({
                   >
                     {icon === "star" && <Star className="h-3.5 w-3.5" aria-hidden />}
                     {icon === "unread" && <Inbox className="h-3.5 w-3.5" aria-hidden />}
-                    {icon === "project" && <ProjectTile name={heading} />}
+                    {icon === "project" && <ProjectAvatar name={heading} />}
                     <span>{heading}</span>
                     {isFolded(key) && (
                       <span className="text-muted-foreground/70 tabular-nums">{rows.length}</span>
@@ -1126,7 +1116,7 @@ function CollapsedSidebar({
                   ) : icon === "unread" ? (
                     <Inbox className="h-3.5 w-3.5" aria-hidden />
                   ) : icon === "project" ? (
-                    <ProjectTile name={heading} />
+                    <ProjectAvatar name={heading} />
                   ) : (
                     <span
                       aria-hidden

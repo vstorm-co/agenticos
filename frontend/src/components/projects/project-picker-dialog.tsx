@@ -1,5 +1,7 @@
 "use client";
 
+import { ProjectAvatar } from "@/components/projects/project-avatar";
+
 import { useState } from "react";
 import { Check, Plus } from "lucide-react";
 import { ProjectIcon as FolderKanban } from "@/components/icons/product-icons";
@@ -76,6 +78,7 @@ export function ProjectPickerDialog({
             usable.map((project) => (
               <li key={project.id}>
                 <PickRow
+                  projectName={project.name}
                   label={project.name}
                   hint={project.description ?? t("chatCount", { count: project.chat_count })}
                   selected={project.id === selectedId}
@@ -98,11 +101,13 @@ export function ProjectPickerDialog({
 }
 
 function PickRow({
+  projectName,
   label,
   hint,
   selected,
   onClick,
 }: {
+  projectName?: string;
   label: string;
   hint: string;
   selected: boolean;
@@ -118,9 +123,13 @@ function PickRow({
         selected ? "bg-accent" : "hover:bg-accent/60",
       )}
     >
-      <span className="bg-muted flex h-8 w-8 shrink-0 items-center justify-center rounded-lg">
-        <FolderKanban className="h-4 w-4" aria-hidden />
-      </span>
+      {projectName !== undefined ? (
+        <ProjectAvatar name={projectName} size="md" />
+      ) : (
+        <span className="bg-muted flex size-8 shrink-0 items-center justify-center rounded-lg">
+          <FolderKanban className="size-4" aria-hidden />
+        </span>
+      )}
       <span className="min-w-0 flex-1">
         <span className="block truncate text-sm font-medium">{label}</span>
         <span className="text-muted-foreground block truncate text-xs">{hint}</span>

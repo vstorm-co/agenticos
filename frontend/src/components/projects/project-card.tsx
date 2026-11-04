@@ -1,9 +1,8 @@
 "use client";
 
-import {
-  ProjectIcon as FolderKanban,
-  ChatIcon as MessageSquare,
-} from "@/components/icons/product-icons";
+import { ProjectAvatar } from "@/components/projects/project-avatar";
+
+import { ChatIcon as MessageSquare } from "@/components/icons/product-icons";
 import { useLocale, useTranslations } from "next-intl";
 import Link from "next/link";
 
@@ -29,9 +28,7 @@ export function ProjectCard({ project }: { project: Project }) {
         className="flex h-full flex-col gap-3 rounded-[inherit] p-4 focus-visible:outline-offset-[-2px]"
       >
         <span className="flex items-center gap-3">
-          <span className="bg-muted text-foreground flex h-10 w-10 shrink-0 items-center justify-center rounded-xl">
-            <FolderKanban className="h-5 w-5" aria-hidden />
-          </span>
+          <ProjectAvatar name={project.name} size="lg" />
           <span className="min-w-0">
             <span className="block truncate text-sm font-medium">{project.name}</span>
             {active !== null && (

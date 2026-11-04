@@ -1,5 +1,7 @@
 "use client";
 
+import { ProjectAvatar } from "@/components/projects/project-avatar";
+
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -49,12 +51,7 @@ export function ProjectRows({
             : "text-muted-foreground hover:bg-accent/60 hover:text-foreground",
         )}
       >
-        <span
-          aria-hidden
-          className="bg-foreground/[0.07] text-foreground flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-[5px] text-[10px] leading-none font-semibold"
-        >
-          {project.name.trim().charAt(0).toUpperCase()}
-        </span>
+        <ProjectAvatar name={project.name} />
         {collapsed ? null : <span className="truncate">{project.name}</span>}
       </Link>
     );
