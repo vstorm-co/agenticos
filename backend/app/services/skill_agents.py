@@ -605,15 +605,35 @@ class SkillAgentService:
             raise _cannot_remove(skill, named, 0, blocked, waiting)
         for removal in removals:
             if removal.publish_from is not None:
-                await self.registry.publish_spec(
-                    ctx,
-                    removal.agent.id,
-                    without_skill(removal.publish_from, skill.id),
-                    draft=removal.draft,
-                    note=f"Removed {skill.name} before it was deleted",
-                )
+                await self._publish_without(ctx, skill, removal)
             else:
                 await self.registry.save_draft(ctx, removal.agent.id, removal.draft)
+
+    async def _publish_without(self, ctx: AuthContext, skill: Skill, removal: _Removal) -> None:
+        """Publish the newest published spec without the skill, naming the agent when it
+        does not publish: the request names no agent, so the refusal has to."""
+        assert removal.publish_from is not None, "only a removal that publishes comes here"
+        agent = removal.agent
+        try:
+            await self.registry.publish_spec(
+                ctx,
+                agent.id,
+                without_skill(removal.publish_from, skill.id),
+                draft=removal.draft,
+                note=f"Removed {skill.name} before it was deleted",
+            )
+        except BadRequestError as exc:
+            raise BadRequestError(
+                message=(
+                    f"'{agent.name}' does not publish without '{skill.name}': {exc.message}. "
+                    "Fix the agent, then delete the skill again."
+                ),
+                details={
+                    "agent_id": agent.id,
+                    "agent_name": agent.name,
+                    "problems": (exc.details or {}).get("problems", []),
+                },
+            ) from exc
 
     async def _removal(self, ctx: AuthContext, skill: Skill, agent_id: UUID) -> _Removal | None:
         """What taking the skill out of one agent writes, or `None` when a spec it would

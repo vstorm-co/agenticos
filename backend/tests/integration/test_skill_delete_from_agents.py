@@ -11,7 +11,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.spec import AgentSpec
-from app.core.exceptions import InUseError
+from app.core.exceptions import BadRequestError, InUseError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.agent import Agent, AgentVersion
 from app.db.models.agent_environment import AgentEnvironment
@@ -187,3 +187,20 @@ class TestRefusingTheWholeDelete:
         refused = await _delete(db, ctx, skill)
 
         assert [agent["name"] for agent in refused.details["not_editable"]] == ["Clerk"]
+
+    async def test_an_agent_that_does_not_publish_without_it_is_named(self, db):
+        """The request names no agent, so a publish refusal says which one to fix."""
+        ctx = await _owner(db)
+        skill = await _skill(db, ctx)
+        agent = await _following(db, ctx, "Clerk", _spec(skill))
+
+        with pytest.raises(BadRequestError) as refused:
+            await SkillService(db).delete(ctx, skill.id, remove_from_agents=True)
+
+        assert refused.value.details is not None
+        assert (refused.value.details["agent_id"], refused.value.details["agent_name"]) == (
+            agent.id,
+            "Clerk",
+        )
+        assert refused.value.details["problems"]
+        assert refused.value.message.startswith("'Clerk' does not publish without 'refunds'")
