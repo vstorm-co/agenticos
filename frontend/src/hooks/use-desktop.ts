@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import {
   changeServer,
   getLocalAgents,
+  getLocalCodingOptions,
   getLocalSkills,
   SKILL_SOURCES,
   getLocalServices,
@@ -328,6 +329,18 @@ export function useLocalAgents() {
     onError: failed,
   });
   return { state, signIn, signOut, prepare };
+}
+
+export function useLocalCodingOptions(harness: LocalAgent["id"] | null) {
+  const shell = useShell();
+  return useQuery({
+    queryKey: qk.desktop.codingOptions(harness),
+    queryFn: harness === null ? skipToken : () => getLocalCodingOptions(harness),
+    enabled: isDesktopShell(shell) && harness !== null,
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
+    retry: false,
+  });
 }
 
 /**

@@ -241,6 +241,8 @@ describe("stepsForPage", () => {
       "chat-composer",
       "chat-local-skills",
       "chat-local-coding",
+      "chat-coding-settings",
+      "chat-background-tasks",
       "chat-plan",
       "chat-visual",
       "chat-model-picker",

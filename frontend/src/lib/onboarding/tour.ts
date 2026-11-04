@@ -200,6 +200,19 @@ export const TOUR_STEPS: readonly TourStep[] = [
     activate: "chat-settings",
     optional: true,
   },
+  {
+    id: "chat-coding-settings",
+    page: ROUTES.CHAT,
+    target: "chat-coding-settings",
+    activate: "chat-settings",
+    optional: true,
+  },
+  {
+    id: "chat-background-tasks",
+    page: ROUTES.CHAT,
+    target: "chat-background-tasks",
+    optional: true,
+  },
   // Only there once an agent has planned something, so `optional` - an
   // organization whose agents carry no planning capability would otherwise wait
   // four seconds for a strip that never mounts.

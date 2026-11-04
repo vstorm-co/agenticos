@@ -95,6 +95,7 @@ from app.services.ws_auth import authenticate_socket_key, authenticate_socket_to
 from app.services.device_pairing import DevicePairingService
 from app.services.oauth_exchange import OAuthExchangeService
 from app.services.conversation import ConversationService
+from app.services.conversation_tasks import ConversationTaskService
 from app.services.visual import VisualService
 from app.services.local_service import LocalServiceService
 from app.services.ml import MLService
@@ -163,6 +164,13 @@ def get_push_service(db: DBSession) -> PushService:
 
 
 PushSvc = Annotated[PushService, Depends(get_push_service)]
+
+
+def get_conversation_task_service(db: DBSession) -> ConversationTaskService:
+    return ConversationTaskService(db)
+
+
+ConversationTaskSvc = Annotated[ConversationTaskService, Depends(get_conversation_task_service)]
 
 
 def get_conversation_service(db: DBSession) -> ConversationService:

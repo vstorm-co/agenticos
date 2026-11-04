@@ -1,5 +1,5 @@
 ---
-source_sha: "f8b0ccd7e54f"
+source_sha: "27e31adcbb5e"
 ---
 
 # La app de escritorio { #the-desktop-app }
@@ -534,6 +534,8 @@ La aprobación de la capability se aplica una vez por tarea. `edit` permite las 
 Las tareas posteriores reanudan la sesión del mismo harness para la conversación, agente, carpeta, cuenta y política de acceso. `fresh_session` comienza de nuevo explícitamente. Los identificadores quedan en los ajustes del escritorio, fuera del repositorio, y se borran al desvincular o cambiar de cuenta. Si no se puede cargar una sesión guardada, la tarea falla explícitamente; inicia una nueva cuando corresponda. La desconexión detiene el proceso, pero permite reanudar el historial guardado del harness.
 
 Una corrección enviada durante la tarea local interrumpe el turno ACP actual. Tras confirmar el adaptador la parada, la misma sesión continúa con la corrección. La transcripción registra la corrección aplicada. Un mensaje que llega tras finalizar queda disponible para el agente principal.
+
+Tras elegir el agente de programación y una carpeta autorizada, **Modelo de programación** y **Nivel de razonamiento** muestran las opciones del agente instalado. Se guardan para esta conversación y se aplican antes de una tarea nueva o reanudada. Deja los campos vacíos para conservar los ajustes del agente. Cambiar de agente elimina las opciones incompatibles. Actualiza la lista explícitamente después de cambiar el inicio de sesión o la configuración; otra ventana no vuelve a comprobar la cuenta. Una opción eliminada o no compatible se muestra y se rechaza, sin sustituirla silenciosamente. Consultar las opciones no inicia una respuesta del modelo ni concede permisos de herramientas.
 
 ## Tus skills e instrucciones { #your-own-skills-and-instructions }
 

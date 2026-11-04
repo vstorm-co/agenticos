@@ -1,5 +1,5 @@
 ---
-source_sha: "581422ed6012"
+source_sha: "5586ac2f392a"
 ---
 
 <div class="agenticos-hero" markdown>
@@ -139,6 +139,10 @@ Dlatego AgenticOS wyprowadza agenta poza kod, a w zamian otacza go nadzorem.
 </div>
 
 ## Wymagania { #requirements }
+
+Wdrożenia Podmana korzystają z [ręcznej ścieżki z Docker Compose](deploy.md#podman-support)
+i dodatkowego override dla socketu sandboxa i uprawnień workspace. Quickstart
+obsługuje Dockera; `podman-compose` 1.6.0 nie jest wspierany.
 
 Docker i Docker Compose. To cała lista — Postgres (z pgvector), Redis, API,
 worker i konsola wstają razem.

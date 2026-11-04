@@ -1064,3 +1064,150 @@ def test_stream_budget_counts_structural_updates_and_exact_boundaries(
     conversation._consume(message)
     with pytest.raises(acp.AcpError, match="session output limit"):
         conversation._consume(message)
+
+
+class ConfigurableAgent(ScriptedAgent):
+    """A model change returns the newly applicable reasoning setting."""
+
+    def __init__(self, *, options: object = None, refuse: bool = False) -> None:
+        super().__init__()
+        self.options = (
+            options
+            if options is not None
+            else [
+                {"id": "model", "category": "model"},
+                {"id": "effort", "category": "thought_level"},
+            ]
+        )
+        self.refuse = refuse
+
+    def on_message(self, message: dict[str, Any]) -> None:
+        method = message.get("method")
+        if method not in {"initialize", "session/new", "session/load", "session/set_config_option"}:
+            super().on_message(message)
+            return
+        self.seen.append(message)
+        if method == "initialize":
+            self._result(
+                message, {"protocolVersion": 1, "agentCapabilities": {"loadSession": True}}
+            )
+        elif method in {"session/new", "session/load"}:
+            self._result(message, {"sessionId": "s-1", "configOptions": self.options})
+        elif self.refuse:
+            self.out.append(
+                {
+                    "jsonrpc": "2.0",
+                    "id": message["id"],
+                    "error": {"code": -32602, "message": "Unsupported selection"},
+                }
+            )
+        else:
+            self._result(
+                message,
+                {
+                    "configOptions": [
+                        {"id": "model", "category": "model"},
+                        {"id": "effort-for-model", "category": "thought_level"},
+                    ]
+                },
+            )
+
+
+@pytest.mark.parametrize("resumed", [False, True])
+async def test_model_and_effort_are_applied_before_a_new_or_resumed_prompt(resumed: bool) -> None:
+    agent = ConfigurableAgent()
+    report, _, _ = await _run(
+        agent, model="haiku", effort="low", previous_session="s-1" if resumed else None
+    )
+    assert report.outcome == "completed"
+    methods = [message["method"] for message in agent.seen if "method" in message]
+    assert methods == [
+        "initialize",
+        "session/load" if resumed else "session/new",
+        "session/set_config_option",
+        "session/set_config_option",
+        "session/prompt",
+    ]
+    selections = [
+        message["params"]
+        for message in agent.seen
+        if message.get("method") == "session/set_config_option"
+    ]
+    assert selections == [
+        {"sessionId": "s-1", "configId": "model", "value": "haiku"},
+        {"sessionId": "s-1", "configId": "effort-for-model", "value": "low"},
+    ]
+
+
+@pytest.mark.parametrize(
+    "options",
+    [
+        [],
+        "invalid",
+        [False, {"category": "other"}],
+        [{"category": "thought_level", "id": 1}],
+        [{"category": "thought_level", "id": ""}],
+    ],
+)
+async def test_a_reasoning_choice_is_never_silently_ignored(options: object) -> None:
+    agent = ConfigurableAgent(options=options)
+    with pytest.raises(acp.AcpError, match="does not expose a reasoning level"):
+        await _run(agent, effort="low")
+    assert not any(message.get("method") == "session/prompt" for message in agent.seen)
+
+
+async def test_an_unsupported_model_and_a_vendor_refusal_stop_before_spending_on_a_prompt() -> None:
+    agent = ConfigurableAgent(options=[])
+    with pytest.raises(acp.AcpError, match="does not expose a model"):
+        await _run(agent, model="haiku")
+    agent = ConfigurableAgent(refuse=True)
+    with pytest.raises(acp.AcpError, match=r"refused the request.*-32602"):
+        await _run(agent, effort="low")
+    assert not any(message.get("method") == "session/prompt" for message in agent.seen)
+
+
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("coding_model", "sonnet[1m]"),
+        ("coding_effort", "low"),
+    ],
+)
+def test_local_coding_settings_require_an_explicit_harness(field: str, value: str) -> None:
+    from pydantic import ValidationError
+
+    with pytest.raises(ValidationError, match="Choose a local coding agent"):
+        LocalTarget.model_validate({"folder": "/w", "mode": "full_access", field: value})
+    target = LocalTarget.model_validate(
+        {
+            "folder": "/w",
+            "mode": "full_access",
+            "coding_agent": "claude_code",
+            field: value,
+        }
+    )
+    assert getattr(target, field) == value
+    assert LocalTarget.model_validate(target.model_dump()) == target
+
+
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("coding_model", "bad\nmodel"),
+        ("coding_model", "x" * 257),
+        ("coding_effort", "bad effort"),
+        ("coding_effort", "x" * 33),
+    ],
+)
+def test_local_coding_settings_reject_unbounded_or_malformed_values(field: str, value: str) -> None:
+    from pydantic import ValidationError
+
+    with pytest.raises(ValidationError):
+        LocalTarget.model_validate(
+            {
+                "folder": "/w",
+                "mode": "full_access",
+                "coding_agent": "codex",
+                field: value,
+            }
+        )

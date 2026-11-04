@@ -111,6 +111,7 @@ def _stored(model: str) -> MagicMock:
         model=model,
         base_url=None,
         api="responses",
+        region=None,
         params={},
         fallback_profile_ids=[],
         context_length=None,

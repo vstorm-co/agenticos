@@ -60,6 +60,7 @@ from app.db.models.agent import AgentStatus
 from app.db.models.agent_run import RunStatus
 from app.services.agent_registry import DELEGATION_CAPABILITY_ID
 from app.services.agent_runner import (
+    AdmittedAs,
     AgentRunnerService,
     RecordedDelegation,
     VoiceRun,
@@ -1861,7 +1862,7 @@ class TestWritingTheQueuedRows:
 
     @staticmethod
     def _prepared(delegations: list[Any]) -> MagicMock:
-        prepared = MagicMock(earlier_attachments_checked=False)
+        prepared = MagicMock(earlier_attachments_checked=False, admitted_as=AdmittedAs())
         prepared.run = _parent_run()
         prepared.built.ledger = SpendLedger()
         prepared.delegations = delegations

@@ -1,5 +1,5 @@
 ---
-source_sha: "f8b0ccd7e54f"
+source_sha: "27e31adcbb5e"
 ---
 
 # Aplikacja desktopowa { #the-desktop-app }
@@ -511,6 +511,8 @@ Zgoda capability obowiązuje raz na zadanie. W jego trakcie `edit` zezwala na ż
 Kolejne zadania wznawiają sesję tego samego harnessu dla danej rozmowy, agenta, folderu, konta i polityki dostępu. `fresh_session` jawnie zaczyna od nowa. Identyfikatory sesji pozostają w ustawieniach desktopu, poza repozytorium, i są usuwane po odłączeniu lub zmianie konta. Niedostępna zapisana sesja kończy zadanie jawnym błędem; w razie potrzeby zacznij od nowa. Odłączenie zatrzymuje proces, ale zapisaną historię harnessu można wznowić.
 
 Korekta wysłana podczas lokalnego zadania przerywa bieżącą turę ACP. Po potwierdzeniu zatrzymania przez adapter ta sama sesja kontynuuje z korektą. Transkrypt zapisuje zastosowaną korektę; wiadomość po zakończeniu pozostaje dostępna dla nadrzędnego agenta.
+
+Po wybraniu agenta kodującego i zatwierdzonego folderu pola **Model kodujący** i **Poziom myślenia** pokazują opcje zgłoszone przez zainstalowanego agenta. Dotyczą tej rozmowy i są stosowane przed nowym lub wznowionym zadaniem. Puste pole zachowuje własne ustawienie agenta. Zmiana agenta usuwa niezgodne nadpisania. Odśwież opcje po zmianie logowania lub konfiguracji; otwarcie kolejnego okna nie sprawdza ponownie konta. Usunięta albo nieobsługiwana opcja jest widoczna i odrzucana, zamiast cichej zamiany. Odczyt opcji nie uruchamia modelu i nie udziela zgody na narzędzia.
 
 ## Twoje skills i instrukcje { #your-own-skills-and-instructions }
 

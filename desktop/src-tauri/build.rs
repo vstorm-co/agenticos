@@ -64,6 +64,7 @@ const COMMANDS: &[&str] = &[
     "local_file",
     "local_agents",
     "local_agent_prepare",
+    "local_agent_options",
     "local_agent_sign_in",
     "local_agent_sign_out",
     "local_skills",

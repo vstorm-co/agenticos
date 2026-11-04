@@ -849,7 +849,13 @@
       "listMonitors": "Obserwacje",
       "listingMonitors": "Wypisuję obserwacje",
       "stopMonitor": "Zatrzymaj obserwację",
-      "stoppingMonitor": "Zatrzymuję obserwację"
+      "stoppingMonitor": "Zatrzymuję obserwację",
+      "startingBackgroundTask": "Uruchamianie tematu w tle",
+      "backgroundTaskStarted": "Uruchomiono temat w tle",
+      "listingBackgroundTasks": "Sprawdzanie tematów w tle",
+      "backgroundTasks": "Tematy w tle",
+      "stoppingBackgroundTask": "Zatrzymywanie tematu w tle",
+      "backgroundTaskStopped": "Zatrzymano temat w tle"
     },
     "turnWasStopped": "zatrzymano",
     "unfavourite": "Usuń z ulubionych",
@@ -954,7 +960,15 @@
           "setup": "Instalacja i logowanie → Ustawienia desktopu",
           "pickFolder": "Wybierz folder",
           "changeFolder": "Zmień folder · {folder}",
-          "agentWithHarness": "Ustawienie agenta · {agent}"
+          "agentWithHarness": "Ustawienie agenta · {agent}",
+          "model": "Model agenta kodującego",
+          "effort": "Poziom myślenia",
+          "ownModel": "Ustawienia agenta kodującego",
+          "ownEffort": "Ustawienia agenta kodującego",
+          "loadingSettings": "Przygotowywanie ustawień agenta…",
+          "refreshSettings": "Odśwież dostępne opcje",
+          "unavailableOption": "{value} (niedostępny)",
+          "effortUnsupported": "Model nie oferuje tej opcji"
         },
         "off": "Wyłączone"
       },
@@ -1073,7 +1087,8 @@
         "collection": "Bazy wiedzy",
         "skill": "Skille",
         "context": "Pliki kontekstu",
-        "project": "Projekty"
+        "project": "Projekty",
+        "conversation": "Rozmowy"
       }
     },
     "hints": {
@@ -1402,6 +1417,37 @@
       "needsFolder": "{agent} działa na tym komputerze: wybierz folder w Ustawieniach czatu → Pracuj na → Ten komputer.",
       "needsFullAccess": "{agent} działa jako Ty, więc folder wymaga pełnego dostępu. Zmień to w Ustawieniach czatu → Pracuj na.",
       "chosen": "{agent} · {folder}"
+    },
+    "reasoning": {
+      "levels": {
+        "default": "Domyślny",
+        "none": "Brak",
+        "minimal": "Minimalny",
+        "low": "Niski",
+        "medium": "Średni",
+        "high": "Wysoki",
+        "xhigh": "Bardzo wysoki",
+        "max": "Maksymalny",
+        "ultra": "Ultra"
+      }
+    },
+    "backgroundTasks": {
+      "heading": "Tematy w tle · aktywne: {count}",
+      "empty": "Poproś agenta z funkcją Tematy w tle o delegowanie zadania i kontynuuj rozmowę.",
+      "retry": "Wczytaj tematy w tle ponownie",
+      "stop": "Zatrzymaj: {title}",
+      "returnInterrupted": "Przerwano przekazanie wyniku",
+      "status": {
+        "queued": "W kolejce",
+        "running": "Pracuje",
+        "awaiting_approval": "Czeka na zgodę",
+        "awaiting_answer": "Czeka na odpowiedź",
+        "completed": "Ukończone",
+        "failed": "Błąd",
+        "cancelled": "Zatrzymane",
+        "interrupted": "Przerwane; bez ponownego uruchomienia"
+      },
+      "emptyTitle": "Deleguj pracę i kontynuuj rozmowę"
     }
   },
   "errors": {
@@ -4816,6 +4862,10 @@
           "descriptionOff": "Twoja organizacja ma proaktywność wyłączoną."
         },
         "more": "{count, plural, =1 {Jeszcze 1 w inboksie} few {Jeszcze # w inboksie} many {Jeszcze # w inboksie} other {Jeszcze # w inboksie}}"
+      },
+      "background-tasks": {
+        "title": "Tematy w tle",
+        "description": "Twoje delegowane zadania i ich wyniki"
       }
     },
     "activeSessions": "Aktywne sesje",
@@ -6425,6 +6475,14 @@
       "workflow-step-view": {
         "title": "Skup się na jednym panelu",
         "body": "Na telefonie wybierz ustawienia kroku, wejście albo wynik, aby przeznaczyć dostępne miejsce na jeden panel. Przełączanie zachowuje szkic."
+      },
+      "chat-coding-settings": {
+        "title": "Model i poziom myślenia",
+        "body": "Wybierz model i poziom myślenia dostępny w zainstalowanym agencie kodującym. Ustawienia dotyczą tej rozmowy; puste pola zachowują ustawienia agenta."
+      },
+      "chat-background-tasks": {
+        "title": "Tematy w tle",
+        "body": "Niezależne zadanie otwiera nowy temat w tym projekcie. Kontynuuj rozmowę tutaj; agent wróci z wynikiem. Z tego paska otworzysz lub zatrzymasz zadanie."
       }
     },
     "chooseLanguage": "Język",
@@ -7878,6 +7936,16 @@
     "modelApiChat": "Chat Completions",
     "modelApiHint": "Własne API OpenAI obsługuje każdy model przez Responses, a najnowsze modele wyłącznie przez nie. Większość serwerów zgodnych z OpenAI (vLLM, LM Studio) implementuje tylko Chat Completions.",
     "modelApiHintAzure": "Responses wymaga aktualnego api_version w kluczu Azure; Chat Completions działa z każdym.",
+    "modelRegion": "Region",
+    "modelRegionHint": "Gdzie Stav.ai może wykonywać zapytania tego modelu. Odpowiada tylko z punktów końcowych w regionie i odrzuca zapytanie, którego nie może tam obsłużyć.",
+    "modelRegionEu": "Tylko UE",
+    "modelRegionEea": "Tylko EOG",
+    "modelRegionGlobal": "Globalnie",
+    "modelApiFromModel": "{api}, wybrane na podstawie modelu",
+    "modelApiFromModelPending": "Zostanie wybrane na podstawie modelu przy zapisie",
+    "modelApiStored": "{api}, ustawione dla tego modelu",
+    "modelApiFromModelHint": "Stav.ai obsługuje większość modeli przez Chat Completions, a kilka tylko przez Responses. Decyduje model.",
+    "stavEndpointHint": "Zostaw puste dla api.stav.ai. Ustaw tylko dla regionalnego lub testowego endpointu Stav.ai.",
     "usingKey": "Używa <strong>{name}</strong>",
     "variableDescription": "Opis zmiennej {index}",
     "variableDescriptionPlaceholder": "Na jakim planie jest ten odwiedzający",
@@ -11495,6 +11563,13 @@
       "example2": "Śledź log wdrożenia i zgłoś pierwszy błąd",
       "needs": "Przestrzeń robocza z powłoką, np. capability Sandbox albo folder na twoim komputerze.",
       "never": "Nigdy nie zostawia polecenia po końcu tury: każda obserwacja kończy się razem z przebiegiem."
+    },
+    "background_tasks": {
+      "name": "Tematy w tle",
+      "does": "Uruchamia niezależną pracę w nowym temacie, gdy kontynuujesz rozmowę; przekazuje wynik głównemu agentowi.",
+      "needs": "Opublikowany agent w konsoli, aktywny członek organizacji i zatwierdzony folder do pracy lokalnej.",
+      "never": "Nie kopiuje całej rozmowy, nie pomija zgód, nie powtarza przerwanych działań ani nie tworzy watchów i rutyn.",
+      "example1": "Zbadaj błąd eksportu w nowym temacie, a my kontynuujmy planowanie wydania."
     }
   },
   "capabilityCategories": {

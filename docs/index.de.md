@@ -1,5 +1,5 @@
 ---
-source_sha: "581422ed6012"
+source_sha: "5586ac2f392a"
 ---
 
 <div class="agenticos-hero" markdown>
@@ -144,6 +144,10 @@ um ihn herum.
 </div>
 
 ## Voraussetzungen { #requirements }
+
+Podman-Installationen verwenden den [manuellen Docker-Compose-Weg](deploy.md#podman-support)
+mit zusätzlichem Override für Sandbox-Socket und Workspace-Berechtigungen. Der
+Quickstart unterstützt Docker; `podman-compose` 1.6.0 wird nicht unterstützt.
 
 Docker und Docker Compose. Das ist die ganze Liste — Postgres (mit pgvector),
 Redis, die API, der Worker und die Konsole starten gemeinsam.

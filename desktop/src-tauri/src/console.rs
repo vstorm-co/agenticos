@@ -67,6 +67,7 @@ pub const GRANTS: &[(&str, &[&str])] = &[
             "allow-local-file",
             "allow-local-agents",
             "allow-local-agent-prepare",
+            "allow-local-agent-options",
             "allow-local-agent-sign-in",
             "allow-local-agent-sign-out",
             "allow-local-skills",
@@ -402,6 +403,7 @@ mod tests {
         for permission in [
             "allow-local-agents",
             "allow-local-agent-prepare",
+            "allow-local-agent-options",
             "allow-local-agent-sign-in",
             "allow-local-agent-sign-out",
             "allow-local-skills",

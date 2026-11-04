@@ -239,20 +239,22 @@ beforeEach(() => {
   get.mockImplementation((url: string) =>
     url.startsWith("/auth/me")
       ? Promise.resolve({ ...SIGNED_IN, access_token: "t-1" })
-      : url === "/me/permissions"
-        ? // A real shape, not the list fallback: `usePermissions` reads
-          // `data.permissions` off whatever this answers.
-          Promise.resolve({
-            organization_id: "org-1",
-            role: "member",
-            is_app_admin: false,
-            permissions: [],
-          })
-        : url === "/orgs" && organization.current !== null
-          ? Promise.resolve({ items: [organization.current], total: 1 })
-          : /^\/agents\/[^/]+\/dictation$/.test(url)
-            ? Promise.resolve(readiness.current)
-            : Promise.resolve({ items: [], total: 0 }),
+      : url === "/conversations/background-tasks"
+        ? Promise.resolve([])
+        : url === "/me/permissions"
+          ? // A real shape, not the list fallback: `usePermissions` reads
+            // `data.permissions` off whatever this answers.
+            Promise.resolve({
+              organization_id: "org-1",
+              role: "member",
+              is_app_admin: false,
+              permissions: [],
+            })
+          : url === "/orgs" && organization.current !== null
+            ? Promise.resolve({ items: [organization.current], total: 1 })
+            : /^\/agents\/[^/]+\/dictation$/.test(url)
+              ? Promise.resolve(readiness.current)
+              : Promise.resolve({ items: [], total: 0 }),
   );
   organization.current = null;
   readiness.current = {
@@ -1127,6 +1129,7 @@ describe("the chat container - an answer still being written after its person le
         const items = unsaved-- > 0 ? [question] : [question, answer];
         return Promise.resolve({ items, total: items.length, cost: null });
       }
+      if (url === "/conversations/background-tasks") return Promise.resolve([]);
       return Promise.resolve({ items: [], total: 0 });
     });
   });
