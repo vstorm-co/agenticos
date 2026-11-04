@@ -218,3 +218,47 @@ describe("live workspace graph", () => {
     expect(within(screen.getByRole("status")).getByText(/Refreshes every/)).toBeVisible();
   });
 });
+
+it("switches between note details, filters and folder grouping without leaving stale panels", async () => {
+  mount();
+  await screen.findByText("3 notes · 1 link");
+  const user = userEvent.setup();
+  const groups = screen.getByRole("button", { name: "Groups" });
+  await user.click(groups);
+  expect(screen.queryByRole("button", { name: "Tags" })).not.toBeInTheDocument();
+  await user.click(groups);
+  await user.click(screen.getByRole("button", { name: "Tags" }));
+  await user.click(screen.getByRole("button", { name: "Folders" }));
+  expect(screen.getByRole("button", { name: "Folders" })).toHaveAttribute("aria-pressed", "true");
+  fireEvent.click(screen.getByRole("button", { name: "Alpha" }));
+  expect(screen.getByRole("complementary", { name: "Note details" })).toBeVisible();
+  await user.click(groups);
+  expect(screen.queryByRole("complementary", { name: "Note details" })).not.toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Tags" })).toBeVisible();
+});
+
+it("clears the folder filter when following a relationship to a note outside it", async () => {
+  vi.mocked(listProjectFiles).mockResolvedValue({
+    ...listing,
+    items: [file("notes/a.md"), file("b.md")],
+  });
+  vi.mocked(readFileText).mockImplementation(async (_, path) => ({
+    content: path === "notes/a.md" ? "# Alpha\n[B](../b.md)" : "# Beta",
+    truncated: false,
+  }));
+  mount();
+  await screen.findByText("2 notes · 1 link");
+  const user = userEvent.setup();
+  fireEvent.click(screen.getByRole("button", { name: "Alpha" }));
+  await user.click(screen.getByRole("button", { name: "Notes" }));
+  await user.click(screen.getByRole("button", { name: "Filter graph to notes" }));
+  expect(screen.getByText("1 of 2 notes visible")).toBeVisible();
+  fireEvent.click(screen.getByRole("button", { name: "Alpha" }));
+  await user.click(
+    within(screen.getByRole("complementary", { name: "Note details" })).getByRole("button", {
+      name: "b.md",
+    }),
+  );
+  expect(screen.getByRole("button", { name: "Beta" })).toBeVisible();
+  expect(screen.getByRole("button", { name: "Alpha" })).toBeVisible();
+});
