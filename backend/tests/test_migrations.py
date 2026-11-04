@@ -953,3 +953,89 @@ class TestDiscordMembershipSources:
             assert restored.returncode == 0, restored.stderr
         finally:
             engine.dispose()
+
+
+class TestSyncSourceKnowledgeBase:
+    """`0257_sync_source_knowledge_base.py`: what the operator is told, both ways.
+
+    The upgrade and the downgrade each stop sources they cannot place, and the log
+    is the only record of which and why (#2551). Each reason has its own remedy,
+    and a tie between two bases has no remedy by name.
+    """
+
+    def test_each_stopped_source_is_logged_with_its_reason(self):
+        reset = _alembic("downgrade", "base")
+        assert reset.returncode == 0, reset.stderr
+        before = _alembic("upgrade", "0256_discord_role_mappings")
+        assert before.returncode == 0, before.stderr
+        org, tie_a, tie_b, single = uuid4(), uuid4(), uuid4(), uuid4()
+        tied, nowhere, kept = uuid4(), uuid4(), uuid4()
+        engine = create_engine(_url(MIGRATION_DATABASE))
+        try:
+            with engine.begin() as connection:
+                # The backfill updates these rows, so their organization must exist;
+                # replica mode spares it a creator.
+                connection.execute(text("SET LOCAL session_replication_role = replica"))
+                connection.execute(
+                    text(
+                        "INSERT INTO organizations (id, name, slug, is_personal, "
+                        "created_by_user_id) VALUES (:id, 'Acme', 'acme', false, :id)"
+                    ),
+                    {"id": org},
+                )
+                for kb_id, name in ((tie_a, "tied"), (tie_b, "tied"), (single, "single")):
+                    connection.execute(
+                        text(
+                            "INSERT INTO knowledge_bases (id, name, scope, visibility, "
+                            "collection_name, embedding_model, embedding_dim, is_default, "
+                            "organization_id, created_at) VALUES (:id, :name, 'org', 'org', "
+                            ":name, 'm', 1536, false, :org, '2026-01-01T00:00:00Z')"
+                        ),
+                        {"id": kb_id, "name": name, "org": org},
+                    )
+                for source_id, name in ((tied, "tied"), (nowhere, "nowhere"), (kept, "single")):
+                    connection.execute(
+                        text(
+                            "INSERT INTO sync_sources (id, organization_id, name, "
+                            "connector_type, collection_name, sync_mode, is_active) "
+                            "VALUES (:id, :org, 'Drive', 'gdrive', :name, 'full', true)"
+                        ),
+                        {"id": source_id, "org": org, "name": name},
+                    )
+
+            upgraded = _alembic("upgrade", "0257_sync_source_knowledge_base")
+            assert upgraded.returncode == 0, upgraded.stderr
+            assert (
+                f"Sync source {tied} (organization {org}) names collection 'tied', which "
+                "two knowledge bases created at the same moment hold equally; it was "
+                "deactivated. Add it again from the Sync tab of the base it belongs to"
+            ) in upgraded.stderr
+            assert (
+                f"Sync source {nowhere} (organization {org}) names collection 'nowhere', "
+                "which no knowledge base of its organization or of the deployment holds; "
+                "it was deactivated. Point it at a knowledge base"
+            ) in upgraded.stderr
+            assert str(kept) not in upgraded.stderr
+
+            with engine.begin() as connection:
+                # Its base went without the teardown: the foreign key's SET NULL.
+                connection.execute(
+                    text("UPDATE sync_sources SET knowledge_base_id = NULL WHERE id = :id"),
+                    {"id": kept},
+                )
+            downgraded = _alembic("downgrade", "0256_discord_role_mappings")
+            assert downgraded.returncode == 0, downgraded.stderr
+            assert (
+                f"Sync source {kept} (organization {org}) records no knowledge base; "
+                "without this revision it would sync collection 'single' by name"
+            ) in downgraded.stderr
+            assert "stops only its scheduled syncs" in downgraded.stderr
+            with engine.connect() as connection:
+                assert not connection.execute(
+                    text("SELECT is_active FROM sync_sources WHERE id = :id"), {"id": kept}
+                ).scalar_one()
+
+            restored = _alembic("upgrade", "head")
+            assert restored.returncode == 0, restored.stderr
+        finally:
+            engine.dispose()

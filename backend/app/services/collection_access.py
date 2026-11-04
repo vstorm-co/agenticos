@@ -367,11 +367,11 @@ class CollectionAccessService:
         `KnowledgeBaseService._tear_down` (`DELETE /kb/{id}`, `DELETE
         /rag/collections/{name}` and `rag-drop`, a cleared default base included,
         whose row stays) and a member's personal purge call this, whoever else
-        holds the name: a source left pointing at the
-        name would sync into the base that keeps it, or unfiled into none, and
-        one left on a cleared default would refill it (#2551). An organization's
-        purge does not: its sources go with it. The configuration is kept for an
-        explicit reassignment.
+        holds the name: a source left pointing at the name would sync into the
+        base that keeps it, or unfiled into none, and one left on a cleared
+        default would refill it (#2551). An organization's purge does not: its
+        sources go with it. The configuration is kept for an explicit
+        reassignment.
 
         Under the name's teardown lock, which a queued sync takes and then
         re-reads its source under, so a run cannot start on a base being deleted.

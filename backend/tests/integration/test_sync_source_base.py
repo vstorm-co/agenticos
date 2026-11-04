@@ -433,7 +433,7 @@ def _migration() -> ModuleType:
         / "versions"
         / "0257_sync_source_knowledge_base.py"
     )
-    spec = importlib.util.spec_from_file_location("mig_0256_under_test", path)
+    spec = importlib.util.spec_from_file_location("sync_source_knowledge_base_under_test", path)
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
@@ -513,6 +513,68 @@ class TestTheUpgradesBackfill:
         assert template.knowledge_base_id is None and template.is_active
         assert already.knowledge_base_id == org_1_base.id
 
+    async def test_only_a_tie_for_first_place_withholds_a_base(self, db: AsyncSession) -> None:
+        """`choose_for_collection` ranks the source's own organization's bases -
+        of any scope - before app-scoped ones, each oldest first. Only a tie for
+        first leaves it without a defined answer; a tie behind the winner, or
+        among app bases an own base outranks, does not."""
+        owner = _user()
+        db.add(owner)
+        await db.flush()
+        org_1, org_2, org_3, org_4, org_5 = [await _org(db, owner) for _ in range(5)]
+        unique_oldest = _base(org_1.id, name="later", age=timedelta(days=2))
+        later_a = _base(org_1.id, name="later", age=timedelta(days=1))
+        later_b = _base(org_1.id, name="later")
+        later_b.created_at = later_a.created_at
+        app_tie_a = _base(None, scope=KBScope.APP, name="apps", age=timedelta(days=3))
+        app_tie_b = _base(None, scope=KBScope.APP, name="apps")
+        app_tie_b.created_at = app_tie_a.created_at
+        own_beside_apps = _base(org_3.id, name="apps")
+        older_app = _base(None, scope=KBScope.APP, name="carried", age=timedelta(days=2))
+        app_of_org_4 = _base(org_4.id, scope=KBScope.APP, name="carried")
+        orgless_personal = _base(None, scope=KBScope.PERSONAL, owner=owner.id, name="mine")
+        db.add_all(
+            [
+                unique_oldest,
+                later_a,
+                later_b,
+                app_tie_a,
+                app_tie_b,
+                own_beside_apps,
+                older_app,
+                app_of_org_4,
+                orgless_personal,
+            ]
+        )
+        await db.flush()
+        behind_a_tie = _source(org_1.id, kb=None, name="later")
+        on_tied_apps = _source(org_2.id, kb=None, name="apps")
+        own_first = _source(org_3.id, kb=None, name="apps")
+        carried = _source(org_4.id, kb=None, name="carried")
+        not_a_members = _source(org_5.id, kb=None, name="mine")
+        sources = [behind_a_tie, on_tied_apps, own_first, carried, not_a_members]
+        db.add_all(sources)
+        await db.flush()
+
+        migration = _migration()
+        reported = await db.run_sync(lambda session: migration.backfill(session.connection()))
+        for source in sources:
+            await db.refresh(source)
+
+        assert behind_a_tie.knowledge_base_id == unique_oldest.id
+        assert own_first.knowledge_base_id == own_beside_apps.id
+        # An app base carrying the organization's id is one of its own.
+        assert carried.knowledge_base_id == app_of_org_4.id
+        assert sorted(reported) == sorted(
+            [
+                (str(on_tied_apps.id), str(org_2.id), "apps", True),
+                # A personal base of no organization is nobody's to sync into.
+                (str(not_a_members.id), str(org_5.id), "mine", False),
+            ]
+        )
+        assert on_tied_apps.knowledge_base_id is None and not on_tied_apps.is_active
+        assert not_a_members.knowledge_base_id is None and not not_a_members.is_active
+
 
 class TestTheDowngrade:
     async def test_a_source_on_a_base_its_name_does_not_resolve_to_is_stopped(
@@ -544,28 +606,46 @@ class TestTheDowngrade:
         on_a_tie = _source(organization.id, kb=tied_a, name="tied")
         # Its base went without the teardown: the foreign key set it to NULL.
         unpinned = _source(organization.id, kb=None)
+        # Unpinned on a name with no single answer, or none at all: the earlier
+        # code still syncs them by name - into a guess, or unfiled.
+        unpinned_on_a_tie = _source(organization.id, kb=None, name="tied")
+        unpinned_nowhere = _source(organization.id, kb=None, name="nowhere")
         template = _source(organization.id, kb=None)
         template.collection_name = None
-        db.add_all([on_newer, on_oldest, paused, on_a_tie, unpinned, template])
+        sources = [
+            on_newer,
+            on_oldest,
+            paused,
+            on_a_tie,
+            unpinned,
+            unpinned_on_a_tie,
+            unpinned_nowhere,
+            template,
+        ]
+        db.add_all(sources)
         await db.flush()
 
         migration = _migration()
         reported = await db.run_sync(
             lambda session: migration.deactivate_diverging(session.connection())
         )
-        for source in (on_newer, on_oldest, paused, on_a_tie, unpinned, template):
+        for source in sources:
             await db.refresh(source)
 
+        org = str(organization.id)
         assert sorted(reported) == sorted(
             [
-                (str(on_newer.id), str(organization.id), NAME),
+                (str(on_newer.id), org, NAME, "elsewhere"),
                 # No single base the earlier code would pick: stopped as well.
-                (str(on_a_tie.id), str(organization.id), "tied"),
-                # This revision never syncs it; the earlier code would, by name.
-                (str(unpinned.id), str(organization.id), NAME),
+                (str(on_a_tie.id), org, "tied", "unresolved"),
+                # This revision never syncs them; the earlier code would, by name.
+                (str(unpinned.id), org, NAME, "unpinned"),
+                (str(unpinned_on_a_tie.id), org, "tied", "unpinned"),
+                (str(unpinned_nowhere.id), org, "nowhere", "unpinned"),
             ]
         )
         assert not on_a_tie.is_active and not unpinned.is_active
+        assert not unpinned_on_a_tie.is_active and not unpinned_nowhere.is_active
         assert template.is_active
         assert not on_newer.is_active
         assert on_oldest.is_active

@@ -18,7 +18,11 @@ unfiled chunks into a table only other tenants' bases claim - so it keeps its
 name for the operator to read, loses nothing else, and is deactivated. Its ids
 are logged. Inventing a base for it would be filing one tenant's documents
 under a base somebody else chose; refusing the whole upgrade would hold a
-deployment back for a row whose fix is a reassignment in the console.
+deployment back for a row whose fix is a reassignment in the console. So is a
+source whose name two bases tie for first on: the earlier code ordered them by
+`created_at` alone and picked neither in particular, and resolving the name
+again would guess the same way, so its log says to add it again from the right
+base.
 
 A source that resolves to a member's personal base while its organization
 also has an org-scoped base of the name keeps the personal base - where it
@@ -32,9 +36,10 @@ foreign key is a backstop behind that, and a sync refuses a source with none.
 
 The downgrade drops the column; it does not reactivate the sources the upgrade
 deactivated, because nothing records which they were but the log. Before it
-drops the column it deactivates, and logs, every active source recording a base
-other than the one its collection name resolves to, since the earlier code would
-sync it there instead.
+drops the column it deactivates, and logs with the reason, every active source
+naming a collection that records no base, or a base other than the single one
+its name resolves to: the earlier code would sync it by name instead. That stops
+its scheduled syncs; the earlier code's manual sync does not check `is_active`.
 
 Revision ID: 0257_sync_source_knowledge_base
 Revises: 0256_discord_role_mappings
@@ -57,11 +62,16 @@ depends_on: str | Sequence[str] | None = None
 logger = logging.getLogger("alembic.runtime.migration")
 
 # `choose_for_collection` in SQL, for the source `s`: its own organization's
-# bases first, then app-scoped ones, each oldest first - or NULL when two bases
-# tie for first. The code before this revision orders only by `created_at`, so a
-# tie (two bases inserted in one transaction share `now()`) had no defined
-# winner; a source is not pinned to a guess at it.
-_LEGACY_CHOICE = """(
+# bases first, then app-scoped ones, each oldest first - or NULL when none holds
+# the name, or two bases tie for first. The code before this revision orders
+# only by `created_at`, so a tie (two bases inserted in one transaction share
+# `now()`) had no defined winner; a source is not pinned to a guess at it.
+# Which bases may hold the source `s`: its own organization's, of any scope, and
+# app-scoped ones. Never another organization's, nor a personal base of none.
+_CANDIDATE = """kb.collection_name = s.collection_name
+              AND (kb.organization_id = s.organization_id OR kb.scope = 'app')"""
+
+_LEGACY_CHOICE = f"""(
         SELECT CASE WHEN count(*) = 1 THEN (array_agg(ranked.id))[1] END
         FROM (
             SELECT kb.id, rank() OVER (
@@ -70,8 +80,7 @@ _LEGACY_CHOICE = """(
                     kb.created_at
             ) AS place
             FROM knowledge_bases AS kb
-            WHERE kb.collection_name = s.collection_name
-              AND (kb.organization_id = s.organization_id OR kb.scope = 'app')
+            WHERE {_CANDIDATE}
         ) AS ranked
         WHERE ranked.place = 1
     )"""
@@ -86,14 +95,12 @@ _BACKFILL = sa.text(
 
 # `ambiguous`: some base holds the name, but two tie for first.
 _DEACTIVATE_UNATTRIBUTABLE = sa.text(
-    """
+    f"""
     UPDATE sync_sources AS s
     SET is_active = false
     WHERE s.collection_name IS NOT NULL AND s.knowledge_base_id IS NULL AND s.is_active
     RETURNING s.id, s.organization_id, s.collection_name, EXISTS (
-        SELECT 1 FROM knowledge_bases AS kb
-        WHERE kb.collection_name = s.collection_name
-          AND (kb.organization_id = s.organization_id OR kb.scope = 'app')
+        SELECT 1 FROM knowledge_bases AS kb WHERE {_CANDIDATE}
     ) AS ambiguous
     """
 )
@@ -102,9 +109,10 @@ _DEACTIVATE_UNATTRIBUTABLE = sa.text(
 # What a downgrade must not leave running: an active source naming a collection
 # that records no base (the foreign key's `SET NULL` fired: this revision never
 # syncs it, the earlier code would), or a base other than the one the name
-# resolves to - or any base, when the name has no single answer. The code before this revision resolves the name, so it would
-# sync that source into another base, and another audience. Only the column
-# holds the choice, and the downgrade drops it.
+# resolves to - or any base, when the name has no single answer. The code
+# before this revision resolves the name, so it would sync that source into
+# another base, and another audience. Only the column holds the choice, and the
+# downgrade drops it. `reason` says which of the three it was.
 _DEACTIVATE_DIVERGING = sa.text(
     f"""
     UPDATE sync_sources AS s
@@ -115,9 +123,22 @@ _DEACTIVATE_DIVERGING = sa.text(
           s.knowledge_base_id IS NULL
           OR s.knowledge_base_id IS DISTINCT FROM {_LEGACY_CHOICE}
       )
-    RETURNING s.id, s.organization_id, s.collection_name
+    RETURNING s.id, s.organization_id, s.collection_name, CASE
+        WHEN s.knowledge_base_id IS NULL THEN 'unpinned'
+        WHEN {_LEGACY_CHOICE} IS NULL THEN 'unresolved'
+        ELSE 'elsewhere'
+    END AS reason
     """
 )
+
+_STOPPED_BECAUSE = {
+    "unpinned": "records no knowledge base; without this revision it would sync "
+    "collection '%s' by name",
+    "unresolved": "records a knowledge base, but collection '%s' resolves to no single "
+    "base without this revision",
+    "elsewhere": "records a knowledge base other than the one collection '%s' resolves "
+    "to without this revision",
+}
 
 
 # A source the backfill filed under a member's personal base while its
@@ -167,14 +188,18 @@ def on_a_personal_base(bind: Connection) -> list[tuple[str, str, str]]:
     return [(str(row.id), str(row.organization_id), row.collection_name) for row in rows]
 
 
-def deactivate_diverging(bind: Connection) -> list[tuple[str, str, str]]:
-    """Deactivate active sources the name would now resolve to another base.
+def deactivate_diverging(bind: Connection) -> list[tuple[str, str, str, str]]:
+    """Deactivate active sources the earlier code would sync into another base.
 
     Apart from `downgrade` so a test can run it while the column still exists.
-    Answers `(source id, organization id, collection name)` for each.
+    Answers `(source id, organization id, collection name, reason)` for each:
+    `unpinned` when it records no base, `unresolved` when its name has no single
+    base, `elsewhere` when the name resolves to a base other than its own.
     """
     rows = bind.execute(_DEACTIVATE_DIVERGING).all()
-    return [(str(row.id), str(row.organization_id), row.collection_name) for row in rows]
+    return [
+        (str(row.id), str(row.organization_id), row.collection_name, row.reason) for row in rows
+    ]
 
 
 def upgrade() -> None:
@@ -195,16 +220,20 @@ def upgrade() -> None:
     )
     bind = op.get_bind()
     for source_id, organization_id, collection_name, ambiguous in backfill(bind):
+        # Re-pointing by name resolves a tie the same undefined way, so a tied
+        # source is added again from its base, which records that base by id.
         logger.warning(
             "Sync source %s (organization %s) names collection '%s', which %s; it was "
-            "deactivated. Point it at a knowledge base and set is_active back to true "
-            "to sync it again.",
+            "deactivated. %s",
             source_id,
             organization_id,
             collection_name,
             "two knowledge bases created at the same moment hold equally"
             if ambiguous
             else "no knowledge base of its organization or of the deployment holds",
+            "Add it again from the Sync tab of the base it belongs to, then delete it."
+            if ambiguous
+            else "Point it at a knowledge base and set is_active back to true to sync it again.",
         )
     for source_id, organization_id, collection_name in on_a_personal_base(bind):
         logger.warning(
@@ -218,14 +247,14 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    for source_id, organization_id, collection_name in deactivate_diverging(op.get_bind()):
+    for source_id, organization_id, collection_name, reason in deactivate_diverging(op.get_bind()):
         logger.warning(
-            "Sync source %s (organization %s) records a knowledge base that collection "
-            "'%s' no longer resolves to without this revision; it was deactivated so it "
-            "cannot sync into another base. Re-point it and set is_active back to true.",
+            "Sync source %s (organization %s) %s, so it was deactivated. That stops only "
+            "its scheduled syncs: a manual sync still resolves the name. Re-point it "
+            "before syncing it again.",
             source_id,
             organization_id,
-            collection_name,
+            _STOPPED_BECAUSE[reason] % collection_name,
         )
     op.drop_constraint(
         op.f("sync_sources_knowledge_base_id_fkey"), "sync_sources", type_="foreignkey"
