@@ -38,6 +38,7 @@ export interface ConversationWorkspace {
   items: ConversationFile[];
   total: number;
   bytes_total: number;
+  truncated: boolean;
   /**
    * What this workspace fills up against, or null when this platform is not what holds
    * the ceiling.

@@ -10,15 +10,29 @@ import type { LocalAgent } from "@/lib/desktop/commands";
 
 /**
  * Claude Code and Codex on this computer. Sign-in is each agent's own: the
- * button opens its command in Terminal, and no credential passes through here.
+ * button starts its browser sign-in, and no credential passes through here.
  */
 export function LocalAgentSettings() {
   const t = useTranslations("desktop.settings.agents");
   const tErrors = useTranslations("errors");
-  const { state, signIn, signOut } = useLocalAgents();
-  const error = state.error ?? signIn.error ?? signOut.error;
+  const { state, signIn, signOut, prepare } = useLocalAgents();
+  const error = state.error ?? signIn.error ?? signOut.error ?? prepare.error;
   return (
-    <SectionCard title={t("title")} description={t("description")} tour="desktop-local-agents">
+    <SectionCard
+      title={t("title")}
+      description={t("description")}
+      tour="desktop-local-agents"
+      action={
+        <Button
+          variant="ghost"
+          size="sm"
+          disabled={state.isFetching}
+          onClick={() => void state.refetch()}
+        >
+          {t("refresh")}
+        </Button>
+      }
+    >
       <ul className="space-y-3">
         {(state.data ?? []).map((agent) => (
           <li key={agent.id} className="flex items-center justify-between gap-3 text-sm">
@@ -37,6 +51,16 @@ export function LocalAgentSettings() {
             </span>
             <span className="flex shrink-0 items-center gap-2">
               <Badge variant={agent.signed_in ? "default" : "outline"}>{label(t, agent)}</Badge>
+              {!agent.installed && (
+                <Button
+                  size="sm"
+                  disabled={prepare.isPending}
+                  onClick={() => prepare.mutate(agent.id)}
+                  aria-label={t("prepareNamed", { name: agent.name })}
+                >
+                  {prepare.isPending ? t("preparing") : t("prepare")}
+                </Button>
+              )}
               {agent.installed && agent.signed_in === true && (
                 <Button
                   variant="outline"

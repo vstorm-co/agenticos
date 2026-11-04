@@ -1,0 +1,8 @@
+{
+  "source": "https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_50m_admin_0_countries.geojson",
+  "license": "Public domain",
+  "terms": "https://www.naturalearthdata.com/about/terms-of-use/",
+  "sha256": "3e458fc036ad0a66411f2c1e6cac49c5d7bfb81cb1123bc513b22511a2b7fdeb",
+  "retrieved": "2026-11-02",
+  "scope": "Country outlines projected into SVG. Routes, shipment data and plant are fictional; no navigation or logistics optimization."
+}

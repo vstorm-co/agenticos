@@ -138,7 +138,11 @@ from app.agents.capabilities.channel_tools import (
     ChannelDestination,
     ChannelDirectory,
 )
-from app.agents.capabilities.coding_agent import CODING_AGENT_ID
+from app.agents.capabilities.coding_agent import (
+    CODING_AGENT_ID,
+    LOCAL_CODING_PREFERENCES,
+    CodingPreferences,
+)
 from app.agents.capabilities.context import CONTEXT_FILES_RESOURCE, context_config
 from app.agents.capabilities.guardrails import (
     GuardrailBlocked,
@@ -666,6 +670,12 @@ class AdmittedAs(BaseModel):
     """
 
     model_config = ConfigDict(extra="forbid")
+    model_profile_id: UUID | None = Field(
+        default=None, exclude_if=lambda profile_id: profile_id is None
+    )
+    conversation_task_id: UUID | None = Field(
+        default=None, exclude_if=lambda task_id: task_id is None
+    )
 
     @model_validator(mode="before")
     @classmethod
@@ -1857,6 +1867,17 @@ def _with_local_capabilities(spec: AgentSpec, local: LocalTarget | None) -> Agen
     return spec.model_copy(update={"capabilities": bindings})
 
 
+def _background_target(
+    local: LocalTarget, workspace: Workspace | None, session_id: UUID | None
+) -> LocalTarget:
+    """Keep a delayed task on the device this run actually authenticated."""
+    from app.services.device_hub import DeviceWorkspace
+
+    backend = None if workspace is None else workspace.backend
+    resolved = backend.session_id if isinstance(backend, DeviceWorkspace) else session_id
+    return local if resolved is None else local.model_copy(update={"device_id": resolved})
+
+
 def _in_project(spec: AgentSpec, project: Project) -> AgentSpec:
     """The spec as it runs in a project: in the project's container, told about it.
 
@@ -2273,13 +2294,13 @@ def _answer_only(spec: AgentSpec) -> AgentSpec:
     the middle of changing - a second set of tool calls against the same
     workspace or mailbox, racing the first, is exactly what "without derailing
     it" rules out. What stays is what shapes the answer's voice: the
-    instructions, the context files and the model - and the guardrails, which
+    instructions, the context files, the model and its reasoning effort - and the guardrails, which
     have no tools and screen what the question carries in and the answer out.
     """
     return spec.model_copy(
         update={
             "capabilities": [
-                binding for binding in spec.capabilities if binding.id == "guardrails"
+                binding for binding in spec.capabilities if binding.id in {"guardrails", "thinking"}
             ],
             "mcp_servers": [],
             "subagents": [],
@@ -3186,6 +3207,7 @@ class AgentRunnerService:
             environment_id=effective_environment_id,
             approval_mode=await self._allowed_approval_mode(ctx, approval_mode, surface=surface),
             local=local,
+            answer_only=aside,
             # Passed in rather than set on the built deps like `on_compaction`:
             # whether a gap is briefed or offered as a tool decides what is built.
             request_connection=request_connection,
@@ -3321,6 +3343,7 @@ class AgentRunnerService:
         already_started: dict[str, datetime | None],
         approval_mode: ApprovalMode = ApprovalMode.FOLLOW_AGENT,
         local: LocalTarget | None = None,
+        answer_only: bool = False,
         specialists: Mapping[str | None, Sequence[RegisteredSpecialist]] | None = None,
         model_profile_id: UUID | None = None,
         version_id: UUID | None = None,
@@ -3707,6 +3730,8 @@ class AgentRunnerService:
         project = await ProjectService(self.db).for_run(ctx, conversation_id)
         if project is not None:
             spec = _in_project(spec, project)
+        if answer_only and local_model_choice is None:
+            spec = _answer_only(spec)
 
         # Opened after the run row, because a run-scoped workspace keys on it,
         # and before the agent, because the capability reads the backend out of
@@ -3879,6 +3904,7 @@ class AgentRunnerService:
                 # the turn's own output.
                 started_with = await workspace_snapshot(workspace.workspace)
 
+        skills_session: UUID | None = None
         if local is not None and local.skills:
             # Read on the person's own computer, in place, for a chat that chose its
             # sources; the instruction files come last in what the model reads.
@@ -3903,6 +3929,24 @@ class AgentRunnerService:
             spec_toolsets.append(skills_context.toolset)
             spec = spec.model_copy(
                 update={"instructions": f"{spec.instructions}\n\n{skills_context.briefing}"}
+            )
+
+        resources["background_tasks.model_profile_id"] = model_spec.profile_id
+        if local is not None and local.coding_agent is not None:
+            resources[LOCAL_CODING_PREFERENCES] = CodingPreferences(
+                model=local.coding_model, effort=local.coding_effort
+            )
+
+        if local is not None:
+            resolved_session = (
+                resources.get("local_browser_session")
+                or resources.get("local_computer_session")
+                or skills_session
+            )
+            resources["background_tasks.local"] = _background_target(
+                local,
+                None if workspace is None else workspace.workspace,
+                resolved_session if isinstance(resolved_session, UUID) else None,
             )
 
         channel = ApprovalChannel(
@@ -4074,6 +4118,12 @@ class AgentRunnerService:
                 capability_names=[capability_def(capability_id).name for capability_id in handed],
                 report=report_hand_off,
             )
+        if answer_only:
+            spec = _answer_only(spec)
+            spec_toolsets = []
+            extra_toolsets = []
+            on_use = None
+
         built = build_agent(
             spoken_spec if voice is not None else spec,
             model_spec,
@@ -4169,6 +4219,7 @@ class AgentRunnerService:
             plan_store=plan_store,
             finished_plan_withheld=finished_plan_withheld,
             admitted_as=AdmittedAs(
+                model_profile_id=model_profile_id,
                 approval_mode=approval_mode,
                 local=local,
                 acts_for_sender=acts_for_sender,
@@ -5353,6 +5404,10 @@ class AgentRunnerService:
         # and recorded nothing is the hole a cancellation would otherwise open.
         await self._write_delegations(prepared)
         await self._record_manifest(prepared)
+        from app.services.conversation_tasks import ConversationTaskService
+
+        if prepared.admitted_as.conversation_task_id is not None:
+            await ConversationTaskService(self.db).settle(finished)
         # Guarded, because `finish` is called from a `finally` block: an
         # exception raised while telling somebody about a failed run would
         # replace the failure itself, and the operator would debug the mail
@@ -5638,6 +5693,10 @@ class AgentRunnerService:
         aside: bool = False,
         reports_failure: bool = False,
         draft: bool = False,
+        conversation_task_id: UUID | None = None,
+        model_profile_id: UUID | None = None,
+        result_only: bool = False,
+        on_run_open: Callable[[AgentRun], Awaitable[None]] | None = None,
     ) -> tuple[str, AgentRun]:
         """Run an agent to completion and return its answer.
 
@@ -5723,13 +5782,16 @@ class AgentRunnerService:
             exposure=exposure,
             environment_id=environment_id,
             version_id=version_id,
+            model_profile_id=model_profile_id,
             on_compaction=on_compaction,
             output_schema=output_schema,
             run_limit_usd=run_limit_usd,
             public_origin=public_origin,
-            aside=aside,
+            aside=aside or result_only,
             draft=draft,
         )
+        prepared.admitted_as.conversation_task_id = conversation_task_id
+        prepared.built.deps.conversation_task_id = conversation_task_id
         prepared.channel_author_context = channel_author_context
         prepared.built.deps.steering = steering
         input_edge = input_screen_for(prepared.spec)
@@ -5773,6 +5835,7 @@ class AgentRunnerService:
                 attachment_context=attachment_context,
                 message_history=message_history,
                 deferred_tool_results=None,
+                on_run_open=on_run_open,
                 stream=stream,
             )
         except Exception as exc:
@@ -5971,6 +6034,7 @@ class AgentRunnerService:
             # as a channel (#1343).
             approval_mode=state.admitted_as.approval_mode,
             local=state.admitted_as.local,
+            model_profile_id=state.admitted_as.model_profile_id,
             acts_for_sender=state.admitted_as.acts_for_sender and run.user_id is not None,
             # Whose run this is, not who is resuming it. An approver is allowed
             # to release somebody else's parked run; they are not the account it
@@ -6041,6 +6105,8 @@ class AgentRunnerService:
         prepared.built.ledger.book(_spend_already_booked(run))
         # What the run made before parking is still its own: the starting image a
         # parked `generate_video` names was drawn earlier in this same run.
+        prepared.admitted_as.conversation_task_id = state.admitted_as.conversation_task_id
+        prepared.built.deps.conversation_task_id = state.admitted_as.conversation_task_id
         prepared.built.deps.generated_files.update(state.generated_files)
 
         # Out of the queue once the build has succeeded, and before anything is
@@ -6561,6 +6627,7 @@ class AgentRunnerService:
         message_history: Sequence[ModelMessage] | None,
         deferred_tool_results: DeferredToolResults | None,
         stream: RunStream | None = None,
+        on_run_open: Callable[[AgentRun], Awaitable[None]] | None = None,
     ) -> RunSegment:
         """Execute the agent and account for it, however it ends.
 
@@ -6609,6 +6676,8 @@ class AgentRunnerService:
         call already sent (#3). `ChatAgentRunner.run`, the one surface not
         routed through here, sets the same boundary.
         """
+        from app.services.conversation_tasks import ConversationTaskStopped, task_execution
+
         status = RunStatus.FAILED
         error: str | None = None
         output = ""
@@ -6628,16 +6697,23 @@ class AgentRunnerService:
         # The opening commit: the row is visible mid-run and no connection is
         # held across the model call - the docstring carries the whole of it
         # (#12, #3).
-        await self.db.commit()
-        # A resume carries the decisions it continues from; anything else is a
-        # run that just started.
-        await change_feed.publish_run(
-            prepared.run, "created" if deferred_tool_results is None else "updated"
-        )
         try:
+            if on_run_open is not None:
+                await on_run_open(prepared.run)
+            await self.db.commit()
+            await change_feed.publish_run(
+                prepared.run, "created" if deferred_tool_results is None else "updated"
+            )
             # Stamped alive while the model works, so a process dying under it
             # is noticed in minutes (`app.services.run_heartbeat`).
-            async with run_heartbeat(prepared.run.id):
+            async with (
+                run_heartbeat(prepared.run.id),
+                task_execution(
+                    prepared.admitted_as.conversation_task_id,
+                    prepared.run.organization_id,
+                    prepared.run.id,
+                ),
+            ):
                 result = await self._answer(
                     prepared,
                     user_prompt=user_prompt,
@@ -6672,6 +6748,10 @@ class AgentRunnerService:
                 logger.info(
                     "Run %s parked on %d approval(s)", prepared.run.id, len(paused.tool_call_ids)
                 )
+            finished_cleanly = True
+        except ConversationTaskStopped:
+            status = RunStatus.CANCELLED
+            error = "This background topic is no longer active."
             finished_cleanly = True
         except asyncio.CancelledError:
             # The caller went away, or a delegation this run sits under was

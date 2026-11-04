@@ -1,5 +1,5 @@
 ---
-source_sha: "ede22781bf78"
+source_sha: "27e31adcbb5e"
 ---
 
 # Die Desktop-App { #the-desktop-app }
@@ -126,12 +126,46 @@ Arbeitsbereich, Eigentümer und Anbieter. **Cancel** führt zur Instanzliste zur
 Blobby bleibt während der Einrichtung verborgen und kehrt mit der Konsole
 gemäß seiner gespeicherten Sichtbarkeit zurück.
 
-Unter macOS lädt **Download Docker Desktop** den offiziellen Installer für Apple
-silicon oder Intel herunter, zeigt den Fortschritt und öffnet das Disk-Image.
-Schließe die Installation im Systemfenster ab und wähle **Open Docker Desktop**
-und **Check again**. Die App findet auch eine benutzerspezifische Docker-CLI.
-Andere Betriebssysteme öffnen Dockers Downloadseite. Eine Statusprüfung allein
-startet keine Installation.
+Wähle **Set up this computer**, um die lokale Laufzeit vorzubereiten. AgenticOS
+lädt Docker Desktop 4.97.0 für deinen Prozessor und prüft die festgelegte
+SHA-256-Prüfsumme. macOS prüft den Installer mit Gatekeeper, verifiziert die
+Signaturidentität von Docker Inc und fordert eine
+Systemautorisierung an. Windows startet den signierten Installer; fehlende
+WSL-Funktionen werden nach Systemautorisierung eingerichtet. Starte Windows bei
+Aufforderung neu und öffne AgenticOS erneut. Ubuntu, Debian und Fedora auf x86-64
+verwenden den System-Paketinstaller. Bestätige Dockers eigene Bedingungen beim
+ersten Start.
+
+Unter Linux ergänzt die Einrichtung bei Bedarf Dockers signierte
+Paketquelle und fordert Administratorrechte für Pakete und KVM-Zugriff an.
+Starte den Computer bei Aufforderung neu. Eine Statusprüfung allein installiert
+keine Software.
+
+Vor der Installation prüft AgenticOS auf 4 GB freien Speicherplatz. Der lokale
+Stack benötigt außerdem mindestens 3 GB für die Engine sichtbaren Arbeitsspeicher.
+Das sind Startprüfungen, keine Kapazitätsgarantie für jede Aufgabe. Image-Downloads
+zeigen Fortschritt und sind auf 30 Minuten begrenzt. **Retry** setzt dieselbe
+Instanz mit ihren vorhandenen Schlüsseln fort. Zur normalen Nutzung sind auf dem
+Host weder Git, Python, uv noch Node.js erforderlich.
+
+Neue Instanzen verwenden die mit der App gelieferte Plattformversion. Ein Update
+der Desktop-App ersetzt nicht automatisch die Version einer laufenden Instanz.
+**Update** lädt passende Plattform-Images, pausiert Schreibprozesse und sichert vor
+dem Update Datenbank, Mediendateien und Bereitstellungsschlüssel im privaten
+`backups/`-Verzeichnis der Instanz. Eine fehlgeschlagene Sicherung verhindert das
+Update. Sicherungen enthalten personenbezogene Daten und müssen geschützt werden.
+Migrationsfehler werden gemeldet; Datenbank-Downgrades erfolgen nicht automatisch.
+
+Beim Öffnen startet AgenticOS den gespeicherten verwalteten lokalen Arbeitsbereich
+automatisch, wenn er gestoppt ist, einschließlich der installierten Laufzeit auf unterstützten Systemen. Externe Server und nicht verwaltete Entwicklungsumgebungen werden nicht
+gestartet. Die App übergibt Dockers CLI- und Anmeldehilfsprogramm-Verzeichnisse an
+Kindprozesse, auch beim Start aus dem Finder. Du musst weder Dockers
+Anmeldekonfiguration noch dein Shell-Profil bearbeiten.
+
+Öffentliche Produkt-Images verwenden eine private anonyme Registry-Konfiguration,
+um Abfragen von Anmeldehilfen und Schlüsselbund zu vermeiden. Deine bestehende
+Docker-Konfiguration bleibt unverändert. Die lokale Installation lehnt Kontexte
+ab, die auf eine entfernte Engine verweisen.
 
 Wähle **New instance**, gib einen Namen sowie Organisation und Eigentümerkonto an.
 Die App vergibt freie Loopback-Ports und erstellt ein eigenes Compose-Projekt mit
@@ -482,19 +516,35 @@ seiner eigenen öffentlichen Adresse.
 
 ## Coding agents auf diesem Computer { #coding-agents-on-this-computer }
 
-**Settings → Desktop app → Coding agents on this computer** zeigt installierte Versionen von Claude Code und Codex sowie den Anmeldestatus. **Sign in** öffnet den eigenen Anmeldebefehl des Agents im Terminal unter macOS, in PowerShell unter Windows oder in einem verfügbaren Linux-Terminal. Nach der Rückkehr aktualisiert sich der Status. AgenticOS liest oder kopiert keine Zugangsdaten. Die fest versionierten ACP-Adapter benötigen Node.js 22 oder neuer.
+**Settings → Desktop app → Coding agents on this computer** zeigt Versionen und
+Anmeldestatus. **Set up** richtet privates Node.js 24.19.0 und festgelegte
+Coding-Adapter anhand einer Lockdatei mit Integritätsprüfungen ein. Du musst keine
+Entwicklerwerkzeuge separat installieren. **Sign in** startet den eigenen
+Browser-OAuth-Ablauf des Agenten; AgenticOS liest oder kopiert keine Zugangsdaten.
+**Refresh status** prüft die Anmeldung ausdrücklich. Der Fokuswechsel zur App
+fragt nicht ständig den Zugangsdaten-Speicher ab; erfolgreiche Anmeldung und
+Einrichtung aktualisieren den Status automatisch.
 
 Wählen Sie in der Desktop-App unter **Chat-Steuerung → Werkzeuge und Dateien → Programmieragent** entweder **Claude Code** oder **Codex**, auch wenn die veröffentlichte Fähigkeit deaktiviert ist oder fehlt. Die App richtet lokale Dateiwerkzeuge ein und öffnet die native Ordnerauswahl, sofern der aktuelle Ordner noch keinen Vollzugriff hat. Abbrechen behält die bisherigen Einstellungen bei. **Agenteneinstellung verwenden** stellt die veröffentlichte Konfiguration wieder her.
 
-Die Auswahl gilt für diesen Chat. Bestehende Nur-Lesen- und Freigaberegeln gelten weiterhin; jede Aufgabe erfordert eine native Bestätigung. Der Wechsel zur Cloud entfernt die lokale Programmieragenten-Auswahl dieser Unterhaltung. Die Chat-Steuerung öffnet sich über dem Nachrichtenfeld. Oben steht das Modell, darunter Tools und Dateien. Klappen Sie **Work on** für den Ordnerzugriff und **Einstellungen** für Freigaben und Benachrichtigungen auf.
+Die Auswahl gilt für diesen Chat. Bestehende Nur-Lesen- und Freigaberegeln gelten weiterhin; die native Startfreigabe kann für diesen Agenten und Ordner gespeichert werden. Der Wechsel zur Cloud entfernt die lokale Programmieragenten-Auswahl dieser Unterhaltung. Die Chat-Steuerung öffnet sich über dem Nachrichtenfeld. Oben steht das Modell, darunter Tools und Dateien. Klappen Sie **Work on** für den Ordnerzugriff und **Einstellungen** für Freigaben und Benachrichtigungen auf.
 
-Wähle für die Capability **Coding agent** die Option **On this computer**, einen Ordner unter **Work on** und vollständigen Zugriff. Jede Aufgabe erfordert eine native Bestätigung mit bis zu fünf Minuten Antwortzeit. Der Adapter läuft unter deinem Betriebssystemkonto: Der Ordner bestimmt das Arbeitsverzeichnis, keine Betriebssystem-Sandbox. Zugriff auf den gesamten Computer startet keinen Coding agent. Der Composer zeigt Agent, Ordner und Zugriffsrichtlinie.
+Wähle für die Capability **Coding agent** die Option **On this computer**, einen
+Ordner unter **Work on** und vollständigen Zugriff. Die native Zustimmung wird für
+diesen Agenten, Ordner, die Adapterversion und Verbindung gespeichert. Entfernen
+oder erneutes Auswählen des Ordners löscht die Zustimmung und stoppt dort laufende
+Agenten; Konto- und Serverwechsel löschen Zustimmungen ebenfalls. Der Adapter
+läuft unter deinem Betriebssystemkonto: Der Ordner bestimmt das Arbeitsverzeichnis,
+keine Betriebssystem-Sandbox. Zugriff auf den gesamten Computer startet keinen
+Coding agent. Aufgabenfreigaben und Systemberechtigungen gelten weiterhin.
 
 Die Capability-Freigabe gilt einmal pro Aufgabe. `edit` erlaubt angefragte Aktionen; `read_only` verweigert Änderungen. Claude deaktiviert im Lesemodus die Umgehung von Berechtigungen und bietet nur Lesewerkzeuge an. Codex wählt seine native schreibgeschützte Sandbox. Lokale Agents verwenden ihre eigenen Modelleinstellungen. Abonnementnutzung bleibt unbepreist; die angezeigten Run-Kosten sind eine Untergrenze.
 
 Weitere Aufgaben setzen die Harness-Sitzung für dieselbe Unterhaltung, denselben Agent, Ordner, Account und dieselbe Zugriffsrichtlinie fort. `fresh_session` beginnt ausdrücklich neu. Sitzungskennungen bleiben in den Desktop-Einstellungen außerhalb des Repositorys und werden beim Trennen oder Accountwechsel gelöscht. Kann eine gespeicherte Sitzung nicht geladen werden, schlägt die Aufgabe ausdrücklich fehl. Starte bei Bedarf neu. Eine Trennung stoppt den Prozess; gespeicherte Harness-Verläufe bleiben fortsetzbar.
 
 Eine während der lokalen Aufgabe gesendete Korrektur unterbricht den aktuellen ACP-Turn. Sobald der Adapter den Stopp bestätigt, setzt dieselbe Sitzung mit der Korrektur fort. Das Transkript hält die angewendete Korrektur fest. Nach Abschluss eingehende Nachrichten bleiben für den übergeordneten Agent verfügbar.
+
+Nach Auswahl des Coding-Agenten und eines freigegebenen Ordners zeigen **Coding-Modell** und **Denktiefe** die vom installierten Agenten gemeldeten Optionen. Sie gelten für dieses Gespräch und werden vor neuen oder fortgesetzten Aufgaben angewandt. Leere Felder behalten die eigenen Einstellungen des Agenten bei. Ein Agentenwechsel entfernt inkompatible Vorgaben. Aktualisiere die Optionen nach einer Änderung von Anmeldung oder Konfiguration ausdrücklich; ein weiteres Fenster prüft das Konto nicht erneut. Entfernte oder nicht unterstützte Optionen werden angezeigt und abgewiesen, statt still ersetzt. Das Lesen der Optionen startet keine Modellantwort und erteilt keine Werkzeugfreigabe.
 
 ## Eigene Skills und Anweisungen { #your-own-skills-and-instructions }
 
@@ -509,6 +559,14 @@ Geladene Skill- und Anweisungstexte gelangen über deinen Server zum konfigurier
 ## Diagnose { #diagnostics }
 
 **Help → Export Diagnostics…** schreibt eine JSON-Datei an einen Ort deiner Wahl, zum Anhängen an einen Fehlerbericht. Sie enthält die Version, das Betriebssystem, was macOS erlaubt hat, ob Claude Code und Codex installiert und angemeldet sind, die Adresse des Servers (nur Schema, Host und Port) und die letzten Abstürze. Sie enthält keine Zugangsdaten, Tokens, Unterhaltungen oder Pfade unter deinem Home-Ordner, und nichts wird irgendwohin gesendet. Ein Absturz wird beim Auftreten in `crash.log` im Datenordner der App festgehalten.
+
+Wenn die Desktop-App 1.38.1 bei **Linked — reconnecting…** bleibt und lokale
+Chats **Waiting for your computer** anzeigen, prüfe die Absturzstellen in der
+exportierten Diagnose auf `rustls` / `crypto/mod.rs`. Dieser Fehler beim TLS-Start
+ist in einer neueren Desktop-Version behoben. Installiere diese und öffne die
+App erneut; ein Update nur des Servers ersetzt den Desktop-Client nicht.
+Die bestehende Kopplung und die Ordnerfreigaben müssen für diese Korrektur
+nicht zurückgesetzt werden.
 
 ## Lokaler Browser, Modelle und MCP { #local-browser-models-and-mcp }
 

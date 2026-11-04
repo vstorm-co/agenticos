@@ -4271,6 +4271,21 @@ describe("useChat - coming back to a turn still being written", () => {
     );
   }
 
+  it("attributes a background answer to its agent without inventing a user message", () => {
+    renderHook(() => useChat({ conversationId: "c-1" }), { wrapper });
+    storedQuestion();
+    receive("turn_attached", { conversation_id: "c-1" });
+    receive("background_task_turn", { conversation_id: "c-other", agent_id: "wrong" });
+    receive("background_task_turn", { conversation_id: "c-1", agent_id: "background-agent" });
+    receive("model_request_start", {});
+    receive("text_delta", { index: 0, content: "The research is ready." });
+    expect(streaming()).toMatchObject({
+      agentId: "background-agent",
+      content: "The research is ready.",
+    });
+    expect(useChatStore.getState().messages.filter((m) => m.role === "user")).toHaveLength(1);
+  });
+
   it("asks to follow the conversation's turn once its transcript is here", () => {
     renderHook(() => useChat({ conversationId: "c-1" }), { wrapper });
     expect(sent).not.toHaveBeenCalled();
@@ -5184,7 +5199,29 @@ it("sends a per-chat coding choice alongside its approved folder", () => {
       folder: "/approved",
       mode: "full_access",
       coding_agent: "codex",
+      coding_model: null,
+      coding_effort: null,
     });
+  } finally {
+    store.set(null, null);
+    store.resetDraft();
+  }
+});
+
+it("sends the person's chosen coding model and effort without changing the main model", () => {
+  const store = useWorkOnStore.getState();
+  store.set(null, { folder: "/approved", mode: "full_access" });
+  store.setCoding(null, "codex");
+  store.setCodingPreferences(null, { model: "chosen-coding-model", effort: "low" });
+  try {
+    const { result } = renderHook(() => useChat(), { wrapper });
+    act(() => result.current.sendMessage("work on this"));
+    expect(lastFrame().local).toMatchObject({
+      coding_agent: "codex",
+      coding_model: "chosen-coding-model",
+      coding_effort: "low",
+    });
+    expect(lastFrame().model_profile_id).not.toBe("chosen-coding-model");
   } finally {
     store.set(null, null);
     store.resetDraft();

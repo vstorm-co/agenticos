@@ -1,0 +1,1247 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Trail Supply — A little further, a little lighter.</title>
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+      html {
+        scroll-behavior: smooth;
+      }
+      body {
+        margin: 0;
+        color: #20362a;
+        background: #f7f7f2;
+        font-family: Arial, Helvetica, sans-serif;
+        -webkit-font-smoothing: antialiased;
+      }
+      button,
+      input,
+      select {
+        font: inherit;
+      }
+      button,
+      a,
+      input,
+      select {
+        touch-action: manipulation;
+      }
+      button {
+        cursor: pointer;
+        color: inherit;
+      }
+      a {
+        color: inherit;
+      }
+      button:focus-visible,
+      a:focus-visible,
+      input:focus-visible,
+      select:focus-visible {
+        outline: 3px solid #c07839;
+        outline-offset: 4px;
+      }
+      button:disabled {
+        cursor: not-allowed;
+        opacity: 0.5;
+      }
+      .topline {
+        background: #21392d;
+        color: #f8f7ef;
+        text-align: center;
+        padding: 9px 15px;
+        font-size: 11px;
+        letter-spacing: 0.035em;
+      }
+      .topline span {
+        opacity: 0.64;
+      }
+      .nav {
+        height: 83px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 5%;
+        border-bottom: 1px solid #dfe3d9;
+        gap: 24px;
+      }
+      .brand {
+        font-size: 24px;
+        font-weight: 700;
+        letter-spacing: -1.5px;
+        text-decoration: none;
+        display: flex;
+        align-items: center;
+        gap: 11px;
+      }
+      .brand svg {
+        width: 29px;
+        height: 29px;
+      }
+      .navlinks {
+        display: flex;
+        gap: 27px;
+        font-size: 12px;
+        font-weight: 600;
+      }
+      .navlinks a {
+        text-decoration: none;
+      }
+      .navlinks a:hover {
+        text-decoration: underline;
+        text-underline-offset: 5px;
+      }
+      .navright {
+        display: flex;
+        align-items: center;
+        gap: 19px;
+      }
+      .textbutton {
+        border: 0;
+        background: none;
+        padding: 8px 0;
+        font-size: 12px;
+      }
+      .bagbtn {
+        border: 1px solid #c6cec1;
+        background: transparent;
+        border-radius: 30px;
+        padding: 10px 15px;
+        font-size: 12px;
+        display: flex;
+        gap: 10px;
+        align-items: center;
+      }
+      .bagbtn span {
+        background: #243c2f;
+        color: white;
+        min-width: 19px;
+        height: 19px;
+        display: grid;
+        place-items: center;
+        border-radius: 50%;
+        font-size: 10px;
+      }
+      .hero {
+        display: grid;
+        grid-template-columns: 1.03fr 1fr;
+        min-height: 510px;
+        margin: 28px 5% 0;
+        background: #e9ece3;
+        overflow: hidden;
+        border-radius: 3px;
+      }
+      .hero-copy {
+        padding: 56px 12% 45px 10%;
+        align-self: center;
+      }
+      .kicker {
+        font-size: 10px;
+        font-weight: 600;
+        letter-spacing: 0.17em;
+        text-transform: uppercase;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      .kicker:before {
+        content: "";
+        width: 7px;
+        height: 7px;
+        background: #b38b47;
+        border-radius: 50%;
+      }
+      h1 {
+        font-family: Georgia, "Times New Roman", serif;
+        font-weight: 400;
+        font-size: clamp(42px, 4.6vw, 73px);
+        letter-spacing: -3px;
+        line-height: 1.02;
+        margin: 23px 0;
+      }
+      h1 em {
+        font-weight: 400;
+        color: #788566;
+      }
+      p {
+        line-height: 1.65;
+      }
+      .hero-copy > p {
+        font-size: 13px;
+        color: #5d6d5b;
+        max-width: 325px;
+        margin: 19px 0 26px;
+      }
+      .solid {
+        border: 0;
+        background: #243d2e;
+        color: #fff;
+        padding: 14px 21px;
+        border-radius: 3px;
+        font-size: 12px;
+        display: inline-flex;
+        gap: 25px;
+        align-items: center;
+        text-decoration: none;
+      }
+      .solid:hover {
+        background: #36553c;
+      }
+      .line {
+        background: none;
+        border: 1px solid #bcc8b5;
+        border-radius: 3px;
+        padding: 13px 17px;
+        font-size: 12px;
+      }
+      .hero-actions {
+        display: flex;
+        align-items: center;
+        gap: 19px;
+        flex-wrap: wrap;
+      }
+      .hero-link {
+        font-size: 11px;
+        text-underline-offset: 4px;
+      }
+      .hero-fine {
+        margin-top: 28px;
+        font-size: 10px;
+        color: #77836c;
+      }
+      .hero-photo {
+        position: relative;
+        min-height: 440px;
+        background: #d9dedb;
+      }
+      .hero-photo > img {
+        width: 100%;
+        height: 100%;
+        position: absolute;
+        object-fit: cover;
+        object-position: 50% 61%;
+      }
+      .photo-tag {
+        position: absolute;
+        left: 22px;
+        bottom: 22px;
+        right: 22px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 15px;
+        background: #f9faf4ed;
+        padding: 15px 17px;
+        backdrop-filter: blur(5px);
+        font-size: 12px;
+      }
+      .photo-tag small {
+        display: block;
+        margin-bottom: 5px;
+        font-size: 9px;
+        letter-spacing: 0.1em;
+        color: #788371;
+        text-transform: uppercase;
+      }
+      .photo-tag strong {
+        font-weight: 500;
+      }
+      .photo-tag .price {
+        font-size: 17px;
+        font-family: Georgia, serif;
+      }
+      .trust {
+        margin: 0 5%;
+        padding: 23px 0;
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        border-bottom: 1px solid #dbe1d4;
+        font-size: 11px;
+        color: #65755e;
+      }
+      .trust > div {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+      }
+      .trust > div + div {
+        border-left: 1px solid #d2dacb;
+      }
+      .trust svg {
+        width: 17px;
+        height: 17px;
+        fill: none;
+        stroke: currentColor;
+        stroke-width: 1.3;
+      }
+      .collection {
+        padding: 43px 5% 45px;
+        scroll-margin-top: 20px;
+      }
+      .section-top {
+        display: flex;
+        align-items: flex-end;
+        justify-content: space-between;
+        gap: 25px;
+        margin-bottom: 24px;
+      }
+      .eyebrow {
+        font-size: 9px;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        color: #87917d;
+      }
+      .section-top h2 {
+        font-family: Georgia, serif;
+        font-weight: 400;
+        font-size: 35px;
+        letter-spacing: -1px;
+        margin: 8px 0 0;
+      }
+      .section-top p {
+        font-size: 11px;
+        color: #76846c;
+        margin: 0;
+      }
+      .filters {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        margin-top: 20px;
+      }
+      .filter {
+        background: none;
+        border: 1px solid #dce2d5;
+        padding: 8px 15px;
+        border-radius: 22px;
+        font-size: 10px;
+      }
+      .filter[aria-pressed="true"] {
+        background: #243d2e;
+        color: white;
+        border-color: #243d2e;
+      }
+      .products {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 22px;
+      }
+      .photo {
+        position: relative;
+        overflow: hidden;
+        background: #e8ebe3;
+        height: clamp(220px, 26vw, 365px);
+      }
+      .photo img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        transition: transform 0.4s;
+      }
+      .product:hover .photo img {
+        transform: scale(1.025);
+      }
+      .badge {
+        position: absolute;
+        left: 13px;
+        top: 13px;
+        background: #f9faf2e8;
+        padding: 6px 9px;
+        font-size: 8px;
+        letter-spacing: 0.07em;
+        text-transform: uppercase;
+      }
+      .quickview {
+        position: absolute;
+        right: 12px;
+        bottom: 12px;
+        background: #f7f9f0ed;
+        border: 0;
+        border-radius: 50%;
+        width: 33px;
+        height: 33px;
+        font-size: 20px;
+      }
+      .prod-top {
+        display: flex;
+        justify-content: space-between;
+        align-items: start;
+        gap: 12px;
+        margin-top: 15px;
+      }
+      .prod-top h3 {
+        font-size: 13px;
+        font-weight: 600;
+        margin: 0 0 6px;
+      }
+      .prod-top p {
+        font-size: 10px;
+        margin: 0;
+        color: #77866e;
+      }
+      .prod-price {
+        font-size: 13px;
+        white-space: nowrap;
+      }
+      .prod-bottom {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-top: 16px;
+        gap: 12px;
+      }
+      .swatch {
+        display: inline-block;
+        width: 11px;
+        height: 11px;
+        border-radius: 50%;
+        background: var(--swatch);
+        outline: 1px solid #bac5b4;
+        outline-offset: 3px;
+        margin-left: 3px;
+      }
+      .add {
+        border: 0;
+        border-bottom: 1px solid #8e9f85;
+        padding: 3px 0 5px;
+        background: none;
+        font-size: 10px;
+      }
+      .story {
+        margin: 0 5% 45px;
+        background: #e7ebe0;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 27px 33px;
+        gap: 35px;
+      }
+      .story h2 {
+        font:
+          normal 27px Georgia,
+          serif;
+        letter-spacing: -0.8px;
+        margin: 0 0 9px;
+      }
+      .story p {
+        font-size: 11px;
+        color: #6e7c63;
+        max-width: 510px;
+        margin: 0;
+      }
+      .story button {
+        white-space: nowrap;
+      }
+      .footer {
+        padding: 22px 5%;
+        border-top: 1px solid #dbe1d4;
+        display: flex;
+        justify-content: space-between;
+        gap: 20px;
+        font-size: 9px;
+        color: #849079;
+        flex-wrap: wrap;
+      }
+      .footer details {
+        max-width: 650px;
+      }
+      .footer summary {
+        cursor: pointer;
+      }
+      .footer a {
+        text-underline-offset: 3px;
+      }
+      .drawer-shade {
+        position: fixed;
+        inset: 0;
+        background: #18291b55;
+        backdrop-filter: blur(3px);
+        z-index: 100;
+        display: none;
+      }
+      .drawer-shade.open {
+        display: block;
+      }
+      .drawer {
+        position: absolute;
+        top: 0;
+        right: 0;
+        width: 430px;
+        max-width: 100%;
+        height: 100%;
+        background: #f9faf4;
+        display: flex;
+        flex-direction: column;
+        padding: 28px;
+      }
+      .drawer-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        border-bottom: 1px solid #d8e0cf;
+        padding-bottom: 21px;
+      }
+      .drawer-head h2 {
+        font:
+          normal 28px Georgia,
+          serif;
+        margin: 0;
+      }
+      .iconbtn {
+        border: 0;
+        background: none;
+        font-size: 24px;
+        padding: 4px 8px;
+        line-height: 1;
+      }
+      .drawer-body {
+        flex: 1;
+        overflow: auto;
+        padding: 21px 0;
+      }
+      .cartrow {
+        display: grid;
+        grid-template-columns: 72px 1fr auto;
+        gap: 14px;
+        padding: 17px 0;
+        border-bottom: 1px solid #e0e6d9;
+        align-items: center;
+      }
+      .cartrow img {
+        width: 72px;
+        height: 83px;
+        object-fit: cover;
+      }
+      .cartrow h3 {
+        font-size: 12px;
+        margin: 0 0 7px;
+      }
+      .cartrow p {
+        font-size: 10px;
+        color: #7a876f;
+        margin: 0;
+      }
+      .qty {
+        display: flex;
+        gap: 15px;
+        align-items: center;
+        margin-top: 10px;
+        font-size: 11px;
+      }
+      .qty button {
+        background: none;
+        border: 1px solid #d9dfd3;
+        width: 23px;
+        height: 23px;
+      }
+      .shippingnote {
+        font-size: 11px;
+        color: #6d7b63;
+        background: #edf0e6;
+        padding: 12px 14px;
+      }
+      .total {
+        display: flex;
+        justify-content: space-between;
+        margin: 13px 0;
+        font-size: 12px;
+      }
+      .total.grand {
+        font-size: 16px;
+        border-top: 1px solid #d5deca;
+        padding-top: 16px;
+      }
+      .drawer .solid {
+        width: 100%;
+        justify-content: space-between;
+        margin-top: 10px;
+      }
+      .fineprint {
+        font-size: 10px;
+        color: #88917f;
+      }
+      .field {
+        display: flex;
+        flex-direction: column;
+        gap: 9px;
+        font-size: 11px;
+        margin: 20px 0;
+      }
+      .field select,
+      .field input {
+        padding: 12px;
+        background: white;
+        border: 1px solid #cfdac5;
+        border-radius: 3px;
+        width: 100%;
+        color: inherit;
+      }
+      .suggestion {
+        padding: 18px;
+        background: #e9efdf;
+        margin-top: 25px;
+        font-size: 12px;
+      }
+      .suggestion h3 {
+        font:
+          normal 22px Georgia,
+          serif;
+        margin: 0 0 9px;
+      }
+      .suggestion p {
+        font-size: 12px;
+      }
+      .toast {
+        position: fixed;
+        bottom: 25px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: #243b2e;
+        color: white;
+        padding: 13px 21px;
+        border-radius: 4px;
+        font-size: 12px;
+        box-shadow: 0 5px 25px #0002;
+        z-index: 110;
+      }
+      .toast[hidden] {
+        display: none;
+      }
+      dialog {
+        border: 0;
+        background: #f9faf4;
+        max-width: 780px;
+        width: calc(100% - 32px);
+        padding: 0;
+        color: inherit;
+        box-shadow: 0 25px 80px #0003;
+      }
+      dialog::backdrop {
+        background: #17291b77;
+        backdrop-filter: blur(3px);
+      }
+      .modalclose {
+        position: absolute;
+        right: 12px;
+        top: 12px;
+        background: #f9faf4c9;
+        border-radius: 50%;
+        z-index: 1;
+      }
+      .detail {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0;
+      }
+      .detail > img {
+        width: 100%;
+        height: 440px;
+        object-fit: cover;
+      }
+      .detail-copy {
+        padding: 43px 30px;
+      }
+      .detail-copy h2 {
+        font:
+          normal 32px Georgia,
+          serif;
+        letter-spacing: -1px;
+        margin: 12px 0;
+      }
+      .detail-copy p,
+      .detail-copy li {
+        font-size: 12px;
+        color: #6f7f63;
+        line-height: 1.6;
+      }
+      .detail-copy ul {
+        padding-left: 17px;
+        margin: 20px 0;
+      }
+      .detail-copy .solid {
+        width: 100%;
+        justify-content: space-between;
+      }
+      .detailprice {
+        font-size: 20px;
+        color: #20362a !important;
+      }
+      .checkout {
+        padding: 35px;
+      }
+      .checkout h2 {
+        font:
+          normal 29px Georgia,
+          serif;
+        margin: 0 0 15px;
+      }
+      .checkout p {
+        font-size: 13px;
+      }
+      .empty {
+        font:
+          normal 23px Georgia,
+          serif;
+        padding: 30px 0;
+      }
+      .hidden {
+        display: none !important;
+      }
+      @media (min-width: 1700px) {
+        .hero {
+          min-height: 560px;
+        }
+        .hero-copy {
+          padding-top: 70px;
+          padding-bottom: 70px;
+        }
+      }
+      @media (max-width: 850px) {
+        .nav {
+          height: 68px;
+        }
+        .navlinks {
+          gap: 16px;
+        }
+        .hero {
+          min-height: 430px;
+        }
+        .hero-copy {
+          padding: 35px 9%;
+        }
+        .hero-photo {
+          min-height: 400px;
+        }
+        h1 {
+          letter-spacing: -2px;
+        }
+        .photo {
+          height: 250px;
+        }
+        .section-top h2 {
+          font-size: 30px;
+        }
+      }
+      @media (max-width: 600px) {
+        .nav {
+          padding: 0 5%;
+          gap: 10px;
+        }
+        .brand {
+          font-size: 22px;
+        }
+        .navlinks {
+          display: none;
+        }
+        .navright {
+          gap: 9px;
+        }
+        .navright > .textbutton {
+          display: none;
+        }
+        .hero {
+          grid-template-columns: 1fr;
+          margin-top: 17px;
+        }
+        .hero-copy {
+          padding: 35px 9%;
+          order: 1;
+        }
+        .hero-photo {
+          min-height: 260px;
+          order: 0;
+        }
+        .hero-photo > img {
+          object-position: center 53%;
+        }
+        .photo-tag {
+          bottom: 15px;
+          left: 15px;
+          right: 15px;
+          padding: 12px;
+        }
+        h1 {
+          font-size: 49px;
+        }
+        .hero-copy > p {
+          font-size: 13px;
+          max-width: 100%;
+        }
+        .hero-fine {
+          margin-top: 20px;
+        }
+        .trust {
+          grid-template-columns: 1fr;
+          gap: 14px;
+          padding: 21px 0;
+        }
+        .trust > div {
+          justify-content: start;
+        }
+        .trust > div + div {
+          border: 0;
+        }
+        .section-top {
+          align-items: start;
+          flex-direction: column;
+          gap: 8px;
+        }
+        .collection {
+          padding-top: 32px;
+        }
+        .products {
+          grid-template-columns: 1fr;
+          gap: 28px;
+        }
+        .photo {
+          height: 350px;
+        }
+        .story {
+          padding: 25px;
+          flex-direction: column;
+          align-items: start;
+          gap: 20px;
+        }
+        .detail {
+          grid-template-columns: 1fr;
+        }
+        .detail > img {
+          height: 245px;
+        }
+        .detail-copy {
+          padding: 25px;
+        }
+        .drawer {
+          padding: 22px;
+        }
+        .footer {
+          padding-bottom: 70px;
+        }
+        .topline {
+          font-size: 9px;
+        }
+        .hero-actions {
+          gap: 16px;
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        html {
+          scroll-behavior: auto;
+        }
+        * {
+          transition: none !important;
+          animation: none !important;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="topline">
+      A little further, a little lighter.
+      <span>Complimentary delivery on demo orders from €150.</span>
+    </div>
+    <header class="nav">
+      <a class="brand" href="#home" aria-label="Trail Supply home"
+        ><svg viewBox="0 0 30 30" fill="none" aria-hidden="true">
+          <path d="M3 24 14 5l5 9 3-5 6 15H3Z" stroke="currentColor" stroke-width="1.8" />
+          <path d="m10 12 4 6 4-6" stroke="currentColor" stroke-width="1.8" /></svg
+        >trail supply</a
+      >
+      <nav class="navlinks" aria-label="Store navigation">
+        <a href="#collection">Shop the edit</a><a href="#story">Our approach</a
+        ><a href="#footer">Delivery & returns</a>
+      </nav>
+      <div class="navright">
+        <button class="textbutton" id="find-fit">Find my fit ↗</button
+        ><button class="bagbtn" id="open-bag" aria-label="Open shopping bag">
+          Bag <span id="bag-count">0</span>
+        </button>
+      </div>
+    </header>
+    <main id="home">
+      <section class="hero">
+        <div class="hero-copy">
+          <div class="kicker">The everyday escape · Autumn 26</div>
+          <h1>Good things.<br />For <em>getting out.</em></h1>
+          <p>
+            Considered bags and the useful little things. For early trains, unplanned detours, and a
+            whole day that's yours.
+          </p>
+          <div class="hero-actions">
+            <a href="#collection" class="solid"
+              >Shop the weekend edit <span aria-hidden="true">↗</span></a
+            ><button class="textbutton hero-link" id="hero-fit">Find your everyday kit</button>
+          </div>
+          <div class="hero-fine">Three considered essentials. One less thing to overthink.</div>
+        </div>
+        <div class="hero-photo">
+          <img src="{{backpack}}" alt="Charcoal everyday backpack photographed in natural light" />
+          <div class="photo-tag">
+            <div>
+              <small>The everyday essential</small><strong>Ridge Everyday Pack · 22L</strong>
+            </div>
+            <span class="price">€129 <span aria-hidden="true">↗</span></span>
+          </div>
+        </div>
+      </section>
+      <div class="trust">
+        <div>
+          <svg viewBox="0 0 20 20" aria-hidden="true">
+            <path
+              d="M2 5h10v9H2zM12 8h3l3 3v3h-6M4 16a2 2 0 1 0 0-4 2 2 0 0 0 0 4ZM15 16a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z"
+            /></svg
+          >Dispatch in 1–2 business days
+        </div>
+        <div>
+          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 6a7 7 0 1 1-1 7M4 2v5h5" /></svg
+          >30-day returns on unused goods
+        </div>
+        <div>
+          <svg viewBox="0 0 20 20" aria-hidden="true">
+            <path d="m10 2 6 3v5c0 4-6 8-6 8s-6-4-6-8V5l6-3Z" /></svg
+          >A small collection, thoughtfully chosen
+        </div>
+      </div>
+      <section class="collection" id="collection">
+        <div class="section-top">
+          <div>
+            <div class="eyebrow">Less, but better</div>
+            <h2>Your everyday, elevated.</h2>
+          </div>
+          <p>Made for the places between plans.</p>
+        </div>
+        <div class="filters" aria-label="Filter products" style="margin-bottom: 22px">
+          <button class="filter" data-filter="all" aria-pressed="true">
+            All essentials <span style="opacity: 0.5">03</span></button
+          ><button class="filter" data-filter="carry" aria-pressed="false">Carry</button
+          ><button class="filter" data-filter="hydration" aria-pressed="false">Hydration</button>
+        </div>
+        <div class="products" id="products"></div>
+      </section>
+      <section class="story" id="story">
+        <div>
+          <div class="eyebrow" style="margin-bottom: 10px">Build a better everyday</div>
+          <h2>The best kit is the one you use.</h2>
+          <p>
+            A good bag, water for the journey, and room for whatever you find. Tell us where you're
+            going and we'll help you put a simple kit together.
+          </p>
+        </div>
+        <button class="line" id="story-fit">Find my everyday kit ↗</button>
+      </section>
+    </main>
+    <footer class="footer" id="footer">
+      <span>© 2026 Trail Supply · Fictional demonstration store. No payments or orders.</span>
+      <details>
+        <summary>Image credits & demo details</summary>
+        <p>
+          Illustrative photography from Unsplash: photo-1553062407-98eeb64c6a62,
+          photo-1590874103328-eac38a683ce7, photo-1602143407151-7111542de6e8.
+          <a href="https://unsplash.com/license">Unsplash License</a>. Names, prices, stock,
+          materials and policies are synthetic. The product finder is deterministic. The separate
+          local website adds a live AgenticOS widget.
+        </p>
+      </details>
+    </footer>
+    <div class="drawer-shade" id="bag-shade">
+      <section class="drawer" role="dialog" aria-modal="true" aria-labelledby="bag-title">
+        <div class="drawer-head">
+          <h2 id="bag-title">Your everyday kit</h2>
+          <button class="iconbtn" data-close="bag-shade" aria-label="Close bag">×</button>
+        </div>
+        <div class="drawer-body" id="cart-items"></div>
+        <div id="cart-totals"></div>
+      </section>
+    </div>
+    <div class="drawer-shade" id="fit-shade">
+      <section class="drawer" role="dialog" aria-modal="true" aria-labelledby="fit-title">
+        <div class="drawer-head">
+          <h2 id="fit-title">Find your everyday kit</h2>
+          <button class="iconbtn" data-close="fit-shade" aria-label="Close product finder">
+            ×
+          </button>
+        </div>
+        <div class="drawer-body">
+          <p style="font-size: 12px; color: #75816b">
+            A simple product finder using this demo catalog.
+          </p>
+          <label class="field"
+            >Where are you headed?<select id="trip">
+              <option value="hike">A day outside</option>
+              <option value="work">Work, then wherever</option>
+              <option value="market">A slow market morning</option>
+            </select></label
+          ><label class="field"
+            >Your budget (€)<input
+              id="budget"
+              type="number"
+              value="160"
+              min="0"
+              max="1000"
+              step="1" /></label
+          ><button class="solid" id="recommend">
+            Find my fit <span aria-hidden="true">↗</span>
+          </button>
+          <div id="recommendation" aria-live="polite"></div>
+        </div>
+      </section>
+    </div>
+    <dialog id="product-dialog">
+      <button class="iconbtn modalclose" id="close-detail" aria-label="Close product details">
+        ×
+      </button>
+      <div id="product-detail"></div>
+    </dialog>
+    <dialog id="checkout-dialog">
+      <div class="checkout">
+        <div class="eyebrow">Demonstration only</div>
+        <h2>Your kit is ready to review.</h2>
+        <p id="checkout-summary"></p>
+        <p>
+          This store is a product demo. Nothing has been ordered, charged or sent to a retailer.
+        </p>
+        <button class="solid" id="close-checkout">
+          Keep exploring <span aria-hidden="true">↗</span>
+        </button>
+      </div>
+    </dialog>
+    <div class="toast" id="toast" role="status" hidden></div>
+    <script>
+      const products = [
+        {
+          id: "ridge",
+          name: "Ridge Everyday Pack",
+          price: 129,
+          category: "carry",
+          color: "Charcoal",
+          swatch: "#2d3741",
+          image: "{{backpack}}",
+          tag: "Everyday essential",
+          subtitle: "22L · room for the whole day",
+          facts: [
+            "22L capacity and 16-inch laptop sleeve",
+            "Padded straps, two easy-access pockets",
+            "Water-resistant fabric; not waterproof",
+          ],
+          stock: 14,
+        },
+        {
+          id: "basket",
+          name: "Sunday Market Basket",
+          price: 76,
+          category: "carry",
+          color: "Natural rattan",
+          swatch: "#bc8b52",
+          image: "{{basket}}",
+          tag: "The weekend edit",
+          subtitle: "A little room for good finds",
+          facts: [
+            "Rattan body with structured top handles",
+            "Open interior for market-day essentials",
+            "Keep dry; not intended for wet trails",
+          ],
+          stock: 8,
+        },
+        {
+          id: "bottle",
+          name: "Field Bottle",
+          price: 28,
+          category: "hydration",
+          color: "Fern",
+          swatch: "#5b8067",
+          image: "{{bottle}}",
+          tag: "The useful little thing",
+          subtitle: "750ml · take water, go further",
+          facts: [
+            "750ml capacity",
+            "Reusable stainless-steel body",
+            "Hand wash; no temperature-retention claim",
+          ],
+          stock: 26,
+        },
+      ];
+      const cart = new Map();
+      let toastTimer;
+      let returnFocus = null;
+      function euro(cents) {
+        return new Intl.NumberFormat("en-IE", {
+          style: "currency",
+          currency: "EUR",
+          maximumFractionDigits: 0,
+        }).format(cents / 100);
+      }
+      function deliveryCents(subtotal) {
+        return subtotal === 0 || subtotal >= 15000 ? 0 : 600;
+      }
+      function notice(text) {
+        const toast = document.querySelector("#toast");
+        toast.textContent = text;
+        toast.hidden = false;
+        clearTimeout(toastTimer);
+        toastTimer = setTimeout(() => (toast.hidden = true), 2600);
+      }
+      function openDrawer(id) {
+        returnFocus = document.activeElement;
+        document.getElementById(id).classList.add("open");
+        document.getElementById(id).querySelector("button").focus();
+      }
+      function closeDrawer(id) {
+        document.getElementById(id).classList.remove("open");
+        returnFocus?.focus();
+      }
+      function renderProducts(filter = "all") {
+        const grid = document.querySelector("#products");
+        grid.replaceChildren();
+        for (const p of products.filter((p) => filter === "all" || p.category === filter)) {
+          const card = document.createElement("article");
+          card.className = "product";
+          card.innerHTML = `<div class="photo"><img src="${p.image}" alt="${p.name} in ${p.color}"><span class="badge">${p.tag}</span><button class="quickview" aria-label="View ${p.name}" data-view="${p.id}">↗</button></div><div class="prod-top"><div><h3>${p.name}</h3><p>${p.subtitle}</p></div><span class="prod-price">${euro(p.price * 100)}</span></div><div class="prod-bottom"><span><span class="swatch" style="--swatch:${p.swatch}" aria-label="${p.color}"></span><span style="font-size:9px;color:#839079;margin-left:10px">${p.color}</span></span><button class="add" data-add="${p.id}" aria-label="Add ${p.name}">Add to bag +</button></div>`;
+          grid.append(card);
+        }
+      }
+      function add(id) {
+        const product = products.find((p) => p.id === id);
+        if (!product) return;
+        const qty = cart.get(id) || 0;
+        if (qty >= product.stock) {
+          notice("You have reached the available demo stock.");
+          return;
+        }
+        cart.set(id, qty + 1);
+        renderCart();
+        notice(product.name + " added to your kit");
+      }
+      function renderCart() {
+        const count = [...cart.values()].reduce((n, q) => n + q, 0);
+        document.querySelector("#bag-count").textContent = String(count);
+        const rows = document.querySelector("#cart-items");
+        rows.replaceChildren();
+        let subtotal = 0;
+        for (const [id, qty] of cart) {
+          const p = products.find((p) => p.id === id);
+          subtotal += p.price * 100 * qty;
+          const row = document.createElement("div");
+          row.className = "cartrow";
+          row.innerHTML = `<img src="${p.image}" alt="${p.name}"><div><h3>${p.name}</h3><p>${p.color}</p><div class="qty"><button data-qty="${id}" data-change="-1" aria-label="Remove one ${p.name}">−</button><span>${qty}</span><button data-qty="${id}" data-change="1" aria-label="Add one ${p.name}">+</button></div></div><strong style="font-size:12px">${euro(p.price * 100 * qty)}</strong>`;
+          rows.append(row);
+        }
+        if (!count) {
+          rows.innerHTML =
+            '<p class="empty">A little room for good things.</p><p class="fineprint">Your bag is empty. Choose something from the everyday edit.</p>';
+          document.querySelector("#cart-totals").replaceChildren();
+          return;
+        }
+        const shipping = deliveryCents(subtotal);
+        document.querySelector("#cart-totals").innerHTML =
+          `<div class="shippingnote">${shipping ? "Add " + euro(15000 - subtotal) + " for complimentary demo delivery." : "Your kit qualifies for complimentary demo delivery."}</div><div class="total"><span>Subtotal</span><span>${euro(subtotal)}</span></div><div class="total"><span>Delivery</span><span>${shipping ? euro(shipping) : "On us"}</span></div><div class="total grand"><strong>Total</strong><strong>${euro(subtotal + shipping)}</strong></div><button class="solid" id="review-kit">Review demo kit <span aria-hidden="true">↗</span></button><p class="fineprint">Demo checkout only. No payment details collected.</p>`;
+      }
+      function detail(id) {
+        const p = products.find((p) => p.id === id);
+        if (!p) return;
+        document.querySelector("#product-detail").innerHTML =
+          `<div class="detail"><img src="${p.image}" alt="${p.name}"><div class="detail-copy"><div class="eyebrow">${p.tag}</div><h2>${p.name}</h2><p>${p.subtitle}</p><p class="detailprice">${euro(p.price * 100)}</p><ul>${p.facts.map((f) => "<li>" + f + "</li>").join("")}</ul><p>${p.stock} available in the demo catalog · ${p.color}</p><button class="solid" data-add="${id}">Add to your kit <span aria-hidden="true">+</span></button></div></div>`;
+        document.querySelector("#product-dialog").showModal();
+      }
+      function recommend() {
+        const budget = document.querySelector("#budget").valueAsNumber;
+        const out = document.querySelector("#recommendation");
+        if (!Number.isFinite(budget) || budget < 0) {
+          out.innerHTML = '<p class="suggestion">Enter a budget of zero or more.</p>';
+          return;
+        }
+        const trip = document.querySelector("#trip").value;
+        const chosen = products.find((p) => p.id === (trip === "market" ? "basket" : "ridge"));
+        const base = chosen.price * 100;
+        const budgetCents = Math.floor(budget * 100);
+        if (base + deliveryCents(base) > budgetCents) {
+          out.innerHTML =
+            '<div class="suggestion"><h3>No matching carry option.</h3><p>The selected bag plus delivery is outside this budget. The Field Bottle costs €28, but it does not replace a bag. Try a different budget or trip.</p></div>';
+          return;
+        }
+        const withBottle = base + 2800;
+        const extras = withBottle + deliveryCents(withBottle) <= budgetCents;
+        const subtotal = extras ? withBottle : base;
+        const delivery = deliveryCents(subtotal);
+        const total = subtotal + delivery;
+        out.innerHTML = `<div class="suggestion"><div class="eyebrow">Your everyday kit</div><h3 style="margin-top:10px">${chosen.name}${extras ? " + Field Bottle" : ""}</h3><p>${trip === "market" ? "A basket for a dry market morning." : "Room for the day, with a padded laptop sleeve."} ${extras ? "Water for the journey, too." : ""}</p><strong>${euro(total)}</strong><p>${delivery ? "Includes " + euro(delivery) + " demo delivery." : "Complimentary demo delivery."} Catalog-based suggestion; check product details.</p><button class="solid" data-kit="${chosen.id}" data-extra="${extras}">Add suggested kit <span aria-hidden="true">+</span></button></div>`;
+      }
+      document.addEventListener("click", (e) => {
+        if (!(e.target instanceof Element)) return;
+        const btn = e.target.closest("button");
+        if (!btn) return;
+        if (btn.dataset.add) add(btn.dataset.add);
+        if (btn.dataset.view) detail(btn.dataset.view);
+        if (btn.dataset.close) closeDrawer(btn.dataset.close);
+        if (btn.dataset.filter) {
+          document
+            .querySelectorAll("[data-filter]")
+            .forEach((b) => b.setAttribute("aria-pressed", String(b === btn)));
+          renderProducts(btn.dataset.filter);
+        }
+        if (btn.dataset.qty) {
+          const id = btn.dataset.qty;
+          const p = products.find((p) => p.id === id);
+          const next = (cart.get(id) || 0) + Number(btn.dataset.change);
+          if (next <= 0) cart.delete(id);
+          else if (next <= p.stock) cart.set(id, next);
+          renderCart();
+        }
+        if (btn.dataset.kit) {
+          add(btn.dataset.kit);
+          if (btn.dataset.extra === "true") add("bottle");
+          closeDrawer("fit-shade");
+          openDrawer("bag-shade");
+        }
+        if (btn.id === "review-kit") {
+          document.querySelector("#checkout-summary").textContent =
+            document.querySelector("#cart-totals .grand").textContent;
+          document.querySelector("#checkout-dialog").showModal();
+        }
+      });
+      for (const id of ["find-fit", "hero-fit", "story-fit"])
+        document.getElementById(id).addEventListener("click", () => openDrawer("fit-shade"));
+      document.querySelector("#recommend").addEventListener("click", recommend);
+      document.querySelector("#open-bag").addEventListener("click", () => {
+        renderCart();
+        openDrawer("bag-shade");
+      });
+      document
+        .querySelector("#close-detail")
+        .addEventListener("click", () => document.querySelector("#product-dialog").close());
+      document
+        .querySelector("#close-checkout")
+        .addEventListener("click", () => document.querySelector("#checkout-dialog").close());
+      document.querySelectorAll(".drawer-shade").forEach((shade) =>
+        shade.addEventListener("click", (e) => {
+          if (e.target === shade) closeDrawer(shade.id);
+        }),
+      );
+      document.addEventListener("keydown", (e) => {
+        if (document.querySelector("dialog[open]")) return;
+        const shade = document.querySelector(".drawer-shade.open");
+        if (!shade) return;
+        if (e.key === "Escape") closeDrawer(shade.id);
+        if (e.key === "Tab") {
+          const targets = [...shade.querySelectorAll("button,input,select,a[href]")].filter(
+            (el) => !el.disabled && el.getClientRects().length,
+          );
+          const first = targets[0],
+            last = targets.at(-1);
+          if (e.shiftKey && document.activeElement === first) {
+            e.preventDefault();
+            last.focus();
+          } else if (!e.shiftKey && document.activeElement === last) {
+            e.preventDefault();
+            first.focus();
+          }
+        }
+      });
+      renderProducts();
+      renderCart();
+    </script>
+    <!-- AGENTICOS_WIDGET -->
+  </body>
+</html>

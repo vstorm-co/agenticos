@@ -15,7 +15,13 @@ import { apiClient } from "@/lib/api-client";
 import { invalidateSpeechSettings } from "@/lib/dictation-api";
 import { modelInUse, runsAgents } from "@/lib/model-profiles";
 import { qk } from "@/lib/query-keys";
-import type { ModelApi, ModelProfile, ModelProfileList, ProviderCatalog } from "@/types/providers";
+import type {
+  ModelApi,
+  ModelProfile,
+  ModelProfileList,
+  ModelRegion,
+  ProviderCatalog,
+} from "@/types/providers";
 export interface NewModelProfile {
   label: string;
   provider: string;
@@ -37,6 +43,11 @@ export interface NewModelProfile {
    * lists `apis`; omitted, the service stores the default for the endpoint.
    */
   api?: ModelApi | null;
+  /**
+   * Where the requests may run. Accepted only for providers whose catalog entry
+   * lists `regions`; omitted, the service stores the first of them.
+   */
+  region?: ModelRegion | null;
 }
 
 /**
@@ -48,6 +59,7 @@ export interface ModelProfileChanges {
   secret_id?: string | null;
   base_url?: string | null;
   api?: ModelApi | null;
+  region?: ModelRegion | null;
 }
 
 /**
@@ -237,6 +249,8 @@ export interface ProviderModel {
   context_length?: number | null;
   /** False for a model the platform knows an agent cannot run on (#2487). */
   chat_capable?: boolean;
+  /** The APIs the provider says the model is served on (Stav.ai). Empty: not stated. */
+  apis?: ModelApi[];
 }
 
 interface ProviderModelList {
@@ -250,13 +264,14 @@ interface ProviderModelList {
   source: "live" | "curated" | "unlisted";
 }
 
-function providerModelsQuery(providerId: string, baseUrl?: string) {
+function providerModelsQuery(providerId: string, baseUrl?: string, secretId?: string) {
+  const params = new URLSearchParams();
+  if (baseUrl) params.set("base_url", baseUrl);
+  if (secretId) params.set("secret_id", secretId);
+  const query = params.size > 0 ? `?${params.toString()}` : "";
   return queryOptions({
-    queryKey: qk.providers.models(providerId, baseUrl),
-    queryFn: () =>
-      apiClient.get<ProviderModelList>(
-        `/providers/${providerId}/models${baseUrl ? `?base_url=${encodeURIComponent(baseUrl)}` : ""}`,
-      ),
+    queryKey: qk.providers.models(providerId, baseUrl, secretId),
+    queryFn: () => apiClient.get<ProviderModelList>(`/providers/${providerId}/models${query}`),
     staleTime: 60 * 60 * 1000,
     // An empty dropdown is the fallback the field is built for, so a provider
     // that cannot be reached must not retry three times behind an open form.
@@ -276,10 +291,10 @@ function providerModelsQuery(providerId: string, baseUrl?: string) {
  * ships something, which is on the order of weeks, but a deployment that added
  * its first key should not have to reload to see a list.
  */
-export function useProviderModels(providerId: string, baseUrl?: string) {
+export function useProviderModels(providerId: string, baseUrl?: string, secretId?: string) {
   const { data, isFetching } = useQuery({
-    ...providerModelsQuery(providerId, baseUrl),
-    enabled: providerId !== "",
+    ...providerModelsQuery(providerId, baseUrl, secretId),
+    enabled: providerId !== "" && !(providerId === "stav" && baseUrl && !secretId),
   });
 
   // Both fields this fills choose a model to talk to, so a speech or embedding

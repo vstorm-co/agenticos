@@ -17,6 +17,7 @@ export const MENTION_KIND_ORDER: readonly MentionKind[] = [
   "skill",
   "collection",
   "context",
+  "conversation",
   "project",
 ];
 

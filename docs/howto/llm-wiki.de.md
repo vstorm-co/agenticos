@@ -1,5 +1,5 @@
 ---
-source_sha: "3e585eb46567"
+source_sha: "4d5b6f999378"
 title: "Ein LLM-Wiki bauen, das der Agent pflegt"
 description: "Geben Sie einem Agent einen Workspace, der Konversationen überdauert, und eine Schema-Datei, und lassen Sie ihn rohe Notizen in ein kleines, verlinktes Markdown-Wiki verwandeln."
 ---
@@ -141,4 +141,15 @@ Sie beantworten unterschiedliche Bedürfnisse. Die [Wissenssuche](../reference/c
 
 ## Nächste Schritte { #next-steps }
 
-Pflegen Sie absichtlich eine Quelle ein, die einer früheren widerspricht, und prüfen Sie, ob der Lint-Schritt beide Seiten nennt, statt still eine Seite zu wählen. Für ein Wiki, das mehrere Personen lesen und erweitern sollen, wägen Sie den Session-Scope `agent` gegen die Möglichkeit ab, jeder beitragenden Person einen eigenen Agent zu geben, der an eine gemeinsame [Context-Datei](../context.md) gebunden ist.
+Nehmen Sie absichtlich eine Quelle auf, die einer früheren widerspricht, und
+prüfen Sie, ob der Lint-Schritt beide Seiten nennt, statt still eine auszuwählen.
+
+Verwenden Sie für ein Team-Wiki ein [Projekt](../projects.md): Mehrere Agents
+teilen Dateien und Anweisungen gemäß der Projektmitgliedschaft. Für einen
+persönlichen Desktop-Vault verbinden Sie einen freigegebenen lokalen Ordner;
+er wird nicht mit gemeinsamen Projektdateien synchronisiert.
+
+Öffnen Sie die [Graphansicht](../projects.md#graph-view) im Dateiexplorer für Links
+und Rückverweise. Sie liest Markdown-Notizen automatisch erneut; der Agent pflegt
+nur die Notizen und Verknüpfungen, ohne eine HTML-App neu zu erzeugen. Die
+Graphaktualisierung führt die Faktenprüfungen dieses Tutorials nicht aus.
