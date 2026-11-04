@@ -172,6 +172,16 @@ async def lock_held(db: AsyncSession, *, held_id: UUID) -> WhatsAppHeldRun | Non
     return result.scalar_one_or_none()
 
 
+async def holds_claim(db: AsyncSession, *, held_id: UUID, claimed_at: datetime | None) -> bool:
+    """Whether the held row exists and carries this claim, without locking it."""
+    result = await db.execute(
+        select(WhatsAppHeldRun.id).where(
+            WhatsAppHeldRun.id == held_id, WhatsAppHeldRun.claimed_at == claimed_at
+        )
+    )
+    return result.first() is not None
+
+
 async def delete_held(db: AsyncSession, *, held_id: UUID) -> None:
     await db.execute(sql_delete(WhatsAppHeldRun).where(WhatsAppHeldRun.id == held_id))
 

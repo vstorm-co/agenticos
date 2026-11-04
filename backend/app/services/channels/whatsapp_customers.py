@@ -279,7 +279,7 @@ class WindowStore:
 
     async def answer_sent(
         self, held: Held, *, prompts_owed: bool, keep_notice: bool = False
-    ) -> None:
+    ) -> bool:
         """The run's answer reached the customer: keep or drop the row, then clear its reason if nothing else is owed.
 
         With `prompts_owed` the row stays, claimed, for the prompts still to be
@@ -288,18 +288,23 @@ class WindowStore:
         since the claim (`hold_version` moved) is left as it is with its claim given
         back, and its reason stays: something said the answer did not arrive, and the
         next delivery sends it again. A claim since taken over settles nothing.
+
+        Returns False, with nothing written, when this claim no longer holds the
+        row: a newer claim took it, it was given back after a re-hold, or the row is
+        gone. True otherwise, including when this call itself gave the claim back
+        because the row was held again.
         """
         from app.repositories import agent_run_repo, whatsapp_customer_repo
 
         async with self._sessions() as db:
             row = await whatsapp_customer_repo.lock_held(db, held_id=held.id)
             if row is None or row.claimed_at != held.claimed_at:
-                return
+                return False
             if row.hold_version != held.version:
                 await whatsapp_customer_repo.update_held(
                     db, held=row, update_data={"claimed_at": None}
                 )
-                return
+                return True
             if prompts_owed or keep_notice:
                 cleared = {"held_answer": False, "held_files": False}
                 await whatsapp_customer_repo.update_held(
@@ -314,20 +319,26 @@ class WindowStore:
                 await agent_run_repo.mark_undelivered(
                     db, run_id=row.run_id, organization_id=row.organization_id, reason=None
                 )
+            return True
 
-    async def notice_sent(self, held: Held) -> None:
+    async def notice_sent(self, held: Held) -> bool:
         """The row's notice reached the customer (or was dropped): clear it and keep the claim for the prompts.
 
         The run's reason is about answers and is left alone. A row held again since
         the claim (`hold_version` moved) keeps its notice, with its claim given back.
         A claim since taken over settles nothing.
+
+        Returns False, with nothing written, when this claim no longer holds the
+        row: a newer claim took it, it was given back after a re-hold, or the row is
+        gone. True otherwise, including when this call itself gave the claim back
+        because the row was held again.
         """
         from app.repositories import whatsapp_customer_repo
 
         async with self._sessions() as db:
             row = await whatsapp_customer_repo.lock_held(db, held_id=held.id)
             if row is None or row.claimed_at != held.claimed_at:
-                return
+                return False
             await whatsapp_customer_repo.update_held(
                 db,
                 held=row,
@@ -337,24 +348,40 @@ class WindowStore:
                     else {"claimed_at": None}
                 ),
             )
+            return True
 
-    async def done(self, held: Held) -> None:
+    async def done(self, held: Held) -> bool:
         """The row's remaining duty is over: drop it, unless the run was held again since the claim.
 
         A claim since taken over settles nothing.
+
+        Returns False, with nothing written, when this claim no longer holds the
+        row: a newer claim took it, it was given back after a re-hold, or the row is
+        gone. True otherwise, including when this call itself gave the claim back
+        because the row was held again.
         """
         from app.repositories import whatsapp_customer_repo
 
         async with self._sessions() as db:
             row = await whatsapp_customer_repo.lock_held(db, held_id=held.id)
             if row is None or row.claimed_at != held.claimed_at:
-                return
+                return False
             if row.hold_version != held.version:
                 await whatsapp_customer_repo.update_held(
                     db, held=row, update_data={"claimed_at": None}
                 )
             else:
                 await whatsapp_customer_repo.delete_held(db, held_id=row.id)
+            return True
+
+    async def holds(self, held: Held) -> bool:
+        """Whether the row still carries this claim; a read, so a race lost after it is caught by the settlement."""
+        from app.repositories import whatsapp_customer_repo
+
+        async with self._sessions() as db:
+            return await whatsapp_customer_repo.holds_claim(
+                db, held_id=held.id, claimed_at=held.claimed_at
+            )
 
     async def release(self, held: Held) -> None:
         """Give the claim back so the next delivery can take the row; flags and reason are untouched.

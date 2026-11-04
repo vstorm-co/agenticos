@@ -462,7 +462,11 @@ async def _deliver_answers(
     back with its flags and reason intact: a sender who is no longer admitted, a
     send that failed, a crash. Returns the rows whose answer was sent and those
     that still owe prompts; with `delivered` given, they are appended to it as they
-    settle, so a failure part-way still leaves the caller what was done.
+    settle, so a failure part-way still leaves the caller what was done. A row a
+    newer claim took, or that is gone, is returned only for its answer: whoever holds
+    it next owns its notice and its prompts. A row whose own answer settlement gave
+    the claim back after a re-hold is returned owing prompts, which `_offer_again`
+    then skips.
     """
     claimed = await store.claim_held(bot_id, chat_id, now=_now())
     pending = list(claimed)
@@ -527,10 +531,17 @@ async def _deliver_answers(
             if held.answer and sends_notice:
                 # Settled before the notice goes: a failed notice must not send the answer again.
                 try:
-                    await store.answer_sent(held, prompts_owed=prompts_owed, keep_notice=True)
+                    settled = await store.answer_sent(
+                        held, prompts_owed=prompts_owed, keep_notice=True
+                    )
                 except Exception as failure:
                     _log_held_failure("whatsapp_held_settle_failed", bot_id, held.run_id, failure)
                     break
+                if not settled:
+                    # A newer claim owns the row and its notice; this holder sent the answer.
+                    pending.remove(held)
+                    delivered.append(replace(held, prompts_owed=False))
+                    continue
             if sends_notice:
                 try:
                     await whatsapp_adapter().send_message(
@@ -546,14 +557,16 @@ async def _deliver_answers(
                     _log_held_failure("whatsapp_held_send_failed", bot_id, held.run_id, failure)
                     break
             if held.answer and not sends_notice:
-                await store.answer_sent(held, prompts_owed=prompts_owed)
+                settled = await store.answer_sent(held, prompts_owed=prompts_owed)
                 pending.remove(held)
-                delivered.append(replace(held, prompts_owed=prompts_owed))
+                delivered.append(replace(held, prompts_owed=prompts_owed and settled))
             elif prompts_owed:
-                if held.notice is not None:
-                    await store.notice_sent(held)
+                settled = held.notice is None or await store.notice_sent(held)
                 pending.remove(held)
-                delivered.append(replace(held, prompts_owed=True))
+                if settled:
+                    delivered.append(replace(held, prompts_owed=True))
+                elif held.answer:
+                    delivered.append(replace(held, prompts_owed=False))
             elif not owed.admitted and owed.parked and last_of_run[held.run_id] == held.id:
                 # The notice is dropped but the run's prompts stay held for a later delivery.
                 await store.notice_sent(held)
@@ -581,6 +594,8 @@ async def _offer_again(
     until the run moves on.
     """
     for row in held:
+        if not await store.holds(row):
+            continue
         offered = True
         try:
             async with get_db_context() as db:

@@ -394,22 +394,42 @@ class TestTheStore:
         assert (first.claimed_at, second.claimed_at) == (T3, later)
         return first, second
 
-    @pytest.mark.parametrize("settle", ["release", "done", "answer_sent"])
+    @pytest.mark.parametrize("settle", ["release", "done", "answer_sent", "notice_sent"])
     async def test_a_holder_whose_claim_was_taken_over_cannot_settle_the_newer_claim(
         self, sessions, estate, settle: str
     ) -> None:
         store = WindowStore(sessions)
         first, second = await self._taken_over(sessions, estate)
         if settle == "answer_sent":
-            await store.answer_sent(first, prompts_owed=False)
+            assert await store.answer_sent(first, prompts_owed=False) is False
+        elif settle == "release":
+            await store.release(first)
         else:
-            await getattr(store, settle)(first)
+            assert await getattr(store, settle)(first) is False
 
         row = await self._held_row(sessions)
         assert (row.claimed_at, row.held_answer) == (second.claimed_at, True)
-        await store.done(second)
+        assert await store.done(second) is True
         async with sessions() as db:
             assert (await db.execute(select(WhatsAppHeldRun))).first() is None
+
+    async def test_a_settlement_after_the_row_was_deleted_reports_it(
+        self, sessions, estate
+    ) -> None:
+        store = WindowStore(sessions)
+        first, second = await self._taken_over(sessions, estate)
+        assert await store.done(second) is True
+        assert await store.answer_sent(first, prompts_owed=False) is False
+        assert await store.notice_sent(first) is False
+        assert await store.done(first) is False
+
+    async def test_holds_is_true_only_for_the_current_claim(self, sessions, estate) -> None:
+        store = WindowStore(sessions)
+        first, second = await self._taken_over(sessions, estate)
+        assert await store.holds(first) is False
+        assert await store.holds(second) is True
+        await store.done(second)
+        assert await store.holds(second) is False
 
     async def test_a_fenced_answer_sent_leaves_the_runs_reason(self, sessions, estate) -> None:
         _, bot, runs = estate
@@ -512,7 +532,7 @@ class TestTheStore:
         )
         [held] = await store.claim_held(str(bot.id), BSUID, now=T3)
         await self._rehold(sessions, estate, runs[0], answer=True, files=True)
-        await store.done(held)
+        assert await store.done(held) is True
 
         row = await self._held_row(sessions)
         assert (row.held_answer, row.held_files, row.claimed_at) == (True, True, None)
@@ -546,7 +566,8 @@ class TestTheStore:
         await store.record_undelivered(str(bot.id), str(runs[0]), "window_template_failed")
         [held] = await store.claim_held(str(bot.id), BSUID, now=T3)
         await self._rehold(sessions, estate, runs[0], answer=True, files=False)
-        await store.answer_sent(held, prompts_owed=False)
+        assert await store.answer_sent(held, prompts_owed=False) is True
+        assert await store.holds(held) is False
 
         row = await self._held_row(sessions)
         assert (row.held_answer, row.claimed_at) == (True, None)
@@ -782,7 +803,7 @@ class TestTheStore:
         await self._notice_hold(store, bot, runs[0], "stopped")
         [held] = await store.claim_held(str(bot.id), BSUID, now=T3)
         await self._rehold(sessions, estate, runs[0], answer=False, files=False, notice="stopped")
-        await store.notice_sent(held)
+        assert await store.notice_sent(held) is True
 
         row = await self._held_row(sessions)
         assert (row.held_notice, row.claimed_at) == ("stopped", None)
@@ -796,10 +817,13 @@ class TestTheStore:
         [first] = await store.claim_held(str(bot.id), BSUID, now=T3)
         later = T3 + CLAIM_LEASE + timedelta(seconds=1)
         [second] = await store.claim_held(str(bot.id), BSUID, now=later)
-        await store.notice_sent(first)
+        assert await store.notice_sent(first) is False
 
         row = await self._held_row(sessions)
         assert (row.held_notice, row.claimed_at) == ("stopped", second.claimed_at)
+        assert await store.notice_sent(second) is True
+        row = await self._held_row(sessions)
+        assert (row.held_notice, row.claimed_at) == (None, second.claimed_at)
 
     async def test_an_answer_settled_to_keep_the_notice_leaves_a_notice_only_row(
         self, sessions, estate

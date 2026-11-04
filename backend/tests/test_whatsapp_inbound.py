@@ -26,7 +26,12 @@ from app.services.channels.handback import (
 from app.services.channels.router import Admission, chat_lock
 from app.services.channels.whatsapp_customers import Held, WindowStore
 from app.services.channels.whatsapp_graph import WhatsAppGraphError
-from app.services.channels.whatsapp_inbound import WhatsAppInbound, handle_customer
+from app.services.channels.whatsapp_inbound import (
+    WhatsAppInbound,
+    _deliver_answers,
+    _offer_again,
+    handle_customer,
+)
 from app.services.channels.whatsapp_payload import ParsedWebhook, WhatsAppMessage, parse_webhook
 from app.services.channels.whatsapp_templates import LateTemplate
 from app.services.channels.whatsapp_window import FILES_NOT_DELIVERED, NUDGE_REPLY_ID, NUDGE_THANKS
@@ -254,6 +259,12 @@ class StubStore(WindowStore):
         self.held_new: list[uuid.UUID] = []
         self.closures: list[datetime] = []
         self.hold_is_new = True
+        self.superseded: set[uuid.UUID] = set()
+        """Rows a newer claim has taken: settling them writes nothing and reports it."""
+        self.reheld: set[uuid.UUID] = set()
+        """Rows held again during the send: the answer settlement gives the claim back."""
+        self.supersede_after_answer: set[uuid.UUID] = set()
+        """Rows a newer claim takes right after their answer settles."""
 
     async def late_template(self, bot_id: str) -> LateTemplate | None:
         if isinstance(self.template, Exception):
@@ -276,8 +287,15 @@ class StubStore(WindowStore):
 
     async def answer_sent(
         self, held: Held, *, prompts_owed: bool, keep_notice: bool = False
-    ) -> None:
+    ) -> bool:
         self.settled.append(("answer_sent", held.id))
+        if held.id in self.superseded:
+            return False
+        if held.id in self.reheld:
+            self.superseded.add(held.id)
+            return True
+        if held.id in self.supersede_after_answer:
+            self.superseded.add(held.id)
         self.rows = [
             replace(row, answer=False, files=False, notice=row.notice if keep_notice else None)
             if row.id == held.id
@@ -285,14 +303,24 @@ class StubStore(WindowStore):
             for row in self.rows
             if row.id != held.id or prompts_owed or keep_notice
         ]
+        return True
 
-    async def notice_sent(self, held: Held) -> None:
+    async def notice_sent(self, held: Held) -> bool:
         self.settled.append(("notice_sent", held.id))
+        if held.id in self.superseded:
+            return False
         self.rows = [replace(row, notice=None) if row.id == held.id else row for row in self.rows]
+        return True
 
-    async def done(self, held: Held) -> None:
+    async def done(self, held: Held) -> bool:
         self.settled.append(("done", held.id))
+        if held.id in self.superseded:
+            return False
         self.rows = [row for row in self.rows if row.id != held.id]
+        return True
+
+    async def holds(self, held: Held) -> bool:
+        return held.id not in self.superseded
 
     async def release(self, held: Held) -> None:
         self.settled.append(("release", held.id))
@@ -1211,10 +1239,10 @@ class TestHeldAnswers:
         store = world.store([world.held(first), world.held(second)], template=_template("Show me"))
         settled = store.answer_sent
 
-        async def fail_second(held: Held, *, prompts_owed: bool) -> None:
+        async def fail_second(held: Held, *, prompts_owed: bool) -> bool:
             if held.run_id == second.id:
                 raise RuntimeError("db down")
-            await settled(held, prompts_owed=prompts_owed)
+            return await settled(held, prompts_owed=prompts_owed)
 
         store.answer_sent = fail_second  # type: ignore[method-assign]
 
@@ -1222,6 +1250,104 @@ class TestHeldAnswers:
 
         assert world.offered == [first.id]
         assert world.routed == []
+
+    async def test_an_answer_row_taken_over_at_its_settlement_is_not_offered_again(self, world):
+        run = world.run(status=PARKED)
+        row = world.held(run)
+        store = world.store([row], template=_template("Show me"))
+        store.superseded.add(row.id)
+
+        await _handle(world, store, _tap())
+
+        assert [m.text for m in world.sent] == ["the answer"]
+        assert world.offered == []
+        assert world.routed == []
+        assert store.settled == [("answer_sent", row.id)]
+
+    async def test_a_notice_is_not_sent_for_a_row_taken_over_at_its_answer(self, world):
+        first, second = world.run(status=PARKED), world.run(answer="second answer")
+        row = world.held(first, notice="stranded")
+        store = world.store([row, world.held(second)], template=_template("Show me"))
+        store.superseded.add(row.id)
+
+        await _handle(world, store, _tap())
+
+        assert [m.text for m in world.sent] == ["the answer", "second answer"]
+        assert world.offered == []
+        assert world.routed == []
+        assert ("release", row.id) not in store.settled
+        assert [r.id for r in store.rows] == [row.id]
+
+    async def test_a_notice_row_taken_over_at_its_settlement_is_not_offered_again(self, world):
+        run = world.run(status=PARKED)
+        row = world.held(run, answer=False, notice="stranded")
+        store = world.store([row], template=_template("Show me"))
+        store.superseded.add(row.id)
+
+        await _handle(world, store, _tap())
+
+        assert [m.text for m in world.sent] == [STRANDED_NOTICE]
+        assert world.offered == []
+        assert [e.text for e in world.routed[0]] == ["Show me"]
+        assert store.settled == [("notice_sent", row.id)]
+
+    async def test_a_delivery_reports_a_taken_over_answer_without_its_prompts(self, world):
+        run = world.run(status=PARKED)
+        row = world.held(run)
+        store = world.store([row])
+        store.superseded.add(row.id)
+
+        delivered = await _deliver_answers(BOT, ORG, CHAT, store)
+
+        assert [(h.id, h.prompts_owed) for h in delivered] == [(row.id, False)]
+
+    async def test_a_delivery_reports_nothing_for_a_taken_over_notice_row(self, world):
+        run = world.run(status=PARKED)
+        row = world.held(run, answer=False, notice="stranded")
+        store = world.store([row])
+        store.superseded.add(row.id)
+
+        assert await _deliver_answers(BOT, ORG, CHAT, store) == []
+
+    async def test_a_notice_row_taken_over_after_its_answer_is_not_offered_again(self, world):
+        run = world.run(status=PARKED)
+        row = world.held(run, notice="stranded")
+        store = world.store([row], template=_template("Show me"))
+        store.supersede_after_answer.add(row.id)
+
+        delivered = await _deliver_answers(BOT, ORG, CHAT, store)
+        assert [(h.id, h.prompts_owed) for h in delivered] == [(row.id, False)]
+        assert [m.text for m in world.sent] == ["the answer", STRANDED_NOTICE]
+
+        store = world.store([row], template=_template("Show me"))
+        store.supersede_after_answer.add(row.id)
+        await _handle(world, store, _tap())
+        assert world.offered == []
+        assert world.routed == []
+
+    async def test_a_row_held_again_during_the_send_is_not_offered_in_this_delivery(self, world):
+        run = world.run(status=PARKED)
+        row = world.held(run)
+        store = world.store([row], template=_template("Show me"))
+        store.reheld.add(row.id)
+
+        await _handle(world, store, _tap())
+
+        assert [m.text for m in world.sent] == ["the answer"]
+        assert world.offered == []
+        assert world.routed == []
+        assert store.settled == [("answer_sent", row.id)]
+
+    async def test_a_row_taken_over_during_the_routed_turn_is_not_offered(self, world):
+        run = world.run(status=PARKED)
+        row = replace(world.held(run), prompts_owed=True)
+        store = world.store([row])
+        store.superseded.add(row.id)
+
+        await _offer_again(BOT, ORG, CHAT, [row], store)
+
+        assert world.offered == []
+        assert store.settled == []
 
     async def test_the_default_store_is_the_real_one(self, world):
         with patch(f"{MODULE}.WindowStore") as created:
