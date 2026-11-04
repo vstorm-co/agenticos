@@ -14,6 +14,9 @@ export interface View {
 
 const HOME: View = { x: 0, y: 0, scale: 1 };
 
+/** What a press starts by itself rather than a drag of the canvas. */
+const CONTROLS = "button, a, input, select, textarea, label, [role='button']";
+
 /**
  * Pan and zoom over a diagram drawn in its own coordinates: one transform on the
  * content, dragged with the pointer and zoomed with the wheel or the buttons.
@@ -77,6 +80,9 @@ export function usePanZoom(home: View = HOME) {
 
   const panHandlers = {
     onPointerDown: (event: React.PointerEvent<HTMLDivElement>) => {
+      // Capturing the pointer retargets its release to the canvas, so the click a
+      // control under it was pressed for would never reach that control.
+      if ((event.target as Element).closest(CONTROLS)) return;
       drag.current = {
         pointerId: event.pointerId,
         startX: event.clientX - view.x,
