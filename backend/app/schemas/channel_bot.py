@@ -760,3 +760,28 @@ class WhatsAppCustomerSearch(BaseSchema):
     """A number to find among a line's customers. It travels in the body, never the address."""
 
     phone: str = Field(pattern=r"^\+?[0-9 ()-]{3,24}$")
+
+
+class WhatsAppCustomerForget(BaseSchema):
+    """The customer to erase, named by the id the customer listing gave."""
+
+    customer_id: UUID
+
+
+class CustomerErasureRead(BaseSchema):
+    """What an erasure removed, as counts: nothing here names the customer."""
+
+    identities: int
+    sessions: int
+    customers: int
+    conversations: int
+    workspaces: int
+    link_requests: int
+    prompts: int
+    runs_ended: int
+    approvals_ended: int
+    approvals_redacted: int
+    manifests: int
+    notifications: int
+    handback_jobs: int
+    handback_jobs_running: int

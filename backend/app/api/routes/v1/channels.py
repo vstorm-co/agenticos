@@ -23,8 +23,10 @@ from app.schemas.channel_bot import (
     ChannelBotRead,
     ChannelBotUpdate,
     ChannelSessionList,
+    CustomerErasureRead,
     TeamsConversationList,
     TeamsConversationRead,
+    WhatsAppCustomerForget,
     WhatsAppCustomerList,
     WhatsAppCustomerSearch,
     WhatsAppTemplateList,
@@ -314,3 +316,20 @@ async def search_whatsapp_customers(
 ) -> Any:
     """Find a WhatsApp bot's customers by number. The number is in the body, not the address."""
     return await service.find_whatsapp_customers(bot_id, data.phone)
+
+
+@router.post(
+    "/bots/{bot_id}/whatsapp-customers/forget",
+    response_model=CustomerErasureRead,
+    dependencies=[Depends(require(Perm.CHANNELS_MANAGE))],
+)
+async def forget_whatsapp_customer(
+    bot_id: UUID,
+    data: WhatsAppCustomerForget,
+    ctx: Auth,
+    service: OrgChannelBotSvc,
+) -> Any:
+    """Erase a WhatsApp customer and what is kept of them; refused for a linked account (409)."""
+    return await service.forget_whatsapp_customer(
+        bot_id, data.customer_id, actor_user_id=ctx.subject_id
+    )

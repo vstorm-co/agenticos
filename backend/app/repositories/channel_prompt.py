@@ -110,7 +110,7 @@ async def answer(
     return prompt
 
 
-SettledBy = Literal["decided", "answered", "continued", "stopped", "expired", "ended"]
+SettledBy = Literal["decided", "answered", "continued", "stopped", "expired", "ended", "erased"]
 
 
 async def settle_open(

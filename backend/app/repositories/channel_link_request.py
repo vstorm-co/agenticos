@@ -68,20 +68,24 @@ async def get_for_identity(
     return result.scalar_one_or_none()
 
 
-async def delete_for_identity(db: AsyncSession, *, platform: str, platform_user_id: str) -> None:
+async def delete_for_identity(db: AsyncSession, *, platform: str, platform_user_id: str) -> int:
     """Drop every outstanding request for one chat account.
 
     Called before minting one and again once a request is spent. That is what
     makes a link single-use, and what keeps the unique constraint true without
-    an upsert: somebody who asks twice must not leave the first URL live.
+    an upsert: somebody who asks twice must not leave the first URL live. Returns how
+    many it dropped.
     """
-    await db.execute(
-        delete(ChannelLinkRequest).where(
+    result = await db.execute(
+        delete(ChannelLinkRequest)
+        .where(
             ChannelLinkRequest.platform == platform,
             ChannelLinkRequest.platform_user_id == platform_user_id,
         )
+        .returning(ChannelLinkRequest.id)
     )
     await db.flush()
+    return len(result.all())
 
 
 async def delete_by_id(db: AsyncSession, request_id: UUID) -> bool:

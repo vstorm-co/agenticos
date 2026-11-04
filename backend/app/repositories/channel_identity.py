@@ -21,14 +21,17 @@ async def get_by_platform_user(
     db: AsyncSession,
     platform: str,
     platform_user_id: str,
+    *,
+    for_update: bool = False,
 ) -> ChannelIdentity | None:
-    """Get identity by platform + platform_user_id."""
-    result = await db.execute(
-        select(ChannelIdentity).where(
-            ChannelIdentity.platform == platform,
-            ChannelIdentity.platform_user_id == platform_user_id,
-        )
+    """Get identity by platform + platform_user_id, locked when `for_update`."""
+    query = select(ChannelIdentity).where(
+        ChannelIdentity.platform == platform,
+        ChannelIdentity.platform_user_id == platform_user_id,
     )
+    if for_update:
+        query = query.with_for_update().execution_options(populate_existing=True)
+    result = await db.execute(query)
     return result.scalar_one_or_none()
 
 

@@ -83,6 +83,7 @@ from app.repositories import organization_secret as organization_secret_repo
 from app.repositories import notification as notification_repo
 from app.repositories import voice_call as voice_call_repo
 from app.repositories import generated_media as generated_media_repo
+from app.repositories import customer_erasure as customer_erasure_repo
 from app.repositories import whatsapp_customer as whatsapp_customer_repo
 
 __all__ = [
@@ -155,5 +156,6 @@ __all__ = [
     "notification_repo",
     "voice_call_repo",
     "generated_media_repo",
+    "customer_erasure_repo",
     "whatsapp_customer_repo",
 ]

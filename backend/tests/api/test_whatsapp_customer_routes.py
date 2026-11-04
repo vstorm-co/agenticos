@@ -9,12 +9,13 @@ from httpx import ASGITransport, AsyncClient
 
 from app.api import deps
 from app.core.config import settings
-from app.core.exceptions import BadRequestError, NotFoundError
+from app.core.exceptions import BadRequestError, ConflictError, NotFoundError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.main import app
 from app.repositories.whatsapp_customer import CustomerRow
 from app.schemas.channel_bot import WhatsAppCustomerList, WhatsAppCustomerRead
 from app.services.channel_bot import ChannelBotService
+from app.services.channels.whatsapp_erasure import CustomerErasure
 
 pytestmark = pytest.mark.anyio
 
@@ -239,3 +240,117 @@ async def test_a_customer_with_no_chat_account_row_is_unlinked_and_unnamed():
         None,
         None,
     )
+
+
+def _forget_service(result=None, error: Exception | None = None) -> MagicMock:
+    service = MagicMock()
+    service.forget_whatsapp_customer = AsyncMock(return_value=result, side_effect=error)
+    return service
+
+
+@pytest.mark.security
+async def test_a_builder_may_not_erase_a_customer():
+    service = _forget_service(CustomerErasure())
+
+    answer = await _call(
+        "POST", "/forget", role=OrgRoleName.BUILDER, service=service,
+        body={"customer_id": str(uuid.uuid4())},
+    )  # fmt: skip
+
+    assert answer.status_code == 403
+    service.forget_whatsapp_customer.assert_not_awaited()
+
+
+@pytest.mark.security
+async def test_an_owner_erasing_a_customer_gets_the_counts_and_is_named_as_the_actor():
+    service = _forget_service(
+        CustomerErasure(identities=1, conversations=2, handback_jobs_running=1)
+    )
+    customer_id = uuid.uuid4()
+
+    answer = await _call(
+        "POST", "/forget", role=OrgRoleName.OWNER, service=service,
+        body={"customer_id": str(customer_id)},
+    )  # fmt: skip
+
+    assert answer.status_code == 200
+    assert answer.json()["conversations"] == 2
+    assert answer.json()["handback_jobs_running"] == 1
+    call = service.forget_whatsapp_customer.await_args
+    assert call.args == (BOT, customer_id)
+    assert set(call.kwargs) == {"actor_user_id"} and call.kwargs["actor_user_id"] is not None
+
+
+@pytest.mark.security
+async def test_a_linked_customer_is_a_conflict_on_the_route():
+    service = _forget_service(error=ConflictError(message="linked"))
+
+    answer = await _call(
+        "POST", "/forget", role=OrgRoleName.OWNER, service=service,
+        body={"customer_id": str(uuid.uuid4())},
+    )  # fmt: skip
+
+    assert answer.status_code == 409
+
+
+@pytest.mark.security
+async def test_another_organizations_bot_and_another_bots_customer_are_not_found():
+    service = ChannelBotService(MagicMock(), organization_id=ORG)
+    with (
+        patch(
+            "app.services.channel_bot.channel_bot_repo.get_for_org", AsyncMock(return_value=None)
+        ),
+        pytest.raises(NotFoundError),
+    ):
+        await service.forget_whatsapp_customer(BOT, uuid.uuid4(), actor_user_id=None)
+    bot = MagicMock(platform="whatsapp", id=BOT)
+    with (
+        patch("app.services.channel_bot.channel_bot_repo.get_for_org", AsyncMock(return_value=bot)),
+        patch(
+            "app.services.channel_bot.whatsapp_customer_repo.get_in_bot",
+            AsyncMock(return_value=None),
+        ) as lookup,
+        patch("app.services.channel_bot.WhatsAppErasureService") as erasure,
+        pytest.raises(NotFoundError),
+    ):
+        await service.forget_whatsapp_customer(BOT, uuid.uuid4(), actor_user_id=None)
+
+    assert lookup.await_args.kwargs["bot_id"] == BOT
+    assert lookup.await_args.kwargs["organization_id"] == ORG
+    erasure.assert_not_called()
+
+
+@pytest.mark.security
+async def test_the_service_erases_the_customer_found_in_the_bot_as_the_console():
+    service = ChannelBotService(MagicMock(), organization_id=ORG)
+    bot = MagicMock(platform="whatsapp", id=BOT)
+    customer = MagicMock(bsuid="US.111")
+    actor = uuid.uuid4()
+    with (
+        patch("app.services.channel_bot.channel_bot_repo.get_for_org", AsyncMock(return_value=bot)),
+        patch(
+            "app.services.channel_bot.whatsapp_customer_repo.get_in_bot",
+            AsyncMock(return_value=customer),
+        ),
+        patch("app.services.channel_bot.WhatsAppErasureService") as erasure,
+    ):
+        erasure.return_value.forget = AsyncMock(return_value=CustomerErasure(identities=1))
+        result = await service.forget_whatsapp_customer(BOT, uuid.uuid4(), actor_user_id=actor)
+
+    assert result.identities == 1
+    assert erasure.return_value.forget.await_args.kwargs == {
+        "bsuid": "US.111", "named_by": "bsuid", "actor_user_id": actor, "via": "console",
+    }  # fmt: skip
+
+
+@pytest.mark.security
+async def test_forgetting_on_a_bot_of_another_platform_is_a_400():
+    service = ChannelBotService(MagicMock(), organization_id=ORG)
+    with (
+        patch(
+            "app.services.channel_bot.channel_bot_repo.get_for_org",
+            AsyncMock(return_value=MagicMock(platform="telegram")),
+        ),
+        pytest.raises(BadRequestError),
+    ):
+        await service.forget_whatsapp_customer(BOT, uuid.uuid4(), actor_user_id=None)

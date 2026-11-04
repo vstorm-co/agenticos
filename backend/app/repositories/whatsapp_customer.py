@@ -103,7 +103,7 @@ async def clear_phone(db: AsyncSession, *, organization_id: UUID, bsuid: str) ->
     )
 
 
-def _with_identity() -> Select[tuple[WhatsAppCustomer, ChannelIdentity]]:
+def _with_identity() -> Select[WhatsAppCustomer, ChannelIdentity]:
     namespaced = cast(WhatsAppCustomer.organization_id, String) + ":" + WhatsAppCustomer.bsuid
     return select(WhatsAppCustomer, ChannelIdentity).outerjoin(
         ChannelIdentity,
@@ -176,6 +176,38 @@ async def lock(
         .execution_options(populate_existing=True)
     )
     return result.scalar_one()
+
+
+async def get_in_bot(
+    db: AsyncSession, *, organization_id: UUID, bot_id: UUID, customer_id: UUID
+) -> WhatsAppCustomer | None:
+    """One customer by id, only when they belong to this bot of this organization."""
+    result = await db.execute(
+        select(WhatsAppCustomer).where(
+            WhatsAppCustomer.id == customer_id,
+            WhatsAppCustomer.bot_id == bot_id,
+            WhatsAppCustomer.organization_id == organization_id,
+        )
+    )
+    return result.scalar_one_or_none()
+
+
+async def lock_existing(
+    db: AsyncSession, *, organization_id: UUID, bsuid: str
+) -> list[WhatsAppCustomer]:
+    """The customer's rows on every bot of the organization, locked, in bot order.
+
+    No row is created: `lock` makes one for a customer who never wrote, and erasing
+    somebody must not leave a row behind to lock.
+    """
+    result = await db.execute(
+        select(WhatsAppCustomer)
+        .where(WhatsAppCustomer.organization_id == organization_id, WhatsAppCustomer.bsuid == bsuid)
+        .order_by(WhatsAppCustomer.bot_id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
+    return list(result.scalars().all())
 
 
 async def update(

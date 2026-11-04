@@ -753,6 +753,7 @@ include = [
     "app/services/channels/mentions.py",
     "app/services/channels/public_line.py",
     "app/services/channel_binding_requests.py",
+    "app/services/channels/whatsapp_erasure.py",
     # Approvals and questions offered as buttons in a chat, and the Slack app
     # around the bot (#2064, #2067, #2068).
     "app/services/channels/prompts.py",
@@ -907,6 +908,7 @@ include = [
     "app/repositories/agent_environment.py",
     "app/repositories/agent_exposure.py",
     "app/repositories/channel_binding_request.py",
+    "app/repositories/customer_erasure.py",
     "app/repositories/agent_trigger.py",
     "app/repositories/ingestion_spend.py",
     "app/repositories/mcp_connection.py",
@@ -1422,6 +1424,7 @@ include = [
     "app/services/channels/mentions.py",
     "app/services/channels/public_line.py",
     "app/services/channel_binding_requests.py",
+    "app/services/channels/whatsapp_erasure.py",
     # Approvals and questions offered as buttons in a chat, and the Slack app
     # around the bot (#2064, #2067, #2068).
     "app/services/channels/prompts.py",
@@ -1606,6 +1609,7 @@ include = [
     "app/repositories/agent_environment.py",
     "app/repositories/agent_exposure.py",
     "app/repositories/channel_binding_request.py",
+    "app/repositories/customer_erasure.py",
     "app/repositories/agent_trigger.py",
     "app/repositories/ingestion_spend.py",
     "app/repositories/mcp_connection.py",

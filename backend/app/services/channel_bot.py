@@ -63,6 +63,12 @@ from app.services.channels.teams import ConversationRef
 from app.services.channels.teams_auth import TeamsCredentials
 from app.services.channels.teams_package import teams_app_package
 from app.services.channels.webhooks import SEND_HEALTH_PLATFORMS
+from app.services.channels.whatsapp_erasure import (
+    CustomerErasure,
+    NamedBy,
+    Via,
+    WhatsAppErasureService,
+)
 from app.services.channels.whatsapp_graph import (
     TOKEN_REFUSED,
     WhatsAppCredentials,
@@ -709,6 +715,50 @@ class ChannelBotService:
             self.db, organization_id=self._org_id, bot_id=bot.id, phone=digits
         )
         return await self._customers(rows, len(rows))
+
+    async def forget_whatsapp_customer(
+        self, bot_id: UUID, customer_id: UUID, *, actor_user_id: UUID | None
+    ) -> CustomerErasure:
+        """Erase one customer of a WhatsApp bot from every store of the organization.
+
+        The customer is found by id inside this bot, so an id from another bot or
+        another organization is not found.
+
+        Raises:
+            NotFoundError: If the bot or the customer in it is not this organization's.
+            BadRequestError: If it is not a WhatsApp bot.
+            ConflictError: If the customer is linked to a member account.
+        """
+        bot = await self._whatsapp_bot(bot_id)
+        customer = await whatsapp_customer_repo.get_in_bot(
+            self.db, organization_id=self._org_id, bot_id=bot.id, customer_id=customer_id
+        )
+        if customer is None:
+            raise NotFoundError(
+                message="Customer not found", details={"customer_id": str(customer_id)}
+            )
+        return await self.forget_whatsapp_bsuid(
+            bot_id,
+            bsuid=customer.bsuid,
+            named_by="bsuid",
+            actor_user_id=actor_user_id,
+            via="console",
+        )
+
+    async def forget_whatsapp_bsuid(
+        self, bot_id: UUID, *, bsuid: str, named_by: NamedBy, actor_user_id: UUID | None, via: Via
+    ) -> CustomerErasure:
+        """Erase the customer with this business-scoped id from the organization's WhatsApp bots.
+
+        Raises:
+            NotFoundError: If the bot is not this organization's.
+            BadRequestError: If it is not a WhatsApp bot.
+            ConflictError: If the customer is linked to a member account.
+        """
+        bot = await self._whatsapp_bot(bot_id)
+        return await WhatsAppErasureService(self.db).forget(
+            bot, bsuid=bsuid, named_by=named_by, actor_user_id=actor_user_id, via=via
+        )
 
     async def teams_app_package(self, bot_id: UUID) -> bytes:
         """The Teams app package for one bot, to upload to the tenant's app catalog.

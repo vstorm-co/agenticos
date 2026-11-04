@@ -43,7 +43,7 @@ no spec can redirect it.
 """
 
 import hashlib
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Literal
@@ -117,6 +117,15 @@ _SECURITY_EVENT_SUMMARY: dict[str, str] = {
     "sandbox_connection.created": "A sandbox connection was created.",
     "sandbox_connection.deleted": "A sandbox connection was deleted.",
 }
+
+
+def approval_occurrence_id(approval_ids: Iterable[UUID]) -> str:
+    """The key of the approval-request notification for exactly this set of approvals.
+
+    A digest of the sorted ids, since `occurrence_id` is `String(255)` and a pause on
+    seven or more calls overflows the joined ids.
+    """
+    return hashlib.sha256(":".join(sorted(str(i) for i in approval_ids)).encode()).hexdigest()
 
 
 def agent_face(agent: Agent) -> dict[str, str | bool | int | None]:
@@ -351,9 +360,7 @@ class NotificationService:
             # a digest rather than the joined ids themselves, since
             # `occurrence_id` is `String(255)` and seven or more approvals
             # parking at once already overflows a plain colon-joined list.
-            occurrence_id=hashlib.sha256(
-                ":".join(sorted(str(approval.id) for approval in approvals)).encode()
-            ).hexdigest(),
+            occurrence_id=approval_occurrence_id(approval.id for approval in approvals),
             summary=summary,
             context_url=approvals_path,
             render_context=render_context,
