@@ -336,8 +336,12 @@ async function bindingOf(
 }
 
 /** An agent's row in the skill page's table, by its name. */
+/** An agent's row in the agents table; the usage table under it names its agents too. */
 function agentRow(page: Page, agent: Record<string, unknown>) {
-  return page.getByRole("row").filter({ hasText: String(agent.name) });
+  return page
+    .locator("table:not([aria-label='Use per agent'])")
+    .getByRole("row")
+    .filter({ hasText: String(agent.name) });
 }
 
 /**

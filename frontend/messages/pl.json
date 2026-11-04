@@ -8374,7 +8374,8 @@
           "agent": "Agent",
           "loads": "Wczytania",
           "files": "Odczytane pliki",
-          "last": "Ostatnio"
+          "last": "Ostatnio",
+          "label": "Użycie według agenta"
         },
         "never": "Jeszcze nie",
         "pick": "Agenci na wykresie",

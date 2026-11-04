@@ -8492,7 +8492,8 @@
           "agent": "Agent",
           "loads": "Ladevorgänge",
           "files": "Gelesene Dateien",
-          "last": "Zuletzt genutzt"
+          "last": "Zuletzt genutzt",
+          "label": "Nutzung pro Agent"
         },
         "never": "Noch nicht",
         "pick": "Agents im Diagramm",

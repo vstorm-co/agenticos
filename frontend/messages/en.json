@@ -8614,7 +8614,8 @@
           "agent": "Agent",
           "loads": "Loads",
           "files": "Files read",
-          "last": "Last used"
+          "last": "Last used",
+          "label": "Use per agent"
         },
         "never": "Not yet",
         "pick": "Agents on the chart",

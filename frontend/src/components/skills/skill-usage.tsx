@@ -121,7 +121,7 @@ function UsageTable({
   const t = useTranslations("skills.page.usage");
   const locale = useLocale();
   return (
-    <table className="w-full text-sm">
+    <table className="w-full text-sm" aria-label={t("table.label")}>
       <thead className="text-muted-foreground text-left text-xs">
         <tr className="border-b">
           <th className="px-4 py-2 font-medium">{t("table.agent")}</th>
