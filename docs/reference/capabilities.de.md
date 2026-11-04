@@ -1,5 +1,5 @@
 ---
-source_sha: "9990e62dfb03"
+source_sha: "320e676f1de0"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -254,7 +254,9 @@ tauschen so Latenz und ein wenig Ausgabe gegen bessere Trefferquote bei
 unscharfen Fragen. `multi_query` ruft außerdem einmal je Abfrage ab, eine nach
 der anderen, und jeder Abruf bettet seine eigene Abfrage ein — die Varianten
 werden nicht in einem Embedding-Aufruf gebündelt —, also halte
-`query_analysis_max_variants` niedrig, um die Auffächerung zu begrenzen.
+`query_analysis_max_variants` niedrig, um die Auffächerung zu begrenzen. Ob sich
+ein Modus für einen Korpus lohnt, entscheidet eine Messung, kein Standardwert: die
+[Retrieval-Evaluierung](../retrieval-eval.md) vergleicht beide auf dieser Dokumentation.
 
 Beide Modi nutzen das eigene Modell des Agents — es gibt kein separates Modell zu
 konfigurieren — und ihre Kosten werden gegen das Budget des Runs gemessen wie

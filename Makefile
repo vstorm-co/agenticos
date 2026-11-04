@@ -316,8 +316,8 @@ lint: lint-backend lint-frontend lint-spelling lint-precommit
 # outside `backend/` and so is a fourth path rather than a second invocation; its
 # relaxations are declared in `pyproject.toml` under `../scripts/**`.
 lint-backend:
-	uv run --directory backend ruff check . ../scripts ../deploy/updater
-	uv run --directory backend ruff format . ../scripts ../deploy/updater --check
+	uv run --directory backend ruff check . ../scripts ../deploy/updater ../evals
+	uv run --directory backend ruff format . ../scripts ../deploy/updater ../evals --check
 	uv run --directory backend ty check
 	uv run --directory backend vulture
 	uv run --directory backend deptry app cli alembic
@@ -408,8 +408,8 @@ lint-precommit:
 # applying it, so without the second line here the only way to fix a formatting
 # failure would be to let the pre-commit hook rewrite the file for you.
 format:
-	uv run --directory backend ruff format . ../scripts ../deploy/updater
-	uv run --directory backend ruff check . ../scripts ../deploy/updater --fix
+	uv run --directory backend ruff format . ../scripts ../deploy/updater ../evals
+	uv run --directory backend ruff check . ../scripts ../deploy/updater ../evals --fix
 	cd frontend && bunx prettier --write "src/**/*.{ts,tsx}" "e2e/**/*.ts"
 
 # === Testing ===
@@ -741,6 +741,14 @@ load-test:
 	uv run --directory backend python ../loadtest/run.py \
 		$(if $(API_PID),--api-pid $(API_PID),) \
 		$(if $(DATABASE_URL),--database-url $(DATABASE_URL),)
+
+# The retrieval evaluation (#2482): a question set over docs/ and the harness
+# that measures knowledge retrieval on it. Not part of `make check` and never in
+# CI: every run makes billed embedding and model calls. `docs/retrieval-eval.md`
+# has what it needs, the options and what a run costs.
+EVAL_ARGS ?=
+eval-retrieval:
+	uv run --directory backend python ../evals/retrieval/run.py $(EVAL_ARGS)
 
 # Every CI job, in the order the workflow declares them, with the exceptions
 # named below. This is the one claim in this file that has to be exactly true:
@@ -1085,6 +1093,9 @@ help:
 	@echo "  make load-stub-model  The slow-on-purpose model the suite measures against"
 	@echo "  make load-seed        Build the fixture: an agent, a collection, a routine"
 	@echo "  make load-test        Offer the workload and print the report"
+	@echo ""
+	@echo "Retrieval evaluation (billed model calls - see docs/retrieval-eval.md):"
+	@echo "  make eval-retrieval   Measure knowledge retrieval on the docs; EVAL_ARGS= passes options"
 	@echo ""
 	@echo "Database:"
 	@echo "  make db-init       Initialize database (start + migrate)"

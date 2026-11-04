@@ -1,0 +1,173 @@
+---
+title: "Evaluación de recuperación"
+description: "Un conjunto de preguntas sobre la documentación con respuestas conocidas, y el harness que mide la recuperación por categoría, top_k y expansión."
+source_sha: "30564d6dfb48"
+---
+
+# Evaluación de recuperación { #retrieval-evaluation }
+
+Un agent de conocimiento vale lo que su búsqueda le entrega al modelo. Un cambio
+en el troceado, en `top_k` o en la expansión de la consulta mueve eso, y una
+respuesta que se lee bien no dice nada sobre si se recuperó la página correcta.
+Por eso hay un conjunto de preguntas con respuestas conocidas sobre esta
+documentación, y un harness que mide la recuperación sobre él, en
+`evals/retrieval/`. Esta página explica qué mide, cómo ejecutarlo y cuánto cuesta
+una ejecución.
+
+Empezó con una pregunta ([#2482](https://github.com/vstorm-co/agenticos/issues/2482)).
+Ante *"Does AgenticOS support SAML single sign-on?"*, un agent sobre la
+documentación recuperó solo la página de comparación con Dify y respondió que la
+documentación no lo dice. [El inicio de sesión de directorio](directory.md) dice
+claramente que no hay SAML, y cómo llegar a AgenticOS a través de Keycloak en su
+lugar.
+
+## El conjunto de preguntas { #the-question-set }
+
+`evals/retrieval/docs_questions.yaml` contiene 34 preguntas en tres categorías:
+
+| Categoría | Qué prueba | Ejemplo |
+|---|---|---|
+| `factual` | Un ajuste, un valor por defecto o un nombre enunciado | "If I never set a vault master key, what does the platform encrypt credentials with?" |
+| `negative` | Una pregunta del tipo "¿soportáis X?" a la que la documentación responde con un no rotundo | "Does AgenticOS support SAML single sign-on?" |
+| `cross_language` | Una pregunta en polaco respondida solo desde las páginas en inglés, o una pregunta en inglés solo desde las páginas en polaco | "Czy da się logować do AgenticOS przez SAML?" |
+
+Cada pregunta nombra sus páginas esperadas y, para la comprobación de la
+respuesta, los hechos que contiene una respuesta correcta. Una entrada tiene este
+aspecto:
+
+```yaml
+- id: saml-single-sign-on
+  category: negative
+  language: en
+  question: Does AgenticOS support SAML single sign-on?
+  expected_pages: [directory.md]
+  expected_facts:
+    - ["no", "not", "nie"]
+    - [Keycloak*]
+  evidence: "directory.md: **No SAML.** A SAML-only identity provider can reach AgenticOS through Keycloak"
+```
+
+Una página se nombra sin su idioma: `directory.md` es también `directory.pl.md`,
+así que un fragmento de cualquiera de las dos traducciones cuenta como haberla
+encontrado. Una pregunta `cross_language` añade `search_locales`, el único idioma
+que su búsqueda puede leer, que nunca es el idioma en que se formula. El archivo
+está versionado, y un cambio en lo que significa un campo incrementa `version`.
+El cargador rechaza una página esperada que no existe o no está publicada, así que
+renombrar una página hace fallar las pruebas unitarias en vez de convertirse en un
+fallo en una ejecución que alguien pagó.
+
+## Qué mide una ejecución { #what-a-run-measures }
+
+El corpus es el sitio publicado: cada página Markdown bajo `docs/` excepto lo que
+`mkdocs.yml` deja fuera (`plans/`, `design/`, `audits/`, la hoja de ruta). Cada
+idioma se indexa en su propia colección, nombrada según el modelo de embeddings, y
+las ejecuciones posteriores la reutilizan. Una pregunta normal busca en todas a la
+vez, como hace un agent vinculado a varias colecciones.
+
+Cada configuración es una pasada sobre las 34 preguntas. La búsqueda sigue el
+propio camino de la herramienta de conocimiento: la consulta se expande según
+`query_analysis_mode`, se recupera cada consulta, y los resultados se fusionan y
+se recortan a `top_k`. Por categoría, la ejecución informa de:
+
+| Número | Significado |
+|---|---|
+| hit@k | La proporción de preguntas con al menos un fragmento de una página esperada entre los `top_k` devueltos |
+| recall@k | La proporción de las páginas esperadas de cada pregunta que se alcanzaron, promediada |
+| MRR | La media de 1/rango del primer fragmento de una página esperada, 0 cuando no se devolvió ninguno |
+| Respuestas correctas | Con `--answers`: cuántas respuestas contienen todos los hechos esperados |
+
+Tras cada tabla, la ejecución lista las preguntas que falló y las páginas que
+obtuvo en su lugar, que es donde está la información útil.
+
+La comprobación de la respuesta es deliberadamente simple. Un hecho coincide como
+palabra completa, las mayúsculas no importan, y una alternativa que termina en `*`
+coincide como prefijo (`Keycloak*` coincide con "Keycloaka"). No distingue un "no"
+correcto de uno confundido, así que tómala como una cota inferior de la calidad de
+las respuestas. `--json` escribe las páginas recuperadas y la respuesta de cada
+pregunta para quien quiera leerlas.
+
+## Ejecutarlo { #running-it }
+
+Una ejecución necesita una base de datos migrada con pgvector (`make dev` te da
+una), un endpoint de embeddings y, para `multi_query`, `hyde` y `--answers`, un
+modelo.
+
+!!! warning "Cada llamada es una llamada real y facturada"
+    El harness genera los embeddings del corpus y de cada consulta con el endpoint
+    que le indiques, y llama al modelo que nombres. Nada se almacena en caché ni se
+    simula. Lee [Coste](#cost) antes de la primera ejecución.
+
+```bash
+export OPENAI_API_KEY=sk-...
+make eval-retrieval EVAL_ARGS="--top-k 5 --top-k 10 --mode off --mode multi_query --mode hyde \
+    --llm-model openai:gpt-4.1-mini --answers --json /tmp/retrieval.json"
+```
+
+Las opciones:
+
+| Opción | Valor por defecto | |
+|---|---|---|
+| `--top-k` | `5` | Repetible. Fragmentos por búsqueda, el `default_top_k` de la capability de conocimiento |
+| `--mode` | `off` | Repetible. `off`, `multi_query` o `hyde`, el `query_analysis_mode` de la capability |
+| `--max-variants` | `3` | Reformulaciones que `multi_query` puede añadir |
+| `--locale` | `en`, `pl` | Repetible. Los idiomas indexados; debe incluir el de cada pregunta `cross_language` |
+| `--embedding-model` | `text-embedding-3-small` | Cualquier modelo del catálogo de embeddings, u otro con `--embedding-dim` |
+| `--embedding-base-url` | `https://api.openai.com/v1` | Cualquier endpoint `/v1/embeddings` compatible con OpenAI |
+| `--embedding-api-key-env` | `OPENAI_API_KEY` | La variable de la que se lee la clave |
+| `--keyless` | desactivado | El endpoint no requiere clave |
+| `--llm-model` | ninguno | Un nombre de modelo de Pydantic AI. Su provider lee su propia variable de clave |
+| `--answers` | desactivado | Además responde cada pregunta a partir de lo recuperado y comprueba los hechos |
+| `--reingest` | desactivado | Elimina las colecciones e indexa el corpus de nuevo, tras cambios en la documentación |
+| `--json` | ninguno | Además escribe los resultados por pregunta en este archivo |
+
+El informe va a la salida estándar y el progreso a la salida de error estándar,
+así que `> results.md` conserva solo el informe. El harness se detiene antes de
+medir si una página no se indexa, porque un corpus con huecos mide los huecos.
+
+### Sin una clave de pago { #without-a-paid-key }
+
+Un servidor compatible con OpenAI en tu propia máquina sirve para los embeddings.
+Con [Ollama](https://ollama.com), tras `ollama pull bge-m3`:
+
+```bash
+make eval-retrieval EVAL_ARGS="--embedding-base-url http://localhost:11434/v1 \
+    --embedding-model bge-m3 --keyless"
+```
+
+`bge-m3` es multilingüe, lo que importa para las preguntas `cross_language`. Los
+números describen ese modelo, no el que usan las colecciones de un despliegue, así
+que compara solo ejecuciones con el mismo modelo de embeddings.
+
+## Coste { #cost }
+
+El corpus publicado tiene unos 0,6 millones de tokens en inglés y 1,0 millones en
+polaco, medidos con el tokenizador `cl100k_base` que usan los modelos de
+embeddings de OpenAI. Con el solapamiento de fragmentos de 200 caracteres, indexar
+ambos idiomas supone unos 1,7 millones de tokens. Se paga una vez y se reutiliza
+hasta `--reingest`.
+
+| Parte | Tokens por ejecución | A precio de lista |
+|---|---|---|
+| Indexación, `text-embedding-3-small` | ~1,7M, una vez | ~$0.03 |
+| Indexación, `text-embedding-3-large` | ~1,7M, una vez | ~$0.22 |
+| Embeddings de las preguntas | menos de 10k por configuración | menos de $0.01 |
+| `multi_query` o `hyde`, `gpt-4.1-mini` | ~34 llamadas, ~10k tokens por configuración | menos de $0.01 |
+| `--answers` con `top_k` 5, `gpt-4.1-mini` | ~34 llamadas, ~150k tokens de entrada y ~5k de salida | ~$0.07 |
+| `--answers` con `top_k` 10, `gpt-4.1-mini` | ~300k tokens de entrada y ~5k de salida | ~$0.13 |
+
+Los precios son precios de lista por millón de tokens en el momento de escribir
+esto: `text-embedding-3-small` $0.02, `text-embedding-3-large` $0.13,
+`gpt-4.1-mini` $0.40 de entrada y $1.60 de salida. Comprueba los precios actuales
+de tu provider. Con estos precios, la matriz completa de dos valores de `top_k`,
+tres modos y respuestas cuesta menos de un dólar. Al final, la ejecución imprime
+las llamadas al modelo que hizo y sus tokens.
+
+## Qué no decide { #what-it-does-not-decide }
+
+La suite mide; no cambia ningún valor por defecto. La capability de conocimiento
+mantiene `default_top_k` 5 y `query_analysis_mode` `off` hasta que una ejecución
+medida respalde un cambio. La suite tampoco prueba permisos. Sus colecciones no
+pertenecen a ninguna organización y se buscan sin ámbito, como hace `rag-search`.
+Las páginas de [procesamiento de archivos](file-processing.md) y de la
+[capability de conocimiento](reference/capabilities.md#query-analysis-and-expansion)
+describen la búsqueda con ámbito.

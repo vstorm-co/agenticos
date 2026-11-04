@@ -230,7 +230,9 @@ default, `query_analysis_mode` optionally expands the query *before* retrieval:
 latency and a little spend for recall on fuzzy questions. `multi_query` also
 retrieves once per query, one after another, and each retrieval embeds its own
 query — the variants are not batched into one embedding call — so keep
-`query_analysis_max_variants` low to bound the fan-out.
+`query_analysis_max_variants` low to bound the fan-out. Whether either mode pays
+for itself on a corpus is a measurement rather than a default: the
+[retrieval evaluation](../retrieval-eval.md) compares them on these docs.
 
 Both modes use the agent's own model — there is no separate model to configure —
 and their cost is metered against the run's budget like any other model call. An

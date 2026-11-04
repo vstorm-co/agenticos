@@ -1,5 +1,5 @@
 ---
-source_sha: "9990e62dfb03"
+source_sha: "320e676f1de0"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -254,7 +254,9 @@ búsqueda, así que cambian latencia y un poco de gasto por recuperación en
 preguntas difusas. `multi_query` además recupera una vez por consulta, una tras
 otra, y cada recuperación genera el embedding de su propia consulta —las
 variantes no se agrupan en una sola llamada de embedding—, así que mantén
-`query_analysis_max_variants` bajo para acotar la ramificación.
+`query_analysis_max_variants` bajo para acotar la ramificación. Si alguno de los
+modos compensa en un corpus lo decide una medición, no un valor por defecto: la
+[evaluación de recuperación](../retrieval-eval.md) los compara sobre esta documentación.
 
 Ambos modos usan el propio modelo del agente —no hay un modelo aparte que
 configurar— y su coste se mide contra el presupuesto del run como cualquier otra
