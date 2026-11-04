@@ -272,7 +272,8 @@ async def fork_skill_improvement(
     service: SkillImprovementSvc,
     ctx: Auth,
 ) -> Any:
-    """Make the checked text a new fork for the agents it helped; main stays as it is.
+    """Make the checked text a new fork for the agents picked, by default the ones it helped;
+    main stays as it is.
 
     Only a session on main forks. 409 while the check runs or once the result was decided.
     """

@@ -384,7 +384,7 @@ class SkillImprovementReturned(BaseSchema):
 
 
 class SkillImprovementForked(BaseSchema):
-    """The fork the change became, and the agents it helped that moved onto it."""
+    """The fork the change became, and the agents that moved onto it."""
 
     session: SkillImprovementRead
     fork: SkillForkRead

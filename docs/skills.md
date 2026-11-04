@@ -312,9 +312,11 @@ on agents links there instead. On main a person may still:
   published version, to the version it reads now, before the change goes live, so
   none of them serves it even once. Pinning needs publishing each of them, and an
   environment that waits for promotion must take the pinned version first;
-- **make a fork for the agents it helped**, when one got better, leaving main as it
-  is - at [Improve's](#improving-a-skill) Accept step, or through the API,
-  `POST /api/v1/skills/{id}/checks/{check_id}/fork`;
+- **make a fork**, leaving main as it is - offered whatever the result, at
+  [Improve's](#improving-a-skill) Accept step, or through the API,
+  `POST /api/v1/skills/{id}/checks/{check_id}/fork`. The agents it helped move onto
+  the fork, unless you pick others with `agent_ids`; an empty list moves none, and
+  an agent reading the skill through a specialist is moved in its Builder;
 - **discard** it.
 
 On a fork only improving further and discarding remain: a pin names a main
@@ -508,7 +510,7 @@ request is refused, naming the agents, when:
 | `POST /api/v1/skills/{id}/forks/{fork_id}/return-to-main` | Moves a fork's agents back to main, and archives the fork once nobody reads it |
 | `POST /api/v1/skills/{id}/agents/{agent_id}/update-check`, `…/estimate` | Checks main's newest version on one pinned agent, or prices that check |
 | `POST /api/v1/skills/{id}/improvements/estimate`, `POST /api/v1/skills/{id}/improvements` | Prices and starts an Improve session on main or on a fork |
-| `POST /api/v1/skills/{id}/improvements/{session_id}/apply`, `…/fork`, `…/discard` | Applies a session's result, with or without pinning the worse agents, forks it for the agents it helped, or discards it |
+| `POST /api/v1/skills/{id}/improvements/{session_id}/apply`, `…/fork`, `…/discard` | Applies a session's result, with or without pinning the worse agents, forks it for the agents picked, or discards it |
 | `POST /api/v1/skills/{id}/improvements/{session_id}/recheck` | Checks a result again on the line as it is now |
 | `GET /api/v1/skill-improvements/awaiting` | The skill sessions waiting for a person |
 
@@ -737,9 +739,11 @@ What Accept offers comes from the result:
 
 - **Nobody worse** and somebody better: apply it as the line's next version.
 - **Somebody worse:** apply it and keep those agents pinned on the version they
-  have, make a fork with the change for the agents it helped, improve it further,
-  or discard it. On a fork only improving further and discarding are offered,
-  since a fork cannot be pinned or forked again.
+  have, improve it further, or discard it. On a fork only improving further and
+  discarding are offered, since a fork cannot be pinned.
+- **Whatever the result**, on main, make a fork with the change. The agents it
+  helped move onto it unless you pick others, or none. A fork is never forked
+  again.
 - **Unknown agents** have to be acknowledged before anything is applied. **Add
   test questions** beside them writes the skill's own questions from answers
   where agents loaded it, so they can be checked next time.
