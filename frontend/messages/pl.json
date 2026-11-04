@@ -8785,7 +8785,7 @@
     "web_research": {
       "method": {
         "title": "Wyszukiwarka",
-        "description": "duckduckgo: za darmo, bez konta, wyniki jako klikalne źródła. native: szuka provider modelu, własnym indeksem i z cytatami (tylko na modelach, które to obsługują). tavily: streszczone do czytania przez model. brave: własny indeks. exa: szukanie po znaczeniu zamiast po słowach."
+        "description": "duckduckgo: za darmo, bez konta, wyniki jako klikalne źródła. native: szuka provider modelu, własnym indeksem i z cytatami (tylko na modelach, które to obsługują). tavily: streszczone do czytania przez model. brave: własny indeks. exa: szukanie po znaczeniu zamiast po słowach. keenable: bez konta; klucz API jest opcjonalny."
       },
       "max_results": {
         "title": "Wyników na wyszukiwanie",
@@ -11552,7 +11552,7 @@
       "does": "Agent szuka w internecie aktualnych informacji.",
       "example1": "Co zmieniło się w tym roku w tym przepisie?",
       "example2": "Znaleźć trzech konkurentów i ich ceny",
-      "needs": "Nic, z DuckDuckGo. Brave, Exa i Tavily potrzebują swojego klucza API w vault.",
+      "needs": "Nic, z DuckDuckGo lub Keenable (klucz Keenable w vault jest opcjonalny). Brave, Exa i Tavily potrzebują swojego klucza API w vault.",
       "never": "Nigdy nie wysyła twoich dokumentów do wyszukiwarki, tylko szukane słowa."
     },
     "visuals": {

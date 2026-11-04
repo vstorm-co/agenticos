@@ -512,7 +512,7 @@ is no setting that widens the corpus.
 
 | Config | Default | Values |
 |---|---|---|
-| `method` | `duckduckgo` | `duckduckgo`, `native`, `tavily`, `brave`, `exa` |
+| `method` | `duckduckgo` | `duckduckgo`, `native`, `tavily`, `brave`, `exa`, `keenable` |
 | `max_results` | 5 | 1–10, ignored by `native` |
 
 The console names each method rather than printing the value it stores, and draws
@@ -527,6 +527,7 @@ to recognise rather than a product to choose.
 - **`tavily`** — results summarised for a model to read.
 - **`brave`** — an index of its own.
 - **`exa`** — search by meaning rather than by keyword.
+- **`keenable`** — no account needed; an optional API key from the organization's secrets switches it to the keyed endpoint.
 
 The three paid methods need an API key from the organization's
 [secrets](../secrets.md), named by the binding's `secret_id`. The requirement is

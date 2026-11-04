@@ -28,6 +28,20 @@ Two things are versioned separately from this file and worth knowing about:
   - add `--knowledge-base` to `rag-source-add` scripts whose organization holds the collection name twice.
   - When downgrading: it drops the column and does not reactivate those sources. Before it does, it deactivates and logs, with the reason, every active source that names a collection but records no base, or a base other than the single one its collection name resolves to, since the earlier code would sync either of them by name. That stops their scheduled syncs only: the earlier code's manual sync does not check `is_active`, so do not sync them by hand until they are re-pointed.
 
+## [1.47.0] - 2026-11-04
+
+### Added
+
+- Add Turkish console translations, account language selection and Turkish voice previews.
+- Search the web through Keenable without an account, or select an optional vault key for account-backed requests. The Builder and vault show the official logo; query-relevant snippets are normalized into the existing cited search results.
+
+### Fixed
+
+- MCP connections with **Include instructions** enabled no longer abort agent
+  turns while Pydantic AI collects their instructions. Toolset IDs use the
+  connection’s safe tool prefix. (#2713)
+- Save assistant message parts containing local or conversation file origins without UUID serialization errors in JSONB, preserving their order and omitting unset fields. (#2709)
+
 ## [1.46.0] - 2026-11-04
 
 ### Added
@@ -19962,7 +19976,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.46.0...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.47.0...HEAD
+[1.47.0]: https://github.com/vstorm-co/agenticos/compare/v1.46.0...v1.47.0
 [1.46.0]: https://github.com/vstorm-co/agenticos/compare/v1.45.1...v1.46.0
 [1.45.1]: https://github.com/vstorm-co/agenticos/compare/v1.45.0...v1.45.1
 [1.45.0]: https://github.com/vstorm-co/agenticos/compare/v1.44.0...v1.45.0

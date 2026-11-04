@@ -388,12 +388,13 @@ def _make_toolset(spec: McpServerSpec) -> Any:
     model reading the refusal could have fixed the query or said it could not.
     Repeats stay bounded by the run's step limit.
     """
+    prefix = tool_prefix(spec.name)
     # The in-process client carries the headers itself: the two are exclusive.
     server: Any = MCPToolset(
         spec.url,
         headers=None if spec.in_process else spec.headers or None,
         http_client=_in_process_client(spec.headers) if spec.in_process else None,
-        id=f"mcp:{spec.name}",
+        id=f"mcp-{prefix}",
         init_timeout=CONNECT_TIMEOUT_SECS,
         tool_error_behavior="failed",
         process_tool_call=_platform_domain_result if spec.in_process else None,
@@ -402,7 +403,6 @@ def _make_toolset(spec: McpServerSpec) -> Any:
     if spec.allowed_tools is not None:
         allowed = set(spec.allowed_tools)
         server = server.filtered(lambda _ctx, tool: tool.name in allowed)
-    prefix = tool_prefix(spec.name)
     return ApprovalMarked(
         FittedNames(server.prefixed(prefix)),
         policy=spec.approval,
