@@ -358,8 +358,12 @@ class TestTheSync:
         account = await _linked(db, user)
         before = await _membership(db, org, user)
         membership_id = before.id
-        discord.give(account.platform_user_id)
-        assert not await DiscordRoleSync(db).sync(org.id, user.id)
+        discord.down = True
+        assert not await DiscordRoleSync(db).sync(
+            org.id,
+            user.id,
+            seen={(bot.id, GUILD, account.platform_user_id): frozenset()},
+        )
         after = await _membership(db, org, user)
         assert (after.id, after.source, after.role) == (membership_id, "discord", expected)
 
@@ -877,6 +881,7 @@ class TestMappings:
         with pytest.raises(NotFoundError):
             await service.list_mappings(self._ctx(org, owner), (await _bot(db, other)).id)
 
+    @pytest.mark.security
     async def test_group_only_mapping_cannot_be_cascaded_without_channel_permission(
         self, db, discord
     ):

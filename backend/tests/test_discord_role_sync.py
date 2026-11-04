@@ -580,6 +580,7 @@ async def test_rest_allowance_is_shared_by_all_linked_accounts(metered, monkeypa
     }
 
 
+@pytest.mark.security
 async def test_expired_budget_still_uses_confirmed_payload_without_an_rpc():
     bot, user = uuid.uuid4(), uuid.uuid4()
     mapping = MagicMock(channel_bot_id=bot, guild_id="g")
@@ -601,6 +602,7 @@ async def test_expired_budget_still_uses_confirmed_payload_without_an_rpc():
     meter.assert_not_awaited()
 
 
+@pytest.mark.security
 async def test_message_checks_for_two_accounts_share_the_linked_user_budget():
     bot = MagicMock(id=uuid.uuid4())
     user = uuid.uuid4()
