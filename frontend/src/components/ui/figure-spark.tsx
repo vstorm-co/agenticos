@@ -1,5 +1,7 @@
 "use client";
 
+import { CHART_TOOLTIP_CONTENT, CHART_TOOLTIP_ITEM, CHART_TOOLTIP_LABEL } from "@/lib/chart-styles";
+
 import { useLocale } from "next-intl";
 import { useId } from "react";
 import { Area, AreaChart, ResponsiveContainer, Tooltip } from "recharts";
@@ -56,15 +58,9 @@ export function FigureSpark({
                 : numbers.format(value)
               : ""
           }
-          contentStyle={{
-            background: "var(--color-popover)",
-            border: "1px solid var(--color-border)",
-            borderRadius: 8,
-            color: "var(--color-popover-foreground)",
-            fontSize: 12,
-          }}
-          itemStyle={{ color: "var(--color-popover-foreground)" }}
-          labelStyle={{ color: "var(--color-muted-foreground)" }}
+          contentStyle={CHART_TOOLTIP_CONTENT}
+          itemStyle={CHART_TOOLTIP_ITEM}
+          labelStyle={CHART_TOOLTIP_LABEL}
         />
         <Area
           name={name}

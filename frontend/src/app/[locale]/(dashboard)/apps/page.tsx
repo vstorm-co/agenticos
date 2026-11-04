@@ -106,9 +106,18 @@ export default function ArtifactsPage() {
         // Which pages to show is always offered: when every page is archived the
         // live list is empty, and this is the one way to reach them.
         controls={
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
             {(isFiltering || total > 0) && (
               <>
+                <SearchInput
+                  value={query}
+                  onChange={(next) => {
+                    setQuery(next);
+                    setPage(0);
+                  }}
+                  placeholder={t("search")}
+                  className="sm:w-56"
+                />
                 <GroupFilter
                   value={groupId}
                   onChange={(next) => {
@@ -123,15 +132,6 @@ export default function ArtifactsPage() {
                     setAgentId(next);
                     setPage(0);
                   }}
-                />
-                <SearchInput
-                  value={query}
-                  onChange={(next) => {
-                    setQuery(next);
-                    setPage(0);
-                  }}
-                  placeholder={t("search")}
-                  className="sm:w-56"
                 />
               </>
             )}

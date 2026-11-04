@@ -150,6 +150,9 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Keep chart axes, legends and tooltip text readable in both themes across dashboard charts, sparklines and charts made by agents.
+- Simplify the Builder's default sections, distinguish voice modes, align catalog search and filters, and refine table, list and kanban surfaces.
+
 - Soften text-field and select edges and keyboard focus, and align search boxes and toolbar filters at the same height.
 
 - Give console modules a shared set of product icons, consistent optical weight and quieter icon surfaces across navigation, chat and resource cards.

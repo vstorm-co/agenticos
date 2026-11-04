@@ -1,5 +1,7 @@
 "use client";
 
+import { MoreOptions } from "@/components/ui/more-options";
+
 import { useResourceCreation, mergeResourceChoices } from "@/components/agents/resource-creation";
 import { use, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
@@ -1498,16 +1500,6 @@ export default function AgentBuilderPage({ params }: PageProps) {
               onTimeZoneChange={(time_zone) => update({ time_zone })}
             />
 
-            <StartersPanel
-              starters={spec.starters ?? []}
-              icons={spec.starter_icons ?? {}}
-              titles={spec.starter_titles ?? {}}
-              disabled={!canEdit}
-              onChange={(starters, starter_icons, starter_titles) =>
-                update({ starters, starter_icons, starter_titles })
-              }
-            />
-
             {/* The model, then how it is asked: one card, apart from the
                 instructions, which are a thing to read rather than to set. */}
             <Card ref={attachModelCard} data-tour="agent-model" className="scroll-mt-4">
@@ -1540,11 +1532,13 @@ export default function AgentBuilderPage({ params }: PageProps) {
                     <p className="text-muted-foreground text-xs">{t("noModelNeedsConnections")}</p>
                   )}
                 </div>
-                <ModelSettingsForm
-                  value={spec.model_settings}
-                  onChange={(model_settings) => update({ model_settings })}
-                  disabled={!canEdit}
-                />
+                <MoreOptions label={t("modelSettings")}>
+                  <ModelSettingsForm
+                    value={spec.model_settings}
+                    onChange={(model_settings) => update({ model_settings })}
+                    disabled={!canEdit}
+                  />
+                </MoreOptions>
                 <ThinkingSetting
                   definition={capabilities.find((entry) => entry.id === THINKING_ID)}
                   binding={spec.capabilities.find((binding) => binding.id === THINKING_ID)}
@@ -1581,6 +1575,16 @@ export default function AgentBuilderPage({ params }: PageProps) {
                 ),
               }}
               disabled={!canEdit}
+            />
+
+            <StartersPanel
+              starters={spec.starters ?? []}
+              icons={spec.starter_icons ?? {}}
+              titles={spec.starter_titles ?? {}}
+              disabled={!canEdit}
+              onChange={(starters, starter_icons, starter_titles) =>
+                update({ starters, starter_icons, starter_titles })
+              }
             />
 
             {/* Discovery metadata, not the spec: it autosaves at once like the

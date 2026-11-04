@@ -2943,3 +2943,12 @@ body .tour-spotlight {
     stroke-width: 1.75;
   }
 }
+
+/* Recharts makes SVG groups focusable for keyboard navigation. Pointer clicks
+   must not leave the browser's blue outline around an entire series; the
+   shared :focus-visible rule still identifies keyboard focus. */
+@layer base {
+  .recharts-wrapper :focus:not(:focus-visible) {
+    outline: none;
+  }
+}

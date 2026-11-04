@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
@@ -7,10 +7,20 @@ import { StartersPanel } from "./starters-panel";
 function panel(starters: string[], disabled = false) {
   const onChange = vi.fn();
   render(<StartersPanel starters={starters} disabled={disabled} onChange={onChange} />);
+  fireEvent.click(screen.getByText("First messages"));
   return onChange;
 }
 
 describe("StartersPanel", () => {
+  it("keeps existing first messages folded until their section is opened", async () => {
+    render(<StartersPanel starters={["Keep this message"]} disabled={false} onChange={vi.fn()} />);
+    expect(screen.getByLabelText("First message 1")).not.toBeVisible();
+    await userEvent.click(screen.getByText("First messages"));
+    expect(screen.getByRole("textbox", { name: "First message 1" })).toHaveValue(
+      "Keep this message",
+    );
+  });
+
   it("adds a first message with the button or Enter", async () => {
     const onChange = panel(["What can you do?"]);
     const input = screen.getByRole("textbox", { name: "New first message" });
@@ -34,6 +44,7 @@ describe("StartersPanel", () => {
         onChange={onChange}
       />,
     );
+    await userEvent.click(screen.getByText("First messages"));
     await userEvent.click(screen.getByRole("button", { name: "Icon for first message 1" }));
     await userEvent.click(screen.getByRole("button", { name: /^Search$/ }));
     expect(onChange).toHaveBeenLastCalledWith(

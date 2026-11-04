@@ -442,9 +442,9 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
           "bg-card border-border flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border",
         )}
       >
-        <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b px-4 py-3 sm:px-5">
+        <div className="bg-background/40 flex shrink-0 flex-col items-start gap-3 border-b px-4 py-4 sm:px-5">
           {/* What the records are laid out as, and which saved view of them - one group. */}
-          <div className="flex min-w-0 flex-wrap items-center gap-3">
+          <div className="flex w-full min-w-0 flex-wrap items-center justify-between gap-3">
             <div className="flex flex-col gap-1" data-tour="table-view-tabs">
               <span id="table-format-label" className="sr-only">
                 {t("formatLabel")}
@@ -471,9 +471,16 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
                 onValueChange={(next) => setTab(parseTab(next))}
                 className="hidden sm:block"
               >
-                <TabsList aria-labelledby="table-format-label" className="gap-2">
+                <TabsList
+                  aria-labelledby="table-format-label"
+                  className="bg-foreground/[0.04] gap-1 rounded-lg p-1 shadow-none"
+                >
                   {VIEW_TABS.map(({ kind, icon: Icon }) => (
-                    <TabsTrigger key={kind} value={kind} className="gap-1.5 text-xs">
+                    <TabsTrigger
+                      key={kind}
+                      value={kind}
+                      className="data-[state=active]:bg-card gap-1.5 rounded-md border-0 px-3 py-2 text-xs data-[state=active]:border-transparent data-[state=active]:shadow-sm"
+                    >
                       <Icon aria-hidden="true" className="size-3.5" />
                       {t(`tabs.${kind}`)}
                     </TabsTrigger>
@@ -523,7 +530,7 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
               }
             />
           </div>
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex w-full flex-wrap items-center gap-2 [&>button]:h-9">
             <SearchInput
               value={searchDraft}
               onChange={setSearchDraft}
@@ -625,10 +632,10 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
                 groupable.length > 1 &&
                 !activeView?.config.group_by && (
                   // Picked here rather than saved: it can be picked again.
-                  <div className="text-muted-foreground mb-3 flex items-center gap-2 text-sm">
+                  <div className="text-muted-foreground flex items-center gap-2 px-4 pt-4 text-xs">
                     {t("kanbanGroupBy")}
                     <Select value={groupBy ?? ""} onValueChange={setGroupPick}>
-                      <SelectTrigger className="h-8 w-44" aria-label={t("kanbanGroupBy")}>
+                      <SelectTrigger size="sm" className="w-44" aria-label={t("kanbanGroupBy")}>
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
