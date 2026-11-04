@@ -1,5 +1,5 @@
 ---
-source_sha: "31a5ece71bdd"
+source_sha: "5ca3ec8a61d8"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -1062,6 +1062,8 @@ numer nadawcy, połączone dwukropkami: `ACxxxxxxxx:auth_token:+15551234567`. Bo
 wyłącznie przez webhook; po zapisaniu wklej pokazany adres webhooka w ustawieniu wiadomości
 przychodzących numeru w konsoli Twilio. Adres, który Twilio podpisuje, jest budowany z `PUBLIC_BASE_URL`, więc to ustawienie musi być adresem, pod którym Twilio faktycznie dzwoni: za proxy, które go przepisuje, każdy SMS jest odrzucany.
 
+Załączniki przychodzące współdzielą limit przyjęcia 64 MiB zakodowanych danych na bota, utrzymywany przez 15 minut od ostatniej przyjętej rezerwacji. Wyczerpanie limitu zwraca 429 z Retry-After przed zapisaniem plików lub wątku; przekaźnik może później ponowić tę samą wiadomość. Odczyt pliku usuwa go z pamięci podręcznej. Odpowiedzi i pytania zachowują wątek własnej wiadomości wejściowej także wtedy, gdy w międzyczasie nadejdzie kolejna.
+
 **Kto pisze.** Żądanie jest przyjmowane tylko z poprawnym podpisem Twilio — HMAC-SHA1 adresu,
 który Twilio wywołało, i jego pól, pod tokenem autoryzacji — a wszystko inne dostaje 403, zanim
 cokolwiek zostanie odczytane. Poprawny podpis dowodzi, że żądanie przyszło od Twilio. Nie
@@ -1127,6 +1129,8 @@ podpisu albo różniące się o ponad pięć minut to 403, zanim cokolwiek z nie
 bez sekretu odrzuca wszystko. Treść ma limit 25 MB, czytanych jest do dziesięciu załączników, a
 identyfikator wiadomości widziany już wcześniej jest pomijany, więc ponowienie przez przekaźnik uruchamia
 agenta raz.
+
+Załączniki przychodzące współdzielą limit przyjęcia 64 MiB zakodowanych danych na bota, utrzymywany przez 15 minut od ostatniej przyjętej rezerwacji. Wyczerpanie limitu zwraca 429 z Retry-After przed zapisaniem plików lub wątku; przekaźnik może później ponowić tę samą wiadomość. Odczyt pliku usuwa go z pamięci podręcznej. Odpowiedzi i pytania zachowują wątek własnej wiadomości wejściowej także wtedy, gdy w międzyczasie nadejdzie kolejna.
 
 **Kto pisze.** Podpis dowodzi, że żądanie wysłał przekaźnik, a nie kto napisał maila: adres to tylko
 deklaracja. Osoba działa z własnymi uprawnieniami dopiero po powiązaniu tego adresu ze swoim kontem

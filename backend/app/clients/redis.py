@@ -28,6 +28,14 @@ redis.call('set', KEYS[1], last + tonumber(ARGV[2]), 'EX', ARGV[3])
 return last + 1
 """
 
+_RESERVE_CAPACITY = """
+local used = tonumber(redis.call('get', KEYS[1]) or '0')
+local amount = tonumber(ARGV[1])
+if used + amount > tonumber(ARGV[2]) then return 0 end
+redis.call('set', KEYS[1], used + amount, 'EX', ARGV[3])
+return 1
+"""
+
 _UPDATE_MAPPING = """
 local values = cjson.decode(redis.call('get', KEYS[1]) or '{}')
 for key, value in pairs(cjson.decode(ARGV[1])) do values[key] = value end
@@ -128,6 +136,13 @@ class RedisClient:
         if not isinstance(result, int):
             raise TypeError("Redis returned an invalid number reservation")
         return result
+
+    async def reserve_capacity(self, key: str, *, amount: int, capacity: int, ttl: int) -> bool:
+        """Reserve a bounded amount atomically until the last accepted reservation expires."""
+        if amount <= 0 or capacity <= 0 or ttl <= 0:
+            raise ValueError("Capacity reservations require positive amounts, capacity and TTL")
+        reserved = await self.raw.eval(_RESERVE_CAPACITY, 1, key, amount, capacity, ttl)
+        return bool(reserved)
 
     async def update_mapping(
         self, key: str, *, updates: dict[str, str], remove: Sequence[str] = (), ttl: int

@@ -55,6 +55,16 @@ class _Redis:
     async def delete(self, key: str) -> int:
         return int(self.data.pop(key, None) is not None)
 
+    async def getdel(self, key: str) -> str | None:
+        return self.data.pop(key, None)
+
+    async def reserve_capacity(self, key: str, *, amount: int, capacity: int, ttl: int) -> bool:
+        used = int(self.data.get(key, "0"))
+        if used + amount > capacity:
+            return False
+        self.data[key] = str(used + amount)
+        return True
+
     async def reserve_range(self, key: str, *, minimum: int, count: int, ttl: int) -> int:
         last = max(int(self.data.get(key, "0")), minimum)
         self.data[key] = str(last + count)
@@ -167,11 +177,8 @@ class TestParsing:
         assert (incoming.platform_user_id, incoming.platform_chat_id) == ("ada@acme.com",) * 2
         assert incoming.text == "Hello" and incoming.chat_type == "private" and incoming.addressed
         (attachment,) = incoming.attachments
-        assert (attachment.filename, attachment.mime_type, attachment.handle) == (
-            "a.txt",
-            "text/plain",
-            "bot-1:<1@acme>:0",
-        )
+        assert (attachment.filename, attachment.mime_type) == ("a.txt", "text/plain")
+        assert attachment.handle.startswith("bot-1:") and attachment.handle.endswith(":0")
 
     @pytest.mark.parametrize(
         "payload",
@@ -192,7 +199,9 @@ class TestParsing:
 
         assert incoming is not None
         assert incoming.attachments[0].filename == "attachment-1"
-        assert incoming.attachments[0].handle == "b:none:0"
+        again = EmailAdapter().parse_incoming(payload, "b")
+        assert again is not None
+        assert incoming.attachments[0].handle != again.attachments[0].handle
         assert EmailAdapter().parse_incoming({"from": "a@b.co", "attachments": "x"}, "b") is None
 
 
@@ -338,13 +347,13 @@ class TestPromptsAndFiles:
         )
         assert await sms_prompts.answer("bot-1", "ada@acme.com", "2", platform="email") is None
 
-    async def test_an_attachment_is_read_back_until_it_expires(self, redis: _Redis) -> None:
+    async def test_an_attachment_is_removed_after_consumption(self, redis: _Redis) -> None:
         handle = "bot:<1>:0"
         await email_state.stash_attachment(handle, base64.b64encode(b"hello").decode())
         item = IncomingAttachment(filename="a", mime_type="text/plain", size=5, handle=handle)
 
         assert await EmailAdapter().download_attachment(BOT_ADDRESS, item) == b"hello"
-        redis.data.clear()
+        assert f"channel:email:file:{handle}" not in redis.data
         with pytest.raises(ValueError, match="no longer available"):
             await EmailAdapter().download_attachment(BOT_ADDRESS, item)
 
@@ -432,7 +441,8 @@ class TestTheWebhook:
         thread = await email_state.thread_of("agent@mail.acme.com", "ada@acme.com")
         assert thread is not None and thread.subject == "Invoice"
         assert thread.references == ["<0@acme>", "<1@acme>"]
-        assert await email_state.take_attachment(f"{bot.id}:<1@acme>:0") == "aGk="
+        files = [key for key in redis.data if key.startswith(f"channel:email:file:{bot.id}:")]
+        assert len(files) == 1 and await redis.get(files[0]) == "aGk="
 
     async def test_a_lone_number_that_fits_a_waiting_prompt_is_a_press(self, redis: _Redis) -> None:
         bot = self._bot()
@@ -570,3 +580,62 @@ class TestCreatingABot:
         with pytest.raises(BadRequestError):
             ChannelBotService._check_email(data(webhook_secret=None))
         ChannelBotService._check_email_token("telegram", "anything")
+
+
+async def test_parallel_replies_keep_their_inbound_thread(
+    redis: _Redis, provider: _Provider
+) -> None:
+    import asyncio
+
+    from app.core.background import spawn
+
+    first = email_state.Thread("First", "<first>", ["<first>"])
+    second = email_state.Thread("Second", "<second>", ["<second>"])
+    ready = asyncio.Event()
+
+    async def reply(text: str) -> None:
+        await ready.wait()
+        await EmailAdapter().send_message(
+            BOT_ADDRESS, OutgoingMessage(platform_chat_id="ada@acme.com", text=text)
+        )
+
+    with email_state.replying_to(BOT_ADDRESS.lower(), "ada@acme.com", first):
+        one = spawn(reply("one"), name="first-mail-test")
+    with email_state.replying_to(BOT_ADDRESS.lower(), "ada@acme.com", second):
+        two = spawn(reply("two"), name="second-mail-test")
+    await email_state.remember_thread(
+        BOT_ADDRESS.lower(),
+        "ada@acme.com",
+        subject="Unrelated latest mail",
+        message_id="<third>",
+        references=[],
+    )
+    ready.set()
+    await asyncio.gather(one, two)
+    assert {mail.text: mail.headers["In-Reply-To"] for mail in provider.sent} == {
+        "one": "<first>",
+        "two": "<second>",
+    }
+    latest = await email_state.thread_of(BOT_ADDRESS.lower(), "ada@acme.com")
+    assert latest is not None and latest.message_id == "<third>"
+
+
+async def test_email_storage_quota_refuses_before_caching_and_allows_retry(redis: _Redis) -> None:
+    webhook = TestTheWebhook()
+    bot = webhook._bot()
+    redis.data[f"channel:email:capacity:{bot.id}"] = str(email_state.MAX_CACHED_ATTACHMENT_BYTES)
+    payload = {
+        "from": "ada@acme.com",
+        "sender_authentication": {"dmarc": "pass", "from": "ada@acme.com"},
+        "message_id": "<limited>",
+        "text": "File",
+        "attachments": [{"content_base64": "aGk="}],
+    }
+    async with webhook._wired(bot) as spawned, _client(bot) as client:
+        response = await client.post(f"{webhook.ROOT}/{bot.id}/inbound", **_post(payload))
+        assert response.status_code == 429 and spawned == []
+        assert not any(key.startswith("channel:email:file:") for key in redis.data)
+        assert await email_state.thread_of(BOT_ADDRESS.lower(), "ada@acme.com") is None
+        redis.data.pop(f"channel:email:capacity:{bot.id}")
+        retried = await client.post(f"{webhook.ROOT}/{bot.id}/inbound", **_post(payload))
+        assert retried.status_code == 200 and len(spawned) == 1

@@ -1,5 +1,5 @@
 ---
-source_sha: "31a5ece71bdd"
+source_sha: "5ca3ec8a61d8"
 ---
 
 # Einen Agent dorthin bringen, wo die Menschen schon sind { #putting-an-agent-where-people-already-are }
@@ -1135,6 +1135,8 @@ Auth-Token und die Absendernummer, durch Doppelpunkte verbunden:
 Speichern die angezeigte Webhook-URL in die Einstellung für eingehende Nachrichten der Nummer in
 der Twilio-Konsole ein. Die Adresse, die Twilio signiert, wird aus `PUBLIC_BASE_URL` gebaut; diese Einstellung muss also die Adresse sein, die Twilio tatsächlich aufruft: Hinter einem Proxy, der sie umschreibt, wird jede SMS abgelehnt.
 
+Eingehende Anhänge teilen ein Annahmebudget von 64 MiB kodierter Daten pro Bot, das bis 15 Minuten nach der letzten akzeptierten Reservierung gilt. Bei Erschöpfung wird 429 mit Retry-After zurückgegeben, bevor Dateien oder Verlauf gespeichert werden; das Relay kann dieselbe Nachricht später erneut senden. Gelesene Dateien werden aus dem Cache entfernt. Antworten und Rückfragen bleiben im Verlauf ihrer eigenen Eingangsnachricht, auch wenn inzwischen eine weitere eintrifft.
+
 **Wer schreibt.** Eine Anfrage wird nur mit gültiger Twilio-Signatur angenommen - HMAC-SHA1 der
 Adresse, die Twilio aufgerufen hat, und ihrer Felder, unter dem Auth-Token - alles andere ist ein
 403, bevor ein Wort davon gelesen wird. Eine gültige Signatur beweist, dass die Anfrage von Twilio
@@ -1206,6 +1208,8 @@ ohne gültige Signatur oder mit mehr als fünf Minuten Abweichung ist ein 403, b
 gelesen wird, und ein Bot ohne Geheimnis weist alles ab. Der Body ist auf 25 MB begrenzt, bis zu zehn
 Anhänge werden gelesen, und eine bereits gesehene Nachrichten-ID wird ignoriert, sodass ein erneuter
 Versuch des Relays den Agenten nur einmal startet.
+
+Eingehende Anhänge teilen ein Annahmebudget von 64 MiB kodierter Daten pro Bot, das bis 15 Minuten nach der letzten akzeptierten Reservierung gilt. Bei Erschöpfung wird 429 mit Retry-After zurückgegeben, bevor Dateien oder Verlauf gespeichert werden; das Relay kann dieselbe Nachricht später erneut senden. Gelesene Dateien werden aus dem Cache entfernt. Antworten und Rückfragen bleiben im Verlauf ihrer eigenen Eingangsnachricht, auch wenn inzwischen eine weitere eintrifft.
 
 **Wer schreibt.** Die Signatur beweist, dass das Relay die Anfrage gesendet hat, nicht wer die Mail
 geschrieben hat: Eine Adresse ist eine Behauptung. Eine Person handelt erst dann mit ihren eigenen

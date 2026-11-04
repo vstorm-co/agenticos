@@ -146,6 +146,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Keep concurrent email replies and approval prompts in their originating mail thread, give inbound files unique handles, bound aggregate attachment admission before caching, and remove consumed file blobs.
+
 - Reject timezone-less memory corrections, allow disabling a watch failure limit, extract facts from the newest conversation turns, rotate parked device work fairly, and announce committed conversation updates across chat, workflows, watches and phone calls.
 
 - Reject malformed or nonpositive routine budgets instead of silently removing their spending limit.

@@ -43,6 +43,7 @@ import re
 import time
 from collections.abc import AsyncIterable
 from typing import Any, Literal
+from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
@@ -248,7 +249,11 @@ class EmailAdapter(ChannelAdapter):
             return None
         text = reply_body(str(raw_payload.get("text") or ""))
         message_id = str(raw_payload.get("message_id") or "") or None
-        attachments = self._attachments(raw_payload.get("attachments"), bot_id, message_id)
+        if message_id is not None and (
+            len(message_id) > 998 or "\n" in message_id or "\r" in message_id
+        ):
+            return None
+        attachments = self._attachments(raw_payload.get("attachments"), bot_id)
         if not text and not attachments:
             return None
         return IncomingMessage(
@@ -265,9 +270,10 @@ class EmailAdapter(ChannelAdapter):
         )
 
     @staticmethod
-    def _attachments(raw: Any, bot_id: str, message_id: str | None) -> list[IncomingAttachment]:
+    def _attachments(raw: Any, bot_id: str) -> list[IncomingAttachment]:
         if not isinstance(raw, list):
             return []
+        delivery = uuid4().hex
         found: list[IncomingAttachment] = []
         for index, item in enumerate(raw[:MAX_ATTACHMENTS]):
             if not isinstance(item, dict) or not isinstance(item.get("content_base64"), str):
@@ -278,27 +284,48 @@ class EmailAdapter(ChannelAdapter):
                     filename=str(item.get("filename") or f"attachment-{index + 1}"),
                     mime_type=str(item.get("content_type") or "application/octet-stream"),
                     size=len(encoded) * 3 // 4,
-                    handle=f"{bot_id}:{message_id or 'none'}:{index}",
+                    handle=f"{bot_id}:{delivery}:{index}",
                 )
             )
         return found
 
 
-async def keep_inbound(bot_token: str, incoming: IncomingMessage, payload: dict[str, Any]) -> None:
+async def keep_inbound(
+    bot_token: str, incoming: IncomingMessage, payload: dict[str, Any]
+) -> email_state.Thread | None:
     """Remember what the reply needs: the thread to answer into, and the files to read."""
+    encoded_bytes = sum(
+        len(payload["attachments"][int(item.handle.rsplit(":", 1)[1])]["content_base64"].encode())
+        for item in incoming.attachments
+    )
+    if not await email_state.reserve_attachments(incoming.bot_id, encoded_bytes):
+        return None
     references = payload.get("references")
+    chain = (
+        [str(item)[:998] for item in references[-email_state.MAX_REFERENCES :]]
+        if isinstance(references, list)
+        else []
+    )
+    thread = email_state.Thread(
+        subject=str(payload.get("subject") or "")[:998],
+        message_id=incoming.message_id,
+        references=[*chain, *([incoming.message_id] if incoming.message_id else [])][
+            -email_state.MAX_REFERENCES :
+        ],
+    )
     await email_state.remember_thread(
         bot_token.strip().lower(),
         incoming.platform_chat_id,
-        subject=str(payload.get("subject") or ""),
+        subject=str(payload.get("subject") or "")[:998],
         message_id=incoming.message_id,
-        references=[str(item) for item in references] if isinstance(references, list) else [],
+        references=chain,
     )
     for attachment in incoming.attachments:
         index = int(attachment.handle.rsplit(":", 1)[1])
         await email_state.stash_attachment(
             attachment.handle, payload["attachments"][index]["content_base64"]
         )
+    return thread
 
 
 async def read_webhook_body(chunks: AsyncIterable[bytes], *, max_bytes: int) -> bytes | None:

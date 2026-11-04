@@ -1093,6 +1093,8 @@ signature, or one more than five minutes off, is a 403 before a word of it is re
 secret refuses everything. The body is capped at 25 MB, up to ten attachments are read, and a message id
 seen before is ignored, so a relay's retry runs the agent once.
 
+Inbound attachments share a 64 MiB encoded-byte admission budget per bot, retained for 15 minutes after the last accepted reservation. Exhaustion returns 429 with Retry-After before any file or thread is cached; the relay can retry the same message later. Reading a cached file removes it. Replies and prompts retain the thread of their own inbound message even when another message arrives meanwhile.
+
 **Who is writing.** The signature proves the relay sent the request, not who wrote the mail: an
 address is a claim. A person acts with their own permissions only once they have linked that address to
 their account like any other channel identity. Every message must include

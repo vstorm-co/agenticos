@@ -1,5 +1,5 @@
 ---
-source_sha: "31a5ece71bdd"
+source_sha: "5ca3ec8a61d8"
 ---
 
 # Poner un agent donde la gente ya está { #putting-an-agent-where-people-already-are }
@@ -1082,6 +1082,8 @@ de autenticación y el número desde el que envía, unidos con dos puntos:
 pega la URL del webhook que se muestra en el ajuste de mensajes entrantes del número en la consola
 de Twilio. La dirección que Twilio firma se construye a partir de `PUBLIC_BASE_URL`, así que ese ajuste tiene que ser la dirección a la que Twilio llama de verdad: tras un proxy que la reescribe, todo SMS se rechaza.
 
+Los adjuntos entrantes comparten un presupuesto de admisión de 64 MiB de datos codificados por bot, conservado durante 15 minutos desde la última reserva aceptada. Al agotarse, se devuelve 429 con Retry-After antes de guardar archivos o el hilo; el relay puede reintentar el mismo mensaje más tarde. Leer un archivo lo elimina de la caché. Las respuestas y preguntas conservan el hilo de su propio mensaje entrante aunque llegue otro mientras tanto.
+
 **Quién escribe.** Una petición se acepta solo con una firma de Twilio válida - HMAC-SHA1 de la
 dirección a la que Twilio llamó y de sus campos, con el token de autenticación - y cualquier otra
 recibe un 403 antes de leer una palabra. Una firma válida prueba que la petición vino de Twilio. No
@@ -1149,6 +1151,8 @@ y lo firma con dos cabeceras: `X-AgenticOS-Timestamp` (segundos unix) y `X-Agent
 válida, o con más de cinco minutos de diferencia, recibe un 403 antes de leer una palabra, y un bot sin
 secreto rechaza todo. El cuerpo está limitado a 25 MB, se leen hasta diez adjuntos y un identificador de
 mensaje ya visto se ignora, de modo que un reintento del relay ejecuta el agente una sola vez.
+
+Los adjuntos entrantes comparten un presupuesto de admisión de 64 MiB de datos codificados por bot, conservado durante 15 minutos desde la última reserva aceptada. Al agotarse, se devuelve 429 con Retry-After antes de guardar archivos o el hilo; el relay puede reintentar el mismo mensaje más tarde. Leer un archivo lo elimina de la caché. Las respuestas y preguntas conservan el hilo de su propio mensaje entrante aunque llegue otro mientras tanto.
 
 **Quién escribe.** La firma prueba que el relay envió la petición, no quién escribió el correo: una
 dirección es una afirmación. Una persona actúa con sus propios permisos solo cuando ha vinculado esa

@@ -15,12 +15,16 @@ worker than the one that received the message.
 """
 
 import json
+from collections.abc import Generator
+from contextlib import contextmanager
+from contextvars import ContextVar
 from dataclasses import asdict, dataclass
 
 from app.clients.redis import RedisClient
 
 THREAD_TTL_SECONDS = 30 * 24 * 60 * 60
 ATTACHMENT_TTL_SECONDS = 15 * 60
+MAX_CACHED_ATTACHMENT_BYTES = 64 * 1024 * 1024
 SEEN_TTL_SECONDS = 24 * 60 * 60
 MAX_REFERENCES = 20
 """Headers grow with every reply; a mail server refuses a long enough `References`."""
@@ -39,6 +43,41 @@ class Thread:
     subject: str
     message_id: str | None
     references: list[str]
+
+
+_reply_thread: ContextVar[tuple[str, str, Thread] | None] = ContextVar(
+    "email_reply_thread", default=None
+)
+
+
+@contextmanager
+def replying_to(bot_address: str, chat_id: str, thread: Thread) -> Generator[None]:
+    """Pin replies and prompts to this delivery, including tasks spawned while handling it."""
+    token = _reply_thread.set((bot_address, chat_id, thread))
+    try:
+        yield
+    finally:
+        _reply_thread.reset(token)
+
+
+async def reserve_attachments(bot_id: str, encoded_bytes: int) -> bool:
+    """Bound all unconsumed inbound files for a bot, even before sender admission."""
+    if encoded_bytes == 0:
+        return True
+    if _redis is None:
+        return False
+    return await _redis.reserve_capacity(
+        f"channel:email:capacity:{bot_id}",
+        amount=encoded_bytes,
+        capacity=MAX_CACHED_ATTACHMENT_BYTES,
+        ttl=ATTACHMENT_TTL_SECONDS,
+    )
+
+
+async def release_delivery(bot_id: str, message_id: str | None) -> None:
+    """Make a refused storage reservation retriable without claiming a successful delivery."""
+    if _redis is not None and message_id:
+        await _redis.delete(f"channel:email:seen:{bot_id}:{message_id}")
 
 
 def _thread_key(bot_address: str, chat_id: str) -> str:
@@ -65,6 +104,9 @@ async def remember_thread(
 
 async def thread_of(bot_address: str, chat_id: str) -> Thread | None:
     """The thread to answer into, or `None` when there is none to continue."""
+    pinned = _reply_thread.get()
+    if pinned is not None and pinned[:2] == (bot_address, chat_id):
+        return pinned[2]
     if _redis is None:
         return None
     stored = await _redis.get(_thread_key(bot_address, chat_id))
@@ -81,7 +123,7 @@ async def take_attachment(handle: str) -> str | None:
     """The base64 content of a stashed file, or `None` once it has expired."""
     if _redis is None:
         return None
-    return await _redis.get(f"channel:email:file:{handle}")
+    return await _redis.getdel(f"channel:email:file:{handle}")
 
 
 async def first_delivery(bot_id: str, message_id: str | None) -> bool:
