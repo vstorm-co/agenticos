@@ -26,6 +26,9 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- MCP connections with **Include instructions** enabled no longer abort agent
+  turns while Pydantic AI collects their instructions. Toolset IDs use the
+  connection’s safe tool prefix. (#2713)
 - Save assistant message parts containing local or conversation file origins without UUID serialization errors in JSONB, preserving their order and omitting unset fields. (#2709)
 
 ## [1.46.0] - 2026-11-04
