@@ -6656,7 +6656,10 @@
     "modelRegionEu": "Yalnızca AB",
     "modelRegionGlobal": "Küresel",
     "modelRegionHint": "Stav.ai’nin bu modelin isteklerini çalıştırabileceği bölge. Yalnızca bu bölgedeki uç noktalardan yanıt verir; orada çalıştıramadığı istekleri reddeder.",
-    "stavEndpointHint": "api.stav.ai için boş bırakın. Yalnızca Stav.ai’nin bölgesel veya test uç noktası için değiştirin."
+    "stavEndpointHint": "api.stav.ai için boş bırakın. Yalnızca Stav.ai’nin bölgesel veya test uç noktası için değiştirin.",
+    "otariEndpointHint": "Modelleri yüklemeden önce /api/v1 ile biten ağ geçidi URL’sini girin. Barındırılan hizmet: https://api.otari.ai/api/v1. AB: https://eu.api.otari.ai/api/v1.",
+    "loadGatewayModels": "Modelleri yükle",
+    "modelIdOtariHint": "Otari ağ geçidinizde tanımlanan provider:model biçimini veya bir takma ad/yönlendirme politikasını kullanın."
   },
   "dashboard": {
     "edit": {

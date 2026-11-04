@@ -73,6 +73,7 @@ const SEARCH: CapabilityCatalogEntry = {
     kind: "api_key",
     description: "The API key for the chosen search service",
     required_when: { field: "method", equals: ["tavily", "brave", "exa"] },
+    optional_when: { field: "method", equals: ["keenable"] },
     purpose: null,
   },
 };
@@ -930,4 +931,15 @@ describe("CapabilitySettings coding agent sign-in", () => {
       ),
     ).toBe("custom");
   });
+});
+
+it("offers an optional Keenable key without making keyless search look invalid", async () => {
+  serve([{ ...API_KEY_SECRET, name: "Keenable API key" }]);
+  const onChange = vi.fn();
+  mount(binding({ config: { method: "keenable" } }), { definition: SEARCH, onChange });
+  await waitFor(() => expect(picker()).toHaveTextContent("No secret"));
+  expect(screen.queryByText(/No secret selected/)).not.toBeInTheDocument();
+  await userEvent.click(screen.getByLabelText("Secret"));
+  await userEvent.click(screen.getByRole("option", { name: /Keenable API key/ }));
+  expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ secret_id: "sec-1" }));
 });

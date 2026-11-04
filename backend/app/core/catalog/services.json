@@ -27,6 +27,15 @@
     "icon": "exa"
   },
   {
+    "id": "keenable",
+    "label": "Keenable",
+    "category": "search",
+    "kind": "api_key",
+    "help_url": "https://docs.keenable.ai/authentication",
+    "description": "Web search without an account; an optional key uses your organization's allowance.",
+    "icon": "keenable"
+  },
+  {
     "id": "logfire",
     "label": "Logfire",
     "category": "observability",

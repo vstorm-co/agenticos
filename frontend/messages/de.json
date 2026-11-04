@@ -605,6 +605,9 @@
     "modelApiStored": "{api}, an diesem Modell festgelegt",
     "modelApiFromModelHint": "Stav.ai bedient die meisten Modelle über Chat Completions und einige nur über Responses. Das Modell entscheidet.",
     "stavEndpointHint": "Leer lassen für api.stav.ai. Nur für einen regionalen oder Test-Endpunkt von Stav.ai setzen.",
+    "otariEndpointHint": "Vor dem Laden der Modelle die Gateway-URL mit /api/v1 angeben. Hosting: https://api.otari.ai/api/v1. EU: https://eu.api.otari.ai/api/v1.",
+    "loadGatewayModels": "Modelle laden",
+    "modelIdOtariHint": "provider:model oder einen im Otari-Gateway definierten Alias beziehungsweise eine Routing-Policy verwenden.",
     "modelRegion": "Region",
     "modelRegionHint": "Wo Stav.ai die Anfragen dieses Modells ausführen darf. Es antwortet nur von Endpunkten in der Region und lehnt eine Anfrage ab, die es dort nicht bedienen kann.",
     "modelRegionEu": "Nur EU",
@@ -10742,7 +10745,7 @@
       "does": "Der Agent sucht im Internet nach aktuellen Informationen.",
       "example1": "Was hat sich dieses Jahr an dieser Vorschrift geändert?",
       "example2": "Drei Wettbewerber und ihre Preise finden",
-      "needs": "Nichts, mit DuckDuckGo. Brave, Exa oder Tavily brauchen ihren API-Schlüssel im Vault.",
+      "needs": "Nichts, mit DuckDuckGo oder Keenable (ein Keenable-Schlüssel im Vault ist optional). Brave, Exa oder Tavily brauchen ihren API-Schlüssel im Vault.",
       "never": "Schickt nie Ihre Dokumente an die Suchmaschine, nur die Suchwörter."
     },
     "visuals": {
@@ -11259,7 +11262,7 @@
     "web_research": {
       "method": {
         "title": "Suchmaschine",
-        "description": "duckduckgo: kostenlos, ohne Konto, Ergebnisse als anklickbare Quellen. native: Der Provider des Modells sucht mit eigenem Index und Zitaten (nur auf Modellen, die das unterstützen). tavily: für ein Modell zusammengefasst. brave: ein eigener Index. exa: Suche nach Bedeutung statt nach Stichwörtern."
+        "description": "duckduckgo: kostenlos, ohne Konto, Ergebnisse als anklickbare Quellen. native: Der Provider des Modells sucht mit eigenem Index und Zitaten (nur auf Modellen, die das unterstützen). tavily: für ein Modell zusammengefasst. brave: ein eigener Index. exa: Suche nach Bedeutung statt nach Stichwörtern. keenable: ohne Konto; ein API-Schlüssel ist optional."
       },
       "max_results": {
         "title": "Ergebnisse pro Suche",

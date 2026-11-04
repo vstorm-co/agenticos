@@ -1,5 +1,5 @@
 ---
-source_sha: "a9c402805186"
+source_sha: "9990e62dfb03"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -557,7 +557,7 @@ ajuste que amplíe el corpus.
 
 | Configuración | Valor por defecto | Valores |
 |---|---|---|
-| `method` | `duckduckgo` | `duckduckgo`, `native`, `tavily`, `brave`, `exa` |
+| `method` | `duckduckgo` | `duckduckgo`, `native`, `tavily`, `brave`, `exa`, `keenable` |
 | `max_results` | 5 | 1–10, ignorado por `native` |
 
 La consola nombra cada método en lugar de imprimir el valor que almacena, y dibuja
@@ -573,6 +573,7 @@ como una clave de configuración que reconocer y no como un producto que elegir.
 - **`tavily`** — resultados resumidos para que los lea un modelo.
 - **`brave`** — un índice propio.
 - **`exa`** — búsqueda por significado en vez de por palabra clave.
+- **`keenable`** — sin cuenta; una clave de API opcional de los secretos de la organización activa el endpoint con clave.
 
 Los tres métodos de pago necesitan una clave de API de los
 [secretos](../secrets.md) de la organización, nombrada por el `secret_id` de la
