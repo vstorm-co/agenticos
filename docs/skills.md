@@ -741,9 +741,9 @@ What Accept offers comes from the result:
 - **Somebody worse:** apply it and keep those agents pinned on the version they
   have, improve it further, or discard it. On a fork only improving further and
   discarding are offered, since a fork cannot be pinned.
-- **Whatever the result**, on main, make a fork with the change. The agents it
-  helped move onto it unless you pick others, or none. A fork is never forked
-  again.
+- **Whatever the result**, on main, **Save as a fork** makes a fork with the
+  change: name it and pick the agents that move onto it - the ones it helped to
+  begin with, others, or none. A fork is never forked again.
 - **Unknown agents** have to be acknowledged before anything is applied. **Add
   test questions** beside them writes the skill's own questions from answers
   where agents loaded it, so they can be checked next time.

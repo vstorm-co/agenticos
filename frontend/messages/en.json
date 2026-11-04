@@ -15588,7 +15588,7 @@
       "title": "Accept",
       "verdict": {
         "passed": "No agent got worse and at least one got better.",
-        "blocked": "At least one agent got worse. Apply it only by keeping those agents on their version, fork it for the agents it helped, or improve it further.",
+        "blocked": "At least one agent got worse. Apply it only by keeping those agents on their version, save it as a fork, or improve it further.",
         "no_better": "No agent got better, so there is nothing to apply.",
         "needs_ack": "No agent got worse and at least one got better, but some agents could not be checked."
       },
@@ -15600,7 +15600,16 @@
       "apply": "Apply as the next version of {line}",
       "applyAndPin": "Apply, and keep {names} on the version it has",
       "forkName": "Name of the new fork",
-      "forkForHelped": "Make a fork with this change for {names}",
+      "fork": {
+        "open": "Save as a fork…",
+        "title": "Save this change as a fork",
+        "description": "Main stays as it is. The agents you pick move onto the fork; with none picked it waits until one moves to it.",
+        "agents": "Agents to move onto the fork",
+        "defaultName": "Attempt {attempt}",
+        "throughSpecialist": "{count, plural, =1 {1 agent reads the skill through a specialist and is moved in its Builder.} other {# agents read the skill through a specialist and are moved in their Builder.}}",
+        "hidden": "{count, plural, =1 {1 agent you cannot see stays where it is.} other {# agents you cannot see stay where they are.}}",
+        "submit": "{count, plural, =0 {Make the fork, moving no agent} =1 {Make the fork and move 1 agent} other {Make the fork and move # agents}}"
+      },
       "catchUpVerdict": {
         "passed": "No agent got worse with the merge, and at least one got better.",
         "no_better": "No agent got worse with the merge.",

@@ -1,5 +1,5 @@
 ---
-source_sha: "a6a7bf118a42"
+source_sha: "83027778cd54"
 ---
 
 # Skills { #skills }
@@ -785,9 +785,9 @@ Lo que ofrece Aceptar depende del resultado:
 - **Alguien peor:** aplícalo y deja a esos agents fijados en su versión, sigue
   mejorándolo o descártalo. En un fork solo quedan seguir mejorando y descartar,
   porque un fork no se puede fijar.
-- **Sea cual sea el resultado**, en main, crea un fork con el cambio. Pasan a él
-  los agents a los que ayudó, salvo que elijas otros o ninguno. Un fork nunca se
-  bifurca de nuevo.
+- **Sea cual sea el resultado**, en main, **Guardar como fork** crea un fork con
+  el cambio: le pones nombre y eliges los agents que pasan a él - de entrada los
+  que ayudó, otros o ninguno. Un fork nunca se bifurca de nuevo.
 - **Los agents desconocidos** hay que confirmarlos antes de aplicar nada. **Añadir
   preguntas de prueba**, al lado, escribe las preguntas propias del skill a partir
   de respuestas en las que los agents lo cargaron, para poder comprobarlos la

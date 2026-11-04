@@ -67,7 +67,7 @@ export function useSkillImprovementsAwaiting({ enabled = true } = {}) {
   };
 }
 
-/** Apply a measured attempt, or fork it for the agents it helped. */
+/** Apply a measured attempt, or fork it for the agents the person picks. */
 export function useSkillAccept(skillId: string, sessionId: string) {
   const queryClient = useQueryClient();
   const settle = async () => {
@@ -82,7 +82,7 @@ export function useSkillAccept(skillId: string, sessionId: string) {
     onSuccess: settle,
   });
   const fork = useMutation({
-    mutationFn: (body: { name: string; acknowledge_unknown: boolean }) =>
+    mutationFn: (body: { name: string; agent_ids: string[]; acknowledge_unknown: boolean }) =>
       forkSkillImprovement(skillId, sessionId, body),
     onSuccess: settle,
   });

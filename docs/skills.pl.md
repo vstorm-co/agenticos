@@ -1,5 +1,5 @@
 ---
-source_sha: "a6a7bf118a42"
+source_sha: "83027778cd54"
 ---
 
 # Skille { #skills }
@@ -763,9 +763,9 @@ To, co proponuje Akceptacja, wynika z wyniku:
 - **Ktoś gorzej:** zastosuj i zostaw tych agentów przypiętych do ich wersji,
   popraw dalej albo odrzuć. Na forku zostają tylko poprawianie dalej i odrzucenie,
   bo forka nie da się przypiąć.
-- **Niezależnie od wyniku**, na main, zrób fork ze zmianą. Przechodzą na niego
-  agenci, którym pomogła, chyba że wybierzesz innych albo nikogo. Forka nie da się
-  rozwidlić ponownie.
+- **Niezależnie od wyniku**, na main, **Zapisz jako fork** robi fork ze zmianą:
+  nadajesz mu nazwę i wybierasz agentów, którzy na niego przejdą - na początek
+  tych, którym pomogła, innych albo nikogo. Forka nie da się rozwidlić ponownie.
 - **Agentów „nie wiadomo”** trzeba potwierdzić, zanim cokolwiek zostanie
   zastosowane. **Dodaj pytania testowe** obok zapisuje własne pytania skilla z
   odpowiedzi, w których agenci go wczytali, żeby następnym razem dało się ich

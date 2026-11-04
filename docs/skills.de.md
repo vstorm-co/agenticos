@@ -1,5 +1,5 @@
 ---
-source_sha: "a6a7bf118a42"
+source_sha: "83027778cd54"
 ---
 
 # Skills { #skills }
@@ -831,9 +831,10 @@ Was Annehmen anbietet, folgt aus dem Ergebnis:
 - **Jemand schlechter:** anwenden und diese Agents auf ihrer Version festsetzen,
   weiter verbessern oder verwerfen. Auf einem Fork bleiben nur Weiterverbessern
   und Verwerfen, weil ein Fork nicht festgesetzt werden kann.
-- **Was immer das Ergebnis ist**, auf main einen Fork mit der Änderung anlegen.
-  Die Agents, denen sie half, wechseln darauf, außer Sie wählen andere oder keine.
-  Ein Fork wird nie erneut geforkt.
+- **Was immer das Ergebnis ist**, legt **Als Fork speichern** auf main einen Fork
+  mit der Änderung an: Sie benennen ihn und wählen die Agents, die auf ihn
+  wechseln - zu Beginn die, denen sie half, andere oder keine. Ein Fork wird nie
+  erneut geforkt.
 - **Unbekannte Agents** müssen bestätigt werden, bevor etwas angewendet wird.
   **Testfragen hinzufügen** daneben schreibt die eigenen Fragen des Skills aus
   Antworten, in denen Agents ihn geladen haben, damit sie beim nächsten Mal
