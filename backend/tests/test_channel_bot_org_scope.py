@@ -237,7 +237,9 @@ class TestSlackAppCredentials:
                 new=AsyncMock(return_value=bot),
             ) as repo_update,
         ):
-            await service.update(bot.id, ChannelBotUpdate.model_validate({"slack_app_token": None}))
+            await service.update(
+                bot.id, ChannelBotUpdate.model_validate({"slack_app_token": None}), MagicMock()
+            )
 
         assert repo_update.call_args.kwargs["update_data"] == {"slack_app_token_encrypted": None}
 
@@ -482,12 +484,14 @@ class TestAStreamThatOpensWithoutARestart:
         bot = self._bot_row()
         with (
             patch("app.services.channel_bot.channel_bot_repo") as bots,
+            patch("app.services.channel_bot.discord_role_mapping_repo") as mappings,
             patch("app.services.channel_bot.spawn_after_commit") as deferred,
         ):
             bots.get_for_org = AsyncMock(return_value=bot)
             bots.delete = AsyncMock()
+            mappings.list_for_bot = AsyncMock(return_value=[])
 
-            await service.delete(bot.id)
+            await service.delete(bot.id, MagicMock())
 
         deferred.call_args.args[1].close()
         assert deferred.call_args.kwargs["name"] == f"close_channel_stream:{bot.id}"

@@ -97,8 +97,15 @@ function serve(role: string, inOrg?: string[]) {
             source: "manual",
             created_at: "2026-09-01T00:00:00Z",
           },
+          {
+            user_id: "u-eve",
+            email: "eve@acme.test",
+            full_name: "Eve",
+            source: "discord",
+            created_at: "2026-09-01T00:00:00Z",
+          },
         ],
-        total: 2,
+        total: 3,
       });
     if (url.startsWith("/orgs/org-1/members"))
       return Promise.resolve({ items: orgMembers, total: orgMembers.length });
@@ -287,7 +294,7 @@ describe("the groups page", () => {
     await waitFor(() => expect(screen.queryByText("Delete Ops?")).toBeNull());
   });
 
-  it("lets a member manager add and remove people, marking the directory's rows", async () => {
+  it("lets a member manager add and remove people, marking the rows a sync placed", async () => {
     serve("admin");
     vi.mocked(apiClient.post).mockResolvedValue({});
     vi.mocked(apiClient.delete).mockResolvedValue(undefined);
@@ -295,10 +302,18 @@ describe("the groups page", () => {
     await userEvent.click(await screen.findByRole("button", { name: "Members of Finance" }));
     const dialog = await screen.findByRole("dialog");
 
-    // Ann was placed by the sync, Bob by hand.
+    // Ann was placed by the directory sync, Eve by the Discord role sync, Bob by hand.
     const ann = (await within(dialog).findByText("Ann")).closest("div.rounded-md");
     expect(ann).not.toBeNull();
     expect(within(ann as HTMLElement).getByText("Directory")).toBeInTheDocument();
+    const eve = within(dialog).getByText("Eve").closest("div.rounded-md");
+    expect(eve).not.toBeNull();
+    expect(within(eve as HTMLElement).getByText("Discord")).toBeInTheDocument();
+    expect(
+      within(eve as HTMLElement).getByText(/removes them when they lose the Discord role/),
+    ).toBeInTheDocument();
+    const bob = within(dialog).getByText("bob@acme.test").closest("div.rounded-md");
+    expect(within(bob as HTMLElement).queryByText("Discord")).toBeNull();
 
     // Only organization members not already in the group are offered.
     await userEvent.click(within(dialog).getByLabelText("Add a member"));

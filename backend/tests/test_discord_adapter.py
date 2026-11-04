@@ -34,7 +34,7 @@ from app.services.channels.base import (
     memory_room_key,
 )
 from app.services.channels.discord import DiscordAdapter, _Channel, _Reply, _Session
-from app.services.channels.discord_protocol import READ_MESSAGE_HISTORY, VIEW_CHANNEL
+from app.services.channels.discord_protocol import READ_MESSAGE_HISTORY, VIEW_CHANNEL, Server
 from app.services.channels.exceptions import ChannelNotConfigured
 from app.services.channels.live_reply import LiveReply, channel_stream
 from app.services.file_upload import FileUploadService
@@ -57,6 +57,7 @@ class _Discord:
 
     def __init__(self) -> None:
         self.calls: list[tuple[str, str, Any]] = []
+        self.queries: list[tuple[str, dict[str, str]]] = []
         self.traced: list[tuple[str, bool]] = []
         self.routes: dict[tuple[str, str], list[httpx.Response]] = {}
         self._next = 1000
@@ -73,6 +74,7 @@ class _Discord:
             else:
                 body = json.loads(request.content)
         self.calls.append((request.method, path, body))
+        self.queries.append((path, dict(request.url.params)))
         self.traced.append((path, is_instrumentation_enabled()))
         queued = self.routes.get((request.method, path))
         if queued:
@@ -640,23 +642,30 @@ class TestInteractions:
             f"/channels/{CHANNEL}/messages",
             httpx.Response(200, json={"id": "q1"}),
         )
-        await adapter._on_interaction(
-            {
-                "type": 2,
-                "id": "i1",
-                "token": "itok",
-                "guild_id": GUILD,
-                "channel": {"id": CHANNEL, "type": 0},
-                "member": {"user": {"id": USER, "username": "ada"}},
-                "data": {"name": "ask", "type": 1, "options": [{"value": "refund window?"}]},
-            },
-            BOT,
-        )
+        checked = (BOT, "linked-user", "linked-identity")
+
+        async def admit(incoming: IncomingMessage) -> None:
+            incoming.discord_roles_checked_for = checked
+
+        with patch.object(discord, "refusal_before_publishing", side_effect=admit):
+            await adapter._on_interaction(
+                {
+                    "type": 2,
+                    "id": "i1",
+                    "token": "itok",
+                    "guild_id": GUILD,
+                    "channel": {"id": CHANNEL, "type": 0},
+                    "member": {"user": {"id": USER, "username": "ada"}},
+                    "data": {"name": "ask", "type": 1, "options": [{"value": "refund window?"}]},
+                },
+                BOT,
+            )
         [incoming] = spawned
         assert isinstance(incoming, IncomingMessage)
         assert incoming.platform_chat_id == f"{CHANNEL}:q1"
         assert incoming.text == "refund window?"
         assert incoming.addressed is True
+        assert incoming.discord_roles_checked_for == checked
         assert adapter._thread_names.get(f"{CHANNEL}:q1") == "refund window?"
         [body] = api.posted("/interactions/i1/itok/callback")
         assert body == {"type": 5, "data": {"flags": 64}}
@@ -1868,3 +1877,188 @@ class TestAdmissionBeforePublication:
         )
         assert not spawned
         assert api.calls[-1][2]["content"] == "Could not post your question. Try again."
+
+
+class TestServerRoles:
+    """What a role mapping reads (#2569): who holds which role, and what can be mapped."""
+
+    async def test_a_members_roles_are_read_from_the_server(
+        self, adapter: DiscordAdapter, api: _Discord
+    ):
+        api.answer(
+            "GET", f"/guilds/{GUILD}/members/{USER}", httpx.Response(200, json={"roles": ["7", 8]})
+        )
+        assert await adapter.member_roles("tok", GUILD, USER) == frozenset({"7", "8"})
+
+    @pytest.mark.parametrize("status", [403, 404])
+    async def test_an_account_the_bot_cannot_find_in_the_server_holds_nothing(
+        self, adapter: DiscordAdapter, api: _Discord, status: int
+    ):
+        """Left the server, or the bot was removed from it: nothing vouches for a role."""
+        api.answer("GET", f"/guilds/{GUILD}/members/{USER}", httpx.Response(status))
+        assert await adapter.member_roles("tok", GUILD, USER) is None
+
+    @pytest.mark.parametrize("status", [401, 500])
+    async def test_an_answer_that_is_not_about_the_member_raises(
+        self, adapter: DiscordAdapter, api: _Discord, status: int
+    ):
+        """A revoked token or an outage is not knowing, and must not read as the role gone."""
+        api.answer("GET", f"/guilds/{GUILD}/members/{USER}", httpx.Response(status))
+        with pytest.raises(httpx.HTTPStatusError):
+            await adapter.member_roles("tok", GUILD, USER)
+
+    async def test_the_servers_list_offers_each_servers_mappable_roles(
+        self, adapter: DiscordAdapter, api: _Discord
+    ):
+        api.answer(
+            "GET", "/users/@me/guilds", httpx.Response(200, json=[{"id": GUILD, "name": "Acme"}])
+        )
+        api.answer(
+            "GET",
+            f"/guilds/{GUILD}/roles",
+            httpx.Response(
+                200,
+                json=[
+                    {"id": GUILD, "name": "@everyone", "position": 0},
+                    {"id": "7", "name": "Finance", "position": 1},
+                    {"id": "8", "name": "Support", "position": 3},
+                    {"id": "9", "name": "Agent", "position": 2, "managed": True},
+                ],
+            ),
+        )
+
+        servers = await adapter.servers("tok")
+
+        assert [(server.id, server.name) for server in servers] == [(GUILD, "Acme")]
+        assert [(role.id, role.name) for role in servers[0].roles] == [
+            ("8", "Support"),
+            ("7", "Finance"),
+        ]
+
+    async def test_the_servers_list_reads_past_discords_first_page(
+        self, adapter: DiscordAdapter, api: _Discord
+    ):
+        """Discord answers 200 servers at most; the 201st has to be asked for by `after`."""
+        ids = [str(1_000 + n) for n in range(201)]
+        api.answer(
+            "GET",
+            "/users/@me/guilds",
+            httpx.Response(200, json=[{"id": guild, "name": guild} for guild in ids[:200]]),
+            httpx.Response(200, json=[{"id": ids[200], "name": ids[200]}]),
+        )
+        for guild in ids:
+            api.answer("GET", f"/guilds/{guild}/roles", httpx.Response(200, json=[]))
+
+        servers = await adapter.servers("tok")
+
+        assert [server.id for server in servers] == ids
+        pages = [params for path, params in api.queries if path == "/users/@me/guilds"]
+        assert pages == [{"limit": "200"}, {"limit": "200", "after": ids[199]}]
+
+    async def test_role_discovery_limits_concurrent_requests_and_keeps_order(self, adapter, api):
+        active, peak = 0, 0
+        ids = [str(n) for n in range(20)]
+        api.answer(
+            "GET", "/users/@me/guilds", httpx.Response(200, json=[{"id": guild} for guild in ids])
+        )
+
+        async def roles(token: str, guild: str, name: str) -> Server:
+            nonlocal active, peak
+            active += 1
+            peak = max(peak, active)
+            try:
+                await asyncio.sleep(0)
+                return Server(id=guild, name=name, roles=())
+            finally:
+                active -= 1
+
+        with patch.object(adapter, "_with_roles", side_effect=roles):
+            servers = await adapter.servers("tok")
+        assert [server.id for server in servers] == ids
+        assert peak == 8 and active == 0
+
+    async def test_role_discovery_rejects_guild_fanout_above_its_supported_limit(
+        self, adapter, api, monkeypatch
+    ):
+        monkeypatch.setattr("app.services.channels.discord._MAX_ROLE_GUILDS", 2)
+        api.answer(
+            "GET", "/users/@me/guilds", httpx.Response(200, json=[{"id": str(n)} for n in range(3)])
+        )
+        with pytest.raises(httpx.ProtocolError):
+            await adapter.servers("tok")
+        assert len(api.calls) == 1
+
+    async def test_one_server_is_read_without_listing_the_rest(
+        self, adapter: DiscordAdapter, api: _Discord
+    ):
+        api.answer(
+            "GET", f"/guilds/{GUILD}", httpx.Response(200, json={"id": GUILD, "name": "Acme"})
+        )
+        api.answer(
+            "GET",
+            f"/guilds/{GUILD}/roles",
+            httpx.Response(200, json=[{"id": "7", "name": "Finance", "position": 1}]),
+        )
+
+        server = await adapter.server("tok", GUILD)
+
+        assert server is not None
+        assert (server.id, server.name) == (GUILD, "Acme")
+        assert [(role.id, role.name) for role in server.roles] == [("7", "Finance")]
+        assert [path for _, path, _ in api.calls] == [f"/guilds/{GUILD}", f"/guilds/{GUILD}/roles"]
+
+    @pytest.mark.parametrize("status", [403, 404])
+    async def test_a_server_the_bot_is_not_in_is_none(
+        self, adapter: DiscordAdapter, api: _Discord, status: int
+    ):
+        api.answer("GET", f"/guilds/{GUILD}", httpx.Response(status))
+        assert await adapter.server("tok", GUILD) is None
+
+    async def test_a_server_discord_does_not_answer_for_raises(
+        self, adapter: DiscordAdapter, api: _Discord
+    ):
+        api.answer("GET", f"/guilds/{GUILD}", httpx.Response(500))
+        with pytest.raises(httpx.HTTPStatusError):
+            await adapter.server("tok", GUILD)
+
+    async def test_a_server_whose_roles_cannot_be_read_fails_the_list(
+        self, adapter: DiscordAdapter, api: _Discord
+    ):
+        api.answer("GET", "/users/@me/guilds", httpx.Response(200, json=[{"id": GUILD}]))
+        api.answer("GET", f"/guilds/{GUILD}/roles", httpx.Response(403))
+        with pytest.raises(httpx.HTTPStatusError):
+            await adapter.servers("tok")
+
+
+class TestChannelServer:
+    async def test_a_server_channel_names_its_server(self, adapter: DiscordAdapter, api: _Discord):
+        api.answer(
+            "GET", f"/channels/{CHANNEL}", httpx.Response(200, json={"type": 0, "guild_id": GUILD})
+        )
+        assert await adapter.channel_server("tok", CHANNEL) == GUILD
+
+    async def test_a_thread_names_the_server_it_lives_in(
+        self, adapter: DiscordAdapter, api: _Discord
+    ):
+        api.answer(
+            "GET",
+            f"/channels/{THREAD}",
+            httpx.Response(200, json={"type": 11, "parent_id": CHANNEL, "guild_id": GUILD}),
+        )
+        assert await adapter.channel_server("tok", THREAD) == GUILD
+
+    async def test_a_direct_message_has_no_server(self, adapter: DiscordAdapter, api: _Discord):
+        api.answer("GET", "/channels/dm", httpx.Response(200, json={"type": 1}))
+        assert await adapter.channel_server("tok", "dm") is None
+
+    @pytest.mark.parametrize("status", [403, 404])
+    async def test_a_channel_the_bot_cannot_see_has_no_server(
+        self, adapter: DiscordAdapter, api: _Discord, status: int
+    ):
+        api.answer("GET", "/channels/gone", httpx.Response(status))
+        assert await adapter.channel_server("tok", "gone") is None
+
+    async def test_a_failing_lookup_raises(self, adapter: DiscordAdapter, api: _Discord):
+        api.answer("GET", "/channels/broken", httpx.Response(500))
+        with pytest.raises(httpx.HTTPStatusError):
+            await adapter.channel_server("tok", "broken")

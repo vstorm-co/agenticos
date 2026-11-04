@@ -269,6 +269,7 @@ export function useLocalWorkspace(root: string | null, ownerLabel: string) {
       total: items.length,
       bytes_total: items.reduce((sum, file) => sum + (file.size ?? 0), 0),
       bytes_limit: null,
+      truncated: items.length >= 500,
       unreadable_reason: null,
     };
   }, [enabled, data, ownerLabel]);

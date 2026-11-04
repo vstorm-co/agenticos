@@ -948,6 +948,13 @@ class AgentRunResult(BaseSchema):
             "empty unless it stopped on one again - the same reason `parked` exists."
         ),
     )
+    continues_in_chat: bool = Field(
+        default=False,
+        description=(
+            "Only a continuation of a parked chat run sets it: its answer is also "
+            "posted to that chat. Always false for a run started here"
+        ),
+    )
 
 
 RunRequestStatus = Literal["queued", "running", "completed", "failed", "cancelled"]

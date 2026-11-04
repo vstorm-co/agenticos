@@ -50,6 +50,7 @@ export {
   useGroupsQuality,
 } from "./use-groups";
 export { useDirectoryMappings } from "./use-directory-mappings";
+export { useDiscordRoleMappings, useDiscordServers } from "./use-discord-role-mappings";
 export { useCanCreateTrigger } from "./use-can-create-trigger";
 export { useOnboardingTour, type OnboardingTourState } from "./use-onboarding";
 export {
@@ -183,3 +184,4 @@ export { useVoiceSession, type VoiceSession, type VoiceTarget } from "./use-voic
 export { useReleaseUpdate } from "./use-release-update";
 
 export { useCurrentRelease } from "./use-current-release";
+export { useWikiGraph } from "./use-wiki-graph";

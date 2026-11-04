@@ -133,6 +133,10 @@ instead.
 
 ## Requirements
 
+Podman deployments use the [manual Docker Compose provider path](deploy.md#podman-support),
+with an additional override for sandbox socket and workspace permissions. The
+quickstart supports Docker; `podman-compose` 1.6.0 is unsupported.
+
 Docker and Docker Compose. That is the whole list — Postgres (with pgvector),
 Redis, the API, the worker and the console all come up together.
 
