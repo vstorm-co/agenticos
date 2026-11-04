@@ -280,6 +280,9 @@ class IncomingMessage:
     a document it never received.
     """
 
+    discord_roles_checked_for: tuple[str, str, str] | None = None
+    """Trusted preflight metadata: bot, linked user and identity; never read from raw payloads."""
+
 
 @dataclass
 class OutgoingMessage:

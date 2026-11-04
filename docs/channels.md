@@ -1530,10 +1530,63 @@ agent before it answers, as on Slack and Mattermost; files the bot posted itself
 are left out. It needs **Read Message History**, and `read_channel_history` reads
 a thread or a channel the same way where the binding allows it.
 
+### A server's roles as groups { #discord-roles }
+
+An administrator can map a role in one of the bot's servers to a group of the
+organization (#2569). Open **Channels**, then the **Discord roles** action on the bot's
+row. The server and the role are chosen from what the bot itself reads from Discord,
+so `@everyone` and the roles Discord manages for a bot are not offered. Mapping one
+takes `members:manage`, and the routes take `channels:manage` as well.
+
+A linked member who holds the role is placed in the group before each message they
+send to any of the organization's Discord bots, and again by the `sync-discord-roles` job
+every 15 minutes. They leave the group when the role is taken away, and the job is
+what notices that for somebody who has stopped writing to the bot. The bot asks
+Discord for one member's roles at a time, so it needs no privileged intent, and a
+new mapping places people at their next message rather than at once.
+
+Those checks before a message count against the sender's `rate_limit_rpm` on an
+allowance of their own, commands such as `/help` included. A sender past it is
+asked to slow down, and Discord is not asked again until the minute is over.
+
+A mapping can also name an organization role. A linked holder who is not a member
+yet then joins the organization with that role, which spares inviting everybody in
+a community server one at a time. Naming a role takes `roles:manage`, and only a
+role the caller's own strictly outranks. The order between several matching roles,
+and the rules about what the sync never touches, are the ones the
+[directory sync](directory.md#what-the-sync-never-touches) follows:
+
+- Only a linked account counts. A Discord user who never ran `/link` is placed
+  nowhere, whatever roles they hold.
+- A role matches only in the server the mapping names, read by the bot that holds
+  the mapping. The same role ID in another bot's server matches nothing.
+- The sync changes only rows it made, marked **Discord** on the members page and
+  in a group. A group membership added by hand stays when the role is taken away,
+  a membership an administrator made keeps its role, and an owner is never
+  demoted or removed. Somebody the sync admitted to the organization leaves all of
+  its groups when the sync removes them, as somebody removed by hand does.
+- If a server cannot be read, its mapped groups remain. Its possible organization roles can retain only authority the person already held; an unread `viewer` mapping cannot preserve `admin`. Confirmed grants still apply.
+
+Each reconciliation shares a ten-second network deadline. REST lookups share the bot’s `rate_limit_rpm` per linked user across all their accounts, separately from the per-user message-check allowance. Removing a mapped group also requires `channels:manage`.
+
+Server discovery permits one concurrent request per organization, shares a ten-second deadline across pagination and role reads, and reads roles for at most eight servers concurrently. Discovery stops above the supported 2,500-server limit; an incomplete response fails explicitly.
+
+Unlinking the Discord account takes back what its roles gave, unless another linked
+Discord account still earns it. Deleting a mapping takes back what it gave at each
+person's next message or the next job run. Deleting the bot or a mapped group, or
+giving the bot a new token, takes back the same, so it needs what deleting each of
+those mappings needs. Every change is in the audit log as
+`discord.member_added`, `discord.role_changed`, `discord.member_removed`,
+`discord.group_joined` or `discord.group_left`, and making or deleting a mapping
+as `discord.mapping_created` or `discord.mapping_deleted`.
+
 Not yet: one connection serves a bot in at most 2,500 servers, past which Discord
 asks for sharding and the bot stops with that reason. The channel members, details
-and search tools are not offered on Discord, and a server's roles are not mapped
-to organization groups.
+and search tools are not offered on Discord.
+
+Directory access takes priority when both sources grant membership. At sign-in,
+a directory grant takes over the Discord-managed row; when it ends, a remaining
+Discord grant takes over without revoking credentials. See [membership handover](directory.md#what-the-sync-never-touches).
 
 ## A bot that cannot start stops, rather than retrying
 

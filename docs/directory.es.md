@@ -1,5 +1,5 @@
 ---
-source_sha: "0e00e8d61666"
+source_sha: "c3245b98d9c8"
 ---
 
 # Inicio de sesión con el directorio y grupos { #directory-sign-in-and-groups }
@@ -109,8 +109,7 @@ de deducirse.
 
 ### Lo que la sincronización nunca toca { #what-the-sync-never-touches }
 
-La sincronización solo cambia las filas que creó ella misma. De eso se siguen
-cuatro reglas:
+La sincronización automática de pertenencias respeta cuatro reglas:
 
 - **Una membresía creada por un administrador conserva su rol.** Alguien invitado
   a mano conserva el rol que se le dio, aunque un mapeo coincida con él. Sigue
@@ -125,6 +124,22 @@ cuatro reglas:
 
 A una organización personal nunca se entra a través de un mapeo, y no se puede
 crear un mapeo para una.
+
+Cuando una asignación del directorio y una [asignación de Discord](channels.md#discord-roles)
+conceden acceso, el directorio tiene prioridad al iniciar sesión: asume la pertenencia
+gestionada por Discord con el rol del directorio. Perder el rol de Discord ya no
+elimina a esa persona. Cuando termina el acceso del directorio, el inicio de sesión
+comprueba primero si una cuenta vinculada de Discord todavía concede pertenencia.
+Si es así, la misma fila pasa a **Discord**, conservando claves API, consentimientos
+de aplicaciones y pertenencias independientes a grupos.
+
+Sin acceso por ninguna
+fuente, se elimina normalmente. Si Discord no responde o se agota el presupuesto
+de red de diez segundos, Discord asume la pertenencia conservada para que la tarea periódica repita la comprobación sin otro inicio de sesión. Su rol mantiene solo autoridad justificada por el rol anterior y una posible concesión sin leer. Todas las organizaciones de un inicio de sesión comparten ese presupuesto de red.
+
+Nunca se asumen pertenencias manuales ni propietarios. La auditoría registra
+`directory.member_taken_over` y `directory.member_handed_to_discord`.
+Las pertenencias a grupos conservan su propia fuente y reglas de sincronización.
 
 !!! warning "Borrar un mapeo elimina a las personas que colocó"
 

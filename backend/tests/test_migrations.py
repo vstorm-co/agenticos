@@ -896,3 +896,60 @@ class TestSkillBindingAvailability:
             assert upgraded_again.returncode == 0, upgraded_again.stderr
         finally:
             engine.dispose()
+
+
+class TestDiscordMembershipSources:
+    def test_discord_rows_survive_downgrade_as_manual_memberships(self):
+        reset = _alembic("downgrade", "base")
+        assert reset.returncode == 0, reset.stderr
+        before = _alembic("upgrade", "0255_run_chat_notice_sent_at")
+        assert before.returncode == 0, before.stderr
+        engine = create_engine(_url(MIGRATION_DATABASE))
+        member_id, group_member_id = uuid4(), uuid4()
+        try:
+            with engine.begin() as connection:
+                connection.execute(text("SET LOCAL session_replication_role = replica"))
+                connection.execute(
+                    text(
+                        "INSERT INTO organization_members (id, organization_id, user_id, role, source) VALUES (:id, :org, :user, 'member', 'directory')"
+                    ),
+                    {"id": member_id, "org": uuid4(), "user": uuid4()},
+                )
+                connection.execute(
+                    text(
+                        "INSERT INTO group_members (id, group_id, user_id, source) VALUES (:id, :group, :user, 'directory')"
+                    ),
+                    {"id": group_member_id, "group": uuid4(), "user": uuid4()},
+                )
+            upgraded = _alembic("upgrade", "0256_discord_role_mappings")
+            assert upgraded.returncode == 0, upgraded.stderr
+            with engine.begin() as connection:
+                connection.execute(
+                    text("UPDATE organization_members SET source = 'discord' WHERE id = :id"),
+                    {"id": member_id},
+                )
+                connection.execute(
+                    text("UPDATE group_members SET source = 'discord' WHERE id = :id"),
+                    {"id": group_member_id},
+                )
+            downgraded = _alembic("downgrade", "0255_run_chat_notice_sent_at")
+            assert downgraded.returncode == 0, downgraded.stderr
+            with engine.connect() as connection:
+                assert (
+                    connection.execute(
+                        text("SELECT source FROM organization_members WHERE id = :id"),
+                        {"id": member_id},
+                    ).scalar_one()
+                    == "manual"
+                )
+                assert (
+                    connection.execute(
+                        text("SELECT source FROM group_members WHERE id = :id"),
+                        {"id": group_member_id},
+                    ).scalar_one()
+                    == "manual"
+                )
+            restored = _alembic("upgrade", "head")
+            assert restored.returncode == 0, restored.stderr
+        finally:
+            engine.dispose()
