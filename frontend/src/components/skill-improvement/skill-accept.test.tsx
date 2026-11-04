@@ -53,9 +53,24 @@ const BLOCKED = skillCheck({
   outcomes: ["improve_further", "apply_and_pin", "fork_for_helped", "discard"],
 });
 
+/** The skill's agents as the fork dialog reads them, each changeable unless named locked. */
+function serveAgents(locked: string[] = []) {
+  vi.mocked(apiClient.get).mockImplementation(async (url: string) => {
+    if (url !== "/skills/k1/agents") throw new ApiError(404, "None");
+    return {
+      main_latest: { id: "v1", number: 1, fork_id: null },
+      items: ["support", "refunds", "billing", "sales"].map((id) => ({
+        agent: { id, name: id, slug: id },
+        can_change: !locked.includes(id),
+      })),
+      hidden: 0,
+    };
+  });
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
-  vi.mocked(apiClient.get).mockRejectedValue(new ApiError(404, "None"));
+  serveAgents();
   vi.mocked(apiClient.post).mockResolvedValue(skillSession());
 });
 
@@ -84,11 +99,13 @@ describe("SkillAccept", () => {
     ).toBeVisible();
     expect(screen.queryByRole("button", { name: /next version/ })).toBeNull();
     await userEvent.click(screen.getByRole("button", { name: "Save as a fork…" }));
-    expect(screen.getByLabelText("Support")).toBeChecked();
+    await waitFor(() => expect(screen.getByLabelText("Support")).toBeChecked());
     expect(screen.getByLabelText("Refunds")).not.toBeChecked();
     await userEvent.clear(screen.getByLabelText("Name of the new fork"));
     await userEvent.type(screen.getByLabelText("Name of the new fork"), "Returns");
-    await userEvent.click(screen.getByRole("button", { name: "Make the fork and move 1 agent" }));
+    await userEvent.click(
+      await screen.findByRole("button", { name: "Make the fork and move 1 agent" }),
+    );
 
     expect(apiClient.post).toHaveBeenCalledWith("/skills/k1/improvements/s1/fork", {
       confirmed: true,
@@ -113,9 +130,12 @@ describe("SkillAccept", () => {
     ).toBeNull();
     await userEvent.click(screen.getByRole("button", { name: "Save as a fork…" }));
     expect(screen.getByLabelText("Name of the new fork")).toHaveValue("Attempt 1");
+    await waitFor(() => expect(screen.getByLabelText("Refunds")).toBeEnabled());
     expect(screen.getByLabelText("Support")).not.toBeChecked();
     await userEvent.click(screen.getByLabelText("Refunds"));
-    await userEvent.click(screen.getByRole("button", { name: "Make the fork and move 1 agent" }));
+    await userEvent.click(
+      await screen.findByRole("button", { name: "Make the fork and move 1 agent" }),
+    );
 
     expect(apiClient.post).toHaveBeenCalledWith(
       "/skills/k1/improvements/s1/fork",
@@ -127,6 +147,7 @@ describe("SkillAccept", () => {
     mount(BLOCKED);
 
     await userEvent.click(screen.getByRole("button", { name: "Save as a fork…" }));
+    await waitFor(() => expect(screen.getByLabelText("Support")).toBeChecked());
     await userEvent.click(screen.getByLabelText("Support"));
     await userEvent.click(screen.getByRole("button", { name: "Make the fork, moving no agent" }));
 
@@ -137,11 +158,6 @@ describe("SkillAccept", () => {
   });
 
   it("draws each agent of the pick with its own face", async () => {
-    vi.mocked(apiClient.get).mockResolvedValue({
-      main_latest: { id: "v1", number: 1, fork_id: null },
-      items: [{ agent: { id: "support", name: "Support", slug: "support-desk" } }],
-      hidden: 0,
-    });
     mount(BLOCKED);
 
     await userEvent.click(screen.getByRole("button", { name: "Save as a fork…" }));
@@ -155,14 +171,7 @@ describe("SkillAccept", () => {
   });
 
   it("shows a helped agent the reader may not change but never sends it", async () => {
-    vi.mocked(apiClient.get).mockResolvedValue({
-      main_latest: { id: "v1", number: 1, fork_id: null },
-      items: [
-        { agent: { id: "support", name: "Support", slug: "support" }, can_change: true },
-        { agent: { id: "billing", name: "Billing", slug: "billing" }, can_change: false },
-      ],
-      hidden: 0,
-    });
+    serveAgents(["billing"]);
     mount({
       ...BLOCKED,
       agents: [
@@ -176,12 +185,50 @@ describe("SkillAccept", () => {
     await waitFor(() => expect(screen.getByLabelText("Billing")).toBeDisabled());
     expect(screen.getByLabelText("Billing")).not.toBeChecked();
     expect(screen.getByText("You cannot change it: stays on its version")).toBeVisible();
-    await userEvent.click(screen.getByRole("button", { name: "Make the fork and move 1 agent" }));
+    await userEvent.click(
+      await screen.findByRole("button", { name: "Make the fork and move 1 agent" }),
+    );
 
     expect(apiClient.post).toHaveBeenCalledWith(
       "/skills/k1/improvements/s1/fork",
       expect.objectContaining({ agent_ids: ["support"] }),
     );
+  });
+
+  it("picks and sends nothing while it cannot tell which agents the reader may change", async () => {
+    vi.mocked(apiClient.get).mockRejectedValue(
+      new ApiError(500, "The skill's agents could not be read", {
+        error: { code: "INTERNAL", message: "The skill's agents could not be read" },
+      }),
+    );
+    mount(BLOCKED);
+
+    await userEvent.click(screen.getByRole("button", { name: "Save as a fork…" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("could not be read");
+    expect(screen.getByLabelText("Support")).toBeDisabled();
+    expect(screen.getByLabelText("Support")).not.toBeChecked();
+    expect(screen.getByRole("button", { name: "Make the fork, moving no agent" })).toBeDisabled();
+  });
+
+  it("keeps the dialog and what was typed when the fork is refused", async () => {
+    vi.mocked(apiClient.post).mockRejectedValue(
+      new ApiError(409, "A fork named Returns exists", {
+        error: { code: "ALREADY_EXISTS", message: "A fork named Returns exists" },
+      }),
+    );
+    mount(BLOCKED);
+
+    await userEvent.click(screen.getByRole("button", { name: "Save as a fork…" }));
+    await userEvent.clear(screen.getByLabelText("Name of the new fork"));
+    await userEvent.type(screen.getByLabelText("Name of the new fork"), "Returns");
+    await userEvent.click(
+      await screen.findByRole("button", { name: "Make the fork and move 1 agent" }),
+    );
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("A fork named Returns exists");
+    expect(screen.getByRole("dialog")).toBeVisible();
+    expect(screen.getByLabelText("Name of the new fork")).toHaveValue("Returns");
   });
 
   it("leaves out of the pick the agents it may not move here, and says why", async () => {
@@ -214,7 +261,9 @@ describe("SkillAccept", () => {
     expect(open).toBeDisabled();
     await userEvent.click(screen.getByLabelText(/I know 1 agent could not be checked \(Billing\)/));
     await userEvent.click(open);
-    await userEvent.click(screen.getByRole("button", { name: "Make the fork and move 1 agent" }));
+    await userEvent.click(
+      await screen.findByRole("button", { name: "Make the fork and move 1 agent" }),
+    );
 
     expect(apiClient.post).toHaveBeenCalledWith(
       "/skills/k1/improvements/s1/fork",

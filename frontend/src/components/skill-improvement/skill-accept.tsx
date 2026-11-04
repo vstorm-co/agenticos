@@ -96,13 +96,17 @@ export function SkillAccept({
   const held = !confirmed || (unknown > 0 && !acknowledged);
   const recheck = session.stale === true || lineMoved;
 
-  async function decide(write: () => Promise<unknown>) {
+  /** Runs a decision; resolves to why it was refused, or null once it went through. */
+  async function decide(write: () => Promise<unknown>): Promise<string | null> {
     setRefusal(null);
     try {
       await write();
+      return null;
     } catch (failure) {
       if (movedLine(failure)) setLineMoved(true);
-      setRefusal(getErrorMessage(failure, tErrors));
+      const refused = getErrorMessage(failure, tErrors);
+      setRefusal(refused);
+      return refused;
     }
   }
   const applyIt = (pinWorse: boolean) =>

@@ -17,6 +17,7 @@ import {
   Label,
 } from "@/components/ui";
 import { useSkillAgents } from "@/hooks/use-skill-versions";
+import { getErrorMessage } from "@/lib/api-error";
 import { DIALOG_BODY, DIALOG_COLUMN, DIALOG_FORM } from "@/lib/dialog-sizes";
 import type { SkillCheck } from "@/types/skill-checks";
 
@@ -31,7 +32,9 @@ export interface ForkChoice {
  * names it and picks the agents that move onto it - the ones it helped to begin with,
  * any others, or none. An agent reading the skill through a specialist moves in its
  * Builder, so it is not offered here; one the reader may not change is shown but
- * stays on its version, and agents the reader may not see stay where they are.
+ * stays on its version, and agents the reader may not see stay where they are. Which
+ * agents the reader may change comes from the skill's agents, so nothing is picked or
+ * sent until they load. A refused fork keeps the dialog open with the refusal.
  */
 export function ForkDialog({
   skillId,
@@ -46,7 +49,8 @@ export function ForkDialog({
   attempt: number;
   disabled: boolean;
   busy: boolean;
-  onFork: (choice: ForkChoice) => Promise<unknown>;
+  /** Resolves to why the fork was refused, or null once it was made. */
+  onFork: (choice: ForkChoice) => Promise<string | null>;
 }) {
   const t = useTranslations("skillImprovement.accept");
   const [open, setOpen] = useState(false);
@@ -63,8 +67,9 @@ export function ForkDialog({
             attempt={attempt}
             busy={busy}
             onFork={async (choice) => {
-              await onFork(choice);
-              setOpen(false);
+              const refused = await onFork(choice);
+              if (refused === null) setOpen(false);
+              return refused;
             }}
           />
         )}
@@ -84,11 +89,13 @@ function ForkForm({
   check: SkillCheck;
   attempt: number;
   busy: boolean;
-  onFork: (choice: ForkChoice) => Promise<unknown>;
+  onFork: (choice: ForkChoice) => Promise<string | null>;
 }) {
   const t = useTranslations("skillImprovement.accept");
   const tState = useTranslations("skillImprovement.agents.state");
-  const { agents: usages, isLoading } = useSkillAgents(skillId);
+  const tErrors = useTranslations("errors");
+  const { agents: usages, error } = useSkillAgents(skillId);
+  const [refusal, setRefusal] = useState<string | null>(null);
   const movable = check.agents.filter((row) => row.via_specialist === null);
   const throughSpecialist = check.agents.length - movable.length;
   const helped = movable.filter((row) => row.state === "better");
@@ -102,8 +109,9 @@ function ForkForm({
       return next;
     });
   const usageOf = (id: string) => usages?.items.find((usage) => usage.agent.id === id);
-  const locked = (id: string) => usageOf(id)?.can_change === false;
-  const moving = [...picked].filter((id) => !locked(id));
+  const ready = usages !== undefined;
+  const locked = (id: string) => usageOf(id)?.can_change !== true;
+  const moving = ready ? [...picked].filter((id) => !locked(id)) : [];
 
   return (
     <>
@@ -126,13 +134,13 @@ function ForkForm({
           {movable.map((row) => {
             const usage = usageOf(row.agent.id)?.agent;
             const id = `skill-accept-fork-${row.agent.id}`;
-            const stays = locked(row.agent.id);
+            const stays = ready && locked(row.agent.id);
             return (
               <div key={row.agent.id} className="flex items-center gap-2">
                 <Checkbox
                   id={id}
-                  checked={picked.has(row.agent.id) && !stays}
-                  disabled={stays}
+                  checked={ready && picked.has(row.agent.id) && !stays}
+                  disabled={!ready || stays}
                   onCheckedChange={(checked) => toggle(row.agent.id, checked === true)}
                 />
                 <AgentAvatar
@@ -162,12 +170,22 @@ function ForkForm({
             </p>
           )}
         </fieldset>
+        {error && (
+          <p role="alert" className="text-destructive text-sm">
+            {getErrorMessage(error, tErrors)}
+          </p>
+        )}
+        {refusal !== null && (
+          <p role="alert" className="text-destructive text-sm">
+            {refusal}
+          </p>
+        )}
       </div>
       <DialogFooter>
         <Button
-          disabled={name.trim() === "" || isLoading}
+          disabled={name.trim() === "" || !ready}
           loading={busy}
-          onClick={() => void onFork({ name: name.trim(), agent_ids: moving })}
+          onClick={() => void onFork({ name: name.trim(), agent_ids: moving }).then(setRefusal)}
         >
           {t("fork.submit", { count: moving.length })}
         </Button>
