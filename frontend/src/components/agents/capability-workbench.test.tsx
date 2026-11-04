@@ -1134,4 +1134,12 @@ describe("the virtual terminal", () => {
 
     expect(screen.getByRole("button", { name: "Add folder" })).toBeVisible();
   });
+
+  it("routes the terminal switch to its capability binding", async () => {
+    const onToggle = vi.fn();
+    renderWorkbench({ catalog: [MIRAGE], selected: [binding("mirage")], onToggle });
+    await openCapability("Virtual terminal");
+    await userEvent.click(screen.getByRole("switch", { name: "Virtual terminal enabled" }));
+    expect(onToggle).toHaveBeenCalledWith("mirage");
+  });
 });

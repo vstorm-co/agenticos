@@ -11461,7 +11461,7 @@
       },
       "allowed_commands": {
         "title": "Erlaubte Befehle",
-        "description": "Nur diese Befehle laufen, z. B. ls, cat, grep. Leer erlaubt jeden Befehl."
+        "description": "Nur diese Befehle ausführen, z. B. ls, cat, grep. Leer erlaubt virtuelle Befehle; direktes curl/wget ist deaktiviert."
       },
       "hidden_paths": {
         "title": "Verborgene Pfade",

@@ -486,3 +486,52 @@ async def test_org_consent_rechecks_current_authority_before_exchanging_a_code(
         repo.update.assert_not_awaited()
     assert authority.await_count == 1
     assert authority.await_args.kwargs == {"organization_id": org, "user_id": INITIATOR}
+
+
+@pytest.mark.parametrize("readable", [True, False])
+async def test_reconsent_without_a_new_refresh_token_preserves_only_a_readable_old_one(
+    repo, monkeypatch, readable
+):
+    from app.core.vault import unseal
+
+    monkeypatch.setattr(google_oauth, "account_email", AsyncMock(return_value="ana@acme.com"))
+    owner = uuid4()
+    earlier = _account(user_id=owner, account_email="ana@acme.com")
+    earlier.oauth_payload = (
+        _sealed(earlier, _payload(refresh_token="OLD")) if readable else "unreadable"
+    )
+    fresh = _account(user_id=owner)
+    fresh.oauth_payload = _sealed(fresh, _payload(refresh_token=None))
+    repo.list_accounts.return_value = [earlier, fresh]
+
+    assert await McpConnectionService(AsyncMock())._name_account(fresh, "AT") is earlier
+    update = repo.update.await_args.kwargs["update_data"]
+    recovered = McpOAuthPayload.model_validate_json(
+        unseal(
+            update["oauth_payload"],
+            scope=connection_scope(earlier),
+            key_version=update["secret_key_version"],
+        )
+    )
+    if readable:
+        assert recovered.refresh_token is not None
+        assert recovered.refresh_token.get_secret_value() == "OLD"
+    else:
+        assert recovered.refresh_token is None
+
+
+@pytest.mark.parametrize("removed", [True, False])
+async def test_callback_rechecks_that_consent_is_pending_after_obtaining_the_owner_lock(
+    repo, removed
+):
+    pending = _account(oauth_state="state")
+    pending.oauth_pending_payload = _sealed(pending, _payload(access_token=None))
+    completed = _account(oauth_state="state", oauth_pending_payload=None)
+    repo.get_by_oauth_state = AsyncMock(side_effect=[pending, None if removed else completed])
+
+    with pytest.raises(NotFoundError, match="already completed"):
+        await McpConnectionService(AsyncMock()).oauth_callback(
+            state="state", code="code", browser_nonce=NONCE, acting_user_id=INITIATOR
+        )
+    repo.lock_account_owner.assert_awaited_once()
+    repo.update.assert_not_awaited()

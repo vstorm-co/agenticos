@@ -8975,7 +8975,7 @@
       },
       "allowed_commands": {
         "title": "Dozwolone polecenia",
-        "description": "Działają tylko te polecenia, np. ls, cat, grep. Puste pozwala na każde polecenie."
+        "description": "Uruchamiaj tylko te polecenia, np. ls, cat, grep. Pusta lista dopuszcza polecenia wirtualne; bezpośrednie curl/wget są wyłączone."
       },
       "hidden_paths": {
         "title": "Ukryte ścieżki",
