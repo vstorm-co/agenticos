@@ -12,14 +12,16 @@ from app.db.models.channel_bot import ChannelBot
 
 
 async def get(
-    db: AsyncSession, exposure_id: UUID, *, organization_id: UUID
+    db: AsyncSession, exposure_id: UUID, *, organization_id: UUID, for_update: bool = False
 ) -> AgentExposure | None:
-    result = await db.execute(
-        select(AgentExposure).where(
-            AgentExposure.id == exposure_id,
-            AgentExposure.organization_id == organization_id,
-        )
+    """`for_update` locks the row and reads its columns again."""
+    statement = select(AgentExposure).where(
+        AgentExposure.id == exposure_id,
+        AgentExposure.organization_id == organization_id,
     )
+    if for_update:
+        statement = statement.with_for_update().execution_options(populate_existing=True)
+    result = await db.execute(statement)
     return result.scalar_one_or_none()
 
 

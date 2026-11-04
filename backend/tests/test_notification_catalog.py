@@ -41,6 +41,10 @@ class TestContentGate:
             assert event_type not in CONTENT_GATE
             assert content_gate_for(event_type) is ContentGate.NONE
 
+    def test_the_answer_to_a_binding_request_is_the_requesters_and_needs_no_gate(self):
+        assert NotificationEventType.CHANNEL_BINDING_DECIDED not in CONTENT_GATE
+        assert content_gate_for(NotificationEventType.CHANNEL_BINDING_DECIDED) is ContentGate.NONE
+
     def test_every_catalogued_event_type_resolves_to_its_gate(self):
         expected = {
             NotificationEventType.APPROVAL_REQUESTED: ContentGate.DEGRADE,
@@ -54,6 +58,7 @@ class TestContentGate:
             NotificationEventType.ARTIFACT_OWNER_CHANGED: ContentGate.ARTIFACTS_VIEW,
             NotificationEventType.ARTIFACT_SHARE_REQUESTED: ContentGate.ARTIFACTS_VIEW,
             NotificationEventType.WORKFLOW_LOG_ALERT: ContentGate.WORKFLOWS_VIEW,
+            NotificationEventType.CHANNEL_BINDING_REQUESTED: ContentGate.CHANNELS_MANAGE,
         }
         for event_type, gate in expected.items():
             assert content_gate_for(event_type) is gate

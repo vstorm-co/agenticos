@@ -37,6 +37,7 @@ class ContentGate(enum.Enum):
     ANNOUNCEMENT_AUDIENCE = "announcement_audience"
     ARTIFACTS_VIEW = "artifacts_view"
     WORKFLOWS_VIEW = "workflows_view"
+    CHANNELS_MANAGE = "channels_manage"
 
 
 # Decision 1's "Content gated on" column, read by event type. A row with no
@@ -63,6 +64,9 @@ CONTENT_GATE: dict[NotificationEventType, ContentGate] = {
     # Names a workflow and how many of its log lines matched, never the lines: only
     # someone who may still view the workflow is shown the row.
     NotificationEventType.WORKFLOW_LOG_ALERT: ContentGate.WORKFLOWS_VIEW,
+    # Names an agent and a bot, never a customer: only someone who may still decide the
+    # request is shown the row. Its answer goes to the one who asked and needs no recheck.
+    NotificationEventType.CHANNEL_BINDING_REQUESTED: ContentGate.CHANNELS_MANAGE,
 }
 
 # `security_event`, `configuration_changed` and `background_task_paused` bypass

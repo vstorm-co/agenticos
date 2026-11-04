@@ -442,6 +442,8 @@ def test_workflow_migrations_preserve_main_notification_types(table: str) -> Non
             "artifact_owner_changed",
             "artifact_share_requested",
             "workflow_log_alert",
+            "channel_binding_requested",
+            "channel_binding_decided",
         ):
             assert f"'{event}'" in definition
     finally:
@@ -819,6 +821,112 @@ class TestRunsAsAgentColumn:
                         "WHERE table_name='agent_runs' AND column_name='runs_as_agent'"
                     )
                 ).first()
+        finally:
+            engine.dispose()
+
+
+class TestChannelBindingRequestsTable:
+    def test_the_table_and_the_notification_types_come_and_go_with_the_revision(self):
+        top = _alembic("upgrade", "head")
+        assert top.returncode == 0, top.stderr
+        before = _alembic("downgrade", "0258_whatsapp_followups")
+        assert before.returncode == 0, before.stderr
+        engine = create_engine(_url(MIGRATION_DATABASE))
+        user_id = uuid4()
+        try:
+            with engine.connect() as connection:
+                assert (
+                    connection.scalar(text("SELECT to_regclass('channel_binding_requests')"))
+                    is None
+                )
+            up = _alembic("upgrade", "head")
+            assert up.returncode == 0, up.stderr
+            with engine.begin() as connection:
+                connection.execute(text("SET LOCAL session_replication_role = replica"))
+                for event in ("channel_binding_requested", "channel_binding_decided"):
+                    connection.execute(
+                        text(
+                            "INSERT INTO notifications (id, organization_id, recipient_user_id, "
+                            "event_type, occurrence_id, summary, in_app_visible) "
+                            "VALUES (:id, :org, :user, :event, 'x', 'Somebody asked.', true)"
+                        ),
+                        {"id": uuid4(), "org": uuid4(), "user": user_id, "event": event},
+                    )
+                    connection.execute(
+                        text(
+                            "INSERT INTO notification_preferences (id, user_id, event_type, "
+                            "channel, enabled) VALUES (:id, :user, :event, 'in_app', false)"
+                        ),
+                        {"id": uuid4(), "user": user_id, "event": event},
+                    )
+                bot, requester = uuid4(), uuid4()
+                insert = text(
+                    "INSERT INTO channel_binding_requests (id, organization_id, channel_bot_id, "
+                    "agent_id, exposure_id, kind, requester_user_id, status) "
+                    "VALUES (:id, :org, :bot, :agent, :exposure, :kind, :requester, :status)"
+                )
+                connection.execute(
+                    insert,
+                    {
+                        "id": uuid4(),
+                        "org": uuid4(),
+                        "bot": bot,
+                        "agent": uuid4(),
+                        "exposure": None,
+                        "kind": "bind",
+                        "requester": requester,
+                        "status": "pending",
+                    },
+                )
+            for refused in (
+                {"kind": "unbind", "status": "pending", "bot": uuid4(), "requester": uuid4()},
+                {"kind": "bind", "status": "waiting", "bot": uuid4(), "requester": uuid4()},
+                {"kind": "bind", "status": "pending", "bot": bot, "requester": requester},
+                {
+                    "kind": "resume",
+                    "status": "pending",
+                    "bot": uuid4(),
+                    "requester": uuid4(),
+                    "exposure": None,
+                },
+                {
+                    "kind": "bind",
+                    "status": "pending",
+                    "bot": uuid4(),
+                    "requester": uuid4(),
+                    "exposure": uuid4(),
+                },
+            ):
+                with (
+                    pytest.raises(Exception, match="channel_binding_request"),
+                    engine.begin() as connection,
+                ):
+                    connection.execute(text("SET LOCAL session_replication_role = replica"))
+                    connection.execute(
+                        insert,
+                        {
+                            "id": uuid4(),
+                            "org": uuid4(),
+                            "agent": uuid4(),
+                            "exposure": None,
+                            **refused,
+                        },
+                    )
+            check = _alembic("check")
+            assert check.returncode == 0, check.stderr
+            down = _alembic("downgrade", "0258_whatsapp_followups")
+            assert down.returncode == 0, down.stderr
+            with engine.connect() as connection:
+                assert (
+                    connection.scalar(text("SELECT to_regclass('channel_binding_requests')"))
+                    is None
+                )
+                for left in (
+                    "SELECT count(*) FROM notifications WHERE event_type LIKE 'channel_binding_%'",
+                    "SELECT count(*) FROM notification_preferences "
+                    "WHERE event_type LIKE 'channel_binding_%'",
+                ):
+                    assert connection.scalar(text(left)) == 0
         finally:
             engine.dispose()
 

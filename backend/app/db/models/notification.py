@@ -64,6 +64,10 @@ class NotificationEventType(enum.StrEnum):
     FINDING = "finding"
     # A workflow's log crossed an alert rule's threshold in its window.
     WORKFLOW_LOG_ALERT = "workflow_log_alert"
+    # Somebody asked to put an agent behind a bot that answers people with no account:
+    # told to those who hold `channels:manage`, and the answer to the one who asked.
+    CHANNEL_BINDING_REQUESTED = "channel_binding_requested"
+    CHANNEL_BINDING_DECIDED = "channel_binding_decided"
 
 
 class NotificationChannel(enum.StrEnum):
@@ -161,7 +165,8 @@ class Notification(Base, TimestampMixin):
             "'budget_warning', 'mcp_server_down', 'mcp_server_recovered', "
             "'background_task_paused', 'workflow_notification', "
             "'artifact_owner_changed', 'artifact_share_requested', "
-            "'capability_requested', 'suggestion', 'finding', 'workflow_log_alert')",
+            "'capability_requested', 'suggestion', 'finding', 'workflow_log_alert', "
+            "'channel_binding_requested', 'channel_binding_decided')",
             name="ck_notifications_event_type",
         ),
         # The dedup guarantee (Decision 2): a retried trigger for the same fact,

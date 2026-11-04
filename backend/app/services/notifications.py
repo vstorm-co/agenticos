@@ -1397,6 +1397,82 @@ class NotificationService:
                 organization_id=artifact.organization_id,
             )
 
+    @staticmethod
+    def _binding_ask(kind: str, *, agent_name: str, bot_name: str) -> str:
+        """What a binding request asks, in the words a notification names it by."""
+        return {
+            "bind": f"bind {agent_name} to {bot_name}",
+            "environment": f"change the environment {agent_name} answers with on {bot_name}",
+            "resume": f"resume {agent_name} on {bot_name}",
+        }[kind]
+
+    async def channel_binding_requested(
+        self,
+        *,
+        organization_id: UUID,
+        request_id: UUID,
+        kind: str,
+        agent_name: str,
+        bot_name: str,
+        requester_name: str,
+        recipients: Sequence[UUID],
+    ) -> None:
+        """Somebody asked to put an agent behind a bot that answers people with no account.
+
+        Told to those who may decide it (see
+        :func:`app.services.channel_binding_requests.deciders`). Names the agent, the bot
+        and the requester, never a customer and never the note, which the deciders read in
+        the console.
+        """
+        path = self._link("/channels?requests=open", organization_id)
+        ask = self._binding_ask(kind, agent_name=agent_name, bot_name=bot_name)
+        render_context = {
+            "request_id": str(request_id),
+            "kind": kind,
+            "app_name": settings.PROJECT_NAME,
+            "page_url": absolute_context_url(path),
+        }
+        for user_id in recipients:
+            await self._center.write(
+                recipients=[user_id],
+                event_type=NotificationEventType.CHANNEL_BINDING_REQUESTED,
+                occurrence_id=str(request_id),
+                summary=f"{requester_name} asked to {ask}. The bot answers people with no account.",
+                context_url=path,
+                render_context=render_context,
+                organization_id=organization_id,
+            )
+
+    async def channel_binding_decided(
+        self,
+        *,
+        organization_id: UUID,
+        request_id: UUID,
+        kind: str,
+        approved: bool,
+        agent_name: str,
+        bot_name: str,
+        requester_id: UUID,
+    ) -> None:
+        """Tell the one who asked that their request to bind an agent was decided."""
+        path = self._link("/channels", organization_id)
+        ask = self._binding_ask(kind, agent_name=agent_name, bot_name=bot_name)
+        await self._center.write(
+            recipients=[requester_id],
+            event_type=NotificationEventType.CHANNEL_BINDING_DECIDED,
+            occurrence_id=str(request_id),
+            summary=f"Your request to {ask} was {'approved' if approved else 'declined'}.",
+            context_url=path,
+            render_context={
+                "request_id": str(request_id),
+                "kind": kind,
+                "approved": approved,
+                "app_name": settings.PROJECT_NAME,
+                "page_url": absolute_context_url(path),
+            },
+            organization_id=organization_id,
+        )
+
     async def workflow_log_alert(
         self,
         rule: WorkflowLogAlertRule,

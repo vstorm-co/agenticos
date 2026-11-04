@@ -141,6 +141,7 @@ from app.db.models.virtual_table_trigger import (
     VirtualTableTriggerRevision,
 )
 from app.db.models.artifact_share_request import ArtifactShareRequest
+from app.db.models.channel_binding_request import ChannelBindingRequest
 
 __all__ = [
     "DiagnosticsIdentity",
@@ -164,6 +165,7 @@ __all__ = [
     "ArtifactFollower",
     "ArtifactMediaType",
     "ArtifactShareRequest",
+    "ChannelBindingRequest",
     "ArtifactVersion",
     "User",
     "Session",

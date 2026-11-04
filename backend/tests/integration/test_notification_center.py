@@ -1106,6 +1106,68 @@ class TestReadGateRunsView:
         assert hidden_rows == []
 
 
+class TestReadGateChannelsManage:
+    async def _write(self, service, org, recipients):
+        await service.write(
+            recipients=recipients,
+            event_type=NotificationEventType.CHANNEL_BINDING_REQUESTED,
+            occurrence_id="request-1",
+            summary="Bea asked to bind Support to Front desk.",
+            organization_id=org.id,
+        )
+
+    @pytest.mark.security
+    async def test_a_request_is_shown_to_those_who_hold_channels_manage_only(self, db):
+        owner = await _user(db)
+        org = await _org(db, owner)
+        admin = await _member(db, org, role="admin")
+        builder = await _member(db, org, role="builder")
+        service = NotificationCenterService(db)
+        await self._write(service, org, [admin.id, builder.id])
+
+        shown, _, _ = await service.list_inbox(_ctx(admin, org, role="admin"), after=None, limit=10)
+        hidden, _, _ = await service.list_inbox(
+            _ctx(builder, org, role="builder"), after=None, limit=10
+        )
+
+        assert len(shown) == 1
+        assert hidden == []
+        assert (await service.unread_count(_ctx(builder, org, role="builder"))).count == 0
+
+    @pytest.mark.security
+    async def test_somebody_who_lost_the_permission_since_is_no_longer_shown_the_row(self, db):
+        owner = await _user(db)
+        org = await _org(db, owner)
+        admin = await _member(db, org, role="admin")
+        service = NotificationCenterService(db)
+        await self._write(service, org, [admin.id])
+
+        demoted, _, _ = await service.list_inbox(
+            _ctx(admin, org, role="builder"), after=None, limit=10
+        )
+
+        assert demoted == []
+
+    async def test_the_answer_to_the_requester_is_shown_whatever_their_role(self, db):
+        owner = await _user(db)
+        org = await _org(db, owner)
+        builder = await _member(db, org, role="builder")
+        service = NotificationCenterService(db)
+        await service.write(
+            recipients=[builder.id],
+            event_type=NotificationEventType.CHANNEL_BINDING_DECIDED,
+            occurrence_id="request-1",
+            summary="Your request was approved.",
+            organization_id=org.id,
+        )
+
+        shown, _, _ = await service.list_inbox(
+            _ctx(builder, org, role="builder"), after=None, limit=10
+        )
+
+        assert len(shown) == 1
+
+
 class TestReadGateCollectionsView:
     async def _kb(self, db, org: Organization, owner: User) -> KnowledgeBase:
         kb = KnowledgeBase(

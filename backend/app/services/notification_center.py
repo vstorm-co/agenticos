@@ -1269,6 +1269,8 @@ class NotificationCenterService:
             return _Gate(visible=self._artifact_visible(ctx, notification, cache))
         if gate is ContentGate.WORKFLOWS_VIEW:
             return _Gate(visible=self._workflow_visible(ctx, notification, cache))
+        if gate is ContentGate.CHANNELS_MANAGE:
+            return _Gate(visible=ctx.has(Perm.CHANNELS_MANAGE))
         raise AssertionError(f"unhandled content gate: {gate}")  # pragma: no cover
 
     def _collections_visible(
