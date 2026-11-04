@@ -332,7 +332,11 @@ export function AddModel({
     ? "chat"
     : (listedApis.find((entry) => entry === "responses") ?? null);
   const storedApi =
-    selected !== undefined && providerId === selected.provider && model.trim() === selected.model
+    selected !== undefined &&
+    providerId === selected.provider &&
+    model.trim() === selected.model &&
+    chosenKey === (selected.secret_id ?? "") &&
+    baseUrl.trim().replace(/\/+$/, "") === (selected.base_url ?? "").replace(/\/+$/, "")
       ? (selected.api ?? null)
       : null;
   const api = choosesApi

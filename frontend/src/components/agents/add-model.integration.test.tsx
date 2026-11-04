@@ -1208,6 +1208,61 @@ describe("choosing where a Stav model's requests run", () => {
     expect(sent()).toEqual(expect.objectContaining({ model: "openai/o3-pro", api: "responses" }));
   });
 
+  it.each(["endpoint", "key"] as const)(
+    "derives the API when a Stav model changes %s",
+    async (connection) => {
+      state.purposes = [...state.purposes, purpose("stav", "Stav.ai")];
+      state.catalog = [
+        ...state.catalog,
+        capabilities("stav", "Stav.ai", {
+          supports_base_url: true,
+          apis: ["responses", "chat"],
+          native_api: "chat",
+          regions: ["eu", "eea", "global"],
+          api_from_model: true,
+        }),
+      ];
+      state.secrets = [
+        secret({ id: "s-stav", name: "Stav", purpose: "stav" }),
+        secret({ id: "s-other", name: "Other Stav", purpose: "stav" }),
+      ];
+      state.models = [{ id: "vendor/model", name: "Model", apis: ["responses"] }];
+      mount({
+        selected: {
+          id: "p-stav",
+          label: "Existing Stav",
+          provider: "stav",
+          model: "vendor/model",
+          secret_id: "s-stav",
+          api: "chat",
+          region: "eu",
+          params: {},
+          fallback_profile_ids: [],
+        } as Parameters<typeof AddModel>[0]["selected"],
+      });
+      if (connection === "endpoint") {
+        await userEvent.type(screen.getByLabelText("Endpoint"), "https://other.stav.example/v1");
+      } else {
+        await userEvent.click(screen.getByLabelText("Key"));
+        await userEvent.click(screen.getByRole("option", { name: "Other Stav" }));
+      }
+      expect(screen.getByText("Responses, chosen from the model")).toBeInTheDocument();
+      if (connection === "endpoint") {
+        await userEvent.click(screen.getByRole("button", { name: "Add separate model" }));
+        expect(sent()).toEqual(
+          expect.objectContaining({ api: "responses", base_url: "https://other.stav.example/v1" }),
+        );
+      } else {
+        await userEvent.click(screen.getByRole("button", { name: "Update model" }));
+        expect(state.updateProfile.mutateAsync).toHaveBeenCalledWith(
+          expect.objectContaining({
+            changes: expect.objectContaining({ api: "responses", secret_id: "s-other" }),
+          }),
+        );
+      }
+    },
+  );
+
   it("does not claim the model chose an API it did not", async () => {
     state.purposes = [...state.purposes, purpose("stav", "Stav.ai")];
     state.catalog = [
