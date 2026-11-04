@@ -72,6 +72,7 @@ export interface Trigger {
   teams_conversation_id?: string | null;
   /** Where each fire's answer is delivered to its person, beside the run log (#2575). */
   answer_to?: TriggerAnswerTo;
+  delivery_conversation_id?: string | null;
   /** When the routine stops by itself; null runs until stopped (#2575). */
   ends_at?: string | null;
   /** What this routine's runs may cost a month, or null for no limit of its own (#2575). */
@@ -161,6 +162,7 @@ export interface TriggerCreate {
   pinned_version_id?: string | null;
   teams_conversation_id?: string | null;
   answer_to?: TriggerAnswerTo;
+  delivery_conversation_id?: string | null;
   ends_at?: string | null;
   monthly_budget_usd?: number | null;
   runs_as_creator?: boolean;
@@ -226,6 +228,7 @@ export interface TriggerUpdate {
   pinned_version_id?: string | null;
   teams_conversation_id?: string | null;
   answer_to?: TriggerAnswerTo;
+  delivery_conversation_id?: string | null;
   ends_at?: string | null;
   monthly_budget_usd?: number | null;
   runs_as_creator?: boolean;

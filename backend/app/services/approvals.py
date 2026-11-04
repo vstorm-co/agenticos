@@ -568,6 +568,8 @@ class ApprovalService:
         if any(approval.status == ApprovalStatus.PENDING.value for approval in approvals):
             return 0
 
+        await OutcomeService(self.db).resolve_run_approvals(run.id, via="expiry")
+
         # Both read before `finish_run`, which clears the state they live in. The
         # buttons are settled ahead of the audits, which take the last lock.
         destination = chat_destination(run)

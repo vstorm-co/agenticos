@@ -146,6 +146,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Deliver routines created from a chat turn or setup proposal back to that originating conversation by default, with an explicit choice to use the primary chat or run log. Expired approval runs also resolve their shared case and cancel pending notifications.
+
 - Show failed chat attention reads with retry and report rejected actions, retain retriable email deliveries when inbound state cannot be saved, accept numeric replies above mail signatures, serialize concurrent memory writes/corrections, disable maintenance after model removal, and refresh reopened cases to their current conversation.
 
 - Keep concurrent email replies and approval prompts in their originating mail thread, give inbound files unique handles, bound aggregate attachment admission before caching, and remove consumed file blobs.

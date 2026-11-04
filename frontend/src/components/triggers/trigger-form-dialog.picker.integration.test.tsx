@@ -128,3 +128,29 @@ describe("TriggerFormDialog with no agent in context", () => {
     expect(onCreated).toHaveBeenCalledWith(expect.objectContaining({ id: "t-1" }));
   });
 });
+
+it("delivers a routine proposed in a chat back to that exact chat", async () => {
+  const user = userEvent.setup();
+  vi.mocked(apiClient.post).mockResolvedValue({ id: "t-chat", trigger_type: "schedule" });
+  render(
+    <TriggerFormDialog
+      agentId="a1"
+      originConversationId="source-chat"
+      open
+      onOpenChange={vi.fn()}
+    />,
+    { wrapper },
+  );
+  const dialog = await screen.findByRole("dialog");
+  await user.click(within(dialog).getByRole("button", { name: "Continue" }));
+  await user.type(within(dialog).getByLabelText("Message"), "Report here");
+  await user.click(within(dialog).getByRole("button", { name: "Continue" }));
+  await user.click(within(dialog).getByRole("button", { name: "Create" }));
+  expect(apiClient.post).toHaveBeenCalledWith(
+    "/agents/a1/triggers",
+    expect.objectContaining({
+      answer_to: "conversation",
+      delivery_conversation_id: "source-chat",
+    }),
+  );
+});

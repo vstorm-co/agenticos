@@ -44,9 +44,11 @@ const CARD = "bg-muted/60 flex flex-col gap-2 rounded-2xl p-3";
 export function SetupProposals({
   proposals,
   agentId,
+  conversationId,
 }: {
   proposals: SetupProposal[];
   agentId: string | null;
+  conversationId?: string | null;
 }) {
   const t = useTranslations("chat.extras.setup");
   const router = useRouter();
@@ -102,6 +104,7 @@ export function SetupProposals({
       {routine && (
         <TriggerFormDialog
           agentId={agentId}
+          originConversationId={conversationId}
           open
           onOpenChange={(open) => !open && setRoutine(null)}
           initialTemplate={routine}

@@ -25,6 +25,15 @@ from app.worker.tasks.approval_tasks import expire_approvals
 pytestmark = [pytest.mark.anyio, pytest.mark.security]
 
 
+@pytest.fixture(autouse=True)
+def _outcome_projection():
+    # This file isolates expiry/run state; real case settlement is covered against Postgres.
+    with patch(
+        "app.services.approvals.OutcomeService.resolve_run_approvals", new=AsyncMock(return_value=0)
+    ) as project:
+        yield project
+
+
 def _db() -> MagicMock:
     return MagicMock(flush=AsyncMock(), refresh=AsyncMock(), add=MagicMock())
 

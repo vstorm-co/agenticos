@@ -22,6 +22,7 @@ interface TurnShortcutsProps {
   request: string;
   /** The agent that answered it, which a routine runs by default. */
   agentId: string | null;
+  conversationId?: string | null;
 }
 
 /**
@@ -29,7 +30,7 @@ interface TurnShortcutsProps {
  * it to the Architect to make an agent of. Under the person's own message,
  * because that is the request - the answer is what it produced.
  */
-export function TurnShortcuts({ request, agentId }: TurnShortcutsProps) {
+export function TurnShortcuts({ request, agentId, conversationId }: TurnShortcutsProps) {
   const t = useTranslations("chat.extras");
   const { can } = usePermissions();
   const { assistant } = useAssistant();
@@ -72,6 +73,7 @@ export function TurnShortcuts({ request, agentId }: TurnShortcutsProps) {
       {scheduling && (
         <TriggerFormDialog
           agentId={agentId}
+          originConversationId={conversationId}
           open={scheduling}
           onOpenChange={setScheduling}
           initialTemplate={template}

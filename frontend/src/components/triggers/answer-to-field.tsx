@@ -23,13 +23,17 @@ import type { TriggerAnswerTo } from "@/types/triggers";
 export function AnswerToField({
   value,
   onChange,
+  hasConversation = false,
 }: {
   value: TriggerAnswerTo;
+  hasConversation?: boolean;
   onChange: (value: TriggerAnswerTo) => void;
 }) {
   const t = useTranslations("triggers");
   const options: TriggerAnswerTo[] =
-    value === "conversation" ? ["primary", "run_log", "conversation"] : ["primary", "run_log"];
+    hasConversation || value === "conversation"
+      ? ["primary", "run_log", "conversation"]
+      : ["primary", "run_log"];
   return (
     <FormField
       label={t("answerToLabel")}

@@ -150,6 +150,8 @@ interface TriggerFormDialogProps {
    * offers a picker over the published agents, seeded with the user's default.
    */
   agentId: string | null;
+  /** The chat that offered this routine; absent on the standalone routines page. */
+  originConversationId?: string | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   /** The trigger to edit, or null/undefined to create a new one. */
@@ -183,11 +185,13 @@ export function TriggerFormDialog({
   trigger = null,
   initialType = "schedule",
   initialTemplate = null,
+  originConversationId = null,
   onCreated,
 }: TriggerFormDialogProps) {
   const t = useTranslations("triggers");
   const tp = useTranslations("portals");
   const editing = trigger !== null;
+  const hasConversation = !!(trigger?.delivery_conversation_id ?? originConversationId);
   const localWork = useRoutineLocalWork();
   const [preparedLocal, setPreparedLocal] = useState<TriggerCreated | null>(null);
   const [approvedLocal, setApprovedLocal] = useState<LocalTarget | null>(null);
@@ -279,7 +283,7 @@ export function TriggerFormDialog({
     setInvalidEnd(instant === undefined || (instant !== null && Date.parse(instant) <= Date.now()));
   };
   const [answerTo, setAnswerTo] = useState<TriggerAnswerTo>(
-    trigger ? (trigger.answer_to ?? "run_log") : "primary",
+    trigger ? (trigger.answer_to ?? "run_log") : originConversationId ? "conversation" : "primary",
   );
   // A new trigger is the caller's own; an existing one is whoever made it.
   const me = useAuthStore((state) => state.user?.id ?? null);
@@ -509,6 +513,7 @@ export function TriggerFormDialog({
       ...(teamsPost !== NO_TEAMS_POST ? { teams_conversation_id: teamsPost } : {}),
       // Only when it is not the server's default, so a plain create says nothing new.
       ...(answerTo !== "primary" ? { answer_to: answerTo } : {}),
+      ...(answerTo === "conversation" ? { delivery_conversation_id: originConversationId } : {}),
       ...(budgetLimit !== null && budgetLimit !== undefined
         ? { monthly_budget_usd: budgetLimit }
         : {}),
@@ -610,7 +615,12 @@ export function TriggerFormDialog({
         }
         const post = teamsPost === NO_TEAMS_POST ? null : teamsPost;
         if (post !== (trigger.teams_conversation_id ?? null)) patch.teams_conversation_id = post;
-        if (answerTo !== (trigger.answer_to ?? "run_log")) patch.answer_to = answerTo;
+        if (answerTo !== (trigger.answer_to ?? "run_log")) {
+          patch.answer_to = answerTo;
+          if (answerTo === "conversation")
+            patch.delivery_conversation_id =
+              trigger.delivery_conversation_id ?? originConversationId;
+        }
         if (endTouched && end !== undefined) patch.ends_at = end;
         if (
           JSON.stringify(notificationChannels) !==
@@ -909,7 +919,11 @@ export function TriggerFormDialog({
 
               <TeamsPostField value={teamsPost} onChange={setTeamsPost} />
 
-              <AnswerToField value={answerTo} onChange={setAnswerTo} />
+              <AnswerToField
+                value={answerTo}
+                onChange={setAnswerTo}
+                hasConversation={hasConversation}
+              />
               <FailurePolicyField value={maxFailures} onChange={setMaxFailures} />
               <NotificationChannelsField
                 value={notificationChannels}
@@ -1060,7 +1074,11 @@ export function TriggerFormDialog({
 
                 <TeamsPostField value={teamsPost} onChange={setTeamsPost} />
 
-                <AnswerToField value={answerTo} onChange={setAnswerTo} />
+                <AnswerToField
+                  value={answerTo}
+                  onChange={setAnswerTo}
+                  hasConversation={hasConversation}
+                />
                 <FailurePolicyField value={maxFailures} onChange={setMaxFailures} />
                 <NotificationChannelsField
                   value={notificationChannels}

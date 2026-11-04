@@ -662,3 +662,41 @@ async def test_reopened_cause_moves_to_the_new_incidents_chat(db: AsyncSession) 
     assert row is not None and row.id == first.outcome_id
     assert row.source_run_id == next_run.id and row.source_conversation_id == next_chat.id
     assert row.summary == "Found new-incident" and row.status == "open"
+
+
+async def test_stale_approval_sweep_resolves_its_case_and_pending_deliveries(
+    db: AsyncSession,
+) -> None:
+    from datetime import timedelta
+
+    from app.core.config import settings
+    from app.db.models.agent_run import ToolApproval
+
+    org, users, _ = await _world(db)
+    run, _ = await _run(db, org, users[0])
+    run.status = "awaiting_approval"
+    approval = ToolApproval(
+        organization_id=org.id,
+        run_id=run.id,
+        agent_id=run.agent_id,
+        tool_id="send_email",
+        tool_args={},
+        status="pending",
+        created_at=datetime.now(UTC) - timedelta(hours=settings.APPROVAL_EXPIRY_HOURS + 1),
+    )
+    db.add(approval)
+    await db.flush()
+    note = await _finding(
+        db,
+        org,
+        users[0],
+        "approval-timeout",
+        context={"run_id": str(run.id)},
+        event=NotificationEventType.APPROVAL_REQUESTED,
+    )
+    expired = await ApprovalService(db).expire_stale()
+    assert expired == 1
+    row = await db.get(Outcome, note.outcome_id)
+    assert row is not None and row.status == "resolved" and row.settled_via == "expiry"
+    assert approval.status == "expired" and run.status == "cancelled"
+    assert all(item.status == "skipped" for item in await _deliveries(db, note))
