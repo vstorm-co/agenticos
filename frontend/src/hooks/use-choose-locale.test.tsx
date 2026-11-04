@@ -27,17 +27,17 @@ beforeEach(() => {
 });
 
 describe("useChooseLocale", () => {
-  it("keeps the choice on the account before switching the page", () => {
+  it.each(["pl", "tr"] as const)("keeps %s on the account before switching the page", (locale) => {
     useAuthStore.setState({ user: ADA });
     const { result } = renderHook(() => useChooseLocale());
 
-    act(() => result.current("pl"));
+    act(() => result.current(locale));
 
     // In the store first, so the page that follows the account does not pull
     // it back while the save is on its way.
-    expect(useAuthStore.getState().user?.locale).toBe("pl");
-    expect(env.save).toHaveBeenCalledWith("pl");
-    expect(env.push).toHaveBeenCalledWith("/agents", { locale: "pl" });
+    expect(useAuthStore.getState().user?.locale).toBe(locale);
+    expect(env.save).toHaveBeenCalledWith(locale);
+    expect(env.push).toHaveBeenCalledWith("/agents", { locale });
   });
 
   it("says so when the account could not keep it", async () => {

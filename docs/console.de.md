@@ -1,5 +1,5 @@
 ---
-source_sha: "45358ad54c78"
+source_sha: "67159a2b0696"
 ---
 
 # Die Konsole { #the-console }
@@ -840,9 +840,9 @@ erhalten.
 
 ## Sprachen { #languages }
 
-Die Konsole spricht Englisch, Polnisch und Deutsch, vollständig bis auf die
-rechtlichen Seiten, die Englisch bleiben. Die erste Karte des Rundgangs bietet die
-drei an, und das Kontomenü wechselt die Sprache jederzeit; die Wahl wird in Ihrem
+Die Konsole spricht Englisch, Polnisch, Deutsch und Türkisch. Die erste Karte des
+Rundgangs bietet die vier an, und das Kontomenü wechselt die Sprache jederzeit;
+die Wahl wird in Ihrem
 Konto gespeichert, sodass die Konsole auf jedem Gerät, auf dem Sie sich anmelden,
 in ihr öffnet. Sie können auch einen Agent bitten - "auf Englisch umstellen" -, und
 die Seite wechselt, während er antwortet, ohne Neuladen. Jeder Agent antwortet in

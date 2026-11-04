@@ -8,6 +8,7 @@ from pydantic import Field, StringConstraints
 
 from app.agents.spec import VoiceSpec
 from app.schemas.base import BaseSchema
+from app.schemas.user import ConsoleLocale
 
 # An SDP description, kept byte for byte. `BaseSchema` strips whitespace from every
 # string, and that takes the CRLF closing the last line, which OpenAI refuses as
@@ -302,7 +303,7 @@ class VoicePreviewRequest(BaseSchema):
     """What to listen to: the draft's Voice section, and the console's language."""
 
     voice: VoiceSpec = Field(description="The Voice section as the Builder holds it, unpublished")
-    locale: Literal["en", "pl", "de"] = Field(
+    locale: ConsoleLocale = Field(
         default="en",
         description="The console's language: the sentence is said in it unless the section names one",
     )

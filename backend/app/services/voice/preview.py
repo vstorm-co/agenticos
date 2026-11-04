@@ -17,7 +17,6 @@ import io
 import logging
 import wave
 from collections.abc import Awaitable, Callable
-from typing import Literal
 from uuid import UUID
 
 import anyio
@@ -31,18 +30,18 @@ from app.clients.redis import RedisClient
 from app.core.exceptions import BadRequestError, ExternalServiceError
 from app.core.field_errors import refused_field
 from app.core.permissions import AuthContext
+from app.schemas.user import ConsoleLocale as PreviewLocale
 from app.services import provider_keys, realtime_models, speech_to_text
 from app.services.organization_secret import OrganizationSecretService
 from app.services.voice.settings import resolve_voice
 
 logger = logging.getLogger(__name__)
 
-PreviewLocale = Literal["en", "pl", "de"]
-
 PREVIEW_LINES: dict[PreviewLocale, str] = {
     "en": "Hi, this is how I sound. Ask me anything, and I'll answer out loud.",
     "pl": "Cześć, tak brzmi mój głos. Zapytaj mnie o cokolwiek, a odpowiem na głos.",
     "de": "Hallo, so klingt meine Stimme. Frag mich etwas, und ich antworte laut.",
+    "tr": "Merhaba, sesim böyle. Bana istediğini sor, sana sesli cevap vereyim.",
 }
 
 CACHE_SECONDS = 7 * 24 * 3600

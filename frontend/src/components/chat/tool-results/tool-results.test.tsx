@@ -1091,3 +1091,27 @@ describe("a desktop screenshot the agent kept", () => {
     expect(screen.getByText("The screenshot was taken but not stored.")).toBeInTheDocument();
   });
 });
+
+it("renders Keenable search output as source cards", () => {
+  const data = parseWebSearch(
+    JSON.stringify({
+      kind: "web_search",
+      provider: "keenable",
+      query: "AgenticOS",
+      results: [
+        {
+          title: "AgenticOS source",
+          url: "https://github.com/vstorm-co/agenticos",
+          content: "An open-source agent platform.",
+        },
+      ],
+    }),
+  );
+  if (data === null) throw new Error("Expected a structured Keenable search result");
+  render(<WebSearchResults data={data} />);
+  expect(screen.getByRole("link", { name: /AgenticOS source/ })).toHaveAttribute(
+    "href",
+    "https://github.com/vstorm-co/agenticos",
+  );
+  expect(screen.getByText("An open-source agent platform.")).toBeInTheDocument();
+});
