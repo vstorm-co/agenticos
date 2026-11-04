@@ -950,17 +950,13 @@ class TestRemovingARoutine:
 
 
 class TestWhatNeverWaitsForApproval:
-    def test_reversible_personal_routine_writes_do_not_wait_for_approval(self) -> None:
-        """Personal routine edits act on the request; publication still waits."""
+    def test_only_console_language_bypasses_write_approval(self) -> None:
+        """Persistent automation requires the configured write confirmation."""
         tools = {tool.name: tool for tool in platform_tool_catalog()}
 
-        assert {name for name, tool in tools.items() if tool.ungated} == {
-            "set_my_language",
-            "create_routine",
-            "update_routine",
-            "create_watch",
-            "update_watch",
-        }
+        assert {name for name, tool in tools.items() if tool.ungated} == {"set_my_language"}
+        for name in ("create_routine", "update_routine", "create_watch", "update_watch"):
+            assert tools[name].writes and not tools[name].ungated
         assert tools["set_my_language"].writes
 
     @pytest.mark.security

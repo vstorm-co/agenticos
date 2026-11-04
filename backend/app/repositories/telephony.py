@@ -4,7 +4,7 @@ from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from uuid import UUID
 
-from sqlalchemy import delete, func, select, true
+from sqlalchemy import delete, exists, func, select, true
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.agent_embed import AgentEmbed
@@ -313,4 +313,22 @@ async def call_for_source(
             PhoneCall.purpose != "important",
         )
         .limit(1)
+    )
+
+
+async def bot_has_unfinished_calls(
+    db: AsyncSession, *, organization_id: UUID, bot_id: UUID
+) -> bool:
+    """A live receipt must retain its endpoint and cleanup credentials until termination."""
+    return bool(
+        await db.scalar(
+            select(
+                exists().where(
+                    PhoneCall.endpoint_id == PhoneEndpoint.id,
+                    PhoneEndpoint.bot_id == bot_id,
+                    PhoneEndpoint.organization_id == organization_id,
+                    PhoneCall.finished_at.is_(None),
+                )
+            )
+        )
     )

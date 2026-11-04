@@ -106,6 +106,9 @@ class ProactiveService:
                 ),
                 organization_id=candidate.organization_id,
                 dedupe_key=_per_person("think", candidate.organization_id, candidate.user_id),
+                concurrency_key=_per_person(
+                    "proactivity", candidate.organization_id, candidate.user_id
+                ),
                 dedupe_active=True,
             )
             queued += 1
@@ -145,6 +148,7 @@ class ProactiveService:
                 LookThroughWatch(watch_id=watch.id, scheduled_for=now),
                 organization_id=watch.organization_id,
                 dedupe_key=f"watch:{watch.id}",
+                concurrency_key=_per_person("proactivity", watch.organization_id, watch.user_id),
                 dedupe_active=True,
             )
         return len(due)

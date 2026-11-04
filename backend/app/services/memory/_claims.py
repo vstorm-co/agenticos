@@ -147,6 +147,14 @@ async def remember(
             return Remembered(existing, created=False, disputed=existing.status == "disputed")
 
     now = datetime.now(UTC)
+    if origin == "person" and any(
+        item.origin == "person" and item.effective_from is not None and item.effective_from > now
+        for item in live
+    ):
+        raise ConflictError(
+            message="A future correction is already scheduled for this subject; retract it before replacing it",
+            details={"subject": topic},
+        )
     status = "current"
     supersedes: MemoryClaim | None = None
     disputed = False

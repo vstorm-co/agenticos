@@ -1,5 +1,5 @@
 ---
-source_sha: "54a1fafcd750"
+source_sha: "f32976288eb9"
 ---
 
 # MCP — las herramientas que aquí nadie tiene que escribir { #mcp-the-tools-nobody-here-has-to-write }
@@ -1186,14 +1186,13 @@ con los propios registros de la plataforma. En el Builder es la primera tarjeta 
   lee lo que el Viewer puede leer y no crea nada. No se concede nada nuevo, y donde
   nadie está detrás del run - un widget público, una programación que no actúa por
   nadie - el enlace no está.
-- **Los cambios siguen la política de aprobación del vínculo.** `writes`,
-  por defecto, detiene acciones como publicar, invitar, eliminar y ejecutar ahora;
-  `all` también las lecturas. Crear o editar rutinas/vigilancias personales y
-  `set_my_language` ejecutan las peticiones completas inmediatamente. Siguen
-  marcadas como escrituras; solo esas herramientas con origen de plataforma
-  confiable evitan la aprobación del vínculo. Los servicios siguen exigiendo
-  consentimiento humano privado, propiedad y permisos actuales. `set_my_profile`
-  sigue esperando porque su contenido llega a los agentes posteriores.
+- **Los cambios siguen la política de aprobación del vínculo.** `writes`, por
+  defecto, detiene publicar, invitar, eliminar, ejecutar ahora y crear o editar
+  rutinas y vigilancias personales; `all` también las lecturas. Solo
+  `set_my_language` evita esta aprobación. La identidad humana en un chat privado,
+  la propiedad y los permisos siguen siendo necesarios, pero no sustituyen la
+  confirmación de una automatización persistente. `set_my_profile` también espera
+  porque su contenido llega a futuras ejecuciones de agentes.
 
 - **Las herramientas se pueden acotar** en los ajustes de la tarjeta, que listan
   cada herramienta y marcan las que cambian algo.

@@ -12848,7 +12848,9 @@
     "importanceInstructions": "Co uznaję za ważne",
     "escalationDelay": "Czas od pierwszego niepotwierdzonego powiadomienia (sekundy)",
     "escalationHint": "0 oznacza natychmiast. Opóźnienie wymaga nieprzeczytanego powiadomienia o tej samej sprawie. Potwierdzenie, rozwiązanie lub wyciszenie anuluje oczekujący telefon.",
-    "notBefore": "Najwcześniejszy telefon: {time}"
+    "notBefore": "Najwcześniejszy telefon: {time}",
+    "unavailableAgent": "Niedostępny agent ({id})",
+    "unavailableContact": "Niedostępny kontakt przekazania ({id})"
   },
   "discordRoles": {
     "badge": "Discord",

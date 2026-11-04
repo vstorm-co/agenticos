@@ -674,3 +674,25 @@ async def test_concurrent_corrections_cannot_rewrite_a_superseded_id(db: AsyncSe
 
     results = await asyncio.gather(correct("Piotr"), correct("Marta"))
     assert sum(result is not None for result in results) == 1
+
+
+async def test_a_second_future_correction_cannot_make_two_owners_current(db: AsyncSession) -> None:
+    from app.core.exceptions import ConflictError
+
+    org, user, _, _ = await _tenant(db)
+    original = (await _say(db, org, ClaimScope(person_owner_key(user.id), None), "Anna")).claim
+    tomorrow = datetime.now(UTC) + timedelta(days=1)
+    pending = await claims.correct(
+        db, claim=original, statement="Piotr", author_user_id=user.id, effective_from=tomorrow
+    )
+    with pytest.raises(ConflictError, match="future correction"):
+        await claims.correct(
+            db,
+            claim=original,
+            statement="Marta",
+            author_user_id=user.id,
+            effective_from=tomorrow + timedelta(days=1),
+        )
+    await db.refresh(original)
+    assert original.effective_to == tomorrow
+    assert pending.effective_from == tomorrow and pending.effective_to is None

@@ -13073,7 +13073,9 @@
     "importanceInstructions": "What counts as important",
     "escalationDelay": "Wait after the first unacknowledged notification (seconds)",
     "escalationHint": "0 calls immediately. A delay requires an unread notification for the same case. Acknowledging, resolving or muting it cancels the pending call.",
-    "notBefore": "Earliest call: {time}"
+    "notBefore": "Earliest call: {time}",
+    "unavailableAgent": "Unavailable agent ({id})",
+    "unavailableContact": "Unavailable transfer contact ({id})"
   },
   "discordRoles": {
     "badge": "Discord",

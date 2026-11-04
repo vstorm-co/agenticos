@@ -51,3 +51,15 @@ async def claim(
     )
     assert winner is not None, "the insert, or a concurrent one, left a row"
     return winner
+
+
+async def agent_for_conversation(
+    db: AsyncSession, *, organization_id: UUID, conversation_id: UUID
+) -> UUID | None:
+    """The agent whose primary history this is; ordinary channel sessions return None."""
+    return await db.scalar(
+        select(PrimaryConversation.agent_id).where(
+            PrimaryConversation.organization_id == organization_id,
+            PrimaryConversation.conversation_id == conversation_id,
+        )
+    )

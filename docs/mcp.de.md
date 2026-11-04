@@ -1,5 +1,5 @@
 ---
-source_sha: "54a1fafcd750"
+source_sha: "f32976288eb9"
 ---
 
 # MCP — die Tools, die hier niemand schreiben muss { #mcp-the-tools-nobody-here-has-to-write }
@@ -1205,13 +1205,12 @@ einzuschalten bindet ihn als `mcp_servers: [{account: platform, approval: writes
   wird gewährt, und wo niemand hinter dem Run steht - ein öffentliches Widget, ein
   Zeitplan im Namen von niemandem - fehlt die Bindung.
 - **Änderungen folgen der Genehmigungsrichtlinie der Bindung.** Das normale
-  `writes` hält etwa Veröffentlichung, Einladung, Löschen und sofortiges Ausführen
-  an; `all` auch Lesezugriffe. Persönliche Routinen/Beobachtungen anzulegen oder
-  zu ändern und `set_my_language` führen vollständige Aufträge sofort aus. Sie
-  bleiben als Schreibzugriffe markiert; nur diese benannten Tools aus der
-  vertrauenswürdigen Plattformquelle umgehen das Bindungstor. Dienste prüfen
-  weiterhin menschliche Zustimmung im privaten Chat, Eigentum und aktuelle
-  Rechte. `set_my_profile` wartet weiterhin, weil sein Inhalt spätere Agenten erreicht.
+  `writes` hält Veröffentlichung, Einladung, Löschen, sofortiges Ausführen sowie
+  Erstellen und Bearbeiten persönlicher Routinen und Beobachtungen an; `all`
+  auch Lesezugriffe. Nur `set_my_language` umgeht dieses Tor. Menschliche Identität
+  im privaten Chat, Eigentum und Rechte bleiben erforderlich, ersetzen aber nicht
+  die Bestätigung eines dauerhaften Automatisierungsaufrufs. `set_my_profile`
+  wartet ebenfalls, weil sein Inhalt spätere Agentenläufe erreicht.
 
 - **Die Werkzeuge lassen sich einschränken** in den Einstellungen der Karte, die
   jedes Werkzeug auflisten und die ändernden markieren.

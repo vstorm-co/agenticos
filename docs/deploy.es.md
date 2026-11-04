@@ -1,5 +1,5 @@
 ---
-source_sha: "91a297517bbc"
+source_sha: "a41c7a2c6e87"
 ---
 
 # Despliega en un servidor { #deploy-to-a-server }
@@ -566,6 +566,8 @@ demonio a través de una *conexión* de sandbox que alguien crea en la consola, 
 Antes de actualizar, crea [copias de la base, los medios y las claves del vault](#backups)
 y coordina el despliegue de API y workers. Usa el paso normal de migración del
 despliegue; no copies filas ni crees horarios sustitutos manualmente.
+
+Antes de aplicar `0285_member_proactivity.py`, detén API y productores de barridos, espera a que finalicen los jobs proactivos activos y detén los workers. La migración rechaza jobs de modelo de vigilancia o nocturnos en ejecución y añade a los pendientes una clave compartida de concurrencia por persona. Actualiza API y workers juntos para que los nuevos jobs usen la misma clave; una vigilancia y una revisión nocturna de una persona no deben gastar independientemente el mismo presupuesto restante.
 
 - `0248_drop_memory_mem0.py` detiene la actualización mientras `memory_mem0` siga
   en algún borrador guardado o spec publicada. Antes de reintentar, inventaría todos

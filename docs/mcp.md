@@ -1109,12 +1109,11 @@ named after this deployment; switching it on binds it as
   can read and create nothing. Nothing new is granted, and where nobody is behind
   the run - a public widget, a schedule acting for nobody - the binding is absent.
 - **Changes follow the binding's approval policy.** `writes`, the default, holds
-  writes such as publishing, inviting, deleting and running now; `all` also holds
-  reads. Personal routine/watch creation and edits, and `set_my_language`, act
-  immediately on a complete request. They remain marked as writes; trusted
-  platform origin exempts only these named tools from the binding gate. Services
-  still enforce private-human consent, ownership and current permissions.
-  `set_my_profile` still waits: its saved content reaches every future agent run.
+  publishing, inviting, deletion, running now, and creation or editing of personal
+  routines and watches; `all` also holds reads. Only `set_my_language` bypasses
+  this gate. Private-human identity, ownership and permissions remain necessary,
+  but do not replace confirmation of a persistent automation call.
+  `set_my_profile` also waits because its content reaches future agent runs.
 
 - **The tools can be narrowed** in the card's settings, which list every tool and
   mark the ones that change something.

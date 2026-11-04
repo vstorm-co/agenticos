@@ -1,5 +1,5 @@
 ---
-source_sha: "91a297517bbc"
+source_sha: "a41c7a2c6e87"
 ---
 
 # Wdrożenie na serwer { #deploy-to-a-server }
@@ -546,6 +546,8 @@ deploymentu.
 Przed aktualizacją wykonaj [kopie bazy, mediów i kluczy sejfu](#backups)
 i skoordynuj wdrożenie API oraz workerów. Użyj zwykłego kroku migracji wdrożenia;
 nie kopiuj ręcznie wierszy ani nie twórz zastępczych harmonogramów.
+
+Przed zastosowaniem `0285_member_proactivity.py` zatrzymaj API i procesy zlecające sweepy, poczekaj na zakończenie aktywnych zadań proaktywnych, a następnie zatrzymaj workery. Migracja odmawia działania, gdy trwa zadanie modelu obserwacji lub nocnego przeglądu, i uzupełnia kolejkę o wspólny klucz współbieżności na osobę. Aktualizuj API i workery razem, aby nowe zadania używały tego samego klucza; obserwacja i nocny przegląd jednej osoby nie mogą niezależnie wydać tego samego pozostałego limitu.
 
 - `0248_drop_memory_mem0.py` zatrzymuje aktualizację, jeśli `memory_mem0` pozostaje
   w którymkolwiek zapisanym szkicu lub opublikowanej specyfikacji. Przed ponowieniem

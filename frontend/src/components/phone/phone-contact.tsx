@@ -41,6 +41,12 @@ export function PhoneContactForm({
   );
   if (!settings.sms_identities.length)
     return <p className="text-muted-foreground text-sm">{t("linkFirst")}</p>;
+  const choices = [
+    ...agents,
+    ...data.agent_ids
+      .filter((id) => !agents.some((agent) => agent.id === id))
+      .map((id) => ({ id, name: t("unavailableAgent", { id }) })),
+  ];
   const hours = Array.from({ length: 24 }, (_, hour) => ({
     id: String(hour),
     label: `${String(hour).padStart(2, "0")}:00`,
@@ -74,7 +80,7 @@ export function PhoneContactForm({
       <fieldset className="space-y-2" disabled={pending}>
         <legend className="text-sm font-medium">{t("selectedAgents")}</legend>
         <p className="text-muted-foreground text-sm">{t("selectedAgentsHint")}</p>
-        {agents.map((agent) => (
+        {choices.map((agent) => (
           <label key={agent.id} className="flex items-center gap-2 text-sm">
             <Checkbox
               checked={data.agent_ids.includes(agent.id)}

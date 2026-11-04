@@ -1,5 +1,5 @@
 ---
-source_sha: "54a1fafcd750"
+source_sha: "f32976288eb9"
 ---
 
 # MCP — narzędzia, których nikt tutaj nie musi pisać { #mcp-the-tools-nobody-here-has-to-write }
@@ -1153,12 +1153,11 @@ nazwana jak to wdrożenie; jej włączenie wiąże go jako
   stoi - publiczny widget, harmonogram działający w niczyim imieniu - bindingu nie
   ma.
 - **Zmiany podlegają polityce zgód powiązania.** Domyślne `writes` zatrzymuje
-  zapis, np. publikację, zaproszenie, usunięcie i uruchomienie teraz; `all` także
-  odczyty. Tworzenie i edycja własnych rutyn/obserwacji oraz `set_my_language`
-  wykonują kompletną prośbę od razu. Nadal są oznaczone jako zapis; tylko te
-  nazwane narzędzia z zaufanego źródła platformy omijają bramkę powiązania.
-  Usługi nadal egzekwują zgodę człowieka w prywatnej rozmowie, własność i aktualne
-  uprawnienia. `set_my_profile` czeka, bo jego treść trafia do kolejnych agentów.
+  publikację, zaproszenia, usuwanie, uruchamianie teraz oraz tworzenie i edycję
+  własnych rutyn i obserwacji; `all` także odczyty. Tylko `set_my_language`
+  omija tę bramkę. Tożsamość człowieka w prywatnej rozmowie, własność i uprawnienia
+  pozostają wymagane, ale nie zastępują zatwierdzenia trwałej automatyzacji.
+  `set_my_profile` też czeka, bo jego treść trafia do przyszłych uruchomień agentów.
 
 - **Narzędzia można zawęzić** w ustawieniach karty, które pokazują każde narzędzie
   i oznaczają te, które coś zmieniają.

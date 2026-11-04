@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { expect, it, vi } from "vitest";
-import { phoneSettings } from "@/test-utils/phone";
+import { phoneSettings, phoneContact } from "@/test-utils/phone";
 import { PhoneContactForm } from "./phone-contact";
 vi.mock("@/hooks/use-agents", () => ({
   useAgents: () => ({ agents: [{ id: "agent", name: "Tracker" }] }),
@@ -66,4 +66,30 @@ it("requires an explicit agent and importance criteria before important-case con
       escalation_delay_seconds: 600,
     }),
   );
+});
+
+it("lets the person remove a deleted agent and revoke call consent", async () => {
+  const save = vi.fn();
+  render(
+    <PhoneContactForm
+      settings={{
+        ...phoneSettings,
+        contact: {
+          ...phoneContact,
+          id: "contact",
+          masked_number: "••••1111",
+          allow_calls: true,
+          agent_ids: ["deleted-agent"],
+        },
+      }}
+      pending={false}
+      onSave={save}
+    />,
+  );
+  await userEvent.click(
+    screen.getByRole("checkbox", { name: "Unavailable agent (deleted-agent)" }),
+  );
+  await userEvent.click(screen.getByRole("checkbox", { name: "Allow calls to my number" }));
+  await userEvent.click(screen.getByRole("button", { name: "Save phone consent" }));
+  expect(save).toHaveBeenCalledWith(expect.objectContaining({ agent_ids: [], allow_calls: false }));
 });

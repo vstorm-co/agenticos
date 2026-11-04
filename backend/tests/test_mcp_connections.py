@@ -6653,3 +6653,29 @@ async def test_resumed_shared_accounts_are_refused_before_resolving_credentials(
             organization_sources=allowed,
         )
     credentials.assert_not_awaited()
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("policy", ["writes", "all"])
+async def test_persistent_platform_automation_requires_binding_approval(policy):
+    from pydantic_ai.toolsets.abstract import ToolsetTool
+
+    from app.agents.mcp import NEEDS_APPROVAL, PLATFORM_UNGATED_TOOLS, ApprovalMarked
+
+    inner = MagicMock()
+    names = ("create_routine", "update_routine", "create_watch", "update_watch")
+    inner.get_tools = AsyncMock(
+        return_value={
+            name: ToolsetTool(
+                toolset=inner,
+                tool_def=_mcp_tool(name, False),
+                max_retries=1,
+                args_validator=MagicMock(),
+            )
+            for name in names
+        }
+    )
+    tools = await ApprovalMarked(inner, policy=policy, ungated=PLATFORM_UNGATED_TOOLS).get_tools(
+        MagicMock()
+    )
+    assert all(tools[name].tool_def.metadata[NEEDS_APPROVAL] is True for name in names)

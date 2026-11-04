@@ -758,6 +758,9 @@ class TestTheSweep:
         keys = [call.kwargs["dedupe_key"] for call in enqueue.await_args_list]
         assert len(set(keys)) == 3 and all(str(ORG) in key for key in keys)
         assert all(call.kwargs["dedupe_active"] for call in enqueue.await_args_list)
+        for call in enqueue.await_args_list:
+            if call.args[1] is THINK_FOR_PERSON:
+                assert call.kwargs["concurrency_key"] == f"proactivity:{ORG}:{call.args[2].user_id}"
 
     async def test_a_role_pack_and_a_welcome_are_queued_not_done_in_the_request(self):
         enqueue = AsyncMock()

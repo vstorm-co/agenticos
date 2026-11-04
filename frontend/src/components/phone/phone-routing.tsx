@@ -64,6 +64,12 @@ function EndpointEditor({
       transfer_contact_ids: [],
     },
   );
+  const contacts = [
+    ...settings.transfer_contacts,
+    ...data.transfer_contact_ids
+      .filter((id) => !settings.transfer_contacts.some((contact) => contact.id === id))
+      .map((id) => ({ id, label: t("unavailableContact", { id }) })),
+  ];
   const fields = [
     "max_call_seconds",
     "calls_per_hour",
@@ -131,7 +137,7 @@ function EndpointEditor({
       <p className="text-muted-foreground text-xs">{t("costHint")}</p>
       <fieldset className="space-y-2">
         <legend className="text-sm">{t("transferTargets")}</legend>
-        {settings.transfer_contacts.map((contact) => (
+        {contacts.map((contact) => (
           <label key={contact.id} className="flex items-center gap-2 text-sm">
             <Checkbox
               checked={data.transfer_contact_ids.includes(contact.id)}

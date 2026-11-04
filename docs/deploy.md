@@ -539,6 +539,8 @@ Before this upgrade, take the [database, media and vault-key backups](#backups)
 and coordinate the API and worker rollout. Use the deployment's normal migration
 step; do not copy rows or create replacement schedules manually.
 
+Before applying `0285_member_proactivity.py`, stop API/sweep producers and drain active proactive jobs, then stop workers. The migration refuses while a watch or nightly model job is running and backfills queued work with a shared per-member concurrency key. Update API and workers together so new jobs use the same key; a watch and a nightly look for one person must not independently spend the same remaining allowance.
+
 - `0248_drop_memory_mem0.py` refuses the upgrade while `memory_mem0` remains in
   any stored draft or published spec. Before retrying, inventory every endpoint
   and vault credential mapping from the backup, erase the external memories and

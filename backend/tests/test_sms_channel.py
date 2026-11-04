@@ -727,13 +727,22 @@ class TestAChangedOwnerStartsAgain:
                 incoming,
                 identity,
                 object(),  # type: ignore[arg-type]
+                bot=SimpleNamespace(id=uuid4(), organization_id=uuid4()),  # type: ignore[arg-type]
             )
-        with patch.object(router.conversation_repo, "get_owner", new=AsyncMock(return_value=new)):
+        with (
+            patch.object(router.conversation_repo, "get_owner", new=AsyncMock(return_value=new)),
+            patch.object(
+                router.primary_conversation_repo,
+                "agent_for_conversation",
+                new=AsyncMock(return_value=None),
+            ),
+        ):
             assert not await ChannelMessageRouter._owner_changed(
                 SimpleNamespace(conversation_id=uuid4()),
                 incoming,
                 identity,
                 object(),  # type: ignore[arg-type]
+                bot=SimpleNamespace(id=uuid4(), organization_id=uuid4()),  # type: ignore[arg-type]
             )
 
     @pytest.mark.parametrize(
@@ -747,6 +756,7 @@ class TestAChangedOwnerStartsAgain:
             SimpleNamespace(chat_type=chat_type),
             SimpleNamespace(user_id=user),
             object(),  # type: ignore[arg-type]
+            bot=SimpleNamespace(id=uuid4(), organization_id=uuid4()),  # type: ignore[arg-type]
         )
 
     async def test_a_session_of_a_missing_conversation_is_left_alone(self) -> None:
@@ -759,6 +769,7 @@ class TestAChangedOwnerStartsAgain:
                 SimpleNamespace(chat_type="private"),
                 SimpleNamespace(user_id=uuid4()),
                 object(),  # type: ignore[arg-type]
+                bot=SimpleNamespace(id=uuid4(), organization_id=uuid4()),  # type: ignore[arg-type]
             )
 
     async def test_the_session_is_moved_to_a_fresh_conversation_and_pending_prompts_go(

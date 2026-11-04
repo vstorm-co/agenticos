@@ -146,6 +146,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Keep persistent routine/watch creation and updates behind the platform MCP binding's configured write approval.
+
+- Serialize watches and nightly work sharing a member budget; drain proactive jobs and apply `0285_member_proactivity.py` before updating API/workers together. Prevent deleting SMS bots with unfinished telephone calls, rotate private bot sessions after agent rebinding, reject overlapping future memory corrections, and expose removable unavailable phone agents/transfer targets.
+
 - Deliver routines created from a chat turn or setup proposal back to that originating conversation by default, with an explicit choice to use the primary chat or run log. Expired approval runs also resolve their shared case and cancel pending notifications.
 
 - Show failed chat attention reads with retry and report rejected actions, retain retriable email deliveries when inbound state cannot be saved, accept numeric replies above mail signatures, serialize concurrent memory writes/corrections, disable maintenance after model removal, and refresh reopened cases to their current conversation.

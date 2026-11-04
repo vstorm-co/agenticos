@@ -12745,7 +12745,9 @@
     "importanceInstructions": "Was als wichtig gilt",
     "escalationDelay": "Wartezeit nach der ersten unbestätigten Benachrichtigung (Sekunden)",
     "escalationHint": "0 ruft sofort an. Eine Verzögerung benötigt eine ungelesene Nachricht desselben Falls. Bestätigen, Lösen oder Stummschalten storniert den ausstehenden Anruf.",
-    "notBefore": "Frühester Anruf: {time}"
+    "notBefore": "Frühester Anruf: {time}",
+    "unavailableAgent": "Nicht verfügbarer Agent ({id})",
+    "unavailableContact": "Nicht verfügbarer Weiterleitungskontakt ({id})"
   },
   "discordRoles": {
     "badge": "Discord",

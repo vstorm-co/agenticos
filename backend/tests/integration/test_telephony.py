@@ -786,3 +786,24 @@ async def test_interactive_outbound_call_queues_without_a_report_conversation(
         )
     )
     assert len(jobs) == 1 and jobs[0].payload["call_id"] == str(row.id)
+
+
+async def test_bot_deletion_keeps_live_call_receipts_until_calls_end(
+    db: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from app.services.channel_bot import ChannelBotService
+
+    ctx, bot, _, _, endpoint = await setup(db, monkeypatch)
+    receipt = await report(db, ctx, endpoint.id)
+    service = ChannelBotService(db, ctx.organization_id)
+    with pytest.raises(ConflictError, match="End all telephone calls"):
+        await service.delete(bot.id, ctx)
+    row = await repo.call(db, receipt.id)
+    assert row is not None and row.status == "queued"
+    row.status = "cancelled"
+    row.finished_at = datetime.now(UTC)
+    await db.flush()
+    await service.delete(bot.id, ctx)
+    assert (
+        await channel_bot_repo.get_for_org(db, bot.id, organization_id=ctx.organization_id) is None
+    )

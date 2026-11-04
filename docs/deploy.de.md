@@ -1,5 +1,5 @@
 ---
-source_sha: "91a297517bbc"
+source_sha: "a41c7a2c6e87"
 ---
 
 # Auf einem Server deployen { #deploy-to-a-server }
@@ -582,6 +582,8 @@ oder `0` bei Docker Desktop, wo der eingebundene Socket der VM gehört. Ein expl
 Erstelle vor dem Upgrade [Sicherungen von Datenbank, Medien und Vault-Schlüsseln](#backups)
 und koordiniere API- und Worker-Rollout. Nutze den normalen Migrationsschritt des
 Deployments; kopiere keine Zeilen und lege keine Ersatzzeitpläne manuell an.
+
+Stoppe vor `0285_member_proactivity.py` API und Sweep-Erzeuger, lasse aktive proaktive Jobs auslaufen und stoppe dann die Worker. Die Migration verweigert laufende Watch- oder nächtliche Modelljobs und ergänzt wartende Jobs um einen gemeinsamen Parallelitätsschlüssel pro Person. Aktualisiere API und Worker gemeinsam, damit neue Jobs denselben Schlüssel nutzen; eine Watch und ein nächtlicher Durchlauf derselben Person dürfen nicht unabhängig dasselbe Restbudget ausgeben.
 
 - `0248_drop_memory_mem0.py` stoppt das Upgrade, solange `memory_mem0` in einem
   gespeicherten Entwurf oder veröffentlichten Spec verbleibt. Inventarisiere vor

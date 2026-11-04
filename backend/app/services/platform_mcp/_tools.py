@@ -37,16 +37,14 @@ from app.workflows.graph.model import WorkflowGraph
 
 InviteRole = Literal["admin", "builder", "operator", "member", "viewer"]
 
-UNGATED = frozenset(
-    {"set_my_language", "create_routine", "update_routine", "create_watch", "update_watch"}
-)
+UNGATED = frozenset({"set_my_language"})
 """Writes no binding holds for a person's approval, whatever its policy.
 
 Changing the console's language changes the person asking's own account on their
-own word, and Settings undoes it. Creating or editing a personal routine acts
-on a complete request immediately; service-level private-human consent still
-bounds its authority. Publishing, inviting, deletion and running now keep their
-normal approval policies. `set_my_profile` is not here: what it saves is told to
+own word, and Settings undoes it. Persistent routine/watch changes retain their
+binding's write gate: private-human identity alone is not consent to model output.
+Publishing, inviting, deletion and running now keep their normal approval policies.
+`set_my_profile` is not here: what it saves is told to
 every agent the person runs, in every organization, so a page an agent read must
 not be able to write it unseen. `app.agents.mcp` names the same set as
 `PLATFORM_UNGATED_TOOLS`, and a test holds the two equal.

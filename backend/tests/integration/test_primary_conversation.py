@@ -270,3 +270,51 @@ async def test_only_a_verified_private_legacy_session_is_adopted(
     await db.flush()
     fresh = await PrimaryConversationService(db).open(ctxs[0], agents[0].id)
     assert fresh != primary and fresh != conversation.id
+
+
+async def test_rebinding_a_bot_rotates_the_previous_agents_primary_history(
+    db: AsyncSession,
+) -> None:
+    from app.db.models.agent_exposure import AgentExposure
+    from app.db.models.channel_bot import ChannelBot
+    from app.db.models.channel_identity import ChannelIdentity
+    from app.services.channels.base import IncomingMessage
+    from app.services.channels.router import ChannelMessageRouter
+
+    org, users, agents, ctxs = await _world(db)
+    bot = ChannelBot(
+        organization_id=org.id, platform="sms", name="Phone", token_encrypted="x", is_active=True
+    )
+    identity = ChannelIdentity(platform="sms", platform_user_id="+15550000000", user_id=users[0].id)
+    db.add_all([bot, identity])
+    await db.flush()
+    exposure = AgentExposure(
+        organization_id=org.id, agent_id=agents[0].id, channel_bot_id=bot.id, surface="sms"
+    )
+    db.add(exposure)
+    await db.flush()
+    incoming = IncomingMessage(
+        platform="sms",
+        bot_id=str(bot.id),
+        platform_user_id=identity.platform_user_id,
+        platform_chat_id=identity.platform_user_id,
+        chat_type="private",
+        text="Hello",
+        raw={},
+    )
+    router = ChannelMessageRouter()
+    session = await router._resolve_session(incoming, bot, identity, db)
+    previous = session.conversation_id
+    first_primary = await PrimaryConversationService(db).open(ctxs[0], agents[0].id)
+    assert previous == first_primary
+    await db.delete(exposure)
+    await db.flush()
+    db.add(
+        AgentExposure(
+            organization_id=org.id, agent_id=agents[1].id, channel_bot_id=bot.id, surface="sms"
+        )
+    )
+    await db.flush()
+    changed = await router._resolve_session(incoming, bot, identity, db)
+    second_primary = await PrimaryConversationService(db).open(ctxs[0], agents[1].id)
+    assert changed.conversation_id == second_primary and changed.conversation_id != previous

@@ -36,6 +36,7 @@ from app.repositories import (
     chat_file_repo,
     conversation_repo,
     member_repo,
+    primary_conversation_repo,
 )
 from app.schemas.channel_bot import AccessPolicy
 from app.services import rate_limit, transcription_usage
@@ -1895,8 +1896,8 @@ class ChannelMessageRouter:
                 chat_type=incoming.chat_type,
                 conversation_id=(await self._first_conversation(incoming, bot, identity, db)),
             )
-        elif await self._owner_changed(session, incoming, identity, db):
-            # The number was linked to somebody else: what the old holder said, and above
+        elif await self._owner_changed(session, incoming, identity, db, bot=bot):
+            # The owner or bound agent changed: what the old conversation holds, and above
             # all the web conversation a private chat now continues, is not the new
             # holder's. A fresh start, and whatever was waiting on an answer goes with it.
             await sms_prompts.forget(
@@ -1922,6 +1923,8 @@ class ChannelMessageRouter:
         incoming: IncomingMessage,
         identity: ChannelIdentity,
         db: AsyncSession,
+        *,
+        bot: ChannelBot,
     ) -> bool:
         """Whether this private chat's conversation belongs to somebody other than who is now linked.
 
@@ -1931,8 +1934,23 @@ class ChannelMessageRouter:
         """
         if incoming.chat_type != "private" or identity.user_id is None:
             return False
-        owner = await conversation_repo.get_owner(db, session.conversation_id)
-        return owner is not None and owner != identity.user_id
+        conversation_id = session.conversation_id
+        if conversation_id is None:
+            return False
+        owner = await conversation_repo.get_owner(db, conversation_id)
+        if owner is None:
+            return False
+        if owner != identity.user_id:
+            return True
+        primary_agent = await primary_conversation_repo.agent_for_conversation(
+            db,
+            organization_id=bot.organization_id,
+            conversation_id=conversation_id,
+        )
+        if primary_agent is None:
+            return False
+        binding = await agent_exposure_repo.bound_to_bot(db, channel_bot_id=bot.id)
+        return binding is None or binding.agent_id != primary_agent
 
     @staticmethod
     async def _first_conversation(

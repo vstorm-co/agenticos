@@ -17,7 +17,7 @@ from pydantic import SecretStr
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.background import spawn_after_commit
-from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
+from app.core.exceptions import AuthorizationError, BadRequestError, ConflictError, NotFoundError
 from app.core.field_errors import refused_field
 from app.core.permissions import AuthContext, Perm, assignable_roles
 from app.core.vault import SealedSecret, VaultScope, seal, unseal
@@ -841,6 +841,16 @@ class ChannelBotService:
         """
         # Locked before its mappings are read: they cascade with the bot, and
         # one committed between this check and the delete would go unchecked.
+        bot = await self.get(bot_id)
+        if bot.platform == "sms":
+            from app.db.locks import LockScope, hold_subject
+            from app.repositories import telephony as phone_repo
+
+            await hold_subject(self.db, LockScope.PHONE_CALLS_PER_ORG, self._org_id)
+            if await phone_repo.bot_has_unfinished_calls(
+                self.db, organization_id=self._org_id, bot_id=bot_id
+            ):
+                raise ConflictError(message="End all telephone calls before deleting this SMS bot")
         bot = await self.get(bot_id, for_update=True)
         await self._refuse_unless_mappings_removable(bot, ctx)
         platform = bot.platform
