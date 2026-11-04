@@ -342,6 +342,7 @@ def _failed_document() -> SimpleNamespace:
         filename="policy.txt",
         ingestion_attempt=1,
         organization_id=uuid4(),
+        knowledge_base_id=uuid4(),
     )
 
 
@@ -412,6 +413,46 @@ async def test_retrying_a_document_with_no_stored_file_is_refused(session, monke
     # The row keeps the error that explains it: a refusal must not clear the
     # diagnosis on the way out, which is what made #441 one-way.
     update.assert_not_awaited()
+
+
+async def test_retrying_an_organizations_unfiled_document_is_refused(session, monkeypatch) -> None:
+    """A row filed under no base is listed by its organization's bases, but its
+    chunks are written, read and deleted as deployment-wide (`vector_scope`), so a
+    retry would index it where the base listing it never looks. A last holder's
+    teardown fails another organization's rows this way; they are uploaded again
+    (#2568)."""
+    document = _failed_document()
+    document.knowledge_base_id = None
+    update = AsyncMock()
+    monkeypatch.setattr(rag_document_repo, "get_by_id", AsyncMock(return_value=document))
+    monkeypatch.setattr(rag_document_repo, "update_status", update)
+
+    with pytest.raises(BadRequestError, match="upload it again"):
+        await RAGDocumentService(session).retry_ingestion(str(document.id))
+
+    update.assert_not_awaited()
+
+
+async def test_retrying_a_deployment_wide_unfiled_document_parses_it_again(
+    session, queued, monkeypatch, tmp_path: Path
+) -> None:
+    """An unfiled row with no organization is an app-scoped base's, which reads
+    deployment-wide chunks - where `vector_scope` writes them - so it can be
+    retried (#2568)."""
+    document = _failed_document()
+    document.knowledge_base_id = None
+    document.organization_id = None
+    retried = SimpleNamespace(**{**vars(document), "status": "processing", "ingestion_attempt": 2})
+    monkeypatch.setattr(settings, "MEDIA_DIR", str(tmp_path))
+    monkeypatch.setattr(rag_document_repo, "get_by_id", AsyncMock(return_value=document))
+    monkeypatch.setattr(rag_document_repo, "update_status", AsyncMock(return_value=retried))
+    storage = SimpleNamespace(load=AsyncMock(return_value=b"a policy nobody reads"))
+    monkeypatch.setattr("app.services.rag_document.get_file_storage", lambda: storage)
+
+    await RAGDocumentService(session).retry_ingestion(str(document.id))
+
+    [(_, task, _, _)] = queued
+    assert task == jobs.INGEST_DOCUMENT
 
 
 async def test_retrying_a_document_that_did_not_fail_is_refused_not_a_500(

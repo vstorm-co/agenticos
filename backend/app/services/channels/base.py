@@ -683,6 +683,16 @@ class ChannelAdapter(ABC):
         """
         raise ChannelDirectoryUnsupported(f"{self.platform} cannot list a channel's members.")
 
+    async def channel_server(self, bot_token: str, channel_id: str) -> str | None:
+        """The server a channel belongs to, for a platform that approves access by server.
+
+        `None` by default, and for a channel with no server (a direct message) or
+        one the bot can no longer see. Only a platform whose access policy names
+        servers answers; a sender rebuilt from a stored run has no server id, and
+        this is how admission asks the platform for the current one.
+        """
+        return None
+
     async def is_channel_member(
         self, bot_token: str, channel_id: str, platform_user_id: str, *, api_base_url: str | None
     ) -> bool:

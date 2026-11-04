@@ -44,12 +44,24 @@ class LocalTarget(BaseModel):
     coding_agent: Literal["claude_code", "codex"] | None = None
     """Use this local coding harness for this run, independently of the published binding."""
 
+    coding_model: str | None = Field(default=None, pattern=r"^[^\x00-\x20\x7f]{1,256}$")
+    """The local harness's model identifier; unset retains its own settings."""
+
+    coding_effort: str | None = Field(default=None, pattern=r"^[a-z][a-z0-9_-]{0,31}$")
+    """The reasoning level advertised by the local harness, applied before its prompt."""
+
     skills: list[Literal["agents", "claude", "codex"]] = Field(default_factory=list, max_length=3)
     """Which of this computer's skill folders (`~/.agents`, `~/.claude`, `~/.codex`) the run may
     read, in place, together with the `AGENTS.md` files; empty uses none of them."""
 
     @model_validator(mode="after")
     def require_work_or_browser(self) -> Self:
+        if self.coding_agent is None and (
+            self.coding_model is not None or self.coding_effort is not None
+        ):
+            raise ValueError(
+                "Choose a local coding agent before changing its model or reasoning level"
+            )
         if self.coding_agent is not None and (
             self.folder is None or self.mode != "full_access" or self.computer_grant is not None
         ):

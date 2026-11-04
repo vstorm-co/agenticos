@@ -2,7 +2,7 @@
 title: Projekty
 seo_title: Projekty - wspólne pliki i instrukcje czatów
 description: Projekt daje bieżącej pracy jeden kontener plików i jeden zestaw instrukcji, wspólne dla każdego czatu w nim, niezależnie od tego, który agent odpowiada.
-source_sha: "3f798c416272"
+source_sha: "3ba3ec38d6e7"
 ---
 
 # Projekty { #projects }
@@ -145,6 +145,61 @@ Desktop przekazuje przeciągane pliki do tych samych celów co aplikacja webowa.
 Upuszczenie na plik wybiera folder, w którym się on znajduje, a upuszczenie na pusty
 obszar dowolnego panelu wybiera główny katalog projektu. Blobby i Dock zachowują
 osobne dodawanie plików do czatu.
+
+## Widok grafu { #graph-view }
+
+W eksploratorze plików wybierz **Graph view**, aby przeglądać powiązane notatki
+Markdown. Widok działa dla współdzielonych plików projektu, workspace sandboxa
+i zatwierdzonego folderu Desktop. Każda lokalizacja ma osobny graf; lokalne
+notatki nie są wysyłane na serwer.
+
+Graf otwiera się na pełnym ekranie z kolorowymi punktami, cienkimi połączeniami
+i etykietami widocznymi po przybliżeniu lub wybraniu notatki. Strzałki kierunku
+i stałe etykiety można włączyć. Wyszukiwanie, pliki, szczegóły i zoom są w pływających
+panelach. Grupy kolorują notatki domyślnie według folderu, opcjonalnie pierwszego tagu.
+Możesz ukrywać grupy, filtrować folder wraz z podfolderami i resetować filtry.
+
+Przeglądarka plików używa wspólnego drzewa folderów i ikon. Węzłami są tylko
+zindeksowane notatki Markdown; pozostałe pliki otwierają się we wspólnym podglądzie.
+Przeciąganie punktów zmienia tylko widok, bez zapisywania plików lub linków.
+Przycisk rozwijania lub Escape przywraca widok osadzony, a strzałka wstecz wraca do plików.
+
+Łącz notatki przez `[[notes/topic|etykieta]]`, linki Markdown w treści, np.
+`[Temat](topic.md)`, lub relacje we frontmatter:
+
+```yaml
+---
+title: Pamięć agenta
+aliases: [Memory]
+tags: [agents, research]
+related: ["[[notes/retrieval]]"]
+sources: [sources/report.md]
+---
+```
+
+`links`, `related` i `sources` przyjmują tekst lub listę tekstów. Zewnętrzne URL-e
+pozostają cytowaniami. Wikilinki wskazują dokładną ścieżkę lub unikalną nazwę pliku,
+tytuł bądź alias; niejednoznaczne nazwy pozostają nierozwiązane. Linki Markdown są
+względne wobec notatki. Przykłady w kodzie i komentarze HTML są pomijane.
+
+Wyszukuj po tytule, ścieżce, aliasach lub tagach. Wybierz węzeł, aby zobaczyć jego
+linki, linki przychodzące i nierozwiązane odwołania; **Open note** otwiera notatkę.
+Współdzielone pliki projektu zachowują kontrolkę **Edit file** i dotychczasowe
+uprawnienia. Przybliżaj przyciskami, przesuwaj graf przez przeciąganie pustego tła;
+lista notatek działa również z klawiatury.
+
+Widok odczytuje pliki co 30 sekund, gdy jest otwarty, po powrocie do okna lub
+wybraniu **Refresh**. Agenci aktualizują notatki i linki, bez generowania HTML.
+Apps odświeżają już bindings do Tables i logów workflows, ale nie mają bindingu
+plików workspace; ten graf czyta notatki bezpośrednio. Odświeżenie grafu nie
+uruchamia agenta w celu weryfikacji faktów lub aktualizacji źródeł.
+
+Skan obejmuje do 200 plików Markdown, 256 KiB na plik i łącznie 8 MiB, w granicach
+listingu źródła. Limit relacji to 256 na notatkę i 2048 na cały graf; osiągnięcie
+limitu także oznacza niepełny graf. Aliasy i tagi mają wspólny limit 128 wpisów
+na notatkę i 4096 na cały graf. Widok wskazuje pominięte i nieczytelne pliki, niepoprawny YAML oraz
+niepełny listing. Brak odwołania może oznaczać pominiętą notatkę, nie tylko zerwany
+link. Odświeżanie jest okresowe; równoczesne edycje mogą trafić do różnych skanów.
 
 ## Lokalne foldery w aplikacji desktopowej { #local-folders-in-the-desktop-app }
 

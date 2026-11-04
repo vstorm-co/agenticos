@@ -600,6 +600,16 @@
     "modelApiChat": "Chat Completions",
     "modelApiHint": "OpenAI's own API serves every model on Responses, and its newest models on nothing else. Most OpenAI-compatible servers (vLLM, LM Studio) implement only Chat Completions.",
     "modelApiHintAzure": "Responses needs a recent api_version on the Azure key; Chat Completions works with any.",
+    "modelApiFromModel": "{api}, chosen from the model",
+    "modelApiFromModelPending": "Chosen from the model when it is saved",
+    "modelApiStored": "{api}, set on this model",
+    "modelApiFromModelHint": "Stav.ai serves most models on Chat Completions and a few only on Responses. The model decides.",
+    "stavEndpointHint": "Leave empty for api.stav.ai. Set it only for a regional or test endpoint of Stav.ai.",
+    "modelRegion": "Region",
+    "modelRegionHint": "Where Stav.ai may run this model's requests. It answers only from endpoints in the region and refuses a request it cannot serve there.",
+    "modelRegionEu": "EU only",
+    "modelRegionEea": "EEA only",
+    "modelRegionGlobal": "Global",
     "usingKey": "Using <strong>{name}</strong>",
     "variableDescription": "Variable {index} description",
     "variableDescriptionPlaceholder": "Which plan this visitor is on",
@@ -1254,7 +1264,15 @@
           "setup": "Install or sign in → Desktop settings",
           "pickFolder": "Choose a folder",
           "changeFolder": "Change folder · {folder}",
-          "agentWithHarness": "Agent setting · {agent}"
+          "agentWithHarness": "Agent setting · {agent}",
+          "model": "Coding model",
+          "effort": "Reasoning level",
+          "ownModel": "Use coding agent settings",
+          "ownEffort": "Use coding agent settings",
+          "loadingSettings": "Preparing coding agent settings…",
+          "refreshSettings": "Refresh choices",
+          "unavailableOption": "{value} (unavailable)",
+          "effortUnsupported": "Not offered by this model"
         },
         "off": "Off"
       },
@@ -1784,7 +1802,13 @@
       "listMonitors": "The watches",
       "listingMonitors": "Listing the watches",
       "stopMonitor": "Stop a watch",
-      "stoppingMonitor": "Stopping a watch"
+      "stoppingMonitor": "Stopping a watch",
+      "startingBackgroundTask": "Starting a background topic",
+      "backgroundTaskStarted": "Background topic started",
+      "listingBackgroundTasks": "Reading background topics",
+      "backgroundTasks": "Background topics",
+      "stoppingBackgroundTask": "Stopping a background topic",
+      "backgroundTaskStopped": "Background topic stopped"
     },
     "turnWasStopped": "stopped",
     "unfavourite": "Remove from favourites",
@@ -1916,7 +1940,8 @@
         "collection": "Knowledge bases",
         "skill": "Skills",
         "context": "Context files",
-        "project": "Projects"
+        "project": "Projects",
+        "conversation": "Conversations"
       }
     },
     "hints": {
@@ -2245,6 +2270,40 @@
       "needsFolder": "{agent} runs on this computer: choose a folder under Chat controls → Work on → This computer.",
       "needsFullAccess": "{agent} runs as you, so the folder needs full access. Change it under Chat controls → Work on.",
       "chosen": "{agent} · {folder}"
+    },
+    "continuesInTheChat": "Decided. Once nothing else is waiting, the agent goes on in the chat this was asked in and answers there.",
+    "continuedInTheChat": "Continued in the chat this was asked in",
+    "answerAlsoInTheChat": "The answer is also sent to the chat this was asked in.",
+    "reasoning": {
+      "levels": {
+        "default": "Default",
+        "none": "None",
+        "minimal": "Minimal",
+        "low": "Low",
+        "medium": "Medium",
+        "high": "High",
+        "xhigh": "Extra high",
+        "max": "Maximum",
+        "ultra": "Ultra"
+      }
+    },
+    "backgroundTasks": {
+      "heading": "Background topics · {count} active",
+      "empty": "Ask an agent with Background topics to delegate work while you keep talking.",
+      "retry": "Reload background topics",
+      "stop": "Stop {title}",
+      "returnInterrupted": "Result delivery interrupted",
+      "status": {
+        "queued": "Queued",
+        "running": "Working",
+        "awaiting_approval": "Waiting for approval",
+        "awaiting_answer": "Waiting for your answer",
+        "completed": "Completed",
+        "failed": "Failed",
+        "cancelled": "Stopped",
+        "interrupted": "Interrupted; not restarted"
+      },
+      "emptyTitle": "Delegate work while you keep talking"
     }
   },
   "common": {
@@ -2400,7 +2459,8 @@
         "waiting": "waiting {ago}",
         "description": "Runs paused on a tool call, waiting for a decision.",
         "someAgent": "An agent",
-        "forPerson": "for {email} · waiting {ago}"
+        "forPerson": "for {email} · waiting {ago}",
+        "forChatAccount": "for {name} (unverified) · waiting {ago}"
       },
       "budget-headroom": {
         "empty": {
@@ -2992,6 +3052,10 @@
           "descriptionOff": "Your organization has proactivity off."
         },
         "more": "{count, plural, =1 {1 more in your inbox} other {# more in your inbox}}"
+      },
+      "background-tasks": {
+        "title": "Background topics",
+        "description": "Your delegated work and its results"
       }
     },
     "edit": {
@@ -5037,6 +5101,22 @@
       "workflow-step-view": {
         "title": "Focus on one panel",
         "body": "On a phone, choose step settings, input or output to give the active panel the available space. Switching panels keeps your draft."
+      },
+      "project-graph": {
+        "title": "Explore linked notes",
+        "body": "Graph view derives links and backlinks from Markdown and frontmatter. It refreshes while open, using only files you can read in this location."
+      },
+      "workspace-graph": {
+        "title": "Explore linked notes",
+        "body": "Graph view derives links and backlinks from Markdown and frontmatter. It refreshes while open, using only files you can read in this location."
+      },
+      "chat-coding-settings": {
+        "title": "Coding model and reasoning",
+        "body": "Choose a model and reasoning level from the installed coding agent. Choices belong to this conversation; leaving them unset keeps the coding agent’s own settings."
+      },
+      "chat-background-tasks": {
+        "title": "Background topics",
+        "body": "Independent work opens a fresh topic in this project. Keep talking here; the agent returns with the result. Open or stop each task from this strip."
       }
     },
     "chooseLanguage": "Language",
@@ -6617,6 +6697,8 @@
       "toolState": "{status, select, completed {Done} error {Failed} running {Running} pending {Running} unfinished {Did not finish} awaiting_approval {Waiting for approval} awaiting_answer {Waiting for an answer} other {Unknown}}",
       "wantsTo": "<strong>{actor}</strong> wants to <strong>{tool}</strong>",
       "askedFor": "For {email}",
+      "askedInChat": "Asked in {platform} by {name} (unverified)",
+      "askedInChatThrough": "Asked in {platform} by {name} (unverified), through {bot}",
       "account": "Account: {account}",
       "openTheRun": "Open the run",
       "decidedByWhom": "by {email}",
@@ -6662,7 +6744,11 @@
       "stepApprovalEdited": "Edited",
       "surfaceProactive": "Proactive",
       "standaloneRequest": "Model request",
-      "standaloneResponse": "Model response"
+      "standaloneResponse": "Model response",
+      "decisionApprovedInChat": "Approved. Once nothing else is waiting, the agent goes on in the chat it was asked in.",
+      "decisionRejectedInChat": "Rejected. Once nothing else is waiting, the agent answers in the chat it was asked in.",
+      "runResumedInChat": "Run resumed. Its answer is also sent to the chat it was asked in.",
+      "alreadyContinuing": "This run is already continuing in its chat."
     },
     "sandboxes": {
       "addConnection": "Add connection",
@@ -10809,6 +10895,13 @@
       "example2": "Tail a deploy log and report the first error",
       "needs": "A workspace with a shell, such as the Sandbox capability or a folder on your computer.",
       "never": "Never keeps a command running after the turn ends: every watch stops with the run."
+    },
+    "background_tasks": {
+      "name": "Background topics",
+      "does": "Starts independent work in a fresh topic while you keep talking; returns its result to the original agent.",
+      "needs": "A published console agent, an active member, and an approved folder for local work.",
+      "never": "Does not copy the full conversation, waive approvals, restart interrupted actions, or start watches and routines.",
+      "example1": "Investigate the export bug in a new topic while we continue planning the release."
     }
   },
   "capabilityCategories": {
@@ -12161,7 +12254,7 @@
       "agents": {
         "title": "Coding agents on this computer",
         "description": "Claude Code and Codex installed here. Sign-in belongs to each agent: AgenticOS opens its own command in Terminal and never reads or copies its credentials.",
-        "installHint": "{name} is not installed on this computer.",
+        "installHint": "AgenticOS can prepare {name} for you. No developer tools are needed.",
         "notInstalled": "Not installed",
         "signedIn": "Signed in",
         "signedOut": "Signed out",
@@ -12170,7 +12263,11 @@
         "signInNamed": "Sign in to {name}",
         "signOut": "Sign out",
         "signOutNamed": "Sign out of {name}",
-        "terminalNote": "Sign-in opens in your system terminal. Come back when it finishes to refresh the status."
+        "terminalNote": "A browser window opens for sign-in. AgenticOS never reads or stores your coding agent credentials.",
+        "prepare": "Set up",
+        "prepareNamed": "Set up {name}",
+        "preparing": "Preparing…",
+        "refresh": "Refresh status"
       }
     },
     "quickAsk": {
@@ -12486,5 +12583,52 @@
         }
       }
     }
+  },
+  "wikiGraph": {
+    "title": "Graph view",
+    "files": "File view",
+    "search": "Find a note, alias or tag",
+    "refresh": "Refresh",
+    "loading": "Reading Markdown notes…",
+    "automatic": "Refreshes every 30 seconds while visible",
+    "failed": "Could not read this workspace. Retry or check your access.",
+    "counts": "{pages, plural, =1 {1 note} other {# notes}} · {links, plural, =1 {1 link} other {# links}}",
+    "partial": "This graph is incomplete",
+    "limits": "The scan reads up to 200 notes, 256 KiB per file and 8 MiB in total, with up to 256 relationships per note and 2048 across the graph. Refresh after editing, or narrow the file set. Aliases and tags share a limit of 128 entries per note and 4096 across the graph.",
+    "skipped": "Skipped: {path}",
+    "unreadable": "Could not read: {path}",
+    "invalidFrontmatter": "Invalid YAML frontmatter. Metadata ignored for these notes: {paths}",
+    "empty": "Add Markdown notes with wiki links, Markdown links or frontmatter relationships to build a graph.",
+    "open": "Open note",
+    "notes": "Notes",
+    "noMatches": "No matching notes",
+    "outgoing": "Links to",
+    "backlinks": "Backlinks",
+    "none": "None",
+    "unresolved": "Unresolved links",
+    "missing": "{target} — missing from this scan",
+    "ambiguous": "{target} — more than one matching note",
+    "zoomIn": "Zoom in",
+    "zoomOut": "Zoom out",
+    "reset": "Reset view",
+    "overview": "Graph overview",
+    "details": "Note details",
+    "closeDetails": "Close note details",
+    "showLabels": "Show all labels",
+    "showArrows": "Show direction arrows",
+    "fileBrowser": "Files",
+    "allFiles": "All files",
+    "clearFolder": "Clear folder filter",
+    "filterFolder": "Filter graph to {path}",
+    "fileBrowserHint": "Only indexed Markdown notes appear in the graph. Other files open in the file viewer.",
+    "groups": "Groups",
+    "resetFilters": "Reset filters",
+    "groupBy": "Group by",
+    "folders": "Folders",
+    "tags": "Tags",
+    "toggleGroup": "Toggle group {group}",
+    "rootFolder": "Root folder",
+    "untagged": "Untagged",
+    "visibleNotes": "{visible} of {total} notes visible"
   }
 }

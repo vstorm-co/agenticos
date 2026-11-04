@@ -139,7 +139,7 @@ OUTBOUND_CAPABILITIES: dict[str, str] = {
     "web_research": "DuckDuckGo by default, or the search provider the binding names",
 }
 
-# Capabilities whose work never leaves the process, so they own no destination.
+# Capabilities with no outbound destination of their own.
 CAPABILITIES_STAYING_INSIDE = frozenset(
     {
         # A published page goes to the deployment's own file storage. Who may then
@@ -156,6 +156,9 @@ CAPABILITIES_STAYING_INSIDE = frozenset(
         # Runs the agent's own tools later in the same process; whatever a tool
         # reaches is that tool's capability's destination, listed under it.
         "background_tools",
+        # Delegation stays in this deployment; outbound destinations belong to
+        # the child model and tools, which this inventory already lists.
+        "background_tasks",
         "channel_tools",
         "charts",
         "clock",

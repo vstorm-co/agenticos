@@ -376,7 +376,33 @@ async def test_the_tracking_row_hold_is_scoped_and_uses_key_share(found: bool) -
     )
     statement = db.execute.await_args.args[0].compile(dialect=postgresql.dialect())
     assert str(statement).endswith("FOR KEY SHARE")
-    assert set(statement.params.values()) == {row_id, "docs", BASE}
+    # Only a row still being ingested takes chunks: a last holder's teardown fails
+    # another tenant's rows under the name, and a write that reaches its hold after
+    # that commits is refused rather than recreating the dropped table (#2568).
+    assert set(statement.params.values()) == {row_id, "docs", BASE, DocumentStatus.PROCESSING}
+
+
+@pytest.mark.security
+async def test_marking_rows_unindexed_waits_for_writes_and_supersedes_their_attempt() -> None:
+    """The teardown locks every unfiled row left under the name `FOR UPDATE`, which
+    waits out a chunk write holding one `FOR KEY SHARE`, clears the index metadata
+    of all of them - one already failed included - and bumps the attempt of those
+    not already failed, so a settlement of the attempt in flight is stale and
+    cannot mark the row done (#2568)."""
+    db = MagicMock(execute=AsyncMock(), flush=AsyncMock())
+
+    await rag_document_repo.mark_unindexed(db, "docs")
+
+    locked, updated = (
+        call.args[0].compile(dialect=postgresql.dialect()) for call in db.execute.await_args_list
+    )
+    assert str(locked).endswith("FOR UPDATE")
+    assert "rag_documents.knowledge_base_id IS NULL" in str(locked)
+    assert "rag_documents.status" not in str(locked)
+    assert "ingestion_attempt=CASE WHEN (rag_documents.status != " in str(updated)
+    assert "chunk_count=" in str(updated)
+    assert "vector_document_id=" in str(updated)
+    assert DocumentStatus.ERROR in updated.params.values()
 
 
 @pytest.mark.security

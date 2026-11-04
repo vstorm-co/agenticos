@@ -69,6 +69,25 @@ def project_move_generation(transfer_id: UUID, attempt: int) -> UUID:
     return uuid5(transfer_id, str(attempt))
 
 
+class ChannelHandbackCall(Payload):
+    tool_call_id: str
+    tool_name: str
+    args: dict[str, JsonValue]
+    result: str | None = None
+
+
+class ChannelHandback(Payload):
+    organization_id: UUID
+    run_id: UUID
+    bot_id: UUID
+    platform_chat_id: str
+    private_chat: bool
+    output: str
+    tool_calls: list[ChannelHandbackCall] = Field(default_factory=list)
+    generated_files: frozenset[str] = frozenset()
+    notice: bool = False
+
+
 class NoPayload(Payload):
     """For a job whose work is to look at the current state."""
 
@@ -113,6 +132,11 @@ class FireTrigger(Payload):
     event_context: str | None = None
     claimed_at: datetime | None = None
     """The `fire_in_flight_since` the scheduled claim stamped - its claim ticket."""
+
+
+class ConversationTaskJob(Payload):
+    task_id: UUID
+    organization_id: UUID
 
 
 class RunAgent(Payload):
@@ -330,6 +354,23 @@ FIRE_TRIGGER = Task(
     timeout=timedelta(hours=3),
     priority=Priority.SCHEDULED,
 )
+RUN_CONVERSATION_TASK = Task(
+    kind="run-conversation-task",
+    payload_type=ConversationTaskJob,
+    pool=Pool.AGENT,
+    max_attempts=1,
+    timeout=timedelta(hours=3),
+    priority=Priority.INTERACTIVE,
+)
+RETURN_CONVERSATION_TASK = Task(
+    kind="return-conversation-task",
+    payload_type=ConversationTaskJob,
+    pool=Pool.AGENT,
+    max_attempts=1,
+    timeout=timedelta(hours=3),
+    priority=Priority.INTERACTIVE,
+)
+
 # One attempt: a run a worker died under has already spent, and a second would
 # run the agent again - its model calls and its tools' side effects with it. The
 # caller reads `failed` and decides; that is what idempotency keys are for.
@@ -453,6 +494,7 @@ WORKFLOW_SCHEDULES_CHECK = _sweep("workflow-schedules-check", timeout=timedelta(
 WORKFLOW_TABLE_TRIGGERS = _sweep("workflow-table-triggers", timeout=timedelta(minutes=5))
 WORKFLOW_RUN_RETENTION = _sweep("workflow-run-retention", timeout=timedelta(hours=2))
 WORKFLOW_LOG_ALERTS = _sweep("workflow-log-alerts", timeout=timedelta(minutes=5))
+RECONCILE_CONVERSATION_TASKS = _sweep("reconcile-conversation-tasks", timeout=timedelta(seconds=30))
 SWEEP_GENERATED_MEDIA = _sweep("sweep-generated-media")
 SEND_DIAGNOSTICS = _sweep("send-diagnostics", timeout=timedelta(seconds=60))
 PROACTIVE_SWEEP = _sweep("proactive-sweep")
@@ -473,15 +515,28 @@ MOVE_PROJECT_WORKSPACE = Task(
     priority=Priority.INTERACTIVE,
 )
 
+DELIVER_CHANNEL_HANDBACK = Task(
+    kind="deliver-channel-handback",
+    payload_type=ChannelHandback,
+    pool=Pool.SYSTEM,
+    max_attempts=3,
+    timeout=timedelta(minutes=2),
+    priority=Priority.INTERACTIVE,
+)
+
 TASKS: dict[str, TaskKind] = {
     task.kind: task
     for task in (
+        DELIVER_CHANNEL_HANDBACK,
         MOVE_PROJECT_WORKSPACE,
         INGEST_DOCUMENT,
         SYNC_COLLECTION,
         SYNC_SOURCE,
         FIRE_TRIGGER,
         RUN_AGENT,
+        RUN_CONVERSATION_TASK,
+        RETURN_CONVERSATION_TASK,
+        RECONCILE_CONVERSATION_TASKS,
         WORKFLOW_DISPATCH_NODE,
         THINK_FOR_PERSON,
         LOOK_THROUGH_WATCH,

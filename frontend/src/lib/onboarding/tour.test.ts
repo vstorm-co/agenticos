@@ -241,6 +241,8 @@ describe("stepsForPage", () => {
       "chat-composer",
       "chat-local-skills",
       "chat-local-coding",
+      "chat-coding-settings",
+      "chat-background-tasks",
       "chat-plan",
       "chat-visual",
       "chat-model-picker",
@@ -285,6 +287,7 @@ describe("stepsForPage", () => {
     expect(stepsForPage("/documents/some-id", () => true).map((s) => s.id)).toEqual([
       "workspace-file-fullscreen",
       "workspaces-detail",
+      "workspace-graph",
     ]);
   });
 

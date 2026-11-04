@@ -11,7 +11,11 @@ from app.services.agent_runner import AgentRunnerService, RunSegment
 
 
 async def run_result(
-    service: AgentRunnerService, ctx: AuthContext, segment: RunSegment
+    service: AgentRunnerService,
+    ctx: AuthContext,
+    segment: RunSegment,
+    *,
+    continues_in_chat: bool = False,
 ) -> AgentRunResult:
     """The continuation, with what it did and what it is waiting on now."""
     run = segment.run
@@ -54,4 +58,5 @@ async def run_result(
         # them a caller was told the run is still waiting and given nothing to do.
         parked=await service.parked_calls(ctx, run),
         questions=await service.parked_questions(ctx, run),
+        continues_in_chat=continues_in_chat,
     )

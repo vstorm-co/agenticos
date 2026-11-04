@@ -29,6 +29,8 @@ class LockScope(IntEnum):
     """What a lock is about. The value is half of the advisory key."""
 
     #: How many organizations one account may own.
+    CONVERSATION_TURN = 23
+    CONVERSATION_TASKS = 24
     ORGANIZATIONS_PER_USER = 1
     #: How many agents one organization may hold.
     AGENTS_PER_ORGANIZATION = 2

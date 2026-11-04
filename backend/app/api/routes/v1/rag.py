@@ -230,14 +230,17 @@ async def drop_collection(
     be used to confirm a deletion, and that 204 was also what another tenant's
     collection returned.
 
-    The resolved base's document rows and its KB row go in the request; the
+    The resolved base's document rows, the unfiled rows of its tenant, and its
+    KB row go in the request; the
     stored files and the vector table are torn down by the durable cleanup the
     service hands over after the commit, which takes the collection-teardown lock
     and re-reads the reference check before dropping only what no base still
     claims (#1347, #1349, #1355, #913). The name is not tenant-unique, so while
     another base - possibly another organization's - still holds it, only this
     base's documents go and its chunks are purged from the kept table (#2560).
-    So the route no longer wires a store in.
+    When it is the last holder, another tenant's unfiled rows under the name
+    stay, marked as failed since their chunks go with the table (#2568). So the
+    route no longer wires a store in.
     """
     collection = await access.writable(ctx, name)
     await kb_svc.delete_for_rag_collection(collection)

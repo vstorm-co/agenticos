@@ -66,6 +66,8 @@ pub const GRANTS: &[(&str, &[&str])] = &[
             "allow-local-files",
             "allow-local-file",
             "allow-local-agents",
+            "allow-local-agent-prepare",
+            "allow-local-agent-options",
             "allow-local-agent-sign-in",
             "allow-local-agent-sign-out",
             "allow-local-skills",
@@ -400,6 +402,8 @@ mod tests {
     fn local_agent_and_skill_commands_are_available_only_to_the_main_console() {
         for permission in [
             "allow-local-agents",
+            "allow-local-agent-prepare",
+            "allow-local-agent-options",
             "allow-local-agent-sign-in",
             "allow-local-agent-sign-out",
             "allow-local-skills",

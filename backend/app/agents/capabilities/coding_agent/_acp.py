@@ -17,7 +17,7 @@ import itertools
 import json
 import logging
 from collections import deque
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 
@@ -92,9 +92,8 @@ class AgentExited(AcpError):
 
     def __init__(self, code: int) -> None:
         super().__init__(
-            f"The agent stopped with exit code {code} before it answered. Check that "
-            "Node.js 22 or later is installed and that the agent is signed in under "
-            "Settings → Desktop app."
+            f"The agent stopped with exit code {code} before it answered. Prepare coding "
+            "tools and check the agent sign-in under Settings → Desktop app."
         )
         self.code = code
 
@@ -468,6 +467,44 @@ def _was_rejected(params: dict[str, Any], reply: dict[str, Any]) -> bool:
     return reply["outcome"].get("optionId") in rejecting
 
 
+async def _configure_session(
+    conversation: Conversation,
+    session_id: str,
+    opened: Mapping[str, object] | None,
+    *,
+    model: str | None,
+    effort: str | None,
+) -> None:
+    """Apply explicit choices through ACP; an unsupported choice is never ignored."""
+    options = (opened or {}).get("configOptions")
+    for category, value in (("model", model), ("thought_level", effort)):
+        if value is None:
+            continue
+        option = (
+            next(
+                (
+                    item
+                    for item in options
+                    if isinstance(item, dict) and item.get("category") == category
+                ),
+                None,
+            )
+            if isinstance(options, list)
+            else None
+        )
+        identifier = option.get("id") if option is not None else None
+        if not isinstance(identifier, str) or not identifier:
+            label = "model" if category == "model" else "reasoning level"
+            raise AcpError(
+                f"This coding agent does not expose a {label} setting. Prepare its latest coding tools or leave the choice on its own setting."
+            )
+        configured = await conversation.request(
+            "session/set_config_option",
+            {"sessionId": session_id, "configId": identifier, "value": value},
+        )
+        options = (configured or {}).get("configOptions", options)
+
+
 async def run_task(
     pipe: Pipe,
     *,
@@ -477,6 +514,8 @@ async def run_task(
     task: str,
     timeout_seconds: int,
     shown: Shown,
+    model: str | None = None,
+    effort: str | None = None,
     previous_session: str | None = None,
     remember: Callable[[str], Awaitable[None]] | None = None,
     steering: SteeringInbox | None = None,
@@ -518,7 +557,7 @@ async def run_task(
                     raise AcpError(
                         "This adapter cannot resume the earlier session. Start a fresh task explicitly."
                     )
-                await conversation.request(
+                opened = await conversation.request(
                     "session/load", {**session_params, "sessionId": previous_session}
                 )
                 identifier = previous_session
@@ -527,8 +566,8 @@ async def run_task(
                 collector.order.clear()
                 collector.said.clear()
             else:
-                created = await conversation.request("session/new", session_params)
-                identifier = (created or {}).get("sessionId")
+                opened = await conversation.request("session/new", session_params)
+                identifier = (opened or {}).get("sessionId")
             if not isinstance(identifier, str):
                 raise AcpError("The agent did not open a session.")
             session_id = identifier
@@ -536,6 +575,7 @@ async def run_task(
                 await conversation.request(
                     "session/set_mode", {"sessionId": session_id, "modeId": "read-only"}
                 )
+            await _configure_session(conversation, session_id, opened, model=model, effort=effort)
             if remember is not None:
                 await remember(session_id)
             prompt = f"{_READ_ONLY_NOTE}{task}" if access == "read_only" else task

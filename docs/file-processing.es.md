@@ -1,5 +1,5 @@
 ---
-source_sha: "5038114f28fc"
+source_sha: "313b13d3ee6e"
 ---
 
 # Procesamiento de archivos { #file-processing }
@@ -1018,6 +1018,24 @@ las liste: la misma regla que al eliminar una colección ([#2560](https://github
 los fragmentos sin asignar se quedan y coinciden por su tenant, y las filas de
 documentos sin asignar siguen listadas en las bases de su tenant ([#2537](https://github.com/vstorm-co/agenticos/issues/2537)).
 
+Cuando ninguna otra base tiene el nombre, ambas rutas y `rag-drop` borran las mismas
+filas, con sus archivos, y el trabajo de limpieza elimina la tabla: las filas de la
+propia base y las filas sin asignar de su tenant. Para una base de organización o una
+base personal son las de su organización, para una base app-scoped las que no tienen
+organización (las que escribe `rag-ingest`), y para una base personal fuera de una
+organización ninguna.
+
+Las filas sin asignar de otro tenant bajo ese nombre se quedan, con sus archivos,
+porque quien llama no tiene autoridad sobre ellas. Sus fragmentos se van con la
+tabla, así que se marcan como fallidas: la siguiente base de ese tenant con ese
+nombre las lista como fallidas, un documento subido hay que subirlo de nuevo y una
+sincronización vuelve a indexar un documento sincronizado.
+
+Antes, `DELETE /kb/{id}` dejaba las filas sin asignar del tenant detrás de la tabla
+eliminada, todavía listadas como indexadas, y eliminar una colección borraba todas
+las filas bajo el nombre, fuera del tenant que fuera
+([#2568](https://github.com/vstorm-co/agenticos/issues/2568)).
+
 Una subida o una sincronización que aún indexa un archivo para la base cuando se
 borra no deja fragmentos. La escritura toma un bloqueo sobre la fila de la base que
 choca con el del borrado, en la transacción que inserta los fragmentos: una escritura que llega segunda no
@@ -1196,6 +1214,12 @@ Un documento que no falló, o que no tiene archivo guardado — uno anterior a q
 las subidas guardaran el suyo, o uno que ingirió una sincronización — se rechaza
 con un 400 en vez de pasar a `processing`
 ([#441](https://github.com/vstorm-co/agenticos/issues/441)).
+
+El reintento también rechaza un documento de una organización sin asignar a ninguna
+base de conocimiento: sus fragmentos se escribirían para todo el deployment, donde la
+base de la organización que lo lista no lee, así que hay que subirlo de nuevo. Uno
+sin organización es de una base app-scoped, que lee ahí, y se reintenta
+([#2568](https://github.com/vstorm-co/agenticos/issues/2568)).
 
 ### Qué dice una ingesta fallida { #what-a-failed-ingest-says }
 
