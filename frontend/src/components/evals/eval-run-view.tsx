@@ -23,7 +23,7 @@ import { ArmsTable } from "./arms-table";
 import { ALL, CaseTable, FilterSelect } from "./case-table";
 import { ImprovementMeasurement } from "./improvement-measurement";
 import { ComparisonCard } from "./comparison-card";
-import { sideName } from "./names";
+import { sideName, type SideCheck } from "./names";
 import { StartEvalDialog } from "./start-eval-dialog";
 import { VerdictHeader } from "./verdict-header";
 
@@ -105,6 +105,11 @@ export function EvalRunView({ agentId, runId }: { agentId: string; runId: string
 
   const tags = [...new Set(run.arms.flatMap((item) => Object.keys(item.by_tag)))].sort();
   const candidate = candidates.find((item) => item.id === focus);
+  // A skill's check runs one agent on both sides, so each side is named by that agent.
+  const check: SideCheck | null | undefined =
+    run.proposal_check?.kind === "skill" && agent
+      ? { ...run.proposal_check, agent: agent.name }
+      : run.proposal_check;
   const brokenIds = (comparison?.cases ?? [])
     .filter((item) => item.flip === "regression")
     .map((item) => item.case_id);
@@ -123,7 +128,7 @@ export function EvalRunView({ agentId, runId }: { agentId: string; runId: string
       {run.review && <ReviewReevaluationNote review={run.review} />}
       <VerdictHeader
         agentId={agentId}
-        run={run}
+        run={{ ...run, proposal_check: check }}
         candidate={candidate}
         canPublish={agent?.can_publish === true}
         comparison={live ? undefined : comparison}
@@ -199,7 +204,7 @@ export function EvalRunView({ agentId, runId }: { agentId: string; runId: string
         tag={tag}
         live={live}
         baseline={comparison?.baseline ?? null}
-        check={run.proposal_check}
+        check={check}
         baselineSummary={comparison?.baseline_summary ?? null}
       />
       {!live && comparison && (

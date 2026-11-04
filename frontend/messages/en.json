@@ -13559,6 +13559,8 @@
     "versionPlus": "v{version} + {count, plural, =1 {1 suggestion} other {# suggestions}}",
     "proposedSkill": "v{version} + proposed skill",
     "proposedContext": "v{version} + proposed context file",
+    "skillCurrent": "{agent} · current skill",
+    "skillProposed": "{agent} · proposed skill",
     "version": "v{version}",
     "status": {
       "queued": "Queued",

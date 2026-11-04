@@ -6,14 +6,9 @@ import { useLocale, useTranslations } from "next-intl";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui";
 import { ROUTES } from "@/lib/constants";
 import { formatDateTime } from "@/lib/utils";
-import type {
-  ArmSummary,
-  ComparisonSide,
-  EvalRunArm,
-  ProposalCheckRecord,
-} from "@/types/eval-runs";
+import type { ArmSummary, ComparisonSide, EvalRunArm } from "@/types/eval-runs";
 import { percent, seconds, usd } from "./format";
-import { sideName } from "./names";
+import { sideName, type SideCheck } from "./names";
 
 function SideLabel({
   agentId,
@@ -24,7 +19,7 @@ function SideLabel({
   agentId: string;
   arm: EvalRunArm;
   baseline: ComparisonSide | null;
-  check: ProposalCheckRecord | null | undefined;
+  check: SideCheck | null | undefined;
 }) {
   const t = useTranslations("evals");
   const locale = useLocale();
@@ -98,7 +93,7 @@ export function ArmsTable({
   /** The side the candidate is compared with, to name the run a reused result came from. */
   baseline: ComparisonSide | null;
   /** What a check of a proposal measured, to name its candidate by what it adds. */
-  check?: ProposalCheckRecord | null;
+  check?: SideCheck | null;
   /** That side's numbers over the cases both answered, as the comparison read them. */
   baselineSummary: ArmSummary | null;
 }) {

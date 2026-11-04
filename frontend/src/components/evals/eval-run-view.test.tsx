@@ -33,7 +33,7 @@ const review = vi.hoisted(() => ({
 }));
 const loaded = vi.hoisted(() => ({
   agent: { can_run: true, can_edit: true } as
-    { can_run: boolean; can_edit: boolean; can_publish?: boolean } | undefined,
+    { can_run: boolean; can_edit: boolean; can_publish?: boolean; name?: string } | undefined,
 }));
 vi.mock("@/hooks/use-agents", () => ({ useAgent: () => ({ agent: loaded.agent }) }));
 
@@ -412,6 +412,24 @@ describe("EvalRunView", () => {
         "A check sends nothing to review by itself: nothing is accepted by checking. Send its failed answers by hand if a person should look at them.",
       ),
     ).toBeVisible();
+  });
+
+  it("names a skill's check by its agent, on the skill as it is and as proposed", () => {
+    loaded.agent = { can_run: true, can_edit: true, name: "Online returns desk" };
+    state.run = {
+      ...state.run,
+      run: evalRun({
+        proposal_check: { kind: "skill", base_version: 3, on_draft: false, suggestions: 0 },
+        arms: [
+          arm({ source: "explicit", version_number: 3 }),
+          arm({ id: "arm-0", role: "baseline", version_number: 3 }),
+        ],
+      }),
+    };
+    render(<EvalRunView agentId="agent-1" runId="run-1" />);
+    expect(screen.getAllByText(/Online returns desk · proposed skill/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Online returns desk · current skill/).length).toBeGreaterThan(0);
+    expect(screen.queryByText(/v3 \+ proposed skill/)).toBeNull();
   });
 
   it("says when it could not send its answers to review, beside the way to send them", () => {

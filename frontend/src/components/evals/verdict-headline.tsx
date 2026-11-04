@@ -135,7 +135,7 @@ export function VerdictHeadline({
   const shown = example(comparison, verdict === "better" ? "fixed" : "regression");
   const sentence = {
     ...values,
-    baseline: sideName(baseline, tSide),
+    baseline: sideName(baseline, tSide, run.proposal_check),
     broke,
     fixed,
     others: (verdict === "better" ? fixed : broke) - 1,

@@ -13231,6 +13231,8 @@
     "versionPlus": "v{version} + {count, plural, =1 {1 Vorschlag} other {# Vorschläge}}",
     "proposedSkill": "v{version} + vorgeschlagener Skill",
     "proposedContext": "v{version} + vorgeschlagene Kontextdatei",
+    "skillCurrent": "{agent} · aktueller Skill",
+    "skillProposed": "{agent} · vorgeschlagener Skill",
     "version": "v{version}",
     "status": {
       "queued": "In der Warteschlange",

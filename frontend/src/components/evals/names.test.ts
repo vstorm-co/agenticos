@@ -6,7 +6,7 @@ import type { ProposalCheckRecord } from "@/types/eval-runs";
 import { sideName } from "./names";
 
 const evals = createTranslator({ locale: "en", messages: en, namespace: "evals" });
-const t = (key: string, values?: { version?: number; count?: number }) =>
+const t = (key: string, values?: { version?: number; count?: number; agent?: string }) =>
   evals(key as Parameters<typeof evals>[0], values);
 
 function check(overrides: Partial<ProposalCheckRecord> = {}): ProposalCheckRecord {
@@ -40,5 +40,21 @@ describe("sideName", () => {
       "Draft",
     );
     expect(sideName(candidate, t)).toBe("Proposed changes");
+  });
+});
+
+describe("sideName for a skill's check", () => {
+  const skill = { ...check({ kind: "skill", base_version: 3 }), agent: "Online returns desk" };
+
+  it("names both sides by the agent, and which skill each one read", () => {
+    expect(sideName(candidate, t, skill)).toBe("Online returns desk · proposed skill");
+    expect(sideName(baseline, t, skill)).toBe("Online returns desk · current skill");
+  });
+
+  it("names them by version while the agent is unread, and a side of another run alike", () => {
+    expect(sideName(candidate, t, check({ kind: "skill", base_version: 3 }))).toBe(
+      "v3 + proposed skill",
+    );
+    expect(sideName({ source: "version", version_number: 3 }, t, skill)).toBe("v3");
   });
 });
