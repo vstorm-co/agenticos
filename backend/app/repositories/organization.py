@@ -42,6 +42,21 @@ async def get_by_id_for_update(db: AsyncSession, org_id: UUID) -> Organization |
     return result.scalar_one_or_none()
 
 
+async def hold_key_share(db: AsyncSession, org_id: UUID) -> None:
+    """Take `FOR KEY SHARE` on the organization row.
+
+    What a foreign key referencing the row takes on insert, taken earlier: a
+    transaction about to lock a row inside the organization and then insert
+    something referencing it holds the organization first, the order a
+    teardown that locks the organization `FOR UPDATE` takes them in (#2682).
+    """
+    await db.execute(
+        select(Organization.id)
+        .where(Organization.id == org_id)
+        .with_for_update(read=True, key_share=True)
+    )
+
+
 async def list_all(db: AsyncSession) -> list[Organization]:
     """Every organization on the deployment.
 
