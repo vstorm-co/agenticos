@@ -47,7 +47,16 @@ def _config() -> MirageConfig:
                     "account": {"kind": "organization", "connection_id": str(ACCOUNT)},
                 },
                 {"path": "/mail/", "backend": "gmail", "account": {"kind": "personal"}},
-                {"path": "/box/", "backend": "ssh", "options": {"host": "build.acme.internal"}},
+                {
+                    "path": "/box/",
+                    "backend": "ssh",
+                    "secrets": {"password": str(TOKEN)},
+                    "options": {
+                        "host": "build.acme.internal",
+                        "username": "demo",
+                        "host_key": "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAII19EYfK0OnzyFkgkqDBqTdEGpwwQPuvcSDWFAQaa3Va",
+                    },
+                },
                 {"path": "/scratch/", "backend": "ram"},
             ]
         }
@@ -100,6 +109,7 @@ async def test_what_the_publisher_cannot_lend_is_named_folder_by_folder() -> Non
         "/code/ needs a api_key secret for token, but 'wrong' holds a entra_app",
         f"/files/ points at a secret this organization does not have: {APP}",
         "/drive/ reads an account the organization has not connected",
+        "/box/ needs a api_key secret for password, but 'wrong' holds a entra_app",
         "/box/: host names a host this deployment does not allow; an operator adds it to MIRAGE_ALLOWED_HOSTS",
     ]
 

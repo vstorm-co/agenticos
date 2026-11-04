@@ -12400,6 +12400,9 @@
     "personalAccountsDetail": "Jede Person, die mit dem Agenten spricht, sieht ihre eigenen Konten, einen Ordner pro Konto. Sie verbindet sie im <link>Vault</link>.",
     "organizationAccountsDetail": "Alle, die mit dem Agenten sprechen, lesen dieses Konto. Die Organisation verbindet Konten im <link>Vault</link>.",
     "backendsUnavailable": "Die Liste der Dienste konnte nicht geladen werden.",
-    "notInstalled": "Diese Bereitstellung hat das virtuelle Terminal nicht installiert. Ein Operator installiert es mit dem Extra mirage."
+    "notInstalled": "Diese Bereitstellung hat das virtuelle Terminal nicht installiert. Ein Operator installiert es mit dem Extra mirage.",
+    "jsonLabel": "{name} (JSON)",
+    "jsonHint": "Als JSON bearbeiten. Gültige Änderungen werden gespeichert; unvollständiges JSON behält den letzten gültigen Wert.",
+    "jsonInvalid": "Gültiges JSON des erforderlichen Typs eingeben. Der letzte gültige Wert bleibt unverändert."
   }
 }

@@ -7,6 +7,7 @@ import { useTranslations } from "next-intl";
 import { CapabilityDetail } from "@/components/agents/capability-settings";
 import { useCapabilityFieldCopy } from "@/components/agents/capability-field-copy";
 import { SchemaForm } from "@/components/agents/schema-form";
+import { MirageOptions } from "@/components/agents/mirage-options";
 import {
   Button,
   IconButton,
@@ -267,9 +268,10 @@ function MountRow({ index, mount, backends, disabled, errors, onChange, onRemove
       )}
 
       {info && Object.keys(info.options_schema.properties ?? {}).length > 0 && (
-        <SchemaForm
+        <MirageOptions
+          key={info.name}
           idPrefix={`${id}-options`}
-          schema={info.options_schema as JsonSchema}
+          schema={info.options_schema}
           value={mount.options ?? {}}
           disabled={disabled}
           onChange={(options) => onChange({ ...mount, options })}

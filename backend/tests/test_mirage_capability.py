@@ -92,7 +92,8 @@ def test_ssh_hides_the_hosts_own_files_and_redis_is_typed_here() -> None:
     assert ssh is not None and not {"identity_file", "known_hosts"} & set(
         ssh.options_schema["properties"]
     )
-    assert ssh.secret_fields == ("password", "passphrase")
+    assert ssh.secret_fields == ("password",)
+    assert ssh.required_secrets == ("password",)
     assert redis is not None and redis.secret_fields == ("url",)
 
 

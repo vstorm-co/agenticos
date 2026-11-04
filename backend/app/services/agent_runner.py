@@ -4671,6 +4671,9 @@ class AgentRunnerService:
                 shared,
             )
         )
+        spec = _with_channel_service_approval(
+            spec, delegation.surface, linked_sender=delegation.personal_mcp_user_id is not None
+        )
         own_resources = await self._delegate_resources(
             ctx,
             spec,

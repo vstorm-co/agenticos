@@ -144,7 +144,16 @@ async def test_typed_and_default_hosts_both_need_the_allowlist(ctx, vault, accou
     terminal = await _resolve(
         ctx,
         _config(
-            {"path": "/box/", "backend": "ssh", "options": {"host": "build.acme.internal"}},
+            {
+                "path": "/box/",
+                "backend": "ssh",
+                "secrets": {"password": str(TOKEN)},
+                "options": {
+                    "host": "build.acme.internal",
+                    "username": "demo",
+                    "host_key": "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAII19EYfK0OnzyFkgkqDBqTdEGpwwQPuvcSDWFAQaa3Va",
+                },
+            },
             {"path": "/traces/", "backend": "jaeger"},
         ),
     )
@@ -415,7 +424,18 @@ async def test_ssh_allows_an_approved_host_without_an_alternate_hostname(
     monkeypatch.setattr(settings, "MIRAGE_ALLOWED_HOSTS", ["build.acme.internal"])
     terminal = await _resolve(
         ctx,
-        _config({"path": "/build/", "backend": "ssh", "options": {"host": "build.acme.internal"}}),
+        _config(
+            {
+                "path": "/build/",
+                "backend": "ssh",
+                "secrets": {"password": str(TOKEN)},
+                "options": {
+                    "host": "build.acme.internal",
+                    "username": "demo",
+                    "host_key": "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAII19EYfK0OnzyFkgkqDBqTdEGpwwQPuvcSDWFAQaa3Va",
+                },
+            }
+        ),
     )
     assert len(terminal.mounts) == 1 and not terminal.notes
 

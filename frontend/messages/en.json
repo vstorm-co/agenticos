@@ -12728,6 +12728,9 @@
     "personalAccountsDetail": "Each person who talks to the agent sees their own accounts, one folder per account. They connect them in the <link>vault</link>.",
     "organizationAccountsDetail": "Everybody who talks to the agent reads this account. The organization connects accounts in the <link>vault</link>.",
     "backendsUnavailable": "The list of services could not be loaded.",
-    "notInstalled": "This deployment does not have the virtual terminal installed. An operator installs it with the mirage extra."
+    "notInstalled": "This deployment does not have the virtual terminal installed. An operator installs it with the mirage extra.",
+    "jsonLabel": "{name} (JSON)",
+    "jsonHint": "Edit as JSON. Valid changes are saved; incomplete JSON keeps the last valid value.",
+    "jsonInvalid": "Enter valid JSON of the required type. The last valid value is unchanged."
   }
 }

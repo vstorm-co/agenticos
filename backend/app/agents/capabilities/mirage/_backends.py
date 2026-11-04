@@ -243,6 +243,10 @@ def config_class(name: str) -> type[BaseModel] | None:
         ImportError: The backend's library is not installed here.
         KeyError: No backend has that name.
     """
+    if name == "ssh":
+        from app.agents.capabilities.mirage._ssh import VaultSSHConfig
+
+        return VaultSSHConfig
     if name == "redis":
         return RedisConfig
     from mirage.vfs.registry import REGISTRY, resolve_class
@@ -269,6 +273,8 @@ def _credential(name: str) -> Credential:
 
 def _hidden(name: str, credential: Credential) -> frozenset[str]:
     hidden = _HIDDEN_FIELDS - _EXPOSED_OVERRIDES.get(name, frozenset())
+    if name == "ssh":
+        hidden |= {"passphrase"}
     if credential == "google":
         hidden |= _GOOGLE_FIELDS
     if credential == "microsoft":

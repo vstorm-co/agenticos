@@ -18,10 +18,10 @@ an agent bound to it, saying why.
 """
 
 import re
-from typing import TYPE_CHECKING, Annotated, Any, Literal, Self
+from typing import TYPE_CHECKING, Annotated, Literal, Self
 from uuid import UUID
 
-from pydantic import BaseModel, Field, JsonValue, field_validator, model_validator
+from pydantic import BaseModel, Field, JsonValue, ValidationError, field_validator, model_validator
 
 from app.agents.capabilities._registry import CapabilityBuildContext, register
 from app.agents.capabilities.mirage._backends import BackendInfo, backend, catalog, config_class
@@ -187,15 +187,26 @@ def _check_options(mount: MirageMount, info: BackendInfo) -> None:
     """
     if config_class(info.name) is None:
         return
-    from mirage.vfs.registry import build_vfs
-
-    stand_in: dict[str, Any] = dict.fromkeys(mount.secrets, "secret")
+    stand_in: dict[str, MountValue] = dict.fromkeys(mount.secrets, "secret")
     if info.credential == "google":
         stand_in |= {"client_id": "id", "client_secret": "secret", "refresh_token": "token"}
     if info.credential == "microsoft":
         stand_in = {"access_token": "token"}
     try:
-        build_vfs(info.name, {**mount.options, **stand_in})
+        ResolvedMount(
+            mount.path,
+            info.name,
+            mount.mode,
+            mount.approve_writes,
+            {**mount.options, **stand_in},
+            info.title,
+        ).build()
+    except ValidationError as exc:
+        detail = "; ".join(
+            f"{'.'.join(map(str, error['loc']))}: {error['msg']}"
+            for error in exc.errors(include_input=False, include_context=False, include_url=False)
+        )
+        raise ValueError(f"{info.title}: {detail}") from None
     except (ValueError, TypeError) as exc:
         # `VFSConfigError`, a `ValueError`, carries the config class's refusal
         # field by field, without the values.

@@ -1,5 +1,5 @@
 ---
-source_sha: "55cebe056435"
+source_sha: "51b4b90da79b"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -1398,6 +1398,8 @@ Identität abgeschlossen werden, mit der sie begonnen wurde.
 
 
 Vault-Secrets müssen zum Zweck des Backends passen; `custom` erlaubt ausdrücklich eine eigene Integration. OneDrive und SharePoint akzeptieren eine Entra-App mit dem Zweck `sharepoint`, Hugging-Face-Dienste den Zweck `huggingface`. Veröffentlichung und Ausführung prüfen dieselbe Regel. Jeder Host einer PostgreSQL-Seed-Liste muss auf der Allowlist des Deployments stehen. MongoDB und GridFS benötigen genau einen `mongodb://`-Host: Die Plattform erzwingt `directConnection=true` und lehnt SRV-Erkennung ab. Nicht verknüpfte Kanalabsender benötigen für jedes Mirage-Werkzeug eine Genehmigung, auch zum Lesen; nach der Kontoverknüpfung gilt die normale Ordnerregel des Autors.
+
+SSH verwendet einen ausdrücklich angegebenen Benutzernamen und ein Passwort aus dem Vault. Der vertrauenswürdige öffentliche `host_key` des Servers wird fest geprüft; lokale SSH-Konfiguration, lokale private Schlüssel und der SSH-Agent sind deaktiviert. Eine automatische Anmeldung mit Zugangsdaten der Umgebung ist nicht verfügbar.
 
 ## Diagramme { #charts }
 

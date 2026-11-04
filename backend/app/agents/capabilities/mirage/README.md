@@ -104,3 +104,8 @@ not available because discovered hosts would bypass the exact-host allowlist.
 Unlinked channel senders need approval for all terminal tools, including reads.
 Organization-account consent rechecks the initiator’s current permissions before
 exchanging the provider code.
+
+SSH is password-only through the vault, with an explicit username and pinned
+public host key. The adapter disables API-host SSH config, agent authentication
+and default private keys. It replaces only the connection setup of Mirage 0.0.8’s
+SSH accessor; real SFTP and cancellation tests pin its protected lifecycle fields.

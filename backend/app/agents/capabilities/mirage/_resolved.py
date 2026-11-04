@@ -70,7 +70,12 @@ class ResolvedMount:
         from mirage.vfs.registry import build_vfs
         from mirage.workspace.mount.spec import Mount
 
-        vfs = build_vfs(self.backend, None if self.backend == "ram" else dict(self.config))
+        if self.backend == "ssh":
+            from app.agents.capabilities.mirage._ssh import build_ssh
+
+            vfs = build_ssh(self.config)
+        else:
+            vfs = build_vfs(self.backend, None if self.backend == "ram" else dict(self.config))
         return Mount(vfs, mode=MountMode.WRITE if self.mode == "write" else MountMode.READ)
 
 
