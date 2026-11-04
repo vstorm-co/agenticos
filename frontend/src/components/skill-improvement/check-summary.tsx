@@ -33,7 +33,7 @@ export function CheckSummary({ agents }: { agents: SkillCheckAgent[] }) {
   const counts = new Map<Bucket, number>(BUCKETS.map((bucket) => [bucket, 0]));
   for (const row of agents) {
     const bucket = bucketOf(row.state);
-    counts.set(bucket, (counts.get(bucket) ?? 0) + 1);
+    counts.set(bucket, counts.get(bucket)! + 1);
   }
   const shown = BUCKETS.filter((bucket) => bucket !== "pending" || counts.get("pending")! > 0);
   if (agents.length === 0) return null;
