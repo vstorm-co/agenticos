@@ -678,6 +678,11 @@ listing:
   sign-in and connection-state filters apply before counting and paging the
   results.
 
+  Saved server links reopen the account dialog even when a failed or duplicate
+  registry check hides the server from **All**. URL matching preserves the case
+  of paths and query values, so distinct endpoints remain separate. Reauthorizing
+  an account uses that account's saved URL.
+
 - **A category reaches the mirror too.** The registry has no categories, so each
   listing is given one at sync from its own name and description, counting the
   words each category is known by; a listing that names none of them is filed

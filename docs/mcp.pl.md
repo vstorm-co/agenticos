@@ -1,5 +1,5 @@
 ---
-source_sha: "70e245bf2cc7"
+source_sha: "d94ff30a47bf"
 ---
 
 # MCP — narzędzia, których nikt tutaj nie musi pisać { #mcp-the-tools-nobody-here-has-to-write }
@@ -711,6 +711,12 @@ wyszukiwanie, a nie wyliczanka:
   wyłączone i wymagające uwagi pozostają widoczne, aby można było nimi zarządzać.
   Filtry wyszukiwania, kategorii, logowania i stanu połączenia działają przed
   zliczaniem i stronicowaniem wyników.
+
+  Zapisane linki do serwerów ponownie otwierają okno kont, nawet gdy nieudany test
+  rejestru lub duplikat ukrywa serwer w widoku **Wszystkie (All)**. Porównywanie URL
+  zachowuje wielkość liter w ścieżkach i wartościach parametrów zapytania, dzięki
+  czemu różne punkty końcowe pozostają osobne. Ponowna autoryzacja konta korzysta
+  z adresu URL zapisanego dla tego konta.
 
 - **Kategoria sięga też lustra.** Rejestr nie ma kategorii, więc każdy wpis
   dostaje ją przy synchronizacji z własnej nazwy i opisu, przez policzenie słów,

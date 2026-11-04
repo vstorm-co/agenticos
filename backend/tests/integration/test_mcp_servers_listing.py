@@ -191,6 +191,40 @@ class TestWhatTheCheckFound:
 
 
 class TestConnectedRegistryIdentities:
+    @pytest.mark.parametrize(
+        ("first_path", "second_path"),
+        [
+            ("/Finance/mcp", "/finance/mcp"),
+            ("/mcp?tenant=Finance", "/mcp?tenant=finance"),
+            ("/mcp?token=value/", "/mcp?token=value"),
+        ],
+    )
+    async def test_url_matching_preserves_path_and_query_identity(
+        self, db: AsyncSession, first_path: str, second_path: str
+    ) -> None:
+        await repo.upsert_many(
+            db,
+            [
+                {
+                    "id": f"mirror/account-{index}",
+                    "name": f"Account {index}",
+                    "description": "",
+                    "url": f" HTTPS://GATEWAY.EXAMPLE.TEST{path} ",
+                    "host": "gateway.example.test",
+                }
+                for index, path in enumerate((first_path, second_path))
+            ],
+        )
+
+        found = await repo.for_connections(
+            db,
+            keys=set(),
+            urls={f"https://gateway.example.test{second_path}"},
+            names=set(),
+        )
+
+        assert [server.id for server in found] == ["mirror/account-1"]
+
     async def test_a_registry_key_resolves_without_matching_the_publisher_name(
         self, db: AsyncSession
     ) -> None:
@@ -228,7 +262,7 @@ class TestConnectedRegistryIdentities:
                     "id": "mirror/normalized",
                     "name": "Normalized",
                     "description": "",
-                    "url": "  HTTPS://INTERNAL.EXAMPLE.TEST/MCP///  ",
+                    "url": "  HTTPS://INTERNAL.EXAMPLE.TEST/mcp///  ",
                     "host": "internal.example.test",
                 }
             ],

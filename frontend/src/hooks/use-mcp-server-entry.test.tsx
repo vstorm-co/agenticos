@@ -44,7 +44,9 @@ function answer(curated: McpCatalogEntry[], listed: McpCatalogEntry[]) {
   );
 }
 
-beforeEach(() => vi.mocked(apiClient.get).mockReset());
+beforeEach(() => {
+  vi.mocked(apiClient.get).mockReset();
+});
 
 describe("useMcpServerEntry", () => {
   it("takes a curated server from the catalog, without searching", async () => {
@@ -76,6 +78,26 @@ describe("useMcpServerEntry", () => {
     await waitFor(() => expect(result.current.isLoading).toBe(false));
     expect(result.current.entry).toBeNull();
   });
+
+  it.each(["unreachable", "broken", "refused", "duplicate"] as const)(
+    "finds a saved %s server excluded from catalog browsing",
+    async (outcome) => {
+      const saved = {
+        ...entry("com.example/saved"),
+        connection_ids: ["account-1"],
+        check: { outcome, checked_at: "2026-11-03T00:00:00Z", tools: null, read_only_tools: null },
+      };
+      vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
+        const items = path.includes("state=connected") ? [saved] : [];
+        return { items, total: items.length };
+      });
+
+      const { result } = renderHook(() => useMcpServerEntry(saved.key), { wrapper });
+
+      await waitFor(() => expect(result.current.entry).toEqual(saved));
+      expect(result.current.isLoading).toBe(false);
+    },
+  );
 
   it("looks nothing up without a key", async () => {
     answer([entry("notion")], []);

@@ -164,14 +164,17 @@ async def test_accounts_share_one_card_using_catalog_key_then_url_then_legacy_na
     entry = catalog[61]
     keyed = _connection(caller, name=catalog[0].key, key=entry.key, url=catalog[0].url)
     by_url = _connection(
-        caller, name="personal-workspace", url=f" {entry.url.upper()}/// ", scope="user"
+        caller,
+        name="personal-workspace",
+        url=f" {entry.url.removesuffix('/mcp').upper()}/mcp/// ",
+        scope="user",
     )
     legacy = _connection(
         caller, name=entry.key, url="https://former-host.example.test/mcp", scope="user"
     )
     custom = _connection(caller, name="netbox-work", url="https://netbox.example.test/mcp")
     custom_personal = _connection(
-        caller, name="netbox-personal", url=" HTTPS://NETBOX.EXAMPLE.TEST/MCP/ ", scope="user"
+        caller, name="netbox-personal", url=" HTTPS://NETBOX.EXAMPLE.TEST/mcp/ ", scope="user"
     )
     repositories.organization.return_value = [keyed, custom], 2
     repositories.personal.return_value = [by_url, legacy, custom_personal], 3
@@ -192,7 +195,7 @@ async def test_custom_card_identity_survives_removing_its_first_account(
     mock_db_session: AsyncSession,
 ) -> None:
     first = _connection(caller, name="netbox-work", url="https://netbox.example.test/mcp")
-    second = _connection(caller, name="netbox-other", url=" HTTPS://NETBOX.EXAMPLE.TEST/MCP/// ")
+    second = _connection(caller, name="netbox-other", url=" HTTPS://NETBOX.EXAMPLE.TEST/mcp/// ")
     personal = _connection(
         caller, name="netbox-personal", url="https://netbox.example.test/mcp/", scope="user"
     )
@@ -210,6 +213,42 @@ async def test_custom_card_identity_survives_removing_its_first_account(
     assert before.items[0].connection_ids == (first.id, second.id, personal.id)
     assert without_first.items[0].connection_ids == (second.id, personal.id)
     assert personal_only.items[0].connection_ids == (personal.id,)
+
+
+@pytest.mark.parametrize(
+    ("first_path", "second_path"),
+    [
+        ("/Finance/mcp", "/finance/mcp"),
+        ("/mcp?tenant=Finance", "/mcp?tenant=finance"),
+        ("/mcp?token=value/", "/mcp?token=value"),
+    ],
+)
+async def test_distinct_custom_endpoints_keep_their_own_cards_and_urls(
+    caller: AuthContext,
+    catalog: tuple[CatalogEntry, ...],
+    repositories: ListingRepositories,
+    mock_db_session: AsyncSession,
+    first_path: str,
+    second_path: str,
+) -> None:
+    accounts = [
+        _connection(
+            caller,
+            name=f"account-{index}",
+            url=f"https://gateway.example.test{path}",
+            auth="oauth",
+        )
+        for index, path in enumerate((first_path, second_path))
+    ]
+    repositories.organization.return_value = accounts, len(accounts)
+
+    found = await mcp_listing.page(mock_db_session, ctx=caller, state="connected")
+
+    assert found.total == 2
+    assert len({row.key for row in found.items}) == 2
+    assert [(row.url, row.connection_ids) for row in found.items] == [
+        (account.url, (account.id,)) for account in accounts
+    ]
 
 
 @pytest.mark.parametrize("state", ["all", "connected"])

@@ -15,6 +15,7 @@ hundred. One list, with `reviewed` on the row saying which kind it is.
 from dataclasses import dataclass, replace
 from datetime import datetime
 from typing import Literal
+from urllib.parse import urlsplit
 from uuid import NAMESPACE_URL, UUID, uuid5
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -146,7 +147,9 @@ async def curated(db: AsyncSession) -> tuple[ListedServer, ...]:
 
 
 def _normalize_url(url: str) -> str:
-    return url.strip().rstrip("/").lower()
+    """Ignore host case and trailing path slashes, preserving path and query case."""
+    parts = urlsplit(url.strip())
+    return parts._replace(netloc=parts.netloc.lower(), path=parts.path.rstrip("/")).geturl()
 
 
 async def _connected(

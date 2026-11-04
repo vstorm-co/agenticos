@@ -783,7 +783,9 @@ export function McpServerList({
         onTools={handleTools}
         onDisconnect={handleDisconnect}
         onNominate={handleNominate}
-        onOAuth={(scope, row, connection) => handleOAuth(row, connection.name, scope)}
+        onOAuth={(scope, row, connection) =>
+          handleOAuth({ ...row, url: connection.url }, connection.name, scope)
+        }
       />
 
       <McpConnectionDialog

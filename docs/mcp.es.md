@@ -1,5 +1,5 @@
 ---
-source_sha: "70e245bf2cc7"
+source_sha: "d94ff30a47bf"
 ---
 
 # MCP — las herramientas que aquí nadie tiene que escribir { #mcp-the-tools-nobody-here-has-to-write }
@@ -734,6 +734,12 @@ no un listado:
   siguen visibles para gestionarlas. Los filtros de búsqueda, categoría, inicio
   de sesión y estado de conexión se aplican antes de contar y paginar los
   resultados.
+
+  Los enlaces guardados de servidores vuelven a abrir el diálogo de cuentas aunque
+  una comprobación fallida del registro o un duplicado oculte el servidor en
+  **All**. La comparación de URL conserva las mayúsculas y minúsculas de las rutas
+  y los valores de consulta, por lo que los endpoints distintos permanecen separados.
+  Al volver a autorizar una cuenta se utiliza la URL guardada de esa cuenta.
 
 - **Una categoría también llega al espejo.** El registro no tiene categorías,
   así que cada entrada recibe una al sincronizar a partir de su propio nombre y

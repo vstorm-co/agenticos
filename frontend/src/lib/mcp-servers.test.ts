@@ -128,6 +128,34 @@ describe("mergeServers", () => {
     expect(rows.filter((row) => row.category === CUSTOM_CATEGORY)).toEqual([]);
   });
 
+  it.each([
+    ["/Finance/mcp", "/finance/mcp"],
+    ["/mcp?tenant=Finance", "/mcp?tenant=finance"],
+    ["/mcp?token=value/", "/mcp?token=value"],
+  ])("keeps distinct URL components %s and %s on separate servers", (first, second) => {
+    const server = { ...GITHUB, url: `https://gateway.example${first}` };
+    const account = personal({ name: "workspace", url: `https://gateway.example${second}` });
+
+    const rows = mergeServers([server], [], [account]);
+
+    expect(rows.map((row) => row.key)).toEqual(["github", "p1"]);
+    expect(rows[0]?.personals).toEqual([]);
+    expect(rows[1]?.url).toBe(account.url);
+  });
+
+  it("matches host case and trailing path slashes without changing the query", () => {
+    const server = { ...GITHUB, url: "https://gateway.example/Finance/mcp?tenant=Finance/" };
+    const account = personal({
+      name: "workspace",
+      url: " HTTPS://GATEWAY.EXAMPLE/Finance/mcp///?tenant=Finance/ ",
+    });
+
+    const rows = mergeServers([server], [], [account]);
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.personals).toEqual([account]);
+  });
+
   it("keeps catalog order and puts custom servers last", () => {
     // The list is a catalog, and a catalog that reorders itself as people
     // connect things is a list of what is in the database instead.

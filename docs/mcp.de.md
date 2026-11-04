@@ -1,5 +1,5 @@
 ---
-source_sha: "70e245bf2cc7"
+source_sha: "d94ff30a47bf"
 ---
 
 # MCP — die Tools, die hier niemand schreiben muss { #mcp-the-tools-nobody-here-has-to-write }
@@ -748,6 +748,12 @@ und keine Auflistung:
   bleiben zur Verwaltung sichtbar. Die Filter für Suche, Kategorie, Anmeldung
   und Verbindungszustand greifen, bevor die Ergebnisse gezählt und seitenweise
   ausgegeben werden.
+
+  Gespeicherte Serverlinks öffnen den Kontodialog auch dann wieder, wenn eine
+  fehlgeschlagene Registry-Prüfung oder ein Duplikat den Server unter **Alle (All)**
+  ausblendet. Beim URL-Abgleich bleibt die Groß- und Kleinschreibung von Pfaden und
+  Abfragewerten erhalten, sodass verschiedene Endpunkte getrennt bleiben. Eine
+  erneute Autorisierung verwendet die gespeicherte URL des jeweiligen Kontos.
 
 - **Eine Kategorie erreicht auch den Spiegel.** Die Registry hat keine
   Kategorien, also bekommt jeder Eintrag beim Sync eine aus seinem eigenen Namen

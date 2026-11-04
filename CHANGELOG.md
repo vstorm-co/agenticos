@@ -24,6 +24,9 @@ Two things are versioned separately from this file and worth knowing about:
 - The MCP servers Connected filter includes accessible organization and personal
   accounts across catalog pages, including custom servers, with one card per
   service and consistent filtering, result counts and pagination.
+- Saved MCP server links reopen accounts whose registry checks failed. URL grouping
+  preserves case-sensitive paths and query values, and reauthorization uses each
+  account's saved endpoint.
 
 ## [1.40.0] - 2026-11-03
 

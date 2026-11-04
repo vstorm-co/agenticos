@@ -120,15 +120,23 @@ async def for_connections(
 ) -> list[McpRegistryServer]:
     """Resolve only the registry identities accessible saved accounts name.
 
-    URLs arrive normalized like the console's comparison: trim, remove trailing
-    slashes and lower-case. Matching the stored URL the same way also reaches
-    older connections without a catalog key, without loading the whole mirror.
+    URLs arrive with scheme/host case normalized and trailing path slashes
+    removed; path and query case remain significant. Matching the stored URL the
+    same way reaches older connections without a catalog key, without loading the whole mirror.
     Names are legacy catalog-key fallbacks, so they match the registry id rather
     than the publisher's display name.
     """
     if not keys and not urls and not names:
         return []
-    normalized_url = func.lower(func.rtrim(func.trim(McpRegistryServer.url), "/"))
+    url = func.trim(McpRegistryServer.url)
+    origin_pattern = r"^[^:/?#]+://[^/?#]*"
+    origin = func.substring(url, origin_pattern)
+    remainder = func.regexp_replace(url, origin_pattern, "")
+    normalized_url = func.concat(
+        func.lower(origin),
+        func.rtrim(func.substring(remainder, r"^[^?#]*"), "/"),
+        func.coalesce(func.substring(remainder, r"[?#].*$"), ""),
+    )
     result = await db.execute(
         select(McpRegistryServer)
         .where(

@@ -130,7 +130,10 @@ function serve(org: OrgMcpConnectionRecord[], own: McpConnectionRecord[]) {
       const state = params.get("state") ?? "all";
       const skip = Number(params.get("skip") ?? 0);
       const limit = Number(params.get("limit") ?? 50);
-      const normalize = (url: string) => url.trim().replace(/\/+$/, "").toLowerCase();
+      const normalize = (url: string) => {
+        const parsed = new URL(url.trim());
+        return `${parsed.origin}${parsed.pathname.replace(/\/+$/, "")}${parsed.search}${parsed.hash}`;
+      };
       const accounts = [...org, ...own];
       const claimed = new Set<string>();
       const all: McpCatalogEntry[] = [...catalogEntries, ...registryResults].map((entry) => {
@@ -171,7 +174,13 @@ function serve(org: OrgMcpConnectionRecord[], own: McpConnectionRecord[]) {
       all.push(...customs.values());
       const matched = all.filter((entry) => {
         const connected = entry.connection_ids!.length > 0;
+        const hidden =
+          entry.reviewed === false &&
+          entry.check !== null &&
+          entry.check !== undefined &&
+          ["unreachable", "broken", "refused", "duplicate"].includes(entry.check.outcome);
         return (
+          (state === "connected" || !hidden) &&
           (!needle ||
             [entry.key, entry.name, entry.description, entry.url ?? ""].some((value) =>
               value.toLowerCase().includes(needle),
@@ -340,6 +349,27 @@ describe("McpServerList", () => {
     await userEvent.click(screen.getByRole("button", { name: "Connect & check" }));
 
     expect(apiClient.post).not.toHaveBeenCalledWith("/me/mcp-connections", expect.anything());
+  });
+
+  it("reauthorizes the selected account at its saved URL rather than the card URL", async () => {
+    const saved = connection({
+      name: "github-finance",
+      url: "https://gateway.example/Finance/mcp?tenant=Finance",
+      auth_type: "oauth",
+      authorized: false,
+    });
+    await mount({ own: [saved] });
+    vi.mocked(apiClient.post).mockResolvedValue({ authorization_url: "https://consent.example" });
+
+    const dialog = await openConnections();
+    await userEvent.click(dialog.getByRole("button", { name: "Authorize" }));
+
+    await waitFor(() =>
+      expect(apiClient.post).toHaveBeenCalledWith(
+        "/me/mcp-connections/oauth/start",
+        expect.objectContaining({ name: saved.name, url: saved.url }),
+      ),
+    );
   });
 
   it("offers the client fields only once OAuth is chosen, and only for a new connection", async () => {
@@ -1307,6 +1337,33 @@ describe("connected servers across catalog pages", () => {
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(screen.getByRole("group", { name: "GitHub" })).toBeVisible();
   });
+
+  it.each(["unreachable", "broken", "refused", "duplicate"] as const)(
+    "reopens a bookmarked %s registry server even though All hides it",
+    async (outcome) => {
+      const saved = registryEntry({
+        key: "com.example/saved",
+        name: "Saved registry server",
+        check: { outcome, checked_at: "2026-11-03T00:00:00Z", tools: null, read_only_tools: null },
+      });
+      registryResults = [saved];
+      window.history.replaceState({}, "", `/mcp-servers?server=${encodeURIComponent(saved.key)}`);
+      const account = { ...accountFor(saved, "saved-account-id"), name: "saved-account" };
+
+      await mount({ own: [account] });
+
+      const dialog = within(await screen.findByRole("dialog"));
+      expect(dialog.getByRole("heading", { name: saved.name })).toBeVisible();
+      expect(dialog.getByRole("button", { name: "More for saved-account" })).toBeVisible();
+      expect(screen.queryByRole("group", { name: saved.name })).toBeNull();
+      expect(
+        listCalls().some((path) => {
+          const params = new URLSearchParams(path.split("?")[1]);
+          return params.get("q") === saved.key && params.get("state") === "connected";
+        }),
+      ).toBe(true);
+    },
+  );
 
   it.each(["search", "category", "sign-in", "state"] as const)(
     "resets a real second page when the %s filter changes",

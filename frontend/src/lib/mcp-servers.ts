@@ -59,9 +59,14 @@ export const MCP_STATE_LABEL: Record<McpConnectionState, string> = {
   connected: "connected",
 };
 
-/** Trailing slashes and case are not a difference between two server URLs. */
+/** Ignore origin case and trailing path slashes; path and query case identify the endpoint. */
 function normalizeUrl(url: string): string {
-  return url.trim().replace(/\/+$/, "").toLowerCase();
+  return url
+    .trim()
+    .replace(
+      /^([^:/?#]+:\/\/[^/?#]*)([^?#]*)/,
+      (_match, origin: string, path: string) => origin.toLowerCase() + path.replace(/\/+$/, ""),
+    );
 }
 
 /**

@@ -29,7 +29,7 @@ export function useMcpCatalog() {
 
 /**
  * One server by its key: curated, mirrored or a saved custom server. Entries
- * outside the curated catalog use one bounded lookup. Null while looking and
+ * outside the curated catalog use bounded lookups. Null while looking and
  * when a bookmarked key no longer names an accessible server.
  */
 export function useMcpServerEntry(key: string | null) {
@@ -37,8 +37,14 @@ export function useMcpServerEntry(key: string | null) {
   const curated = key === null ? null : (servers.find((server) => server.key === key) ?? null);
   const mirrored = useQuery({
     queryKey: qk.mcpServers.entry(key ?? ""),
-    queryFn: () =>
-      apiClient.get<McpCatalog>(`/agents/mcp-servers?q=${encodeURIComponent(key ?? "")}&limit=10`),
+    queryFn: async () => {
+      const path = `/agents/mcp-servers?q=${encodeURIComponent(key ?? "")}&limit=10`;
+      const listed = await apiClient.get<McpCatalog>(path);
+      if (listed.items.some((server) => server.key === key)) return listed;
+      // Saved accounts stay manageable even when a failed audit hides their
+      // registry entry from browsing. Do not turn a bookmark into a dead end.
+      return apiClient.get<McpCatalog>(`${path}&state=connected`);
+    },
     enabled: key !== null && !catalogLoading && curated === null,
     ...DASHBOARD_FRESHNESS,
   });
