@@ -16,6 +16,7 @@ from app.schemas.scoring import DatasetScoring
 from app.services.eval_comparison import CaseState
 from app.services.eval_run import (
     _failed_alike,
+    _served_skill_versions,
     attempt_outcome,
     attempt_state,
     decidable,
@@ -278,3 +279,28 @@ async def test_a_reevaluation_by_nobody_still_named_reads_without_a_name() -> No
     assert review is not None
     assert (review.by_user_id, review.by_name, review.verdict) == (None, None, "passed")
     db.execute.assert_not_awaited()
+
+
+def test_a_side_names_each_skill_it_was_served_once_by_its_stored_version() -> None:
+    """The agent and an inline specialist may read one skill; a deleted version is
+    left out rather than named by an id nobody can open."""
+    skill, other = uuid.uuid4(), uuid.uuid4()
+    main_v3 = SimpleNamespace(id=uuid.uuid4(), skill_id=skill, number=3, fork_id=None)
+    fork = SimpleNamespace(id=uuid.uuid4(), name="Returns")
+    fork_v2 = SimpleNamespace(id=uuid.uuid4(), skill_id=other, number=2, fork_id=fork.id)
+    served = {
+        f":{skill}": str(main_v3.id),
+        f"helper:{skill}": str(main_v3.id),
+        f":{other}": str(fork_v2.id),
+        f":{uuid.uuid4()}": str(uuid.uuid4()),
+    }
+
+    named = _served_skill_versions(
+        served, {main_v3.id: main_v3, fork_v2.id: fork_v2}, {fork.id: fork}
+    )
+
+    assert [(v.skill_id, v.number, v.fork_name) for v in named] == [
+        (skill, 3, None),
+        (other, 2, "Returns"),
+    ]
+    assert _served_skill_versions(None, {}, {}) == []
