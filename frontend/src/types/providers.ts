@@ -26,6 +26,7 @@ export interface ProviderInfo {
   secret_kind: SecretKind;
   /** False means a custom endpoint would be ignored, so storing one is refused. */
   supports_base_url: boolean;
+  requires_base_url?: boolean;
   /**
    * Whether this provider can run with no credential at all. True only for
    * self-hosted servers, and a keyless credential still has to carry a

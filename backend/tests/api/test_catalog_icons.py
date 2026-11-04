@@ -72,3 +72,13 @@ async def test_bundled_keenable_mark_is_listed_and_served(client: AsyncClient) -
     assert response.headers["content-type"].startswith("image/svg+xml")
     assert 'aria-label="Keenable"' in response.text
     assert "<path" in response.text
+
+
+@pytest.mark.anyio
+async def test_otari_mark_is_bundled(client: AsyncClient) -> None:
+    listing = await client.get(BASE)
+    assert "otari" in listing.json()["items"]
+    response = await client.get(f"{BASE}/otari")
+    assert response.status_code == 200
+    assert 'aria-label="Otari"' in response.text
+    assert 'fill-rule="evenodd"' in response.text

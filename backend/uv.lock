@@ -10,7 +10,7 @@ overrides = [
 
 [[package]]
 name = "agenticos"
-version = "1.45.0"
+version = "1.45.1"
 source = { editable = "." }
 dependencies = [
     { name = "aiogram" },
@@ -53,6 +53,7 @@ dependencies = [
     { name = "pydantic", extra = ["email"] },
     { name = "pydantic-ai-backend", extra = ["console", "daytona", "remote", "workspaces"] },
     { name = "pydantic-ai-harness", extra = ["e2b", "repair-tool-arguments"] },
+    { name = "pydantic-ai-otari" },
     { name = "pydantic-ai-skills" },
     { name = "pydantic-ai-slim", extra = ["anthropic", "cohere", "duckduckgo", "google", "google-realtime", "groq", "huggingface", "mcp", "mistral", "openai-realtime", "openrouter", "web-fetch", "xai", "xai-realtime"] },
     { name = "pydantic-monty" },
@@ -154,6 +155,7 @@ requires-dist = [
     { name = "pydantic", extras = ["email"], specifier = ">=2.14.1" },
     { name = "pydantic-ai-backend", extras = ["console", "remote", "workspaces", "daytona"], specifier = ">=0.2.39" },
     { name = "pydantic-ai-harness", extras = ["e2b", "repair-tool-arguments"], specifier = ">=0.64.0" },
+    { name = "pydantic-ai-otari", specifier = ">=0.1.0,<0.2" },
     { name = "pydantic-ai-skills", specifier = ">=2.1.0" },
     { name = "pydantic-ai-slim", extras = ["mcp"], specifier = ">=2.61.0" },
     { name = "pydantic-ai-slim", extras = ["openrouter", "anthropic", "google", "duckduckgo", "web-fetch", "groq", "mistral", "cohere", "huggingface", "xai", "openai-realtime", "google-realtime", "xai-realtime"], specifier = ">=2.61.0" },
@@ -3257,6 +3259,18 @@ skills = [
 ]
 
 [[package]]
+name = "pydantic-ai-otari"
+version = "0.1.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "pydantic-ai-slim", extra = ["openai"] },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/0f/a0/8b4582b7f7263da1f696086ccadacac05d6e529fac7eb04cc11a45ef3936/pydantic_ai_otari-0.1.0.tar.gz", hash = "sha256:2d7a7b178df5c04d068d3898bd35a79aaee9a5abfbd8068d25c9b39b5954aec7", size = 8753, upload-time = "2026-10-14T14:39:40.632Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/6a/f2/15ef3133572050a350ba14e488daf5ccff5d48530c08697a8ef63ff88293/pydantic_ai_otari-0.1.0-py3-none-any.whl", hash = "sha256:a7bd6945ea8fcf5becc0d87bd0fa6127db547a245af668e477bd5a0d55db8ac9", size = 8429, upload-time = "2026-10-14T14:39:39.354Z" },
+]
+
+[[package]]
 name = "pydantic-ai-skills"
 version = "2.1.0"
 source = { registry = "https://pypi.org/simple" }
@@ -3319,6 +3333,10 @@ mcp = [
 ]
 mistral = [
     { name = "mistralai" },
+]
+openai = [
+    { name = "openai" },
+    { name = "tiktoken" },
 ]
 openai-realtime = [
     { name = "openai" },

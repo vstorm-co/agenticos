@@ -9,11 +9,11 @@ vi.mock("@/components/icons/custom-icons", async () => {
   const actual = await vi.importActual<typeof import("@/components/icons/custom-icons")>(
     "@/components/icons/custom-icons",
   );
-  return { ...actual, useCustomIcons: () => new Set(["acme", "keenable"]) };
+  return { ...actual, useCustomIcons: () => new Set(["acme", "otari", "keenable"]) };
 });
 
 describe("ProviderIcon", () => {
-  it.each(["acme", "keenable"])("draws a catalog mark for %s", (provider) => {
+  it.each(["acme", "otari", "keenable"])("draws a deployment-supplied mark for %s", (provider) => {
     const { container } = render(<ProviderIcon provider={provider} />);
     const mark = container.firstElementChild as HTMLElement;
 
