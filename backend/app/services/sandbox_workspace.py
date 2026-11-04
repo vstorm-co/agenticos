@@ -28,7 +28,14 @@ import contextlib
 import contextvars
 import logging
 from binascii import Error as BinasciiError
-from collections.abc import AsyncGenerator, Awaitable, Callable, Coroutine, Sequence
+from collections.abc import (
+    AsyncGenerator,
+    AsyncIterator,
+    Awaitable,
+    Callable,
+    Coroutine,
+    Sequence,
+)
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field, replace
@@ -70,6 +77,7 @@ from app.core.blocking import run_blocking
 from app.core.config import settings
 from app.core.exceptions import (
     BadRequestError,
+    ExportTooLargeError,
     ExternalServiceError,
     NotFoundError,
     WorkspaceCapacityError,
@@ -91,6 +99,7 @@ from app.services.sandbox_connection import ResolvedConnection, SandboxConnectio
 from app.services.sandbox_runtimes import CATALOG, runtime_briefing, runtime_parses_documents
 from app.services.sandboxd_compat import explain_unavailable
 from app.services.skill_workspace import LEGACY_SKILLS_ROOT, RESERVED_SKILL_PREFIXES
+from app.services.workspace_archive import stream_zip, zip_folder, zip_members
 
 ServiceSandbox = SandboxdWorkspace | DaytonaWorkspace | E2BWorkspace
 """What supplies a connection's sandboxes: a `sandboxd` host, Daytona or E2B."""
@@ -203,6 +212,23 @@ async def _concurrently[T](calls: Sequence[Callable[[], Coroutine[object, object
     async with asyncio.TaskGroup() as group:
         tasks = [group.create_task(call()) for call in calls]
     return [task.result() for task in tasks]
+
+
+@dataclass(frozen=True)
+class FolderZip:
+    """A workspace folder on its way out as a `.zip` (#2479)."""
+
+    name: str
+    """What the download is saved as: the folder's own name, then `.zip`."""
+    chunks: AsyncIterator[bytes]
+    """The zip, one member at a time. Nothing is read until it is iterated."""
+
+
+_ZIP_MAX_DEPTH = 64
+"""How deep a folder's zip reaches - the host's own ceiling, not the listing's six.
+
+The panel shows six levels because it is a page; a zip of a repository is the
+repository, and `src/pkg/sub/module/tests/fixtures/x.json` is an ordinary path."""
 
 
 @dataclass(frozen=True)
@@ -2166,6 +2192,109 @@ class SandboxWorkspaceService:
                 raise BadRequestError(
                     message=_reason(exc), details={"workspace_id": str(row.id), "path": path}
                 ) from exc
+
+    async def folder_zip(
+        self, ctx: AuthContext, *, conversation_id: UUID, folder: str
+    ) -> FolderZip:
+        """One folder of a conversation's workspace as a `.zip`, streamed.
+
+        Addressed through the conversation for the reason :meth:`read_bytes` is:
+        the route authorises by fetching the conversation, so whoever may open
+        one file of a chat may download a folder of it - and nobody else.
+
+        The files are those the panel would show - `browsable`, so a `.git`, a
+        `node_modules` or the platform's own `.agenticos` stays behind - listed
+        whole before a byte is sent, so a folder past the bounds is refused with
+        a status rather than cut off mid-download. The listing reaches deeper
+        than the panel's (`_ZIP_MAX_DEPTH`); one the host cuts short is refused
+        rather than zipped incomplete.
+
+        Args:
+            folder: As the listing spells it; empty for the whole workspace.
+
+        Raises:
+            NotFoundError: If the conversation keeps no workspace, or the folder
+                holds no file.
+            BadRequestError: If the folder climbs out of the workspace, or the
+                host cannot be read.
+            ExportTooLargeError: If the folder holds more than one download may.
+        """
+        wanted = zip_folder(folder)
+        row = await self._conversation_workspace(ctx, conversation_id)
+        if row is None:
+            raise NotFoundError(
+                message="This conversation keeps no files",
+                details={"conversation_id": conversation_id},
+            )
+        # The host is asked with the folder as its own listing spelled it - absolute or
+        # not - and the answer is matched on the normalised form.
+        entries = browsable(await self._zip_listing(ctx, row, folder.strip() or "."))
+        members, name = zip_members(
+            (
+                (str(entry.get("path")), entry.get("size"))
+                for entry in entries
+                if not entry.get("is_dir")
+            ),
+            wanted,
+        )
+        if not members:
+            raise NotFoundError(message="No files in this folder", details={"path": folder})
+        return FolderZip(name=name, chunks=self._zipped(ctx, row, members))
+
+    async def _zip_listing(
+        self, ctx: AuthContext, row: AgentWorkspace, folder: str
+    ) -> list[FileInfo]:
+        """Every file under `folder`, or a refusal - never a listing cut short."""
+        if row.backend == "state":
+            return stored_entries(dict(row.files or {}), row.directories or ())
+        async with self._archive(ctx, row) as archive:
+            if archive is None:
+                return []
+            try:
+                tree = await _on_host_thread(
+                    partial(
+                        archive.tree,
+                        row.session_id or row.scope_key,
+                        folder,
+                        max_depth=_ZIP_MAX_DEPTH,
+                        # Folders count as entries too, and are not what the bound is for.
+                        max_entries=settings.WORKSPACE_ARCHIVE_MAX_ENTRIES * 2,
+                    )
+                )
+            except Exception as exc:
+                raise BadRequestError(
+                    message=_reason(exc), details={"workspace_id": row.id, "path": folder}
+                ) from exc
+        if tree.truncated:
+            raise ExportTooLargeError(
+                message="This folder is too large to download as one zip. Download a smaller folder.",
+                details={"max_entries": settings.WORKSPACE_ARCHIVE_MAX_ENTRIES},
+            )
+        return list(tree.entries)
+
+    async def _zipped(
+        self, ctx: AuthContext, row: AgentWorkspace, members: list[tuple[str, str]]
+    ) -> AsyncIterator[bytes]:
+        """The zip's bytes, reading each file as its turn comes.
+
+        Runs after the route has returned and its session committed, so it asks
+        the database nothing: the row is in memory, and the host's connection was
+        resolved - and cached on this service - by the listing. One archive client
+        serves every read rather than one per file.
+        """
+
+        async def read(path: str) -> bytes:
+            if row.backend == "state":
+                data = self._state_bytes(row, path)
+            else:
+                data = await self._read_bytes_from(ctx, row, path)
+            if data is None:
+                raise NotFoundError(message="No such file", details={"path": path})
+            return data
+
+        async with self._sharing_archives():
+            async for chunk in stream_zip(members, read):
+                yield chunk
 
     async def read_file_of(self, ctx: AuthContext, workspace_id: UUID, *, path: str) -> str | None:
         """One file's text from a workspace addressed by its own id."""

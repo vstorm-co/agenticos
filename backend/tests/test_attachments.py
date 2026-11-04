@@ -1485,3 +1485,105 @@ class TestTheInputEdgeScreensBeforeAnythingIsWritten:
         ).build_prompt("summarise", [chat_file])
 
         assert refused == clean
+
+
+def _zip_bytes(*members: tuple[str, bytes]) -> bytes:
+    import io
+    import zipfile
+
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w") as archive:
+        for name, data in members:
+            archive.writestr(name, data)
+    return buffer.getvalue()
+
+
+REPO_ZIP = _zip_bytes(("repo/src/app.py", b"print('hi')\n"), ("repo/README.md", b"# repo\n"))
+
+
+def _archive(**overrides: object):
+    return _file(
+        **{
+            "filename": "repo.zip",
+            "mime_type": "application/zip",
+            "size": len(REPO_ZIP),
+            "storage_path": "u/1/repo.zip",
+            "file_type": "archive",
+            "parsed_content": "2 files, 19 bytes unpacked\nrepo/src/app.py\nrepo/README.md",
+            **overrides,
+        }
+    )
+
+
+@pytest.fixture
+def archive_storage(monkeypatch):
+    loaded = AsyncMock(return_value=REPO_ZIP)
+    monkeypatch.setattr(
+        attachments_module, "get_file_storage", lambda: SimpleNamespace(load=loaded)
+    )
+    return loaded
+
+
+class TestAnArchive:
+    """A `.zip` or `.tar.gz` is unpacked into the workspace, not written as one file (#2479)."""
+
+    def test_its_path_is_the_folder_it_unpacks_into(self):
+        chat_file = _archive(filename="my repo.tar.gz", mime_type="application/gzip")
+
+        assert workspace_path(chat_file) == f"uploads/{chat_file.id.hex[:8]}-my_repo"
+
+    async def test_the_tree_lands_in_the_workspace(self, archive_storage):
+        document = _document()
+        chat_file = _archive()
+        root = workspace_path(chat_file)
+
+        prompt = await AttachmentRouter(document_workspace(document)).build_prompt(
+            "run the tests", [chat_file]
+        )
+
+        assert document.read_bytes(f"{root}/repo/src/app.py") == b"print('hi')\n"
+        assert document.read_bytes(f"{root}/repo/README.md") == b"# repo\n"
+        assert not document.exists(f"{root}.zip")
+        assert isinstance(prompt, str)
+        assert f"unpacked into your workspace at {root}/" in prompt
+        assert "repo/src/app.py" in prompt
+
+    async def test_a_second_turn_does_not_unpack_it_again(self, archive_storage):
+        document = _document()
+        router = AttachmentRouter(document_workspace(document))
+
+        await router.build_prompt("one", [_archive()])
+        await router.build_prompt("two", [chat_file := _archive()])
+        await router.build_prompt("three", [chat_file])
+
+        assert archive_storage.await_count == 2
+
+    @pytest.mark.security
+    async def test_an_agent_without_a_workspace_refuses_it(self, archive_storage):
+        prompt = await AttachmentRouter().build_prompt("run the tests", [_archive()])
+
+        assert isinstance(prompt, str)
+        assert "no workspace to unpack it into" in prompt
+        # Its text is a list of paths: pasting it would have the model answer about
+        # code it cannot read.
+        assert "repo/src/app.py" not in prompt
+        archive_storage.assert_not_awaited()
+
+    async def test_a_workspace_without_room_keeps_no_partial_tree(self, archive_storage):
+        document = _document(max_bytes=10)
+        chat_file = _archive()
+
+        prompt = await AttachmentRouter(document_workspace(document)).build_prompt(
+            "go", [chat_file]
+        )
+
+        assert "could not be written" in prompt
+        assert not document.exists(workspace_path(chat_file))
+
+    async def test_a_later_turn_puts_back_an_archive_a_stopped_turn_lost(self, archive_storage):
+        document = _document()
+        chat_file = _archive()
+
+        await AttachmentRouter(document_workspace(document)).restore([chat_file])
+
+        assert document.exists(f"{workspace_path(chat_file)}/repo/src/app.py")

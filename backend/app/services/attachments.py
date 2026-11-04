@@ -35,8 +35,9 @@ from app.core.config import settings
 from app.db.models.chat_file import ChatFile
 from app.db.session import get_db_context
 from app.repositories import chat_file_repo
-from app.services.file_storage import get_file_storage
+from app.services.file_storage import get_file_storage, resolve_format
 from app.services.file_upload import TiffConversion, cap_text, tiff_pages_to_png
+from app.services.workspace_archive import read_archive, unpack_into, unpacked_name
 
 if TYPE_CHECKING:
     from pydantic_ai_harness import GuardrailResult
@@ -54,6 +55,9 @@ _TEXT_BEARING = {"pdf", "docx", "spreadsheet", "document", "presentation", "emai
 """File types whose extracted text is worth writing beside the original."""
 
 _LIT_READABLE = {"pdf", "docx", "spreadsheet", "document", "presentation"}
+
+ARCHIVE = "archive"
+"""The `file_type` of a `.zip` or `.tar.gz`, which is unpacked rather than written (#2479)."""
 """What a `lit`-carrying runtime reads itself, so the sibling is redundant there.
 `email` is deliberately absent: `lit` cannot read a `.msg`, so it always gets one."""
 
@@ -154,11 +158,18 @@ def workspace_path(chat_file: ChatFile) -> str:
     difference between an upload costing one write and costing one per turn for
     the rest of the conversation.
     """
-    return upload_path(chat_file.id, chat_file.filename)
+    return upload_path(chat_file.id, chat_file.filename, chat_file.file_type)
 
 
-def upload_path(file_id: UUID, filename: str) -> str:
-    """`workspace_path` from the two columns it reads, for a caller holding no row."""
+def upload_path(file_id: UUID, filename: str, file_type: str) -> str:
+    """`workspace_path` from the columns it reads, for a caller holding no row.
+
+    An archive's path is the folder it unpacks into, named after the archive
+    without its suffix - `uploads/3f2a1b9c-repo` for `repo.zip` - so the one
+    `exists` that skips a file already written skips an archive already unpacked.
+    """
+    if file_type == ARCHIVE:
+        filename = unpacked_name(filename)
     return f"{UPLOAD_DIR}/{file_id.hex[:8]}-{safe_name(filename)}"
 
 
@@ -253,11 +264,17 @@ def _referenced(chat_file: ChatFile, path: str, *, sibling: str | None) -> str:
     about a file that is not there has twenty lines of prompt and a binary it
     cannot parse. The caller asks the workspace - see `_sibling_present`.
     """
-    parts = [
-        f"\n---\nAttached file: {chat_file.filename} "
-        f"({_size(chat_file)}, {chat_file.file_type}), "
-        f"in your workspace at {path}"
-    ]
+    if chat_file.file_type == ARCHIVE:
+        parts = [
+            f"\n---\nAttached archive: {chat_file.filename} ({_size(chat_file)}), "
+            f"unpacked into your workspace at {path}/ - the same tree the archive holds"
+        ]
+    else:
+        parts = [
+            f"\n---\nAttached file: {chat_file.filename} "
+            f"({_size(chat_file)}, {chat_file.file_type}), "
+            f"in your workspace at {path}"
+        ]
     if sibling is not None:
         parts.append(f"\nIts text, extracted for you, is beside it at {sibling}")
     if chat_file.parsed_content:
@@ -322,6 +339,21 @@ def _unreadable(chat_file: ChatFile) -> str:
         f"\n---\nAttached file: {chat_file.filename} "
         f"({_size(chat_file)}, {chat_file.file_type}) - its text could not be extracted, "
         "and this agent has no workspace to open it from."
+    )
+
+
+def _archive_without_workspace(chat_file: ChatFile) -> str:
+    """An archive sent to an agent with nowhere to unpack it.
+
+    Refused rather than pasted: its text is a list of paths, and a model handed
+    that would answer questions about code it cannot read. Said rather than
+    skipped, so the person learns the fix is an agent with a workspace.
+    """
+    return (
+        f"\n---\nAttached archive: {chat_file.filename} ({_size(chat_file)}) - not "
+        "opened: this agent has no workspace to unpack it into, so none of its files "
+        "are available. Say so plainly, and do not guess at what it holds. Attach it "
+        "to an agent with the Sandbox capability instead."
     )
 
 
@@ -569,7 +601,12 @@ class AttachmentRouter:
         rather than being sent it or being told nothing. There is no path to give,
         so a person asking "what is in this screenshot" gets an answer about why it
         cannot be looked at instead of silence.
+
+        An archive is refused here, and only here: an agent with a workspace
+        unpacks it, and one without has nothing to unpack it into (#2479).
         """
+        if chat_file.file_type == ARCHIVE:
+            return AttachmentPlan(reference=_archive_without_workspace(chat_file), inline=[])
         if chat_file.file_type == "image":
             result = await self._inline_images(chat_file, None, inline_budget)
             if result.images:
@@ -595,7 +632,7 @@ class AttachmentRouter:
         if not await workspace.exists(path):
             data = await get_file_storage().load(chat_file.storage_path)
             try:
-                await workspace.write_bytes(path, data)
+                await _put(workspace, chat_file, path, data)
             except (OSError, WorkspaceError) as refused:
                 # A full workspace, most likely - and that is exactly why this
                 # must not fall back to pasting the file. The write is refused
@@ -650,7 +687,7 @@ class AttachmentRouter:
                 # two writes, and the original is not loaded again for that.
                 if not await workspace.exists(path):
                     data = await get_file_storage().load(chat_file.storage_path)
-                    await workspace.write_bytes(path, data)
+                    await _put(workspace, chat_file, path, data)
                 await self._write_extracted_text(workspace, chat_file, path)
             except Exception:
                 logger.warning(
@@ -760,6 +797,22 @@ class AttachmentRouter:
         return InlineResult(images=[BinaryContent(data=data, media_type=chat_file.mime_type)])
 
 
+async def _put(workspace: Workspace, chat_file: ChatFile, path: str, data: bytes) -> None:
+    """Write one attachment at `path`: its bytes, or for an archive its tree.
+
+    The archive is read again rather than trusted from the upload's check: the
+    rows that reach here were validated when they were stored, and re-reading
+    costs one inflate on the file pool against writing whatever the store holds.
+    """
+    if chat_file.file_type != ARCHIVE:
+        await workspace.write_bytes(path, data)
+        return
+    members = await run_blocking(
+        read_archive, data, resolve_format(chat_file.mime_type, chat_file.filename)
+    )
+    await unpack_into(workspace, path, members)
+
+
 async def load_attached_files(
     db: AsyncSession, file_ids: list[str], *, user_id: UUID
 ) -> list[ChatFile]:
@@ -848,7 +901,7 @@ async def find_earlier_attachments(
         organization_id=organization_id,
         user_id=user_id,
         agent_id=agent_id,
-        paths={file.id: upload_path(file.id, file.filename) for file in found},
+        paths={file.id: upload_path(file.id, file.filename, file.file_type) for file in found},
         text_bearing=frozenset(
             file.id for file in found if file.opening and file.file_type in _TEXT_BEARING
         ),
@@ -866,7 +919,7 @@ def _refused_on_restore(
     """Whether the input edge refuses what it would read of this file once it
     is back: its name, path and opening lines (`_referenced`), the extracted
     text named as if its write had landed. Logged without its content."""
-    path = upload_path(file.id, file.filename)
+    path = upload_path(file.id, file.filename, file.file_type)
     # Never added to a session: only the columns `_referenced` reads, so the
     # screen sees the same text the edge would without loading the whole parse.
     referenced = ChatFile(

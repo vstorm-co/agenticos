@@ -41,6 +41,7 @@ _WEB_SAFE_IMAGE_MIMES = frozenset({"image/jpeg", "image/png", "image/gif", "imag
 from app.services.office_archive import safe_unzip
 from app.services.office_archive import zip_has_too_many_members as zip_has_too_many_members
 from app.services.office_convert import libreoffice_convert
+from app.services.workspace_archive import manifest, read_archive
 
 logger = logging.getLogger(__name__)
 
@@ -1025,7 +1026,8 @@ class FileUploadService(DocumentText):
         """Validate, parse, persist, and record a chat file upload.
 
         Raises:
-            BadRequestError: If the file's type/size or its content is invalid.
+            BadRequestError: If the file's type/size or its content is invalid,
+                or it is an archive that could not be unpacked safely.
         """
         is_valid, error = self.validate_upload(content_type, len(file_data), filename)
         if not is_valid:
@@ -1039,11 +1041,22 @@ class FileUploadService(DocumentText):
         # route and the inline-conversion path read one trustworthy field (#1591).
         resolved_mime = canonical_mime(content_type, filename)
         file_type = self.classify_file(resolved_mime, filename)
-        # Read the declared charset before `canonical_mime` discards it, so a
-        # non-UTF-8 text file the caller labelled still decodes (#1654 review).
-        parsed_content = await self.parse_content(
-            file_data, file_type, resolved_mime, filename, _charset_param(content_type)
-        )
+        if file_type == "archive":
+            # Read whole now, on the file pool, so an archive that could never be
+            # unpacked - a `../` member, a link, a bomb - is refused here with a
+            # 400 rather than stored and found out on the turn it was sent with
+            # (#2479). What it holds becomes its text: the reference a model gets
+            # opens on the top of the tree.
+            members = await run_blocking(
+                read_archive, file_data, resolve_format(resolved_mime, filename)
+            )
+            parsed_content: str | None = manifest(members)
+        else:
+            # Read the declared charset before `canonical_mime` discards it, so a
+            # non-UTF-8 text file the caller labelled still decodes (#1654 review).
+            parsed_content = await self.parse_content(
+                file_data, file_type, resolved_mime, filename, _charset_param(content_type)
+            )
 
         storage = get_file_storage()
         storage_path = await storage.save(str(user_id), filename, file_data)
