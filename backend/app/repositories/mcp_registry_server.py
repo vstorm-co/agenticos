@@ -8,32 +8,32 @@ from sqlalchemy import case, delete, func, or_, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.engine import CursorResult
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.sql.elements import ColumnElement
 
 from app.db.models.mcp_registry_server import McpRegistryServer
 from app.db.models.mcp_server_check import NOT_OFFERED, McpServerCheck
 
+_BAND_KEY_EXACT = -1
 _BAND_NAME_STARTS = 0
 _BAND_NAME_HOLDS = 1
 _BAND_ELSEWHERE = 2
 
 
-def _bands(needle: str) -> Any:
-    """The ranking, as SQL, so it survives paging.
+def _bands(needle: str) -> ColumnElement[int]:
+    """Rank exact keys before name prefixes, name substrings and description matches.
 
-    Three bands, and they have to be computed in the database rather than after
-    the fact: ranking a page is ranking whatever the page happened to contain,
-    which on page four of "stripe" is not the same as ranking the results. The
-    bands are what somebody typing a name means - the server *called* Linear,
-    then names merely containing it, then descriptions that mention it.
+    Ranking happens before pagination so bookmarks and subsequent pages use the
+    same ordering across the whole mirror.
     """
     return case(
+        (func.lower(McpRegistryServer.id) == needle.lower(), _BAND_KEY_EXACT),
         (McpRegistryServer.name.ilike(f"{needle}%"), _BAND_NAME_STARTS),
         (McpRegistryServer.name.ilike(f"%{needle}%"), _BAND_NAME_HOLDS),
         else_=_BAND_ELSEWHERE,
     )
 
 
-def _matching(query: str) -> Any:
+def _matching(query: str) -> ColumnElement[bool] | None:
     """The filter one query makes, or nothing for a blank one.
 
     A blank query is every row rather than none: unlike the in-memory version
@@ -45,6 +45,7 @@ def _matching(query: str) -> Any:
         return None
     like = f"%{needle}%"
     return or_(
+        func.lower(McpRegistryServer.id) == needle.lower(),
         McpRegistryServer.name.ilike(like),
         McpRegistryServer.description.ilike(like),
         McpRegistryServer.host.ilike(like),
@@ -59,6 +60,7 @@ async def search(
     auth: str = "",
     skip: int = 0,
     limit: int = 50,
+    excluded_ids: set[str] | None = None,
 ) -> tuple[list[tuple[McpRegistryServer, McpServerCheck | None]], int]:
     """One page of matching servers, best first, each with its last check, and the total.
 
@@ -85,12 +87,14 @@ async def search(
         conditions.append(McpRegistryServer.category == category)
     if auth:
         conditions.append(McpServerCheck.auth == auth)
+    if excluded_ids:
+        conditions.append(McpRegistryServer.id.not_in(excluded_ids))
 
     needle = query.strip()
     order: list[Any] = []
     if needle:
         order.append(_bands(needle))
-    order += [func.length(McpRegistryServer.name), McpRegistryServer.name]
+    order += [func.length(McpRegistryServer.name), McpRegistryServer.name, McpRegistryServer.id]
 
     rows = (
         select(McpRegistryServer, McpServerCheck)
@@ -109,6 +113,41 @@ async def search(
     result = await db.execute(rows)
     total = await db.scalar(counted) or 0
     return [(server, check) for server, check in result.tuples().all()], total
+
+
+async def for_connections(
+    db: AsyncSession, *, keys: set[str], urls: set[str], names: set[str]
+) -> list[McpRegistryServer]:
+    """Resolve only the registry identities accessible saved accounts name.
+
+    URLs arrive with scheme/host case normalized and trailing path slashes
+    removed; path and query case remain significant. Matching the stored URL the
+    same way reaches older connections without a catalog key, without loading the whole mirror.
+    Names are legacy catalog-key fallbacks, so they match the registry id rather
+    than the publisher's display name.
+    """
+    if not keys and not urls and not names:
+        return []
+    url = func.trim(McpRegistryServer.url)
+    origin_pattern = r"^[^:/?#]+://[^/?#]*"
+    origin = func.substring(url, origin_pattern)
+    remainder = func.regexp_replace(url, origin_pattern, "")
+    normalized_url = func.concat(
+        func.lower(origin),
+        func.rtrim(func.substring(remainder, r"^[^?#]*"), "/"),
+        func.coalesce(func.substring(remainder, r"[?#].*$"), ""),
+    )
+    result = await db.execute(
+        select(McpRegistryServer)
+        .where(
+            or_(
+                McpRegistryServer.id.in_(keys | names),
+                normalized_url.in_(urls),
+            )
+        )
+        .order_by(func.length(McpRegistryServer.name), McpRegistryServer.name, McpRegistryServer.id)
+    )
+    return list(result.scalars().all())
 
 
 async def listings(db: AsyncSession) -> list[tuple[str, str]]:
