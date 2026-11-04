@@ -223,6 +223,7 @@ dependencies = [
     # (RFC 8291) and the VAPID signature (RFC 8292) every push service demands.
     # MPL-2.0, reviewed in licenses/policy.toml.
     "pywebpush>=2",
+    "pydantic-ai-otari>=0.1.0,<0.2",
 ]
 
 [project.optional-dependencies]

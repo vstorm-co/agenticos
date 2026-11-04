@@ -19,6 +19,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- Select Otari as an LLM provider with a vault API key, hosted or self-hosted endpoint, authenticated model discovery and model-family profiles from `pydantic-ai-otari`.
+
 ## [1.45.1] - 2026-11-04
 
 ### Fixed
