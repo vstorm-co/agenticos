@@ -32,6 +32,7 @@ interface ProviderCapabilities {
   name: string;
   secret_kind: string;
   supports_base_url: boolean;
+  requires_base_url?: boolean;
   keyless: boolean;
   apis: ("chat" | "responses")[];
   native_api: "chat" | "responses" | null;
@@ -1687,12 +1688,17 @@ it("keeps an OpenRouter key and lists models at its selected regional endpoint",
 
 it("creates an Otari profile using its selected vault key and gateway model selector", async () => {
   state.purposes = [...state.purposes, purpose("otari", "Otari")];
-  state.catalog = [...state.catalog, capabilities("otari", "Otari", { supports_base_url: true })];
+  state.catalog = [
+    ...state.catalog,
+    capabilities("otari", "Otari", { supports_base_url: true, requires_base_url: true }),
+  ];
   state.secrets = [secret({ id: "s-otari", name: "Otari key", purpose: "otari" })];
   state.models = [{ id: "anthropic:claude-sonnet-4-6", name: "Claude" }];
   mount();
   await pickProvider("Otari");
   await userEvent.type(screen.getByLabelText("Endpoint"), "https://eu.api.otari.ai/api/v1");
+  expect(listingRequests).toHaveBeenLastCalledWith("otari", undefined, "s-otari");
+  await userEvent.click(screen.getByRole("button", { name: "Load models" }));
   expect(listingRequests).toHaveBeenLastCalledWith(
     "otari",
     "https://eu.api.otari.ai/api/v1",
@@ -1710,5 +1716,54 @@ it("creates an Otari profile using its selected vault key and gateway model sele
       base_url: "https://eu.api.otari.ai/api/v1",
       api: null,
     }),
+  );
+});
+
+it("never discovers Otari on auto-selection or typing and reconfirms a changed destination or key", async () => {
+  listingRequests.mockClear();
+  state.purposes = [purpose("otari", "Otari")];
+  state.catalog = [
+    capabilities("otari", "Otari", { supports_base_url: true, requires_base_url: true }),
+  ];
+  state.secrets = [
+    secret({ id: "otari-a", name: "Otari A", purpose: "otari" }),
+    secret({ id: "otari-b", name: "Otari B", purpose: "otari" }),
+  ];
+  state.models = [];
+  mount();
+  expect(listingRequests).toHaveBeenLastCalledWith("otari", undefined, "otari-a");
+  await userEvent.click(screen.getByLabelText("Model"));
+  await userEvent.type(screen.getByPlaceholderText("Search models…"), "support-agent");
+  await userEvent.click(screen.getByText("not in the list"));
+  expect(screen.getByRole("button", { name: "Add model" })).toBeDisabled();
+  await userEvent.type(screen.getByLabelText("Endpoint"), "https://gateway.company/api/v1");
+  expect(
+    listingRequests.mock.calls.filter(
+      ([provider, url]) => provider === "otari" && url !== undefined,
+    ),
+  ).toHaveLength(0);
+  await userEvent.click(screen.getByRole("button", { name: "Load models" }));
+  expect(listingRequests).toHaveBeenLastCalledWith(
+    "otari",
+    "https://gateway.company/api/v1",
+    "otari-a",
+  );
+  await userEvent.clear(screen.getByLabelText("Endpoint"));
+  await userEvent.type(screen.getByLabelText("Endpoint"), "https://other.company/api/v1");
+  expect(listingRequests).toHaveBeenLastCalledWith("otari", undefined, "otari-a");
+  await userEvent.click(screen.getByRole("button", { name: "Load models" }));
+  expect(listingRequests).toHaveBeenLastCalledWith(
+    "otari",
+    "https://other.company/api/v1",
+    "otari-a",
+  );
+  await userEvent.click(screen.getByLabelText("Key"));
+  await userEvent.click(screen.getByRole("option", { name: /Otari B/ }));
+  expect(listingRequests).toHaveBeenLastCalledWith("otari", undefined, "otari-b");
+  await userEvent.click(screen.getByRole("button", { name: "Load models" }));
+  expect(listingRequests).toHaveBeenLastCalledWith(
+    "otari",
+    "https://other.company/api/v1",
+    "otari-b",
   );
 });

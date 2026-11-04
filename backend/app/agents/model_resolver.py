@@ -84,6 +84,19 @@ def api_for_model(surfaces: tuple[str, ...]) -> ModelApi | None:
     return None
 
 
+def otari_price_identity(model_name: str) -> tuple[str, str] | None:
+    """Resolve a direct Otari selector; a routing alias has no fixed upstream price."""
+    vendor, separator, model = model_name.partition(":")
+    if not separator:
+        vendor, separator, model = model_name.partition("/")
+    if not separator or not vendor or not model:
+        return None
+    vendor = {"gemini": "google", "vertexai": "google", "bedrock": "aws", "xai": "x-ai"}.get(
+        vendor, vendor
+    )
+    return vendor, model
+
+
 ModelRegion = Literal["eu", "eea", "global"]
 """Allowed execution scopes for providers with regional routing."""
 
@@ -115,6 +128,7 @@ class ProviderSpec:
     secret_kind: SecretKind
     base_url_param: str | None = None
     keyless: bool = False
+    requires_base_url: bool = False
     model_prefix: str = ""
     native_api: ModelApi | None = None
     # The first supported region is the default.
@@ -202,6 +216,7 @@ def _api_key(
     *,
     base_url_param: str | None = None,
     keyless: bool = False,
+    requires_base_url: bool = False,
     model_prefix: str = "",
     native_api: ModelApi | None = None,
 ) -> ProviderSpec:
@@ -212,6 +227,7 @@ def _api_key(
         secret_kind=SecretKind.API_KEY,
         base_url_param=base_url_param,
         keyless=keyless,
+        requires_base_url=requires_base_url,
         model_prefix=model_prefix,
         native_api=native_api,
     )
@@ -233,7 +249,13 @@ PROVIDERS: dict[str, ProviderSpec] = {
         _api_key("anthropic", "Anthropic", base_url_param="base_url"),
         _api_key("google", "Google Gemini", base_url_param="base_url"),
         _api_key("openrouter", "OpenRouter", base_url_param="base_url"),
-        _api_key("otari", "Otari", base_url_param="base_url", model_prefix="openai-chat"),
+        _api_key(
+            "otari",
+            "Otari",
+            base_url_param="base_url",
+            model_prefix="openai-chat",
+            requires_base_url=True,
+        ),
         _api_key("alibaba", "Alibaba Cloud", base_url_param="base_url"),
         _api_key("cerebras", "Cerebras"),
         _api_key("deepseek", "DeepSeek"),

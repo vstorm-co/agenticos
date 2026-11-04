@@ -292,13 +292,15 @@ Custom Stav catalogs use the vault key selected in the form. The caller must be 
 
 ### Otari gateway
 
-Select **Otari** when adding a model, save an Otari API key in the vault and select it for the profile. Leave **Endpoint** empty for `https://api.otari.ai/api/v1`. For an Otari EU account, set `https://eu.api.otari.ai/api/v1`; for a self-hosted gateway, use its API root ending in `/api/v1`, reachable from the API and workers.
+Select **Otari** when adding a model, save an Otari API key in the vault and select it for the profile. **Endpoint** is required: enter `https://api.otari.ai/api/v1` for hosted Otari. For an Otari EU account, set `https://eu.api.otari.ai/api/v1`; for a self-hosted gateway, use its API root ending in `/api/v1`, reachable from the API and workers.
+
+Click **Load models** after choosing the endpoint and key. Editing either requires confirming the destination again; typing an address never sends the key.
 
 Model suggestions come from that gateway's authenticated `/models` endpoint using the selected key. A custom endpoint requires `connections:manage` and access to that key. Catalog caches are separated by endpoint and credential; a failed custom listing never substitutes the hosted catalog. The model field also accepts a model selector such as `anthropic:claude-sonnet-4-6`, or an alias/routing policy configured in Otari.
 
 The integration uses [`pydantic-ai-otari`](https://github.com/mozilla-ai/otari/tree/main/integrations/pydantic-ai-otari): its `OtariProvider` supplies the model-family profile to Pydantic AI's Chat Completions model, as `OtariModel` does. Requests always use Chat Completions; the form does not offer Responses or Stav's region controls. Keys and endpoints are passed explicitly from the profile, without an `OTARI_*` or `OPENAI_API_KEY` environment fallback. Otari's gateway budgets and routing are additional controls; AgenticOS still applies its own budgets and approvals.
 
-Models or routing aliases the bundled price catalog does not recognize remain explicitly partially priced in AgenticOS. Use Otari's usage view for gateway charges.
+Direct `provider:model` selectors use the upstream model's bundled catalog price for AgenticOS budgets; bare routing aliases and unknown models remain explicitly partially priced. These are upstream price estimates: use Otari's usage view for gateway charges.
 
 ## Providers
 

@@ -2301,7 +2301,9 @@ async def test_stav_transport_refuses_an_unsupported_legacy_http_client() -> Non
 
 @pytest.mark.anyio
 @pytest.mark.security
-@pytest.mark.parametrize("endpoint", [None, "https://eu.api.otari.ai/api/v1"])
+@pytest.mark.parametrize(
+    "endpoint", ["https://api.otari.ai/api/v1", "https://eu.api.otari.ai/api/v1"]
+)
 async def test_otari_creation_metadata_uses_the_selected_key(endpoint: str | None) -> None:
     ctx, secret_id = _ctx(), uuid.uuid4()
     selected_key = AsyncMock(return_value="otari-selected-test")
@@ -2385,3 +2387,39 @@ async def test_otari_profile_metadata_never_forwards_a_builders_hidden_organizat
     assert len(received) == 1
     assert str(received[0].url) == endpoint + "/models"
     assert received[0].headers["Authorization"] == "Bearer selected-otari-test"
+
+
+@pytest.mark.anyio
+@pytest.mark.security
+async def test_otari_profile_requires_a_destination_before_reading_metadata() -> None:
+    with (
+        patch(
+            "app.services.model_profile.OrganizationSecretService.listing_key", new=AsyncMock()
+        ) as key,
+        pytest.raises(BadRequestError),
+    ):
+        await ModelProfileService(_db()).create_profile(
+            _ctx(),
+            label="Otari",
+            provider="otari",
+            model="support-agent",
+            secret_id=uuid.uuid4(),
+        )
+    key.assert_not_called()
+
+
+@pytest.mark.anyio
+@pytest.mark.security
+async def test_otari_profile_destination_cannot_be_cleared() -> None:
+    ctx = _ctx()
+    row = _profile(ctx, provider="otari", base_url="https://api.otari.ai/api/v1")
+    with (
+        patch(
+            "app.services.model_profile.ModelProfileService._get_profile",
+            new=AsyncMock(return_value=row),
+        ),
+        pytest.raises(BadRequestError),
+    ):
+        await ModelProfileService(_db()).update_profile(
+            ctx, row.id, ModelProfileUpdate(base_url=None)
+        )

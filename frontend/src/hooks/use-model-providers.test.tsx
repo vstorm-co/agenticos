@@ -635,3 +635,9 @@ it.each(["stav", "otari"])(
     expect(apiClient.get).not.toHaveBeenCalled();
   },
 );
+
+it("does not send an Otari key anywhere before its destination is chosen", () => {
+  vi.mocked(apiClient.get).mockClear();
+  renderHook(() => useProviderModels("otari", undefined, "self-hosted-key"), { wrapper });
+  expect(apiClient.get).not.toHaveBeenCalled();
+});

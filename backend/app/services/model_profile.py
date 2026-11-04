@@ -216,6 +216,10 @@ def _check_shape(
     arriving at a new combination: a key removed from an OpenAI profile with no
     endpoint is the same unrunnable model creation refuses.
     """
+    if spec.requires_base_url and base_url is None:
+        raise refused_field(
+            "base_url", f"{spec.name} requires an explicit gateway endpoint", provider=spec.id
+        )
     if base_url is None and spec.keyless and secret_id is None:
         raise refused_field(
             "base_url",

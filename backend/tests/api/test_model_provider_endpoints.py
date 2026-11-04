@@ -121,3 +121,15 @@ async def test_custom_listing_cannot_use_an_implicit_organization_key(provider: 
         )
     secrets.listing_key.assert_not_called()
     listing.assert_not_called()
+
+
+async def test_otari_listing_without_a_destination_does_not_open_a_key() -> None:
+    secrets = MagicMock(spec=OrganizationSecretService)
+    with patch("app.api.routes.v1.model_providers.models_for", new=AsyncMock()) as listing:
+        response = await list_provider_models(
+            "otari", secrets, context("builder"), secret_id=uuid4()
+        )
+    assert response.items == []
+    assert response.source == "unlisted"
+    secrets.listing_key.assert_not_called()
+    listing.assert_not_called()

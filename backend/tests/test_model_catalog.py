@@ -872,7 +872,8 @@ async def test_custom_catalogs_do_not_leak_between_credentials(provider: str) ->
 
 @pytest.mark.anyio
 @pytest.mark.parametrize(
-    "endpoint", [None, "https://eu.api.otari.ai/api/v1", "http://otari.test/api/v1"]
+    "endpoint",
+    ["https://api.otari.ai/api/v1", "https://eu.api.otari.ai/api/v1", "http://otari.test/api/v1"],
 )
 async def test_otari_lists_the_configured_gateways_models(endpoint: str | None) -> None:
     received: list[httpx.Request] = []
@@ -918,3 +919,19 @@ async def test_otari_without_a_key_or_with_a_failed_gateway_stays_unlisted() -> 
             assert await models_for(
                 "otari", api_key="selected-key", base_url="https://offline.test/api/v1"
             ) == ([], "unlisted")
+
+
+@pytest.mark.anyio
+async def test_otari_discovery_never_defaults_a_key_to_the_hosted_gateway() -> None:
+    with patch(f"{MODULE}._client") as factory:
+        assert await models_for("otari", api_key="self-hosted-key") == ([], "unlisted")
+    factory.assert_not_called()
+
+
+def test_otari_catalog_prices_direct_selectors_but_not_routing_aliases() -> None:
+    from app.services.model_catalog import priced_model
+
+    assert priced_model("otari", "anthropic:claude-sonnet-4-6") == priced_model(
+        "anthropic", "claude-sonnet-4-6"
+    )
+    assert priced_model("otari", "gpt-4.1") is None

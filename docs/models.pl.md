@@ -1,5 +1,5 @@
 ---
-source_sha: "72049d249e6d"
+source_sha: "bfe431b65940"
 ---
 
 # Modele i providery { #models-and-providers }
@@ -304,13 +304,15 @@ Własny katalog Stav używa klucza wybranego w formularzu. Użytkownik musi mie�
 
 ### Bramka Otari { #otari-gateway }
 
-Wybierz **Otari** przy dodawaniu modelu, zapisz klucz API Otari w vaulcie i wybierz go w profilu. Puste **Endpoint** oznacza `https://api.otari.ai/api/v1`. Dla konta Otari w regionie UE ustaw `https://eu.api.otari.ai/api/v1`; dla własnej bramki podaj jej adres API zakończony `/api/v1`, dostępny z API i workerów.
+Wybierz **Otari** przy dodawaniu modelu, zapisz klucz API Otari w vaulcie i wybierz go w profilu. **Endpoint** jest wymagany: dla hostowanego Otari wpisz `https://api.otari.ai/api/v1`. Dla konta Otari w regionie UE ustaw `https://eu.api.otari.ai/api/v1`; dla własnej bramki podaj jej adres API zakończony `/api/v1`, dostępny z API i workerów.
+
+Po wybraniu endpointu i klucza kliknij **Pobierz modele**. Zmiana któregokolwiek z nich wymaga ponownego potwierdzenia; samo wpisywanie adresu nie wysyła klucza.
 
 Podpowiedzi modeli pochodzą z uwierzytelnionego endpointu `/models` tej bramki i używają wybranego klucza. Własny endpoint wymaga `connections:manage` i dostępu do tego klucza. Cache katalogu jest rozdzielony według endpointu i poświadczeń; awaria własnego katalogu nie zastępuje go katalogiem hostowanym. Pole modelu przyjmuje też selektor, np. `anthropic:claude-sonnet-4-6`, lub alias/politykę routingu skonfigurowaną w Otari.
 
 Integracja używa [`pydantic-ai-otari`](https://github.com/mozilla-ai/otari/tree/main/integrations/pydantic-ai-otari): `OtariProvider` przekazuje profil rodziny modelu do modelu Chat Completions z Pydantic AI, tak jak `OtariModel`. Żądania zawsze używają Chat Completions; formularz nie oferuje Responses ani kontroli regionu Stav. Klucz i endpoint pochodzą jawnie z profilu, bez pobierania zastępczych wartości ze zmiennych `OTARI_*` lub `OPENAI_API_KEY`. Budżety i routing bramki Otari są dodatkową warstwą; AgenticOS nadal stosuje własne budżety i zatwierdzenia.
 
-Modele lub aliasy routingu nierozpoznane przez wbudowany katalog cen pozostają jawnie częściowo wycenione w AgenticOS. Opłaty bramki sprawdzaj w widoku użycia Otari.
+Bezpośrednie selektory `provider:model` korzystają w budżetach AgenticOS z katalogowej ceny modelu dostawcy; aliasy routingu bez prefiksu i nieznane modele pozostają jawnie częściowo wycenione. Są to szacunki według cen dostawcy: opłaty bramki sprawdzaj w widoku użycia Otari.
 
 ## Providery { #providers }
 
