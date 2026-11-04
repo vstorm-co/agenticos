@@ -97,6 +97,7 @@ describe("useOpenSkillCheck", () => {
       items: [
         check({ id: "in-session", status: "running", session_id: "s" }),
         check({ id: "applied", status: "applied" }),
+        check({ id: "catch-up", status: "done", source: "catch_up" }),
         check({ id: "open", status: "running" }),
       ],
       total: 3,

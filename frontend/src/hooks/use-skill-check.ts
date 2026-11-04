@@ -68,7 +68,8 @@ export function useSkillCheck(skillId: string, checkId: string | null) {
 /**
  * The line's newest check a person still has to come back to: one running, or one
  * finished and not yet decided. A check a session started is decided in the session,
- * which says so itself, so it is left out. Read again while it runs.
+ * and a pinned agent's catch-up by moving that agent, so both are left out. Read
+ * again while it runs.
  */
 export function useOpenSkillCheck(skillId: string, forkId: string | null): SkillCheck | null {
   const { data } = useQuery({
@@ -81,7 +82,10 @@ export function useOpenSkillCheck(skillId: string, forkId: string | null): Skill
   });
   return (
     data?.items.find(
-      (check) => !check.session_id && (check.status === "running" || check.status === "done"),
+      (check) =>
+        !check.session_id &&
+        check.source !== "catch_up" &&
+        (check.status === "running" || check.status === "done"),
     ) ?? null
   );
 }
